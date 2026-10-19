@@ -30,6 +30,7 @@ their checksums are recorded here.
 
 ## Current
 
+- `v0.7.0`: Linux x86_64, static FFmpeg. Artifact downloads and UI presets.
 - `v0.6.0`: Linux x86_64, static FFmpeg. SRT retakes and LLM guard.
 - `v0.5.0`: Linux x86_64, static FFmpeg. UI drives real jobs. Windows pending CI.
 - `v0.4.0`: Linux x86_64, static FFmpeg, 168 MB. Windows pending CI.

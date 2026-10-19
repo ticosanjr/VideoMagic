@@ -198,6 +198,27 @@
       </label>
     </div>
 
+    <div class="mt-4 flex flex-wrap gap-2">
+      {#each [
+        { id: "youtube", label: "YouTube", noise: -30, silence: 400, cuts: true, zoom: true },
+        { id: "lecture", label: "Lecture", noise: -30, silence: 700, cuts: false, zoom: false },
+        { id: "shorts", label: "Shorts", noise: -30, silence: 250, cuts: true, zoom: true }
+      ] as preset}
+        <button
+          type="button"
+          onclick={() => {
+            noiseDb = preset.noise;
+            minSilence = preset.silence;
+            jcut = preset.cuts;
+            zoom = preset.zoom;
+          }}
+          class="rounded-full border border-neutral-700 px-3 py-1 text-[11px] text-neutral-300 hover:border-sky-500 hover:text-sky-300"
+        >
+          {preset.label}
+        </button>
+      {/each}
+    </div>
+
     <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <label class="block text-xs text-neutral-400">
         Noise threshold (dB)
@@ -274,10 +295,15 @@
         {#if artifacts.length > 0}
           <div class="mt-3 grid gap-2 sm:grid-cols-3">
             {#each artifacts as [target, path]}
-              <div class="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
+              <a
+                class="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3 hover:border-emerald-500/50"
+                href={`/api/v1/jobs/${job.job_id}/artifacts/${target}`}
+                download
+              >
                 <p class="text-[11px] uppercase tracking-wide text-neutral-500">{target}</p>
                 <p class="mt-1 break-all font-mono text-[11px] text-emerald-300">{path}</p>
-              </div>
+                <p class="mt-1 text-[10px] text-neutral-500">Download</p>
+              </a>
             {/each}
           </div>
         {/if}

@@ -3,6 +3,24 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.7.0] — 2026-10-19
+
+### Added
+
+- `GET /api/v1/jobs/{id}/artifacts/{target}` serves a generated timeline for
+  download, confined to the job output directory.
+- UI artifact cards are download links.
+- Quick presets in the portable panel: YouTube, Lecture, Shorts.
+
+### Changed
+
+- Version is 0.7.0.
+
+### Verified
+
+- API contract test for in-output downloads and unknown artifacts.
+- `npm run check` and `npm run build` are clean.
+
 ## [0.6.0] — 2026-10-19
 
 ### Added

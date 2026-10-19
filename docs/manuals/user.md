@@ -51,9 +51,9 @@ transcribe or remove retakes yet.
 4. Press **Run pipeline**.
 
 The page starts a job, shows the live stage and progress, and lists the three
-artifact paths. The rack cards follow the active stage: green cached, blue
-running, yellow dirty, gray bypassed/later, red failed. Cancel stops between
-stages.
+artifacts as download links. Quick presets set the silence and cut options.
+The rack cards follow the active stage: green cached, blue running, yellow dirty,
+gray bypassed/later, red failed. Cancel stops between stages.
 
 The source/output paths must be inside the server's allowed roots
 (`VIDEOWFLOW_ALLOWED_ROOTS`). The output folder gets `project_state.json`,

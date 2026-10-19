@@ -16,7 +16,7 @@ uv run mypy
 Expected on the scaffold:
 
 ```
-202 passed, 16 xfailed, 4 deselected
+203 passed, 16 xfailed, 4 deselected
 coverage 99%+
 ```
 
@@ -87,7 +87,7 @@ uv run videoflow-api
 curl -s http://127.0.0.1:8765/health
 ```
 
-Expect `{"status":"ok","service":"videoflow","version":"0.6.0"}`.
+Expect `{"status":"ok","service":"videoflow","version":"0.7.0"}`.
 
 ## 8. Portable smoke
 

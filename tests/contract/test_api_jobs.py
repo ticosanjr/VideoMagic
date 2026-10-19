@@ -12,7 +12,12 @@ def fake_runner(source: Path, output: Path, *, progress, should_cancel, **kwargs
     progress("probe", 5, "probe")
     output.mkdir(parents=True, exist_ok=True)
     (output / "run.json").write_text("{}", encoding="utf-8")
-    return {"ok": True, "video_segment_count": 1}
+    (output / "timeline.fcpxml").write_text("<fcpxml/>", encoding="utf-8")
+    return {
+        "ok": True,
+        "video_segment_count": 1,
+        "artifacts": {"resolve": str(output / "timeline.fcpxml")},
+    }
 
 
 def make_client(monkeypatch, tmp_path: Path, runner=fake_runner) -> TestClient:
@@ -53,6 +58,21 @@ def test_path_outside_the_allowlist_is_rejected(monkeypatch, tmp_path: Path) -> 
     )
     assert response.status_code == 403
     assert response.json()["detail"]["code"] == "path_not_allowed"
+
+
+def test_artifact_download_is_confined_to_the_job_output(monkeypatch, tmp_path: Path) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    client = make_client(monkeypatch, tmp_path)
+    job = client.post(
+        "/api/v1/jobs",
+        json={"source": str(source), "output": str(tmp_path / "out")},
+    ).json()["job"]
+    wait_http(client, job["job_id"])
+    response = client.get(f"/api/v1/jobs/{job['job_id']}/artifacts/resolve")
+    assert response.status_code == 200
+    assert response.text == "<fcpxml/>"
+    assert client.get(f"/api/v1/jobs/{job['job_id']}/artifacts/nope").status_code == 404
 
 
 def test_unknown_job_is_404(monkeypatch, tmp_path: Path) -> None:

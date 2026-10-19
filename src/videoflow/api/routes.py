@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from videoflow import __version__
@@ -95,6 +95,32 @@ def register_routes(app: FastAPI, jobs: JobManager) -> None:
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache"},
         )
+
+    @app.get("/api/v1/jobs/{job_id}/artifacts/{target}")
+    def download_artifact(job_id: str, target: str) -> FileResponse:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
+        artifacts = (job.result or {}).get("artifacts") or {}
+        raw = artifacts.get(target) if isinstance(artifacts, dict) else None
+        if not raw:
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "artifact_not_found", "message": target},
+            )
+        path = Path(str(raw)).expanduser().resolve()
+        output = job.output.expanduser().resolve()
+        if not path.is_relative_to(output) or not path.is_file():
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "ok": False,
+                    "code": "artifact_not_allowed",
+                    "message": "Artifact is outside the job output.",
+                },
+            )
+        return FileResponse(path, filename=path.name)
 
     @app.get("/api/v1/system")
     def system() -> dict[str, object]:

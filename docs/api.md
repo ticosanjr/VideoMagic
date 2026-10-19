@@ -47,7 +47,7 @@ GET /health
 ```
 
 ```json
-{ "status": "ok", "service": "videoflow", "version": "0.6.0" }
+{ "status": "ok", "service": "videoflow", "version": "0.7.0" }
 ```
 
 ```http
@@ -57,7 +57,7 @@ GET /api/v1/system
 ```json
 {
   "ok": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
@@ -138,6 +138,16 @@ Cancellation is cooperative. The worker stops between probe, extraction, VAD,
 timeline, export, and state stages. A running FFmpeg process is not killed
 mid-stage.
 
+### Download an artifact
+
+```http
+GET /api/v1/jobs/{job_id}/artifacts/{target}
+```
+
+`target` is `resolve`, `premiere`, or `kdenlive`. The file must live under the
+job's output directory. Unknown targets return `404 artifact_not_found`; a path
+outside the output returns `403 artifact_not_allowed`.
+
 ### Events
 
 ```http
@@ -162,7 +172,7 @@ On success, `job.result` is the `run_portable` report:
 ```json
 {
   "ok": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "speech_interval_count": 3,
   "video_segment_count": 3,
   "audio_segment_count": 3,
