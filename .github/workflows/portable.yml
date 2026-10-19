@@ -11,6 +11,8 @@ permissions:
 
 jobs:
   build:
+    # Enable with: gh variable set PORTABLE_CI --body true
+    if: vars.PORTABLE_CI == 'true'
     strategy:
       fail-fast: false
       matrix:

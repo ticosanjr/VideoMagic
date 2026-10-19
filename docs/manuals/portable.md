@@ -245,6 +245,16 @@ an older distribution; `ubuntu-22.04` is the CI baseline. The BtbN FFmpeg build
 is statically linked except for glibc core libraries (`libc`, `libm`, `libdl`,
 `libpthread`), so it runs on any distribution with a compatible glibc.
 
+The tag workflow is gated behind a repository variable because the current
+private repository has no Actions runner allocation:
+
+```bash
+gh variable set PORTABLE_CI --body true   # once runners/minutes are available
+```
+
+Until then, build Windows locally and attach the artifact with
+`gh release upload`.
+
 ## 8. Verification checklist
 
 - [ ] `videoflow version` prints the expected version.

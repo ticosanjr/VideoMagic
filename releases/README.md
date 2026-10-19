@@ -25,8 +25,21 @@ gh release create vX.Y.Z releases/vX.Y.Z/<asset> \
 ```
 
 Windows artifacts are built by the `portable` CI workflow and attached to the
-same release. A release is not complete until Linux and Windows assets exist and
-their checksums are recorded here.
+same release. The workflow is gated by the `PORTABLE_CI` repository variable
+because this private repository currently has no Actions runner allocation:
+
+```bash
+gh variable set PORTABLE_CI --body true
+```
+
+Until that is enabled, build Windows locally and attach the asset:
+
+```bash
+gh release upload vX.Y.Z releases/vX.Y.Z/videoflow-windows-x86_64.exe
+```
+
+A release is not complete until Linux and Windows assets exist and their
+checksums are recorded here.
 
 ## Current
 
