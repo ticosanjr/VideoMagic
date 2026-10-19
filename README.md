@@ -6,10 +6,10 @@ timeline: it removes silence and retakes, adds J-cuts and punch-ins, proposes
 vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive.
 
-> Status: 0.4.0 alpha. A portable single executable runs ingest, silence
-> detection, deterministic cuts, and three NLE exports. The local API and MCP
-> server execute real jobs. Neural engines, retakes, shorts, and the wired rack
-> are specified and stubbed.
+> Status: 0.5.0 alpha. A portable single executable runs ingest, silence
+> detection, deterministic cuts, and three NLE exports. The local API, MCP
+> server, and rack UI execute real jobs. Neural engines, retakes, and shorts are
+> specified and stubbed.
 
 ## Requirements
 

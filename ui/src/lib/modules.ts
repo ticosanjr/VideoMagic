@@ -7,6 +7,7 @@ export type RackModule = {
   summary: string;
   status: Status;
   enabled: boolean;
+  portable: boolean;
   settings: { label: string; value: string }[];
 };
 
@@ -18,9 +19,10 @@ export const modules: RackModule[] = [
     summary: "Validate the container, fix VFR, extract analysis audio.",
     status: "cached",
     enabled: true,
+    portable: true,
     settings: [
       { label: "Force CFR", value: "On" },
-      { label: "Extract PCM", value: "16 kHz mono" },
+      { label: "PCM", value: "Media sample rate" },
       { label: "Proxy", value: "Off" }
     ]
   },
@@ -31,10 +33,11 @@ export const modules: RackModule[] = [
     summary: "Find speech and remove silence with protected pads.",
     status: "cached",
     enabled: true,
+    portable: true,
     settings: [
-      { label: "Threshold", value: "0.50" },
-      { label: "Min silence", value: "400 ms" },
-      { label: "Pads", value: "120 / 150 ms" }
+      { label: "Engine", value: "FFmpeg silencedetect" },
+      { label: "Noise floor", value: "-30 dB" },
+      { label: "Min silence", value: "400 ms" }
     ]
   },
   {
@@ -44,6 +47,7 @@ export const modules: RackModule[] = [
     summary: "Word-level timestamps on source samples.",
     status: "cached",
     enabled: true,
+    portable: false,
     settings: [
       { label: "Model", value: "small" },
       { label: "Language", value: "pt" },
@@ -57,6 +61,7 @@ export const modules: RackModule[] = [
     summary: "Drop failed takes; the keeper guard protects the last one.",
     status: "dirty",
     enabled: true,
+    portable: false,
     settings: [
       { label: "Strictness", value: "balanced" },
       { label: "Strategy", value: "keep_last" },
@@ -70,6 +75,7 @@ export const modules: RackModule[] = [
     summary: "Offset audio and add logarithmic micro-fades.",
     status: "dirty",
     enabled: true,
+    portable: true,
     settings: [
       { label: "J-cuts", value: "On" },
       { label: "Offset", value: "200 ms" },
@@ -83,6 +89,7 @@ export const modules: RackModule[] = [
     summary: "Alternate punch-ins to hide jump cuts.",
     status: "bypassed",
     enabled: false,
+    portable: true,
     settings: [
       { label: "Mode", value: "alternate_cuts" },
       { label: "Scale", value: "1.15" },
@@ -96,6 +103,7 @@ export const modules: RackModule[] = [
     summary: "Find three vertical moments with burned captions.",
     status: "bypassed",
     enabled: false,
+    portable: false,
     settings: [
       { label: "Duration", value: "30–60 s" },
       { label: "Count", value: "3" },
@@ -109,6 +117,7 @@ export const modules: RackModule[] = [
     summary: "Write FCPXML, xmeml, and OTIO from one timeline.",
     status: "dirty",
     enabled: true,
+    portable: true,
     settings: [
       { label: "Resolve", value: "FCPXML 1.9" },
       { label: "Premiere", value: "xmeml" },

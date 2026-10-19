@@ -6,6 +6,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -56,3 +59,11 @@ jobs:
             dist/videoflow
             dist/videoflow.exe
           if-no-files-found: error
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/videoflow*
+          fail_on_unmatched_files: false
+          overwrite_files: true

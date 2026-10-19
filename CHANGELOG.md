@@ -3,6 +3,30 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.5.0] — 2026-10-19
+
+### Added
+
+- The SvelteKit rack starts real portable jobs: source/output fields, silence
+  and zoom options, live progress, cancel, artifact paths, and typed errors.
+- Module cards reflect live job stages. Neural modules are marked `later` and
+  render as bypassed.
+- Typed API client (`ui/src/lib/api.ts`) for system info and jobs.
+- `releases/` policy, a `scripts/release.py` staging tool, checksums, manifests,
+  and notes per version.
+- Tag builds attach Linux and Windows binaries to the GitHub Release.
+
+### Changed
+
+- Version is 0.5.0.
+- The served UI is no longer a static-only shell; it drives the portable API.
+
+### Verified
+
+- `npm run check` and `npm run build` are clean.
+- The frozen binary serves the new UI, and the browser page is produced from the
+  bundle.
+
 ## [0.4.0] — 2026-10-19
 
 ### Added

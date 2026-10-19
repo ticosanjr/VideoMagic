@@ -2,8 +2,12 @@
 
 Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript. English strings only.
 
-The scaffold renders the rack shell with static sample data. It does not call the
-API. The live behavior below is the contract for the UI pass.
+0.5.0 wires the portable run: source/output fields, silence and zoom options,
+start/cancel, live progress, artifact paths, and typed errors. Module cards follow
+the active job stage. Neural modules are marked `later` and stay bypassed.
+
+The rest of this document is the contract for the full rack: per-block runs,
+transcript inspector, presets, and word overrides.
 
 ## 1. Layout
 

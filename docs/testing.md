@@ -18,7 +18,7 @@ hides the contract. VideoFlow resolves this with two layers:
 | `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.5% (181 passing, 17 strict xfail, 4 deselected) |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |
-| UI shell | no gate until the rack is live | Then component tests for state transitions |
+| UI | `npm run check` and `npm run build` | Manual: start a job from the rack and confirm progress and artifacts |
 
 A stub is excluded from coverage only when it is listed in
 `[tool.coverage.run].omit`. `# pragma: no cover` is reserved for platform-only

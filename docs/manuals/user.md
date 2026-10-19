@@ -42,19 +42,22 @@ transcribe or remove retakes yet.
 `videoflow_load_media`, `videoflow_run_pipeline`, `videoflow_get_job`, and
 `videoflow_cancel_job` drive it from an agent.
 
-### Rack UI (wired in a later pass)
+### Rack UI (portable run)
 
-1. Start the app (operator manual).
-2. Drop one video into the header.
-3. Wait for media info. Check the frame rate and duration.
-4. Choose a preset:
-   - `youtube-talking-head` for a normal spoke-to-camera video.
-   - `shorts-aggressive` for tight cuts and three vertical clips.
-   - `lecture-clean` for a class where pauses are part of the teaching.
-5. Press **Run pipeline**.
+1. Start `videoflow serve` and open `http://127.0.0.1:8765/`.
+2. Enter the source path and an output project folder. **Default** derives the
+   output from the source name.
+3. Set the noise threshold and minimum silence, and choose J-cuts and punch-ins.
+4. Press **Run pipeline**.
 
-The rack runs top to bottom. A green card is cached, blue is running, yellow is
-dirty, gray is off, red failed, orange is waiting for an earlier module.
+The page starts a job, shows the live stage and progress, and lists the three
+artifact paths. The rack cards follow the active stage: green cached, blue
+running, yellow dirty, gray bypassed/later, red failed. Cancel stops between
+stages.
+
+The source/output paths must be inside the server's allowed roots
+(`VIDEOWFLOW_ALLOWED_ROOTS`). The output folder gets `project_state.json`,
+`run.json`, and `exports/`.
 
 ## 3. The eight cards
 

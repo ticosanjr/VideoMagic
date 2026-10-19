@@ -105,7 +105,8 @@ videoflow serve [--host 127.0.0.1] [--port 8765]
 - `POST /api/v1/jobs` — start a portable run
 - `GET /api/v1/jobs/{id}` and `GET /api/v1/jobs/{id}/events` (SSE)
 - `POST /api/v1/jobs/{id}/cancel`
-- `GET /` serves the bundled rack shell when the UI was built
+- `GET /` serves the bundled rack UI; the portable run panel starts a job and
+  shows live progress and artifacts
 - `/mcp/` is the Streamable HTTP MCP endpoint; `/mcp` returns a 307 redirect
 - The default bind is loopback. Do not expose it.
 

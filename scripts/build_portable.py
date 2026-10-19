@@ -26,7 +26,12 @@ def main() -> int:
     parser.add_argument(
         "--fetch-ffmpeg",
         action="store_true",
-        help="Download static ffmpeg and ffprobe, then bundle them.",
+        help="Download static ffmpeg and ffprobe, then bundle them (reuses vendor/).",
+    )
+    parser.add_argument(
+        "--refresh-ffmpeg",
+        action="store_true",
+        help="Force a fresh static FFmpeg download.",
     )
     parser.add_argument("--name", default="videoflow")
     parser.add_argument("--clean", action="store_true", default=True)
@@ -34,9 +39,14 @@ def main() -> int:
 
     vendor = ROOT / "vendor"
     if args.fetch_ffmpeg:
-        from fetch_ffmpeg import fetch
+        suffix = ".exe" if os.name == "nt" else ""
+        present = all((vendor / f"{name}{suffix}").is_file() for name in ("ffmpeg", "ffprobe"))
+        if present and not args.refresh_ffmpeg:
+            print("reusing vendor/ffmpeg and vendor/ffprobe")
+        else:
+            from fetch_ffmpeg import fetch
 
-        fetch("windows" if os.name == "nt" else "linux", vendor)
+            fetch("windows" if os.name == "nt" else "linux", vendor)
     elif args.with_ffmpeg:
         vendor.mkdir(exist_ok=True)
         for name in ("ffmpeg", "ffprobe"):
