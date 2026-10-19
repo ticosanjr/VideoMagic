@@ -1,0 +1,40 @@
+{
+  "name": "lecture-clean",
+  "description": "Conservative cleanup for a lecture: longer pauses kept, no J-cuts, no zooms, no shorts.",
+  "module_enabled": {
+    "ingest": true,
+    "vad": true,
+    "transcribe": true,
+    "retakes": true,
+    "jl_cuts": false,
+    "zooms": false,
+    "shorts": false,
+    "export": true
+  },
+  "modules_config": {
+    "vad": {
+      "min_silence_duration_ms": 700,
+      "speech_threshold": 0.55
+    },
+    "transcribe": {
+      "model_size": "small",
+      "device": "cpu",
+      "compute_type": "int8",
+      "language": "pt"
+    },
+    "retakes": {
+      "strictness": "conservative",
+      "retake_strategy": "keep_last"
+    },
+    "jl_cuts": {
+      "enable_j_cuts": false,
+      "enable_l_cuts": false
+    },
+    "zooms": {
+      "mode": "manual_rules",
+      "punch_in_scale": 1.05,
+      "progressive_zoom": false,
+      "pan_direction": "none"
+    }
+  }
+}

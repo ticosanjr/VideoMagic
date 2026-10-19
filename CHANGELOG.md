@@ -1,0 +1,151 @@
+# Changelog
+
+All notable changes are recorded here. Format follows Keep a Changelog; versions
+follow semantic versioning once the project reaches 1.0.
+
+## [0.4.0] — 2026-10-19
+
+### Added
+
+- `JobManager`: in-process jobs with queued/running/succeeded/failed/cancelled
+  states, progress, cancellation between stages, bounded concurrency, and history
+  pruning.
+- REST routes: `POST /api/v1/jobs`, list, get, cancel, per-job SSE, and
+  `/api/v1/system`.
+- Path allowlist on HTTP and MCP inputs through `VIDEOWFLOW_ALLOWED_ROOTS`,
+  defaulting to home, cwd, and the portable data directory.
+- Live MCP tools: `videoflow_load_media`, `videoflow_run_pipeline`,
+  `videoflow_get_job`, and `videoflow_cancel_job` now call the real pipeline.
+  `run_pipeline` accepts optional `source` and `output`.
+- Pipeline progress stages: probe, extract, VAD, timeline, export, state.
+- Job and API contract tests, plus a real-media API job test.
+
+### Changed
+
+- Version is 0.4.0.
+- `create_app` owns the API routes; `create_http_app` adds MCP and the static UI.
+- `videoflow serve` now exposes a working job API, not only health.
+
+### Verified
+
+- Frozen Linux binary: POST job → poll → succeeded with three artifacts; SSE
+  returns the terminal state; MCP stdio `load_media → run_pipeline → get_job`
+  produces three artifacts.
+
+## [0.3.0] — 2026-10-19
+
+### Added
+
+- Unified `videoflow` CLI: `run`, `serve`, `mcp`, `doctor`, `demo`, `version`.
+- Model-free speech detection with FFmpeg `silencedetect`, including a parser and
+  complement calculation.
+- Portable pipeline service: probe, PCM, speech detection, timeline, three
+  exports, `project_state.json`, and `run.json`.
+- Portable runtime: data directory next to the executable, `VIDEOWFLOW_HOME`,
+  binary discovery from the bundle, sibling files, then `PATH`.
+- PyInstaller onefile spec, build script with FFmpeg bundling, and a Linux/Windows
+  CI matrix with smoke tests.
+- Static rack UI served by `videoflow serve` when the UI was built.
+- MCP no-trailing-slash redirect (`/mcp` → `/mcp/`).
+
+### Changed
+
+- Version is 0.3.0.
+- The API app can mount the built UI at `/`.
+- Documentation adds a portable manual and ADR-0010.
+
+### Verified
+
+- Linux onefile (168 MB with static FFmpeg) runs with `PATH` empty: bundled
+  FFmpeg and FFprobe are found, `doctor` passes, `demo` produces three artifacts,
+  `serve` answers `/health`, `/`, and `/mcp/`, and MCP stdio lists twelve tools.
+- Windows is built and smoke-tested in the CI matrix; no Windows binary was
+  produced in this Linux workspace.
+
+## [0.2.0] — 2026-10-19
+
+### Added
+
+- FFprobe ingest with rational frame rate, frame count, dimensions, and audio
+  sample rate. Missing or unreadable sources fail with `ingest_failed`.
+- PCM extraction to 16 kHz mono WAV with atomic replacement and SHA-256 digest.
+- Deterministic timeline builder: span normalisation, frame coverage,
+  sample-aligned audio, J/L-cut boundary shifts with handle checks, fade metadata,
+  and alternating punch-in/pan transforms.
+- FCPXML 1.9/1.10 writer with `audioStart`/`audioDuration` for J/L-cuts and
+  `adjust-transform` for zoom.
+- xmeml (FCP 7 XML) writer with separate video and audio tracks and a Basic
+  Motion filter.
+- OTIO writer with V1/A1 tracks for Kdenlive 25.04+.
+- `export_timeline` service that writes all three artifacts from one validated
+  timeline.
+- Real-FFmpeg media tests for generated fixtures.
+- Timeline builder and exporter contract tests.
+
+### Changed
+
+- Version is 0.2.0.
+- Coverage gate now includes the deterministic timeline builder.
+- Media, slow, and manual tests are excluded from the default pytest run. Run
+  them with `-m media --no-cov`.
+
+### Known gaps
+
+- Audio transitions are not emitted in the NLE artifacts yet; the fade samples are
+  recorded in state and the AC-01 contract remains xfail.
+- Progressive zoom is stored as metadata but not emitted as keyframes.
+- Neural engines, jobs, project routes, SSE, live MCP results, MP4 render, and the
+  interactive rack are still stubs.
+
+## [0.1.0] — 2026-10-19
+
+### Added
+
+- English normative product requirements, architecture, data model, timebase,
+  pipeline, cache, security, and test plan.
+- Specifications for all eight rack modules, the REST API, the MCP server, the
+  rack UI, and the three NLE exporters.
+- Nine ADRs covering rational time, hexagonal boundaries, secrets, NLE dialects,
+  MCP transports, XML building, the retake guard, CPU-first defaults, and the
+  single-user runtime.
+- User, operator, developer, MCP agent, NLE import, and testing manuals.
+- Pydantic project state, module configs, presets, job and error models.
+- Committed JSON Schemas generated from the models.
+- Rational `Timebase` with frame coverage, pads, and exact round-trips.
+- Cache canonicalization and module hashing without mtime.
+- Run planning with upstream-dirty rules and bypass handling.
+- Retake keeper guard, exact repetition clustering, and restoration records.
+- Path allowlist jail, secret redaction, and timeline overlap checks.
+- FastAPI health endpoint and MCP Streamable HTTP mount.
+- MCP SDK server with twelve tools and four resources, returning structured
+  `not_implemented` results.
+- Three shipped presets: `youtube-talking-head`, `shorts-aggressive`,
+  `lecture-clean`.
+- 107 passing unit/contract tests, 21 strict xfails for unbuilt engines, and
+  99% coverage on the pure core.
+- SvelteKit and Tailwind rack scaffold with the eight module cards.
+- CI workflow for tests, coverage, lint, and types.
+
+### Changed
+
+- The Portuguese brief moved to `docs/origin/prd-pt.md` and is non-normative. The
+  old `requirements.txt` name was removed because Python treats it as a
+  dependency list.
+- FCPXML is no longer claimed as a Premiere import format. Premiere receives
+  xmeml; Kdenlive receives OTIO.
+- Neural defaults are CPU/int8/small, not CUDA/float16/large-v3.
+- Authoritative time is rational frames and samples, not float seconds.
+
+### Known gaps
+
+- Media engines, exporters, job execution, project routes, SSE, and the live rack
+  are specified and stubbed.
+- No license has been chosen.
+- No face tracking in v1.
+- The NLE compatibility spike and long-file manual QA are not yet executed.
+
+### Security
+
+- Secrets are names in state and values only in the environment or a mode-0600
+  file.
+- The API binds to loopback and CORS is limited to the local UI.

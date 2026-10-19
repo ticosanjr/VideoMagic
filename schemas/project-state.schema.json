@@ -1,0 +1,939 @@
+{
+  "$defs": {
+    "AudioSegment": {
+      "additionalProperties": false,
+      "properties": {
+        "clip_id": {
+          "minLength": 1,
+          "title": "Clip Id",
+          "type": "string"
+        },
+        "fade_curve": {
+          "default": "logarithmic",
+          "enum": [
+            "linear",
+            "logarithmic"
+          ],
+          "title": "Fade Curve",
+          "type": "string"
+        },
+        "fade_in_samples": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Fade In Samples",
+          "type": "integer"
+        },
+        "fade_out_samples": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Fade Out Samples",
+          "type": "integer"
+        },
+        "source_in_sample": {
+          "minimum": 0,
+          "title": "Source In Sample",
+          "type": "integer"
+        },
+        "source_out_sample": {
+          "minimum": 0,
+          "title": "Source Out Sample",
+          "type": "integer"
+        },
+        "timeline_in_sample": {
+          "minimum": 0,
+          "title": "Timeline In Sample",
+          "type": "integer"
+        },
+        "timeline_out_sample": {
+          "minimum": 0,
+          "title": "Timeline Out Sample",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "clip_id",
+        "source_in_sample",
+        "source_out_sample",
+        "timeline_in_sample",
+        "timeline_out_sample"
+      ],
+      "title": "AudioSegment",
+      "type": "object"
+    },
+    "ExportConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "fcpxml_dialect": {
+          "default": "1.9",
+          "enum": [
+            "1.9",
+            "1.10"
+          ],
+          "title": "Fcpxml Dialect",
+          "type": "string"
+        },
+        "write_fcpxml": {
+          "default": true,
+          "title": "Write Fcpxml",
+          "type": "boolean"
+        },
+        "write_mp4": {
+          "default": false,
+          "title": "Write Mp4",
+          "type": "boolean"
+        },
+        "write_otio": {
+          "default": true,
+          "title": "Write Otio",
+          "type": "boolean"
+        },
+        "write_xmeml": {
+          "default": true,
+          "title": "Write Xmeml",
+          "type": "boolean"
+        }
+      },
+      "title": "ExportConfig",
+      "type": "object"
+    },
+    "IngestConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "extract_audio_pcm": {
+          "default": true,
+          "title": "Extract Audio Pcm",
+          "type": "boolean"
+        },
+        "force_cfr": {
+          "default": true,
+          "title": "Force Cfr",
+          "type": "boolean"
+        },
+        "generate_proxy": {
+          "default": false,
+          "title": "Generate Proxy",
+          "type": "boolean"
+        }
+      },
+      "title": "IngestConfig",
+      "type": "object"
+    },
+    "JlCutsConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "audio_crossfade_ms": {
+          "default": 20,
+          "maximum": 50,
+          "minimum": 10,
+          "title": "Audio Crossfade Ms",
+          "type": "integer"
+        },
+        "enable_j_cuts": {
+          "default": true,
+          "title": "Enable J Cuts",
+          "type": "boolean"
+        },
+        "enable_l_cuts": {
+          "default": false,
+          "title": "Enable L Cuts",
+          "type": "boolean"
+        },
+        "handle_check": {
+          "default": true,
+          "title": "Handle Check",
+          "type": "boolean"
+        },
+        "offset_ms": {
+          "default": 200,
+          "maximum": 500,
+          "minimum": 100,
+          "title": "Offset Ms",
+          "type": "integer"
+        }
+      },
+      "title": "JlCutsConfig",
+      "type": "object"
+    },
+    "ManualOverride": {
+      "additionalProperties": false,
+      "description": "A sentence override, or a word override inside that sentence.",
+      "properties": {
+        "action": {
+          "enum": [
+            "keep",
+            "discard"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "sentence_id": {
+          "minimum": 0,
+          "title": "Sentence Id",
+          "type": "integer"
+        },
+        "word_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Word Index"
+        }
+      },
+      "required": [
+        "sentence_id",
+        "action"
+      ],
+      "title": "ManualOverride",
+      "type": "object"
+    },
+    "MediaInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "audio_sample_rate": {
+          "exclusiveMinimum": 0,
+          "title": "Audio Sample Rate",
+          "type": "integer"
+        },
+        "duration_frames": {
+          "minimum": 0,
+          "title": "Duration Frames",
+          "type": "integer"
+        },
+        "fps_den": {
+          "exclusiveMinimum": 0,
+          "title": "Fps Den",
+          "type": "integer"
+        },
+        "fps_num": {
+          "exclusiveMinimum": 0,
+          "title": "Fps Num",
+          "type": "integer"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "title": "Height",
+          "type": "integer"
+        },
+        "source_path": {
+          "minLength": 1,
+          "title": "Source Path",
+          "type": "string"
+        },
+        "start_timecode_frames": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Start Timecode Frames",
+          "type": "integer"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "title": "Width",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source_path",
+        "duration_frames",
+        "fps_num",
+        "fps_den",
+        "width",
+        "height",
+        "audio_sample_rate"
+      ],
+      "title": "MediaInfo",
+      "type": "object"
+    },
+    "ModuleEnabled": {
+      "additionalProperties": false,
+      "properties": {
+        "export": {
+          "default": true,
+          "title": "Export",
+          "type": "boolean"
+        },
+        "ingest": {
+          "default": true,
+          "title": "Ingest",
+          "type": "boolean"
+        },
+        "jl_cuts": {
+          "default": true,
+          "title": "Jl Cuts",
+          "type": "boolean"
+        },
+        "retakes": {
+          "default": true,
+          "title": "Retakes",
+          "type": "boolean"
+        },
+        "shorts": {
+          "default": true,
+          "title": "Shorts",
+          "type": "boolean"
+        },
+        "transcribe": {
+          "default": true,
+          "title": "Transcribe",
+          "type": "boolean"
+        },
+        "vad": {
+          "default": true,
+          "title": "Vad",
+          "type": "boolean"
+        },
+        "zooms": {
+          "default": true,
+          "title": "Zooms",
+          "type": "boolean"
+        }
+      },
+      "title": "ModuleEnabled",
+      "type": "object"
+    },
+    "ModulesConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "export": {
+          "$ref": "#/$defs/ExportConfig"
+        },
+        "ingest": {
+          "$ref": "#/$defs/IngestConfig"
+        },
+        "jl_cuts": {
+          "$ref": "#/$defs/JlCutsConfig"
+        },
+        "retakes": {
+          "$ref": "#/$defs/RetakesConfig"
+        },
+        "shorts": {
+          "$ref": "#/$defs/ShortsConfig"
+        },
+        "transcribe": {
+          "$ref": "#/$defs/TranscribeConfig"
+        },
+        "vad": {
+          "$ref": "#/$defs/VadConfig"
+        },
+        "zooms": {
+          "$ref": "#/$defs/ZoomsConfig"
+        }
+      },
+      "title": "ModulesConfig",
+      "type": "object"
+    },
+    "RetakesConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "base_url": {
+          "default": "http://localhost:11434/v1",
+          "title": "Base Url",
+          "type": "string"
+        },
+        "context_window_sentences": {
+          "default": 15,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Context Window Sentences",
+          "type": "integer"
+        },
+        "model_name": {
+          "default": "qwen2.5:7b-instruct",
+          "title": "Model Name",
+          "type": "string"
+        },
+        "prompt_template_version": {
+          "default": "retake-v1",
+          "title": "Prompt Template Version",
+          "type": "string"
+        },
+        "provider": {
+          "default": "ollama",
+          "enum": [
+            "ollama",
+            "openai_compatible"
+          ],
+          "title": "Provider",
+          "type": "string"
+        },
+        "retake_strategy": {
+          "default": "keep_last",
+          "enum": [
+            "keep_last",
+            "keep_best"
+          ],
+          "title": "Retake Strategy",
+          "type": "string"
+        },
+        "secret_name": {
+          "default": "VIDEOWFLOW_LLM_API_KEY",
+          "title": "Secret Name",
+          "type": "string"
+        },
+        "strictness": {
+          "default": "balanced",
+          "enum": [
+            "conservative",
+            "balanced",
+            "aggressive"
+          ],
+          "title": "Strictness",
+          "type": "string"
+        },
+        "temperature": {
+          "default": 0.0,
+          "maximum": 0.0,
+          "minimum": 0.0,
+          "title": "Temperature",
+          "type": "number"
+        }
+      },
+      "title": "RetakesConfig",
+      "type": "object"
+    },
+    "SampleSpan": {
+      "additionalProperties": false,
+      "properties": {
+        "end_sample": {
+          "minimum": 0,
+          "title": "End Sample",
+          "type": "integer"
+        },
+        "start_sample": {
+          "minimum": 0,
+          "title": "Start Sample",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start_sample",
+        "end_sample"
+      ],
+      "title": "SampleSpan",
+      "type": "object"
+    },
+    "Sentence": {
+      "additionalProperties": false,
+      "properties": {
+        "end_sample": {
+          "minimum": 0,
+          "title": "End Sample",
+          "type": "integer"
+        },
+        "id": {
+          "minimum": 0,
+          "title": "Id",
+          "type": "integer"
+        },
+        "start_sample": {
+          "minimum": 0,
+          "title": "Start Sample",
+          "type": "integer"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "words": {
+          "items": {
+            "$ref": "#/$defs/WordTiming"
+          },
+          "title": "Words",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "start_sample",
+        "end_sample",
+        "text"
+      ],
+      "title": "Sentence",
+      "type": "object"
+    },
+    "ShortsConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "burn_subtitles": {
+          "default": true,
+          "title": "Burn Subtitles",
+          "type": "boolean"
+        },
+        "export_format": {
+          "default": "both",
+          "enum": [
+            "fcpxml_timeline",
+            "standalone_mp4",
+            "both"
+          ],
+          "title": "Export Format",
+          "type": "string"
+        },
+        "max_clips_to_generate": {
+          "default": 3,
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Max Clips To Generate",
+          "type": "integer"
+        },
+        "reframe_mode": {
+          "default": "center_crop_9_16",
+          "enum": [
+            "center_crop_9_16",
+            "auto_face_tracking_yolo"
+          ],
+          "title": "Reframe Mode",
+          "type": "string"
+        },
+        "subtitles_preset": {
+          "default": "tiktok_bold",
+          "enum": [
+            "tiktok_bold",
+            "minimalist_box",
+            "highlight_word"
+          ],
+          "title": "Subtitles Preset",
+          "type": "string"
+        },
+        "target_duration_max_sec": {
+          "default": 60,
+          "minimum": 1,
+          "title": "Target Duration Max Sec",
+          "type": "integer"
+        },
+        "target_duration_min_sec": {
+          "default": 30,
+          "minimum": 1,
+          "title": "Target Duration Min Sec",
+          "type": "integer"
+        }
+      },
+      "title": "ShortsConfig",
+      "type": "object"
+    },
+    "TranscribeConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "compute_type": {
+          "default": "int8",
+          "enum": [
+            "float16",
+            "int8",
+            "float32"
+          ],
+          "title": "Compute Type",
+          "type": "string"
+        },
+        "device": {
+          "default": "cpu",
+          "enum": [
+            "cuda",
+            "cpu"
+          ],
+          "title": "Device",
+          "type": "string"
+        },
+        "language": {
+          "default": "pt",
+          "enum": [
+            "pt",
+            "it",
+            "en",
+            "es",
+            "auto"
+          ],
+          "title": "Language",
+          "type": "string"
+        },
+        "model_size": {
+          "default": "small",
+          "enum": [
+            "tiny",
+            "base",
+            "small",
+            "medium",
+            "large-v3"
+          ],
+          "title": "Model Size",
+          "type": "string"
+        },
+        "vad_filter": {
+          "default": false,
+          "title": "Vad Filter",
+          "type": "boolean"
+        }
+      },
+      "title": "TranscribeConfig",
+      "type": "object"
+    },
+    "Transform": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor": {
+          "default": "upper_third",
+          "enum": [
+            "center",
+            "upper_third",
+            "face_detect"
+          ],
+          "title": "Anchor",
+          "type": "string"
+        },
+        "pan_direction": {
+          "default": "none",
+          "enum": [
+            "none",
+            "left_to_right",
+            "right_to_left"
+          ],
+          "title": "Pan Direction",
+          "type": "string"
+        },
+        "pos_x": {
+          "default": 0.0,
+          "title": "Pos X",
+          "type": "number"
+        },
+        "pos_y": {
+          "default": 0.0,
+          "title": "Pos Y",
+          "type": "number"
+        },
+        "scale": {
+          "default": 1.0,
+          "maximum": 1.3,
+          "minimum": 1.0,
+          "title": "Scale",
+          "type": "number"
+        },
+        "type": {
+          "default": "none",
+          "enum": [
+            "none",
+            "punch_in",
+            "slow_zoom_in",
+            "slow_zoom_out",
+            "pan"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "Transform",
+      "type": "object"
+    },
+    "VadConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "keep_handles_ms": {
+          "default": 200,
+          "minimum": 0,
+          "title": "Keep Handles Ms",
+          "type": "integer"
+        },
+        "min_silence_duration_ms": {
+          "default": 400,
+          "minimum": 0,
+          "title": "Min Silence Duration Ms",
+          "type": "integer"
+        },
+        "speech_pad_after_ms": {
+          "default": 150,
+          "minimum": 0,
+          "title": "Speech Pad After Ms",
+          "type": "integer"
+        },
+        "speech_pad_before_ms": {
+          "default": 120,
+          "minimum": 0,
+          "title": "Speech Pad Before Ms",
+          "type": "integer"
+        },
+        "speech_threshold": {
+          "default": 0.5,
+          "maximum": 0.9,
+          "minimum": 0.1,
+          "title": "Speech Threshold",
+          "type": "number"
+        }
+      },
+      "title": "VadConfig",
+      "type": "object"
+    },
+    "VerticalClip": {
+      "additionalProperties": false,
+      "properties": {
+        "clip_id": {
+          "minLength": 1,
+          "title": "Clip Id",
+          "type": "string"
+        },
+        "crop_focus_x": {
+          "default": 0.5,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Crop Focus X",
+          "type": "number"
+        },
+        "end_sample": {
+          "minimum": 0,
+          "title": "End Sample",
+          "type": "integer"
+        },
+        "reframe_mode": {
+          "default": "center_crop_9_16",
+          "enum": [
+            "center_crop_9_16",
+            "auto_face_tracking_yolo"
+          ],
+          "title": "Reframe Mode",
+          "type": "string"
+        },
+        "start_sample": {
+          "minimum": 0,
+          "title": "Start Sample",
+          "type": "integer"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "clip_id",
+        "title",
+        "start_sample",
+        "end_sample"
+      ],
+      "title": "VerticalClip",
+      "type": "object"
+    },
+    "VideoSegment": {
+      "additionalProperties": false,
+      "properties": {
+        "clip_id": {
+          "minLength": 1,
+          "title": "Clip Id",
+          "type": "string"
+        },
+        "source_in_frame": {
+          "minimum": 0,
+          "title": "Source In Frame",
+          "type": "integer"
+        },
+        "source_out_frame": {
+          "minimum": 0,
+          "title": "Source Out Frame",
+          "type": "integer"
+        },
+        "timeline_in_frame": {
+          "minimum": 0,
+          "title": "Timeline In Frame",
+          "type": "integer"
+        },
+        "timeline_out_frame": {
+          "minimum": 0,
+          "title": "Timeline Out Frame",
+          "type": "integer"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        }
+      },
+      "required": [
+        "clip_id",
+        "source_in_frame",
+        "source_out_frame",
+        "timeline_in_frame",
+        "timeline_out_frame"
+      ],
+      "title": "VideoSegment",
+      "type": "object"
+    },
+    "WordTiming": {
+      "additionalProperties": false,
+      "properties": {
+        "end_sample": {
+          "minimum": 0,
+          "title": "End Sample",
+          "type": "integer"
+        },
+        "probability": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Probability",
+          "type": "number"
+        },
+        "start_sample": {
+          "minimum": 0,
+          "title": "Start Sample",
+          "type": "integer"
+        },
+        "word": {
+          "title": "Word",
+          "type": "string"
+        }
+      },
+      "required": [
+        "word",
+        "start_sample",
+        "end_sample",
+        "probability"
+      ],
+      "title": "WordTiming",
+      "type": "object"
+    },
+    "ZoomsConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor_point": {
+          "default": "upper_third",
+          "enum": [
+            "center",
+            "upper_third",
+            "face_detect"
+          ],
+          "title": "Anchor Point",
+          "type": "string"
+        },
+        "mode": {
+          "default": "alternate_cuts",
+          "enum": [
+            "alternate_cuts",
+            "topic_change",
+            "manual_rules"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "pan_direction": {
+          "default": "none",
+          "enum": [
+            "none",
+            "left_to_right",
+            "right_to_left"
+          ],
+          "title": "Pan Direction",
+          "type": "string"
+        },
+        "progressive_zoom": {
+          "default": false,
+          "title": "Progressive Zoom",
+          "type": "boolean"
+        },
+        "punch_in_scale": {
+          "default": 1.15,
+          "maximum": 1.3,
+          "minimum": 1.05,
+          "title": "Punch In Scale",
+          "type": "number"
+        }
+      },
+      "title": "ZoomsConfig",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The single JSON document under ``.videoflow/project_state.json``.",
+  "properties": {
+    "audio_segments": {
+      "items": {
+        "$ref": "#/$defs/AudioSegment"
+      },
+      "title": "Audio Segments",
+      "type": "array"
+    },
+    "cache_hashes": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Cache Hashes",
+      "type": "object"
+    },
+    "manual_overrides": {
+      "items": {
+        "$ref": "#/$defs/ManualOverride"
+      },
+      "title": "Manual Overrides",
+      "type": "array"
+    },
+    "media_info": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "module_enabled": {
+      "$ref": "#/$defs/ModuleEnabled"
+    },
+    "modules_config": {
+      "$ref": "#/$defs/ModulesConfig"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "retake_culls": {
+      "items": {
+        "type": "integer"
+      },
+      "title": "Retake Culls",
+      "type": "array"
+    },
+    "retake_guard_restores": {
+      "items": {
+        "type": "integer"
+      },
+      "title": "Retake Guard Restores",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "transcript": {
+      "items": {
+        "$ref": "#/$defs/Sentence"
+      },
+      "title": "Transcript",
+      "type": "array"
+    },
+    "vad_intervals": {
+      "items": {
+        "$ref": "#/$defs/SampleSpan"
+      },
+      "title": "Vad Intervals",
+      "type": "array"
+    },
+    "vertical_clips": {
+      "items": {
+        "$ref": "#/$defs/VerticalClip"
+      },
+      "title": "Vertical Clips",
+      "type": "array"
+    },
+    "video_segments": {
+      "items": {
+        "$ref": "#/$defs/VideoSegment"
+      },
+      "title": "Video Segments",
+      "type": "array"
+    }
+  },
+  "title": "ProjectState",
+  "type": "object"
+}

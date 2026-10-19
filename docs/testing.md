@@ -1,0 +1,214 @@
+# Test plan
+
+## 1. Principle
+
+The suite must be green and honest at the same time. A scaffold full of failing
+tests trains people to ignore red. A suite that skips the unimplemented surface
+hides the contract. VideoFlow resolves this with two layers:
+
+- **Passing tests** for everything the repository claims to do now.
+- **Expected failures** (`xfail(strict=True)`) for specified but unbuilt
+  behavior. A stale xfail (the feature landed and the test passed) fails the
+  suite, so the marker cannot rot.
+
+## 2. Gates
+
+| Scope | Line coverage | Notes |
+| --- | --- | --- |
+| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.5% (181 passing, 17 strict xfail, 4 deselected) |
+| Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
+| Adapters | 80% with fakes | Native libraries are faked in unit tests |
+| UI shell | no gate until the rack is live | Then component tests for state transitions |
+
+A stub is excluded from coverage only when it is listed in
+`[tool.coverage.run].omit`. `# pragma: no cover` is reserved for platform-only
+fallbacks and must be justified in review.
+
+## 3. Commands
+
+```bash
+uv run pytest                           # unit + contract, coverage gate
+uv run pytest -q -m "not xfail"         # only implemented behavior
+uv run pytest -m media --no-cov         # real FFmpeg fixtures
+uv run pytest -m slow --no-cov          # performance checks
+uv run pytest -m manual --no-cov        # prints the manual checklist
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy
+uv run python scripts/build_portable.py --fetch-ffmpeg  # packaging smoke
+```
+
+The default run excludes `media`, `slow`, and `manual`. Use `--no-cov` for a
+subset run so the global coverage gate does not fail on modules that were not
+imported. CI runs the full default suite plus lint and types. The portable
+workflow builds the onefile binary on Linux and Windows and runs `version`,
+`doctor`, and `demo` against it.
+
+## 4. Markers
+
+| Marker | Meaning |
+| --- | --- |
+| `contract` | Public surface that is specified; starts as xfail |
+| `media` | Needs FFmpeg and generated media |
+| `slow` | Long media, timing, or model inference |
+| `manual` | A human must import or listen |
+
+## 5. Current test map
+
+### Unit (passing)
+
+| File | Covers |
+| --- | --- |
+| `test_timebase.py` | Rational conversion, pads, frame coverage, 60-minute proof, Hypothesis round-trips |
+| `test_cache.py` | Canonical form, key order, float quantization, identity inputs, no mtime |
+| `test_state.py` | Schema rules, forbidden extra fields, CPU defaults, rational fields |
+| `test_retakes.py` | Cluster detection, keep-last restoration, keep-best, unknown ids |
+| `test_planning.py` | Full run, single module, dirty ancestors, bypass, running job |
+| `test_paths.py` | Allowlist, symlink escape, `..` escape |
+| `test_redact.py` | Secret replacement |
+| `test_timeline.py` | Overlaps, packing, inverted spans |
+| `test_presets.py` | Shipped presets and validation |
+| `test_errors.py` | Error codes and payloads |
+| `test_timeline_builder.py` | Span merge, frame coverage, J/L shifts, handles, zooms, pan |
+| `test_ffmpeg_adapter.py` | Probe parsing, PCM extraction, digest, FFmpeg failures |
+| `test_silence.py` | `silencedetect` parsing, complement, edge cases |
+| `test_portable.py` | End-to-end portable service with a fake engine |
+| `test_jobs.py` | Job completion, failure, cancellation, queue limit, pruning |
+| `test_cli.py` | `version`, `doctor`, `run` dispatch, usage |
+| `test_runtime.py` | Portable home, binary discovery, UI discovery, allowed roots |
+
+### Contract (passing now)
+
+| File | Covers |
+| --- | --- |
+| `test_exporters.py` | FCPXML 1.9/1.10, xmeml tracks, OTIO tracks, export service, preflight failures |
+| `test_ingest_media.py` | Real FFprobe, PCM extraction, and silence detection (`media`) |
+| `test_api_jobs.py` | Job create/poll, path jail, SSE, system endpoint, real media (`media`) |
+| `test_mcp.py` | Twelve tool names, schemas, structured stub call |
+| `test_mcp_live.py` | Live media load, job start/poll, jail, invalid preset |
+| `test_api.py` | `/health` and MCP redirect |
+| `test_schemas.py` | Committed schemas match models, no `api_key` |
+| `test_pipeline.py` | Missing-source ingest failure |
+
+### Contract (xfail until implemented)
+
+| File | Contract |
+| --- | --- |
+| `test_exporters.py` | Audio transitions at joins (AC-01); MP4 render |
+| `test_pipeline.py` | Silero VAD, Whisper, LLM, module execution, rack runner |
+| `test_api.py` | Project creation and SSE routes |
+| `test_mcp.py` | Live transcript resource |
+
+## 6. Acceptance coverage
+
+| Criterion | Automated proof | Manual proof |
+| --- | --- | --- |
+| AC-01 no click | Fade metadata is tested; NLE transitions are still xfail | Listen at three joins per NLE |
+| AC-02 lip sync | Every video edge is a frame index; builder tests cover frame coverage; 60-minute rational proof | Spot-check a long import |
+| AC-03 last take | Fake LLM drops the final take; guard restores it | Inspector shows a restoration |
+| AC-04 agent autonomy | Scripted MCP session produces three timelines and three shorts | None |
+| AC-05 partial cache | Hash of 01–05 unchanged; plan is 06+08 | One timed real-file run |
+| AC-06 NLE import | Three artifacts are written and parsed; preflight rejects invalid timelines | Import in Resolve, Premiere, Kdenlive |
+| AC-07 secret hygiene | Schema sweep, redaction, resource snapshot | None |
+| AC-08 CPU default | Config assertions | None |
+| AC-09 atomic failure | Failed module keeps the previous cache entry | None |
+| AC-10 English | String review | Short manual pass |
+
+## 7. Media fixtures
+
+Do not commit copyrighted media.
+
+```bash
+mkdir -p tests/fixtures/generated
+ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30 \
+       -f lavfi -i "sine=frequency=440:sample_rate=48000" \
+       -t 60 -c:v libx264 -pix_fmt yuv420p -c:a aac \
+       tests/fixtures/generated/sample.mp4
+```
+
+For speech-shaped audio, gate a tone with `volume=enable='between(t,...)'` so VAD
+sees speech and silence without a real voice. A 65-minute fixture is generated
+only in the `slow` job.
+
+Golden files:
+
+```
+tests/fixtures/fcpxml/straight-cut.fcpxml
+tests/fixtures/fcpxml/jcut.fcpxml
+tests/fixtures/fcpxml/punch-in.fcpxml
+tests/fixtures/xmeml/straight-cut.xml
+tests/fixtures/otio/straight-cut.otio
+```
+
+The three timeline shapes are the compatibility spike. Freeze the dialect only
+after all three open in their target app.
+
+## 8. Unit test rules
+
+- No network in unit tests.
+- No model download.
+- No real FFmpeg unless marked `media`.
+- A fake LLM is a fixture that returns a chosen payload, including illegal ones.
+- Use `tmp_path`; never write into the repository.
+- Hypothesis examples are bounded so the suite stays under ten seconds.
+
+## 9. Failure-case catalog
+
+Every module spec lists these under **Failures**. The suite must cover:
+
+- Inverted or empty spans.
+- Pads that collapse against media bounds.
+- Unknown retake ids.
+- A model that discards the keeper.
+- Dirty upstream on a single-module run.
+- A second job on a running project.
+- Path escapes, including symlinks.
+- Missing media.
+- Export with an offline source.
+- An export with zero valid clips.
+- A shorts window below the minimum after conform.
+- A JSON schema drift.
+
+## 10. Performance checks
+
+| Check | Budget | Marker |
+| --- | --- | --- |
+| Zoom-only rerun after a cached analysis | < 1 s on the fixture, excluding export I/O | `slow` |
+| Cache canonicalization | < 1 ms per module | unit |
+| Frame/sample conversion | < 10 µs per call | unit |
+| 60-minute transcript drift | 0 accumulated frames | `slow` |
+
+The one-second figure is a product target, not a CI wall-clock assertion on a
+loaded machine. The plan assertion is the hard gate; timing is advisory and
+recorded.
+
+## 11. Manual release script
+
+Run before tagging a release:
+
+1. Import `tests/fixtures/fcpxml/*.fcpxml` into Resolve. Confirm the timeline,
+   detached audio, and transforms.
+2. Import `tests/fixtures/xmeml/*.xml` into Premiere. Confirm tracks, audio
+   offset, and motion.
+3. Import `tests/fixtures/otio/*.otio` into Kdenlive 25.04+. Confirm two tracks
+   and markers.
+4. Listen to every join at high volume with headphones.
+5. Run a 60-minute talking head. Scrub the last ten minutes for drift.
+6. Disable zooms. Rerun. Confirm only export executed.
+7. Kill the API during transcription. Restart. Confirm the previous cache is
+   intact and the job is not stuck `running`.
+8. Switch the UI to English only. Search the build output for Portuguese
+   strings.
+
+Record the result in the release notes, not in a chat.
+
+## 12. Adding a test
+
+1. Write the contract first, marked `xfail(strict=True)` with the AC id.
+2. Implement the smallest slice that passes.
+3. Remove the marker in the same change.
+4. Add the failure cases from the module spec.
+5. Keep the coverage gate above 95% for pure code.
+
+A contract without an implementation is allowed. An implementation without a
+contract is not.

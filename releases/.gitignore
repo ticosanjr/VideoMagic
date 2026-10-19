@@ -1,0 +1,3 @@
+# Binaries are local artifacts and GitHub Release assets, not git objects.
+*/videoflow-*
+*.zip

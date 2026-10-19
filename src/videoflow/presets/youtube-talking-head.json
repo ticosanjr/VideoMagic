@@ -1,0 +1,38 @@
+{
+  "name": "youtube-talking-head",
+  "description": "Balanced silence removal, last-take retake cull, J-cuts, and modest punch-ins for a talking-head edit.",
+  "module_enabled": {
+    "ingest": true,
+    "vad": true,
+    "transcribe": true,
+    "retakes": true,
+    "jl_cuts": true,
+    "zooms": true,
+    "shorts": false,
+    "export": true
+  },
+  "modules_config": {
+    "transcribe": {
+      "model_size": "small",
+      "language": "pt",
+      "device": "cpu",
+      "compute_type": "int8",
+      "vad_filter": false
+    },
+    "retakes": {
+      "strictness": "balanced",
+      "retake_strategy": "keep_last"
+    },
+    "jl_cuts": {
+      "enable_j_cuts": true,
+      "enable_l_cuts": false,
+      "offset_ms": 200,
+      "audio_crossfade_ms": 20
+    },
+    "zooms": {
+      "mode": "alternate_cuts",
+      "punch_in_scale": 1.15,
+      "anchor_point": "upper_third"
+    }
+  }
+}

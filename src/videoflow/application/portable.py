@@ -1,0 +1,170 @@
+"""Model-free portable pipeline: ingest, silence detection, timeline, export.
+
+This is the engine behind ``videoflow run``. It needs only FFmpeg/FFprobe, so a
+single frozen executable is enough. Silero/Whisper/LLM remain the quality path.
+"""
+
+from __future__ import annotations
+
+import json
+import time
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from videoflow import __version__
+from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application.export_service import export_timeline
+from videoflow.application.timeline_builder import build_timeline
+from videoflow.domain.config import JlCutsConfig, ModuleEnabled, ZoomsConfig
+from videoflow.domain.errors import IngestError, JobCancelledError
+from videoflow.domain.state import ProjectState, SampleSpan
+from videoflow.domain.timebase import Rounding
+from videoflow.exporters.common import write_text
+from videoflow.exporters.fcpxml import Dialect
+
+ProgressCallback = Callable[[str, int, str], None]
+CancelCheck = Callable[[], bool]
+
+
+@dataclass(frozen=True, slots=True)
+class PortableRun:
+    source: Path
+    output: Path
+    state: ProjectState
+    artifacts: dict[str, Path]
+    speech_intervals: tuple[tuple[int, int], ...]
+    warnings: tuple[str, ...]
+    elapsed_seconds: float
+    state_path: Path
+    report_path: Path
+
+    def to_dict(self) -> dict[str, Any]:
+        media = self.state.media_info
+        return {
+            "ok": True,
+            "version": __version__,
+            "source": str(self.source),
+            "output": str(self.output),
+            "media": media.model_dump(mode="json") if media else None,
+            "speech_interval_count": len(self.speech_intervals),
+            "video_segment_count": len(self.state.video_segments),
+            "audio_segment_count": len(self.state.audio_segments),
+            "warnings": list(self.warnings),
+            "artifacts": {name: str(path) for name, path in self.artifacts.items()},
+            "state_path": str(self.state_path),
+            "report_path": str(self.report_path),
+            "elapsed_seconds": round(self.elapsed_seconds, 3),
+        }
+
+
+def run_portable(
+    source: Path,
+    output: Path,
+    *,
+    noise_db: float = -30.0,
+    min_silence_ms: int = 400,
+    jl: JlCutsConfig | None = None,
+    zooms: ZoomsConfig | None = None,
+    dialect: Dialect = "1.9",
+    adapter: FFmpegAdapter | None = None,
+    progress: ProgressCallback | None = None,
+    should_cancel: CancelCheck | None = None,
+) -> PortableRun:
+    """Run the complete model-free pipeline for one source file."""
+
+    started = time.perf_counter()
+
+    def step(stage: str, percent: int, message: str) -> None:
+        if progress is not None:
+            progress(stage, percent, message)
+
+    def gate() -> None:
+        if should_cancel is not None and should_cancel():
+            raise JobCancelledError("Job cancelled")
+
+    source_path = Path(source).expanduser().resolve()
+    output_path = Path(output).expanduser().resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+    work = output_path / "work"
+    exports = output_path / "exports"
+
+    gate()
+    step("probe", 5, "Reading media metadata")
+    engine = adapter or FFmpegAdapter()
+    media = engine.probe(source_path)
+    gate()
+    step("extract", 15, "Extracting analysis audio")
+    wav = engine.extract_pcm(
+        source_path,
+        work / "source.wav",
+        sample_rate=media.audio_sample_rate,
+    )
+    digest = engine.pcm_digest(wav)
+
+    timebase = media.timebase()
+    duration_samples = timebase.seconds_to_samples(
+        timebase.frames_to_seconds(media.duration_frames), Rounding.NEAREST
+    )
+    gate()
+    step("vad", 35, "Detecting speech and silence")
+    speech = engine.detect_speech(
+        wav,
+        duration_samples=duration_samples,
+        sample_rate=media.audio_sample_rate,
+        noise_db=noise_db,
+        min_silence_ms=min_silence_ms,
+    )
+    if not speech:
+        raise IngestError(
+            "No speech detected. Lower the noise threshold or the minimum silence duration."
+        )
+
+    config_jl = jl or JlCutsConfig()
+    config_zooms = zooms or ZoomsConfig()
+    gate()
+    step("timeline", 55, "Building the cut timeline")
+    built = build_timeline(media, speech, jl=config_jl, zooms=config_zooms)
+    state = ProjectState(
+        media_info=media,
+        module_enabled=ModuleEnabled(),
+        vad_intervals=[SampleSpan(start_sample=start, end_sample=end) for start, end in speech],
+        video_segments=list(built.video_segments),
+        audio_segments=list(built.audio_segments),
+    )
+    gate()
+    step("export", 80, "Writing FCPXML, xmeml, and OTIO")
+    artifacts = export_timeline(state, exports, dialect=dialect)
+
+    gate()
+    step("state", 95, "Writing project state and report")
+    state_path = input_state_path(output_path)
+    report_path = output_path / "run.json"
+    write_text(state_path, state.model_dump_json(indent=2) + "\n")
+    run = PortableRun(
+        source=source_path,
+        output=output_path,
+        state=state,
+        artifacts=artifacts,
+        speech_intervals=tuple(speech),
+        warnings=tuple(built.warnings),
+        elapsed_seconds=time.perf_counter() - started,
+        state_path=state_path,
+        report_path=report_path,
+    )
+    report = run.to_dict()
+    report["pcm_sha256"] = digest
+    report["noise_db"] = noise_db
+    report["min_silence_ms"] = min_silence_ms
+    write_text(report_path, _json(report))
+    step("done", 100, "Finished")
+    return run
+
+
+def input_state_path(output: Path) -> Path:
+    return output / "project_state.json"
+
+
+def _json(payload: dict[str, Any]) -> str:
+    return json.dumps(payload, indent=2, sort_keys=True) + "\n"

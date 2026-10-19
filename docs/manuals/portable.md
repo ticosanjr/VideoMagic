@@ -1,0 +1,233 @@
+# Portable executable manual
+
+VideoFlow ships as one console executable per operating system. It contains the
+Python runtime, the CLI, the API, the MCP server, the rack UI, presets, and,
+when built with `--with-ffmpeg`, FFmpeg and FFprobe.
+
+There is no installer and no Python/Node requirement on the target machine.
+
+| Platform | Artifact | Minimum |
+| --- | --- | --- |
+| Linux x86_64 | `videoflow` | glibc from the build host (use Ubuntu 22.04 for wide compatibility) |
+| Windows x86_64 | `videoflow.exe` | Windows 10/11 x64 |
+
+PyInstaller cannot cross-compile. Build each artifact on its own OS. The CI
+workflow `.github/workflows/portable.yml` does this on `ubuntu-22.04` and
+`windows-latest` and smoke-tests both.
+
+## 1. What the executable does
+
+| Command | Result |
+| --- | --- |
+| `videoflow version` | Version and platform |
+| `videoflow doctor` | FFmpeg/FFprobe, data directory, UI assets, MCP import |
+| `videoflow demo -o DIR` | Generates a 6 s fixture and runs the whole pipeline |
+| `videoflow run INPUT -o DIR` | Ingest, silence detection, cuts, J/L, zooms, three NLE exports |
+| `videoflow serve` | HTTP API + MCP Streamable HTTP + static rack UI |
+| `videoflow mcp` | MCP over stdio for an agent host |
+
+`run` is the model-free path: FFmpeg `silencedetect` finds speech. It does not
+transcribe, cull retakes, or generate shorts yet. Those engines are specified and
+still stubbed.
+
+## 2. Linux
+
+```bash
+chmod +x videoflow
+./videoflow version
+./videoflow doctor
+./videoflow demo -o ./videoflow-demo
+./videoflow run ~/Videos/interview.mp4 -o ./interview-edit
+```
+
+No installation. Keep the binary anywhere and run it. If it is on a read-only
+mount, set a writable data directory:
+
+```bash
+VIDEOWFLOW_HOME=/home/you/.videoflow ./videoflow serve
+```
+
+## 3. Windows
+
+```powershell
+.\videoflow.exe version
+.\videoflow.exe doctor
+.\videoflow.exe demo -o .\videoflow-demo
+.\videoflow.exe run "$env:USERPROFILE\Videos\interview.mp4" -o .\interview-edit
+```
+
+Notes:
+
+- The binary is unsigned. SmartScreen may warn on first run. Verify the SHA-256
+  you downloaded before choosing "More info → Run anyway".
+- The console stays attached so progress and JSON reports are visible.
+- Paths with spaces are supported; quote them in PowerShell.
+- Windows may block an executable downloaded from the internet. Right-click →
+  Properties → Unblock, or use `Unblock-File`.
+- The data directory defaults to `videoflow-data` next to the executable.
+  Override with `set VIDEOWFLOW_HOME=C:\VideoFlowData`.
+
+## 4. Commands in detail
+
+### run
+
+```bash
+videoflow run INPUT [-o DIR] [--noise-db -30] [--min-silence-ms 400]
+                    [--no-jcuts] [--l-cuts] [--no-zooms]
+                    [--offset-ms 200] [--crossfade-ms 20] [--dialect 1.9]
+```
+
+Default output is `INPUT-stem-videoflow` next to the source.
+
+Writes:
+
+```
+DIR/
+  project_state.json
+  run.json
+  work/source.wav
+  exports/timeline.fcpxml   # Resolve
+  exports/timeline.xml      # Premiere
+  exports/timeline.otio     # Kdenlive
+```
+
+`run.json` is the machine-readable report: media info, speech interval count,
+segment counts, warnings, artifact paths, PCM digest, and elapsed time.
+
+### serve
+
+```bash
+videoflow serve [--host 127.0.0.1] [--port 8765]
+```
+
+- `GET /health`
+- `GET /api/v1/system` — version, data directory, allowed roots, FFmpeg paths
+- `POST /api/v1/jobs` — start a portable run
+- `GET /api/v1/jobs/{id}` and `GET /api/v1/jobs/{id}/events` (SSE)
+- `POST /api/v1/jobs/{id}/cancel`
+- `GET /` serves the bundled rack shell when the UI was built
+- `/mcp/` is the Streamable HTTP MCP endpoint; `/mcp` returns a 307 redirect
+- The default bind is loopback. Do not expose it.
+
+Example:
+
+```bash
+curl -s -X POST http://127.0.0.1:8765/api/v1/jobs \
+  -H 'Content-Type: application/json' \
+  -d '{"source":"/media/interview.mp4","output":"/projects/interview-edit"}'
+```
+
+The job starts in the background. Poll `GET /api/v1/jobs/{id}` or read the SSE
+stream. `VIDEOWFLOW_ALLOWED_ROOTS` limits which paths the API and MCP accept.
+
+### mcp
+
+```bash
+videoflow mcp
+```
+
+Speaks MCP over stdin/stdout. Register it in the host:
+
+```json
+{
+  "mcpServers": {
+    "videoflow": {
+      "command": "C:\\Tools\\VideoFlow\\videoflow.exe",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Twelve tools and four resources are registered. Four tools are live:
+`videoflow_load_media`, `videoflow_run_pipeline`, `videoflow_get_job`, and
+`videoflow_cancel_job`. The neural tools return a structured
+`not_implemented` result.
+
+### doctor
+
+Checks:
+
+- FFmpeg and FFprobe resolve (bundled, next to the executable, or on `PATH`)
+- `VIDEOWFLOW_HOME` is writable
+- UI assets are present
+- the MCP SDK imports
+
+Exit code is `0` only when every required check passes.
+
+### demo
+
+Creates a 6 s test clip with two silent gaps, then runs `run` on it. This is the
+portable self-test. It proves FFmpeg, the timeline builder, and all three
+exporters in one command.
+
+## 5. Data and secrets
+
+Portable mode stores data next to the executable:
+
+```
+videoflow-data/
+  presets/        # user presets
+  secrets.env     # optional, mode 0600 on POSIX
+  .write-test
+```
+
+- Override with `VIDEOWFLOW_HOME`.
+- The secret name is still `VIDEOWFLOW_LLM_API_KEY`.
+- A project's own `.videoflow/` directory is not used by `run`; `run` writes the
+  portable project layout shown above.
+
+## 6. FFmpeg bundling and licensing
+
+`scripts/build_portable.py --fetch-ffmpeg` downloads the BtbN GPL builds, copies
+`ffmpeg` and `ffprobe` into `vendor/`, and PyInstaller packs them. At runtime
+`find_binary` looks in the bundle before `PATH`.
+
+- Use `--with-ffmpeg` instead to copy the FFmpeg already installed on the build
+  machine. That copy may depend on the host's shared libraries.
+- Builds without either flag still work if FFmpeg is next to the executable or
+  on `PATH`.
+- Bundled FFmpeg builds are usually GPL. Distributing the binary does not change
+  FFmpeg's license. Include the FFmpeg license and source offer required by the
+  build you ship. If that is not acceptable, ship without `--with-ffmpeg`.
+- The project itself still has no chosen license; see `CHANGELOG.md`.
+
+## 7. Building
+
+```bash
+# once
+uv sync --extra dev
+cd ui && npm ci && npm run build && cd ..
+
+# Linux
+uv run python scripts/build_portable.py --fetch-ffmpeg
+./dist/videoflow version
+
+# Windows (PowerShell)
+uv run python scripts/build_portable.py --fetch-ffmpeg
+.\\dist\\videoflow.exe version
+```
+
+Build on the target OS. A Linux binary built on a newer glibc will not start on
+an older distribution; `ubuntu-22.04` is the CI baseline. The BtbN FFmpeg build
+is statically linked except for glibc core libraries (`libc`, `libm`, `libdl`,
+`libpthread`), so it runs on any distribution with a compatible glibc.
+
+## 8. Verification checklist
+
+- [ ] `videoflow version` prints the expected version.
+- [ ] `videoflow doctor` exits 0 with FFmpeg paths inside the bundle.
+- [ ] `videoflow demo -o tmp` writes three artifacts.
+- [ ] The artifacts parse (XML/OTIO) and open in the three NLEs.
+- [ ] `videoflow serve` answers `/health`, `/`, and `/mcp/`.
+- [ ] An MCP host lists twelve tools over `videoflow mcp`.
+- [ ] The binary runs with `PATH` empty, proving the bundled FFmpeg is used.
+- [ ] On Windows, the artifact is unblocked and SmartScreen is documented.
+
+## 9. Limitations
+
+- Windows artifacts must be built on Windows or in the CI matrix; they are not
+  produced by a Linux build.
+- No code signing. SmartScreen will warn until a certificate is configured.
+- The rack UI is bundled but not wired to the API yet.
+- Transcription, retakes, shorts, and NLE transitions are not in this build.

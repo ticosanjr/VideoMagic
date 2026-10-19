@@ -1,0 +1,42 @@
+{
+  "name": "shorts-aggressive",
+  "description": "Tight silence cuts, aggressive retake removal, stronger punch-ins, and three vertical shorts.",
+  "module_enabled": {
+    "ingest": true,
+    "vad": true,
+    "transcribe": true,
+    "retakes": true,
+    "jl_cuts": true,
+    "zooms": true,
+    "shorts": true,
+    "export": true
+  },
+  "modules_config": {
+    "vad": {
+      "speech_threshold": 0.45,
+      "min_silence_duration_ms": 250
+    },
+    "transcribe": {
+      "model_size": "small",
+      "device": "cpu",
+      "compute_type": "int8"
+    },
+    "retakes": {
+      "strictness": "aggressive",
+      "retake_strategy": "keep_last"
+    },
+    "zooms": {
+      "mode": "alternate_cuts",
+      "punch_in_scale": 1.25
+    },
+    "shorts": {
+      "target_duration_min_sec": 30,
+      "target_duration_max_sec": 60,
+      "max_clips_to_generate": 3,
+      "reframe_mode": "center_crop_9_16",
+      "burn_subtitles": true,
+      "subtitles_preset": "tiktok_bold",
+      "export_format": "both"
+    }
+  }
+}

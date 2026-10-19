@@ -1,0 +1,23 @@
+{
+  "additionalProperties": false,
+  "description": "The only payload the retake model is allowed to return.",
+  "properties": {
+    "discard_sentence_ids": {
+      "items": {
+        "type": "integer"
+      },
+      "title": "Discard Sentence Ids",
+      "type": "array"
+    },
+    "reasoning": {
+      "minLength": 1,
+      "title": "Reasoning",
+      "type": "string"
+    }
+  },
+  "required": [
+    "reasoning"
+  ],
+  "title": "LlmRetakeResponse",
+  "type": "object"
+}

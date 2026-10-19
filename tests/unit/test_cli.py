@@ -1,0 +1,54 @@
+import json
+
+from videoflow import __version__, cli
+
+
+class FakeRun:
+    def to_dict(self) -> dict[str, object]:
+        return {"ok": True, "video_segment_count": 2, "artifacts": {}}
+
+
+def test_version(capsys) -> None:
+    assert cli.main(["version"]) == 0
+    output = capsys.readouterr().out
+    assert __version__ in output
+    assert "videoflow" in output
+
+
+def test_doctor_reports_missing_ffmpeg(monkeypatch, tmp_path, capsys) -> None:
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
+    monkeypatch.setattr(cli, "find_binary", lambda _name: None)
+    assert cli.main(["doctor"]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is False
+    assert payload["ffmpeg"]["found"] is False
+
+
+def test_doctor_passes_when_tools_are_present(monkeypatch, tmp_path, capsys) -> None:
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
+
+    class Completed:
+        returncode = 0
+        stdout = "ffmpeg version test\n"
+        stderr = ""
+
+    monkeypatch.setattr(cli, "find_binary", lambda _name: "/usr/bin/tool")
+    monkeypatch.setattr(cli.subprocess, "run", lambda *args, **kwargs: Completed())
+    assert cli.main(["doctor"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+
+
+def test_run_prints_the_report(monkeypatch, tmp_path, capsys) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    monkeypatch.setattr(cli, "run_portable", lambda *args, **kwargs: FakeRun())
+    assert cli.main(["run", str(source), "--out", str(tmp_path / "out")]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+    assert payload["video_segment_count"] == 2
+
+
+def test_unknown_command_returns_usage(capsys) -> None:
+    assert cli.main([]) == 2
+    assert "usage" in capsys.readouterr().out.lower()

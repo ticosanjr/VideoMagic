@@ -1,0 +1,119 @@
+"""Local FastAPI application. Binds to loopback. No authentication in v1."""
+
+from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from starlette.responses import RedirectResponse
+
+from videoflow import __version__
+from videoflow.api.routes import register_routes
+from videoflow.application.jobs import JobManager
+from videoflow.domain.constants import DEFAULT_API_HOST, DEFAULT_API_PORT
+from videoflow.runtime import ui_dir
+
+UI_ORIGINS = (
+    "http://127.0.0.1:5173",
+    "http://localhost:5173",
+)
+
+
+def create_app(
+    *,
+    ui: Path | None = None,
+    with_mcp: bool = False,
+    jobs: JobManager | None = None,
+) -> FastAPI:
+    """Build the loopback app.
+
+    ``with_mcp`` mounts the MCP server and starts its session manager. Tests that
+    only exercise the JSON API leave it off.
+    """
+
+    manager = jobs or JobManager()
+    mcp_app = None
+    lifespan = None
+    if with_mcp:
+        from videoflow.mcp_server.server import build_server
+
+        mcp = build_server(manager)
+        mcp_app = mcp.streamable_http_app(streamable_http_path="/")
+
+        @asynccontextmanager
+        async def mcp_lifespan(_app: FastAPI) -> AsyncIterator[None]:
+            async with mcp.session_manager.run():
+                yield
+
+        lifespan = mcp_lifespan
+
+    app = FastAPI(
+        title="VideoFlow",
+        version=__version__,
+        description="Local non-destructive video pre-edit pipeline.",
+        lifespan=lifespan,
+    )
+    _install_common(app)
+
+    @app.get("/health")
+    def health() -> dict[str, str]:
+        return {"status": "ok", "service": "videoflow", "version": __version__}
+
+    register_routes(app, manager)
+
+    if mcp_app is not None:
+        app.mount("/mcp", mcp_app)
+
+        @app.api_route(
+            "/mcp",
+            methods=["GET", "POST", "DELETE"],
+            include_in_schema=False,
+        )
+        def mcp_no_trailing_slash(_request: Request) -> RedirectResponse:
+            return RedirectResponse(url="/mcp/", status_code=307)
+
+    static = ui if ui is not None else None
+    if static is not None and (static / "index.html").is_file():
+        app.mount("/", StaticFiles(directory=str(static), html=True), name="ui")
+    else:
+
+        @app.get("/")
+        def root() -> dict[str, object]:
+            return {
+                "service": "videoflow",
+                "version": __version__,
+                "ui": False,
+                "endpoints": ["/health", "/api/v1/system", "/api/v1/jobs"],
+                "hint": "Run the CLI with `videoflow run` or build the UI.",
+            }
+
+    return app
+
+
+def create_http_app(ui: Path | None = None) -> FastAPI:
+    """Loopback app with API routes, MCP HTTP, and an optional static rack UI."""
+
+    return create_app(with_mcp=True, ui=ui if ui is not None else ui_dir())
+
+
+def _install_common(app: FastAPI) -> None:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(UI_ORIGINS),
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+        allow_headers=["*"],
+        expose_headers=["Mcp-Session-Id"],
+    )
+
+
+__all__ = [
+    "DEFAULT_API_HOST",
+    "DEFAULT_API_PORT",
+    "UI_ORIGINS",
+    "create_app",
+    "create_http_app",
+]
