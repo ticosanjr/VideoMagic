@@ -6,10 +6,10 @@ timeline: it removes silence and retakes, adds J-cuts and punch-ins, proposes
 vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive.
 
-> Status: 0.5.0 alpha. A portable single executable runs ingest, silence
-> detection, deterministic cuts, and three NLE exports. The local API, MCP
-> server, and rack UI execute real jobs. Neural engines, retakes, and shorts are
-> specified and stubbed.
+> Status: 0.6.0 alpha. A portable single executable runs ingest, silence
+> detection, transcript-driven retake culling, deterministic cuts, and three NLE
+> exports. The local API, MCP server, and rack UI execute real jobs. Silero,
+> Whisper, shorts, and NLE transitions are specified and stubbed.
 
 ## Requirements
 
@@ -25,7 +25,7 @@ CPU is the default. No model download happens at install time.
 
 ```bash
 uv sync --extra dev
-uv run pytest                       # 181 passing, 17 strict xfail, 4 deselected
+uv run pytest                       # 202 passing, 16 strict xfail, 4 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run videoflow-api                # http://127.0.0.1:8765/health and /mcp
 uv run videoflow-mcp                # stdio transport for a local agent
@@ -64,6 +64,8 @@ Build on the target OS: PyInstaller cannot cross-compile. The CI matrix at
 - Mono PCM extraction and SHA-256 media fingerprint.
 - Model-free speech detection through FFmpeg `silencedetect`, so the portable
   binary needs no model download.
+- SRT transcript import and retake culling with exact repeats or an
+  OpenAI-compatible LLM, protected by the keep-last guard.
 - Deterministic timeline: frame-quantised video, sample-aligned audio, merged
   speech spans, J/L-cut audio boundaries with handle checks, logarithmic fade
   metadata, and alternating punch-ins.
@@ -81,8 +83,8 @@ Build on the target OS: PyInstaller cannot cross-compile. The CI matrix at
 
 ## Not implemented yet
 
-- Silero VAD, Faster-Whisper, and the LLM client.
-- Project-scoped REST routes beyond jobs, and transcript/shorts tools.
+- Silero VAD, Faster-Whisper, and built-in transcription.
+- Project-scoped REST routes beyond jobs, and transcript/shorts API tools.
 - NLE audio transitions and keyframed progressive zooms.
 - Face tracking, MP4 rendering, and the interactive rack.
 - A signed Windows binary (SmartScreen will warn).

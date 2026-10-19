@@ -87,14 +87,23 @@ Leave the defaults unless you have a reason.
 
 ### 04 Retakes
 
+Today retakes come from an SRT file (the rack form does not expose this yet):
+
+```bash
+videoflow run interview.mp4 -o edit --transcript interview.srt --cull-retakes
+```
+
 - **Strictness**: conservative keeps more, aggressive cuts more.
 - **Strategy**: `keep_last` is the safe default and the final-take guarantee.
   `keep_best` lets the model prefer an earlier scored take.
 - **Context window**: 15 sentences. Raise it for long, repetitive passages.
-- **Provider**: Ollama or any OpenAI-compatible endpoint.
+- **Provider**: Ollama or any OpenAI-compatible endpoint, configured with
+  `VIDEOWFLOW_LLM_BASE_URL`, `VIDEOWFLOW_LLM_MODEL`, and
+  `VIDEOWFLOW_LLM_API_KEY`.
 
-The card shows how many sentences the model wanted to cut and how many the guard
-restored. A restoration is not an error; it is the safety rule working.
+Without an LLM, exact repeated text is still culled. The report shows how many
+sentences were cut and how many the guard restored. A restoration is not an
+error; it is the safety rule working.
 
 ### 05 J/L-cuts
 

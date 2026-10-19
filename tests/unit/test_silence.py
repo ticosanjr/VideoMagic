@@ -45,6 +45,18 @@ def test_detect_speech_requires_audio(tmp_path: Path) -> None:
         )
 
 
+def test_short_speech_blips_are_filtered(tmp_path: Path, monkeypatch) -> None:
+    wav = tmp_path / "source.wav"
+    wav.write_bytes(b"x")
+    stderr = "silence_start: 0.0\nsilence_end: 1.0\nsilence_start: 1.002\nsilence_end: 2.0"
+    adapter = FFmpegAdapter()
+    monkeypatch.setattr(adapter, "_capture", lambda _args: ("", stderr))
+    spans = adapter.detect_speech(
+        wav, duration_samples=2 * 48000, sample_rate=48000, min_speech_ms=100
+    )
+    assert spans == []
+
+
 def test_detect_speech_requires_positive_duration(tmp_path: Path) -> None:
     wav = tmp_path / "source.wav"
     wav.write_bytes(b"x")

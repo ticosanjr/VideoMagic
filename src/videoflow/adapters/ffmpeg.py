@@ -119,6 +119,7 @@ class FFmpegAdapter:
         sample_rate: int,
         noise_db: float = -30.0,
         min_silence_ms: int = 400,
+        min_speech_ms: int = 100,
     ) -> list[tuple[int, int]]:
         """Detect speech with FFmpeg ``silencedetect``.
 
@@ -145,7 +146,12 @@ class FFmpegAdapter:
         ]
         _, stderr = self._capture(args)
         silence = parse_silence(stderr, duration_samples, sample_rate)
-        return _complement(silence, duration_samples)
+        minimum = max(1, (min_speech_ms * sample_rate + 500) // 1000)
+        return [
+            (start, end)
+            for start, end in _complement(silence, duration_samples)
+            if end - start >= minimum
+        ]
 
     def render(self, args: list[str]) -> None:
         raise NotImplementedError("FFmpeg render is not implemented in this scaffold")

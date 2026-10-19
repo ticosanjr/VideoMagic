@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (0.5.0)
+## Implementation status (0.6.0)
 
 | Area | State |
 | --- | --- |
@@ -13,7 +13,8 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Deterministic timeline, J/L-cuts, fades, punch-ins | implemented |
 | FCPXML 1.9/1.10, xmeml, OTIO export | implemented |
 | Single portable executable, Linux and Windows | Linux built and smoke-tested; Windows CI matrix |
-| Silero VAD, Faster-Whisper, LLM retakes | specified, stubbed |
+| SRT transcript import and LLM retake culling | implemented |
+| Silero VAD, Faster-Whisper, built-in transcription | specified, stubbed |
 | Jobs, job REST routes, SSE, live MCP jobs | implemented for the portable path |
 | Rack UI driving real portable jobs | implemented |
 | Project-scoped routes, transcripts, shorts | specified, stubbed |

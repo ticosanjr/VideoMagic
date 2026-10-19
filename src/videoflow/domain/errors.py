@@ -131,3 +131,15 @@ class JobNotFoundError(VideoFlowError):
     """Unknown job id."""
 
     code = "job_not_found"
+
+
+class TranscriptError(VideoFlowError):
+    """A subtitle file cannot be parsed as a transcript."""
+
+    code = "invalid_transcript"
+
+
+class LlmError(VideoFlowError):
+    """The OpenAI-compatible endpoint failed or returned unusable JSON."""
+
+    code = "llm_failed"

@@ -17,7 +17,20 @@ Portable, model-free pre-edit pipeline.
 ./videoflow-linux-x86_64 mcp
 ```
 
-Windows assets are built by the `portable` CI workflow on `windows-latest`.
+## Windows
+
+The `portable` workflow builds `windows-latest` on a tag, but GitHub Actions on
+this private repository currently stops both jobs before the first step (no
+runner assigned). Until billing/visibility is sorted out, build the Windows
+artifact on a Windows machine:
+
+```powershell
+uv sync --extra dev
+cd ui; npm ci; npm run build; cd ..
+uv run python scripts/build_portable.py --fetch-ffmpeg
+```
+
+Then stage and upload it with `scripts/release.py`.
 
 ## Notes
 

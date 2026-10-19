@@ -27,6 +27,7 @@ Implemented:
 - deterministic timeline builder with J/L-cuts, handles, fades, and punch-ins
 - FCPXML 1.9/1.10, xmeml, and OTIO exporters plus `export_timeline`
 - model-free FFmpeg silence detection and the portable pipeline service
+- SRT import, OpenAI-compatible retake culling, and the keeper guard
 - unified CLI (`run`, `serve`, `mcp`, `doctor`, `demo`, `version`)
 - PyInstaller onefile packaging for Linux and Windows, with a CI matrix
 - MCP tool registration and structured not-implemented responses
@@ -35,8 +36,8 @@ Implemented:
 
 Stubbed, with `xfail` contracts:
 
-- Silero VAD, Faster-Whisper, and the LLM client
-- module `execute` methods and the pipeline runner
+- Silero VAD, Faster-Whisper, and built-in transcription
+- module `execute` methods and the rack runner
 - jobs, project routes, and SSE
 - live MCP tool results against a project
 - NLE audio transitions, keyframed zooms, MP4 render, and the interactive rack

@@ -169,16 +169,17 @@ Done:
 3. FCPXML, xmeml, OTIO with structural contract tests
 4. Portable model-free VAD and onefile executable
 5. In-process jobs, REST/SSE, and live MCP job tools
+6. SRT transcript import, LLM retakes, and the keeper guard
 
 Next, in order:
 
-6. Silero VAD
-7. Faster-Whisper
-8. LLM retakes, guard integration, manual overrides
-9. Project-scoped routes, transcripts, shorts tools
-10. NLE audio transitions, keyframed zooms, shorts, subtitles, MP4
-11. Rack UI against the live API
-12. Three-app import spike and long-file QA
+7. Silero VAD
+8. Faster-Whisper
+9. Manual overrides and transcript routes
+10. Project-scoped routes and shorts tools
+11. NLE audio transitions, keyframed zooms, shorts, subtitles, MP4
+12. Full rack controls, per-block runs, inspector
+13. Three-app import spike and long-file QA
 
 Each pass removes the `xfail` marker for its contracts and adds the media
 integration tests described in [testing.md](testing.md).

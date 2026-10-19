@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Protocol
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.adapters.llm import OpenAICompatibleLlm
 from videoflow.domain.state import MediaInfo
 
 
@@ -42,11 +43,6 @@ class SileroVadAdapter:
 class FasterWhisperAdapter:
     def transcribe(self, wav_path: Path) -> list[dict[str, object]]:
         raise NotImplementedError("Faster-Whisper is not implemented in this scaffold")
-
-
-class OpenAICompatibleLlm:
-    def complete_json(self, prompt: str, schema_name: str) -> dict[str, object]:
-        raise NotImplementedError("LLM client is not implemented in this scaffold")
 
 
 __all__ = [

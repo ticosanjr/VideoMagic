@@ -4,12 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from videoflow.adapters import (
-    FasterWhisperAdapter,
-    FFmpegAdapter,
-    OpenAICompatibleLlm,
-    SileroVadAdapter,
-)
+from videoflow.adapters import FasterWhisperAdapter, FFmpegAdapter, SileroVadAdapter
 from videoflow.application.runner import PipelineRunner
 from videoflow.domain.errors import IngestError
 from videoflow.domain.planning import RunPlan
@@ -36,11 +31,6 @@ def test_vad(tmp_path: Path) -> None:
 @pytest.mark.xfail(reason="Whisper engine is not in the scaffold", strict=True)
 def test_transcribe(tmp_path: Path) -> None:
     FasterWhisperAdapter().transcribe(tmp_path / "source.wav")
-
-
-@pytest.mark.xfail(reason="LLM client is not in the scaffold", strict=True)
-def test_llm() -> None:
-    OpenAICompatibleLlm().complete_json("prompt", "retakes")
 
 
 @pytest.mark.xfail(reason="Runner execution is not in the scaffold", strict=True)

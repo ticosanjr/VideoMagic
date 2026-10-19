@@ -41,6 +41,7 @@ class FakeAdapter:
         sample_rate: int,
         noise_db: float = -30.0,
         min_silence_ms: int = 400,
+        min_speech_ms: int = 100,
     ) -> list[tuple[int, int]]:
         return self.speech
 
@@ -66,6 +67,30 @@ def test_portable_pipeline_writes_state_report_and_artifacts(tmp_path: Path) -> 
     assert report["pcm_sha256"] == "digest"
     assert report["video_segment_count"] == 2
     assert report["artifacts"]["resolve"].endswith("timeline.fcpxml")
+
+
+def test_transcript_culls_exact_repeats_and_updates_state(tmp_path: Path) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    transcript = tmp_path / "subs.srt"
+    transcript.write_text(
+        "1\n00:00:00,000 --> 00:00:01,000\nSame line.\n\n"
+        "2\n00:00:02,000 --> 00:00:03,000\nSame line.\n",
+        encoding="utf-8",
+    )
+    result = run_portable(
+        source,
+        tmp_path / "project",
+        adapter=FakeAdapter(),  # type: ignore[arg-type]
+        transcript_path=transcript,
+        cull_retakes=True,
+    )
+    assert len(result.state.transcript) == 2
+    assert result.state.retake_culls == [0]
+    assert len(result.state.video_segments) == 1
+    report = json.loads(result.report_path.read_text(encoding="utf-8"))
+    assert report["transcript_sentence_count"] == 2
+    assert report["retake_cull_count"] == 1
 
 
 def test_portable_pipeline_fails_when_no_speech_is_detected(tmp_path: Path) -> None:

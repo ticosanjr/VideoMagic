@@ -49,6 +49,13 @@ def test_run_prints_the_report(monkeypatch, tmp_path, capsys) -> None:
     assert payload["video_segment_count"] == 2
 
 
+def test_cull_retakes_requires_a_transcript(tmp_path, capsys) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    assert cli.main(["run", str(source), "--cull-retakes"]) == 2
+    assert "--transcript" in capsys.readouterr().err
+
+
 def test_unknown_command_returns_usage(capsys) -> None:
     assert cli.main([]) == 2
     assert "usage" in capsys.readouterr().out.lower()

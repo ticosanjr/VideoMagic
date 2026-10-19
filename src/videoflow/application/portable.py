@@ -14,13 +14,22 @@ from pathlib import Path
 from typing import Any
 
 from videoflow import __version__
+from videoflow.adapters import LlmClient
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.export_service import export_timeline
+from videoflow.application.retakes import (
+    cull_intervals,
+    subtract_spans,
+)
+from videoflow.application.retakes import (
+    cull_retakes as cull_transcript_retakes,
+)
 from videoflow.application.timeline_builder import build_timeline
 from videoflow.domain.config import JlCutsConfig, ModuleEnabled, ZoomsConfig
 from videoflow.domain.errors import IngestError, JobCancelledError
-from videoflow.domain.state import ProjectState, SampleSpan
+from videoflow.domain.state import ProjectState, SampleSpan, Sentence
 from videoflow.domain.timebase import Rounding
+from videoflow.domain.transcript import parse_srt_file
 from videoflow.exporters.common import write_text
 from videoflow.exporters.fcpxml import Dialect
 
@@ -51,6 +60,9 @@ class PortableRun:
             "speech_interval_count": len(self.speech_intervals),
             "video_segment_count": len(self.state.video_segments),
             "audio_segment_count": len(self.state.audio_segments),
+            "transcript_sentence_count": len(self.state.transcript),
+            "retake_cull_count": len(self.state.retake_culls),
+            "retake_restored_count": len(self.state.retake_guard_restores),
             "warnings": list(self.warnings),
             "artifacts": {name: str(path) for name, path in self.artifacts.items()},
             "state_path": str(self.state_path),
@@ -65,12 +77,19 @@ def run_portable(
     *,
     noise_db: float = -30.0,
     min_silence_ms: int = 400,
+    min_speech_ms: int = 100,
     jl: JlCutsConfig | None = None,
     zooms: ZoomsConfig | None = None,
     dialect: Dialect = "1.9",
     adapter: FFmpegAdapter | None = None,
     progress: ProgressCallback | None = None,
     should_cancel: CancelCheck | None = None,
+    transcript_path: Path | None = None,
+    cull_retakes: bool = False,
+    llm_client: LlmClient | None = None,
+    strictness: str = "balanced",
+    retake_strategy: str = "keep_last",
+    context_window: int = 15,
 ) -> PortableRun:
     """Run the complete model-free pipeline for one source file."""
 
@@ -115,11 +134,37 @@ def run_portable(
         sample_rate=media.audio_sample_rate,
         noise_db=noise_db,
         min_silence_ms=min_silence_ms,
+        min_speech_ms=min_speech_ms,
     )
     if not speech:
         raise IngestError(
             "No speech detected. Lower the noise threshold or the minimum silence duration."
         )
+
+    transcript: list[Sentence] = []
+    discard: list[int] = []
+    restored: list[int] = []
+    if transcript_path is not None:
+        gate()
+        step("transcript", 42, "Reading subtitle transcript")
+        transcript = parse_srt_file(transcript_path, media.audio_sample_rate)
+        if cull_retakes:
+            gate()
+            step("retakes", 48, "Culling retakes")
+            result = cull_transcript_retakes(
+                transcript,
+                client=llm_client,
+                strategy=retake_strategy,  # type: ignore[arg-type]
+                context_window=context_window,
+                strictness=strictness,
+            )
+            discard = list(result.discard_sentence_ids)
+            restored = list(result.restored_sentence_ids)
+            speech = subtract_spans(speech, cull_intervals(transcript, discard))
+            minimum = max(1, (min_speech_ms * media.audio_sample_rate + 500) // 1000)
+            speech = [(start, end) for start, end in speech if end - start >= minimum]
+            if not speech:
+                raise IngestError("Retake culling removed all speech.")
 
     config_jl = jl or JlCutsConfig()
     config_zooms = zooms or ZoomsConfig()
@@ -130,6 +175,9 @@ def run_portable(
         media_info=media,
         module_enabled=ModuleEnabled(),
         vad_intervals=[SampleSpan(start_sample=start, end_sample=end) for start, end in speech],
+        transcript=transcript,
+        retake_culls=discard,
+        retake_guard_restores=restored,
         video_segments=list(built.video_segments),
         audio_segments=list(built.audio_segments),
     )

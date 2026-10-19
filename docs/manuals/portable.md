@@ -73,8 +73,11 @@ Notes:
 
 ```bash
 videoflow run INPUT [-o DIR] [--noise-db -30] [--min-silence-ms 400]
-                    [--no-jcuts] [--l-cuts] [--no-zooms]
+                    [--min-speech-ms 100] [--no-jcuts] [--l-cuts] [--no-zooms]
                     [--offset-ms 200] [--crossfade-ms 20] [--dialect 1.9]
+                    [--transcript subs.srt] [--cull-retakes]
+                    [--llm-base-url URL] [--llm-model MODEL]
+                    [--strictness balanced] [--retake-strategy keep_last]
 ```
 
 Default output is `INPUT-stem-videoflow` next to the source.
@@ -92,7 +95,34 @@ DIR/
 ```
 
 `run.json` is the machine-readable report: media info, speech interval count,
-segment counts, warnings, artifact paths, PCM digest, and elapsed time.
+segment counts, transcript/retake counts, warnings, artifact paths, PCM digest,
+and elapsed time.
+
+### Transcript and retakes
+
+SRT can drive retake culling without a speech model:
+
+```bash
+videoflow run interview.mp4 -o edit \
+  --transcript interview.srt --cull-retakes
+```
+
+Without an LLM, only exact repeated text is culled. With an OpenAI-compatible
+endpoint, the model proposes discards per context window and the keep-last guard
+restores an illegal drop:
+
+```bash
+export VIDEOWFLOW_LLM_BASE_URL=http://localhost:11434/v1
+export VIDEOWFLOW_LLM_MODEL=qwen2.5:7b-instruct
+export VIDEOWFLOW_LLM_API_KEY=            # empty for local Ollama
+videoflow run interview.mp4 -o edit \
+  --transcript interview.srt --cull-retakes \
+  --strictness balanced --retake-strategy keep_last
+```
+
+The transcript and cull decisions are written to `project_state.json`. A cloud
+endpoint receives the transcript text; use a local endpoint if that is not
+acceptable.
 
 ### serve
 

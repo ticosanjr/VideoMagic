@@ -95,7 +95,17 @@ Portable, model-free pre-edit pipeline.
 ./{asset_name} mcp
 ```
 
-Windows assets are built by the `portable` CI workflow on `windows-latest`.
+## Windows
+
+The `portable` workflow builds `windows-latest` on a tag when Actions runners and
+minutes are available. Otherwise build on Windows and stage the result:
+
+```powershell
+uv sync --extra dev
+cd ui; npm ci; npm run build; cd ..
+uv run python scripts/build_portable.py --fetch-ffmpeg
+uv run python scripts/release.py
+```
 
 ## Notes
 

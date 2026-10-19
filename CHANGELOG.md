@@ -3,6 +3,36 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.6.0] — 2026-10-19
+
+### Added
+
+- SRT transcript import with exact sample-time conversion.
+- OpenAI-compatible JSON client: Ollama, LM Studio, Groq, and other
+  `/chat/completions` endpoints; temperature 0; response-format fallback; no key
+  in errors.
+- Transcript-driven retake culling with overlapping context windows, strict id
+  validation, exact-repeat fallback, and the `keep_last`/`keep_best` guard.
+- `videoflow run --transcript subs.srt --cull-retakes`, optional LLM via
+  `--llm-base-url`, and strictness/strategy/window flags.
+- Transcript and retake decisions are persisted in `project_state.json` and
+  reported in `run.json`.
+- `--min-speech-ms` removes sub-100 ms blips left by codec edges.
+- Tests for SRT parsing, LLM transport, chunking, guard restoration, interval
+  subtraction, and the culling pipeline.
+
+### Changed
+
+- Version is 0.6.0.
+- The LLM adapter is now a real implementation; its contract xfail is removed.
+
+### Verified
+
+- Frozen Linux binary: `--transcript` + `--cull-retakes` culls an exact repeat.
+- Frozen Linux binary against a local OpenAI-compatible server: the model
+  discards both attempts, the guard restores the last one, and the run reports
+  one cull plus one restoration.
+
 ## [0.5.0] — 2026-10-19
 
 ### Added

@@ -15,7 +15,7 @@ hides the contract. VideoFlow resolves this with two layers:
 
 | Scope | Line coverage | Notes |
 | --- | --- | --- |
-| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.5% (181 passing, 17 strict xfail, 4 deselected) |
+| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.2% (202 passing, 16 strict xfail, 4 deselected) |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |
 | UI | `npm run check` and `npm run build` | Manual: start a job from the rack and confirm progress and artifacts |
@@ -71,8 +71,11 @@ workflow builds the onefile binary on Linux and Windows and runs `version`,
 | `test_errors.py` | Error codes and payloads |
 | `test_timeline_builder.py` | Span merge, frame coverage, J/L shifts, handles, zooms, pan |
 | `test_ffmpeg_adapter.py` | Probe parsing, PCM extraction, digest, FFmpeg failures |
-| `test_silence.py` | `silencedetect` parsing, complement, edge cases |
-| `test_portable.py` | End-to-end portable service with a fake engine |
+| `test_silence.py` | `silencedetect` parsing, complement, blip filtering |
+| `test_transcript.py` | SRT parsing, BOM/CRLF, malformed files |
+| `test_llm.py` | OpenAI-compatible JSON transport, retry, errors, redaction |
+| `test_retake_service.py` | Windows, ids, exact fallback, guard, subtraction |
+| `test_portable.py` | End-to-end portable service with a fake engine and retakes |
 | `test_jobs.py` | Job completion, failure, cancellation, queue limit, pruning |
 | `test_cli.py` | `version`, `doctor`, `run` dispatch, usage |
 | `test_runtime.py` | Portable home, binary discovery, UI discovery, allowed roots |
@@ -95,7 +98,7 @@ workflow builds the onefile binary on Linux and Windows and runs `version`,
 | File | Contract |
 | --- | --- |
 | `test_exporters.py` | Audio transitions at joins (AC-01); MP4 render |
-| `test_pipeline.py` | Silero VAD, Whisper, LLM, module execution, rack runner |
+| `test_pipeline.py` | Silero VAD, Whisper, module execution, rack runner |
 | `test_api.py` | Project creation and SSE routes |
 | `test_mcp.py` | Live transcript resource |
 

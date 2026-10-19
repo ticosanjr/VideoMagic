@@ -58,12 +58,44 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("-o", "--out", type=Path, default=None, help="Project directory.")
     run.add_argument("--noise-db", type=float, default=-30.0, help="Silence threshold.")
     run.add_argument("--min-silence-ms", type=int, default=400, help="Shortest silence to cut.")
+    run.add_argument(
+        "--min-speech-ms",
+        type=int,
+        default=100,
+        help="Ignore speech blips shorter than this (default 100).",
+    )
     run.add_argument("--no-jcuts", action="store_true", help="Disable J-cuts.")
     run.add_argument("--l-cuts", action="store_true", help="Enable L-cuts.")
     run.add_argument("--no-zooms", action="store_true", help="Disable punch-ins.")
     run.add_argument("--offset-ms", type=int, default=200)
     run.add_argument("--crossfade-ms", type=int, default=20)
     run.add_argument("--dialect", choices=("1.9", "1.10"), default="1.9")
+    run.add_argument("--transcript", type=Path, default=None, help="SRT subtitle file.")
+    run.add_argument(
+        "--cull-retakes",
+        action="store_true",
+        help="Cull failed takes using the transcript (exact repeats without an LLM).",
+    )
+    run.add_argument(
+        "--llm-base-url",
+        default=os.environ.get("VIDEOWFLOW_LLM_BASE_URL"),
+        help="OpenAI-compatible base URL. Defaults to VIDEOWFLOW_LLM_BASE_URL.",
+    )
+    run.add_argument(
+        "--llm-model",
+        default=os.environ.get("VIDEOWFLOW_LLM_MODEL", "qwen2.5:7b-instruct"),
+    )
+    run.add_argument(
+        "--strictness",
+        choices=("conservative", "balanced", "aggressive"),
+        default="balanced",
+    )
+    run.add_argument(
+        "--retake-strategy",
+        choices=("keep_last", "keep_best"),
+        default="keep_last",
+    )
+    run.add_argument("--context-window", type=int, default=15)
 
     demo = sub.add_parser("demo", help="Generate a fixture and run the full pipeline.")
     demo.add_argument("-o", "--out", type=Path, default=Path("videoflow-demo"))
@@ -131,14 +163,33 @@ def _run(args: argparse.Namespace) -> int:
         audio_crossfade_ms=args.crossfade_ms,
     )
     zooms = ZoomsConfig(mode="manual_rules" if args.no_zooms else "alternate_cuts")
+    if args.cull_retakes and args.transcript is None:
+        print("--cull-retakes requires --transcript.", file=sys.stderr)
+        return 2
+    client = None
+    if args.transcript is not None and args.llm_base_url:
+        from videoflow.adapters.llm import OpenAICompatibleLlm
+
+        client = OpenAICompatibleLlm(
+            base_url=args.llm_base_url,
+            model=args.llm_model,
+            api_key=os.environ.get("VIDEOWFLOW_LLM_API_KEY"),
+        )
     result = run_portable(
         args.source,
         output,
         noise_db=args.noise_db,
         min_silence_ms=args.min_silence_ms,
+        min_speech_ms=args.min_speech_ms,
         jl=jl,
         zooms=zooms,
         dialect=args.dialect,
+        transcript_path=args.transcript,
+        cull_retakes=args.cull_retakes,
+        llm_client=client,
+        strictness=args.strictness,
+        retake_strategy=args.retake_strategy,
+        context_window=args.context_window,
     )
     print(json.dumps(result.to_dict(), indent=2))
     return 0

@@ -42,7 +42,7 @@ For HTTP:
 
 ## 2. Tools
 
-Four tools are live in 0.5.0: `videoflow_load_media`,
+Four tools are live in 0.6.0: `videoflow_load_media`,
 `videoflow_run_pipeline`, `videoflow_get_job`, and `videoflow_cancel_job`. They
 operate on the model-free portable pipeline. The neural tools still return:
 
@@ -105,7 +105,7 @@ Resources are read-only. A write goes through a tool.
 
 ## 4. Agent workflow
 
-The working 0.5.0 path, using only public tools:
+The working 0.6.0 path, using only public tools:
 
 ```
 1. videoflow_load_media(file_path="/media/interview.mp4")
