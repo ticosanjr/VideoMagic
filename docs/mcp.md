@@ -51,7 +51,7 @@ still required.
 | --- | --- | --- |
 | `videoflow_load_media` | `file_path` | **live**: probes and remembers the source; loading a different source clears the old MCP project context |
 | `videoflow_run_vad` | `noise_db`, `min_silence_ms`, `min_speech_ms`, `vad_engine`, `speech_threshold`, `speech_pad_before_ms`, `speech_pad_after_ms` | **live**: Silero when available, FFmpeg fallback; returns sample intervals, removable silence, and the selected engine |
-| `videoflow_transcribe` | `model`, `language` | **live**: local whisper.cpp; returns sentences and stages an SRT for the next run |
+| `videoflow_transcribe` | `model`, `language`, `engine`, `device`, `compute_type`, `vad_filter`, `model_path` | **live**: local Faster-Whisper or whisper.cpp; returns sentences and stages an SRT for the next run |
 | `videoflow_get_transcript` | `include_word_timestamps` | **live**: cached or project-state transcript, plus SRT |
 | `videoflow_cull_retakes` | `discard_sentence_ids`, `manual_word_indices` | **live/staged**: automatic exact-repeat culling plus manual sentence discards; the guard protects the final take |
 | `videoflow_configure_zooms` | `mode`, `scale`, `anchor` | **live/staged**: punch-in, anchor, and pan metadata |
@@ -80,8 +80,10 @@ Presets accepted by `run_pipeline`:
 `export_targets`, `dialect`, `transcript`, `cull_retakes`, `strictness`,
 `retake_strategy`, `context_window`, `llm_base_url`, `llm_model`, `shorts`,
 `shorts_count`, `shorts_min_sec`, `shorts_max_sec`, `shorts_subtitles`,
-`overrides`, `transcribe`, `asr_base_url`, `asr_model`, `asr_language`, and
-`whisper_model`. Unknown keys return `invalid_overrides`. `transcript` is
+`overrides`, `transcribe`, `asr_base_url`, `asr_model`, `asr_language`,
+`whisper_engine`, `whisper_model_size`, `whisper_device`,
+`whisper_compute_type`, `whisper_vad_filter`, `whisper_model`, and
+`faster_whisper_model`. Unknown keys return `invalid_overrides`. `transcript` is
 resolved through the same path allowlist as the source.
 
 When a job starts, VideoFlow merges options in this order: preset defaults,
@@ -137,9 +139,12 @@ The complete path, using only public tools:
 ```
 
 `videoflow_transcribe` writes a cached SRT and stages it, so the next pipeline
-uses exactly the transcript the agent inspected. If transcription is skipped,
-run the pipeline with `transcribe=true` and the desired `asr_language` or
-`whisper_model`. Retake culling needs a transcript from either path.
+uses exactly the transcript the agent inspected. `engine="auto"` prefers
+Faster-Whisper when its package and model are installed, then uses whisper.cpp;
+pass `engine="whisper.cpp"` to force the fallback. If transcription is skipped,
+run the pipeline with `transcribe=true` and the desired `asr_language`,
+`whisper_engine`, model size, or local model path. Retake culling needs a
+transcript from either path.
 
 An agent must not assume that a tool call returns instantly. Poll
 `videoflow_get_job` at a human pace or subscribe to the SSE stream through the

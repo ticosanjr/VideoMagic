@@ -21,8 +21,10 @@ video container.
 
 - `MediaInfo` with `duration_frames`, `fps_num`, `fps_den`, dimensions, and
   `audio_sample_rate`.
-- `work/source.wav`: 16 kHz mono PCM, or 48 kHz when the downstream engine needs
-  it.
+- `work/source.wav`: analysis PCM at the source audio rate. Local transcription
+  later extracts `work/transcribe.wav` at 16 kHz from the complete source. The
+  analysis WAV stays at source rate so VAD spans and ASR timestamps share one
+  timebase.
 - `work/proxy.mp4`: optional intra-frame preview.
 - PCM SHA-256: the **media fingerprint** used by every downstream hash.
 

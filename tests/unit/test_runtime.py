@@ -85,3 +85,38 @@ def test_find_silero_model_prefers_bundle_and_honours_override(monkeypatch, tmp_
     assert runtime.find_silero_model() == override
     monkeypatch.setenv("VIDEOWFLOW_SILERO_MODEL", str(tmp_path / "missing.onnx"))
     assert runtime.find_silero_model() is None
+
+
+def test_find_faster_whisper_model_prefers_bundle_and_honours_override(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("VIDEOWFLOW_FASTER_WHISPER_MODEL", raising=False)
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
+    monkeypatch.setattr(runtime, "bundle_root", lambda: tmp_path)
+    monkeypatch.setattr(runtime, "executable_dir", lambda: tmp_path / "bin")
+    model = tmp_path / "faster-whisper" / "small"
+    model.mkdir(parents=True)
+    (model / "model.bin").write_bytes(b"model")
+    (model / "config.json").write_text("{}", encoding="utf-8")
+    assert runtime.find_faster_whisper_model("small") == model
+
+    override = tmp_path / "custom"
+    override.mkdir()
+    (override / "model.bin").write_bytes(b"model")
+    (override / "config.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("VIDEOWFLOW_FASTER_WHISPER_MODEL", str(override))
+    assert runtime.find_faster_whisper_model("small") == override
+    assert runtime.expected_faster_whisper_model("small") == override
+    monkeypatch.setenv("VIDEOWFLOW_FASTER_WHISPER_MODEL", str(tmp_path / "missing"))
+    assert runtime.find_faster_whisper_model("small") is None
+
+
+def test_expected_faster_whisper_model_uses_the_development_vendor_path(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("VIDEOWFLOW_FASTER_WHISPER_MODEL", raising=False)
+    monkeypatch.setattr(runtime, "bundle_root", lambda: tmp_path)
+    monkeypatch.setattr(runtime, "is_frozen", lambda: False)
+    assert runtime.expected_faster_whisper_model("small") == (
+        tmp_path / "vendor" / "faster-whisper" / "small"
+    )

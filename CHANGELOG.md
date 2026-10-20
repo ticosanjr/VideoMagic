@@ -3,6 +3,61 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.19.0] — 2026-10-20
+
+### Added
+
+- Local Faster-Whisper 1.2.1 transcription through CTranslate2, with the full
+  16 kHz WAV sent to the engine, word timestamps required for the quality path,
+  and exact floor/ceil conversion from word seconds to source samples.
+- `TranscribeConfig.engine` with `auto`, `faster-whisper`, and `whisper.cpp`.
+  `auto` prefers Faster-Whisper when the optional package and selected model are
+  present, then falls back to whisper.cpp. Explicit engines fail with an
+  actionable hint instead of silently downgrading.
+- `--whisper-engine`, `--model-size`, `--device`, `--compute-type`,
+  `--whisper-vad`, and `--faster-whisper-model` in `videoflow run`; matching job
+  API fields, project run options, MCP arguments/overrides, and rack controls.
+- Local CTranslate2 model discovery through `VIDEOWFLOW_FASTER_WHISPER_MODEL`,
+  the frozen bundle, the executable directory, and the portable home. A model
+  directory must contain `model.bin` and `config.json`; models are never
+  downloaded implicitly.
+- `scripts/fetch_faster_whisper.py` with the pinned
+  `Systran/faster-whisper-small` revision
+  `536b0662742c02347bc0e980a01041f333bce120`, per-file sizes, and SHA-256
+  verification.
+- `--with-faster-whisper` and `--refresh-faster-whisper` in the portable build.
+  PyInstaller collects Faster-Whisper, CTranslate2, Tokenizers, PyAV, Hugging
+  Face Hub, and the ~484 MB small model under `faster-whisper/small/`.
+- `doctor` reports the Faster-Whisper package version, resolved model, and
+  readiness.
+- Unit, contract, CLI, job, API, MCP, runtime, and portable coverage for engine
+  selection, fallback, explicit failures, full-WAV calls, exact timestamps, and
+  model discovery.
+
+### Changed
+
+- `transcribe` is now an `auto` local quality path. An SRT or project transcript
+  still wins, and an ASR base URL still takes precedence over both local engines.
+- Transcript sources are reported distinctly as `faster-whisper`, `whisper`,
+  `asr`, `srt`, or `project`.
+- The optional `faster-whisper` extra pins Faster-Whisper 1.2.1 and PyAV
+  `>=11,<19`; PyAV 19 removes the `metadata_errors` argument used by 1.2.1.
+- Release builds bundle the model and runtime, so artifacts are substantially
+  larger than 0.18.0. A build without the flag keeps the whisper.cpp fallback.
+
+### Verified
+
+- Tests: 301 passed, 11 xfailed, 7 deselected; coverage 99.27%; ruff and mypy
+  clean; UI check, Vitest, and production build pass.
+- A real 48 kHz source produced a `faster-whisper` transcript with source-sample
+  word timings; `auto` selected Faster-Whisper and an explicit whisper.cpp run
+  still completed. The frozen Linux API and AppImage quality paths produced the
+  same result.
+- Linux 0.19.0 binary, AppImage, and Windows PE were built and smoke-tested.
+  Windows `version`, `doctor`, `demo`, and a real Faster-Whisper run passed under
+  Wine. Sizes and SHA-256 values are in
+  `releases/v0.19.0/release-notes.md` and `manifest.json`.
+
 ## [0.18.0] — 2026-10-20
 
 ### Added

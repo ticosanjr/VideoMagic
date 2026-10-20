@@ -23,7 +23,11 @@ from videoflow.application.shorts import (
     sentence_events,
     slugify,
 )
-from videoflow.domain.config import JlCutsConfig, ZoomsConfig
+from videoflow.domain.config import (
+    JlCutsConfig,
+    TranscribeConfig,
+    ZoomsConfig,
+)
 from videoflow.domain.errors import VideoFlowError
 from videoflow.domain.timebase import Rounding
 from videoflow.domain.transcript import parse_srt_file
@@ -31,6 +35,7 @@ from videoflow.exporters.common import write_text
 from videoflow.runtime import (
     ensure_home,
     find_binary,
+    find_faster_whisper_model,
     find_silero_model,
     find_whisper_binary,
     find_whisper_model,
@@ -121,12 +126,42 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--transcribe",
         action="store_true",
-        help="Transcribe with local whisper.cpp, or an ASR endpoint when a URL is set.",
+        help="Transcribe with local Faster-Whisper or whisper.cpp, or an ASR URL.",
+    )
+    run.add_argument(
+        "--whisper-engine",
+        choices=("auto", "faster-whisper", "whisper.cpp"),
+        default="auto",
+        help="Local engine: Faster-Whisper when available, whisper.cpp fallback, or force one.",
+    )
+    run.add_argument(
+        "--model-size",
+        choices=("tiny", "base", "small", "medium", "large-v3"),
+        default="small",
+        help="Faster-Whisper model size (default small).",
+    )
+    run.add_argument(
+        "--device",
+        choices=("cpu", "cuda"),
+        default="cpu",
+        help="Faster-Whisper device (default cpu).",
+    )
+    run.add_argument(
+        "--compute-type",
+        choices=("int8", "float16", "float32"),
+        default="int8",
+        help="Faster-Whisper compute type (default int8).",
+    )
+    run.add_argument(
+        "--whisper-vad",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Enable Faster-Whisper's own VAD filter; keep it off when module 02 runs.",
     )
     run.add_argument(
         "--asr-base-url",
         default=os.environ.get("VIDEOWFLOW_ASR_BASE_URL"),
-        help="ASR base URL. Empty runs the bundled whisper.cpp model.",
+        help="ASR base URL. Empty runs a local Faster-Whisper or whisper.cpp engine.",
     )
     run.add_argument(
         "--asr-model",
@@ -138,10 +173,16 @@ def _parser() -> argparse.ArgumentParser:
         default="pt",
     )
     run.add_argument(
+        "--faster-whisper-model",
+        type=Path,
+        default=None,
+        help="Local CTranslate2 model directory; empty uses the selected bundled model.",
+    )
+    run.add_argument(
         "--whisper-model",
         type=Path,
         default=None,
-        help="Local GGML model; empty uses the bundled ggml-tiny.bin.",
+        help="Local GGML model for whisper.cpp; empty uses the bundled ggml-tiny.bin.",
     )
     run.add_argument(
         "--cull-retakes",
@@ -240,6 +281,18 @@ def _doctor() -> int:
         "model": str(whisper_model) if whisper_model else None,
         "found": bool(whisper_binary and whisper_model),
     }
+    faster_whisper_model = find_faster_whisper_model("small")
+    try:
+        import faster_whisper
+
+        faster_whisper_version: str | None = faster_whisper.__version__
+    except Exception:  # pragma: no cover - optional runtime
+        faster_whisper_version = None
+    checks["faster_whisper"] = {
+        "package": faster_whisper_version,
+        "model": str(faster_whisper_model) if faster_whisper_model else None,
+        "found": bool(faster_whisper_version and faster_whisper_model),
+    }
     silero_model = find_silero_model()
     try:
         import onnxruntime
@@ -312,6 +365,15 @@ def _run(args: argparse.Namespace) -> int:
         asr_model=args.asr_model,
         asr_language=args.asr_language,
         whisper_model=args.whisper_model,
+        faster_whisper_model=args.faster_whisper_model,
+        transcribe_config=TranscribeConfig(
+            engine=args.whisper_engine,
+            model_size=args.model_size,
+            language=args.asr_language,
+            device=args.device,
+            compute_type=args.compute_type,
+            vad_filter=args.whisper_vad,
+        ),
         llm_client=client,
         strictness=args.strictness,
         retake_strategy=args.retake_strategy,

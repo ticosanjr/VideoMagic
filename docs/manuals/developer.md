@@ -3,7 +3,7 @@
 ## 1. Setup
 
 ```bash
-uv sync --extra dev
+uv sync --extra dev --extra faster-whisper
 uv run pytest
 uv run ruff check .
 uv run ruff format --check .
@@ -27,6 +27,8 @@ Implemented:
 - deterministic timeline builder with J/L-cuts, handles, fades, and punch-ins
 - FCPXML 1.9/1.10, xmeml, and OTIO exporters plus `export_timeline`
 - Silero VAD with FFmpeg fallback and the portable pipeline service
+- local Faster-Whisper/CTranslate2 transcription with word timestamps, a pinned
+  bundled model, and whisper.cpp fallback
 - SRT import, OpenAI-compatible retake culling, and the keeper guard
 - unified CLI (`run`, `serve`, `mcp`, `doctor`, `demo`, `version`)
 - PyInstaller onefile packaging for Linux and Windows, plus a Linux AppImage
@@ -36,7 +38,6 @@ Implemented:
 
 Stubbed, with `xfail` contracts:
 
-- the Faster-Whisper/CTranslate2 adapter
 - per-module `execute` methods and per-module reruns
 - NLE audio transitions, keyframed progressive zooms, and direct MP4 rendering
 
@@ -47,7 +48,7 @@ src/videoflow/
   domain/        pure rules; no I/O
   application/   cache, runner, jobs, ports
   modules/       eight module classes and fingerprints
-  adapters/      ffmpeg, silero, whisper, asr, llm
+  adapters/      ffmpeg, silero, faster_whisper, whisper, asr, llm
   exporters/     fcpxml, xmeml, otio, mp4
   api/           FastAPI, CLI
   mcp_server/    registry, SDK server, CLI

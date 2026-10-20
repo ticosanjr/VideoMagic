@@ -222,6 +222,11 @@ class ProjectStore:
             "overrides": [item.model_dump(mode="json") for item in state.manual_overrides],
             "transcribe": enabled.transcribe and not has_transcript,
             "asr_language": config.transcribe.language,
+            "whisper_engine": config.transcribe.engine,
+            "whisper_model_size": config.transcribe.model_size,
+            "whisper_device": config.transcribe.device,
+            "whisper_compute_type": config.transcribe.compute_type,
+            "whisper_vad_filter": config.transcribe.vad_filter,
         }
 
     def _home_dir(self) -> Path:

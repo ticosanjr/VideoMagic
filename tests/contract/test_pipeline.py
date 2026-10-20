@@ -6,7 +6,7 @@ import pytest
 
 from videoflow.adapters import FasterWhisperAdapter, FFmpegAdapter
 from videoflow.application.runner import PipelineRunner
-from videoflow.domain.errors import IngestError
+from videoflow.domain.errors import IngestError, TranscriptionError
 from videoflow.domain.planning import RunPlan
 from videoflow.domain.state import ProjectState
 from videoflow.modules import modules
@@ -23,9 +23,9 @@ def test_each_module_executes(module: object) -> None:
     assert module.execute(object()) is not None  # type: ignore[attr-defined]
 
 
-@pytest.mark.xfail(reason="Faster-Whisper engine is not in this pass", strict=True)
-def test_transcribe(tmp_path: Path) -> None:
-    FasterWhisperAdapter().transcribe(tmp_path / "source.wav")
+def test_transcribe_reports_missing_audio(tmp_path: Path) -> None:
+    with pytest.raises(TranscriptionError, match="Audio does not exist"):
+        FasterWhisperAdapter().transcribe(tmp_path / "source.wav", 16000)
 
 
 @pytest.mark.xfail(reason="Runner execution is not in the scaffold", strict=True)

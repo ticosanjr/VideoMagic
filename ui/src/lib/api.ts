@@ -38,6 +38,17 @@ export interface JobOptions {
   context_window: number;
   llm_base_url: string | null;
   llm_model: string;
+  transcribe?: boolean;
+  asr_base_url?: string | null;
+  asr_model?: string;
+  asr_language?: string;
+  whisper_engine?: string;
+  whisper_model_size?: string;
+  whisper_device?: string;
+  whisper_compute_type?: string;
+  whisper_vad_filter?: boolean;
+  whisper_model?: string | null;
+  faster_whisper_model?: string | null;
 }
 
 export interface JobStage {

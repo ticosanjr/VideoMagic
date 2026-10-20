@@ -24,6 +24,7 @@ from videoflow.domain.config import (
     JlCutsConfig,
     ModuleEnabled,
     ModulesConfig,
+    TranscribeConfig,
     ZoomsConfig,
 )
 from videoflow.domain.errors import (
@@ -254,6 +255,17 @@ class JobManager:
                 asr_model=str(options.get("asr_model", "whisper-1")),
                 asr_language=str(options.get("asr_language", "pt")),
                 whisper_model=options.get("whisper_model") or None,
+                faster_whisper_model=options.get("faster_whisper_model") or None,
+                transcribe_config=TranscribeConfig(
+                    engine=str(options.get("whisper_engine", "auto")),  # type: ignore[arg-type]
+                    model_size=str(options.get("whisper_model_size", "small")),  # type: ignore[arg-type]
+                    language=str(options.get("asr_language", "pt")),  # type: ignore[arg-type]
+                    device=str(options.get("whisper_device", "cpu")),  # type: ignore[arg-type]
+                    compute_type=str(  # type: ignore[arg-type]
+                        options.get("whisper_compute_type", "int8")
+                    ),
+                    vad_filter=bool(options.get("whisper_vad_filter", False)),
+                ),
                 transcript_sentences=transcript_sentences,
                 project_id=UUID(str(project_id)) if project_id else None,
                 revision=int(options.get("revision", 1)),

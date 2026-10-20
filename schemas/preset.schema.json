@@ -323,6 +323,16 @@
           "title": "Device",
           "type": "string"
         },
+        "engine": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "faster-whisper",
+            "whisper.cpp"
+          ],
+          "title": "Engine",
+          "type": "string"
+        },
         "language": {
           "default": "pt",
           "enum": [

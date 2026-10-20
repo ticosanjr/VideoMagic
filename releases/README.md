@@ -20,7 +20,8 @@ releases/v0.4.0/
    project. Uploading to a GitHub Release is a separate, manual decision.
 
 ```bash
-uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper --with-silero
+uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper \
+  --with-silero --with-faster-whisper
 uv run python scripts/build_appimage.py
 # Windows PE via Wine + embeddable Python, see docs/manuals/portable.md
 uv run python scripts/release.py
@@ -38,6 +39,8 @@ videoflow-0.9.0-windows-x86_64.exe
 
 ## Current
 
+- `v0.19.0`: local Faster-Whisper 1.2.1 with the pinned small CTranslate2
+  model, full-WAV word timestamps, whisper.cpp fallback, and bundled runtime.
 - `v0.18.0`: Silero VAD v5.1.2 via ONNX Runtime, engine selection and fallback,
   source-rate pads, and bundled model/runtime in the portable builds.
 - `v0.17.0`: persistent revisioned projects, project REST routes, transcript

@@ -154,14 +154,16 @@ the future.
 
 ```
 FFprobe → PCM at media rate → Silero (16 kHz) or FFmpeg VAD → optional SRT/ASR
-        → retake culling → pads → timeline → three exports
+        → Faster-Whisper or whisper.cpp → retake culling → pads → timeline
+        → three exports
 ```
 
 `videoflow run` and `videoflow demo` call it. `auto` uses Silero when the pinned
 model and ONNX Runtime are present and falls back to FFmpeg `silencedetect`
 otherwise. Pads are applied after retake culling so a discarded take cannot
-survive as pad-only audio. The path also supports local whisper.cpp, SRT/ASR
-transcripts, LLM retakes, shorts, and all three exporters.
+survive as pad-only audio. The path supports local Faster-Whisper, whisper.cpp
+as the automatic fallback, SRT/ASR transcripts, LLM retakes, shorts, and all
+three exporters.
 
 ## 12. Implementation order
 
@@ -179,10 +181,11 @@ Done:
 10. Persistent projects, atomic revisions, transcript routes, and operator
     presets
 11. Silero VAD, source-rate rescaling, pads, and ONNX packaging
+12. Faster-Whisper, full-WAV word timestamps, local model management, and
+    portable model packaging
 
 Next, in order:
 
-12. Faster-Whisper
 13. Cache-backed per-block runs and the full rack inspector
 14. NLE audio transitions, keyframed zooms, subtitles, MP4
 15. Three-app import spike and long-file QA

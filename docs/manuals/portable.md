@@ -2,8 +2,9 @@
 
 VideoFlow ships as one console executable per operating system. It contains the
 Python runtime, the CLI, the API, the MCP server, the rack UI, presets, and,
-when built with the corresponding flags, FFmpeg/FFprobe, whisper.cpp, and the
-Silero VAD model plus ONNX Runtime.
+when built with the corresponding flags, FFmpeg/FFprobe, whisper.cpp, the
+Faster-Whisper runtime plus the small CTranslate2 model, and the Silero VAD
+model plus ONNX Runtime.
 
 There is no installer and no Python/Node requirement on the target machine.
 
@@ -22,7 +23,7 @@ Windows embeddable Python. No GitHub Actions workflow is used.
 | Command | Result |
 | --- | --- |
 | `videoflow version` | Version and platform |
-| `videoflow doctor` | FFmpeg/FFprobe, Silero model/runtime, data directory, UI assets, MCP import |
+| `videoflow doctor` | FFmpeg/FFprobe, Silero, Faster-Whisper package/model, data directory, UI assets, MCP import |
 | `videoflow demo -o DIR` | Generates a 6 s fixture and runs the whole pipeline |
 | `videoflow run INPUT -o DIR` | Ingest, Silero/FFmpeg VAD, cuts, J/L, zooms, three NLE exports |
 | `videoflow serve` | HTTP API + MCP Streamable HTTP + static rack UI |
@@ -30,8 +31,9 @@ Windows embeddable Python. No GitHub Actions workflow is used.
 
 `run` defaults to `--vad-engine auto`: Silero VAD runs when the model and ONNX
 Runtime are present, otherwise FFmpeg `silencedetect` takes over. Add
-`--transcribe` for offline whisper.cpp, `--cull-retakes` for transcript-driven
-culling, or `shorts` for vertical clips. The LLM retake path is optional.
+`--transcribe` for offline Faster-Whisper, with whisper.cpp as the automatic
+fallback, `--cull-retakes` for transcript-driven culling, or `shorts` for
+vertical clips. The LLM retake path is optional.
 
 ## 2. Linux
 
@@ -82,6 +84,11 @@ videoflow run INPUT [-o DIR] [--vad-engine auto|silero|ffmpeg]
                     [--min-speech-ms 100] [--no-jcuts] [--l-cuts] [--no-zooms]
                     [--offset-ms 200] [--crossfade-ms 20] [--dialect 1.9]
                     [--transcript subs.srt] [--cull-retakes]
+                    [--transcribe] [--whisper-engine auto|faster-whisper|whisper.cpp]
+                    [--model-size small] [--device cpu|cuda]
+                    [--compute-type int8|float16|float32] [--whisper-vad]
+                    [--faster-whisper-model DIR] [--whisper-model FILE]
+                    [--asr-base-url URL] [--asr-model MODEL] [--asr-language pt]
                     [--llm-base-url URL] [--llm-model MODEL]
                     [--strictness balanced] [--retake-strategy keep_last]
 ```
@@ -94,8 +101,9 @@ Writes:
 DIR/
   project_state.json
   run.json
-  work/source.wav
+  work/source.wav           # analysis PCM at the source audio rate
   work/vad.wav              # only when Silero runs; 16 kHz mono
+  work/transcribe.wav       # full-source 16 kHz WAV for local transcription
   exports/timeline.fcpxml   # Resolve
   exports/timeline.xml      # Premiere
   exports/timeline.otio     # Kdenlive
@@ -123,22 +131,49 @@ repeats or LLM-selected retakes first. The report is `shorts-out/shorts.json`.
 
 ### Speech-to-text
 
-The portable build bundles `whisper.cpp` and `ggml-tiny.bin`. With no SRT and no
-ASR URL, `--transcribe` extracts a 16 kHz mono WAV and runs entirely offline:
+With no SRT and no ASR URL, `--transcribe` extracts a 16 kHz mono WAV and runs
+entirely offline. `--whisper-engine auto` prefers Faster-Whisper when its package
+and the selected model directory are available, then falls back to whisper.cpp:
 
 ```bash
 videoflow run interview.mp4 -o edit --transcribe --asr-language pt
+videoflow run interview.mp4 -o edit --transcribe \
+  --whisper-engine faster-whisper --model-size small
 ```
 
-Use a larger GGML model for quality by pointing at a local file:
+The release build bundles Faster-Whisper, CTranslate2, PyAV, and the pinned
+`Systran/faster-whisper-small` model. Force the fallback or a CPU/GPU policy with:
+
+```bash
+videoflow run interview.mp4 -o edit --transcribe --whisper-engine whisper.cpp
+videoflow run interview.mp4 -o edit --transcribe \
+  --device cuda --compute-type float16 --whisper-vad
+```
+
+Both local engines transcribe the full WAV. Do not pass pre-sliced VAD intervals;
+the adapter keeps one time origin and converts every word start with floor and
+every word end with ceil.
+
+To use another CTranslate2 model directory:
 
 ```bash
 videoflow run interview.mp4 -o edit --transcribe \
-  --whisper-model ~/models/ggml-small.bin
+  --model-size medium --faster-whisper-model ~/models/faster-whisper-medium
+```
+
+`VIDEOWFLOW_FASTER_WHISPER_MODEL` overrides the model directory. The adapter
+never downloads a model. Explicit `faster-whisper` fails with the expected path
+and size when the model is absent; `auto` falls back to whisper.cpp.
+
+whisper.cpp still uses a GGML model. Use a larger one by pointing at a local file:
+
+```bash
+videoflow run interview.mp4 -o edit --transcribe \
+  --whisper-engine whisper.cpp --whisper-model ~/models/ggml-small.bin
 ```
 
 `VIDEOWFLOW_WHISPER_BIN` and `VIDEOWFLOW_WHISPER_MODEL` override the bundled
-binary and model. An SRT still takes precedence.
+binary and model. An SRT and an ASR URL still take precedence.
 
 To use a remote or local OpenAI-compatible endpoint instead, set a base URL:
 
@@ -239,12 +274,15 @@ Checks:
 
 - FFmpeg and FFprobe resolve (bundled, next to the executable, or on `PATH`)
 - the Silero model and ONNX Runtime are available (optional, reported)
+- Faster-Whisper, CTranslate2, and the selected small model are available
+  (optional, reported)
 - `VIDEOWFLOW_HOME` is writable
 - UI assets are present
 - the MCP SDK imports
 
-Exit code is `0` only when every required check passes. The Silero entry reports
-`found: false` without failing `doctor`, because `auto` can fall back to FFmpeg.
+Exit code is `0` only when every required check passes. The Silero and
+Faster-Whisper entries report `found: false` without failing `doctor`, because
+`auto` can fall back to FFmpeg and whisper.cpp respectively.
 
 ### demo
 
@@ -287,15 +325,17 @@ videoflow-data/
 
 ```bash
 # once
-uv sync --extra dev
+uv sync --extra dev --extra faster-whisper
 cd ui && npm ci && npm run build && cd ..
 
 # Linux
-uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper
+uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper \
+  --with-silero --with-faster-whisper
 ./dist/videoflow version
 
 # Windows (PowerShell)
-uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper
+uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper `
+  --with-silero --with-faster-whisper
 .\\dist\\videoflow.exe version
 ```
 
@@ -325,6 +365,29 @@ OpenAI/ggerganov under MIT terms. Review the upstream notices and include them
 with any redistribution. To ship a lean build without local transcription, omit
 `--with-whisper`; SRT and ASR HTTP still work.
 
+### Faster-Whisper bundling
+
+`--with-faster-whisper` requires `faster-whisper`, `ctranslate2`, `tokenizers`,
+`av`, and `huggingface_hub` in the build interpreter. Run
+`uv sync --extra faster-whisper` first. The extra pins Faster-Whisper 1.2.1 and
+PyAV `<19`; PyAV 19 removed the `metadata_errors` argument used by 1.2.1.
+
+The build script runs `scripts/fetch_faster_whisper.py`, which downloads the
+pinned `Systran/faster-whisper-small` revision
+`536b0662742c02347bc0e980a01041f333bce120` and verifies every SHA-256. PyInstaller
+places the model under `faster-whisper/small/` and collects the CTranslate2,
+Tokenizers, PyAV, and Hugging Face Hub native libraries. The model adds roughly
+484 MB to each artifact; the runtime libraries add roughly 50 MB.
+
+`--refresh-faster-whisper` re-downloads and re-verifies the model. To ship a
+lean build without local Faster-Whisper, omit `--with-faster-whisper`; `auto`
+then uses whisper.cpp, and SRT/ASR HTTP still work.
+
+Faster-Whisper is MIT-licensed; CTranslate2 is MIT-licensed; PyAV is
+BSD-3-Clause; the model weights are distributed by Systran under the upstream
+Whisper model terms. Review and include the upstream notices with any
+redistribution.
+
 ### Silero bundling
 
 `--with-silero` requires `onnxruntime` in the build environment. The build script
@@ -336,7 +399,7 @@ with its native provider.
 
 `find_silero_model` looks in the bundle, then next to the executable, and honours
 `VIDEOWFLOW_SILERO_MODEL`. The model is ~2.3 MB; ONNX Runtime adds roughly 20 MB.
-Silero inference is CPU-only in 0.18 and uses 16 kHz mono PCM in 512-sample
+Silero inference is CPU-only in 0.19 and uses 16 kHz mono PCM in 512-sample
 windows. Without the model or runtime, `auto` uses FFmpeg; `silero` fails with a
 typed install hint.
 
@@ -344,7 +407,7 @@ typed install hint.
 
 ```bash
 uv run python scripts/build_appimage.py
-./dist/VideoFlow-0.18.0-x86_64.AppImage version
+./dist/VideoFlow-0.19.0-x86_64.AppImage version
 ```
 
 The AppImage wraps the same onefile binary. Opening it with no arguments starts

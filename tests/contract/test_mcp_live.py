@@ -138,7 +138,11 @@ def test_granular_tools_analyse_and_stage_options(monkeypatch, tmp_path: Path) -
     assert vad["interval_count"] == 2
     assert vad["speech_seconds"] == 2.0
 
-    transcribed = call(server, "videoflow_transcribe", {"model": "tiny", "language": "en"})
+    transcribed = call(
+        server,
+        "videoflow_transcribe",
+        {"model": "tiny", "language": "en", "engine": "whisper.cpp"},
+    )
     assert transcribed["ok"] is True
     assert transcribed["source"] == "whisper"
     assert transcribed["sentence_count"] == 2
@@ -180,6 +184,80 @@ def test_granular_tools_analyse_and_stage_options(monkeypatch, tmp_path: Path) -
     assert options["offset_ms"] == 250
     assert options["cull_retakes"] is True
     assert options["overrides"] == [{"sentence_id": 1, "action": "discard"}]
+
+
+def test_transcribe_can_use_faster_whisper(monkeypatch, tmp_path: Path) -> None:
+    from videoflow.domain.state import Sentence, WordTiming
+    from videoflow.mcp_server import server as server_module
+
+    monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    monkeypatch.setattr(FFmpegAdapter, "probe", lambda self, path: media(Path(path)))
+    monkeypatch.setattr(
+        FFmpegAdapter,
+        "extract_pcm",
+        lambda self, source, destination, *, sample_rate=16000: _touch(destination),
+    )
+    seen: dict[str, object] = {}
+
+    class FakeFasterWhisper:
+        def __init__(self, **kwargs: object) -> None:
+            seen.update(kwargs)
+
+        def transcribe(self, wav_path: Path, sample_rate: int) -> list[Sentence]:
+            return [
+                Sentence(
+                    id=0,
+                    start_sample=0,
+                    end_sample=48000,
+                    text="Faster sentence.",
+                    words=[
+                        WordTiming(
+                            word="Faster",
+                            start_sample=0,
+                            end_sample=24000,
+                            probability=0.9,
+                        ),
+                        WordTiming(
+                            word="sentence.",
+                            start_sample=24000,
+                            end_sample=48000,
+                            probability=0.9,
+                        ),
+                    ],
+                )
+            ]
+
+    monkeypatch.setattr(server_module, "FasterWhisperAdapter", FakeFasterWhisper)
+    server = build_server(JobManager(fake_runner))
+    assert call(server, "videoflow_load_media", {"file_path": str(source)})["ok"] is True
+    transcribed = call(
+        server,
+        "videoflow_transcribe",
+        {
+            "model": "small",
+            "language": "en",
+            "engine": "faster-whisper",
+            "device": "cpu",
+            "compute_type": "int8",
+            "vad_filter": True,
+            "model_path": str(tmp_path / "model"),
+        },
+    )
+    assert transcribed["ok"] is True
+    assert transcribed["source"] == "faster-whisper"
+    assert transcribed["engine"] == "faster-whisper"
+    assert transcribed["model"] == str(tmp_path / "model")
+    assert seen["model"] == str(tmp_path / "model")
+    assert seen["model_size"] == "small"
+    assert seen["device"] == "cpu"
+    assert seen["compute_type"] == "int8"
+    assert seen["language"] == "en"
+    assert seen["vad_filter"] is True
+    transcript = call(server, "videoflow_get_transcript", {})
+    assert transcript["sentence_count"] == 1
+    assert transcript["transcript"][0]["words"][0]["word"] == "Faster"
 
 
 def test_state_resources_and_export_use_the_completed_job(monkeypatch, tmp_path: Path) -> None:

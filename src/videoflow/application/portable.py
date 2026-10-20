@@ -21,6 +21,7 @@ from uuid import UUID, uuid4
 from videoflow import __version__
 from videoflow.adapters import LlmClient
 from videoflow.adapters.asr import WhisperHttpAdapter
+from videoflow.adapters.faster_whisper import FasterWhisperAdapter
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.adapters.whisper import WhisperCliAdapter
 from videoflow.application.export_service import export_timeline
@@ -45,6 +46,7 @@ from videoflow.domain.config import (
     JlCutsConfig,
     ModuleEnabled,
     ModulesConfig,
+    TranscribeConfig,
     VadEngine,
     ZoomsConfig,
 )
@@ -139,6 +141,8 @@ def run_portable(
     asr_model: str = "whisper-1",
     asr_language: str = "pt",
     whisper_model: str | Path | None = None,
+    faster_whisper_model: str | Path | None = None,
+    transcribe_config: TranscribeConfig | None = None,
     asr_client: Any | None = None,
     transcript_sentences: Sequence[Sentence] | None = None,
     project_id: UUID | None = None,
@@ -272,39 +276,68 @@ def run_portable(
             emit("transcribe", "info", str(meta["message"]))
     elif transcribe:
         client = asr_client
-        local = False
+        local_source: str | None = None
+        config = transcribe_config
+        if config is None and modules_config is not None:
+            config = modules_config.transcribe
+        if config is None:
+            config = TranscribeConfig(language=asr_language)  # type: ignore[arg-type]
+        language = config.language
         base_url = asr_base_url or os.environ.get("VIDEOWFLOW_ASR_BASE_URL")
         if client is None and base_url:
             client = WhisperHttpAdapter(
                 base_url=base_url,
                 model=asr_model,
                 api_key=os.environ.get("VIDEOWFLOW_ASR_API_KEY"),
-                language=asr_language,
+                language=language,
             )
         elif client is None:
-            local = True
-            client = WhisperCliAdapter(
-                binary=os.environ.get("VIDEOWFLOW_WHISPER_BIN"),
-                model=whisper_model or os.environ.get("VIDEOWFLOW_WHISPER_MODEL"),
-                language=asr_language,
-                log=lambda level, message: emit("transcribe", level, message),
+            use_whisper_cpp = config.engine == "whisper.cpp" or (
+                config.engine == "auto"
+                and not FasterWhisperAdapter.available(
+                    config.model_size,
+                    model=faster_whisper_model,
+                )
             )
-        label = "Transcribe (local)" if local else "Transcribe (ASR)"
+            if use_whisper_cpp:
+                client = WhisperCliAdapter(
+                    binary=os.environ.get("VIDEOWFLOW_WHISPER_BIN"),
+                    model=whisper_model or os.environ.get("VIDEOWFLOW_WHISPER_MODEL"),
+                    language=language,
+                    log=lambda level, message: emit("transcribe", level, message),
+                )
+                local_source = "whisper"
+            else:
+                client = FasterWhisperAdapter(
+                    model=faster_whisper_model,
+                    model_size=config.model_size,
+                    device=config.device,
+                    compute_type=config.compute_type,
+                    language=language,
+                    vad_filter=config.vad_filter,
+                    log=lambda level, message: emit("transcribe", level, message),
+                )
+                local_source = "faster-whisper"
+        transcript_origin = local_source or "asr"
+        labels = {
+            "faster-whisper": ("Transcribe (Faster-Whisper)", "Faster-Whisper"),
+            "whisper": ("Transcribe (local whisper.cpp)", "local whisper.cpp"),
+            "asr": ("Transcribe (ASR)", "ASR"),
+        }
+        label, engine_label = labels[transcript_origin]
         with stage("transcribe", "transcribe", label, "Calling speech-to-text") as meta:
             gate()
             step("transcript", 42, "Calling speech-to-text")
             source_wav = wav
-            if local:
+            if local_source is not None:
                 source_wav = engine.extract_pcm(
                     source_path, work / "transcribe.wav", sample_rate=16000
                 )
             transcript = client.transcribe(source_wav, media.audio_sample_rate)
-            transcript_source = "whisper" if local else "asr"
+            transcript_source = transcript_origin
             if not transcript:
                 raise IngestError("Speech-to-text returned no sentences.")
-            meta["message"] = (
-                f"{len(transcript)} sentences from {'local Whisper' if local else 'ASR'}"
-            )
+            meta["message"] = f"{len(transcript)} sentences from {engine_label}"
             emit("transcribe", "info", str(meta["message"]))
 
     if not transcript and (cull_retakes or manual):

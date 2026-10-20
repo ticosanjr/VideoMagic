@@ -203,6 +203,7 @@ def test_portable_pipeline_uses_local_whisper_without_an_url(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from videoflow.application import portable
+    from videoflow.domain.config import TranscribeConfig
     from videoflow.domain.state import Sentence
 
     monkeypatch.delenv("VIDEOWFLOW_ASR_BASE_URL", raising=False)
@@ -230,6 +231,7 @@ def test_portable_pipeline_uses_local_whisper_without_an_url(
         vad_engine="ffmpeg",
         transcribe=True,
         whisper_model=tmp_path / "model.bin",
+        transcribe_config=TranscribeConfig(engine="whisper.cpp"),
         cull_retakes=False,
     )
     assert result.transcript_source == "whisper"
@@ -238,6 +240,89 @@ def test_portable_pipeline_uses_local_whisper_without_an_url(
     assert Path(str(seen["wav"])).name == "transcribe.wav"
     assert seen["model"] == tmp_path / "model.bin"
     assert result.to_dict()["transcript_source"] == "whisper"
+
+
+def test_portable_pipeline_auto_prefers_faster_whisper(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from videoflow.application import portable
+    from videoflow.domain.state import Sentence
+
+    monkeypatch.delenv("VIDEOWFLOW_ASR_BASE_URL", raising=False)
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    seen: dict[str, object] = {}
+
+    class Faster:
+        @staticmethod
+        def available(*args: object, **kwargs: object) -> bool:
+            return True
+
+        def __init__(self, **kwargs: object) -> None:
+            seen.update(kwargs)
+
+        def transcribe(self, wav_path: Path, sample_rate: int) -> list[Sentence]:
+            seen["wav"] = wav_path
+            return [
+                Sentence(id=0, start_sample=0, end_sample=48000, text="Faster line one"),
+                Sentence(id=1, start_sample=96000, end_sample=144000, text="Faster line two"),
+            ]
+
+    monkeypatch.setattr(portable, "FasterWhisperAdapter", Faster)
+    result = run_portable(
+        source,
+        tmp_path / "project",
+        adapter=FakeAdapter(),  # type: ignore[arg-type]
+        vad_engine="ffmpeg",
+        transcribe=True,
+        faster_whisper_model=tmp_path / "model",
+        cull_retakes=False,
+    )
+    assert result.transcript_source == "faster-whisper"
+    assert len(result.state.transcript) == 2
+    assert seen["model"] == tmp_path / "model"
+    assert seen["model_size"] == "small"
+    assert seen["device"] == "cpu"
+    assert seen["compute_type"] == "int8"
+    assert seen["vad_filter"] is False
+    assert result.to_dict()["transcript_source"] == "faster-whisper"
+
+
+def test_portable_pipeline_auto_falls_back_to_whisper_cpp(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from videoflow.application import portable
+    from videoflow.domain.state import Sentence
+
+    monkeypatch.delenv("VIDEOWFLOW_ASR_BASE_URL", raising=False)
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    seen: dict[str, object] = {}
+
+    class Local:
+        def __init__(self, **kwargs: object) -> None:
+            seen.update(kwargs)
+
+        def transcribe(self, wav_path: Path, sample_rate: int) -> list[Sentence]:
+            return [Sentence(id=0, start_sample=0, end_sample=48000, text="Fallback line")]
+
+    monkeypatch.setattr(
+        portable.FasterWhisperAdapter,
+        "available",
+        staticmethod(lambda *args, **kwargs: False),
+    )
+    monkeypatch.setattr(portable, "WhisperCliAdapter", Local)
+    result = run_portable(
+        source,
+        tmp_path / "project",
+        adapter=FakeAdapter(),  # type: ignore[arg-type]
+        vad_engine="ffmpeg",
+        transcribe=True,
+        whisper_model=tmp_path / "model.bin",
+        cull_retakes=False,
+    )
+    assert result.transcript_source == "whisper"
+    assert seen["model"] == tmp_path / "model.bin"
 
 
 def test_portable_pipeline_reuses_project_transcript_and_metadata(

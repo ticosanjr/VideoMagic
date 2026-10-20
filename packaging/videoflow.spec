@@ -77,6 +77,20 @@ try:
 except Exception:
     pass
 
+if os.environ.get("VIDEOWFLOW_WITH_FASTER_WHISPER") == "1":
+    for package in ("faster_whisper", "ctranslate2", "tokenizers", "av", "huggingface_hub"):
+        try:
+            package_datas, package_binaries, package_hidden = collect_all(package)
+            datas += package_datas
+            binaries += package_binaries
+            hiddenimports += package_hidden
+        except Exception as error:
+            raise SystemExit(f"cannot bundle {package}: {error}") from error
+    model = VENDOR / "faster-whisper" / "small"
+    if not (model / "model.bin").is_file() or not (model / "config.json").is_file():
+        raise SystemExit(f"Faster-Whisper model is incomplete: {model}")
+    datas.append((str(model), "faster-whisper/small"))
+
 for distribution in (
     "mcp",
     "opentimelineio",
@@ -86,6 +100,11 @@ for distribution in (
     "starlette",
     "uvicorn",
     "onnxruntime",
+    "faster-whisper",
+    "ctranslate2",
+    "tokenizers",
+    "av",
+    "huggingface-hub",
 ):
     try:
         datas += copy_metadata(distribution)

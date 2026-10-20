@@ -16,8 +16,8 @@ uv run mypy
 Expected for the current suite:
 
 ```
-284 passed, 12 xfailed, 7 deselected
-coverage 99.26%
+301 passed, 11 xfailed, 7 deselected
+coverage 99.27%
 UI: 8 passed (Vitest)
 ```
 
@@ -119,7 +119,7 @@ uv run videoflow-api
 curl -s http://127.0.0.1:8765/health
 ```
 
-Expect `{"status":"ok","service":"videoflow","version":"0.18.0"}`.
+Expect `{"status":"ok","service":"videoflow","version":"0.19.0"}`.
 
 ## 9. AppImage contract
 

@@ -26,7 +26,13 @@ export type ConfigKey =
   | "asr_base_url"
   | "asr_model"
   | "asr_language"
+  | "whisper_engine"
+  | "whisper_model_size"
+  | "whisper_device"
+  | "whisper_compute_type"
+  | "whisper_vad_filter"
   | "whisper_model"
+  | "faster_whisper_model"
   | "cull_retakes"
   | "strictness"
   | "retake_strategy"
@@ -95,7 +101,13 @@ export const defaultConfig: JobConfig = {
   asr_base_url: "",
   asr_model: "whisper-1",
   asr_language: "pt",
+  whisper_engine: "auto",
+  whisper_model_size: "small",
+  whisper_device: "cpu",
+  whisper_compute_type: "int8",
+  whisper_vad_filter: false,
   whisper_model: "",
+  faster_whisper_model: "",
   cull_retakes: false,
   strictness: "balanced",
   retake_strategy: "keep_last",
@@ -217,19 +229,74 @@ export const modules: RackModule[] = [
     index: "03",
     id: "transcribe",
     name: "Transcribe",
-    summary: "Import an SRT, run the bundled whisper.cpp model, or call an ASR endpoint.",
+    summary: "Import an SRT, run local Faster-Whisper or whisper.cpp, or call an ASR endpoint.",
     portable: true,
     tag: "SRT/Local/ASR",
     toggleKey: "transcribe",
     toggleLabel: "Local/ASR",
-    note: "An SRT in the run panel wins. With no ASR URL, the bundled whisper.cpp tiny model runs offline. With a URL, the WAV posts to /audio/transcriptions; the key stays in VIDEOWFLOW_ASR_API_KEY.",
+    note: "An SRT in the run panel wins. Local auto prefers Faster-Whisper when its package and model are available, then falls back to whisper.cpp. An ASR base URL takes precedence; the key stays in VIDEOWFLOW_ASR_API_KEY.",
     fields: [
+      {
+        key: "whisper_engine",
+        label: "Local engine",
+        type: "select",
+        implemented: true,
+        options: [
+          { value: "auto", label: "Auto (Faster-Whisper, then whisper.cpp)" },
+          { value: "faster-whisper", label: "Faster-Whisper (quality)" },
+          { value: "whisper.cpp", label: "whisper.cpp (portable)" }
+        ],
+        help: "An explicit engine fails with an actionable hint instead of silently downgrading."
+      },
+      {
+        key: "whisper_model_size",
+        label: "Model size",
+        type: "select",
+        implemented: true,
+        options: ["tiny", "base", "small", "medium", "large-v3"].map((value) => ({
+          value,
+          label: value
+        })),
+        help: "Faster-Whisper CTranslate2 model. The release bundles small."
+      },
+      {
+        key: "faster_whisper_model",
+        label: "Faster-Whisper model",
+        type: "text",
+        implemented: true,
+        help: "Optional CTranslate2 model directory. Empty uses the bundled model for the selected size."
+      },
+      {
+        key: "whisper_device",
+        label: "Device",
+        type: "select",
+        implemented: true,
+        options: [
+          { value: "cpu", label: "CPU (default)" },
+          { value: "cuda", label: "CUDA" }
+        ]
+      },
+      {
+        key: "whisper_compute_type",
+        label: "Compute type",
+        type: "select",
+        implemented: true,
+        options: ["int8", "float16", "float32"].map((value) => ({ value, label: value })),
+        help: "CPU defaults to int8. float16 is intended for CUDA."
+      },
+      {
+        key: "whisper_vad_filter",
+        label: "Whisper VAD",
+        type: "bool",
+        implemented: true,
+        help: "Keep off when module 02 is enabled; the full WAV is always transcribed."
+      },
       {
         key: "asr_base_url",
         label: "ASR base URL",
         type: "text",
         implemented: true,
-        help: "Empty runs local whisper.cpp; VIDEOWFLOW_ASR_BASE_URL is the fallback."
+        help: "Empty runs a local engine; VIDEOWFLOW_ASR_BASE_URL is the fallback."
       },
       { key: "asr_model", label: "ASR model", type: "text", implemented: true },
       {
@@ -241,10 +308,10 @@ export const modules: RackModule[] = [
       },
       {
         key: "whisper_model",
-        label: "Local model",
+        label: "GGML model",
         type: "text",
         implemented: true,
-        help: "Empty uses the bundled tiny model; point to a larger ggml model for quality."
+        help: "whisper.cpp model. Empty uses the bundled tiny model."
       }
     ]
   },

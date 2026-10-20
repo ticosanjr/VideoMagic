@@ -31,7 +31,7 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "videoflow_transcribe",
-        "Transcribe the loaded media with local whisper.cpp. Word times stay in source samples.",
+        "Transcribe locally with Faster-Whisper or whisper.cpp. Word times stay in source samples.",
         "transcribe",
     ),
     ToolSpec(

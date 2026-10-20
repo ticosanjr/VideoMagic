@@ -151,7 +151,13 @@
       asr_base_url: String(config.asr_base_url || "").trim() || null,
       asr_model: String(config.asr_model || "whisper-1"),
       asr_language: String(config.asr_language || "pt"),
+      whisper_engine: String(config.whisper_engine || "auto"),
+      whisper_model_size: String(config.whisper_model_size || "small"),
+      whisper_device: String(config.whisper_device || "cpu"),
+      whisper_compute_type: String(config.whisper_compute_type || "int8"),
+      whisper_vad_filter: Boolean(config.whisper_vad_filter),
       whisper_model: String(config.whisper_model || "").trim() || null,
+      faster_whisper_model: String(config.faster_whisper_model || "").trim() || null,
       overrides: Object.entries(overrides).map(([sentenceId, action]) => ({
         sentence_id: Number(sentenceId),
         action

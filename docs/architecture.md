@@ -22,7 +22,7 @@ Adapters own FFmpeg, ONNX, CTranslate2, HTTP, and MCP. The UI and agents are pee
       └────────────────────┬──────────────────────┘
                            │ ports
       ┌────────────────────▼──────────────────────┐
-      │ FFmpeg · Silero ONNX · whisper.cpp/ASR   │
+      │ FFmpeg · Silero · Faster-Whisper/cpp/ASR │
       │ OpenAI-compatible LLM · filesystem       │
       └───────────────────────────────────────────┘
 ```
@@ -58,7 +58,8 @@ Rules:
 | `modules/` | The eight rack modules (fingerprints live, engines stubbed) |
 | `adapters/ffmpeg.py` | FFprobe ingest, PCM extraction, digest, silencedetect VAD |
 | `adapters/silero.py` | Silero v5.1.2 ONNX inference and speech-window merging |
-| `adapters/whisper.py` | Local whisper.cpp CLI adapter |
+| `adapters/faster_whisper.py` | Local Faster-Whisper/CTranslate2 adapter |
+| `adapters/whisper.py` | Local whisper.cpp CLI adapter and fallback |
 | `adapters/asr.py` | OpenAI-compatible `/audio/transcriptions` client |
 | `adapters/llm.py` | OpenAI-compatible retake client |
 | `exporters/` | FCPXML, xmeml, OTIO implemented; MP4 stub |
@@ -81,7 +82,7 @@ ingest ──► vad ──────────────┐
 | --- | --- | --- | --- |
 | ingest | source path | media info, PCM, proxy | FFmpeg |
 | vad | PCM | speech sample spans | Silero ONNX (FFmpeg fallback) |
-| transcribe | PCM | sentences and words | whisper.cpp / ASR HTTP; Faster-Whisper next |
+| transcribe | PCM | sentences and words | Faster-Whisper / whisper.cpp / ASR HTTP |
 | retakes | transcript | culls, guard restores | LLM + domain guard |
 | jl_cuts | VAD spans, culls | video and audio segments | domain + timebase |
 | zooms | segments | transforms | domain rules |

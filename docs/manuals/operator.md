@@ -84,26 +84,41 @@ network.
 
 ## 4. Models
 
-Nothing is downloaded at install.
+Nothing is downloaded at install or on first use.
 
 | Engine | Artifact | Approx. size | Where |
 | --- | --- | --- | --- |
 | Silero VAD v5.1.2 | ONNX | ~2.3 MB | `vendor/silero/silero_vad.onnx` or `VIDEOWFLOW_SILERO_MODEL` |
-| Faster-Whisper `small` | CTranslate2 | ~500 MB | planned for the next pass |
-| Faster-Whisper `medium` | CTranslate2 | ~1.5 GB | planned for the next pass |
-| Faster-Whisper `large-v3` | CTranslate2 | ~3 GB | planned for the next pass |
+| whisper.cpp | GGML tiny | ~75 MB | `vendor/whisper/ggml-tiny.bin` or `VIDEOWFLOW_WHISPER_MODEL` |
+| Faster-Whisper `small` | CTranslate2 | ~484 MB | `vendor/faster-whisper/small` or `VIDEOWFLOW_FASTER_WHISPER_MODEL` |
+| Faster-Whisper `medium` | CTranslate2 | ~1.5 GB | a local directory selected with `--faster-whisper-model` |
+| Faster-Whisper `large-v3` | CTranslate2 | ~3 GB | a local directory selected with `--faster-whisper-model` |
 
-Fetch the pinned Silero model with `uv run python scripts/fetch_silero.py`. The
-portable build bundles it with `--with-silero`; `doctor` reports both the model
-and the ONNX Runtime version. ONNX Runtime uses the CPU.
+Fetch the pinned Silero model with `uv run python scripts/fetch_silero.py` and
+the pinned Faster-Whisper small model with
+`uv run python scripts/fetch_faster_whisper.py`. The portable release build adds
+them with `--with-silero` and `--with-faster-whisper`; `doctor` reports the Silero
+model, ONNX Runtime, the Faster-Whisper package version, and the resolved
+Faster-Whisper model.
 
-Record the digest of each artifact you install. Set it in
-`retakes.model_artifact_digest` / the Whisper config so the cache invalidates when
-the artifact changes.
+A missing model is never downloaded implicitly.
 
-A missing model is never downloaded implicitly. With `vad_engine=auto`, the
-pipeline falls back to FFmpeg `silencedetect`; an explicit `silero` request fails
-with the expected path and a fetch hint.
+- `vad_engine=auto` falls back to FFmpeg `silencedetect`; an explicit `silero`
+  request fails with the expected path and a fetch hint.
+- `whisper_engine=auto` prefers Faster-Whisper only when the package and selected
+  model directory are both present, then falls back to whisper.cpp.
+- Explicit `faster-whisper` or `whisper.cpp` fails with an actionable message if
+  its package or model is missing.
+
+The pinned small model is
+`Systran/faster-whisper-small` revision
+`536b0662742c02347bc0e980a01041f333bce120`. A valid CTranslate2 directory
+contains `model.bin` and `config.json`. For `medium` or `large-v3`, install a
+compatible model directory and set `VIDEOWFLOW_FASTER_WHISPER_MODEL` or pass
+`--faster-whisper-model`.
+
+CPU time for `large-v3` can exceed real time by a wide margin. Measure a short
+clip before committing to it.
 
 ## 5. GPU
 
@@ -111,7 +126,7 @@ CPU is the default. To opt in:
 
 1. Install a CUDA-capable PyTorch/CTranslate2 stack compatible with your driver.
 2. Set `transcribe.device=cuda`, `compute_type=float16`.
-3. Leave VAD on the CPU; 0.18 uses ONNX Runtime CPU only.
+3. Leave VAD on the CPU; ONNX Runtime is CPU-only in this build.
 4. Run a one-minute clip and measure.
 5. Keep `small` until quality demands more.
 

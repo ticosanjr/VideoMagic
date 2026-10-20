@@ -95,7 +95,13 @@ class NewJobRequest(BaseModel):
     asr_base_url: str | None = None
     asr_model: str = "whisper-1"
     asr_language: Literal["pt", "it", "en", "es", "auto"] = "pt"
+    whisper_engine: Literal["auto", "faster-whisper", "whisper.cpp"] = "auto"
+    whisper_model_size: Literal["tiny", "base", "small", "medium", "large-v3"] = "small"
+    whisper_device: Literal["cpu", "cuda"] = "cpu"
+    whisper_compute_type: Literal["int8", "float16", "float32"] = "int8"
+    whisper_vad_filter: bool = False
     whisper_model: str | None = None
+    faster_whisper_model: str | None = None
 
 
 class NewProjectRequest(BaseModel):
@@ -193,7 +199,13 @@ def register_routes(
                     "asr_base_url": request.asr_base_url,
                     "asr_model": request.asr_model,
                     "asr_language": request.asr_language,
+                    "whisper_engine": request.whisper_engine,
+                    "whisper_model_size": request.whisper_model_size,
+                    "whisper_device": request.whisper_device,
+                    "whisper_compute_type": request.whisper_compute_type,
+                    "whisper_vad_filter": request.whisper_vad_filter,
                     "whisper_model": request.whisper_model,
+                    "faster_whisper_model": request.faster_whisper_model,
                 },
             )
         except VideoFlowError as exc:

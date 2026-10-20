@@ -30,7 +30,7 @@ HTTP:
 ```
 
 Restart the host after changing the config. All tools and resources in this
-manual are live in 0.18.0.
+manual are live in 0.19.0.
 
 ## 2. Tool groups
 
@@ -39,7 +39,7 @@ Analysis, returns immediately:
 ```
 load_media(file_path)
 run_vad(noise_db, min_silence_ms, min_speech_ms, vad_engine, speech_threshold, speech_pad_before_ms, speech_pad_after_ms)
-transcribe(model, language)
+transcribe(model, language, engine, device, compute_type, vad_filter, model_path)
 get_transcript(include_word_timestamps)
 generate_shorts(min_duration, max_duration, count, subtitles)
 ```
@@ -61,9 +61,12 @@ cancel_job(job_id)
 export_fcpxml(output_path, target_nle)
 ```
 
-`transcribe` returns sentences in source samples and stages an SRT. The next
-pipeline uses that exact transcript, so retake culling does not need a second
-ASR pass.
+`transcribe` returns sentences in source samples and stages an SRT. `engine`
+defaults to `auto`, which prefers Faster-Whisper when its package and model are
+available and otherwise uses whisper.cpp. Pass `engine="whisper.cpp"` to force
+the portable fallback, or `engine="faster-whisper"` to require the quality path.
+The next pipeline uses that exact transcript, so retake culling does not need a
+second ASR pass.
 
 `cull_retakes` is sentence-level. `manual_word_indices` returns
 `word_overrides_not_supported`; do not retry with words.
@@ -79,7 +82,7 @@ result carries a `warning`, run the pipeline again before exporting.
 ```
 load_media(file_path="/media/interview.mp4")
 run_vad(noise_db=-30, min_silence_ms=400)
-transcribe(model="small", language="pt")
+transcribe(model="small", language="pt", engine="auto")
 get_transcript(include_word_timestamps=true)
 cull_retakes(discard_sentence_ids=[...])
 configure_zooms(mode="alternate_cuts", scale=1.15)

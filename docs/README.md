@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (0.18.0)
+## Implementation status (0.19.0)
 
 | Area | State |
 | --- | --- |
@@ -14,8 +14,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | FCPXML 1.9/1.10, xmeml, OTIO export | implemented |
 | Portable artifacts | Linux binary, Linux AppImage, Windows PE built and smoke-tested under Wine |
 | SRT transcript import and LLM retake culling | implemented |
-| Local whisper.cpp transcription and ASR HTTP | implemented |
-| Faster-Whisper quality transcription | specified, stubbed |
+| Local Faster-Whisper with whisper.cpp fallback, and ASR HTTP | implemented; pinned small model bundled in release builds |
 | Jobs, job REST routes, SSE, live MCP jobs | implemented for the portable path |
 | MCP: twelve tools and four resources | implemented; analysis, staged edits, jobs, export, resources |
 | Rack UI driving real portable jobs, logs, overrides, shorts | implemented |

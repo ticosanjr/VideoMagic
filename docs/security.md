@@ -52,10 +52,11 @@ string; that is how `/media/foo-evil` passes for root `/media/foo`.
 - CORS allows only the local UI origins.
 - The MCP HTTP mount inherits the DNS-rebinding protection of the SDK, which
   accepts localhost by default.
-- Outbound traffic: only the configured LLM and ASR `base_url` values. With
-  Ollama/LM Studio or a local faster-whisper server that is local. A cloud
-  provider means audio (ASR) or transcript (LLM) leaves the machine; the operator
-  must opt in knowingly.
+- Outbound traffic: only the configured LLM and ASR `base_url` values. Local
+  Faster-Whisper, whisper.cpp, Silero, and FFmpeg do not use the network.
+  Ollama/LM Studio and a local faster-whisper server stay local. A cloud provider
+  means audio (ASR) or transcript (LLM) leaves the machine; the operator must opt
+  in knowingly.
 - The ASR key is read from `VIDEOWFLOW_ASR_API_KEY` and is never returned by an
   API route or MCP tool.
 

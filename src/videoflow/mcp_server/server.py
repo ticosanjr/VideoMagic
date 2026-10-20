@@ -13,6 +13,7 @@ from typing import Any
 
 from mcp.server import MCPServer
 
+from videoflow.adapters.faster_whisper import FasterWhisperAdapter
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.adapters.whisper import WhisperCliAdapter
 from videoflow.application.export_service import FILENAMES, export_timeline
@@ -27,7 +28,12 @@ from videoflow.domain.state import MediaInfo, ProjectState, Sentence
 from videoflow.domain.timebase import Rounding
 from videoflow.domain.transcript import format_srt
 from videoflow.mcp_server.registry import RESOURCE_SPECS, TOOL_SPECS
-from videoflow.runtime import allowed_roots, find_whisper_model
+from videoflow.runtime import (
+    allowed_roots,
+    expected_faster_whisper_model,
+    find_faster_whisper_model,
+    find_whisper_model,
+)
 
 SERVER_NAME = "VideoFlow"
 
@@ -89,7 +95,13 @@ OVERRIDE_KEYS = {
     "asr_base_url",
     "asr_model",
     "asr_language",
+    "whisper_engine",
+    "whisper_model_size",
+    "whisper_device",
+    "whisper_compute_type",
+    "whisper_vad_filter",
     "whisper_model",
+    "faster_whisper_model",
 }
 
 
@@ -200,15 +212,32 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         }
 
     @mcp.tool()
-    def videoflow_transcribe(model: str = "small", language: str = "pt") -> dict[str, object]:
-        """Transcribe the loaded media with local whisper.cpp. Word times stay in source samples."""
+    def videoflow_transcribe(
+        model: str = "small",
+        language: str = "pt",
+        engine: str = "auto",
+        device: str = "cpu",
+        compute_type: str = "int8",
+        vad_filter: bool = False,
+        model_path: str | None = None,
+    ) -> dict[str, object]:
+        """Transcribe the loaded media locally. Word times stay in source samples."""
 
         source = last.get("source")
         if not isinstance(source, Path):
             return _source_required()
         if language not in {"pt", "it", "en", "es", "auto"}:
             return _error("invalid_arguments", f"Unsupported language: {language}")
-        model_path = _whisper_model(model)
+        if engine not in {"auto", "faster-whisper", "whisper.cpp"}:
+            return _error("invalid_arguments", f"Unsupported whisper engine: {engine}")
+        if device not in {"cpu", "cuda"}:
+            return _error("invalid_arguments", f"Unsupported device: {device}")
+        if compute_type not in {"int8", "float16", "float32"}:
+            return _error("invalid_arguments", f"Unsupported compute type: {compute_type}")
+        use_faster_whisper = engine == "faster-whisper" or (
+            engine == "auto"
+            and FasterWhisperAdapter.available(model, model=model_path)  # type: ignore[arg-type]
+        )
         try:
             adapter = FFmpegAdapter()
             media = adapter.probe(source)
@@ -218,15 +247,36 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
                     Path(temp) / "transcribe.wav",
                     sample_rate=16000,
                 )
-                transcript = WhisperCliAdapter(
-                    model=model_path,
-                    language=language,
-                ).transcribe(wav, media.audio_sample_rate)
+                if use_faster_whisper:
+                    transcript = FasterWhisperAdapter(
+                        model=model_path,
+                        model_size=model,  # type: ignore[arg-type]
+                        device=device,  # type: ignore[arg-type]
+                        compute_type=compute_type,  # type: ignore[arg-type]
+                        language=language,  # type: ignore[arg-type]
+                        vad_filter=vad_filter,
+                    ).transcribe(wav, media.audio_sample_rate)
+                else:
+                    transcript = WhisperCliAdapter(
+                        model=_whisper_model(model),
+                        language=language,
+                    ).transcribe(wav, media.audio_sample_rate)
         except VideoFlowError as exc:
             return exc.to_dict()
+        selected = "faster-whisper" if use_faster_whisper else "whisper"
+        if use_faster_whisper:
+            selected_model: Path | None = (
+                Path(model_path).expanduser()
+                if model_path
+                else find_faster_whisper_model(model)
+            )
+            if selected_model is None:
+                selected_model = expected_faster_whisper_model(model)
+        else:
+            selected_model = _whisper_model(model)
         last["media"] = media
         last["transcript"] = transcript
-        last["transcript_source"] = "whisper"
+        last["transcript_source"] = selected
         output = last.get("output")
         if not isinstance(output, Path):
             output = source.with_name(f"{source.stem}-videoflow")
@@ -244,9 +294,10 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         pending["transcript"] = str(transcript_path)
         return {
             "ok": True,
-            "source": "whisper",
+            "source": selected,
+            "engine": selected,
             "requested_model": model,
-            "model": str(model_path) if model_path else None,
+            "model": str(selected_model) if selected_model else None,
             "language": language,
             "sentence_count": len(transcript),
             "transcript": _sentences_payload(transcript, include_words=True),

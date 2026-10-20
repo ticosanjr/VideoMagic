@@ -136,3 +136,40 @@ def test_job_forwards_vad_options(tmp_path: Path) -> None:
     assert seen["speech_threshold"] == 0.65
     assert seen["speech_pad_before_ms"] == 40
     assert seen["speech_pad_after_ms"] == 50
+
+
+def test_job_forwards_faster_whisper_options(tmp_path: Path) -> None:
+    from videoflow.domain.config import TranscribeConfig
+
+    seen: dict[str, object] = {}
+
+    def runner(source: Path, output: Path, *, progress, should_cancel, **kwargs):
+        seen.update(kwargs)
+        progress("done", 100, "done")
+        return {"ok": True}
+
+    manager = JobManager(runner)
+    model = tmp_path / "model"
+    job = manager.start(
+        tmp_path / "in.mp4",
+        tmp_path / "out",
+        {
+            "whisper_engine": "faster-whisper",
+            "whisper_model_size": "medium",
+            "whisper_device": "cuda",
+            "whisper_compute_type": "float16",
+            "whisper_vad_filter": True,
+            "asr_language": "en",
+            "faster_whisper_model": str(model),
+        },
+    )
+    wait_for(job, manager)
+    config = seen["transcribe_config"]
+    assert isinstance(config, TranscribeConfig)
+    assert config.engine == "faster-whisper"
+    assert config.model_size == "medium"
+    assert config.language == "en"
+    assert config.device == "cuda"
+    assert config.compute_type == "float16"
+    assert config.vad_filter is True
+    assert seen["faster_whisper_model"] == str(model)

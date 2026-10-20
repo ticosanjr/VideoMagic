@@ -7,6 +7,7 @@ compile. Run this script on the target operating system.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -52,6 +53,16 @@ def main() -> int:
         "--refresh-silero",
         action="store_true",
         help="Force a fresh Silero model download.",
+    )
+    parser.add_argument(
+        "--with-faster-whisper",
+        action="store_true",
+        help="Bundle Faster-Whisper, CTranslate2, PyAV, and the small model.",
+    )
+    parser.add_argument(
+        "--refresh-faster-whisper",
+        action="store_true",
+        help="Force a fresh Faster-Whisper small model download.",
     )
     parser.add_argument("--name", default="videoflow")
     parser.add_argument("--clean", action="store_true", default=True)
@@ -115,6 +126,42 @@ def main() -> int:
         from fetch_silero import fetch as fetch_silero
 
         fetch_silero(vendor, refresh=args.refresh_silero)
+
+    if args.with_faster_whisper or args.refresh_faster_whisper:
+        missing = [
+            name
+            for name in (
+                "faster_whisper",
+                "ctranslate2",
+                "tokenizers",
+                "av",
+                "huggingface_hub",
+            )
+            if importlib.util.find_spec(name) is None
+        ]
+        if missing:
+            print(
+                "The faster-whisper extra is missing: "
+                + ", ".join(missing)
+                + ". Run `uv sync --extra faster-whisper` for this interpreter.",
+                file=sys.stderr,
+            )
+            return 1
+        from fetch_faster_whisper import fetch as fetch_faster_whisper
+
+        model = fetch_faster_whisper(
+            vendor / "faster-whisper" / "small",
+            refresh=args.refresh_faster_whisper,
+        )
+        print(f"bundling Faster-Whisper model: {model}")
+        import ctranslate2
+        import faster_whisper
+
+        print(
+            f"faster-whisper {faster_whisper.__version__}, "
+            f"CTranslate2 {ctranslate2.__version__}"
+        )
+        os.environ["VIDEOWFLOW_WITH_FASTER_WHISPER"] = "1"
 
     command = [
         sys.executable,

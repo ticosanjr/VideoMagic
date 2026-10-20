@@ -4,8 +4,9 @@ This is the editor's guide. Installation belongs to the
 [operator manual](operator.md).
 
 > Status: the portable CLI, REST API, rack UI, and MCP surface run real jobs in
-> 0.18.0. Faster-Whisper, per-module reruns, and direct MP4 rendering remain
-> future work.
+> 0.19.0. Local Faster-Whisper quality transcription is available with a
+> whisper.cpp fallback. Per-module reruns and direct MP4 rendering remain future
+> work.
 
 ## 1. The idea
 
@@ -34,8 +35,8 @@ It detects speech with Silero VAD when the model is available and falls back to
 FFmpeg, removes silence, applies J/L-cuts and punch-ins, and writes
 `timeline.fcpxml`, `timeline.xml`, and `timeline.otio` into
 `interview-edit/exports/`. `run.json` reports the selected `vad_engine` and what
-happened. Add `--transcribe` for local whisper.cpp or `--transcript` with
-`--cull-retakes` for retake removal.
+happened. Add `--transcribe` for local Faster-Whisper with a whisper.cpp
+fallback, or `--transcript` with `--cull-retakes` for retake removal.
 
 `videoflow demo -o demo` proves the whole chain on a generated clip.
 
@@ -89,11 +90,17 @@ Leave the defaults unless you have a reason.
 
 ### 03 Transcribe
 
-- **Model**: `small` on CPU, `medium` or `large-v3` if you have time or a GPU.
+- **Local engine**: `Auto` uses Faster-Whisper when its package and model are
+  available, then falls back to whisper.cpp. Pick one explicitly to require it.
+- **Model size**: `small` on CPU, `medium` or `large-v3` if you have time or a
+  GPU. The release bundles `small`; larger models need a local model directory.
+- **Faster-Whisper model**: optional CTranslate2 directory. Leave empty for the
+  bundled model.
 - **Language**: set it. `auto` is slower and can flip mid-file.
 - **Device**: `cpu` unless CUDA is configured.
 - **Compute type**: `int8` on CPU, `float16` on a supported GPU.
-- **Whisper VAD**: leave off. Module 02 already does this.
+- **Whisper VAD**: leave off. Module 02 already does this. Turning it on filters
+  the full WAV; it does not make the pipeline pre-slice audio.
 
 ### 04 Retakes
 

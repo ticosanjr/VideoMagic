@@ -2,22 +2,25 @@
 
 Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript. English strings only.
 
-0.13.0 wires the full telemetry rack: source/output/SRT fields, quick presets,
-per-block progress, start/finish timestamps, duration, status icons, per-block
-and global log drawers, recent jobs, artifact downloads, and typed errors.
+0.19.0 keeps the full telemetry rack from 0.13 and adds the local
+Faster-Whisper engine, model, device, compute-type, VAD, and model-directory
+fields. Source/output/SRT fields, quick presets, per-block progress,
+start/finish timestamps, duration, status icons, per-block and global log
+drawers, recent jobs, artifact downloads, and typed errors remain.
 
 Module cards render configuration from `modules.ts` field metadata. Implemented
 controls are bound to the job request; future controls are disabled and marked
-`later`. Transcribe accepts an SRT or an OpenAI-compatible ASR endpoint; SRT wins.
-Shorts runs when enabled and a transcript is present, with rendered MP4s in the
-run summary.
+`later`. Transcribe accepts an SRT, a local Faster-Whisper or whisper.cpp engine,
+or an OpenAI-compatible ASR endpoint; SRT wins, and an ASR base URL takes
+precedence over the local engines. Shorts runs when enabled and a transcript is
+present, with rendered MP4s in the run summary.
 
 The inspector reads `GET /api/v1/jobs/{id}/state`, lists transcript sentences,
 and exposes Keep/Discard overrides plus an Apply overrides action. Applying
 starts a new job with the same configuration and the override set.
 
 The rest of this document is the contract for later passes: real per-block runs,
-manual overrides, persisted presets, and word-level inspector controls.
+persisted presets, and word-level inspector controls.
 
 ## 1. Layout
 
@@ -29,7 +32,7 @@ manual overrides, persisted presets, and word-level inspector controls.
 │ 01 Ingest        ● cached     [Run this block]        ▸      │
 │ 02 Voice detect  ● cached     [Run this block]        ▸      │
 │ 03 Transcribe    ◐ running    [Run this block]        ▾      │
-│    model   [small ▾]   language [pt ▾]  device [cpu ▾]       │
+│    engine [auto ▾]  model [small ▾]  language [pt ▾]         │
 │ 04 Retakes       ○ dirty      [Run this block]        ▸      │
 │ …                                                            │
 ├──────────────────────────────────────────────────────────────┤

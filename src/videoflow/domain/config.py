@@ -13,6 +13,7 @@ MediaLanguage = Literal["pt", "it", "en", "es", "auto"]
 ComputeDevice = Literal["cuda", "cpu"]
 ComputeType = Literal["float16", "int8", "float32"]
 VadEngine = Literal["auto", "silero", "ffmpeg"]
+WhisperEngine = Literal["auto", "faster-whisper", "whisper.cpp"]
 LlmProvider = Literal["ollama", "openai_compatible"]
 Strictness = Literal["conservative", "balanced", "aggressive"]
 RetakeStrategy = Literal["keep_last", "keep_best"]
@@ -45,6 +46,7 @@ class VadConfig(StrictModel):
 
 
 class TranscribeConfig(StrictModel):
+    engine: WhisperEngine = "auto"
     model_size: ModelSize = "small"
     language: MediaLanguage = "pt"
     device: ComputeDevice = "cpu"

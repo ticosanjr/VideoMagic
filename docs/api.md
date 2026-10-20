@@ -54,7 +54,7 @@ GET /health
 ```
 
 ```json
-{ "status": "ok", "service": "videoflow", "version": "0.18.0" }
+{ "status": "ok", "service": "videoflow", "version": "0.19.0" }
 ```
 
 ```http
@@ -64,7 +64,7 @@ GET /api/v1/system
 ```json
 {
   "ok": true,
-  "version": "0.18.0",
+  "version": "0.19.0",
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
@@ -128,7 +128,13 @@ Content-Type: application/json
   "asr_base_url": "http://localhost:8000/v1",
   "asr_model": "whisper-1",
   "asr_language": "pt",
-  "whisper_model": null
+  "whisper_engine": "auto",
+  "whisper_model_size": "small",
+  "whisper_device": "cpu",
+  "whisper_compute_type": "int8",
+  "whisper_vad_filter": false,
+  "whisper_model": null,
+  "faster_whisper_model": null
 }
 ```
 
@@ -151,9 +157,26 @@ When `transcribe` is true and no SRT is supplied, an `asr_base_url` selects the
 remote path: the worker posts the analysis WAV to
 `<asr_base_url>/audio/transcriptions` with `response_format=verbose_json`. The
 API key is read from `VIDEOWFLOW_ASR_API_KEY`; the base URL falls back to
-`VIDEOWFLOW_ASR_BASE_URL`. With no URL, the bundled whisper.cpp CLI and tiny
-model run locally. An empty `whisper_model` uses the bundled model; a path
-selects a larger GGML file. SRT wins if present.
+`VIDEOWFLOW_ASR_BASE_URL`.
+
+With no URL, `whisper_engine` selects the local path:
+
+- `auto` uses Faster-Whisper when the optional package and selected model
+  directory are present, then falls back to whisper.cpp.
+- `faster-whisper` requires Faster-Whisper and the model; it never silently
+  downgrades.
+- `whisper.cpp` forces the bundled CLI and GGML model.
+
+`whisper_model_size` selects `tiny`, `base`, `small`, `medium`, or `large-v3`.
+`whisper_device` is `cpu` or `cuda`; `whisper_compute_type` is `int8`,
+`float16`, or `float32`. `whisper_vad_filter` enables Faster-Whisper's internal
+VAD and should stay false when module 02 is enabled. An empty
+`faster_whisper_model` uses the bundled model for the chosen size; a directory
+selects a local CTranslate2 model. An empty `whisper_model` uses the bundled
+GGML tiny model; a path selects another GGML file. SRT wins if present.
+
+The job result and `run.json` report `transcript_source` as `faster-whisper`,
+`whisper`, `asr`, `srt`, or `project`.
 
 `source` and `output` are resolved through the path allowlist. Both are required.
 The output directory is created by the worker.
@@ -288,7 +311,7 @@ On success, `job.result` is the `run_portable` report:
 ```json
 {
   "ok": true,
-  "version": "0.18.0",
+  "version": "0.19.0",
   "vad_engine": "silero",
   "speech_interval_count": 3,
   "video_segment_count": 3,
@@ -426,7 +449,7 @@ The flag is persisted in `module_enabled` and consumed by the next project run.
 
 ### Run a module
 
-Per-module reruns are not implemented in 0.18.0. The route validates the
+Per-module reruns are not implemented in 0.19.0. The route validates the
 project and module id, then returns:
 
 ```json

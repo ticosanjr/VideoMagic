@@ -15,7 +15,7 @@ hides the contract. VideoFlow resolves this with two layers:
 
 | Scope | Line coverage | Notes |
 | --- | --- | --- |
-| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.26% (284 passing, 12 strict xfail, 7 deselected) |
+| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.27% (301 passing, 11 strict xfail, 7 deselected) |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |
 | UI | `npm run check` and `npm run build` | Manual: start a job from the rack and confirm progress and artifacts |
@@ -76,13 +76,14 @@ smokes run locally and are recorded in the release notes.
 | `test_transcript.py` | SRT parsing, BOM/CRLF, malformed files |
 | `test_llm.py` | OpenAI-compatible JSON transport, retry, errors, redaction |
 | `test_asr.py` | Verbose JSON transcription, timestamps, errors, redaction |
+| `test_faster_whisper.py` | Full-WAV calls, word timestamps, exact floor/ceil samples, model errors, CUDA failure |
 | `test_retake_service.py` | Windows, ids, exact fallback, guard, subtraction |
 | `test_shorts.py` | Deterministic windows, culls, LLM validation, ASS, events |
 | `test_portable.py` | End-to-end portable service with a fake engine and retakes |
-| `test_jobs.py` | Job completion, failure, cancellation, queue limit, pruning, VAD forwarding |
+| `test_jobs.py` | Job completion, failure, cancellation, queue limit, pruning, VAD and Faster-Whisper forwarding |
 | `test_telemetry.py` | Stage lifecycle, durations, logs, filters, cap |
-| `test_cli.py` | `version`, `doctor`, `run` dispatch, usage |
-| `test_runtime.py` | Portable home, binary/model discovery, UI discovery, allowed roots |
+| `test_cli.py` | `version`, `doctor`, `run` dispatch, VAD/Faster-Whisper options, usage |
+| `test_runtime.py` | Portable home, binary/model discovery including Faster-Whisper, UI discovery, allowed roots |
 
 ### Contract (passing now)
 
@@ -94,17 +95,17 @@ smokes run locally and are recorded in the release notes.
 | `test_api_jobs.py` | Job create/poll, stages/logs, new options, path jail, SSE, system, real media (`media`) |
 | UI `format.test.ts` | Duration, elapsed time, date, status text (Vitest) |
 | `test_mcp.py` | Twelve tool names, typed errors, preset/state resources |
-| `test_mcp_live.py` | Live VAD/transcription/transcript, staged edits, shorts, job polling, export, resources |
+| `test_mcp_live.py` | Live VAD, Faster-Whisper/whisper.cpp transcription, transcript, staged edits, shorts, job polling, export, resources |
 | `test_api.py` | `/health` and MCP redirect |
 | `test_schemas.py` | Committed schemas match models, no `api_key` |
-| `test_pipeline.py` | Missing-source ingest failure |
+| `test_pipeline.py` | Missing-source ingest and missing-audio transcription failures |
 
 ### Contract (xfail until implemented)
 
 | File | Contract |
 | --- | --- |
 | `test_exporters.py` | Audio transitions at joins (AC-01); direct MP4 render |
-| `test_pipeline.py` | Faster-Whisper adapter; per-module `execute` methods and rack runner |
+| `test_pipeline.py` | Per-module `execute` methods and the rack runner |
 
 ## 6. Acceptance coverage
 

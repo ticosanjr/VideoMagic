@@ -101,3 +101,77 @@ def test_run_passes_vad_options(monkeypatch, tmp_path, capsys) -> None:
     assert seen["speech_threshold"] == 0.6
     assert seen["speech_pad_before_ms"] == 10
     assert seen["speech_pad_after_ms"] == 20
+
+
+def test_run_passes_faster_whisper_options(monkeypatch, tmp_path, capsys) -> None:
+    from videoflow.domain.config import TranscribeConfig
+
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    model = tmp_path / "faster-whisper-medium"
+    seen: dict[str, object] = {}
+
+    def fake_run(*args: object, **kwargs: object) -> FakeRun:
+        seen.update(kwargs)
+        return FakeRun()
+
+    monkeypatch.setattr(cli, "run_portable", fake_run)
+    assert (
+        cli.main(
+            [
+                "run",
+                str(source),
+                "--out",
+                str(tmp_path / "out"),
+                "--transcribe",
+                "--whisper-engine",
+                "faster-whisper",
+                "--model-size",
+                "medium",
+                "--device",
+                "cuda",
+                "--compute-type",
+                "float16",
+                "--whisper-vad",
+                "--asr-language",
+                "en",
+                "--faster-whisper-model",
+                str(model),
+            ]
+        )
+        == 0
+    )
+    config = seen["transcribe_config"]
+    assert isinstance(config, TranscribeConfig)
+    assert config.engine == "faster-whisper"
+    assert config.model_size == "medium"
+    assert config.language == "en"
+    assert config.device == "cuda"
+    assert config.compute_type == "float16"
+    assert config.vad_filter is True
+    assert seen["faster_whisper_model"] == model
+    assert seen["asr_language"] == "en"
+
+
+def test_doctor_reports_faster_whisper(monkeypatch, tmp_path, capsys) -> None:
+    class Completed:
+        returncode = 0
+        stdout = "ffmpeg version test\n"
+        stderr = ""
+
+    import sys
+    from types import ModuleType
+
+    model = tmp_path / "faster-whisper" / "small"
+    model.mkdir(parents=True)
+    package = ModuleType("faster_whisper")
+    package.__version__ = "1.2.1"  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "faster_whisper", package)
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
+    monkeypatch.setattr(cli, "find_binary", lambda _name: "/usr/bin/tool")
+    monkeypatch.setattr(cli.subprocess, "run", lambda *args, **kwargs: Completed())
+    monkeypatch.setattr(cli, "find_faster_whisper_model", lambda size="small": model)
+    assert cli.main(["doctor"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["faster_whisper"]["model"] == str(model)
+    assert payload["faster_whisper"]["found"] is True

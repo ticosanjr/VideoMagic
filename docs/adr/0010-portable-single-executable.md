@@ -22,6 +22,8 @@ both an ELF and a PE binary, and PyInstaller does not cross-compile.
 - Add a model-free pipeline fallback: FFmpeg `silencedetect` for speech
   intervals, then the deterministic timeline and exporters. From 0.18, release
   builds also bundle Silero VAD and ONNX Runtime; FFmpeg remains the fallback.
+  From 0.19, release builds bundle Faster-Whisper, CTranslate2, PyAV, and the
+  pinned small model; whisper.cpp remains the fallback.
 - Store portable data next to the executable unless `VIDEOWFLOW_HOME` overrides.
 - Resolve binaries from the bundle, next to the executable, then `PATH`, with
   `VIDEOWFLOW_FFMPEG` / `VIDEOWFLOW_FFPROBE` overrides.

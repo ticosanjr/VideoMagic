@@ -6,13 +6,14 @@ timeline: it removes silence and retakes, adds J-cuts and punch-ins, proposes
 vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive.
 
-> Status: 0.18.0 alpha. Portable Linux binary, Linux AppImage, and Windows PE run
-> ingest, Silero VAD with an FFmpeg fallback, SRT or local whisper.cpp
-> transcription, transcript-driven retake culling, deterministic cuts, vertical
-> shorts, and three NLE exports. The local API, MCP server, and rack UI execute
-> real jobs; all twelve MCP tools and four resources are live. Projects persist
-> atomic, revisioned state under `.videoflow/`, and the REST API manages media,
-> modules, transcripts, exports, and operator presets.
+> Status: 0.19.0 alpha. Portable Linux binary, Linux AppImage, and Windows PE run
+> ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper quality
+> transcription with a whisper.cpp fallback, SRT/ASR paths, transcript-driven
+> retake culling, deterministic cuts, vertical shorts, and three NLE exports.
+> The local API, MCP server, and rack UI execute real jobs; all twelve MCP tools
+> and four resources are live. Projects persist atomic, revisioned state under
+> `.videoflow/`, and the REST API manages media, modules, transcripts, exports,
+> and operator presets.
 
 ## Requirements
 
@@ -21,17 +22,19 @@ and Kdenlive.
 - FFmpeg and FFprobe on `PATH`
 - Optional: DaVinci Resolve, Premiere Pro, and Kdenlive 25.04+ for manual import QA
 
-CPU is the default. The portable build bundles whisper.cpp and a tiny model; no
-model download happens at install time. A GPU is not required.
+CPU is the default. The portable release bundles whisper.cpp with a tiny model
+and Faster-Whisper with the small CTranslate2 model; no model download happens at
+install time. A GPU is not required.
 
 ## Quick start
 
 ```bash
-uv sync --extra dev
-uv run pytest                       # 284 passing, 12 strict xfail, 7 deselected
+uv sync --extra dev --extra faster-whisper
+uv run pytest                       # 301 passing, 11 strict xfail, 7 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
-uv run python scripts/fetch_whisper.py  # optional local model into vendor/
-uv run python scripts/fetch_silero.py   # pinned 2.3 MB VAD model into vendor/
+uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
+uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model
+uv run python scripts/fetch_faster_whisper.py  # pinned 484 MB Faster-Whisper model
 uv run videoflow-api                # http://127.0.0.1:8765/health and /mcp
 uv run videoflow-mcp                # stdio transport for a local agent
 ```
@@ -47,10 +50,12 @@ npm run dev                         # http://127.0.0.1:5173
 ## Portable executable
 
 One file per OS, no Python, Node, or FFmpeg install required when built with
-`--fetch-ffmpeg --with-whisper --with-silero`:
+`--fetch-ffmpeg --with-whisper --with-silero --with-faster-whisper`. The
+Faster-Whisper model makes each artifact substantially larger.
 
 ```bash
-uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper --with-silero
+uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper \
+  --with-silero --with-faster-whisper
 ./dist/videoflow doctor
 ./dist/videoflow demo -o ./demo
 ./dist/videoflow run ~/Videos/interview.mp4 -o ./interview-edit --transcribe
@@ -61,7 +66,8 @@ uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper --with-sil
 Artifacts are built locally, never in GitHub Actions:
 
 ```bash
-uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper --with-silero   # Linux
+uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper \
+  --with-silero --with-faster-whisper                    # Linux
 uv run python scripts/build_appimage.py                  # VideoFlow-X.Y.Z-x86_64.AppImage
 # Windows PE: Windows Python + PyInstaller, or Wine + embeddable Python
 uv run python scripts/release.py                         # stage releases/vX.Y.Z
@@ -79,8 +85,12 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   `silencedetect` is the automatic fallback.
 - SRT transcript import and retake culling with exact repeats or an
   OpenAI-compatible LLM, protected by the keep-last guard.
-- Offline speech-to-text through bundled whisper.cpp and `ggml-tiny.bin`, with
-  optional ASR HTTP and a path for larger GGML models.
+- Offline Faster-Whisper 1.2.1/CTranslate2 quality transcription with word
+  timestamps, a pinned small model, full-WAV decoding, and exact floor/ceil
+  sample conversion. whisper.cpp and `ggml-tiny.bin` remain the automatic
+  fallback; larger CTranslate2 and GGML models can be selected locally.
+- Optional ASR HTTP through an OpenAI-compatible `/audio/transcriptions`
+  endpoint.
 - Vertical shorts: deterministic or LLM selection, retake-aware conforming,
   1080x1920 render, and burned ASS captions.
 - Deterministic timeline: frame-quantised video, sample-aligned audio, merged
@@ -92,7 +102,8 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - Pure domain: rational time, cache hashing, planning, retake guard, path jail,
   redaction, schema generation.
 - MCP server with twelve live tools and four resources: media ingest, Silero
-  speech detection, local whisper.cpp transcription, transcript reads, staged
+  speech detection, local Faster-Whisper/whisper.cpp transcription, transcript
+  reads, staged
   retake/zoom/J-cut edits, shorts proposals, real jobs, NLE export, and project
   state/preset/export resources. Streamable HTTP is mounted on the local API.
 - Unified CLI (`run`, `serve`, `mcp`, `doctor`, `demo`, `version`) and a
@@ -103,7 +114,6 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 
 ## Not implemented yet
 
-- Faster-Whisper quality transcription and model management.
 - Cache-backed per-block reruns; the route currently returns typed `501`.
 - NLE audio transitions, keyframed progressive zooms, and direct MP4 rendering.
 - Face tracking.
