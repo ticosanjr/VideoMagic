@@ -18,6 +18,7 @@ from uuid import UUID, uuid4
 
 from videoflow.adapters.llm import OpenAICompatibleLlm
 from videoflow.application.portable import run_portable
+from videoflow.application.telemetry import JobTelemetry
 from videoflow.domain.config import JlCutsConfig, ZoomsConfig
 from videoflow.domain.errors import (
     JobCancelledError,
@@ -33,7 +34,7 @@ Runner = Callable[..., Any]
 
 
 def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="milliseconds")
 
 
 @dataclass
@@ -52,6 +53,7 @@ class Job:
     created_at: str = field(default_factory=_now)
     started_at: str | None = None
     finished_at: str | None = None
+    telemetry: JobTelemetry = field(default_factory=JobTelemetry)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -68,6 +70,9 @@ class Job:
             "created_at": self.created_at,
             "started_at": self.started_at,
             "finished_at": self.finished_at,
+            "duration_ms": _duration_ms(self.started_at, self.finished_at),
+            "log_count": self.telemetry.log_count(),
+            "stages": self.telemetry.stages(),
         }
 
 
@@ -150,25 +155,44 @@ class JobManager:
         jl = JlCutsConfig(
             enable_j_cuts=bool(options.get("jcut", True)),
             enable_l_cuts=bool(options.get("lcut", False)),
+            offset_ms=int(options.get("offset_ms", 200)),
+            audio_crossfade_ms=int(options.get("crossfade_ms", 20)),
+            handle_check=bool(options.get("handle_check", True)),
         )
-        zooms = ZoomsConfig(mode="alternate_cuts" if options.get("zooms", True) else "manual_rules")
+        zooms = ZoomsConfig(
+            mode=str(options.get("zoom_mode", "alternate_cuts")),  # type: ignore[arg-type]
+            punch_in_scale=float(options.get("punch_in_scale", 1.15)),
+            anchor_point=str(options.get("anchor_point", "upper_third")),  # type: ignore[arg-type]
+            progressive_zoom=bool(options.get("progressive_zoom", False)),
+            pan_direction=str(options.get("pan_direction", "none")),  # type: ignore[arg-type]
+        )
+        if not options.get("zooms", True):
+            zooms = ZoomsConfig(mode="manual_rules", anchor_point=zooms.anchor_point)
         dialect: Dialect = options.get("dialect", "1.9")
         transcript = options.get("transcript")
         cull = bool(options.get("cull_retakes", False))
         llm = None
-        base_url = os.environ.get("VIDEOWFLOW_LLM_BASE_URL")
+        base_url = options.get("llm_base_url") or os.environ.get("VIDEOWFLOW_LLM_BASE_URL")
         if transcript and cull and base_url:
             llm = OpenAICompatibleLlm(
-                base_url=base_url,
-                model=os.environ.get("VIDEOWFLOW_LLM_MODEL", "qwen2.5:7b-instruct"),
+                base_url=str(base_url),
+                model=str(
+                    options.get("llm_model")
+                    or os.environ.get("VIDEOWFLOW_LLM_MODEL", "qwen2.5:7b-instruct")
+                ),
                 api_key=os.environ.get("VIDEOWFLOW_LLM_API_KEY"),
             )
+
+        telemetry = job.telemetry
 
         def progress(stage: str, percent: int, message: str) -> None:
             with self._lock:
                 job.stage = stage
                 job.progress = percent
                 job.message = message
+
+        def log(module: str, level: str, message: str) -> None:
+            telemetry.log(module, level, message)
 
         def should_cancel() -> bool:
             return job.cancel_requested
@@ -179,11 +203,15 @@ class JobManager:
                 job.output,
                 noise_db=float(options.get("noise_db", -30.0)),
                 min_silence_ms=int(options.get("min_silence_ms", 400)),
+                min_speech_ms=int(options.get("min_speech_ms", 100)),
                 jl=jl,
                 zooms=zooms,
                 dialect=dialect,
                 progress=progress,
                 should_cancel=should_cancel,
+                telemetry=telemetry,
+                log=log,
+                targets=tuple(options.get("export_targets", ("resolve", "premiere", "kdenlive"))),
                 transcript_path=Path(transcript) if transcript else None,
                 cull_retakes=cull,
                 llm_client=llm,
@@ -208,6 +236,7 @@ class JobManager:
                 job.stage = "cancelled"
                 job.message = str(exc)
         except VideoFlowError as exc:
+            telemetry.fail_running(exc.message)
             with self._lock:
                 job.status = "failed"
                 job.stage = job.stage or "failed"
@@ -215,6 +244,7 @@ class JobManager:
                 job.error = exc.to_dict()
         except Exception as exc:  # pragma: no cover - unexpected worker failure
             traceback.print_exc()
+            telemetry.fail_running(str(exc))
             with self._lock:
                 job.status = "failed"
                 job.stage = job.stage or "failed"
@@ -227,6 +257,7 @@ class JobManager:
         finally:
             with self._lock:
                 job.finished_at = _now()
+            _write_log(job)
 
     def _prune(self) -> None:
         finished = [job for job in self._jobs.values() if job.status in TERMINAL]
@@ -235,6 +266,25 @@ class JobManager:
         finished.sort(key=lambda item: item.finished_at or "")
         for job in finished[: len(finished) - self._history]:
             self._jobs.pop(str(job.job_id), None)
+
+
+def _duration_ms(started_at: str | None, finished_at: str | None) -> int | None:
+    if not started_at:
+        return None
+    try:
+        start = datetime.fromisoformat(started_at)
+        end = datetime.fromisoformat(finished_at) if finished_at else datetime.now(UTC)
+    except ValueError:
+        return None
+    return max(0, int((end - start).total_seconds() * 1000))
+
+
+def _write_log(job: Job) -> None:
+    try:
+        if job.output.is_dir():
+            (job.output / "job.log").write_text(job.telemetry.dump(), encoding="utf-8")
+    except OSError:
+        pass
 
 
 def _result_dict(result: Any) -> dict[str, Any]:

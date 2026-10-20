@@ -54,6 +54,7 @@ Rules:
 | `cli.py` | Unified `videoflow` command surface |
 | `application/runner.py` | Executes a `RunPlan` (stub) |
 | `application/jobs.py` | In-process jobs with progress, cancel, and bounded concurrency |
+| `application/telemetry.py` | Per-stage timestamps, progress, and bounded logs |
 | `modules/` | The eight rack modules (fingerprints live, engines stubbed) |
 | `adapters/ffmpeg.py` | FFprobe ingest, PCM extraction, digest, silencedetect VAD |
 | `adapters/` | Neural and LLM ports, unimplemented |

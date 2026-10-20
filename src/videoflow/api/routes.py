@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from videoflow import __version__
@@ -22,14 +22,32 @@ from videoflow.runtime import allowed_roots, find_binary, portable_home
 class NewJobRequest(BaseModel):
     source: str = Field(min_length=1)
     output: str = Field(min_length=1)
-    noise_db: float = -30.0
-    min_silence_ms: int = Field(default=400, ge=0)
+    noise_db: float = Field(default=-30.0, ge=-80.0, le=-5.0)
+    min_silence_ms: int = Field(default=400, ge=0, le=10000)
+    min_speech_ms: int = Field(default=100, ge=0, le=2000)
     jcut: bool = True
     lcut: bool = False
+    offset_ms: int = Field(default=200, ge=100, le=500)
+    crossfade_ms: int = Field(default=20, ge=10, le=50)
+    handle_check: bool = True
     zooms: bool = True
+    zoom_mode: Literal["alternate_cuts", "manual_rules"] = "alternate_cuts"
+    punch_in_scale: float = Field(default=1.15, ge=1.05, le=1.30)
+    anchor_point: Literal["center", "upper_third", "face_detect"] = "upper_third"
+    progressive_zoom: bool = False
+    pan_direction: Literal["none", "left_to_right", "right_to_left"] = "none"
     dialect: Literal["1.9", "1.10"] = "1.9"
+    export_targets: list[Literal["resolve", "premiere", "kdenlive"]] = Field(
+        default_factory=lambda: ["resolve", "premiere", "kdenlive"],
+        min_length=1,
+    )
     transcript: str | None = None
     cull_retakes: bool = False
+    strictness: Literal["conservative", "balanced", "aggressive"] = "balanced"
+    retake_strategy: Literal["keep_last", "keep_best"] = "keep_last"
+    context_window: int = Field(default=15, ge=1, le=100)
+    llm_base_url: str | None = None
+    llm_model: str = "qwen2.5:7b-instruct"
 
 
 def register_routes(app: FastAPI, jobs: JobManager) -> None:
@@ -48,12 +66,27 @@ def register_routes(app: FastAPI, jobs: JobManager) -> None:
                 options={
                     "noise_db": request.noise_db,
                     "min_silence_ms": request.min_silence_ms,
+                    "min_speech_ms": request.min_speech_ms,
                     "jcut": request.jcut,
                     "lcut": request.lcut,
+                    "offset_ms": request.offset_ms,
+                    "crossfade_ms": request.crossfade_ms,
+                    "handle_check": request.handle_check,
                     "zooms": request.zooms,
+                    "zoom_mode": request.zoom_mode,
+                    "punch_in_scale": request.punch_in_scale,
+                    "anchor_point": request.anchor_point,
+                    "progressive_zoom": request.progressive_zoom,
+                    "pan_direction": request.pan_direction,
                     "dialect": request.dialect,
+                    "export_targets": request.export_targets,
                     "transcript": str(transcript) if transcript else None,
                     "cull_retakes": request.cull_retakes,
+                    "strictness": request.strictness,
+                    "retake_strategy": request.retake_strategy,
+                    "context_window": request.context_window,
+                    "llm_base_url": request.llm_base_url,
+                    "llm_model": request.llm_model,
                 },
             )
         except VideoFlowError as exc:
@@ -102,6 +135,42 @@ def register_routes(app: FastAPI, jobs: JobManager) -> None:
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache"},
         )
+
+    @app.get("/api/v1/jobs/{job_id}/logs")
+    def job_logs(
+        job_id: str,
+        module: str | None = None,
+        level: str | None = None,
+        limit: int = 500,
+        download: bool = False,
+    ) -> object:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
+        rows = job.telemetry.logs(
+            module=module,
+            level=level,
+            limit=max(1, min(1000, limit)),
+        )
+        if download:
+            body = "\n".join(
+                f"{row['timestamp']} {row['level'].upper():7} {row['module']}: {row['message']}"
+                for row in rows
+            )
+            suffix = f"-{module}" if module else ""
+            return PlainTextResponse(
+                body + ("\n" if body else ""),
+                headers={
+                    "Content-Disposition": f'attachment; filename="videoflow-{job_id}{suffix}.log"'
+                },
+            )
+        return {
+            "ok": True,
+            "logs": rows,
+            "count": len(rows),
+            "total": job.telemetry.log_count(),
+        }
 
     @app.get("/api/v1/jobs/{job_id}/state")
     def job_state(job_id: str) -> dict[str, object]:

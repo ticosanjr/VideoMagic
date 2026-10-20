@@ -262,7 +262,7 @@ distribution with a compatible glibc.
 
 ```bash
 uv run python scripts/build_appimage.py
-./dist/VideoFlow-0.10.0-x86_64.AppImage version
+./dist/VideoFlow-0.11.0-x86_64.AppImage version
 ```
 
 The AppImage wraps the same onefile binary. Opening it with no arguments starts

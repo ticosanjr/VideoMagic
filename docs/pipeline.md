@@ -171,6 +171,7 @@ Done:
 5. In-process jobs, REST/SSE, and live MCP job tools
 6. SRT transcript import, LLM retakes, and the keeper guard
 7. Vertical shorts: selection, culling, captions, and 1080x1920 render
+8. Per-stage telemetry, bounded logs, and the telemetry rack UI
 
 Next, in order:
 

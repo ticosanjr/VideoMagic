@@ -3,6 +3,32 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.11.0] — 2026-10-20
+
+### Added
+
+- Per-stage telemetry: status, progress, start/finish timestamps, duration, and
+  messages for ingest, VAD, SRT import, retakes, J/L cuts, zooms, and export.
+- Bounded job logs with module/level filters and a download endpoint. FFmpeg
+  commands and the last 50 stderr lines are captured; `job.log` is written to the
+  output directory.
+- API fields for VAD/pads, J/L offsets, zoom mode/scale/anchor/pan, retake
+  strictness/strategy/window, LLM URL/model, and export targets.
+- New rack UI: per-block progress, date/duration, status icons, global/per-block
+  log drawer, configurable cards, recent jobs, and a run summary.
+- Vitest coverage for date/duration/status formatting.
+- `GET /api/v1/jobs/{id}/logs` and `?download=1`.
+
+### Changed
+
+- Version is 0.11.0.
+- Job timestamps use millisecond precision, so short runs report real durations.
+
+### Verified
+
+- API job reports all stages with durations and logs.
+- AppImage and Windows PE rebuilt with the new UI and telemetry.
+
 ## [0.10.0] — 2026-10-20
 
 ### Added

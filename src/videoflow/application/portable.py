@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,7 @@ from videoflow.application.retakes import (
 from videoflow.application.retakes import (
     cull_retakes as cull_transcript_retakes,
 )
+from videoflow.application.telemetry import JobTelemetry
 from videoflow.application.timeline_builder import build_timeline
 from videoflow.domain.config import JlCutsConfig, ModuleEnabled, ZoomsConfig
 from videoflow.domain.errors import IngestError, JobCancelledError
@@ -84,6 +86,9 @@ def run_portable(
     adapter: FFmpegAdapter | None = None,
     progress: ProgressCallback | None = None,
     should_cancel: CancelCheck | None = None,
+    telemetry: JobTelemetry | None = None,
+    log: Callable[[str, str, str], None] | None = None,
+    targets: Sequence[str] = ("resolve", "premiere", "kdenlive"),
     transcript_path: Path | None = None,
     cull_retakes: bool = False,
     llm_client: LlmClient | None = None,
@@ -103,74 +108,138 @@ def run_portable(
         if should_cancel is not None and should_cancel():
             raise JobCancelledError("Job cancelled")
 
+    def emit(module: str, level: str, message: str) -> None:
+        if log is not None:
+            log(module, level, message)
+
+    @contextmanager
+    def stage(stage_id: str, module: str, label: str, message: str) -> Any:
+        if telemetry is not None:
+            telemetry.start(stage_id, module, label, message)
+        meta = {"message": message}
+        try:
+            yield meta
+        except JobCancelledError:
+            if telemetry is not None:
+                telemetry.cancel(stage_id)
+            raise
+        except Exception as exc:
+            if telemetry is not None:
+                telemetry.fail(stage_id, str(exc))
+            raise
+        else:
+            if telemetry is not None:
+                telemetry.finish(stage_id, str(meta["message"]))
+
     source_path = Path(source).expanduser().resolve()
     output_path = Path(output).expanduser().resolve()
     output_path.mkdir(parents=True, exist_ok=True)
     work = output_path / "work"
     exports = output_path / "exports"
 
+    adapter_module = {"name": "ingest"}
     gate()
-    step("probe", 5, "Reading media metadata")
-    engine = adapter or FFmpegAdapter()
-    media = engine.probe(source_path)
-    gate()
-    step("extract", 15, "Extracting analysis audio")
-    wav = engine.extract_pcm(
-        source_path,
-        work / "source.wav",
-        sample_rate=media.audio_sample_rate,
-    )
-    digest = engine.pcm_digest(wav)
+    with stage("ingest", "ingest", "Ingest", "Reading media metadata") as meta:
+        step("probe", 5, "Reading media metadata")
+        engine = adapter or FFmpegAdapter(
+            log=lambda lvl, msg: emit(adapter_module["name"], lvl, msg)
+        )
+        media = engine.probe(source_path)
+        gate()
+        step("extract", 15, "Extracting analysis audio")
+        if telemetry is not None:
+            telemetry.update("ingest", 50, "Extracting analysis audio")
+        wav = engine.extract_pcm(
+            source_path,
+            work / "source.wav",
+            sample_rate=media.audio_sample_rate,
+        )
+        digest = engine.pcm_digest(wav)
+        meta["message"] = f"PCM ready ({digest[:12]})"
+        if telemetry is not None:
+            telemetry.update("ingest", 90, str(meta["message"]))
+        emit("ingest", "info", f"PCM SHA-256 {digest}")
 
     timebase = media.timebase()
     duration_samples = timebase.seconds_to_samples(
         timebase.frames_to_seconds(media.duration_frames), Rounding.NEAREST
     )
     gate()
-    step("vad", 35, "Detecting speech and silence")
-    speech = engine.detect_speech(
-        wav,
-        duration_samples=duration_samples,
-        sample_rate=media.audio_sample_rate,
-        noise_db=noise_db,
-        min_silence_ms=min_silence_ms,
-        min_speech_ms=min_speech_ms,
-    )
-    if not speech:
-        raise IngestError(
-            "No speech detected. Lower the noise threshold or the minimum silence duration."
+    adapter_module["name"] = "vad"
+    with stage("vad", "vad", "Voice detect", "Detecting speech and silence") as meta:
+        step("vad", 35, "Detecting speech and silence")
+        speech = engine.detect_speech(
+            wav,
+            duration_samples=duration_samples,
+            sample_rate=media.audio_sample_rate,
+            noise_db=noise_db,
+            min_silence_ms=min_silence_ms,
+            min_speech_ms=min_speech_ms,
         )
+        if not speech:
+            raise IngestError(
+                "No speech detected. Lower the noise threshold or the minimum silence duration."
+            )
+        meta["message"] = f"{len(speech)} speech intervals"
+        emit("vad", "info", str(meta["message"]))
 
     transcript: list[Sentence] = []
     discard: list[int] = []
     restored: list[int] = []
     if transcript_path is not None:
-        gate()
-        step("transcript", 42, "Reading subtitle transcript")
-        transcript = parse_srt_file(transcript_path, media.audio_sample_rate)
-        if cull_retakes:
+        with stage(
+            "transcribe", "transcribe", "Transcribe (SRT)", "Reading subtitle transcript"
+        ) as meta:
             gate()
-            step("retakes", 48, "Culling retakes")
-            result = cull_transcript_retakes(
-                transcript,
-                client=llm_client,
-                strategy=retake_strategy,  # type: ignore[arg-type]
-                context_window=context_window,
-                strictness=strictness,
-            )
-            discard = list(result.discard_sentence_ids)
-            restored = list(result.restored_sentence_ids)
-            speech = subtract_spans(speech, cull_intervals(transcript, discard))
-            minimum = max(1, (min_speech_ms * media.audio_sample_rate + 500) // 1000)
-            speech = [(start, end) for start, end in speech if end - start >= minimum]
-            if not speech:
-                raise IngestError("Retake culling removed all speech.")
+            step("transcript", 42, "Reading subtitle transcript")
+            transcript = parse_srt_file(transcript_path, media.audio_sample_rate)
+            meta["message"] = f"{len(transcript)} sentences from SRT"
+            emit("transcribe", "info", str(meta["message"]))
+        if cull_retakes:
+            with stage("retakes", "retakes", "Retakes", "Culling retakes") as meta:
+                gate()
+                step("retakes", 48, "Culling retakes")
+                result = cull_transcript_retakes(
+                    transcript,
+                    client=llm_client,
+                    strategy=retake_strategy,  # type: ignore[arg-type]
+                    context_window=context_window,
+                    strictness=strictness,
+                )
+                discard = list(result.discard_sentence_ids)
+                restored = list(result.restored_sentence_ids)
+                speech = subtract_spans(speech, cull_intervals(transcript, discard))
+                minimum = max(1, (min_speech_ms * media.audio_sample_rate + 500) // 1000)
+                speech = [(start, end) for start, end in speech if end - start >= minimum]
+                if not speech:
+                    raise IngestError("Retake culling removed all speech.")
+                meta["message"] = f"{len(discard)} culled, {len(restored)} restored"
+                emit("retakes", "info", str(meta["message"]))
 
     config_jl = jl or JlCutsConfig()
     config_zooms = zooms or ZoomsConfig()
     gate()
     step("timeline", 55, "Building the cut timeline")
-    built = build_timeline(media, speech, jl=config_jl, zooms=config_zooms)
+    if telemetry is not None:
+        telemetry.start("jl_cuts", "jl_cuts", "J/L cuts", "Building audio cuts")
+
+    def cuts_done() -> None:
+        if telemetry is not None:
+            telemetry.finish("jl_cuts", "Audio cuts ready")
+            telemetry.start("zooms", "zooms", "Zooms", "Building transforms")
+
+    try:
+        built = build_timeline(
+            media, speech, jl=config_jl, zooms=config_zooms, on_audio_done=cuts_done
+        )
+    except Exception as exc:
+        if telemetry is not None:
+            active = telemetry.active_stage()
+            if active:
+                telemetry.fail(active, str(exc))
+        raise
+    if telemetry is not None:
+        telemetry.finish("zooms", "Transforms ready")
     state = ProjectState(
         media_info=media,
         module_enabled=ModuleEnabled(),
@@ -182,8 +251,11 @@ def run_portable(
         audio_segments=list(built.audio_segments),
     )
     gate()
-    step("export", 80, "Writing FCPXML, xmeml, and OTIO")
-    artifacts = export_timeline(state, exports, dialect=dialect)
+    with stage("export", "export", "Export", "Writing timelines") as meta:
+        step("export", 80, "Writing FCPXML, xmeml, and OTIO")
+        artifacts = export_timeline(state, exports, dialect=dialect, targets=targets)
+        meta["message"] = f"{len(artifacts)} artifacts written"
+        emit("export", "info", str(meta["message"]))
 
     gate()
     step("state", 95, "Writing project state and report")

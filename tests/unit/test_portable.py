@@ -93,6 +93,34 @@ def test_transcript_culls_exact_repeats_and_updates_state(tmp_path: Path) -> Non
     assert report["retake_cull_count"] == 1
 
 
+def test_portable_pipeline_reports_stages_logs_and_targets(tmp_path: Path) -> None:
+    from videoflow.application.telemetry import JobTelemetry
+
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    telemetry = JobTelemetry()
+    logs: list[tuple[str, str, str]] = []
+    result = run_portable(
+        source,
+        tmp_path / "project",
+        adapter=FakeAdapter(),  # type: ignore[arg-type]
+        telemetry=telemetry,
+        log=lambda module, level, message: (
+            logs.append((module, level, message)),
+            telemetry.log(module, level, message),
+        ),
+        targets=("resolve",),
+    )
+    stages = {item["id"]: item for item in telemetry.stages()}
+    assert {"ingest", "vad", "jl_cuts", "zooms", "export"} <= set(stages)
+    assert stages["ingest"]["status"] == "succeeded"
+    assert stages["ingest"]["started_at"]
+    assert stages["ingest"]["duration_ms"] is not None
+    assert set(result.artifacts) == {"resolve"}
+    assert any("PCM" in row[2] for row in logs)
+    assert telemetry.log_count() > 0
+
+
 def test_portable_pipeline_fails_when_no_speech_is_detected(tmp_path: Path) -> None:
     source = tmp_path / "source.mp4"
     source.write_bytes(b"fixture")

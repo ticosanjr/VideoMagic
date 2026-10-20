@@ -2,15 +2,18 @@
 
 Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript. English strings only.
 
-0.9.0 wires the portable run: source/output fields, optional SRT and retake
-culling, quick presets, silence and zoom options, start/cancel, live progress,
-artifact downloads, and typed errors. Module cards follow the active job stage.
-Neural modules are marked `later` and stay bypassed.
+0.11.0 wires the full telemetry rack: source/output/SRT fields, quick presets,
+per-block progress, start/finish timestamps, duration, status icons, per-block
+and global log drawers, recent jobs, artifact downloads, and typed errors.
+
+Module cards render configuration from `modules.ts` field metadata. Implemented
+controls are bound to the job request; future controls are disabled and marked
+`later`. Transcribe shows SRT import as its stage; Shorts is marked CLI-only.
 
 The inspector reads `GET /api/v1/jobs/{id}/state` and shows transcript sentence
 counts, culled sentences, and guard restorations.
 
-The rest of this document is the contract for the full rack: per-block runs,
+The rest of this document is the contract for later passes: real per-block runs,
 manual overrides, persisted presets, and word-level inspector controls.
 
 ## 1. Layout

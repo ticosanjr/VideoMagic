@@ -11,6 +11,7 @@ import json
 import re
 import shutil
 import subprocess
+from collections.abc import Callable
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,13 @@ _SILENCE_END = re.compile(r"silence_end:\s*([0-9.]+)")
 
 
 class FFmpegAdapter:
+    def __init__(self, log: Callable[[str, str], None] | None = None) -> None:
+        self._log = log
+
+    def _emit(self, level: str, message: str) -> None:
+        if self._log is not None:
+            self._log(level, message)
+
     def probe(self, path: Path) -> MediaInfo:
         source = Path(path).expanduser()
         if not source.is_file():
@@ -218,8 +226,7 @@ class FFmpegAdapter:
                 list_file = work / "concat.txt"
                 list_file.write_text(
                     "\n".join(
-                        f"file '{str(item.resolve()).replace(chr(92), '/')}'"
-                        for item in rendered
+                        f"file '{str(item.resolve()).replace(chr(92), '/')}'" for item in rendered
                     )
                     + "\n",
                     encoding="utf-8",
@@ -298,6 +305,7 @@ class FFmpegAdapter:
         binary = find_binary(args[0])
         if binary is None:
             raise IngestError(f"{args[0]} is not available. Place it next to the executable.")
+        self._emit("debug", "$ " + " ".join([Path(binary).name, *args[1:]]))
         try:
             completed = subprocess.run(
                 [binary, *args[1:]],
@@ -309,7 +317,9 @@ class FFmpegAdapter:
         except subprocess.TimeoutExpired as exc:
             raise IngestError(f"{args[0]} timed out after {DEFAULT_TIMEOUT_SECONDS}s") from exc
         if completed.returncode != 0:
-            stderr = " ".join(completed.stderr.strip().splitlines()[-3:])
+            tail = completed.stderr.strip().splitlines()[-50:]
+            self._emit("error", "\n".join(tail) or f"{args[0]} failed")
+            stderr = " ".join(tail[-3:])
             raise IngestError(f"{args[0]} failed: {stderr or 'unknown error'}")
         return completed.stdout, completed.stderr
 

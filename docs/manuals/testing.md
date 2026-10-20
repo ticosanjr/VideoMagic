@@ -16,8 +16,9 @@ uv run mypy
 Expected on the scaffold:
 
 ```
-217 passed, 16 xfailed, 7 deselected
+225 passed, 16 xfailed, 7 deselected
 coverage 99%+
+UI: 8 passed (Vitest)
 ```
 
 `xfail` is part of the design. A strict xfail that starts passing fails the suite,
@@ -62,7 +63,20 @@ uv run pytest -m slow -q --no-cov
 These cover the zoom-only cache timing and the 60-minute drift. They are advisory
 on a loaded CI machine. The plan assertion is the hard gate.
 
-## 6. MCP smoke
+## 6. UI checks
+
+```bash
+cd ui
+npm run check
+npm run test
+npm run build
+```
+
+`npm run test` covers date/duration/status formatting. The rendered rack is
+checked manually by starting a job and confirming per-block progress, timestamps,
+status icons, and the log drawer.
+
+## 7. MCP smoke
 
 ```bash
 uv run videoflow-mcp
@@ -80,16 +94,16 @@ PY
 
 Expect twelve tools. A call returns `not_implemented` in this build.
 
-## 7. API smoke
+## 8. API smoke
 
 ```bash
 uv run videoflow-api
 curl -s http://127.0.0.1:8765/health
 ```
 
-Expect `{"status":"ok","service":"videoflow","version":"0.10.0"}`.
+Expect `{"status":"ok","service":"videoflow","version":"0.11.0"}`.
 
-## 8. AppImage contract
+## 9. AppImage contract
 
 ```bash
 uv run pytest -m packaging --no-cov
@@ -101,7 +115,7 @@ This runs `scripts/smoke_appimage.py` against the newest staged AppImage:
 and asserts the AppRun no-argument branch, desktop entry, icon, and executable
 bits.
 
-## 9. Portable smoke
+## 10. Portable smoke
 
 ```bash
 uv run python scripts/build_portable.py --fetch-ffmpeg
@@ -114,7 +128,7 @@ Then check `/health`, `/`, `/mcp/`, and the twelve tools over `videoflow mcp`.
 On Windows, run the same commands with `videoflow.exe`; FFmpeg is found inside
 the bundle, so an empty `PATH` is the proof.
 
-## 10. Release gate
+## 11. Release gate
 
 Run `docs/testing.md` section 11. Record:
 
@@ -127,7 +141,7 @@ Run `docs/testing.md` section 11. Record:
 
 A release without the manual section is not a release.
 
-## 11. Reading a failure
+## 12. Reading a failure
 
 1. Is it an `xfail` that now passes? Remove the marker and update the docs.
 2. Is coverage below 95%? Look at the missing lines, not at the threshold.
@@ -138,7 +152,7 @@ A release without the manual section is not a release.
 5. Is a planning test failing? Print the status map and the planned modules. The
    rule is in `domain/planning.py`.
 
-## 12. Adding a case
+## 13. Adding a case
 
 - Unit: no I/O, no network, fast.
 - Contract: public surface; xfail if not built.

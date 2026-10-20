@@ -47,7 +47,7 @@ GET /health
 ```
 
 ```json
-{ "status": "ok", "service": "videoflow", "version": "0.10.0" }
+{ "status": "ok", "service": "videoflow", "version": "0.11.0" }
 ```
 
 ```http
@@ -57,7 +57,7 @@ GET /api/v1/system
 ```json
 {
   "ok": true,
-  "version": "0.10.0",
+  "version": "0.11.0",
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
@@ -83,12 +83,27 @@ Content-Type: application/json
   "output": "/projects/interview-edit",
   "noise_db": -30,
   "min_silence_ms": 400,
+  "min_speech_ms": 100,
   "jcut": true,
   "lcut": false,
+  "offset_ms": 200,
+  "crossfade_ms": 20,
+  "handle_check": true,
   "zooms": true,
+  "zoom_mode": "alternate_cuts",
+  "punch_in_scale": 1.15,
+  "anchor_point": "upper_third",
+  "progressive_zoom": false,
+  "pan_direction": "none",
   "dialect": "1.9",
+  "export_targets": ["resolve", "premiere", "kdenlive"],
   "transcript": "/media/interview.srt",
-  "cull_retakes": true
+  "cull_retakes": true,
+  "strictness": "balanced",
+  "retake_strategy": "keep_last",
+  "context_window": 15,
+  "llm_base_url": "http://localhost:11434/v1",
+  "llm_model": "qwen2.5:7b-instruct"
 }
 ```
 
@@ -116,9 +131,25 @@ Response `202`:
     "options": { "noise_db": -30.0, "min_silence_ms": 400, "jcut": true },
     "result": null,
     "error": null,
-    "created_at": "2026-10-19T21:09:48+00:00",
-    "started_at": "2026-10-19T21:09:48+00:00",
-    "finished_at": null
+    "created_at": "2026-10-19T21:09:48.120+00:00",
+    "started_at": "2026-10-19T21:09:48.130+00:00",
+    "finished_at": null,
+    "duration_ms": 410,
+    "log_count": 12,
+    "stages": [
+      {
+        "id": "ingest",
+        "module": "ingest",
+        "label": "Ingest",
+        "status": "succeeded",
+        "progress": 100,
+        "started_at": "2026-10-19T21:09:48.131+00:00",
+        "finished_at": "2026-10-19T21:09:48.310+00:00",
+        "duration_ms": 179,
+        "message": "PCM ready",
+        "error": null
+      }
+    ]
   }
 }
 ```
@@ -144,6 +175,22 @@ POST /api/v1/jobs/{job_id}/cancel
 Cancellation is cooperative. The worker stops between probe, extraction, VAD,
 timeline, export, and state stages. A running FFmpeg process is not killed
 mid-stage.
+
+### Logs
+
+```http
+GET /api/v1/jobs/{job_id}/logs
+GET /api/v1/jobs/{job_id}/logs?module=vad&level=error&limit=200
+GET /api/v1/jobs/{job_id}/logs?download=1
+```
+
+The JSON response carries `logs`, `count`, and `total`. Each line has
+`timestamp`, `level`, `module`, and `message`. The download form returns plain
+text with `Content-Disposition: attachment`.
+
+Logs are bounded at 1,000 lines per job. The FFmpeg command and the last 50
+stderr lines are captured; secrets are redacted. `job.log` is also written to the
+job output directory.
 
 ### State
 
@@ -189,7 +236,7 @@ On success, `job.result` is the `run_portable` report:
 ```json
 {
   "ok": true,
-  "version": "0.10.0",
+  "version": "0.11.0",
   "speech_interval_count": 3,
   "video_segment_count": 3,
   "audio_segment_count": 3,

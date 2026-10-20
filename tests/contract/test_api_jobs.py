@@ -8,8 +8,23 @@ from videoflow.api.app import create_app
 from videoflow.application.jobs import JobManager
 
 
-def fake_runner(source: Path, output: Path, *, progress, should_cancel, **kwargs):
+def fake_runner(
+    source: Path,
+    output: Path,
+    *,
+    progress,
+    should_cancel,
+    telemetry=None,
+    log=None,
+    **kwargs,
+):
     progress("probe", 5, "probe")
+    if telemetry is not None:
+        telemetry.start("ingest", "ingest", "Ingest", "probe")
+        telemetry.update("ingest", 50, "extract")
+        telemetry.finish("ingest", "PCM ready")
+    if log is not None:
+        log("ingest", "info", "fake PCM")
     output.mkdir(parents=True, exist_ok=True)
     (output / "run.json").write_text("{}", encoding="utf-8")
     (output / "timeline.fcpxml").write_text("<fcpxml/>", encoding="utf-8")
@@ -133,6 +148,61 @@ def test_artifact_download_is_confined_to_the_job_output(monkeypatch, tmp_path: 
     assert response.status_code == 200
     assert response.text == "<fcpxml/>"
     assert client.get(f"/api/v1/jobs/{job['job_id']}/artifacts/nope").status_code == 404
+
+
+def test_job_reports_stages_and_logs(monkeypatch, tmp_path: Path) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    client = make_client(monkeypatch, tmp_path)
+    job = client.post(
+        "/api/v1/jobs",
+        json={"source": str(source), "output": str(tmp_path / "out")},
+    ).json()["job"]
+    finished = wait_http(client, job["job_id"])
+    assert finished["stages"][0]["id"] == "ingest"
+    assert finished["stages"][0]["duration_ms"] is not None
+    assert finished["duration_ms"] is not None
+    logs = client.get(f"/api/v1/jobs/{job['job_id']}/logs").json()
+    assert logs["total"] == 1
+    assert logs["logs"][0]["module"] == "ingest"
+    filtered = client.get(
+        f"/api/v1/jobs/{job['job_id']}/logs?module=vad"
+    ).json()
+    assert filtered["logs"] == []
+    downloaded = client.get(f"/api/v1/jobs/{job['job_id']}/logs?download=1")
+    assert downloaded.status_code == 200
+    assert "fake PCM" in downloaded.text
+
+
+def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    client = make_client(monkeypatch, tmp_path)
+    response = client.post(
+        "/api/v1/jobs",
+        json={
+            "source": str(source),
+            "output": str(tmp_path / "out"),
+            "min_speech_ms": 150,
+            "offset_ms": 250,
+            "crossfade_ms": 30,
+            "handle_check": False,
+            "zoom_mode": "manual_rules",
+            "punch_in_scale": 1.2,
+            "anchor_point": "center",
+            "progressive_zoom": True,
+            "pan_direction": "left_to_right",
+            "export_targets": ["resolve"],
+            "strictness": "aggressive",
+            "retake_strategy": "keep_best",
+            "context_window": 20,
+        },
+    )
+    assert response.status_code == 202
+    options = response.json()["job"]["options"]
+    assert options["offset_ms"] == 250
+    assert options["export_targets"] == ["resolve"]
+    assert options["context_window"] == 20
 
 
 def test_unknown_job_is_404(monkeypatch, tmp_path: Path) -> None:

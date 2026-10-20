@@ -7,7 +7,7 @@ relative to its own video, so sync inside every clip is preserved.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from videoflow.domain.config import JlCutsConfig, ZoomsConfig
@@ -51,6 +51,7 @@ def build_timeline(
     *,
     jl: JlCutsConfig,
     zooms: ZoomsConfig,
+    on_audio_done: Callable[[], None] | None = None,
 ) -> TimelineBuildResult:
     """Build the editable picture and dialogue tracks.
 
@@ -110,6 +111,8 @@ def build_timeline(
         media_samples=media_samples,
         warnings=warnings,
     )
+    if on_audio_done is not None:
+        on_audio_done()
 
     video_segments = tuple(
         _video_segment(clip, index, zooms, warnings) for index, clip in enumerate(clips)

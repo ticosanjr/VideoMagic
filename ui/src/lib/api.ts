@@ -1,4 +1,5 @@
 export type JobStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
+export type StageStatus = "pending" | "running" | "succeeded" | "failed" | "cancelled";
 
 export interface SystemInfo {
   ok: boolean;
@@ -12,10 +13,40 @@ export interface SystemInfo {
 export interface JobOptions {
   noise_db: number;
   min_silence_ms: number;
+  min_speech_ms: number;
   jcut: boolean;
   lcut: boolean;
+  offset_ms: number;
+  crossfade_ms: number;
+  handle_check: boolean;
   zooms: boolean;
+  zoom_mode: string;
+  punch_in_scale: number;
+  anchor_point: string;
+  progressive_zoom: boolean;
+  pan_direction: string;
   dialect: "1.9" | "1.10";
+  export_targets: string[];
+  transcript: string | null;
+  cull_retakes: boolean;
+  strictness: string;
+  retake_strategy: string;
+  context_window: number;
+  llm_base_url: string | null;
+  llm_model: string;
+}
+
+export interface JobStage {
+  id: string;
+  module: string;
+  label: string;
+  status: StageStatus;
+  progress: number;
+  message: string;
+  started_at: string | null;
+  finished_at: string | null;
+  duration_ms: number | null;
+  error: string | null;
 }
 
 export interface Job {
@@ -31,6 +62,9 @@ export interface Job {
     ok: boolean;
     video_segment_count?: number;
     speech_interval_count?: number;
+    transcript_sentence_count?: number;
+    retake_cull_count?: number;
+    retake_restored_count?: number;
     warnings?: string[];
     artifacts?: Record<string, string>;
     state_path?: string;
@@ -41,6 +75,9 @@ export interface Job {
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
+  duration_ms: number | null;
+  log_count: number;
+  stages: JobStage[];
 }
 
 export interface NewJob {
@@ -48,12 +85,27 @@ export interface NewJob {
   output: string;
   noise_db: number;
   min_silence_ms: number;
+  min_speech_ms: number;
   jcut: boolean;
   lcut: boolean;
+  offset_ms: number;
+  crossfade_ms: number;
+  handle_check: boolean;
   zooms: boolean;
+  zoom_mode: string;
+  punch_in_scale: number;
+  anchor_point: string;
+  progressive_zoom: boolean;
+  pan_direction: string;
   dialect: "1.9" | "1.10";
+  export_targets: string[];
   transcript: string | null;
   cull_retakes: boolean;
+  strictness: string;
+  retake_strategy: string;
+  context_window: number;
+  llm_base_url: string | null;
+  llm_model: string;
 }
 
 export interface Sentence {
@@ -71,6 +123,13 @@ export interface JobState {
   vad_intervals: { start_sample: number; end_sample: number }[];
   video_segments: unknown[];
   audio_segments: unknown[];
+}
+
+export interface LogLine {
+  timestamp: string;
+  level: "debug" | "info" | "warning" | "error";
+  module: string;
+  message: string;
 }
 
 class ApiError extends Error {
@@ -115,6 +174,11 @@ export async function getJob(jobId: string): Promise<Job> {
   return response.job;
 }
 
+export async function listJobs(): Promise<Job[]> {
+  const response = await request<{ ok: boolean; jobs: Job[] }>("/api/v1/jobs");
+  return response.jobs;
+}
+
 export async function cancelJob(jobId: string): Promise<Job> {
   const response = await request<{ ok: boolean; job: Job }>(`/api/v1/jobs/${jobId}/cancel`, {
     method: "POST"
@@ -124,6 +188,27 @@ export async function cancelJob(jobId: string): Promise<Job> {
 
 export function getJobState(jobId: string): Promise<JobState> {
   return request<JobState>(`/api/v1/jobs/${jobId}/state`);
+}
+
+export async function getLogs(
+  jobId: string,
+  module?: string,
+  level?: string,
+  limit = 500
+): Promise<LogLine[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (module) params.set("module", module);
+  if (level) params.set("level", level);
+  const response = await request<{ ok: boolean; logs: LogLine[] }>(
+    `/api/v1/jobs/${jobId}/logs?${params.toString()}`
+  );
+  return response.logs;
+}
+
+export function logDownloadUrl(jobId: string, module?: string): string {
+  const params = new URLSearchParams({ download: "1" });
+  if (module) params.set("module", module);
+  return `/api/v1/jobs/${jobId}/logs?${params.toString()}`;
 }
 
 export function errorMessage(error: unknown): string {

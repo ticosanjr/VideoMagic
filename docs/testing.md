@@ -15,7 +15,7 @@ hides the contract. VideoFlow resolves this with two layers:
 
 | Scope | Line coverage | Notes |
 | --- | --- | --- |
-| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.2% (217 passing, 16 strict xfail, 7 deselected) |
+| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.2% (225 passing, 16 strict xfail, 7 deselected) |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |
 | UI | `npm run check` and `npm run build` | Manual: start a job from the rack and confirm progress and artifacts |
@@ -77,6 +77,7 @@ smokes run locally and are recorded in the release notes.
 | `test_shorts.py` | Deterministic windows, culls, LLM validation, ASS, events |
 | `test_portable.py` | End-to-end portable service with a fake engine and retakes |
 | `test_jobs.py` | Job completion, failure, cancellation, queue limit, pruning |
+| `test_telemetry.py` | Stage lifecycle, durations, logs, filters, cap |
 | `test_cli.py` | `version`, `doctor`, `run` dispatch, usage |
 | `test_runtime.py` | Portable home, binary discovery, UI discovery, allowed roots |
 
@@ -87,7 +88,8 @@ smokes run locally and are recorded in the release notes.
 | `test_exporters.py` | FCPXML 1.9/1.10, xmeml tracks, OTIO tracks, export service, preflight failures |
 | `test_ingest_media.py` | Real FFprobe, PCM extraction, and silence detection (`media`) |
 | `test_shorts_media.py` | Renders two 1080x1920 clips with ASS via the CLI (`media`) |
-| `test_api_jobs.py` | Job create/poll, path jail, SSE, system endpoint, real media (`media`) |
+| `test_api_jobs.py` | Job create/poll, stages/logs, new options, path jail, SSE, system, real media (`media`) |
+| UI `format.test.ts` | Duration, elapsed time, date, status text (Vitest) |
 | `test_mcp.py` | Twelve tool names, schemas, structured stub call |
 | `test_mcp_live.py` | Live media load, job start/poll, jail, invalid preset |
 | `test_api.py` | `/health` and MCP redirect |
