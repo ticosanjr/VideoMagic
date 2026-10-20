@@ -71,6 +71,10 @@ OVERRIDE_KEYS = {
     "shorts_max_sec",
     "shorts_subtitles",
     "overrides",
+    "transcribe",
+    "asr_base_url",
+    "asr_model",
+    "asr_language",
 }
 
 

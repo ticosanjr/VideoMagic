@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (0.13.0)
+## Implementation status (0.14.0)
 
 | Area | State |
 | --- | --- |

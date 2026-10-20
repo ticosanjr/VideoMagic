@@ -3,6 +3,31 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.14.0] — 2026-10-20
+
+### Added
+
+- Speech-to-text through an OpenAI-compatible `/audio/transcriptions` endpoint,
+  with `verbose_json` segments and optional word timings.
+- `transcribe`, `asr_base_url`, `asr_model`, and `asr_language` on the job API,
+  MCP overrides, and the Transcribe card.
+- ASR key stays in `VIDEOWFLOW_ASR_API_KEY`; base URL falls back to
+  `VIDEOWFLOW_ASR_BASE_URL`.
+- SRT still wins when both a transcript and ASR are configured.
+- `transcript_source` in the job report (`srt`, `asr`, or `none`).
+- Unit tests for the HTTP client and an end-to-end ASR job.
+
+### Changed
+
+- Version is 0.14.0.
+- The Transcribe card is enabled and configurable; local Faster-Whisper is still
+  a future adapter.
+
+### Verified
+
+- Fake OpenAI-compatible ASR: 3 segments, `transcript_source=asr`, 3 timeline
+  segments, stage `transcribe` succeeded.
+
 ## [0.13.0] — 2026-10-20
 
 ### Added

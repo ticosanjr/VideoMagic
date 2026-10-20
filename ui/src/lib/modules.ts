@@ -18,9 +18,10 @@ export type ConfigKey =
   | "noise_db"
   | "min_silence_ms"
   | "min_speech_ms"
-  | "model"
-  | "language"
-  | "device"
+  | "transcribe"
+  | "asr_base_url"
+  | "asr_model"
+  | "asr_language"
   | "cull_retakes"
   | "strictness"
   | "retake_strategy"
@@ -81,9 +82,10 @@ export const defaultConfig: JobConfig = {
   noise_db: -30,
   min_silence_ms: 400,
   min_speech_ms: 100,
-  model: "small",
-  language: "pt",
-  device: "cpu",
+  transcribe: false,
+  asr_base_url: "",
+  asr_model: "whisper-1",
+  asr_language: "pt",
   cull_retakes: false,
   strictness: "balanced",
   retake_strategy: "keep_last",
@@ -165,37 +167,27 @@ export const modules: RackModule[] = [
     index: "03",
     id: "transcribe",
     name: "Transcribe",
-    summary: "Word-level timestamps from Faster-Whisper, or an imported SRT.",
+    summary: "Import an SRT or call an OpenAI-compatible speech-to-text endpoint.",
     portable: true,
-    tag: "SRT",
-    note: "Built-in transcription is not in this build. Provide an SRT in the run panel; it is imported as a transcript.",
+    tag: "SRT/ASR",
+    toggleKey: "transcribe",
+    toggleLabel: "ASR",
+    note: "An SRT in the run panel wins. ASR posts the analysis WAV to /audio/transcriptions; the key stays in VIDEOWFLOW_ASR_API_KEY.",
     fields: [
       {
-        key: "model",
-        label: "Model",
-        type: "select",
-        implemented: false,
-        options: ["tiny", "base", "small", "medium", "large-v3"].map((value) => ({
-          value,
-          label: value
-        }))
+        key: "asr_base_url",
+        label: "ASR base URL",
+        type: "text",
+        implemented: true,
+        help: "Empty falls back to VIDEOWFLOW_ASR_BASE_URL."
       },
+      { key: "asr_model", label: "ASR model", type: "text", implemented: true },
       {
-        key: "language",
-        label: "Language",
+        key: "asr_language",
+        label: "ASR language",
         type: "select",
-        implemented: false,
+        implemented: true,
         options: ["pt", "it", "en", "es", "auto"].map((value) => ({ value, label: value }))
-      },
-      {
-        key: "device",
-        label: "Device",
-        type: "select",
-        implemented: false,
-        options: [
-          { value: "cpu", label: "CPU / int8" },
-          { value: "cuda", label: "CUDA / float16" }
-        ]
       }
     ]
   },

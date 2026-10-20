@@ -7,6 +7,7 @@ single frozen executable is enough. Silero/Whisper/LLM remain the quality path.
 from __future__ import annotations
 
 import json
+import os
 import time
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
@@ -17,6 +18,7 @@ from typing import Any
 
 from videoflow import __version__
 from videoflow.adapters import LlmClient
+from videoflow.adapters.asr import WhisperHttpAdapter
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.export_service import export_timeline
 from videoflow.application.retakes import (
@@ -58,6 +60,7 @@ class PortableRun:
     state_path: Path
     report_path: Path
     shorts: tuple[dict[str, Any], ...] = ()
+    transcript_source: str = "none"
 
     def to_dict(self) -> dict[str, Any]:
         media = self.state.media_info
@@ -74,6 +77,7 @@ class PortableRun:
             "retake_cull_count": len(self.state.retake_culls),
             "retake_restored_count": len(self.state.retake_guard_restores),
             "manual_override_count": len(self.state.manual_overrides),
+            "transcript_source": self.transcript_source,
             "warnings": list(self.warnings),
             "artifacts": {name: str(path) for name, path in self.artifacts.items()},
             "shorts": list(self.shorts),
@@ -111,6 +115,11 @@ def run_portable(
     shorts_max_sec: int = 60,
     shorts_subtitles: bool = True,
     overrides: Sequence[ManualOverride] | None = None,
+    transcribe: bool = False,
+    asr_base_url: str | None = None,
+    asr_model: str = "whisper-1",
+    asr_language: str = "pt",
+    asr_client: Any | None = None,
 ) -> PortableRun:
     """Run the complete model-free pipeline for one source file."""
 
@@ -203,8 +212,7 @@ def run_portable(
     discard: list[int] = []
     restored: list[int] = []
     manual = list(overrides or [])
-    if manual and transcript_path is None:
-        raise IngestError("Manual overrides require a transcript. Provide an SRT.")
+    transcript_source = "none"
     if transcript_path is not None:
         with stage(
             "transcribe", "transcribe", "Transcribe (SRT)", "Reading subtitle transcript"
@@ -212,43 +220,73 @@ def run_portable(
             gate()
             step("transcript", 42, "Reading subtitle transcript")
             transcript = parse_srt_file(transcript_path, media.audio_sample_rate)
+            transcript_source = "srt"
             meta["message"] = f"{len(transcript)} sentences from SRT"
             emit("transcribe", "info", str(meta["message"]))
-        if cull_retakes or manual:
-            with stage("retakes", "retakes", "Retakes", "Culling retakes") as meta:
-                gate()
-                step("retakes", 48, "Culling retakes")
-                if cull_retakes:
-                    result = cull_transcript_retakes(
-                        transcript,
-                        client=llm_client,
-                        strategy=retake_strategy,  # type: ignore[arg-type]
-                        context_window=context_window,
-                        strictness=strictness,
-                    )
-                    discard = list(result.discard_sentence_ids)
-                    restored = list(result.restored_sentence_ids)
-                valid = {item.id for item in transcript}
-                unknown = [item.sentence_id for item in manual if item.sentence_id not in valid]
-                if unknown:
-                    raise InvalidRetakeIdsError(unknown)
-                discarded = set(discard)
-                for item in manual:
-                    if item.action == "discard":
-                        discarded.add(item.sentence_id)
-                    else:
-                        discarded.discard(item.sentence_id)
-                discard = sorted(discarded)
-                speech = subtract_spans(speech, cull_intervals(transcript, discard))
-                minimum = max(1, (min_speech_ms * media.audio_sample_rate + 500) // 1000)
-                speech = [(start, end) for start, end in speech if end - start >= minimum]
-                if not speech:
-                    raise IngestError("Culling and overrides removed all speech.")
-                meta["message"] = (
-                    f"{len(discard)} culled, {len(restored)} restored, "
-                    f"{len(manual)} manual overrides"
+    elif transcribe:
+        client = asr_client
+        if client is None:
+            base_url = asr_base_url or os.environ.get("VIDEOWFLOW_ASR_BASE_URL")
+            if not base_url:
+                raise IngestError(
+                    "Transcription is enabled but VIDEOWFLOW_ASR_BASE_URL is not set."
                 )
-                emit("retakes", "info", str(meta["message"]))
+            client = WhisperHttpAdapter(
+                base_url=base_url,
+                model=asr_model,
+                api_key=os.environ.get("VIDEOWFLOW_ASR_API_KEY"),
+                language=asr_language,
+            )
+        with stage(
+            "transcribe", "transcribe", "Transcribe (ASR)", "Calling speech-to-text"
+        ) as meta:
+            gate()
+            step("transcript", 42, "Calling speech-to-text")
+            transcript = client.transcribe(wav, media.audio_sample_rate)
+            transcript_source = "asr"
+            if not transcript:
+                raise IngestError("Speech-to-text returned no sentences.")
+            meta["message"] = f"{len(transcript)} sentences from ASR"
+            emit("transcribe", "info", str(meta["message"]))
+
+    if not transcript and (cull_retakes or manual):
+        raise IngestError("Retake culling and overrides require a transcript.")
+
+    if transcript and (cull_retakes or manual):
+        with stage("retakes", "retakes", "Retakes", "Culling retakes") as meta:
+            gate()
+            step("retakes", 48, "Culling retakes")
+            if cull_retakes:
+                result = cull_transcript_retakes(
+                    transcript,
+                    client=llm_client,
+                    strategy=retake_strategy,  # type: ignore[arg-type]
+                    context_window=context_window,
+                    strictness=strictness,
+                )
+                discard = list(result.discard_sentence_ids)
+                restored = list(result.restored_sentence_ids)
+            valid = {item.id for item in transcript}
+            unknown = [item.sentence_id for item in manual if item.sentence_id not in valid]
+            if unknown:
+                raise InvalidRetakeIdsError(unknown)
+            discarded = set(discard)
+            for item in manual:
+                if item.action == "discard":
+                    discarded.add(item.sentence_id)
+                else:
+                    discarded.discard(item.sentence_id)
+            discard = sorted(discarded)
+            speech = subtract_spans(speech, cull_intervals(transcript, discard))
+            minimum = max(1, (min_speech_ms * media.audio_sample_rate + 500) // 1000)
+            speech = [(start, end) for start, end in speech if end - start >= minimum]
+            if not speech:
+                raise IngestError("Culling and overrides removed all speech.")
+            meta["message"] = (
+                f"{len(discard)} culled, {len(restored)} restored, "
+                f"{len(manual)} manual overrides"
+            )
+            emit("retakes", "info", str(meta["message"]))
 
     config_jl = jl or JlCutsConfig()
     config_zooms = zooms or ZoomsConfig()
@@ -374,6 +412,7 @@ def run_portable(
         state_path=state_path,
         report_path=report_path,
         shorts=tuple(short_paths),
+        transcript_source=transcript_source,
     )
     report = run.to_dict()
     report["pcm_sha256"] = digest

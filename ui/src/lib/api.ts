@@ -65,6 +65,7 @@ export interface Job {
     transcript_sentence_count?: number;
     retake_cull_count?: number;
     retake_restored_count?: number;
+    transcript_source?: string;
     warnings?: string[];
     artifacts?: Record<string, string>;
     shorts?: {
@@ -119,6 +120,10 @@ export interface NewJob {
   shorts_min_sec: number;
   shorts_max_sec: number;
   shorts_subtitles: boolean;
+  transcribe: boolean;
+  asr_base_url: string | null;
+  asr_model: string;
+  asr_language: string;
   overrides: { sentence_id: number; action: "keep" | "discard" }[];
 }
 

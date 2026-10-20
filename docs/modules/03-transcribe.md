@@ -1,5 +1,11 @@
 # Module 03 — Transcription
 
+## Implementation status
+
+Implemented: SRT import and an OpenAI-compatible `/audio/transcriptions` client
+with verbose JSON segments and optional word timings. Not implemented: a local
+Faster-Whisper/CTranslate2 adapter and model management.
+
 ## Purpose
 
 Produce a sentence and word transcript with source-sample timestamps that do not

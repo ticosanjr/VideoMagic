@@ -143,3 +143,9 @@ class LlmError(VideoFlowError):
     """The OpenAI-compatible endpoint failed or returned unusable JSON."""
 
     code = "llm_failed"
+
+
+class TranscriptionError(VideoFlowError):
+    """Speech-to-text failed or returned unusable timestamps."""
+
+    code = "transcription_failed"

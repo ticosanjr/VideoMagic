@@ -59,6 +59,10 @@ class NewJobRequest(BaseModel):
     shorts_max_sec: int = Field(default=60, ge=1, le=600)
     shorts_subtitles: bool = True
     overrides: list[OverrideRequest] = Field(default_factory=list)
+    transcribe: bool = False
+    asr_base_url: str | None = None
+    asr_model: str = "whisper-1"
+    asr_language: Literal["pt", "it", "en", "es", "auto"] = "pt"
 
 
 def register_routes(app: FastAPI, jobs: JobManager) -> None:
@@ -104,6 +108,10 @@ def register_routes(app: FastAPI, jobs: JobManager) -> None:
                     "shorts_max_sec": request.shorts_max_sec,
                     "shorts_subtitles": request.shorts_subtitles,
                     "overrides": [item.model_dump() for item in request.overrides],
+                    "transcribe": request.transcribe,
+                    "asr_base_url": request.asr_base_url,
+                    "asr_model": request.asr_model,
+                    "asr_language": request.asr_language,
                 },
             )
         except VideoFlowError as exc:

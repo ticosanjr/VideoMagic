@@ -115,6 +115,21 @@ Each clip is rendered at 1080x1920 with center crop and burned-in captions. Use
 `--no-subtitles` to skip ASS generation and `--cull-retakes` to remove exact
 repeats or LLM-selected retakes first. The report is `shorts-out/shorts.json`.
 
+### Speech-to-text
+
+If you do not have an SRT, point VideoFlow at an OpenAI-compatible transcription
+endpoint (OpenAI, Groq, or a local faster-whisper server):
+
+```bash
+export VIDEOWFLOW_ASR_BASE_URL=http://localhost:8000/v1
+export VIDEOWFLOW_ASR_API_KEY=          # empty for a local server
+videoflow run interview.mp4 -o edit \
+  --transcribe --asr-model whisper-1 --asr-language pt
+```
+
+The endpoint must support `POST /audio/transcriptions` with
+`response_format=verbose_json`. An SRT still takes precedence.
+
 ### Transcript and retakes
 
 SRT can drive retake culling without a speech model:
@@ -267,7 +282,7 @@ distribution with a compatible glibc.
 
 ```bash
 uv run python scripts/build_appimage.py
-./dist/VideoFlow-0.13.0-x86_64.AppImage version
+./dist/VideoFlow-0.14.0-x86_64.AppImage version
 ```
 
 The AppImage wraps the same onefile binary. Opening it with no arguments starts

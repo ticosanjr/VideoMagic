@@ -143,6 +143,10 @@
       shorts_min_sec: Number(config.shorts_min_sec),
       shorts_max_sec: Number(config.shorts_max_sec),
       shorts_subtitles: Boolean(config.shorts_subtitles),
+      transcribe: Boolean(config.transcribe),
+      asr_base_url: String(config.asr_base_url || "").trim() || null,
+      asr_model: String(config.asr_model || "whisper-1"),
+      asr_language: String(config.asr_language || "pt"),
       overrides: Object.entries(overrides).map(([sentenceId, action]) => ({
         sentence_id: Number(sentenceId),
         action
@@ -255,7 +259,7 @@
 
   function statusFor(module: RackModule): Status {
     if (!module.portable) return "bypassed";
-    if (module.id === "transcribe" && !transcript) return "bypassed";
+    if (module.id === "transcribe" && !transcript && !config.transcribe) return "bypassed";
     if (module.id === "shorts" && (!config.shorts || !transcript)) return "bypassed";
     if (module.id === "retakes" && (!config.cull_retakes || !transcript)) return "bypassed";
     if (module.id === "jl_cuts" && !config.jcut && !config.lcut) return "bypassed";

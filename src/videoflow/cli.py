@@ -87,6 +87,25 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--dialect", choices=("1.9", "1.10"), default="1.9")
     run.add_argument("--transcript", type=Path, default=None, help="SRT subtitle file.")
     run.add_argument(
+        "--transcribe",
+        action="store_true",
+        help="Use an OpenAI-compatible speech-to-text endpoint when no SRT is given.",
+    )
+    run.add_argument(
+        "--asr-base-url",
+        default=os.environ.get("VIDEOWFLOW_ASR_BASE_URL"),
+        help="ASR base URL. Defaults to VIDEOWFLOW_ASR_BASE_URL.",
+    )
+    run.add_argument(
+        "--asr-model",
+        default=os.environ.get("VIDEOWFLOW_ASR_MODEL", "whisper-1"),
+    )
+    run.add_argument(
+        "--asr-language",
+        choices=("pt", "it", "en", "es", "auto"),
+        default="pt",
+    )
+    run.add_argument(
         "--cull-retakes",
         action="store_true",
         help="Cull failed takes using the transcript (exact repeats without an LLM).",
@@ -221,6 +240,10 @@ def _run(args: argparse.Namespace) -> int:
         dialect=args.dialect,
         transcript_path=args.transcript,
         cull_retakes=args.cull_retakes,
+        transcribe=args.transcribe,
+        asr_base_url=args.asr_base_url,
+        asr_model=args.asr_model,
+        asr_language=args.asr_language,
         llm_client=client,
         strictness=args.strictness,
         retake_strategy=args.retake_strategy,

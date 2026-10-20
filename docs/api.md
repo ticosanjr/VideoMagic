@@ -47,7 +47,7 @@ GET /health
 ```
 
 ```json
-{ "status": "ok", "service": "videoflow", "version": "0.13.0" }
+{ "status": "ok", "service": "videoflow", "version": "0.14.0" }
 ```
 
 ```http
@@ -57,7 +57,7 @@ GET /api/v1/system
 ```json
 {
   "ok": true,
-  "version": "0.13.0",
+  "version": "0.14.0",
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
@@ -112,7 +112,11 @@ Content-Type: application/json
   "overrides": [
     { "sentence_id": 4, "action": "keep" },
     { "sentence_id": 7, "action": "discard" }
-  ]
+  ],
+  "transcribe": true,
+  "asr_base_url": "http://localhost:8000/v1",
+  "asr_model": "whisper-1",
+  "asr_language": "pt"
 }
 ```
 
@@ -124,6 +128,11 @@ culled.
 `overrides` is applied after the retake guard: `keep` removes a sentence from
 the cull set, `discard` adds it. Manual decisions win over the model and guard.
 Overrides require a transcript.
+
+When `transcribe` is true and no SRT is supplied, the worker posts the analysis
+WAV to `<asr_base_url>/audio/transcriptions` with `response_format=verbose_json`.
+The API key is read from `VIDEOWFLOW_ASR_API_KEY`; the base URL falls back to
+`VIDEOWFLOW_ASR_BASE_URL`. SRT wins if both are present.
 
 `source` and `output` are resolved through the path allowlist. Both are required.
 The output directory is created by the worker.
@@ -258,7 +267,7 @@ On success, `job.result` is the `run_portable` report:
 ```json
 {
   "ok": true,
-  "version": "0.13.0",
+  "version": "0.14.0",
   "speech_interval_count": 3,
   "video_segment_count": 3,
   "audio_segment_count": 3,

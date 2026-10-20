@@ -228,6 +228,11 @@ class JobManager:
                     ManualOverride.model_validate(item)
                     for item in options.get("overrides", [])
                 ],
+                transcribe=bool(options.get("transcribe", False)),
+                asr_base_url=options.get("asr_base_url")
+                or os.environ.get("VIDEOWFLOW_ASR_BASE_URL"),
+                asr_model=str(options.get("asr_model", "whisper-1")),
+                asr_language=str(options.get("asr_language", "pt")),
             )
             with self._lock:
                 if job.cancel_requested:

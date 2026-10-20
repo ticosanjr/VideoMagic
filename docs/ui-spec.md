@@ -8,8 +8,9 @@ and global log drawers, recent jobs, artifact downloads, and typed errors.
 
 Module cards render configuration from `modules.ts` field metadata. Implemented
 controls are bound to the job request; future controls are disabled and marked
-`later`. Transcribe shows SRT import as its stage; Shorts runs when enabled and
-an SRT is present, with rendered MP4s listed in the run summary.
+`later`. Transcribe accepts an SRT or an OpenAI-compatible ASR endpoint; SRT wins.
+Shorts runs when enabled and a transcript is present, with rendered MP4s in the
+run summary.
 
 The inspector reads `GET /api/v1/jobs/{id}/state`, lists transcript sentences,
 and exposes Keep/Discard overrides plus an Apply overrides action. Applying

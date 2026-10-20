@@ -202,6 +202,10 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
             "shorts_max_sec": 10,
             "shorts_subtitles": False,
             "overrides": [{"sentence_id": 3, "action": "discard"}],
+            "transcribe": True,
+            "asr_base_url": "http://asr.local/v1",
+            "asr_model": "whisper-1",
+            "asr_language": "en",
         },
     )
     assert response.status_code == 202
@@ -211,6 +215,8 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
     assert options["context_window"] == 20
     assert options["shorts_count"] == 2
     assert options["overrides"] == [{"sentence_id": 3, "action": "discard"}]
+    assert options["transcribe"] is True
+    assert options["asr_language"] == "en"
 
 
 def test_unknown_job_is_404(monkeypatch, tmp_path: Path) -> None:

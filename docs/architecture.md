@@ -57,6 +57,7 @@ Rules:
 | `application/telemetry.py` | Per-stage timestamps, progress, and bounded logs |
 | `modules/` | The eight rack modules (fingerprints live, engines stubbed) |
 | `adapters/ffmpeg.py` | FFprobe ingest, PCM extraction, digest, silencedetect VAD |
+| `adapters/asr.py` | OpenAI-compatible `/audio/transcriptions` client |
 | `adapters/` | Neural and LLM ports, unimplemented |
 | `exporters/` | FCPXML, xmeml, OTIO implemented; MP4 stub |
 | `api/` | FastAPI app, job routes, SSE, UI mount, CLI |

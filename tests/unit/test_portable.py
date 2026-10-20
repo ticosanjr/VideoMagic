@@ -168,6 +168,32 @@ def test_manual_discard_and_keep_override_culls(tmp_path: Path) -> None:
     assert len(discarded.state.video_segments) == 1
 
 
+def test_portable_pipeline_can_use_an_asr_client(tmp_path: Path) -> None:
+    from videoflow.domain.state import Sentence
+
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+
+    class Asr:
+        def transcribe(self, wav_path: Path, sample_rate: int) -> list[Sentence]:
+            return [
+                Sentence(id=0, start_sample=0, end_sample=48000, text="Asr line one"),
+                Sentence(id=1, start_sample=96000, end_sample=144000, text="Asr line two"),
+            ]
+
+    result = run_portable(
+        source,
+        tmp_path / "project",
+        adapter=FakeAdapter(),  # type: ignore[arg-type]
+        transcribe=True,
+        asr_client=Asr(),
+        cull_retakes=False,
+    )
+    assert result.transcript_source == "asr"
+    assert len(result.state.transcript) == 2
+    assert result.to_dict()["transcript_source"] == "asr"
+
+
 def test_portable_pipeline_can_render_shorts(tmp_path: Path) -> None:
     source = tmp_path / "source.mp4"
     source.write_bytes(b"fixture")
