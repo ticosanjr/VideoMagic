@@ -40,9 +40,8 @@ uv run python scripts/build_portable.py --fetch-ffmpeg  # packaging smoke
 
 The default run excludes `media`, `slow`, and `manual`. Use `--no-cov` for a
 subset run so the global coverage gate does not fail on modules that were not
-imported. CI runs the full default suite plus lint and types. The portable
-workflow builds the onefile binary on Linux and Windows and runs `version`,
-`doctor`, and `demo` against it.
+imported. There is no GitHub Actions workflow; lint, types, tests, and portable
+smokes run locally and are recorded in the release notes.
 
 ## 4. Markers
 

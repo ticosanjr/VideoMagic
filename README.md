@@ -6,7 +6,7 @@ timeline: it removes silence and retakes, adds J-cuts and punch-ins, proposes
 vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive.
 
-> Status: 0.7.0 alpha. A portable single executable runs ingest, silence
+> Status: 0.8.0 alpha. A portable single executable runs ingest, silence
 > detection, transcript-driven retake culling, deterministic cuts, and three NLE
 > exports. The local API, MCP server, and rack UI execute real jobs. Silero,
 > Whisper, shorts, and NLE transitions are specified and stubbed.
@@ -53,9 +53,16 @@ uv run python scripts/build_portable.py --fetch-ffmpeg
 ./dist/videoflow mcp                # MCP over stdio
 ```
 
-Build on the target OS: PyInstaller cannot cross-compile. The CI matrix at
-`.github/workflows/portable.yml` builds and smoke-tests Linux and Windows. See
-[docs/manuals/portable.md](docs/manuals/portable.md).
+Artifacts are built locally, never in GitHub Actions:
+
+```bash
+uv run python scripts/build_portable.py --fetch-ffmpeg   # Linux binary
+uv run python scripts/build_appimage.py                  # Linux AppImage
+# Windows PE: Windows Python + PyInstaller, or Wine + embeddable Python
+uv run python scripts/release.py                         # stage releases/vX.Y.Z
+```
+
+See [docs/manuals/portable.md](docs/manuals/portable.md).
 
 ## Implemented
 

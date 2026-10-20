@@ -1,6 +1,6 @@
-"""Stage a portable release under ``releases/v<version>/``.
+"""Stage portable release artifacts under ``releases/v<version>/``.
 
-The binary stays local and is uploaded as a GitHub Release asset. Only the
+The binaries stay local and are uploaded to a GitHub Release manually. Only the
 checksums, manifest, and notes are committed, because GitHub rejects files over
 100 MB in normal git history.
 """
@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import platform
 import shutil
 from datetime import UTC, datetime
@@ -18,6 +17,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RELEASES = ROOT / "releases"
+
+DEFAULT_ARTIFACTS: tuple[tuple[Path, str], ...] = (
+    (ROOT / "dist" / "videoflow", "videoflow-linux-x86_64"),
+    (ROOT / "dist" / "VideoFlow-x86_64.AppImage", "VideoFlow-x86_64.AppImage"),
+    (ROOT / "dist" / "videoflow.exe", "videoflow-windows-x86_64.exe"),
+)
 
 
 def platform_tag() -> str:
@@ -31,92 +36,113 @@ def platform_tag() -> str:
 def main() -> int:
     from videoflow import __version__
 
-    parser = argparse.ArgumentParser(description="Stage a release folder.")
+    parser = argparse.ArgumentParser(description="Stage release artifacts.")
     parser.add_argument("--version", default=__version__)
-    parser.add_argument("--binary", type=Path, default=None)
     parser.add_argument("--force", action="store_true")
+    parser.add_argument(
+        "--require-all",
+        action="store_true",
+        help="Fail if a default artifact is missing.",
+    )
     args = parser.parse_args()
-
-    binary = args.binary
-    if binary is None:
-        name = "videoflow.exe" if os.name == "nt" else "videoflow"
-        binary = ROOT / "dist" / name
-    if not binary.is_file():
-        print(f"binary not found: {binary}")
-        return 1
 
     target_dir = RELEASES / f"v{args.version}"
     target_dir.mkdir(parents=True, exist_ok=True)
-    suffix = ".exe" if os.name == "nt" else ""
-    asset_name = f"videoflow-{platform_tag()}{suffix}"
-    target = target_dir / asset_name
-    if target.exists() and not args.force:
-        print(f"asset already exists: {target} (use --force)")
-        return 1
-    shutil.copy2(binary, target)
+    staged: list[dict[str, object]] = []
+    sums: list[str] = []
+    for source, asset_name in DEFAULT_ARTIFACTS:
+        if not source.is_file():
+            if args.require_all:
+                print(f"missing artifact: {source}")
+                return 1
+            print(f"skip missing artifact: {source}")
+            continue
+        target = target_dir / asset_name
+        if target.exists() and not args.force:
+            print(f"asset already exists: {target} (use --force)")
+            return 1
+        shutil.copy2(source, target)
+        checksum = _sha256(target)
+        sums.append(f"{checksum}  {asset_name}")
+        staged.append(
+            {
+                "name": asset_name,
+                "sha256": checksum,
+                "size_bytes": target.stat().st_size,
+            }
+        )
+        print(f"staged {target} ({target.stat().st_size / 1_000_000:.1f} MB)")
 
-    digest = hashlib.sha256()
-    with target.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    checksum = digest.hexdigest()
-    (target_dir / "SHA256SUMS").write_text(f"{checksum}  {asset_name}\n", encoding="utf-8")
+    if not staged:
+        print("nothing staged")
+        return 1
+
+    (target_dir / "SHA256SUMS").write_text("\n".join(sums) + "\n", encoding="utf-8")
     manifest = {
         "version": args.version,
-        "platform": platform_tag(),
-        "asset": asset_name,
-        "sha256": checksum,
-        "size_bytes": target.stat().st_size,
         "built_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "host": platform_tag(),
         "python": platform.python_version(),
+        "artifacts": staged,
     }
     (target_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
     )
     notes = target_dir / "release-notes.md"
     if not notes.exists():
+        listing = "\n".join(f"- `{item['name']}` — SHA-256 `{item['sha256']}`" for item in staged)
         notes.write_text(
             f"""# VideoFlow {args.version}
 
 Portable, model-free pre-edit pipeline.
 
-## Artifact
+## Artifacts
 
-- `{asset_name}`
-- SHA-256: `{checksum}`
+{listing}
 
 ## Run
 
+Linux plain binary:
+
 ```bash
-./{asset_name} doctor
-./{asset_name} demo -o demo
-./{asset_name} run input.mp4 -o project
-./{asset_name} serve
-./{asset_name} mcp
+./videoflow-linux-x86_64 doctor
+./videoflow-linux-x86_64 demo -o demo
+./videoflow-linux-x86_64 run input.mp4 -o project
 ```
 
-## Windows
+Linux AppImage (no FUSE required with extract-and-run):
 
-The `portable` workflow builds `windows-latest` on a tag when Actions runners and
-minutes are available. Otherwise build on Windows and stage the result:
+```bash
+chmod +x VideoFlow-x86_64.AppImage
+./VideoFlow-x86_64.AppImage version
+./VideoFlow-x86_64.AppImage demo -o demo
+```
+
+Windows:
 
 ```powershell
-uv sync --extra dev
-cd ui; npm ci; npm run build; cd ..
-uv run python scripts/build_portable.py --fetch-ffmpeg
-uv run python scripts/release.py
+.\\videoflow-windows-x86_64.exe version
+.\\videoflow-windows-x86_64.exe doctor
+.\\videoflow-windows-x86_64.exe demo -o demo
 ```
 
 ## Notes
 
-See `CHANGELOG.md` for the full list of changes.
+See `CHANGELOG.md`. Windows artifacts are PE32+ x86-64 and were built and
+smoke-tested under Wine in this release.
 """,
             encoding="utf-8",
         )
-    print(f"staged {target}")
-    print(f"sha256 {checksum}")
-    print(f"size   {target.stat().st_size / 1_000_000:.1f} MB")
+    print(f"release staged in {target_dir}")
     return 0
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 if __name__ == "__main__":

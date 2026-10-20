@@ -15,8 +15,9 @@ both an ELF and a PE binary, and PyInstaller does not cross-compile.
 - Bundle Python, dependencies, presets, the built UI, and optionally
   FFmpeg/FFprobe with PyInstaller onefile. Use the BtbN static GPL builds so the
   media binaries do not depend on the host's codec libraries.
-- Build each artifact on its own OS; CI runs `ubuntu-22.04` and
-  `windows-latest`.
+- Build Linux natively and the Windows PE locally with Wine WoW64 plus the
+  Windows embeddable Python. No GitHub Actions workflow is used.
+- Also wrap the Linux binary in an AppImage for a single-file desktop artifact.
 - Add a unified CLI: `run`, `serve`, `mcp`, `doctor`, `demo`, `version`.
 - Add a model-free pipeline path: FFmpeg `silencedetect` for speech intervals,
   then the deterministic timeline and exporters. This makes the portable binary
@@ -28,7 +29,10 @@ both an ELF and a PE binary, and PyInstaller does not cross-compile.
 ## Consequences
 
 - Linux and Windows need separate builds and separate smoke tests.
-- A Linux binary is tied to the build host's glibc. Ubuntu 22.04 is the baseline.
+- The Windows PE is validated under Wine; a native Windows pass is still
+  recommended.
+- A Linux binary is tied to the build host's glibc. Build on the oldest distro
+  you intend to support.
 - Bundling FFmpeg adds roughly 170 MB compressed and brings FFmpeg's license
   obligations; bundling is an explicit build flag.
 - The portable path is lower quality than Silero VAD. It is a fallback, not a

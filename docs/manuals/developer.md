@@ -29,7 +29,7 @@ Implemented:
 - model-free FFmpeg silence detection and the portable pipeline service
 - SRT import, OpenAI-compatible retake culling, and the keeper guard
 - unified CLI (`run`, `serve`, `mcp`, `doctor`, `demo`, `version`)
-- PyInstaller onefile packaging for Linux and Windows, with a CI matrix
+- PyInstaller onefile packaging for Linux and Windows, plus a Linux AppImage
 - MCP tool registration and structured not-implemented responses
 - health endpoint, UI mount, and MCP mount
 - unit, contract, and real-FFmpeg media tests
@@ -177,7 +177,9 @@ The spec is `packaging/videoflow.spec`. It bundles presets, the UI, and the
 lazily imported package to `hiddenimports` or the frozen binary will fail with
 `ModuleNotFoundError`. Rebuild after touching the CLI, API mount, or MCP server.
 
-Windows must be built on Windows. The CI workflow runs both platforms.
+Windows must be built with a Windows Python and PyInstaller. The release on this
+machine used Wine WoW64 plus the Python embeddable distribution; the resulting
+PE32+ executable was smoke-tested under Wine. GitHub Actions is not used.
 
 ## 13. Release
 

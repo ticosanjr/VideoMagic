@@ -3,6 +3,32 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.8.0] — 2026-10-20
+
+### Added
+
+- Linux AppImage builder (`scripts/build_appimage.py`) wrapping the onefile
+  binary, with an icon, desktop entry, and AppRun.
+- Portable Linux data directory next to the AppImage (`APPIMAGE` aware).
+- Windows PE build path without GitHub Actions: Wine WoW64 + Windows embeddable
+  Python + PyInstaller, with Windows FFmpeg binaries.
+- `release.py` stages multiple artifacts, checksums, and a manifest.
+- Releases now include Linux binary, AppImage, and Windows `.exe`.
+
+### Changed
+
+- Version is 0.8.0.
+- GitHub Actions workflows removed. Builds and smoke tests are local.
+- `packaging/videoflow.spec` accepts `VIDEOWFLOW_VENDOR_DIR` for cross-OS
+  binaries.
+
+### Verified
+
+- AppImage: `doctor` and `demo`, three exports, bundled FFmpeg.
+- Windows PE under Wine: `version`, `doctor`, `demo`, three exports, bundled
+  FFmpeg.
+- Both artifacts are staged in `releases/v0.8.0/`.
+
 ## [0.7.0] — 2026-10-19
 
 ### Added

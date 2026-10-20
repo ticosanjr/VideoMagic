@@ -1,6 +1,7 @@
 # PyInstaller onefile spec for the portable VideoFlow executable.
 # Build with: uv run python scripts/build_portable.py --with-ffmpeg
 
+import os
 from pathlib import Path
 
 from PyInstaller.utils.hooks import (
@@ -11,6 +12,7 @@ from PyInstaller.utils.hooks import (
 )
 
 ROOT = Path(SPECPATH).resolve().parent
+VENDOR = Path(os.environ.get("VIDEOWFLOW_VENDOR_DIR", str(ROOT / "vendor")))
 
 datas = [(str(ROOT / "src" / "videoflow" / "presets"), "videoflow/presets")]
 binaries = []
@@ -37,7 +39,7 @@ if (ui_build / "index.html").is_file():
 
 for name in ("ffmpeg", "ffprobe"):
     for suffix in ("", ".exe"):
-        candidate = ROOT / "vendor" / f"{name}{suffix}"
+        candidate = VENDOR / f"{name}{suffix}"
         if candidate.is_file():
             binaries.append((str(candidate), "vendor"))
 

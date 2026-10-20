@@ -2,7 +2,7 @@
 
 Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript. English strings only.
 
-0.7.0 wires the portable run: source/output fields, quick presets, silence and
+0.7.0+ wires the portable run: source/output fields, quick presets, silence and
 zoom options,
 start/cancel, live progress, artifact paths, and typed errors. Module cards follow
 the active job stage. Neural modules are marked `later` and stay bypassed.

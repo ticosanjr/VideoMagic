@@ -24,25 +24,29 @@ gh release create vX.Y.Z releases/vX.Y.Z/<asset> \
   --notes-file releases/vX.Y.Z/release-notes.md
 ```
 
-Windows artifacts are built by the `portable` CI workflow and attached to the
-same release. The workflow is gated by the `PORTABLE_CI` repository variable
-because this private repository currently has no Actions runner allocation:
+All artifacts are built locally; GitHub Actions is not used.
 
 ```bash
-gh variable set PORTABLE_CI --body true
+uv run python scripts/build_portable.py --fetch-ffmpeg
+uv run python scripts/build_appimage.py
+# Windows PE via Wine + embeddable Python, see docs/manuals/portable.md
+uv run python scripts/release.py
 ```
 
-Until that is enabled, build Windows locally and attach the asset:
+Upload the staged assets manually:
 
 ```bash
-gh release upload vX.Y.Z releases/vX.Y.Z/videoflow-windows-x86_64.exe
+gh release create vX.Y.Z releases/vX.Y.Z/* \
+  --title "VideoFlow X.Y.Z" \
+  --notes-file releases/vX.Y.Z/release-notes.md
 ```
 
-A release is not complete until Linux and Windows assets exist and their
-checksums are recorded here.
+A release is not complete until the Linux binary, AppImage, and Windows `.exe`
+exist and their checksums are recorded here.
 
 ## Current
 
+- `v0.8.0`: Linux binary, AppImage, and Windows PE. Local builds, no CI.
 - `v0.7.0`: Linux x86_64, static FFmpeg. Artifact downloads and UI presets.
 - `v0.6.0`: Linux x86_64, static FFmpeg. SRT retakes and LLM guard.
 - `v0.5.0`: Linux x86_64, static FFmpeg. UI drives real jobs. Windows pending CI.

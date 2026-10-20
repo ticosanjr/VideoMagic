@@ -33,6 +33,9 @@ def portable_home() -> Path:
     override = os.environ.get("VIDEOWFLOW_HOME")
     if override:
         return Path(override).expanduser()
+    appimage = os.environ.get("APPIMAGE")
+    if appimage:
+        return Path(appimage).expanduser().resolve().parent / "videoflow-data"
     if is_frozen():
         return executable_dir() / "videoflow-data"
     return Path.home() / ".videoflow"

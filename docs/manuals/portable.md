@@ -8,12 +8,13 @@ There is no installer and no Python/Node requirement on the target machine.
 
 | Platform | Artifact | Minimum |
 | --- | --- | --- |
-| Linux x86_64 | `videoflow` | glibc from the build host (use Ubuntu 22.04 for wide compatibility) |
-| Windows x86_64 | `videoflow.exe` | Windows 10/11 x64 |
+| Linux x86_64 | `videoflow-linux-x86_64` | glibc from the build host |
+| Linux x86_64 | `VideoFlow-x86_64.AppImage` | FUSE, or `--appimage-extract-and-run` |
+| Windows x86_64 | `videoflow-windows-x86_64.exe` | Windows 10/11 x64 |
 
-PyInstaller cannot cross-compile. Build each artifact on its own OS. The CI
-workflow `.github/workflows/portable.yml` does this on `ubuntu-22.04` and
-`windows-latest` and smoke-tests both.
+PyInstaller cannot cross-compile in the usual sense. This project builds the
+Linux artifacts natively and the Windows PE locally with Wine WoW64 plus the
+Windows embeddable Python. No GitHub Actions workflow is used.
 
 ## 1. What the executable does
 
@@ -241,19 +242,36 @@ uv run python scripts/build_portable.py --fetch-ffmpeg
 ```
 
 Build on the target OS. A Linux binary built on a newer glibc will not start on
-an older distribution; `ubuntu-22.04` is the CI baseline. The BtbN FFmpeg build
-is statically linked except for glibc core libraries (`libc`, `libm`, `libdl`,
-`libpthread`), so it runs on any distribution with a compatible glibc.
+an older distribution. The BtbN FFmpeg build is statically linked except for
+glibc core libraries (`libc`, `libm`, `libdl`, `libpthread`), so it runs on any
+distribution with a compatible glibc.
 
-The tag workflow is gated behind a repository variable because the current
-private repository has no Actions runner allocation:
+### Linux AppImage
 
 ```bash
-gh variable set PORTABLE_CI --body true   # once runners/minutes are available
+uv run python scripts/build_appimage.py
+./dist/VideoFlow-x86_64.AppImage version
 ```
 
-Until then, build Windows locally and attach the artifact with
-`gh release upload`.
+The AppImage wraps the same onefile binary. If FUSE is unavailable, run it with
+`--appimage-extract-and-run`. Data is stored in `videoflow-data` next to the
+AppImage unless `VIDEOWFLOW_HOME` overrides it.
+
+### Windows PE under Wine
+
+```bash
+# once: portable Wine + embeddable Python + Windows wheels
+/tmp/opencode/wine/wine-11.20-amd64-wow64/bin/wine --version
+/tmp/opencode/winpy/python.exe -m pip install fastapi uvicorn pydantic mcp httpx opentimelineio pyinstaller
+
+VIDEOWFLOW_VENDOR_DIR='Z:\path\to\vendor-win' \
+  /tmp/opencode/wine/wine-11.20-amd64-wow64/bin/wine \
+  /tmp/opencode/winpy/python.exe -m PyInstaller --noconfirm --clean packaging\\videoflow.spec
+```
+
+The result is a standard PE32+ `.exe`. It was validated under Wine with
+`version`, `doctor`, and `demo`, producing all three exports. Native Windows
+testing is still recommended before wide distribution.
 
 ## 8. Verification checklist
 
@@ -263,13 +281,19 @@ Until then, build Windows locally and attach the artifact with
 - [ ] The artifacts parse (XML/OTIO) and open in the three NLEs.
 - [ ] `videoflow serve` answers `/health`, `/`, and `/mcp/`.
 - [ ] An MCP host lists twelve tools over `videoflow mcp`.
-- [ ] The binary runs with `PATH` empty, proving the bundled FFmpeg is used.
+- [ ] The plain binary runs with `PATH` empty, proving bundled FFmpeg is used.
+- [ ] The AppImage runs `version` and `demo` (normal PATH for FUSE).
+- [ ] The Windows `.exe` runs `version`, `doctor`, and `demo` (natively or under
+      Wine).
 - [ ] On Windows, the artifact is unblocked and SmartScreen is documented.
 
 ## 9. Limitations
 
-- Windows artifacts must be built on Windows or in the CI matrix; they are not
-  produced by a Linux build.
+- The AppImage needs FUSE or `--appimage-extract-and-run`.
+- The Windows PE is built with Wine and validated under Wine. Run it on a real
+  Windows machine before signing or wide distribution.
 - No code signing. SmartScreen will warn until a certificate is configured.
-- The rack UI is bundled but not wired to the API yet.
-- Transcription, retakes, shorts, and NLE transitions are not in this build.
+- The rack UI drives the portable run; per-block runs, presets persistence, and
+  the transcript inspector are later passes.
+- Built-in transcription, shorts, and NLE audio transitions are not in this
+  build. SRT retakes are.
