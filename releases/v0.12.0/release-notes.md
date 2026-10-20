@@ -1,12 +1,12 @@
-# VideoFlow 0.9.0
+# VideoFlow 0.12.0
 
 Portable, model-free pre-edit pipeline.
 
 ## Artifacts
 
-- `videoflow-0.9.0-linux-x86_64` — SHA-256 `dc81d5d745b8ab5cdbea707cc1372d341ed9dbfac066a76ada48ad7a23375afc`
-- `VideoFlow-0.9.0-x86_64.AppImage` — SHA-256 `628617c06d7f00d3fe82c710a7ab7115390d3f7096d1015c40c37df960171ddd`
-- `videoflow-0.9.0-windows-x86_64.exe` — SHA-256 `e05b43c464c1d7a844cc90f997d9d03e3865030e0c69bd37040a55991edfa05b`
+- `videoflow-0.12.0-linux-x86_64` — SHA-256 `34b9238ecc57da427cc8ae11d68723d17455eb0088057d86eb10f22a816aded8`
+- `VideoFlow-0.12.0-x86_64.AppImage` — SHA-256 `03f51eb2aebe3faab72b3430fc12f2639d3227c4d4556aaf1b03d1bc2c7827ba`
+- `videoflow-0.12.0-windows-x86_64.exe` — SHA-256 `70a2d3b71266c0c549d8c4f8cbd7b582155788a7101392aff1e217046103609d`
 
 ## Run
 

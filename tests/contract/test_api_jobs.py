@@ -196,6 +196,11 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
             "strictness": "aggressive",
             "retake_strategy": "keep_best",
             "context_window": 20,
+            "shorts": True,
+            "shorts_count": 2,
+            "shorts_min_sec": 5,
+            "shorts_max_sec": 10,
+            "shorts_subtitles": False,
         },
     )
     assert response.status_code == 202
@@ -203,6 +208,7 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
     assert options["offset_ms"] == 250
     assert options["export_targets"] == ["resolve"]
     assert options["context_window"] == 20
+    assert options["shorts_count"] == 2
 
 
 def test_unknown_job_is_404(monkeypatch, tmp_path: Path) -> None:

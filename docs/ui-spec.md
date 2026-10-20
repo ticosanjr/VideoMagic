@@ -2,13 +2,14 @@
 
 Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript. English strings only.
 
-0.11.0 wires the full telemetry rack: source/output/SRT fields, quick presets,
+0.12.0 wires the full telemetry rack: source/output/SRT fields, quick presets,
 per-block progress, start/finish timestamps, duration, status icons, per-block
 and global log drawers, recent jobs, artifact downloads, and typed errors.
 
 Module cards render configuration from `modules.ts` field metadata. Implemented
 controls are bound to the job request; future controls are disabled and marked
-`later`. Transcribe shows SRT import as its stage; Shorts is marked CLI-only.
+`later`. Transcribe shows SRT import as its stage; Shorts runs when enabled and
+an SRT is present, with rendered MP4s listed in the run summary.
 
 The inspector reads `GET /api/v1/jobs/{id}/state` and shows transcript sentence
 counts, culled sentences, and guard restorations.

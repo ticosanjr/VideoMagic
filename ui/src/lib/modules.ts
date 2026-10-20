@@ -27,6 +27,7 @@ export type ConfigKey =
   | "context_window"
   | "llm_base_url"
   | "llm_model"
+  | "shorts"
   | "jcut"
   | "lcut"
   | "offset_ms"
@@ -39,8 +40,8 @@ export type ConfigKey =
   | "progressive_zoom"
   | "pan_direction"
   | "shorts_count"
-  | "shorts_min"
-  | "shorts_max"
+  | "shorts_min_sec"
+  | "shorts_max_sec"
   | "shorts_subtitles"
   | "dialect"
   | "export_targets";
@@ -89,6 +90,7 @@ export const defaultConfig: JobConfig = {
   context_window: 15,
   llm_base_url: "",
   llm_model: "qwen2.5:7b-instruct",
+  shorts: false,
   jcut: true,
   lcut: false,
   offset_ms: 200,
@@ -101,8 +103,8 @@ export const defaultConfig: JobConfig = {
   progressive_zoom: false,
   pan_direction: "none",
   shorts_count: 3,
-  shorts_min: 30,
-  shorts_max: 60,
+  shorts_min_sec: 30,
+  shorts_max_sec: 60,
   shorts_subtitles: true,
   dialect: "1.9",
   export_targets: ["resolve", "premiere", "kdenlive"]
@@ -338,38 +340,40 @@ export const modules: RackModule[] = [
     id: "shorts",
     name: "Shorts",
     summary: "Select and render vertical 1080x1920 clips with captions.",
-    portable: false,
-    tag: "CLI",
-    note: "Use `videoflow shorts --transcript ...` in this build. The card is read-only here.",
+    portable: true,
+    tag: "SRT",
+    toggleKey: "shorts",
+    toggleLabel: "Render",
+    note: "Requires an SRT transcript. Each clip is rendered to output/shorts as H.264/MP4.",
     fields: [
       {
         key: "shorts_count",
         label: "Count",
         type: "number",
-        implemented: false,
+        implemented: true,
         min: 1,
         max: 20,
         step: 1
       },
       {
-        key: "shorts_min",
+        key: "shorts_min_sec",
         label: "Minimum seconds",
         type: "number",
-        implemented: false,
+        implemented: true,
         min: 1,
-        max: 120,
+        max: 300,
         step: 1
       },
       {
-        key: "shorts_max",
+        key: "shorts_max_sec",
         label: "Maximum seconds",
         type: "number",
-        implemented: false,
+        implemented: true,
         min: 1,
-        max: 180,
+        max: 600,
         step: 1
       },
-      { key: "shorts_subtitles", label: "Burn captions", type: "bool", implemented: false }
+      { key: "shorts_subtitles", label: "Burn captions", type: "bool", implemented: true }
     ]
   },
   {

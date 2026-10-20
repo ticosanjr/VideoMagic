@@ -3,8 +3,9 @@
 ## Implementation status
 
 Implemented: deterministic and LLM sentence selection, retake-aware conforming,
-1080x1920 H.264/AAC render, ASS captions, and `videoflow shorts`. Not yet:
-face tracking, karaoke word-level captions, and API/MCP exposure.
+1080x1920 render, ASS captions, `videoflow shorts`, job/API/MCP execution, a
+telemetry stage, and MP4 download. Not yet: face tracking and karaoke
+word-level captions.
 
 ## Purpose
 

@@ -65,6 +65,11 @@ OVERRIDE_KEYS = {
     "context_window",
     "llm_base_url",
     "llm_model",
+    "shorts",
+    "shorts_count",
+    "shorts_min_sec",
+    "shorts_max_sec",
+    "shorts_subtitles",
 }
 
 

@@ -3,6 +3,29 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.12.0] — 2026-10-20
+
+### Added
+
+- Shorts run as part of a job: selection, retake-aware conforming, ASS captions,
+  1080x1920 MP4 render, a `shorts` stage with progress/logs, and `shorts.json`.
+- `POST /api/v1/jobs` accepts `shorts`, `shorts_count`, `shorts_min_sec`,
+  `shorts_max_sec`, and `shorts_subtitles`.
+- `GET /api/v1/jobs/{id}/shorts/{index}` downloads a rendered vertical clip.
+- The Shorts card is configurable and enabled when an SRT is present; the run
+  summary lists shorts with download links.
+- MCP overrides accept the shorts fields.
+- API/journal tests and a real media job with two shorts.
+
+### Changed
+
+- Version is 0.12.0.
+
+### Verified
+
+- Live API job: 7 stages, export + shorts; two 1080x1920 MP4s; short download 200.
+- AppImage/Windows PE rebuilt with the Shorts card and telemetry.
+
 ## [0.11.0] — 2026-10-20
 
 ### Added

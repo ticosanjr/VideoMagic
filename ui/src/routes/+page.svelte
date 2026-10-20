@@ -149,7 +149,12 @@
         retake_strategy: String(config.retake_strategy),
         context_window: Number(config.context_window),
         llm_base_url: String(config.llm_base_url || "").trim() || null,
-        llm_model: String(config.llm_model || "qwen2.5:7b-instruct")
+        llm_model: String(config.llm_model || "qwen2.5:7b-instruct"),
+        shorts: Boolean(config.shorts),
+        shorts_count: Number(config.shorts_count),
+        shorts_min_sec: Number(config.shorts_min_sec),
+        shorts_max_sec: Number(config.shorts_max_sec),
+        shorts_subtitles: Boolean(config.shorts_subtitles)
       });
       schedule();
     } catch (reason) {
@@ -221,6 +226,7 @@
   function statusFor(module: RackModule): Status {
     if (!module.portable) return "bypassed";
     if (module.id === "transcribe" && !transcript) return "bypassed";
+    if (module.id === "shorts" && (!config.shorts || !transcript)) return "bypassed";
     if (module.id === "retakes" && (!config.cull_retakes || !transcript)) return "bypassed";
     if (module.id === "jl_cuts" && !config.jcut && !config.lcut) return "bypassed";
     if (module.id === "zooms" && !config.zooms) return "bypassed";
@@ -618,6 +624,23 @@
                   <span class="break-all font-mono">{path}</span>
                 </a>
               {/each}
+            </div>
+          {/if}
+          {#if job.result?.shorts?.length}
+            <div class="mt-3">
+              <p class="text-[10px] uppercase tracking-wide text-neutral-500">Shorts</p>
+              <div class="mt-2 space-y-2">
+                {#each job.result.shorts as clip, index}
+                  <a
+                    class="block rounded-lg border border-neutral-800 bg-neutral-950/60 p-2 text-[11px] text-sky-300 hover:border-sky-500/50"
+                    href={`/api/v1/jobs/${job.job_id}/shorts/${index}`}
+                    download
+                  >
+                    <span class="block truncate">{clip.title}</span>
+                    <span class="text-[10px] text-neutral-500">{clip.duration_sec.toFixed(1)} s · MP4</span>
+                  </a>
+                {/each}
+              </div>
             </div>
           {/if}
         {:else}

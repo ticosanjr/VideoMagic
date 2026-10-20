@@ -218,6 +218,11 @@ class JobManager:
                 strictness=str(options.get("strictness", "balanced")),
                 retake_strategy=str(options.get("retake_strategy", "keep_last")),
                 context_window=int(options.get("context_window", 15)),
+                shorts=bool(options.get("shorts", False)),
+                shorts_count=int(options.get("shorts_count", 3)),
+                shorts_min_sec=int(options.get("shorts_min_sec", 30)),
+                shorts_max_sec=int(options.get("shorts_max_sec", 60)),
+                shorts_subtitles=bool(options.get("shorts_subtitles", True)),
             )
             with self._lock:
                 if job.cancel_requested:

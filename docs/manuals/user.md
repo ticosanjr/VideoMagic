@@ -127,7 +127,7 @@ error; it is the safety rule working.
 
 ### 07 Shorts
 
-Available as a command today:
+Available in the rack (enable **Render** and provide an SRT) or as a command:
 
 ```bash
 videoflow shorts interview.mp4 --transcript interview.srt -o out --count 3

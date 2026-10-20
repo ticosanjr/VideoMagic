@@ -11,6 +11,7 @@ import time
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,12 @@ from videoflow.application.retakes import (
 )
 from videoflow.application.retakes import (
     cull_retakes as cull_transcript_retakes,
+)
+from videoflow.application.shorts import (
+    build_ass,
+    select_shorts,
+    sentence_events,
+    slugify,
 )
 from videoflow.application.telemetry import JobTelemetry
 from videoflow.application.timeline_builder import build_timeline
@@ -50,6 +57,7 @@ class PortableRun:
     elapsed_seconds: float
     state_path: Path
     report_path: Path
+    shorts: tuple[dict[str, Any], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         media = self.state.media_info
@@ -67,6 +75,7 @@ class PortableRun:
             "retake_restored_count": len(self.state.retake_guard_restores),
             "warnings": list(self.warnings),
             "artifacts": {name: str(path) for name, path in self.artifacts.items()},
+            "shorts": list(self.shorts),
             "state_path": str(self.state_path),
             "report_path": str(self.report_path),
             "elapsed_seconds": round(self.elapsed_seconds, 3),
@@ -95,6 +104,11 @@ def run_portable(
     strictness: str = "balanced",
     retake_strategy: str = "keep_last",
     context_window: int = 15,
+    shorts: bool = False,
+    shorts_count: int = 3,
+    shorts_min_sec: int = 30,
+    shorts_max_sec: int = 60,
+    shorts_subtitles: bool = True,
 ) -> PortableRun:
     """Run the complete model-free pipeline for one source file."""
 
@@ -257,6 +271,72 @@ def run_portable(
         meta["message"] = f"{len(artifacts)} artifacts written"
         emit("export", "info", str(meta["message"]))
 
+    short_paths: list[dict[str, Any]] = []
+    warnings = list(built.warnings)
+    if shorts:
+        if not transcript:
+            raise IngestError("Shorts require a transcript. Provide an SRT.")
+        if shorts_min_sec <= 0 or shorts_max_sec < shorts_min_sec:
+            raise IngestError("Invalid shorts duration window.")
+        minimum = timebase.seconds_to_samples(Fraction(shorts_min_sec), Rounding.NEAREST)
+        maximum = timebase.seconds_to_samples(Fraction(shorts_max_sec), Rounding.NEAREST)
+        cuts = cull_intervals(transcript, discard)
+        kept = [item for item in transcript if item.id not in set(discard)]
+        gate()
+        with stage("shorts", "shorts", "Shorts", "Selecting vertical clips") as meta:
+            selected = select_shorts(
+                kept,
+                min_samples=minimum,
+                max_samples=maximum,
+                count=max(1, shorts_count),
+                sample_rate=media.audio_sample_rate,
+                cuts=cuts,
+                client=llm_client,
+                warnings=warnings,
+            )
+            shorts_dir = output_path / "shorts"
+            for index, clip in enumerate(selected, start=1):
+                gate()
+                if telemetry is not None:
+                    telemetry.update(
+                        "shorts",
+                        int(index / max(1, len(selected)) * 90),
+                        f"Rendering {index}/{len(selected)}",
+                    )
+                slug = slugify(clip.title, index)
+                ass_path = None
+                if shorts_subtitles:
+                    events = sentence_events(
+                        kept, clip.pieces, sample_rate=media.audio_sample_rate
+                    )
+                    if events:
+                        ass_path = shorts_dir / f"{slug}.ass"
+                        write_text(ass_path, build_ass(events))
+                destination = shorts_dir / f"{slug}.mp4"
+                engine.render_short(
+                    source_path,
+                    clip.pieces,
+                    destination,
+                    sample_rate=media.audio_sample_rate,
+                    ass_path=ass_path,
+                )
+                entry = clip.to_dict(media.audio_sample_rate)
+                entry["path"] = str(destination)
+                if ass_path is not None:
+                    entry["subtitles"] = str(ass_path)
+                short_paths.append(entry)
+            if short_paths:
+                write_text(
+                    output_path / "shorts.json",
+                    json.dumps({"ok": True, "clips": short_paths}, indent=2) + "\n",
+                )
+            meta["message"] = (
+                f"{len(short_paths)} shorts rendered"
+                if short_paths
+                else "No window reached the minimum duration"
+            )
+            emit("shorts", "info", str(meta["message"]))
+
     gate()
     step("state", 95, "Writing project state and report")
     state_path = input_state_path(output_path)
@@ -268,10 +348,11 @@ def run_portable(
         state=state,
         artifacts=artifacts,
         speech_intervals=tuple(speech),
-        warnings=tuple(built.warnings),
+        warnings=tuple(warnings),
         elapsed_seconds=time.perf_counter() - started,
         state_path=state_path,
         report_path=report_path,
+        shorts=tuple(short_paths),
     )
     report = run.to_dict()
     report["pcm_sha256"] = digest

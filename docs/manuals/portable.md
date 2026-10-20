@@ -101,10 +101,15 @@ and elapsed time.
 
 ### Shorts
 
+Shorts can run inside a job (API/UI card) or as a standalone command:
+
 ```bash
 videoflow shorts interview.mp4 --transcript interview.srt -o shorts-out \
   --count 3 --min-sec 30 --max-sec 60
 ```
+
+In a job, set `shorts=true` with the SRT and the count/duration bounds. The
+`shorts` stage reports progress and logs, and `job.result.shorts` lists the MP4s.
 
 Each clip is rendered at 1080x1920 with center crop and burned-in captions. Use
 `--no-subtitles` to skip ASS generation and `--cull-retakes` to remove exact
@@ -262,7 +267,7 @@ distribution with a compatible glibc.
 
 ```bash
 uv run python scripts/build_appimage.py
-./dist/VideoFlow-0.11.0-x86_64.AppImage version
+./dist/VideoFlow-0.12.0-x86_64.AppImage version
 ```
 
 The AppImage wraps the same onefile binary. Opening it with no arguments starts

@@ -47,7 +47,7 @@ GET /health
 ```
 
 ```json
-{ "status": "ok", "service": "videoflow", "version": "0.11.0" }
+{ "status": "ok", "service": "videoflow", "version": "0.12.0" }
 ```
 
 ```http
@@ -57,7 +57,7 @@ GET /api/v1/system
 ```json
 {
   "ok": true,
-  "version": "0.11.0",
+  "version": "0.12.0",
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
@@ -103,7 +103,12 @@ Content-Type: application/json
   "retake_strategy": "keep_last",
   "context_window": 15,
   "llm_base_url": "http://localhost:11434/v1",
-  "llm_model": "qwen2.5:7b-instruct"
+  "llm_model": "qwen2.5:7b-instruct",
+  "shorts": true,
+  "shorts_count": 3,
+  "shorts_min_sec": 30,
+  "shorts_max_sec": 60,
+  "shorts_subtitles": true
 }
 ```
 
@@ -202,6 +207,15 @@ Returns the `project_state.json` written by the job. The UI uses it for the
 inspector (transcript sentences, culls, guard restorations). If the job has not
 written state yet, the route returns `404 state_not_found`.
 
+### Download a short
+
+```http
+GET /api/v1/jobs/{job_id}/shorts/{index}
+```
+
+Returns the rendered MP4 for a shorts entry in `job.result.shorts`. The file must
+live under the job output; otherwise `403 shorts_not_allowed` is returned.
+
 ### Download an artifact
 
 ```http
@@ -236,7 +250,7 @@ On success, `job.result` is the `run_portable` report:
 ```json
 {
   "ok": true,
-  "version": "0.11.0",
+  "version": "0.12.0",
   "speech_interval_count": 3,
   "video_segment_count": 3,
   "audio_segment_count": 3,

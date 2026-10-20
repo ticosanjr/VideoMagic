@@ -45,6 +45,19 @@ class FakeAdapter:
     ) -> list[tuple[int, int]]:
         return self.speech
 
+    def render_short(
+        self,
+        source: Path,
+        pieces: object,
+        destination: Path,
+        *,
+        sample_rate: int,
+        ass_path: Path | None = None,
+    ) -> Path:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b"mp4")
+        return destination
+
 
 def test_portable_pipeline_writes_state_report_and_artifacts(tmp_path: Path) -> None:
     source = tmp_path / "source.mp4"
@@ -119,6 +132,31 @@ def test_portable_pipeline_reports_stages_logs_and_targets(tmp_path: Path) -> No
     assert set(result.artifacts) == {"resolve"}
     assert any("PCM" in row[2] for row in logs)
     assert telemetry.log_count() > 0
+
+
+def test_portable_pipeline_can_render_shorts(tmp_path: Path) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    transcript = tmp_path / "subs.srt"
+    transcript.write_text(
+        "1\n00:00:00,000 --> 00:00:01,000\nFirst.\n\n"
+        "2\n00:00:02,000 --> 00:00:03,000\nSecond.\n",
+        encoding="utf-8",
+    )
+    result = run_portable(
+        source,
+        tmp_path / "project",
+        adapter=FakeAdapter(),  # type: ignore[arg-type]
+        transcript_path=transcript,
+        shorts=True,
+        shorts_count=2,
+        shorts_min_sec=1,
+        shorts_max_sec=3,
+        shorts_subtitles=True,
+    )
+    assert len(result.shorts) == 1
+    assert Path(str(result.shorts[0]["path"])).is_file()
+    assert result.to_dict()["shorts"][0]["title"] == "First."
 
 
 def test_portable_pipeline_fails_when_no_speech_is_detected(tmp_path: Path) -> None:

@@ -67,6 +67,14 @@ export interface Job {
     retake_restored_count?: number;
     warnings?: string[];
     artifacts?: Record<string, string>;
+    shorts?: {
+      title: string;
+      path: string;
+      duration_sec: number;
+      start_sec: number;
+      end_sec: number;
+      sentence_ids: number[];
+    }[];
     state_path?: string;
     report_path?: string;
     elapsed_seconds?: number;
@@ -106,6 +114,11 @@ export interface NewJob {
   context_window: number;
   llm_base_url: string | null;
   llm_model: string;
+  shorts: boolean;
+  shorts_count: number;
+  shorts_min_sec: number;
+  shorts_max_sec: number;
+  shorts_subtitles: boolean;
 }
 
 export interface Sentence {

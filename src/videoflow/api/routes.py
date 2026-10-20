@@ -48,6 +48,11 @@ class NewJobRequest(BaseModel):
     context_window: int = Field(default=15, ge=1, le=100)
     llm_base_url: str | None = None
     llm_model: str = "qwen2.5:7b-instruct"
+    shorts: bool = False
+    shorts_count: int = Field(default=3, ge=1, le=20)
+    shorts_min_sec: int = Field(default=30, ge=1, le=300)
+    shorts_max_sec: int = Field(default=60, ge=1, le=600)
+    shorts_subtitles: bool = True
 
 
 def register_routes(app: FastAPI, jobs: JobManager) -> None:
@@ -87,6 +92,11 @@ def register_routes(app: FastAPI, jobs: JobManager) -> None:
                     "context_window": request.context_window,
                     "llm_base_url": request.llm_base_url,
                     "llm_model": request.llm_model,
+                    "shorts": request.shorts,
+                    "shorts_count": request.shorts_count,
+                    "shorts_min_sec": request.shorts_min_sec,
+                    "shorts_max_sec": request.shorts_max_sec,
+                    "shorts_subtitles": request.shorts_subtitles,
                 },
             )
         except VideoFlowError as exc:
@@ -171,6 +181,31 @@ def register_routes(app: FastAPI, jobs: JobManager) -> None:
             "count": len(rows),
             "total": job.telemetry.log_count(),
         }
+
+    @app.get("/api/v1/jobs/{job_id}/shorts/{index}")
+    def download_short(job_id: str, index: int) -> FileResponse:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
+        shorts = (job.result or {}).get("shorts") or []
+        if not isinstance(shorts, list) or index < 0 or index >= len(shorts):
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "shorts_not_found", "message": str(index)},
+            )
+        entry = shorts[index]
+        raw = entry.get("path") if isinstance(entry, dict) else None
+        if not raw:
+            raise HTTPException(status_code=404, detail={"ok": False, "code": "shorts_not_found"})
+        path = Path(str(raw)).expanduser().resolve()
+        output = job.output.expanduser().resolve()
+        if not path.is_relative_to(output) or not path.is_file():
+            raise HTTPException(
+                status_code=403,
+                detail={"ok": False, "code": "shorts_not_allowed", "message": "outside output"},
+            )
+        return FileResponse(path, filename=path.name)
 
     @app.get("/api/v1/jobs/{job_id}/state")
     def job_state(job_id: str) -> dict[str, object]:
