@@ -24,6 +24,7 @@ from videoflow.domain.errors import InvalidRetakeIdsError, VideoFlowError
 from videoflow.domain.paths import resolve_allowed
 from videoflow.domain.state import MediaInfo, ProjectState, Sentence
 from videoflow.domain.timebase import Rounding
+from videoflow.domain.transcript import format_srt
 from videoflow.mcp_server.registry import RESOURCE_SPECS, TOOL_SPECS
 from videoflow.runtime import allowed_roots, find_whisper_model
 
@@ -210,7 +211,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         try:
             transcript_path.parent.mkdir(parents=True, exist_ok=True)
             transcript_path.write_text(
-                _srt_text(transcript, media.audio_sample_rate), encoding="utf-8"
+                format_srt(transcript, media.audio_sample_rate), encoding="utf-8"
             )
         except OSError as exc:
             return _error("transcript_write_failed", str(exc))
@@ -246,7 +247,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             "ok": True,
             "sentence_count": len(transcript),
             "transcript": _sentences_payload(transcript, include_words=include_word_timestamps),
-            "srt": _srt_text(transcript, rate),
+            "srt": format_srt(transcript, rate),
         }
 
     @mcp.tool()
@@ -542,7 +543,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
                 )
             )
         state = _project_state(last)
-        return _srt_text(transcript, _sample_rate(last, state))
+        return format_srt(transcript, _sample_rate(last, state))
 
     @mcp.resource("videoflow://presets/list")
     def presets_list() -> str:
@@ -673,26 +674,6 @@ def _sentences_payload(
             item["words"] = [word.model_dump(mode="json") for word in sentence.words]
         payload.append(item)
     return payload
-
-
-def _srt_text(sentences: Sequence[Sentence], sample_rate: int) -> str:
-    blocks: list[str] = []
-    for index, sentence in enumerate(sentences, start=1):
-        blocks.append(
-            f"{index}\n"
-            f"{_srt_time(sentence.start_sample, sample_rate)} --> "
-            f"{_srt_time(sentence.end_sample, sample_rate)}\n"
-            f"{sentence.text}"
-        )
-    return "\n\n".join(blocks) + ("\n" if blocks else "")
-
-
-def _srt_time(samples: int, sample_rate: int) -> str:
-    total_ms = (samples * 1000 + sample_rate // 2) // sample_rate
-    hours, remainder = divmod(total_ms, 3_600_000)
-    minutes, remainder = divmod(remainder, 60_000)
-    seconds, milliseconds = divmod(remainder, 1_000)
-    return f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
 
 
 def _whisper_model(requested: str) -> Path | None:

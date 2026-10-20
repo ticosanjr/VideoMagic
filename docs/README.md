@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (0.16.0)
+## Implementation status (0.17.0)
 
 | Area | State |
 | --- | --- |
@@ -19,7 +19,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Jobs, job REST routes, SSE, live MCP jobs | implemented for the portable path |
 | MCP: twelve tools and four resources | implemented; analysis, staged edits, jobs, export, resources |
 | Rack UI driving real portable jobs, logs, overrides, shorts | implemented |
-| Project-scoped routes and transcript API | specified, stubbed |
+| Project-scoped routes, revisions, transcript API, presets | implemented; per-module rerun is typed 501 |
 | Shorts selection/rendering and API download | implemented |
 | Audio transitions, keyframed zooms, MP4 | specified, stubbed |
 

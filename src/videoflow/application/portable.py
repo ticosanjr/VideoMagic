@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
+from uuid import UUID, uuid4
 
 from videoflow import __version__
 from videoflow.adapters import LlmClient
@@ -37,7 +38,12 @@ from videoflow.application.shorts import (
 )
 from videoflow.application.telemetry import JobTelemetry
 from videoflow.application.timeline_builder import build_timeline
-from videoflow.domain.config import JlCutsConfig, ModuleEnabled, ZoomsConfig
+from videoflow.domain.config import (
+    JlCutsConfig,
+    ModuleEnabled,
+    ModulesConfig,
+    ZoomsConfig,
+)
 from videoflow.domain.errors import IngestError, InvalidRetakeIdsError, JobCancelledError
 from videoflow.domain.state import ManualOverride, ProjectState, SampleSpan, Sentence
 from videoflow.domain.timebase import Rounding
@@ -68,6 +74,8 @@ class PortableRun:
         return {
             "ok": True,
             "version": __version__,
+            "project_id": str(self.state.project_id),
+            "state_revision": self.state.revision,
             "source": str(self.source),
             "output": str(self.output),
             "media": media.model_dump(mode="json") if media else None,
@@ -122,6 +130,11 @@ def run_portable(
     asr_language: str = "pt",
     whisper_model: str | Path | None = None,
     asr_client: Any | None = None,
+    transcript_sentences: Sequence[Sentence] | None = None,
+    project_id: UUID | None = None,
+    revision: int = 1,
+    modules_config: ModulesConfig | None = None,
+    module_enabled: ModuleEnabled | None = None,
 ) -> PortableRun:
     """Run the complete model-free pipeline for one source file."""
 
@@ -225,6 +238,19 @@ def run_portable(
             transcript_source = "srt"
             meta["message"] = f"{len(transcript)} sentences from SRT"
             emit("transcribe", "info", str(meta["message"]))
+    elif transcript_sentences:
+        with stage(
+            "transcribe",
+            "transcribe",
+            "Transcribe (project)",
+            "Reusing the project transcript",
+        ) as meta:
+            gate()
+            step("transcript", 42, "Reusing the project transcript")
+            transcript = list(transcript_sentences)
+            transcript_source = "project"
+            meta["message"] = f"{len(transcript)} sentences from project state"
+            emit("transcribe", "info", str(meta["message"]))
     elif transcribe:
         client = asr_client
         local = False
@@ -327,8 +353,11 @@ def run_portable(
     if telemetry is not None:
         telemetry.finish("zooms", "Transforms ready")
     state = ProjectState(
+        project_id=project_id or uuid4(),
+        revision=max(1, revision),
         media_info=media,
-        module_enabled=ModuleEnabled(),
+        modules_config=modules_config or ModulesConfig(),
+        module_enabled=module_enabled or ModuleEnabled(),
         vad_intervals=[SampleSpan(start_sample=start, end_sample=end) for start, end in speech],
         transcript=transcript,
         retake_culls=discard,

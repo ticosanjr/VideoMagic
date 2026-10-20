@@ -173,16 +173,16 @@ Done:
 7. Vertical shorts: selection, culling, captions, and 1080x1920 render
 8. Per-stage telemetry, bounded logs, and the telemetry rack UI
 9. SRT/ASR transcripts, manual overrides, and Shorts in jobs
+10. Persistent projects, atomic revisions, transcript routes, and operator
+    presets
 
 Next, in order:
 
-7. Silero VAD
-8. Faster-Whisper
-9. Manual overrides and transcript routes
-10. Project-scoped routes and shorts tools
-11. NLE audio transitions, keyframed zooms, shorts, subtitles, MP4
-12. Full rack controls, per-block runs, inspector
-13. Three-app import spike and long-file QA
+11. Silero VAD
+12. Faster-Whisper
+13. Cache-backed per-block runs and the full rack inspector
+14. NLE audio transitions, keyframed zooms, subtitles, MP4
+15. Three-app import spike and long-file QA
 
 Each pass removes the `xfail` marker for its contracts and adds the media
 integration tests described in [testing.md](testing.md).

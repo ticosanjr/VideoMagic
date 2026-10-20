@@ -148,6 +148,7 @@ class ProjectState(StrictModel):
 
     schema_version: Literal[1] = SCHEMA_VERSION
     project_id: UUID = Field(default_factory=uuid4)
+    revision: int = Field(default=1, ge=1)
     media_info: MediaInfo | None = None
     modules_config: ModulesConfig = Field(default_factory=ModulesConfig)
     module_enabled: ModuleEnabled = Field(default_factory=ModuleEnabled)

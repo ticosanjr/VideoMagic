@@ -10,8 +10,8 @@ from videoflow.domain.constants import MODULE_ORDER
 from videoflow.domain.errors import (
     JobAlreadyRunningError,
     ModuleBypassedError,
+    UnknownModuleError,
     UpstreamDirtyError,
-    VideoFlowError,
 )
 
 
@@ -31,14 +31,6 @@ _NEEDS_WORK = {
     CacheStatus.FAILED,
     CacheStatus.BLOCKED,
 }
-
-
-class UnknownModuleError(VideoFlowError):
-    code = "unknown_module"
-
-    def __init__(self, module: str) -> None:
-        self.module = module
-        super().__init__(f"Unknown module: {module}")
 
 
 @dataclass(frozen=True, slots=True)

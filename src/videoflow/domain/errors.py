@@ -139,6 +139,121 @@ class TranscriptError(VideoFlowError):
     code = "invalid_transcript"
 
 
+class UnknownModuleError(VideoFlowError):
+    """Unknown rack module id."""
+
+    code = "unknown_module"
+
+    def __init__(self, module: str) -> None:
+        self.module = module
+        super().__init__(f"Unknown module: {module}")
+
+
+class ProjectNotFoundError(VideoFlowError):
+    """Unknown project id."""
+
+    code = "project_not_found"
+
+    def __init__(self, project_id: object) -> None:
+        self.project_id = str(project_id)
+        super().__init__(f"Unknown project: {self.project_id}")
+
+
+class ProjectStateError(VideoFlowError):
+    """A project state or registry file is unreadable or inconsistent."""
+
+    code = "project_state_invalid"
+
+
+class ProjectExistsError(VideoFlowError):
+    """A project root already belongs to another project."""
+
+    code = "project_exists"
+
+
+class MediaNotFoundError(VideoFlowError):
+    """A media path does not point to a readable file."""
+
+    code = "media_not_found"
+
+    def __init__(self, path: str) -> None:
+        self.path = path
+        super().__init__(f"Media file does not exist: {path}")
+
+
+class MediaNotRegisteredError(VideoFlowError):
+    """A project has no registered source media."""
+
+    code = "media_not_registered"
+
+
+class StateNotReadyError(VideoFlowError):
+    """A project has no timeline to export yet."""
+
+    code = "state_not_ready"
+
+
+class TranscriptNotFoundError(VideoFlowError):
+    """A project has no transcript yet."""
+
+    code = "transcript_not_found"
+
+
+class TranscriptRequiredError(VideoFlowError):
+    """An enabled module needs a transcript that is not present."""
+
+    code = "transcript_required"
+
+
+class InvalidOverrideError(VideoFlowError):
+    """A manual override refers to a sentence or word that does not exist."""
+
+    code = "invalid_override"
+
+
+class WordOverridesNotSupportedError(VideoFlowError):
+    """The current culling engine operates on whole sentences only."""
+
+    code = "word_overrides_not_supported"
+
+
+class PresetNotFoundError(VideoFlowError):
+    """Unknown shipped or operator preset."""
+
+    code = "preset_not_found"
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        super().__init__(f"Unknown preset: {name}")
+
+
+class PresetError(VideoFlowError):
+    """A preset file is unreadable or invalid."""
+
+    code = "preset_invalid"
+
+
+class InvalidPresetNameError(VideoFlowError):
+    """A preset name would leave the operator preset directory."""
+
+    code = "invalid_preset_name"
+
+
+class CapabilityUnavailableError(VideoFlowError):
+    """A route is part of the product contract but has no engine in this build."""
+
+    code = "not_implemented"
+
+    def __init__(self, capability: str, message: str) -> None:
+        self.capability = capability
+        super().__init__(message)
+
+    def to_dict(self) -> dict[str, object]:
+        payload = super().to_dict()
+        payload["capability"] = self.capability
+        return payload
+
+
 class LlmError(VideoFlowError):
     """The OpenAI-compatible endpoint failed or returned unusable JSON."""
 

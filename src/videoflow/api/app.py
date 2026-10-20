@@ -14,6 +14,7 @@ from starlette.responses import RedirectResponse
 from videoflow import __version__
 from videoflow.api.routes import register_routes
 from videoflow.application.jobs import JobManager
+from videoflow.application.projects import ProjectStore
 from videoflow.domain.constants import DEFAULT_API_HOST, DEFAULT_API_PORT
 from videoflow.runtime import ui_dir
 
@@ -28,6 +29,7 @@ def create_app(
     ui: Path | None = None,
     with_mcp: bool = False,
     jobs: JobManager | None = None,
+    projects: ProjectStore | None = None,
 ) -> FastAPI:
     """Build the loopback app.
 
@@ -36,6 +38,7 @@ def create_app(
     """
 
     manager = jobs or JobManager()
+    store = projects or ProjectStore()
     mcp_app = None
     lifespan = None
     if with_mcp:
@@ -63,7 +66,7 @@ def create_app(
     def health() -> dict[str, str]:
         return {"status": "ok", "service": "videoflow", "version": __version__}
 
-    register_routes(app, manager)
+    register_routes(app, manager, store)
 
     if mcp_app is not None:
         app.mount("/mcp", mcp_app)

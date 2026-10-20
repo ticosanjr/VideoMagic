@@ -6,6 +6,7 @@ history but never damages a project already written to disk.
 
 from __future__ import annotations
 
+import json
 import os
 import threading
 import traceback
@@ -19,14 +20,20 @@ from uuid import UUID, uuid4
 from videoflow.adapters.llm import OpenAICompatibleLlm
 from videoflow.application.portable import run_portable
 from videoflow.application.telemetry import JobTelemetry
-from videoflow.domain.config import JlCutsConfig, ZoomsConfig
+from videoflow.domain.config import (
+    JlCutsConfig,
+    ModuleEnabled,
+    ModulesConfig,
+    ZoomsConfig,
+)
 from videoflow.domain.errors import (
     JobCancelledError,
     JobNotFoundError,
     JobQueueFullError,
+    ProjectStateError,
     VideoFlowError,
 )
-from videoflow.domain.state import ManualOverride
+from videoflow.domain.state import ManualOverride, ProjectState, Sentence
 from videoflow.exporters.fcpxml import Dialect
 
 JobStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
@@ -55,6 +62,7 @@ class Job:
     started_at: str | None = None
     finished_at: str | None = None
     telemetry: JobTelemetry = field(default_factory=JobTelemetry)
+    finalizer: Callable[[Job], None] | None = field(default=None, repr=False)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -96,6 +104,8 @@ class JobManager:
         source: Path,
         output: Path,
         options: dict[str, Any] | None = None,
+        *,
+        finalizer: Callable[[Job], None] | None = None,
     ) -> Job:
         with self._lock:
             self._prune()
@@ -108,6 +118,7 @@ class JobManager:
                 source=Path(source),
                 output=Path(output),
                 options=dict(options or {}),
+                finalizer=finalizer,
             )
             self._jobs[str(job.job_id)] = job
         thread = threading.Thread(
@@ -172,17 +183,7 @@ class JobManager:
         dialect: Dialect = options.get("dialect", "1.9")
         transcript = options.get("transcript")
         cull = bool(options.get("cull_retakes", False))
-        llm = None
         base_url = options.get("llm_base_url") or os.environ.get("VIDEOWFLOW_LLM_BASE_URL")
-        if transcript and cull and base_url:
-            llm = OpenAICompatibleLlm(
-                base_url=str(base_url),
-                model=str(
-                    options.get("llm_model")
-                    or os.environ.get("VIDEOWFLOW_LLM_MODEL", "qwen2.5:7b-instruct")
-                ),
-                api_key=os.environ.get("VIDEOWFLOW_LLM_API_KEY"),
-            )
 
         telemetry = job.telemetry
 
@@ -199,6 +200,21 @@ class JobManager:
             return job.cancel_requested
 
         try:
+            transcript_sentences = _project_transcript(options.get("transcript_state"))
+            if (transcript or transcript_sentences) and cull and base_url:
+                llm = OpenAICompatibleLlm(
+                    base_url=str(base_url),
+                    model=str(
+                        options.get("llm_model")
+                        or os.environ.get("VIDEOWFLOW_LLM_MODEL", "qwen2.5:7b-instruct")
+                    ),
+                    api_key=os.environ.get("VIDEOWFLOW_LLM_API_KEY"),
+                )
+            else:
+                llm = None
+            project_id = options.get("project_id")
+            modules_config = options.get("modules_config")
+            module_enabled = options.get("module_enabled")
             result = self._runner(
                 job.source,
                 job.output,
@@ -234,7 +250,22 @@ class JobManager:
                 asr_model=str(options.get("asr_model", "whisper-1")),
                 asr_language=str(options.get("asr_language", "pt")),
                 whisper_model=options.get("whisper_model") or None,
+                transcript_sentences=transcript_sentences,
+                project_id=UUID(str(project_id)) if project_id else None,
+                revision=int(options.get("revision", 1)),
+                modules_config=(
+                    ModulesConfig.model_validate(modules_config)
+                    if modules_config is not None
+                    else None
+                ),
+                module_enabled=(
+                    ModuleEnabled.model_validate(module_enabled)
+                    if module_enabled is not None
+                    else None
+                ),
             )
+            if job.finalizer is not None and not job.cancel_requested:
+                job.finalizer(job)
             with self._lock:
                 if job.cancel_requested:
                     job.status = "cancelled"
@@ -301,6 +332,18 @@ def _write_log(job: Job) -> None:
             (job.output / "job.log").write_text(job.telemetry.dump(), encoding="utf-8")
     except OSError:
         pass
+
+
+def _project_transcript(raw: object) -> list[Sentence] | None:
+    if not raw:
+        return None
+    path = Path(str(raw)).expanduser()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        state = ProjectState.model_validate(payload)
+    except (OSError, ValueError) as exc:
+        raise ProjectStateError(f"Cannot read project transcript from {path}: {exc}") from exc
+    return list(state.transcript) or None
 
 
 def _result_dict(result: Any) -> dict[str, Any]:

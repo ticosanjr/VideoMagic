@@ -17,6 +17,7 @@ by `scripts/export_schemas.py`. A test fails if they drift.
 {
   "schema_version": 1,
   "project_id": "8d1d4f0e-...",
+  "revision": 1,
   "media_info": {
     "source_path": "/media/raw.mp4",
     "duration_frames": 21614,
@@ -87,6 +88,8 @@ by `scripts/export_schemas.py`. A test fails if they drift.
 ### Invariants
 
 - `schema_version` is `1`.
+- `revision` starts at `1` and increases on every accepted write. The matching
+  snapshot lives at `.videoflow/revisions/000001.json`, `000002.json`, and so on.
 - Sentence ids are unique within a transcript.
 - Every span is half-open, `[start, end)`, in its declared unit.
 - `video_segments` and `audio_segments` may disagree in range. They share a

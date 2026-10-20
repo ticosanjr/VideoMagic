@@ -234,6 +234,66 @@ def test_portable_pipeline_uses_local_whisper_without_an_url(
     assert result.to_dict()["transcript_source"] == "whisper"
 
 
+def test_portable_pipeline_reuses_project_transcript_and_metadata(
+    tmp_path: Path,
+) -> None:
+    from uuid import uuid4
+
+    from videoflow.domain.config import ModuleEnabled, ModulesConfig
+    from videoflow.domain.state import Sentence, WordTiming
+
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    project_id = uuid4()
+    sentence = Sentence(
+        id=7,
+        start_sample=0,
+        end_sample=48000,
+        text="Project transcript.",
+        words=[
+            WordTiming(
+                word="Project",
+                start_sample=0,
+                end_sample=16000,
+                probability=0.9,
+            ),
+            WordTiming(
+                word="transcript.",
+                start_sample=16000,
+                end_sample=48000,
+                probability=0.95,
+            ),
+        ],
+    )
+    modules_config = ModulesConfig(
+        zooms=ZoomsConfig(mode="alternate_cuts"),
+    )
+    module_enabled = ModuleEnabled(transcribe=False, shorts=False, retakes=True)
+    result = run_portable(
+        source,
+        tmp_path / "project",
+        adapter=FakeAdapter(),  # type: ignore[arg-type]
+        transcript_sentences=[sentence],
+        project_id=project_id,
+        revision=9,
+        modules_config=modules_config,
+        module_enabled=module_enabled,
+        cull_retakes=True,
+    )
+    assert result.transcript_source == "project"
+    assert result.state.project_id == project_id
+    assert result.state.revision == 9
+    assert result.state.modules_config == modules_config
+    assert result.state.module_enabled == module_enabled
+    assert result.state.transcript[0].words[1].word == "transcript."
+    assert result.state.transcript[0].words[1].end_sample == 48000
+    assert result.state_path.is_file()
+    payload = result.to_dict()
+    assert payload["project_id"] == str(project_id)
+    assert payload["state_revision"] == 9
+    assert payload["transcript_source"] == "project"
+
+
 def test_portable_pipeline_can_render_shorts(tmp_path: Path) -> None:
     source = tmp_path / "source.mp4"
     source.write_bytes(b"fixture")

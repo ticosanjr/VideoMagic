@@ -322,7 +322,7 @@ with any redistribution. To ship a lean build without local transcription, omit
 
 ```bash
 uv run python scripts/build_appimage.py
-./dist/VideoFlow-0.16.0-x86_64.AppImage version
+./dist/VideoFlow-0.17.0-x86_64.AppImage version
 ```
 
 The AppImage wraps the same onefile binary. Opening it with no arguments starts
@@ -375,7 +375,7 @@ testing is still recommended before wide distribution.
 - The Windows PE is built with Wine and validated under Wine. Run it on a real
   Windows machine before signing or wide distribution.
 - No code signing. SmartScreen will warn until a certificate is configured.
-- The rack UI drives the portable run; per-block runs and presets persistence
-  are later passes.
+- The rack UI drives the portable run. Persistent projects and operator presets
+  are available through the REST API; per-block reruns are a later pass.
 - Built-in transcription is the bundled tiny model; larger models improve
   quality but are not shipped. NLE audio transitions remain future work.

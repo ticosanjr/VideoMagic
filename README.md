@@ -6,11 +6,13 @@ timeline: it removes silence and retakes, adds J-cuts and punch-ins, proposes
 vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive.
 
-> Status: 0.16.0 alpha. Portable Linux binary, Linux AppImage, and Windows PE run
+> Status: 0.17.0 alpha. Portable Linux binary, Linux AppImage, and Windows PE run
 > ingest, silence detection, SRT or local whisper.cpp transcription,
 > transcript-driven retake culling, deterministic cuts, vertical shorts, and
 > three NLE exports. The local API, MCP server, and rack UI execute real jobs;
-> all twelve MCP tools and four resources are live.
+> all twelve MCP tools and four resources are live. Projects persist atomic,
+> revisioned state under `.videoflow/`, and the REST API manages media,
+> modules, transcripts, exports, and operator presets.
 
 ## Requirements
 
@@ -26,7 +28,7 @@ model download happens at install time. A GPU is not required.
 
 ```bash
 uv sync --extra dev
-uv run pytest                       # 243 passing, 15 strict xfail, 7 deselected
+uv run pytest                       # 269 passing, 13 strict xfail, 7 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py  # optional local model into vendor/
 uv run videoflow-api                # http://127.0.0.1:8765/health and /mcp
@@ -93,13 +95,14 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   state/preset/export resources. Streamable HTTP is mounted on the local API.
 - Unified CLI (`run`, `serve`, `mcp`, `doctor`, `demo`, `version`) and a
   PyInstaller onefile build for Linux and Windows.
-- Local job API with SSE progress, and MCP tools that start, poll, and cancel
-  real pipeline jobs.
+- Local job API with SSE progress, plus persistent project routes for media,
+  module config, transcript overrides, exports, and operator presets.
+- MCP tools that start, poll, and cancel real pipeline jobs.
 
 ## Not implemented yet
 
 - Silero VAD and Faster-Whisper quality path.
-- Project-scoped REST routes beyond jobs, and transcript/shorts API tools.
+- Cache-backed per-block reruns; the route currently returns typed `501`.
 - NLE audio transitions and keyframed progressive zooms.
 - Face tracking, MP4 rendering, and per-block reruns.
 - A signed Windows binary (SmartScreen will warn).

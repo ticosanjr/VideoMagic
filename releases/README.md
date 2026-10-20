@@ -38,6 +38,8 @@ videoflow-0.9.0-windows-x86_64.exe
 
 ## Current
 
+- `v0.17.0`: persistent revisioned projects, project REST routes, transcript
+  overrides, exports, and operator presets.
 - `v0.16.0`: all twelve MCP tools and four resources live, with staged edits.
 - `v0.15.0`: offline whisper.cpp transcription with a bundled tiny model.
 - `v0.14.1`: sub-second durations, favicon, UI text, browser-verified flow.

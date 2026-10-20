@@ -6,4 +6,4 @@ timeline construction, three NLE exporters, jobs, the live API, the rack UI,
 and the MCP surface.
 """
 
-__version__ = "0.16.0"
+__version__ = "0.17.0"

@@ -3,7 +3,13 @@ from pathlib import Path
 import pytest
 
 from videoflow.domain.errors import TranscriptError
-from videoflow.domain.transcript import parse_srt, parse_srt_file
+from videoflow.domain.state import Sentence
+from videoflow.domain.transcript import (
+    format_srt,
+    format_srt_time,
+    parse_srt,
+    parse_srt_file,
+)
 
 SAMPLE = """1
 00:00:00,500 --> 00:00:01,250
@@ -59,3 +65,24 @@ def test_inverted_cue_is_rejected() -> None:
 def test_missing_file_is_reported(tmp_path: Path) -> None:
     with pytest.raises(TranscriptError, match="cannot read"):
         parse_srt_file(tmp_path / "missing.srt", 48000)
+
+
+def test_srt_round_trip_preserves_whole_seconds() -> None:
+    sentences = parse_srt(SAMPLE, 48000)
+    rendered = format_srt(sentences, 48000)
+    assert "00:00:00,500 --> 00:00:01,250" in rendered
+    assert "This is the second line." in rendered
+    assert format_srt([], 48000) == ""
+
+
+def test_srt_formatter_rejects_invalid_sample_rates() -> None:
+    sentence = Sentence(id=0, start_sample=0, end_sample=1, text="x")
+    with pytest.raises(TranscriptError, match="sample rate"):
+        format_srt([sentence], 0)
+    with pytest.raises(TranscriptError, match="sample rate"):
+        format_srt_time(0, 0)
+
+
+def test_srt_time_clamps_negative_samples() -> None:
+    assert format_srt_time(-1, 48000) == "00:00:00,000"
+    assert format_srt_time(3_600_000, 1000) == "01:00:00,000"

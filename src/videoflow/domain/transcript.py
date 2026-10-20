@@ -7,6 +7,7 @@ sample indices at the media sample rate; there are no word timings.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from pathlib import Path
 
 from videoflow.domain.errors import TranscriptError
@@ -68,6 +69,34 @@ def parse_srt_file(path: Path, sample_rate: int) -> list[Sentence]:
     except OSError as exc:
         raise TranscriptError(f"cannot read subtitle file: {source}") from exc
     return parse_srt(text, sample_rate)
+
+
+def format_srt(sentences: Sequence[Sentence], sample_rate: int) -> str:
+    """Render sentences as SRT without losing their source sample times."""
+
+    if sample_rate <= 0:
+        raise TranscriptError("sample rate must be positive")
+    blocks: list[str] = []
+    for index, sentence in enumerate(sentences, start=1):
+        blocks.append(
+            f"{index}\n"
+            f"{format_srt_time(sentence.start_sample, sample_rate)} --> "
+            f"{format_srt_time(sentence.end_sample, sample_rate)}\n"
+            f"{sentence.text}"
+        )
+    return "\n\n".join(blocks) + ("\n" if blocks else "")
+
+
+def format_srt_time(samples: int, sample_rate: int) -> str:
+    """Format a sample index as a millisecond SRT timestamp."""
+
+    if sample_rate <= 0:
+        raise TranscriptError("sample rate must be positive")
+    total_ms = (max(0, samples) * 1000 + sample_rate // 2) // sample_rate
+    hours, remainder = divmod(total_ms, 3_600_000)
+    minutes, remainder = divmod(remainder, 60_000)
+    seconds, milliseconds = divmod(remainder, 1_000)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
 
 
 def _to_samples(match: re.Match[str], side: str, sample_rate: int) -> int:

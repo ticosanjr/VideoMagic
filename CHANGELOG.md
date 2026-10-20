@@ -3,6 +3,46 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.17.0] — 2026-10-20
+
+### Added
+
+- Persistent projects under `<root>/.videoflow/`: a compact registry, atomic
+  state writes, monotonically increasing `revision`, and append-only snapshots
+  under `revisions/`.
+- Project REST routes: create/list/read, media registration, module config and
+  enabled flags, full project run, cancel, SSE events, transcript read and
+  sentence overrides, exports, and preset application.
+- `ProjectState.revision`, starting at 1 and written into every snapshot.
+- Project runs preserve `project_id`, module config, enabled flags, transcript
+  word timings, manual overrides, export target flags, and FCPXML dialect.
+- Operator presets under `$VIDEOWFLOW_HOME/presets/`, with partial-file
+  validation, shipped-name shadowing, list/read/write routes, and atomic apply
+  to a project.
+- Shared SRT formatting in the domain, used by the REST transcript route and
+  MCP resources.
+
+### Changed
+
+- `run_portable` and `JobManager` accept project metadata, revision, config,
+  enabled flags, and a preloaded transcript; successful project jobs snapshot
+  the state they wrote.
+- Per-module reruns return typed `501 not_implemented` until the cache-backed
+  module runner lands. The full project run is implemented.
+- Project media registration and transcript overrides invalidate stale derived
+  results instead of leaving old timeline data looking current.
+- API docs now describe the implemented project contract and error statuses.
+
+### Verified
+
+- Tests: 269 passed, 13 xfailed, 7 deselected; coverage 99.26%; ruff and mypy
+  clean.
+- Project route contracts cover create/list/read, media jail, config validation,
+  enabled flags, transcript overrides, exports, presets, project runs, events,
+  cancellation, and active-job rejection.
+- Linux 0.17.0 binary and AppImage plus Windows PE 0.17.0 build and smoke checks
+  are recorded in `releases/v0.17.0/release-notes.md`.
+
 ## [0.16.0] — 2026-10-20
 
 ### Added
