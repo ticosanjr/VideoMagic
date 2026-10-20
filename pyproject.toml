@@ -1,6 +1,6 @@
 [project]
 name = "videoflow"
-version = "0.9.0"
+version = "0.9.1"
 description = "Local, non-destructive video pre-edit pipeline with a rack UI and MCP server."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -46,10 +46,10 @@ packages = ["src/videoflow"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 addopts = [
   "-m",
-  "not media and not slow and not manual",
+  "not media and not slow and not manual and not packaging",
   "--cov=videoflow.domain",
   "--cov=videoflow.application.cache",
   "--cov=videoflow.application.timeline_builder",
@@ -61,6 +61,7 @@ markers = [
   "media: requires FFmpeg and generated media",
   "slow: performance or long-media check",
   "manual: human NLE import or listening check",
+  "packaging: builds and smoke-tests a staged AppImage or executable",
 ]
 
 [tool.coverage.run]

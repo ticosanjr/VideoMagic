@@ -3,6 +3,27 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.9.1] — 2026-10-20
+
+### Fixed
+
+- AppImage no longer exits immediately when opened without arguments. AppRun now
+  starts `serve --open`, keeps the server running, and opens the rack UI.
+- `videoflow serve --open` schedules the browser at the correct loopback URL,
+  including when bound to `0.0.0.0` or `::`.
+- AppImage builds can run `--appdir-only` for contract tests without
+  appimagetool.
+
+### Added
+
+- AppDir contract tests for AppRun, desktop entry, icon, and executable bits.
+- `scripts/smoke_appimage.py` and a `packaging` pytest marker for a real
+  AppImage: version, doctor, demo, extract-and-run fallback, and serve health.
+
+### Changed
+
+- Version is 0.9.1.
+
 ## [0.9.0] — 2026-10-20
 
 ### Added

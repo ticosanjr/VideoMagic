@@ -40,9 +40,7 @@ def register_routes(app: FastAPI, jobs: JobManager) -> None:
             source = resolve_allowed(Path(request.source), roots)
             output = resolve_allowed(Path(request.output), roots)
             transcript = (
-                resolve_allowed(Path(request.transcript), roots)
-                if request.transcript
-                else None
+                resolve_allowed(Path(request.transcript), roots) if request.transcript else None
             )
             job = jobs.start(
                 source,

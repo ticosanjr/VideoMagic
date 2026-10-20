@@ -56,6 +56,12 @@ def test_cull_retakes_requires_a_transcript(tmp_path, capsys) -> None:
     assert "--transcript" in capsys.readouterr().err
 
 
+def test_serve_ui_url_handles_wildcard_bind() -> None:
+    assert cli._ui_url("127.0.0.1", 8765) == "http://127.0.0.1:8765/"
+    assert cli._ui_url("0.0.0.0", 9000) == "http://127.0.0.1:9000/"
+    assert cli._ui_url("::", 9001) == "http://127.0.0.1:9001/"
+
+
 def test_unknown_command_returns_usage(capsys) -> None:
     assert cli.main([]) == 2
     assert "usage" in capsys.readouterr().out.lower()

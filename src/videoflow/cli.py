@@ -103,6 +103,11 @@ def _parser() -> argparse.ArgumentParser:
     serve = sub.add_parser("serve", help="Serve the API, MCP HTTP, and rack UI.")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8765)
+    serve.add_argument(
+        "--open",
+        action="store_true",
+        help="Open the rack UI in the default browser after startup.",
+    )
 
     sub.add_parser("mcp", help="Run the MCP server over stdio.")
     return parser
@@ -242,6 +247,8 @@ def _serve(args: argparse.Namespace) -> int:
     import uvicorn
 
     os.environ.setdefault("VIDEOWFLOW_HOME", str(ensure_home()))
+    if args.open:
+        _schedule_browser(_ui_url(args.host, args.port))
     uvicorn.run(
         "videoflow.api.app:create_http_app",
         factory=True,
@@ -249,6 +256,18 @@ def _serve(args: argparse.Namespace) -> int:
         port=args.port,
     )
     return 0
+
+
+def _ui_url(host: str, port: int) -> str:
+    visible = host if host not in {"0.0.0.0", "::"} else "127.0.0.1"
+    return f"http://{visible}:{port}/"
+
+
+def _schedule_browser(url: str) -> None:
+    import threading
+    import webbrowser
+
+    threading.Timer(1.5, lambda: webbrowser.open(url)).start()
 
 
 def _mcp() -> int:

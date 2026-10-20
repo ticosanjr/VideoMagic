@@ -30,12 +30,40 @@ def main() -> int:
     parser.add_argument("--binary", type=Path, default=ROOT / "dist" / "videoflow")
     parser.add_argument("--out", type=Path, default=ROOT / "dist")
     parser.add_argument("--work", type=Path, default=ROOT / "build" / "appimage")
+    parser.add_argument("--icon", type=Path, default=None)
+    parser.add_argument(
+        "--appdir-only",
+        action="store_true",
+        help="Create the AppDir and stop before appimagetool (for tests).",
+    )
     args = parser.parse_args()
     if not args.binary.is_file():
         print(f"binary not found: {args.binary}. Build the onefile first.")
         return 1
 
-    appdir = args.work / "AppDir"
+    appdir = build_appdir(args.binary, args.work, icon=args.icon)
+    if args.appdir_only:
+        print(f"appdir ready: {appdir}")
+        return 0
+
+    tool = _appimagetool(ROOT / "build" / "tools")
+    args.out.mkdir(parents=True, exist_ok=True)
+    output = args.out / f"VideoFlow-{__version__}-x86_64.AppImage"
+    environment = dict(os.environ)
+    environment["ARCH"] = "x86_64"
+    command = [str(tool), "--appimage-extract-and-run", str(appdir), str(output)]
+    completed = subprocess.run(command, env=environment, check=False)
+    if completed.returncode != 0:
+        return completed.returncode
+    output.chmod(0o755)
+    print(f"built {output} ({output.stat().st_size / 1_000_000:.1f} MB)")
+    return 0
+
+
+def build_appdir(binary: Path, work: Path, *, icon: Path | None = None) -> Path:
+    """Create the AppDir. No appimagetool needed, so this is unit-testable."""
+
+    appdir = work / "AppDir"
     if appdir.exists():
         shutil.rmtree(appdir)
     (appdir / "usr" / "bin").mkdir(parents=True)
@@ -43,12 +71,18 @@ def main() -> int:
     (appdir / "usr" / "share" / "icons" / "hicolor" / "256x256" / "apps").mkdir(parents=True)
 
     target = appdir / "usr" / "bin" / "videoflow"
-    shutil.copy2(args.binary, target)
+    shutil.copy2(binary, target)
     target.chmod(0o755)
 
     apprun = appdir / "AppRun"
     apprun.write_text(
-        '#!/bin/sh\nHERE="$(dirname "$(readlink -f "$0")")"\nexec "$HERE/usr/bin/videoflow" "$@"\n',
+        "#!/bin/sh\n"
+        'HERE="$(dirname "$(readlink -f "$0")")"\n'
+        'if [ "$#" -eq 0 ]; then\n'
+        '  echo "VideoFlow: starting http://127.0.0.1:8765/ (Ctrl+C to stop)"\n'
+        '  exec "$HERE/usr/bin/videoflow" serve --open\n'
+        "fi\n"
+        'exec "$HERE/usr/bin/videoflow" "$@"\n',
         encoding="utf-8",
     )
     apprun.chmod(apprun.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
@@ -66,24 +100,16 @@ Categories=AudioVideo;Video;
     (appdir / "usr" / "share" / "applications" / "videoflow.desktop").write_text(
         desktop, encoding="utf-8"
     )
-    icon = appdir / "videoflow.png"
-    _make_icon(icon)
+    icon_path = appdir / "videoflow.png"
+    if icon is not None:
+        shutil.copy2(icon, icon_path)
+    else:
+        _make_icon(icon_path)
     shutil.copy2(
-        icon, appdir / "usr" / "share" / "icons" / "hicolor" / "256x256" / "apps" / "videoflow.png"
+        icon_path,
+        appdir / "usr" / "share" / "icons" / "hicolor" / "256x256" / "apps" / "videoflow.png",
     )
-
-    tool = _appimagetool(ROOT / "build" / "tools")
-    args.out.mkdir(parents=True, exist_ok=True)
-    output = args.out / f"VideoFlow-{__version__}-x86_64.AppImage"
-    environment = dict(os.environ)
-    environment["ARCH"] = "x86_64"
-    command = [str(tool), "--appimage-extract-and-run", str(appdir), str(output)]
-    completed = subprocess.run(command, env=environment, check=False)
-    if completed.returncode != 0:
-        return completed.returncode
-    output.chmod(0o755)
-    print(f"built {output} ({output.stat().st_size / 1_000_000:.1f} MB)")
-    return 0
+    return appdir
 
 
 def _appimagetool(tools: Path) -> Path:

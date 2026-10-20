@@ -16,7 +16,7 @@ uv run mypy
 Expected on the scaffold:
 
 ```
-206 passed, 16 xfailed, 4 deselected
+209 passed, 16 xfailed, 5 deselected
 coverage 99%+
 ```
 
@@ -87,9 +87,21 @@ uv run videoflow-api
 curl -s http://127.0.0.1:8765/health
 ```
 
-Expect `{"status":"ok","service":"videoflow","version":"0.9.0"}`.
+Expect `{"status":"ok","service":"videoflow","version":"0.9.1"}`.
 
-## 8. Portable smoke
+## 8. AppImage contract
+
+```bash
+uv run pytest -m packaging --no-cov
+```
+
+This runs `scripts/smoke_appimage.py` against the newest staged AppImage:
+`version`, `doctor`, `demo`, `APPIMAGE_EXTRACT_AND_RUN=1 version`, and a
+`serve` health check. The unit suite also builds an AppDir with a fake binary
+and asserts the AppRun no-argument branch, desktop entry, icon, and executable
+bits.
+
+## 9. Portable smoke
 
 ```bash
 uv run python scripts/build_portable.py --fetch-ffmpeg
@@ -102,7 +114,7 @@ Then check `/health`, `/`, `/mcp/`, and the twelve tools over `videoflow mcp`.
 On Windows, run the same commands with `videoflow.exe`; FFmpeg is found inside
 the bundle, so an empty `PATH` is the proof.
 
-## 9. Release gate
+## 10. Release gate
 
 Run `docs/testing.md` section 11. Record:
 
@@ -115,7 +127,7 @@ Run `docs/testing.md` section 11. Record:
 
 A release without the manual section is not a release.
 
-## 10. Reading a failure
+## 11. Reading a failure
 
 1. Is it an `xfail` that now passes? Remove the marker and update the docs.
 2. Is coverage below 95%? Look at the missing lines, not at the threshold.
@@ -126,7 +138,7 @@ A release without the manual section is not a release.
 5. Is a planning test failing? Print the status map and the planned modules. The
    rule is in `domain/planning.py`.
 
-## 11. Adding a case
+## 12. Adding a case
 
 - Unit: no I/O, no network, fast.
 - Contract: public surface; xfail if not built.

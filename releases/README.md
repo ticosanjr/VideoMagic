@@ -38,6 +38,8 @@ videoflow-0.9.0-windows-x86_64.exe
 
 ## Current
 
+- `v0.9.1`: AppImage starts the UI when opened with no arguments; AppImage
+  contract tests.
 - `v0.9.0`: Linux binary, AppImage, and Windows PE; transcript/cull API and UI
   inspector. Versioned asset names.
 - `v0.8.0`: Linux binary, AppImage, and Windows PE. Local builds, no CI.

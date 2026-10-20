@@ -18,6 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RELEASES = ROOT / "releases"
 
+
 def default_artifacts(version: str) -> tuple[tuple[Path, str], ...]:
     return (
         (ROOT / "dist" / "videoflow", f"videoflow-{version}-linux-x86_64"),

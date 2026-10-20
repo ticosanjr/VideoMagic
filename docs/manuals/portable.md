@@ -251,11 +251,15 @@ distribution with a compatible glibc.
 
 ```bash
 uv run python scripts/build_appimage.py
-./dist/VideoFlow-0.9.0-x86_64.AppImage version
+./dist/VideoFlow-0.9.1-x86_64.AppImage version
 ```
 
-The AppImage wraps the same onefile binary. If FUSE is unavailable, run it with
-`--appimage-extract-and-run`. Data is stored in `videoflow-data` next to the
+The AppImage wraps the same onefile binary. Opening it with no arguments starts
+the local server and opens `http://127.0.0.1:8765/` in the browser. Passing a
+command still works (`version`, `doctor`, `run`, `mcp`).
+
+If FUSE is unavailable, run it with `--appimage-extract-and-run` or set
+`APPIMAGE_EXTRACT_AND_RUN=1`. Data is stored in `videoflow-data` next to the
 AppImage unless `VIDEOWFLOW_HOME` overrides it.
 
 ### Windows PE under Wine
@@ -290,7 +294,10 @@ testing is still recommended before wide distribution.
 
 ## 9. Limitations
 
-- The AppImage needs FUSE or `--appimage-extract-and-run`.
+- The AppImage needs FUSE or `--appimage-extract-and-run`. Without FUSE, a
+  double-click cannot mount it; use the plain Linux binary or the extract flag.
+- If the browser does not open, the server is still running at
+  `http://127.0.0.1:8765/`; open it manually.
 - The Windows PE is built with Wine and validated under Wine. Run it on a real
   Windows machine before signing or wide distribution.
 - No code signing. SmartScreen will warn until a certificate is configured.
