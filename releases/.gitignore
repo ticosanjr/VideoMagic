@@ -1,4 +1,5 @@
 # Binaries are local artifacts and GitHub Release assets, not git objects.
 */videoflow-*
 */VideoFlow-*.AppImage
+*/videoflow-data/
 *.zip
