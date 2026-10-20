@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (0.14.1)
+## Implementation status (0.15.0)
 
 | Area | State |
 | --- | --- |
@@ -14,11 +14,13 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | FCPXML 1.9/1.10, xmeml, OTIO export | implemented |
 | Portable artifacts | Linux binary, Linux AppImage, Windows PE built and smoke-tested under Wine |
 | SRT transcript import and LLM retake culling | implemented |
-| Silero VAD, Faster-Whisper, built-in transcription | specified, stubbed |
+| Local whisper.cpp transcription and ASR HTTP | implemented |
+| Silero VAD and Faster-Whisper quality path | specified, stubbed |
 | Jobs, job REST routes, SSE, live MCP jobs | implemented for the portable path |
-| Rack UI driving real portable jobs | implemented |
-| Project-scoped routes, transcripts, shorts | specified, stubbed |
-| Audio transitions, keyframed zooms, MP4, UI wiring | specified, stubbed |
+| Rack UI driving real portable jobs, logs, overrides, shorts | implemented |
+| Project-scoped routes and transcript API | specified, stubbed |
+| Shorts selection/rendering and API download | implemented |
+| Audio transitions, keyframed zooms, MP4 | specified, stubbed |
 
 Every stub has a strict `xfail` contract in `tests/contract/`.
 

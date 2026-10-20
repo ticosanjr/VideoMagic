@@ -206,6 +206,7 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
             "asr_base_url": "http://asr.local/v1",
             "asr_model": "whisper-1",
             "asr_language": "en",
+            "whisper_model": "/models/ggml-small.bin",
         },
     )
     assert response.status_code == 202
@@ -217,6 +218,7 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
     assert options["overrides"] == [{"sentence_id": 3, "action": "discard"}]
     assert options["transcribe"] is True
     assert options["asr_language"] == "en"
+    assert options["whisper_model"] == "/models/ggml-small.bin"
 
 
 def test_unknown_job_is_404(monkeypatch, tmp_path: Path) -> None:

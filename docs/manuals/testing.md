@@ -16,7 +16,7 @@ uv run mypy
 Expected on the scaffold:
 
 ```
-232 passed, 16 xfailed, 7 deselected
+240 passed, 16 xfailed, 7 deselected
 coverage 99%+
 UI: 8 passed (Vitest)
 ```
@@ -74,7 +74,23 @@ npm run build
 
 `npm run test` covers date/duration/status formatting. The rendered rack is
 checked manually by starting a job and confirming per-block progress, timestamps,
-status icons, and the log drawer.
+status icons, the log drawer, the override inspector, and local transcription.
+
+## 6b. Local Whisper smoke
+
+```bash
+uv run videoflow doctor                 # whisper.found must be true
+uv run videoflow run speech.mp4 -o /tmp/vf-whisper --transcribe --asr-language en
+uv run python - <<'PY'
+import json
+report = json.load(open("/tmp/vf-whisper/run.json"))
+assert report["transcript_source"] == "whisper"
+print(report["transcript_sentence_count"])
+PY
+```
+
+The fixture must contain real speech; a tone only proves the process ran. Use
+`--whisper-model path/to/ggml-small.bin` to compare quality.
 
 ## 7. MCP smoke
 
@@ -101,7 +117,7 @@ uv run videoflow-api
 curl -s http://127.0.0.1:8765/health
 ```
 
-Expect `{"status":"ok","service":"videoflow","version":"0.14.1"}`.
+Expect `{"status":"ok","service":"videoflow","version":"0.15.0"}`.
 
 ## 9. AppImage contract
 

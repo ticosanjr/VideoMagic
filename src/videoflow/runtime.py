@@ -81,6 +81,41 @@ def allowed_roots() -> list[Path]:
     return [Path.home(), Path.cwd(), portable_home()]
 
 
+def find_whisper_binary() -> str | None:
+    override = os.environ.get("VIDEOWFLOW_WHISPER_BIN")
+    if override:
+        return override
+    suffix = ".exe" if os.name == "nt" else ""
+    candidates = (
+        bundle_root() / "whisper" / f"whisper-cli{suffix}",
+        bundle_root() / "whisper" / f"main{suffix}",
+        executable_dir() / "whisper" / f"whisper-cli{suffix}",
+        executable_dir() / f"whisper-cli{suffix}",
+        bundle_root() / "vendor" / "whisper" / f"whisper-cli{suffix}",
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
+def find_whisper_model() -> Path | None:
+    override = os.environ.get("VIDEOWFLOW_WHISPER_MODEL")
+    if override:
+        path = Path(override).expanduser()
+        return path if path.is_file() else None
+    candidates = (
+        bundle_root() / "whisper" / "ggml-tiny.bin",
+        bundle_root() / "vendor" / "whisper" / "ggml-tiny.bin",
+        executable_dir() / "whisper" / "ggml-tiny.bin",
+        executable_dir() / "ggml-tiny.bin",
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def ui_dir() -> Path | None:
     override = os.environ.get("VIDEOWFLOW_UI_DIR")
     candidates = [Path(override).expanduser()] if override else []

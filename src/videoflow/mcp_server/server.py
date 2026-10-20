@@ -75,6 +75,7 @@ OVERRIDE_KEYS = {
     "asr_base_url",
     "asr_model",
     "asr_language",
+    "whisper_model",
 }
 
 

@@ -6,11 +6,10 @@ timeline: it removes silence and retakes, adds J-cuts and punch-ins, proposes
 vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive.
 
-> Status: 0.14.1 alpha. Portable Linux binary, Linux AppImage, and Windows PE run
-> ingest, silence detection, transcript-driven retake culling, deterministic
-> cuts, and three NLE exports. The local API, MCP server, and rack UI execute
-> real jobs. Silero, Whisper, shorts, and NLE transitions are specified and
-> stubbed.
+> Status: 0.15.0 alpha. Portable Linux binary, Linux AppImage, and Windows PE run
+> ingest, silence detection, SRT or local whisper.cpp transcription,
+> transcript-driven retake culling, deterministic cuts, vertical shorts, and
+> three NLE exports. The local API, MCP server, and rack UI execute real jobs.
 
 ## Requirements
 
@@ -20,14 +19,16 @@ and Kdenlive.
 - Optional: an NVIDIA GPU with CUDA for Faster-Whisper and Silero-VAD
 - Optional: DaVinci Resolve, Premiere Pro, and Kdenlive 25.04+ for manual import QA
 
-CPU is the default. No model download happens at install time.
+CPU is the default. The portable build bundles whisper.cpp and a tiny model; no
+model download happens at install time.
 
 ## Quick start
 
 ```bash
 uv sync --extra dev
-uv run pytest                       # 232 passing, 16 strict xfail, 7 deselected
+uv run pytest                       # 240 passing, 16 strict xfail, 7 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
+uv run python scripts/fetch_whisper.py  # optional local model into vendor/
 uv run videoflow-api                # http://127.0.0.1:8765/health and /mcp
 uv run videoflow-mcp                # stdio transport for a local agent
 ```
@@ -43,13 +44,13 @@ npm run dev                         # http://127.0.0.1:5173
 ## Portable executable
 
 One file per OS, no Python, Node, or FFmpeg install required when built with
-`--with-ffmpeg`:
+`--fetch-ffmpeg --with-whisper`:
 
 ```bash
-uv run python scripts/build_portable.py --fetch-ffmpeg
+uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper
 ./dist/videoflow doctor
 ./dist/videoflow demo -o ./demo
-./dist/videoflow run ~/Videos/interview.mp4 -o ./interview-edit
+./dist/videoflow run ~/Videos/interview.mp4 -o ./interview-edit --transcribe
 ./dist/videoflow serve              # API + MCP HTTP + rack UI
 ./dist/videoflow mcp                # MCP over stdio
 ```
@@ -57,7 +58,7 @@ uv run python scripts/build_portable.py --fetch-ffmpeg
 Artifacts are built locally, never in GitHub Actions:
 
 ```bash
-uv run python scripts/build_portable.py --fetch-ffmpeg   # Linux binary
+uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper   # Linux
 uv run python scripts/build_appimage.py                  # VideoFlow-X.Y.Z-x86_64.AppImage
 # Windows PE: Windows Python + PyInstaller, or Wine + embeddable Python
 uv run python scripts/release.py                         # stage releases/vX.Y.Z
@@ -74,6 +75,8 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   binary needs no model download.
 - SRT transcript import and retake culling with exact repeats or an
   OpenAI-compatible LLM, protected by the keep-last guard.
+- Offline speech-to-text through bundled whisper.cpp and `ggml-tiny.bin`, with
+  optional ASR HTTP and a path for larger GGML models.
 - Vertical shorts: deterministic or LLM selection, retake-aware conforming,
   1080x1920 render, and burned ASS captions.
 - Deterministic timeline: frame-quantised video, sample-aligned audio, merged
@@ -93,10 +96,10 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 
 ## Not implemented yet
 
-- Silero VAD, Faster-Whisper, and built-in transcription.
+- Silero VAD and Faster-Whisper quality path.
 - Project-scoped REST routes beyond jobs, and transcript/shorts API tools.
 - NLE audio transitions and keyframed progressive zooms.
-- Face tracking, MP4 rendering, and the interactive rack.
+- Face tracking, MP4 rendering, and per-block reruns.
 - A signed Windows binary (SmartScreen will warn).
 
 Every unimplemented contract has a test marked `xfail`, so the suite stays green

@@ -233,6 +233,7 @@ class JobManager:
                 or os.environ.get("VIDEOWFLOW_ASR_BASE_URL"),
                 asr_model=str(options.get("asr_model", "whisper-1")),
                 asr_language=str(options.get("asr_language", "pt")),
+                whisper_model=options.get("whisper_model") or None,
             )
             with self._lock:
                 if job.cancel_requested:

@@ -27,7 +27,7 @@ class FakeAdapter:
     def extract_pcm(self, source: Path, destination: Path, *, sample_rate: int = 16000) -> Path:
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(b"RIFF")
-        assert sample_rate == 48000
+        assert sample_rate in {16000, 48000}
         return destination
 
     def pcm_digest(self, path: Path) -> str:
@@ -192,6 +192,46 @@ def test_portable_pipeline_can_use_an_asr_client(tmp_path: Path) -> None:
     assert result.transcript_source == "asr"
     assert len(result.state.transcript) == 2
     assert result.to_dict()["transcript_source"] == "asr"
+
+
+def test_portable_pipeline_uses_local_whisper_without_an_url(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from videoflow.application import portable
+    from videoflow.domain.state import Sentence
+
+    monkeypatch.delenv("VIDEOWFLOW_ASR_BASE_URL", raising=False)
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    seen: dict[str, object] = {}
+
+    class Local:
+        def __init__(self, **kwargs: object) -> None:
+            seen.update(kwargs)
+
+        def transcribe(self, wav_path: Path, sample_rate: int) -> list[Sentence]:
+            seen["wav"] = wav_path
+            seen["sample_rate"] = sample_rate
+            return [
+                Sentence(id=0, start_sample=0, end_sample=48000, text="Local line one"),
+                Sentence(id=1, start_sample=96000, end_sample=144000, text="Local line two"),
+            ]
+
+    monkeypatch.setattr(portable, "WhisperCliAdapter", Local)
+    result = run_portable(
+        source,
+        tmp_path / "project",
+        adapter=FakeAdapter(),  # type: ignore[arg-type]
+        transcribe=True,
+        whisper_model=tmp_path / "model.bin",
+        cull_retakes=False,
+    )
+    assert result.transcript_source == "whisper"
+    assert len(result.state.transcript) == 2
+    assert seen["sample_rate"] == 48000
+    assert Path(str(seen["wav"])).name == "transcribe.wav"
+    assert seen["model"] == tmp_path / "model.bin"
+    assert result.to_dict()["transcript_source"] == "whisper"
 
 
 def test_portable_pipeline_can_render_shorts(tmp_path: Path) -> None:

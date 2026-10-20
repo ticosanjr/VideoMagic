@@ -5,4 +5,4 @@ deterministic timeline construction, and three NLE exporters. Neural engines,
 jobs, live routes, and the interactive rack are specified and stubbed.
 """
 
-__version__ = "0.14.1"
+__version__ = "0.15.0"

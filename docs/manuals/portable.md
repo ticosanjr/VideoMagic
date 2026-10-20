@@ -27,9 +27,10 @@ Windows embeddable Python. No GitHub Actions workflow is used.
 | `videoflow serve` | HTTP API + MCP Streamable HTTP + static rack UI |
 | `videoflow mcp` | MCP over stdio for an agent host |
 
-`run` is the model-free path: FFmpeg `silencedetect` finds speech. It does not
-transcribe, cull retakes, or generate shorts yet. Those engines are specified and
-still stubbed.
+`run` defaults to the model-free path: FFmpeg `silencedetect` finds speech. Add
+`--transcribe` for offline whisper.cpp, `--cull-retakes` for transcript-driven
+culling, or `shorts` for vertical clips. The neural VAD and LLM quality paths are
+optional.
 
 ## 2. Linux
 
@@ -117,8 +118,24 @@ repeats or LLM-selected retakes first. The report is `shorts-out/shorts.json`.
 
 ### Speech-to-text
 
-If you do not have an SRT, point VideoFlow at an OpenAI-compatible transcription
-endpoint (OpenAI, Groq, or a local faster-whisper server):
+The portable build bundles `whisper.cpp` and `ggml-tiny.bin`. With no SRT and no
+ASR URL, `--transcribe` extracts a 16 kHz mono WAV and runs entirely offline:
+
+```bash
+videoflow run interview.mp4 -o edit --transcribe --asr-language pt
+```
+
+Use a larger GGML model for quality by pointing at a local file:
+
+```bash
+videoflow run interview.mp4 -o edit --transcribe \
+  --whisper-model ~/models/ggml-small.bin
+```
+
+`VIDEOWFLOW_WHISPER_BIN` and `VIDEOWFLOW_WHISPER_MODEL` override the bundled
+binary and model. An SRT still takes precedence.
+
+To use a remote or local OpenAI-compatible endpoint instead, set a base URL:
 
 ```bash
 export VIDEOWFLOW_ASR_BASE_URL=http://localhost:8000/v1
@@ -128,7 +145,7 @@ videoflow run interview.mp4 -o edit \
 ```
 
 The endpoint must support `POST /audio/transcriptions` with
-`response_format=verbose_json`. An SRT still takes precedence.
+`response_format=verbose_json`.
 
 ### Transcript and retakes
 
@@ -265,24 +282,45 @@ uv sync --extra dev
 cd ui && npm ci && npm run build && cd ..
 
 # Linux
-uv run python scripts/build_portable.py --fetch-ffmpeg
+uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper
 ./dist/videoflow version
 
 # Windows (PowerShell)
-uv run python scripts/build_portable.py --fetch-ffmpeg
+uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper
 .\\dist\\videoflow.exe version
 ```
 
 Build on the target OS. A Linux binary built on a newer glibc will not start on
 an older distribution. The BtbN FFmpeg build is statically linked except for
 glibc core libraries (`libc`, `libm`, `libdl`, `libpthread`), so it runs on any
-distribution with a compatible glibc.
+distribution with a compatible glibc. The bundled `whisper-cli` is built with
+static libstdc++/libgcc and OpenMP disabled, so it only needs glibc too.
+
+### Whisper bundling and licensing
+
+`--with-whisper` runs `scripts/fetch_whisper.py`:
+
+- Linux: downloads whisper.cpp v1.7.6 source, builds a static `whisper-cli`, and
+  copies it to `vendor/whisper/`.
+- Windows: downloads the official v1.7.6 x64 zip and copies `whisper-cli.exe`,
+  `whisper.dll`, and the `ggml*.dll` files.
+- Both: downloads `ggml-tiny.bin` (~75 MB) from the whisper.cpp model repo.
+
+PyInstaller places these files under `whisper/` inside the onefile bundle.
+`find_whisper_binary` and `find_whisper_model` look there first, then honour
+`VIDEOWFLOW_WHISPER_BIN` and `VIDEOWFLOW_WHISPER_MODEL`. The model and CLI add
+roughly 80 MB to each artifact.
+
+whisper.cpp is MIT-licensed; the Whisper model weights are distributed by
+OpenAI/ggerganov under MIT terms. Review the upstream notices and include them
+with any redistribution. To ship a lean build without local transcription, omit
+`--with-whisper`; SRT and ASR HTTP still work.
 
 ### Linux AppImage
 
 ```bash
 uv run python scripts/build_appimage.py
-./dist/VideoFlow-0.14.1-x86_64.AppImage version
+./dist/VideoFlow-0.15.0-x86_64.AppImage version
 ```
 
 The AppImage wraps the same onefile binary. Opening it with no arguments starts
@@ -314,6 +352,9 @@ testing is still recommended before wide distribution.
 - [ ] `videoflow version` prints the expected version.
 - [ ] `videoflow doctor` exits 0 with FFmpeg paths inside the bundle.
 - [ ] `videoflow demo -o tmp` writes three artifacts.
+- [ ] `videoflow run INPUT -o tmp --transcribe` writes a transcript from the
+      bundled tiny model.
+- [ ] `videoflow doctor` reports the bundled whisper binary and model.
 - [ ] The artifacts parse (XML/OTIO) and open in the three NLEs.
 - [ ] `videoflow serve` answers `/health`, `/`, and `/mcp/`.
 - [ ] An MCP host lists twelve tools over `videoflow mcp`.
@@ -332,7 +373,7 @@ testing is still recommended before wide distribution.
 - The Windows PE is built with Wine and validated under Wine. Run it on a real
   Windows machine before signing or wide distribution.
 - No code signing. SmartScreen will warn until a certificate is configured.
-- The rack UI drives the portable run; per-block runs, presets persistence, and
-  the transcript inspector are later passes.
-- Built-in transcription, shorts, and NLE audio transitions are not in this
-  build. SRT retakes are.
+- The rack UI drives the portable run; per-block runs and presets persistence
+  are later passes.
+- Built-in transcription is the bundled tiny model; larger models improve
+  quality but are not shipped. NLE audio transitions remain future work.

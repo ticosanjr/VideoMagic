@@ -99,7 +99,7 @@ def main() -> int:
         notes.write_text(
             f"""# VideoFlow {args.version}
 
-Portable, model-free pre-edit pipeline.
+Portable video pre-edit pipeline with offline whisper.cpp transcription.
 
 ## Artifacts
 

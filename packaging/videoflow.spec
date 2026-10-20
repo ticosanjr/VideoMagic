@@ -43,6 +43,19 @@ for name in ("ffmpeg", "ffprobe"):
         if candidate.is_file():
             binaries.append((str(candidate), "vendor"))
 
+whisper = VENDOR / "whisper"
+if whisper.is_dir():
+    for candidate in sorted(whisper.iterdir()):
+        if not candidate.is_file():
+            continue
+        suffix = candidate.suffix.lower()
+        if suffix in {".exe", ".dll", ".so", ".dylib"} or (
+            suffix == "" and os.access(candidate, os.X_OK)
+        ):
+            binaries.append((str(candidate), "whisper"))
+        else:
+            datas.append((str(candidate), "whisper"))
+
 datas += collect_data_files("mcp")
 hiddenimports += collect_submodules("mcp.server")
 

@@ -3,6 +3,31 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.15.0] — 2026-10-20
+
+### Added
+
+- Offline transcription through the bundled whisper.cpp CLI and a tiny GGML
+  model. `--transcribe` with no ASR URL extracts 16 kHz audio and runs locally.
+- `whisper_model` in the job API, MCP overrides, and the Transcribe card; an
+  empty value uses `ggml-tiny.bin`, a path selects a larger model.
+- `scripts/fetch_whisper.py` builds Linux `whisper-cli` from pinned v1.7.6
+  source and downloads the official Windows x64 build plus the tiny model.
+- `scripts/build_portable.py --with-whisper` bundles the CLI and model.
+- Runtime discovery through `VIDEOWFLOW_WHISPER_BIN` and
+  `VIDEOWFLOW_WHISPER_MODEL`, with bundled `whisper/` paths as defaults.
+
+### Changed
+
+- ASR URL remains the opt-in remote path; an empty URL now means local
+  whisper.cpp instead of a configuration error.
+- Portable binaries grow by roughly 80 MB for the CLI and tiny model.
+
+### Verified
+
+- Real Linux `whisper-cli` and Windows `whisper-cli.exe` under Wine transcribe a
+  16 kHz WAV to SRT; the adapter parses it into source-sample sentences.
+
 ## [0.14.1] — 2026-10-20
 
 ### Fixed

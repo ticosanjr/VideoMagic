@@ -20,6 +20,7 @@ from videoflow import __version__
 from videoflow.adapters import LlmClient
 from videoflow.adapters.asr import WhisperHttpAdapter
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.adapters.whisper import WhisperCliAdapter
 from videoflow.application.export_service import export_timeline
 from videoflow.application.retakes import (
     cull_intervals,
@@ -119,6 +120,7 @@ def run_portable(
     asr_base_url: str | None = None,
     asr_model: str = "whisper-1",
     asr_language: str = "pt",
+    whisper_model: str | Path | None = None,
     asr_client: Any | None = None,
 ) -> PortableRun:
     """Run the complete model-free pipeline for one source file."""
@@ -225,28 +227,40 @@ def run_portable(
             emit("transcribe", "info", str(meta["message"]))
     elif transcribe:
         client = asr_client
-        if client is None:
-            base_url = asr_base_url or os.environ.get("VIDEOWFLOW_ASR_BASE_URL")
-            if not base_url:
-                raise IngestError(
-                    "Transcription is enabled but VIDEOWFLOW_ASR_BASE_URL is not set."
-                )
+        local = False
+        base_url = asr_base_url or os.environ.get("VIDEOWFLOW_ASR_BASE_URL")
+        if client is None and base_url:
             client = WhisperHttpAdapter(
                 base_url=base_url,
                 model=asr_model,
                 api_key=os.environ.get("VIDEOWFLOW_ASR_API_KEY"),
                 language=asr_language,
             )
-        with stage(
-            "transcribe", "transcribe", "Transcribe (ASR)", "Calling speech-to-text"
-        ) as meta:
+        elif client is None:
+            local = True
+            client = WhisperCliAdapter(
+                binary=os.environ.get("VIDEOWFLOW_WHISPER_BIN"),
+                model=whisper_model or os.environ.get("VIDEOWFLOW_WHISPER_MODEL"),
+                language=asr_language,
+                log=lambda level, message: emit("transcribe", level, message),
+            )
+        label = "Transcribe (local)" if local else "Transcribe (ASR)"
+        with stage("transcribe", "transcribe", label, "Calling speech-to-text") as meta:
             gate()
             step("transcript", 42, "Calling speech-to-text")
-            transcript = client.transcribe(wav, media.audio_sample_rate)
-            transcript_source = "asr"
+            source_wav = wav
+            if local:
+                source_wav = engine.extract_pcm(
+                    source_path, work / "transcribe.wav", sample_rate=16000
+                )
+            transcript = client.transcribe(source_wav, media.audio_sample_rate)
+            transcript_source = "whisper" if local else "asr"
             if not transcript:
                 raise IngestError("Speech-to-text returned no sentences.")
-            meta["message"] = f"{len(transcript)} sentences from ASR"
+            meta["message"] = (
+                f"{len(transcript)} sentences from "
+                f"{'local Whisper' if local else 'ASR'}"
+            )
             emit("transcribe", "info", str(meta["message"]))
 
     if not transcript and (cull_retakes or manual):

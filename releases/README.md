@@ -38,6 +38,7 @@ videoflow-0.9.0-windows-x86_64.exe
 
 ## Current
 
+- `v0.15.0`: offline whisper.cpp transcription with a bundled tiny model.
 - `v0.14.1`: sub-second durations, favicon, UI text, browser-verified flow.
 - `v0.14.0`: ASR transcription endpoint and Transcribe card.
 - `v0.13.0`: manual keep/discard overrides and inspector controls.

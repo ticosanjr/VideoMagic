@@ -63,6 +63,7 @@ class NewJobRequest(BaseModel):
     asr_base_url: str | None = None
     asr_model: str = "whisper-1"
     asr_language: Literal["pt", "it", "en", "es", "auto"] = "pt"
+    whisper_model: str | None = None
 
 
 def register_routes(app: FastAPI, jobs: JobManager) -> None:
@@ -112,6 +113,7 @@ def register_routes(app: FastAPI, jobs: JobManager) -> None:
                     "asr_base_url": request.asr_base_url,
                     "asr_model": request.asr_model,
                     "asr_language": request.asr_language,
+                    "whisper_model": request.whisper_model,
                 },
             )
         except VideoFlowError as exc:

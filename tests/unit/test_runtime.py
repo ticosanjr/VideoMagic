@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -39,3 +40,31 @@ def test_find_binary_prefers_a_vendored_copy(monkeypatch, tmp_path: Path) -> Non
     binary = vendor / "ffmpeg"
     binary.write_text("x", encoding="utf-8")
     assert runtime.find_binary("ffmpeg") == str(binary)
+
+
+def test_find_whisper_binary_and_model(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("VIDEOWFLOW_WHISPER_BIN", raising=False)
+    monkeypatch.delenv("VIDEOWFLOW_WHISPER_MODEL", raising=False)
+    monkeypatch.setattr(runtime, "bundle_root", lambda: tmp_path)
+    monkeypatch.setattr(runtime, "executable_dir", lambda: tmp_path / "bin")
+    whisper = tmp_path / "whisper"
+    whisper.mkdir()
+    binary = whisper / ("whisper-cli.exe" if os.name == "nt" else "whisper-cli")
+    model = whisper / "ggml-tiny.bin"
+    binary.write_text("x", encoding="utf-8")
+    model.write_bytes(b"model")
+    assert runtime.find_whisper_binary() == str(binary)
+    assert runtime.find_whisper_model() == model
+
+
+def test_find_whisper_honours_environment_overrides(monkeypatch, tmp_path: Path) -> None:
+    binary = tmp_path / "custom-whisper"
+    model = tmp_path / "custom.bin"
+    binary.write_text("x", encoding="utf-8")
+    model.write_bytes(b"model")
+    monkeypatch.setenv("VIDEOWFLOW_WHISPER_BIN", str(binary))
+    monkeypatch.setenv("VIDEOWFLOW_WHISPER_MODEL", str(model))
+    assert runtime.find_whisper_binary() == str(binary)
+    assert runtime.find_whisper_model() == model
+    monkeypatch.setenv("VIDEOWFLOW_WHISPER_MODEL", str(tmp_path / "missing.bin"))
+    assert runtime.find_whisper_model() is None

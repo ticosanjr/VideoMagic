@@ -28,7 +28,14 @@ from videoflow.domain.errors import VideoFlowError
 from videoflow.domain.timebase import Rounding
 from videoflow.domain.transcript import parse_srt_file
 from videoflow.exporters.common import write_text
-from videoflow.runtime import ensure_home, find_binary, portable_home, ui_dir
+from videoflow.runtime import (
+    ensure_home,
+    find_binary,
+    find_whisper_binary,
+    find_whisper_model,
+    portable_home,
+    ui_dir,
+)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -89,12 +96,12 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--transcribe",
         action="store_true",
-        help="Use an OpenAI-compatible speech-to-text endpoint when no SRT is given.",
+        help="Transcribe with local whisper.cpp, or an ASR endpoint when a URL is set.",
     )
     run.add_argument(
         "--asr-base-url",
         default=os.environ.get("VIDEOWFLOW_ASR_BASE_URL"),
-        help="ASR base URL. Defaults to VIDEOWFLOW_ASR_BASE_URL.",
+        help="ASR base URL. Empty runs the bundled whisper.cpp model.",
     )
     run.add_argument(
         "--asr-model",
@@ -104,6 +111,12 @@ def _parser() -> argparse.ArgumentParser:
         "--asr-language",
         choices=("pt", "it", "en", "es", "auto"),
         default="pt",
+    )
+    run.add_argument(
+        "--whisper-model",
+        type=Path,
+        default=None,
+        help="Local GGML model; empty uses the bundled ggml-tiny.bin.",
     )
     run.add_argument(
         "--cull-retakes",
@@ -195,6 +208,13 @@ def _doctor() -> int:
         checks["home_error"] = str(exc)
         ok = False
     checks["ui"] = str(ui_dir()) if ui_dir() else None
+    whisper_binary = find_whisper_binary()
+    whisper_model = find_whisper_model()
+    checks["whisper"] = {
+        "binary": whisper_binary,
+        "model": str(whisper_model) if whisper_model else None,
+        "found": bool(whisper_binary and whisper_model),
+    }
     try:
         import mcp  # noqa: F401
 
@@ -244,6 +264,7 @@ def _run(args: argparse.Namespace) -> int:
         asr_base_url=args.asr_base_url,
         asr_model=args.asr_model,
         asr_language=args.asr_language,
+        whisper_model=args.whisper_model,
         llm_client=client,
         strictness=args.strictness,
         retake_strategy=args.retake_strategy,

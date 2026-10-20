@@ -22,6 +22,7 @@ export type ConfigKey =
   | "asr_base_url"
   | "asr_model"
   | "asr_language"
+  | "whisper_model"
   | "cull_retakes"
   | "strictness"
   | "retake_strategy"
@@ -86,6 +87,7 @@ export const defaultConfig: JobConfig = {
   asr_base_url: "",
   asr_model: "whisper-1",
   asr_language: "pt",
+  whisper_model: "",
   cull_retakes: false,
   strictness: "balanced",
   retake_strategy: "keep_last",
@@ -167,27 +169,34 @@ export const modules: RackModule[] = [
     index: "03",
     id: "transcribe",
     name: "Transcribe",
-    summary: "Import an SRT or call an OpenAI-compatible speech-to-text endpoint.",
+    summary: "Import an SRT, run the bundled whisper.cpp model, or call an ASR endpoint.",
     portable: true,
-    tag: "SRT/ASR",
+    tag: "SRT/Local/ASR",
     toggleKey: "transcribe",
-    toggleLabel: "ASR",
-    note: "An SRT in the run panel wins. ASR posts the analysis WAV to /audio/transcriptions; the key stays in VIDEOWFLOW_ASR_API_KEY.",
+    toggleLabel: "Local/ASR",
+    note: "An SRT in the run panel wins. With no ASR URL, the bundled whisper.cpp tiny model runs offline. With a URL, the WAV posts to /audio/transcriptions; the key stays in VIDEOWFLOW_ASR_API_KEY.",
     fields: [
       {
         key: "asr_base_url",
         label: "ASR base URL",
         type: "text",
         implemented: true,
-        help: "Empty falls back to VIDEOWFLOW_ASR_BASE_URL."
+        help: "Empty runs local whisper.cpp; VIDEOWFLOW_ASR_BASE_URL is the fallback."
       },
       { key: "asr_model", label: "ASR model", type: "text", implemented: true },
       {
         key: "asr_language",
-        label: "ASR language",
+        label: "Language",
         type: "select",
         implemented: true,
         options: ["pt", "it", "en", "es", "auto"].map((value) => ({ value, label: value }))
+      },
+      {
+        key: "whisper_model",
+        label: "Local model",
+        type: "text",
+        implemented: true,
+        help: "Empty uses the bundled tiny model; point to a larger ggml model for quality."
       }
     ]
   },

@@ -33,6 +33,16 @@ def main() -> int:
         action="store_true",
         help="Force a fresh static FFmpeg download.",
     )
+    parser.add_argument(
+        "--with-whisper",
+        action="store_true",
+        help="Bundle whisper-cli and the tiny GGML model (downloads/builds as needed).",
+    )
+    parser.add_argument(
+        "--refresh-whisper",
+        action="store_true",
+        help="Force a fresh whisper.cpp/model download.",
+    )
     parser.add_argument("--name", default="videoflow")
     parser.add_argument("--clean", action="store_true", default=True)
     args = parser.parse_args()
@@ -68,6 +78,16 @@ def main() -> int:
     if not (ui / "index.html").is_file():
         print("UI build is missing; the executable will run without a browser UI.")
         print("Run `npm ci && npm run build` in ui/ to include it.")
+
+    if args.with_whisper:
+        from fetch_whisper import fetch
+
+        whisper = vendor / "whisper"
+        present = (whisper / ("whisper-cli.exe" if os.name == "nt" else "whisper-cli")).is_file()
+        if present and not args.refresh_whisper:
+            print(f"reusing {whisper}")
+        else:
+            fetch("windows" if os.name == "nt" else "linux", vendor, refresh=args.refresh_whisper)
 
     command = [
         sys.executable,

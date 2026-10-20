@@ -47,7 +47,7 @@ GET /health
 ```
 
 ```json
-{ "status": "ok", "service": "videoflow", "version": "0.14.1" }
+{ "status": "ok", "service": "videoflow", "version": "0.15.0" }
 ```
 
 ```http
@@ -57,7 +57,7 @@ GET /api/v1/system
 ```json
 {
   "ok": true,
-  "version": "0.14.1",
+  "version": "0.15.0",
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
@@ -116,7 +116,8 @@ Content-Type: application/json
   "transcribe": true,
   "asr_base_url": "http://localhost:8000/v1",
   "asr_model": "whisper-1",
-  "asr_language": "pt"
+  "asr_language": "pt",
+  "whisper_model": null
 }
 ```
 
@@ -129,10 +130,13 @@ culled.
 the cull set, `discard` adds it. Manual decisions win over the model and guard.
 Overrides require a transcript.
 
-When `transcribe` is true and no SRT is supplied, the worker posts the analysis
-WAV to `<asr_base_url>/audio/transcriptions` with `response_format=verbose_json`.
-The API key is read from `VIDEOWFLOW_ASR_API_KEY`; the base URL falls back to
-`VIDEOWFLOW_ASR_BASE_URL`. SRT wins if both are present.
+When `transcribe` is true and no SRT is supplied, an `asr_base_url` selects the
+remote path: the worker posts the analysis WAV to
+`<asr_base_url>/audio/transcriptions` with `response_format=verbose_json`. The
+API key is read from `VIDEOWFLOW_ASR_API_KEY`; the base URL falls back to
+`VIDEOWFLOW_ASR_BASE_URL`. With no URL, the bundled whisper.cpp CLI and tiny
+model run locally. An empty `whisper_model` uses the bundled model; a path
+selects a larger GGML file. SRT wins if present.
 
 `source` and `output` are resolved through the path allowlist. Both are required.
 The output directory is created by the worker.
@@ -267,7 +271,7 @@ On success, `job.result` is the `run_portable` report:
 ```json
 {
   "ok": true,
-  "version": "0.14.1",
+  "version": "0.15.0",
   "speech_interval_count": 3,
   "video_segment_count": 3,
   "audio_segment_count": 3,

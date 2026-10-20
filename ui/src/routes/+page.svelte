@@ -147,6 +147,7 @@
       asr_base_url: String(config.asr_base_url || "").trim() || null,
       asr_model: String(config.asr_model || "whisper-1"),
       asr_language: String(config.asr_language || "pt"),
+      whisper_model: String(config.whisper_model || "").trim() || null,
       overrides: Object.entries(overrides).map(([sentenceId, action]) => ({
         sentence_id: Number(sentenceId),
         action
