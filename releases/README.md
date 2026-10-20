@@ -20,7 +20,7 @@ releases/v0.4.0/
    project. Uploading to a GitHub Release is a separate, manual decision.
 
 ```bash
-uv run python scripts/build_portable.py --fetch-ffmpeg
+uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper
 uv run python scripts/build_appimage.py
 # Windows PE via Wine + embeddable Python, see docs/manuals/portable.md
 uv run python scripts/release.py
@@ -38,6 +38,7 @@ videoflow-0.9.0-windows-x86_64.exe
 
 ## Current
 
+- `v0.16.0`: all twelve MCP tools and four resources live, with staged edits.
 - `v0.15.0`: offline whisper.cpp transcription with a bundled tiny model.
 - `v0.14.1`: sub-second durations, favicon, UI text, browser-verified flow.
 - `v0.14.0`: ASR transcription endpoint and Transcribe card.

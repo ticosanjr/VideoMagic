@@ -3,6 +3,48 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.16.0] — 2026-10-20
+
+### Added
+
+- All twelve MCP tools now execute real work. `run_vad` uses FFmpeg speech
+  detection; `transcribe` uses local whisper.cpp and stages an SRT;
+  `get_transcript`, culling, zoom, J-cut, shorts, and export tools read and
+  modify real project state.
+- Staged MCP edits: retake culling, zoom configuration, and J-cuts update
+  pending options that the next `videoflow_run_pipeline` applies unless the
+  caller explicitly overrides them.
+- `videoflow_generate_shorts` returns deterministic vertical clip proposals
+  from the cached or project transcript, with retake cuts respected.
+- `videoflow_export_fcpxml` exports the latest completed state for Resolve,
+  Premiere, or Kdenlive, warns when staged edits are pending, and writes any
+  requested output path inside the allowed roots.
+- All four MCP resources are live: project state, transcript SRT, presets, and
+  export paths. Missing data returns typed errors instead of stubs.
+- `videoflow_transcribe` writes its SRT into the target project and stages it,
+  so the pipeline uses the exact transcript the agent inspected.
+
+### Changed
+
+- `videoflow_run_vad` takes `noise_db`, `min_silence_ms`, and `min_speech_ms`,
+  matching the FFmpeg backend.
+- Loading a different source clears the previous MCP job, transcript, pending
+  edits, and output context.
+- Word-level retake culling returns `word_overrides_not_supported`; sentence
+  ids remain the supported granularity.
+- MCP documentation and the agent manual now describe the live contract.
+
+### Verified
+
+- Real MCP end-to-end on `jfk.mp4`: load, VAD, local transcription, transcript,
+  culling, zoom, J-cut, shorts, pipeline success, all resources, and export.
+- Linux 0.16.0 binary and AppImage: `version`, `doctor`, `demo`, and a frozen
+  MCP workflow with local whisper.cpp.
+- Windows PE 0.16.0 under Wine: `version`, `doctor`, `demo`, and a frozen MCP
+  workflow with local `whisper-cli.exe`.
+- Tests: 243 passed, 15 xfailed, 7 deselected; coverage 99.22%; ruff and mypy
+  clean.
+
 ## [0.15.0] — 2026-10-20
 
 ### Added

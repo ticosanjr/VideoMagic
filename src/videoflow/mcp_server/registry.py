@@ -26,12 +26,12 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "videoflow_run_vad",
-        "Run Silero VAD and return how much silence would be removed.",
+        "Run speech detection on the loaded media and report removable silence.",
         "vad",
     ),
     ToolSpec(
         "videoflow_transcribe",
-        "Transcribe the extracted WAV with Faster-Whisper. Word times stay in source samples.",
+        "Transcribe the loaded media with local whisper.cpp. Word times stay in source samples.",
         "transcribe",
     ),
     ToolSpec(
@@ -41,7 +41,7 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "videoflow_cull_retakes",
-        "Apply retake discards. The keep-last guard overrides an illegal drop of the final take.",
+        "Apply retake discards. The keep-last guard protects the final take.",
         "retakes",
     ),
     ToolSpec(
@@ -61,12 +61,12 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "videoflow_export_fcpxml",
-        "Export for Resolve (FCPXML), Premiere (xmeml), or Kdenlive (OTIO).",
+        "Export the latest completed timeline for Resolve, Premiere, or Kdenlive.",
         "export",
     ),
     ToolSpec(
         "videoflow_run_pipeline",
-        "Run the model-free pipeline for a loaded or explicit source and return a job.",
+        "Run the pipeline for a loaded or explicit source and return a job; pending edits apply.",
         "export",
     ),
     ToolSpec(
@@ -87,12 +87,3 @@ RESOURCE_SPECS: tuple[ResourceSpec, ...] = (
     ResourceSpec("videoflow://presets/list", "Shipped and operator presets."),
     ResourceSpec("videoflow://project/exports", "Paths of the latest export artifacts."),
 )
-
-
-def not_implemented_payload(capability: str) -> dict[str, object]:
-    return {
-        "ok": False,
-        "code": "not_implemented",
-        "message": f"{capability} is specified but not implemented in this scaffold.",
-        "tool": capability,
-    }

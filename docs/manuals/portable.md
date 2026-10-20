@@ -221,10 +221,12 @@ Speaks MCP over stdin/stdout. Register it in the host:
 }
 ```
 
-Twelve tools and four resources are registered. Four tools are live:
-`videoflow_load_media`, `videoflow_run_pipeline`, `videoflow_get_job`, and
-`videoflow_cancel_job`. The neural tools return a structured
-`not_implemented` result.
+Twelve tools and four resources are registered, and all of them are live.
+`videoflow_load_media`, `videoflow_run_vad`, `videoflow_transcribe`,
+`videoflow_get_transcript`, and `videoflow_generate_shorts` do immediate work.
+Retake, zoom, and J-cut tools stage edits for the next
+`videoflow_run_pipeline`; `videoflow_export_fcpxml` exports the latest completed
+job. See [the MCP manual](../mcp.md) for the full contract.
 
 ### doctor
 
@@ -320,7 +322,7 @@ with any redistribution. To ship a lean build without local transcription, omit
 
 ```bash
 uv run python scripts/build_appimage.py
-./dist/VideoFlow-0.15.0-x86_64.AppImage version
+./dist/VideoFlow-0.16.0-x86_64.AppImage version
 ```
 
 The AppImage wraps the same onefile binary. Opening it with no arguments starts

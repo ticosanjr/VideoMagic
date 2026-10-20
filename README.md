@@ -6,27 +6,27 @@ timeline: it removes silence and retakes, adds J-cuts and punch-ins, proposes
 vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive.
 
-> Status: 0.15.0 alpha. Portable Linux binary, Linux AppImage, and Windows PE run
+> Status: 0.16.0 alpha. Portable Linux binary, Linux AppImage, and Windows PE run
 > ingest, silence detection, SRT or local whisper.cpp transcription,
 > transcript-driven retake culling, deterministic cuts, vertical shorts, and
-> three NLE exports. The local API, MCP server, and rack UI execute real jobs.
+> three NLE exports. The local API, MCP server, and rack UI execute real jobs;
+> all twelve MCP tools and four resources are live.
 
 ## Requirements
 
 - Python 3.11 or newer
 - [uv](https://docs.astral.sh/uv/)
 - FFmpeg and FFprobe on `PATH`
-- Optional: an NVIDIA GPU with CUDA for Faster-Whisper and Silero-VAD
 - Optional: DaVinci Resolve, Premiere Pro, and Kdenlive 25.04+ for manual import QA
 
 CPU is the default. The portable build bundles whisper.cpp and a tiny model; no
-model download happens at install time.
+model download happens at install time. A GPU is not required.
 
 ## Quick start
 
 ```bash
 uv sync --extra dev
-uv run pytest                       # 240 passing, 16 strict xfail, 7 deselected
+uv run pytest                       # 243 passing, 15 strict xfail, 7 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py  # optional local model into vendor/
 uv run videoflow-api                # http://127.0.0.1:8765/health and /mcp
@@ -87,8 +87,10 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   `audioDuration` in FCPXML.
 - Pure domain: rational time, cache hashing, planning, retake guard, path jail,
   redaction, schema generation.
-- MCP server with twelve tools and four resources, plus a loopback health
-  endpoint and Streamable HTTP mount.
+- MCP server with twelve live tools and four resources: media ingest, FFmpeg
+  speech detection, local whisper.cpp transcription, transcript reads, staged
+  retake/zoom/J-cut edits, shorts proposals, real jobs, NLE export, and project
+  state/preset/export resources. Streamable HTTP is mounted on the local API.
 - Unified CLI (`run`, `serve`, `mcp`, `doctor`, `demo`, `version`) and a
   PyInstaller onefile build for Linux and Windows.
 - Local job API with SSE progress, and MCP tools that start, poll, and cancel

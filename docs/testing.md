@@ -91,8 +91,8 @@ smokes run locally and are recorded in the release notes.
 | `test_shorts_media.py` | Renders two 1080x1920 clips with ASS via the CLI (`media`) |
 | `test_api_jobs.py` | Job create/poll, stages/logs, new options, path jail, SSE, system, real media (`media`) |
 | UI `format.test.ts` | Duration, elapsed time, date, status text (Vitest) |
-| `test_mcp.py` | Twelve tool names, schemas, structured stub call |
-| `test_mcp_live.py` | Live media load, job start/poll, jail, invalid preset |
+| `test_mcp.py` | Twelve tool names, typed errors, preset/state resources |
+| `test_mcp_live.py` | Live VAD/transcription/transcript, staged edits, shorts, job polling, export, resources |
 | `test_api.py` | `/health` and MCP redirect |
 | `test_schemas.py` | Committed schemas match models, no `api_key` |
 | `test_pipeline.py` | Missing-source ingest failure |

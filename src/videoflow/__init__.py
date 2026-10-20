@@ -1,8 +1,9 @@
 """VideoFlow core package.
 
 Implemented: rational time, state, cache, planning, retake guard, FFmpeg ingest,
-deterministic timeline construction, and three NLE exporters. Neural engines,
-jobs, live routes, and the interactive rack are specified and stubbed.
+speech detection, SRT and local whisper.cpp transcription, deterministic
+timeline construction, three NLE exporters, jobs, the live API, the rack UI,
+and the MCP surface.
 """
 
-__version__ = "0.15.0"
+__version__ = "0.16.0"

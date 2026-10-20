@@ -42,39 +42,30 @@ For HTTP:
 
 ## 2. Tools
 
-Four tools are live in the current build: `videoflow_load_media`,
-`videoflow_run_pipeline`, `videoflow_get_job`, and `videoflow_cancel_job`. They
-operate on the model-free portable pipeline. The neural tools still return:
+All twelve tools execute real work. `videoflow_load_media` remembers the source.
+Analysis tools work immediately. Edit tools stage configuration for the next
+`videoflow_run_pipeline`; the result says `applies_to_next_run` when a job is
+still required.
 
-```json
-{
-  "ok": false,
-  "code": "not_implemented",
-  "message": "videoflow_transcribe is specified but not implemented in this scaffold.",
-  "tool": "videoflow_transcribe"
-}
-```
-
-That is a structured success at the protocol level, with `is_error` false, so an
-agent can read the code instead of parsing a transport fault.
-
-| Tool | Inputs | Status |
+| Tool | Inputs | Behavior |
 | --- | --- | --- |
-| `videoflow_load_media` | `file_path` | **live**: probes and remembers the source |
-| `videoflow_run_vad` | `speech_threshold`, `min_silence_duration_ms`, `speech_pad_before_ms` | stub |
-| `videoflow_transcribe` | `model`, `language` | stub |
-| `videoflow_get_transcript` | `include_word_timestamps` | stub |
-| `videoflow_cull_retakes` | `discard_sentence_ids`, `manual_word_indices` | stub |
-| `videoflow_configure_zooms` | `mode`, `scale`, `anchor` | stub |
-| `videoflow_apply_jcuts` | `offset_ms`, `crossfade_ms` | stub |
-| `videoflow_generate_shorts` | `min_duration`, `max_duration`, `count`, `subtitles` | stub |
-| `videoflow_export_fcpxml` | `output_path`, `target_nle` | stub |
-| `videoflow_run_pipeline` | `preset_name`, `overrides`, optional `source`, optional `output` | **live**: starts a job |
+| `videoflow_load_media` | `file_path` | **live**: probes and remembers the source; loading a different source clears the old MCP project context |
+| `videoflow_run_vad` | `noise_db`, `min_silence_ms`, `min_speech_ms` | **live**: FFmpeg speech detection; returns sample intervals and removable silence |
+| `videoflow_transcribe` | `model`, `language` | **live**: local whisper.cpp; returns sentences and stages an SRT for the next run |
+| `videoflow_get_transcript` | `include_word_timestamps` | **live**: cached or project-state transcript, plus SRT |
+| `videoflow_cull_retakes` | `discard_sentence_ids`, `manual_word_indices` | **live/staged**: automatic exact-repeat culling plus manual sentence discards; the guard protects the final take |
+| `videoflow_configure_zooms` | `mode`, `scale`, `anchor` | **live/staged**: punch-in, anchor, and pan metadata |
+| `videoflow_apply_jcuts` | `offset_ms`, `crossfade_ms` | **live/staged**: audio offset and logarithmic micro-fades |
+| `videoflow_generate_shorts` | `min_duration`, `max_duration`, `count`, `subtitles` | **live**: deterministic vertical clip proposals in source time |
+| `videoflow_export_fcpxml` | `output_path`, `target_nle` | **live**: exports the latest completed timeline |
+| `videoflow_run_pipeline` | `preset_name`, `overrides`, optional `source`, optional `output` | **live**: starts a real job |
 | `videoflow_get_job` | `job_id` | **live**: status, progress, report |
 | `videoflow_cancel_job` | `job_id` | **live**: cooperative cancel |
 
 `run_pipeline` returns immediately with a job. `source` may be omitted after
 `load_media`; `output` defaults to `<source-stem>-videoflow` next to the source.
+Poll `videoflow_get_job` at a human pace until `succeeded`, `failed`, or
+`cancelled`.
 
 Presets accepted by `run_pipeline`:
 
@@ -83,59 +74,87 @@ Presets accepted by `run_pipeline`:
 - `lecture-clean`: no J-cuts, no zooms, 700 ms silence.
 
 `overrides` accepts `jcut`, `lcut`, `zooms`, `noise_db`, `min_silence_ms`,
-`dialect`, `transcript`, `cull_retakes`, `strictness`, `retake_strategy`, and
-`context_window`. Unknown keys return `invalid_overrides`. `transcript` is
+`min_speech_ms`, `offset_ms`, `crossfade_ms`, `handle_check`, `zoom_mode`,
+`punch_in_scale`, `anchor_point`, `progressive_zoom`, `pan_direction`,
+`export_targets`, `dialect`, `transcript`, `cull_retakes`, `strictness`,
+`retake_strategy`, `context_window`, `llm_base_url`, `llm_model`, `shorts`,
+`shorts_count`, `shorts_min_sec`, `shorts_max_sec`, `shorts_subtitles`,
+`overrides`, `transcribe`, `asr_base_url`, `asr_model`, `asr_language`, and
+`whisper_model`. Unknown keys return `invalid_overrides`. `transcript` is
 resolved through the same path allowlist as the source.
 
-The last two are additions. Without them an agent cannot satisfy AC-04, because
-long jobs would be opaque and unstoppable.
+When a job starts, VideoFlow merges options in this order: preset defaults,
+explicit `overrides`, then staged MCP edits for keys the caller did not
+explicitly set. Staged edits are cleared when the job starts.
+
+`videoflow_cull_retakes` is sentence-level. Passing `manual_word_indices` returns
+`word_overrides_not_supported`; word-level culling is not part of v1.
+
+`videoflow_generate_shorts` returns proposals; it does not render MP4 files.
+Set `shorts` in the pipeline options to render them. `subtitles` is reported on
+the proposal and can be set through `shorts_subtitles` when rendering.
 
 `videoflow_export_fcpxml` keeps its historical name. `target_nle` selects the
-dialect: `resolve`, `premiere`, or `kdenlive`. A caller that expects a file named
-`.fcpxml` when targeting Premiere is wrong by contract.
+dialect: `resolve` (`.fcpxml`), `premiere` (`.xml`), or `kdenlive` (`.otio`).
+It exports the latest **completed** job state. Staged zooms, J-cuts, or retakes
+are not included until a new pipeline run completes; the response carries a
+warning in that case.
 
 ## 3. Resources
 
 | URI | Body |
 | --- | --- |
 | `videoflow://project/state` | `ProjectState` JSON |
-| `videoflow://project/transcript` | Plain text or SRT |
-| `videoflow://presets/list` | Preset summaries |
-| `videoflow://project/exports` | Artifact paths and timestamps |
+| `videoflow://project/transcript` | SRT generated from the cached or project transcript |
+| `videoflow://presets/list` | Built-in and shipped preset JSON |
+| `videoflow://project/exports` | Artifact paths and existence checks from `run.json` |
 
-Resources are read-only. A write goes through a tool.
+Resources are read-only. A write goes through a tool. Before a successful job,
+state and export resources return JSON with a typed error such as
+`state_not_found`, `transcript_not_found`, or `exports_not_found`; these are data,
+not transport failures.
 
 ## 4. Agent workflow
 
-The working path, using only public tools:
+The complete path, using only public tools:
 
 ```
-1. videoflow_load_media(file_path="/media/interview.mp4")
-2. videoflow_run_pipeline(preset_name="youtube-talking-head",
-                          output="/projects/interview-edit")
-3. videoflow_get_job(job_id=...) until status is succeeded or failed
-4. Read job.result.artifacts
+1.  videoflow_load_media(file_path="/media/interview.mp4")
+2.  videoflow_run_vad(noise_db=-30, min_silence_ms=400)
+3.  videoflow_transcribe(model="small", language="pt")
+4.  videoflow_get_transcript(include_word_timestamps=true)
+5.  videoflow_cull_retakes(discard_sentence_ids=[...])
+6.  videoflow_configure_zooms(mode="alternate_cuts", scale=1.15)
+7.  videoflow_apply_jcuts(offset_ms=200, crossfade_ms=20)
+8.  videoflow_generate_shorts(min_duration=30, max_duration=60, count=3)
+9.  videoflow_run_pipeline(preset_name="youtube-talking-head",
+                           output="/projects/interview-edit")
+10. videoflow_get_job(job_id=...) until status is succeeded or failed
+11. videoflow_export_fcpxml(output_path="/projects/interview-edit/exports/copy.fcpxml",
+                            target_nle="resolve")
+12. read videoflow://project/state and videoflow://project/exports
 ```
 
-That produces the three timelines from the model-free engine. It does not
-transcribe, cull retakes, or make shorts yet.
+`videoflow_transcribe` writes a cached SRT and stages it, so the next pipeline
+uses exactly the transcript the agent inspected. If transcription is skipped,
+run the pipeline with `transcribe=true` and the desired `asr_language` or
+`whisper_model`. Retake culling needs a transcript from either path.
 
-The full AC-04 path, once the neural tools land:
-
-```
-load_media → run_vad → transcribe → get_transcript → cull_retakes
-→ apply_jcuts → configure_zooms → generate_shorts → export_fcpxml
-```
-
-An agent must not assume that a tool call returns instantly. It should poll
+An agent must not assume that a tool call returns instantly. Poll
 `videoflow_get_job` at a human pace or subscribe to the SSE stream through the
-API. Cancel with `videoflow_cancel_job` when the human changes direction.
+API. Cancel with `videoflow_cancel_job` when the human changes direction. Up to
+two jobs run per process; a third returns `job_queue_full`.
 
 ## 5. Error semantics
 
 | Code | Agent action |
 | --- | --- |
-| `not_implemented` | Stop; this build cannot do it |
+| `source_required` | Call `videoflow_load_media` or pass `source` to `videoflow_run_pipeline` |
+| `transcript_not_found` | Transcribe first, or run the pipeline with transcription enabled |
+| `state_not_found` | Run a pipeline and wait for success before exporting or reading state |
+| `exports_not_found` | Wait for the job report, then read exports again |
+| `invalid_arguments` | Correct the value; do not guess |
+| `word_overrides_not_supported` | Use sentence ids |
 | `upstream_dirty` | Run the named ancestors, or retry with upstream execution enabled |
 | `module_bypassed` | Enable the module or choose another path |
 | `job_queue_full` | Wait for a job to finish, then retry |
@@ -173,9 +192,14 @@ See [security.md](security.md).
 ## 8. Testing
 
 `tests/contract/test_mcp.py` asserts the registry and the live SDK tool list
-agree, all names are prefixed, a stub call returns the structured
-`not_implemented` payload, and resources are declared.
+agree, all names are prefixed, tools without media return typed errors, and the
+preset/state resources answer.
 
 `tests/contract/test_mcp_live.py` exercises the real tools: path jail, media
-probe, job start, polling, invalid preset, and unknown job. The frozen binary was
-also smoke-tested over stdio with `load_media → run_pipeline → get_job`.
+probe, VAD, local transcription, transcript reads, staged culling/zoom/J-cut
+options, shorts proposals, job start and polling, export, and all four
+resources.
+
+The frozen Linux binary and the Windows PE under Wine were smoke-tested over
+stdio with `load_media → run_vad → transcribe → get_transcript → run_pipeline →
+get_job → export_fcpxml`.

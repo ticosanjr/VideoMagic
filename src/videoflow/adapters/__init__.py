@@ -1,4 +1,5 @@
-"""External engines. Ingest is implemented; the neural and LLM engines are stubs."""
+"""External engines. FFmpeg, whisper.cpp, HTTP ASR, and LLM adapters live here;
+the Silero and Faster-Whisper protocols remain future adapters."""
 
 from __future__ import annotations
 

@@ -108,7 +108,9 @@ print(asyncio.run(build_server().list_tools()))
 PY
 ```
 
-Expect twelve tools. A call returns `not_implemented` in this build.
+Expect twelve tools. Analysis tools answer immediately; edit tools stage options
+for the next pipeline run. A successful smoke should load media, run VAD,
+transcribe, read the transcript, start a job, poll it to success, and export.
 
 ## 8. API smoke
 
@@ -117,7 +119,7 @@ uv run videoflow-api
 curl -s http://127.0.0.1:8765/health
 ```
 
-Expect `{"status":"ok","service":"videoflow","version":"0.15.0"}`.
+Expect `{"status":"ok","service":"videoflow","version":"0.16.0"}`.
 
 ## 9. AppImage contract
 
