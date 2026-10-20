@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (0.20.0)
+## Implementation status (0.20.1)
 
 | Area | State |
 | --- | --- |
@@ -11,8 +11,8 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | FFmpeg ingest and PCM fingerprint | implemented |
 | Silero VAD via ONNX Runtime with FFmpeg `silencedetect` fallback | implemented |
 | Deterministic timeline, J/L-cuts, fades, punch-ins | implemented |
-| FCPXML 1.9/1.10, xmeml, OTIO export | implemented |
-| Portable artifacts | 0.20.0 Linux binary, Linux AppImage, and Windows PE built and smoke-tested under Wine; the file browser is included |
+| FCPXML 1.9/1.10, xmeml v4, native Kdenlive MLT export | implemented |
+| Portable artifacts | 0.20.1 Linux binary, Linux AppImage, and Windows PE built and smoke-tested under Wine; the file browser is included |
 | SRT transcript import and LLM retake culling | implemented |
 | Local Faster-Whisper with whisper.cpp fallback, and ASR HTTP | implemented; pinned small model bundled in release builds |
 | Local filesystem browser with allowlisted roots | implemented; no media upload |
@@ -39,7 +39,7 @@ Every stub has a strict `xfail` contract in `tests/contract/`.
 | [API](api.md) | You are wiring the UI or a script |
 | [MCP](mcp.md) | You are connecting an agent |
 | [UI specification](ui-spec.md) | You are building the rack |
-| [Exporters](exporters.md) | You are writing FCPXML, xmeml, or OTIO |
+| [Exporters](exporters.md) | You are writing FCPXML, xmeml, or Kdenlive MLT |
 | [Security](security.md) | You are handling paths, secrets, or prompts |
 
 ## Module specifications

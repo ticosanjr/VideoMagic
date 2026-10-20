@@ -63,7 +63,7 @@ Rules:
 | `adapters/whisper.py` | Local whisper.cpp CLI adapter and fallback |
 | `adapters/asr.py` | OpenAI-compatible `/audio/transcriptions` client |
 | `adapters/llm.py` | OpenAI-compatible retake client |
-| `exporters/` | FCPXML, xmeml, OTIO implemented; MP4 stub |
+| `exporters/` | FCPXML, xmeml, native Kdenlive MLT implemented; OTIO helper; MP4 stub |
 | `api/` | FastAPI app, job routes, SSE, UI mount, CLI |
 | `mcp_server/` | Tool registry, SDK server, stdio CLI |
 
@@ -88,7 +88,7 @@ ingest ──► vad ──────────────┐
 | jl_cuts | VAD spans, culls | video and audio segments | domain + timebase |
 | zooms | segments | transforms | domain rules |
 | shorts | transcript, culls | vertical source windows | LLM + FFmpeg |
-| export | all of the above | FCPXML, xmeml, OTIO, MP4 | lxml, OTIO, FFmpeg |
+| export | all of the above | FCPXML, xmeml, Kdenlive MLT, MP4 | lxml, MLT-compatible XML, OTIO, FFmpeg |
 
 A bypassed module emits an identity result: the same input payload, an explicit
 `bypassed: true` marker, and a hash that includes the disabled flag. Downstream

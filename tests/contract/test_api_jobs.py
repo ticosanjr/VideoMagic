@@ -301,5 +301,5 @@ def test_real_job_writes_three_artifacts(monkeypatch, tmp_path: Path) -> None:
     ).json()["job"]
     finished = wait_http(client, job["job_id"], timeout=60)
     assert finished["status"] == "succeeded", finished
-    for name in ("timeline.fcpxml", "timeline.xml", "timeline.otio"):
+    for name in ("timeline.fcpxml", "timeline.xml", "timeline.kdenlive"):
         assert (tmp_path / "out" / "exports" / name).is_file()

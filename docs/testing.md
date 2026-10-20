@@ -15,7 +15,7 @@ hides the contract. VideoFlow resolves this with two layers:
 
 | Scope | Line coverage | Notes |
 | --- | --- | --- |
-| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.28% (309 passing, 11 strict xfail, 7 deselected) |
+| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.28% (310 passing, 11 strict xfail, 7 deselected) |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |
 | UI | `npm run check` and `npm run build` | Manual: start a job from the rack and confirm progress and artifacts |
@@ -89,7 +89,7 @@ smokes run locally and are recorded in the release notes.
 
 | File | Covers |
 | --- | --- |
-| `test_exporters.py` | FCPXML 1.9/1.10, xmeml tracks, OTIO tracks, export service, preflight failures |
+| `test_exporters.py` | FCPXML 1.9/1.10 media-rep, xmeml v4 full files/links, native Kdenlive MLT, export service, preflight failures |
 | `test_ingest_media.py` | Real FFprobe, PCM extraction, and silence detection (`media`) |
 | `test_shorts_media.py` | Renders two 1080x1920 clips with ASS via the CLI (`media`) |
 | `test_api_jobs.py` | Job create/poll, stages/logs, new options, path jail, SSE, system, real media (`media`) |
@@ -147,7 +147,7 @@ tests/fixtures/fcpxml/straight-cut.fcpxml
 tests/fixtures/fcpxml/jcut.fcpxml
 tests/fixtures/fcpxml/punch-in.fcpxml
 tests/fixtures/xmeml/straight-cut.xml
-tests/fixtures/otio/straight-cut.otio
+tests/fixtures/kdenlive/straight-cut.kdenlive
 ```
 
 The three timeline shapes are the compatibility spike. Freeze the dialect only
@@ -200,8 +200,8 @@ Run before tagging a release:
    detached audio, and transforms.
 2. Import `tests/fixtures/xmeml/*.xml` into Premiere. Confirm tracks, audio
    offset, and motion.
-3. Import `tests/fixtures/otio/*.otio` into Kdenlive 25.04+. Confirm two tracks
-   and markers.
+3. Import `tests/fixtures/kdenlive/*.kdenlive` into Kdenlive 23.04+. Confirm the
+   V1/A1 tracks, timeline duration, and no missing clips.
 4. Listen to every join at high volume with headphones.
 5. Run a 60-minute talking head. Scrub the last ten minutes for drift.
 6. Disable zooms. Rerun. Confirm only export executed.

@@ -39,6 +39,9 @@ videoflow-0.9.0-windows-x86_64.exe
 
 ## Current
 
+- `v0.20.1`: Resolve FCPXML media-rep, Premiere xmeml v4 full-file/link fix,
+  and native Kdenlive `.kdenlive` MLT export. Linux binary, Linux AppImage, and
+  Windows PE built and smoke-tested.
 - `v0.20.0`: local filesystem browser for source/output/SRT/model selection,
   source metadata preview, folder creation, and a modernized rack setup. Linux
   binary, Linux AppImage, and Windows PE built and smoke-tested.

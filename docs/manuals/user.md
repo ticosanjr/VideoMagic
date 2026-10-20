@@ -4,7 +4,7 @@ This is the editor's guide. Installation belongs to the
 [operator manual](operator.md).
 
 > Status: the portable CLI, REST API, rack UI, and MCP surface run real jobs in
-> 0.20.0. Local Faster-Whisper quality transcription is available with a
+> 0.20.1. Local Faster-Whisper quality transcription is available with a
 > whisper.cpp fallback. The rack browses local files and folders through the
 > server allowlist; it does not upload media. Per-module reruns and direct MP4
 > rendering remain future work.
@@ -34,7 +34,7 @@ videoflow run interview.mp4 -o interview-edit
 
 It detects speech with Silero VAD when the model is available and falls back to
 FFmpeg, removes silence, applies J/L-cuts and punch-ins, and writes
-`timeline.fcpxml`, `timeline.xml`, and `timeline.otio` into
+`timeline.fcpxml`, `timeline.xml`, and `timeline.kdenlive` into
 `interview-edit/exports/`. `run.json` reports the selected `vad_engine` and what
 happened. Add `--transcribe` for local Faster-Whisper with a whisper.cpp
 fallback, or `--transcript` with `--cull-retakes` for retake removal.
@@ -168,8 +168,8 @@ bad take.
 ### 08 Export
 
 - **FCPXML 1.9** for Resolve.
-- **xmeml** for Premiere.
-- **OTIO** for Kdenlive.
+- **xmeml version 4** for Premiere.
+- **Native `.kdenlive` MLT XML** for Kdenlive.
 - **MP4** is a preview, not the master.
 
 All enabled artifacts are written to `.videoflow/exports/`.
@@ -205,7 +205,7 @@ See the [NLE import manual](nle-import.md). The short version:
 
 - Resolve: File → Import → Timeline, choose `.fcpxml`.
 - Premiere: File → Import, choose `.xml`.
-- Kdenlive: File → Open, choose `.otio` (25.04+).
+- Kdenlive: File → Open, choose `.kdenlive` (23.04+).
 
 Check three things after import: audio is offset at a J-cut, the punch-in is
 visible, and no join clicks.

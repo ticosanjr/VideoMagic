@@ -106,7 +106,7 @@ DIR/
   work/transcribe.wav       # full-source 16 kHz WAV for local transcription
   exports/timeline.fcpxml   # Resolve
   exports/timeline.xml      # Premiere
-  exports/timeline.otio     # Kdenlive
+  exports/timeline.kdenlive # Kdenlive
 ```
 
 `run.json` is the machine-readable report: media info, `vad_engine`, speech
@@ -407,7 +407,7 @@ typed install hint.
 
 ```bash
 uv run python scripts/build_appimage.py
-./dist/VideoFlow-0.20.0-x86_64.AppImage version
+./dist/VideoFlow-0.20.1-x86_64.AppImage version
 ```
 
 The AppImage wraps the same onefile binary. Opening it with no arguments starts
@@ -444,7 +444,7 @@ testing is still recommended before wide distribution.
 - [ ] `videoflow doctor` reports the bundled whisper binary and model.
 - [ ] `videoflow doctor` reports the bundled Silero model and ONNX Runtime.
 - [ ] A real `videoflow run` reports `"vad_engine": "silero"` on a speech clip.
-- [ ] The artifacts parse (XML/OTIO) and open in the three NLEs.
+- [ ] The artifacts parse (XML/MLT) and open in the three NLEs.
 - [ ] `videoflow serve` answers `/health`, `/`, and `/mcp/`.
 - [ ] An MCP host lists twelve tools over `videoflow mcp`.
 - [ ] The plain binary runs with `PATH` empty, proving bundled FFmpeg is used.

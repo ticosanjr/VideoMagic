@@ -162,7 +162,7 @@ cached intermediate artifacts, and export files.
 | FR-90 | Generate all timeline artifacts from one immutable timeline model. |
 | FR-91 | Resolve: FCPXML 1.9 by default, 1.10 optional. Rational times, detached audio where needed, `adjust-transform` for zoom. |
 | FR-92 | Premiere: FCP 7 XML (`xmeml`). Premiere does not import FCPXML directly. |
-| FR-93 | Kdenlive: OTIO. Kdenlive 25.04+ imports it natively. |
+| FR-93 | Kdenlive: native `.kdenlive` MLT XML. Kdenlive 23.04+ opens it natively. |
 | FR-94 | FFmpeg MP4 is available for previews and shorts, never as the editing master. |
 | FR-95 | Every export runs the preflight in [exporters.md](exporters.md): media online, one frame minimum per clip, no overlapping timeline segments, fades present at joins. |
 
@@ -234,7 +234,7 @@ That is why the manual script is a release artifact, not optional advice.
 | J/L-cuts | J on, L off, `offset_ms=200`, `audio_crossfade_ms=20`, handle check on |
 | Zooms | alternate cuts, `punch_in_scale=1.15`, upper third |
 | Shorts | 30–60 s, three clips, center crop, TikTok bold, both exports |
-| Export | FCPXML 1.9, write FCPXML + xmeml + OTIO, no MP4 by default |
+| Export | FCPXML 1.9, write FCPXML + xmeml + native Kdenlive MLT, no MP4 by default |
 
 Presets: `youtube-talking-head`, `shorts-aggressive`, `lecture-clean`.
 
@@ -254,7 +254,7 @@ Presets: `youtube-talking-head`, `shorts-aggressive`, `lecture-clean`.
 | --- | --- | --- |
 | DaVinci Resolve | 18.6; 19/20 preferred for FCPXML 1.10 | `.fcpxml` |
 | Adobe Premiere Pro | Current release with FCP 7 XML import | `.xml` (xmeml) |
-| Kdenlive | 25.04 | `.otio` |
+| Kdenlive | 23.04 | `.kdenlive` |
 | Python | 3.11 | package |
 | FFmpeg | 7.x recommended, 6.x supported | external binary |
 | Node (UI) | 20 LTS or newer | SvelteKit dev/build |

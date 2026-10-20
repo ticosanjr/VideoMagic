@@ -98,7 +98,7 @@ Set `shorts` in the pipeline options to render them. `subtitles` is reported on
 the proposal and can be set through `shorts_subtitles` when rendering.
 
 `videoflow_export_fcpxml` keeps its historical name. `target_nle` selects the
-dialect: `resolve` (`.fcpxml`), `premiere` (`.xml`), or `kdenlive` (`.otio`).
+dialect: `resolve` (`.fcpxml`), `premiere` (`.xml`), or `kdenlive` (`.kdenlive`).
 It exports the latest **completed** job state. Staged zooms, J-cuts, or retakes
 are not included until a new pipeline run completes; the response carries a
 warning in that case.

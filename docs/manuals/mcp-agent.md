@@ -30,7 +30,7 @@ HTTP:
 ```
 
 Restart the host after changing the config. All tools and resources in this
-manual are live in 0.20.0.
+manual are live in 0.20.1.
 
 ## 2. Tool groups
 
@@ -129,7 +129,7 @@ failure.
 - Retake result: `discard_sentence_ids`, plus `restored_sentence_ids` if the guard
   overruled the model.
 - Exports: a map of target to artifact path. Premiere gets `.xml`; Kdenlive gets
-  `.otio`; Resolve gets `.fcpxml`.
+  `.kdenlive`; Resolve gets `.fcpxml`.
 
 ## 6. Errors
 

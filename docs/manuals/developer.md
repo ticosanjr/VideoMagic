@@ -25,7 +25,7 @@ Implemented:
 - preset loading
 - FFprobe ingest, PCM extraction, and media fingerprint
 - deterministic timeline builder with J/L-cuts, handles, fades, and punch-ins
-- FCPXML 1.9/1.10, xmeml, and OTIO exporters plus `export_timeline`
+- FCPXML 1.9/1.10, xmeml v4, and native Kdenlive MLT exporters plus `export_timeline`
 - Silero VAD with FFmpeg fallback and the portable pipeline service
 - local Faster-Whisper/CTranslate2 transcription with word timestamps, a pinned
   bundled model, and whisper.cpp fallback
@@ -51,7 +51,7 @@ src/videoflow/
   application/   cache, runner, jobs, ports
   modules/       eight module classes and fingerprints
   adapters/      ffmpeg, silero, faster_whisper, whisper, asr, llm
-  exporters/     fcpxml, xmeml, otio, mp4
+  exporters/     fcpxml, xmeml, kdenlive, otio, mp4
   api/           FastAPI, CLI
   mcp_server/    registry, SDK server, CLI
   presets/       shipped JSON

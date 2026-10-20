@@ -51,22 +51,29 @@ def export_fcpxml(state: ProjectState, output_path: Path, *, dialect: Dialect = 
             "height": str(media.height),
         },
     )
-    ET.SubElement(
+    asset = ET.SubElement(
         resources,
         "asset",
         {
             "id": "a1",
             "name": Path(media.source_path).name,
-            "src": file_uri(media.source_path),
             "start": "0s",
             "duration": format_rational_time(timebase.frames_to_seconds(media.duration_frames)),
             "hasVideo": "1",
+            "videoSources": "1",
             "hasAudio": "1",
             "format": "r1",
             "audioSources": "1",
             "audioChannels": "1",
             "audioRate": str(media.audio_sample_rate),
         },
+    )
+    # FCPXML 1.9 moved the original media URL to media-rep. Resolve rejects the
+    # old asset src form even though it is still valid for FCPXML 1.8.
+    ET.SubElement(
+        asset,
+        "media-rep",
+        {"kind": "original-media", "src": file_uri(media.source_path)},
     )
 
     library = ET.SubElement(root, "library")
@@ -80,6 +87,8 @@ def export_fcpxml(state: ProjectState, output_path: Path, *, dialect: Dialect = 
             "duration": format_rational_time(timebase.frames_to_seconds(duration_frames)),
             "tcStart": "0s",
             "tcFormat": _tc_format(media),
+            "audioLayout": "mono",
+            "audioRate": str(media.audio_sample_rate),
         },
     )
     spine = ET.SubElement(sequence, "spine")
@@ -105,6 +114,8 @@ def export_fcpxml(state: ProjectState, output_path: Path, *, dialect: Dialect = 
                         audio_clip.source_out_sample - audio_clip.source_in_sample
                     )
                 ),
+                "srcEnable": "all",
+                "audioRole": "dialogue",
             },
         )
         _append_transform(element, clip, media)

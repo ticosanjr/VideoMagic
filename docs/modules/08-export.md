@@ -2,8 +2,8 @@
 
 ## Implementation status
 
-FCPXML 1.9/1.10, xmeml, and OTIO are implemented and covered by contract tests.
-`export_timeline` writes all three from one state. Audio transitions, keyframed
+FCPXML 1.9/1.10, xmeml, and native Kdenlive MLT XML are implemented and
+covered by contract tests. `export_timeline` writes all three from one state. Audio transitions, keyframed
 progressive zooms, and MP4 render are still pending. The three-app import spike is
 a release gate.
 
@@ -23,7 +23,7 @@ shorts.
 .videoflow/exports/
   timeline.fcpxml      # Resolve
   timeline.xml         # Premiere (xmeml)
-  timeline.otio        # Kdenlive
+  timeline.kdenlive    # Kdenlive
   shorts/<title>.mp4   # optional
 ```
 
@@ -34,7 +34,7 @@ shorts.
 | `fcpxml_dialect` | `1.9` | 1.9 or 1.10 |
 | `write_fcpxml` | `true` | Resolve artifact |
 | `write_xmeml` | `true` | Premiere artifact |
-| `write_otio` | `true` | Kdenlive artifact |
+| `write_otio` | `true` | Kdenlive artifact (historical key; writes MLT XML) |
 | `write_mp4` | `false` | Direct render |
 
 ## Algorithm
@@ -43,8 +43,8 @@ shorts.
 2. Build one immutable timeline view: assets, video segments, audio segments,
    transforms, markers.
 3. Write enabled artifacts from that view.
-4. Validate each artifact: parse it back, check frame counts, check that every
-   join has a fade.
+4. Validate each artifact: parse it back, check frame counts and clip counts,
+   and confirm the required root element and media references.
 5. Write atomically to `exports/`.
 6. Return the artifact map.
 
@@ -56,7 +56,7 @@ Export never re-runs analysis and never mutates state.
 | --- | --- |
 | Resolve | FCPXML, rational time, `adjust-transform` |
 | Premiere | xmeml, separate video/audio tracks, motion filter |
-| Kdenlive | OTIO, two tracks, transitions |
+| Kdenlive | native `.kdenlive` MLT XML, video/audio tractors, sequence tractor |
 
 `videoflow_export_fcpxml` uses `target_nle` to choose. The function name is
 historical; the artifact extension follows the target.

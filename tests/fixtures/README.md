@@ -9,4 +9,4 @@ ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30 -f lavfi -i sine=frequency=440
 ```
 
 Speech-shaped fixtures use a tone gated by silence, never a real voice. Golden
-FCPXML, xmeml, and OTIO files will live here once the exporter pass lands.
+FCPXML, xmeml, and native Kdenlive MLT files live here for the NLE import checks.

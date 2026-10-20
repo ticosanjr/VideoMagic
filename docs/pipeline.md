@@ -77,7 +77,7 @@ The implementation is `domain/planning.py`; the tests are
 | jl_cuts | video and audio segments | `state.video_segments`, `audio_segments` |
 | zooms | transforms on existing segments | `state.video_segments[*].transform` |
 | shorts | vertical source windows and artifacts | `state.vertical_clips` + `exports/` |
-| export | FCPXML, xmeml, OTIO, optional MP4 | `exports/` |
+| export | FCPXML, xmeml, Kdenlive MLT, optional MP4 | `exports/` |
 
 ## 5. Failure semantics
 
@@ -171,7 +171,7 @@ Done:
 
 1. Ingest and PCM fingerprint
 2. Timeline, J/L-cuts, zoom metadata
-3. FCPXML, xmeml, OTIO with structural contract tests
+3. FCPXML, xmeml, and Kdenlive MLT with structural contract tests; OTIO remains a helper
 4. Portable FFmpeg VAD and onefile executable
 5. In-process jobs, REST/SSE, and live MCP job tools
 6. SRT transcript import, LLM retakes, and the keeper guard

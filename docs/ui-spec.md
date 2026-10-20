@@ -2,7 +2,7 @@
 
 Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript. English strings only.
 
-0.20.0 keeps the full telemetry rack from 0.13 and adds a local filesystem
+0.20.1 keeps the full telemetry rack from 0.13 and adds a local filesystem
 picker for source, output, SRT, and model paths. The setup card now shows source
 metadata, an output suggestion, starting-point cards, inline validation, and a
 clear primary action. Per-block progress, start/finish timestamps, duration,
@@ -27,7 +27,7 @@ persisted presets, and word-level inspector controls.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ VideoFlow      0.20.0   FFmpeg ready          [Global log]   │
+│ VideoFlow      0.20.1   FFmpeg ready          [Global log]   │
 ├──────────────────────────────────────────────────────────────┤
 │ New project                                      [Run]       │
 │  01 Source video        [Choose / Change]                    │

@@ -52,28 +52,29 @@ Common issues:
 | Symptom | Cause | Action |
 | --- | --- | --- |
 | Nothing imports | Wrong artifact (`.fcpxml`) | Use `.xml` |
+| Premiere imports but media is offline | The clipitem only had a file reference | Use the full `<file>` definition the exporter now writes |
 | Audio and video identical | xmeml written as a single track | Split the tracks |
 | Motion missing | Filter not on the clipitem | Add `basicmotion` |
 | Sequence rate wrong | Missing `rate`/`ntsc` | Fix the writer, not the timeline |
 
 ## 3. Kdenlive
 
-Minimum: 25.04. Older releases need the deprecated OTIO adapter and are not
-supported.
+Minimum: 23.04. The artifact is a native `.kdenlive` MLT XML project, not OTIO.
 
 1. Open Kdenlive.
 2. File → Open.
-3. Choose `.videoflow/exports/timeline.otio`.
-4. Accept the project settings prompt.
+3. Choose `.videoflow/exports/timeline.kdenlive`.
+4. Save a copy if Kdenlive asks to upgrade the project format.
 5. Check:
    - V1 and A1 exist as separate tracks;
    - a J-cut is visible as an audio clip that starts earlier;
-   - markers for shorts are present;
+   - the timeline duration matches the run summary;
    - no missing clips.
 6. Play the joins.
 
-If Kdenlive offers to convert the project, accept and save a copy. Keep the OTIO
-as the interchange artifact.
+If Kdenlive reports an MLT error, keep the `.kdenlive` file and the profile
+(frame size and rate) for the bug report. Do not replace it with OTIO; OTIO is
+no longer the Kdenlive deliverable.
 
 ## 4. Acceptance checklist
 

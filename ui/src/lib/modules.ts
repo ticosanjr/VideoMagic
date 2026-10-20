@@ -496,7 +496,7 @@ export const modules: RackModule[] = [
     index: "08",
     id: "export",
     name: "Export",
-    summary: "Write FCPXML, xmeml, and OTIO from one validated timeline.",
+    summary: "Write FCPXML, xmeml, and native Kdenlive MLT from one validated timeline.",
     portable: true,
     fields: [
       {

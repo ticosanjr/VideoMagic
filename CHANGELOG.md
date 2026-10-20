@@ -3,6 +3,42 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.20.1] — 2026-10-20
+
+### Fixed
+
+- DaVinci Resolve FCPXML 1.9/1.10 media references now use the required
+  `<media-rep kind="original-media" src="..."/>` child. The old `<asset src>`
+  form is FCPXML 1.8-only and could make Resolve reject or offline the timeline.
+- Premiere Pro now receives xmeml version 4 with `explodedTracks`, a sequence
+  UUID, `file://localhost/` path URLs, a full `<file>` definition on every
+  video and audio clipitem, and explicit A/V `<link>` groups. The Basic Motion
+  effect id is now `basicmotion`.
+- Kdenlive now receives a native `.kdenlive` MLT XML project instead of an OTIO
+  file: profile, source chain, video/audio tractors, sequence tractor, bin, and
+  final tractor. OTIO remains available as a library helper, not the Kdenlive
+  deliverable.
+
+### Changed
+
+- The Kdenlive artifact is `timeline.kdenlive`; the API/MCP target key remains
+  `kdenlive`. The historical `write_otio` config key still controls this
+  artifact.
+- Export tests now assert the media-rep, xmeml full-file/link shape, and native
+  MLT structure.
+
+### Verified
+
+- Tests: 310 passed, 11 xfailed, 7 deselected; coverage 99.28%; ruff and mypy
+  clean.
+- Linux and Windows binaries wrote all three artifacts; each was parsed back as
+  FCPXML, xmeml, or MLT XML and checked for its required media links and track
+  structure. AppImage smoke passed.
+- Sizes and SHA-256 values are in `releases/v0.20.1/release-notes.md` and
+  `manifest.json`.
+- The three NLE import flows still require a manual gate in Resolve, Premiere,
+  and Kdenlive; this environment does not have those applications installed.
+
 ## [0.20.0] — 2026-10-20
 
 ### Added

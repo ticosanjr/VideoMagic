@@ -9,7 +9,7 @@ from typing import Literal
 from videoflow.domain.errors import ExportError
 from videoflow.domain.state import ProjectState
 from videoflow.exporters.fcpxml import Dialect, export_fcpxml
-from videoflow.exporters.otio_export import export_otio
+from videoflow.exporters.kdenlive import export_kdenlive
 from videoflow.exporters.xmeml import export_xmeml
 
 Target = Literal["resolve", "premiere", "kdenlive"]
@@ -18,7 +18,7 @@ DEFAULT_TARGETS: tuple[Target, ...] = ("resolve", "premiere", "kdenlive")
 FILENAMES: dict[str, str] = {
     "resolve": "timeline.fcpxml",
     "premiere": "timeline.xml",
-    "kdenlive": "timeline.otio",
+    "kdenlive": "timeline.kdenlive",
 }
 
 
@@ -42,5 +42,5 @@ def export_timeline(
         elif target == "premiere":
             artifacts[target] = export_xmeml(state, destination)
         else:
-            artifacts[target] = export_otio(state, destination)
+            artifacts[target] = export_kdenlive(state, destination)
     return artifacts
