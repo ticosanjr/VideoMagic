@@ -3,6 +3,32 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.9.0] — 2026-10-20
+
+### Added
+
+- `POST /api/v1/jobs` accepts `transcript` (SRT path) and `cull_retakes`.
+  Transcript paths go through the same allowlist as media.
+- `GET /api/v1/jobs/{id}/state` returns the project state for the UI inspector.
+- The rack UI takes an optional SRT, enables retake culling, and shows culled
+  sentences and guard restorations from the job state.
+- MCP `videoflow_run_pipeline` overrides accept `transcript`, `cull_retakes`,
+  `strictness`, `retake_strategy`, and `context_window`.
+- Release artifact names include the version:
+  `videoflow-0.9.0-linux-x86_64`, `VideoFlow-0.9.0-x86_64.AppImage`,
+  `videoflow-0.9.0-windows-x86_64.exe`.
+
+### Changed
+
+- Version is 0.9.0.
+- The job manager builds an LLM client from `VIDEOWFLOW_LLM_BASE_URL`,
+  `VIDEOWFLOW_LLM_MODEL`, and `VIDEOWFLOW_LLM_API_KEY` when culling is enabled.
+
+### Verified
+
+- API test for transcript options, path jail, and state output.
+- UI `npm run check` and `npm run build` are clean.
+
 ## [0.8.0] — 2026-10-20
 
 ### Added

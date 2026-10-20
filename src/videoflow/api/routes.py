@@ -28,6 +28,8 @@ class NewJobRequest(BaseModel):
     lcut: bool = False
     zooms: bool = True
     dialect: Literal["1.9", "1.10"] = "1.9"
+    transcript: str | None = None
+    cull_retakes: bool = False
 
 
 def register_routes(app: FastAPI, jobs: JobManager) -> None:
@@ -37,6 +39,11 @@ def register_routes(app: FastAPI, jobs: JobManager) -> None:
         try:
             source = resolve_allowed(Path(request.source), roots)
             output = resolve_allowed(Path(request.output), roots)
+            transcript = (
+                resolve_allowed(Path(request.transcript), roots)
+                if request.transcript
+                else None
+            )
             job = jobs.start(
                 source,
                 output,
@@ -47,6 +54,8 @@ def register_routes(app: FastAPI, jobs: JobManager) -> None:
                     "lcut": request.lcut,
                     "zooms": request.zooms,
                     "dialect": request.dialect,
+                    "transcript": str(transcript) if transcript else None,
+                    "cull_retakes": request.cull_retakes,
                 },
             )
         except VideoFlowError as exc:
@@ -95,6 +104,32 @@ def register_routes(app: FastAPI, jobs: JobManager) -> None:
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache"},
         )
+
+    @app.get("/api/v1/jobs/{job_id}/state")
+    def job_state(job_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
+        path = (job.output / "project_state.json").expanduser().resolve()
+        output = job.output.expanduser().resolve()
+        if not path.is_relative_to(output) or not path.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "ok": False,
+                    "code": "state_not_found",
+                    "message": "The job has not written a project state yet.",
+                },
+            )
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise HTTPException(
+                status_code=500,
+                detail={"ok": False, "code": "state_invalid", "message": str(exc)},
+            ) from exc
+        return payload if isinstance(payload, dict) else {"state": payload}
 
     @app.get("/api/v1/jobs/{job_id}/artifacts/{target}")
     def download_artifact(job_id: str, target: str) -> FileResponse:

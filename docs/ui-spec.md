@@ -2,13 +2,16 @@
 
 Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript. English strings only.
 
-0.7.0+ wires the portable run: source/output fields, quick presets, silence and
-zoom options,
-start/cancel, live progress, artifact paths, and typed errors. Module cards follow
-the active job stage. Neural modules are marked `later` and stay bypassed.
+0.9.0 wires the portable run: source/output fields, optional SRT and retake
+culling, quick presets, silence and zoom options, start/cancel, live progress,
+artifact downloads, and typed errors. Module cards follow the active job stage.
+Neural modules are marked `later` and stay bypassed.
+
+The inspector reads `GET /api/v1/jobs/{id}/state` and shows transcript sentence
+counts, culled sentences, and guard restorations.
 
 The rest of this document is the contract for the full rack: per-block runs,
-transcript inspector, presets, and word overrides.
+manual overrides, persisted presets, and word-level inspector controls.
 
 ## 1. Layout
 

@@ -16,6 +16,8 @@ import sys
 import urllib.request
 from pathlib import Path
 
+from videoflow import __version__
+
 ROOT = Path(__file__).resolve().parents[1]
 APPIMAGETOOL_URL = (
     "https://github.com/AppImage/appimagetool/releases/download/continuous/"
@@ -72,7 +74,7 @@ Categories=AudioVideo;Video;
 
     tool = _appimagetool(ROOT / "build" / "tools")
     args.out.mkdir(parents=True, exist_ok=True)
-    output = args.out / "VideoFlow-x86_64.AppImage"
+    output = args.out / f"VideoFlow-{__version__}-x86_64.AppImage"
     environment = dict(os.environ)
     environment["ARCH"] = "x86_64"
     command = [str(tool), "--appimage-extract-and-run", str(appdir), str(output)]

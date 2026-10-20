@@ -82,8 +82,10 @@ Presets accepted by `run_pipeline`:
 - `shorts-aggressive`: J-cuts and zooms on, 250 ms silence.
 - `lecture-clean`: no J-cuts, no zooms, 700 ms silence.
 
-`overrides` accepts `jcut`, `lcut`, `zooms`, `noise_db`, `min_silence_ms`, and
-`dialect`. Unknown keys return `invalid_overrides`.
+`overrides` accepts `jcut`, `lcut`, `zooms`, `noise_db`, `min_silence_ms`,
+`dialect`, `transcript`, `cull_retakes`, `strictness`, `retake_strategy`, and
+`context_window`. Unknown keys return `invalid_overrides`. `transcript` is
+resolved through the same path allowlist as the source.
 
 The last two are additions. Without them an agent cannot satisfy AC-04, because
 long jobs would be opaque and unstoppable.

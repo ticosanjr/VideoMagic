@@ -52,6 +52,25 @@ export interface NewJob {
   lcut: boolean;
   zooms: boolean;
   dialect: "1.9" | "1.10";
+  transcript: string | null;
+  cull_retakes: boolean;
+}
+
+export interface Sentence {
+  id: number;
+  start_sample: number;
+  end_sample: number;
+  text: string;
+  words: unknown[];
+}
+
+export interface JobState {
+  transcript: Sentence[];
+  retake_culls: number[];
+  retake_guard_restores: number[];
+  vad_intervals: { start_sample: number; end_sample: number }[];
+  video_segments: unknown[];
+  audio_segments: unknown[];
 }
 
 class ApiError extends Error {
@@ -101,6 +120,10 @@ export async function cancelJob(jobId: string): Promise<Job> {
     method: "POST"
   });
   return response.job;
+}
+
+export function getJobState(jobId: string): Promise<JobState> {
+  return request<JobState>(`/api/v1/jobs/${jobId}/state`);
 }
 
 export function errorMessage(error: unknown): string {

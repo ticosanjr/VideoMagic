@@ -47,11 +47,15 @@ transcribe or remove retakes yet.
 1. Start `videoflow serve` and open `http://127.0.0.1:8765/`.
 2. Enter the source path and an output project folder. **Default** derives the
    output from the source name.
-3. Set the noise threshold and minimum silence, and choose J-cuts and punch-ins.
-4. Press **Run pipeline**.
+3. Optionally enter an SRT transcript and enable **Cull retakes**.
+4. Set the noise threshold and minimum silence, and choose J-cuts and punch-ins.
+5. Press **Run pipeline**.
 
 The page starts a job, shows the live stage and progress, and lists the three
 artifacts as download links. Quick presets set the silence and cut options.
+With an SRT, the inspector lists culled takes and any sentence the guard
+restored.
+
 The rack cards follow the active stage: green cached, blue running, yellow dirty,
 gray bypassed/later, red failed. Cancel stops between stages.
 

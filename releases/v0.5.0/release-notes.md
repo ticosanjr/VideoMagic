@@ -4,17 +4,17 @@ Portable, model-free pre-edit pipeline.
 
 ## Artifact
 
-- `videoflow-linux-x86_64`
+- `videoflow-0.5.0-linux-x86_64`
 - SHA-256: `0568d58fdd90ed51e0e6067be28a4107561117116b1eac1bfeb21df55830c008`
 
 ## Run
 
 ```bash
-./videoflow-linux-x86_64 doctor
-./videoflow-linux-x86_64 demo -o demo
-./videoflow-linux-x86_64 run input.mp4 -o project
-./videoflow-linux-x86_64 serve
-./videoflow-linux-x86_64 mcp
+./videoflow-0.5.0-linux-x86_64 doctor
+./videoflow-0.5.0-linux-x86_64 demo -o demo
+./videoflow-0.5.0-linux-x86_64 run input.mp4 -o project
+./videoflow-0.5.0-linux-x86_64 serve
+./videoflow-0.5.0-linux-x86_64 mcp
 ```
 
 ## Windows

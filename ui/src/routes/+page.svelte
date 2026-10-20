@@ -5,8 +5,10 @@
     createJob,
     errorMessage,
     getJob,
+    getJobState,
     getSystem,
     type Job,
+    type JobState,
     type SystemInfo
   } from "$lib/api";
   import { modules, statusStyles, type RackModule, type Status } from "$lib/modules";
@@ -19,7 +21,10 @@
   let minSilence = $state(400);
   let jcut = $state(true);
   let zoom = $state(true);
+  let transcript = $state("");
+  let cullRetakes = $state(false);
   let job = $state<Job | null>(null);
+  let jobState = $state<JobState | null>(null);
   let error = $state("");
   let busy = $state(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -48,7 +53,12 @@
       error = "Source and output are required.";
       return;
     }
+    if (cullRetakes && !transcript.trim()) {
+      error = "Retake culling needs an SRT transcript path.";
+      return;
+    }
     busy = true;
+    jobState = null;
     clearTimeout(timer);
     try {
       job = await createJob({
@@ -59,7 +69,9 @@
         jcut,
         lcut: false,
         zooms: zoom,
-        dialect: "1.9"
+        dialect: "1.9",
+        transcript: transcript.trim() || null,
+        cull_retakes: cullRetakes
       });
       schedule();
     } catch (reason) {
@@ -81,9 +93,20 @@
       job = await getJob(job.job_id);
       if (!terminal(job.status)) {
         schedule();
+      } else if (job.status === "succeeded") {
+        await loadState();
       }
     } catch (reason) {
       error = errorMessage(reason);
+    }
+  }
+
+  async function loadState() {
+    if (!job) return;
+    try {
+      jobState = await getJobState(job.job_id);
+    } catch {
+      jobState = null;
     }
   }
 
@@ -130,6 +153,10 @@
   const artifacts = $derived(
     job?.result?.artifacts ? Object.entries(job.result.artifacts) : []
   );
+
+  function sentenceText(id: number): string {
+    return jobState?.transcript.find((item) => item.id === id)?.text ?? `sentence ${id}`;
+  }
 </script>
 
 <svelte:head>
@@ -195,6 +222,18 @@
             Default
           </button>
         </span>
+      </label>
+      <label class="block text-xs text-neutral-400">
+        Transcript (optional SRT)
+        <input
+          bind:value={transcript}
+          placeholder="/media/interview.srt"
+          class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-sky-500 focus:outline-none"
+        />
+      </label>
+      <label class="flex items-center gap-2 self-end rounded-lg border border-neutral-800 px-3 py-2 text-xs text-neutral-300">
+        <input type="checkbox" bind:checked={cullRetakes} class="h-4 w-4" />
+        Cull retakes
       </label>
     </div>
 
@@ -389,7 +428,41 @@
         {job?.result ? `${job.result.video_segment_count ?? 0} segments` : "No run"}
       </span>
     </div>
-    {#if job?.result}
+    {#if jobState}
+      <div class="mt-4 grid gap-2 sm:grid-cols-4 text-xs text-neutral-300">
+        <p>Sentences: {jobState.transcript.length}</p>
+        <p>Culled: {jobState.retake_culls.length}</p>
+        <p>Restored: {jobState.retake_guard_restores.length}</p>
+        <p>Segments: {job?.result?.video_segment_count ?? "—"}</p>
+      </div>
+      {#if jobState.retake_culls.length > 0}
+        <div class="mt-4">
+          <p class="text-[11px] uppercase tracking-wide text-neutral-500">Culled retakes</p>
+          <ul class="mt-2 space-y-1 text-xs text-rose-300">
+            {#each jobState.retake_culls.slice(0, 10) as id}
+              <li class="line-through">{sentenceText(id)}</li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
+      {#if jobState.retake_guard_restores.length > 0}
+        <div class="mt-4">
+          <p class="text-[11px] uppercase tracking-wide text-neutral-500">Guard restorations</p>
+          <ul class="mt-2 space-y-1 text-xs text-emerald-300">
+            {#each jobState.retake_guard_restores as id}
+              <li>{sentenceText(id)}</li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
+      {#if job?.result?.warnings?.length}
+        <ul class="mt-3 list-disc pl-5 text-xs text-amber-300">
+          {#each job.result.warnings as warning}
+            <li>{warning}</li>
+          {/each}
+        </ul>
+      {/if}
+    {:else if job?.result}
       <div class="mt-4 grid gap-2 sm:grid-cols-3 text-xs text-neutral-300">
         <p>Speech intervals: {job.result.speech_interval_count ?? "—"}</p>
         <p>Segments: {job.result.video_segment_count ?? "—"}</p>
@@ -404,8 +477,8 @@
       {/if}
     {:else}
       <p class="mt-4 text-xs text-neutral-500">
-        Start a run to populate the segment count and warnings. Word-level kept/cut highlighting
-        arrives with transcription.
+        Start a run to populate the segment count and warnings. Add an SRT and enable culling to
+        see culled retakes and guard restorations here.
       </p>
     {/if}
   </section>

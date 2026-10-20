@@ -4,27 +4,20 @@ Every release gets a versioned folder:
 
 ```
 releases/v0.4.0/
-  videoflow-linux-x86_64    # local artifact, ignored by git
-  SHA256SUMS                # tracked
-  manifest.json             # tracked
-  release-notes.md          # tracked
+  videoflow-0.4.0-linux-x86_64    # local artifact, ignored by git
+  SHA256SUMS                      # tracked
+  manifest.json                   # tracked
+  release-notes.md                # tracked
 ```
 
 ## Policy
 
-1. Stage the artifact with `uv run python scripts/release.py --version X.Y.Z`.
-2. Verify `doctor`, `demo`, and the three exports on the staged binary.
-3. Commit the notes, checksums, and manifest. The binary is ignored because
+1. Stage the artifacts with `uv run python scripts/release.py --version X.Y.Z`.
+2. Verify `version`, `doctor`, `demo`, and the three exports on each artifact.
+3. Commit the notes, checksums, and manifest. Binaries are ignored because
    GitHub rejects files over 100 MB in normal git history.
-4. Upload the binary as a GitHub Release asset:
-
-```bash
-gh release create vX.Y.Z releases/vX.Y.Z/<asset> \
-  --title "VideoFlow X.Y.Z" \
-  --notes-file releases/vX.Y.Z/release-notes.md
-```
-
-All artifacts are built locally; GitHub Actions is not used.
+4. Keep the binaries in this folder. GitHub Actions is not used for this
+   project. Uploading to a GitHub Release is a separate, manual decision.
 
 ```bash
 uv run python scripts/build_portable.py --fetch-ffmpeg
@@ -33,19 +26,20 @@ uv run python scripts/build_appimage.py
 uv run python scripts/release.py
 ```
 
-Upload the staged assets manually:
-
-```bash
-gh release create vX.Y.Z releases/vX.Y.Z/* \
-  --title "VideoFlow X.Y.Z" \
-  --notes-file releases/vX.Y.Z/release-notes.md
-```
-
 A release is not complete until the Linux binary, AppImage, and Windows `.exe`
-exist and their checksums are recorded here.
+exist in the version folder and their checksums are recorded here. Every asset
+name includes the version, for example:
+
+```
+videoflow-0.9.0-linux-x86_64
+VideoFlow-0.9.0-x86_64.AppImage
+videoflow-0.9.0-windows-x86_64.exe
+```
 
 ## Current
 
+- `v0.9.0`: Linux binary, AppImage, and Windows PE; transcript/cull API and UI
+  inspector. Versioned asset names.
 - `v0.8.0`: Linux binary, AppImage, and Windows PE. Local builds, no CI.
 - `v0.7.0`: Linux x86_64, static FFmpeg. Artifact downloads and UI presets.
 - `v0.6.0`: Linux x86_64, static FFmpeg. SRT retakes and LLM guard.

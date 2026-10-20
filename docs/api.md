@@ -47,7 +47,7 @@ GET /health
 ```
 
 ```json
-{ "status": "ok", "service": "videoflow", "version": "0.8.0" }
+{ "status": "ok", "service": "videoflow", "version": "0.9.0" }
 ```
 
 ```http
@@ -57,7 +57,7 @@ GET /api/v1/system
 ```json
 {
   "ok": true,
-  "version": "0.8.0",
+  "version": "0.9.0",
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
@@ -86,9 +86,16 @@ Content-Type: application/json
   "jcut": true,
   "lcut": false,
   "zooms": true,
-  "dialect": "1.9"
+  "dialect": "1.9",
+  "transcript": "/media/interview.srt",
+  "cull_retakes": true
 }
 ```
+
+`transcript` is optional and is resolved through the same allowlist as media.
+When `cull_retakes` is true and `VIDEOWFLOW_LLM_BASE_URL` is set, the worker
+uses the OpenAI-compatible endpoint; otherwise only exact repeated text is
+culled.
 
 `source` and `output` are resolved through the path allowlist. Both are required.
 The output directory is created by the worker.
@@ -138,6 +145,16 @@ Cancellation is cooperative. The worker stops between probe, extraction, VAD,
 timeline, export, and state stages. A running FFmpeg process is not killed
 mid-stage.
 
+### State
+
+```http
+GET /api/v1/jobs/{job_id}/state
+```
+
+Returns the `project_state.json` written by the job. The UI uses it for the
+inspector (transcript sentences, culls, guard restorations). If the job has not
+written state yet, the route returns `404 state_not_found`.
+
 ### Download an artifact
 
 ```http
@@ -172,7 +189,7 @@ On success, `job.result` is the `run_portable` report:
 ```json
 {
   "ok": true,
-  "version": "0.8.0",
+  "version": "0.9.0",
   "speech_interval_count": 3,
   "video_segment_count": 3,
   "audio_segment_count": 3,

@@ -6,6 +6,7 @@ history but never damages a project already written to disk.
 
 from __future__ import annotations
 
+import os
 import threading
 import traceback
 from collections.abc import Callable
@@ -15,6 +16,7 @@ from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
+from videoflow.adapters.llm import OpenAICompatibleLlm
 from videoflow.application.portable import run_portable
 from videoflow.domain.config import JlCutsConfig, ZoomsConfig
 from videoflow.domain.errors import (
@@ -151,6 +153,16 @@ class JobManager:
         )
         zooms = ZoomsConfig(mode="alternate_cuts" if options.get("zooms", True) else "manual_rules")
         dialect: Dialect = options.get("dialect", "1.9")
+        transcript = options.get("transcript")
+        cull = bool(options.get("cull_retakes", False))
+        llm = None
+        base_url = os.environ.get("VIDEOWFLOW_LLM_BASE_URL")
+        if transcript and cull and base_url:
+            llm = OpenAICompatibleLlm(
+                base_url=base_url,
+                model=os.environ.get("VIDEOWFLOW_LLM_MODEL", "qwen2.5:7b-instruct"),
+                api_key=os.environ.get("VIDEOWFLOW_LLM_API_KEY"),
+            )
 
         def progress(stage: str, percent: int, message: str) -> None:
             with self._lock:
@@ -172,6 +184,12 @@ class JobManager:
                 dialect=dialect,
                 progress=progress,
                 should_cancel=should_cancel,
+                transcript_path=Path(transcript) if transcript else None,
+                cull_retakes=cull,
+                llm_client=llm,
+                strictness=str(options.get("strictness", "balanced")),
+                retake_strategy=str(options.get("retake_strategy", "keep_last")),
+                context_window=int(options.get("context_window", 15)),
             )
             with self._lock:
                 if job.cancel_requested:

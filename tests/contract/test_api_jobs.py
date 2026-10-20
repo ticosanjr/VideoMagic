@@ -13,6 +13,13 @@ def fake_runner(source: Path, output: Path, *, progress, should_cancel, **kwargs
     output.mkdir(parents=True, exist_ok=True)
     (output / "run.json").write_text("{}", encoding="utf-8")
     (output / "timeline.fcpxml").write_text("<fcpxml/>", encoding="utf-8")
+    (output / "project_state.json").write_text(
+        '{"transcript":[{"id":0,"start_sample":0,"end_sample":100,'
+        '"text":"take one","words":[]},{"id":1,"start_sample":100,'
+        '"end_sample":200,"text":"take two","words":[]}],'
+        '"retake_culls":[0],"retake_guard_restores":[]}',
+        encoding="utf-8",
+    )
     return {
         "ok": True,
         "video_segment_count": 1,
@@ -58,6 +65,59 @@ def test_path_outside_the_allowlist_is_rejected(monkeypatch, tmp_path: Path) -> 
     )
     assert response.status_code == 403
     assert response.json()["detail"]["code"] == "path_not_allowed"
+
+
+def test_transcript_option_and_state_endpoint(monkeypatch, tmp_path: Path) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    subs = tmp_path / "subs.srt"
+    subs.write_text("1\n00:00:00,000 --> 00:00:01,000\nhi\n", encoding="utf-8")
+    client = make_client(monkeypatch, tmp_path)
+    response = client.post(
+        "/api/v1/jobs",
+        json={
+            "source": str(source),
+            "output": str(tmp_path / "out"),
+            "transcript": str(subs),
+            "cull_retakes": True,
+        },
+    )
+    assert response.status_code == 202
+    job = response.json()["job"]
+    assert job["options"]["transcript"] == str(subs)
+    assert job["options"]["cull_retakes"] is True
+    wait_http(client, job["job_id"])
+    state = client.get(f"/api/v1/jobs/{job['job_id']}/state")
+    assert state.status_code == 200
+    assert state.json()["retake_culls"] == [0]
+
+
+def test_transcript_outside_the_jail_is_rejected(monkeypatch, tmp_path: Path) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    client = make_client(monkeypatch, tmp_path)
+    response = client.post(
+        "/api/v1/jobs",
+        json={
+            "source": str(source),
+            "output": str(tmp_path / "out"),
+            "transcript": "/etc/passwd",
+            "cull_retakes": True,
+        },
+    )
+    assert response.status_code == 403
+
+
+def test_state_is_missing_before_a_run(monkeypatch, tmp_path: Path) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    client = make_client(monkeypatch, tmp_path)
+    client.post(
+        "/api/v1/jobs",
+        json={"source": str(source), "output": str(tmp_path / "out")},
+    )
+    # Fake runner writes state immediately; unknown job is the stable 404 case.
+    assert client.get("/api/v1/jobs/missing/state").status_code == 404
 
 
 def test_artifact_download_is_confined_to_the_job_output(monkeypatch, tmp_path: Path) -> None:

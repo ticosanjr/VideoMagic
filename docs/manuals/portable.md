@@ -8,9 +8,9 @@ There is no installer and no Python/Node requirement on the target machine.
 
 | Platform | Artifact | Minimum |
 | --- | --- | --- |
-| Linux x86_64 | `videoflow-linux-x86_64` | glibc from the build host |
-| Linux x86_64 | `VideoFlow-x86_64.AppImage` | FUSE, or `--appimage-extract-and-run` |
-| Windows x86_64 | `videoflow-windows-x86_64.exe` | Windows 10/11 x64 |
+| Linux x86_64 | `videoflow-X.Y.Z-linux-x86_64` | glibc from the build host |
+| Linux x86_64 | `VideoFlow-X.Y.Z-x86_64.AppImage` | FUSE, or `--appimage-extract-and-run` |
+| Windows x86_64 | `videoflow-X.Y.Z-windows-x86_64.exe` | Windows 10/11 x64 |
 
 PyInstaller cannot cross-compile in the usual sense. This project builds the
 Linux artifacts natively and the Windows PE locally with Wine WoW64 plus the
@@ -135,6 +135,7 @@ videoflow serve [--host 127.0.0.1] [--port 8765]
 - `GET /api/v1/system` — version, data directory, allowed roots, FFmpeg paths
 - `POST /api/v1/jobs` — start a portable run
 - `GET /api/v1/jobs/{id}` and `GET /api/v1/jobs/{id}/events` (SSE)
+- `GET /api/v1/jobs/{id}/state` returns the project state for the inspector
 - `POST /api/v1/jobs/{id}/cancel`
 - `GET /api/v1/jobs/{id}/artifacts/{target}` downloads a timeline artifact
 - `GET /` serves the bundled rack UI; the portable run panel starts a job, shows
@@ -250,7 +251,7 @@ distribution with a compatible glibc.
 
 ```bash
 uv run python scripts/build_appimage.py
-./dist/VideoFlow-x86_64.AppImage version
+./dist/VideoFlow-0.9.0-x86_64.AppImage version
 ```
 
 The AppImage wraps the same onefile binary. If FUSE is unavailable, run it with

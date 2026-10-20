@@ -5,17 +5,17 @@
   "python": "3.12.3",
   "artifacts": [
     {
-      "name": "videoflow-linux-x86_64",
+      "name": "videoflow-0.8.0-linux-x86_64",
       "sha256": "95ddc043ef7c2c557752b839dad925cee84aef7de302aa0b669af6f86afb3f49",
       "size_bytes": 168457464
     },
     {
-      "name": "VideoFlow-x86_64.AppImage",
+      "name": "VideoFlow-0.8.0-x86_64.AppImage",
       "sha256": "23fcb1f533f9685d8eea31d8e8262d5369ca006c1f32d17cc3badf77be5dfe3a",
       "size_bytes": 168696312
     },
     {
-      "name": "videoflow-windows-x86_64.exe",
+      "name": "videoflow-0.8.0-windows-x86_64.exe",
       "sha256": "03e231fb0bb37df127d72c4fc03dfc80c16dc50eac84b4f6c29017c1cf0ac121",
       "size_bytes": 152759771
     }

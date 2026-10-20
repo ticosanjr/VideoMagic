@@ -41,7 +41,19 @@ PRESET_OPTIONS: dict[str, dict[str, Any]] = {
         "min_silence_ms": 700,
     },
 }
-OVERRIDE_KEYS = {"jcut", "lcut", "zooms", "noise_db", "min_silence_ms", "dialect"}
+OVERRIDE_KEYS = {
+    "jcut",
+    "lcut",
+    "zooms",
+    "noise_db",
+    "min_silence_ms",
+    "dialect",
+    "transcript",
+    "cull_retakes",
+    "strictness",
+    "retake_strategy",
+    "context_window",
+}
 
 
 def build_server(jobs: JobManager | None = None) -> MCPServer:
@@ -162,6 +174,10 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             )
             resolved_output = resolve_allowed(output_path, roots)
             options = _pipeline_options(preset_name, overrides)
+            if options.get("transcript"):
+                options["transcript"] = str(
+                    resolve_allowed(Path(str(options["transcript"])), roots)
+                )
             job = manager.start(resolved_source, resolved_output, options=options)
         except VideoFlowError as exc:
             return exc.to_dict()

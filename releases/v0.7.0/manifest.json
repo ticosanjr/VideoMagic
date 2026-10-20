@@ -1,9 +1,13 @@
 {
   "version": "0.7.0",
-  "platform": "linux-x86_64",
-  "asset": "videoflow-linux-x86_64",
-  "sha256": "c2df1959bc50806c77e14056d3a451dcaf41278a5a56c10d3a016a3429dfa473",
-  "size_bytes": 168457216,
   "built_at": "2026-10-19T21:38:28+00:00",
-  "python": "3.12.3"
+  "python": "3.12.3",
+  "artifacts": [
+    {
+      "name": "videoflow-0.7.0-linux-x86_64",
+      "sha256": "c2df1959bc50806c77e14056d3a451dcaf41278a5a56c10d3a016a3429dfa473",
+      "size_bytes": 168457216
+    }
+  ],
+  "host": "linux-x86_64"
 }

@@ -18,11 +18,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RELEASES = ROOT / "releases"
 
-DEFAULT_ARTIFACTS: tuple[tuple[Path, str], ...] = (
-    (ROOT / "dist" / "videoflow", "videoflow-linux-x86_64"),
-    (ROOT / "dist" / "VideoFlow-x86_64.AppImage", "VideoFlow-x86_64.AppImage"),
-    (ROOT / "dist" / "videoflow.exe", "videoflow-windows-x86_64.exe"),
-)
+def default_artifacts(version: str) -> tuple[tuple[Path, str], ...]:
+    return (
+        (ROOT / "dist" / "videoflow", f"videoflow-{version}-linux-x86_64"),
+        (
+            ROOT / "dist" / f"VideoFlow-{version}-x86_64.AppImage",
+            f"VideoFlow-{version}-x86_64.AppImage",
+        ),
+        (ROOT / "dist" / "videoflow.exe", f"videoflow-{version}-windows-x86_64.exe"),
+    )
 
 
 def platform_tag() -> str:
@@ -50,7 +54,7 @@ def main() -> int:
     target_dir.mkdir(parents=True, exist_ok=True)
     staged: list[dict[str, object]] = []
     sums: list[str] = []
-    for source, asset_name in DEFAULT_ARTIFACTS:
+    for source, asset_name in default_artifacts(args.version):
         if not source.is_file():
             if args.require_all:
                 print(f"missing artifact: {source}")
