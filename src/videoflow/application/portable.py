@@ -1,7 +1,8 @@
-"""Model-free portable pipeline: ingest, silence detection, timeline, export.
+"""Portable pipeline: ingest, VAD, timeline, and NLE export.
 
-This is the engine behind ``videoflow run``. It needs only FFmpeg/FFprobe, so a
-single frozen executable is enough. Silero/Whisper/LLM remain the quality path.
+This is the engine behind ``videoflow run``. It works with FFmpeg alone and
+uses the bundled Silero VAD model when present, with FFmpeg silencedetect as the
+fallback. Whisper and LLM features remain optional quality paths.
 """
 
 from __future__ import annotations
@@ -38,10 +39,13 @@ from videoflow.application.shorts import (
 )
 from videoflow.application.telemetry import JobTelemetry
 from videoflow.application.timeline_builder import build_timeline
+from videoflow.application.vad import detect_speech as detect_vad
+from videoflow.application.vad import pad_spans
 from videoflow.domain.config import (
     JlCutsConfig,
     ModuleEnabled,
     ModulesConfig,
+    VadEngine,
     ZoomsConfig,
 )
 from videoflow.domain.errors import IngestError, InvalidRetakeIdsError, JobCancelledError
@@ -68,6 +72,7 @@ class PortableRun:
     report_path: Path
     shorts: tuple[dict[str, Any], ...] = ()
     transcript_source: str = "none"
+    vad_engine: str = "ffmpeg"
 
     def to_dict(self) -> dict[str, Any]:
         media = self.state.media_info
@@ -87,6 +92,7 @@ class PortableRun:
             "retake_restored_count": len(self.state.retake_guard_restores),
             "manual_override_count": len(self.state.manual_overrides),
             "transcript_source": self.transcript_source,
+            "vad_engine": self.vad_engine,
             "warnings": list(self.warnings),
             "artifacts": {name: str(path) for name, path in self.artifacts.items()},
             "shorts": list(self.shorts),
@@ -103,6 +109,10 @@ def run_portable(
     noise_db: float = -30.0,
     min_silence_ms: int = 400,
     min_speech_ms: int = 100,
+    vad_engine: VadEngine = "auto",
+    speech_threshold: float = 0.5,
+    speech_pad_before_ms: int = 120,
+    speech_pad_after_ms: int = 150,
     jl: JlCutsConfig | None = None,
     zooms: ZoomsConfig | None = None,
     dialect: Dialect = "1.9",
@@ -136,7 +146,7 @@ def run_portable(
     modules_config: ModulesConfig | None = None,
     module_enabled: ModuleEnabled | None = None,
 ) -> PortableRun:
-    """Run the complete model-free pipeline for one source file."""
+    """Run the complete portable pipeline for one source file."""
 
     started = time.perf_counter()
 
@@ -208,19 +218,28 @@ def run_portable(
     adapter_module["name"] = "vad"
     with stage("vad", "vad", "Voice detect", "Detecting speech and silence") as meta:
         step("vad", 35, "Detecting speech and silence")
-        speech = engine.detect_speech(
-            wav,
-            duration_samples=duration_samples,
-            sample_rate=media.audio_sample_rate,
+        detection = detect_vad(
+            engine,
+            source_path,
+            work,
+            media,
+            vad_engine=vad_engine,
             noise_db=noise_db,
             min_silence_ms=min_silence_ms,
             min_speech_ms=min_speech_ms,
+            speech_threshold=speech_threshold,
+            speech_pad_before_ms=speech_pad_before_ms,
+            speech_pad_after_ms=speech_pad_after_ms,
+            duration_samples=duration_samples,
+            apply_pads=False,
+            log=lambda level, message: emit("vad", level, message),
         )
+        speech = detection.spans
         if not speech:
             raise IngestError(
                 "No speech detected. Lower the noise threshold or the minimum silence duration."
             )
-        meta["message"] = f"{len(speech)} speech intervals"
+        meta["message"] = f"{len(speech)} speech intervals ({detection.engine})"
         emit("vad", "info", str(meta["message"]))
 
     transcript: list[Sentence] = []
@@ -284,8 +303,7 @@ def run_portable(
             if not transcript:
                 raise IngestError("Speech-to-text returned no sentences.")
             meta["message"] = (
-                f"{len(transcript)} sentences from "
-                f"{'local Whisper' if local else 'ASR'}"
+                f"{len(transcript)} sentences from {'local Whisper' if local else 'ASR'}"
             )
             emit("transcribe", "info", str(meta["message"]))
 
@@ -323,11 +341,17 @@ def run_portable(
             if not speech:
                 raise IngestError("Culling and overrides removed all speech.")
             meta["message"] = (
-                f"{len(discard)} culled, {len(restored)} restored, "
-                f"{len(manual)} manual overrides"
+                f"{len(discard)} culled, {len(restored)} restored, {len(manual)} manual overrides"
             )
             emit("retakes", "info", str(meta["message"]))
 
+    speech = pad_spans(
+        speech,
+        media.audio_sample_rate,
+        speech_pad_before_ms,
+        speech_pad_after_ms,
+        duration_samples,
+    )
     config_jl = jl or JlCutsConfig()
     config_zooms = zooms or ZoomsConfig()
     gate()
@@ -408,9 +432,7 @@ def run_portable(
                 slug = slugify(clip.title, index)
                 ass_path = None
                 if shorts_subtitles:
-                    events = sentence_events(
-                        kept, clip.pieces, sample_rate=media.audio_sample_rate
-                    )
+                    events = sentence_events(kept, clip.pieces, sample_rate=media.audio_sample_rate)
                     if events:
                         ass_path = shorts_dir / f"{slug}.ass"
                         write_text(ass_path, build_ass(events))
@@ -456,11 +478,15 @@ def run_portable(
         report_path=report_path,
         shorts=tuple(short_paths),
         transcript_source=transcript_source,
+        vad_engine=detection.engine,
     )
     report = run.to_dict()
     report["pcm_sha256"] = digest
     report["noise_db"] = noise_db
     report["min_silence_ms"] = min_silence_ms
+    report["speech_threshold"] = speech_threshold
+    report["speech_pad_before_ms"] = speech_pad_before_ms
+    report["speech_pad_after_ms"] = speech_pad_after_ms
     write_text(report_path, _json(report))
     step("done", 100, "Finished")
     return run

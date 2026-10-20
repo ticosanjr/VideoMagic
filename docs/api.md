@@ -54,7 +54,7 @@ GET /health
 ```
 
 ```json
-{ "status": "ok", "service": "videoflow", "version": "0.17.0" }
+{ "status": "ok", "service": "videoflow", "version": "0.18.0" }
 ```
 
 ```http
@@ -64,7 +64,7 @@ GET /api/v1/system
 ```json
 {
   "ok": true,
-  "version": "0.17.0",
+  "version": "0.18.0",
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
@@ -91,6 +91,10 @@ Content-Type: application/json
   "noise_db": -30,
   "min_silence_ms": 400,
   "min_speech_ms": 100,
+  "vad_engine": "auto",
+  "speech_threshold": 0.5,
+  "speech_pad_before_ms": 120,
+  "speech_pad_after_ms": 150,
   "jcut": true,
   "lcut": false,
   "offset_ms": 200,
@@ -127,6 +131,12 @@ Content-Type: application/json
   "whisper_model": null
 }
 ```
+
+`vad_engine` selects `auto`, `silero`, or `ffmpeg`. `auto` uses the bundled
+Silero model when ONNX Runtime and the model are available, otherwise FFmpeg.
+`speech_threshold` applies to Silero; `speech_pad_before_ms` and
+`speech_pad_after_ms` apply to both engines. Explicit `silero` fails when the
+model or runtime is missing instead of silently downgrading.
 
 `transcript` is optional and is resolved through the same allowlist as media.
 When `cull_retakes` is true and `VIDEOWFLOW_LLM_BASE_URL` is set, the worker
@@ -278,7 +288,8 @@ On success, `job.result` is the `run_portable` report:
 ```json
 {
   "ok": true,
-  "version": "0.17.0",
+  "version": "0.18.0",
+  "vad_engine": "silero",
   "speech_interval_count": 3,
   "video_segment_count": 3,
   "audio_segment_count": 3,
@@ -415,7 +426,7 @@ The flag is persisted in `module_enabled` and consumed by the next project run.
 
 ### Run a module
 
-Per-module reruns are not implemented in 0.17.0. The route validates the
+Per-module reruns are not implemented in 0.18.0. The route validates the
 project and module id, then returns:
 
 ```json

@@ -95,7 +95,7 @@ cached intermediate artifacts, and export files.
 
 | Id | Requirement |
 | --- | --- |
-| FR-30 | Detect speech in 30 ms blocks with Silero VAD via ONNX Runtime. |
+| FR-30 | Detect speech in 512-sample (32 ms) blocks at 16 kHz with Silero VAD via ONNX Runtime. |
 | FR-31 | Merge speech intervals separated by less than `min_silence_duration_ms`. |
 | FR-32 | Apply `speech_pad_before_ms` and `speech_pad_after_ms` in audio samples. |
 | FR-33 | Keep `keep_handles_ms` of hidden media around each cut for J/L-cuts. |

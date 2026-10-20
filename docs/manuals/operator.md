@@ -88,17 +88,22 @@ Nothing is downloaded at install.
 
 | Engine | Artifact | Approx. size | Where |
 | --- | --- | --- | --- |
-| Silero VAD | ONNX | ~2 MB | configured model dir |
-| Faster-Whisper `small` | CTranslate2 | ~500 MB | model cache |
-| Faster-Whisper `medium` | CTranslate2 | ~1.5 GB | model cache |
-| Faster-Whisper `large-v3` | CTranslate2 | ~3 GB | model cache |
+| Silero VAD v5.1.2 | ONNX | ~2.3 MB | `vendor/silero/silero_vad.onnx` or `VIDEOWFLOW_SILERO_MODEL` |
+| Faster-Whisper `small` | CTranslate2 | ~500 MB | planned for the next pass |
+| Faster-Whisper `medium` | CTranslate2 | ~1.5 GB | planned for the next pass |
+| Faster-Whisper `large-v3` | CTranslate2 | ~3 GB | planned for the next pass |
+
+Fetch the pinned Silero model with `uv run python scripts/fetch_silero.py`. The
+portable build bundles it with `--with-silero`; `doctor` reports both the model
+and the ONNX Runtime version. ONNX Runtime uses the CPU.
 
 Record the digest of each artifact you install. Set it in
 `retakes.model_artifact_digest` / the Whisper config so the cache invalidates when
 the artifact changes.
 
-The first run with a missing model fails with the expected path. It does not
-silently download.
+A missing model is never downloaded implicitly. With `vad_engine=auto`, the
+pipeline falls back to FFmpeg `silencedetect`; an explicit `silero` request fails
+with the expected path and a fetch hint.
 
 ## 5. GPU
 
@@ -106,7 +111,7 @@ CPU is the default. To opt in:
 
 1. Install a CUDA-capable PyTorch/CTranslate2 stack compatible with your driver.
 2. Set `transcribe.device=cuda`, `compute_type=float16`.
-3. Set the VAD runtime to CUDA if supported.
+3. Leave VAD on the CPU; 0.18 uses ONNX Runtime CPU only.
 4. Run a one-minute clip and measure.
 5. Keep `small` until quality demands more.
 

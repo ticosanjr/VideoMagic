@@ -115,9 +115,13 @@
     return {
       source: source.trim(),
       output: output.trim(),
+      vad_engine: String(config.vad_engine || "auto"),
       noise_db: Number(config.noise_db),
       min_silence_ms: Number(config.min_silence_ms),
       min_speech_ms: Number(config.min_speech_ms),
+      speech_threshold: Number(config.speech_threshold),
+      speech_pad_before_ms: Number(config.speech_pad_before_ms),
+      speech_pad_after_ms: Number(config.speech_pad_after_ms),
       jcut: Boolean(config.jcut),
       lcut: Boolean(config.lcut),
       offset_ms: Number(config.offset_ms),

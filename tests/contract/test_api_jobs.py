@@ -165,9 +165,7 @@ def test_job_reports_stages_and_logs(monkeypatch, tmp_path: Path) -> None:
     logs = client.get(f"/api/v1/jobs/{job['job_id']}/logs").json()
     assert logs["total"] == 1
     assert logs["logs"][0]["module"] == "ingest"
-    filtered = client.get(
-        f"/api/v1/jobs/{job['job_id']}/logs?module=vad"
-    ).json()
+    filtered = client.get(f"/api/v1/jobs/{job['job_id']}/logs?module=vad").json()
     assert filtered["logs"] == []
     downloaded = client.get(f"/api/v1/jobs/{job['job_id']}/logs?download=1")
     assert downloaded.status_code == 200
@@ -184,6 +182,10 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
             "source": str(source),
             "output": str(tmp_path / "out"),
             "min_speech_ms": 150,
+            "vad_engine": "silero",
+            "speech_threshold": 0.6,
+            "speech_pad_before_ms": 80,
+            "speech_pad_after_ms": 90,
             "offset_ms": 250,
             "crossfade_ms": 30,
             "handle_check": False,
@@ -211,6 +213,10 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
     )
     assert response.status_code == 202
     options = response.json()["job"]["options"]
+    assert options["vad_engine"] == "silero"
+    assert options["speech_threshold"] == 0.6
+    assert options["speech_pad_before_ms"] == 80
+    assert options["speech_pad_after_ms"] == 90
     assert options["offset_ms"] == 250
     assert options["export_targets"] == ["resolve"]
     assert options["context_window"] == 20

@@ -58,6 +58,10 @@ class NewJobRequest(BaseModel):
     noise_db: float = Field(default=-30.0, ge=-80.0, le=-5.0)
     min_silence_ms: int = Field(default=400, ge=0, le=10000)
     min_speech_ms: int = Field(default=100, ge=0, le=2000)
+    vad_engine: Literal["auto", "silero", "ffmpeg"] = "auto"
+    speech_threshold: float = Field(default=0.5, ge=0.1, le=0.9)
+    speech_pad_before_ms: int = Field(default=120, ge=0, le=2000)
+    speech_pad_after_ms: int = Field(default=150, ge=0, le=2000)
     jcut: bool = True
     lcut: bool = False
     offset_ms: int = Field(default=200, ge=100, le=500)
@@ -155,6 +159,10 @@ def register_routes(
                     "noise_db": request.noise_db,
                     "min_silence_ms": request.min_silence_ms,
                     "min_speech_ms": request.min_speech_ms,
+                    "vad_engine": request.vad_engine,
+                    "speech_threshold": request.speech_threshold,
+                    "speech_pad_before_ms": request.speech_pad_before_ms,
+                    "speech_pad_after_ms": request.speech_pad_after_ms,
                     "jcut": request.jcut,
                     "lcut": request.lcut,
                     "offset_ms": request.offset_ms,

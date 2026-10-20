@@ -18,6 +18,7 @@ def test_version(capsys) -> None:
 def test_doctor_reports_missing_ffmpeg(monkeypatch, tmp_path, capsys) -> None:
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
     monkeypatch.setattr(cli, "find_binary", lambda _name: None)
+    monkeypatch.setattr(cli, "find_silero_model", lambda: None)
     assert cli.main(["doctor"]) == 1
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is False
@@ -65,3 +66,38 @@ def test_serve_ui_url_handles_wildcard_bind() -> None:
 def test_unknown_command_returns_usage(capsys) -> None:
     assert cli.main([]) == 2
     assert "usage" in capsys.readouterr().out.lower()
+
+
+def test_run_passes_vad_options(monkeypatch, tmp_path, capsys) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    seen: dict[str, object] = {}
+
+    def fake_run(*args: object, **kwargs: object) -> FakeRun:
+        seen.update(kwargs)
+        return FakeRun()
+
+    monkeypatch.setattr(cli, "run_portable", fake_run)
+    assert (
+        cli.main(
+            [
+                "run",
+                str(source),
+                "--out",
+                str(tmp_path / "out"),
+                "--vad-engine",
+                "silero",
+                "--speech-threshold",
+                "0.6",
+                "--speech-pad-before-ms",
+                "10",
+                "--speech-pad-after-ms",
+                "20",
+            ]
+        )
+        == 0
+    )
+    assert seen["vad_engine"] == "silero"
+    assert seen["speech_threshold"] == 0.6
+    assert seen["speech_pad_before_ms"] == 10
+    assert seen["speech_pad_after_ms"] == 20

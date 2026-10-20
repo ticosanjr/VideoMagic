@@ -43,6 +43,11 @@ for name in ("ffmpeg", "ffprobe"):
         if candidate.is_file():
             binaries.append((str(candidate), "vendor"))
 
+silero = VENDOR / "silero"
+if silero.is_dir():
+    for candidate in sorted(silero.glob("*.onnx")):
+        datas.append((str(candidate), "silero"))
+
 whisper = VENDOR / "whisper"
 if whisper.is_dir():
     for candidate in sorted(whisper.iterdir()):
@@ -64,6 +69,14 @@ datas += otio_datas
 binaries += otio_binaries
 hiddenimports += otio_hidden
 
+try:
+    ort_datas, ort_binaries, ort_hidden = collect_all("onnxruntime")
+    datas += ort_datas
+    binaries += ort_binaries
+    hiddenimports += ort_hidden
+except Exception:
+    pass
+
 for distribution in (
     "mcp",
     "opentimelineio",
@@ -72,6 +85,7 @@ for distribution in (
     "fastapi",
     "starlette",
     "uvicorn",
+    "onnxruntime",
 ):
     try:
         datas += copy_metadata(distribution)

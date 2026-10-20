@@ -12,6 +12,7 @@ ModelSize = Literal["tiny", "base", "small", "medium", "large-v3"]
 MediaLanguage = Literal["pt", "it", "en", "es", "auto"]
 ComputeDevice = Literal["cuda", "cpu"]
 ComputeType = Literal["float16", "int8", "float32"]
+VadEngine = Literal["auto", "silero", "ffmpeg"]
 LlmProvider = Literal["ollama", "openai_compatible"]
 Strictness = Literal["conservative", "balanced", "aggressive"]
 RetakeStrategy = Literal["keep_last", "keep_best"]
@@ -35,6 +36,7 @@ class IngestConfig(StrictModel):
 
 
 class VadConfig(StrictModel):
+    engine: VadEngine = "auto"
     speech_threshold: float = Field(default=0.5, ge=0.1, le=0.9)
     min_silence_duration_ms: int = Field(default=400, ge=0)
     speech_pad_before_ms: int = Field(default=120, ge=0)

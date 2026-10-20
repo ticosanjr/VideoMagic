@@ -221,6 +221,10 @@ class JobManager:
                 noise_db=float(options.get("noise_db", -30.0)),
                 min_silence_ms=int(options.get("min_silence_ms", 400)),
                 min_speech_ms=int(options.get("min_speech_ms", 100)),
+                vad_engine=str(options.get("vad_engine", "auto")),  # type: ignore[arg-type]
+                speech_threshold=float(options.get("speech_threshold", 0.5)),
+                speech_pad_before_ms=int(options.get("speech_pad_before_ms", 120)),
+                speech_pad_after_ms=int(options.get("speech_pad_after_ms", 150)),
                 jl=jl,
                 zooms=zooms,
                 dialect=dialect,

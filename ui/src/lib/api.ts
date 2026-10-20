@@ -11,9 +11,13 @@ export interface SystemInfo {
 }
 
 export interface JobOptions {
+  vad_engine: string;
   noise_db: number;
   min_silence_ms: number;
   min_speech_ms: number;
+  speech_threshold: number;
+  speech_pad_before_ms: number;
+  speech_pad_after_ms: number;
   jcut: boolean;
   lcut: boolean;
   offset_ms: number;
@@ -92,9 +96,13 @@ export interface Job {
 export interface NewJob {
   source: string;
   output: string;
+  vad_engine: string;
   noise_db: number;
   min_silence_ms: number;
   min_speech_ms: number;
+  speech_threshold: number;
+  speech_pad_before_ms: number;
+  speech_pad_after_ms: number;
   jcut: boolean;
   lcut: boolean;
   offset_ms: number;

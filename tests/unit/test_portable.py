@@ -6,7 +6,7 @@ import pytest
 from videoflow.application.portable import run_portable
 from videoflow.domain.config import JlCutsConfig, ZoomsConfig
 from videoflow.domain.errors import IngestError
-from videoflow.domain.state import MediaInfo
+from videoflow.domain.state import ManualOverride, MediaInfo
 
 
 class FakeAdapter:
@@ -68,6 +68,7 @@ def test_portable_pipeline_writes_state_report_and_artifacts(tmp_path: Path) -> 
         jl=JlCutsConfig(enable_j_cuts=True),
         zooms=ZoomsConfig(mode="alternate_cuts"),
         adapter=FakeAdapter(),  # type: ignore[arg-type]
+        vad_engine="ffmpeg",
     )
     assert result.state.media_info is not None
     assert len(result.state.video_segments) == 2
@@ -80,6 +81,7 @@ def test_portable_pipeline_writes_state_report_and_artifacts(tmp_path: Path) -> 
     assert report["pcm_sha256"] == "digest"
     assert report["video_segment_count"] == 2
     assert report["artifacts"]["resolve"].endswith("timeline.fcpxml")
+    assert report["vad_engine"] == "ffmpeg"
 
 
 def test_transcript_culls_exact_repeats_and_updates_state(tmp_path: Path) -> None:
@@ -95,6 +97,7 @@ def test_transcript_culls_exact_repeats_and_updates_state(tmp_path: Path) -> Non
         source,
         tmp_path / "project",
         adapter=FakeAdapter(),  # type: ignore[arg-type]
+        vad_engine="ffmpeg",
         transcript_path=transcript,
         cull_retakes=True,
     )
@@ -117,6 +120,7 @@ def test_portable_pipeline_reports_stages_logs_and_targets(tmp_path: Path) -> No
         source,
         tmp_path / "project",
         adapter=FakeAdapter(),  # type: ignore[arg-type]
+        vad_engine="ffmpeg",
         telemetry=telemetry,
         log=lambda module, level, message: (
             logs.append((module, level, message)),
@@ -135,8 +139,6 @@ def test_portable_pipeline_reports_stages_logs_and_targets(tmp_path: Path) -> No
 
 
 def test_manual_discard_and_keep_override_culls(tmp_path: Path) -> None:
-    from videoflow.domain.state import ManualOverride
-
     source = tmp_path / "source.mp4"
     source.write_bytes(b"fixture")
     transcript = tmp_path / "subs.srt"
@@ -149,6 +151,7 @@ def test_manual_discard_and_keep_override_culls(tmp_path: Path) -> None:
         source,
         tmp_path / "keep",
         adapter=FakeAdapter(),  # type: ignore[arg-type]
+        vad_engine="ffmpeg",
         transcript_path=transcript,
         cull_retakes=True,
         overrides=[ManualOverride(sentence_id=0, action="keep")],
@@ -161,6 +164,7 @@ def test_manual_discard_and_keep_override_culls(tmp_path: Path) -> None:
         source,
         tmp_path / "discard",
         adapter=FakeAdapter(),  # type: ignore[arg-type]
+        vad_engine="ffmpeg",
         transcript_path=transcript,
         overrides=[ManualOverride(sentence_id=0, action="discard")],
     )
@@ -185,6 +189,7 @@ def test_portable_pipeline_can_use_an_asr_client(tmp_path: Path) -> None:
         source,
         tmp_path / "project",
         adapter=FakeAdapter(),  # type: ignore[arg-type]
+        vad_engine="ffmpeg",
         transcribe=True,
         asr_client=Asr(),
         cull_retakes=False,
@@ -222,6 +227,7 @@ def test_portable_pipeline_uses_local_whisper_without_an_url(
         source,
         tmp_path / "project",
         adapter=FakeAdapter(),  # type: ignore[arg-type]
+        vad_engine="ffmpeg",
         transcribe=True,
         whisper_model=tmp_path / "model.bin",
         cull_retakes=False,
@@ -273,6 +279,7 @@ def test_portable_pipeline_reuses_project_transcript_and_metadata(
         source,
         tmp_path / "project",
         adapter=FakeAdapter(),  # type: ignore[arg-type]
+        vad_engine="ffmpeg",
         transcript_sentences=[sentence],
         project_id=project_id,
         revision=9,
@@ -299,14 +306,14 @@ def test_portable_pipeline_can_render_shorts(tmp_path: Path) -> None:
     source.write_bytes(b"fixture")
     transcript = tmp_path / "subs.srt"
     transcript.write_text(
-        "1\n00:00:00,000 --> 00:00:01,000\nFirst.\n\n"
-        "2\n00:00:02,000 --> 00:00:03,000\nSecond.\n",
+        "1\n00:00:00,000 --> 00:00:01,000\nFirst.\n\n2\n00:00:02,000 --> 00:00:03,000\nSecond.\n",
         encoding="utf-8",
     )
     result = run_portable(
         source,
         tmp_path / "project",
         adapter=FakeAdapter(),  # type: ignore[arg-type]
+        vad_engine="ffmpeg",
         transcript_path=transcript,
         shorts=True,
         shorts_count=2,
@@ -327,4 +334,78 @@ def test_portable_pipeline_fails_when_no_speech_is_detected(tmp_path: Path) -> N
             source,
             tmp_path / "project",
             adapter=FakeAdapter(speech=[]),  # type: ignore[arg-type]
+            vad_engine="ffmpeg",
         )
+
+
+def test_portable_pipeline_runs_silero_at_16k_and_rescales(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from videoflow.application import vad
+
+    class FakeSilero:
+        @staticmethod
+        def available() -> bool:
+            return True
+
+        def __init__(self, **kwargs: object) -> None:
+            pass
+
+        def detect(self, wav_path: Path) -> list[tuple[int, int]]:
+            assert wav_path.name == "vad.wav"
+            return [(0, 16000), (32000, 48000)]
+
+    class RecordingAdapter(FakeAdapter):
+        def __init__(self) -> None:
+            super().__init__()
+            self.rates: list[int] = []
+
+        def extract_pcm(self, source: Path, destination: Path, *, sample_rate: int = 16000) -> Path:
+            self.rates.append(sample_rate)
+            return super().extract_pcm(source, destination, sample_rate=sample_rate)
+
+    monkeypatch.setattr(vad, "SileroVadAdapter", FakeSilero)
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    adapter = RecordingAdapter()
+    result = run_portable(
+        source,
+        tmp_path / "project",
+        adapter=adapter,  # type: ignore[arg-type]
+        vad_engine="silero",
+        speech_pad_before_ms=0,
+        speech_pad_after_ms=0,
+    )
+    assert adapter.rates == [48000, 16000]
+    assert result.vad_engine == "silero"
+    assert [(item.start_sample, item.end_sample) for item in result.state.vad_intervals] == [
+        (0, 48000),
+        (96000, 144000),
+    ]
+    report = json.loads(result.report_path.read_text(encoding="utf-8"))
+    assert report["vad_engine"] == "silero"
+
+
+def test_speech_pads_are_applied_after_retake_culling(tmp_path: Path) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    transcript = tmp_path / "subs.srt"
+    transcript.write_text(
+        "1\n00:00:00,000 --> 00:00:01,000\nFirst take.\n\n"
+        "2\n00:00:02,000 --> 00:00:03,000\nSecond take.\n",
+        encoding="utf-8",
+    )
+    result = run_portable(
+        source,
+        tmp_path / "project",
+        adapter=FakeAdapter(),  # type: ignore[arg-type]
+        vad_engine="ffmpeg",
+        transcript_path=transcript,
+        overrides=[ManualOverride(sentence_id=0, action="discard")],
+        speech_pad_before_ms=120,
+        speech_pad_after_ms=150,
+    )
+    assert [(item.start_sample, item.end_sample) for item in result.state.vad_intervals] == [
+        (90240, 144000)
+    ]
+    assert len(result.state.video_segments) == 1

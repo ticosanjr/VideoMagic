@@ -22,8 +22,8 @@ Adapters own FFmpeg, ONNX, CTranslate2, HTTP, and MCP. The UI and agents are pee
       └────────────────────┬──────────────────────┘
                            │ ports
       ┌────────────────────▼──────────────────────┐
-      │ FFmpeg · Silero ONNX · Faster-Whisper     │
-      │ OpenAI-compatible LLM · filesystem        │
+      │ FFmpeg · Silero ONNX · whisper.cpp/ASR   │
+      │ OpenAI-compatible LLM · filesystem       │
       └───────────────────────────────────────────┘
 ```
 
@@ -49,7 +49,7 @@ Rules:
 | `application/cache.py` | Canonical module hashing |
 | `application/timeline_builder.py` | Deterministic cuts, J/L boundaries, fades, zoom metadata |
 | `application/export_service.py` | One validated timeline to three NLE artifacts |
-| `application/portable.py` | Model-free ingest → silence → timeline → export run |
+| `application/portable.py` | Ingest → VAD → timeline → export run |
 | `runtime.py` | Portable home, bundled binary discovery, UI discovery |
 | `cli.py` | Unified `videoflow` command surface |
 | `application/runner.py` | Executes a `RunPlan` (stub) |
@@ -57,8 +57,10 @@ Rules:
 | `application/telemetry.py` | Per-stage timestamps, progress, and bounded logs |
 | `modules/` | The eight rack modules (fingerprints live, engines stubbed) |
 | `adapters/ffmpeg.py` | FFprobe ingest, PCM extraction, digest, silencedetect VAD |
+| `adapters/silero.py` | Silero v5.1.2 ONNX inference and speech-window merging |
+| `adapters/whisper.py` | Local whisper.cpp CLI adapter |
 | `adapters/asr.py` | OpenAI-compatible `/audio/transcriptions` client |
-| `adapters/` | Neural and LLM ports, unimplemented |
+| `adapters/llm.py` | OpenAI-compatible retake client |
 | `exporters/` | FCPXML, xmeml, OTIO implemented; MP4 stub |
 | `api/` | FastAPI app, job routes, SSE, UI mount, CLI |
 | `mcp_server/` | Tool registry, SDK server, stdio CLI |
@@ -78,8 +80,8 @@ ingest ──► vad ──────────────┐
 | Module | Reads | Writes | Engine |
 | --- | --- | --- | --- |
 | ingest | source path | media info, PCM, proxy | FFmpeg |
-| vad | PCM | speech sample spans | Silero ONNX |
-| transcribe | PCM | sentences and words | Faster-Whisper |
+| vad | PCM | speech sample spans | Silero ONNX (FFmpeg fallback) |
+| transcribe | PCM | sentences and words | whisper.cpp / ASR HTTP; Faster-Whisper next |
 | retakes | transcript | culls, guard restores | LLM + domain guard |
 | jl_cuts | VAD spans, culls | video and audio segments | domain + timebase |
 | zooms | segments | transforms | domain rules |

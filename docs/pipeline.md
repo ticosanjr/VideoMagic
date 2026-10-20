@@ -148,17 +148,20 @@ the future.
 6. Subtitles are rendered from word timings.
 7. The export format decides between timeline clips and MP4 files.
 
-## 11. Portable model-free path
+## 11. Portable pipeline path
 
-`application/portable.py` implements the subset that needs no model:
+`application/portable.py` implements the complete single-file path:
 
 ```
-FFprobe → PCM at media rate → FFmpeg silencedetect → timeline → 3 exports
+FFprobe → PCM at media rate → Silero (16 kHz) or FFmpeg VAD → optional SRT/ASR
+        → retake culling → pads → timeline → three exports
 ```
 
-`videoflow run` and `videoflow demo` call it. It is intentionally lower quality
-than Silero and does not transcribe, cull retakes, or generate shorts. It exists
-so the single portable executable is useful offline on a fresh machine.
+`videoflow run` and `videoflow demo` call it. `auto` uses Silero when the pinned
+model and ONNX Runtime are present and falls back to FFmpeg `silencedetect`
+otherwise. Pads are applied after retake culling so a discarded take cannot
+survive as pad-only audio. The path also supports local whisper.cpp, SRT/ASR
+transcripts, LLM retakes, shorts, and all three exporters.
 
 ## 12. Implementation order
 
@@ -167,7 +170,7 @@ Done:
 1. Ingest and PCM fingerprint
 2. Timeline, J/L-cuts, zoom metadata
 3. FCPXML, xmeml, OTIO with structural contract tests
-4. Portable model-free VAD and onefile executable
+4. Portable FFmpeg VAD and onefile executable
 5. In-process jobs, REST/SSE, and live MCP job tools
 6. SRT transcript import, LLM retakes, and the keeper guard
 7. Vertical shorts: selection, culling, captions, and 1080x1920 render
@@ -175,10 +178,10 @@ Done:
 9. SRT/ASR transcripts, manual overrides, and Shorts in jobs
 10. Persistent projects, atomic revisions, transcript routes, and operator
     presets
+11. Silero VAD, source-rate rescaling, pads, and ONNX packaging
 
 Next, in order:
 
-11. Silero VAD
 12. Faster-Whisper
 13. Cache-backed per-block runs and the full rack inspector
 14. NLE audio transitions, keyframed zooms, subtitles, MP4

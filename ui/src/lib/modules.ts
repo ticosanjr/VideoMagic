@@ -15,9 +15,13 @@ export type ConfigKey =
   | "force_cfr"
   | "extract_pcm"
   | "proxy"
+  | "vad_engine"
   | "noise_db"
   | "min_silence_ms"
   | "min_speech_ms"
+  | "speech_threshold"
+  | "speech_pad_before_ms"
+  | "speech_pad_after_ms"
   | "transcribe"
   | "asr_base_url"
   | "asr_model"
@@ -80,9 +84,13 @@ export const defaultConfig: JobConfig = {
   force_cfr: true,
   extract_pcm: true,
   proxy: false,
+  vad_engine: "auto",
   noise_db: -30,
   min_silence_ms: 400,
   min_speech_ms: 100,
+  speech_threshold: 0.5,
+  speech_pad_before_ms: 120,
+  speech_pad_after_ms: 150,
   transcribe: false,
   asr_base_url: "",
   asr_model: "whisper-1",
@@ -135,6 +143,46 @@ export const modules: RackModule[] = [
     summary: "Find speech and remove silence with a protected minimum speech length.",
     portable: true,
     fields: [
+      {
+        key: "vad_engine",
+        label: "Engine",
+        type: "select",
+        implemented: true,
+        options: [
+          { value: "auto", label: "Auto (Silero, then FFmpeg)" },
+          { value: "silero", label: "Silero (quality)" },
+          { value: "ffmpeg", label: "FFmpeg (portable)" }
+        ],
+        help: "Auto uses the bundled Silero model when ONNX Runtime is available."
+      },
+      {
+        key: "speech_threshold",
+        label: "Speech probability",
+        type: "number",
+        implemented: true,
+        min: 0.1,
+        max: 0.9,
+        step: 0.05,
+        help: "Silero threshold; ignored by the FFmpeg fallback."
+      },
+      {
+        key: "speech_pad_before_ms",
+        label: "Pad before (ms)",
+        type: "number",
+        implemented: true,
+        min: 0,
+        max: 2000,
+        step: 10
+      },
+      {
+        key: "speech_pad_after_ms",
+        label: "Pad after (ms)",
+        type: "number",
+        implemented: true,
+        min: 0,
+        max: 2000,
+        step: 10
+      },
       {
         key: "noise_db",
         label: "Noise floor (dB)",

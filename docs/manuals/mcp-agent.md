@@ -30,7 +30,7 @@ HTTP:
 ```
 
 Restart the host after changing the config. All tools and resources in this
-manual are live in 0.17.0.
+manual are live in 0.18.0.
 
 ## 2. Tool groups
 
@@ -38,7 +38,7 @@ Analysis, returns immediately:
 
 ```
 load_media(file_path)
-run_vad(noise_db, min_silence_ms, min_speech_ms)
+run_vad(noise_db, min_silence_ms, min_speech_ms, vad_engine, speech_threshold, speech_pad_before_ms, speech_pad_after_ms)
 transcribe(model, language)
 get_transcript(include_word_timestamps)
 generate_shorts(min_duration, max_duration, count, subtitles)

@@ -19,9 +19,9 @@ both an ELF and a PE binary, and PyInstaller does not cross-compile.
   Windows embeddable Python. No GitHub Actions workflow is used.
 - Also wrap the Linux binary in an AppImage for a single-file desktop artifact.
 - Add a unified CLI: `run`, `serve`, `mcp`, `doctor`, `demo`, `version`.
-- Add a model-free pipeline path: FFmpeg `silencedetect` for speech intervals,
-  then the deterministic timeline and exporters. This makes the portable binary
-  useful without model downloads.
+- Add a model-free pipeline fallback: FFmpeg `silencedetect` for speech
+  intervals, then the deterministic timeline and exporters. From 0.18, release
+  builds also bundle Silero VAD and ONNX Runtime; FFmpeg remains the fallback.
 - Store portable data next to the executable unless `VIDEOWFLOW_HOME` overrides.
 - Resolve binaries from the bundle, next to the executable, then `PATH`, with
   `VIDEOWFLOW_FFMPEG` / `VIDEOWFLOW_FFPROBE` overrides.
@@ -35,8 +35,8 @@ both an ELF and a PE binary, and PyInstaller does not cross-compile.
   you intend to support.
 - Bundling FFmpeg adds roughly 170 MB compressed and brings FFmpeg's license
   obligations; bundling is an explicit build flag.
-- The portable path is lower quality than Silero VAD. It is a fallback, not a
-  replacement, and the docs say so.
+- The FFmpeg fallback is lower quality than Silero VAD. Release builds bundle
+  Silero by default; builds without it still run, at lower VAD quality.
 - The UI can be served from the same process and is found through `_MEIPASS`.
 - Signing is not configured. Windows will show SmartScreen warnings until a
   certificate exists.

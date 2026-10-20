@@ -3,19 +3,19 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (0.17.0)
+## Implementation status (0.18.0)
 
 | Area | State |
 | --- | --- |
 | Rational time, state, cache, planning, retake guard, path jail | implemented |
 | FFmpeg ingest and PCM fingerprint | implemented |
-| Portable model-free speech detection (`silencedetect`) | implemented |
+| Silero VAD via ONNX Runtime with FFmpeg `silencedetect` fallback | implemented |
 | Deterministic timeline, J/L-cuts, fades, punch-ins | implemented |
 | FCPXML 1.9/1.10, xmeml, OTIO export | implemented |
 | Portable artifacts | Linux binary, Linux AppImage, Windows PE built and smoke-tested under Wine |
 | SRT transcript import and LLM retake culling | implemented |
 | Local whisper.cpp transcription and ASR HTTP | implemented |
-| Silero VAD and Faster-Whisper quality path | specified, stubbed |
+| Faster-Whisper quality transcription | specified, stubbed |
 | Jobs, job REST routes, SSE, live MCP jobs | implemented for the portable path |
 | MCP: twelve tools and four resources | implemented; analysis, staged edits, jobs, export, resources |
 | Rack UI driving real portable jobs, logs, overrides, shorts | implemented |

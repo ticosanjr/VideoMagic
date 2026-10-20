@@ -50,7 +50,7 @@ still required.
 | Tool | Inputs | Behavior |
 | --- | --- | --- |
 | `videoflow_load_media` | `file_path` | **live**: probes and remembers the source; loading a different source clears the old MCP project context |
-| `videoflow_run_vad` | `noise_db`, `min_silence_ms`, `min_speech_ms` | **live**: FFmpeg speech detection; returns sample intervals and removable silence |
+| `videoflow_run_vad` | `noise_db`, `min_silence_ms`, `min_speech_ms`, `vad_engine`, `speech_threshold`, `speech_pad_before_ms`, `speech_pad_after_ms` | **live**: Silero when available, FFmpeg fallback; returns sample intervals, removable silence, and the selected engine |
 | `videoflow_transcribe` | `model`, `language` | **live**: local whisper.cpp; returns sentences and stages an SRT for the next run |
 | `videoflow_get_transcript` | `include_word_timestamps` | **live**: cached or project-state transcript, plus SRT |
 | `videoflow_cull_retakes` | `discard_sentence_ids`, `manual_word_indices` | **live/staged**: automatic exact-repeat culling plus manual sentence discards; the guard protects the final take |
@@ -74,7 +74,8 @@ Presets accepted by `run_pipeline`:
 - `lecture-clean`: no J-cuts, no zooms, 700 ms silence.
 
 `overrides` accepts `jcut`, `lcut`, `zooms`, `noise_db`, `min_silence_ms`,
-`min_speech_ms`, `offset_ms`, `crossfade_ms`, `handle_check`, `zoom_mode`,
+`min_speech_ms`, `vad_engine`, `speech_threshold`, `speech_pad_before_ms`,
+`speech_pad_after_ms`, `offset_ms`, `crossfade_ms`, `handle_check`, `zoom_mode`,
 `punch_in_scale`, `anchor_point`, `progressive_zoom`, `pan_direction`,
 `export_targets`, `dialect`, `transcript`, `cull_retakes`, `strictness`,
 `retake_strategy`, `context_window`, `llm_base_url`, `llm_model`, `shorts`,
@@ -120,7 +121,7 @@ The complete path, using only public tools:
 
 ```
 1.  videoflow_load_media(file_path="/media/interview.mp4")
-2.  videoflow_run_vad(noise_db=-30, min_silence_ms=400)
+2.  videoflow_run_vad(noise_db=-30, min_silence_ms=400, vad_engine="auto")
 3.  videoflow_transcribe(model="small", language="pt")
 4.  videoflow_get_transcript(include_word_timestamps=true)
 5.  videoflow_cull_retakes(discard_sentence_ids=[...])

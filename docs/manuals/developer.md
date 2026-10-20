@@ -26,7 +26,7 @@ Implemented:
 - FFprobe ingest, PCM extraction, and media fingerprint
 - deterministic timeline builder with J/L-cuts, handles, fades, and punch-ins
 - FCPXML 1.9/1.10, xmeml, and OTIO exporters plus `export_timeline`
-- model-free FFmpeg silence detection and the portable pipeline service
+- Silero VAD with FFmpeg fallback and the portable pipeline service
 - SRT import, OpenAI-compatible retake culling, and the keeper guard
 - unified CLI (`run`, `serve`, `mcp`, `doctor`, `demo`, `version`)
 - PyInstaller onefile packaging for Linux and Windows, plus a Linux AppImage
@@ -36,11 +36,9 @@ Implemented:
 
 Stubbed, with `xfail` contracts:
 
-- Silero VAD, Faster-Whisper, and built-in transcription
-- module `execute` methods and the rack runner
-- jobs, project routes, and SSE
-- live MCP tool results against a project
-- NLE audio transitions, keyframed zooms, MP4 render, and the interactive rack
+- the Faster-Whisper/CTranslate2 adapter
+- per-module `execute` methods and per-module reruns
+- NLE audio transitions, keyframed progressive zooms, and direct MP4 rendering
 
 ## 3. Layout
 
@@ -49,7 +47,7 @@ src/videoflow/
   domain/        pure rules; no I/O
   application/   cache, runner, jobs, ports
   modules/       eight module classes and fingerprints
-  adapters/      ffmpeg, vad, whisper, llm
+  adapters/      ffmpeg, silero, whisper, asr, llm
   exporters/     fcpxml, xmeml, otio, mp4
   api/           FastAPI, CLI
   mcp_server/    registry, SDK server, CLI
@@ -67,7 +65,7 @@ Ingest is the reference implementation: `adapters/ffmpeg.py` does the work,
 `application/export_service.py` writes the artifacts. The module class still has a
 stub `execute`; wire it to these services in the job pass.
 
-For VAD or transcription:
+For a new model adapter or transcription path:
 
 1. Implement the adapter behind the existing protocol with a lazy import. The
    import must not be required for the unit suite.

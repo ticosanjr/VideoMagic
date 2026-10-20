@@ -116,6 +116,23 @@ def find_whisper_model() -> Path | None:
     return None
 
 
+def find_silero_model() -> Path | None:
+    override = os.environ.get("VIDEOWFLOW_SILERO_MODEL")
+    if override:
+        path = Path(override).expanduser()
+        return path if path.is_file() else None
+    candidates = (
+        bundle_root() / "silero" / "silero_vad.onnx",
+        bundle_root() / "vendor" / "silero" / "silero_vad.onnx",
+        executable_dir() / "silero" / "silero_vad.onnx",
+        executable_dir() / "silero_vad.onnx",
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def ui_dir() -> Path | None:
     override = os.environ.get("VIDEOWFLOW_UI_DIR")
     candidates = [Path(override).expanduser()] if override else []

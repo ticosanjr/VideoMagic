@@ -68,3 +68,20 @@ def test_find_whisper_honours_environment_overrides(monkeypatch, tmp_path: Path)
     assert runtime.find_whisper_model() == model
     monkeypatch.setenv("VIDEOWFLOW_WHISPER_MODEL", str(tmp_path / "missing.bin"))
     assert runtime.find_whisper_model() is None
+
+
+def test_find_silero_model_prefers_bundle_and_honours_override(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("VIDEOWFLOW_SILERO_MODEL", raising=False)
+    monkeypatch.setattr(runtime, "bundle_root", lambda: tmp_path)
+    monkeypatch.setattr(runtime, "executable_dir", lambda: tmp_path / "bin")
+    model = tmp_path / "vendor" / "silero" / "silero_vad.onnx"
+    model.parent.mkdir(parents=True)
+    model.write_bytes(b"model")
+    assert runtime.find_silero_model() == model
+
+    override = tmp_path / "custom.onnx"
+    override.write_bytes(b"model")
+    monkeypatch.setenv("VIDEOWFLOW_SILERO_MODEL", str(override))
+    assert runtime.find_silero_model() == override
+    monkeypatch.setenv("VIDEOWFLOW_SILERO_MODEL", str(tmp_path / "missing.onnx"))
+    assert runtime.find_silero_model() is None

@@ -31,6 +31,7 @@ from videoflow.exporters.common import write_text
 from videoflow.runtime import (
     ensure_home,
     find_binary,
+    find_silero_model,
     find_whisper_binary,
     find_whisper_model,
     portable_home,
@@ -85,6 +86,30 @@ def _parser() -> argparse.ArgumentParser:
         type=int,
         default=100,
         help="Ignore speech blips shorter than this (default 100).",
+    )
+    run.add_argument(
+        "--vad-engine",
+        choices=("auto", "silero", "ffmpeg"),
+        default="auto",
+        help="Speech detector: Silero when bundled, FFmpeg fallback, or force one.",
+    )
+    run.add_argument(
+        "--speech-threshold",
+        type=float,
+        default=0.5,
+        help="Silero speech probability threshold (0.1-0.9).",
+    )
+    run.add_argument(
+        "--speech-pad-before-ms",
+        type=int,
+        default=120,
+        help="Keep this much audio before detected speech (default 120).",
+    )
+    run.add_argument(
+        "--speech-pad-after-ms",
+        type=int,
+        default=150,
+        help="Keep this much audio after detected speech (default 150).",
     )
     run.add_argument("--no-jcuts", action="store_true", help="Disable J-cuts.")
     run.add_argument("--l-cuts", action="store_true", help="Enable L-cuts.")
@@ -215,6 +240,18 @@ def _doctor() -> int:
         "model": str(whisper_model) if whisper_model else None,
         "found": bool(whisper_binary and whisper_model),
     }
+    silero_model = find_silero_model()
+    try:
+        import onnxruntime
+
+        onnxruntime_version: str | None = onnxruntime.__version__
+    except Exception:  # pragma: no cover - optional runtime
+        onnxruntime_version = None
+    checks["silero"] = {
+        "model": str(silero_model) if silero_model else None,
+        "onnxruntime": onnxruntime_version,
+        "found": bool(silero_model and onnxruntime_version),
+    }
     try:
         import mcp  # noqa: F401
 
@@ -240,6 +277,12 @@ def _run(args: argparse.Namespace) -> int:
     if args.cull_retakes and args.transcript is None:
         print("--cull-retakes requires --transcript.", file=sys.stderr)
         return 2
+    if not 0.1 <= args.speech_threshold <= 0.9:
+        print("--speech-threshold must be between 0.1 and 0.9.", file=sys.stderr)
+        return 2
+    if args.speech_pad_before_ms < 0 or args.speech_pad_after_ms < 0:
+        print("Speech pads must not be negative.", file=sys.stderr)
+        return 2
     client = None
     if args.transcript is not None and args.llm_base_url:
         from videoflow.adapters.llm import OpenAICompatibleLlm
@@ -255,6 +298,10 @@ def _run(args: argparse.Namespace) -> int:
         noise_db=args.noise_db,
         min_silence_ms=args.min_silence_ms,
         min_speech_ms=args.min_speech_ms,
+        vad_engine=args.vad_engine,
+        speech_threshold=args.speech_threshold,
+        speech_pad_before_ms=args.speech_pad_before_ms,
+        speech_pad_after_ms=args.speech_pad_after_ms,
         jl=jl,
         zooms=zooms,
         dialect=args.dialect,
@@ -312,7 +359,7 @@ def _demo(args: argparse.Namespace) -> int:
     if completed.returncode != 0:
         print(completed.stderr.strip(), file=sys.stderr)
         return 1
-    result = run_portable(source, output)
+    result = run_portable(source, output, vad_engine="ffmpeg")
     print(json.dumps(result.to_dict(), indent=2))
     return 0
 

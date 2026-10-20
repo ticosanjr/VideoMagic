@@ -15,7 +15,7 @@ hides the contract. VideoFlow resolves this with two layers:
 
 | Scope | Line coverage | Notes |
 | --- | --- | --- |
-| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.26% (269 passing, 13 strict xfail, 7 deselected) |
+| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.26% (284 passing, 12 strict xfail, 7 deselected) |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |
 | UI | `npm run check` and `npm run build` | Manual: start a job from the rack and confirm progress and artifacts |
@@ -71,16 +71,18 @@ smokes run locally and are recorded in the release notes.
 | `test_timeline_builder.py` | Span merge, frame coverage, J/L shifts, handles, zooms, pan |
 | `test_ffmpeg_adapter.py` | Probe parsing, PCM extraction, digest, FFmpeg failures |
 | `test_silence.py` | `silencedetect` parsing, complement, blip filtering |
+| `test_silero.py` | ONNX windows, thresholding, gap merge, minimum speech, WAV validation |
+| `test_vad_engine.py` | Engine auto/fallback, 16 kHz rescaling, pads, explicit failure |
 | `test_transcript.py` | SRT parsing, BOM/CRLF, malformed files |
 | `test_llm.py` | OpenAI-compatible JSON transport, retry, errors, redaction |
 | `test_asr.py` | Verbose JSON transcription, timestamps, errors, redaction |
 | `test_retake_service.py` | Windows, ids, exact fallback, guard, subtraction |
 | `test_shorts.py` | Deterministic windows, culls, LLM validation, ASS, events |
 | `test_portable.py` | End-to-end portable service with a fake engine and retakes |
-| `test_jobs.py` | Job completion, failure, cancellation, queue limit, pruning |
+| `test_jobs.py` | Job completion, failure, cancellation, queue limit, pruning, VAD forwarding |
 | `test_telemetry.py` | Stage lifecycle, durations, logs, filters, cap |
 | `test_cli.py` | `version`, `doctor`, `run` dispatch, usage |
-| `test_runtime.py` | Portable home, binary discovery, UI discovery, allowed roots |
+| `test_runtime.py` | Portable home, binary/model discovery, UI discovery, allowed roots |
 
 ### Contract (passing now)
 
@@ -101,10 +103,8 @@ smokes run locally and are recorded in the release notes.
 
 | File | Contract |
 | --- | --- |
-| `test_exporters.py` | Audio transitions at joins (AC-01); MP4 render |
-| `test_pipeline.py` | Silero VAD, Whisper, module execution, rack runner |
-| `test_api.py` | Project creation and SSE routes |
-| `test_mcp.py` | Live transcript resource |
+| `test_exporters.py` | Audio transitions at joins (AC-01); direct MP4 render |
+| `test_pipeline.py` | Faster-Whisper adapter; per-module `execute` methods and rack runner |
 
 ## 6. Acceptance coverage
 

@@ -152,9 +152,7 @@ def test_state_helpers_invalidate_and_validate(store: ProjectStore, tmp_path: Pa
             ]
         }
     )
-    overridden = apply_overrides(
-        state, [ManualOverride(sentence_id=0, action="discard")]
-    )
+    overridden = apply_overrides(state, [ManualOverride(sentence_id=0, action="discard")])
     assert overridden.manual_overrides[0].action == "discard"
     with pytest.raises(InvalidOverrideError):
         apply_overrides(state, [ManualOverride(sentence_id=4, action="discard")])
@@ -182,9 +180,7 @@ def test_state_helpers_invalidate_and_validate(store: ProjectStore, tmp_path: Pa
     assert applied.module_enabled == preset.module_enabled
 
 
-def test_run_options_follow_config_and_enabled_flags(
-    store: ProjectStore, tmp_path: Path
-) -> None:
+def test_run_options_follow_config_and_enabled_flags(store: ProjectStore, tmp_path: Path) -> None:
     record, state = store.create(tmp_path / "project")
     state = apply_media(state, media(tmp_path))
     state = state.model_copy(
@@ -206,11 +202,13 @@ def test_run_options_follow_config_and_enabled_flags(
     assert options["cull_retakes"] is True
     assert options["transcribe"] is False
     assert options["revision"] == state.revision + 1
+    assert options["vad_engine"] == "auto"
+    assert options["speech_threshold"] == 0.5
+    assert options["speech_pad_before_ms"] == 120
+    assert options["speech_pad_after_ms"] == 150
 
 
-def test_operator_presets_are_partial_and_shadow_shipped(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_operator_presets_are_partial_and_shadow_shipped(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
     entry = save_preset(
         "operator-test",

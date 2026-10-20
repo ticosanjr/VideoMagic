@@ -3,9 +3,9 @@
 This is the editor's guide. Installation belongs to the
 [operator manual](operator.md).
 
-> Status: the rack and the export buttons exist in the scaffold but are not wired
-> to engines yet. This manual describes the product you run once the media passes
-> land. Sections marked **Available now** work today.
+> Status: the portable CLI, REST API, rack UI, and MCP surface run real jobs in
+> 0.18.0. Faster-Whisper, per-module reruns, and direct MP4 rendering remain
+> future work.
 
 ## 1. The idea
 
@@ -24,16 +24,18 @@ You still finish the edit in your NLE. VideoFlow never touches the source file.
 
 ### Portable CLI (available now)
 
-The model-free path is usable today:
+The portable path is usable today:
 
 ```bash
 videoflow run interview.mp4 -o interview-edit
 ```
 
-It detects speech with FFmpeg, removes silence, applies J/L-cuts and punch-ins,
-and writes `timeline.fcpxml`, `timeline.xml`, and `timeline.otio` into
-`interview-edit/exports/`. `run.json` explains what happened. It does not
-transcribe or remove retakes yet.
+It detects speech with Silero VAD when the model is available and falls back to
+FFmpeg, removes silence, applies J/L-cuts and punch-ins, and writes
+`timeline.fcpxml`, `timeline.xml`, and `timeline.otio` into
+`interview-edit/exports/`. `run.json` reports the selected `vad_engine` and what
+happened. Add `--transcribe` for local whisper.cpp or `--transcript` with
+`--cull-retakes` for retake removal.
 
 `videoflow demo -o demo` proves the whole chain on a generated clip.
 
@@ -76,7 +78,10 @@ Leave the defaults unless you have a reason.
 
 ### 02 Voice detect
 
-- **Threshold** higher means stricter about what counts as speech.
+- **Engine**: `Auto` prefers Silero VAD and falls back to FFmpeg. `Silero`
+  requires the bundled model and ONNX Runtime. `FFmpeg` is the portable fallback.
+- **Speech probability**: Silero threshold. Higher is stricter. 0.5 is a good
+  start; raise it for noisy rooms.
 - **Minimum silence** is the shortest pause worth cutting. 400 ms is a good
   start; 700 ms for a lecture; 250 ms for shorts.
 - **Pad before/after** protects consonants. Lower them only if cuts feel loose.

@@ -43,6 +43,16 @@ def main() -> int:
         action="store_true",
         help="Force a fresh whisper.cpp/model download.",
     )
+    parser.add_argument(
+        "--with-silero",
+        action="store_true",
+        help="Bundle the pinned Silero VAD ONNX model and ONNX Runtime.",
+    )
+    parser.add_argument(
+        "--refresh-silero",
+        action="store_true",
+        help="Force a fresh Silero model download.",
+    )
     parser.add_argument("--name", default="videoflow")
     parser.add_argument("--clean", action="store_true", default=True)
     args = parser.parse_args()
@@ -88,6 +98,23 @@ def main() -> int:
             print(f"reusing {whisper}")
         else:
             fetch("windows" if os.name == "nt" else "linux", vendor, refresh=args.refresh_whisper)
+
+    if args.with_silero:
+        completed = subprocess.run(
+            [sys.executable, "-c", "import onnxruntime"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if completed.returncode != 0:
+            print(
+                "onnxruntime is required for --with-silero. Run `uv sync` first.",
+                file=sys.stderr,
+            )
+            return 1
+        from fetch_silero import fetch as fetch_silero
+
+        fetch_silero(vendor, refresh=args.refresh_silero)
 
     command = [
         sys.executable,

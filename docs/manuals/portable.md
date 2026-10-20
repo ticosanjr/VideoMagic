@@ -2,7 +2,8 @@
 
 VideoFlow ships as one console executable per operating system. It contains the
 Python runtime, the CLI, the API, the MCP server, the rack UI, presets, and,
-when built with `--with-ffmpeg`, FFmpeg and FFprobe.
+when built with the corresponding flags, FFmpeg/FFprobe, whisper.cpp, and the
+Silero VAD model plus ONNX Runtime.
 
 There is no installer and no Python/Node requirement on the target machine.
 
@@ -21,16 +22,16 @@ Windows embeddable Python. No GitHub Actions workflow is used.
 | Command | Result |
 | --- | --- |
 | `videoflow version` | Version and platform |
-| `videoflow doctor` | FFmpeg/FFprobe, data directory, UI assets, MCP import |
+| `videoflow doctor` | FFmpeg/FFprobe, Silero model/runtime, data directory, UI assets, MCP import |
 | `videoflow demo -o DIR` | Generates a 6 s fixture and runs the whole pipeline |
-| `videoflow run INPUT -o DIR` | Ingest, silence detection, cuts, J/L, zooms, three NLE exports |
+| `videoflow run INPUT -o DIR` | Ingest, Silero/FFmpeg VAD, cuts, J/L, zooms, three NLE exports |
 | `videoflow serve` | HTTP API + MCP Streamable HTTP + static rack UI |
 | `videoflow mcp` | MCP over stdio for an agent host |
 
-`run` defaults to the model-free path: FFmpeg `silencedetect` finds speech. Add
+`run` defaults to `--vad-engine auto`: Silero VAD runs when the model and ONNX
+Runtime are present, otherwise FFmpeg `silencedetect` takes over. Add
 `--transcribe` for offline whisper.cpp, `--cull-retakes` for transcript-driven
-culling, or `shorts` for vertical clips. The neural VAD and LLM quality paths are
-optional.
+culling, or `shorts` for vertical clips. The LLM retake path is optional.
 
 ## 2. Linux
 
@@ -74,7 +75,10 @@ Notes:
 ### run
 
 ```bash
-videoflow run INPUT [-o DIR] [--noise-db -30] [--min-silence-ms 400]
+videoflow run INPUT [-o DIR] [--vad-engine auto|silero|ffmpeg]
+                    [--speech-threshold 0.5]
+                    [--speech-pad-before-ms 120] [--speech-pad-after-ms 150]
+                    [--noise-db -30] [--min-silence-ms 400]
                     [--min-speech-ms 100] [--no-jcuts] [--l-cuts] [--no-zooms]
                     [--offset-ms 200] [--crossfade-ms 20] [--dialect 1.9]
                     [--transcript subs.srt] [--cull-retakes]
@@ -91,14 +95,15 @@ DIR/
   project_state.json
   run.json
   work/source.wav
+  work/vad.wav              # only when Silero runs; 16 kHz mono
   exports/timeline.fcpxml   # Resolve
   exports/timeline.xml      # Premiere
   exports/timeline.otio     # Kdenlive
 ```
 
-`run.json` is the machine-readable report: media info, speech interval count,
-segment counts, transcript/retake counts, warnings, artifact paths, PCM digest,
-and elapsed time.
+`run.json` is the machine-readable report: media info, `vad_engine`, speech
+interval count, VAD threshold and pads, segment counts, transcript/retake counts,
+warnings, artifact paths, PCM digest, and elapsed time.
 
 ### Shorts
 
@@ -233,11 +238,13 @@ job. See [the MCP manual](../mcp.md) for the full contract.
 Checks:
 
 - FFmpeg and FFprobe resolve (bundled, next to the executable, or on `PATH`)
+- the Silero model and ONNX Runtime are available (optional, reported)
 - `VIDEOWFLOW_HOME` is writable
 - UI assets are present
 - the MCP SDK imports
 
-Exit code is `0` only when every required check passes.
+Exit code is `0` only when every required check passes. The Silero entry reports
+`found: false` without failing `doctor`, because `auto` can fall back to FFmpeg.
 
 ### demo
 
@@ -318,11 +325,26 @@ OpenAI/ggerganov under MIT terms. Review the upstream notices and include them
 with any redistribution. To ship a lean build without local transcription, omit
 `--with-whisper`; SRT and ASR HTTP still work.
 
+### Silero bundling
+
+`--with-silero` requires `onnxruntime` in the build environment. The build script
+downloads the pinned v5.1.2 model from
+`scripts/fetch_silero.py`, verifies SHA-256
+`2623a2953f6ff3d2c1e61740c6cdb7168133479b267dfef114a4a3cc5bdd788f`, and
+PyInstaller places it under `silero/` inside the bundle. ONNX Runtime is packed
+with its native provider.
+
+`find_silero_model` looks in the bundle, then next to the executable, and honours
+`VIDEOWFLOW_SILERO_MODEL`. The model is ~2.3 MB; ONNX Runtime adds roughly 20 MB.
+Silero inference is CPU-only in 0.18 and uses 16 kHz mono PCM in 512-sample
+windows. Without the model or runtime, `auto` uses FFmpeg; `silero` fails with a
+typed install hint.
+
 ### Linux AppImage
 
 ```bash
 uv run python scripts/build_appimage.py
-./dist/VideoFlow-0.17.0-x86_64.AppImage version
+./dist/VideoFlow-0.18.0-x86_64.AppImage version
 ```
 
 The AppImage wraps the same onefile binary. Opening it with no arguments starts
@@ -338,7 +360,7 @@ AppImage unless `VIDEOWFLOW_HOME` overrides it.
 ```bash
 # once: portable Wine + embeddable Python + Windows wheels
 /tmp/opencode/wine/wine-11.20-amd64-wow64/bin/wine --version
-/tmp/opencode/winpy/python.exe -m pip install fastapi uvicorn pydantic mcp httpx opentimelineio pyinstaller
+/tmp/opencode/winpy/python.exe -m pip install fastapi uvicorn pydantic mcp httpx opentimelineio pyinstaller onnxruntime
 
 VIDEOWFLOW_VENDOR_DIR='Z:\path\to\vendor-win' \
   /tmp/opencode/wine/wine-11.20-amd64-wow64/bin/wine \
@@ -357,6 +379,8 @@ testing is still recommended before wide distribution.
 - [ ] `videoflow run INPUT -o tmp --transcribe` writes a transcript from the
       bundled tiny model.
 - [ ] `videoflow doctor` reports the bundled whisper binary and model.
+- [ ] `videoflow doctor` reports the bundled Silero model and ONNX Runtime.
+- [ ] A real `videoflow run` reports `"vad_engine": "silero"` on a speech clip.
 - [ ] The artifacts parse (XML/OTIO) and open in the three NLEs.
 - [ ] `videoflow serve` answers `/health`, `/`, and `/mcp/`.
 - [ ] An MCP host lists twelve tools over `videoflow mcp`.

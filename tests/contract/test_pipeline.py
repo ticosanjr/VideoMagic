@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from videoflow.adapters import FasterWhisperAdapter, FFmpegAdapter, SileroVadAdapter
+from videoflow.adapters import FasterWhisperAdapter, FFmpegAdapter
 from videoflow.application.runner import PipelineRunner
 from videoflow.domain.errors import IngestError
 from videoflow.domain.planning import RunPlan
@@ -23,12 +23,7 @@ def test_each_module_executes(module: object) -> None:
     assert module.execute(object()) is not None  # type: ignore[attr-defined]
 
 
-@pytest.mark.xfail(reason="VAD engine is not in the scaffold", strict=True)
-def test_vad(tmp_path: Path) -> None:
-    SileroVadAdapter().detect(tmp_path / "source.wav")
-
-
-@pytest.mark.xfail(reason="Whisper engine is not in the scaffold", strict=True)
+@pytest.mark.xfail(reason="Faster-Whisper engine is not in this pass", strict=True)
 def test_transcribe(tmp_path: Path) -> None:
     FasterWhisperAdapter().transcribe(tmp_path / "source.wav")
 

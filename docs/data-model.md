@@ -117,7 +117,7 @@ All config models forbid unknown fields. That is deliberate: a request containin
 | Model | Notable validation |
 | --- | --- |
 | `IngestConfig` | booleans only |
-| `VadConfig` | threshold 0.1–0.9, non-negative durations |
+| `VadConfig` | engine `auto`/`silero`/`ffmpeg`, threshold 0.1–0.9, non-negative durations |
 | `TranscribeConfig` | enum model, language, device, compute type |
 | `RetakesConfig` | no secret value; `secret_name` only; temperature fixed at 0 |
 | `JlCutsConfig` | offset 100–500 ms, crossfade 10–50 ms |

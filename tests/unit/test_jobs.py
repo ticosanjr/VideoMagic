@@ -110,3 +110,29 @@ def test_history_is_pruned(tmp_path: Path) -> None:
     second = manager.start(tmp_path / "b.mp4", tmp_path / "b")
     wait_for(second, manager)
     assert len(manager.list()) == 1
+
+
+def test_job_forwards_vad_options(tmp_path: Path) -> None:
+    seen: dict[str, object] = {}
+
+    def runner(source: Path, output: Path, *, progress, should_cancel, **kwargs):
+        seen.update(kwargs)
+        progress("done", 100, "done")
+        return {"ok": True}
+
+    manager = JobManager(runner)
+    job = manager.start(
+        tmp_path / "in.mp4",
+        tmp_path / "out",
+        {
+            "vad_engine": "silero",
+            "speech_threshold": 0.65,
+            "speech_pad_before_ms": 40,
+            "speech_pad_after_ms": 50,
+        },
+    )
+    wait_for(job, manager)
+    assert seen["vad_engine"] == "silero"
+    assert seen["speech_threshold"] == 0.65
+    assert seen["speech_pad_before_ms"] == 40
+    assert seen["speech_pad_after_ms"] == 50

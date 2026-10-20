@@ -630,6 +630,16 @@
     "VadConfig": {
       "additionalProperties": false,
       "properties": {
+        "engine": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "silero",
+            "ffmpeg"
+          ],
+          "title": "Engine",
+          "type": "string"
+        },
         "keep_handles_ms": {
           "default": 200,
           "minimum": 0,

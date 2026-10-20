@@ -6,12 +6,12 @@ timeline: it removes silence and retakes, adds J-cuts and punch-ins, proposes
 vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive.
 
-> Status: 0.17.0 alpha. Portable Linux binary, Linux AppImage, and Windows PE run
-> ingest, silence detection, SRT or local whisper.cpp transcription,
-> transcript-driven retake culling, deterministic cuts, vertical shorts, and
-> three NLE exports. The local API, MCP server, and rack UI execute real jobs;
-> all twelve MCP tools and four resources are live. Projects persist atomic,
-> revisioned state under `.videoflow/`, and the REST API manages media,
+> Status: 0.18.0 alpha. Portable Linux binary, Linux AppImage, and Windows PE run
+> ingest, Silero VAD with an FFmpeg fallback, SRT or local whisper.cpp
+> transcription, transcript-driven retake culling, deterministic cuts, vertical
+> shorts, and three NLE exports. The local API, MCP server, and rack UI execute
+> real jobs; all twelve MCP tools and four resources are live. Projects persist
+> atomic, revisioned state under `.videoflow/`, and the REST API manages media,
 > modules, transcripts, exports, and operator presets.
 
 ## Requirements
@@ -28,9 +28,10 @@ model download happens at install time. A GPU is not required.
 
 ```bash
 uv sync --extra dev
-uv run pytest                       # 269 passing, 13 strict xfail, 7 deselected
+uv run pytest                       # 284 passing, 12 strict xfail, 7 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py  # optional local model into vendor/
+uv run python scripts/fetch_silero.py   # pinned 2.3 MB VAD model into vendor/
 uv run videoflow-api                # http://127.0.0.1:8765/health and /mcp
 uv run videoflow-mcp                # stdio transport for a local agent
 ```
@@ -46,10 +47,10 @@ npm run dev                         # http://127.0.0.1:5173
 ## Portable executable
 
 One file per OS, no Python, Node, or FFmpeg install required when built with
-`--fetch-ffmpeg --with-whisper`:
+`--fetch-ffmpeg --with-whisper --with-silero`:
 
 ```bash
-uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper
+uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper --with-silero
 ./dist/videoflow doctor
 ./dist/videoflow demo -o ./demo
 ./dist/videoflow run ~/Videos/interview.mp4 -o ./interview-edit --transcribe
@@ -60,7 +61,7 @@ uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper
 Artifacts are built locally, never in GitHub Actions:
 
 ```bash
-uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper   # Linux
+uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper --with-silero   # Linux
 uv run python scripts/build_appimage.py                  # VideoFlow-X.Y.Z-x86_64.AppImage
 # Windows PE: Windows Python + PyInstaller, or Wine + embeddable Python
 uv run python scripts/release.py                         # stage releases/vX.Y.Z
@@ -73,8 +74,9 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - FFprobe ingest: rational frame rate, duration in frames, dimensions, sample
   rate; missing audio or unreadable files fail with a typed error.
 - Mono PCM extraction and SHA-256 media fingerprint.
-- Model-free speech detection through FFmpeg `silencedetect`, so the portable
-  binary needs no model download.
+- Silero VAD v5.1.2 through ONNX Runtime, with 16 kHz inference, exact
+  sample-rate rescaling, configurable threshold, and pads. FFmpeg
+  `silencedetect` is the automatic fallback.
 - SRT transcript import and retake culling with exact repeats or an
   OpenAI-compatible LLM, protected by the keep-last guard.
 - Offline speech-to-text through bundled whisper.cpp and `ggml-tiny.bin`, with
@@ -89,7 +91,7 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   `audioDuration` in FCPXML.
 - Pure domain: rational time, cache hashing, planning, retake guard, path jail,
   redaction, schema generation.
-- MCP server with twelve live tools and four resources: media ingest, FFmpeg
+- MCP server with twelve live tools and four resources: media ingest, Silero
   speech detection, local whisper.cpp transcription, transcript reads, staged
   retake/zoom/J-cut edits, shorts proposals, real jobs, NLE export, and project
   state/preset/export resources. Streamable HTTP is mounted on the local API.
@@ -101,10 +103,10 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 
 ## Not implemented yet
 
-- Silero VAD and Faster-Whisper quality path.
+- Faster-Whisper quality transcription and model management.
 - Cache-backed per-block reruns; the route currently returns typed `501`.
-- NLE audio transitions and keyframed progressive zooms.
-- Face tracking, MP4 rendering, and per-block reruns.
+- NLE audio transitions, keyframed progressive zooms, and direct MP4 rendering.
+- Face tracking.
 - A signed Windows binary (SmartScreen will warn).
 
 Every unimplemented contract has a test marked `xfail`, so the suite stays green

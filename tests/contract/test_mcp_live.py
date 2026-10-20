@@ -123,7 +123,17 @@ def test_granular_tools_analyse_and_stage_options(monkeypatch, tmp_path: Path) -
     server = build_server(manager)
 
     assert call(server, "videoflow_load_media", {"file_path": str(source)})["ok"] is True
-    vad = call(server, "videoflow_run_vad", {"noise_db": -30, "min_silence_ms": 400})
+    vad = call(
+        server,
+        "videoflow_run_vad",
+        {
+            "noise_db": -30,
+            "min_silence_ms": 400,
+            "vad_engine": "ffmpeg",
+            "speech_pad_before_ms": 0,
+            "speech_pad_after_ms": 0,
+        },
+    )
     assert vad["ok"] is True
     assert vad["interval_count"] == 2
     assert vad["speech_seconds"] == 2.0

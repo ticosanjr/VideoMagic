@@ -20,6 +20,7 @@ from videoflow.application.jobs import JobManager
 from videoflow.application.retakes import cull_intervals
 from videoflow.application.retakes import cull_retakes as cull_transcript_retakes
 from videoflow.application.shorts import select_shorts
+from videoflow.application.vad import detect_speech as detect_vad
 from videoflow.domain.errors import InvalidRetakeIdsError, VideoFlowError
 from videoflow.domain.paths import resolve_allowed
 from videoflow.domain.state import MediaInfo, ProjectState, Sentence
@@ -57,6 +58,10 @@ OVERRIDE_KEYS = {
     "noise_db",
     "min_silence_ms",
     "min_speech_ms",
+    "vad_engine",
+    "speech_threshold",
+    "speech_pad_before_ms",
+    "speech_pad_after_ms",
     "offset_ms",
     "crossfade_ms",
     "handle_check",
@@ -123,6 +128,10 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         noise_db: float = -30.0,
         min_silence_ms: int = 400,
         min_speech_ms: int = 100,
+        vad_engine: str = "auto",
+        speech_threshold: float = 0.5,
+        speech_pad_before_ms: int = 120,
+        speech_pad_after_ms: int = 150,
     ) -> dict[str, object]:
         """Run speech detection on the loaded media and report removable silence."""
 
@@ -135,23 +144,36 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             return _error("invalid_arguments", "min_silence_ms is out of range")
         if not 0 <= min_speech_ms <= 2_000:
             return _error("invalid_arguments", "min_speech_ms is out of range")
+        if vad_engine not in {"auto", "silero", "ffmpeg"}:
+            return _error("invalid_arguments", f"Unknown VAD engine: {vad_engine}")
+        if not 0.1 <= speech_threshold <= 0.9:
+            return _error("invalid_arguments", "speech_threshold must be between 0.1 and 0.9")
+        if speech_pad_before_ms < 0 or speech_pad_after_ms < 0:
+            return _error("invalid_arguments", "speech pads must not be negative")
         try:
             adapter = FFmpegAdapter()
             media = adapter.probe(source)
             with tempfile.TemporaryDirectory(prefix="videoflow-mcp-vad-") as temp:
-                wav = adapter.extract_pcm(
+                adapter.extract_pcm(
                     source,
                     Path(temp) / "source.wav",
                     sample_rate=media.audio_sample_rate,
                 )
-                speech = adapter.detect_speech(
-                    wav,
-                    duration_samples=_duration_samples(media),
-                    sample_rate=media.audio_sample_rate,
+                detection = detect_vad(
+                    adapter,
+                    source,
+                    Path(temp),
+                    media,
+                    vad_engine=vad_engine,  # type: ignore[arg-type]
                     noise_db=noise_db,
                     min_silence_ms=min_silence_ms,
                     min_speech_ms=min_speech_ms,
+                    speech_threshold=speech_threshold,
+                    speech_pad_before_ms=speech_pad_before_ms,
+                    speech_pad_after_ms=speech_pad_after_ms,
+                    duration_samples=_duration_samples(media),
                 )
+                speech = detection.spans
         except VideoFlowError as exc:
             return exc.to_dict()
         last["media"] = media
@@ -169,6 +191,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         ]
         return {
             "ok": True,
+            "vad_engine": detection.engine,
             "sample_rate": rate,
             "interval_count": len(intervals),
             "speech_seconds": round(spoken / rate, 3),

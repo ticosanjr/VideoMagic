@@ -3,6 +3,51 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.18.0] — 2026-10-20
+
+### Added
+
+- Silero VAD v5.1.2 as the quality speech detector, running through ONNX
+  Runtime on the CPU with 16 kHz mono PCM, 512-sample windows, and the pinned
+  `state` tensor carried between windows.
+- Typed VAD engine selection: `auto` prefers Silero when the model and
+  `onnxruntime` are available, `silero` requires it, and `ffmpeg` forces
+  `silencedetect`. Explicit Silero failures are actionable instead of silent.
+- Exact floor/ceil rescaling from 16 kHz windows to source sample spans, plus
+  speech pads that are applied after retake culling and clamped to the media
+  duration.
+- `--vad-engine`, `--speech-threshold`, `--speech-pad-before-ms`, and
+  `--speech-pad-after-ms` in `videoflow run`; matching job API, project config,
+  MCP overrides, and rack fields.
+- `vad_engine` in job results, `run.json`, MCP VAD results, project-state
+  config, and JSON Schemas; `doctor` reports the model and ONNX Runtime.
+- `scripts/fetch_silero.py` with a pinned URL, SHA-256 verification, and
+  `vendor/silero/silero_vad.onnx`; `--with-silero` and `--refresh-silero` in
+  the portable build. PyInstaller bundles the model and ONNX Runtime.
+- Unit, contract, CLI, project, job, runtime, and portable coverage for Silero,
+  engine selection, rescaling, pads, fallback, and packaging.
+
+### Changed
+
+- `work/vad.wav` is written at 16 kHz only when Silero runs; `work/source.wav`
+  remains at the source rate and FFmpeg remains the portable fallback.
+- Release builds now bundle the Silero model. A build without `--with-silero`
+  still runs: `auto` falls back to FFmpeg and `silero` fails with a fetch/build
+  hint.
+- `videoflow demo` explicitly uses FFmpeg so the self-contained demo does not
+  depend on the optional VAD model.
+
+### Verified
+
+- Tests: 284 passed, 12 xfailed, 7 deselected; coverage 99.26%; ruff and mypy
+  clean; UI check, Vitest, and production build pass.
+- Linux 0.18.0 binary, AppImage, and Windows PE were built and smoke-tested,
+  including Silero `vad_engine=silero` runs. The PE was validated under Wine.
+- Frozen Linux and Windows project and MCP flows passed with Silero and
+  revision snapshots `000001` through `000004`.
+- Auto fallback was verified with a missing model; explicit Silero failed with
+  `ingest_failed` and the fetch/build hint.
+
 ## [0.17.0] — 2026-10-20
 
 ### Added
