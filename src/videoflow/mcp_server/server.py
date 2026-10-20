@@ -70,6 +70,7 @@ OVERRIDE_KEYS = {
     "shorts_min_sec",
     "shorts_max_sec",
     "shorts_subtitles",
+    "overrides",
 }
 
 

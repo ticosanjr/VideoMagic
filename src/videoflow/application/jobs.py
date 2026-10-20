@@ -26,6 +26,7 @@ from videoflow.domain.errors import (
     JobQueueFullError,
     VideoFlowError,
 )
+from videoflow.domain.state import ManualOverride
 from videoflow.exporters.fcpxml import Dialect
 
 JobStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
@@ -223,6 +224,10 @@ class JobManager:
                 shorts_min_sec=int(options.get("shorts_min_sec", 30)),
                 shorts_max_sec=int(options.get("shorts_max_sec", 60)),
                 shorts_subtitles=bool(options.get("shorts_subtitles", True)),
+                overrides=[
+                    ManualOverride.model_validate(item)
+                    for item in options.get("overrides", [])
+                ],
             )
             with self._lock:
                 if job.cancel_requested:

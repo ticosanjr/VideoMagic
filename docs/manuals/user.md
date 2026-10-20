@@ -53,8 +53,9 @@ transcribe or remove retakes yet.
 
 The page starts a job, shows the live stage and progress, and lists the three
 artifacts as download links. Quick presets set the silence and cut options.
-With an SRT, the inspector lists culled takes and any sentence the guard
-restored.
+With an SRT, the inspector lists every sentence: Keep/Discard sets a manual
+override, and **Apply overrides** starts a new job with that decision. Guard
+restorations are shown separately.
 
 The rack cards follow the active stage: green cached, blue running, yellow dirty,
 gray bypassed/later, red failed. Cancel stops between stages.

@@ -1,0 +1,23 @@
+{
+  "version": "0.13.0",
+  "built_at": "2026-10-20T11:00:59+00:00",
+  "host": "linux-x86_64",
+  "python": "3.12.3",
+  "artifacts": [
+    {
+      "name": "videoflow-0.13.0-linux-x86_64",
+      "sha256": "2dbdc9328b4bba442dd86343ecaa6eba1e810fa9d8bb5e31582a6189f24d37ad",
+      "size_bytes": 168496392
+    },
+    {
+      "name": "VideoFlow-0.13.0-x86_64.AppImage",
+      "sha256": "38874c67adf7ad70bc00a5c3ad37a5a009dad413d50039a3d7ece12418c24847",
+      "size_bytes": 168733176
+    },
+    {
+      "name": "videoflow-0.13.0-windows-x86_64.exe",
+      "sha256": "e77add77fc1ed1c79b29c8a07dc3cdddebeb0240a910f159c46b973a6357c49e",
+      "size_bytes": 152799755
+    }
+  ]
+}

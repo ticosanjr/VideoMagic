@@ -201,6 +201,7 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
             "shorts_min_sec": 5,
             "shorts_max_sec": 10,
             "shorts_subtitles": False,
+            "overrides": [{"sentence_id": 3, "action": "discard"}],
         },
     )
     assert response.status_code == 202
@@ -209,6 +210,7 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
     assert options["export_targets"] == ["resolve"]
     assert options["context_window"] == 20
     assert options["shorts_count"] == 2
+    assert options["overrides"] == [{"sentence_id": 3, "action": "discard"}]
 
 
 def test_unknown_job_is_404(monkeypatch, tmp_path: Path) -> None:

@@ -47,7 +47,7 @@ GET /health
 ```
 
 ```json
-{ "status": "ok", "service": "videoflow", "version": "0.12.0" }
+{ "status": "ok", "service": "videoflow", "version": "0.13.0" }
 ```
 
 ```http
@@ -57,7 +57,7 @@ GET /api/v1/system
 ```json
 {
   "ok": true,
-  "version": "0.12.0",
+  "version": "0.13.0",
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
@@ -108,7 +108,11 @@ Content-Type: application/json
   "shorts_count": 3,
   "shorts_min_sec": 30,
   "shorts_max_sec": 60,
-  "shorts_subtitles": true
+  "shorts_subtitles": true,
+  "overrides": [
+    { "sentence_id": 4, "action": "keep" },
+    { "sentence_id": 7, "action": "discard" }
+  ]
 }
 ```
 
@@ -116,6 +120,10 @@ Content-Type: application/json
 When `cull_retakes` is true and `VIDEOWFLOW_LLM_BASE_URL` is set, the worker
 uses the OpenAI-compatible endpoint; otherwise only exact repeated text is
 culled.
+
+`overrides` is applied after the retake guard: `keep` removes a sentence from
+the cull set, `discard` adds it. Manual decisions win over the model and guard.
+Overrides require a transcript.
 
 `source` and `output` are resolved through the path allowlist. Both are required.
 The output directory is created by the worker.
@@ -250,7 +258,7 @@ On success, `job.result` is the `run_portable` report:
 ```json
 {
   "ok": true,
-  "version": "0.12.0",
+  "version": "0.13.0",
   "speech_interval_count": 3,
   "video_segment_count": 3,
   "audio_segment_count": 3,

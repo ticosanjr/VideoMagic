@@ -119,6 +119,7 @@ export interface NewJob {
   shorts_min_sec: number;
   shorts_max_sec: number;
   shorts_subtitles: boolean;
+  overrides: { sentence_id: number; action: "keep" | "discard" }[];
 }
 
 export interface Sentence {

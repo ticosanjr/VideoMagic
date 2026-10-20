@@ -134,6 +134,40 @@ def test_portable_pipeline_reports_stages_logs_and_targets(tmp_path: Path) -> No
     assert telemetry.log_count() > 0
 
 
+def test_manual_discard_and_keep_override_culls(tmp_path: Path) -> None:
+    from videoflow.domain.state import ManualOverride
+
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    transcript = tmp_path / "subs.srt"
+    transcript.write_text(
+        "1\n00:00:00,000 --> 00:00:01,000\nSame line.\n\n"
+        "2\n00:00:02,000 --> 00:00:03,000\nSame line.\n",
+        encoding="utf-8",
+    )
+    kept = run_portable(
+        source,
+        tmp_path / "keep",
+        adapter=FakeAdapter(),  # type: ignore[arg-type]
+        transcript_path=transcript,
+        cull_retakes=True,
+        overrides=[ManualOverride(sentence_id=0, action="keep")],
+    )
+    assert kept.state.retake_culls == []
+    assert len(kept.state.video_segments) == 2
+    assert kept.state.manual_overrides[0].action == "keep"
+
+    discarded = run_portable(
+        source,
+        tmp_path / "discard",
+        adapter=FakeAdapter(),  # type: ignore[arg-type]
+        transcript_path=transcript,
+        overrides=[ManualOverride(sentence_id=0, action="discard")],
+    )
+    assert discarded.state.retake_culls == [0]
+    assert len(discarded.state.video_segments) == 1
+
+
 def test_portable_pipeline_can_render_shorts(tmp_path: Path) -> None:
     source = tmp_path / "source.mp4"
     source.write_bytes(b"fixture")

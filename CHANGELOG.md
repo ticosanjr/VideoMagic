@@ -3,6 +3,29 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.13.0] — 2026-10-20
+
+### Added
+
+- Manual sentence overrides: `POST /api/v1/jobs` accepts `overrides` with
+  `sentence_id` and `action` (`keep` or `discard`).
+- Overrides are applied after the retake guard, so an editor can keep a culled
+  take or discard a kept one. A manual decision wins.
+- The inspector lists transcript sentences with Keep/Discard controls and an
+  Apply overrides action that starts a new job with the same configuration.
+- `manual_override_count` in the job report.
+- MCP `overrides` support and unit/API tests.
+
+### Changed
+
+- Version is 0.13.0.
+
+### Verified
+
+- Base cull: 2 segments, 1 cull.
+- Keep override: 3 segments, 0 culls, 1 override.
+- Discard override: 2 segments, 1 cull, 1 override.
+
 ## [0.12.0] — 2026-10-20
 
 ### Added

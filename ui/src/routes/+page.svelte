@@ -39,6 +39,7 @@
   let busy = $state(false);
   let logOpen = $state(false);
   let logModule = $state<string | null>(null);
+  let overrides = $state<Record<number, "keep" | "discard">>({});
   let now = $state(Date.now());
   let timer: ReturnType<typeof setTimeout> | undefined;
   let clock: ReturnType<typeof setInterval> | undefined;
@@ -110,6 +111,62 @@
     }
   }
 
+  function buildPayload() {
+    return {
+      source: source.trim(),
+      output: output.trim(),
+      noise_db: Number(config.noise_db),
+      min_silence_ms: Number(config.min_silence_ms),
+      min_speech_ms: Number(config.min_speech_ms),
+      jcut: Boolean(config.jcut),
+      lcut: Boolean(config.lcut),
+      offset_ms: Number(config.offset_ms),
+      crossfade_ms: Number(config.crossfade_ms),
+      handle_check: Boolean(config.handle_check),
+      zooms: Boolean(config.zooms),
+      zoom_mode: String(config.zoom_mode),
+      punch_in_scale: Number(config.punch_in_scale),
+      anchor_point: String(config.anchor_point),
+      progressive_zoom: Boolean(config.progressive_zoom),
+      pan_direction: String(config.pan_direction),
+      dialect: String(config.dialect) as "1.9" | "1.10",
+      export_targets: config.export_targets as string[],
+      transcript: transcript.trim() || null,
+      cull_retakes: Boolean(config.cull_retakes),
+      strictness: String(config.strictness),
+      retake_strategy: String(config.retake_strategy),
+      context_window: Number(config.context_window),
+      llm_base_url: String(config.llm_base_url || "").trim() || null,
+      llm_model: String(config.llm_model || "qwen2.5:7b-instruct"),
+      shorts: Boolean(config.shorts),
+      shorts_count: Number(config.shorts_count),
+      shorts_min_sec: Number(config.shorts_min_sec),
+      shorts_max_sec: Number(config.shorts_max_sec),
+      shorts_subtitles: Boolean(config.shorts_subtitles),
+      overrides: Object.entries(overrides).map(([sentenceId, action]) => ({
+        sentence_id: Number(sentenceId),
+        action
+      }))
+    };
+  }
+
+  function setOverride(sentenceId: number, action: "keep" | "discard") {
+    const next = { ...overrides };
+    if (next[sentenceId] === action) delete next[sentenceId];
+    else next[sentenceId] = action;
+    overrides = next;
+  }
+
+  function effectiveAction(sentenceId: number): "keep" | "discard" {
+    if (overrides[sentenceId]) return overrides[sentenceId];
+    return jobState?.retake_culls.includes(sentenceId) ? "discard" : "keep";
+  }
+
+  async function applyOverrides() {
+    if (!jobState || Object.keys(overrides).length === 0 || active) return;
+    await start();
+  }
+
   async function start() {
     error = "";
     if (!source.trim() || !output.trim()) {
@@ -124,38 +181,7 @@
     jobState = null;
     clearTimeout(timer);
     try {
-      job = await createJob({
-        source: source.trim(),
-        output: output.trim(),
-        noise_db: Number(config.noise_db),
-        min_silence_ms: Number(config.min_silence_ms),
-        min_speech_ms: Number(config.min_speech_ms),
-        jcut: Boolean(config.jcut),
-        lcut: Boolean(config.lcut),
-        offset_ms: Number(config.offset_ms),
-        crossfade_ms: Number(config.crossfade_ms),
-        handle_check: Boolean(config.handle_check),
-        zooms: Boolean(config.zooms),
-        zoom_mode: String(config.zoom_mode),
-        punch_in_scale: Number(config.punch_in_scale),
-        anchor_point: String(config.anchor_point),
-        progressive_zoom: Boolean(config.progressive_zoom),
-        pan_direction: String(config.pan_direction),
-        dialect: String(config.dialect) as "1.9" | "1.10",
-        export_targets: config.export_targets as string[],
-        transcript: transcript.trim() || null,
-        cull_retakes: Boolean(config.cull_retakes),
-        strictness: String(config.strictness),
-        retake_strategy: String(config.retake_strategy),
-        context_window: Number(config.context_window),
-        llm_base_url: String(config.llm_base_url || "").trim() || null,
-        llm_model: String(config.llm_model || "qwen2.5:7b-instruct"),
-        shorts: Boolean(config.shorts),
-        shorts_count: Number(config.shorts_count),
-        shorts_min_sec: Number(config.shorts_min_sec),
-        shorts_max_sec: Number(config.shorts_max_sec),
-        shorts_subtitles: Boolean(config.shorts_subtitles)
-      });
+      job = await createJob(buildPayload());
       schedule();
     } catch (reason) {
       error = errorMessage(reason);
@@ -216,6 +242,10 @@
     job = entry;
     jobState = null;
     error = "";
+    overrides = {};
+    source = entry.source;
+    output = entry.output;
+    transcript = entry.options.transcript ?? "";
     if (entry.status === "succeeded") await loadState();
   }
 
@@ -698,17 +728,47 @@
         <p>Sentences: {jobState.transcript.length}</p>
         <p>Culled: {jobState.retake_culls.length}</p>
         <p>Restored: {jobState.retake_guard_restores.length}</p>
-        <p>Segments: {job?.result?.video_segment_count ?? "—"}</p>
+        <p>Overrides: {Object.keys(overrides).length}</p>
       </div>
-      {#if jobState.retake_culls.length > 0}
-        <div class="mt-4">
-          <p class="text-[11px] uppercase tracking-wide text-neutral-500">Culled retakes</p>
-          <ul class="mt-2 space-y-1 text-xs text-rose-300">
-            {#each jobState.retake_culls.slice(0, 10) as id}
-              <li class="line-through">{sentenceText(id)}</li>
-            {/each}
-          </ul>
-        </div>
+
+      <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <p class="text-[11px] uppercase tracking-wide text-neutral-500">Manual overrides</p>
+        <button
+          type="button"
+          onclick={applyOverrides}
+          disabled={Object.keys(overrides).length === 0 || active}
+          class="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+        >
+          Apply overrides
+        </button>
+      </div>
+      <div class="mt-2 max-h-80 space-y-1 overflow-auto rounded-xl border border-neutral-800 bg-neutral-950/50 p-2">
+        {#each jobState.transcript.slice(0, 200) as sentence}
+          {@const action = effectiveAction(sentence.id)}
+          <div class="flex flex-wrap items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-neutral-900/60">
+            <span class="w-8 shrink-0 font-mono text-[10px] text-neutral-600">#{sentence.id}</span>
+            <span class="min-w-0 flex-1 {action === 'discard' ? 'text-rose-300 line-through' : 'text-neutral-300'}">
+              {sentence.text}
+            </span>
+            <button
+              type="button"
+              onclick={() => setOverride(sentence.id, "keep")}
+              class="rounded px-2 py-0.5 text-[10px] {action === 'keep' ? 'bg-emerald-500/15 text-emerald-300' : 'text-neutral-500 hover:text-emerald-300'}"
+            >
+              Keep
+            </button>
+            <button
+              type="button"
+              onclick={() => setOverride(sentence.id, "discard")}
+              class="rounded px-2 py-0.5 text-[10px] {action === 'discard' ? 'bg-rose-500/15 text-rose-300' : 'text-neutral-500 hover:text-rose-300'}"
+            >
+              Discard
+            </button>
+          </div>
+        {/each}
+      </div>
+      {#if jobState.transcript.length > 200}
+        <p class="mt-2 text-[10px] text-neutral-500">Showing the first 200 sentences.</p>
       {/if}
       {#if jobState.retake_guard_restores.length > 0}
         <div class="mt-4">

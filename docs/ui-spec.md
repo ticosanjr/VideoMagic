@@ -2,7 +2,7 @@
 
 Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript. English strings only.
 
-0.12.0 wires the full telemetry rack: source/output/SRT fields, quick presets,
+0.13.0 wires the full telemetry rack: source/output/SRT fields, quick presets,
 per-block progress, start/finish timestamps, duration, status icons, per-block
 and global log drawers, recent jobs, artifact downloads, and typed errors.
 
@@ -11,8 +11,9 @@ controls are bound to the job request; future controls are disabled and marked
 `later`. Transcribe shows SRT import as its stage; Shorts runs when enabled and
 an SRT is present, with rendered MP4s listed in the run summary.
 
-The inspector reads `GET /api/v1/jobs/{id}/state` and shows transcript sentence
-counts, culled sentences, and guard restorations.
+The inspector reads `GET /api/v1/jobs/{id}/state`, lists transcript sentences,
+and exposes Keep/Discard overrides plus an Apply overrides action. Applying
+starts a new job with the same configuration and the override set.
 
 The rest of this document is the contract for later passes: real per-block runs,
 manual overrides, persisted presets, and word-level inspector controls.

@@ -4,9 +4,8 @@
 
 Implemented: SRT import, exact-repeat fallback, OpenAI-compatible JSON client,
 overlapping context windows, strict id validation, the keeper guard, interval
-subtraction, and CLI integration (`--transcript`, `--cull-retakes`). Not
-implemented: built-in transcription, manual word overrides in the portable path,
-and the rack UI for this module.
+subtraction, CLI/API/UI execution, and manual sentence overrides. Not
+implemented: built-in transcription and word-level overrides.
 
 ## Purpose
 

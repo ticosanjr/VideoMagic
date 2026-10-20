@@ -35,8 +35,8 @@ from videoflow.application.shorts import (
 from videoflow.application.telemetry import JobTelemetry
 from videoflow.application.timeline_builder import build_timeline
 from videoflow.domain.config import JlCutsConfig, ModuleEnabled, ZoomsConfig
-from videoflow.domain.errors import IngestError, JobCancelledError
-from videoflow.domain.state import ProjectState, SampleSpan, Sentence
+from videoflow.domain.errors import IngestError, InvalidRetakeIdsError, JobCancelledError
+from videoflow.domain.state import ManualOverride, ProjectState, SampleSpan, Sentence
 from videoflow.domain.timebase import Rounding
 from videoflow.domain.transcript import parse_srt_file
 from videoflow.exporters.common import write_text
@@ -73,6 +73,7 @@ class PortableRun:
             "transcript_sentence_count": len(self.state.transcript),
             "retake_cull_count": len(self.state.retake_culls),
             "retake_restored_count": len(self.state.retake_guard_restores),
+            "manual_override_count": len(self.state.manual_overrides),
             "warnings": list(self.warnings),
             "artifacts": {name: str(path) for name, path in self.artifacts.items()},
             "shorts": list(self.shorts),
@@ -109,6 +110,7 @@ def run_portable(
     shorts_min_sec: int = 30,
     shorts_max_sec: int = 60,
     shorts_subtitles: bool = True,
+    overrides: Sequence[ManualOverride] | None = None,
 ) -> PortableRun:
     """Run the complete model-free pipeline for one source file."""
 
@@ -200,6 +202,9 @@ def run_portable(
     transcript: list[Sentence] = []
     discard: list[int] = []
     restored: list[int] = []
+    manual = list(overrides or [])
+    if manual and transcript_path is None:
+        raise IngestError("Manual overrides require a transcript. Provide an SRT.")
     if transcript_path is not None:
         with stage(
             "transcribe", "transcribe", "Transcribe (SRT)", "Reading subtitle transcript"
@@ -209,25 +214,40 @@ def run_portable(
             transcript = parse_srt_file(transcript_path, media.audio_sample_rate)
             meta["message"] = f"{len(transcript)} sentences from SRT"
             emit("transcribe", "info", str(meta["message"]))
-        if cull_retakes:
+        if cull_retakes or manual:
             with stage("retakes", "retakes", "Retakes", "Culling retakes") as meta:
                 gate()
                 step("retakes", 48, "Culling retakes")
-                result = cull_transcript_retakes(
-                    transcript,
-                    client=llm_client,
-                    strategy=retake_strategy,  # type: ignore[arg-type]
-                    context_window=context_window,
-                    strictness=strictness,
-                )
-                discard = list(result.discard_sentence_ids)
-                restored = list(result.restored_sentence_ids)
+                if cull_retakes:
+                    result = cull_transcript_retakes(
+                        transcript,
+                        client=llm_client,
+                        strategy=retake_strategy,  # type: ignore[arg-type]
+                        context_window=context_window,
+                        strictness=strictness,
+                    )
+                    discard = list(result.discard_sentence_ids)
+                    restored = list(result.restored_sentence_ids)
+                valid = {item.id for item in transcript}
+                unknown = [item.sentence_id for item in manual if item.sentence_id not in valid]
+                if unknown:
+                    raise InvalidRetakeIdsError(unknown)
+                discarded = set(discard)
+                for item in manual:
+                    if item.action == "discard":
+                        discarded.add(item.sentence_id)
+                    else:
+                        discarded.discard(item.sentence_id)
+                discard = sorted(discarded)
                 speech = subtract_spans(speech, cull_intervals(transcript, discard))
                 minimum = max(1, (min_speech_ms * media.audio_sample_rate + 500) // 1000)
                 speech = [(start, end) for start, end in speech if end - start >= minimum]
                 if not speech:
-                    raise IngestError("Retake culling removed all speech.")
-                meta["message"] = f"{len(discard)} culled, {len(restored)} restored"
+                    raise IngestError("Culling and overrides removed all speech.")
+                meta["message"] = (
+                    f"{len(discard)} culled, {len(restored)} restored, "
+                    f"{len(manual)} manual overrides"
+                )
                 emit("retakes", "info", str(meta["message"]))
 
     config_jl = jl or JlCutsConfig()
@@ -261,6 +281,7 @@ def run_portable(
         transcript=transcript,
         retake_culls=discard,
         retake_guard_restores=restored,
+        manual_overrides=manual,
         video_segments=list(built.video_segments),
         audio_segments=list(built.audio_segments),
     )

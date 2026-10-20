@@ -19,6 +19,11 @@ from videoflow.domain.paths import resolve_allowed
 from videoflow.runtime import allowed_roots, find_binary, portable_home
 
 
+class OverrideRequest(BaseModel):
+    sentence_id: int = Field(ge=0)
+    action: Literal["keep", "discard"]
+
+
 class NewJobRequest(BaseModel):
     source: str = Field(min_length=1)
     output: str = Field(min_length=1)
@@ -53,6 +58,7 @@ class NewJobRequest(BaseModel):
     shorts_min_sec: int = Field(default=30, ge=1, le=300)
     shorts_max_sec: int = Field(default=60, ge=1, le=600)
     shorts_subtitles: bool = True
+    overrides: list[OverrideRequest] = Field(default_factory=list)
 
 
 def register_routes(app: FastAPI, jobs: JobManager) -> None:
@@ -97,6 +103,7 @@ def register_routes(app: FastAPI, jobs: JobManager) -> None:
                     "shorts_min_sec": request.shorts_min_sec,
                     "shorts_max_sec": request.shorts_max_sec,
                     "shorts_subtitles": request.shorts_subtitles,
+                    "overrides": [item.model_dump() for item in request.overrides],
                 },
             )
         except VideoFlowError as exc:
