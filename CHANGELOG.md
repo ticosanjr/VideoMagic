@@ -3,6 +3,20 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.14.1] — 2026-10-20
+
+### Fixed
+
+- Duration badges show milliseconds under one second instead of `0:00`.
+- Header and footer no longer claim Shorts is CLI-only.
+- Added a favicon, removing the `/favicon.ico` 404.
+
+### Verified
+
+- Real Chrome session: load, fill paths, enable culling, run, 7 per-block
+  progress bars at 100%, global log with 53 lines, keep override, apply, second
+  job succeeded. No console errors, request failures, or 4xx/5xx responses.
+
 ## [0.14.0] — 2026-10-20
 
 ### Added

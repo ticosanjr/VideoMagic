@@ -6,7 +6,7 @@ timeline: it removes silence and retakes, adds J-cuts and punch-ins, proposes
 vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive.
 
-> Status: 0.14.0 alpha. Portable Linux binary, Linux AppImage, and Windows PE run
+> Status: 0.14.1 alpha. Portable Linux binary, Linux AppImage, and Windows PE run
 > ingest, silence detection, transcript-driven retake culling, deterministic
 > cuts, and three NLE exports. The local API, MCP server, and rack UI execute
 > real jobs. Silero, Whisper, shorts, and NLE transitions are specified and

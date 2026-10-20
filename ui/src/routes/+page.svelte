@@ -338,8 +338,8 @@
       <p class="text-xs font-semibold uppercase tracking-[0.22em] text-sky-400">VideoFlow</p>
       <h1 class="mt-1 text-3xl font-semibold tracking-tight">Rack & telemetry</h1>
       <p class="mt-2 max-w-3xl text-sm text-neutral-400">
-        Model-free pre-edit with per-block timing and logs. Neural modules are visible but marked
-        <span class="text-neutral-300">later</span>; Shorts is CLI-only in this build.
+        Per-block progress, timing, logs, SRT/ASR transcripts, manual overrides, and vertical
+        Shorts. Future modules stay visible and marked <span class="text-neutral-300">later</span>.
       </p>
     </div>
     <div class="flex flex-wrap items-center gap-3">
@@ -805,7 +805,10 @@
   </section>
 
   <footer class="pb-4 text-xs text-neutral-500">
-    <p>Local only. The server binds to 127.0.0.1. Neural modules and Shorts are CLI-only or later.</p>
+    <p>
+      Local only. The server binds to 127.0.0.1. Every control shown is wired; future modules are
+      marked later.
+    </p>
   </footer>
 </div>
 

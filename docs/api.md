@@ -47,7 +47,7 @@ GET /health
 ```
 
 ```json
-{ "status": "ok", "service": "videoflow", "version": "0.14.0" }
+{ "status": "ok", "service": "videoflow", "version": "0.14.1" }
 ```
 
 ```http
@@ -57,7 +57,7 @@ GET /api/v1/system
 ```json
 {
   "ok": true,
-  "version": "0.14.0",
+  "version": "0.14.1",
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
@@ -267,7 +267,7 @@ On success, `job.result` is the `run_portable` report:
 ```json
 {
   "ok": true,
-  "version": "0.14.0",
+  "version": "0.14.1",
   "speech_interval_count": 3,
   "video_segment_count": 3,
   "audio_segment_count": 3,

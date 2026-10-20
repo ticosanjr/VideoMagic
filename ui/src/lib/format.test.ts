@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { elapsedMs, formatDateTime, formatDuration, statusText } from "./format";
 
 describe("formatDuration", () => {
-  it("formats seconds and hours", () => {
-    expect(formatDuration(0)).toBe("0:00");
+  it("formats milliseconds, seconds, and hours", () => {
+    expect(formatDuration(0)).toBe("0 ms");
+    expect(formatDuration(428)).toBe("428 ms");
     expect(formatDuration(65_000)).toBe("1:05");
     expect(formatDuration(3_725_000)).toBe("1:02:05");
   });

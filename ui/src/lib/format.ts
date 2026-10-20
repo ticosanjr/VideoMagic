@@ -20,7 +20,9 @@ export function formatDateTime(value: string | null | undefined): string {
 
 export function formatDuration(ms: number | null | undefined): string {
   if (ms === null || ms === undefined || !Number.isFinite(ms)) return "—";
-  const total = Math.max(0, Math.round(ms / 1000));
+  const value = Math.max(0, Math.round(ms));
+  if (value < 1000) return `${value} ms`;
+  const total = Math.round(value / 1000);
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
   const seconds = total % 60;

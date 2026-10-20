@@ -38,6 +38,7 @@ videoflow-0.9.0-windows-x86_64.exe
 
 ## Current
 
+- `v0.14.1`: sub-second durations, favicon, UI text, browser-verified flow.
 - `v0.14.0`: ASR transcription endpoint and Transcribe card.
 - `v0.13.0`: manual keep/discard overrides and inspector controls.
 - `v0.12.0`: Shorts in jobs/API/UI with progress, logs, and MP4 downloads.
