@@ -40,8 +40,8 @@ videoflow-0.9.0-windows-x86_64.exe
 ## Current
 
 - `v0.20.0`: local filesystem browser for source/output/SRT/model selection,
-  source metadata preview, folder creation, and a modernized rack setup. Source
-  only; 0.20.0 binaries are not built yet.
+  source metadata preview, folder creation, and a modernized rack setup. Linux
+  binary, Linux AppImage, and Windows PE built and smoke-tested.
 - `v0.19.0`: local Faster-Whisper 1.2.1 with the pinned small CTranslate2
   model, full-WAV word timestamps, whisper.cpp fallback, and bundled runtime.
 - `v0.18.0`: Silero VAD v5.1.2 via ONNX Runtime, engine selection and fallback,

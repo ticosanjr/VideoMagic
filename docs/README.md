@@ -12,7 +12,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Silero VAD via ONNX Runtime with FFmpeg `silencedetect` fallback | implemented |
 | Deterministic timeline, J/L-cuts, fades, punch-ins | implemented |
 | FCPXML 1.9/1.10, xmeml, OTIO export | implemented |
-| Portable artifacts | 0.19.0 Linux binary, Linux AppImage, and Windows PE built and smoke-tested under Wine; 0.20.0 artifacts are not built yet |
+| Portable artifacts | 0.20.0 Linux binary, Linux AppImage, and Windows PE built and smoke-tested under Wine; the file browser is included |
 | SRT transcript import and LLM retake culling | implemented |
 | Local Faster-Whisper with whisper.cpp fallback, and ASR HTTP | implemented; pinned small model bundled in release builds |
 | Local filesystem browser with allowlisted roots | implemented; no media upload |

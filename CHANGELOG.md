@@ -46,10 +46,12 @@ follow semantic versioning once the project reaches 1.0.
   clean.
 - UI `check` reports 0 errors and 0 warnings; 13 Vitest tests pass and the
   production build succeeds.
-- Browser smoke: selected `jfk-48k.mp4`, probed metadata, created
-  `jfk-48k-videoflow`, ran the pipeline, and wrote all three exports.
-- 0.20.0 portable artifacts are not built yet; the staged 0.19.0 binaries
-  predate the file browser.
+- Frozen Linux UI: selected a real 48 kHz source, showed its metadata, created
+  an output folder, ran the pipeline, and wrote all three exports.
+- Linux binary, AppImage, and Windows PE were built. Windows `version`, `doctor`,
+  `demo`, served filesystem routes, and a real Faster-Whisper run passed under
+  Wine. Sizes and SHA-256 values are in
+  `releases/v0.20.0/release-notes.md` and `manifest.json`.
 
 ## [0.19.0] — 2026-10-20
 
