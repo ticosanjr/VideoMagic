@@ -15,7 +15,7 @@ hides the contract. VideoFlow resolves this with two layers:
 
 | Scope | Line coverage | Notes |
 | --- | --- | --- |
-| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.27% (301 passing, 11 strict xfail, 7 deselected) |
+| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.28% (309 passing, 11 strict xfail, 7 deselected) |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |
 | UI | `npm run check` and `npm run build` | Manual: start a job from the rack and confirm progress and artifacts |
@@ -93,7 +93,9 @@ smokes run locally and are recorded in the release notes.
 | `test_ingest_media.py` | Real FFprobe, PCM extraction, and silence detection (`media`) |
 | `test_shorts_media.py` | Renders two 1080x1920 clips with ASS via the CLI (`media`) |
 | `test_api_jobs.py` | Job create/poll, stages/logs, new options, path jail, SSE, system, real media (`media`) |
-| UI `format.test.ts` | Duration, elapsed time, date, status text (Vitest) |
+| `test_api_fs.py` | Filesystem roots/listing/filtering, hidden files, truncation, symlink escapes, directory creation, media probe |
+| UI `format.test.ts` | Duration, bytes, elapsed time, date, status text (Vitest) |
+| UI `paths.test.ts` | POSIX and Windows basename, parent, and output suggestion |
 | `test_mcp.py` | Twelve tool names, typed errors, preset/state resources |
 | `test_mcp_live.py` | Live VAD, Faster-Whisper/whisper.cpp transcription, transcript, staged edits, shorts, job polling, export, resources |
 | `test_api.py` | `/health` and MCP redirect |

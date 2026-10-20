@@ -81,6 +81,54 @@ class PathJailError(VideoFlowError):
         super().__init__(f"Path is outside the allowlist: {path}")
 
 
+class PathNotFoundError(VideoFlowError):
+    """A filesystem browser path does not exist."""
+
+    code = "path_not_found"
+
+    def __init__(self, path: str) -> None:
+        self.path = path
+        super().__init__(f"Path does not exist: {path}")
+
+
+class PathNotDirectoryError(VideoFlowError):
+    """A filesystem browser path exists but is not a directory."""
+
+    code = "not_a_directory"
+
+    def __init__(self, path: str) -> None:
+        self.path = path
+        super().__init__(f"Path is not a directory: {path}")
+
+
+class DirectoryExistsError(VideoFlowError):
+    """A new output directory collides with an existing entry."""
+
+    code = "directory_exists"
+
+    def __init__(self, path: str) -> None:
+        self.path = path
+        super().__init__(f"A file or directory already exists: {path}")
+
+
+class InvalidDirectoryNameError(VideoFlowError):
+    """A new directory name is not a single portable path segment."""
+
+    code = "invalid_directory_name"
+
+
+class PermissionDeniedError(VideoFlowError):
+    """The local filesystem denied a browser or create operation."""
+
+    code = "permission_denied"
+
+
+class FilesystemError(VideoFlowError):
+    """The filesystem browser could not complete an operation."""
+
+    code = "filesystem_error"
+
+
 class InvalidRetakeIdsError(VideoFlowError):
     """The model returned sentence ids that were not in the prompt window."""
 

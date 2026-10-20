@@ -2,11 +2,12 @@
 
 Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript. English strings only.
 
-0.19.0 keeps the full telemetry rack from 0.13 and adds the local
-Faster-Whisper engine, model, device, compute-type, VAD, and model-directory
-fields. Source/output/SRT fields, quick presets, per-block progress,
-start/finish timestamps, duration, status icons, per-block and global log
-drawers, recent jobs, artifact downloads, and typed errors remain.
+0.20.0 keeps the full telemetry rack from 0.13 and adds a local filesystem
+picker for source, output, SRT, and model paths. The setup card now shows source
+metadata, an output suggestion, starting-point cards, inline validation, and a
+clear primary action. Per-block progress, start/finish timestamps, duration,
+status icons, per-block and global log drawers, recent jobs, artifact downloads,
+and typed errors remain.
 
 Module cards render configuration from `modules.ts` field metadata. Implemented
 controls are bound to the job request; future controls are disabled and marked
@@ -26,13 +27,20 @@ persisted presets, and word-level inspector controls.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ VideoFlow     [drop media]  [preset ▾]  [Run pipeline]       │
-│ Project: interview       ████████████░░  transcribe  62%     │
+│ VideoFlow      0.20.0   FFmpeg ready          [Global log]   │
+├──────────────────────────────────────────────────────────────┤
+│ New project                                      [Run]       │
+│  01 Source video        [Choose / Change]                    │
+│     clip.mp4 · 12:04 · 1920×1080 · 30 fps · 48 kHz           │
+│  02 Output project      [Choose / Create]                    │
+│     /videos/clip-videoflow                                   │
+│  03 Transcript (SRT)    [Choose]                             │
+│  Starting point: YouTube · Lecture · Shorts · Custom         │
+│  ▸ Advanced paths and local models                           │
 ├──────────────────────────────────────────────────────────────┤
 │ 01 Ingest        ● cached     [Run this block]        ▸      │
 │ 02 Voice detect  ● cached     [Run this block]        ▸      │
 │ 03 Transcribe    ◐ running    [Run this block]        ▾      │
-│    engine [auto ▾]  model [small ▾]  language [pt ▾]         │
 │ 04 Retakes       ○ dirty      [Run this block]        ▸      │
 │ …                                                            │
 ├──────────────────────────────────────────────────────────────┤
@@ -40,20 +48,47 @@ persisted presets, and word-level inspector controls.
 └──────────────────────────────────────────────────────────────┘
 ```
 
-The rack is the page. There is no dashboard, wizard, or modal pipeline. The
-editor's mental model is a chain of inserts, so the UI is a vertical chain.
+The rack is the page. There is no dashboard or wizard. The filesystem picker is
+a modal utility, not a pipeline step. The editor's mental model is a chain of
+inserts, so the UI remains a vertical chain.
 
-## 2. Header
+## 2. Header and project setup
 
-- **Media drop zone**: accepts one video. Calls media registration, then shows
-  duration, resolution, rational frame rate.
+- **Source picker**: opens the local filesystem browser, filters media
+  extensions, then calls `/api/v1/media/probe` and shows duration, resolution,
+  frame rate, audio rate, and size. It never uploads the file.
+- **Output picker**: browses directories, shows which are writable, and can
+  create a new folder. Selecting a source suggests `<source-stem>-videoflow`.
+- **Transcript picker**: optional `.srt` file, filtered in the same browser.
+- **Starting point**: YouTube, Lecture, and Shorts cards. Manual changes switch
+  the badge to Custom.
+- **Advanced paths**: a collapsed fallback for typed paths plus Faster-Whisper
+  and whisper.cpp model pickers.
 - **Global progress**: active module and a per-module bar. No invented ETA. If an
   ETA exists, it is derived from measured module time.
-- **Preset menu**: load, save as, delete. Applying a preset marks affected cards
-  dirty. It does not start a run.
 - **Run pipeline**: starts the enabled, non-cached modules. Disabled while a job
-  runs.
+  runs or while a required source/output is missing.
 - **Cancel**: replaces Run during a job.
+
+### Path picker
+
+The picker is a modal dialog with:
+
+- quick-access chips for every allowlisted root;
+- breadcrumbs and an Up action that never escapes the containing root;
+- a search field for the current folder;
+- a hidden-file toggle;
+- rows with folder/file icon, name, size, modified date, and symlink marker;
+- single-click selection for files, click-to-enter for folders;
+- a New folder field and Create action in directory mode;
+- a footer with the selected absolute path and a disabled Select action until a
+  valid selection exists;
+- loading skeletons, empty states, and typed errors;
+- Escape to close, focus trapping, and visible focus states.
+
+The picker never offers a parent above the allowlisted root. If a symlink points
+outside the roots it is omitted. Network shares and unlisted disks require an
+operator change to `VIDEOWFLOW_ALLOWED_ROOTS`.
 
 ## 3. Module card
 
@@ -104,8 +139,8 @@ write reverts the row and shows the error.
 
 ### Empty
 
-No media: the rack shows the eight cards in `bypassed` with a call to drop a file.
-Run is disabled.
+No media: the rack shows the eight cards in `bypassed` with a call to choose a
+source file. Run is disabled until source and output are present.
 
 ### Loading
 
@@ -134,6 +169,12 @@ polls job status every 5 s until the stream returns.
 ## 7. Implementation notes
 
 - API base is `/api/v1`; the dev server proxies to `127.0.0.1:8765`.
+- The path picker uses `/api/v1/fs/list`, `/api/v1/fs/mkdir`, and
+  `/api/v1/media/probe`; it never uploads media.
+- `PathPicker.svelte` owns modal state and focus; `paths.ts` owns pure path
+  helpers so Windows and POSIX suggestions are unit-tested.
+- Source metadata is advisory. A failed probe shows a warning but does not block
+  the run; the worker still probes the file.
 - State fetching uses a typed client generated from the JSON Schemas, not ad hoc
   `any`.
 - The card config form is derived from `modules_config` in `ProjectState`.

@@ -7,6 +7,8 @@ Implemented today:
 
 - `GET /health`
 - `GET /api/v1/system`
+- `GET /api/v1/fs/roots`, `GET /api/v1/fs/list`, `POST /api/v1/fs/mkdir`
+- `GET /api/v1/media/probe`
 - `POST /api/v1/jobs`, `GET /api/v1/jobs`, `GET /api/v1/jobs/{id}`,
   `POST /api/v1/jobs/{id}/cancel`, `GET /api/v1/jobs/{id}/events`
 - `POST /api/v1/projects`, `GET /api/v1/projects`,
@@ -39,12 +41,12 @@ They return `501 not_implemented`; the full project run is implemented.
 
 | Status | Codes |
 | --- | --- |
-| 403 | `path_not_allowed` |
-| 404 | `job_not_found`, `project_not_found`, `preset_not_found`, `unknown_module`, `transcript_not_found` |
-| 409 | `job_already_running`, `module_bypassed`, `media_not_registered`, `state_not_ready` |
-| 422 | validation, `invalid_time`, `media_not_found`, `transcript_required`, `invalid_override`, `word_overrides_not_supported`, `invalid_config`, `invalid_preset_name`, `preset_invalid`, `export_failed` |
+| 403 | `path_not_allowed`, `permission_denied` |
+| 404 | `job_not_found`, `project_not_found`, `preset_not_found`, `unknown_module`, `transcript_not_found`, `path_not_found` |
+| 409 | `job_already_running`, `module_bypassed`, `media_not_registered`, `state_not_ready`, `directory_exists` |
+| 422 | validation, `invalid_time`, `media_not_found`, `transcript_required`, `invalid_override`, `word_overrides_not_supported`, `invalid_config`, `invalid_preset_name`, `preset_invalid`, `export_failed`, `not_a_directory`, `invalid_directory_name` |
 | 429 | `job_queue_full` |
-| 500 | `project_state_invalid` |
+| 500 | `project_state_invalid`, `filesystem_error` |
 | 501 | `not_implemented` (per-module reruns) |
 
 ## 2. Health and system
@@ -54,7 +56,7 @@ GET /health
 ```
 
 ```json
-{ "status": "ok", "service": "videoflow", "version": "0.19.0" }
+{ "status": "ok", "service": "videoflow", "version": "0.20.0" }
 ```
 
 ```http
@@ -64,7 +66,7 @@ GET /api/v1/system
 ```json
 {
   "ok": true,
-  "version": "0.19.0",
+  "version": "0.20.0",
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
@@ -74,6 +76,89 @@ GET /api/v1/system
 
 `allowed_roots` comes from `VIDEOWFLOW_ALLOWED_ROOTS` (path-separator list) or
 defaults to home, cwd, and the portable data directory.
+
+### Filesystem browser
+
+The rack uses these routes instead of uploading media. Every path passes the
+same allowlist as a job; an entry with a symlink outside the allowlist is not
+returned. The browser is a convenience, not a new trust boundary.
+
+```http
+GET /api/v1/fs/roots
+```
+
+```json
+{
+  "ok": true,
+  "roots": [
+    {
+      "name": "Home",
+      "path": "/home/editor",
+      "exists": true,
+      "writable": true
+    }
+  ]
+}
+```
+
+```http
+GET /api/v1/fs/list?path=/home/editor/video&mode=file&extensions=mp4,mov&q=interview
+```
+
+`mode` is `file` or `directory`. File mode returns subdirectories plus matching
+files; directory mode returns only directories. `extensions` is a
+comma-separated list, `q` is a case-insensitive name filter, `show_hidden=true`
+includes dot entries, and `limit` caps the result (default 500, maximum 2,000).
+
+```json
+{
+  "ok": true,
+  "path": "/home/editor/video",
+  "name": "video",
+  "parent": { "name": "editor", "path": "/home/editor" },
+  "breadcrumbs": [
+    { "name": "Home", "path": "/home/editor" },
+    { "name": "video", "path": "/home/editor/video" }
+  ],
+  "roots": [],
+  "entries": [
+    {
+      "name": "interview.mp4",
+      "path": "/home/editor/video/interview.mp4",
+      "kind": "file",
+      "size_bytes": 124000000,
+      "modified_at": "2026-10-20T18:00:00+00:00",
+      "extension": ".mp4",
+      "selectable": true,
+      "is_symlink": false
+    }
+  ],
+  "truncated": false,
+  "can_write": true,
+  "mode": "file"
+}
+```
+
+```http
+POST /api/v1/fs/mkdir
+Content-Type: application/json
+```
+
+```json
+{ "parent": "/home/editor/video", "name": "interview-videoflow" }
+```
+
+Returns `201` with `{ "ok": true, "entry": {...} }`. Names are one portable path
+segment: no separators, `..`, dot-only names, control characters, Windows
+reserved names, or trailing spaces/dots. Existing entries return
+`directory_exists`.
+
+```http
+GET /api/v1/media/probe?path=/home/editor/video/interview.mp4
+```
+
+Returns the path, name, size, and the same `MediaInfo` shape used by jobs. It is
+used by the picker to show duration, resolution, frame rate, and audio rate.
 
 ## 3. Jobs (implemented)
 
@@ -311,7 +396,7 @@ On success, `job.result` is the `run_portable` report:
 ```json
 {
   "ok": true,
-  "version": "0.19.0",
+  "version": "0.20.0",
   "vad_engine": "silero",
   "speech_interval_count": 3,
   "video_segment_count": 3,
@@ -449,7 +534,7 @@ The flag is persisted in `module_enabled` and consumed by the next project run.
 
 ### Run a module
 
-Per-module reruns are not implemented in 0.19.0. The route validates the
+Per-module reruns are not implemented in 0.20.0. The route validates the
 project and module id, then returns:
 
 ```json

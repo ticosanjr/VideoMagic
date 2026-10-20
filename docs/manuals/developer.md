@@ -34,6 +34,8 @@ Implemented:
 - PyInstaller onefile packaging for Linux and Windows, plus a Linux AppImage
 - MCP tool registration and structured not-implemented responses
 - health endpoint, UI mount, and MCP mount
+- allowlisted filesystem browsing, folder creation, and media probing for the
+  rack path picker
 - unit, contract, and real-FFmpeg media tests
 
 Stubbed, with `xfail` contracts:

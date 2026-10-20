@@ -158,7 +158,8 @@ export VIDEOWFLOW_ALLOWED_ROOTS="/media:/home/editor/projects"
 ```
 
 On Windows, separate entries with `;`. Without the variable, home, the current
-directory, and the portable data directory are allowed.
+directory, and the portable data directory are allowed. The rack path picker
+shows these roots as quick-access buttons; add a location here to browse it.
 
 Do not set the root to `/` or `C:\`. It defeats the jail.
 

@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, ValidationError
 from videoflow import __version__
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.export_service import export_timeline
+from videoflow.application.filesystem import create_directory, list_directory, roots_payload
 from videoflow.application.jobs import TERMINAL, Job, JobManager
 from videoflow.application.presets import get_preset, load_presets, save_preset
 from videoflow.application.projects import (
@@ -30,6 +31,7 @@ from videoflow.application.projects import (
 from videoflow.domain.config import ModuleEnabled
 from videoflow.domain.errors import (
     CapabilityUnavailableError,
+    FilesystemError,
     JobAlreadyRunningError,
     JobNotFoundError,
     MediaNotFoundError,
@@ -111,6 +113,11 @@ class NewProjectRequest(BaseModel):
 
 class MediaRequest(BaseModel):
     file_path: str = Field(min_length=1)
+
+
+class NewDirectoryRequest(BaseModel):
+    parent: str = Field(min_length=1)
+    name: str = Field(min_length=1, max_length=255)
 
 
 class EnabledRequest(BaseModel):
@@ -684,6 +691,69 @@ def register_routes(
         except VideoFlowError as exc:
             fail(exc)
 
+    @app.get("/api/v1/fs/roots")
+    def fs_roots() -> dict[str, object]:
+        try:
+            return {"ok": True, "roots": roots_payload()}
+        except VideoFlowError as exc:
+            fail(exc)
+
+    @app.get("/api/v1/fs/list")
+    def fs_list(
+        path: str | None = None,
+        mode: Literal["file", "directory"] = "file",
+        extensions: str | None = None,
+        q: str = "",
+        show_hidden: bool = False,
+        limit: int = 500,
+    ) -> dict[str, object]:
+        try:
+            suffixes = tuple(
+                item.strip() for item in (extensions or "").split(",") if item.strip()
+            )
+            return {
+                "ok": True,
+                **list_directory(
+                    path,
+                    mode=mode,
+                    extensions=suffixes,
+                    query=q,
+                    show_hidden=show_hidden,
+                    limit=limit,
+                ),
+            }
+        except VideoFlowError as exc:
+            fail(exc)
+
+    @app.post("/api/v1/fs/mkdir", status_code=201)
+    def fs_mkdir(request: NewDirectoryRequest) -> dict[str, object]:
+        try:
+            created = create_directory(request.parent, request.name)
+            return {"ok": True, "entry": created}
+        except VideoFlowError as exc:
+            fail(exc)
+
+    @app.get("/api/v1/media/probe")
+    def media_probe(path: str) -> dict[str, object]:
+        try:
+            source = resolve_allowed(Path(path).expanduser(), allowed_roots())
+            if not source.is_file():
+                raise MediaNotFoundError(str(source))
+            try:
+                size = source.stat().st_size
+            except OSError as exc:
+                raise FilesystemError(f"Could not inspect {source}: {exc}") from exc
+            media = probe_media(source)
+            return {
+                "ok": True,
+                "path": str(source),
+                "name": source.name,
+                "size_bytes": size,
+                "media": media.model_dump(mode="json"),
+            }
+        except VideoFlowError as exc:
+            fail(exc)
+
     @app.get("/api/v1/system")
     def system() -> dict[str, object]:
         return {
@@ -703,6 +773,12 @@ def probe_media(path: Path) -> MediaInfo:
 def status_for(code: str) -> int:
     return {
         "path_not_allowed": 403,
+        "path_not_found": 404,
+        "not_a_directory": 422,
+        "directory_exists": 409,
+        "invalid_directory_name": 422,
+        "permission_denied": 403,
+        "filesystem_error": 500,
         "job_queue_full": 429,
         "job_not_found": 404,
         "job_already_running": 409,

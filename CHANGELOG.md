@@ -3,6 +3,54 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.20.0] — 2026-10-20
+
+### Added
+
+- A local filesystem browser for the rack: `GET /api/v1/fs/roots`,
+  `GET /api/v1/fs/list`, and `POST /api/v1/fs/mkdir`, with search, file-extension
+  filters, hidden-file control, breadcrumbs, writable checks, and a 2,000-entry
+  ceiling.
+- `GET /api/v1/media/probe`, so selecting a source shows duration, resolution,
+  frame rate, audio rate, and size without running the pipeline.
+- `PathPicker.svelte` with keyboard navigation, focus trapping, loading, empty,
+  and typed error states. It replaces typed source, output, SRT, and model paths
+  in the primary flow.
+- Source selection suggests `<source-stem>-videoflow` next to the source. The
+  output picker can create a folder in place.
+- A redesigned project setup: numbered source/output/transcript cards, metadata
+  chips, YouTube/Lecture/Shorts starting points, a collapsed advanced section, a
+  clear primary action, inline validation, progress details, and transient
+  success toasts.
+- Pure path helpers for POSIX and Windows basenames, parents, and output
+  suggestions, covered by Vitest.
+
+### Changed
+
+- The rack no longer requires typing an absolute path in the normal flow.
+  Advanced users can still paste paths under **Advanced paths and local models**.
+- The primary action is disabled until both source and output are present, and
+  source/output/transcript changes keep the UI state consistent.
+- The run summary keeps the same job, artifact, recent-job, inspector, and log
+  behavior while adopting the updated visual hierarchy.
+
+### Security
+
+- The browser is restricted to `VIDEOWFLOW_ALLOWED_ROOTS`; symlinks that escape a
+  root are omitted or rejected. Directory creation validates a single portable
+  segment, including Windows reserved names. No media is uploaded.
+
+### Verified
+
+- Tests: 309 passed, 11 xfailed, 7 deselected; coverage 99.28%; ruff and mypy
+  clean.
+- UI `check` reports 0 errors and 0 warnings; 13 Vitest tests pass and the
+  production build succeeds.
+- Browser smoke: selected `jfk-48k.mp4`, probed metadata, created
+  `jfk-48k-videoflow`, ran the pipeline, and wrote all three exports.
+- 0.20.0 portable artifacts are not built yet; the staged 0.19.0 binaries
+  predate the file browser.
+
 ## [0.19.0] — 2026-10-20
 
 ### Added

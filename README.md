@@ -6,14 +6,15 @@ timeline: it removes silence and retakes, adds J-cuts and punch-ins, proposes
 vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive.
 
-> Status: 0.19.0 alpha. Portable Linux binary, Linux AppImage, and Windows PE run
-> ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper quality
-> transcription with a whisper.cpp fallback, SRT/ASR paths, transcript-driven
-> retake culling, deterministic cuts, vertical shorts, and three NLE exports.
-> The local API, MCP server, and rack UI execute real jobs; all twelve MCP tools
-> and four resources are live. Projects persist atomic, revisioned state under
-> `.videoflow/`, and the REST API manages media, modules, transcripts, exports,
-> and operator presets.
+> Status: 0.20.0 development. The source tree runs ingest, Silero VAD with an
+> FFmpeg fallback, local Faster-Whisper quality transcription with a whisper.cpp
+> fallback, SRT/ASR paths, transcript-driven retake culling, deterministic cuts,
+> vertical shorts, and three NLE exports. The local API, MCP server, and rack UI
+> execute real jobs; all twelve MCP tools and four resources are live. The rack
+> now browses local files and folders instead of requiring typed paths.
+> Projects persist atomic, revisioned state under `.videoflow/`, and the REST API
+> manages media, modules, transcripts, exports, and operator presets. The staged
+> 0.19.0 binaries predate the file browser.
 
 ## Requirements
 
@@ -30,7 +31,7 @@ install time. A GPU is not required.
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 301 passing, 11 strict xfail, 7 deselected
+uv run pytest                       # 309 passing, 11 strict xfail, 7 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model

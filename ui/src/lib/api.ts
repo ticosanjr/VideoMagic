@@ -10,6 +10,59 @@ export interface SystemInfo {
   ffprobe: string | null;
 }
 
+export interface FsRoot {
+  name: string;
+  path: string;
+  exists: boolean;
+  writable: boolean;
+}
+
+export interface FsBreadcrumb {
+  name: string;
+  path: string;
+}
+
+export interface FsEntry {
+  name: string;
+  path: string;
+  kind: "file" | "directory";
+  size_bytes: number | null;
+  modified_at: string | null;
+  extension: string | null;
+  selectable: boolean;
+  is_symlink: boolean;
+}
+
+export interface FsListing {
+  ok: boolean;
+  path: string;
+  name: string;
+  parent: FsBreadcrumb | null;
+  breadcrumbs: FsBreadcrumb[];
+  roots: FsRoot[];
+  entries: FsEntry[];
+  truncated: boolean;
+  can_write: boolean;
+  mode: "file" | "directory";
+}
+
+export interface ProbedMedia {
+  ok: boolean;
+  path: string;
+  name: string;
+  size_bytes: number;
+  media: {
+    source_path: string;
+    duration_frames: number;
+    fps_num: number;
+    fps_den: number;
+    width: number;
+    height: number;
+    audio_sample_rate: number;
+    start_timecode_frames: number;
+  };
+}
+
 export interface JobOptions {
   vad_engine: string;
   noise_db: number;
@@ -197,6 +250,41 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function getSystem(): Promise<SystemInfo> {
   return request<SystemInfo>("/api/v1/system");
+}
+
+export async function getFsRoots(): Promise<FsRoot[]> {
+  const response = await request<{ ok: boolean; roots: FsRoot[] }>("/api/v1/fs/roots");
+  return response.roots;
+}
+
+export async function listDirectory(params: {
+  path?: string;
+  mode: "file" | "directory";
+  extensions?: string[];
+  q?: string;
+  showHidden?: boolean;
+  limit?: number;
+}): Promise<FsListing> {
+  const query = new URLSearchParams({ mode: params.mode });
+  if (params.path) query.set("path", params.path);
+  if (params.extensions?.length) query.set("extensions", params.extensions.join(","));
+  if (params.q) query.set("q", params.q);
+  if (params.showHidden) query.set("show_hidden", "true");
+  if (params.limit) query.set("limit", String(params.limit));
+  return request<FsListing>(`/api/v1/fs/list?${query.toString()}`);
+}
+
+export async function createDirectory(parent: string, name: string): Promise<FsEntry> {
+  const response = await request<{ ok: boolean; entry: FsEntry }>("/api/v1/fs/mkdir", {
+    method: "POST",
+    body: JSON.stringify({ parent, name })
+  });
+  return response.entry;
+}
+
+export function probeMedia(path: string): Promise<ProbedMedia> {
+  const query = new URLSearchParams({ path });
+  return request<ProbedMedia>(`/api/v1/media/probe?${query.toString()}`);
 }
 
 export async function createJob(payload: NewJob): Promise<Job> {

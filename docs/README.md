@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (0.19.0)
+## Implementation status (0.20.0)
 
 | Area | State |
 | --- | --- |
@@ -12,12 +12,13 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Silero VAD via ONNX Runtime with FFmpeg `silencedetect` fallback | implemented |
 | Deterministic timeline, J/L-cuts, fades, punch-ins | implemented |
 | FCPXML 1.9/1.10, xmeml, OTIO export | implemented |
-| Portable artifacts | Linux binary, Linux AppImage, Windows PE built and smoke-tested under Wine |
+| Portable artifacts | 0.19.0 Linux binary, Linux AppImage, and Windows PE built and smoke-tested under Wine; 0.20.0 artifacts are not built yet |
 | SRT transcript import and LLM retake culling | implemented |
 | Local Faster-Whisper with whisper.cpp fallback, and ASR HTTP | implemented; pinned small model bundled in release builds |
+| Local filesystem browser with allowlisted roots | implemented; no media upload |
 | Jobs, job REST routes, SSE, live MCP jobs | implemented for the portable path |
 | MCP: twelve tools and four resources | implemented; analysis, staged edits, jobs, export, resources |
-| Rack UI driving real portable jobs, logs, overrides, shorts | implemented |
+| Rack UI driving real portable jobs, logs, overrides, shorts | implemented; source/output/transcript/model selection uses the path picker |
 | Project-scoped routes, revisions, transcript API, presets | implemented; per-module rerun is typed 501 |
 | Shorts selection/rendering and API download | implemented |
 | Audio transitions, keyframed zooms, MP4 | specified, stubbed |
@@ -80,6 +81,7 @@ Each spec lists purpose, inputs, outputs, config, algorithm, failures, and tests
 | [0008](adr/0008-cpu-first.md) | CPU-first defaults |
 | [0009](adr/0009-single-user-local.md) | Local single-user runtime |
 | [0010](adr/0010-portable-single-executable.md) | One portable executable per OS |
+| [0011](adr/0011-local-filesystem-browser.md) | Allowlisted local filesystem browser |
 
 ## Document rules
 

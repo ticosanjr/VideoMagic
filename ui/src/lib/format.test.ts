@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { elapsedMs, formatDateTime, formatDuration, statusText } from "./format";
+import {
+  elapsedMs,
+  formatBytes,
+  formatDateTime,
+  formatDuration,
+  formatSeconds,
+  statusText
+} from "./format";
 
 describe("formatDuration", () => {
   it("formats milliseconds, seconds, and hours", () => {
@@ -45,5 +52,21 @@ describe("formatDateTime", () => {
 describe("statusText", () => {
   it("normalizes underscores", () => {
     expect(statusText("in_review")).toBe("in review");
+  });
+});
+
+describe("formatSeconds", () => {
+  it("renders media durations", () => {
+    expect(formatSeconds(65.2)).toBe("1:05");
+    expect(formatSeconds(null)).toBe("—");
+  });
+});
+
+describe("formatBytes", () => {
+  it("renders file sizes", () => {
+    expect(formatBytes(0)).toBe("0 B");
+    expect(formatBytes(1536)).toBe("1.5 KB");
+    expect(formatBytes(10 * 1024 * 1024)).toBe("10 MB");
+    expect(formatBytes(null)).toBe("—");
   });
 });

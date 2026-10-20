@@ -33,6 +33,28 @@ Every path from HTTP, MCP, a preset, or state passes through
 The scaffold implements and tests this. Do not replace it with `startswith` on a
 string; that is how `/media/foo-evil` passes for root `/media/foo`.
 
+### Filesystem browser
+
+The rack path picker is a convenience over the same path jail, not a new trust
+boundary.
+
+- `GET /api/v1/fs/roots` only exposes the configured roots.
+- `GET /api/v1/fs/list` resolves the requested directory through
+  `resolve_allowed`, then resolves each entry before returning it. A symlink
+  that points outside a root is omitted from listings and rejected as a direct
+  path.
+- Listings cap at 2,000 entries and default to 500. Dotfiles are hidden unless
+  the caller asks for them.
+- `POST /api/v1/fs/mkdir` validates a single portable path segment, rejects
+  separators, dot-only names, control characters, Windows reserved names, and
+  existing entries, then resolves the target inside the allowlist before and
+  after creation.
+- `GET /api/v1/media/probe` uses the same allowlist and rejects directories or
+  missing files.
+- The browser never uploads media and does not expose arbitrary downloads.
+- If an operator needs another location, they must add it to
+  `VIDEOWFLOW_ALLOWED_ROOTS`; the UI does not widen the roots dynamically.
+
 ## 3. Secrets
 
 - The LLM key is read from `VIDEOWFLOW_LLM_API_KEY` or a `secret_name` entry in

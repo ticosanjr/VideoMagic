@@ -16,9 +16,9 @@ uv run mypy
 Expected for the current suite:
 
 ```
-301 passed, 11 xfailed, 7 deselected
-coverage 99.27%
-UI: 8 passed (Vitest)
+309 passed, 11 xfailed, 7 deselected
+coverage 99.28%
+UI: 13 passed (Vitest)
 ```
 
 `xfail` is part of the design. A strict xfail that starts passing fails the suite,
@@ -119,7 +119,7 @@ uv run videoflow-api
 curl -s http://127.0.0.1:8765/health
 ```
 
-Expect `{"status":"ok","service":"videoflow","version":"0.19.0"}`.
+Expect `{"status":"ok","service":"videoflow","version":"0.20.0"}`.
 
 ## 9. AppImage contract
 

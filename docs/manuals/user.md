@@ -4,9 +4,10 @@ This is the editor's guide. Installation belongs to the
 [operator manual](operator.md).
 
 > Status: the portable CLI, REST API, rack UI, and MCP surface run real jobs in
-> 0.19.0. Local Faster-Whisper quality transcription is available with a
-> whisper.cpp fallback. Per-module reruns and direct MP4 rendering remain future
-> work.
+> 0.20.0. Local Faster-Whisper quality transcription is available with a
+> whisper.cpp fallback. The rack browses local files and folders through the
+> server allowlist; it does not upload media. Per-module reruns and direct MP4
+> rendering remain future work.
 
 ## 1. The idea
 
@@ -48,11 +49,16 @@ fallback, or `--transcript` with `--cull-retakes` for retake removal.
 ### Rack UI (portable run)
 
 1. Start `videoflow serve` and open `http://127.0.0.1:8765/`.
-2. Enter the source path and an output project folder. **Default** derives the
-   output from the source name.
-3. Optionally enter an SRT transcript and enable **Cull retakes**.
-4. Set the noise threshold and minimum silence, and choose J-cuts and punch-ins.
-5. Press **Run pipeline**.
+2. Press **Choose source video**. The picker starts in an allowed root and shows
+   folders, media files, sizes, and modified dates. Selecting a file also probes
+   it for duration, resolution, frame rate, and audio rate.
+3. The output folder is suggested next to the source. Keep it, or press
+   **Choose output folder** to browse and create a new folder with **Create**.
+4. Optionally choose an SRT transcript. The picker filters `.srt` files.
+5. Pick a starting point: YouTube, Lecture, or Shorts. Tune individual modules
+   below; any change switches the badge to Custom.
+6. Set the noise threshold and minimum silence, and choose J-cuts and punch-ins.
+7. Press **Run pipeline**.
 
 The page starts a job, shows the live stage and progress, and lists the three
 artifacts as download links. Quick presets set the silence and cut options.
@@ -64,8 +70,11 @@ The rack cards follow the active stage: green cached, blue running, yellow dirty
 gray bypassed/later, red failed. Cancel stops between stages.
 
 The source/output paths must be inside the server's allowed roots
-(`VIDEOWFLOW_ALLOWED_ROOTS`). The output folder gets `project_state.json`,
-`run.json`, and `exports/`.
+(`VIDEOWFLOW_ALLOWED_ROOTS`). The picker shows those roots as quick-access
+buttons. A path outside them returns `path_not_allowed`; symlinks are resolved
+before the check. The output folder gets `project_state.json`, `run.json`, and
+`exports/`. Advanced users can still paste paths under **Advanced paths and
+local models**.
 
 ## 3. The eight cards
 

@@ -32,6 +32,28 @@ export function formatDuration(ms: number | null | undefined): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
+export function formatSeconds(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) {
+    return "—";
+  }
+  return formatDuration(seconds * 1000);
+}
+
+export function formatBytes(bytes: number | null | undefined): string {
+  if (bytes === null || bytes === undefined || !Number.isFinite(bytes)) return "—";
+  const value = Math.max(0, bytes);
+  if (value < 1024) return `${Math.round(value)} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let scaled = value / 1024;
+  let unit = units[0];
+  for (const candidate of units) {
+    unit = candidate;
+    if (scaled < 1024 || candidate === units.at(-1)) break;
+    scaled /= 1024;
+  }
+  return `${scaled.toFixed(scaled >= 10 ? 0 : 1)} ${unit}`;
+}
+
 export function elapsedMs(
   startedAt: string | null | undefined,
   finishedAt: string | null | undefined,
