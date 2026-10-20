@@ -1,5 +1,11 @@
 # Module 07 — Vertical shorts
 
+## Implementation status
+
+Implemented: deterministic and LLM sentence selection, retake-aware conforming,
+1080x1920 H.264/AAC render, ASS captions, and `videoflow shorts`. Not yet:
+face tracking, karaoke word-level captions, and API/MCP exposure.
+
 ## Purpose
 
 Find self-contained moments in the transcript and turn them into vertical clips.

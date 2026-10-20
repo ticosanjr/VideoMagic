@@ -15,7 +15,7 @@ hides the contract. VideoFlow resolves this with two layers:
 
 | Scope | Line coverage | Notes |
 | --- | --- | --- |
-| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.2% (209 passing, 16 strict xfail, 5 deselected) |
+| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.2% (217 passing, 16 strict xfail, 7 deselected) |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |
 | UI | `npm run check` and `npm run build` | Manual: start a job from the rack and confirm progress and artifacts |
@@ -74,6 +74,7 @@ smokes run locally and are recorded in the release notes.
 | `test_transcript.py` | SRT parsing, BOM/CRLF, malformed files |
 | `test_llm.py` | OpenAI-compatible JSON transport, retry, errors, redaction |
 | `test_retake_service.py` | Windows, ids, exact fallback, guard, subtraction |
+| `test_shorts.py` | Deterministic windows, culls, LLM validation, ASS, events |
 | `test_portable.py` | End-to-end portable service with a fake engine and retakes |
 | `test_jobs.py` | Job completion, failure, cancellation, queue limit, pruning |
 | `test_cli.py` | `version`, `doctor`, `run` dispatch, usage |
@@ -85,6 +86,7 @@ smokes run locally and are recorded in the release notes.
 | --- | --- |
 | `test_exporters.py` | FCPXML 1.9/1.10, xmeml tracks, OTIO tracks, export service, preflight failures |
 | `test_ingest_media.py` | Real FFprobe, PCM extraction, and silence detection (`media`) |
+| `test_shorts_media.py` | Renders two 1080x1920 clips with ASS via the CLI (`media`) |
 | `test_api_jobs.py` | Job create/poll, path jail, SSE, system endpoint, real media (`media`) |
 | `test_mcp.py` | Twelve tool names, schemas, structured stub call |
 | `test_mcp_live.py` | Live media load, job start/poll, jail, invalid preset |

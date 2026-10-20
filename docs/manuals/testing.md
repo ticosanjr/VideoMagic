@@ -16,7 +16,7 @@ uv run mypy
 Expected on the scaffold:
 
 ```
-209 passed, 16 xfailed, 5 deselected
+217 passed, 16 xfailed, 7 deselected
 coverage 99%+
 ```
 
@@ -87,7 +87,7 @@ uv run videoflow-api
 curl -s http://127.0.0.1:8765/health
 ```
 
-Expect `{"status":"ok","service":"videoflow","version":"0.9.1"}`.
+Expect `{"status":"ok","service":"videoflow","version":"0.10.0"}`.
 
 ## 8. AppImage contract
 

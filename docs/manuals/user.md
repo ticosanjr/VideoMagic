@@ -127,11 +127,18 @@ error; it is the safety rule working.
 
 ### 07 Shorts
 
-- **Duration** is the target after cuts, not before.
+Available as a command today:
+
+```bash
+videoflow shorts interview.mp4 --transcript interview.srt -o out --count 3
+```
+
+- **Duration** is checked after retake culling.
 - **Count** caps the result.
 - **Reframe** is center crop in v1.
-- **Subtitles** burn karaoke-style captions into MP4 exports.
-- **Export** chooses timeline clips, MP4 files, or both.
+- **Subtitles** are burned in at sentence level (ASS).
+- **Selection** is deterministic by default; an OpenAI-compatible endpoint can
+  choose sentence ids.
 
 A clip that falls below the minimum after culling is dropped, not padded with a
 bad take.

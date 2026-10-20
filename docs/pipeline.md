@@ -170,6 +170,7 @@ Done:
 4. Portable model-free VAD and onefile executable
 5. In-process jobs, REST/SSE, and live MCP job tools
 6. SRT transcript import, LLM retakes, and the keeper guard
+7. Vertical shorts: selection, culling, captions, and 1080x1920 render
 
 Next, in order:
 

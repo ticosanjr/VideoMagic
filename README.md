@@ -6,7 +6,7 @@ timeline: it removes silence and retakes, adds J-cuts and punch-ins, proposes
 vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive.
 
-> Status: 0.9.1 alpha. Portable Linux binary, Linux AppImage, and Windows PE run
+> Status: 0.10.0 alpha. Portable Linux binary, Linux AppImage, and Windows PE run
 > ingest, silence detection, transcript-driven retake culling, deterministic
 > cuts, and three NLE exports. The local API, MCP server, and rack UI execute
 > real jobs. Silero, Whisper, shorts, and NLE transitions are specified and
@@ -26,7 +26,7 @@ CPU is the default. No model download happens at install time.
 
 ```bash
 uv sync --extra dev
-uv run pytest                       # 209 passing, 16 strict xfail, 5 deselected
+uv run pytest                       # 217 passing, 16 strict xfail, 7 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run videoflow-api                # http://127.0.0.1:8765/health and /mcp
 uv run videoflow-mcp                # stdio transport for a local agent
@@ -74,6 +74,8 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   binary needs no model download.
 - SRT transcript import and retake culling with exact repeats or an
   OpenAI-compatible LLM, protected by the keep-last guard.
+- Vertical shorts: deterministic or LLM selection, retake-aware conforming,
+  1080x1920 render, and burned ASS captions.
 - Deterministic timeline: frame-quantised video, sample-aligned audio, merged
   speech spans, J/L-cut audio boundaries with handle checks, logarithmic fade
   metadata, and alternating punch-ins.

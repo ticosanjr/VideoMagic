@@ -3,6 +3,30 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.10.0] — 2026-10-20
+
+### Added
+
+- Vertical shorts engine: deterministic or LLM sentence selection, retake-aware
+  conforming, 1080x1920 H.264/AAC render, and ASS captions.
+- `videoflow shorts INPUT --transcript subs.srt -o DIR` with count, duration
+  bounds, subtitle toggle, culling, and optional OpenAI-compatible selection.
+- `FFmpegAdapter.render_short` with concatenated pieces, center crop, and libass
+  burn-in.
+- ASS timing/text escaping and source-to-output subtitle mapping.
+- Unit and real-media tests for selection, culls, LLM validation, ASS, CLI, and
+  vertical output dimensions.
+
+### Changed
+
+- Version is 0.10.0.
+
+### Verified
+
+- Media test renders two 1080x1920 shorts with subtitles from a generated
+  fixture.
+- Frozen Linux binary and Windows PE (Wine) include the `shorts` command.
+
 ## [0.9.1] — 2026-10-20
 
 ### Fixed

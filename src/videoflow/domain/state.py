@@ -176,6 +176,18 @@ class LlmRetakeResponse(StrictModel):
     reasoning: str = Field(min_length=1)
 
 
+class ShortsProposalClip(StrictModel):
+    title: str = Field(min_length=1)
+    sentence_ids: list[int] = Field(min_length=1)
+
+
+class LlmShortsResponse(StrictModel):
+    """The only payload the shorts model is allowed to return."""
+
+    clips: list[ShortsProposalClip] = Field(default_factory=list)
+    reasoning: str = Field(min_length=1)
+
+
 class ApiError(StrictModel):
     ok: Literal[False] = False
     code: str = Field(min_length=1)

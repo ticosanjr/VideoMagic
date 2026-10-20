@@ -9,12 +9,25 @@ import platform
 import subprocess
 import sys
 from collections.abc import Sequence
+from fractions import Fraction
 from pathlib import Path
 
 from videoflow import __version__
+from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.portable import run_portable
+from videoflow.application.retakes import cull_intervals
+from videoflow.application.retakes import cull_retakes as cull_transcript_retakes
+from videoflow.application.shorts import (
+    build_ass,
+    select_shorts,
+    sentence_events,
+    slugify,
+)
 from videoflow.domain.config import JlCutsConfig, ZoomsConfig
 from videoflow.domain.errors import VideoFlowError
+from videoflow.domain.timebase import Rounding
+from videoflow.domain.transcript import parse_srt_file
+from videoflow.exporters.common import write_text
 from videoflow.runtime import ensure_home, find_binary, portable_home, ui_dir
 
 
@@ -30,6 +43,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run(args)
         if args.command == "demo":
             return _demo(args)
+        if args.command == "shorts":
+            return _shorts(args)
         if args.command == "serve":
             return _serve(args)
         if args.command == "mcp":
@@ -99,6 +114,21 @@ def _parser() -> argparse.ArgumentParser:
 
     demo = sub.add_parser("demo", help="Generate a fixture and run the full pipeline.")
     demo.add_argument("-o", "--out", type=Path, default=Path("videoflow-demo"))
+
+    shorts = sub.add_parser("shorts", help="Select and render vertical 9:16 clips.")
+    shorts.add_argument("source", type=Path)
+    shorts.add_argument("-o", "--out", type=Path, default=None)
+    shorts.add_argument("--transcript", type=Path, required=True, help="SRT transcript.")
+    shorts.add_argument("--count", type=int, default=3)
+    shorts.add_argument("--min-sec", type=int, default=30)
+    shorts.add_argument("--max-sec", type=int, default=60)
+    shorts.add_argument("--no-subtitles", action="store_true")
+    shorts.add_argument("--cull-retakes", action="store_true")
+    shorts.add_argument("--llm-base-url", default=os.environ.get("VIDEOWFLOW_LLM_BASE_URL"))
+    shorts.add_argument(
+        "--llm-model",
+        default=os.environ.get("VIDEOWFLOW_LLM_MODEL", "qwen2.5:7b-instruct"),
+    )
 
     serve = sub.add_parser("serve", help="Serve the API, MCP HTTP, and rack UI.")
     serve.add_argument("--host", default="127.0.0.1")
@@ -240,6 +270,92 @@ def _demo(args: argparse.Namespace) -> int:
         return 1
     result = run_portable(source, output)
     print(json.dumps(result.to_dict(), indent=2))
+    return 0
+
+
+def _shorts(args: argparse.Namespace) -> int:
+    source = Path(args.source).expanduser().resolve()
+    output = (
+        Path(args.out).expanduser().resolve()
+        if args.out
+        else source.with_name(f"{source.stem}-shorts")
+    )
+    engine = FFmpegAdapter()
+    media = engine.probe(source)
+    timebase = media.timebase()
+    sentences = parse_srt_file(args.transcript, media.audio_sample_rate)
+    cuts: list[tuple[int, int]] = []
+    client = None
+    if args.llm_base_url:
+        from videoflow.adapters.llm import OpenAICompatibleLlm
+
+        client = OpenAICompatibleLlm(
+            base_url=args.llm_base_url,
+            model=args.llm_model,
+            api_key=os.environ.get("VIDEOWFLOW_LLM_API_KEY"),
+        )
+    culled_ids: set[int] = set()
+    if args.cull_retakes:
+        culled = cull_transcript_retakes(sentences, client=client)
+        culled_ids = set(culled.discard_sentence_ids)
+        cuts = cull_intervals(sentences, culled.discard_sentence_ids)
+    kept = [item for item in sentences if item.id not in culled_ids]
+    if not kept:
+        print("Retake culling removed every sentence.", file=sys.stderr)
+        return 1
+    minimum = max(1, timebase.seconds_to_samples(Fraction(args.min_sec), Rounding.NEAREST))
+    maximum = timebase.seconds_to_samples(Fraction(args.max_sec), Rounding.NEAREST)
+    if maximum <= minimum:
+        print("--max-sec must be greater than --min-sec.", file=sys.stderr)
+        return 2
+    warnings: list[str] = []
+    clips = select_shorts(
+        kept,
+        min_samples=minimum,
+        max_samples=maximum,
+        count=args.count,
+        sample_rate=media.audio_sample_rate,
+        cuts=cuts,
+        client=client,
+        warnings=warnings,
+    )
+    if not clips:
+        print(json.dumps({"ok": False, "warnings": warnings}, indent=2), file=sys.stderr)
+        return 1
+    shorts_dir = output / "shorts"
+    shorts_dir.mkdir(parents=True, exist_ok=True)
+    rendered: list[dict[str, object]] = []
+    for index, clip in enumerate(clips, start=1):
+        slug = slugify(clip.title, index)
+        destination = shorts_dir / f"{slug}.mp4"
+        ass_path = None
+        if not args.no_subtitles:
+            events = sentence_events(kept, clip.pieces, sample_rate=media.audio_sample_rate)
+            if events:
+                ass_path = shorts_dir / f"{slug}.ass"
+                write_text(ass_path, build_ass(events))
+        engine.render_short(
+            source,
+            clip.pieces,
+            destination,
+            sample_rate=media.audio_sample_rate,
+            ass_path=ass_path,
+        )
+        entry = clip.to_dict(media.audio_sample_rate)
+        entry["path"] = str(destination)
+        if ass_path is not None:
+            entry["subtitles"] = str(ass_path)
+        rendered.append(entry)
+    report = {
+        "ok": True,
+        "source": str(source),
+        "transcript": str(Path(args.transcript).expanduser().resolve()),
+        "culled_sentence_ids": sorted(culled_ids),
+        "clips": rendered,
+        "warnings": warnings,
+    }
+    write_text(output / "shorts.json", json.dumps(report, indent=2) + "\n")
+    print(json.dumps(report, indent=2))
     return 0
 
 

@@ -9,10 +9,12 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shutil
 import subprocess
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from videoflow.domain.errors import IngestError
 from videoflow.domain.state import MediaInfo
@@ -153,6 +155,128 @@ class FFmpegAdapter:
             if end - start >= minimum
         ]
 
+    def render_short(
+        self,
+        source: Path,
+        pieces: list[tuple[int, int]] | tuple[tuple[int, int], ...],
+        destination: Path,
+        *,
+        sample_rate: int,
+        ass_path: Path | None = None,
+        width: int = 1080,
+        height: int = 1920,
+    ) -> Path:
+        """Render concatenated source pieces as a vertical H.264 short."""
+
+        if not pieces:
+            raise IngestError("No pieces to render")
+        source_path = Path(source).expanduser()
+        target = Path(destination).expanduser()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        work = target.parent / f".{target.stem}.{uuid4().hex}.work"
+        work.mkdir()
+        try:
+            rendered: list[Path] = []
+            for index, (start, end) in enumerate(pieces):
+                piece = work / f"piece-{index:02d}.mp4"
+                duration = (end - start) / sample_rate
+                self._capture(
+                    [
+                        "ffmpeg",
+                        "-hide_banner",
+                        "-loglevel",
+                        "error",
+                        "-y",
+                        "-ss",
+                        f"{start / sample_rate:.6f}",
+                        "-t",
+                        f"{duration:.6f}",
+                        "-i",
+                        str(source_path),
+                        "-vf",
+                        f"scale={width}:{height}:force_original_aspect_ratio=increase,"
+                        f"crop={width}:{height},setsar=1",
+                        "-c:v",
+                        "libx264",
+                        "-preset",
+                        "veryfast",
+                        "-crf",
+                        "20",
+                        "-pix_fmt",
+                        "yuv420p",
+                        "-c:a",
+                        "libmp3lame",
+                        "-b:a",
+                        "192k",
+                        str(piece),
+                    ]
+                )
+                rendered.append(piece)
+            if len(rendered) == 1:
+                combined = rendered[0]
+            else:
+                list_file = work / "concat.txt"
+                list_file.write_text(
+                    "\n".join(
+                        f"file '{str(item.resolve()).replace(chr(92), '/')}'"
+                        for item in rendered
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                combined = work / "combined.mp4"
+                self._capture(
+                    [
+                        "ffmpeg",
+                        "-hide_banner",
+                        "-loglevel",
+                        "error",
+                        "-y",
+                        "-f",
+                        "concat",
+                        "-safe",
+                        "0",
+                        "-i",
+                        str(list_file),
+                        "-c",
+                        "copy",
+                        str(combined),
+                    ]
+                )
+            final = combined
+            if ass_path is not None:
+                final = work / "final.mp4"
+                self._capture(
+                    [
+                        "ffmpeg",
+                        "-hide_banner",
+                        "-loglevel",
+                        "error",
+                        "-y",
+                        "-i",
+                        str(combined),
+                        "-vf",
+                        f"ass='{_filter_path(ass_path)}'",
+                        "-c:v",
+                        "libx264",
+                        "-preset",
+                        "veryfast",
+                        "-crf",
+                        "20",
+                        "-pix_fmt",
+                        "yuv420p",
+                        "-c:a",
+                        "copy",
+                        "-movflags",
+                        "+faststart",
+                        str(final),
+                    ]
+                )
+            shutil.move(str(final), target)
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+        return target
+
     def render(self, args: list[str]) -> None:
         raise NotImplementedError("FFmpeg render is not implemented in this scaffold")
 
@@ -188,6 +312,11 @@ class FFmpegAdapter:
             stderr = " ".join(completed.stderr.strip().splitlines()[-3:])
             raise IngestError(f"{args[0]} failed: {stderr or 'unknown error'}")
         return completed.stdout, completed.stderr
+
+
+def _filter_path(path: Path) -> str:
+    value = str(Path(path).expanduser().resolve()).replace("\\", "/")
+    return value.replace(":", "\\:").replace("'", "\\'")
 
 
 def parse_silence(

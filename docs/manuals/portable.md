@@ -99,6 +99,17 @@ DIR/
 segment counts, transcript/retake counts, warnings, artifact paths, PCM digest,
 and elapsed time.
 
+### Shorts
+
+```bash
+videoflow shorts interview.mp4 --transcript interview.srt -o shorts-out \
+  --count 3 --min-sec 30 --max-sec 60
+```
+
+Each clip is rendered at 1080x1920 with center crop and burned-in captions. Use
+`--no-subtitles` to skip ASS generation and `--cull-retakes` to remove exact
+repeats or LLM-selected retakes first. The report is `shorts-out/shorts.json`.
+
 ### Transcript and retakes
 
 SRT can drive retake culling without a speech model:
@@ -251,7 +262,7 @@ distribution with a compatible glibc.
 
 ```bash
 uv run python scripts/build_appimage.py
-./dist/VideoFlow-0.9.1-x86_64.AppImage version
+./dist/VideoFlow-0.10.0-x86_64.AppImage version
 ```
 
 The AppImage wraps the same onefile binary. Opening it with no arguments starts

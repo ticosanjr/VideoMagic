@@ -38,6 +38,7 @@ videoflow-0.9.0-windows-x86_64.exe
 
 ## Current
 
+- `v0.10.0`: vertical shorts engine (1080x1920, ASS captions), versioned assets.
 - `v0.9.1`: AppImage starts the UI when opened with no arguments; AppImage
   contract tests.
 - `v0.9.0`: Linux binary, AppImage, and Windows PE; transcript/cull API and UI
