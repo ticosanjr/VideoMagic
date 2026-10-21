@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import platform
@@ -772,6 +773,33 @@ def _serve(args: argparse.Namespace) -> int:
     os.environ.setdefault("VIDEOWFLOW_HOME", str(ensure_home()))
     append_server_log(f"serve requested host={args.host} port={args.port} pid={os.getpid()}")
     url = _ui_url(args.host, args.port)
+    lock = _InstanceLock(args.port)
+    if not lock.acquire():
+        if _wait_for_health(args.host, args.port, timeout=1.5):
+            print(f"VideoFlow is already running at {url}")
+            if args.open:
+                import webbrowser
+
+                webbrowser.open(_browser_url(url))
+            return 0
+        print(f"Another VideoFlow start is already in progress for port {args.port}.")
+        if _wait_for_health(args.host, args.port, timeout=30.0):
+            if args.open:
+                import webbrowser
+
+                webbrowser.open(_browser_url(url))
+            return 0
+        print("That start did not become ready. Check the server log.", file=sys.stderr)
+        return 1
+    try:
+        return _serve_locked(args, uvicorn, create_http_app)
+    finally:
+        lock.release()
+
+
+def _serve_locked(args: argparse.Namespace, uvicorn, create_http_app) -> int:
+    append_server_log(f"start lock acquired port={args.port} pid={os.getpid()}")
+    url = _ui_url(args.host, args.port)
     health = probe_service(args.host, args.port)
     if health is not None:
         version = str(health.get("version") or "unknown")
@@ -780,7 +808,7 @@ def _serve(args: argparse.Namespace) -> int:
             if args.open:
                 import webbrowser
 
-                webbrowser.open(url)
+                webbrowser.open(_browser_url(url))
             return 0
         print(
             f"Found VideoFlow {version} on port {args.port}; "
@@ -847,6 +875,65 @@ def _serve(args: argparse.Namespace) -> int:
         _remove_pid(pid_path)
         append_server_log(f"stopped pid={os.getpid()}")
     return 0
+
+
+class _InstanceLock:
+    def __init__(self, port: int) -> None:
+        self.port = port
+        self.handle = None
+        self.acquired = True
+
+    def acquire(self) -> bool:
+        try:
+            import fcntl
+        except ImportError:
+            return True
+        path = portable_home() / f"server-{self.port}.lock"
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self.handle = path.open("a+", encoding="utf-8")
+            fcntl.flock(self.handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            if self.handle is not None:
+                self.handle.close()
+                self.handle = None
+            self.acquired = False
+            return False
+        try:
+            self.handle.seek(0)
+            self.handle.truncate()
+            self.handle.write(str(os.getpid()))
+            self.handle.flush()
+        except OSError:
+            pass
+        return True
+
+    def release(self) -> None:
+        if self.handle is None:
+            return
+        try:
+            import fcntl
+
+            fcntl.flock(self.handle.fileno(), fcntl.LOCK_UN)
+        except (ImportError, OSError):
+            pass
+        with contextlib.suppress(OSError):
+            self.handle.close()
+        self.handle = None
+
+
+def _browser_url(url: str) -> str:
+    separator = "&" if "?" in url else "?"
+    return f"{url}{separator}v={__version__}"
+
+
+def _wait_for_health(host: str, port: int, *, timeout: float) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if probe_service(host, port) is not None:
+            return True
+        time.sleep(0.4)
+    return False
 
 
 def _pid_file() -> Path:
@@ -955,11 +1042,11 @@ def _schedule_browser(url: str) -> None:
             try:
                 with urllib.request.urlopen(f"{url}health", timeout=0.8) as response:
                     if response.status == 200:
-                        webbrowser.open(url)
+                        webbrowser.open(_browser_url(url))
                         return
             except (OSError, urllib.error.URLError):
                 _time.sleep(0.5)
-        webbrowser.open(url)
+        webbrowser.open(_browser_url(url))
 
     threading.Thread(target=open_when_ready, daemon=True).start()
 

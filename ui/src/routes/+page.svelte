@@ -41,6 +41,7 @@
     formatSeconds,
     statusText
   } from "$lib/format";
+  import { UI_VERSION } from "$lib/version";
   import { baseName, parentPath, suggestOutputPath } from "$lib/paths";
   import {
     defaultConfig,
@@ -727,6 +728,20 @@
     { label: "5–10 min", min: 300, max: 600 }
   ];
 
+  function selectTab(id: ModuleTab) {
+    activeTab = id;
+    requestAnimationFrame(() => {
+      document.getElementById("pipeline-content")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    });
+  }
+
+  function hardReload() {
+    window.location.replace(`/?v=${encodeURIComponent(UI_VERSION)}`);
+  }
+
   function openShortEditor(index: number, short: ShortClip) {
     shortEditor = { index, short };
   }
@@ -789,7 +804,8 @@
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-2 text-xs">
-        <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-mono text-[11px] text-neutral-400">{system?.version ?? (connecting ? "connecting…" : "offline")}</span>
+        <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-mono text-[11px] text-neutral-400" title="Server version">server {system?.version ?? (connecting ? "connecting…" : "offline")}</span>
+        <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-mono text-[11px] text-neutral-500" title="UI bundle version">ui {UI_VERSION}</span>
         <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-500">FFmpeg {system?.ffmpeg ? "ready" : connecting ? "checking…" : "missing"}</span>
         <button
           type="button"
@@ -800,25 +816,7 @@
           Global log
           {#if job}<span class="ml-1 text-neutral-600">{job.log_count}</span>{/if}
         </button>
-        {#if !system && !serviceStopped}
-      <div class="rounded-2xl border border-sky-400/20 bg-sky-950/30 px-4 py-3 text-xs text-sky-200">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p class="font-medium">{connecting ? "Connecting to the local VideoFlow service…" : "Could not reach the local service."}</p>
-            <p class="mt-1 text-sky-200/70">
-              {connecting
-                ? "The portable build can take a few seconds to unpack on first launch."
-                : systemError || "Start VideoFlow again or run videoflow restart."}
-            </p>
-          </div>
-          <button type="button" onclick={() => void connectToService()} disabled={connecting} class="rounded-lg border border-sky-400/30 px-3 py-1.5 text-[11px] disabled:opacity-40">
-            {connecting ? "Connecting…" : "Retry now"}
-          </button>
-        </div>
-      </div>
-    {/if}
-
-    {#if serviceStopped}
+        {#if serviceStopped}
           <span class="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-[11px] text-amber-200">
             Service stopped · close this tab
           </span>
@@ -842,6 +840,43 @@
         {/if}
       </div>
     </header>
+
+    <nav class="sticky top-0 z-30 -mx-1 overflow-x-auto rounded-2xl border border-neutral-800 bg-neutral-950/95 p-1 shadow-lg shadow-black/30 backdrop-blur" aria-label="Pipeline areas">
+      <div class="flex min-w-max gap-1" role="tablist" aria-label="Pipeline areas">
+        {#each moduleTabs as tab}
+          {@const tabCount = modules.filter((module) => module.tab === tab.id).length}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            title={tab.hint}
+            onclick={() => selectTab(tab.id)}
+            class={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition ${
+              activeTab === tab.id
+                ? "bg-sky-500/15 text-sky-200 ring-1 ring-inset ring-sky-400/20"
+                : "text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-200"
+            }`}
+          >
+            {tab.label}
+            {#if tabCount > 0}
+              <span class="rounded-full bg-black/20 px-1.5 py-0.5 text-[9px] text-neutral-500">{tabCount}</span>
+            {/if}
+          </button>
+        {/each}
+      </div>
+    </nav>
+
+    {#if system && system.version !== UI_VERSION}
+      <div class="rounded-2xl border border-amber-400/20 bg-amber-950/30 px-4 py-3 text-xs text-amber-200">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <p>
+            Server <span class="font-mono">{system.version}</span> and UI
+            <span class="font-mono">{UI_VERSION}</span> are different. Reload the UI from this server.
+          </p>
+          <button type="button" onclick={hardReload} class="rounded-lg border border-amber-400/30 px-3 py-1.5 text-[11px]">Reload UI</button>
+        </div>
+      </div>
+    {/if}
 
     {#if !system && !serviceStopped}
       <div class="rounded-2xl border border-sky-400/20 bg-sky-950/30 px-4 py-3 text-xs text-sky-200">
@@ -1241,32 +1276,8 @@
       {/if}
     </section>
 
-    <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <div id="pipeline-content" class="grid scroll-mt-24 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
     <section aria-label="Pipeline modules" class="space-y-3">
-      <div class="flex flex-wrap gap-1 rounded-2xl border border-neutral-800 bg-neutral-900/60 p-1" role="tablist" aria-label="Pipeline areas">
-        {#each moduleTabs as tab}
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            title={tab.hint}
-            onclick={() => (activeTab = tab.id)}
-            class={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition ${
-              activeTab === tab.id
-                ? "bg-sky-500/15 text-sky-200 ring-1 ring-inset ring-sky-400/20"
-                : "text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-200"
-            }`}
-          >
-            {tab.label}
-            {#if !["providers", "services"].includes(tab.id)}
-              <span class="rounded-full bg-black/20 px-1.5 py-0.5 text-[9px] text-neutral-500">
-                {modules.filter((module) => module.tab === tab.id).length}
-              </span>
-            {/if}
-          </button>
-        {/each}
-      </div>
-
       {#if activeTab === "studio"}
         <StudioPanel {job} {config} onEdit={openShortEditor} />
       {:else if activeTab === "models"}

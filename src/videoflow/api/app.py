@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from starlette.responses import RedirectResponse
+from starlette.responses import RedirectResponse, Response
 
 from videoflow import __version__
 from videoflow.api.routes import register_routes
@@ -65,6 +65,23 @@ def create_app(
     )
     _install_common(app)
     app.state.jobs = manager
+
+    @app.middleware("http")
+    async def cache_and_version_headers(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        response = await call_next(request)
+        path = request.url.path
+        response.headers["X-VideoFlow-Version"] = __version__
+        if path in {"/", "/index.html"}:
+            response.headers["Cache-Control"] = "no-store, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+        elif path.startswith("/_app/immutable/"):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        elif path.startswith("/_app/"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
     app.state.projects = store
 
     if start_publisher:

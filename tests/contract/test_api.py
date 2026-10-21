@@ -106,3 +106,18 @@ def test_cleanup_services_returns_stopped_pids(monkeypatch) -> None:
     response = TestClient(create_app()).post("/api/v1/services/cleanup")
     assert response.status_code == 200
     assert response.json()["stopped"] == [9]
+
+
+def test_ui_index_is_not_cached_but_hashed_assets_are(tmp_path) -> None:
+    (tmp_path / "index.html").write_text("<!doctype html><html></html>", encoding="utf-8")
+    assets = tmp_path / "_app" / "immutable"
+    assets.mkdir(parents=True)
+    (assets / "app.js").write_text("console.log('ok');", encoding="utf-8")
+    client = TestClient(create_app(ui=tmp_path))
+    index = client.get("/")
+    assert index.status_code == 200
+    assert "no-store" in index.headers["cache-control"]
+    assert index.headers["x-videoflow-version"]
+    asset = client.get("/_app/immutable/app.js")
+    assert asset.status_code == 200
+    assert "immutable" in asset.headers["cache-control"]

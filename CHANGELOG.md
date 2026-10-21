@@ -3,6 +3,26 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.22.3] - 2026-10-21
+
+### Fixed
+
+- Moved the workspace tabs (Speech, Edit, Shorts, Studio, Export, Models,
+  Services, Providers) directly under the header as a sticky navigation bar.
+  Shorts, Models, and Services no longer disappear below the New project card.
+- Removed a duplicated connection banner inside the header that pushed the page
+  down and made the tab bar harder to find.
+- Added cache-control headers: `index.html` and `/` are `no-store`; hashed
+  `_app/immutable` assets are immutable; other UI assets are revalidated.
+- The browser now opens with `?v=<version>`, preventing an old UI bundle from
+  being reused after an update.
+- Added a UI/server version mismatch banner with a **Reload UI** action.
+- Added a per-port startup lock so double-clicking the AppImage several times
+  does not start competing servers; later launches wait for health and open the
+  existing UI.
+- Verified the AppImage starts from a detached, no-terminal session, keeps
+  running, serves the UI, and exposes the Services tab.
+
 ## [0.22.2] - 2026-10-21
 
 ### Fixed

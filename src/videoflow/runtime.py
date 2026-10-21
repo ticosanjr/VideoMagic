@@ -85,7 +85,11 @@ def allowed_roots() -> list[Path]:
         # already been removed. The home and data roots remain usable.
         candidates.append(Path.cwd())
     candidates.append(portable_home())
-    return candidates
+    unique: list[Path] = []
+    for candidate in candidates:
+        if candidate not in unique:
+            unique.append(candidate)
+    return unique
 
 
 def find_whisper_binary() -> str | None:

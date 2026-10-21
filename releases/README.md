@@ -47,6 +47,8 @@ videoflow-0.21.2-windows-x86_64.exe
 
 ## Current
 
+- `v0.22.3`: sticky top tab navigation, cache-busted UI, version mismatch
+  warning, and a startup lock for repeated AppImage double-clicks.
 - `v0.22.2`: version-aware replacement of old services, Services control tab,
   process cleanup, and server logs.
 - `v0.22.1`: file-browser 500 fix, persistent service lifecycle, Restart/Stop
