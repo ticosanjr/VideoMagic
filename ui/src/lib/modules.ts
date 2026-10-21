@@ -75,6 +75,7 @@ export type ConfigKey =
   | "shorts_prompt"
   | "shorts_reprompt"
   | "shorts_prompt_mode"
+  | "shorts_hook_mode"
   | "shorts_aspect"
   | "shorts_source_start_sec"
   | "shorts_source_end_sec"
@@ -187,6 +188,7 @@ export const defaultConfig: JobConfig = {
   shorts_prompt: "",
   shorts_reprompt: "",
   shorts_prompt_mode: "replace",
+  shorts_hook_mode: "off",
   shorts_aspect: "9:16",
   shorts_source_start_sec: 0,
   shorts_source_end_sec: 0,
@@ -659,6 +661,19 @@ export const modules: RackModule[] = [
           { value: "refine", label: "Refine previous selection" }
         ],
         help: "Refine loads the previous shorts.json from the output folder."
+      },
+      {
+        key: "shorts_hook_mode",
+        label: "Auto hook",
+        type: "select",
+        implemented: true,
+        options: [
+          { value: "off", label: "Off" },
+          { value: "metadata", label: "Metadata only" },
+          { value: "repeat", label: "Repeat hook at start" },
+          { value: "reorder", label: "Reorder hook to start" }
+        ],
+        help: "The hook is the highest-scoring sentence inside the selected clip."
       },
       {
         key: "shorts_aspect",

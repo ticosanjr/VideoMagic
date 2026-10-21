@@ -207,6 +207,7 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
             "shorts_prompt": "pricing",
             "shorts_reprompt": "more energy",
             "shorts_prompt_mode": "refine",
+            "shorts_hook_mode": "repeat",
             "shorts_aspect": "1:1",
             "shorts_source_start_sec": 5,
             "shorts_source_end_sec": 50,
@@ -233,6 +234,7 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
     assert options["shorts_prompt"] == "pricing"
     assert options["shorts_reprompt"] == "more energy"
     assert options["shorts_prompt_mode"] == "refine"
+    assert options["shorts_hook_mode"] == "repeat"
     assert options["shorts_aspect"] == "1:1"
     assert options["shorts_source_start_sec"] == 5
     assert options["shorts_source_end_sec"] == 50

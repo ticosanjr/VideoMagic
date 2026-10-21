@@ -63,3 +63,5 @@ def test_manifest_marks_external_providers_blocked_by_default() -> None:
     assert entries["shorts_editor"]["status"] == "available"
     assert entries["prompt_to_clip"]["status"] == "available"
     assert entries["reprompt"]["status"] == "available"
+    assert entries["auto_hook"]["status"] == "available"
+    assert entries["virality_score"]["status"] == "partial"

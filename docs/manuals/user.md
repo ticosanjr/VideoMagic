@@ -170,6 +170,11 @@ vertical-only output.
 - **Reprompt**: set prompt mode to **Refine previous selection** and describe the
   adjustment. The previous `shorts.json` is used as context; without one, it
   falls back to replacement.
+- **Auto hook**: choose `metadata` to annotate the hook, `repeat` to play it at
+  the start, or `reorder` to move it to the first seconds. The hook is the
+  highest-scoring sentence inside the selected clip.
+- **Virality score**: a 0–100 explainable score with a breakdown. It is a
+  heuristic aid, not a guarantee or a platform-trained prediction.
 - **Duration** is checked after retake culling. The Shorts tab also has
   `0–1`, `1–3`, `3–5`, and `5–10` minute presets.
 - **Aspect ratio** is `9:16`, `1:1`, or `16:9`. ASS and FFmpeg use the same

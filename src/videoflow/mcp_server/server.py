@@ -109,6 +109,7 @@ OVERRIDE_KEYS = {
     "shorts_prompt",
     "shorts_reprompt",
     "shorts_prompt_mode",
+    "shorts_hook_mode",
     "shorts_aspect",
     "shorts_source_start_sec",
     "shorts_source_end_sec",
@@ -502,6 +503,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         prompt: str = "",
         reprompt: str = "",
         prompt_mode: str = "replace",
+        hook_mode: str = "off",
     ) -> dict[str, object]:
         """Propose social clips in source time with an optional source window."""
 
@@ -511,6 +513,10 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             return _error("invalid_arguments", "aspect_ratio must be 9:16, 1:1, or 16:9")
         if prompt_mode not in {"replace", "refine"}:
             return _error("invalid_arguments", "prompt_mode must be replace or refine")
+        if hook_mode not in {"off", "metadata", "repeat", "reorder"}:
+            return _error(
+                "invalid_arguments", "hook_mode must be off, metadata, repeat, or reorder"
+            )
         if start_sec < 0 or (end_sec is not None and end_sec <= start_sec):
             return _error("invalid_arguments", "Invalid shorts source window")
         if not 1 <= count <= 20:
@@ -591,6 +597,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             reprompt=reprompt,
             prompt_mode=prompt_mode,
             previous=previous,
+            hook_mode=hook_mode,
         )
         last["shorts"] = clips
         pending = last.setdefault("pending_options", {})
@@ -603,6 +610,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
                 "shorts_prompt": prompt,
                 "shorts_reprompt": reprompt,
                 "shorts_prompt_mode": prompt_mode,
+                "shorts_hook_mode": hook_mode,
                 "allow_external_services": allow_external_services,
                 "allowed_external_hosts": allowed_external_hosts or [],
             }
@@ -617,6 +625,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             "prompt": prompt,
             "reprompt": reprompt,
             "prompt_mode": prompt_mode,
+            "hook_mode": hook_mode,
             "clips": [clip.to_dict(rate) for clip in clips],
             "warnings": warnings,
             "subtitles": subtitles,

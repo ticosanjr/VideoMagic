@@ -113,7 +113,7 @@ of controls:
 | --- | --- |
 | Speech | Ingest, voice detection, transcription, retakes |
 | Edit | J/L cuts, fades, zooms, framing |
-| Shorts | Target/minimum, prompt/reprompt, duration presets, aspect ratio, source window, captions, preview |
+| Shorts | Target/minimum, prompt/reprompt, auto hook, duration presets, aspect ratio, source window, captions, score, preview |
 | Export | NLE targets and FCPXML dialect |
 | Providers | Capability manifest and external-service opt-in/blocking |
 

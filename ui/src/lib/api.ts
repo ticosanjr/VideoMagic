@@ -117,6 +117,7 @@ export interface JobOptions {
   shorts_prompt?: string;
   shorts_reprompt?: string;
   shorts_prompt_mode?: string;
+  shorts_hook_mode?: string;
   shorts_aspect?: string;
   shorts_source_start_sec?: number;
   shorts_source_end_sec?: number | null;
@@ -166,6 +167,12 @@ export interface ShortClip {
   end_sec: number;
   sentence_ids: number[];
   pieces?: number[][];
+  hook?: string | null;
+  hook_sentence_id?: number | null;
+  hook_start_sample?: number | null;
+  hook_end_sample?: number | null;
+  virality_score?: number;
+  score_breakdown?: Record<string, number>;
   aspect_ratio?: string;
   width?: number;
   height?: number;
@@ -285,6 +292,7 @@ export interface NewJob {
   shorts_prompt: string;
   shorts_reprompt: string;
   shorts_prompt_mode: "replace" | "refine";
+  shorts_hook_mode: "off" | "metadata" | "repeat" | "reorder";
   shorts_aspect: string;
   shorts_source_start_sec: number;
   shorts_source_end_sec: number | null;

@@ -235,6 +235,12 @@ def _parser() -> argparse.ArgumentParser:
         default="replace",
     )
     run.add_argument(
+        "--shorts-hook-mode",
+        choices=("off", "metadata", "repeat", "reorder"),
+        default="off",
+        help="Auto-hook behavior: metadata only, repeat at start, or reorder first.",
+    )
+    run.add_argument(
         "--no-shorts-subtitles",
         action="store_true",
         help="Disable burned captions in Shorts.",
@@ -286,6 +292,11 @@ def _parser() -> argparse.ArgumentParser:
     shorts.add_argument("--prompt", default="", help="Topic or instruction for selection.")
     shorts.add_argument("--reprompt", default="", help="Refinement instruction.")
     shorts.add_argument("--prompt-mode", choices=("replace", "refine"), default="replace")
+    shorts.add_argument(
+        "--hook-mode",
+        choices=("off", "metadata", "repeat", "reorder"),
+        default="off",
+    )
     shorts.add_argument("--no-subtitles", action="store_true")
     shorts.add_argument("--cull-retakes", action="store_true")
     shorts.add_argument("--llm-base-url", default=os.environ.get("VIDEOWFLOW_LLM_BASE_URL"))
@@ -415,6 +426,7 @@ def _run(args: argparse.Namespace) -> int:
         prompt=args.shorts_prompt,
         reprompt=args.shorts_reprompt,
         prompt_mode=args.shorts_prompt_mode,
+        hook_mode=args.shorts_hook_mode,
         aspect_ratio=args.shorts_aspect,
         source_start_sec=args.shorts_start_sec,
         source_end_sec=args.shorts_end_sec,
@@ -596,6 +608,7 @@ def _shorts(args: argparse.Namespace) -> int:
         reprompt=args.reprompt,
         prompt_mode=args.prompt_mode,
         previous=previous,
+        hook_mode=args.hook_mode,
     )
     if not clips:
         print(json.dumps({"ok": False, "warnings": warnings}, indent=2), file=sys.stderr)

@@ -229,6 +229,7 @@ class ProjectStore:
             "shorts_prompt": config.shorts.prompt,
             "shorts_reprompt": config.shorts.reprompt,
             "shorts_prompt_mode": config.shorts.prompt_mode,
+            "shorts_hook_mode": config.shorts.hook_mode,
             "shorts_aspect": config.shorts.aspect_ratio,
             "shorts_source_start_sec": config.shorts.source_start_sec,
             "shorts_source_end_sec": config.shorts.source_end_sec,

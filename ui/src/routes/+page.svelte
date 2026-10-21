@@ -297,6 +297,11 @@
       shorts_prompt: String(config.shorts_prompt || ""),
       shorts_reprompt: String(config.shorts_reprompt || ""),
       shorts_prompt_mode: String(config.shorts_prompt_mode || "replace") as "replace" | "refine",
+      shorts_hook_mode: String(config.shorts_hook_mode || "off") as
+        | "off"
+        | "metadata"
+        | "repeat"
+        | "reorder",
       shorts_aspect: String(config.shorts_aspect || "9:16"),
       shorts_source_start_sec: Number(config.shorts_source_start_sec || 0),
       shorts_source_end_sec: Number(config.shorts_source_end_sec || 0) || null,
@@ -1250,9 +1255,13 @@
                       <span class="block truncate">{clip.title}</span>
                       <span class="text-[10px] text-neutral-500">
                         {clip.duration_sec.toFixed(1)} s · {clip.aspect_ratio ?? "9:16"} · MP4
+                        {#if clip.virality_score !== undefined}· score {clip.virality_score.toFixed(0)}{/if}
                         {#if clip.edit_count}· edit {clip.edit_count}{/if}
                       </span>
                     </a>
+                    {#if clip.hook}
+                      <p class="mt-1 line-clamp-2 text-[10px] text-amber-300/80">Hook: {clip.hook}</p>
+                    {/if}
                     <div class="mt-2 flex gap-2">
                       <button
                         type="button"

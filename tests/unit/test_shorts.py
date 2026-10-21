@@ -332,3 +332,50 @@ def test_reprompt_refine_can_change_the_topic() -> None:
     assert first[0].sentence_ids == (1,)
     assert refined[0].sentence_ids in {(0,), (1,)}
     assert refined[0].sentence_ids == (0,)
+
+
+def test_auto_hook_metadata_and_repeat() -> None:
+    sentences = [
+        sentence(0, 0, 10, "A calm introduction."),
+        sentence(1, 10, 20, "The biggest secret mistake changed everything!"),
+    ]
+    metadata = select_shorts(
+        sentences,
+        min_samples=5 * RATE,
+        max_samples=10 * RATE,
+        count=1,
+        sample_rate=RATE,
+        selection_mode="heuristic",
+        hook_mode="metadata",
+    )
+    assert metadata[0].hook_sentence_id == 1
+    assert "secret" in (metadata[0].hook_text or "")
+    repeated = select_shorts(
+        sentences,
+        min_samples=5 * RATE,
+        max_samples=10 * RATE,
+        count=1,
+        sample_rate=RATE,
+        selection_mode="heuristic",
+        hook_mode="repeat",
+    )
+    assert len(repeated[0].pieces) == 2
+    assert repeated[0].pieces[0] == (10 * RATE, 20 * RATE)
+    assert repeated[0].duration_samples > 10 * RATE
+
+
+def test_virality_score_has_a_transparent_breakdown() -> None:
+    sentences = [sentence(0, 0, 10, "Why does this secret result work? 42!")]
+    clips = select_shorts(
+        sentences,
+        min_samples=5 * RATE,
+        max_samples=10 * RATE,
+        count=1,
+        sample_rate=RATE,
+        selection_mode="heuristic",
+        prompt="secret result",
+    )
+    assert clips[0].virality_score > 0
+    breakdown = dict(clips[0].score_breakdown)
+    assert breakdown["question"] == 4.0
+    assert breakdown["prompt"] > 0

@@ -25,6 +25,10 @@ follow semantic versioning once the project reaches 1.0.
 - Prompt-to-Clip and reprompt for Short selection: topic focus, refinement
   context from the previous `shorts.json`, heuristic term boosts, and LLM focus.
   Exposed in CLI, API, MCP, project config, and the Shorts tab.
+- Auto hook (`off`, `metadata`, `repeat`, `reorder`) and an explainable 0–100
+  virality score with a per-factor breakdown. Hook/score metadata appears in
+  `shorts.json` and the rack.
+- Short result badges expose the selected aspect, virality score, and hook text.
 
 ### Changed
 
@@ -43,7 +47,7 @@ follow semantic versioning once the project reaches 1.0.
 
 ### Verified
 
-- Tests: 329 passed, 11 xfailed, 7 deselected; coverage 99.02%; ruff and mypy
+- Tests: 331 passed, 11 xfailed, 7 deselected; coverage 99.02%; ruff and mypy
   clean.
 - UI: `svelte-check` reports 0 errors and 0 warnings; 13 Vitest tests and the
   production build pass.

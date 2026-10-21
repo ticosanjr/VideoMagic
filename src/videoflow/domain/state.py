@@ -180,6 +180,7 @@ class LlmRetakeResponse(StrictModel):
 class ShortsProposalClip(StrictModel):
     title: str = Field(min_length=1)
     sentence_ids: list[int] = Field(min_length=1)
+    hook_sentence_id: int | None = None
 
 
 class LlmShortsResponse(StrictModel):

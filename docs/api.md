@@ -226,6 +226,7 @@ Content-Type: application/json
   "shorts_prompt": "pricing and margins",
   "shorts_reprompt": "more energy",
   "shorts_prompt_mode": "replace",
+  "shorts_hook_mode": "off",
   "shorts_aspect": "9:16",
   "shorts_source_start_sec": 0,
   "shorts_source_end_sec": null,

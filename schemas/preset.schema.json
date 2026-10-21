@@ -470,6 +470,17 @@
           "title": "Export Format",
           "type": "string"
         },
+        "hook_mode": {
+          "default": "off",
+          "enum": [
+            "off",
+            "metadata",
+            "repeat",
+            "reorder"
+          ],
+          "title": "Hook Mode",
+          "type": "string"
+        },
         "max_clips_to_generate": {
           "default": 3,
           "maximum": 20,

@@ -26,6 +26,7 @@ ShortsExportFormat = Literal["fcpxml_timeline", "standalone_mp4", "both"]
 ShortsSelectionMode = Literal["auto", "llm", "heuristic"]
 ShortsAspect = Literal["9:16", "1:1", "16:9"]
 ShortsPromptMode = Literal["replace", "refine"]
+ShortsHookMode = Literal["off", "metadata", "repeat", "reorder"]
 CaptionAnimation = Literal["none", "pop", "sweep"]
 CaptionWordTiming = Literal["engine", "proportional", "sentence"]
 FadeCurve = Literal["linear", "logarithmic"]
@@ -136,6 +137,7 @@ class ShortsConfig(StrictModel):
     prompt: str = Field(default="", max_length=2000)
     reprompt: str = Field(default="", max_length=2000)
     prompt_mode: ShortsPromptMode = "replace"
+    hook_mode: ShortsHookMode = "off"
     reframe_mode: ReframeMode = "center_crop_9_16"
     aspect_ratio: ShortsAspect = "9:16"
     source_start_sec: float = Field(default=0.0, ge=0.0)

@@ -104,6 +104,7 @@ def _shorts_config(options: dict[str, object]) -> ShortsConfig:
         prompt=str(options.get("shorts_prompt", "")),
         reprompt=str(options.get("shorts_reprompt", "")),
         prompt_mode=str(options.get("shorts_prompt_mode", "replace")),  # type: ignore[arg-type]
+        hook_mode=str(options.get("shorts_hook_mode", "off")),  # type: ignore[arg-type]
         aspect_ratio=str(options.get("shorts_aspect", "9:16")),  # type: ignore[arg-type]
         source_start_sec=float(options.get("shorts_source_start_sec", 0.0)),
         source_end_sec=(

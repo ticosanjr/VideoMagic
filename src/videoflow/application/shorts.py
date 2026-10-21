@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from videoflow.adapters import LlmClient
@@ -63,6 +63,12 @@ class ShortClip:
     sentence_ids: tuple[int, ...]
     pieces: tuple[tuple[int, int], ...]
     score: float = 0.0
+    hook_text: str | None = None
+    hook_sentence_id: int | None = None
+    hook_start_sample: int | None = None
+    hook_end_sample: int | None = None
+    virality_score: float = 0.0
+    score_breakdown: tuple[tuple[str, float], ...] = ()
 
     @property
     def duration_samples(self) -> int:
@@ -79,6 +85,12 @@ class ShortClip:
             "sentence_ids": list(self.sentence_ids),
             "pieces": [list(piece) for piece in self.pieces],
             "score": round(self.score, 3),
+            "virality_score": round(self.virality_score, 1),
+            "score_breakdown": {key: round(value, 3) for key, value in self.score_breakdown},
+            "hook": self.hook_text,
+            "hook_sentence_id": self.hook_sentence_id,
+            "hook_start_sample": self.hook_start_sample,
+            "hook_end_sample": self.hook_end_sample,
         }
 
 
@@ -106,11 +118,15 @@ def select_shorts(
     reprompt: str = "",
     prompt_mode: str = "replace",
     previous: Sequence[ShortClip] = (),
+    hook_mode: str = "off",
 ) -> list[ShortClip]:
     notes = warnings if warnings is not None else []
     if prompt_mode not in {"replace", "refine"}:
         notes.append(f"Unknown prompt_mode '{prompt_mode}'; using replace")
         prompt_mode = "replace"
+    if hook_mode not in {"off", "metadata", "repeat", "reorder"}:
+        notes.append(f"Unknown hook_mode '{hook_mode}'; using off")
+        hook_mode = "off"
     if prompt_mode == "refine" and not previous:
         notes.append("Refine was requested without a previous selection; using replace")
         prompt_mode = "replace"
@@ -156,6 +172,7 @@ def select_shorts(
         previous_ids=previous_ids if prompt_mode == "refine" else set(),
     )
     selected = _merge_clips(llm_clips, heuristic, count) if llm_clips else heuristic
+    selected = _apply_hooks(selected, sentences, hook_mode, min_samples, max_samples)
     selected.sort(key=lambda item: item.start_sample)
     if len(selected) < min_clips:
         notes.append(
@@ -367,17 +384,29 @@ def _heuristic(
         if duration < min_samples:
             continue
         text = " ".join(item.text for item in sentences[start_index : end_index + 1])
-        score = _score_text(text, duration, min_samples, max_samples, focus=focus)
+        chosen_sentences = sentences[start_index : end_index + 1]
+        score, virality, breakdown = _score_payload(
+            text, duration, min_samples, max_samples, focus=focus
+        )
         if previous_ids:
-            score += 0.5 * len(set(item.id for item in sentences[start_index : end_index + 1]) & previous_ids)
+            bonus = 0.5 * len(set(item.id for item in chosen_sentences) & previous_ids)
+            score += bonus
+            breakdown.append(("previous", bonus))
+        hook = _best_hook(chosen_sentences, min_samples, max_samples, focus)
         candidates.append(
             ShortClip(
                 title=text[:60].strip() or f"Short {len(candidates) + 1}",
                 start_sample=start,
                 end_sample=end,
-                sentence_ids=tuple(item.id for item in sentences[start_index : end_index + 1]),
+                sentence_ids=tuple(item.id for item in chosen_sentences),
                 pieces=pieces,
                 score=score,
+                hook_text=hook.text if hook else None,
+                hook_sentence_id=hook.id if hook else None,
+                hook_start_sample=hook.start_sample if hook else None,
+                hook_end_sample=hook.end_sample if hook else None,
+                virality_score=virality,
+                score_breakdown=tuple(breakdown),
             )
         )
     candidates.sort(key=lambda item: item.score, reverse=True)
@@ -391,70 +420,121 @@ def _heuristic(
     return selected
 
 
+def _score_payload(
+    text: str,
+    duration: int,
+    minimum: int,
+    maximum: int,
+    *,
+    focus: str = "",
+) -> tuple[float, float, list[tuple[str, float]]]:
+    breakdown = list(_score_breakdown(text, duration, minimum, maximum, focus=focus).items())
+    score = sum(value for _, value in breakdown)
+    return score, min(100.0, round(score * 4.0, 1)), breakdown
+
+
+def _score_breakdown(
+    text: str,
+    duration: int,
+    minimum: int,
+    maximum: int,
+    *,
+    focus: str = "",
+) -> dict[str, float]:
+    lowered = text.casefold()
+    markers = {
+        "porque": 3.0, "mas": 1.5, "então": 1.5, "nunca": 2.5, "sempre": 1.5,
+        "segredo": 3.0, "erro": 3.0, "maior": 2.0, "melhor": 2.0, "pior": 2.5,
+        "descobri": 3.0, "imagina": 2.0, "você": 1.0, "resultado": 2.0,
+        "problema": 2.0, "verdade": 2.0, "incrível": 2.5, "chocante": 3.0,
+        "importante": 1.5, "principal": 1.5, "primeiro": 1.0, "último": 1.0,
+        "como": 1.0, "por que": 2.0, "quanto": 1.5, "mil": 1.5, "milhão": 2.0,
+        "%": 2.0, "but": 1.5, "because": 3.0, "never": 2.5, "secret": 3.0,
+        "mistake": 3.0, "most": 2.0, "best": 2.0, "worst": 2.5,
+        "discovered": 3.0, "imagine": 2.0, "result": 2.0, "problem": 2.0,
+        "truth": 2.0, "incredible": 2.5, "shocking": 3.0, "how": 1.0,
+        "why": 2.0, "million": 2.0,
+    }
+    target = (minimum + maximum) / 2
+    terms = _query_terms(focus)
+    return {
+        "markers": sum(weight for marker, weight in markers.items() if marker in lowered),
+        "question": 4.0 if "?" in text else 0.0,
+        "exclamation": 2.0 if "!" in text else 0.0,
+        "numbers": 2.0 if re.search(r"\d", text) else 0.0,
+        "prompt": min(8.0, 2.0 * sum(1 for term in terms if term in lowered)),
+        "duration": max(0.0, 3.0 - abs(duration - target) / max(1, target) * 3.0),
+    }
+
+
 def _score_text(
     text: str, duration: int, minimum: int, maximum: int, *, focus: str = ""
 ) -> float:
-    lowered = text.casefold()
-    score = 0.0
-    markers = {
-        "porque": 3.0,
-        "mas": 1.5,
-        "então": 1.5,
-        "nunca": 2.5,
-        "sempre": 1.5,
-        "segredo": 3.0,
-        "erro": 3.0,
-        "maior": 2.0,
-        "melhor": 2.0,
-        "pior": 2.5,
-        "descobri": 3.0,
-        "imagina": 2.0,
-        "você": 1.0,
-        "resultado": 2.0,
-        "problema": 2.0,
-        "verdade": 2.0,
-        "incrível": 2.5,
-        "chocante": 3.0,
-        "importante": 1.5,
-        "principal": 1.5,
-        "primeiro": 1.0,
-        "último": 1.0,
-        "como": 1.0,
-        "por que": 2.0,
-        "quanto": 1.5,
-        "mil": 1.5,
-        "milhão": 2.0,
-        "%": 2.0,
-        "but": 1.5,
-        "because": 3.0,
-        "never": 2.5,
-        "secret": 3.0,
-        "mistake": 3.0,
-        "most": 2.0,
-        "best": 2.0,
-        "worst": 2.5,
-        "discovered": 3.0,
-        "imagine": 2.0,
-        "result": 2.0,
-        "problem": 2.0,
-        "truth": 2.0,
-        "incredible": 2.5,
-        "shocking": 3.0,
-        "how": 1.0,
-        "why": 2.0,
-        "million": 2.0,
-    }
-    score += sum(weight for marker, weight in markers.items() if marker in lowered)
-    score += 4.0 if "?" in text else 0.0
-    score += 2.0 if "!" in text else 0.0
-    score += 2.0 if re.search(r"\d", text) else 0.0
-    terms = _query_terms(focus)
-    if terms:
-        score += min(8.0, 2.0 * sum(1 for term in terms if term in lowered))
-    target = (minimum + maximum) / 2
-    score += max(0.0, 3.0 - abs(duration - target) / max(1, target) * 3.0)
-    return score
+    return sum(_score_breakdown(text, duration, minimum, maximum, focus=focus).values())
 
+
+def _best_hook(
+    sentences: Sequence[Sentence],
+    minimum: int,
+    maximum: int,
+    focus: str,
+) -> Sentence | None:
+    if not sentences:
+        return None
+    return max(
+        sentences,
+        key=lambda sentence: _score_text(
+            sentence.text,
+            sentence.end_sample - sentence.start_sample,
+            minimum,
+            maximum,
+            focus=focus,
+        ),
+    )
+
+
+def _apply_hooks(
+    clips: Sequence[ShortClip],
+    sentences: Sequence[Sentence],
+    hook_mode: str,
+    minimum: int,
+    maximum: int,
+) -> list[ShortClip]:
+    if hook_mode == "off":
+        return list(clips)
+    by_id = {item.id: item for item in sentences}
+    result: list[ShortClip] = []
+    for clip in clips:
+        chosen = [by_id[item] for item in clip.sentence_ids if item in by_id]
+        hook = by_id.get(clip.hook_sentence_id) if clip.hook_sentence_id is not None else None
+        if hook is None:
+            hook = _best_hook(chosen, minimum, maximum, "")
+        if hook is None:
+            result.append(clip)
+            continue
+        updated = replace(
+            clip,
+            hook_text=hook.text,
+            hook_sentence_id=hook.id,
+            hook_start_sample=hook.start_sample,
+            hook_end_sample=hook.end_sample,
+        )
+        if hook_mode in {"repeat", "reorder"} and hook.end_sample > hook.start_sample:
+            hook_piece = (hook.start_sample, hook.end_sample)
+            if hook_mode == "repeat":
+                pieces = (hook_piece,) + updated.pieces
+            else:
+                pieces = (hook_piece,) + tuple(
+                    subtract_spans(list(updated.pieces), [hook_piece])
+                )
+            updated = replace(
+                updated,
+                pieces=pieces,
+                start_sample=min(updated.start_sample, hook.start_sample),
+                end_sample=max(updated.end_sample, hook.end_sample),
+            )
+        result.append(updated)
+    return result
 
 _STOPWORDS = {
     "a", "an", "and", "are", "as", "at", "be", "by", "com", "da", "das", "de",
@@ -557,6 +637,7 @@ def _from_llm(
     reprompt: str = "",
     prompt_mode: str = "replace",
     previous: Sequence[ShortClip] = (),
+    hook_mode: str = "off",
 ) -> list[ShortClip]:
     by_id = {item.id: item for item in sentences}
     payload = [{"id": item.id, "text": item.text} for item in sentences]
@@ -592,6 +673,17 @@ def _from_llm(
         if duration < min_samples:
             warnings.append(f"Dropped '{proposal.title}': {duration} samples after culls")
             continue
+        focus = " ".join(item for item in (prompt, reprompt) if item)
+        clip_text = " ".join(item.text for item in chosen)
+        score, virality, breakdown = _score_payload(
+            clip_text, duration, min_samples, max_samples, focus=focus
+        )
+        hook_id = proposal.hook_sentence_id
+        if hook_id not in {item.id for item in chosen}:
+            hook = _best_hook(chosen, min_samples, max_samples, focus)
+            hook_id = hook.id if hook else None
+        else:
+            hook = by_id[hook_id]
         clips.append(
             ShortClip(
                 title=proposal.title,
@@ -599,13 +691,13 @@ def _from_llm(
                 end_sample=end,
                 sentence_ids=tuple(item.id for item in chosen),
                 pieces=pieces,
-                score=_score_text(
-                    proposal.title,
-                    duration,
-                    min_samples,
-                    max_samples,
-                    focus=" ".join(item for item in (prompt, reprompt) if item),
-                ),
+                score=score,
+                hook_text=hook.text if hook else None,
+                hook_sentence_id=hook_id,
+                hook_start_sample=hook.start_sample if hook else None,
+                hook_end_sample=hook.end_sample if hook else None,
+                virality_score=virality,
+                score_breakdown=tuple(breakdown),
             )
         )
     return clips

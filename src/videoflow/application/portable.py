@@ -508,6 +508,7 @@ def run_portable(
                 reprompt=short_cfg.reprompt,
                 prompt_mode=short_cfg.prompt_mode,
                 previous=previous,
+                hook_mode=short_cfg.hook_mode,
             )
             shorts_dir = output_path / "shorts"
             for index, clip in enumerate(selected, start=1):

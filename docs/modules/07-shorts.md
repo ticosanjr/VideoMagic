@@ -37,6 +37,7 @@ Find self-contained moments in the transcript and turn them into vertical clips.
 | `prompt` | empty | topic or instruction for selection |
 | `reprompt` | empty | refinement instruction |
 | `prompt_mode` | `replace` | replace/refine |
+| `hook_mode` | `off` | off/metadata/repeat/reorder |
 | `aspect_ratio` | `9:16` | 9:16 / 1:1 / 16:9 |
 | `source_start_sec` | 0 | ≥ 0; sentences must start at or after it |
 | `source_end_sec` | none | > start; sentences must end at or before it |
@@ -67,6 +68,17 @@ Find self-contained moments in the transcript and turn them into vertical clips.
 A source window of 45 s can become 28 s after culls. The minimum applies after
 conform, because that is what a viewer experiences. The module reports dropped
 clips and why; the UI shows the warning.
+
+## Auto hook and virality score
+
+The selected clip carries `hook` (the highest-scoring sentence), its sentence id
+and source range. `hook_mode=metadata` only annotates the clip;
+`repeat` prepends the hook range; `reorder` moves it to the front and removes it
+from its original position.
+
+Every clip also carries a 0–100 `virality_score` and a transparent
+`score_breakdown` (markers, question, exclamation, numbers, prompt, duration).
+This is an explainable heuristic, not a platform-trained prediction.
 
 ## Captions and karaoke
 
