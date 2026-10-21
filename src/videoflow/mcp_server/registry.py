@@ -20,6 +20,26 @@ class ResourceSpec:
 
 TOOL_SPECS: tuple[ToolSpec, ...] = (
     ToolSpec(
+        "videoflow_list_project_templates",
+        "List saved project configuration templates.",
+        "configuration",
+    ),
+    ToolSpec(
+        "videoflow_save_project_template",
+        "Save a flat job configuration template.",
+        "configuration",
+    ),
+    ToolSpec(
+        "videoflow_export_config",
+        "Return a versioned, sanitized configuration envelope.",
+        "configuration",
+    ),
+    ToolSpec(
+        "videoflow_import_config",
+        "Validate and import a configuration envelope.",
+        "configuration",
+    ),
+    ToolSpec(
         "videoflow_list_brand_templates",
         "List saved brand templates.",
         "branding",

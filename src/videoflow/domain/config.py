@@ -163,6 +163,7 @@ class ShortsConfig(StrictModel):
     reprompt: str = Field(default="", max_length=2000)
     prompt_mode: ShortsPromptMode = "replace"
     hook_mode: ShortsHookMode = "off"
+    audio_energy_boost: bool = False
     remove_fillers: bool = False
     filler_words: list[str] = Field(
         default_factory=lambda: ["hum", "hmm", "uh", "um", "ah", "eh", "erm", "er"]

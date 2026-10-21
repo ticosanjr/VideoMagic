@@ -56,6 +56,10 @@ follow semantic versioning once the project reaches 1.0.
   intro/outro settings, with save/apply/delete and server-side job application.
 - Motion-tracking reframing with frame-difference focus, optional OpenCV face
   tracking fallback, and persisted crop focus.
+- Project templates and versioned config export/import for non-secret run
+  options.
+- Audio-energy peak analysis that boosts Short candidates and exposes peak
+  counts.
 
 ### Changed
 
@@ -64,7 +68,7 @@ follow semantic versioning once the project reaches 1.0.
   pruned folder.
 - Release staging is documented as the canonical artifact store. Generated
   `build/`, `dist/`, coverage files, and caches are cleaned after each release.
-- MCP now exposes twenty-six tools and four resources.
+- MCP now exposes thirty tools and four resources.
 
 ### Docs
 
@@ -74,7 +78,7 @@ follow semantic versioning once the project reaches 1.0.
 
 ### Verified
 
-- Tests: 357 passed, 11 xfailed, 7 deselected; coverage 99.06%; ruff and mypy
+- Tests: 361 passed, 11 xfailed, 7 deselected; coverage 99.06%; ruff and mypy
   clean.
 - UI: `svelte-check` reports 0 errors and 0 warnings; 13 Vitest tests and the
   production build pass.

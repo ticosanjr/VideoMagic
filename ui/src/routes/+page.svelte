@@ -6,6 +6,7 @@
   import FontManager from "$lib/FontManager.svelte";
   import ImageManager from "$lib/ImageManager.svelte";
   import MusicManager from "$lib/MusicManager.svelte";
+  import ProjectTemplateManager from "$lib/ProjectTemplateManager.svelte";
   import LogDrawer from "$lib/LogDrawer.svelte";
   import PathPicker from "$lib/PathPicker.svelte";
   import ShortEditor from "$lib/ShortEditor.svelte";
@@ -255,6 +256,18 @@
     }
   }
 
+  function templateOptions() {
+    const payload = buildPayload();
+    const {
+      source: _source,
+      output: _output,
+      transcript: _transcript,
+      overrides: _overrides,
+      ...options
+    } = payload;
+    return options;
+  }
+
   function buildPayload() {
     return {
       source: source.trim(),
@@ -311,6 +324,7 @@
         | "motion_tracking"
         | "face_tracking"
         | "auto_face_tracking_yolo",
+      shorts_audio_energy_boost: Boolean(config.shorts_audio_energy_boost),
       shorts_remove_fillers: Boolean(config.shorts_remove_fillers),
       shorts_filler_words: String(config.shorts_filler_words || "")
         .split(",")
@@ -1066,6 +1080,10 @@
           allowedHosts={String(config.allowed_external_hosts || "")}
           onToggle={(value) => (config.allow_external_services = value)}
           onHosts={(value) => (config.allowed_external_hosts = value)}
+        />
+        <ProjectTemplateManager
+          getOptions={templateOptions}
+          onApply={(options) => Object.assign(config, options)}
         />
       {:else}
         {#each visibleModules as module}

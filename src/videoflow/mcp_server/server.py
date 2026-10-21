@@ -7,6 +7,7 @@ import os
 import shutil
 import tempfile
 from collections.abc import Sequence
+from dataclasses import replace
 from fractions import Fraction
 from importlib.resources import files
 from pathlib import Path
@@ -35,6 +36,21 @@ from videoflow.application.fonts import list_fonts, save_font
 from videoflow.application.images import list_images, save_image
 from videoflow.application.jobs import JobManager
 from videoflow.application.music import list_music, save_music
+from videoflow.application.project_templates import (
+    ProjectTemplate,
+    export_config,
+    import_config,
+    sanitize_options,
+)
+from videoflow.application.project_templates import (
+    get_template as get_project_template,
+)
+from videoflow.application.project_templates import (
+    list_templates as list_project_templates,
+)
+from videoflow.application.project_templates import (
+    save_template as save_project_template,
+)
 from videoflow.application.retakes import cull_intervals
 from videoflow.application.retakes import cull_retakes as cull_transcript_retakes
 from videoflow.application.short_editor import ShortEditOptions
@@ -125,6 +141,7 @@ OVERRIDE_KEYS = {
     "shorts_prompt_mode",
     "shorts_hook_mode",
     "shorts_reframe_mode",
+    "shorts_audio_energy_boost",
     "shorts_remove_fillers",
     "shorts_filler_words",
     "shorts_aspect",
@@ -133,6 +150,7 @@ OVERRIDE_KEYS = {
     "allow_external_services",
     "allowed_external_hosts",
     "brand_template",
+    "project_template",
     "audio_enhance",
     "audio_highpass_hz",
     "audio_denoise",
@@ -208,6 +226,44 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
     manager = jobs or JobManager()
     mcp = MCPServer(SERVER_NAME)
     last: dict[str, Any] = {"pending_options": {}}
+
+    @mcp.tool()
+    def videoflow_list_project_templates() -> dict[str, object]:
+        """List saved project configuration templates."""
+
+        return {"ok": True, "templates": list_project_templates()}
+
+    @mcp.tool()
+    def videoflow_save_project_template(
+        name: str, template: dict[str, object]
+    ) -> dict[str, object]:
+        """Save a flat job configuration template."""
+
+        try:
+            payload = ProjectTemplate.model_validate({**template, "name": name})
+            return {"ok": True, "template": save_project_template(payload)}
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except ValueError as exc:
+            return _error("invalid_template", str(exc))
+
+    @mcp.tool()
+    def videoflow_export_config(options: dict[str, object]) -> dict[str, object]:
+        """Return a versioned, sanitized configuration envelope."""
+
+        return {"ok": True, "envelope": export_config(options)}
+
+    @mcp.tool()
+    def videoflow_import_config(
+        schema_version: int, options: dict[str, object]
+    ) -> dict[str, object]:
+        """Validate and import a configuration envelope."""
+
+        try:
+            clean = import_config({"schema_version": schema_version, "options": options})
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {"ok": True, "options": sanitize_options(clean)}
 
     @mcp.tool()
     def videoflow_list_brand_templates() -> dict[str, object]:
@@ -627,6 +683,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         prompt_mode: str = "replace",
         hook_mode: str = "off",
         reframe_mode: str = "center_crop_9_16",
+        audio_energy_boost: bool = False,
         remove_fillers: bool = False,
         filler_words: list[str] | None = None,
     ) -> dict[str, object]:
@@ -733,6 +790,27 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             remove_fillers=remove_fillers,
             filler_words=filler_words or (),
         )
+        if audio_energy_boost:
+            try:
+                from videoflow.application.audio_analysis import detect_audio_energy
+
+                source = last.get("source")
+                if isinstance(source, Path):
+                    energy = detect_audio_energy(source, rate)
+                    if energy:
+                        clips = [
+                            replace(
+                                clip,
+                                energy_peaks=sum(
+                                    1
+                                    for start, end in energy
+                                    if start < clip.end_sample and end > clip.start_sample
+                                ),
+                            )
+                            for clip in clips
+                        ]
+            except VideoFlowError:
+                pass
         last["shorts"] = clips
         pending = last.setdefault("pending_options", {})
         pending.update(
@@ -746,6 +824,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
                 "shorts_prompt_mode": prompt_mode,
                 "shorts_hook_mode": hook_mode,
                 "shorts_reframe_mode": reframe_mode,
+                "shorts_audio_energy_boost": audio_energy_boost,
                 "shorts_remove_fillers": remove_fillers,
                 "shorts_filler_words": filler_words or [],
                 "allow_external_services": allow_external_services,
@@ -764,6 +843,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             "prompt_mode": prompt_mode,
             "hook_mode": hook_mode,
             "reframe_mode": reframe_mode,
+            "audio_energy_boost": audio_energy_boost,
             "remove_fillers": remove_fillers,
             "filler_words": filler_words or [],
             "clips": [clip.to_dict(rate) for clip in clips],
@@ -1099,6 +1179,8 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
                 for key, value in pending.items():
                     if key not in explicit:
                         options[key] = value
+            if options.get("project_template"):
+                options.update(get_project_template(str(options["project_template"])).options)
             if options.get("brand_template"):
                 options = apply_brand_options(options, str(options["brand_template"]))
             if options.get("transcript"):

@@ -24,6 +24,7 @@ from videoflow.adapters.asr import WhisperHttpAdapter
 from videoflow.adapters.faster_whisper import FasterWhisperAdapter
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.adapters.whisper import WhisperCliAdapter
+from videoflow.application.audio_analysis import detect_audio_energy
 from videoflow.application.capabilities import ensure_external_allowed
 from videoflow.application.export_service import export_timeline
 from videoflow.application.fonts import fonts_dir
@@ -509,6 +510,14 @@ def run_portable(
             if short_cfg.prompt_mode == "refine"
             else []
         )
+        energy_intervals: tuple[tuple[int, int], ...] = ()
+        if short_cfg.audio_energy_boost:
+            try:
+                energy_intervals = tuple(
+                    detect_audio_energy(source_path, media.audio_sample_rate)
+                )
+            except IngestError as exc:
+                warnings.append(f"Audio energy analysis skipped: {exc.message}")
         gate()
         with stage("shorts", "shorts", "Shorts", "Selecting social clips") as meta:
             selected = select_shorts(
@@ -527,6 +536,7 @@ def run_portable(
                 prompt_mode=short_cfg.prompt_mode,
                 previous=previous,
                 hook_mode=short_cfg.hook_mode,
+                energy_intervals=energy_intervals,
             )
             if short_cfg.reframe_mode in {"motion_tracking", "face_tracking"}:
                 tracked: list[ShortClip] = []

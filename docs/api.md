@@ -14,6 +14,8 @@ Implemented today:
 - `GET /api/v1/assets/images`, `POST /api/v1/assets/images`
 - `GET /api/v1/assets/music`, `POST /api/v1/assets/music`
 - `GET/PUT/DELETE /api/v1/brand-templates`, `POST /api/v1/brand-templates/{name}/apply`
+- `GET/PUT/DELETE /api/v1/project-templates`, `POST /api/v1/project-templates/{name}/apply`
+- `POST /api/v1/config/export`, `POST /api/v1/config/import`
 - Short thumbnail generation and download
 - `POST /api/v1/jobs`, `GET /api/v1/jobs`, `GET /api/v1/jobs/{id}`,
   `POST /api/v1/jobs/{id}/cancel`, `GET /api/v1/jobs/{id}/events`
@@ -233,6 +235,7 @@ Content-Type: application/json
   "shorts_prompt_mode": "replace",
   "shorts_hook_mode": "off",
   "shorts_reframe_mode": "center_crop_9_16",
+  "shorts_audio_energy_boost": false,
   "shorts_remove_fillers": false,
   "shorts_filler_words": ["hum", "hmm", "uh", "um"],
   "shorts_aspect": "9:16",
@@ -476,6 +479,18 @@ Content-Type: application/json
 The source must come from a succeeded job. The endpoint writes a new MP4 and
 ASS under `shorts/edited/`, updates `shorts.json` and the job result, and leaves
 the original render available. `caption_style` is merged into the project style.
+
+### Project templates and config I/O
+
+```http
+GET/PUT/DELETE /api/v1/project-templates[/{name}]
+POST /api/v1/project-templates/{name}/apply
+POST /api/v1/config/export
+POST /api/v1/config/import
+```
+
+Templates store non-secret flat job options. Config envelopes are versioned and
+strip source/output/transcript/project fields.
 
 ### Brand templates
 

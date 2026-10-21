@@ -103,6 +103,7 @@ export interface JobOptions {
   whisper_model?: string | null;
   faster_whisper_model?: string | null;
   brand_template?: string | null;
+  project_template?: string | null;
   fade_in_ms?: number;
   fade_out_ms?: number;
   fade_curve?: string;
@@ -120,6 +121,7 @@ export interface JobOptions {
   shorts_prompt_mode?: string;
   shorts_hook_mode?: string;
   shorts_reframe_mode?: string;
+  shorts_audio_energy_boost?: boolean;
   shorts_remove_fillers?: boolean;
   shorts_filler_words?: string[];
   shorts_aspect?: string;
@@ -300,6 +302,12 @@ export interface Job {
   stages: JobStage[];
 }
 
+export interface ProjectTemplate {
+  name: string;
+  description: string;
+  options: Record<string, unknown>;
+}
+
 export interface BrandTemplate {
   name: string;
   description: string;
@@ -397,6 +405,7 @@ export interface NewJob {
   shorts_prompt_mode: "replace" | "refine";
   shorts_hook_mode: "off" | "metadata" | "repeat" | "reorder";
   shorts_reframe_mode: "center_crop_9_16" | "motion_tracking" | "face_tracking" | "auto_face_tracking_yolo";
+  shorts_audio_energy_boost: boolean;
   shorts_remove_fillers: boolean;
   shorts_filler_words: string[];
   shorts_aspect: string;
@@ -549,6 +558,56 @@ export async function createDirectory(parent: string, name: string): Promise<FsE
 export function probeMedia(path: string): Promise<ProbedMedia> {
   const query = new URLSearchParams({ path });
   return request<ProbedMedia>(`/api/v1/media/probe?${query.toString()}`);
+}
+
+export async function getProjectTemplates(): Promise<ProjectTemplate[]> {
+  const response = await request<{ ok: boolean; templates: ProjectTemplate[] }>(
+    "/api/v1/project-templates"
+  );
+  return response.templates;
+}
+
+export async function saveProjectTemplate(
+  name: string,
+  description: string,
+  options: Record<string, unknown>
+): Promise<ProjectTemplate> {
+  const response = await request<{ ok: boolean; template: ProjectTemplate }>(
+    `/api/v1/project-templates/${encodeURIComponent(name)}`,
+    { method: "PUT", body: JSON.stringify({ name, description, options }) }
+  );
+  return response.template;
+}
+
+export async function deleteProjectTemplate(name: string): Promise<void> {
+  await request(`/api/v1/project-templates/${encodeURIComponent(name)}`, { method: "DELETE" });
+}
+
+export async function applyProjectTemplate(name: string): Promise<Record<string, unknown>> {
+  const response = await request<{ ok: boolean; options: Record<string, unknown> }>(
+    `/api/v1/project-templates/${encodeURIComponent(name)}/apply`,
+    { method: "POST" }
+  );
+  return response.options;
+}
+
+export async function exportConfig(options: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const response = await request<{ ok: boolean; envelope: Record<string, unknown> }>(
+    "/api/v1/config/export",
+    { method: "POST", body: JSON.stringify({ options }) }
+  );
+  return response.envelope;
+}
+
+export async function importConfig(
+  schemaVersion: number,
+  options: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const response = await request<{ ok: boolean; options: Record<string, unknown> }>(
+    "/api/v1/config/import",
+    { method: "POST", body: JSON.stringify({ schema_version: schemaVersion, options }) }
+  );
+  return response.options;
 }
 
 export async function getBrandTemplates(): Promise<BrandTemplate[]> {

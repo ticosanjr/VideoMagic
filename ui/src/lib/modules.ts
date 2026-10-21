@@ -77,6 +77,7 @@ export type ConfigKey =
   | "shorts_prompt_mode"
   | "shorts_hook_mode"
   | "shorts_reframe_mode"
+  | "shorts_audio_energy_boost"
   | "shorts_remove_fillers"
   | "shorts_filler_words"
   | "audio_enhance"
@@ -228,6 +229,7 @@ export const defaultConfig: JobConfig = {
   shorts_prompt_mode: "replace",
   shorts_hook_mode: "off",
   shorts_reframe_mode: "center_crop_9_16",
+  shorts_audio_energy_boost: false,
   shorts_remove_fillers: false,
   shorts_filler_words: "hum, hmm, uh, um, ah, eh, erm, er",
   audio_enhance: false,
@@ -749,6 +751,13 @@ export const modules: RackModule[] = [
           { value: "face_tracking", label: "Face tracking (optional OpenCV)" }
         ],
         help: "Motion tracking uses low-resolution frame differences. Face tracking requires opencv-python-headless."
+      },
+      {
+        key: "shorts_audio_energy_boost",
+        label: "Boost audio-energy peaks",
+        type: "bool",
+        implemented: true,
+        help: "Adds a score bonus to clips overlapping loud audio peaks."
       },
       {
         key: "shorts_remove_fillers",

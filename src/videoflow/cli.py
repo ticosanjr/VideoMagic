@@ -245,6 +245,7 @@ def _parser() -> argparse.ArgumentParser:
         help="Auto-hook behavior: metadata only, repeat at start, or reorder first.",
     )
     run.add_argument("--shorts-remove-fillers", action="store_true")
+    run.add_argument("--shorts-audio-energy", action="store_true")
     run.add_argument(
         "--shorts-reframe",
         choices=("center_crop_9_16", "motion_tracking", "face_tracking"),
@@ -313,6 +314,7 @@ def _parser() -> argparse.ArgumentParser:
         default="off",
     )
     shorts.add_argument("--remove-fillers", action="store_true")
+    shorts.add_argument("--audio-energy", action="store_true")
     shorts.add_argument(
         "--reframe",
         choices=("center_crop_9_16", "motion_tracking", "face_tracking"),
@@ -451,6 +453,7 @@ def _run(args: argparse.Namespace) -> int:
         prompt_mode=args.shorts_prompt_mode,
         hook_mode=args.shorts_hook_mode,
         remove_fillers=args.shorts_remove_fillers,
+        audio_energy_boost=args.shorts_audio_energy,
         reframe_mode=args.shorts_reframe,
         filler_words=args.shorts_filler_word or ["hum", "hmm", "uh", "um", "ah", "eh", "erm", "er"],
         caption_style=CaptionStyle(

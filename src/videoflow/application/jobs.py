@@ -138,6 +138,7 @@ def _shorts_config(options: dict[str, object]) -> ShortsConfig:
         prompt_mode=str(options.get("shorts_prompt_mode", "replace")),  # type: ignore[arg-type]
         hook_mode=str(options.get("shorts_hook_mode", "off")),  # type: ignore[arg-type]
         reframe_mode=str(options.get("shorts_reframe_mode", "center_crop_9_16")),  # type: ignore[arg-type]
+        audio_energy_boost=bool(options.get("shorts_audio_energy_boost", False)),
         remove_fillers=bool(options.get("shorts_remove_fillers", False)),
         filler_words=_string_list(
             options.get("shorts_filler_words"),

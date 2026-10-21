@@ -101,6 +101,12 @@ PNG/JPEG assets from the image store can be prepended/appended to a Short with
 configurable durations. Cards are normalized to the Short size, given silent
 audio, and concatenated after captions, overlays, music, and voice-over.
 
+## Audio-energy curation
+
+`audio_energy_boost` extracts 16 kHz mono PCM, computes RMS windows, and merges
+loud peaks. Short candidates that overlap a peak receive an explainable score
+bonus and expose `energy_peaks`.
+
 ## Reframing and tracking
 
 `reframe_mode` can be `center_crop_9_16`, `motion_tracking`, `face_tracking`, or

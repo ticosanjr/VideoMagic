@@ -42,7 +42,7 @@ For HTTP:
 
 ## 2. Tools
 
-All twenty-six tools execute real work. `videoflow_load_media` remembers the source.
+All thirty tools execute real work. `videoflow_load_media` remembers the source.
 Analysis tools work immediately. Edit tools stage configuration for the next
 `videoflow_run_pipeline`; the result says `applies_to_next_run` when a job is
 still required.
@@ -53,6 +53,10 @@ still required.
 | `videoflow_upload_music` | `file_path` | **live**: copies an audio track into the music store |
 | `videoflow_list_images` | none | **live**: uploaded watermark/overlay images |
 | `videoflow_upload_image` | `file_path` | **live**: copies a PNG/JPEG from the allowed roots into the image store |
+| `videoflow_list_project_templates` | none | **live**: saved project configurations |
+| `videoflow_save_project_template` | `name`, `template` | **live**: save a flat run configuration |
+| `videoflow_export_config` | `options` | **live**: versioned non-secret envelope |
+| `videoflow_import_config` | `schema_version`, `options` | **live**: validate/import configuration |
 | `videoflow_list_brand_templates` | none | **live**: saved brand bundles |
 | `videoflow_save_brand_template` | `name`, `template` | **live**: save a reusable brand bundle |
 | `videoflow_list_fonts` | none | **live**: uploaded font family names and paths |
@@ -95,7 +99,7 @@ Presets accepted by `run_pipeline`:
 `retake_strategy`, `context_window`, `llm_base_url`, `llm_model`, `shorts`,
 `shorts_count`, `shorts_min_count`, `shorts_min_sec`, `shorts_max_sec`,
 `shorts_subtitles`, `shorts_selection_mode`, `shorts_prompt`, `shorts_reprompt`,
-`shorts_prompt_mode`, `shorts_hook_mode`, `shorts_reframe_mode`,
+`shorts_prompt_mode`, `shorts_hook_mode`, `shorts_reframe_mode`, `shorts_audio_energy_boost`,
 `shorts_remove_fillers`,
 `shorts_filler_words`, `shorts_aspect`, `shorts_source_start_sec`,
 `shorts_source_end_sec`, `allow_external_services`, `allowed_external_hosts`,
@@ -180,6 +184,7 @@ The complete path, using only public tools:
 20. call videoflow_generate_short_voiceover for narration
 21. call videoflow_dub_short for translation dubbing
 22. call videoflow_list_brand_templates or videoflow_save_brand_template for reusable branding
+23. call videoflow_list_project_templates / videoflow_export_config for project presets
 ```
 
 `videoflow_transcribe` writes a cached SRT and stages it, so the next pipeline

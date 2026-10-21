@@ -17,7 +17,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Local Faster-Whisper with whisper.cpp fallback, and ASR HTTP | implemented; pinned small model bundled in release builds |
 | Local filesystem browser with allowlisted roots | implemented; no media upload |
 | Jobs, job REST routes, SSE, live MCP jobs | implemented for the portable path |
-| MCP: twenty-six tools and four resources | implemented; analysis, capabilities, staged edits, jobs, export, resources |
+| MCP: thirty tools and four resources | implemented; analysis, capabilities, staged edits, jobs, export, resources |
 | Rack UI driving real portable jobs, logs, overrides, shorts | implemented; tabbed Speech/Edit/Shorts/Export/Providers layout and path picker |
 | Project-scoped routes, revisions, transcript API, presets | implemented; per-module rerun is typed 501 |
 | Shorts selection/rendering and API download | implemented; prompt/reprompt, explainable virality score, auto hook, filler cuts, censor, 9:16, 1:1, 16:9, optional source window |
@@ -31,6 +31,8 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Intro/outro | implemented; image cards with configurable durations |
 | Dubbing | implemented; translation plus external TTS over a Short |
 | Brand templates | implemented; reusable caption, overlay, music, and intro/outro bundles |
+| Project templates and config I/O | implemented; flat non-secret options, CRUD, export/import |
+| Audio-energy curation | implemented; loud-peak intervals boost Short scores |
 | Motion tracking | implemented; frame-difference focus estimation for reframing |
 | Face tracking | optional; OpenCV face detection with motion fallback |
 | Per-Short editor | implemented; trim, retitle, reframe, caption overrides, re-render |

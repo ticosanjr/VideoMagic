@@ -37,6 +37,24 @@ from videoflow.application.images import list_images, save_image
 from videoflow.application.jobs import TERMINAL, Job, JobManager
 from videoflow.application.music import list_music, save_music
 from videoflow.application.presets import get_preset, load_presets, save_preset
+from videoflow.application.project_templates import (
+    ProjectTemplate,
+    export_config,
+    import_config,
+    sanitize_options,
+)
+from videoflow.application.project_templates import (
+    delete_template as delete_project_template,
+)
+from videoflow.application.project_templates import (
+    get_template as get_project_template,
+)
+from videoflow.application.project_templates import (
+    list_templates as list_project_templates,
+)
+from videoflow.application.project_templates import (
+    save_template as save_project_template,
+)
 from videoflow.application.projects import (
     ProjectStore,
     apply_media,
@@ -129,6 +147,7 @@ class NewJobRequest(BaseModel):
     shorts_filler_words: list[str] = Field(
         default_factory=lambda: ["hum", "hmm", "uh", "um", "ah", "eh", "erm", "er"]
     )
+    shorts_audio_energy_boost: bool = False
     shorts_reframe_mode: Literal[
         "center_crop_9_16", "motion_tracking", "face_tracking", "auto_face_tracking_yolo"
     ] = "center_crop_9_16"
@@ -212,6 +231,7 @@ class NewJobRequest(BaseModel):
     whisper_model: str | None = None
     faster_whisper_model: str | None = None
     brand_template: str | None = None
+    project_template: str | None = None
 
 
     @model_validator(mode="after")
@@ -256,6 +276,15 @@ class ProjectRunRequest(BaseModel):
 class ExportRequest(BaseModel):
     targets: list[Literal["resolve", "premiere", "kdenlive"]] | None = None
     dialect: Literal["1.9", "1.10"] | None = None
+
+
+class ConfigExportRequest(BaseModel):
+    options: dict[str, Any] = Field(default_factory=dict)
+
+
+class ConfigImportRequest(BaseModel):
+    schema_version: int
+    options: dict[str, Any] = Field(default_factory=dict)
 
 
 class ShortDubbingRequest(BaseModel):
@@ -446,6 +475,7 @@ def register_routes(
                     "shorts_hook_mode": request.shorts_hook_mode,
                     "shorts_remove_fillers": request.shorts_remove_fillers,
                     "shorts_filler_words": request.shorts_filler_words,
+                    "shorts_audio_energy_boost": request.shorts_audio_energy_boost,
                     "shorts_reframe_mode": request.shorts_reframe_mode,
                     "shorts_aspect": request.shorts_aspect,
                     "shorts_source_start_sec": request.shorts_source_start_sec,
@@ -521,12 +551,66 @@ def register_routes(
                     "whisper_model": request.whisper_model,
                     "faster_whisper_model": request.faster_whisper_model,
                 }
+            if request.project_template:
+                options.update(get_project_template(request.project_template).options)
             if request.brand_template:
                 options = apply_brand_options(options, request.brand_template)
             job = jobs.start(source, output, options=options)
         except VideoFlowError as exc:
             raise HTTPException(status_code=status_for(exc.code), detail=exc.to_dict()) from exc
         return {"ok": True, "job": job.to_dict()}
+
+    @app.get("/api/v1/project-templates")
+    def project_templates() -> dict[str, object]:
+        return {"ok": True, "templates": list_project_templates()}
+
+    @app.get("/api/v1/project-templates/{name}")
+    def project_template(name: str) -> dict[str, object]:
+        try:
+            return {
+                "ok": True,
+                "template": get_project_template(name).model_dump(mode="json"),
+            }
+        except VideoFlowError as exc:
+            fail(exc)
+
+    @app.put("/api/v1/project-templates/{name}")
+    def put_project_template(name: str, template: ProjectTemplate) -> dict[str, object]:
+        try:
+            payload = save_project_template(template.model_copy(update={"name": name}))
+        except VideoFlowError as exc:
+            fail(exc)
+        return {"ok": True, "template": payload}
+
+    @app.delete("/api/v1/project-templates/{name}")
+    def remove_project_template(name: str) -> dict[str, object]:
+        try:
+            delete_project_template(name)
+        except VideoFlowError as exc:
+            fail(exc)
+        return {"ok": True, "deleted": name}
+
+    @app.post("/api/v1/project-templates/{name}/apply")
+    def apply_project_template(name: str) -> dict[str, object]:
+        try:
+            options = get_project_template(name).options
+        except VideoFlowError as exc:
+            fail(exc)
+        return {"ok": True, "options": sanitize_options(options)}
+
+    @app.post("/api/v1/config/export")
+    def config_export(request: ConfigExportRequest) -> dict[str, object]:
+        return {"ok": True, "envelope": export_config(request.options)}
+
+    @app.post("/api/v1/config/import")
+    def config_import(request: ConfigImportRequest) -> dict[str, object]:
+        try:
+            options = import_config(
+                {"schema_version": request.schema_version, "options": request.options}
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+        return {"ok": True, "options": options}
 
     @app.get("/api/v1/brand-templates")
     def brand_templates() -> dict[str, object]:

@@ -206,6 +206,10 @@ vertical-only output.
 - **Reframe mode**: center crop, motion tracking, or optional face tracking.
   Motion tracking shifts the crop toward the strongest frame-difference region;
   face tracking falls back to motion when OpenCV is unavailable.
+- **Audio-energy boost**: gives extra score to clips overlapping loud audio
+  peaks. The Short reports how many peaks it covers.
+- **Project templates / config**: save reusable run configuration, apply it, and
+  export/import a versioned non-secret JSON envelope.
 - **Duration** is checked after retake culling. The Shorts tab also has
   `0–1`, `1–3`, `3–5`, and `5–10` minute presets.
 - **Aspect ratio** is `9:16`, `1:1`, or `16:9`. ASS and FFmpeg use the same

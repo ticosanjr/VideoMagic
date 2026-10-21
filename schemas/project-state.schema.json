@@ -953,6 +953,11 @@
           "title": "Aspect Ratio",
           "type": "string"
         },
+        "audio_energy_boost": {
+          "default": false,
+          "title": "Audio Energy Boost",
+          "type": "boolean"
+        },
         "burn_subtitles": {
           "default": true,
           "title": "Burn Subtitles",
