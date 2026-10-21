@@ -20,6 +20,16 @@ class ResourceSpec:
 
 TOOL_SPECS: tuple[ToolSpec, ...] = (
     ToolSpec(
+        "videoflow_list_brand_templates",
+        "List saved brand templates.",
+        "branding",
+    ),
+    ToolSpec(
+        "videoflow_save_brand_template",
+        "Save a reusable brand template.",
+        "branding",
+    ),
+    ToolSpec(
         "videoflow_list_capabilities",
         "List feature availability and external-provider policy.",
         "system",

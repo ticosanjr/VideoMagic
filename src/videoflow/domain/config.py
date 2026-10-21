@@ -20,7 +20,12 @@ RetakeStrategy = Literal["keep_last", "keep_best"]
 ZoomMode = Literal["alternate_cuts", "topic_change", "manual_rules"]
 AnchorPoint = Literal["center", "upper_third", "face_detect"]
 PanDirection = Literal["none", "left_to_right", "right_to_left"]
-ReframeMode = Literal["center_crop_9_16", "auto_face_tracking_yolo"]
+ReframeMode = Literal[
+    "center_crop_9_16",
+    "motion_tracking",
+    "face_tracking",
+    "auto_face_tracking_yolo",
+]
 SubtitlePreset = Literal["tiktok_bold", "minimalist_box", "highlight_word"]
 ShortsExportFormat = Literal["fcpxml_timeline", "standalone_mp4", "both"]
 ShortsSelectionMode = Literal["auto", "llm", "heuristic"]

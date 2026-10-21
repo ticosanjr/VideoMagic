@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import BrandTemplateManager from "$lib/BrandTemplateManager.svelte";
   import CapabilitiesPanel from "$lib/CapabilitiesPanel.svelte";
   import CaptionPreview from "$lib/CaptionPreview.svelte";
   import FontManager from "$lib/FontManager.svelte";
@@ -305,6 +306,11 @@
         | "metadata"
         | "repeat"
         | "reorder",
+      shorts_reframe_mode: String(config.shorts_reframe_mode || "center_crop_9_16") as
+        | "center_crop_9_16"
+        | "motion_tracking"
+        | "face_tracking"
+        | "auto_face_tracking_yolo",
       shorts_remove_fillers: Boolean(config.shorts_remove_fillers),
       shorts_filler_words: String(config.shorts_filler_words || "")
         .split(",")
@@ -1255,6 +1261,9 @@
                     selected={String(config.music_asset || "")}
                     onSelect={(name) => (config.music_asset = name)}
                   />
+                </div>
+                <div class="mb-3">
+                  <BrandTemplateManager {config} />
                 </div>
                 <div class="mb-3 grid gap-3 sm:grid-cols-2">
                   <ImageManager

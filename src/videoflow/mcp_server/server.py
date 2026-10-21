@@ -18,6 +18,12 @@ from videoflow.adapters.faster_whisper import FasterWhisperAdapter
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.adapters.llm import OpenAICompatibleLlm
 from videoflow.adapters.whisper import WhisperCliAdapter
+from videoflow.application.brand_templates import (
+    BrandTemplate,
+    apply_brand_options,
+    list_templates,
+    save_template,
+)
 from videoflow.application.capabilities import (
     capability_manifest,
     ensure_external_allowed,
@@ -118,6 +124,7 @@ OVERRIDE_KEYS = {
     "shorts_reprompt",
     "shorts_prompt_mode",
     "shorts_hook_mode",
+    "shorts_reframe_mode",
     "shorts_remove_fillers",
     "shorts_filler_words",
     "shorts_aspect",
@@ -125,6 +132,7 @@ OVERRIDE_KEYS = {
     "shorts_source_end_sec",
     "allow_external_services",
     "allowed_external_hosts",
+    "brand_template",
     "audio_enhance",
     "audio_highpass_hz",
     "audio_denoise",
@@ -200,6 +208,24 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
     manager = jobs or JobManager()
     mcp = MCPServer(SERVER_NAME)
     last: dict[str, Any] = {"pending_options": {}}
+
+    @mcp.tool()
+    def videoflow_list_brand_templates() -> dict[str, object]:
+        """List saved brand templates."""
+
+        return {"ok": True, "templates": list_templates()}
+
+    @mcp.tool()
+    def videoflow_save_brand_template(name: str, template: dict[str, object]) -> dict[str, object]:
+        """Save a brand template JSON object under a name."""
+
+        try:
+            payload = BrandTemplate.model_validate({**template, "name": name})
+            return {"ok": True, "template": save_template(payload)}
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except ValueError as exc:
+            return _error("invalid_template", str(exc))
 
     @mcp.tool()
     def videoflow_list_capabilities(allow_external_services: bool = False) -> dict[str, object]:
@@ -600,6 +626,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         reprompt: str = "",
         prompt_mode: str = "replace",
         hook_mode: str = "off",
+        reframe_mode: str = "center_crop_9_16",
         remove_fillers: bool = False,
         filler_words: list[str] | None = None,
     ) -> dict[str, object]:
@@ -615,6 +642,13 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             return _error(
                 "invalid_arguments", "hook_mode must be off, metadata, repeat, or reorder"
             )
+        if reframe_mode not in {
+            "center_crop_9_16",
+            "motion_tracking",
+            "face_tracking",
+            "auto_face_tracking_yolo",
+        }:
+            return _error("invalid_arguments", "Unsupported reframe_mode")
         if start_sec < 0 or (end_sec is not None and end_sec <= start_sec):
             return _error("invalid_arguments", "Invalid shorts source window")
         if not 1 <= count <= 20:
@@ -711,6 +745,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
                 "shorts_reprompt": reprompt,
                 "shorts_prompt_mode": prompt_mode,
                 "shorts_hook_mode": hook_mode,
+                "shorts_reframe_mode": reframe_mode,
                 "shorts_remove_fillers": remove_fillers,
                 "shorts_filler_words": filler_words or [],
                 "allow_external_services": allow_external_services,
@@ -728,6 +763,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             "reprompt": reprompt,
             "prompt_mode": prompt_mode,
             "hook_mode": hook_mode,
+            "reframe_mode": reframe_mode,
             "remove_fillers": remove_fillers,
             "filler_words": filler_words or [],
             "clips": [clip.to_dict(rate) for clip in clips],
@@ -1063,6 +1099,8 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
                 for key, value in pending.items():
                     if key not in explicit:
                         options[key] = value
+            if options.get("brand_template"):
+                options = apply_brand_options(options, str(options["brand_template"]))
             if options.get("transcript"):
                 options["transcript"] = str(
                     resolve_allowed(Path(str(options["transcript"])), roots)

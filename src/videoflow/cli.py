@@ -245,6 +245,11 @@ def _parser() -> argparse.ArgumentParser:
         help="Auto-hook behavior: metadata only, repeat at start, or reorder first.",
     )
     run.add_argument("--shorts-remove-fillers", action="store_true")
+    run.add_argument(
+        "--shorts-reframe",
+        choices=("center_crop_9_16", "motion_tracking", "face_tracking"),
+        default="center_crop_9_16",
+    )
     run.add_argument("--shorts-filler-word", action="append", default=[])
     run.add_argument("--caption-censor", action="store_true")
     run.add_argument("--caption-censor-word", action="append", default=[])
@@ -308,6 +313,11 @@ def _parser() -> argparse.ArgumentParser:
         default="off",
     )
     shorts.add_argument("--remove-fillers", action="store_true")
+    shorts.add_argument(
+        "--reframe",
+        choices=("center_crop_9_16", "motion_tracking", "face_tracking"),
+        default="center_crop_9_16",
+    )
     shorts.add_argument("--filler-word", action="append", default=[])
     shorts.add_argument("--audio-enhance", action="store_true")
     shorts.add_argument("--no-subtitles", action="store_true")
@@ -441,6 +451,7 @@ def _run(args: argparse.Namespace) -> int:
         prompt_mode=args.shorts_prompt_mode,
         hook_mode=args.shorts_hook_mode,
         remove_fillers=args.shorts_remove_fillers,
+        reframe_mode=args.shorts_reframe,
         filler_words=args.shorts_filler_word or ["hum", "hmm", "uh", "um", "ah", "eh", "erm", "er"],
         caption_style=CaptionStyle(
             censor_enabled=args.caption_censor,
@@ -636,6 +647,23 @@ def _shorts(args: argparse.Namespace) -> int:
         remove_fillers=args.remove_fillers,
         filler_words=args.filler_word,
     )
+    if args.reframe in {"motion_tracking", "face_tracking"}:
+        from dataclasses import replace as replace_clip
+
+        from videoflow.application.tracking import track_focus_x
+
+        clips = [
+            replace_clip(
+                clip,
+                crop_focus_x=track_focus_x(
+                    source,
+                    clip.pieces,
+                    media.audio_sample_rate,
+                    mode=args.reframe,
+                )[0],
+            )
+            for clip in clips
+        ]
     if not clips:
         print(json.dumps({"ok": False, "warnings": warnings}, indent=2), file=sys.stderr)
         return 1
@@ -663,6 +691,8 @@ def _shorts(args: argparse.Namespace) -> int:
             audio_filters=tuple(
                 audio_filters(AudioEnhanceConfig(enabled=args.audio_enhance))
             ),
+            crop_focus_x=clip.crop_focus_x,
+            crop_focus_y=clip.crop_focus_y,
         )
         entry = clip.to_dict(media.audio_sample_rate)
         entry["aspect_ratio"] = args.aspect

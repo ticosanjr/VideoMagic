@@ -163,6 +163,8 @@ def edit_short(
         overlay_margin=state.modules_config.overlay.margin_px,
         overlay_width_ratio=state.modules_config.overlay.width_ratio,
         overlay_opacity=state.modules_config.overlay.opacity,
+        crop_focus_x=float(entry.get("crop_focus_x", 0.5)),
+        crop_focus_y=float(entry.get("crop_focus_y", 0.5)),
         music_path=(
             music_dir() / state.modules_config.music.asset
             if state.modules_config.music.enabled

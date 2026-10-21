@@ -17,6 +17,14 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from videoflow import __version__
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application.brand_templates import (
+    BrandTemplate,
+    apply_brand_options,
+    delete_template,
+    get_template,
+    list_templates,
+    save_template,
+)
 from videoflow.application.capabilities import (
     capability_manifest,
     external_services_allowed,
@@ -121,6 +129,9 @@ class NewJobRequest(BaseModel):
     shorts_filler_words: list[str] = Field(
         default_factory=lambda: ["hum", "hmm", "uh", "um", "ah", "eh", "erm", "er"]
     )
+    shorts_reframe_mode: Literal[
+        "center_crop_9_16", "motion_tracking", "face_tracking", "auto_face_tracking_yolo"
+    ] = "center_crop_9_16"
     shorts_aspect: Literal["9:16", "1:1", "16:9"] = "9:16"
     shorts_source_start_sec: float = Field(default=0.0, ge=0.0)
     shorts_source_end_sec: float | None = Field(default=None, ge=0.0)
@@ -200,6 +211,7 @@ class NewJobRequest(BaseModel):
     whisper_vad_filter: bool = False
     whisper_model: str | None = None
     faster_whisper_model: str | None = None
+    brand_template: str | None = None
 
 
     @model_validator(mode="after")
@@ -388,10 +400,7 @@ def register_routes(
             transcript = (
                 resolve_allowed(Path(request.transcript), roots) if request.transcript else None
             )
-            job = jobs.start(
-                source,
-                output,
-                options={
+            options = {
                     "noise_db": request.noise_db,
                     "min_silence_ms": request.min_silence_ms,
                     "min_speech_ms": request.min_speech_ms,
@@ -437,6 +446,7 @@ def register_routes(
                     "shorts_hook_mode": request.shorts_hook_mode,
                     "shorts_remove_fillers": request.shorts_remove_fillers,
                     "shorts_filler_words": request.shorts_filler_words,
+                    "shorts_reframe_mode": request.shorts_reframe_mode,
                     "shorts_aspect": request.shorts_aspect,
                     "shorts_source_start_sec": request.shorts_source_start_sec,
                     "shorts_source_end_sec": request.shorts_source_end_sec,
@@ -510,11 +520,48 @@ def register_routes(
                     "whisper_vad_filter": request.whisper_vad_filter,
                     "whisper_model": request.whisper_model,
                     "faster_whisper_model": request.faster_whisper_model,
-                },
-            )
+                }
+            if request.brand_template:
+                options = apply_brand_options(options, request.brand_template)
+            job = jobs.start(source, output, options=options)
         except VideoFlowError as exc:
             raise HTTPException(status_code=status_for(exc.code), detail=exc.to_dict()) from exc
         return {"ok": True, "job": job.to_dict()}
+
+    @app.get("/api/v1/brand-templates")
+    def brand_templates() -> dict[str, object]:
+        return {"ok": True, "templates": list_templates()}
+
+    @app.get("/api/v1/brand-templates/{name}")
+    def brand_template(name: str) -> dict[str, object]:
+        try:
+            return {"ok": True, "template": get_template(name).model_dump(mode="json")}
+        except VideoFlowError as exc:
+            fail(exc)
+
+    @app.put("/api/v1/brand-templates/{name}")
+    def put_brand_template(name: str, template: BrandTemplate) -> dict[str, object]:
+        try:
+            payload = save_template(template.model_copy(update={"name": name}))
+        except VideoFlowError as exc:
+            fail(exc)
+        return {"ok": True, "template": payload}
+
+    @app.delete("/api/v1/brand-templates/{name}")
+    def remove_brand_template(name: str) -> dict[str, object]:
+        try:
+            delete_template(name)
+        except VideoFlowError as exc:
+            fail(exc)
+        return {"ok": True, "deleted": name}
+
+    @app.post("/api/v1/brand-templates/{name}/apply")
+    def apply_brand_template(name: str) -> dict[str, object]:
+        try:
+            options = apply_brand_options({}, name)
+        except VideoFlowError as exc:
+            fail(exc)
+        return {"ok": True, "options": options}
 
     @app.get("/api/v1/jobs")
     def list_jobs() -> dict[str, object]:

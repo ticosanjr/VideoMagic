@@ -208,6 +208,7 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
             "shorts_reprompt": "more energy",
             "shorts_prompt_mode": "refine",
             "shorts_hook_mode": "repeat",
+            "shorts_reframe_mode": "motion_tracking",
             "shorts_remove_fillers": True,
             "shorts_filler_words": ["um", "uh"],
             "shorts_aspect": "1:1",
@@ -262,6 +263,7 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
     assert options["shorts_reprompt"] == "more energy"
     assert options["shorts_prompt_mode"] == "refine"
     assert options["shorts_hook_mode"] == "repeat"
+    assert options["shorts_reframe_mode"] == "motion_tracking"
     assert options["shorts_remove_fillers"] is True
     assert options["shorts_filler_words"] == ["um", "uh"]
     assert options["shorts_aspect"] == "1:1"

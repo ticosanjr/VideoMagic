@@ -71,6 +71,8 @@ class ShortClip:
     virality_score: float = 0.0
     score_breakdown: tuple[tuple[str, float], ...] = ()
     filler_words_removed: tuple[str, ...] = ()
+    crop_focus_x: float = 0.5
+    crop_focus_y: float = 0.5
 
     @property
     def duration_samples(self) -> int:
@@ -94,6 +96,8 @@ class ShortClip:
             "hook_start_sample": self.hook_start_sample,
             "hook_end_sample": self.hook_end_sample,
             "filler_words_removed": list(self.filler_words_removed),
+            "crop_focus_x": round(self.crop_focus_x, 4),
+            "crop_focus_y": round(self.crop_focus_y, 4),
         }
 
 

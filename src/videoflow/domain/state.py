@@ -14,7 +14,12 @@ from videoflow.domain.timebase import Timebase
 OverrideAction = Literal["keep", "discard"]
 TransformType = Literal["none", "punch_in", "slow_zoom_in", "slow_zoom_out", "pan"]
 FadeCurve = Literal["linear", "logarithmic"]
-ReframeMode = Literal["center_crop_9_16", "auto_face_tracking_yolo"]
+ReframeMode = Literal[
+    "center_crop_9_16",
+    "motion_tracking",
+    "face_tracking",
+    "auto_face_tracking_yolo",
+]
 AnchorPoint = Literal["center", "upper_third", "face_detect"]
 PanDirection = Literal["none", "left_to_right", "right_to_left"]
 

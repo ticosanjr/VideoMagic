@@ -1022,6 +1022,8 @@
           "default": "center_crop_9_16",
           "enum": [
             "center_crop_9_16",
+            "motion_tracking",
+            "face_tracking",
             "auto_face_tracking_yolo"
           ],
           "title": "Reframe Mode",
@@ -1343,6 +1345,8 @@
           "default": "center_crop_9_16",
           "enum": [
             "center_crop_9_16",
+            "motion_tracking",
+            "face_tracking",
             "auto_face_tracking_yolo"
           ],
           "title": "Reframe Mode",

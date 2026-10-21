@@ -384,6 +384,8 @@ class FFmpegAdapter:
         outro_path: Path | None = None,
         intro_duration_sec: float = 2.0,
         outro_duration_sec: float = 2.0,
+        crop_focus_x: float = 0.5,
+        crop_focus_y: float = 0.5,
     ) -> Path:
         """Render concatenated source pieces as a vertical H.264 short."""
 
@@ -414,7 +416,9 @@ class FFmpegAdapter:
                         str(source_path),
                         "-vf",
                         f"scale={width}:{height}:force_original_aspect_ratio=increase,"
-                        f"crop={width}:{height},setsar=1",
+                        f"crop={width}:{height}:"
+                        f"(iw-ow)*{max(0.0, min(1.0, crop_focus_x))}:"
+                        f"(ih-oh)*{max(0.0, min(1.0, crop_focus_y))},setsar=1",
                         "-c:v",
                         "libx264",
                         "-preset",

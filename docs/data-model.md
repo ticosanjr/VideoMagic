@@ -123,7 +123,7 @@ All config models forbid unknown fields. That is deliberate: a request containin
 | `RetakesConfig` | no secret value; `secret_name` only; temperature fixed at 0 |
 | `JlCutsConfig` | offset 100–500 ms, crossfade 10–50 ms |
 | `ZoomsConfig` | scale 1.05–1.30 |
-| `ShortsConfig` | min ≤ max; 1–20 clips; prompt/reprompt; replace/refine; hook off/metadata/repeat/reorder; filler list; aspect 9:16/1:1/16:9; source end > start |
+| `ShortsConfig` | min ≤ max; 1–20 clips; prompt/reprompt; replace/refine; hook modes; reframe center/motion/face; filler list; aspect 9:16/1:1/16:9; source end > start |
 | `ProvidersConfig` | external services opt-in; optional remote-host allowlist |
 | `AudioEnhanceConfig` | opt-in high-pass, denoise, and loudnorm for rendered Shorts |
 | `OverlayConfig` | watermark asset, position, margin, width ratio, opacity |
@@ -131,6 +131,7 @@ All config models forbid unknown fields. That is deliberate: a request containin
 | `TtsConfig` | provider, base URL, model, voice, speed, volume, original volume; secret name only |
 | `IntroOutroConfig` | image assets and 0.2–10 s card durations |
 | `DubbingConfig` | target language and original volume |
+| `BrandTemplate` | caption style, overlay, music, and intro/outro bundle |
 | `CaptionStyle.censor_*` | optional profanity word list and replacement |
 | `CaptionStyle` branding | keyword list/color, emoji map, brand vocabulary |
 | `ExportConfig` | dialect 1.9/1.10, write flags |

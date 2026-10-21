@@ -11,7 +11,7 @@ and Kdenlive.
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical shorts, and
 > three NLE exports. The local API, MCP server, and rack UI execute real jobs;
-> all twenty-four MCP tools and four resources are live. The rack browses local files
+> all twenty-six MCP tools and four resources are live. The rack browses local files
 > and folders instead of requiring typed paths. Projects persist atomic,
 > revisioned state under `.videoflow/`, and the REST API manages media, modules,
 > transcripts, exports, and operator presets.
@@ -31,7 +31,7 @@ install time. A GPU is not required.
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 353 passing, 11 strict xfail, 7 deselected
+uv run pytest                       # 357 passing, 11 strict xfail, 7 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model
@@ -98,7 +98,8 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   optional filler-word cuts, profanity-masked captions, keyword/emoji/brand
   caption styling, custom font upload, optional speech enhancement, watermark
   overlays, intro/outro cards, music beds with ducking, external TTS voice-over,
-  translation dubbing, platform metadata, thumbnails,
+  translation dubbing, brand templates, motion/face-assisted reframing,
+  platform metadata, thumbnails,
   retake-aware conforming, 9:16/1:1/16:9 render, an optional source window,
   burned ASS captions, a live aspect-aware preview, and a per-Short
   trim/retitle/reframe editor.
@@ -111,7 +112,7 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   audio fades, and the FCPXML output validates against Apple's 1.9 DTD.
 - Pure domain: rational time, cache hashing, planning, retake guard, path jail,
   redaction, schema generation.
-- MCP server with twenty-four live tools and four resources: media ingest,
+- MCP server with twenty-six live tools and four resources: media ingest,
   capability discovery, Silero speech detection, local
   Faster-Whisper/whisper.cpp transcription, transcript reads, staged
   retake/zoom/J-cut edits, shorts proposals, real jobs, NLE export, and project

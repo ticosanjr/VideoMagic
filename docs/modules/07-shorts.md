@@ -101,6 +101,21 @@ PNG/JPEG assets from the image store can be prepended/appended to a Short with
 configurable durations. Cards are normalized to the Short size, given silent
 audio, and concatenated after captions, overlays, music, and voice-over.
 
+## Reframing and tracking
+
+`reframe_mode` can be `center_crop_9_16`, `motion_tracking`, `face_tracking`, or
+the legacy `auto_face_tracking_yolo` label. Motion tracking decodes low-resolution
+gray frames and uses the centroid of frame differences as the horizontal crop
+focus. Face tracking uses OpenCV when installed and falls back to motion
+tracking. The chosen focus is stored as `crop_focus_x`/`crop_focus_y` in
+`shorts.json`.
+
+## Brand templates
+
+A `BrandTemplate` stores a caption style, overlay config, music config, and
+intro/outro config under `<home>/brand_templates/`. Templates can be applied to
+a job with `brand_template`, or applied in the rack to update the current form.
+
 ## Dubbing
 
 `POST /api/v1/jobs/{job_id}/shorts/{index}/dub` sends the Short transcript to an

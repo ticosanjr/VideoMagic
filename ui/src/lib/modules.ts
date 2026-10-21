@@ -76,6 +76,7 @@ export type ConfigKey =
   | "shorts_reprompt"
   | "shorts_prompt_mode"
   | "shorts_hook_mode"
+  | "shorts_reframe_mode"
   | "shorts_remove_fillers"
   | "shorts_filler_words"
   | "audio_enhance"
@@ -226,6 +227,7 @@ export const defaultConfig: JobConfig = {
   shorts_reprompt: "",
   shorts_prompt_mode: "replace",
   shorts_hook_mode: "off",
+  shorts_reframe_mode: "center_crop_9_16",
   shorts_remove_fillers: false,
   shorts_filler_words: "hum, hmm, uh, um, ah, eh, erm, er",
   audio_enhance: false,
@@ -735,6 +737,18 @@ export const modules: RackModule[] = [
           { value: "refine", label: "Refine previous selection" }
         ],
         help: "Refine loads the previous shorts.json from the output folder."
+      },
+      {
+        key: "shorts_reframe_mode",
+        label: "Reframe mode",
+        type: "select",
+        implemented: true,
+        options: [
+          { value: "center_crop_9_16", label: "Center crop" },
+          { value: "motion_tracking", label: "Motion tracking" },
+          { value: "face_tracking", label: "Face tracking (optional OpenCV)" }
+        ],
+        help: "Motion tracking uses low-resolution frame differences. Face tracking requires opencv-python-headless."
       },
       {
         key: "shorts_remove_fillers",

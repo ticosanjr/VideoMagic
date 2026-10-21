@@ -71,6 +71,8 @@ class FakeAdapter:
         outro_path: Path | None = None,
         intro_duration_sec: float = 2.0,
         outro_duration_sec: float = 2.0,
+        crop_focus_x: float = 0.5,
+        crop_focus_y: float = 0.5,
     ) -> Path:
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(b"mp4")

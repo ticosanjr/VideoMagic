@@ -102,6 +102,7 @@ export interface JobOptions {
   whisper_vad_filter?: boolean;
   whisper_model?: string | null;
   faster_whisper_model?: string | null;
+  brand_template?: string | null;
   fade_in_ms?: number;
   fade_out_ms?: number;
   fade_curve?: string;
@@ -118,6 +119,7 @@ export interface JobOptions {
   shorts_reprompt?: string;
   shorts_prompt_mode?: string;
   shorts_hook_mode?: string;
+  shorts_reframe_mode?: string;
   shorts_remove_fillers?: boolean;
   shorts_filler_words?: string[];
   shorts_aspect?: string;
@@ -298,6 +300,15 @@ export interface Job {
   stages: JobStage[];
 }
 
+export interface BrandTemplate {
+  name: string;
+  description: string;
+  caption_style: Record<string, unknown>;
+  overlay: Record<string, unknown>;
+  music: Record<string, unknown>;
+  intro_outro: Record<string, unknown>;
+}
+
 export interface MusicAsset {
   file: string;
   name: string;
@@ -385,6 +396,7 @@ export interface NewJob {
   shorts_reprompt: string;
   shorts_prompt_mode: "replace" | "refine";
   shorts_hook_mode: "off" | "metadata" | "repeat" | "reorder";
+  shorts_reframe_mode: "center_crop_9_16" | "motion_tracking" | "face_tracking" | "auto_face_tracking_yolo";
   shorts_remove_fillers: boolean;
   shorts_filler_words: string[];
   shorts_aspect: string;
@@ -537,6 +549,36 @@ export async function createDirectory(parent: string, name: string): Promise<FsE
 export function probeMedia(path: string): Promise<ProbedMedia> {
   const query = new URLSearchParams({ path });
   return request<ProbedMedia>(`/api/v1/media/probe?${query.toString()}`);
+}
+
+export async function getBrandTemplates(): Promise<BrandTemplate[]> {
+  const response = await request<{ ok: boolean; templates: BrandTemplate[] }>(
+    "/api/v1/brand-templates"
+  );
+  return response.templates;
+}
+
+export async function saveBrandTemplate(
+  name: string,
+  template: Omit<BrandTemplate, "name">
+): Promise<BrandTemplate> {
+  const response = await request<{ ok: boolean; template: BrandTemplate }>(
+    `/api/v1/brand-templates/${encodeURIComponent(name)}`,
+    { method: "PUT", body: JSON.stringify({ ...template, name }) }
+  );
+  return response.template;
+}
+
+export async function deleteBrandTemplate(name: string): Promise<void> {
+  await request(`/api/v1/brand-templates/${encodeURIComponent(name)}`, { method: "DELETE" });
+}
+
+export async function applyBrandTemplate(name: string): Promise<Record<string, unknown>> {
+  const response = await request<{ ok: boolean; options: Record<string, unknown> }>(
+    `/api/v1/brand-templates/${encodeURIComponent(name)}/apply`,
+    { method: "POST" }
+  );
+  return response.options;
 }
 
 export async function getMusic(): Promise<MusicAsset[]> {

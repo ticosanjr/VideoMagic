@@ -12,7 +12,7 @@ import os
 import time
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
@@ -35,6 +35,7 @@ from videoflow.application.retakes import (
     cull_retakes as cull_transcript_retakes,
 )
 from videoflow.application.shorts import (
+    ShortClip,
     build_ass,
     build_ass_lines,
     caption_lines,
@@ -46,6 +47,7 @@ from videoflow.application.shorts import (
 )
 from videoflow.application.telemetry import JobTelemetry
 from videoflow.application.timeline_builder import build_timeline
+from videoflow.application.tracking import track_focus_x
 from videoflow.application.vad import detect_speech as detect_vad
 from videoflow.application.vad import pad_spans
 from videoflow.domain.config import (
@@ -526,6 +528,21 @@ def run_portable(
                 previous=previous,
                 hook_mode=short_cfg.hook_mode,
             )
+            if short_cfg.reframe_mode in {"motion_tracking", "face_tracking"}:
+                tracked: list[ShortClip] = []
+                for clip in selected:
+                    focus, used_mode = track_focus_x(
+                        source_path,
+                        clip.pieces,
+                        media.audio_sample_rate,
+                        mode=short_cfg.reframe_mode,
+                    )
+                    if used_mode != short_cfg.reframe_mode:
+                        warnings.append(
+                            f"{short_cfg.reframe_mode} unavailable; used {used_mode}"
+                        )
+                    tracked.append(replace(clip, crop_focus_x=focus))
+                selected = tracked
             shorts_dir = output_path / "shorts"
             for index, clip in enumerate(selected, start=1):
                 gate()
@@ -588,6 +605,8 @@ def run_portable(
                     overlay_margin=overlay_margin,
                     overlay_width_ratio=overlay_width_ratio,
                     overlay_opacity=overlay_opacity,
+                    crop_focus_x=clip.crop_focus_x,
+                    crop_focus_y=clip.crop_focus_y,
                     music_path=music_path,
                     music_volume=music_volume,
                     music_ducking=music_ducking,
