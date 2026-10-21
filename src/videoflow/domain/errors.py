@@ -241,6 +241,12 @@ class StateNotReadyError(VideoFlowError):
     code = "state_not_ready"
 
 
+class TtsError(VideoFlowError):
+    """The speech-synthesis provider is unavailable or returned bad audio."""
+
+    code = "tts_failed"
+
+
 class ShortEditError(VideoFlowError):
     """A Short edit request cannot be applied to the completed run."""
 

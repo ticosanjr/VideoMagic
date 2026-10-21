@@ -618,6 +618,9 @@
         "transcribe": {
           "$ref": "#/$defs/TranscribeConfig"
         },
+        "tts": {
+          "$ref": "#/$defs/TtsConfig"
+        },
         "vad": {
           "$ref": "#/$defs/VadConfig"
         },
@@ -1141,6 +1144,63 @@
         }
       },
       "title": "Transform",
+      "type": "object"
+    },
+    "TtsConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "base_url": {
+          "default": "",
+          "title": "Base Url",
+          "type": "string"
+        },
+        "model": {
+          "default": "tts-1",
+          "title": "Model",
+          "type": "string"
+        },
+        "original_volume": {
+          "default": 0.35,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Original Volume",
+          "type": "number"
+        },
+        "provider": {
+          "default": "none",
+          "enum": [
+            "none",
+            "openai_compatible"
+          ],
+          "title": "Provider",
+          "type": "string"
+        },
+        "secret_name": {
+          "default": "VIDEOWFLOW_TTS_API_KEY",
+          "title": "Secret Name",
+          "type": "string"
+        },
+        "speed": {
+          "default": 1.0,
+          "maximum": 4.0,
+          "minimum": 0.25,
+          "title": "Speed",
+          "type": "number"
+        },
+        "voice": {
+          "default": "alloy",
+          "title": "Voice",
+          "type": "string"
+        },
+        "volume": {
+          "default": 1.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Volume",
+          "type": "number"
+        }
+      },
+      "title": "TtsConfig",
       "type": "object"
     },
     "VadConfig": {

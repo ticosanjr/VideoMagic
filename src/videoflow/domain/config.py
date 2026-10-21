@@ -195,6 +195,17 @@ class ProvidersConfig(StrictModel):
     allowed_hosts: list[str] = Field(default_factory=list)
 
 
+class TtsConfig(StrictModel):
+    provider: Literal["none", "openai_compatible"] = "none"
+    base_url: str = ""
+    model: str = "tts-1"
+    voice: str = "alloy"
+    secret_name: str = "VIDEOWFLOW_TTS_API_KEY"
+    speed: float = Field(default=1.0, ge=0.25, le=4.0)
+    volume: float = Field(default=1.0, ge=0.0, le=1.0)
+    original_volume: float = Field(default=0.35, ge=0.0, le=1.0)
+
+
 class MusicConfig(StrictModel):
     enabled: bool = False
     asset: str = ""
@@ -231,6 +242,7 @@ class ModulesConfig(StrictModel):
     audio: AudioEnhanceConfig = Field(default_factory=AudioEnhanceConfig)
     overlay: OverlayConfig = Field(default_factory=OverlayConfig)
     music: MusicConfig = Field(default_factory=MusicConfig)
+    tts: TtsConfig = Field(default_factory=TtsConfig)
     ingest: IngestConfig = Field(default_factory=IngestConfig)
     vad: VadConfig = Field(default_factory=VadConfig)
     transcribe: TranscribeConfig = Field(default_factory=TranscribeConfig)

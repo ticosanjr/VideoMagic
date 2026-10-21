@@ -110,6 +110,11 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "shorts",
     ),
     ToolSpec(
+        "videoflow_generate_short_voiceover",
+        "Generate TTS and mix a voice-over over a completed Short.",
+        "shorts",
+    ),
+    ToolSpec(
         "videoflow_export_fcpxml",
         "Export the latest completed timeline for Resolve, Premiere, or Kdenlive.",
         "export",

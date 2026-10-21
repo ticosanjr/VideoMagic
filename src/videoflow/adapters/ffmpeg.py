@@ -164,6 +164,59 @@ class FFmpegAdapter:
             if end - start >= minimum
         ]
 
+    def mix_voiceover(
+        self,
+        short_path: Path,
+        voice_path: Path,
+        destination: Path,
+        *,
+        duration_sec: float,
+        voice_volume: float = 1.0,
+        original_volume: float = 0.35,
+    ) -> Path:
+        """Mix a voice-over track over an existing Short MP4."""
+
+        source = Path(short_path).expanduser()
+        voice = Path(voice_path).expanduser()
+        target = Path(destination).expanduser()
+        duration = max(0.01, duration_sec)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        filter_complex = (
+            f"[0:a]volume={max(0.0, min(1.0, original_volume))}[orig];"
+            f"[1:a]atrim=0:{duration:.3f},volume={max(0.0, min(1.0, voice_volume))}[vo];"
+            "[orig][vo]amix=inputs=2:duration=first:dropout_transition=2[a]"
+        )
+        self._capture(
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-i",
+                str(source),
+                "-i",
+                str(voice),
+                "-filter_complex",
+                filter_complex,
+                "-map",
+                "0:v",
+                "-map",
+                "[a]",
+                "-c:v",
+                "copy",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-shortest",
+                "-movflags",
+                "+faststart",
+                str(target),
+            ]
+        )
+        return target
+
     def render_thumbnail(
         self,
         source: Path,

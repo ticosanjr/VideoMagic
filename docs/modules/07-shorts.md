@@ -95,6 +95,14 @@ title, description, hashtags, and platform character limits for YouTube,
 TikTok, Instagram, or LinkedIn. Results are stored under the Short's
 `metadata.<platform>` entry.
 
+## Voice-over
+
+`POST /api/v1/jobs/{job_id}/shorts/{index}/voiceover` calls an
+OpenAI-compatible `/audio/speech` endpoint, writes the MP3 under
+`shorts/voiceover/`, lowers the original audio, and mixes the narration into a
+new MP4. The API key is read from the configured secret name
+(`VIDEOWFLOW_TTS_API_KEY` by default) and never enters project state.
+
 ## Background music
 
 `MusicConfig` selects an uploaded track, volume, fades, and optional speech

@@ -46,6 +46,8 @@ follow semantic versioning once the project reaches 1.0.
   controls, API/MCP/UI access, and post-caption compositing.
 - Background music: MP3/WAV/M4A/AAC/OGG asset store, looping bed, volume,
   fades, sidechain ducking, and AAC mix output.
+- External TTS voice-over: OpenAI-compatible synthesis, environment-only API
+  key, original-audio ducking, mixed MP4, API/MCP/UI controls.
 
 ### Changed
 
@@ -54,7 +56,7 @@ follow semantic versioning once the project reaches 1.0.
   pruned folder.
 - Release staging is documented as the canonical artifact store. Generated
   `build/`, `dist/`, coverage files, and caches are cleaned after each release.
-- MCP now exposes twenty-two tools and four resources.
+- MCP now exposes twenty-three tools and four resources.
 
 ### Docs
 
@@ -64,7 +66,7 @@ follow semantic versioning once the project reaches 1.0.
 
 ### Verified
 
-- Tests: 349 passed, 11 xfailed, 7 deselected; coverage 99.05%; ruff and mypy
+- Tests: 351 passed, 11 xfailed, 7 deselected; coverage 99.05%; ruff and mypy
   clean.
 - UI: `svelte-check` reports 0 errors and 0 warnings; 13 Vitest tests and the
   production build pass.

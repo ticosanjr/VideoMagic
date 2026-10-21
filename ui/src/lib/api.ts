@@ -203,9 +203,21 @@ export interface ShortClip {
   metadata?: Record<string, ShortMetadata>;
   thumbnail?: string;
   thumbnails?: ShortThumbnail[];
+  voiceover?: ShortVoiceover;
   edited_at?: string;
   edit_count?: number;
   previous_path?: string;
+}
+
+export interface ShortVoiceover {
+  text: string;
+  audio_path: string;
+  path: string;
+  provider: string;
+  model: string;
+  voice: string;
+  volume: number;
+  original_volume: number;
 }
 
 export interface ShortThumbnail {
@@ -599,6 +611,24 @@ export async function generateShortMetadata(
   payload: { platform: string; tone: string; extra_hashtags?: string[] }
 ): Promise<{ ok: boolean; metadata: ShortMetadata; short: ShortClip }> {
   return request(`/api/v1/jobs/${jobId}/shorts/${index}/metadata`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function generateShortVoiceover(
+  jobId: string,
+  index: number,
+  payload: {
+    text: string;
+    base_url?: string;
+    model?: string;
+    voice?: string;
+    allow_external_services?: boolean;
+    allowed_external_hosts?: string[];
+  }
+): Promise<{ ok: boolean; voiceover: ShortVoiceover; short: ShortClip }> {
+  return request(`/api/v1/jobs/${jobId}/shorts/${index}/voiceover`, {
     method: "POST",
     body: JSON.stringify(payload)
   });

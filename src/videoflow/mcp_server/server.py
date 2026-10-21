@@ -36,6 +36,8 @@ from videoflow.application.short_metadata import generate_short_metadata
 from videoflow.application.shorts import select_shorts
 from videoflow.application.thumbnail import generate_short_thumbnail
 from videoflow.application.vad import detect_speech as detect_vad
+from videoflow.application.voiceover import generate_short_voiceover
+from videoflow.domain.config import TtsConfig
 from videoflow.domain.errors import InvalidRetakeIdsError, StateNotReadyError, VideoFlowError
 from videoflow.domain.paths import resolve_allowed
 from videoflow.domain.state import MediaInfo, ProjectState, Sentence
@@ -845,6 +847,62 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         return {
             "ok": True,
             "thumbnail": thumbnail,
+            "short": job.result["shorts"][index],
+        }
+
+    @mcp.tool()
+    def videoflow_generate_short_voiceover(
+        index: int,
+        text: str,
+        base_url: str | None = None,
+        model: str = "tts-1",
+        voice: str = "alloy",
+        speed: float = 1.0,
+        volume: float = 1.0,
+        original_volume: float = 0.35,
+        allow_external_services: bool = False,
+        allowed_external_hosts: list[str] | None = None,
+    ) -> dict[str, object]:
+        """Generate TTS and mix a voice-over over a completed Short."""
+
+        job_id = last.get("job_id")
+        if not isinstance(job_id, str):
+            return _error("job_required", "Run videoflow_run_pipeline first.")
+        try:
+            job = manager.get(job_id)
+            if job.status != "succeeded" or job.result is None:
+                raise StateNotReadyError(
+                    "The job must succeed before a voice-over can be generated."
+                )
+            state = ProjectState.model_validate_json(
+                (job.output / "project_state.json").read_text(encoding="utf-8")
+            )
+            stored = state.modules_config.tts
+            config = TtsConfig(
+                provider="openai_compatible",
+                base_url=base_url or stored.base_url,
+                model=model or stored.model,
+                voice=voice or stored.voice,
+                secret_name=stored.secret_name,
+                speed=speed,
+                volume=volume,
+                original_volume=original_volume,
+            )
+            payload = generate_short_voiceover(
+                output=job.output,
+                index=index,
+                result=job.result,
+                text=text,
+                config=config,
+                api_key=os.environ.get(config.secret_name),
+                allow_external_services=allow_external_services,
+                allowed_external_hosts=tuple(allowed_external_hosts or ()),
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {
+            "ok": True,
+            "voiceover": payload,
             "short": job.result["shorts"][index],
         }
 

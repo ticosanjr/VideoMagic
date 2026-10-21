@@ -42,7 +42,7 @@ For HTTP:
 
 ## 2. Tools
 
-All twenty-two tools execute real work. `videoflow_load_media` remembers the source.
+All twenty-three tools execute real work. `videoflow_load_media` remembers the source.
 Analysis tools work immediately. Edit tools stage configuration for the next
 `videoflow_run_pipeline`; the result says `applies_to_next_run` when a job is
 still required.
@@ -64,6 +64,7 @@ still required.
 | `videoflow_configure_zooms` | `mode`, `scale`, `anchor` | **live/staged**: punch-in, anchor, and pan metadata |
 | `videoflow_apply_jcuts` | `offset_ms`, `crossfade_ms` | **live/staged**: audio offset and logarithmic micro-fades |
 | `videoflow_generate_shorts` | `min_duration`, `max_duration`, `count`, `min_count`, `selection_mode`, `subtitles`, `aspect_ratio`, `start_sec`, `end_sec`, `allow_external_services`, `prompt`, `reprompt`, `prompt_mode`, `hook_mode` | **live**: ranked social clip proposals in source time; aspect/window/prompt/hook apply to the next run |
+| `videoflow_generate_short_voiceover` | `index`, `text`, `base_url`, `model`, `voice`, `speed`, `volume`, `original_volume`, `allow_external_services`, `allowed_external_hosts` | **live**: TTS + mix over a completed Short |
 | `videoflow_generate_short_thumbnail` | `index`, `time_sec`, `title`, `caption_style` | **live**: PNG frame plus caption-style title overlay |
 | `videoflow_generate_short_metadata` | `index`, `platform`, `tone`, `extra_hashtags` | **live**: platform title, description, hashtags, and character limits |
 | `videoflow_edit_short` | `index`, `title`, `start_sec`, `end_sec`, `aspect_ratio`, `burn_subtitles`, `caption_style` | **live**: re-renders one Short into `shorts/edited/` |
@@ -170,6 +171,7 @@ The complete path, using only public tools:
 17. call videoflow_generate_short_thumbnail for a cover image
 18. call videoflow_list_images or videoflow_upload_image for watermarks
 19. call videoflow_list_music or videoflow_upload_music for background music
+20. call videoflow_generate_short_voiceover for narration
 ```
 
 `videoflow_transcribe` writes a cached SRT and stages it, so the next pipeline

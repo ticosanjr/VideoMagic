@@ -4,6 +4,7 @@
     errorMessage,
     generateShortMetadata,
     generateShortThumbnail,
+    generateShortVoiceover,
     type ShortClip,
     type ShortMetadata,
     type ShortThumbnail
@@ -14,6 +15,8 @@
     index,
     short,
     open,
+    allowExternal = false,
+    allowedHosts = "",
     onClose,
     onSaved
   }: {
@@ -21,6 +24,8 @@
     index: number;
     short: ShortClip;
     open: boolean;
+    allowExternal?: boolean;
+    allowedHosts?: string;
     onClose: () => void;
     onSaved: (value: ShortClip) => void;
   } = $props();
@@ -46,6 +51,12 @@
   let thumbnailTime = $state(0.5);
   let thumbnailBusy = $state(false);
   let thumbnailError = $state("");
+  let voiceoverText = $state("");
+  let voiceoverBaseUrl = $state("");
+  let voiceoverModel = $state("tts-1");
+  let voiceoverVoice = $state("alloy");
+  let voiceoverBusy = $state(false);
+  let voiceoverError = $state("");
 
   $effect(() => {
     if (!open) return;
@@ -68,6 +79,11 @@
     thumbnail = short.thumbnails?.at(-1) ?? null;
     thumbnailTime = 0.5;
     thumbnailError = "";
+    voiceoverText = short.voiceover?.text ?? "";
+    voiceoverBaseUrl = "";
+    voiceoverModel = short.voiceover?.model ?? "tts-1";
+    voiceoverVoice = short.voiceover?.voice ?? "alloy";
+    voiceoverError = "";
   });
 
   function setPlatform(value: string) {
@@ -90,6 +106,31 @@
       metadataError = errorMessage(reason);
     } finally {
       metadataBusy = false;
+    }
+  }
+
+  async function makeVoiceover() {
+    if (voiceoverBusy) return;
+    voiceoverBusy = true;
+    voiceoverError = "";
+    try {
+      const hosts = allowedHosts
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      const response = await generateShortVoiceover(jobId, index, {
+        text: voiceoverText,
+        base_url: voiceoverBaseUrl.trim() || undefined,
+        model: voiceoverModel,
+        voice: voiceoverVoice,
+        allow_external_services: allowExternal,
+        allowed_external_hosts: hosts
+      });
+      onSaved(response.short);
+    } catch (reason) {
+      voiceoverError = errorMessage(reason);
+    } finally {
+      voiceoverBusy = false;
     }
   }
 
@@ -405,6 +446,59 @@
               >
                 Download thumbnail
               </a>
+            {/if}
+          </div>
+
+          <div class="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
+            <p class="text-[10px] uppercase tracking-wide text-neutral-500">Voice-over</p>
+            <textarea
+              rows="3"
+              value={voiceoverText}
+              oninput={(event) => (voiceoverText = event.currentTarget.value)}
+              placeholder="Narration text"
+              class="mt-2 w-full resize-y rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+            ></textarea>
+            <div class="mt-2 grid gap-2 sm:grid-cols-3">
+              <input
+                type="text"
+                value={voiceoverBaseUrl}
+                oninput={(event) => (voiceoverBaseUrl = event.currentTarget.value)}
+                placeholder="TTS base URL"
+                class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100"
+              />
+              <input
+                type="text"
+                value={voiceoverModel}
+                oninput={(event) => (voiceoverModel = event.currentTarget.value)}
+                placeholder="model"
+                class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100"
+              />
+              <input
+                type="text"
+                value={voiceoverVoice}
+                oninput={(event) => (voiceoverVoice = event.currentTarget.value)}
+                placeholder="voice"
+                class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100"
+              />
+            </div>
+            <button
+              type="button"
+              onclick={makeVoiceover}
+              disabled={voiceoverBusy || !allowExternal}
+              class="mt-2 rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-200 disabled:opacity-40"
+            >
+              {voiceoverBusy ? "Generating…" : "Generate voice-over"}
+            </button>
+            {#if !allowExternal}
+              <p class="mt-1 text-[10px] text-amber-300">Enable external services in Providers first.</p>
+            {/if}
+            {#if voiceoverError}
+              <p class="mt-2 text-[10px] text-rose-300">{voiceoverError}</p>
+            {/if}
+            {#if short.voiceover}
+              <p class="mt-2 text-[10px] text-emerald-300">
+                Voice-over mixed · {short.voiceover.model} · {short.voiceover.voice}
+              </p>
             {/if}
           </div>
         {/if}

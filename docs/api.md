@@ -523,6 +523,27 @@ path and stores it under `short.thumbnails`.
 GET /api/v1/jobs/{job_id}/shorts/{index}/thumbnail
 ```
 
+### Generate Short voice-over
+
+```http
+POST /api/v1/jobs/{job_id}/shorts/{index}/voiceover
+Content-Type: application/json
+```
+
+```json
+{
+  "text": "Narration text",
+  "base_url": "http://localhost:8880/v1",
+  "model": "tts-1",
+  "voice": "alloy",
+  "allow_external_services": true
+}
+```
+
+Calls `/audio/speech`, lowers the original track, mixes the narration, and
+updates the Short path. The API key comes from `VIDEOWFLOW_TTS_API_KEY` (or the
+configured secret name).
+
 ### Generate Short metadata
 
 ```http

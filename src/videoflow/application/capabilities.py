@@ -120,6 +120,16 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "videoflow_generate_shorts",
         ),
         _entry(
+            "voiceover",
+            "Voice-over",
+            "audio",
+            "partial",
+            "External OpenAI-compatible TTS mixed over a Short.",
+            "POST /api/v1/jobs/{job_id}/shorts/{index}/voiceover",
+            "videoflow_generate_short_voiceover",
+            requires=["external TTS provider", "network access"],
+        ),
+        _entry(
             "music_bed",
             "Background music",
             "shorts",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 from collections.abc import Iterator
@@ -39,7 +40,8 @@ from videoflow.application.short_editor import ShortEditOptions
 from videoflow.application.short_editor import edit_short as edit_short_service
 from videoflow.application.short_metadata import generate_short_metadata
 from videoflow.application.thumbnail import generate_short_thumbnail
-from videoflow.domain.config import ModuleEnabled
+from videoflow.application.voiceover import generate_short_voiceover
+from videoflow.domain.config import ModuleEnabled, TtsConfig
 from videoflow.domain.errors import (
     CapabilityUnavailableError,
     FilesystemError,
@@ -55,7 +57,7 @@ from videoflow.domain.errors import (
     VideoFlowError,
 )
 from videoflow.domain.paths import resolve_allowed
-from videoflow.domain.state import ManualOverride, MediaInfo
+from videoflow.domain.state import ManualOverride, MediaInfo, ProjectState
 from videoflow.domain.transcript import format_srt
 from videoflow.runtime import allowed_roots, find_binary, portable_home
 
@@ -235,6 +237,18 @@ class ProjectRunRequest(BaseModel):
 class ExportRequest(BaseModel):
     targets: list[Literal["resolve", "premiere", "kdenlive"]] | None = None
     dialect: Literal["1.9", "1.10"] | None = None
+
+
+class ShortVoiceoverRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=2000)
+    base_url: str | None = None
+    model: str = "tts-1"
+    voice: str = "alloy"
+    speed: float = Field(default=1.0, ge=0.25, le=4.0)
+    volume: float = Field(default=1.0, ge=0.0, le=1.0)
+    original_volume: float = Field(default=0.35, ge=0.0, le=1.0)
+    allow_external_services: bool = False
+    allowed_external_hosts: list[str] = Field(default_factory=list)
 
 
 class ShortThumbnailRequest(BaseModel):
@@ -680,6 +694,44 @@ def register_routes(
             filename=path.name,
             headers={"Cache-Control": "no-store"},
         )
+
+    @app.post("/api/v1/jobs/{job_id}/shorts/{index}/voiceover")
+    def short_voiceover(
+        job_id: str, index: int, request: ShortVoiceoverRequest
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            if job.status != "succeeded" or job.result is None:
+                raise StateNotReadyError(
+                    "The job must succeed before a voice-over can be generated."
+                )
+            state = ProjectState.model_validate_json(
+                (job.output / "project_state.json").read_text(encoding="utf-8")
+            )
+            stored = state.modules_config.tts
+            config = TtsConfig(
+                provider="openai_compatible",
+                base_url=request.base_url or stored.base_url,
+                model=request.model or stored.model,
+                voice=request.voice or stored.voice,
+                secret_name=stored.secret_name,
+                speed=request.speed,
+                volume=request.volume,
+                original_volume=request.original_volume,
+            )
+            payload = generate_short_voiceover(
+                output=job.output,
+                index=index,
+                result=job.result,
+                text=request.text,
+                config=config,
+                api_key=os.environ.get(config.secret_name),
+                allow_external_services=request.allow_external_services,
+                allowed_external_hosts=tuple(request.allowed_external_hosts),
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+        return {"ok": True, "voiceover": payload, "short": job.result["shorts"][index]}
 
     @app.get("/api/v1/jobs/{job_id}/state")
     def job_state(job_id: str) -> dict[str, object]:
@@ -1164,6 +1216,7 @@ def status_for(code: str) -> int:
         "media_not_registered": 409,
         "state_not_ready": 409,
         "short_edit_failed": 422,
+        "tts_failed": 502,
         "transcript_not_found": 404,
         "transcript_required": 422,
         "invalid_override": 422,

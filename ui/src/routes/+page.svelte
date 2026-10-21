@@ -1504,6 +1504,8 @@
     index={shortEditor.index}
     short={shortEditor.short}
     open={shortEditor !== null}
+    allowExternal={Boolean(config.allow_external_services)}
+    allowedHosts={String(config.allowed_external_hosts || "")}
     onClose={() => (shortEditor = null)}
     onSaved={savedShort}
   />
