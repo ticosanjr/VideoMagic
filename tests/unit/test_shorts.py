@@ -207,3 +207,15 @@ def test_short_dimensions_cover_supported_aspects() -> None:
     assert short_dimensions("1:1") == (1080, 1080)
     assert short_dimensions("16:9") == (1920, 1080)
     assert short_dimensions("unknown") == (1080, 1920)
+
+
+def test_slice_pieces_trims_an_assembled_short() -> None:
+    from videoflow.application.shorts import slice_pieces
+
+    pieces = [(0, 10), (20, 30)]
+    assert slice_pieces(pieces, 0, 20) == [(0, 10), (20, 30)]
+    assert slice_pieces(pieces, 5, 15) == [(5, 10), (20, 25)]
+    assert slice_pieces(pieces, 5, 25) == [(5, 10), (20, 30)]
+    assert slice_pieces(pieces, 10, 20) == [(20, 30)]
+    assert slice_pieces(pieces, 10, 10) == []
+    assert slice_pieces(pieces, 25, 25) == []

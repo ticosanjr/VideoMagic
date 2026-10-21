@@ -97,8 +97,8 @@ Short-form controls are one continuous form: zoom bounds, fade timings, Shorts
 target/minimum/selection, aspect ratio, source window, and caption
 font/colors/box/shadow/position. Duration buttons set common min/max pairs. The
 caption preview follows the selected aspect and shows the configured font,
-colors, outline, shadow, box, alignment, and position. A per-Short editor is
-still planned.
+colors, outline, shadow, box, alignment, and position. The per-Short editor has
+Clip and Captions tabs and writes a fresh render under `shorts/edited/`.
 
 The picker never offers a parent above the allowlisted root. If a symlink points
 outside the roots it is omitted. Network shares and unlisted disks require an
@@ -215,6 +215,6 @@ polls job status every 5 s until the stream returns.
 
 ## 9. Out of scope
 
-Timeline scrubbing, video preview compositing, a per-Short editor, and
-multi-project tabs. The caption preview is style-only; the UI edits decisions,
-not pixels.
+Timeline scrubbing, video preview compositing, and multi-project tabs. The
+caption preview is style-only; the Short editor edits clips and captions, not
+individual video frames.

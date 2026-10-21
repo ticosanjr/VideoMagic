@@ -5,7 +5,9 @@
 Implemented: deterministic and LLM sentence selection, retake-aware conforming,
 9:16/1:1/16:9 render, ASS captions, karaoke word timing, a live aspect-aware
 caption preview in the rack, an optional source window, `videoflow shorts`, job/API/MCP execution, a telemetry
-stage, and MP4 download. Not yet: face tracking and a per-Short editor.
+stage, and MP4 download. The rack/API/MCP also expose a per-Short editor:
+trim, retitle, change aspect, override caption fields, and re-render. Not yet:
+face tracking.
 
 ## Purpose
 
@@ -76,7 +78,8 @@ Text is escaped.
 
 The rack preview is an approximate HTML rendering of the same style fields and
 the selected aspect. It updates without rendering a video; the burned-in result
-still comes from ASS. A per-Short trim/retitle editor is still planned.
+still comes from ASS. The per-Short editor writes a new file under
+`shorts/edited/` and leaves the original render available.
 
 ## Failure modes
 

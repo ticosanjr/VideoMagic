@@ -177,6 +177,9 @@ vertical-only output.
   timing are configurable in the rack, API, and MCP.
 - **Caption preview**: the Shorts tab shows a live approximation in the selected
   aspect. The burned-in result still comes from ASS.
+- **Edit a Short**: use **Edit** in the run summary to trim, retitle, change
+  the aspect, and override font size/colors/box opacity. The server writes a new
+  MP4 under `shorts/edited/`; the original file stays available.
 - **Stop words**: a long source can still yield fewer than the minimum; the UI
   and `run.json` report the warning.
 

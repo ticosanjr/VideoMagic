@@ -4,6 +4,7 @@
   import CaptionPreview from "$lib/CaptionPreview.svelte";
   import LogDrawer from "$lib/LogDrawer.svelte";
   import PathPicker from "$lib/PathPicker.svelte";
+  import ShortEditor from "$lib/ShortEditor.svelte";
   import StatusIcon from "$lib/StatusIcon.svelte";
   import {
     cancelJob,
@@ -18,6 +19,7 @@
     type JobState,
     type JobStage,
     type ProbedMedia,
+    type ShortClip,
     type SystemInfo
   } from "$lib/api";
   import {
@@ -67,6 +69,7 @@
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
   let preset = $state<"youtube" | "lecture" | "shorts" | "custom">("custom");
   let activeTab = $state<ModuleTab>("speech");
+  let shortEditor = $state<{ index: number; short: ShortClip } | null>(null);
   let probeToken = 0;
 
   const visibleModules = $derived(modules.filter((module) => module.tab === activeTab));
@@ -546,6 +549,27 @@
     { label: "3–5 min", min: 180, max: 300 },
     { label: "5–10 min", min: 300, max: 600 }
   ];
+
+  function openShortEditor(index: number, short: ShortClip) {
+    shortEditor = { index, short };
+  }
+
+  function savedShort(updated: ShortClip) {
+    if (job?.result?.shorts && shortEditor) {
+      const index = shortEditor.index;
+      job = {
+        ...job,
+        result: {
+          ...job.result,
+          shorts: job.result.shorts.map((item, itemIndex) =>
+            itemIndex === index ? updated : item
+          )
+        }
+      };
+    }
+    shortEditor = null;
+    notify("success", "Short re-rendered");
+  }
 
   function setShortDuration(min: number, max: number) {
     config.shorts_min_sec = min;
@@ -1205,14 +1229,35 @@
               <p class="text-[10px] uppercase tracking-wide text-neutral-500">Shorts</p>
               <div class="mt-2 space-y-2">
                 {#each job.result.shorts as clip, index}
-                  <a
-                    class="block rounded-lg border border-neutral-800 bg-neutral-950/60 p-2 text-[11px] text-sky-300 hover:border-sky-500/50"
-                    href={`/api/v1/jobs/${job.job_id}/shorts/${index}`}
-                    download
-                  >
-                    <span class="block truncate">{clip.title}</span>
-                    <span class="text-[10px] text-neutral-500">{clip.duration_sec.toFixed(1)} s · MP4</span>
-                  </a>
+                  <div class="rounded-lg border border-neutral-800 bg-neutral-950/60 p-2 text-[11px]">
+                    <a
+                      class="block text-sky-300 hover:text-sky-200"
+                      href={`/api/v1/jobs/${job.job_id}/shorts/${index}`}
+                      download
+                    >
+                      <span class="block truncate">{clip.title}</span>
+                      <span class="text-[10px] text-neutral-500">
+                        {clip.duration_sec.toFixed(1)} s · {clip.aspect_ratio ?? "9:16"} · MP4
+                        {#if clip.edit_count}· edit {clip.edit_count}{/if}
+                      </span>
+                    </a>
+                    <div class="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onclick={() => openShortEditor(index, clip)}
+                        class="rounded-md border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 hover:border-sky-500/60 hover:text-sky-200"
+                      >
+                        Edit
+                      </button>
+                      <a
+                        class="rounded-md border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 hover:border-emerald-500/60 hover:text-emerald-200"
+                        href={`/api/v1/jobs/${job.job_id}/shorts/${index}`}
+                        download
+                      >
+                        Download
+                      </a>
+                    </div>
+                  </div>
                 {/each}
               </div>
             </div>
@@ -1363,5 +1408,16 @@
   onclose={() => (pickerKind = null)}
   onselect={handlePick}
 />
+
+{#if shortEditor && job}
+  <ShortEditor
+    jobId={job.job_id}
+    index={shortEditor.index}
+    short={shortEditor.short}
+    open={shortEditor !== null}
+    onClose={() => (shortEditor = null)}
+    onSaved={savedShort}
+  />
+{/if}
 
 <LogDrawer jobId={job?.job_id ?? null} module={logModule} open={logOpen} onclose={() => (logOpen = false)} />

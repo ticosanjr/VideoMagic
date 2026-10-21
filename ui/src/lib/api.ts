@@ -155,6 +155,33 @@ export interface JobStage {
   error: string | null;
 }
 
+export interface ShortClip {
+  title: string;
+  path: string;
+  duration_sec: number;
+  start_sec: number;
+  end_sec: number;
+  sentence_ids: number[];
+  pieces?: number[][];
+  aspect_ratio?: string;
+  width?: number;
+  height?: number;
+  subtitles?: string;
+  caption_style?: Record<string, unknown>;
+  edited_at?: string;
+  edit_count?: number;
+  previous_path?: string;
+}
+
+export interface ShortEditPayload {
+  title?: string;
+  start_sec?: number;
+  end_sec?: number;
+  aspect_ratio?: "9:16" | "1:1" | "16:9";
+  burn_subtitles?: boolean;
+  caption_style?: Record<string, unknown>;
+}
+
 export interface Job {
   job_id: string;
   status: JobStatus;
@@ -174,14 +201,7 @@ export interface Job {
     transcript_source?: string;
     warnings?: string[];
     artifacts?: Record<string, string>;
-    shorts?: {
-      title: string;
-      path: string;
-      duration_sec: number;
-      start_sec: number;
-      end_sec: number;
-      sentence_ids: number[];
-    }[];
+    shorts?: ShortClip[];
     state_path?: string;
     report_path?: string;
     elapsed_seconds?: number;
@@ -388,6 +408,17 @@ export async function createJob(payload: NewJob): Promise<Job> {
     body: JSON.stringify(payload)
   });
   return response.job;
+}
+
+export async function editShort(
+  jobId: string,
+  index: number,
+  payload: ShortEditPayload
+): Promise<{ ok: boolean; short: ShortClip; download: string }> {
+  return request(`/api/v1/jobs/${jobId}/shorts/${index}/edit`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
 }
 
 export async function getJob(jobId: string): Promise<Job> {

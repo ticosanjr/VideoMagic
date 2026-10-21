@@ -45,7 +45,7 @@ They return `501 not_implemented`; the full project run is implemented.
 | 403 | `path_not_allowed`, `permission_denied` |
 | 404 | `job_not_found`, `project_not_found`, `preset_not_found`, `unknown_module`, `transcript_not_found`, `path_not_found` |
 | 409 | `job_already_running`, `module_bypassed`, `media_not_registered`, `state_not_ready`, `directory_exists` |
-| 422 | validation, `invalid_time`, `media_not_found`, `transcript_required`, `invalid_override`, `word_overrides_not_supported`, `invalid_config`, `invalid_preset_name`, `preset_invalid`, `export_failed`, `not_a_directory`, `invalid_directory_name` |
+| 422 | validation, `invalid_time`, `media_not_found`, `transcript_required`, `invalid_override`, `word_overrides_not_supported`, `invalid_config`, `invalid_preset_name`, `preset_invalid`, `export_failed`, `short_edit_failed`, `not_a_directory`, `invalid_directory_name` |
 | 429 | `job_queue_full` |
 | 500 | `project_state_invalid`, `filesystem_error` |
 | 501 | `not_implemented` (per-module reruns) |
@@ -407,6 +407,28 @@ GET /api/v1/jobs/{job_id}/state
 Returns the `project_state.json` written by the job. The UI uses it for the
 inspector (transcript sentences, culls, guard restorations). If the job has not
 written state yet, the route returns `404 state_not_found`.
+
+### Edit a short
+
+```http
+POST /api/v1/jobs/{job_id}/shorts/{index}/edit
+Content-Type: application/json
+```
+
+```json
+{
+  "title": "Edited hook",
+  "start_sec": 1.0,
+  "end_sec": 5.0,
+  "aspect_ratio": "1:1",
+  "burn_subtitles": true,
+  "caption_style": { "font_size": 80, "primary_color": "#FF0000" }
+}
+```
+
+The source must come from a succeeded job. The endpoint writes a new MP4 and
+ASS under `shorts/edited/`, updates `shorts.json` and the job result, and leaves
+the original render available. `caption_style` is merged into the project style.
 
 ### Download a short
 

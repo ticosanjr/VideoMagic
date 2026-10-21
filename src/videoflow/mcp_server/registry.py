@@ -65,6 +65,11 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "shorts",
     ),
     ToolSpec(
+        "videoflow_edit_short",
+        "Trim, retitle, reframe, and re-render one completed Short.",
+        "shorts",
+    ),
+    ToolSpec(
         "videoflow_export_fcpxml",
         "Export the latest completed timeline for Resolve, Premiere, or Kdenlive.",
         "export",

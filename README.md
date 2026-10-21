@@ -11,7 +11,7 @@ and Kdenlive.
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical shorts, and
 > three NLE exports. The local API, MCP server, and rack UI execute real jobs;
-> all thirteen MCP tools and four resources are live. The rack browses local files
+> all fourteen MCP tools and four resources are live. The rack browses local files
 > and folders instead of requiring typed paths. Projects persist atomic,
 > revisioned state under `.videoflow/`, and the REST API manages media, modules,
 > transcripts, exports, and operator presets.
@@ -31,7 +31,7 @@ install time. A GPU is not required.
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 323 passing, 11 strict xfail, 7 deselected
+uv run pytest                       # 325 passing, 11 strict xfail, 7 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model
@@ -95,7 +95,8 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   endpoint.
 - Vertical/social shorts: deterministic or LLM selection, retake-aware
   conforming, 9:16/1:1/16:9 render, an optional source window, burned ASS
-  captions, and a live aspect-aware caption preview in the rack.
+  captions, a live aspect-aware preview, and a per-Short trim/retitle/reframe
+  editor.
 - Deterministic timeline: frame-quantised video, sample-aligned audio, merged
   speech spans, J/L-cut audio boundaries with handle checks, logarithmic fade
   metadata, and alternating punch-ins.
@@ -105,7 +106,7 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   audio fades, and the FCPXML output validates against Apple's 1.9 DTD.
 - Pure domain: rational time, cache hashing, planning, retake guard, path jail,
   redaction, schema generation.
-- MCP server with thirteen live tools and four resources: media ingest,
+- MCP server with fourteen live tools and four resources: media ingest,
   capability discovery, Silero speech detection, local
   Faster-Whisper/whisper.cpp transcription, transcript reads, staged
   retake/zoom/J-cut edits, shorts proposals, real jobs, NLE export, and project
@@ -123,7 +124,7 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 
 - Cache-backed per-block reruns; the route currently returns typed `501`.
 - Keyframed progressive zooms and direct MP4 rendering.
-- Face tracking and a per-Short editor.
+- Face tracking.
 - Manual import validation in Resolve, Premiere, and Kdenlive.
 - A signed Windows binary (SmartScreen will warn).
 

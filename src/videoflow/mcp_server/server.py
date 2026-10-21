@@ -27,9 +27,11 @@ from videoflow.application.export_service import FILENAMES, export_timeline
 from videoflow.application.jobs import JobManager
 from videoflow.application.retakes import cull_intervals
 from videoflow.application.retakes import cull_retakes as cull_transcript_retakes
+from videoflow.application.short_editor import ShortEditOptions
+from videoflow.application.short_editor import edit_short as edit_short_service
 from videoflow.application.shorts import select_shorts
 from videoflow.application.vad import detect_speech as detect_vad
-from videoflow.domain.errors import InvalidRetakeIdsError, VideoFlowError
+from videoflow.domain.errors import InvalidRetakeIdsError, StateNotReadyError, VideoFlowError
 from videoflow.domain.paths import resolve_allowed
 from videoflow.domain.state import MediaInfo, ProjectState, Sentence
 from videoflow.domain.timebase import Rounding
@@ -594,6 +596,55 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             "warnings": warnings,
             "subtitles": subtitles,
             "applies_to_next_run": True,
+        }
+
+    @mcp.tool()
+    def videoflow_edit_short(
+        index: int,
+        title: str | None = None,
+        start_sec: float | None = None,
+        end_sec: float | None = None,
+        aspect_ratio: str | None = None,
+        burn_subtitles: bool | None = None,
+        caption_style: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        """Trim, retitle, reframe, and re-render one Short from a completed job."""
+
+        if index < 0:
+            return _error("invalid_arguments", "index must be non-negative")
+        if aspect_ratio is not None and aspect_ratio not in {"9:16", "1:1", "16:9"}:
+            return _error("invalid_arguments", "aspect_ratio must be 9:16, 1:1, or 16:9")
+        if start_sec is not None and end_sec is not None and end_sec <= start_sec:
+            return _error("invalid_arguments", "end_sec must be greater than start_sec")
+        job_id = last.get("job_id")
+        if not isinstance(job_id, str):
+            return _error("job_required", "Run videoflow_run_pipeline first.")
+        try:
+            job = manager.get(job_id)
+            if job.status != "succeeded" or job.result is None:
+                raise StateNotReadyError(
+                    "The job must succeed before a Short can be edited."
+                )
+            entry = edit_short_service(
+                source=job.source,
+                output=job.output,
+                index=index,
+                result=job.result,
+                options=ShortEditOptions(
+                    title=title,
+                    start_sec=start_sec,
+                    end_sec=end_sec,
+                    aspect_ratio=aspect_ratio,
+                    burn_subtitles=burn_subtitles,
+                    caption_style=caption_style,
+                ),
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {
+            "ok": True,
+            "short": entry,
+            "download": f"/api/v1/jobs/{job_id}/shorts/{index}",
         }
 
     @mcp.tool()

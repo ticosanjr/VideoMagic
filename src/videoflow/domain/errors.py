@@ -241,6 +241,12 @@ class StateNotReadyError(VideoFlowError):
     code = "state_not_ready"
 
 
+class ShortEditError(VideoFlowError):
+    """A Short edit request cannot be applied to the completed run."""
+
+    code = "short_edit_failed"
+
+
 class TranscriptNotFoundError(VideoFlowError):
     """A project has no transcript yet."""
 

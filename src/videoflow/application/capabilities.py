@@ -150,10 +150,10 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "shorts_editor",
             "Per-Short editor",
             "shorts",
-            "planned",
+            "available",
             "Trim, retitle, reframe, and re-render one selected Short.",
-            "planned",
-            "planned",
+            "POST /api/v1/jobs/{job_id}/shorts/{index}/edit",
+            "videoflow_edit_short",
         ),
         _entry(
             "prompt_to_clip",

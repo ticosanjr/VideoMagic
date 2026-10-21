@@ -32,6 +32,8 @@ from videoflow.application.projects import (
     apply_overrides,
     apply_preset,
 )
+from videoflow.application.short_editor import ShortEditOptions
+from videoflow.application.short_editor import edit_short as edit_short_service
 from videoflow.domain.config import ModuleEnabled
 from videoflow.domain.errors import (
     CapabilityUnavailableError,
@@ -185,6 +187,25 @@ class ProjectRunRequest(BaseModel):
 class ExportRequest(BaseModel):
     targets: list[Literal["resolve", "premiere", "kdenlive"]] | None = None
     dialect: Literal["1.9", "1.10"] | None = None
+
+
+class ShortEditRequest(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=120)
+    start_sec: float | None = Field(default=None, ge=0.0)
+    end_sec: float | None = Field(default=None, ge=0.0)
+    aspect_ratio: Literal["9:16", "1:1", "16:9"] | None = None
+    burn_subtitles: bool | None = None
+    caption_style: dict[str, Any] | None = None
+
+    @model_validator(mode="after")
+    def ordered_trim(self) -> ShortEditRequest:
+        if (
+            self.end_sec is not None
+            and self.start_sec is not None
+            and self.end_sec <= self.start_sec
+        ):
+            raise ValueError("end_sec must be greater than start_sec")
+        return self
 
 
 class TranscriptOverridesRequest(BaseModel):
@@ -404,6 +425,38 @@ def register_routes(
                 detail={"ok": False, "code": "shorts_not_allowed", "message": "outside output"},
             )
         return FileResponse(path, filename=path.name)
+
+    @app.post("/api/v1/jobs/{job_id}/shorts/{index}/edit")
+    def edit_short(
+        job_id: str, index: int, request: ShortEditRequest
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            if job.status != "succeeded" or job.result is None:
+                raise StateNotReadyError(
+                    "The job must succeed before a Short can be edited."
+                )
+            entry = edit_short_service(
+                source=job.source,
+                output=job.output,
+                index=index,
+                result=job.result,
+                options=ShortEditOptions(
+                    title=request.title,
+                    start_sec=request.start_sec,
+                    end_sec=request.end_sec,
+                    aspect_ratio=request.aspect_ratio,
+                    burn_subtitles=request.burn_subtitles,
+                    caption_style=request.caption_style,
+                ),
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+        return {
+            "ok": True,
+            "short": entry,
+            "download": f"/api/v1/jobs/{job_id}/shorts/{index}",
+        }
 
     @app.get("/api/v1/jobs/{job_id}/state")
     def job_state(job_id: str) -> dict[str, object]:
@@ -887,6 +940,7 @@ def status_for(code: str) -> int:
         "media_not_found": 422,
         "media_not_registered": 409,
         "state_not_ready": 409,
+        "short_edit_failed": 422,
         "transcript_not_found": 404,
         "transcript_required": 422,
         "invalid_override": 422,

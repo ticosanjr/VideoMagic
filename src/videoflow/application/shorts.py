@@ -276,6 +276,34 @@ def sentence_events(
     return events
 
 
+def slice_pieces(
+    pieces: Sequence[tuple[int, int]], start_sample: int, end_sample: int
+) -> list[tuple[int, int]]:
+    """Trim an assembled Short and return source pieces for the new range."""
+
+    total = sum(end - start for start, end in pieces)
+    end_sample = min(end_sample, total)
+    if start_sample < 0 or end_sample <= start_sample:
+        return []
+    cursor = 0
+    trimmed: list[tuple[int, int]] = []
+    for piece_start, piece_end in pieces:
+        length = piece_end - piece_start
+        overlap_start = max(start_sample, cursor)
+        overlap_end = min(end_sample, cursor + length)
+        if overlap_end > overlap_start:
+            trimmed.append(
+                (
+                    piece_start + (overlap_start - cursor),
+                    piece_start + (overlap_end - cursor),
+                )
+            )
+        cursor += length
+        if cursor >= end_sample:
+            break
+    return trimmed
+
+
 def slugify(value: str, index: int) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", value.casefold()).strip("-")
     return f"{index:02d}-{slug[:40] or 'short'}"

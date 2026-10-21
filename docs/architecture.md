@@ -50,6 +50,7 @@ Rules:
 | `application/timeline_builder.py` | Deterministic cuts, J/L boundaries, fades, zoom metadata |
 | `application/export_service.py` | One validated timeline to three NLE artifacts |
 | `application/capabilities.py` | Capability manifest, provider policy, and external-host guard |
+| `application/short_editor.py` | Per-Short trim, retitle, reframe, caption override, and re-render |
 | `application/portable.py` | Ingest → VAD → timeline → export run |
 | `application/filesystem.py` | Allowlisted directory listing, search, and folder creation for the rack picker |
 | `runtime.py` | Portable home, bundled binary discovery, UI discovery |
