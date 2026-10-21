@@ -125,6 +125,20 @@ export interface JobOptions {
   shorts_source_end_sec?: number | null;
   allow_external_services?: boolean;
   allowed_external_hosts?: string[];
+  audio_enhance?: boolean;
+  audio_highpass_hz?: number;
+  audio_denoise?: boolean;
+  audio_denoise_db?: number;
+  audio_noise_floor_db?: number;
+  audio_loudnorm?: boolean;
+  audio_target_lufs?: number;
+  audio_true_peak_db?: number;
+  overlay_enabled?: boolean;
+  overlay_asset?: string;
+  overlay_position?: string;
+  overlay_margin_px?: number;
+  overlay_width_ratio?: number;
+  overlay_opacity?: number;
   caption_font_family?: string;
   caption_font_size?: number;
   caption_font_weight?: string;
@@ -247,6 +261,12 @@ export interface Job {
   stages: JobStage[];
 }
 
+export interface ImageAsset {
+  file: string;
+  name: string;
+  size_bytes: number;
+}
+
 export interface FontAsset {
   file: string;
   name: string;
@@ -329,6 +349,20 @@ export interface NewJob {
   shorts_source_end_sec: number | null;
   allow_external_services: boolean;
   allowed_external_hosts: string[];
+  audio_enhance: boolean;
+  audio_highpass_hz: number;
+  audio_denoise: boolean;
+  audio_denoise_db: number;
+  audio_noise_floor_db: number;
+  audio_loudnorm: boolean;
+  audio_target_lufs: number;
+  audio_true_peak_db: number;
+  overlay_enabled: boolean;
+  overlay_asset: string;
+  overlay_position: string;
+  overlay_margin_px: number;
+  overlay_width_ratio: number;
+  overlay_opacity: number;
   caption_font_family: string;
   caption_font_size: number;
   caption_font_weight: string;
@@ -448,6 +482,28 @@ export async function createDirectory(parent: string, name: string): Promise<FsE
 export function probeMedia(path: string): Promise<ProbedMedia> {
   const query = new URLSearchParams({ path });
   return request<ProbedMedia>(`/api/v1/media/probe?${query.toString()}`);
+}
+
+export async function getImages(): Promise<ImageAsset[]> {
+  const response = await request<{ ok: boolean; images: ImageAsset[] }>("/api/v1/assets/images");
+  return response.images;
+}
+
+export async function uploadImage(file: File): Promise<ImageAsset> {
+  const response = await fetch(`/api/v1/assets/images?name=${encodeURIComponent(file.name)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/octet-stream" },
+    body: file
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    const detail = payload?.detail;
+    throw new ApiError(
+      detail?.code ?? "image_upload_failed",
+      detail?.message ?? "Image upload failed"
+    );
+  }
+  return payload.image as ImageAsset;
 }
 
 export async function getFonts(): Promise<FontAsset[]> {

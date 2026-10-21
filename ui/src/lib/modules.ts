@@ -78,6 +78,20 @@ export type ConfigKey =
   | "shorts_hook_mode"
   | "shorts_remove_fillers"
   | "shorts_filler_words"
+  | "audio_enhance"
+  | "audio_highpass_hz"
+  | "audio_denoise"
+  | "audio_denoise_db"
+  | "audio_noise_floor_db"
+  | "audio_loudnorm"
+  | "audio_target_lufs"
+  | "audio_true_peak_db"
+  | "overlay_enabled"
+  | "overlay_asset"
+  | "overlay_position"
+  | "overlay_margin_px"
+  | "overlay_width_ratio"
+  | "overlay_opacity"
   | "shorts_aspect"
   | "shorts_source_start_sec"
   | "shorts_source_end_sec"
@@ -202,6 +216,20 @@ export const defaultConfig: JobConfig = {
   shorts_hook_mode: "off",
   shorts_remove_fillers: false,
   shorts_filler_words: "hum, hmm, uh, um, ah, eh, erm, er",
+  audio_enhance: false,
+  audio_highpass_hz: 80,
+  audio_denoise: true,
+  audio_denoise_db: 12,
+  audio_noise_floor_db: -30,
+  audio_loudnorm: true,
+  audio_target_lufs: -16,
+  audio_true_peak_db: -1.5,
+  overlay_enabled: false,
+  overlay_asset: "",
+  overlay_position: "bottom_right",
+  overlay_margin_px: 32,
+  overlay_width_ratio: 0.18,
+  overlay_opacity: 0.9,
   shorts_aspect: "9:16",
   shorts_source_start_sec: 0,
   shorts_source_end_sec: 0,
@@ -697,6 +725,123 @@ export const modules: RackModule[] = [
         type: "text",
         implemented: true,
         help: "Comma-separated. Defaults: hum, hmm, uh, um, ah, eh, erm, er."
+      },
+      {
+        key: "audio_enhance",
+        label: "Enhance Short audio",
+        type: "bool",
+        implemented: true,
+        help: "Applies high-pass, FFT denoise, and loudness normalization to rendered Shorts."
+      },
+      {
+        key: "audio_highpass_hz",
+        label: "High-pass (Hz)",
+        type: "number",
+        implemented: true,
+        min: 20,
+        max: 500,
+        step: 5
+      },
+      {
+        key: "audio_denoise",
+        label: "FFT denoise",
+        type: "bool",
+        implemented: true
+      },
+      {
+        key: "audio_denoise_db",
+        label: "Denoise amount",
+        type: "number",
+        implemented: true,
+        min: 1,
+        max: 30,
+        step: 1
+      },
+      {
+        key: "audio_noise_floor_db",
+        label: "Noise floor (dB)",
+        type: "number",
+        implemented: true,
+        min: -80,
+        max: -5,
+        step: 1
+      },
+      {
+        key: "audio_loudnorm",
+        label: "Loudness normalize",
+        type: "bool",
+        implemented: true
+      },
+      {
+        key: "audio_target_lufs",
+        label: "Target LUFS",
+        type: "number",
+        implemented: true,
+        min: -30,
+        max: -8,
+        step: 0.5
+      },
+      {
+        key: "audio_true_peak_db",
+        label: "True peak (dB)",
+        type: "number",
+        implemented: true,
+        min: -9,
+        max: 0,
+        step: 0.1
+      },
+      {
+        key: "overlay_enabled",
+        label: "Watermark overlay",
+        type: "bool",
+        implemented: true
+      },
+      {
+        key: "overlay_asset",
+        label: "Overlay asset",
+        type: "text",
+        implemented: true,
+        help: "Filename from the image asset store."
+      },
+      {
+        key: "overlay_position",
+        label: "Overlay position",
+        type: "select",
+        implemented: true,
+        options: [
+          { value: "top_left", label: "Top left" },
+          { value: "top_right", label: "Top right" },
+          { value: "bottom_left", label: "Bottom left" },
+          { value: "bottom_right", label: "Bottom right" },
+          { value: "center", label: "Center" }
+        ]
+      },
+      {
+        key: "overlay_margin_px",
+        label: "Overlay margin (px)",
+        type: "number",
+        implemented: true,
+        min: 0,
+        max: 400,
+        step: 1
+      },
+      {
+        key: "overlay_width_ratio",
+        label: "Overlay width ratio",
+        type: "number",
+        implemented: true,
+        min: 0.03,
+        max: 1,
+        step: 0.01
+      },
+      {
+        key: "overlay_opacity",
+        label: "Overlay opacity",
+        type: "number",
+        implemented: true,
+        min: 0,
+        max: 1,
+        step: 0.05
       },
       {
         key: "shorts_hook_mode",

@@ -25,6 +25,7 @@ from videoflow.application.capabilities import (
 )
 from videoflow.application.export_service import FILENAMES, export_timeline
 from videoflow.application.fonts import list_fonts, save_font
+from videoflow.application.images import list_images, save_image
 from videoflow.application.jobs import JobManager
 from videoflow.application.retakes import cull_intervals
 from videoflow.application.retakes import cull_retakes as cull_transcript_retakes
@@ -120,6 +121,20 @@ OVERRIDE_KEYS = {
     "shorts_source_end_sec",
     "allow_external_services",
     "allowed_external_hosts",
+    "audio_enhance",
+    "audio_highpass_hz",
+    "audio_denoise",
+    "audio_denoise_db",
+    "audio_noise_floor_db",
+    "audio_loudnorm",
+    "audio_target_lufs",
+    "audio_true_peak_db",
+    "overlay_enabled",
+    "overlay_asset",
+    "overlay_position",
+    "overlay_margin_px",
+    "overlay_width_ratio",
+    "overlay_opacity",
     "caption_font_family",
     "caption_font_size",
     "caption_font_weight",
@@ -187,6 +202,23 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         """List uploaded caption fonts and their internal family names."""
 
         return {"ok": True, "fonts": list_fonts()}
+
+    @mcp.tool()
+    def videoflow_list_images() -> dict[str, object]:
+        """List uploaded watermark/overlay images."""
+
+        return {"ok": True, "images": list_images()}
+
+    @mcp.tool()
+    def videoflow_upload_image(file_path: str) -> dict[str, object]:
+        """Copy a PNG/JPEG from the allowed roots into the image asset store."""
+
+        try:
+            source = resolve_allowed(Path(file_path), allowed_roots())
+            asset = save_image(source.name, source.read_bytes())
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {"ok": True, "image": asset}
 
     @mcp.tool()
     def videoflow_upload_font(file_path: str) -> dict[str, object]:

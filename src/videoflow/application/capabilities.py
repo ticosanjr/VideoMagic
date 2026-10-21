@@ -120,6 +120,25 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "videoflow_generate_shorts",
         ),
         _entry(
+            "watermark",
+            "Watermark overlay",
+            "shorts",
+            "available",
+            "PNG/JPEG overlay with position, margin, width ratio, and opacity.",
+            "POST /api/v1/assets/images",
+            "videoflow_upload_image",
+        ),
+        _entry(
+            "speech_enhancement",
+            "Speech enhancement",
+            "audio",
+            "partial",
+            "FFmpeg high-pass, FFT denoise, and loudness normalization for "
+            "rendered Shorts. NLE source audio is unchanged.",
+            "POST /api/v1/jobs",
+            "videoflow_run_pipeline",
+        ),
+        _entry(
             "custom_fonts",
             "Custom fonts",
             "shorts",

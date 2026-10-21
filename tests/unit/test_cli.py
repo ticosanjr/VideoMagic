@@ -224,6 +224,7 @@ def test_run_passes_short_and_detailed_config_options(monkeypatch, tmp_path, cap
                 "--caption-censor",
                 "--caption-censor-word",
                 "merda",
+                "--audio-enhance",
                 "--shorts-start-sec",
                 "5",
                 "--shorts-end-sec",
@@ -256,6 +257,11 @@ def test_run_passes_short_and_detailed_config_options(monkeypatch, tmp_path, cap
     assert seen["shorts_config"].filler_words == ["um"]
     assert seen["shorts_config"].caption_style.censor_enabled is True
     assert seen["shorts_config"].caption_style.censor_words == ["merda"]
+    assert seen["audio_filters"] == (
+        "highpass=f=80",
+        "afftdn=nr=12:nf=-30",
+        "loudnorm=I=-16.0:TP=-1.5:LRA=11",
+    )
     assert seen["shorts_config"].source_start_sec == 5
     assert seen["shorts_config"].source_end_sec == 50
     assert isinstance(seen["jl"], JlCutsConfig)

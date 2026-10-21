@@ -1,5 +1,62 @@
 {
   "$defs": {
+    "AudioEnhanceConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "denoise": {
+          "default": true,
+          "title": "Denoise",
+          "type": "boolean"
+        },
+        "denoise_db": {
+          "default": 12,
+          "maximum": 30,
+          "minimum": 1,
+          "title": "Denoise Db",
+          "type": "integer"
+        },
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "highpass_hz": {
+          "default": 80,
+          "maximum": 500,
+          "minimum": 20,
+          "title": "Highpass Hz",
+          "type": "integer"
+        },
+        "loudnorm": {
+          "default": true,
+          "title": "Loudnorm",
+          "type": "boolean"
+        },
+        "noise_floor_db": {
+          "default": -30,
+          "maximum": -5,
+          "minimum": -80,
+          "title": "Noise Floor Db",
+          "type": "integer"
+        },
+        "target_lufs": {
+          "default": -16.0,
+          "maximum": -8.0,
+          "minimum": -30.0,
+          "title": "Target Lufs",
+          "type": "number"
+        },
+        "true_peak_db": {
+          "default": -1.5,
+          "maximum": 0.0,
+          "minimum": -9.0,
+          "title": "True Peak Db",
+          "type": "number"
+        }
+      },
+      "title": "AudioEnhanceConfig",
+      "type": "object"
+    },
     "CaptionStyle": {
       "additionalProperties": false,
       "description": "Burned caption/karaoke style. Colors are #RRGGBB.",
@@ -376,6 +433,9 @@
     "ModulesConfig": {
       "additionalProperties": false,
       "properties": {
+        "audio": {
+          "$ref": "#/$defs/AudioEnhanceConfig"
+        },
         "export": {
           "$ref": "#/$defs/ExportConfig"
         },
@@ -384,6 +444,9 @@
         },
         "jl_cuts": {
           "$ref": "#/$defs/JlCutsConfig"
+        },
+        "overlay": {
+          "$ref": "#/$defs/OverlayConfig"
         },
         "providers": {
           "$ref": "#/$defs/ProvidersConfig"
@@ -405,6 +468,56 @@
         }
       },
       "title": "ModulesConfig",
+      "type": "object"
+    },
+    "OverlayConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "asset": {
+          "default": "",
+          "title": "Asset",
+          "type": "string"
+        },
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "margin_px": {
+          "default": 32,
+          "maximum": 400,
+          "minimum": 0,
+          "title": "Margin Px",
+          "type": "integer"
+        },
+        "opacity": {
+          "default": 0.9,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Opacity",
+          "type": "number"
+        },
+        "position": {
+          "default": "bottom_right",
+          "enum": [
+            "top_left",
+            "top_right",
+            "bottom_left",
+            "bottom_right",
+            "center"
+          ],
+          "title": "Position",
+          "type": "string"
+        },
+        "width_ratio": {
+          "default": 0.18,
+          "maximum": 1.0,
+          "minimum": 0.03,
+          "title": "Width Ratio",
+          "type": "number"
+        }
+      },
+      "title": "OverlayConfig",
       "type": "object"
     },
     "ProvidersConfig": {

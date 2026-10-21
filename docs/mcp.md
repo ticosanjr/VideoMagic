@@ -42,13 +42,15 @@ For HTTP:
 
 ## 2. Tools
 
-All eighteen tools execute real work. `videoflow_load_media` remembers the source.
+All twenty tools execute real work. `videoflow_load_media` remembers the source.
 Analysis tools work immediately. Edit tools stage configuration for the next
 `videoflow_run_pipeline`; the result says `applies_to_next_run` when a job is
 still required.
 
 | Tool | Inputs | Behavior |
 | --- | --- | --- |
+| `videoflow_list_images` | none | **live**: uploaded watermark/overlay images |
+| `videoflow_upload_image` | `file_path` | **live**: copies a PNG/JPEG from the allowed roots into the image store |
 | `videoflow_list_fonts` | none | **live**: uploaded font family names and paths |
 | `videoflow_upload_font` | `file_path` | **live**: copies a TTF/OTF from the allowed roots into the font asset store |
 | `videoflow_list_capabilities` | `allow_external_services` | **live**: feature availability, provider policy, and blocked reasons |
@@ -91,7 +93,12 @@ Presets accepted by `run_pipeline`:
 `shorts_filler_words`, `shorts_aspect`, `shorts_source_start_sec`,
 `shorts_source_end_sec`, `allow_external_services`, `allowed_external_hosts`,
 `caption_*`, `caption_censor_enabled`, `caption_censor_words`,
-`caption_censor_replacement`, `caption_keyword_highlight_enabled`,
+`audio_enhance`, `audio_highpass_hz`, `audio_denoise`, `audio_denoise_db`,
+`audio_noise_floor_db`, `audio_loudnorm`, `audio_target_lufs`,
+`audio_true_peak_db`, `overlay_enabled`, `overlay_asset`, `overlay_position`,
+`overlay_margin_px`, `overlay_width_ratio`, `overlay_opacity`,
+`caption_censor_replacement`,
+`caption_keyword_highlight_enabled`,
 `caption_keyword_color`, `caption_keyword_words`, `caption_emoji_enabled`,
 `caption_emoji_map`, `caption_brand_vocabulary`, `zoom_min_scale`,
 `zoom_max_scale`, `fade_in_ms`, `fade_out_ms`, `fade_curve`,
@@ -158,6 +165,7 @@ The complete path, using only public tools:
 15. call videoflow_generate_short_metadata for platform copy
 16. call videoflow_list_fonts or videoflow_upload_font for caption typography
 17. call videoflow_generate_short_thumbnail for a cover image
+18. call videoflow_list_images or videoflow_upload_image for watermarks
 ```
 
 `videoflow_transcribe` writes a cached SRT and stages it, so the next pipeline

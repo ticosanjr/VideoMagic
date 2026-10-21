@@ -18,14 +18,18 @@ from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from videoflow.adapters.llm import OpenAICompatibleLlm
+from videoflow.application.audio import audio_filters
 from videoflow.application.capabilities import ensure_external_allowed
+from videoflow.application.images import images_dir
 from videoflow.application.portable import run_portable
 from videoflow.application.telemetry import JobTelemetry
 from videoflow.domain.config import (
+    AudioEnhanceConfig,
     CaptionStyle,
     JlCutsConfig,
     ModuleEnabled,
     ModulesConfig,
+    OverlayConfig,
     ShortsConfig,
     TranscribeConfig,
     ZoomsConfig,
@@ -290,6 +294,29 @@ class JobManager:
                 anchor_point=zooms.anchor_point,
             )
         dialect: Dialect = options.get("dialect", "1.9")
+        overlay_config = OverlayConfig(
+            enabled=bool(options.get("overlay_enabled", False)),
+            asset=str(options.get("overlay_asset", "")),
+            position=str(options.get("overlay_position", "bottom_right")),  # type: ignore[arg-type]
+            margin_px=int(options.get("overlay_margin_px", 32)),
+            width_ratio=float(options.get("overlay_width_ratio", 0.18)),
+            opacity=float(options.get("overlay_opacity", 0.9)),
+        )
+        overlay_path = (
+            images_dir() / overlay_config.asset
+            if overlay_config.enabled and overlay_config.asset
+            else None
+        )
+        audio_config = AudioEnhanceConfig(
+            enabled=bool(options.get("audio_enhance", False)),
+            highpass_hz=int(options.get("audio_highpass_hz", 80)),
+            denoise=bool(options.get("audio_denoise", True)),
+            denoise_db=int(options.get("audio_denoise_db", 12)),
+            noise_floor_db=int(options.get("audio_noise_floor_db", -30)),
+            loudnorm=bool(options.get("audio_loudnorm", True)),
+            target_lufs=float(options.get("audio_target_lufs", -16.0)),
+            true_peak_db=float(options.get("audio_true_peak_db", -1.5)),
+        )
         transcript = options.get("transcript")
         cull = bool(options.get("cull_retakes", False))
         allow_external_services = bool(options.get("allow_external_services", False))
@@ -404,6 +431,12 @@ class JobManager:
                     if module_enabled is not None
                     else None
                 ),
+                audio_filters=tuple(audio_filters(audio_config)),
+                overlay_path=overlay_path,
+                overlay_position=overlay_config.position,
+                overlay_margin=overlay_config.margin_px,
+                overlay_width_ratio=overlay_config.width_ratio,
+                overlay_opacity=overlay_config.opacity,
             )
             if job.finalizer is not None and not job.cancel_requested:
                 job.finalizer(job)

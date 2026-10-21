@@ -11,6 +11,7 @@ Implemented today:
 - `GET /api/v1/fs/roots`, `GET /api/v1/fs/list`, `POST /api/v1/fs/mkdir`
 - `GET /api/v1/media/probe`
 - `GET /api/v1/assets/fonts`, `POST /api/v1/assets/fonts`
+- `GET /api/v1/assets/images`, `POST /api/v1/assets/images`
 - Short thumbnail generation and download
 - `POST /api/v1/jobs`, `GET /api/v1/jobs`, `GET /api/v1/jobs/{id}`,
   `POST /api/v1/jobs/{id}/cancel`, `GET /api/v1/jobs/{id}/events`
@@ -236,6 +237,20 @@ Content-Type: application/json
   "shorts_source_end_sec": null,
   "allow_external_services": false,
   "allowed_external_hosts": [],
+  "audio_enhance": false,
+  "audio_highpass_hz": 80,
+  "audio_denoise": true,
+  "audio_denoise_db": 12,
+  "audio_noise_floor_db": -30,
+  "audio_loudnorm": true,
+  "audio_target_lufs": -16.0,
+  "audio_true_peak_db": -1.5,
+  "overlay_enabled": false,
+  "overlay_asset": "",
+  "overlay_position": "bottom_right",
+  "overlay_margin_px": 32,
+  "overlay_width_ratio": 0.18,
+  "overlay_opacity": 0.9,
   "caption_font_family": "Arial",
   "caption_font_size": 72,
   "caption_font_weight": "bold",
@@ -446,6 +461,17 @@ Content-Type: application/json
 The source must come from a succeeded job. The endpoint writes a new MP4 and
 ASS under `shorts/edited/`, updates `shorts.json` and the job result, and leaves
 the original render available. `caption_style` is merged into the project style.
+
+### Images
+
+```http
+GET /api/v1/assets/images
+POST /api/v1/assets/images?name=logo.png
+Content-Type: application/octet-stream
+<image bytes>
+```
+
+PNG/JPEG only, up to 15 MB. Use the returned `name` as `overlay_asset`.
 
 ### Fonts
 

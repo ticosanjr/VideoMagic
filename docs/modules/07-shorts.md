@@ -95,6 +95,19 @@ title, description, hashtags, and platform character limits for YouTube,
 TikTok, Instagram, or LinkedIn. Results are stored under the Short's
 `metadata.<platform>` entry.
 
+## Watermark overlay
+
+PNG/JPEG assets live under `<home>/assets/images`. `OverlayConfig` controls
+position, margin, width ratio, and opacity. The overlay is composited after
+captions on the final Short MP4, so it never affects the source or NLE exports.
+
+## Audio enhancement
+
+`AudioEnhanceConfig` controls optional FFmpeg processing for rendered Shorts:
+high-pass, `afftdn` denoise, and `loudnorm`. The NLE exports keep the source
+audio because the timeline is not baked. The CLI exposes `--audio-enhance`; API,
+MCP, and the Shorts tab expose the full parameter set.
+
 ## Thumbnails
 
 `POST /api/v1/jobs/{job_id}/shorts/{index}/thumbnail` extracts a frame, burns a

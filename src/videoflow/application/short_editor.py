@@ -12,7 +12,9 @@ from typing import Any
 from pydantic import ValidationError
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application.audio import audio_filters as audio_filter_list
 from videoflow.application.fonts import fonts_dir
+from videoflow.application.images import images_dir
 from videoflow.application.shorts import (
     build_ass,
     build_ass_lines,
@@ -149,6 +151,17 @@ def edit_short(
         width=width,
         height=height,
         fontsdir=str(fonts_dir()),
+        audio_filters=tuple(audio_filter_list(state.modules_config.audio)),
+        overlay_path=(
+            images_dir() / state.modules_config.overlay.asset
+            if state.modules_config.overlay.enabled
+            and state.modules_config.overlay.asset
+            else None
+        ),
+        overlay_position=state.modules_config.overlay.position,
+        overlay_margin=state.modules_config.overlay.margin_px,
+        overlay_width_ratio=state.modules_config.overlay.width_ratio,
+        overlay_opacity=state.modules_config.overlay.opacity,
     )
 
     previous_path = entry.get("path")

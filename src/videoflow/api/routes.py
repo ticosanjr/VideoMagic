@@ -23,6 +23,7 @@ from videoflow.application.capabilities import (
 from videoflow.application.export_service import export_timeline
 from videoflow.application.filesystem import create_directory, list_directory, roots_payload
 from videoflow.application.fonts import list_fonts, save_font
+from videoflow.application.images import list_images, save_image
 from videoflow.application.jobs import TERMINAL, Job, JobManager
 from videoflow.application.presets import get_preset, load_presets, save_preset
 from videoflow.application.projects import (
@@ -121,6 +122,22 @@ class NewJobRequest(BaseModel):
     shorts_source_end_sec: float | None = Field(default=None, ge=0.0)
     allow_external_services: bool = False
     allowed_external_hosts: list[str] = Field(default_factory=list)
+    audio_enhance: bool = False
+    audio_highpass_hz: int = Field(default=80, ge=20, le=500)
+    audio_denoise: bool = True
+    audio_denoise_db: int = Field(default=12, ge=1, le=30)
+    audio_noise_floor_db: int = Field(default=-30, ge=-80, le=-5)
+    audio_loudnorm: bool = True
+    audio_target_lufs: float = Field(default=-16.0, ge=-30.0, le=-8.0)
+    audio_true_peak_db: float = Field(default=-1.5, ge=-9.0, le=0.0)
+    overlay_enabled: bool = False
+    overlay_asset: str = ""
+    overlay_position: Literal[
+        "top_left", "top_right", "bottom_left", "bottom_right", "center"
+    ] = "bottom_right"
+    overlay_margin_px: int = Field(default=32, ge=0, le=400)
+    overlay_width_ratio: float = Field(default=0.18, ge=0.03, le=1.0)
+    overlay_opacity: float = Field(default=0.9, ge=0.0, le=1.0)
     caption_font_family: str = "Arial"
     caption_font_size: int = Field(default=72, ge=8, le=300)
     caption_font_weight: Literal["normal", "bold"] = "bold"
@@ -266,6 +283,21 @@ def register_routes(
 ) -> None:
     project_job_lock = threading.Lock()
     app.state.project_store = projects
+    @app.get("/api/v1/assets/images")
+    def images() -> dict[str, object]:
+        return {"ok": True, "images": list_images()}
+
+    @app.post("/api/v1/assets/images", status_code=201)
+    async def upload_image(name: str, request: Request) -> dict[str, object]:
+        try:
+            asset = save_image(name, await request.body())
+        except FilesystemError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "image_invalid", "message": str(exc)},
+            ) from exc
+        return {"ok": True, "image": asset}
+
     @app.get("/api/v1/assets/fonts")
     def fonts() -> dict[str, object]:
         return {"ok": True, "fonts": list_fonts()}
@@ -352,6 +384,20 @@ def register_routes(
                     "shorts_source_end_sec": request.shorts_source_end_sec,
                     "allow_external_services": request.allow_external_services,
                     "allowed_external_hosts": request.allowed_external_hosts,
+                    "audio_enhance": request.audio_enhance,
+                    "audio_highpass_hz": request.audio_highpass_hz,
+                    "audio_denoise": request.audio_denoise,
+                    "audio_denoise_db": request.audio_denoise_db,
+                    "audio_noise_floor_db": request.audio_noise_floor_db,
+                    "audio_loudnorm": request.audio_loudnorm,
+                    "audio_target_lufs": request.audio_target_lufs,
+                    "audio_true_peak_db": request.audio_true_peak_db,
+                    "overlay_enabled": request.overlay_enabled,
+                    "overlay_asset": request.overlay_asset,
+                    "overlay_position": request.overlay_position,
+                    "overlay_margin_px": request.overlay_margin_px,
+                    "overlay_width_ratio": request.overlay_width_ratio,
+                    "overlay_opacity": request.overlay_opacity,
                     "caption_font_family": request.caption_font_family,
                     "caption_font_size": request.caption_font_size,
                     "caption_font_weight": request.caption_font_weight,

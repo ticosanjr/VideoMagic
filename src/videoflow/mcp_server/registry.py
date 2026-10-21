@@ -25,6 +25,16 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "system",
     ),
     ToolSpec(
+        "videoflow_list_images",
+        "List uploaded watermark/overlay images.",
+        "assets",
+    ),
+    ToolSpec(
+        "videoflow_upload_image",
+        "Copy a PNG/JPEG from the allowed roots into the image asset store.",
+        "assets",
+    ),
+    ToolSpec(
         "videoflow_list_fonts",
         "List uploaded caption fonts and their internal family names.",
         "assets",

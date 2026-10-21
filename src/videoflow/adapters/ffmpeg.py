@@ -11,7 +11,7 @@ import json
 import re
 import shutil
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
@@ -210,6 +210,12 @@ class FFmpegAdapter:
         width: int = 1080,
         height: int = 1920,
         fontsdir: str | None = None,
+        audio_filters: Sequence[str] | None = None,
+        overlay_path: Path | None = None,
+        overlay_position: str = "bottom_right",
+        overlay_margin: int = 32,
+        overlay_width_ratio: float = 0.18,
+        overlay_opacity: float = 0.9,
     ) -> Path:
         """Render concatenated source pieces as a vertical H.264 short."""
 
@@ -253,6 +259,11 @@ class FFmpegAdapter:
                         "libmp3lame",
                         "-b:a",
                         "192k",
+                        *(
+                            ["-af", ",".join(audio_filters)]
+                            if audio_filters
+                            else []
+                        ),
                         str(piece),
                     ]
                 )
@@ -319,6 +330,63 @@ class FFmpegAdapter:
                         str(final),
                     ]
                 )
+            if overlay_path is not None:
+                overlay = Path(overlay_path).expanduser()
+                if not overlay.is_file():
+                    raise IngestError(f"Overlay image does not exist: {overlay}")
+                overlay_final = work / "overlay.mp4"
+                margin = max(0, int(overlay_margin))
+                positions = {
+                    "top_left": f"{margin}:{margin}",
+                    "top_right": f"W-w-{margin}:{margin}",
+                    "bottom_left": f"{margin}:H-h-{margin}",
+                    "bottom_right": f"W-w-{margin}:H-h-{margin}",
+                    "center": "(W-w)/2:(H-h)/2",
+                }
+                position = positions.get(overlay_position, positions["bottom_right"])
+                logo_width = max(1, int(width * max(0.03, min(1.0, overlay_width_ratio))))
+                opacity = max(0.0, min(1.0, overlay_opacity))
+                filter_complex = (
+                    f"[1:v]format=rgba,scale={logo_width}:-1,"
+                    f"colorchannelmixer=aa={opacity}[logo];"
+                    f"[0:v][logo]overlay={position}:format=auto[v]"
+                )
+                self._capture(
+                    [
+                        "ffmpeg",
+                        "-hide_banner",
+                        "-loglevel",
+                        "error",
+                        "-y",
+                        "-i",
+                        str(final),
+                        "-loop",
+                        "1",
+                        "-i",
+                        str(overlay),
+                        "-filter_complex",
+                        filter_complex,
+                        "-map",
+                        "[v]",
+                        "-map",
+                        "0:a?",
+                        "-c:v",
+                        "libx264",
+                        "-preset",
+                        "veryfast",
+                        "-crf",
+                        "20",
+                        "-pix_fmt",
+                        "yuv420p",
+                        "-c:a",
+                        "copy",
+                        "-shortest",
+                        "-movflags",
+                        "+faststart",
+                        str(overlay_final),
+                    ]
+                )
+                final = overlay_final
             shutil.move(str(final), target)
         finally:
             shutil.rmtree(work, ignore_errors=True)

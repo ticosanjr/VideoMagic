@@ -40,6 +40,10 @@ follow semantic versioning once the project reaches 1.0.
   store, UI font picker, `fontsdir` rendering, and API/MCP access.
 - Short thumbnail generator: frame extraction plus caption-style title overlay,
   persisted under `shorts/thumbs/` and exposed through API/MCP/UI.
+- Optional FFmpeg speech enhancement for rendered Shorts: high-pass, FFT
+  denoise, and loudness normalization, with API/MCP/UI/CLI controls.
+- Watermark overlay: PNG/JPEG asset store, position/margin/width/opacity
+  controls, API/MCP/UI access, and post-caption compositing.
 
 ### Changed
 
@@ -48,7 +52,7 @@ follow semantic versioning once the project reaches 1.0.
   pruned folder.
 - Release staging is documented as the canonical artifact store. Generated
   `build/`, `dist/`, coverage files, and caches are cleaned after each release.
-- MCP now exposes eighteen tools and four resources.
+- MCP now exposes twenty tools and four resources.
 
 ### Docs
 
@@ -58,7 +62,7 @@ follow semantic versioning once the project reaches 1.0.
 
 ### Verified
 
-- Tests: 343 passed, 11 xfailed, 7 deselected; coverage 99.03%; ruff and mypy
+- Tests: 346 passed, 11 xfailed, 7 deselected; coverage 99.04%; ruff and mypy
   clean.
 - UI: `svelte-check` reports 0 errors and 0 warnings; 13 Vitest tests and the
   production build pass.

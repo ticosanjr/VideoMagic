@@ -3,6 +3,7 @@
   import CapabilitiesPanel from "$lib/CapabilitiesPanel.svelte";
   import CaptionPreview from "$lib/CaptionPreview.svelte";
   import FontManager from "$lib/FontManager.svelte";
+  import ImageManager from "$lib/ImageManager.svelte";
   import LogDrawer from "$lib/LogDrawer.svelte";
   import PathPicker from "$lib/PathPicker.svelte";
   import ShortEditor from "$lib/ShortEditor.svelte";
@@ -316,6 +317,20 @@
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean),
+      audio_enhance: Boolean(config.audio_enhance),
+      audio_highpass_hz: Number(config.audio_highpass_hz),
+      audio_denoise: Boolean(config.audio_denoise),
+      audio_denoise_db: Number(config.audio_denoise_db),
+      audio_noise_floor_db: Number(config.audio_noise_floor_db),
+      audio_loudnorm: Boolean(config.audio_loudnorm),
+      audio_target_lufs: Number(config.audio_target_lufs),
+      audio_true_peak_db: Number(config.audio_true_peak_db),
+      overlay_enabled: Boolean(config.overlay_enabled),
+      overlay_asset: String(config.overlay_asset || ""),
+      overlay_position: String(config.overlay_position || "bottom_right"),
+      overlay_margin_px: Number(config.overlay_margin_px),
+      overlay_width_ratio: Number(config.overlay_width_ratio),
+      overlay_opacity: Number(config.overlay_opacity),
       caption_font_family: String(config.caption_font_family),
       caption_font_size: Number(config.caption_font_size),
       caption_font_weight: String(config.caption_font_weight),
@@ -1215,6 +1230,12 @@
               <div class="px-4 pb-4">
                 <div class="mb-3">
                   <FontManager onSelect={(family) => (config.caption_font_family = family)} />
+                </div>
+                <div class="mb-3">
+                  <ImageManager
+                    selected={String(config.overlay_asset || "")}
+                    onSelect={(name) => (config.overlay_asset = name)}
+                  />
                 </div>
                 <div class="mb-3 rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
                   <div class="flex flex-wrap items-center justify-between gap-2">

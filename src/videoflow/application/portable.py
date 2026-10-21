@@ -159,6 +159,12 @@ def run_portable(
     module_enabled: ModuleEnabled | None = None,
     allow_external_services: bool = False,
     allowed_external_hosts: Sequence[str] = (),
+    audio_filters: Sequence[str] = (),
+    overlay_path: Path | None = None,
+    overlay_position: str = "bottom_right",
+    overlay_margin: int = 32,
+    overlay_width_ratio: float = 0.18,
+    overlay_opacity: float = 0.9,
 ) -> PortableRun:
     """Run the complete portable pipeline for one source file."""
 
@@ -567,6 +573,12 @@ def run_portable(
                     width=width,
                     height=height,
                     fontsdir=str(fonts_dir()),
+                    audio_filters=audio_filters,
+                    overlay_path=overlay_path,
+                    overlay_position=overlay_position,
+                    overlay_margin=overlay_margin,
+                    overlay_width_ratio=overlay_width_ratio,
+                    overlay_opacity=overlay_opacity,
                 )
                 entry = clip.to_dict(media.audio_sample_rate)
                 entry["aspect_ratio"] = short_cfg.aspect_ratio

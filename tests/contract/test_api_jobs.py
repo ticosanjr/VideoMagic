@@ -224,6 +224,14 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
             "caption_censor_enabled": True,
             "caption_censor_words": ["merda"],
             "caption_censor_replacement": "***",
+            "audio_enhance": True,
+            "audio_highpass_hz": 120,
+            "audio_denoise_db": 18,
+            "audio_target_lufs": -14.0,
+            "overlay_enabled": True,
+            "overlay_asset": "logo.png",
+            "overlay_position": "top_left",
+            "overlay_width_ratio": 0.2,
             "caption_keyword_highlight_enabled": True,
             "caption_keyword_words": ["pricing"],
             "caption_emoji_enabled": True,
@@ -254,6 +262,14 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
     assert options["caption_keyword_words"] == ["pricing"]
     assert options["caption_emoji_map"] == {"money": "💰"}
     assert options["caption_brand_vocabulary"] == {"video flow": "VideoFlow"}
+    assert options["audio_enhance"] is True
+    assert options["audio_highpass_hz"] == 120
+    assert options["audio_denoise_db"] == 18
+    assert options["audio_target_lufs"] == -14.0
+    assert options["overlay_enabled"] is True
+    assert options["overlay_asset"] == "logo.png"
+    assert options["overlay_position"] == "top_left"
+    assert options["overlay_width_ratio"] == 0.2
     assert options["shorts_source_start_sec"] == 5
     assert options["shorts_source_end_sec"] == 50
     assert options["allow_external_services"] is True

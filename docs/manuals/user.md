@@ -188,6 +188,10 @@ vertical-only output.
   generate title, description, hashtags, and character limits.
 - **Thumbnail**: choose a frame time in the Metadata tab and generate a PNG with
   the caption-style title overlay.
+- **Audio enhancement**: optional high-pass, FFT denoise, and loudness
+  normalization for rendered Shorts. NLE exports keep the source audio.
+- **Watermark**: upload a PNG/JPEG, choose position/margin/size/opacity, and
+  enable the overlay for rendered Shorts.
 - **Duration** is checked after retake culling. The Shorts tab also has
   `0–1`, `1–3`, `3–5`, and `5–10` minute presets.
 - **Aspect ratio** is `9:16`, `1:1`, or `16:9`. ASS and FFmpeg use the same

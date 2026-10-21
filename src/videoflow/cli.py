@@ -14,6 +14,7 @@ from pathlib import Path
 
 from videoflow import __version__
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application.audio import audio_filters
 from videoflow.application.fonts import fonts_dir
 from videoflow.application.portable import run_portable
 from videoflow.application.retakes import cull_intervals
@@ -27,6 +28,7 @@ from videoflow.application.shorts import (
     slugify,
 )
 from videoflow.domain.config import (
+    AudioEnhanceConfig,
     CaptionStyle,
     JlCutsConfig,
     ShortsConfig,
@@ -247,6 +249,7 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--caption-censor", action="store_true")
     run.add_argument("--caption-censor-word", action="append", default=[])
     run.add_argument("--caption-censor-replacement", default="***")
+    run.add_argument("--audio-enhance", action="store_true")
     run.add_argument(
         "--no-shorts-subtitles",
         action="store_true",
@@ -306,6 +309,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     shorts.add_argument("--remove-fillers", action="store_true")
     shorts.add_argument("--filler-word", action="append", default=[])
+    shorts.add_argument("--audio-enhance", action="store_true")
     shorts.add_argument("--no-subtitles", action="store_true")
     shorts.add_argument("--cull-retakes", action="store_true")
     shorts.add_argument("--llm-base-url", default=os.environ.get("VIDEOWFLOW_LLM_BASE_URL"))
@@ -506,6 +510,9 @@ def _run(args: argparse.Namespace) -> int:
         shorts_max_sec=args.shorts_max_sec,
         shorts_subtitles=not args.no_shorts_subtitles,
         shorts_config=shorts_config,
+        audio_filters=tuple(
+            audio_filters(AudioEnhanceConfig(enabled=args.audio_enhance))
+        ),
     )
     print(json.dumps(result.to_dict(), indent=2))
     return 0
@@ -653,6 +660,9 @@ def _shorts(args: argparse.Namespace) -> int:
             width=width,
             height=height,
             fontsdir=str(fonts_dir()),
+            audio_filters=tuple(
+                audio_filters(AudioEnhanceConfig(enabled=args.audio_enhance))
+            ),
         )
         entry = clip.to_dict(media.audio_sample_rate)
         entry["aspect_ratio"] = args.aspect

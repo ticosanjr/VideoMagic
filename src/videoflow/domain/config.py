@@ -195,8 +195,32 @@ class ProvidersConfig(StrictModel):
     allowed_hosts: list[str] = Field(default_factory=list)
 
 
+class OverlayConfig(StrictModel):
+    enabled: bool = False
+    asset: str = ""
+    position: Literal["top_left", "top_right", "bottom_left", "bottom_right", "center"] = (
+        "bottom_right"
+    )
+    margin_px: int = Field(default=32, ge=0, le=400)
+    width_ratio: float = Field(default=0.18, ge=0.03, le=1.0)
+    opacity: float = Field(default=0.9, ge=0.0, le=1.0)
+
+
+class AudioEnhanceConfig(StrictModel):
+    enabled: bool = False
+    highpass_hz: int = Field(default=80, ge=20, le=500)
+    denoise: bool = True
+    denoise_db: int = Field(default=12, ge=1, le=30)
+    noise_floor_db: int = Field(default=-30, ge=-80, le=-5)
+    loudnorm: bool = True
+    target_lufs: float = Field(default=-16.0, ge=-30.0, le=-8.0)
+    true_peak_db: float = Field(default=-1.5, ge=-9.0, le=0.0)
+
+
 class ModulesConfig(StrictModel):
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
+    audio: AudioEnhanceConfig = Field(default_factory=AudioEnhanceConfig)
+    overlay: OverlayConfig = Field(default_factory=OverlayConfig)
     ingest: IngestConfig = Field(default_factory=IngestConfig)
     vad: VadConfig = Field(default_factory=VadConfig)
     transcribe: TranscribeConfig = Field(default_factory=TranscribeConfig)
