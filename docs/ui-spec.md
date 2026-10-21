@@ -2,7 +2,7 @@
 
 Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript. English strings only.
 
-0.21.1 keeps the full telemetry rack from 0.13 and adds detailed configuration
+0.21.2 keeps the full telemetry rack from 0.13 and adds detailed configuration
 for zoom bounds, audio fades, Shorts count/selection, and caption/karaoke style.
 The setup card shows source metadata, an output suggestion, starting-point
 cards, an explicit “Also render vertical shorts” control, inline validation, and
@@ -28,7 +28,7 @@ persisted presets, and word-level inspector controls.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ VideoFlow      0.21.1   FFmpeg ready          [Global log]   │
+│ VideoFlow      0.21.2   FFmpeg ready          [Global log]   │
 ├──────────────────────────────────────────────────────────────┤
 │ New project                                      [Run]       │
 │  01 Source video        [Choose / Change]                    │
@@ -93,8 +93,9 @@ The picker is a modal dialog with:
 - Escape to close, focus trapping, and visible focus states.
 
 Short-form controls are one continuous form: zoom bounds, fade timings, Shorts
-target/minimum/selection, and caption font/colors/box/shadow/position. A live
-caption preview and per-Short editor are planned with the render preview pass.
+target/minimum/selection, and caption font/colors/box/shadow/position. A live 9:16 caption preview shows the
+configured font, colors, outline, shadow, box, alignment, and position. A
+per-Short editor is still planned.
 
 The picker never offers a parent above the allowlisted root. If a symlink points
 outside the roots it is omitted. Network shares and unlisted disks require an

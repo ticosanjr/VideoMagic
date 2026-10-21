@@ -4,9 +4,10 @@
 
 The deterministic builder is implemented in
 `application/timeline_builder.py`: frame-quantised video, sample-aligned audio,
-J/L boundary shifts with handle checks, and fade lengths in state. xmeml and
-Kdenlive now emit audio fade transitions. FCPXML/Resolve fade elements are still
-pending; AC-01 remains xfail for the Resolve side.
+J/L boundary shifts with handle checks, and fade lengths in state. xmeml,
+Kdenlive, and FCPXML/Resolve now emit audio fades (transition items, keyframed
+volume filters, and `adjust-volume` ramps respectively). AC-01 remains xfail
+until the three NLE imports are validated by hand.
 
 ## Purpose
 

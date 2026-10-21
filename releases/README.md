@@ -39,6 +39,8 @@ videoflow-0.9.0-windows-x86_64.exe
 
 ## Current
 
+- `v0.21.2`: FCPXML/Resolve audio fade keyframes, DTD-valid sequence audio
+  rates, and a live 9:16 caption preview in the Shorts card.
 - `v0.21.1`: Premiere xmeml audio `transitionitem` fades and Kdenlive keyframed
   `volume` fades. Linux binary, AppImage, and Windows PE built and smoke-tested.
 - `v0.21.0`: configurable zoom bounds, audio fades, Shorts target/minimum and

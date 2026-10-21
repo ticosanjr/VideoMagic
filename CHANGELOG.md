@@ -3,6 +3,35 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.21.2] — 2026-10-21
+
+### Added
+
+- The Shorts card now includes a live 9:16 caption preview. It follows the
+  configured font, size, weight, italic/uppercase, primary and karaoke colors,
+  outline, shadow, box, alignment, position, and animation.
+
+### Fixed
+
+- FCPXML/Resolve now emits audio fade edges as keyframed `adjust-volume` ramps
+  on each `asset-clip`. The ramp uses the clip-relative `keyframeAnimation`
+  form required by the FCPXML 1.9 DTD.
+- FCPXML sequences declare the enumerated `audioRate` label (`48k`, `44.1k`, ...)
+  instead of raw hertz. A generated timeline now validates against the FCPXML
+  1.9 DTD.
+- All three NLE artifacts now carry audio fades: xmeml transition items,
+  Kdenlive volume filters, and FCPXML volume keyframes.
+
+### Verified
+
+- Tests: 315 passed, 11 xfailed, 7 deselected; coverage 99.00%; ruff and mypy
+  clean.
+- UI: `svelte-check` reports 0 errors and 0 warnings; the production build
+  succeeds with 13 Vitest tests.
+- Linux and Windows binaries produced six xmeml fade items, a Kdenlive volume
+  ramp, and FCPXML that validates against the official 1.9 DTD. Sizes and
+  SHA-256 values are in `releases/v0.21.2/` and its `manifest.json`.
+
 ## [0.21.1] — 2026-10-21
 
 ### Fixed

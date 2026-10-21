@@ -45,7 +45,8 @@ FCPXML represents this with `audioStart` and `audioDuration` on the composite
 `asset-clip`, which is Apple's documented mechanism for J/L-cuts. xmeml and MLT
 represent it with separate video and audio clips. xmeml emits single-sided
 audio `transitionitem` fades; Kdenlive emits keyframed `volume` filters.
-FCPXML fade elements are still pending.
+FCPXML emits keyframed ``adjust-volume`` fades on the composite
+``asset-clip``.
 
 ## 3. Resolve — FCPXML
 
@@ -67,7 +68,7 @@ Version 1.9 by default; 1.10 is opt-in.
   </resources>
   <library><event name="VideoFlow"><project name="VideoFlow">
     <sequence format="r1" duration="3s" tcStart="0s" tcFormat="NDF"
-              audioLayout="mono" audioRate="48000">
+              audioLayout="mono" audioRate="48k">
       <spine>
         <asset-clip ref="a1" name="c1" offset="0s" start="0s"
                     duration="1s" audioStart="0s" audioDuration="49/50s"
@@ -94,12 +95,15 @@ Mapping:
 | Punch-in | `<adjust-transform scale="1.15 1.15" position="0 180"/>` |
 | Pan | `<adjust-transform position="..."/>` |
 | Progressive zoom | stored as metadata; keyframes are not emitted yet |
-| Fade | stored in state; NLE transitions are not emitted yet |
+| Fade | keyframed `adjust-volume` ramp inside the `asset-clip` |
 | Markers | not emitted yet |
 
 Dialect notes:
 
-- `tcFormat` is `DF` only for drop-frame NTSC rates.
+- `tcFormat` is `DF` only for drop-frame NTSC rates. The sequence `audioRate`
+  uses FCPXML's enumerated labels (`48k`, `44.1k`, ...), not raw hertz.
+- Fade ramps use the DTD form `param > keyframeAnimation > keyframe`, with
+  clip-relative times and `-60dB` at the silent edge.
 - 1.9 is the default because current Resolve imports it reliably. 1.10 is
   available for newer targets.
 - The compatibility spike still gates the final dialect: import a straight cut, a
@@ -170,8 +174,8 @@ Rules:
 - Both sides of an A/V link carry two `<link>` elements with the same
   `groupindex`.
 - Basic Motion carries the punch-in scale as a percentage.
-- Audio transitions are not emitted yet. The model records fade samples for the
-  next pass.
+- Audio transitions are single-sided `transitionitem` fades around each audio
+  clip edge, using the Cross Fade (0 dB) transition ID.
 
 ## 5. Kdenlive — native MLT XML
 
@@ -186,7 +190,8 @@ format instead of asking Kdenlive to import OTIO.
 - `kdenlive:clipname`, `kdenlive:sequenceproperties.trackCount`, and the
   document properties are written so Kdenlive opens the project as a normal
   sequence rather than a loose MLT graph.
-- Punch-in transforms and audio fades are not emitted yet.
+- Audio fades are keyframed `volume` filters. Punch-in transforms are not
+  emitted yet.
 
 The target key in the API remains `kdenlive`; the artifact is
 `timeline.kdenlive`. The historical `write_otio` config field now controls this

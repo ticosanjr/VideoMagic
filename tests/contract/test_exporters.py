@@ -55,12 +55,19 @@ def test_fcpxml_export_uses_audio_offset_and_transform(tmp_path: Path) -> None:
     sequence = root.find(".//sequence")
     assert sequence is not None
     assert sequence.attrib["audioLayout"] == "mono"
+    assert sequence.attrib["audioRate"] == "48k"
     clips = root.findall(".//spine/asset-clip")
     assert len(clips) == 2
     first, second = clips
     assert first.attrib["start"] != second.attrib["audioStart"]
     assert first.attrib["srcEnable"] == "all"
     assert "adjust-transform" in [child.tag for child in second]
+    fade = first.find("adjust-volume")
+    assert fade is not None
+    keyframes = fade.findall("./param[@name='amount']/keyframeAnimation/keyframe")
+    assert len(keyframes) == 4
+    assert keyframes[0].attrib == {"time": "0s", "value": "-60dB", "interp": "linear"}
+    assert keyframes[-1].attrib["value"] == "-60dB"
 
 
 def test_fcpxml_supports_the_newer_dialect(tmp_path: Path) -> None:
@@ -202,9 +209,11 @@ def test_export_rejects_unpacked_video(tmp_path: Path) -> None:
         export_otio(state, tmp_path / "out.otio")
 
 
-@pytest.mark.xfail(reason="AC-01: NLE transitions land with the compatibility spike", strict=True)
+@pytest.mark.xfail(reason="AC-01: manual NLE import validation is still pending", strict=True)
 def test_every_join_contains_a_fade(tmp_path: Path) -> None:
-    raise AssertionError("audio transitions are not emitted yet")
+    raise AssertionError(
+        "import validation in Resolve, Premiere, and Kdenlive is still pending"
+    )
 
 
 @pytest.mark.xfail(reason="Direct render lands with the shorts pass", strict=True)

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import CaptionPreview from "$lib/CaptionPreview.svelte";
   import LogDrawer from "$lib/LogDrawer.svelte";
   import PathPicker from "$lib/PathPicker.svelte";
   import StatusIcon from "$lib/StatusIcon.svelte";
@@ -1072,6 +1073,11 @@
                 </div>
               {/each}
             </div>
+            {#if module.id === "shorts"}
+              <div class="px-4 pb-4">
+                <CaptionPreview {config} />
+              </div>
+            {/if}
             {#if module.note}
               <p class="px-4 pb-4 text-[11px] leading-5 text-neutral-500">{module.note}</p>
             {/if}

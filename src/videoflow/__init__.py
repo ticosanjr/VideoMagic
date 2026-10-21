@@ -6,4 +6,4 @@ deterministic timeline construction, three NLE exporters, jobs, the live API,
 the rack UI, Silero VAD, and the MCP surface.
 """
 
-__version__ = "0.21.1"
+__version__ = "0.21.2"
