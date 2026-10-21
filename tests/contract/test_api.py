@@ -26,3 +26,35 @@ def test_capabilities_expose_external_policy() -> None:
     assert payload["external_services_allowed"] is True
     ids = {item["id"] for item in payload["capabilities"]}
     assert {"shorts_aspects", "shorts_timeframe", "external_llm"} <= ids
+
+
+class FakeServer:
+    def __init__(self) -> None:
+        self.should_exit = False
+
+
+def test_service_restart_and_shutdown_are_available_to_the_desktop_server() -> None:
+    app = create_app()
+    server = FakeServer()
+    app.state.uvicorn_server = server
+    app.state.restart_requested = False
+    client = TestClient(app)
+
+    response = client.post("/api/v1/system/restart")
+    assert response.status_code == 200
+    assert response.json()["action"] == "restart"
+    assert server.should_exit is True
+    assert app.state.restart_requested is True
+
+    server.should_exit = False
+    response = client.post("/api/v1/system/shutdown")
+    assert response.status_code == 200
+    assert response.json()["action"] == "shutdown"
+    assert server.should_exit is True
+    assert app.state.restart_requested is False
+
+
+def test_service_controls_are_rejected_without_a_managed_server() -> None:
+    response = TestClient(create_app()).post("/api/v1/system/restart")
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "service_control_unavailable"

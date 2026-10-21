@@ -7,6 +7,7 @@ Environment overrides exist for both.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import shutil
 import sys
@@ -78,7 +79,13 @@ def allowed_roots() -> list[Path]:
     roots = [Path(item).expanduser() for item in raw.split(os.pathsep) if item]
     if roots:
         return roots
-    return [Path.home(), Path.cwd(), portable_home()]
+    candidates = [Path.home()]
+    with contextlib.suppress(OSError):
+        # A launcher can start the frozen binary from a directory that has
+        # already been removed. The home and data roots remain usable.
+        candidates.append(Path.cwd())
+    candidates.append(portable_home())
+    return candidates
 
 
 def find_whisper_binary() -> str | None:

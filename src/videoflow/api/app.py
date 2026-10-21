@@ -64,6 +64,8 @@ def create_app(
         lifespan=lifespan,
     )
     _install_common(app)
+    app.state.jobs = manager
+    app.state.projects = store
 
     if start_publisher:
         @app.on_event("startup")
@@ -110,12 +112,19 @@ def create_app(
     return app
 
 
-def create_http_app(ui: Path | None = None) -> FastAPI:
+def create_http_app(
+    ui: Path | None = None,
+    *,
+    jobs: JobManager | None = None,
+    projects: ProjectStore | None = None,
+) -> FastAPI:
     """Loopback app with API routes, MCP HTTP, and an optional static rack UI."""
 
     return create_app(
         with_mcp=True,
         ui=ui if ui is not None else ui_dir(),
+        jobs=jobs,
+        projects=projects,
         start_publisher=True,
     )
 

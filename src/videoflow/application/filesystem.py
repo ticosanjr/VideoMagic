@@ -85,7 +85,14 @@ def list_directory(
                     continue
                 if needle and needle not in entry.name.casefold():
                     continue
-                payload = _entry_payload(Path(entry.path), normalised_roots, mode, suffixes)
+                try:
+                    payload = _entry_payload(
+                        Path(entry.path), normalised_roots, mode, suffixes
+                    )
+                except (OSError, ValueError, OverflowError):
+                    # A damaged or out-of-range timestamp must not turn one
+                    # entry into a 500 for the whole folder.
+                    continue
                 if payload is not None:
                     entries.append(payload)
     except PermissionError as exc:
@@ -205,7 +212,7 @@ def _entry_payload(
     try:
         resolved = resolve_allowed(path, roots)
         stat = resolved.stat()
-    except (PathJailError, OSError):
+    except (PathJailError, OSError, ValueError, OverflowError):
         return None
     is_directory = resolved.is_dir()
     is_file = resolved.is_file()
@@ -267,11 +274,14 @@ def _breadcrumbs(path: Path, roots: Sequence[Path]) -> list[dict[str, str]]:
 
 def _root_label(root: Path) -> str:
     home = Path.home().resolve(strict=False)
-    cwd = Path.cwd().resolve(strict=False)
+    try:
+        cwd = Path.cwd().resolve(strict=False)
+    except OSError:
+        cwd = None
     portable = portable_home().resolve(strict=False)
     if root == home:
         return "Home"
-    if root == cwd:
+    if cwd is not None and root == cwd:
         return "Current folder"
     if root == portable:
         return "VideoFlow data"
@@ -286,4 +296,7 @@ def _writable(path: Path) -> bool:
 
 
 def _modified_at(timestamp: float) -> str:
-    return datetime.fromtimestamp(timestamp, tz=UTC).isoformat()
+    try:
+        return datetime.fromtimestamp(timestamp, tz=UTC).isoformat()
+    except (OSError, OverflowError, ValueError):
+        return datetime(1970, 1, 1, tzinfo=UTC).isoformat()

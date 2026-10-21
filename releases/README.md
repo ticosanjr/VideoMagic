@@ -47,6 +47,8 @@ videoflow-0.21.2-windows-x86_64.exe
 
 ## Current
 
+- `v0.22.1`: file-browser 500 fix, persistent service lifecycle, Restart/Stop
+  controls, `status`/`stop`/`restart` commands, and single-instance reopen.
 - `v0.22.0`: LLM vision Studio, LLM emoji captions, on-demand model downloads,
   lean builds without weight files, 30 language codes, and 1080/1440/2160
   short-edge renders. Linux binary and AppImage uploaded as GitHub assets.

@@ -3,6 +3,21 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.22.1] - 2026-10-21
+
+### Fixed
+
+- The local file browser no longer turns a damaged or out-of-range file
+  timestamp, unreadable entry, or deleted current directory into an HTTP 500.
+  Failed entries are skipped and the picker offers "Open Home folder".
+- Service lifecycle: `serve` keeps the executable running, writes
+  `server.pid`, detects an already-running instance, and can be managed with
+  `videoflow status`, `videoflow stop`, and `videoflow restart`.
+- The rack header now has **Restart service** and **Stop service** buttons.
+  Restart reuses the in-memory job manager and recreates the MCP session.
+- The AppImage starts in the user's home directory and prints explicit
+  instructions for keeping the service running or stopping it.
+
 ## [0.22.0] - 2026-10-21
 
 ### Added

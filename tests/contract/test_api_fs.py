@@ -214,3 +214,10 @@ def test_probe_media_returns_metadata_and_rejects_outside_paths(
     response = client.get("/api/v1/media/probe", params={"path": str(tmp_path / "missing.mp4")})
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "media_not_found"
+
+
+def test_modified_at_survives_out_of_range_timestamps() -> None:
+    from videoflow.application.filesystem import _modified_at
+
+    assert _modified_at(float("inf")) == "1970-01-01T00:00:00+00:00"
+    assert _modified_at(0) == "1970-01-01T00:00:00+00:00"

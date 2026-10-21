@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import platform
+import signal
 import subprocess
 import sys
+import time
 from collections.abc import Sequence
 from fractions import Fraction
 from pathlib import Path
@@ -68,6 +71,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _shorts(args)
         if args.command == "serve":
             return _serve(args)
+        if args.command == "stop":
+            return _stop(args)
+        if args.command == "restart":
+            return _restart(args)
+        if args.command == "status":
+            return _status()
         if args.command == "mcp":
             return _mcp()
     except VideoFlowError as exc:
@@ -342,6 +351,12 @@ def _parser() -> argparse.ArgumentParser:
         help="Open the rack UI in the default browser after startup.",
     )
 
+    stop = sub.add_parser("stop", help="Stop the local VideoFlow service.")
+    stop.add_argument("--timeout", type=float, default=5.0)
+    restart = sub.add_parser("restart", help="Restart the local service and keep it running.")
+    restart.add_argument("--host", default="127.0.0.1")
+    restart.add_argument("--port", type=int, default=8765)
+    sub.add_parser("status", help="Show whether the local service is running.")
     sub.add_parser("mcp", help="Run the MCP server over stdio.")
     return parser
 
@@ -731,16 +746,167 @@ def _shorts(args: argparse.Namespace) -> int:
 def _serve(args: argparse.Namespace) -> int:
     import uvicorn
 
+    from videoflow.api.app import create_http_app
+
     os.environ.setdefault("VIDEOWFLOW_HOME", str(ensure_home()))
-    if args.open:
-        _schedule_browser(_ui_url(args.host, args.port))
-    uvicorn.run(
-        "videoflow.api.app:create_http_app",
-        factory=True,
-        host=args.host,
-        port=args.port,
+    url = _running_service(args.host, args.port)
+    if url is not None:
+        print(f"VideoFlow is already running at {url}")
+        if args.open:
+            import webbrowser
+
+            webbrowser.open(url)
+        return 0
+
+    print(
+        f"VideoFlow {__version__} starting at {_ui_url(args.host, args.port)} "
+        "(the portable build can take a few seconds to unpack).",
+        flush=True,
+    )
+    app = create_http_app()
+    pid_path = _pid_file()
+    _write_pid(pid_path, args.host, args.port)
+    opened = False
+    try:
+        while True:
+            config = uvicorn.Config(app, host=args.host, port=args.port, log_level="info")
+            server = uvicorn.Server(config)
+            app.state.uvicorn_server = server
+            app.state.restart_requested = False
+            if args.open and not opened:
+                opened = True
+                _schedule_browser(_ui_url(args.host, args.port))
+            server.run()
+            if not bool(getattr(app.state, "restart_requested", False)):
+                break
+            print("VideoFlow service restarting...")
+            app = create_http_app(
+                jobs=app.state.jobs,
+                projects=app.state.projects,
+            )
+    finally:
+        _remove_pid(pid_path)
+    return 0
+
+
+def _pid_file() -> Path:
+    return portable_home() / "server.pid"
+
+
+def _write_pid(path: Path, host: str, port: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "pid": os.getpid(),
+                "host": host,
+                "port": port,
+                "url": _ui_url(host, port),
+                "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _read_pid(path: Path) -> dict[str, object]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if isinstance(payload, int):
+        return {"pid": payload}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _remove_pid(path: Path) -> None:
+    with contextlib.suppress(OSError):
+        path.unlink()
+
+
+def _process_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _stop(args: argparse.Namespace) -> int:
+    path = _pid_file()
+    payload = _read_pid(path)
+    try:
+        pid = int(payload.get("pid", 0))
+    except (TypeError, ValueError):
+        pid = 0
+    if pid <= 0:
+        print("VideoFlow service is not running (no PID file).")
+        return 0
+    if not _process_alive(pid):
+        _remove_pid(path)
+        print("VideoFlow service is not running (stale PID file removed).")
+        return 0
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except OSError as exc:
+        print(f"Could not stop VideoFlow (PID {pid}): {exc}", file=sys.stderr)
+        return 1
+    deadline = time.monotonic() + max(0.0, float(args.timeout))
+    while time.monotonic() < deadline and _process_alive(pid):
+        time.sleep(0.1)
+    if _process_alive(pid):
+        print(f"VideoFlow did not stop within {args.timeout:.1f}s (PID {pid}).", file=sys.stderr)
+        return 1
+    _remove_pid(path)
+    print(f"VideoFlow service stopped (PID {pid}).")
+    return 0
+
+
+def _restart(args: argparse.Namespace) -> int:
+    _stop(argparse.Namespace(timeout=5.0))
+    time.sleep(0.4)
+    return _serve(argparse.Namespace(host=args.host, port=args.port, open=True))
+
+
+def _status() -> int:
+    path = _pid_file()
+    payload = _read_pid(path)
+    try:
+        pid = int(payload.get("pid", 0))
+    except (TypeError, ValueError):
+        pid = 0
+    running = pid > 0 and _process_alive(pid)
+    print(
+        json.dumps(
+            {
+                "running": running,
+                "pid": pid or None,
+                "url": payload.get("url")
+                or _ui_url(str(payload.get("host", "127.0.0.1")), int(payload.get("port", 8765))),
+            },
+            indent=2,
+        )
     )
     return 0
+
+
+def _running_service(host: str, port: int) -> str | None:
+    import urllib.error
+    import urllib.request
+
+    url = _ui_url(host, port)
+    try:
+        with urllib.request.urlopen(f"{url}health", timeout=0.6) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (OSError, ValueError, urllib.error.URLError):
+        return None
+    if isinstance(payload, dict) and payload.get("service") == "videoflow":
+        return url
+    return None
 
 
 def _ui_url(host: str, port: int) -> str:
@@ -750,9 +916,24 @@ def _ui_url(host: str, port: int) -> str:
 
 def _schedule_browser(url: str) -> None:
     import threading
+    import time as _time
+    import urllib.error
+    import urllib.request
     import webbrowser
 
-    threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+    def open_when_ready() -> None:
+        deadline = _time.monotonic() + 30.0
+        while _time.monotonic() < deadline:
+            try:
+                with urllib.request.urlopen(f"{url}health", timeout=0.8) as response:
+                    if response.status == 200:
+                        webbrowser.open(url)
+                        return
+            except (OSError, urllib.error.URLError):
+                _time.sleep(0.5)
+        webbrowser.open(url)
+
+    threading.Thread(target=open_when_ready, daemon=True).start()
 
 
 def _mcp() -> int:

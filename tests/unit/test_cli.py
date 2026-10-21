@@ -271,3 +271,17 @@ def test_run_passes_short_and_detailed_config_options(monkeypatch, tmp_path, cap
     assert isinstance(seen["zooms"], ZoomsConfig)
     assert seen["zooms"].min_scale == 1.1
     assert seen["zooms"].max_scale == 1.9
+
+
+def test_status_without_a_pid_file(monkeypatch, tmp_path, capsys) -> None:
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
+    assert cli.main(["status"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["running"] is False
+    assert payload["pid"] is None
+
+
+def test_stop_without_a_pid_file(monkeypatch, tmp_path, capsys) -> None:
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
+    assert cli.main(["stop"]) == 0
+    assert "not running" in capsys.readouterr().out

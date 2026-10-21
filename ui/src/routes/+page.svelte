@@ -21,6 +21,8 @@
     getJobState,
     getSystem,
     importMedia,
+    restartService,
+    stopService,
     listJobs,
     probeMedia,
     type Job,
@@ -82,6 +84,9 @@
   let activeTab = $state<ModuleTab>("speech");
   let shortEditor = $state<{ index: number; short: ShortClip } | null>(null);
   let probeToken = 0;
+  let serviceBusy = $state<"" | "restart" | "stop">("");
+  let serviceStopped = $state(false);
+  let serviceError = $state("");
 
   const visibleModules = $derived(modules.filter((module) => module.tab === activeTab));
 
@@ -122,6 +127,49 @@
 
   function openPicker(kind: PickerKind) {
     pickerKind = kind;
+  }
+
+  async function restartLocalService() {
+    if (serviceBusy) return;
+    serviceBusy = "restart";
+    serviceError = "";
+    try {
+      await restartService();
+      await new Promise((resolve) => setTimeout(resolve, 1600));
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        try {
+          const response = await fetch("/health", { cache: "no-store" });
+          if (response.ok) {
+            window.location.reload();
+            return;
+          }
+        } catch {
+          // The server is between processes; keep polling.
+        }
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+      serviceError = "The service did not answer after restarting. Reopen VideoFlow.";
+    } catch (reason) {
+      serviceError = errorMessage(reason);
+    } finally {
+      serviceBusy = "";
+    }
+  }
+
+  async function stopLocalService() {
+    if (serviceBusy) return;
+    serviceBusy = "stop";
+    serviceError = "";
+    try {
+      await stopService();
+      serviceStopped = true;
+    } catch (reason) {
+      const message = errorMessage(reason);
+      serviceStopped = message.includes("fetch") || message.includes("Failed");
+      serviceError = serviceStopped ? "" : message;
+    } finally {
+      serviceBusy = "";
+    }
   }
 
   function notify(kind: "success" | "error", message: string) {
@@ -732,8 +780,44 @@
           Global log
           {#if job}<span class="ml-1 text-neutral-600">{job.log_count}</span>{/if}
         </button>
+        {#if serviceStopped}
+          <span class="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-[11px] text-amber-200">
+            Service stopped · close this tab
+          </span>
+        {:else}
+          <button
+            type="button"
+            onclick={() => void restartLocalService()}
+            disabled={Boolean(serviceBusy)}
+            class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300 disabled:opacity-40"
+          >
+            {serviceBusy === "restart" ? "Restarting…" : "Restart service"}
+          </button>
+          <button
+            type="button"
+            onclick={() => void stopLocalService()}
+            disabled={Boolean(serviceBusy)}
+            class="rounded-full border border-rose-500/20 bg-rose-500/[0.04] px-3 py-1 text-[11px] text-rose-300 transition hover:border-rose-400/40 hover:bg-rose-500/10 disabled:opacity-40"
+          >
+            {serviceBusy === "stop" ? "Stopping…" : "Stop service"}
+          </button>
+        {/if}
       </div>
     </header>
+
+    {#if serviceStopped}
+      <div class="rounded-2xl border border-amber-400/20 bg-amber-950/30 px-4 py-3 text-xs text-amber-200">
+        <p class="font-medium">The local service is stopped.</p>
+        <p class="mt-1 text-amber-200/70">
+          Close this tab. To start again, reopen VideoFlow or run
+          <span class="font-mono">videoflow restart</span> in a terminal.
+        </p>
+      </div>
+    {:else if serviceError}
+      <div class="rounded-2xl border border-rose-400/20 bg-rose-950/30 px-4 py-3 text-xs text-rose-200">
+        {serviceError}
+      </div>
+    {/if}
 
     {#if toast}
       <div

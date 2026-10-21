@@ -41,6 +41,7 @@
   let newFolder = $state("");
   let dialog = $state<HTMLDivElement | null>(null);
   let loadedKey = $state("");
+  let failedPath = $state("");
 
   const filtered = $derived(
     listing?.entries.filter((entry) => {
@@ -78,10 +79,15 @@
         limit: 500
       });
     } catch (reason) {
+      failedPath = path ?? "";
       error = errorMessage(reason);
     } finally {
       loading = false;
     }
+  }
+
+  async function openFirstAllowedFolder() {
+    await load(undefined);
   }
 
   async function toggleHidden() {
@@ -290,14 +296,24 @@
         {:else if error && !listing}
           <div class="m-2 rounded-xl border border-rose-500/20 bg-rose-950/30 p-4 text-sm text-rose-300">
             <p class="font-medium">Could not open this folder.</p>
+            {#if failedPath}<p class="mt-1 break-all font-mono text-[10px] text-rose-300/60">{failedPath}</p>{/if}
             <p class="mt-1 break-words text-xs opacity-80">{error}</p>
-            <button
-              type="button"
-              onclick={() => void load(initialPath || undefined)}
-              class="mt-3 rounded-lg border border-rose-400/30 px-3 py-1.5 text-xs transition hover:bg-rose-500/10"
-            >
-              Try again
-            </button>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onclick={() => void load(initialPath || undefined)}
+                class="rounded-lg border border-rose-400/30 px-3 py-1.5 text-xs transition hover:bg-rose-500/10"
+              >
+                Try again
+              </button>
+              <button
+                type="button"
+                onclick={() => void openFirstAllowedFolder()}
+                class="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-neutral-300 transition hover:bg-white/5"
+              >
+                Open Home folder
+              </button>
+            </div>
           </div>
         {:else if filtered.length === 0}
           <div class="flex min-h-48 flex-col items-center justify-center text-center">

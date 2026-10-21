@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 import time
@@ -107,6 +108,8 @@ from videoflow.domain.paths import resolve_allowed
 from videoflow.domain.state import ManualOverride, MediaInfo, ProjectState
 from videoflow.domain.transcript import format_srt
 from videoflow.runtime import allowed_roots, find_binary, portable_home
+
+logger = logging.getLogger(__name__)
 
 
 class OverrideRequest(BaseModel):
@@ -1591,6 +1594,18 @@ def register_routes(
             }
         except VideoFlowError as exc:
             fail(exc)
+        except (OSError, ValueError, OverflowError) as exc:
+            fail(FilesystemError(f"Could not list this folder: {exc}"))
+        except Exception as exc:  # pragma: no cover - defensive local UI boundary
+            logger.exception("unhandled filesystem listing error")
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "ok": False,
+                    "code": "filesystem_error",
+                    "message": f"Could not list this folder: {exc}",
+                },
+            ) from exc
 
     @app.post("/api/v1/fs/mkdir", status_code=201)
     def fs_mkdir(request: NewDirectoryRequest) -> dict[str, object]:
@@ -1635,6 +1650,38 @@ def register_routes(
         except VideoFlowError as exc:
             fail(exc)
         return {"ok": True, "path": str(path), "media": media.model_dump(mode="json")}
+
+    @app.post("/api/v1/system/restart")
+    def system_restart(request: Request) -> dict[str, object]:
+        server = getattr(request.app.state, "uvicorn_server", None)
+        if server is None:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "ok": False,
+                    "code": "service_control_unavailable",
+                    "message": "Service controls are only available in the desktop server.",
+                },
+            )
+        request.app.state.restart_requested = True
+        server.should_exit = True
+        return {"ok": True, "action": "restart"}
+
+    @app.post("/api/v1/system/shutdown")
+    def system_shutdown(request: Request) -> dict[str, object]:
+        server = getattr(request.app.state, "uvicorn_server", None)
+        if server is None:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "ok": False,
+                    "code": "service_control_unavailable",
+                    "message": "Service controls are only available in the desktop server.",
+                },
+            )
+        request.app.state.restart_requested = False
+        server.should_exit = True
+        return {"ok": True, "action": "shutdown"}
 
     @app.get("/api/v1/models")
     def models_list() -> dict[str, object]:

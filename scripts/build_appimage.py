@@ -78,8 +78,11 @@ def build_appdir(binary: Path, work: Path, *, icon: Path | None = None) -> Path:
     apprun.write_text(
         "#!/bin/sh\n"
         'HERE="$(dirname "$(readlink -f "$0")")"\n'
+        'cd "$HOME" 2>/dev/null || cd /\n'
         'if [ "$#" -eq 0 ]; then\n'
-        '  echo "VideoFlow: starting http://127.0.0.1:8765/ (Ctrl+C to stop)"\n'
+        '  echo "VideoFlow: opening http://127.0.0.1:8765/"\n'
+        '  echo "The service stays running in this terminal. Use Restart/Stop in the UI,"\n'
+        '  echo "or run: videoflow stop"\n'
         '  exec "$HERE/usr/bin/videoflow" serve --open\n'
         "fi\n"
         'exec "$HERE/usr/bin/videoflow" "$@"\n',

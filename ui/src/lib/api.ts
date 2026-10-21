@@ -590,6 +590,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return payload as T;
 }
 
+export async function restartService(): Promise<void> {
+  await request("/api/v1/system/restart", { method: "POST" });
+}
+
+export async function stopService(): Promise<void> {
+  await request("/api/v1/system/shutdown", { method: "POST" });
+}
+
 export async function listLocalModels(): Promise<LocalModel[]> {
   const response = await request<{ ok: boolean; models: LocalModel[] }>("/api/v1/models");
   return response.models;
