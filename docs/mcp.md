@@ -42,13 +42,14 @@ For HTTP:
 
 ## 2. Tools
 
-All twelve tools execute real work. `videoflow_load_media` remembers the source.
+All thirteen tools execute real work. `videoflow_load_media` remembers the source.
 Analysis tools work immediately. Edit tools stage configuration for the next
 `videoflow_run_pipeline`; the result says `applies_to_next_run` when a job is
 still required.
 
 | Tool | Inputs | Behavior |
 | --- | --- | --- |
+| `videoflow_list_capabilities` | `allow_external_services` | **live**: feature availability, provider policy, and blocked reasons |
 | `videoflow_load_media` | `file_path` | **live**: probes and remembers the source; loading a different source clears the old MCP project context |
 | `videoflow_run_vad` | `noise_db`, `min_silence_ms`, `min_speech_ms`, `vad_engine`, `speech_threshold`, `speech_pad_before_ms`, `speech_pad_after_ms` | **live**: Silero when available, FFmpeg fallback; returns sample intervals, removable silence, and the selected engine |
 | `videoflow_transcribe` | `model`, `language`, `engine`, `device`, `compute_type`, `vad_filter`, `model_path` | **live**: local Faster-Whisper or whisper.cpp; returns sentences and stages an SRT for the next run |
@@ -56,7 +57,7 @@ still required.
 | `videoflow_cull_retakes` | `discard_sentence_ids`, `manual_word_indices` | **live/staged**: automatic exact-repeat culling plus manual sentence discards; the guard protects the final take |
 | `videoflow_configure_zooms` | `mode`, `scale`, `anchor` | **live/staged**: punch-in, anchor, and pan metadata |
 | `videoflow_apply_jcuts` | `offset_ms`, `crossfade_ms` | **live/staged**: audio offset and logarithmic micro-fades |
-| `videoflow_generate_shorts` | `min_duration`, `max_duration`, `count`, `min_count`, `selection_mode`, `subtitles` | **live**: ranked vertical clip proposals in source time |
+| `videoflow_generate_shorts` | `min_duration`, `max_duration`, `count`, `min_count`, `selection_mode`, `subtitles`, `aspect_ratio`, `start_sec`, `end_sec`, `allow_external_services` | **live**: ranked social clip proposals in source time; aspect/window apply to the next run |
 | `videoflow_export_fcpxml` | `output_path`, `target_nle` | **live**: exports the latest completed timeline |
 | `videoflow_run_pipeline` | `preset_name`, `overrides`, optional `source`, optional `output` | **live**: starts a real job |
 | `videoflow_get_job` | `job_id` | **live**: status, progress, report |
@@ -80,7 +81,9 @@ Presets accepted by `run_pipeline`:
 `export_targets`, `dialect`, `transcript`, `cull_retakes`, `strictness`,
 `retake_strategy`, `context_window`, `llm_base_url`, `llm_model`, `shorts`,
 `shorts_count`, `shorts_min_count`, `shorts_min_sec`, `shorts_max_sec`,
-`shorts_subtitles`, `shorts_selection_mode`, `caption_*`, `zoom_min_scale`,
+`shorts_subtitles`, `shorts_selection_mode`, `shorts_aspect`, `shorts_source_start_sec`,
+`shorts_source_end_sec`, `allow_external_services`, `allowed_external_hosts`,
+`caption_*`, `zoom_min_scale`,
 `zoom_max_scale`, `fade_in_ms`, `fade_out_ms`, `fade_curve`,
 `overrides`, `transcribe`, `asr_base_url`, `asr_model`, `asr_language`,
 `whisper_engine`, `whisper_model_size`, `whisper_device`,
@@ -140,6 +143,7 @@ The complete path, using only public tools:
 11. videoflow_export_fcpxml(output_path="/projects/interview-edit/exports/copy.fcpxml",
                             target_nle="resolve")
 12. read videoflow://project/state and videoflow://project/exports
+13. call videoflow_list_capabilities before using an external provider
 ```
 
 `videoflow_transcribe` writes a cached SRT and stages it, so the next pipeline

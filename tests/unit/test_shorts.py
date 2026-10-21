@@ -192,3 +192,18 @@ def test_heuristic_selection_prefers_impactful_windows() -> None:
     )
     assert len(clips) >= 2
     assert any("mistake" in clip.title for clip in clips)
+
+
+def test_ass_play_resolution_follows_the_aspect() -> None:
+    ass = build_ass([(0, 1.0, "hello")], width=1080, height=1080)
+    assert "PlayResX: 1080" in ass
+    assert "PlayResY: 1080" in ass
+
+
+def test_short_dimensions_cover_supported_aspects() -> None:
+    from videoflow.application.shorts import short_dimensions
+
+    assert short_dimensions("9:16") == (1080, 1920)
+    assert short_dimensions("1:1") == (1080, 1080)
+    assert short_dimensions("16:9") == (1920, 1080)
+    assert short_dimensions("unknown") == (1080, 1920)

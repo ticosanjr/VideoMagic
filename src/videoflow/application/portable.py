@@ -24,6 +24,7 @@ from videoflow.adapters.asr import WhisperHttpAdapter
 from videoflow.adapters.faster_whisper import FasterWhisperAdapter
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.adapters.whisper import WhisperCliAdapter
+from videoflow.application.capabilities import ensure_external_allowed
 from videoflow.application.export_service import export_timeline
 from videoflow.application.retakes import (
     cull_intervals,
@@ -38,6 +39,7 @@ from videoflow.application.shorts import (
     caption_lines,
     select_shorts,
     sentence_events,
+    short_dimensions,
     slugify,
 )
 from videoflow.application.telemetry import JobTelemetry
@@ -153,10 +155,18 @@ def run_portable(
     revision: int = 1,
     modules_config: ModulesConfig | None = None,
     module_enabled: ModuleEnabled | None = None,
+    allow_external_services: bool = False,
+    allowed_external_hosts: Sequence[str] = (),
 ) -> PortableRun:
     """Run the complete portable pipeline for one source file."""
 
     started = time.perf_counter()
+    ensure_external_allowed(
+        asr_base_url,
+        capability="external_asr",
+        allow_external_services=allow_external_services,
+        allowed_hosts=allowed_external_hosts,
+    )
 
     def step(stage: str, percent: int, message: str) -> None:
         if progress is not None:
@@ -459,6 +469,22 @@ def run_portable(
         )
         cuts = cull_intervals(transcript, discard)
         kept = [item for item in transcript if item.id not in set(discard)]
+        range_start = timebase.seconds_to_samples(
+            Fraction(str(short_cfg.source_start_sec)), Rounding.NEAREST
+        )
+        range_end = (
+            timebase.seconds_to_samples(
+                Fraction(str(short_cfg.source_end_sec)), Rounding.NEAREST
+            )
+            if short_cfg.source_end_sec is not None
+            else duration_samples
+        )
+        kept = [
+            item
+            for item in kept
+            if item.start_sample >= range_start and item.end_sample <= range_end
+        ]
+        width, height = short_dimensions(short_cfg.aspect_ratio)
         gate()
         with stage("shorts", "shorts", "Shorts", "Selecting vertical clips") as meta:
             selected = select_shorts(
@@ -495,14 +521,30 @@ def run_portable(
                     )
                     if lines:
                         ass_path = shorts_dir / f"{slug}.ass"
-                        write_text(ass_path, build_ass_lines(lines, style=style))
+                        write_text(
+                            ass_path,
+                            build_ass_lines(
+                                lines,
+                                style=style,
+                                width=width,
+                                height=height,
+                            ),
+                        )
                     else:
                         events = sentence_events(
                             kept, clip.pieces, sample_rate=media.audio_sample_rate
                         )
                         if events:
                             ass_path = shorts_dir / f"{slug}.ass"
-                            write_text(ass_path, build_ass(events, style=style))
+                            write_text(
+                                ass_path,
+                                build_ass(
+                                    events,
+                                    style=style,
+                                    width=width,
+                                    height=height,
+                                ),
+                            )
                 destination = shorts_dir / f"{slug}.mp4"
                 engine.render_short(
                     source_path,
@@ -510,8 +552,13 @@ def run_portable(
                     destination,
                     sample_rate=media.audio_sample_rate,
                     ass_path=ass_path,
+                    width=width,
+                    height=height,
                 )
                 entry = clip.to_dict(media.audio_sample_rate)
+                entry["aspect_ratio"] = short_cfg.aspect_ratio
+                entry["width"] = width
+                entry["height"] = height
                 entry["path"] = str(destination)
                 if ass_path is not None:
                     entry["subtitles"] = str(ass_path)

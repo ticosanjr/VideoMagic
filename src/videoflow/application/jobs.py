@@ -18,6 +18,7 @@ from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from videoflow.adapters.llm import OpenAICompatibleLlm
+from videoflow.application.capabilities import ensure_external_allowed
 from videoflow.application.portable import run_portable
 from videoflow.application.telemetry import JobTelemetry
 from videoflow.domain.config import (
@@ -100,6 +101,13 @@ def _shorts_config(options: dict[str, object]) -> ShortsConfig:
         min_clips=minimum,
         max_clips_to_generate=count,
         selection_mode=str(options.get("shorts_selection_mode", "auto")),  # type: ignore[arg-type]
+        aspect_ratio=str(options.get("shorts_aspect", "9:16")),  # type: ignore[arg-type]
+        source_start_sec=float(options.get("shorts_source_start_sec", 0.0)),
+        source_end_sec=(
+            float(options["shorts_source_end_sec"])
+            if options.get("shorts_source_end_sec") is not None
+            else None
+        ),
         burn_subtitles=bool(options.get("shorts_subtitles", True)),
         caption_style=_caption_style(options),
     )
@@ -238,6 +246,10 @@ class JobManager:
         dialect: Dialect = options.get("dialect", "1.9")
         transcript = options.get("transcript")
         cull = bool(options.get("cull_retakes", False))
+        allow_external_services = bool(options.get("allow_external_services", False))
+        allowed_external_hosts = tuple(
+            str(item) for item in (options.get("allowed_external_hosts") or [])
+        )
         base_url = options.get("llm_base_url") or os.environ.get("VIDEOWFLOW_LLM_BASE_URL")
 
         telemetry = job.telemetry
@@ -260,6 +272,13 @@ class JobManager:
             if base_url and (cull or shorts) and (
                 transcript or transcript_sentences or bool(options.get("transcribe", False))
             ):
+                ensure_external_allowed(
+                    str(base_url),
+                    capability="external_llm",
+                    allow_external_services=allow_external_services,
+                allowed_external_hosts=allowed_external_hosts,
+                    allowed_hosts=allowed_external_hosts,
+                )
                 llm = OpenAICompatibleLlm(
                     base_url=str(base_url),
                     model=str(
@@ -303,6 +322,8 @@ class JobManager:
                 shorts_max_sec=int(options.get("shorts_max_sec", 60)),
                 shorts_subtitles=bool(options.get("shorts_subtitles", True)),
                 shorts_config=_shorts_config(options),
+                allow_external_services=allow_external_services,
+                allowed_external_hosts=allowed_external_hosts,
                 overrides=[
                     ManualOverride.model_validate(item)
                     for item in options.get("overrides", [])

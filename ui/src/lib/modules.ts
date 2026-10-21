@@ -11,6 +11,8 @@ export type Status =
 
 export type FieldType = "number" | "bool" | "select" | "text" | "color" | "targets" | "readonly";
 
+export type ModuleTab = "speech" | "edit" | "shorts" | "export" | "providers";
+
 export type ConfigKey =
   | "force_cfr"
   | "extract_pcm"
@@ -62,6 +64,11 @@ export type ConfigKey =
   | "shorts_max_sec"
   | "shorts_subtitles"
   | "shorts_selection_mode"
+  | "shorts_aspect"
+  | "shorts_source_start_sec"
+  | "shorts_source_end_sec"
+  | "allow_external_services"
+  | "allowed_external_hosts"
   | "caption_font_family"
   | "caption_font_size"
   | "caption_font_weight"
@@ -104,6 +111,7 @@ export interface ModuleField {
 export interface RackModule {
   index: string;
   id: string;
+  tab: ModuleTab;
   name: string;
   summary: string;
   portable: boolean;
@@ -165,6 +173,11 @@ export const defaultConfig: JobConfig = {
   shorts_max_sec: 60,
   shorts_subtitles: true,
   shorts_selection_mode: "auto",
+  shorts_aspect: "9:16",
+  shorts_source_start_sec: 0,
+  shorts_source_end_sec: 0,
+  allow_external_services: false,
+  allowed_external_hosts: "",
   caption_font_family: "Arial",
   caption_font_size: 72,
   caption_font_weight: "bold",
@@ -190,10 +203,19 @@ export const defaultConfig: JobConfig = {
   export_targets: ["resolve", "premiere", "kdenlive"]
 };
 
+export const moduleTabs: { id: ModuleTab; label: string; hint: string }[] = [
+  { id: "speech", label: "Speech", hint: "Ingest, voice detection, transcription, and retakes" },
+  { id: "edit", label: "Edit", hint: "J/L cuts, fades, and framing" },
+  { id: "shorts", label: "Shorts", hint: "Curation, captions, aspect ratio, and render" },
+  { id: "export", label: "Export", hint: "NLE targets and FCPXML dialect" },
+  { id: "providers", label: "Providers", hint: "Local models and optional external services" }
+];
+
 export const modules: RackModule[] = [
   {
     index: "01",
     id: "ingest",
+    tab: "speech",
     name: "Ingest",
     summary: "Validate the container, extract analysis audio, and fingerprint the PCM.",
     portable: true,
@@ -207,6 +229,7 @@ export const modules: RackModule[] = [
   {
     index: "02",
     id: "vad",
+    tab: "speech",
     name: "Voice detect",
     summary: "Find speech and remove silence with a protected minimum speech length.",
     portable: true,
@@ -284,6 +307,7 @@ export const modules: RackModule[] = [
   {
     index: "03",
     id: "transcribe",
+    tab: "speech",
     name: "Transcribe",
     summary: "Import an SRT, run local Faster-Whisper or whisper.cpp, or call an ASR endpoint.",
     portable: true,
@@ -374,6 +398,7 @@ export const modules: RackModule[] = [
   {
     index: "04",
     id: "retakes",
+    tab: "speech",
     name: "Retakes",
     summary: "Cull failed takes while guarding the final attempt.",
     portable: true,
@@ -425,6 +450,7 @@ export const modules: RackModule[] = [
   {
     index: "05",
     id: "jl_cuts",
+    tab: "edit",
     name: "J/L cuts",
     summary: "Offset audio at joins and add logarithmic micro-fades.",
     portable: true,
@@ -485,6 +511,7 @@ export const modules: RackModule[] = [
   {
     index: "06",
     id: "zooms",
+    tab: "edit",
     name: "Zooms",
     summary: "Alternate punch-ins and optional pan to hide jump cuts.",
     portable: true,
@@ -556,8 +583,9 @@ export const modules: RackModule[] = [
   {
     index: "07",
     id: "shorts",
+    tab: "shorts",
     name: "Shorts",
-    summary: "Select and render vertical 1080x1920 clips with captions.",
+    summary: "Select and render social clips with captions in 9:16, 1:1, or 16:9.",
     portable: true,
     tag: "SRT",
     toggleKey: "shorts",
@@ -592,6 +620,38 @@ export const modules: RackModule[] = [
           { value: "llm", label: "LLM ranking" },
           { value: "heuristic", label: "Heuristic ranking" }
         ]
+      },
+      {
+        key: "shorts_aspect",
+        label: "Aspect ratio",
+        type: "select",
+        implemented: true,
+        options: [
+          { value: "9:16", label: "9:16 vertical (Shorts, Reels, TikTok)" },
+          { value: "1:1", label: "1:1 square" },
+          { value: "16:9", label: "16:9 landscape" }
+        ],
+        help: "The caption layer uses the same pixel style at the selected render size."
+      },
+      {
+        key: "shorts_source_start_sec",
+        label: "Source start (s)",
+        type: "number",
+        implemented: true,
+        min: 0,
+        max: 86400,
+        step: 0.1,
+        help: "Only sentences fully inside this source window are considered."
+      },
+      {
+        key: "shorts_source_end_sec",
+        label: "Source end (s)",
+        type: "number",
+        implemented: true,
+        min: 0,
+        max: 86400,
+        step: 0.1,
+        help: "0 means the end of the source."
       },
       {
         key: "shorts_min_sec",
@@ -747,6 +807,7 @@ export const modules: RackModule[] = [
   {
     index: "08",
     id: "export",
+    tab: "export",
     name: "Export",
     summary: "Write FCPXML, xmeml, and native Kdenlive MLT from one validated timeline.",
     portable: true,

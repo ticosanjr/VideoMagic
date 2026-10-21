@@ -164,14 +164,19 @@ vertical-only output.
 - **Selection**: `auto` uses the LLM when an endpoint is configured, then the
   heuristic; `llm` requires ranking; `heuristic` ranks hook, impact, numbers,
   contrast, and diversity without a model.
-- **Duration** is checked after retake culling.
+- **Duration** is checked after retake culling. The Shorts tab also has
+  `0–1`, `1–3`, `3–5`, and `5–10` minute presets.
+- **Aspect ratio** is `9:16`, `1:1`, or `16:9`. ASS and FFmpeg use the same
+  selected size.
+- **Source window** limits Short selection to a start/end range. `0` at the end
+  means “until the end of the source”.
 - **Reframe** is center crop in v1.
 - **Karaoke captions**: font family, size, weight, italic, uppercase, text/
   highlight/outline colors, outline width, shadow color/offset/opacity, box
   color/opacity/padding, alignment, position, max width, animation, and word
   timing are configurable in the rack, API, and MCP.
-- **Caption preview**: the Shorts card shows a live 9:16 approximation of the
-  selected style. The burned-in result still comes from ASS.
+- **Caption preview**: the Shorts tab shows a live approximation in the selected
+  aspect. The burned-in result still comes from ASS.
 - **Stop words**: a long source can still yield fewer than the minimum; the UI
   and `run.json` report the warning.
 
@@ -188,7 +193,15 @@ bad take.
 
 All enabled artifacts are written to `.videoflow/exports/`.
 
-## 4. Reading the inspector
+## 4. Tabs and providers
+
+The rack is split into Speech, Edit, Shorts, Export, and Providers tabs. The
+Providers tab shows which capabilities are available, partial, planned, or
+blocked. External providers are opt-in; the global kill switch is
+`VIDEOWFLOW_ALLOW_EXTERNAL=0`. Localhost providers remain available. The
+optional host allowlist restricts remote calls to listed hostnames.
+
+## 5. Reading the inspector
 
 - Normal text: kept.
 - Red strike-through: removed as a retake.
@@ -199,7 +212,7 @@ All enabled artifacts are written to `.videoflow/exports/`.
 Click a word to hear the source range. Click again to keep or discard it manually.
 A manual decision wins over the model.
 
-## 5. Rerunning cheaply
+## 6. Rerunning cheaply
 
 Change only a zoom value and press Run. Modules 01–05 stay cached; zooms and
 export rerun. The card statuses tell you what will happen before you press it.
@@ -207,13 +220,13 @@ export rerun. The card statuses tell you what will happen before you press it.
 If you press **Run this block** on a card whose upstream is dirty, VideoFlow asks
 whether to run the required modules. It does not silently do extra work.
 
-## 6. Saving presets
+## 7. Saving presets
 
 **Save preset** stores your current module config and on/off flags under
 `~/.videoflow/presets/`. It does not store media, secrets, or transcript. Share a
 preset by copying the JSON file.
 
-## 7. Exporting to an editor
+## 8. Exporting to an editor
 
 See the [NLE import manual](nle-import.md). The short version:
 
@@ -224,7 +237,7 @@ See the [NLE import manual](nle-import.md). The short version:
 Check three things after import: audio is offset at a J-cut, the punch-in is
 visible, and no join clicks.
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 | Symptom | Fix |
 | --- | --- |
@@ -237,7 +250,7 @@ visible, and no join clicks.
 | Premiere will not open the file | Use the `.xml`, not the `.fcpxml`. |
 | Shorts are shorter than expected | Culls reduce the window; that is by design. |
 
-## 9. What VideoFlow will not do
+## 10. What VideoFlow will not do
 
 Colour, mixing, multicam, b-roll, translation, or a final render for delivery.
 It prepares the edit; you finish it.

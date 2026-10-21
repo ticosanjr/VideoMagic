@@ -20,6 +20,11 @@ class ResourceSpec:
 
 TOOL_SPECS: tuple[ToolSpec, ...] = (
     ToolSpec(
+        "videoflow_list_capabilities",
+        "List feature availability and external-provider policy.",
+        "system",
+    ),
+    ToolSpec(
         "videoflow_load_media",
         "Register a source video and return technical metadata. Does not modify the file.",
         "ingest",

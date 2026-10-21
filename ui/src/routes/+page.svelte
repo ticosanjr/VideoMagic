@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import CapabilitiesPanel from "$lib/CapabilitiesPanel.svelte";
   import CaptionPreview from "$lib/CaptionPreview.svelte";
   import LogDrawer from "$lib/LogDrawer.svelte";
   import PathPicker from "$lib/PathPicker.svelte";
@@ -31,9 +32,11 @@
   import {
     defaultConfig,
     modules,
+    moduleTabs,
     statusLabel,
     statusStyles,
     type ConfigKey,
+    type ModuleTab,
     type RackModule,
     type Status
   } from "$lib/modules";
@@ -63,7 +66,10 @@
   let toast = $state<{ kind: "success" | "error"; message: string } | null>(null);
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
   let preset = $state<"youtube" | "lecture" | "shorts" | "custom">("custom");
+  let activeTab = $state<ModuleTab>("speech");
   let probeToken = 0;
+
+  const visibleModules = $derived(modules.filter((module) => module.tab === activeTab));
 
   type PickerKind = "source" | "output" | "transcript" | "faster_model" | "whisper_model";
 
@@ -285,6 +291,14 @@
       shorts_max_sec: Number(config.shorts_max_sec),
       shorts_subtitles: Boolean(config.shorts_subtitles),
       shorts_selection_mode: String(config.shorts_selection_mode),
+      shorts_aspect: String(config.shorts_aspect || "9:16"),
+      shorts_source_start_sec: Number(config.shorts_source_start_sec || 0),
+      shorts_source_end_sec: Number(config.shorts_source_end_sec || 0) || null,
+      allow_external_services: Boolean(config.allow_external_services),
+      allowed_external_hosts: String(config.allowed_external_hosts || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
       caption_font_family: String(config.caption_font_family),
       caption_font_size: Number(config.caption_font_size),
       caption_font_weight: String(config.caption_font_weight),
@@ -357,6 +371,13 @@
     }
     if (Number(config.shorts_min_count) > Number(config.shorts_count)) {
       error = "Shorts minimum count cannot exceed the target count.";
+      return;
+    }
+    if (
+      Number(config.shorts_source_end_sec) > 0 &&
+      Number(config.shorts_source_end_sec) <= Number(config.shorts_source_start_sec)
+    ) {
+      error = "Shorts source end must be greater than the source start.";
       return;
     }
     if (Number(config.zoom_min_scale) > Number(config.zoom_max_scale)) {
@@ -518,6 +539,19 @@
     { id: "premiere", label: "Premiere" },
     { id: "kdenlive", label: "Kdenlive" }
   ];
+
+  const durationPresets = [
+    { label: "0–1 min", min: 1, max: 60 },
+    { label: "1–3 min", min: 60, max: 180 },
+    { label: "3–5 min", min: 180, max: 300 },
+    { label: "5–10 min", min: 300, max: 600 }
+  ];
+
+  function setShortDuration(min: number, max: number) {
+    config.shorts_min_sec = min;
+    config.shorts_max_sec = max;
+    preset = "custom";
+  }
 </script>
 
 <svelte:head>
@@ -905,7 +939,39 @@
 
     <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
     <section aria-label="Pipeline modules" class="space-y-3">
-      {#each modules as module}
+      <div class="flex flex-wrap gap-1 rounded-2xl border border-neutral-800 bg-neutral-900/60 p-1" role="tablist" aria-label="Pipeline areas">
+        {#each moduleTabs as tab}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            title={tab.hint}
+            onclick={() => (activeTab = tab.id)}
+            class={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition ${
+              activeTab === tab.id
+                ? "bg-sky-500/15 text-sky-200 ring-1 ring-inset ring-sky-400/20"
+                : "text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-200"
+            }`}
+          >
+            {tab.label}
+            {#if tab.id !== "providers"}
+              <span class="rounded-full bg-black/20 px-1.5 py-0.5 text-[9px] text-neutral-500">
+                {modules.filter((module) => module.tab === tab.id).length}
+              </span>
+            {/if}
+          </button>
+        {/each}
+      </div>
+
+      {#if activeTab === "providers"}
+        <CapabilitiesPanel
+          allowExternal={Boolean(config.allow_external_services)}
+          allowedHosts={String(config.allowed_external_hosts || "")}
+          onToggle={(value) => (config.allow_external_services = value)}
+          onHosts={(value) => (config.allowed_external_hosts = value)}
+        />
+      {:else}
+        {#each visibleModules as module}
         {@const status = statusFor(module)}
         {@const progress = progressFor(module)}
         {@const duration = durationFor(module)}
@@ -1075,6 +1141,25 @@
             </div>
             {#if module.id === "shorts"}
               <div class="px-4 pb-4">
+                <div class="mb-3 rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p class="text-[11px] uppercase tracking-wide text-neutral-500">Clip length presets</p>
+                      <p class="mt-1 text-[10px] text-neutral-500">Sets the minimum and maximum Short duration.</p>
+                    </div>
+                    <div class="flex flex-wrap gap-1.5">
+                      {#each durationPresets as duration}
+                        <button
+                          type="button"
+                          onclick={() => setShortDuration(duration.min, duration.max)}
+                          class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 transition hover:border-sky-500/60 hover:text-sky-200"
+                        >
+                          {duration.label}
+                        </button>
+                      {/each}
+                    </div>
+                  </div>
+                </div>
                 <CaptionPreview {config} />
               </div>
             {/if}
@@ -1083,7 +1168,8 @@
             {/if}
           </details>
         </article>
-      {/each}
+        {/each}
+      {/if}
     </section>
 
     <aside class="space-y-4">

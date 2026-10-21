@@ -5,6 +5,21 @@ follow semantic versioning once the project reaches 1.0.
 
 ## [Unreleased]
 
+### Added
+
+- Tabbed rack navigation: Speech, Edit, Shorts, Export, and Providers. Each tab
+  shows only the modules and controls that belong to that area.
+- A provider/capability panel backed by `GET /api/v1/capabilities` and the
+  `videoflow_list_capabilities` MCP tool. External providers are opt-in per run
+  and can be blocked globally with `VIDEOWFLOW_ALLOW_EXTERNAL=0`.
+- `ProvidersConfig` in project state. `allow_external_services` is persisted and
+  forwarded by project runs.
+- Short render aspect ratios: `9:16`, `1:1`, and `16:9`. ASS PlayRes and FFmpeg
+  dimensions follow the selected aspect.
+- Short source window: `shorts_source_start_sec` and `shorts_source_end_sec` in
+  the CLI, API, MCP, project config, and UI.
+- Duration presets in the Shorts tab and an aspect-aware caption preview.
+
 ### Changed
 
 - `scripts/release.py` now keeps only the three newest `releases/v*` folders.
@@ -12,12 +27,20 @@ follow semantic versioning once the project reaches 1.0.
   pruned folder.
 - Release staging is documented as the canonical artifact store. Generated
   `build/`, `dist/`, coverage files, and caches are cleaned after each release.
+- MCP now exposes thirteen tools and four resources.
 
 ### Docs
 
 - Refreshed the README, module specs, testing notes, UI spec, and operator
-  manuals to describe FCPXML audio fades, the live caption preview, and the
-  three-release retention policy.
+  manuals to describe FCPXML audio fades, the caption preview, the tabbed rack,
+  provider policy, Short aspect ratios, and the three-release retention policy.
+
+### Verified
+
+- Tests: 323 passed, 11 xfailed, 7 deselected; coverage 99.01%; ruff and mypy
+  clean.
+- UI: `svelte-check` reports 0 errors and 0 warnings; 13 Vitest tests and the
+  production build pass.
 
 ## [0.21.2] — 2026-10-21
 

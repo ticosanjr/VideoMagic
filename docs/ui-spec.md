@@ -94,15 +94,35 @@ The picker is a modal dialog with:
 - Escape to close, focus trapping, and visible focus states.
 
 Short-form controls are one continuous form: zoom bounds, fade timings, Shorts
-target/minimum/selection, and caption font/colors/box/shadow/position. A live
-9:16 caption preview shows the configured font, colors, outline, shadow, box,
-alignment, and position. A per-Short editor is still planned.
+target/minimum/selection, aspect ratio, source window, and caption
+font/colors/box/shadow/position. Duration buttons set common min/max pairs. The
+caption preview follows the selected aspect and shows the configured font,
+colors, outline, shadow, box, alignment, and position. A per-Short editor is
+still planned.
 
 The picker never offers a parent above the allowlisted root. If a symlink points
 outside the roots it is omitted. Network shares and unlisted disks require an
 operator change to `VIDEOWFLOW_ALLOWED_ROOTS`.
 
-## 3. Module card
+## 3. Tabs
+
+The rack is split into five tabs so the pipeline does not read as one long wall
+of controls:
+
+| Tab | Contents |
+| --- | --- |
+| Speech | Ingest, voice detection, transcription, retakes |
+| Edit | J/L cuts, fades, zooms, framing |
+| Shorts | Target/minimum, duration presets, aspect ratio, source window, captions, preview |
+| Export | NLE targets and FCPXML dialect |
+| Providers | Capability manifest and external-service opt-in/blocking |
+
+The tab bar keeps the current run summary and history sidebar visible. Module
+counts are shown per tab. The Providers tab is not a pipeline module; it reads
+`GET /api/v1/capabilities` and explains available, blocked, partial, and planned
+features.
+
+## 4. Module card
 
 Anatomy:
 
@@ -131,7 +151,7 @@ Controls are generated from the config schema. Numeric fields show their range
 and units. A change marks the card dirty immediately, but does not persist until
 the debounce (400 ms) completes.
 
-## 4. Inspector
+## 5. Inspector
 
 Sections:
 
@@ -147,7 +167,7 @@ Sections:
 Overrides are optimistic in the UI, then reconciled with the response. A failed
 write reverts the row and shows the error.
 
-## 5. States
+## 6. States
 
 ### Empty
 
@@ -168,7 +188,7 @@ A card-level error keeps the rest of the rack usable. A project-level error
 If SSE drops, the header shows **Reconnecting**. The UI keeps the last state and
 polls job status every 5 s until the stream returns.
 
-## 6. Accessibility
+## 7. Accessibility
 
 - Every control has a label, not just a placeholder.
 - Status is text plus color, never color alone.
@@ -178,7 +198,7 @@ polls job status every 5 s until the stream returns.
   and an icon.
 - Reduced motion disables the running pulse.
 
-## 7. Implementation notes
+## 8. Implementation notes
 
 - API base is `/api/v1`; the dev server proxies to `127.0.0.1:8765`.
 - The path picker uses `/api/v1/fs/list`, `/api/v1/fs/mkdir`, and
@@ -193,7 +213,7 @@ polls job status every 5 s until the stream returns.
 - SSE is `EventSource`; no polling fallback for progress except after a drop.
 - Toasts are for transient success. Persistent failures belong in the card.
 
-## 8. Out of scope
+## 9. Out of scope
 
 Timeline scrubbing, video preview compositing, a per-Short editor, and
 multi-project tabs. The caption preview is style-only; the UI edits decisions,

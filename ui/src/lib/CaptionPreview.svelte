@@ -6,6 +6,8 @@
   const words = ["This", "is", "how", "your", "Shorts", "caption", "will", "look"];
   const activeIndex = 4;
   const scale = 0.25;
+  const aspect = $derived(String(config.shorts_aspect || "9:16"));
+  const aspectCss = $derived(aspect.replace(":", " / "));
 
   const alignment = $derived(Number(config.caption_alignment) || 2);
   const horizontal = $derived(
@@ -77,14 +79,14 @@
   <div class="flex items-center justify-between gap-3">
     <span class="text-[11px] uppercase tracking-wide text-neutral-500">Caption preview</span>
     <span class="rounded bg-neutral-800 px-1.5 py-0.5 font-mono text-[10px] text-neutral-400">
-      9:16
+      {aspect}
     </span>
   </div>
 
   <div
     class="relative mx-auto mt-3 w-[240px] overflow-hidden rounded-lg border border-neutral-800 bg-[radial-gradient(circle_at_30%_20%,#334155,#0a0a0a_70%)]"
-    style="aspect-ratio: 9 / 16"
-    aria-label="Vertical caption style preview"
+    style={`aspect-ratio: ${aspectCss}`}
+    aria-label="Caption style preview"
     role="img"
   >
     <div class="absolute inset-x-0 top-3 text-center text-[9px] uppercase tracking-[0.2em] text-white/25">
@@ -106,8 +108,8 @@
   </div>
 
   <p class="mt-2 text-[10px] leading-4 text-neutral-500">
-    Approximate on-screen result. Burned captions are rendered from ASS with the same
-    font, colors, outline, shadow, box, alignment, and position.
+    Approximate on-screen result for the selected aspect. Burned captions are rendered
+    from ASS with the same font, colors, outline, shadow, box, alignment, and position.
   </p>
 </div>
 

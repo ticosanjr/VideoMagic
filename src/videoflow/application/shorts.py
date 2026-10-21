@@ -19,6 +19,19 @@ from videoflow.domain.config import CaptionStyle
 from videoflow.domain.errors import InvalidRetakeIdsError
 from videoflow.domain.state import LlmShortsResponse, Sentence
 
+SHORT_DIMENSIONS: dict[str, tuple[int, int]] = {
+    "9:16": (1080, 1920),
+    "1:1": (1080, 1080),
+    "16:9": (1920, 1080),
+}
+
+
+def short_dimensions(aspect: str) -> tuple[int, int]:
+    """Return the render size for a configured Short aspect."""
+
+    return SHORT_DIMENSIONS.get(aspect, SHORT_DIMENSIONS["9:16"])
+
+
 PROMPT = """\
 Choose the most important, impactful, hooky, self-contained vertical clips from
 this transcript. Prefer surprising insights, strong claims, concrete numbers,
@@ -122,17 +135,21 @@ def build_ass(
     events: Sequence[tuple[float, float, str]],
     *,
     style: CaptionStyle | None = None,
+    width: int = 1080,
+    height: int = 1920,
 ) -> str:
     lines = [
         CaptionLine(start=start, end=end, text=text) for start, end, text in events if end > start
     ]
-    return build_ass_lines(lines, style=style)
+    return build_ass_lines(lines, style=style, width=width, height=height)
 
 
 def build_ass_lines(
     lines: Sequence[CaptionLine],
     *,
     style: CaptionStyle | None = None,
+    width: int = 1080,
+    height: int = 1920,
 ) -> str:
     caption = style or CaptionStyle()
     bold = -1 if caption.font_weight == "bold" else 0
@@ -144,11 +161,11 @@ def build_ass_lines(
     else:
         back_color = _ass_color(caption.shadow_color, caption.shadow_opacity)
     shadow = caption.shadow_offset if caption.shadow_opacity > 0 else 0
-    margin_lr = max(0, round((1.0 - caption.max_width) * 1080 / 2))
+    margin_lr = max(0, round((1.0 - caption.max_width) * width / 2))
     header = f"""[Script Info]
 ScriptType: v4.00+
-PlayResX: 1080
-PlayResY: 1920
+PlayResX: {width}
+PlayResY: {height}
 WrapStyle: 2
 
 [V4+ Styles]
@@ -159,8 +176,8 @@ Style: Default,{caption.font_family},{caption.font_size},{_ass_color(caption.pri
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     rows: list[str] = []
-    x = round(caption.position_x * 1080)
-    y = round(caption.position_y * 1920)
+    x = round(caption.position_x * width)
+    y = round(caption.position_y * height)
     for line in lines:
         if line.end <= line.start:
             continue

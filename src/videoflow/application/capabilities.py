@@ -1,0 +1,237 @@
+"""Feature and provider discovery for the UI, REST API, and MCP.
+
+The manifest is intentionally data-only. A capability that depends on an
+external service is reported as blocked unless the caller explicitly allows it
+and the operator has not set the global kill switch.
+"""
+
+from __future__ import annotations
+
+import os
+from collections.abc import Sequence
+from urllib.parse import urlparse
+
+from videoflow.domain.errors import CapabilityUnavailableError
+
+_LOCAL_HOSTS = {
+    "0.0.0.0",
+    "127.0.0.1",
+    "::1",
+    "host.docker.internal",
+    "localhost",
+}
+
+
+def external_services_allowed(requested: bool) -> bool:
+    """Return whether external providers may be used for this call."""
+
+    if os.environ.get("VIDEOWFLOW_ALLOW_EXTERNAL", "1") == "0":
+        return False
+    return bool(requested)
+
+
+def ensure_external_allowed(
+    url: str | None,
+    *,
+    capability: str,
+    allow_external_services: bool,
+    allowed_hosts: Sequence[str] = (),
+) -> None:
+    """Reject a non-local provider URL when external access is not allowed."""
+
+    if not url:
+        return
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").casefold()
+    if host in _LOCAL_HOSTS:
+        return
+    if not external_services_allowed(allow_external_services):
+        raise CapabilityUnavailableError(
+            capability,
+            "External services are blocked. Enable 'allow_external_services' "
+            "for this run or unset VIDEOWFLOW_ALLOW_EXTERNAL=0.",
+        )
+    allowed = {item.casefold() for item in allowed_hosts if item.strip()}
+    if allowed and host not in allowed:
+        raise CapabilityUnavailableError(
+            capability,
+            f"Host '{host}' is not in allowed_external_hosts.",
+        )
+
+
+def capability_manifest(*, allow_external_services: bool = False) -> list[dict[str, object]]:
+    """Return the current capability surface with availability and provenance."""
+
+    external = external_services_allowed(allow_external_services)
+    return [
+        _entry(
+            "local_files",
+            "Local media",
+            "ingest",
+            "available",
+            "Probe, extract PCM, and keep media inside the path allowlist.",
+            "GET /api/v1/media/probe",
+            "videoflow_load_media",
+        ),
+        _entry(
+            "local_transcription",
+            "Local transcription",
+            "speech",
+            "available",
+            "Faster-Whisper or whisper.cpp on the local machine.",
+            "POST /api/v1/jobs",
+            "videoflow_transcribe",
+        ),
+        _entry(
+            "silero_vad",
+            "Silero VAD",
+            "speech",
+            "available",
+            "Local speech detection with an FFmpeg fallback.",
+            "POST /api/v1/jobs",
+            "videoflow_run_vad",
+        ),
+        _entry(
+            "nle_exports",
+            "NLE exports",
+            "export",
+            "available",
+            "FCPXML, xmeml, and native Kdenlive MLT from one timeline.",
+            "POST /api/v1/projects/{project_id}/exports",
+            "videoflow_export_fcpxml",
+        ),
+        _entry(
+            "shorts_aspects",
+            "Short aspect ratios",
+            "shorts",
+            "available",
+            "Render 9:16, 1:1, or 16:9 vertical/social clips.",
+            "POST /api/v1/jobs",
+            "videoflow_generate_shorts",
+            requires=["ffmpeg"],
+        ),
+        _entry(
+            "shorts_timeframe",
+            "Short source window",
+            "shorts",
+            "available",
+            "Limit Short selection to a start/end range of the source.",
+            "POST /api/v1/jobs",
+            "videoflow_generate_shorts",
+        ),
+        _entry(
+            "caption_preview",
+            "Caption preview",
+            "shorts",
+            "partial",
+            "Approximate 9:16 HTML preview of the ASS caption style.",
+            "UI only",
+            "not exposed",
+        ),
+        _external_entry(
+            "external_llm",
+            "External LLM",
+            "providers",
+            external,
+            "OpenAI-compatible service for retakes, Shorts, and future curation.",
+            "POST /api/v1/jobs",
+            "videoflow_run_pipeline",
+        ),
+        _external_entry(
+            "external_asr",
+            "External ASR",
+            "providers",
+            external,
+            "OpenAI-compatible transcription endpoint.",
+            "POST /api/v1/jobs",
+            "videoflow_run_pipeline",
+        ),
+        _entry(
+            "shorts_editor",
+            "Per-Short editor",
+            "shorts",
+            "planned",
+            "Trim, retitle, reframe, and re-render one selected Short.",
+            "planned",
+            "planned",
+        ),
+        _entry(
+            "prompt_to_clip",
+            "Prompt-to-clip",
+            "curation",
+            "planned",
+            "Select clips from an explicit topic or instruction.",
+            "planned",
+            "planned",
+        ),
+        _entry(
+            "visual_tracking",
+            "Visual tracking",
+            "editing",
+            "planned",
+            "Face/person tracking for reframing and layouts.",
+            "planned",
+            "planned",
+            requires=["optional vision model"],
+        ),
+        _entry(
+            "dubbing",
+            "Dubbing",
+            "audio",
+            "planned",
+            "Optional external or local voice-preserving dubbing.",
+            "planned",
+            "planned",
+            requires=["external provider or local model"],
+        ),
+    ]
+
+
+def _entry(
+    capability_id: str,
+    name: str,
+    category: str,
+    status: str,
+    description: str,
+    api: str,
+    mcp: str,
+    *,
+    requires: list[str] | None = None,
+) -> dict[str, object]:
+    return {
+        "id": capability_id,
+        "name": name,
+        "category": category,
+        "status": status,
+        "description": description,
+        "api": api,
+        "mcp": mcp,
+        "requires": requires or [],
+    }
+
+
+def _external_entry(
+    capability_id: str,
+    name: str,
+    category: str,
+    allowed: bool,
+    description: str,
+    api: str,
+    mcp: str,
+) -> dict[str, object]:
+    entry = _entry(
+        capability_id,
+        name,
+        category,
+        "available" if allowed else "blocked",
+        description,
+        api,
+        mcp,
+        requires=["network access", "provider configuration"],
+    )
+    if not allowed:
+        entry["reason"] = (
+            "External services are disabled. Enable allow_external_services or "
+            "unset VIDEOWFLOW_ALLOW_EXTERNAL=0."
+        )
+    return entry

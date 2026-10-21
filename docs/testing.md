@@ -15,7 +15,7 @@ hides the contract. VideoFlow resolves this with two layers:
 
 | Scope | Line coverage | Notes |
 | --- | --- | --- |
-| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.00% (316 passing, 11 strict xfail, 7 deselected) |
+| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.01% (323 passing, 11 strict xfail, 7 deselected) |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |
 | UI | `npm run check` and `npm run build` | Manual: start a job from the rack and confirm progress and artifacts |
@@ -84,6 +84,7 @@ smokes run locally and are recorded in the release notes.
 | `test_telemetry.py` | Stage lifecycle, durations, logs, filters, cap |
 | `test_cli.py` | `version`, `doctor`, `run` dispatch, VAD/Faster-Whisper, Shorts and zoom/fade options, usage |
 | `test_release.py` | Release retention keeps the newest three folders and rejects invalid limits |
+| `test_capabilities.py` | External-provider policy, localhost exception, global kill switch, capability manifest |
 | `test_runtime.py` | Portable home, binary/model discovery including Faster-Whisper, UI discovery, allowed roots |
 
 ### Contract (passing now)

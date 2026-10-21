@@ -114,6 +114,11 @@ export interface JobOptions {
   shorts_max_sec?: number;
   shorts_subtitles?: boolean;
   shorts_selection_mode?: string;
+  shorts_aspect?: string;
+  shorts_source_start_sec?: number;
+  shorts_source_end_sec?: number | null;
+  allow_external_services?: boolean;
+  allowed_external_hosts?: string[];
   caption_font_family?: string;
   caption_font_size?: number;
   caption_font_weight?: string;
@@ -190,6 +195,24 @@ export interface Job {
   stages: JobStage[];
 }
 
+export interface Capability {
+  id: string;
+  name: string;
+  category: string;
+  status: "available" | "blocked" | "partial" | "planned";
+  description: string;
+  api: string;
+  mcp: string;
+  requires: string[];
+  reason?: string;
+}
+
+export interface CapabilitiesResponse {
+  ok: boolean;
+  external_services_allowed: boolean;
+  capabilities: Capability[];
+}
+
 export interface NewJob {
   source: string;
   output: string;
@@ -236,6 +259,11 @@ export interface NewJob {
   zoom_max_scale: number;
   shorts_min_count: number;
   shorts_selection_mode: string;
+  shorts_aspect: string;
+  shorts_source_start_sec: number;
+  shorts_source_end_sec: number | null;
+  allow_external_services: boolean;
+  allowed_external_hosts: string[];
   caption_font_family: string;
   caption_font_size: number;
   caption_font_weight: string;
@@ -346,6 +374,12 @@ export async function createDirectory(parent: string, name: string): Promise<FsE
 export function probeMedia(path: string): Promise<ProbedMedia> {
   const query = new URLSearchParams({ path });
   return request<ProbedMedia>(`/api/v1/media/probe?${query.toString()}`);
+}
+
+export async function getCapabilities(allowExternal = false): Promise<CapabilitiesResponse> {
+  return request<CapabilitiesResponse>(
+    `/api/v1/capabilities?allow_external=${allowExternal ? "true" : "false"}`
+  );
 }
 
 export async function createJob(payload: NewJob): Promise<Job> {

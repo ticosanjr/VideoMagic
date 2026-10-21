@@ -24,6 +24,7 @@ ReframeMode = Literal["center_crop_9_16", "auto_face_tracking_yolo"]
 SubtitlePreset = Literal["tiktok_bold", "minimalist_box", "highlight_word"]
 ShortsExportFormat = Literal["fcpxml_timeline", "standalone_mp4", "both"]
 ShortsSelectionMode = Literal["auto", "llm", "heuristic"]
+ShortsAspect = Literal["9:16", "1:1", "16:9"]
 CaptionAnimation = Literal["none", "pop", "sweep"]
 CaptionWordTiming = Literal["engine", "proportional", "sentence"]
 FadeCurve = Literal["linear", "logarithmic"]
@@ -132,6 +133,9 @@ class ShortsConfig(StrictModel):
     max_clips_to_generate: int = Field(default=3, ge=1, le=20)
     selection_mode: ShortsSelectionMode = "auto"
     reframe_mode: ReframeMode = "center_crop_9_16"
+    aspect_ratio: ShortsAspect = "9:16"
+    source_start_sec: float = Field(default=0.0, ge=0.0)
+    source_end_sec: float | None = Field(default=None, ge=0.0)
     burn_subtitles: bool = True
     subtitles_preset: SubtitlePreset = "tiktok_bold"
     caption_style: CaptionStyle = Field(default_factory=CaptionStyle)
@@ -143,6 +147,8 @@ class ShortsConfig(StrictModel):
             raise ValueError("target_duration_min_sec exceeds target_duration_max_sec")
         if self.min_clips > self.max_clips_to_generate:
             raise ValueError("min_clips exceeds max_clips_to_generate")
+        if self.source_end_sec is not None and self.source_end_sec <= self.source_start_sec:
+            raise ValueError("source_end_sec must be greater than source_start_sec")
         return self
 
 
@@ -154,7 +160,13 @@ class ExportConfig(StrictModel):
     write_mp4: bool = False
 
 
+class ProvidersConfig(StrictModel):
+    allow_external_services: bool = False
+    allowed_hosts: list[str] = Field(default_factory=list)
+
+
 class ModulesConfig(StrictModel):
+    providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
     ingest: IngestConfig = Field(default_factory=IngestConfig)
     vad: VadConfig = Field(default_factory=VadConfig)
     transcribe: TranscribeConfig = Field(default_factory=TranscribeConfig)

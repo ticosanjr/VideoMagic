@@ -3,8 +3,8 @@
 ## Implementation status
 
 Implemented: deterministic and LLM sentence selection, retake-aware conforming,
-1080x1920 render, ASS captions, karaoke word timing, a live 9:16 caption
-preview in the rack, `videoflow shorts`, job/API/MCP execution, a telemetry
+9:16/1:1/16:9 render, ASS captions, karaoke word timing, a live aspect-aware
+caption preview in the rack, an optional source window, `videoflow shorts`, job/API/MCP execution, a telemetry
 stage, and MP4 download. Not yet: face tracking and a per-Short editor.
 
 ## Purpose
@@ -32,6 +32,9 @@ Find self-contained moments in the transcript and turn them into vertical clips.
 | `min_clips` | 3 | 1–20 |
 | `max_clips_to_generate` | 3 | 1–20 |
 | `selection_mode` | `auto` | auto/llm/heuristic |
+| `aspect_ratio` | `9:16` | 9:16 / 1:1 / 16:9 |
+| `source_start_sec` | 0 | ≥ 0; sentences must start at or after it |
+| `source_end_sec` | none | > start; sentences must end at or before it |
 | `reframe_mode` | `center_crop_9_16` | center_crop_9_16 / auto_face_tracking_yolo |
 | `burn_subtitles` | `true` | |
 | `caption_style` | defaults | font, size, colors, outline, shadow, box, position, animation, word timing |
@@ -71,8 +74,9 @@ timings, it emits karaoke `\k`/`\kf` tags. Otherwise `word_timing=proportional`
 distributes the sentence duration across words; `sentence` disables karaoke.
 Text is escaped.
 
-The rack preview is an approximate HTML rendering of the same style fields. It
-updates without rendering a video; the burned-in result still comes from ASS.
+The rack preview is an approximate HTML rendering of the same style fields and
+the selected aspect. It updates without rendering a video; the burned-in result
+still comes from ASS. A per-Short trim/retitle editor is still planned.
 
 ## Failure modes
 

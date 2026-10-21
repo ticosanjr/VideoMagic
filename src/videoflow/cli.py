@@ -21,6 +21,7 @@ from videoflow.application.shorts import (
     build_ass,
     select_shorts,
     sentence_events,
+    short_dimensions,
     slugify,
 )
 from videoflow.domain.config import (
@@ -200,6 +201,19 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--shorts-min-sec", type=int, default=30)
     run.add_argument("--shorts-max-sec", type=int, default=60)
     run.add_argument(
+        "--shorts-aspect",
+        choices=("9:16", "1:1", "16:9"),
+        default="9:16",
+        help="Short render aspect ratio.",
+    )
+    run.add_argument("--shorts-start-sec", type=float, default=0.0)
+    run.add_argument(
+        "--shorts-end-sec",
+        type=float,
+        default=None,
+        help="End of the source window for Short selection; empty means the end.",
+    )
+    run.add_argument(
         "--shorts-selection-mode",
         choices=("auto", "llm", "heuristic"),
         default="auto",
@@ -245,6 +259,14 @@ def _parser() -> argparse.ArgumentParser:
     shorts.add_argument("--count", type=int, default=3)
     shorts.add_argument("--min-sec", type=int, default=30)
     shorts.add_argument("--max-sec", type=int, default=60)
+    shorts.add_argument(
+        "--aspect",
+        choices=("9:16", "1:1", "16:9"),
+        default="9:16",
+        help="Render aspect ratio.",
+    )
+    shorts.add_argument("--start-sec", type=float, default=0.0)
+    shorts.add_argument("--end-sec", type=float, default=None)
     shorts.add_argument("--no-subtitles", action="store_true")
     shorts.add_argument("--cull-retakes", action="store_true")
     shorts.add_argument("--llm-base-url", default=os.environ.get("VIDEOWFLOW_LLM_BASE_URL"))
@@ -362,12 +384,18 @@ def _run(args: argparse.Namespace) -> int:
     if args.shorts_count < args.shorts_min_count:
         print("--shorts-count must be at least --shorts-min-count.", file=sys.stderr)
         return 2
+    if args.shorts_end_sec is not None and args.shorts_end_sec <= args.shorts_start_sec:
+        print("--shorts-end-sec must be greater than --shorts-start-sec.", file=sys.stderr)
+        return 2
     shorts_config = ShortsConfig(
         target_duration_min_sec=args.shorts_min_sec,
         target_duration_max_sec=args.shorts_max_sec,
         min_clips=args.shorts_min_count,
         max_clips_to_generate=args.shorts_count,
         selection_mode=args.shorts_selection_mode,
+        aspect_ratio=args.shorts_aspect,
+        source_start_sec=args.shorts_start_sec,
+        source_end_sec=args.shorts_end_sec,
         burn_subtitles=not args.no_shorts_subtitles,
     )
     if args.cull_retakes and args.transcript is None:
@@ -502,9 +530,26 @@ def _shorts(args: argparse.Namespace) -> int:
         culled_ids = set(culled.discard_sentence_ids)
         cuts = cull_intervals(sentences, culled.discard_sentence_ids)
     kept = [item for item in sentences if item.id not in culled_ids]
+    if args.end_sec is not None and args.end_sec <= args.start_sec:
+        print("--end-sec must be greater than --start-sec.", file=sys.stderr)
+        return 2
+    range_start = timebase.seconds_to_samples(Fraction(str(args.start_sec)), Rounding.NEAREST)
+    range_end = (
+        timebase.seconds_to_samples(Fraction(str(args.end_sec)), Rounding.NEAREST)
+        if args.end_sec is not None
+        else timebase.seconds_to_samples(
+            timebase.frames_to_seconds(media.duration_frames), Rounding.NEAREST
+        )
+    )
+    kept = [
+        item
+        for item in kept
+        if item.start_sample >= range_start and item.end_sample <= range_end
+    ]
     if not kept:
-        print("Retake culling removed every sentence.", file=sys.stderr)
+        print("No sentences remain in the selected source window.", file=sys.stderr)
         return 1
+    width, height = short_dimensions(args.aspect)
     minimum = max(1, timebase.seconds_to_samples(Fraction(args.min_sec), Rounding.NEAREST))
     maximum = timebase.seconds_to_samples(Fraction(args.max_sec), Rounding.NEAREST)
     if maximum <= minimum:
@@ -535,15 +580,20 @@ def _shorts(args: argparse.Namespace) -> int:
             events = sentence_events(kept, clip.pieces, sample_rate=media.audio_sample_rate)
             if events:
                 ass_path = shorts_dir / f"{slug}.ass"
-                write_text(ass_path, build_ass(events))
+                write_text(ass_path, build_ass(events, width=width, height=height))
         engine.render_short(
             source,
             clip.pieces,
             destination,
             sample_rate=media.audio_sample_rate,
             ass_path=ass_path,
+            width=width,
+            height=height,
         )
         entry = clip.to_dict(media.audio_sample_rate)
+        entry["aspect_ratio"] = args.aspect
+        entry["width"] = width
+        entry["height"] = height
         entry["path"] = str(destination)
         if ass_path is not None:
             entry["subtitles"] = str(ass_path)

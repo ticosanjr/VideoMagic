@@ -51,3 +51,18 @@ def test_state_and_transcript_resources_report_missing_state() -> None:
     transcript = json.loads(asyncio.run(read("videoflow://project/transcript")))
     assert state["code"] == "state_not_found"
     assert transcript["code"] == "transcript_not_found"
+
+
+def test_capabilities_tool_reports_policy_and_short_aspects() -> None:
+    async def call() -> object:
+        return await build_server().call_tool(
+            "videoflow_list_capabilities", {"allow_external_services": True}
+        )
+
+    result = asyncio.run(call())
+    structured = result.structured_content  # type: ignore[attr-defined]
+    assert structured["ok"] is True
+    assert structured["external_services_allowed"] is True
+    ids = {item["id"] for item in structured["capabilities"]}
+    assert "shorts_aspects" in ids
+    assert "external_llm" in ids

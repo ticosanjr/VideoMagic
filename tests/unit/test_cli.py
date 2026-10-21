@@ -208,6 +208,12 @@ def test_run_passes_short_and_detailed_config_options(monkeypatch, tmp_path, cap
                 "20",
                 "--shorts-selection-mode",
                 "heuristic",
+                "--shorts-aspect",
+                "16:9",
+                "--shorts-start-sec",
+                "5",
+                "--shorts-end-sec",
+                "50",
                 "--zoom-min-scale",
                 "1.1",
                 "--zoom-max-scale",
@@ -227,6 +233,9 @@ def test_run_passes_short_and_detailed_config_options(monkeypatch, tmp_path, cap
     assert isinstance(seen["shorts_config"], ShortsConfig)
     assert seen["shorts_config"].min_clips == 3
     assert seen["shorts_config"].selection_mode == "heuristic"
+    assert seen["shorts_config"].aspect_ratio == "16:9"
+    assert seen["shorts_config"].source_start_sec == 5
+    assert seen["shorts_config"].source_end_sec == 50
     assert isinstance(seen["jl"], JlCutsConfig)
     assert seen["jl"].fade_in_ms == 30
     assert seen["jl"].fade_out_ms == 40

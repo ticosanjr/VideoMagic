@@ -7,6 +7,7 @@ Implemented today:
 
 - `GET /health`
 - `GET /api/v1/system`
+- `GET /api/v1/capabilities`
 - `GET /api/v1/fs/roots`, `GET /api/v1/fs/list`, `POST /api/v1/fs/mkdir`
 - `GET /api/v1/media/probe`
 - `POST /api/v1/jobs`, `GET /api/v1/jobs`, `GET /api/v1/jobs/{id}`,
@@ -76,6 +77,16 @@ GET /api/v1/system
 
 `allowed_roots` comes from `VIDEOWFLOW_ALLOWED_ROOTS` (path-separator list) or
 defaults to home, cwd, and the portable data directory.
+
+### Capabilities and provider policy
+
+```http
+GET /api/v1/capabilities?allow_external=true
+```
+
+Returns feature availability plus the effective external-service policy. A
+blocked provider includes a reason string. `VIDEOWFLOW_ALLOW_EXTERNAL=0` is a
+global kill switch; localhost providers remain available.
 
 ### Filesystem browser
 
@@ -212,6 +223,11 @@ Content-Type: application/json
   "shorts_max_sec": 60,
   "shorts_subtitles": true,
   "shorts_selection_mode": "auto",
+  "shorts_aspect": "9:16",
+  "shorts_source_start_sec": 0,
+  "shorts_source_end_sec": null,
+  "allow_external_services": false,
+  "allowed_external_hosts": [],
   "caption_font_family": "Arial",
   "caption_font_size": 72,
   "caption_font_weight": "bold",

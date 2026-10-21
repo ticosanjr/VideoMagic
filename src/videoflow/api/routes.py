@@ -16,6 +16,10 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from videoflow import __version__
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application.capabilities import (
+    capability_manifest,
+    external_services_allowed,
+)
 from videoflow.application.export_service import export_timeline
 from videoflow.application.filesystem import create_directory, list_directory, roots_payload
 from videoflow.application.jobs import TERMINAL, Job, JobManager
@@ -99,6 +103,11 @@ class NewJobRequest(BaseModel):
     shorts_max_sec: int = Field(default=60, ge=1, le=600)
     shorts_subtitles: bool = True
     shorts_selection_mode: Literal["auto", "llm", "heuristic"] = "auto"
+    shorts_aspect: Literal["9:16", "1:1", "16:9"] = "9:16"
+    shorts_source_start_sec: float = Field(default=0.0, ge=0.0)
+    shorts_source_end_sec: float | None = Field(default=None, ge=0.0)
+    allow_external_services: bool = False
+    allowed_external_hosts: list[str] = Field(default_factory=list)
     caption_font_family: str = "Arial"
     caption_font_size: int = Field(default=72, ge=8, le=300)
     caption_font_weight: Literal["normal", "bold"] = "bold"
@@ -142,6 +151,11 @@ class NewJobRequest(BaseModel):
             raise ValueError("punch_in_scale must be inside the zoom window")
         if self.shorts_min_count is not None and self.shorts_min_count > self.shorts_count:
             raise ValueError("shorts_min_count exceeds shorts_count")
+        if (
+            self.shorts_source_end_sec is not None
+            and self.shorts_source_end_sec <= self.shorts_source_start_sec
+        ):
+            raise ValueError("shorts_source_end_sec must be greater than shorts_source_start_sec")
         return self
 
 
@@ -195,6 +209,14 @@ def register_routes(
 ) -> None:
     project_job_lock = threading.Lock()
     app.state.project_store = projects
+    @app.get("/api/v1/capabilities")
+    def capabilities(allow_external: bool = False) -> dict[str, object]:
+        return {
+            "ok": True,
+            "external_services_allowed": external_services_allowed(allow_external),
+            "capabilities": capability_manifest(allow_external_services=allow_external),
+        }
+
     @app.post("/api/v1/jobs", status_code=202)
     def create_job(request: NewJobRequest) -> dict[str, object]:
         roots = allowed_roots()
@@ -247,6 +269,11 @@ def register_routes(
                     "shorts_max_sec": request.shorts_max_sec,
                     "shorts_subtitles": request.shorts_subtitles,
                     "shorts_selection_mode": request.shorts_selection_mode,
+                    "shorts_aspect": request.shorts_aspect,
+                    "shorts_source_start_sec": request.shorts_source_start_sec,
+                    "shorts_source_end_sec": request.shorts_source_end_sec,
+                    "allow_external_services": request.allow_external_services,
+                    "allowed_external_hosts": request.allowed_external_hosts,
                     "caption_font_family": request.caption_font_family,
                     "caption_font_size": request.caption_font_size,
                     "caption_font_weight": request.caption_font_weight,

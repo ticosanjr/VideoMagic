@@ -11,7 +11,7 @@ and Kdenlive.
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical shorts, and
 > three NLE exports. The local API, MCP server, and rack UI execute real jobs;
-> all twelve MCP tools and four resources are live. The rack browses local files
+> all thirteen MCP tools and four resources are live. The rack browses local files
 > and folders instead of requiring typed paths. Projects persist atomic,
 > revisioned state under `.videoflow/`, and the REST API manages media, modules,
 > transcripts, exports, and operator presets.
@@ -31,7 +31,7 @@ install time. A GPU is not required.
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 316 passing, 11 strict xfail, 7 deselected
+uv run pytest                       # 323 passing, 11 strict xfail, 7 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model
@@ -93,9 +93,9 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   fallback; larger CTranslate2 and GGML models can be selected locally.
 - Optional ASR HTTP through an OpenAI-compatible `/audio/transcriptions`
   endpoint.
-- Vertical shorts: deterministic or LLM selection, retake-aware conforming,
-  1080x1920 render, burned ASS captions, and a live 9:16 caption preview in the
-  rack.
+- Vertical/social shorts: deterministic or LLM selection, retake-aware
+  conforming, 9:16/1:1/16:9 render, an optional source window, burned ASS
+  captions, and a live aspect-aware caption preview in the rack.
 - Deterministic timeline: frame-quantised video, sample-aligned audio, merged
   speech spans, J/L-cut audio boundaries with handle checks, logarithmic fade
   metadata, and alternating punch-ins.
@@ -105,15 +105,18 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   audio fades, and the FCPXML output validates against Apple's 1.9 DTD.
 - Pure domain: rational time, cache hashing, planning, retake guard, path jail,
   redaction, schema generation.
-- MCP server with twelve live tools and four resources: media ingest, Silero
-  speech detection, local Faster-Whisper/whisper.cpp transcription, transcript
-  reads, staged
+- MCP server with thirteen live tools and four resources: media ingest,
+  capability discovery, Silero speech detection, local
+  Faster-Whisper/whisper.cpp transcription, transcript reads, staged
   retake/zoom/J-cut edits, shorts proposals, real jobs, NLE export, and project
   state/preset/export resources. Streamable HTTP is mounted on the local API.
 - Unified CLI (`run`, `serve`, `mcp`, `doctor`, `demo`, `version`) and a
   PyInstaller onefile build for Linux and Windows.
+- Tabbed rack UI (Speech, Edit, Shorts, Export, Providers), a capability
+  manifest, opt-in external-provider policy, and Short aspect/window controls.
 - Local job API with SSE progress, plus persistent project routes for media,
-  module config, transcript overrides, exports, and operator presets.
+  module config, provider policy, transcript overrides, exports, and operator
+  presets.
 - MCP tools that start, poll, and cancel real pipeline jobs.
 
 ## Not implemented yet

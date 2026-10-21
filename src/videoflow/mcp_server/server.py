@@ -18,6 +18,11 @@ from videoflow.adapters.faster_whisper import FasterWhisperAdapter
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.adapters.llm import OpenAICompatibleLlm
 from videoflow.adapters.whisper import WhisperCliAdapter
+from videoflow.application.capabilities import (
+    capability_manifest,
+    ensure_external_allowed,
+    external_services_allowed,
+)
 from videoflow.application.export_service import FILENAMES, export_timeline
 from videoflow.application.jobs import JobManager
 from videoflow.application.retakes import cull_intervals
@@ -99,6 +104,11 @@ OVERRIDE_KEYS = {
     "shorts_max_sec",
     "shorts_subtitles",
     "shorts_selection_mode",
+    "shorts_aspect",
+    "shorts_source_start_sec",
+    "shorts_source_end_sec",
+    "allow_external_services",
+    "allowed_external_hosts",
     "caption_font_family",
     "caption_font_size",
     "caption_font_weight",
@@ -139,6 +149,18 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
     manager = jobs or JobManager()
     mcp = MCPServer(SERVER_NAME)
     last: dict[str, Any] = {"pending_options": {}}
+
+    @mcp.tool()
+    def videoflow_list_capabilities(allow_external_services: bool = False) -> dict[str, object]:
+        """List feature availability and whether external providers are allowed."""
+
+        return {
+            "ok": True,
+            "external_services_allowed": external_services_allowed(allow_external_services),
+            "capabilities": capability_manifest(
+                allow_external_services=allow_external_services
+            ),
+        }
 
     @mcp.tool()
     def videoflow_load_media(file_path: str) -> dict[str, object]:
@@ -466,11 +488,20 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         min_count: int | None = None,
         selection_mode: str = "auto",
         subtitles: bool = True,
+        aspect_ratio: str = "9:16",
+        start_sec: float = 0.0,
+        end_sec: float | None = None,
+        allow_external_services: bool = False,
+        allowed_external_hosts: list[str] | None = None,
     ) -> dict[str, object]:
-        """Propose vertical clips in source time. YOLO reframing is not available in v1."""
+        """Propose social clips in source time with an optional source window."""
 
         if min_duration <= 0 or max_duration < min_duration:
             return _error("invalid_arguments", "Invalid shorts duration window")
+        if aspect_ratio not in {"9:16", "1:1", "16:9"}:
+            return _error("invalid_arguments", "aspect_ratio must be 9:16, 1:1, or 16:9")
+        if start_sec < 0 or (end_sec is not None and end_sec <= start_sec):
+            return _error("invalid_arguments", "Invalid shorts source window")
         if not 1 <= count <= 20:
             return _error("invalid_arguments", "count must be between 1 and 20")
         resolved_min = min(3, count) if min_count is None else min_count
@@ -497,10 +528,33 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         )
         cuts = cull_intervals(transcript, sorted(culls))
         kept = [item for item in transcript if item.id not in culls]
+        media_info = state.media_info if state is not None else last.get("media")
+        if not isinstance(media_info, MediaInfo):
+            return _error("media_not_found", "Load media before generating Shorts.")
+        range_start = timebase.seconds_to_samples(Fraction(str(start_sec)), Rounding.NEAREST)
+        range_end = (
+            timebase.seconds_to_samples(Fraction(str(end_sec)), Rounding.NEAREST)
+            if end_sec is not None
+            else _duration_samples(media_info)
+        )
+        kept = [
+            item
+            for item in kept
+            if item.start_sample >= range_start and item.end_sample <= range_end
+        ]
         warnings: list[str] = []
         client = None
         base_url = os.environ.get("VIDEOWFLOW_LLM_BASE_URL")
         if base_url:
+            try:
+                ensure_external_allowed(
+                    base_url,
+                    capability="external_llm",
+                    allow_external_services=allow_external_services,
+                    allowed_hosts=allowed_external_hosts or (),
+                )
+            except VideoFlowError as exc:
+                return exc.to_dict()
             client = OpenAICompatibleLlm(
                 base_url=base_url,
                 model=os.environ.get("VIDEOWFLOW_LLM_MODEL", "qwen2.5:7b-instruct"),
@@ -518,14 +572,28 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             client=client,
             warnings=warnings,
         )
+        pending = last.setdefault("pending_options", {})
+        pending.update(
+            {
+                "shorts": True,
+                "shorts_aspect": aspect_ratio,
+                "shorts_source_start_sec": start_sec,
+                "shorts_source_end_sec": end_sec,
+                "allow_external_services": allow_external_services,
+                "allowed_external_hosts": allowed_external_hosts or [],
+            }
+        )
         return {
             "ok": True,
             "count": len(clips),
             "min_count": resolved_min,
+            "aspect_ratio": aspect_ratio,
+            "source_start_sec": start_sec,
+            "source_end_sec": end_sec,
             "clips": [clip.to_dict(rate) for clip in clips],
             "warnings": warnings,
             "subtitles": subtitles,
-            "applies_to_next_run": False,
+            "applies_to_next_run": True,
         }
 
     @mcp.tool()

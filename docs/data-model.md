@@ -28,8 +28,9 @@ by `scripts/export_schemas.py`. A test fails if they drift.
     "audio_sample_rate": 48000,
     "start_timecode_frames": 0
   },
-  "modules_config": { "ingest": {}, "vad": {}, "transcribe": {}, "retakes": {},
-                      "jl_cuts": {}, "zooms": {}, "shorts": {}, "export": {} },
+  "modules_config": { "providers": {}, "ingest": {}, "vad": {},
+                      "transcribe": {}, "retakes": {}, "jl_cuts": {}, "zooms": {},
+                      "shorts": {}, "export": {} },
   "module_enabled": { "ingest": true, "vad": true, "transcribe": true,
                       "retakes": true, "jl_cuts": true, "zooms": true,
                       "shorts": true, "export": true },
@@ -122,7 +123,8 @@ All config models forbid unknown fields. That is deliberate: a request containin
 | `RetakesConfig` | no secret value; `secret_name` only; temperature fixed at 0 |
 | `JlCutsConfig` | offset 100–500 ms, crossfade 10–50 ms |
 | `ZoomsConfig` | scale 1.05–1.30 |
-| `ShortsConfig` | min ≤ max; 1–20 clips |
+| `ShortsConfig` | min ≤ max; 1–20 clips; aspect 9:16/1:1/16:9; source end > start |
+| `ProvidersConfig` | external services opt-in; optional remote-host allowlist |
 | `ExportConfig` | dialect 1.9/1.10, write flags |
 
 ## 3. Presets

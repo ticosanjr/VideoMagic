@@ -44,6 +44,8 @@ def test_zoom_scale_is_bounded() -> None:
 def test_shorts_window_must_be_ordered() -> None:
     with pytest.raises(ValidationError):
         ShortsConfig(target_duration_min_sec=90, target_duration_max_sec=30)
+    with pytest.raises(ValidationError):
+        ShortsConfig(source_start_sec=10, source_end_sec=5)
 
 
 def test_media_info_schema_has_rational_time_and_no_derived_float() -> None:

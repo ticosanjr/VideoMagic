@@ -329,6 +329,9 @@
         "jl_cuts": {
           "$ref": "#/$defs/JlCutsConfig"
         },
+        "providers": {
+          "$ref": "#/$defs/ProvidersConfig"
+        },
         "retakes": {
           "$ref": "#/$defs/RetakesConfig"
         },
@@ -346,6 +349,25 @@
         }
       },
       "title": "ModulesConfig",
+      "type": "object"
+    },
+    "ProvidersConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "allow_external_services": {
+          "default": false,
+          "title": "Allow External Services",
+          "type": "boolean"
+        },
+        "allowed_hosts": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Hosts",
+          "type": "array"
+        }
+      },
+      "title": "ProvidersConfig",
       "type": "object"
     },
     "RetakesConfig": {
@@ -420,6 +442,16 @@
     "ShortsConfig": {
       "additionalProperties": false,
       "properties": {
+        "aspect_ratio": {
+          "default": "9:16",
+          "enum": [
+            "9:16",
+            "1:1",
+            "16:9"
+          ],
+          "title": "Aspect Ratio",
+          "type": "string"
+        },
         "burn_subtitles": {
           "default": true,
           "title": "Burn Subtitles",
@@ -470,6 +502,25 @@
           ],
           "title": "Selection Mode",
           "type": "string"
+        },
+        "source_end_sec": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source End Sec"
+        },
+        "source_start_sec": {
+          "default": 0.0,
+          "minimum": 0.0,
+          "title": "Source Start Sec",
+          "type": "number"
         },
         "subtitles_preset": {
           "default": "tiktok_bold",
