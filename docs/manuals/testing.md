@@ -108,7 +108,7 @@ print(asyncio.run(build_server().list_tools()))
 PY
 ```
 
-Expect thirty-six tools. Analysis tools answer immediately; edit tools stage options
+Expect forty-one tools. Analysis tools answer immediately; edit tools stage options
 for the next pipeline run. A successful smoke should load media, run VAD,
 transcribe, read the transcript, start a job, poll it to success, and export.
 
@@ -119,7 +119,7 @@ uv run videoflow-api
 curl -s http://127.0.0.1:8765/health
 ```
 
-Expect `{"status":"ok","service":"videoflow","version":"0.21.2"}`.
+Expect `{"status":"ok","service":"videoflow","version":"0.22.0"}`.
 
 ## 9. AppImage contract
 
@@ -142,7 +142,7 @@ env -i PATH=/nonexistent ./dist/videoflow demo -o /tmp/videoflow-demo
 env -i PATH=/nonexistent ./dist/videoflow serve --port 8799
 ```
 
-Then check `/health`, `/`, `/mcp/`, and the thirty-six tools over `videoflow mcp`.
+Then check `/health`, `/`, `/mcp/`, and the forty-one tools over `videoflow mcp`.
 On Windows, run the same commands with `videoflow.exe`; FFmpeg is found inside
 the bundle, so an empty `PATH` is the proof.
 

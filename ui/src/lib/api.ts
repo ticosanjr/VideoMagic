@@ -10,6 +10,15 @@ export interface SystemInfo {
   ffprobe: string | null;
 }
 
+export interface LocalModel {
+  id: string;
+  label: string;
+  size_mb: number;
+  kind: string;
+  installed: boolean;
+  path: string;
+}
+
 export interface FsRoot {
   name: string;
   path: string;
@@ -132,6 +141,7 @@ export interface JobOptions {
   shorts_remove_fillers?: boolean;
   shorts_filler_words?: string[];
   shorts_aspect?: string;
+  shorts_resolution?: number;
   shorts_source_start_sec?: number;
   shorts_source_end_sec?: number | null;
   allow_external_services?: boolean;
@@ -210,6 +220,8 @@ export interface ShortClip {
   hook_sentence_id?: number | null;
   hook_start_sample?: number | null;
   hook_end_sample?: number | null;
+  crop_focus_x?: number;
+  crop_focus_y?: number;
   virality_score?: number;
   score_breakdown?: Record<string, number>;
   aspect_ratio?: string;
@@ -223,9 +235,23 @@ export interface ShortClip {
   voiceover?: ShortVoiceover;
   dubbing?: ShortDubbing;
   analysis?: ShortAnalysis;
+  analysis_llm?: ShortVisionAnalysis;
   edited_at?: string;
   edit_count?: number;
   previous_path?: string;
+}
+
+export interface ShortVisionAnalysis {
+  objects: string[];
+  scene: string;
+  people: number;
+  mood: string;
+  energy: number;
+  confidence: number;
+  evidence: string;
+  frame_count: number;
+  provider: string;
+  model: string;
 }
 
 export interface ShortAnalysis {
@@ -451,6 +477,7 @@ export interface NewJob {
   shorts_remove_fillers: boolean;
   shorts_filler_words: string[];
   shorts_aspect: string;
+  shorts_resolution: number;
   shorts_source_start_sec: number;
   shorts_source_end_sec: number | null;
   allow_external_services: boolean;
@@ -561,6 +588,29 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError("http_error", payload?.detail ?? response.statusText);
   }
   return payload as T;
+}
+
+export async function listLocalModels(): Promise<LocalModel[]> {
+  const response = await request<{ ok: boolean; models: LocalModel[] }>("/api/v1/models");
+  return response.models;
+}
+
+export async function installLocalModel(
+  modelId: string,
+  allowExternal = true
+): Promise<LocalModel> {
+  const response = await request<{ ok: boolean; model: LocalModel }>(
+    `/api/v1/models/${encodeURIComponent(modelId)}/install`,
+    {
+      method: "POST",
+      body: JSON.stringify({ allow_external_services: allowExternal })
+    }
+  );
+  return response.model;
+}
+
+export async function removeLocalModel(modelId: string): Promise<void> {
+  await request(`/api/v1/models/${encodeURIComponent(modelId)}`, { method: "DELETE" });
 }
 
 export function getSystem(): Promise<SystemInfo> {
@@ -834,6 +884,22 @@ export async function editShort(
   });
 }
 
+export async function generateShortEmoji(
+  jobId: string,
+  index: number,
+  payload: {
+    base_url?: string;
+    model?: string;
+    allow_external_services?: boolean;
+    allowed_external_hosts?: string[];
+  }
+): Promise<{ ok: boolean; emoji_map: Record<string, string>; short: ShortClip }> {
+  return request(`/api/v1/jobs/${jobId}/shorts/${index}/captions/emoji`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
 export async function generateShortMetadata(
   jobId: string,
   index: number,
@@ -858,6 +924,23 @@ export async function generateShortVoiceover(
   }
 ): Promise<{ ok: boolean; voiceover: ShortVoiceover; short: ShortClip }> {
   return request(`/api/v1/jobs/${jobId}/shorts/${index}/voiceover`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function analyzeShortLlm(
+  jobId: string,
+  index: number,
+  payload: {
+    base_url?: string;
+    model?: string;
+    max_frames?: number;
+    allow_external_services?: boolean;
+    allowed_external_hosts?: string[];
+  }
+): Promise<{ ok: boolean; analysis: ShortVisionAnalysis; short: ShortClip }> {
+  return request(`/api/v1/jobs/${jobId}/shorts/${index}/analyze/llm`, {
     method: "POST",
     body: JSON.stringify(payload)
   });

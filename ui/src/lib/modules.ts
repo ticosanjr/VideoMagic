@@ -19,7 +19,14 @@ export type FieldType =
   | "targets"
   | "readonly";
 
-export type ModuleTab = "speech" | "edit" | "shorts" | "export" | "providers";
+export type ModuleTab =
+  | "speech"
+  | "edit"
+  | "shorts"
+  | "studio"
+  | "export"
+  | "models"
+  | "providers";
 
 export type ConfigKey =
   | "force_cfr"
@@ -108,6 +115,7 @@ export type ConfigKey =
   | "outro_asset"
   | "outro_duration_sec"
   | "shorts_aspect"
+  | "shorts_resolution"
   | "shorts_source_start_sec"
   | "shorts_source_end_sec"
   | "allow_external_services"
@@ -261,6 +269,7 @@ export const defaultConfig: JobConfig = {
   outro_asset: "",
   outro_duration_sec: 2,
   shorts_aspect: "9:16",
+  shorts_resolution: 1080,
   shorts_source_start_sec: 0,
   shorts_source_end_sec: 0,
   allow_external_services: false,
@@ -303,7 +312,9 @@ export const moduleTabs: { id: ModuleTab; label: string; hint: string }[] = [
   { id: "speech", label: "Speech", hint: "Ingest, voice detection, transcription, and retakes" },
   { id: "edit", label: "Edit", hint: "J/L cuts, fades, and framing" },
   { id: "shorts", label: "Shorts", hint: "Curation, captions, aspect ratio, and render" },
+  { id: "studio", label: "Studio", hint: "AI analysis, timeline, keyframes, tracks, and transitions" },
   { id: "export", label: "Export", hint: "NLE targets and FCPXML dialect" },
+  { id: "models", label: "Models", hint: "Optional on-demand speech and vision models" },
   { id: "providers", label: "Providers", hint: "Local models and optional external services" }
 ];
 
@@ -480,7 +491,38 @@ export const modules: RackModule[] = [
         label: "Language",
         type: "select",
         implemented: true,
-        options: ["pt", "it", "en", "es", "auto"].map((value) => ({ value, label: value }))
+        options: [
+          ["auto", "Auto-detect"],
+          ["pt", "Portuguese"],
+          ["en", "English"],
+          ["es", "Spanish"],
+          ["it", "Italian"],
+          ["fr", "French"],
+          ["de", "German"],
+          ["nl", "Dutch"],
+          ["sv", "Swedish"],
+          ["no", "Norwegian"],
+          ["da", "Danish"],
+          ["fi", "Finnish"],
+          ["pl", "Polish"],
+          ["cs", "Czech"],
+          ["ro", "Romanian"],
+          ["hu", "Hungarian"],
+          ["el", "Greek"],
+          ["tr", "Turkish"],
+          ["ru", "Russian"],
+          ["uk", "Ukrainian"],
+          ["ar", "Arabic"],
+          ["he", "Hebrew"],
+          ["hi", "Hindi"],
+          ["ja", "Japanese"],
+          ["ko", "Korean"],
+          ["zh", "Chinese"],
+          ["th", "Thai"],
+          ["vi", "Vietnamese"],
+          ["id", "Indonesian"],
+          ["ms", "Malay"]
+        ].map(([value, label]) => ({ value, label }))
       },
       {
         key: "whisper_model",
@@ -1013,6 +1055,18 @@ export const modules: RackModule[] = [
           { value: "16:9", label: "16:9 landscape" }
         ],
         help: "The caption layer uses the same pixel style at the selected render size."
+      },
+      {
+        key: "shorts_resolution",
+        label: "Render resolution",
+        type: "select",
+        implemented: true,
+        options: [
+          { value: "1080", label: "1080p short edge (full HD)" },
+          { value: "1440", label: "1440p short edge (2K)" },
+          { value: "2160", label: "2160p short edge (4K)" }
+        ],
+        help: "2160 renders 2160x3840 vertical, 2160x2160 square, or 3840x2160 landscape."
       },
       {
         key: "shorts_source_start_sec",

@@ -6,12 +6,12 @@ timeline: it removes silence and retakes, adds J-cuts and punch-ins, proposes
 vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive.
 
-> Status: 0.21.2 alpha. The portable Linux binary, Linux AppImage, and Windows
+> Status: 0.22.0 alpha. The portable Linux binary, Linux AppImage, and Windows
 > PE run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical shorts, and
 > three NLE exports. The local API, MCP server, and rack UI execute real jobs;
-> all thirty-six MCP tools and four resources are live. The rack browses local files
+> all forty-one MCP tools and four resources are live. The rack browses local files
 > and folders instead of requiring typed paths. Projects persist atomic,
 > revisioned state under `.videoflow/`, and the REST API manages media, modules,
 > transcripts, exports, and operator presets.
@@ -23,9 +23,10 @@ and Kdenlive.
 - FFmpeg and FFprobe on `PATH`
 - Optional: DaVinci Resolve, Premiere Pro, and Kdenlive 25.04+ for manual import QA
 
-CPU is the default. The portable release bundles whisper.cpp with a tiny model
-and Faster-Whisper with the small CTranslate2 model; no model download happens at
-install time. A GPU is not required.
+CPU is the default. The lean portable release bundles whisper.cpp and
+Faster-Whisper runtimes but not their large weights; download the small model
+from the Models tab when needed. A build with `--with-models` embeds the weights
+and works fully offline out of the box. A GPU is not required.
 
 ## Quick start
 
@@ -51,8 +52,8 @@ npm run dev                         # http://127.0.0.1:5173
 ## Portable executable
 
 One file per OS, no Python, Node, or FFmpeg install required when built with
-`--fetch-ffmpeg --with-whisper --with-silero --with-faster-whisper`. The
-Faster-Whisper model makes each artifact substantially larger.
+`--fetch-ffmpeg --with-whisper --with-silero --with-faster-whisper`. Models are
+not embedded by default; add `--with-models` for a fully offline artifact.
 
 ```bash
 uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper \
@@ -100,11 +101,11 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   overlays, intro/outro cards, music beds with ducking, external TTS voice-over,
   translation dubbing, brand templates, project templates/config import-export,
   motion/face-assisted reframing, audio-energy and scene-change curation,
-  platform metadata, URL import, webhook publishing/scheduling, optional
-  multimodal analysis, thumbnails,
-  retake-aware conforming, 9:16/1:1/16:9 render, an optional source window,
-  burned ASS captions, a live aspect-aware preview, and a per-Short
-  trim/retitle/reframe editor.
+  platform metadata, URL import, webhook publishing/scheduling,
+  OpenAI-compatible multimodal vision analysis, LLM emoji captions, thumbnails,
+  retake-aware conforming, 9:16/1:1/16:9 render at 1080/1440/2160 short edge,
+  an optional source window, burned ASS captions, a live aspect-aware preview,
+  and a per-Short trim/retitle/reframe editor.
 - Deterministic timeline: frame-quantised video, sample-aligned audio, merged
   speech spans, J/L-cut audio boundaries with handle checks, logarithmic fade
   metadata, and alternating punch-ins.
@@ -114,15 +115,16 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   audio fades, and the FCPXML output validates against Apple's 1.9 DTD.
 - Pure domain: rational time, cache hashing, planning, retake guard, path jail,
   redaction, schema generation.
-- MCP server with thirty-six live tools and four resources: media ingest,
+- MCP server with forty-one live tools and four resources: media ingest,
   capability discovery, Silero speech detection, local
   Faster-Whisper/whisper.cpp transcription, transcript reads, staged
   retake/zoom/J-cut edits, shorts proposals, real jobs, NLE export, and project
   state/preset/export resources. Streamable HTTP is mounted on the local API.
 - Unified CLI (`run`, `serve`, `mcp`, `doctor`, `demo`, `version`) and a
   PyInstaller onefile build for Linux and Windows.
-- Tabbed rack UI (Speech, Edit, Shorts, Export, Providers), a capability
-  manifest, opt-in external-provider policy, and Short aspect/window controls.
+- Tabbed rack UI (Speech, Edit, Shorts, Studio, Export, Models, Providers), a
+  capability manifest, opt-in external-provider policy, a model downloader, and
+  Short aspect/window/resolution controls.
 - Local job API with SSE progress, plus persistent project routes for media,
   module config, provider policy, transcript overrides, exports, and operator
   presets.
@@ -131,7 +133,7 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 ## Not implemented yet
 
 - Cache-backed per-block reruns; the route currently returns typed `501`.
-- Keyframed progressive zooms and direct MP4 rendering.
+- Keyframed progressive video transitions and direct main-timeline MP4 rendering.
 - Face tracking.
 - Manual import validation in Resolve, Premiere, and Kdenlive.
 - A signed Windows binary (SmartScreen will warn).

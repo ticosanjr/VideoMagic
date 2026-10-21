@@ -9,7 +9,38 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from videoflow.domain.constants import DEFAULT_SECRET_NAME, PROMPT_TEMPLATE_VERSION
 
 ModelSize = Literal["tiny", "base", "small", "medium", "large-v3"]
-MediaLanguage = Literal["pt", "it", "en", "es", "auto"]
+MediaLanguage = Literal[
+    "auto",
+    "pt",
+    "it",
+    "en",
+    "es",
+    "fr",
+    "de",
+    "nl",
+    "sv",
+    "no",
+    "da",
+    "fi",
+    "pl",
+    "cs",
+    "ro",
+    "hu",
+    "el",
+    "tr",
+    "ru",
+    "uk",
+    "ar",
+    "he",
+    "hi",
+    "ja",
+    "ko",
+    "zh",
+    "th",
+    "vi",
+    "id",
+    "ms",
+]
 ComputeDevice = Literal["cuda", "cpu"]
 ComputeType = Literal["float16", "int8", "float32"]
 VadEngine = Literal["auto", "silero", "ffmpeg"]
@@ -30,6 +61,7 @@ SubtitlePreset = Literal["tiktok_bold", "minimalist_box", "highlight_word"]
 ShortsExportFormat = Literal["fcpxml_timeline", "standalone_mp4", "both"]
 ShortsSelectionMode = Literal["auto", "llm", "heuristic"]
 ShortsAspect = Literal["9:16", "1:1", "16:9"]
+ShortsResolution = Literal[1080, 1440, 2160]
 ShortsPromptMode = Literal["replace", "refine"]
 ShortsHookMode = Literal["off", "metadata", "repeat", "reorder"]
 CaptionAnimation = Literal["none", "pop", "sweep"]
@@ -171,6 +203,7 @@ class ShortsConfig(StrictModel):
     )
     reframe_mode: ReframeMode = "center_crop_9_16"
     aspect_ratio: ShortsAspect = "9:16"
+    resolution: ShortsResolution = 1080
     source_start_sec: float = Field(default=0.0, ge=0.0)
     source_end_sec: float | None = Field(default=None, ge=0.0)
     burn_subtitles: bool = True

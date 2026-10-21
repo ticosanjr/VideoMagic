@@ -139,6 +139,16 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "videoflow_run_pipeline",
         ),
         _entry(
+            "vision_llm",
+            "LLM vision analysis",
+            "editing",
+            "partial",
+            "Frame sampling plus OpenAI-compatible multimodal chat analysis.",
+            "POST /api/v1/jobs/{job_id}/shorts/{index}/analyze/llm",
+            "videoflow_analyze_short_llm",
+            requires=["vision-capable OpenAI-compatible model", "network access"],
+        ),
+        _entry(
             "multimodal_analysis",
             "Multimodal analysis",
             "editing",

@@ -209,6 +209,9 @@ def test_short_dimensions_cover_supported_aspects() -> None:
     assert short_dimensions("1:1") == (1080, 1080)
     assert short_dimensions("16:9") == (1920, 1080)
     assert short_dimensions("unknown") == (1080, 1920)
+    assert short_dimensions("9:16", 2160) == (2160, 3840)
+    assert short_dimensions("1:1", 1440) == (1440, 1440)
+    assert short_dimensions("16:9", 2160) == (3840, 2160)
 
 
 def test_slice_pieces_trims_an_assembled_short() -> None:

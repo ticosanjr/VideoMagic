@@ -29,13 +29,16 @@ from videoflow.application.capabilities import (
     capability_manifest,
     external_services_allowed,
 )
+from videoflow.application.caption_ai import apply_llm_emoji
 from videoflow.application.dubbing import generate_short_dubbing
 from videoflow.application.export_service import export_timeline
 from videoflow.application.filesystem import create_directory, list_directory, roots_payload
 from videoflow.application.fonts import list_fonts, save_font
 from videoflow.application.images import list_images, save_image
 from videoflow.application.jobs import TERMINAL, Job, JobManager
+from videoflow.application.models import install_model, list_models, remove_model
 from videoflow.application.multimodal import analyze_short_entry
+from videoflow.application.multimodal_llm import analyze_short_llm_entry
 from videoflow.application.music import list_music, save_music
 from videoflow.application.presets import get_preset, load_presets, save_preset
 from videoflow.application.project_templates import (
@@ -80,7 +83,12 @@ from videoflow.application.short_metadata import generate_short_metadata
 from videoflow.application.thumbnail import generate_short_thumbnail
 from videoflow.application.url_import import import_url
 from videoflow.application.voiceover import generate_short_voiceover
-from videoflow.domain.config import DubbingConfig, ModuleEnabled, TtsConfig
+from videoflow.domain.config import (
+    DubbingConfig,
+    MediaLanguage,
+    ModuleEnabled,
+    TtsConfig,
+)
 from videoflow.domain.errors import (
     CapabilityUnavailableError,
     FilesystemError,
@@ -165,6 +173,7 @@ class NewJobRequest(BaseModel):
         "center_crop_9_16", "motion_tracking", "face_tracking", "auto_face_tracking_yolo"
     ] = "center_crop_9_16"
     shorts_aspect: Literal["9:16", "1:1", "16:9"] = "9:16"
+    shorts_resolution: Literal[1080, 1440, 2160] = 1080
     shorts_source_start_sec: float = Field(default=0.0, ge=0.0)
     shorts_source_end_sec: float | None = Field(default=None, ge=0.0)
     allow_external_services: bool = False
@@ -235,7 +244,7 @@ class NewJobRequest(BaseModel):
     transcribe: bool = False
     asr_base_url: str | None = None
     asr_model: str = "whisper-1"
-    asr_language: Literal["pt", "it", "en", "es", "auto"] = "pt"
+    asr_language: MediaLanguage = "pt"
     whisper_engine: Literal["auto", "faster-whisper", "whisper.cpp"] = "auto"
     whisper_model_size: Literal["tiny", "base", "small", "medium", "large-v3"] = "small"
     whisper_device: Literal["cpu", "cuda"] = "cpu"
@@ -361,6 +370,25 @@ class ShortThumbnailRequest(BaseModel):
     time_sec: float | None = Field(default=None, ge=0.0)
     title: str | None = Field(default=None, min_length=1, max_length=120)
     caption_style: dict[str, Any] | None = None
+
+
+class ShortVisionRequest(BaseModel):
+    base_url: str | None = None
+    model: str = "gpt-4o-mini"
+    max_frames: int = Field(default=6, ge=1, le=12)
+    allow_external_services: bool = False
+    allowed_external_hosts: list[str] = Field(default_factory=list)
+
+
+class ModelInstallRequest(BaseModel):
+    allow_external_services: bool = True
+
+
+class ShortEmojiRequest(BaseModel):
+    base_url: str | None = None
+    model: str = "qwen2.5:7b-instruct"
+    allow_external_services: bool = False
+    allowed_external_hosts: list[str] = Field(default_factory=list)
 
 
 class ShortMetadataRequest(BaseModel):
@@ -522,6 +550,7 @@ def register_routes(
                     "shorts_scene_change_boost": request.shorts_scene_change_boost,
                     "shorts_reframe_mode": request.shorts_reframe_mode,
                     "shorts_aspect": request.shorts_aspect,
+                    "shorts_resolution": request.shorts_resolution,
                     "shorts_source_start_sec": request.shorts_source_start_sec,
                     "shorts_source_end_sec": request.shorts_source_end_sec,
                     "allow_external_services": request.allow_external_services,
@@ -891,6 +920,38 @@ def register_routes(
             "download": f"/api/v1/jobs/{job_id}/shorts/{index}",
         }
 
+    @app.post("/api/v1/jobs/{job_id}/shorts/{index}/captions/emoji")
+    def short_emoji(
+        job_id: str, index: int, request: ShortEmojiRequest
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            if job.status != "succeeded" or job.result is None:
+                raise StateNotReadyError(
+                    "The job must succeed before captions can be edited."
+                )
+            payload = apply_llm_emoji(
+                source=job.source,
+                output=job.output,
+                index=index,
+                result=job.result,
+                base_url=request.base_url
+                or os.environ.get("VIDEOWFLOW_LLM_BASE_URL")
+                or "http://localhost:11434/v1",
+                model=request.model,
+                api_key=os.environ.get("VIDEOWFLOW_LLM_API_KEY"),
+                allow_external_services=request.allow_external_services,
+                allowed_external_hosts=tuple(request.allowed_external_hosts),
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+        return {
+            "ok": True,
+            "emoji_map": payload["emoji_map"],
+            "short": payload["short"],
+            "download": f"/api/v1/jobs/{job_id}/shorts/{index}",
+        }
+
     @app.post("/api/v1/jobs/{job_id}/shorts/{index}/metadata")
     def short_metadata(
         job_id: str, index: int, request: ShortMetadataRequest
@@ -1062,6 +1123,41 @@ def register_routes(
         except VideoFlowError as exc:
             fail(exc)
         return {"ok": True, "dubbing": payload, "short": job.result["shorts"][index]}
+
+    @app.post("/api/v1/jobs/{job_id}/shorts/{index}/analyze/llm")
+    def analyze_short_vision(
+        job_id: str, index: int, request: ShortVisionRequest
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            if job.status != "succeeded" or job.result is None:
+                raise StateNotReadyError("The job must succeed before analysis.")
+            base_url = request.base_url or os.environ.get("VIDEOWFLOW_VISION_BASE_URL")
+            if not base_url:
+                raise CapabilityUnavailableError(
+                    "external_vision",
+                    "Configure a vision endpoint or VIDEOWFLOW_VISION_BASE_URL.",
+                )
+            analysis = analyze_short_llm_entry(
+                output=job.output,
+                index=index,
+                result=job.result,
+                base_url=base_url,
+                model=request.model or os.environ.get(
+                    "VIDEOWFLOW_VISION_MODEL", "gpt-4o-mini"
+                ),
+                api_key=os.environ.get("VIDEOWFLOW_VISION_API_KEY"),
+                allow_external_services=request.allow_external_services,
+                allowed_external_hosts=tuple(request.allowed_external_hosts),
+                max_frames=request.max_frames,
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+        return {
+            "ok": True,
+            "analysis": analysis,
+            "short": job.result["shorts"][index],
+        }
 
     @app.post("/api/v1/jobs/{job_id}/shorts/{index}/analyze")
     def analyze_short(job_id: str, index: int) -> dict[str, object]:
@@ -1539,6 +1635,33 @@ def register_routes(
         except VideoFlowError as exc:
             fail(exc)
         return {"ok": True, "path": str(path), "media": media.model_dump(mode="json")}
+
+    @app.get("/api/v1/models")
+    def models_list() -> dict[str, object]:
+        return {"ok": True, "models": list_models()}
+
+    @app.post("/api/v1/models/{model_id}/install")
+    def models_install(
+        model_id: str, request: ModelInstallRequest | None = None
+    ) -> dict[str, object]:
+        try:
+            payload = install_model(
+                model_id,
+                allow_network=True
+                if request is None
+                else request.allow_external_services,
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+        return {"ok": True, "model": payload}
+
+    @app.delete("/api/v1/models/{model_id}")
+    def models_remove(model_id: str) -> dict[str, object]:
+        try:
+            remove_model(model_id)
+        except VideoFlowError as exc:
+            fail(exc)
+        return {"ok": True, "removed": model_id}
 
     @app.get("/api/v1/system")
     def system() -> dict[str, object]:

@@ -57,12 +57,17 @@ def main() -> int:
     parser.add_argument(
         "--with-faster-whisper",
         action="store_true",
-        help="Bundle Faster-Whisper, CTranslate2, PyAV, and the small model.",
+        help="Bundle Faster-Whisper, CTranslate2, and PyAV (model is optional).",
     )
     parser.add_argument(
         "--refresh-faster-whisper",
         action="store_true",
         help="Force a fresh Faster-Whisper small model download.",
+    )
+    parser.add_argument(
+        "--with-models",
+        action="store_true",
+        help="Bundle speech model weights. Off by default for the lean download.",
     )
     parser.add_argument("--name", default="videoflow")
     parser.add_argument("--clean", action="store_true", default=True)
@@ -162,6 +167,8 @@ def main() -> int:
             f"CTranslate2 {ctranslate2.__version__}"
         )
         os.environ["VIDEOWFLOW_WITH_FASTER_WHISPER"] = "1"
+
+    os.environ["VIDEOWFLOW_BUNDLE_MODELS"] = "1" if args.with_models else "0"
 
     command = [
         sys.executable,

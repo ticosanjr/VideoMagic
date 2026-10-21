@@ -109,6 +109,7 @@ def find_whisper_model() -> Path | None:
         bundle_root() / "vendor" / "whisper" / "ggml-tiny.bin",
         executable_dir() / "whisper" / "ggml-tiny.bin",
         executable_dir() / "ggml-tiny.bin",
+        portable_home() / "models" / "whisper" / "ggml-tiny.bin",
     )
     for candidate in candidates:
         if candidate.is_file():

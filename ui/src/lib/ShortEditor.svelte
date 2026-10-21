@@ -4,6 +4,7 @@
   import {
     editShort,
     errorMessage,
+    generateShortEmoji,
     generateShortMetadata,
     generateShortThumbnail,
     generateShortDubbing,
@@ -71,6 +72,11 @@
   let analysis = $state<ShortAnalysis | null>(null);
   let analysisBusy = $state(false);
   let analysisError = $state("");
+  let emojiBaseUrl = $state("");
+  let emojiModel = $state("qwen2.5:7b-instruct");
+  let emojiBusy = $state(false);
+  let emojiError = $state("");
+  let emojiMap = $state<Record<string, string>>({});
 
   $effect(() => {
     if (!open) return;
@@ -107,7 +113,34 @@
     dubError = "";
     analysis = short.analysis ?? null;
     analysisError = "";
+    emojiBaseUrl = "";
+    emojiModel = "qwen2.5:7b-instruct";
+    emojiError = "";
+    emojiMap = (short.caption_style?.emoji_map as Record<string, string>) ?? {};
   });
+
+  async function generateEmoji() {
+    if (emojiBusy) return;
+    emojiBusy = true;
+    emojiError = "";
+    try {
+      const response = await generateShortEmoji(jobId, index, {
+        base_url: emojiBaseUrl.trim() || undefined,
+        model: emojiModel,
+        allow_external_services: allowExternal,
+        allowed_external_hosts: String(allowedHosts || "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean)
+      });
+      emojiMap = response.emoji_map;
+      onSaved(response.short);
+    } catch (reason) {
+      emojiError = errorMessage(reason);
+    } finally {
+      emojiBusy = false;
+    }
+  }
 
   function setPlatform(value: string) {
     platform = value;
@@ -402,6 +435,20 @@
                 class="mt-1 h-10 w-full rounded-lg border border-neutral-700 bg-neutral-950 p-1"
               />
             </label>
+          </div>
+          <div class="space-y-2 rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
+            <p class="text-[10px] uppercase tracking-wide text-neutral-500">LLM emoji pass</p>
+            <div class="grid gap-2 sm:grid-cols-2">
+              <input type="text" value={emojiBaseUrl} oninput={(event) => (emojiBaseUrl = event.currentTarget.value)} placeholder="http://localhost:11434/v1" class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" />
+              <input type="text" value={emojiModel} oninput={(event) => (emojiModel = event.currentTarget.value)} class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" />
+            </div>
+            <button type="button" onclick={generateEmoji} disabled={emojiBusy} class="rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-[10px] text-violet-200 disabled:opacity-40">
+              {emojiBusy ? "Generating and re-rendering…" : "Generate emojis and re-render"}
+            </button>
+            {#if emojiError}<p class="text-[10px] text-rose-300">{emojiError}</p>{/if}
+            {#if Object.keys(emojiMap).length}
+              <p class="text-[10px] text-neutral-400">{Object.entries(emojiMap).map(([word, emoji]) => `${word} ${emoji}`).join(" · ")}</p>
+            {/if}
           </div>
           <p class="text-[10px] leading-4 text-neutral-500">
             Other caption fields inherit from the project style.

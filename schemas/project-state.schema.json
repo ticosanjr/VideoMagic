@@ -1045,6 +1045,16 @@
           "title": "Reprompt",
           "type": "string"
         },
+        "resolution": {
+          "default": 1080,
+          "enum": [
+            1080,
+            1440,
+            2160
+          ],
+          "title": "Resolution",
+          "type": "integer"
+        },
         "scene_change_boost": {
           "default": false,
           "title": "Scene Change Boost",
@@ -1140,11 +1150,36 @@
         "language": {
           "default": "pt",
           "enum": [
+            "auto",
             "pt",
             "it",
             "en",
             "es",
-            "auto"
+            "fr",
+            "de",
+            "nl",
+            "sv",
+            "no",
+            "da",
+            "fi",
+            "pl",
+            "cs",
+            "ro",
+            "hu",
+            "el",
+            "tr",
+            "ru",
+            "uk",
+            "ar",
+            "he",
+            "hi",
+            "ja",
+            "ko",
+            "zh",
+            "th",
+            "vi",
+            "id",
+            "ms"
           ],
           "title": "Language",
           "type": "string"

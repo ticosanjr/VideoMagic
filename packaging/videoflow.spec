@@ -13,6 +13,7 @@ from PyInstaller.utils.hooks import (
 
 ROOT = Path(SPECPATH).resolve().parent
 VENDOR = Path(os.environ.get("VIDEOWFLOW_VENDOR_DIR", str(ROOT / "vendor")))
+BUNDLE_MODELS = os.environ.get("VIDEOWFLOW_BUNDLE_MODELS") == "1"
 
 datas = [(str(ROOT / "src" / "videoflow" / "presets"), "videoflow/presets")]
 binaries = []
@@ -54,6 +55,8 @@ if whisper.is_dir():
         if not candidate.is_file():
             continue
         suffix = candidate.suffix.lower()
+        if suffix == ".bin" and not BUNDLE_MODELS:
+            continue
         if suffix in {".exe", ".dll", ".so", ".dylib"} or (
             suffix == "" and os.access(candidate, os.X_OK)
         ):
@@ -86,10 +89,11 @@ if os.environ.get("VIDEOWFLOW_WITH_FASTER_WHISPER") == "1":
             hiddenimports += package_hidden
         except Exception as error:
             raise SystemExit(f"cannot bundle {package}: {error}") from error
-    model = VENDOR / "faster-whisper" / "small"
-    if not (model / "model.bin").is_file() or not (model / "config.json").is_file():
-        raise SystemExit(f"Faster-Whisper model is incomplete: {model}")
-    datas.append((str(model), "faster-whisper/small"))
+    if BUNDLE_MODELS:
+        model = VENDOR / "faster-whisper" / "small"
+        if not (model / "model.bin").is_file() or not (model / "config.json").is_file():
+            raise SystemExit(f"Faster-Whisper model is incomplete: {model}")
+        datas.append((str(model), "faster-whisper/small"))
 
 for distribution in (
     "mcp",

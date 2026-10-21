@@ -93,7 +93,9 @@ def edit_short(
     aspect = options.aspect_ratio or str(
         entry.get("aspect_ratio") or state.modules_config.shorts.aspect_ratio
     )
-    width, height = short_dimensions(aspect)
+    width, height = short_dimensions(
+        aspect, state.modules_config.shorts.resolution
+    )
     base_style = state.modules_config.shorts.caption_style
     if isinstance(entry.get("caption_style"), dict):
         with contextlib.suppress(ValidationError):

@@ -3,9 +3,31 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
-## [Unreleased]
+## [0.22.0] - 2026-10-21
 
 ### Added
+
+- OpenAI-compatible multimodal Short analysis through
+  `POST /api/v1/jobs/{job_id}/shorts/{index}/analyze/llm` and
+  `videoflow_analyze_short_llm`. Frames are sampled locally, sent only when
+  external services are enabled, and the result is persisted in `shorts.json`.
+- A separate Studio tab with AI Analysis, Timeline, Keyframes, Tracks, and
+  Transitions sections. AI Analysis runs vision analysis; Timeline opens the
+  per-Short editor; the other sections expose reframe, track, and transition
+  state.
+- LLM emoji captions: `POST /api/v1/jobs/{job_id}/shorts/{index}/captions/emoji`
+  and `videoflow_generate_short_emoji` generate a validated emoji map and
+  re-render the Short with it.
+- Optional model downloads through `GET /api/v1/models`,
+  `POST /api/v1/models/{id}/install`, `DELETE /api/v1/models/{id}`, the Models
+  tab, and three MCP tools. Downloads are checksum-verified and stored under
+  the portable home directory.
+- Lean portable builds: speech model weights are excluded unless
+  `VIDEOWFLOW_BUNDLE_MODELS=1` or `scripts/build_portable.py --with-models` is
+  used. Downloaded models are resolved at runtime without rebuilding.
+- 30 transcription language codes across CLI/API/MCP/UI, including auto-detect.
+- Short render resolution selection: 1080, 1440, or 2160 short-edge. 4K renders
+  as 2160x3840 vertical, 2160x2160 square, or 3840x2160 landscape.
 
 - Tabbed rack navigation: Speech, Edit, Shorts, Export, and Providers. Each tab
   shows only the modules and controls that belong to that area.

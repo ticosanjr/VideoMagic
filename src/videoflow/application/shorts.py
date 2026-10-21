@@ -28,10 +28,14 @@ SHORT_DIMENSIONS: dict[str, tuple[int, int]] = {
 }
 
 
-def short_dimensions(aspect: str) -> tuple[int, int]:
-    """Return the render size for a configured Short aspect."""
+def short_dimensions(aspect: str, resolution: int = 1080) -> tuple[int, int]:
+    """Return the render size for an aspect and short-edge resolution."""
 
-    return SHORT_DIMENSIONS.get(aspect, SHORT_DIMENSIONS["9:16"])
+    width, height = SHORT_DIMENSIONS.get(aspect, SHORT_DIMENSIONS["9:16"])
+    scale = max(1, int(resolution)) / min(width, height)
+    if scale == 1:
+        return width, height
+    return round(width * scale / 2) * 2, round(height * scale / 2) * 2
 
 
 PROMPT = """\

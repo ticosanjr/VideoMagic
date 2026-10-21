@@ -30,12 +30,15 @@ from videoflow.application.capabilities import (
     ensure_external_allowed,
     external_services_allowed,
 )
+from videoflow.application.caption_ai import apply_llm_emoji
 from videoflow.application.dubbing import generate_short_dubbing
 from videoflow.application.export_service import FILENAMES, export_timeline
 from videoflow.application.fonts import list_fonts, save_font
 from videoflow.application.images import list_images, save_image
 from videoflow.application.jobs import JobManager
+from videoflow.application.models import install_model, list_models, remove_model
 from videoflow.application.multimodal import analyze_short_entry
+from videoflow.application.multimodal_llm import analyze_short_llm_entry
 from videoflow.application.music import list_music, save_music
 from videoflow.application.project_templates import (
     ProjectTemplate,
@@ -76,7 +79,12 @@ from videoflow.application.url_import import import_url
 from videoflow.application.vad import detect_speech as detect_vad
 from videoflow.application.voiceover import generate_short_voiceover
 from videoflow.domain.config import DubbingConfig, TtsConfig
-from videoflow.domain.errors import InvalidRetakeIdsError, StateNotReadyError, VideoFlowError
+from videoflow.domain.errors import (
+    CapabilityUnavailableError,
+    InvalidRetakeIdsError,
+    StateNotReadyError,
+    VideoFlowError,
+)
 from videoflow.domain.paths import resolve_allowed
 from videoflow.domain.state import MediaInfo, ProjectState, Sentence
 from videoflow.domain.timebase import Rounding
@@ -161,6 +169,7 @@ OVERRIDE_KEYS = {
     "shorts_remove_fillers",
     "shorts_filler_words",
     "shorts_aspect",
+    "shorts_resolution",
     "shorts_source_start_sec",
     "shorts_source_end_sec",
     "allow_external_services",
@@ -1048,6 +1057,46 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         }
 
     @mcp.tool()
+    def videoflow_generate_short_emoji(
+        index: int,
+        base_url: str | None = None,
+        model: str = "qwen2.5:7b-instruct",
+        allow_external_services: bool = False,
+        allowed_external_hosts: list[str] | None = None,
+    ) -> dict[str, object]:
+        """Generate an LLM emoji map and re-render one Short captions."""
+
+        job_id = last.get("job_id")
+        if not isinstance(job_id, str):
+            return _error("job_required", "Run videoflow_run_pipeline first.")
+        try:
+            job = manager.get(job_id)
+            if job.status != "succeeded" or job.result is None:
+                raise StateNotReadyError(
+                    "The job must succeed before captions can be edited."
+                )
+            payload = apply_llm_emoji(
+                source=job.source,
+                output=job.output,
+                index=index,
+                result=job.result,
+                base_url=base_url
+                or os.environ.get("VIDEOWFLOW_LLM_BASE_URL")
+                or "http://localhost:11434/v1",
+                model=model,
+                api_key=os.environ.get("VIDEOWFLOW_LLM_API_KEY"),
+                allow_external_services=allow_external_services,
+                allowed_external_hosts=tuple(allowed_external_hosts or ()),
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {
+            "ok": True,
+            "emoji_map": payload["emoji_map"],
+            "short": payload["short"],
+        }
+
+    @mcp.tool()
     def videoflow_generate_short_metadata(
         index: int,
         platform: str = "youtube",
@@ -1272,6 +1321,51 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         }
 
     @mcp.tool()
+    def videoflow_analyze_short_llm(
+        index: int,
+        base_url: str | None = None,
+        model: str = "gpt-4o-mini",
+        max_frames: int = 6,
+        allow_external_services: bool = False,
+        allowed_external_hosts: list[str] | None = None,
+    ) -> dict[str, object]:
+        """Analyze Short frames with an OpenAI-compatible vision model."""
+
+        job_id = last.get("job_id")
+        if not isinstance(job_id, str):
+            return _error("job_required", "Run videoflow_run_pipeline first.")
+        try:
+            job = manager.get(job_id)
+            if job.status != "succeeded" or job.result is None:
+                raise StateNotReadyError("The job must succeed before analysis.")
+            endpoint = base_url or os.environ.get("VIDEOWFLOW_VISION_BASE_URL")
+            if not endpoint:
+                raise CapabilityUnavailableError(
+                    "external_vision",
+                    "Configure a vision endpoint or VIDEOWFLOW_VISION_BASE_URL.",
+                )
+            analysis = analyze_short_llm_entry(
+                output=job.output,
+                index=index,
+                result=job.result,
+                base_url=endpoint,
+                model=model or os.environ.get(
+                    "VIDEOWFLOW_VISION_MODEL", "gpt-4o-mini"
+                ),
+                api_key=os.environ.get("VIDEOWFLOW_VISION_API_KEY"),
+                allow_external_services=allow_external_services,
+                allowed_external_hosts=tuple(allowed_external_hosts or ()),
+                max_frames=max_frames,
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {
+            "ok": True,
+            "analysis": analysis,
+            "short": job.result["shorts"][index],
+        }
+
+    @mcp.tool()
     def videoflow_export_fcpxml(
         output_path: str,
         target_nle: str = "resolve",
@@ -1388,6 +1482,38 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             return {"ok": True, "job": manager.cancel(job_id).to_dict()}
         except VideoFlowError as exc:
             return exc.to_dict()
+
+    @mcp.tool()
+    def videoflow_list_models() -> dict[str, object]:
+        """List optional local models and whether they are installed."""
+
+        return {"ok": True, "models": list_models()}
+
+    @mcp.tool()
+    def videoflow_install_model(
+        model_id: str, allow_external_services: bool = True
+    ) -> dict[str, object]:
+        """Download and verify one optional local model."""
+
+        try:
+            return {
+                "ok": True,
+                "model": install_model(
+                    model_id, allow_network=allow_external_services
+                ),
+            }
+        except VideoFlowError as exc:
+            return exc.to_dict()
+
+    @mcp.tool()
+    def videoflow_remove_model(model_id: str) -> dict[str, object]:
+        """Remove one downloaded model, freeing local disk space."""
+
+        try:
+            remove_model(model_id)
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {"ok": True, "removed": model_id}
 
     @mcp.resource("videoflow://project/state")
     def project_state() -> str:

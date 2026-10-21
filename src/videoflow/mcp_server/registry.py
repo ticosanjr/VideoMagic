@@ -155,6 +155,11 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "shorts",
     ),
     ToolSpec(
+        "videoflow_generate_short_emoji",
+        "Generate an LLM emoji map and re-render one Short's captions.",
+        "shorts",
+    ),
+    ToolSpec(
         "videoflow_generate_short_metadata",
         "Generate platform-aware title, description, and hashtags for a Short.",
         "shorts",
@@ -175,9 +180,29 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "shorts",
     ),
     ToolSpec(
+        "videoflow_analyze_short_llm",
+        "Analyze Short frames with an OpenAI-compatible vision model.",
+        "shorts",
+    ),
+    ToolSpec(
         "videoflow_analyze_short",
         "Run optional audio-emotion and visual-motion analysis on a Short.",
         "shorts",
+    ),
+    ToolSpec(
+        "videoflow_list_models",
+        "List optional local models and installation state.",
+        "models",
+    ),
+    ToolSpec(
+        "videoflow_install_model",
+        "Download and checksum-verify an optional local model.",
+        "models",
+    ),
+    ToolSpec(
+        "videoflow_remove_model",
+        "Remove a downloaded local model.",
+        "models",
     ),
     ToolSpec(
         "videoflow_export_fcpxml",

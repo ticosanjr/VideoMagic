@@ -11,6 +11,8 @@
   import PathPicker from "$lib/PathPicker.svelte";
   import ShortEditor from "$lib/ShortEditor.svelte";
   import StatusIcon from "$lib/StatusIcon.svelte";
+  import StudioPanel from "$lib/StudioPanel.svelte";
+  import ModelsPanel from "$lib/ModelsPanel.svelte";
   import {
     cancelJob,
     createJob,
@@ -360,6 +362,7 @@
         .map((item) => item.trim())
         .filter(Boolean),
       shorts_aspect: String(config.shorts_aspect || "9:16"),
+      shorts_resolution: Number(config.shorts_resolution || 1080),
       shorts_source_start_sec: Number(config.shorts_source_start_sec || 0),
       shorts_source_end_sec: Number(config.shorts_source_end_sec || 0) || null,
       allow_external_services: Boolean(config.allow_external_services),
@@ -1124,7 +1127,11 @@
         {/each}
       </div>
 
-      {#if activeTab === "providers"}
+      {#if activeTab === "studio"}
+        <StudioPanel {job} {config} onEdit={openShortEditor} />
+      {:else if activeTab === "models"}
+        <ModelsPanel allowExternal={config.allow_external_services} />
+      {:else if activeTab === "providers"}
         <CapabilitiesPanel
           allowExternal={Boolean(config.allow_external_services)}
           allowedHosts={String(config.allowed_external_hosts || "")}

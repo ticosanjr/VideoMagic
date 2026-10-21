@@ -146,6 +146,7 @@ def _shorts_config(options: dict[str, object]) -> ShortsConfig:
             ["hum", "hmm", "uh", "um", "ah", "eh", "erm", "er"],
         ),
         aspect_ratio=str(options.get("shorts_aspect", "9:16")),  # type: ignore[arg-type]
+        resolution=int(options.get("shorts_resolution", 1080)),  # type: ignore[arg-type]
         source_start_sec=float(options.get("shorts_source_start_sec", 0.0)),
         source_end_sec=(
             float(options["shorts_source_end_sec"])

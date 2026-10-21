@@ -42,7 +42,7 @@ For HTTP:
 
 ## 2. Tools
 
-All thirty-six tools execute real work. `videoflow_load_media` remembers the source.
+All forty-one tools execute real work. `videoflow_load_media` remembers the source.
 Analysis tools work immediately. Edit tools stage configuration for the next
 `videoflow_run_pipeline`; the result says `applies_to_next_run` when a job is
 still required.

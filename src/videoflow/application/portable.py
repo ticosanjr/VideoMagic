@@ -505,7 +505,9 @@ def run_portable(
             for item in kept
             if item.start_sample >= range_start and item.end_sample <= range_end
         ]
-        width, height = short_dimensions(short_cfg.aspect_ratio)
+        width, height = short_dimensions(
+            short_cfg.aspect_ratio, short_cfg.resolution
+        )
         previous = (
             previous_shorts_from_report(output_path / "shorts.json")
             if short_cfg.prompt_mode == "refine"

@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (0.21.2)
+## Implementation status (0.22.0)
 
 | Area | State |
 | --- | --- |
@@ -12,20 +12,20 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Silero VAD via ONNX Runtime with FFmpeg `silencedetect` fallback | implemented |
 | Deterministic timeline, J/L-cuts, fades, punch-ins | implemented |
 | FCPXML 1.9/1.10, xmeml v4, native Kdenlive MLT export | implemented |
-| Portable artifacts | 0.21.2 Linux binary, Linux AppImage, and Windows PE built and smoke-tested under Wine; the file browser is included |
+| Portable artifacts | 0.22.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
 | SRT transcript import and LLM retake culling | implemented |
 | Local Faster-Whisper with whisper.cpp fallback, and ASR HTTP | implemented; pinned small model bundled in release builds |
 | Local filesystem browser with allowlisted roots | implemented; no media upload |
 | URL import | implemented via optional yt-dlp; external policy and host allowlist apply |
 | Webhook publishing | implemented; targets, persistent queue, scheduler, metadata generation |
-| Multimodal analysis | partial; audio-emotion heuristics, motion and optional OpenCV faces |
+| Multimodal analysis | implemented; audio-emotion heuristics, motion, optional OpenCV faces, and OpenAI-compatible LLM vision |
 | Jobs, job REST routes, SSE, live MCP jobs | implemented for the portable path |
-| MCP: thirty-six tools and four resources | implemented; analysis, capabilities, staged edits, jobs, export, resources |
-| Rack UI driving real portable jobs, logs, overrides, shorts | implemented; tabbed Speech/Edit/Shorts/Export/Providers layout and path picker |
+| MCP: forty-one tools and four resources | implemented; analysis, capabilities, models, staged edits, jobs, export, resources |
+| Rack UI driving real portable jobs, logs, overrides, shorts | implemented; Speech/Edit/Shorts/Studio/Export/Models/Providers tabs and path picker |
 | Project-scoped routes, revisions, transcript API, presets | implemented; per-module rerun is typed 501 |
 | Shorts selection/rendering and API download | implemented; prompt/reprompt, explainable virality score, auto hook, filler cuts, censor, 9:16, 1:1, 16:9, optional source window |
 | Social metadata | implemented; deterministic title, description, and hashtags for YouTube, TikTok, Instagram, LinkedIn |
-| Caption branding | implemented; keyword highlight, emoji map, brand vocabulary, profanity mask, and custom font assets |
+| Caption branding | implemented; keyword highlight, LLM emoji map, brand vocabulary, profanity mask, 30 language codes, and custom font assets |
 | Short thumbnails | implemented; frame extraction plus caption-style title overlay |
 | Speech enhancement | implemented for rendered Shorts; high-pass, FFT denoise, loudnorm |
 | Watermark overlay | implemented; PNG/JPEG asset store, position, margin, scale, opacity |
