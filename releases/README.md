@@ -19,7 +19,8 @@ releases/v0.21.2/
 3. Commit the notes, checksums, and manifest. Binaries are ignored because
    GitHub rejects files over 100 MB in normal git history.
 4. Keep the binaries in this folder. GitHub Actions is not used for this
-   project. Uploading to a GitHub Release is a separate, manual decision.
+   project. Upload the binaries as GitHub Release assets after the board
+   authorizes the release; only checksums, manifests, and notes are committed.
 5. Keep at most **three** `v*` folders. `scripts/release.py` prunes older ones
    automatically; `--keep N` changes the retention count. Historical notes stay
    in `CHANGELOG.md` and git history.
@@ -30,8 +31,9 @@ releases/v0.21.2/
 uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper \
   --with-silero --with-faster-whisper
 uv run python scripts/build_appimage.py
+# Optional fully offline build: add --with-models
 # Windows PE via Wine + embeddable Python, see docs/manuals/portable.md
-uv run python scripts/release.py --require-all --keep 3
+uv run python scripts/release.py --version X.Y.Z --keep 3
 ```
 
 `--require-all` fails unless the Linux binary, AppImage, and Windows `.exe` are
@@ -45,6 +47,9 @@ videoflow-0.21.2-windows-x86_64.exe
 
 ## Current
 
+- `v0.22.0`: LLM vision Studio, LLM emoji captions, on-demand model downloads,
+  lean builds without weight files, 30 language codes, and 1080/1440/2160
+  short-edge renders. Linux binary and AppImage uploaded as GitHub assets.
 - `v0.21.2`: FCPXML/Resolve audio fade keyframes, DTD-valid sequence audio
   rates, and a live 9:16 caption preview in the Shorts card.
 - `v0.21.1`: Premiere xmeml audio `transitionitem` fades and Kdenlive keyframed
