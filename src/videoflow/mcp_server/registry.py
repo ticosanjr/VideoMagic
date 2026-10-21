@@ -85,6 +85,11 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "shorts",
     ),
     ToolSpec(
+        "videoflow_generate_short_thumbnail",
+        "Extract one Short frame and burn a caption-style title.",
+        "shorts",
+    ),
+    ToolSpec(
         "videoflow_export_fcpxml",
         "Export the latest completed timeline for Resolve, Premiere, or Kdenlive.",
         "export",

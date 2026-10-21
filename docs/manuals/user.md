@@ -186,6 +186,8 @@ vertical-only output.
   internal family name; click it to put that name in Caption font.
 - **Metadata**: open a Short's **Metadata** tab, choose platform/tone, and
   generate title, description, hashtags, and character limits.
+- **Thumbnail**: choose a frame time in the Metadata tab and generate a PNG with
+  the caption-style title overlay.
 - **Duration** is checked after retake culling. The Shorts tab also has
   `0–1`, `1–3`, `3–5`, and `5–10` minute presets.
 - **Aspect ratio** is `9:16`, `1:1`, or `16:9`. ASS and FFmpeg use the same

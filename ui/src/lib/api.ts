@@ -181,9 +181,19 @@ export interface ShortClip {
   subtitles?: string;
   caption_style?: Record<string, unknown>;
   metadata?: Record<string, ShortMetadata>;
+  thumbnail?: string;
+  thumbnails?: ShortThumbnail[];
   edited_at?: string;
   edit_count?: number;
   previous_path?: string;
+}
+
+export interface ShortThumbnail {
+  path: string;
+  title: string;
+  time_sec: number;
+  width: number;
+  height: number;
 }
 
 export interface ShortMetadata {
@@ -493,6 +503,17 @@ export async function generateShortMetadata(
   payload: { platform: string; tone: string; extra_hashtags?: string[] }
 ): Promise<{ ok: boolean; metadata: ShortMetadata; short: ShortClip }> {
   return request(`/api/v1/jobs/${jobId}/shorts/${index}/metadata`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function generateShortThumbnail(
+  jobId: string,
+  index: number,
+  payload: { time_sec?: number; title?: string; caption_style?: Record<string, unknown> }
+): Promise<{ ok: boolean; thumbnail: ShortThumbnail; short: ShortClip }> {
+  return request(`/api/v1/jobs/${jobId}/shorts/${index}/thumbnail`, {
     method: "POST",
     body: JSON.stringify(payload)
   });

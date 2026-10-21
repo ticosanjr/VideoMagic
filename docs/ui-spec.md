@@ -100,7 +100,7 @@ caption preview follows the selected aspect and shows the configured font,
 colors, outline, shadow, box, alignment, and position. The per-Short editor has
 Clip, Captions, and Metadata tabs. Saving a clip/caption edit writes a fresh
 render under `shorts/edited/`; the Metadata tab generates platform title,
-description, and hashtags.
+description, hashtags, and a PNG thumbnail with preview/download.
 
 The picker never offers a parent above the allowlisted root. If a symlink points
 outside the roots it is omitted. Network shares and unlisted disks require an

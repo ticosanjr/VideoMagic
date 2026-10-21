@@ -32,6 +32,7 @@ from videoflow.application.short_editor import ShortEditOptions
 from videoflow.application.short_editor import edit_short as edit_short_service
 from videoflow.application.short_metadata import generate_short_metadata
 from videoflow.application.shorts import select_shorts
+from videoflow.application.thumbnail import generate_short_thumbnail
 from videoflow.application.vad import detect_speech as detect_vad
 from videoflow.domain.errors import InvalidRetakeIdsError, StateNotReadyError, VideoFlowError
 from videoflow.domain.paths import resolve_allowed
@@ -754,6 +755,40 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         return {
             "ok": True,
             "metadata": metadata,
+            "short": job.result["shorts"][index],
+        }
+
+    @mcp.tool()
+    def videoflow_generate_short_thumbnail(
+        index: int,
+        time_sec: float | None = None,
+        title: str | None = None,
+        caption_style: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        """Extract one Short frame and burn a title-style thumbnail."""
+
+        job_id = last.get("job_id")
+        if not isinstance(job_id, str):
+            return _error("job_required", "Run videoflow_run_pipeline first.")
+        try:
+            job = manager.get(job_id)
+            if job.status != "succeeded" or job.result is None:
+                raise StateNotReadyError(
+                    "The job must succeed before a thumbnail can be generated."
+                )
+            thumbnail = generate_short_thumbnail(
+                output=job.output,
+                index=index,
+                result=job.result,
+                time_sec=time_sec,
+                title=title,
+                caption_style=caption_style,
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {
+            "ok": True,
+            "thumbnail": thumbnail,
             "short": job.result["shorts"][index],
         }
 

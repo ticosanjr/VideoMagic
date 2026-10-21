@@ -36,6 +36,7 @@ from videoflow.application.projects import (
 from videoflow.application.short_editor import ShortEditOptions
 from videoflow.application.short_editor import edit_short as edit_short_service
 from videoflow.application.short_metadata import generate_short_metadata
+from videoflow.application.thumbnail import generate_short_thumbnail
 from videoflow.domain.config import ModuleEnabled
 from videoflow.domain.errors import (
     CapabilityUnavailableError,
@@ -210,6 +211,12 @@ class ProjectRunRequest(BaseModel):
 class ExportRequest(BaseModel):
     targets: list[Literal["resolve", "premiere", "kdenlive"]] | None = None
     dialect: Literal["1.9", "1.10"] | None = None
+
+
+class ShortThumbnailRequest(BaseModel):
+    time_sec: float | None = Field(default=None, ge=0.0)
+    title: str | None = Field(default=None, min_length=1, max_length=120)
+    caption_style: dict[str, Any] | None = None
 
 
 class ShortMetadataRequest(BaseModel):
@@ -542,6 +549,63 @@ def register_routes(
             "metadata": metadata,
             "short": job.result["shorts"][index],
         }
+
+    @app.post("/api/v1/jobs/{job_id}/shorts/{index}/thumbnail")
+    def short_thumbnail(
+        job_id: str, index: int, request: ShortThumbnailRequest
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            if job.status != "succeeded" or job.result is None:
+                raise StateNotReadyError(
+                    "The job must succeed before a thumbnail can be generated."
+                )
+            thumbnail = generate_short_thumbnail(
+                output=job.output,
+                index=index,
+                result=job.result,
+                time_sec=request.time_sec,
+                title=request.title,
+                caption_style=request.caption_style,
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+        return {
+            "ok": True,
+            "thumbnail": thumbnail,
+            "short": job.result["shorts"][index],
+        }
+
+    @app.get("/api/v1/jobs/{job_id}/shorts/{index}/thumbnail")
+    def download_short_thumbnail(job_id: str, index: int) -> FileResponse:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
+        shorts = (job.result or {}).get("shorts") or []
+        if not isinstance(shorts, list) or index < 0 or index >= len(shorts):
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "shorts_not_found", "message": str(index)},
+            )
+        entry = shorts[index]
+        raw = entry.get("thumbnail") if isinstance(entry, dict) else None
+        if not raw:
+            raise HTTPException(
+                status_code=404, detail={"ok": False, "code": "thumbnail_not_found"}
+            )
+        path = Path(str(raw)).expanduser().resolve()
+        output = job.output.expanduser().resolve()
+        if not path.is_relative_to(output) or not path.is_file():
+            raise HTTPException(
+                status_code=403,
+                detail={"ok": False, "code": "shorts_not_allowed", "message": "outside output"},
+            )
+        return FileResponse(
+            path,
+            filename=path.name,
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app.get("/api/v1/jobs/{job_id}/state")
     def job_state(job_id: str) -> dict[str, object]:

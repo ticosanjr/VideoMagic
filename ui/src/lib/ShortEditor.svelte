@@ -3,8 +3,10 @@
     editShort,
     errorMessage,
     generateShortMetadata,
+    generateShortThumbnail,
     type ShortClip,
-    type ShortMetadata
+    type ShortMetadata,
+    type ShortThumbnail
   } from "$lib/api";
 
   let {
@@ -40,6 +42,10 @@
   let metadata = $state<ShortMetadata | null>(null);
   let metadataBusy = $state(false);
   let metadataError = $state("");
+  let thumbnail = $state<ShortThumbnail | null>(null);
+  let thumbnailTime = $state(0.5);
+  let thumbnailBusy = $state(false);
+  let thumbnailError = $state("");
 
   $effect(() => {
     if (!open) return;
@@ -59,6 +65,9 @@
     tone = "engaging";
     metadata = short.metadata?.youtube ?? null;
     metadataError = "";
+    thumbnail = short.thumbnails?.at(-1) ?? null;
+    thumbnailTime = 0.5;
+    thumbnailError = "";
   });
 
   function setPlatform(value: string) {
@@ -81,6 +90,23 @@
       metadataError = errorMessage(reason);
     } finally {
       metadataBusy = false;
+    }
+  }
+
+  async function makeThumbnail() {
+    if (thumbnailBusy) return;
+    thumbnailBusy = true;
+    thumbnailError = "";
+    try {
+      const response = await generateShortThumbnail(jobId, index, {
+        time_sec: Number(thumbnailTime),
+        title
+      });
+      thumbnail = response.thumbnail;
+    } catch (reason) {
+      thumbnailError = errorMessage(reason);
+    } finally {
+      thumbnailBusy = false;
     }
   }
 
@@ -339,6 +365,48 @@
               </div>
             </div>
           {/if}
+
+          <div class="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
+            <div class="flex flex-wrap items-end gap-2">
+              <label class="block flex-1 text-xs text-neutral-300">
+                <span class="text-[10px] uppercase tracking-wide text-neutral-500">Frame time (s)</span>
+                <input
+                  type="number"
+                  min="0"
+                  max={short.duration_sec}
+                  step="0.05"
+                  value={thumbnailTime}
+                  oninput={(event) => (thumbnailTime = Number(event.currentTarget.value))}
+                  class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+                />
+              </label>
+              <button
+                type="button"
+                onclick={makeThumbnail}
+                disabled={thumbnailBusy}
+                class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-200 disabled:opacity-40"
+              >
+                {thumbnailBusy ? "Rendering…" : "Generate thumbnail"}
+              </button>
+            </div>
+            {#if thumbnailError}
+              <p class="mt-2 text-[10px] text-rose-300">{thumbnailError}</p>
+            {/if}
+            {#if thumbnail}
+              <img
+                src={`/api/v1/jobs/${jobId}/shorts/${index}/thumbnail?v=${encodeURIComponent(thumbnail.path)}`}
+                alt="Short thumbnail"
+                class="mt-3 w-full rounded-lg border border-neutral-800"
+              />
+              <a
+                class="mt-2 block truncate text-[10px] text-sky-300 hover:text-sky-200"
+                href={`/api/v1/jobs/${jobId}/shorts/${index}/thumbnail`}
+                download
+              >
+                Download thumbnail
+              </a>
+            {/if}
+          </div>
         {/if}
 
         {#if error}

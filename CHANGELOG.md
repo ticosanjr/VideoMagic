@@ -38,6 +38,8 @@ follow semantic versioning once the project reaches 1.0.
   rewriting. Empty keyword lists auto-select frequent content words.
 - Custom TTF/OTF font upload with internal-family detection, a local font asset
   store, UI font picker, `fontsdir` rendering, and API/MCP access.
+- Short thumbnail generator: frame extraction plus caption-style title overlay,
+  persisted under `shorts/thumbs/` and exposed through API/MCP/UI.
 
 ### Changed
 
@@ -46,7 +48,7 @@ follow semantic versioning once the project reaches 1.0.
   pruned folder.
 - Release staging is documented as the canonical artifact store. Generated
   `build/`, `dist/`, coverage files, and caches are cleaned after each release.
-- MCP now exposes fifteen tools and four resources.
+- MCP now exposes eighteen tools and four resources.
 
 ### Docs
 
@@ -56,7 +58,7 @@ follow semantic versioning once the project reaches 1.0.
 
 ### Verified
 
-- Tests: 342 passed, 11 xfailed, 7 deselected; coverage 99.03%; ruff and mypy
+- Tests: 343 passed, 11 xfailed, 7 deselected; coverage 99.03%; ruff and mypy
   clean.
 - UI: `svelte-check` reports 0 errors and 0 warnings; 13 Vitest tests and the
   production build pass.

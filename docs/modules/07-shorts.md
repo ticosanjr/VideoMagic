@@ -95,6 +95,13 @@ title, description, hashtags, and platform character limits for YouTube,
 TikTok, Instagram, or LinkedIn. Results are stored under the Short's
 `metadata.<platform>` entry.
 
+## Thumbnails
+
+`POST /api/v1/jobs/{job_id}/shorts/{index}/thumbnail` extracts a frame, burns a
+caption-style title with ASS, and stores a PNG under `shorts/thumbs/`. The
+latest thumbnail is exposed as `thumbnail`; every generated variant is kept in
+`thumbnails`.
+
 ## Captions and karaoke
 
 Caption style is a full `CaptionStyle` model: font family, size, weight, italic,

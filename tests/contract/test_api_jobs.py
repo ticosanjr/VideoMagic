@@ -479,3 +479,70 @@ def test_short_metadata_is_generated_and_persisted(monkeypatch, tmp_path: Path) 
     assert "changes" in metadata["description"]
     saved = json.loads((output / "shorts.json").read_text(encoding="utf-8"))
     assert saved["clips"][0]["metadata"]["tiktok"]["title"] == metadata["title"]
+
+
+def test_short_thumbnail_is_generated_and_persisted(monkeypatch, tmp_path: Path) -> None:
+    from videoflow.application.jobs import Job
+    from videoflow.domain.state import MediaInfo, ProjectState, Sentence
+
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    output = tmp_path / "out"
+    (output / "shorts").mkdir(parents=True)
+    short_file = output / "shorts" / "short.mp4"
+    short_file.write_bytes(b"video")
+    state = ProjectState(
+        media_info=MediaInfo(
+            source_path=str(source),
+            duration_frames=30,
+            fps_num=30,
+            fps_den=1,
+            width=1920,
+            height=1080,
+            audio_sample_rate=48000,
+        ),
+        transcript=[Sentence(id=0, start_sample=0, end_sample=48000, text="Hello")],
+    )
+    (output / "project_state.json").write_text(state.model_dump_json(indent=2), encoding="utf-8")
+    entry = {
+        "title": "Hello",
+        "pieces": [[0, 48000]],
+        "start_sample": 0,
+        "end_sample": 48000,
+        "start_sec": 0.0,
+        "end_sec": 1.0,
+        "duration_sec": 1.0,
+        "aspect_ratio": "9:16",
+        "width": 1080,
+        "height": 1920,
+        "path": str(short_file),
+    }
+    (output / "shorts.json").write_text(
+        json.dumps({"ok": True, "clips": [entry]}), encoding="utf-8"
+    )
+    job = Job(source=source, output=output, options={})
+    job.status = "succeeded"
+    job.result = {"ok": True, "shorts": [entry]}
+    manager = JobManager()
+    manager._jobs[str(job.job_id)] = job
+
+    def fake_thumbnail(self, source, destination, **kwargs):
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b"png")
+        return destination
+
+    monkeypatch.setattr(
+        "videoflow.application.thumbnail.FFmpegAdapter.render_thumbnail", fake_thumbnail
+    )
+    client = TestClient(create_app(jobs=manager))
+    response = client.post(
+        f"/api/v1/jobs/{job.job_id}/shorts/0/thumbnail",
+        json={"time_sec": 0.5, "title": "Thumb"},
+    )
+    assert response.status_code == 200
+    thumbnail = response.json()["thumbnail"]
+    assert thumbnail["title"] == "Thumb"
+    assert Path(thumbnail["path"]).is_file()
+    assert job.result["shorts"][0]["thumbnail"] == thumbnail["path"]
+    saved = json.loads((output / "shorts.json").read_text(encoding="utf-8"))
+    assert saved["clips"][0]["thumbnails"][0]["title"] == "Thumb"

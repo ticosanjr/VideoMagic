@@ -15,7 +15,7 @@ hides the contract. VideoFlow resolves this with two layers:
 
 | Scope | Line coverage | Notes |
 | --- | --- | --- |
-| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.03% (342 passing, 11 strict xfail, 7 deselected) |
+| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.03% (343 passing, 11 strict xfail, 7 deselected) |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |
 | UI | `npm run check` and `npm run build` | Manual: start a job from the rack and confirm progress and artifacts |
@@ -96,7 +96,7 @@ smokes run locally and are recorded in the release notes.
 | `test_exporters.py` | FCPXML 1.9/1.10 media-rep and audio fades, xmeml v4 full files/links and transitions, native Kdenlive MLT and volume fades, export service, preflight failures |
 | `test_ingest_media.py` | Real FFprobe, PCM extraction, and silence detection (`media`) |
 | `test_shorts_media.py` | Renders two 1080x1920 clips with ASS via the CLI (`media`) |
-| `test_api_jobs.py` | Job create/poll, stages/logs, new options, path jail, SSE, system, per-Short edit, real media (`media`) |
+| `test_api_jobs.py` | Job create/poll, stages/logs, new options, path jail, SSE, system, per-Short edit/metadata/thumbnail, real media (`media`) |
 | `test_api_fs.py` | Filesystem roots/listing/filtering, hidden files, truncation, symlink escapes, directory creation, media probe |
 | UI `format.test.ts` | Duration, bytes, elapsed time, date, status text (Vitest) |
 | UI `paths.test.ts` | POSIX and Windows basename, parent, and output suggestion |

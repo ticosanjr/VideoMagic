@@ -11,6 +11,7 @@ Implemented today:
 - `GET /api/v1/fs/roots`, `GET /api/v1/fs/list`, `POST /api/v1/fs/mkdir`
 - `GET /api/v1/media/probe`
 - `GET /api/v1/assets/fonts`, `POST /api/v1/assets/fonts`
+- Short thumbnail generation and download
 - `POST /api/v1/jobs`, `GET /api/v1/jobs`, `GET /api/v1/jobs/{id}`,
   `POST /api/v1/jobs/{id}/cancel`, `GET /api/v1/jobs/{id}/events`
 - `POST /api/v1/projects`, `GET /api/v1/projects`,
@@ -458,6 +459,24 @@ Content-Type: application/octet-stream
 Only TTF/OTF files up to 20 MB are accepted. The response includes the internal
 family name used by libass; the renderer passes the asset directory as
 `fontsdir`.
+
+### Generate Short thumbnail
+
+```http
+POST /api/v1/jobs/{job_id}/shorts/{index}/thumbnail
+Content-Type: application/json
+```
+
+```json
+{ "time_sec": 0.5, "title": "Hook title" }
+```
+
+Extracts a frame and burns the title with the caption style. Returns the PNG
+path and stores it under `short.thumbnails`.
+
+```http
+GET /api/v1/jobs/{job_id}/shorts/{index}/thumbnail
+```
 
 ### Generate Short metadata
 

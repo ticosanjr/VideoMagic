@@ -42,7 +42,7 @@ For HTTP:
 
 ## 2. Tools
 
-All seventeen tools execute real work. `videoflow_load_media` remembers the source.
+All eighteen tools execute real work. `videoflow_load_media` remembers the source.
 Analysis tools work immediately. Edit tools stage configuration for the next
 `videoflow_run_pipeline`; the result says `applies_to_next_run` when a job is
 still required.
@@ -60,6 +60,7 @@ still required.
 | `videoflow_configure_zooms` | `mode`, `scale`, `anchor` | **live/staged**: punch-in, anchor, and pan metadata |
 | `videoflow_apply_jcuts` | `offset_ms`, `crossfade_ms` | **live/staged**: audio offset and logarithmic micro-fades |
 | `videoflow_generate_shorts` | `min_duration`, `max_duration`, `count`, `min_count`, `selection_mode`, `subtitles`, `aspect_ratio`, `start_sec`, `end_sec`, `allow_external_services`, `prompt`, `reprompt`, `prompt_mode`, `hook_mode` | **live**: ranked social clip proposals in source time; aspect/window/prompt/hook apply to the next run |
+| `videoflow_generate_short_thumbnail` | `index`, `time_sec`, `title`, `caption_style` | **live**: PNG frame plus caption-style title overlay |
 | `videoflow_generate_short_metadata` | `index`, `platform`, `tone`, `extra_hashtags` | **live**: platform title, description, hashtags, and character limits |
 | `videoflow_edit_short` | `index`, `title`, `start_sec`, `end_sec`, `aspect_ratio`, `burn_subtitles`, `caption_style` | **live**: re-renders one Short into `shorts/edited/` |
 | `videoflow_export_fcpxml` | `output_path`, `target_nle` | **live**: exports the latest completed timeline |
@@ -156,6 +157,7 @@ The complete path, using only public tools:
 14. call videoflow_edit_short to trim, retitle, or reframe a completed Short
 15. call videoflow_generate_short_metadata for platform copy
 16. call videoflow_list_fonts or videoflow_upload_font for caption typography
+17. call videoflow_generate_short_thumbnail for a cover image
 ```
 
 `videoflow_transcribe` writes a cached SRT and stages it, so the next pipeline

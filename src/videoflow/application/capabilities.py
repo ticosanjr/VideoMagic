@@ -202,6 +202,15 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "videoflow_generate_shorts",
         ),
         _entry(
+            "thumbnails",
+            "Thumbnail generator",
+            "export",
+            "available",
+            "Extract one Short frame and burn a caption-style title.",
+            "POST /api/v1/jobs/{job_id}/shorts/{index}/thumbnail",
+            "videoflow_generate_short_thumbnail",
+        ),
+        _entry(
             "metadata",
             "Social metadata",
             "export",

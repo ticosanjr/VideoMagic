@@ -163,6 +163,42 @@ class FFmpegAdapter:
             if end - start >= minimum
         ]
 
+    def render_thumbnail(
+        self,
+        source: Path,
+        destination: Path,
+        *,
+        time_sec: float,
+        ass_path: Path | None = None,
+        fontsdir: str | None = None,
+    ) -> Path:
+        """Extract one frame and optionally burn the thumbnail ASS title."""
+
+        if time_sec < 0:
+            raise IngestError("Thumbnail time must be non-negative")
+        source_path = Path(source).expanduser()
+        target = Path(destination).expanduser()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        command = [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-ss",
+            f"{time_sec:.6f}",
+            "-i",
+            str(source_path),
+        ]
+        if ass_path is not None:
+            ass_filter = f"ass='{_filter_path(ass_path)}'"
+            if fontsdir:
+                ass_filter += f":fontsdir='{_filter_path(Path(fontsdir))}'"
+            command.extend(["-vf", ass_filter])
+        command.extend(["-frames:v", "1", str(target)])
+        self._capture(command)
+        return target
+
     def render_short(
         self,
         source: Path,
