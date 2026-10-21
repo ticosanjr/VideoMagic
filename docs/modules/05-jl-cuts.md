@@ -36,6 +36,9 @@ the edit.
 | `enable_l_cuts` | `false` | |
 | `offset_ms` | 200 | 100–500 |
 | `audio_crossfade_ms` | 20 | 10–50 |
+| `fade_in_ms` | 20 | 0–1000 |
+| `fade_out_ms` | 20 | 0–1000 |
+| `fade_curve` | `logarithmic` | linear/logarithmic |
 | `handle_check` | `true` | |
 
 ## Algorithm

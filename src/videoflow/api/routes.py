@@ -12,7 +12,7 @@ from uuid import UUID
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from videoflow import __version__
 from videoflow.adapters.ffmpeg import FFmpegAdapter
@@ -68,10 +68,15 @@ class NewJobRequest(BaseModel):
     lcut: bool = False
     offset_ms: int = Field(default=200, ge=100, le=500)
     crossfade_ms: int = Field(default=20, ge=10, le=50)
+    fade_in_ms: int = Field(default=20, ge=0, le=1000)
+    fade_out_ms: int = Field(default=20, ge=0, le=1000)
+    fade_curve: Literal["linear", "logarithmic"] = "logarithmic"
     handle_check: bool = True
     zooms: bool = True
     zoom_mode: Literal["alternate_cuts", "manual_rules"] = "alternate_cuts"
-    punch_in_scale: float = Field(default=1.15, ge=1.05, le=1.30)
+    zoom_min_scale: float = Field(default=1.0, ge=1.0, le=4.0)
+    zoom_max_scale: float = Field(default=1.5, ge=1.0, le=4.0)
+    punch_in_scale: float = Field(default=1.15, ge=1.0, le=4.0)
     anchor_point: Literal["center", "upper_third", "face_detect"] = "upper_third"
     progressive_zoom: bool = False
     pan_direction: Literal["none", "left_to_right", "right_to_left"] = "none"
@@ -89,9 +94,32 @@ class NewJobRequest(BaseModel):
     llm_model: str = "qwen2.5:7b-instruct"
     shorts: bool = False
     shorts_count: int = Field(default=3, ge=1, le=20)
+    shorts_min_count: int | None = Field(default=None, ge=1, le=20)
     shorts_min_sec: int = Field(default=30, ge=1, le=300)
     shorts_max_sec: int = Field(default=60, ge=1, le=600)
     shorts_subtitles: bool = True
+    shorts_selection_mode: Literal["auto", "llm", "heuristic"] = "auto"
+    caption_font_family: str = "Arial"
+    caption_font_size: int = Field(default=72, ge=8, le=300)
+    caption_font_weight: Literal["normal", "bold"] = "bold"
+    caption_italic: bool = False
+    caption_uppercase: bool = False
+    caption_primary_color: str = Field(default="#FFFFFF", pattern=r"^#[0-9A-Fa-f]{6}$")
+    caption_highlight_color: str = Field(default="#FFD400", pattern=r"^#[0-9A-Fa-f]{6}$")
+    caption_outline_color: str = Field(default="#000000", pattern=r"^#[0-9A-Fa-f]{6}$")
+    caption_outline_width: int = Field(default=4, ge=0, le=20)
+    caption_shadow_color: str = Field(default="#000000", pattern=r"^#[0-9A-Fa-f]{6}$")
+    caption_shadow_offset: int = Field(default=2, ge=0, le=20)
+    caption_shadow_opacity: float = Field(default=0.6, ge=0.0, le=1.0)
+    caption_background_color: str = Field(default="#000000", pattern=r"^#[0-9A-Fa-f]{6}$")
+    caption_background_opacity: float = Field(default=0.0, ge=0.0, le=1.0)
+    caption_background_padding: int = Field(default=0, ge=0, le=40)
+    caption_alignment: int = Field(default=2, ge=1, le=9)
+    caption_position_x: float = Field(default=0.5, ge=0.0, le=1.0)
+    caption_position_y: float = Field(default=0.78, ge=0.0, le=1.0)
+    caption_max_width: float = Field(default=0.9, ge=0.2, le=1.0)
+    caption_animation: Literal["none", "pop", "sweep"] = "none"
+    caption_word_timing: Literal["engine", "proportional", "sentence"] = "engine"
     overrides: list[OverrideRequest] = Field(default_factory=list)
     transcribe: bool = False
     asr_base_url: str | None = None
@@ -104,6 +132,17 @@ class NewJobRequest(BaseModel):
     whisper_vad_filter: bool = False
     whisper_model: str | None = None
     faster_whisper_model: str | None = None
+
+
+    @model_validator(mode="after")
+    def validate_windows(self) -> NewJobRequest:
+        if self.zoom_min_scale > self.zoom_max_scale:
+            raise ValueError("zoom_min_scale exceeds zoom_max_scale")
+        if not self.zoom_min_scale <= self.punch_in_scale <= self.zoom_max_scale:
+            raise ValueError("punch_in_scale must be inside the zoom window")
+        if self.shorts_min_count is not None and self.shorts_min_count > self.shorts_count:
+            raise ValueError("shorts_min_count exceeds shorts_count")
+        return self
 
 
 class NewProjectRequest(BaseModel):
@@ -180,9 +219,14 @@ def register_routes(
                     "lcut": request.lcut,
                     "offset_ms": request.offset_ms,
                     "crossfade_ms": request.crossfade_ms,
+                    "fade_in_ms": request.fade_in_ms,
+                    "fade_out_ms": request.fade_out_ms,
+                    "fade_curve": request.fade_curve,
                     "handle_check": request.handle_check,
                     "zooms": request.zooms,
                     "zoom_mode": request.zoom_mode,
+                    "zoom_min_scale": request.zoom_min_scale,
+                    "zoom_max_scale": request.zoom_max_scale,
                     "punch_in_scale": request.punch_in_scale,
                     "anchor_point": request.anchor_point,
                     "progressive_zoom": request.progressive_zoom,
@@ -198,9 +242,32 @@ def register_routes(
                     "llm_model": request.llm_model,
                     "shorts": request.shorts,
                     "shorts_count": request.shorts_count,
+                    "shorts_min_count": request.shorts_min_count,
                     "shorts_min_sec": request.shorts_min_sec,
                     "shorts_max_sec": request.shorts_max_sec,
                     "shorts_subtitles": request.shorts_subtitles,
+                    "shorts_selection_mode": request.shorts_selection_mode,
+                    "caption_font_family": request.caption_font_family,
+                    "caption_font_size": request.caption_font_size,
+                    "caption_font_weight": request.caption_font_weight,
+                    "caption_italic": request.caption_italic,
+                    "caption_uppercase": request.caption_uppercase,
+                    "caption_primary_color": request.caption_primary_color,
+                    "caption_highlight_color": request.caption_highlight_color,
+                    "caption_outline_color": request.caption_outline_color,
+                    "caption_outline_width": request.caption_outline_width,
+                    "caption_shadow_color": request.caption_shadow_color,
+                    "caption_shadow_offset": request.caption_shadow_offset,
+                    "caption_shadow_opacity": request.caption_shadow_opacity,
+                    "caption_background_color": request.caption_background_color,
+                    "caption_background_opacity": request.caption_background_opacity,
+                    "caption_background_padding": request.caption_background_padding,
+                    "caption_alignment": request.caption_alignment,
+                    "caption_position_x": request.caption_position_x,
+                    "caption_position_y": request.caption_position_y,
+                    "caption_max_width": request.caption_max_width,
+                    "caption_animation": request.caption_animation,
+                    "caption_word_timing": request.caption_word_timing,
                     "overrides": [item.model_dump() for item in request.overrides],
                     "transcribe": request.transcribe,
                     "asr_base_url": request.asr_base_url,

@@ -240,10 +240,17 @@ def _audio_segment(
     timebase: Timebase,
     config: JlCutsConfig,
 ) -> AudioSegment:
-    fade = timebase.milliseconds_to_samples(config.audio_crossfade_ms)
     duration = clip.ts_out - clip.ts_in
-    fade_in = 0 if index == 0 else min(fade, max(0, duration // 2))
-    fade_out = 0 if index == total - 1 else min(fade, max(0, duration // 2))
+    if index == 0:
+        fade_in = timebase.milliseconds_to_samples(config.fade_in_ms)
+    else:
+        fade_in = timebase.milliseconds_to_samples(config.audio_crossfade_ms)
+    if index == total - 1:
+        fade_out = timebase.milliseconds_to_samples(config.fade_out_ms)
+    else:
+        fade_out = timebase.milliseconds_to_samples(config.audio_crossfade_ms)
+    fade_in = min(fade_in, max(0, duration // 2))
+    fade_out = min(fade_out, max(0, duration // 2))
     return AudioSegment(
         clip_id=clip.clip_id,
         source_in_sample=clip.as_in,
@@ -252,7 +259,7 @@ def _audio_segment(
         timeline_out_sample=clip.ts_out,
         fade_in_samples=fade_in,
         fade_out_samples=fade_out,
-        fade_curve="logarithmic",
+        fade_curve=config.fade_curve,
     )
 
 
@@ -264,7 +271,7 @@ def _transform(index: int, config: ZoomsConfig, warnings: list[str]) -> Transfor
     scale = 1.0
     kind: TransformType = "none"
     if config.mode in ("alternate_cuts", "topic_change") and index % 2 == 1:
-        scale = config.punch_in_scale
+        scale = min(config.max_scale, max(config.min_scale, config.punch_in_scale))
         kind = "slow_zoom_in" if config.progressive_zoom else "punch_in"
     if config.mode == "topic_change":
         warnings.append("topic_change uses the alternate-cut cadence until topic markers land")

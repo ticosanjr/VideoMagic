@@ -173,3 +173,53 @@ def test_job_forwards_faster_whisper_options(tmp_path: Path) -> None:
     assert config.compute_type == "float16"
     assert config.vad_filter is True
     assert seen["faster_whisper_model"] == str(model)
+
+
+def test_job_forwards_detailed_zoom_shorts_and_caption_config(tmp_path: Path) -> None:
+    seen: dict[str, object] = {}
+
+    def runner(source: Path, output: Path, *, progress, should_cancel, **kwargs):
+        seen.update(kwargs)
+        progress("done", 100, "done")
+        return {"ok": True}
+
+    manager = JobManager(runner)
+    job = manager.start(
+        tmp_path / "in.mp4",
+        tmp_path / "out",
+        {
+            "zoom_min_scale": 1.1,
+            "zoom_max_scale": 1.8,
+            "punch_in_scale": 1.3,
+            "fade_in_ms": 10,
+            "fade_out_ms": 30,
+            "fade_curve": "linear",
+            "shorts": True,
+            "shorts_count": 3,
+            "shorts_min_count": 3,
+            "shorts_selection_mode": "heuristic",
+            "caption_font_family": "Inter",
+            "caption_font_size": 96,
+            "caption_primary_color": "#F0F0F0",
+            "caption_background_color": "#112233",
+            "caption_background_opacity": 0.4,
+            "caption_position_y": 0.7,
+            "caption_word_timing": "proportional",
+        },
+    )
+    wait_for(job, manager)
+    assert seen["jl"].fade_in_ms == 10
+    assert seen["jl"].fade_out_ms == 30
+    assert seen["jl"].fade_curve == "linear"
+    assert seen["zooms"].min_scale == 1.1
+    assert seen["zooms"].max_scale == 1.8
+    config = seen["shorts_config"]
+    assert config.min_clips == 3
+    assert config.max_clips_to_generate == 3
+    assert config.selection_mode == "heuristic"
+    assert config.caption_style.font_family == "Inter"
+    assert config.caption_style.font_size == 96
+    assert config.caption_style.background_color == "#112233"
+    assert config.caption_style.background_opacity == 0.4
+    assert config.caption_style.position_y == 0.7
+    assert config.caption_style.word_timing == "proportional"

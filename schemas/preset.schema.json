@@ -1,5 +1,158 @@
 {
   "$defs": {
+    "CaptionStyle": {
+      "additionalProperties": false,
+      "description": "Burned caption/karaoke style. Colors are #RRGGBB.",
+      "properties": {
+        "alignment": {
+          "default": 2,
+          "maximum": 9,
+          "minimum": 1,
+          "title": "Alignment",
+          "type": "integer"
+        },
+        "animation": {
+          "default": "none",
+          "enum": [
+            "none",
+            "pop",
+            "sweep"
+          ],
+          "title": "Animation",
+          "type": "string"
+        },
+        "background_color": {
+          "default": "#000000",
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "title": "Background Color",
+          "type": "string"
+        },
+        "background_opacity": {
+          "default": 0.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Background Opacity",
+          "type": "number"
+        },
+        "background_padding": {
+          "default": 0,
+          "maximum": 40,
+          "minimum": 0,
+          "title": "Background Padding",
+          "type": "integer"
+        },
+        "font_family": {
+          "default": "Arial",
+          "minLength": 1,
+          "title": "Font Family",
+          "type": "string"
+        },
+        "font_size": {
+          "default": 72,
+          "maximum": 300,
+          "minimum": 8,
+          "title": "Font Size",
+          "type": "integer"
+        },
+        "font_weight": {
+          "default": "bold",
+          "enum": [
+            "normal",
+            "bold"
+          ],
+          "title": "Font Weight",
+          "type": "string"
+        },
+        "highlight_color": {
+          "default": "#FFD400",
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "title": "Highlight Color",
+          "type": "string"
+        },
+        "italic": {
+          "default": false,
+          "title": "Italic",
+          "type": "boolean"
+        },
+        "max_width": {
+          "default": 0.9,
+          "maximum": 1.0,
+          "minimum": 0.2,
+          "title": "Max Width",
+          "type": "number"
+        },
+        "outline_color": {
+          "default": "#000000",
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "title": "Outline Color",
+          "type": "string"
+        },
+        "outline_width": {
+          "default": 4,
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Outline Width",
+          "type": "integer"
+        },
+        "position_x": {
+          "default": 0.5,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Position X",
+          "type": "number"
+        },
+        "position_y": {
+          "default": 0.78,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Position Y",
+          "type": "number"
+        },
+        "primary_color": {
+          "default": "#FFFFFF",
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "title": "Primary Color",
+          "type": "string"
+        },
+        "shadow_color": {
+          "default": "#000000",
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "title": "Shadow Color",
+          "type": "string"
+        },
+        "shadow_offset": {
+          "default": 2,
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Shadow Offset",
+          "type": "integer"
+        },
+        "shadow_opacity": {
+          "default": 0.6,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Shadow Opacity",
+          "type": "number"
+        },
+        "uppercase": {
+          "default": false,
+          "title": "Uppercase",
+          "type": "boolean"
+        },
+        "word_timing": {
+          "default": "engine",
+          "enum": [
+            "engine",
+            "proportional",
+            "sentence"
+          ],
+          "title": "Word Timing",
+          "type": "string"
+        }
+      },
+      "title": "CaptionStyle",
+      "type": "object"
+    },
     "ExportConfig": {
       "additionalProperties": false,
       "properties": {
@@ -77,6 +230,29 @@
           "default": false,
           "title": "Enable L Cuts",
           "type": "boolean"
+        },
+        "fade_curve": {
+          "default": "logarithmic",
+          "enum": [
+            "linear",
+            "logarithmic"
+          ],
+          "title": "Fade Curve",
+          "type": "string"
+        },
+        "fade_in_ms": {
+          "default": 20,
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Fade In Ms",
+          "type": "integer"
+        },
+        "fade_out_ms": {
+          "default": 20,
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Fade Out Ms",
+          "type": "integer"
         },
         "handle_check": {
           "default": true,
@@ -249,6 +425,9 @@
           "title": "Burn Subtitles",
           "type": "boolean"
         },
+        "caption_style": {
+          "$ref": "#/$defs/CaptionStyle"
+        },
         "export_format": {
           "default": "both",
           "enum": [
@@ -266,6 +445,13 @@
           "title": "Max Clips To Generate",
           "type": "integer"
         },
+        "min_clips": {
+          "default": 3,
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Min Clips",
+          "type": "integer"
+        },
         "reframe_mode": {
           "default": "center_crop_9_16",
           "enum": [
@@ -273,6 +459,16 @@
             "auto_face_tracking_yolo"
           ],
           "title": "Reframe Mode",
+          "type": "string"
+        },
+        "selection_mode": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "llm",
+            "heuristic"
+          ],
+          "title": "Selection Mode",
           "type": "string"
         },
         "subtitles_preset": {
@@ -427,6 +623,20 @@
           "title": "Anchor Point",
           "type": "string"
         },
+        "max_scale": {
+          "default": 1.5,
+          "maximum": 4.0,
+          "minimum": 1.0,
+          "title": "Max Scale",
+          "type": "number"
+        },
+        "min_scale": {
+          "default": 1.0,
+          "maximum": 4.0,
+          "minimum": 1.0,
+          "title": "Min Scale",
+          "type": "number"
+        },
         "mode": {
           "default": "alternate_cuts",
           "enum": [
@@ -454,8 +664,8 @@
         },
         "punch_in_scale": {
           "default": 1.15,
-          "maximum": 1.3,
-          "minimum": 1.05,
+          "maximum": 4.0,
+          "minimum": 1.0,
           "title": "Punch In Scale",
           "type": "number"
         }

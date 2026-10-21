@@ -39,6 +39,10 @@ videoflow-0.9.0-windows-x86_64.exe
 
 ## Current
 
+- `v0.21.0`: configurable zoom bounds, audio fades, Shorts target/minimum and
+  selection strategy, `run --shorts`, and full caption/karaoke styling across
+  UI, API, project config, presets, and MCP. Linux binary, AppImage, and Windows
+  PE built and smoke-tested.
 - `v0.20.1`: Resolve FCPXML media-rep, Premiere xmeml v4 full-file/link fix,
   and native Kdenlive `.kdenlive` MLT export. Linux binary, Linux AppImage, and
   Windows PE built and smoke-tested.

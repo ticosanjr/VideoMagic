@@ -21,9 +21,11 @@ from videoflow.adapters.llm import OpenAICompatibleLlm
 from videoflow.application.portable import run_portable
 from videoflow.application.telemetry import JobTelemetry
 from videoflow.domain.config import (
+    CaptionStyle,
     JlCutsConfig,
     ModuleEnabled,
     ModulesConfig,
+    ShortsConfig,
     TranscribeConfig,
     ZoomsConfig,
 )
@@ -85,6 +87,48 @@ class Job:
             "stages": self.telemetry.stages(),
         }
 
+
+
+
+def _shorts_config(options: dict[str, object]) -> ShortsConfig:
+    count = max(1, int(options.get("shorts_count", 3)))
+    requested_min = options.get("shorts_min_count")
+    minimum = min(3, count) if requested_min is None else max(1, min(int(requested_min), count))
+    return ShortsConfig(
+        target_duration_min_sec=int(options.get("shorts_min_sec", 30)),
+        target_duration_max_sec=int(options.get("shorts_max_sec", 60)),
+        min_clips=minimum,
+        max_clips_to_generate=count,
+        selection_mode=str(options.get("shorts_selection_mode", "auto")),  # type: ignore[arg-type]
+        burn_subtitles=bool(options.get("shorts_subtitles", True)),
+        caption_style=_caption_style(options),
+    )
+
+
+def _caption_style(options: dict[str, object]) -> CaptionStyle:
+    return CaptionStyle(
+        font_family=str(options.get("caption_font_family", "Arial")),
+        font_size=int(options.get("caption_font_size", 72)),
+        font_weight=str(options.get("caption_font_weight", "bold")),  # type: ignore[arg-type]
+        italic=bool(options.get("caption_italic", False)),
+        uppercase=bool(options.get("caption_uppercase", False)),
+        primary_color=str(options.get("caption_primary_color", "#FFFFFF")),
+        highlight_color=str(options.get("caption_highlight_color", "#FFD400")),
+        outline_color=str(options.get("caption_outline_color", "#000000")),
+        outline_width=int(options.get("caption_outline_width", 4)),
+        shadow_color=str(options.get("caption_shadow_color", "#000000")),
+        shadow_offset=int(options.get("caption_shadow_offset", 2)),
+        shadow_opacity=float(options.get("caption_shadow_opacity", 0.6)),
+        background_color=str(options.get("caption_background_color", "#000000")),
+        background_opacity=float(options.get("caption_background_opacity", 0.0)),
+        background_padding=int(options.get("caption_background_padding", 0)),
+        alignment=int(options.get("caption_alignment", 2)),
+        position_x=float(options.get("caption_position_x", 0.5)),
+        position_y=float(options.get("caption_position_y", 0.78)),
+        max_width=float(options.get("caption_max_width", 0.9)),
+        animation=str(options.get("caption_animation", "none")),  # type: ignore[arg-type]
+        word_timing=str(options.get("caption_word_timing", "engine")),  # type: ignore[arg-type]
+    )
 
 class JobManager:
     def __init__(
@@ -170,17 +214,27 @@ class JobManager:
             enable_l_cuts=bool(options.get("lcut", False)),
             offset_ms=int(options.get("offset_ms", 200)),
             audio_crossfade_ms=int(options.get("crossfade_ms", 20)),
+            fade_in_ms=int(options.get("fade_in_ms", 20)),
+            fade_out_ms=int(options.get("fade_out_ms", 20)),
+            fade_curve=str(options.get("fade_curve", "logarithmic")),  # type: ignore[arg-type]
             handle_check=bool(options.get("handle_check", True)),
         )
         zooms = ZoomsConfig(
             mode=str(options.get("zoom_mode", "alternate_cuts")),  # type: ignore[arg-type]
+            min_scale=float(options.get("zoom_min_scale", 1.0)),
+            max_scale=float(options.get("zoom_max_scale", 1.5)),
             punch_in_scale=float(options.get("punch_in_scale", 1.15)),
             anchor_point=str(options.get("anchor_point", "upper_third")),  # type: ignore[arg-type]
             progressive_zoom=bool(options.get("progressive_zoom", False)),
             pan_direction=str(options.get("pan_direction", "none")),  # type: ignore[arg-type]
         )
         if not options.get("zooms", True):
-            zooms = ZoomsConfig(mode="manual_rules", anchor_point=zooms.anchor_point)
+            zooms = ZoomsConfig(
+                mode="manual_rules",
+                min_scale=zooms.min_scale,
+                max_scale=zooms.max_scale,
+                anchor_point=zooms.anchor_point,
+            )
         dialect: Dialect = options.get("dialect", "1.9")
         transcript = options.get("transcript")
         cull = bool(options.get("cull_retakes", False))
@@ -202,7 +256,10 @@ class JobManager:
 
         try:
             transcript_sentences = _project_transcript(options.get("transcript_state"))
-            if (transcript or transcript_sentences) and cull and base_url:
+            shorts = bool(options.get("shorts", False))
+            if base_url and (cull or shorts) and (
+                transcript or transcript_sentences or bool(options.get("transcribe", False))
+            ):
                 llm = OpenAICompatibleLlm(
                     base_url=str(base_url),
                     model=str(
@@ -240,11 +297,12 @@ class JobManager:
                 strictness=str(options.get("strictness", "balanced")),
                 retake_strategy=str(options.get("retake_strategy", "keep_last")),
                 context_window=int(options.get("context_window", 15)),
-                shorts=bool(options.get("shorts", False)),
+                shorts=shorts,
                 shorts_count=int(options.get("shorts_count", 3)),
                 shorts_min_sec=int(options.get("shorts_min_sec", 30)),
                 shorts_max_sec=int(options.get("shorts_max_sec", 60)),
                 shorts_subtitles=bool(options.get("shorts_subtitles", True)),
+                shorts_config=_shorts_config(options),
                 overrides=[
                     ManualOverride.model_validate(item)
                     for item in options.get("overrides", [])

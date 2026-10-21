@@ -102,6 +102,39 @@ export interface JobOptions {
   whisper_vad_filter?: boolean;
   whisper_model?: string | null;
   faster_whisper_model?: string | null;
+  fade_in_ms?: number;
+  fade_out_ms?: number;
+  fade_curve?: string;
+  zoom_min_scale?: number;
+  zoom_max_scale?: number;
+  shorts?: boolean;
+  shorts_count?: number;
+  shorts_min_count?: number;
+  shorts_min_sec?: number;
+  shorts_max_sec?: number;
+  shorts_subtitles?: boolean;
+  shorts_selection_mode?: string;
+  caption_font_family?: string;
+  caption_font_size?: number;
+  caption_font_weight?: string;
+  caption_italic?: boolean;
+  caption_uppercase?: boolean;
+  caption_primary_color?: string;
+  caption_highlight_color?: string;
+  caption_outline_color?: string;
+  caption_outline_width?: number;
+  caption_shadow_color?: string;
+  caption_shadow_offset?: number;
+  caption_shadow_opacity?: number;
+  caption_background_color?: string;
+  caption_background_opacity?: number;
+  caption_background_padding?: number;
+  caption_alignment?: number;
+  caption_position_x?: number;
+  caption_position_y?: number;
+  caption_max_width?: number;
+  caption_animation?: string;
+  caption_word_timing?: string;
 }
 
 export interface JobStage {
@@ -196,6 +229,34 @@ export interface NewJob {
   asr_base_url: string | null;
   asr_model: string;
   asr_language: string;
+  fade_in_ms: number;
+  fade_out_ms: number;
+  fade_curve: string;
+  zoom_min_scale: number;
+  zoom_max_scale: number;
+  shorts_min_count: number;
+  shorts_selection_mode: string;
+  caption_font_family: string;
+  caption_font_size: number;
+  caption_font_weight: string;
+  caption_italic: boolean;
+  caption_uppercase: boolean;
+  caption_primary_color: string;
+  caption_highlight_color: string;
+  caption_outline_color: string;
+  caption_outline_width: number;
+  caption_shadow_color: string;
+  caption_shadow_offset: number;
+  caption_shadow_opacity: number;
+  caption_background_color: string;
+  caption_background_opacity: number;
+  caption_background_padding: number;
+  caption_alignment: number;
+  caption_position_x: number;
+  caption_position_y: number;
+  caption_max_width: number;
+  caption_animation: string;
+  caption_word_timing: string;
   overrides: { sentence_id: number; action: "keep" | "discard" }[];
 }
 

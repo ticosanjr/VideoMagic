@@ -175,3 +175,62 @@ def test_doctor_reports_faster_whisper(monkeypatch, tmp_path, capsys) -> None:
     payload = json.loads(capsys.readouterr().out)
     assert payload["faster_whisper"]["model"] == str(model)
     assert payload["faster_whisper"]["found"] is True
+
+
+def test_run_passes_short_and_detailed_config_options(monkeypatch, tmp_path, capsys) -> None:
+    from videoflow.domain.config import JlCutsConfig, ShortsConfig, ZoomsConfig
+
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    seen: dict[str, object] = {}
+
+    def fake_run(*args: object, **kwargs: object) -> FakeRun:
+        seen.update(kwargs)
+        return FakeRun()
+
+    monkeypatch.setattr(cli, "run_portable", fake_run)
+    assert (
+        cli.main(
+            [
+                "run",
+                str(source),
+                "--out",
+                str(tmp_path / "out"),
+                "--transcribe",
+                "--shorts",
+                "--shorts-count",
+                "3",
+                "--shorts-min-count",
+                "3",
+                "--shorts-min-sec",
+                "10",
+                "--shorts-max-sec",
+                "20",
+                "--shorts-selection-mode",
+                "heuristic",
+                "--zoom-min-scale",
+                "1.1",
+                "--zoom-max-scale",
+                "1.9",
+                "--fade-in-ms",
+                "30",
+                "--fade-out-ms",
+                "40",
+                "--fade-curve",
+                "linear",
+            ]
+        )
+        == 0
+    )
+    assert seen["shorts"] is True
+    assert seen["shorts_count"] == 3
+    assert isinstance(seen["shorts_config"], ShortsConfig)
+    assert seen["shorts_config"].min_clips == 3
+    assert seen["shorts_config"].selection_mode == "heuristic"
+    assert isinstance(seen["jl"], JlCutsConfig)
+    assert seen["jl"].fade_in_ms == 30
+    assert seen["jl"].fade_out_ms == 40
+    assert seen["jl"].fade_curve == "linear"
+    assert isinstance(seen["zooms"], ZoomsConfig)
+    assert seen["zooms"].min_scale == 1.1
+    assert seen["zooms"].max_scale == 1.9

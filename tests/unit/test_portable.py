@@ -408,7 +408,7 @@ def test_portable_pipeline_can_render_shorts(tmp_path: Path) -> None:
     )
     assert len(result.shorts) == 1
     assert Path(str(result.shorts[0]["path"])).is_file()
-    assert result.to_dict()["shorts"][0]["title"] == "First."
+    assert "First." in result.to_dict()["shorts"][0]["title"]
 
 
 def test_portable_pipeline_fails_when_no_speech_is_detected(tmp_path: Path) -> None:

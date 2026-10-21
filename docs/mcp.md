@@ -56,7 +56,7 @@ still required.
 | `videoflow_cull_retakes` | `discard_sentence_ids`, `manual_word_indices` | **live/staged**: automatic exact-repeat culling plus manual sentence discards; the guard protects the final take |
 | `videoflow_configure_zooms` | `mode`, `scale`, `anchor` | **live/staged**: punch-in, anchor, and pan metadata |
 | `videoflow_apply_jcuts` | `offset_ms`, `crossfade_ms` | **live/staged**: audio offset and logarithmic micro-fades |
-| `videoflow_generate_shorts` | `min_duration`, `max_duration`, `count`, `subtitles` | **live**: deterministic vertical clip proposals in source time |
+| `videoflow_generate_shorts` | `min_duration`, `max_duration`, `count`, `min_count`, `selection_mode`, `subtitles` | **live**: ranked vertical clip proposals in source time |
 | `videoflow_export_fcpxml` | `output_path`, `target_nle` | **live**: exports the latest completed timeline |
 | `videoflow_run_pipeline` | `preset_name`, `overrides`, optional `source`, optional `output` | **live**: starts a real job |
 | `videoflow_get_job` | `job_id` | **live**: status, progress, report |
@@ -79,7 +79,9 @@ Presets accepted by `run_pipeline`:
 `punch_in_scale`, `anchor_point`, `progressive_zoom`, `pan_direction`,
 `export_targets`, `dialect`, `transcript`, `cull_retakes`, `strictness`,
 `retake_strategy`, `context_window`, `llm_base_url`, `llm_model`, `shorts`,
-`shorts_count`, `shorts_min_sec`, `shorts_max_sec`, `shorts_subtitles`,
+`shorts_count`, `shorts_min_count`, `shorts_min_sec`, `shorts_max_sec`,
+`shorts_subtitles`, `shorts_selection_mode`, `caption_*`, `zoom_min_scale`,
+`zoom_max_scale`, `fade_in_ms`, `fade_out_ms`, `fade_curve`,
 `overrides`, `transcribe`, `asr_base_url`, `asr_model`, `asr_language`,
 `whisper_engine`, `whisper_model_size`, `whisper_device`,
 `whisper_compute_type`, `whisper_vad_filter`, `whisper_model`, and
@@ -94,8 +96,10 @@ explicitly set. Staged edits are cleared when the job starts.
 `word_overrides_not_supported`; word-level culling is not part of v1.
 
 `videoflow_generate_shorts` returns proposals; it does not render MP4 files.
-Set `shorts` in the pipeline options to render them. `subtitles` is reported on
-the proposal and can be set through `shorts_subtitles` when rendering.
+Set `shorts` in the pipeline options to render them. `min_count` defaults to the
+smaller of 3 and `count`; use `selection_mode=llm` or `heuristic` to choose the
+ranking path. Caption style fields are accepted as flat `caption_*` overrides
+and are stored in the project's `ShortsConfig`.
 
 `videoflow_export_fcpxml` keeps its historical name. `target_nle` selects the
 dialect: `resolve` (`.fcpxml`), `premiere` (`.xml`), or `kdenlive` (`.kdenlive`).

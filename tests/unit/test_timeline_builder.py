@@ -47,7 +47,9 @@ def test_jcut_moves_the_audio_cut_earlier_and_keeps_contiguity() -> None:
     result = build_timeline(
         media(),
         [(0, 48000), (96000, 144000)],
-        jl=JlCutsConfig(enable_j_cuts=True, offset_ms=200),
+        jl=JlCutsConfig(
+            enable_j_cuts=True, offset_ms=200, fade_in_ms=0, fade_out_ms=0
+        ),
         zooms=ZoomsConfig(mode="manual_rules"),
     )
     left, right = result.audio_segments

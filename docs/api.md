@@ -56,7 +56,7 @@ GET /health
 ```
 
 ```json
-{ "status": "ok", "service": "videoflow", "version": "0.20.1" }
+{ "status": "ok", "service": "videoflow", "version": "0.21.0" }
 ```
 
 ```http
@@ -66,7 +66,7 @@ GET /api/v1/system
 ```json
 {
   "ok": true,
-  "version": "0.20.1",
+  "version": "0.21.0",
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
@@ -184,9 +184,14 @@ Content-Type: application/json
   "lcut": false,
   "offset_ms": 200,
   "crossfade_ms": 20,
+  "fade_in_ms": 20,
+  "fade_out_ms": 20,
+  "fade_curve": "logarithmic",
   "handle_check": true,
   "zooms": true,
   "zoom_mode": "alternate_cuts",
+  "zoom_min_scale": 1.0,
+  "zoom_max_scale": 1.5,
   "punch_in_scale": 1.15,
   "anchor_point": "upper_third",
   "progressive_zoom": false,
@@ -202,9 +207,32 @@ Content-Type: application/json
   "llm_model": "qwen2.5:7b-instruct",
   "shorts": true,
   "shorts_count": 3,
+  "shorts_min_count": 3,
   "shorts_min_sec": 30,
   "shorts_max_sec": 60,
   "shorts_subtitles": true,
+  "shorts_selection_mode": "auto",
+  "caption_font_family": "Arial",
+  "caption_font_size": 72,
+  "caption_font_weight": "bold",
+  "caption_italic": false,
+  "caption_uppercase": false,
+  "caption_primary_color": "#FFFFFF",
+  "caption_highlight_color": "#FFD400",
+  "caption_outline_color": "#000000",
+  "caption_outline_width": 4,
+  "caption_shadow_color": "#000000",
+  "caption_shadow_offset": 2,
+  "caption_shadow_opacity": 0.6,
+  "caption_background_color": "#000000",
+  "caption_background_opacity": 0.0,
+  "caption_background_padding": 0,
+  "caption_alignment": 2,
+  "caption_position_x": 0.5,
+  "caption_position_y": 0.78,
+  "caption_max_width": 0.9,
+  "caption_animation": "none",
+  "caption_word_timing": "engine",
   "overrides": [
     { "sentence_id": 4, "action": "keep" },
     { "sentence_id": 7, "action": "discard" }
@@ -228,6 +256,17 @@ Silero model when ONNX Runtime and the model are available, otherwise FFmpeg.
 `speech_threshold` applies to Silero; `speech_pad_before_ms` and
 `speech_pad_after_ms` apply to both engines. Explicit `silero` fails when the
 model or runtime is missing instead of silently downgrading.
+
+`zoom_min_scale` and `zoom_max_scale` bound the punch-in; `punch_in_scale`
+must stay inside that window. Fade fields configure the first/last audio ramps
+and the join crossfade curve.
+
+`shorts_min_count` is a minimum, not a cap; `shorts_count` is the target and
+maximum. If the material cannot produce the minimum, the result includes a
+warning. `shorts_selection_mode` is `auto`, `llm`, or `heuristic`.
+`caption_*` fields configure the burned Shorts captions/karaoke. Word timings
+come from the transcript engine; `caption_word_timing=proportional` distributes
+a sentence's duration across its words, and `sentence` disables karaoke.
 
 `transcript` is optional and is resolved through the same allowlist as media.
 When `cull_retakes` is true and `VIDEOWFLOW_LLM_BASE_URL` is set, the worker
@@ -396,7 +435,7 @@ On success, `job.result` is the `run_portable` report:
 ```json
 {
   "ok": true,
-  "version": "0.20.1",
+  "version": "0.21.0",
   "vad_engine": "silero",
   "speech_interval_count": 3,
   "video_segment_count": 3,
@@ -534,7 +573,7 @@ The flag is persisted in `module_enabled` and consumed by the next project run.
 
 ### Run a module
 
-Per-module reruns are not implemented in 0.20.1. The route validates the
+Per-module reruns are not implemented in 0.21.0. The route validates the
 project and module id, then returns:
 
 ```json

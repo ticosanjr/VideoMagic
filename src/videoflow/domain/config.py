@@ -23,6 +23,10 @@ PanDirection = Literal["none", "left_to_right", "right_to_left"]
 ReframeMode = Literal["center_crop_9_16", "auto_face_tracking_yolo"]
 SubtitlePreset = Literal["tiktok_bold", "minimalist_box", "highlight_word"]
 ShortsExportFormat = Literal["fcpxml_timeline", "standalone_mp4", "both"]
+ShortsSelectionMode = Literal["auto", "llm", "heuristic"]
+CaptionAnimation = Literal["none", "pop", "sweep"]
+CaptionWordTiming = Literal["engine", "proportional", "sentence"]
+FadeCurve = Literal["linear", "logarithmic"]
 FcpxmlDialect = Literal["1.9", "1.10"]
 
 
@@ -71,30 +75,74 @@ class JlCutsConfig(StrictModel):
     enable_l_cuts: bool = False
     offset_ms: int = Field(default=200, ge=100, le=500)
     audio_crossfade_ms: int = Field(default=20, ge=10, le=50)
+    fade_in_ms: int = Field(default=20, ge=0, le=1000)
+    fade_out_ms: int = Field(default=20, ge=0, le=1000)
+    fade_curve: FadeCurve = "logarithmic"
     handle_check: bool = True
 
 
 class ZoomsConfig(StrictModel):
     mode: ZoomMode = "alternate_cuts"
-    punch_in_scale: float = Field(default=1.15, ge=1.05, le=1.30)
+    min_scale: float = Field(default=1.0, ge=1.0, le=4.0)
+    max_scale: float = Field(default=1.5, ge=1.0, le=4.0)
+    punch_in_scale: float = Field(default=1.15, ge=1.0, le=4.0)
     anchor_point: AnchorPoint = "upper_third"
     progressive_zoom: bool = False
     pan_direction: PanDirection = "none"
+
+    @model_validator(mode="after")
+    def scale_window(self) -> Self:
+        if self.min_scale > self.max_scale:
+            raise ValueError("min_scale exceeds max_scale")
+        if not self.min_scale <= self.punch_in_scale <= self.max_scale:
+            raise ValueError("punch_in_scale must be inside min_scale and max_scale")
+        return self
+
+
+class CaptionStyle(StrictModel):
+    """Burned caption/karaoke style. Colors are #RRGGBB."""
+
+    font_family: str = Field(default="Arial", min_length=1)
+    font_size: int = Field(default=72, ge=8, le=300)
+    font_weight: Literal["normal", "bold"] = "bold"
+    italic: bool = False
+    uppercase: bool = False
+    primary_color: str = Field(default="#FFFFFF", pattern=r"^#[0-9A-Fa-f]{6}$")
+    highlight_color: str = Field(default="#FFD400", pattern=r"^#[0-9A-Fa-f]{6}$")
+    outline_color: str = Field(default="#000000", pattern=r"^#[0-9A-Fa-f]{6}$")
+    outline_width: int = Field(default=4, ge=0, le=20)
+    shadow_color: str = Field(default="#000000", pattern=r"^#[0-9A-Fa-f]{6}$")
+    shadow_offset: int = Field(default=2, ge=0, le=20)
+    shadow_opacity: float = Field(default=0.6, ge=0.0, le=1.0)
+    background_color: str = Field(default="#000000", pattern=r"^#[0-9A-Fa-f]{6}$")
+    background_opacity: float = Field(default=0.0, ge=0.0, le=1.0)
+    background_padding: int = Field(default=0, ge=0, le=40)
+    alignment: int = Field(default=2, ge=1, le=9)
+    position_x: float = Field(default=0.5, ge=0.0, le=1.0)
+    position_y: float = Field(default=0.78, ge=0.0, le=1.0)
+    max_width: float = Field(default=0.9, ge=0.2, le=1.0)
+    animation: CaptionAnimation = "none"
+    word_timing: CaptionWordTiming = "engine"
 
 
 class ShortsConfig(StrictModel):
     target_duration_min_sec: int = Field(default=30, ge=1)
     target_duration_max_sec: int = Field(default=60, ge=1)
+    min_clips: int = Field(default=3, ge=1, le=20)
     max_clips_to_generate: int = Field(default=3, ge=1, le=20)
+    selection_mode: ShortsSelectionMode = "auto"
     reframe_mode: ReframeMode = "center_crop_9_16"
     burn_subtitles: bool = True
     subtitles_preset: SubtitlePreset = "tiktok_bold"
+    caption_style: CaptionStyle = Field(default_factory=CaptionStyle)
     export_format: ShortsExportFormat = "both"
 
     @model_validator(mode="after")
     def duration_window(self) -> Self:
         if self.target_duration_min_sec > self.target_duration_max_sec:
             raise ValueError("target_duration_min_sec exceeds target_duration_max_sec")
+        if self.min_clips > self.max_clips_to_generate:
+            raise ValueError("min_clips exceeds max_clips_to_generate")
         return self
 
 

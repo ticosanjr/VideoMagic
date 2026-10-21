@@ -84,7 +84,7 @@ class ManualOverride(StrictModel):
 
 
 class Transform(StrictModel):
-    scale: float = Field(default=1.0, ge=1.0, le=1.30)
+    scale: float = Field(default=1.0, ge=1.0, le=4.0)
     pos_x: float = 0.0
     pos_y: float = 0.0
     type: TransformType = "none"

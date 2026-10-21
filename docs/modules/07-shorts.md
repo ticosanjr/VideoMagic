@@ -29,16 +29,19 @@ Find self-contained moments in the transcript and turn them into vertical clips.
 | --- | --- | --- |
 | `target_duration_min_sec` | 30 | ≥ 1 |
 | `target_duration_max_sec` | 60 | ≥ min |
+| `min_clips` | 3 | 1–20 |
 | `max_clips_to_generate` | 3 | 1–20 |
+| `selection_mode` | `auto` | auto/llm/heuristic |
 | `reframe_mode` | `center_crop_9_16` | center_crop_9_16 / auto_face_tracking_yolo |
 | `burn_subtitles` | `true` | |
-| `subtitles_preset` | `tiktok_bold` | tiktok_bold/minimalist_box/highlight_word |
+| `caption_style` | defaults | font, size, colors, outline, shadow, box, position, animation, word timing |
 | `export_format` | `both` | fcpxml_timeline/standalone_mp4/both |
 
 ## Algorithm
 
-1. Send indexed transcript windows to the LLM with the duration window and a
-   request for a hook, development, and conclusion.
+1. Rank candidates by hook, impact, emotion, concrete numbers, contrast, and
+   diversity. With an LLM, ask for the most important clips; otherwise use the
+   heuristic. Both paths avoid overlapping windows.
 2. Accept only windows whose edges align with sentence boundaries.
 3. Convert source samples to the kept timeline; intersect with the cull set.
 4. Measure the conformed duration.
@@ -56,13 +59,17 @@ A source window of 45 s can become 28 s after culls. The minimum applies after
 conform, because that is what a viewer experiences. The module reports dropped
 clips and why; the UI shows the warning.
 
-## Captions
+## Captions and karaoke
 
-- `tiktok_bold`: heavy sans, white with black outline, word-level highlight.
-- `minimalist_box`: lower third, small, solid background.
-- `highlight_word`: one active word in accent color.
+Caption style is a full `CaptionStyle` model: font family, size, weight, italic,
+uppercase, primary/highlight/outline colors, outline width, shadow color/offset/
+opacity, background box color/opacity/padding, alignment, normalized position,
+max width, animation, and word-timing fallback.
 
-The renderer writes ASS and lets FFmpeg burn it. Text is escaped.
+The renderer writes ASS and lets FFmpeg burn it. If the transcript has word
+timings, it emits karaoke `\k`/`\kf` tags. Otherwise `word_timing=proportional`
+distributes the sentence duration across words; `sentence` disables karaoke.
+Text is escaped.
 
 ## Failure modes
 

@@ -9,7 +9,7 @@ export type Status =
   | "cancelled"
   | "succeeded";
 
-export type FieldType = "number" | "bool" | "select" | "text" | "targets" | "readonly";
+export type FieldType = "number" | "bool" | "select" | "text" | "color" | "targets" | "readonly";
 
 export type ConfigKey =
   | "force_cfr"
@@ -44,17 +44,45 @@ export type ConfigKey =
   | "lcut"
   | "offset_ms"
   | "crossfade_ms"
+  | "fade_in_ms"
+  | "fade_out_ms"
+  | "fade_curve"
   | "handle_check"
   | "zooms"
   | "zoom_mode"
+  | "zoom_min_scale"
+  | "zoom_max_scale"
   | "punch_in_scale"
   | "anchor_point"
   | "progressive_zoom"
   | "pan_direction"
   | "shorts_count"
+  | "shorts_min_count"
   | "shorts_min_sec"
   | "shorts_max_sec"
   | "shorts_subtitles"
+  | "shorts_selection_mode"
+  | "caption_font_family"
+  | "caption_font_size"
+  | "caption_font_weight"
+  | "caption_italic"
+  | "caption_uppercase"
+  | "caption_primary_color"
+  | "caption_highlight_color"
+  | "caption_outline_color"
+  | "caption_outline_width"
+  | "caption_shadow_color"
+  | "caption_shadow_offset"
+  | "caption_shadow_opacity"
+  | "caption_background_color"
+  | "caption_background_opacity"
+  | "caption_background_padding"
+  | "caption_alignment"
+  | "caption_position_x"
+  | "caption_position_y"
+  | "caption_max_width"
+  | "caption_animation"
+  | "caption_word_timing"
   | "dialect"
   | "export_targets";
 
@@ -119,17 +147,45 @@ export const defaultConfig: JobConfig = {
   lcut: false,
   offset_ms: 200,
   crossfade_ms: 20,
+  fade_in_ms: 20,
+  fade_out_ms: 20,
+  fade_curve: "logarithmic",
   handle_check: true,
   zooms: true,
   zoom_mode: "alternate_cuts",
+  zoom_min_scale: 1.0,
+  zoom_max_scale: 1.5,
   punch_in_scale: 1.15,
   anchor_point: "upper_third",
   progressive_zoom: false,
   pan_direction: "none",
   shorts_count: 3,
+  shorts_min_count: 3,
   shorts_min_sec: 30,
   shorts_max_sec: 60,
   shorts_subtitles: true,
+  shorts_selection_mode: "auto",
+  caption_font_family: "Arial",
+  caption_font_size: 72,
+  caption_font_weight: "bold",
+  caption_italic: false,
+  caption_uppercase: false,
+  caption_primary_color: "#FFFFFF",
+  caption_highlight_color: "#FFD400",
+  caption_outline_color: "#000000",
+  caption_outline_width: 4,
+  caption_shadow_color: "#000000",
+  caption_shadow_offset: 2,
+  caption_shadow_opacity: 0.6,
+  caption_background_color: "#000000",
+  caption_background_opacity: 0,
+  caption_background_padding: 0,
+  caption_alignment: 2,
+  caption_position_x: 0.5,
+  caption_position_y: 0.78,
+  caption_max_width: 0.9,
+  caption_animation: "none",
+  caption_word_timing: "engine",
   dialect: "1.9",
   export_targets: ["resolve", "premiere", "kdenlive"]
 };
@@ -395,6 +451,34 @@ export const modules: RackModule[] = [
         max: 50,
         step: 5
       },
+      {
+        key: "fade_in_ms",
+        label: "Fade in (ms)",
+        type: "number",
+        implemented: true,
+        min: 0,
+        max: 1000,
+        step: 10
+      },
+      {
+        key: "fade_out_ms",
+        label: "Fade out (ms)",
+        type: "number",
+        implemented: true,
+        min: 0,
+        max: 1000,
+        step: 10
+      },
+      {
+        key: "fade_curve",
+        label: "Fade curve",
+        type: "select",
+        implemented: true,
+        options: [
+          { value: "logarithmic", label: "Logarithmic" },
+          { value: "linear", label: "Linear" }
+        ]
+      },
       { key: "handle_check", label: "Handle check", type: "bool", implemented: true }
     ]
   },
@@ -418,12 +502,30 @@ export const modules: RackModule[] = [
         ]
       },
       {
+        key: "zoom_min_scale",
+        label: "Minimum scale",
+        type: "number",
+        implemented: true,
+        min: 1.0,
+        max: 4.0,
+        step: 0.01
+      },
+      {
+        key: "zoom_max_scale",
+        label: "Maximum scale",
+        type: "number",
+        implemented: true,
+        min: 1.0,
+        max: 4.0,
+        step: 0.01
+      },
+      {
         key: "punch_in_scale",
         label: "Punch-in scale",
         type: "number",
         implemented: true,
-        min: 1.05,
-        max: 1.3,
+        min: 1.0,
+        max: 4.0,
         step: 0.01
       },
       {
@@ -460,16 +562,36 @@ export const modules: RackModule[] = [
     tag: "SRT",
     toggleKey: "shorts",
     toggleLabel: "Render",
-    note: "Requires an SRT transcript. Each clip is rendered to output/shorts as H.264/MP4.",
+    note: "Needs a transcript (SRT, local, or ASR). Adds vertical MP4s under output/shorts without replacing the main project.",
     fields: [
       {
         key: "shorts_count",
-        label: "Count",
+        label: "Target count",
         type: "number",
         implemented: true,
         min: 1,
         max: 20,
         step: 1
+      },
+      {
+        key: "shorts_min_count",
+        label: "Minimum clips",
+        type: "number",
+        implemented: true,
+        min: 1,
+        max: 20,
+        step: 1
+      },
+      {
+        key: "shorts_selection_mode",
+        label: "Selection",
+        type: "select",
+        implemented: true,
+        options: [
+          { value: "auto", label: "Auto (LLM, then heuristic)" },
+          { value: "llm", label: "LLM ranking" },
+          { value: "heuristic", label: "Heuristic ranking" }
+        ]
       },
       {
         key: "shorts_min_sec",
@@ -489,7 +611,137 @@ export const modules: RackModule[] = [
         max: 600,
         step: 1
       },
-      { key: "shorts_subtitles", label: "Burn captions", type: "bool", implemented: true }
+      { key: "shorts_subtitles", label: "Burn captions", type: "bool", implemented: true },
+      { key: "caption_font_family", label: "Caption font", type: "text", implemented: true },
+      {
+        key: "caption_font_size",
+        label: "Caption size",
+        type: "number",
+        implemented: true,
+        min: 8,
+        max: 300,
+        step: 1
+      },
+      {
+        key: "caption_font_weight",
+        label: "Caption weight",
+        type: "select",
+        implemented: true,
+        options: [
+          { value: "normal", label: "Normal" },
+          { value: "bold", label: "Bold" }
+        ]
+      },
+      { key: "caption_italic", label: "Italic", type: "bool", implemented: true },
+      { key: "caption_uppercase", label: "Uppercase", type: "bool", implemented: true },
+      { key: "caption_primary_color", label: "Text color", type: "color", implemented: true },
+      { key: "caption_highlight_color", label: "Karaoke color", type: "color", implemented: true },
+      { key: "caption_outline_color", label: "Outline color", type: "color", implemented: true },
+      {
+        key: "caption_outline_width",
+        label: "Outline width",
+        type: "number",
+        implemented: true,
+        min: 0,
+        max: 20,
+        step: 1
+      },
+      { key: "caption_shadow_color", label: "Shadow color", type: "color", implemented: true },
+      {
+        key: "caption_shadow_offset",
+        label: "Shadow offset",
+        type: "number",
+        implemented: true,
+        min: 0,
+        max: 20,
+        step: 1
+      },
+      {
+        key: "caption_shadow_opacity",
+        label: "Shadow opacity",
+        type: "number",
+        implemented: true,
+        min: 0,
+        max: 1,
+        step: 0.05
+      },
+      { key: "caption_background_color", label: "Box color", type: "color", implemented: true },
+      {
+        key: "caption_background_opacity",
+        label: "Box opacity",
+        type: "number",
+        implemented: true,
+        min: 0,
+        max: 1,
+        step: 0.05
+      },
+      {
+        key: "caption_background_padding",
+        label: "Box padding",
+        type: "number",
+        implemented: true,
+        min: 0,
+        max: 40,
+        step: 1
+      },
+      {
+        key: "caption_alignment",
+        label: "Alignment (1-9)",
+        type: "number",
+        implemented: true,
+        min: 1,
+        max: 9,
+        step: 1
+      },
+      {
+        key: "caption_position_x",
+        label: "Position X",
+        type: "number",
+        implemented: true,
+        min: 0,
+        max: 1,
+        step: 0.01
+      },
+      {
+        key: "caption_position_y",
+        label: "Position Y",
+        type: "number",
+        implemented: true,
+        min: 0,
+        max: 1,
+        step: 0.01
+      },
+      {
+        key: "caption_max_width",
+        label: "Max width",
+        type: "number",
+        implemented: true,
+        min: 0.2,
+        max: 1,
+        step: 0.01
+      },
+      {
+        key: "caption_animation",
+        label: "Animation",
+        type: "select",
+        implemented: true,
+        options: [
+          { value: "none", label: "None" },
+          { value: "pop", label: "Pop" },
+          { value: "sweep", label: "Sweep" }
+        ]
+      },
+      {
+        key: "caption_word_timing",
+        label: "Word timing",
+        type: "select",
+        implemented: true,
+        options: [
+          { value: "engine", label: "Engine word timings" },
+          { value: "proportional", label: "Proportional fallback" },
+          { value: "sentence", label: "Sentence only" }
+        ]
+      }
     ]
   },
   {

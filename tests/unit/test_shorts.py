@@ -1,7 +1,10 @@
 import pytest
 
 from videoflow.application.shorts import (
+    CaptionStyle,
     build_ass,
+    build_ass_lines,
+    caption_lines,
     select_shorts,
     sentence_events,
     slugify,
@@ -121,3 +124,71 @@ def test_sentence_events_follow_concatenated_pieces() -> None:
 def test_slug_is_safe_and_indexed() -> None:
     assert slugify("The Hook: AI & You!", 1) == "01-the-hook-ai-you"
     assert slugify("", 2) == "02-short"
+
+
+def test_karaoke_ass_uses_word_timings_and_style() -> None:
+    from videoflow.domain.state import WordTiming
+
+    sentence = Sentence(
+        id=0,
+        start_sample=0,
+        end_sample=2 * RATE,
+        text="Hello world.",
+        words=[
+            WordTiming(word="Hello", start_sample=0, end_sample=RATE, probability=1.0),
+            WordTiming(word="world.", start_sample=RATE, end_sample=2 * RATE, probability=1.0),
+        ],
+    )
+    lines = caption_lines([sentence], [(0, 2 * RATE)], sample_rate=RATE)
+    ass = build_ass_lines(
+        lines,
+        style=CaptionStyle(
+            font_family="DejaVu Sans",
+            font_size=80,
+            primary_color="#FFFFFF",
+            highlight_color="#FFD400",
+            background_color="#112233",
+            background_opacity=0.5,
+            animation="sweep",
+            position_x=0.5,
+            position_y=0.8,
+        ),
+    )
+    assert "DejaVu Sans" in ass
+    assert "&H80332211" in ass
+    assert "{\\kf100}Hello" in ass
+    assert "{\\kf100}world." in ass
+    assert "\\pos(540,1536)" in ass
+
+
+def test_caption_lines_support_proportional_fallback() -> None:
+    line = caption_lines(
+        [Sentence(id=0, start_sample=0, end_sample=RATE, text="one two")],
+        [(0, RATE)],
+        sample_rate=RATE,
+        word_timing="proportional",
+    )[0]
+    assert line.words[0][2] == "one"
+    assert line.words[1][2] == "two"
+    assert line.words[0][0] == 0.0
+    assert line.words[-1][1] == 1.0
+
+
+def test_heuristic_selection_prefers_impactful_windows() -> None:
+    sentences = [
+        sentence(0, 0, 20, "Today we are here."),
+        sentence(1, 20, 40, "This is the biggest mistake and the secret result!"),
+        sentence(2, 40, 60, "And that is why this matters: 90% of people fail."),
+        sentence(3, 60, 80, "Thanks for watching."),
+    ]
+    clips = select_shorts(
+        sentences,
+        min_samples=10 * RATE,
+        max_samples=40 * RATE,
+        count=3,
+        min_clips=3,
+        selection_mode="heuristic",
+        sample_rate=RATE,
+    )
+    assert len(clips) >= 2
+    assert any("mistake" in clip.title for clip in clips)

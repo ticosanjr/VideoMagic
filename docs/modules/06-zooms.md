@@ -20,7 +20,9 @@ not a render.
 | Key | Default | Range |
 | --- | --- | --- |
 | `mode` | `alternate_cuts` | alternate_cuts/topic_change/manual_rules |
-| `punch_in_scale` | 1.15 | 1.05–1.30 |
+| `min_scale` | 1.0 | 1.0–4.0 |
+| `max_scale` | 1.5 | 1.0–4.0 |
+| `punch_in_scale` | 1.15 | between min/max |
 | `anchor_point` | `upper_third` | center/upper_third/face_detect |
 | `progressive_zoom` | `false` | |
 | `pan_direction` | `none` | none/left_to_right/right_to_left |
@@ -66,7 +68,7 @@ requested but unavailable. The UI disables the option with an explanation.
 
 | Failure | Behaviour |
 | --- | --- |
-| Scale out of range | Validation error |
+| Scale outside min/max | Validation error |
 | No segments | No-op |
 | Manual rule targets a missing clip | Fail with the clip id |
 | Face detect requested | Fall back to center, warn |

@@ -30,7 +30,7 @@ HTTP:
 ```
 
 Restart the host after changing the config. All tools and resources in this
-manual are live in 0.20.1.
+manual are live in 0.21.0.
 
 ## 2. Tool groups
 
@@ -130,6 +130,8 @@ failure.
   overruled the model.
 - Exports: a map of target to artifact path. Premiere gets `.xml`; Kdenlive gets
   `.kdenlive`; Resolve gets `.fcpxml`.
+- Shorts proposals accept `min_count` and `selection_mode`; rendered Shorts
+  accept `shorts_min_count` and `caption_*` overrides.
 
 ## 6. Errors
 

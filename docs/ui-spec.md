@@ -2,10 +2,11 @@
 
 Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript. English strings only.
 
-0.20.1 keeps the full telemetry rack from 0.13 and adds a local filesystem
-picker for source, output, SRT, and model paths. The setup card now shows source
-metadata, an output suggestion, starting-point cards, inline validation, and a
-clear primary action. Per-block progress, start/finish timestamps, duration,
+0.21.0 keeps the full telemetry rack from 0.13 and adds detailed configuration
+for zoom bounds, audio fades, Shorts count/selection, and caption/karaoke style.
+The setup card shows source metadata, an output suggestion, starting-point
+cards, an explicit “Also render vertical shorts” control, inline validation, and
+a clear primary action. Per-block progress, start/finish timestamps, duration,
 status icons, per-block and global log drawers, recent jobs, artifact downloads,
 and typed errors remain.
 
@@ -27,7 +28,7 @@ persisted presets, and word-level inspector controls.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ VideoFlow      0.20.1   FFmpeg ready          [Global log]   │
+│ VideoFlow      0.21.0   FFmpeg ready          [Global log]   │
 ├──────────────────────────────────────────────────────────────┤
 │ New project                                      [Run]       │
 │  01 Source video        [Choose / Change]                    │
@@ -60,14 +61,19 @@ inserts, so the UI remains a vertical chain.
 - **Output picker**: browses directories, shows which are writable, and can
   create a new folder. Selecting a source suggests `<source-stem>-videoflow`.
 - **Transcript picker**: optional `.srt` file, filtered in the same browser.
-- **Starting point**: YouTube, Lecture, and Shorts cards. Manual changes switch
+- **Starting point**: YouTube, Lecture, and Main + Shorts cards. The Shorts
+  add-on keeps the main project and adds vertical MP4s; manual changes switch
   the badge to Custom.
+- **Detailed controls**: zoom min/max, fade in/out and curve, Shorts target and
+  minimum count, selection mode, and every caption/karaoke style field are
+  editable. Color fields use a native color picker plus a hex field.
 - **Advanced paths**: a collapsed fallback for typed paths plus Faster-Whisper
   and whisper.cpp model pickers.
 - **Global progress**: active module and a per-module bar. No invented ETA. If an
   ETA exists, it is derived from measured module time.
 - **Run pipeline**: starts the enabled, non-cached modules. Disabled while a job
-  runs or while a required source/output is missing.
+  runs or while a required source/output is missing, the zoom window is invalid,
+  or Shorts are enabled without a transcript/transcription path.
 - **Cancel**: replaces Run during a job.
 
 ### Path picker
@@ -85,6 +91,10 @@ The picker is a modal dialog with:
   valid selection exists;
 - loading skeletons, empty states, and typed errors;
 - Escape to close, focus trapping, and visible focus states.
+
+Short-form controls are one continuous form: zoom bounds, fade timings, Shorts
+target/minimum/selection, and caption font/colors/box/shadow/position. A live
+caption preview and per-Short editor are planned with the render preview pass.
 
 The picker never offers a parent above the allowlisted root. If a symlink points
 outside the roots it is omitted. Network shares and unlisted disks require an

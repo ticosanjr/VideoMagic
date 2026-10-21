@@ -6,7 +6,7 @@ timeline: it removes silence and retakes, adds J-cuts and punch-ins, proposes
 vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive.
 
-> Status: 0.20.1 alpha. The portable Linux binary, Linux AppImage, and Windows
+> Status: 0.21.0 alpha. The portable Linux binary, Linux AppImage, and Windows
 > PE run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical shorts, and
@@ -31,7 +31,7 @@ install time. A GPU is not required.
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 310 passing, 11 strict xfail, 7 deselected
+uv run pytest                       # 315 passing, 11 strict xfail, 7 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model

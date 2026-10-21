@@ -4,7 +4,7 @@ This is the editor's guide. Installation belongs to the
 [operator manual](operator.md).
 
 > Status: the portable CLI, REST API, rack UI, and MCP surface run real jobs in
-> 0.20.1. Local Faster-Whisper quality transcription is available with a
+> 0.21.0. Local Faster-Whisper quality transcription is available with a
 > whisper.cpp fallback. The rack browses local files and folders through the
 > server allowlist; it does not upload media. Per-module reruns and direct MP4
 > rendering remain future work.
@@ -149,18 +149,29 @@ error; it is the safety rule working.
 
 ### 07 Shorts
 
-Available in the rack (enable **Render** and provide an SRT) or as a command:
+Shorts are additive. The main project is always exported; enable
+**Also render vertical shorts** in the setup card, or use:
 
 ```bash
-videoflow shorts interview.mp4 --transcript interview.srt -o out --count 3
+videoflow run interview.mp4 -o edit --transcript interview.srt --shorts   --shorts-count 3 --shorts-min-count 3 --shorts-min-sec 30 --shorts-max-sec 60
 ```
 
+The standalone `videoflow shorts` command remains available for a separate
+vertical-only output.
+
+- **Target/minimum count**: the default is 3; the pipeline warns if the material
+  cannot produce the configured minimum.
+- **Selection**: `auto` uses the LLM when an endpoint is configured, then the
+  heuristic; `llm` requires ranking; `heuristic` ranks hook, impact, numbers,
+  contrast, and diversity without a model.
 - **Duration** is checked after retake culling.
-- **Count** caps the result.
 - **Reframe** is center crop in v1.
-- **Subtitles** are burned in at sentence level (ASS).
-- **Selection** is deterministic by default; an OpenAI-compatible endpoint can
-  choose sentence ids.
+- **Karaoke captions**: font family, size, weight, italic, uppercase, text/
+  highlight/outline colors, outline width, shadow color/offset/opacity, box
+  color/opacity/padding, alignment, position, max width, animation, and word
+  timing are configurable in the rack, API, and MCP.
+- **Stop words**: a long source can still yield fewer than the minimum; the UI
+  and `run.json` report the warning.
 
 A clip that falls below the minimum after culling is dropped, not padded with a
 bad take.

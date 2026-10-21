@@ -25,6 +25,7 @@ from videoflow.application.shorts import (
 )
 from videoflow.domain.config import (
     JlCutsConfig,
+    ShortsConfig,
     TranscribeConfig,
     ZoomsConfig,
 )
@@ -121,6 +122,11 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--no-zooms", action="store_true", help="Disable punch-ins.")
     run.add_argument("--offset-ms", type=int, default=200)
     run.add_argument("--crossfade-ms", type=int, default=20)
+    run.add_argument("--fade-in-ms", type=int, default=20)
+    run.add_argument("--fade-out-ms", type=int, default=20)
+    run.add_argument("--fade-curve", choices=("linear", "logarithmic"), default="logarithmic")
+    run.add_argument("--zoom-min-scale", type=float, default=1.0)
+    run.add_argument("--zoom-max-scale", type=float, default=1.5)
     run.add_argument("--dialect", choices=("1.9", "1.10"), default="1.9")
     run.add_argument("--transcript", type=Path, default=None, help="SRT subtitle file.")
     run.add_argument(
@@ -183,6 +189,25 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="Local GGML model for whisper.cpp; empty uses the bundled ggml-tiny.bin.",
+    )
+    run.add_argument(
+        "--shorts",
+        action="store_true",
+        help="Also render vertical Shorts alongside the main project.",
+    )
+    run.add_argument("--shorts-count", type=int, default=3)
+    run.add_argument("--shorts-min-count", type=int, default=3)
+    run.add_argument("--shorts-min-sec", type=int, default=30)
+    run.add_argument("--shorts-max-sec", type=int, default=60)
+    run.add_argument(
+        "--shorts-selection-mode",
+        choices=("auto", "llm", "heuristic"),
+        default="auto",
+    )
+    run.add_argument(
+        "--no-shorts-subtitles",
+        action="store_true",
+        help="Disable burned captions in Shorts.",
     )
     run.add_argument(
         "--cull-retakes",
@@ -325,8 +350,26 @@ def _run(args: argparse.Namespace) -> int:
         enable_l_cuts=args.l_cuts,
         offset_ms=args.offset_ms,
         audio_crossfade_ms=args.crossfade_ms,
+        fade_in_ms=args.fade_in_ms,
+        fade_out_ms=args.fade_out_ms,
+        fade_curve=args.fade_curve,
     )
-    zooms = ZoomsConfig(mode="manual_rules" if args.no_zooms else "alternate_cuts")
+    zooms = ZoomsConfig(
+        mode="manual_rules" if args.no_zooms else "alternate_cuts",
+        min_scale=args.zoom_min_scale,
+        max_scale=args.zoom_max_scale,
+    )
+    if args.shorts_count < args.shorts_min_count:
+        print("--shorts-count must be at least --shorts-min-count.", file=sys.stderr)
+        return 2
+    shorts_config = ShortsConfig(
+        target_duration_min_sec=args.shorts_min_sec,
+        target_duration_max_sec=args.shorts_max_sec,
+        min_clips=args.shorts_min_count,
+        max_clips_to_generate=args.shorts_count,
+        selection_mode=args.shorts_selection_mode,
+        burn_subtitles=not args.no_shorts_subtitles,
+    )
     if args.cull_retakes and args.transcript is None:
         print("--cull-retakes requires --transcript.", file=sys.stderr)
         return 2
@@ -337,7 +380,7 @@ def _run(args: argparse.Namespace) -> int:
         print("Speech pads must not be negative.", file=sys.stderr)
         return 2
     client = None
-    if args.transcript is not None and args.llm_base_url:
+    if args.llm_base_url and (args.transcript is not None or args.transcribe or args.shorts):
         from videoflow.adapters.llm import OpenAICompatibleLlm
 
         client = OpenAICompatibleLlm(
@@ -378,6 +421,12 @@ def _run(args: argparse.Namespace) -> int:
         strictness=args.strictness,
         retake_strategy=args.retake_strategy,
         context_window=args.context_window,
+        shorts=args.shorts,
+        shorts_count=args.shorts_count,
+        shorts_min_sec=args.shorts_min_sec,
+        shorts_max_sec=args.shorts_max_sec,
+        shorts_subtitles=not args.no_shorts_subtitles,
+        shorts_config=shorts_config,
     )
     print(json.dumps(result.to_dict(), indent=2))
     return 0

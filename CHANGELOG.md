@@ -3,6 +3,52 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.21.0] — 2026-10-21
+
+### Added
+
+- Configurable zoom window: `min_scale`, `max_scale`, and `punch_in_scale` with
+  validation and UI/API/MCP controls. The state model no longer hard-codes a
+  1.30 maximum.
+- Configurable audio fades: `fade_in_ms`, `fade_out_ms`, and `fade_curve` in the
+  J/L-cut module, in addition to the existing crossfade and offset.
+- Configurable Shorts selection: target count, minimum count, duration window,
+  and `auto|llm|heuristic` ranking. The LLM client is created for Shorts even
+  when retake culling is off, and the heuristic ranks hook/impact signals rather
+  than taking the first windows.
+- `videoflow run --shorts` with count/minimum/duration/selection flags, so the
+  main project and vertical Shorts are produced together.
+- Detailed caption/karaoke style: font family, size, weight, italic, uppercase,
+  primary/highlight/outline colors, outline width, shadow color/offset/opacity,
+  background box color/opacity/padding, alignment, normalized position, max
+  width, animation, and word-timing fallback.
+- ASS karaoke generation from word timings, with proportional and sentence
+  fallbacks when an engine does not return word timestamps.
+- The same caption and Shorts fields are available in the UI rack, job API,
+  project config, presets, and MCP overrides. `videoflow_generate_shorts` now
+  accepts `min_count` and `selection_mode`.
+
+### Changed
+
+- The setup card now has an explicit “Also render vertical shorts” control, and
+  the “Main + Shorts” starting point makes clear that Shorts are additive.
+- Shorts report a score and warning when fewer than the configured minimum can
+  be selected.
+- Audio fade timing/curve is now configurable and stored on the timeline. NLE
+  transition elements for those fades remain a follow-up; the current exporters
+  still carry the audio cut offsets rather than dedicated crossfade items.
+
+### Verified
+
+- Tests: 315 passed, 11 xfailed, 7 deselected; coverage 99.00%; ruff and mypy
+  clean.
+- UI: 0 errors/warnings, 13 Vitest tests, production build passed.
+- A real source with `--shorts` produced the main project and Shorts MP4s/ASS,
+  including word-timed karaoke.
+- Linux binary, AppImage, and Windows PE were built and smoke-tested. Sizes and
+  SHA-256 values are in `releases/v0.21.0/release-notes.md` and
+  `manifest.json`.
+
 ## [0.20.1] — 2026-10-20
 
 ### Fixed

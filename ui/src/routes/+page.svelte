@@ -256,9 +256,14 @@
       lcut: Boolean(config.lcut),
       offset_ms: Number(config.offset_ms),
       crossfade_ms: Number(config.crossfade_ms),
+      fade_in_ms: Number(config.fade_in_ms),
+      fade_out_ms: Number(config.fade_out_ms),
+      fade_curve: String(config.fade_curve),
       handle_check: Boolean(config.handle_check),
       zooms: Boolean(config.zooms),
       zoom_mode: String(config.zoom_mode),
+      zoom_min_scale: Number(config.zoom_min_scale),
+      zoom_max_scale: Number(config.zoom_max_scale),
       punch_in_scale: Number(config.punch_in_scale),
       anchor_point: String(config.anchor_point),
       progressive_zoom: Boolean(config.progressive_zoom),
@@ -274,9 +279,32 @@
       llm_model: String(config.llm_model || "qwen2.5:7b-instruct"),
       shorts: Boolean(config.shorts),
       shorts_count: Number(config.shorts_count),
+      shorts_min_count: Number(config.shorts_min_count),
       shorts_min_sec: Number(config.shorts_min_sec),
       shorts_max_sec: Number(config.shorts_max_sec),
       shorts_subtitles: Boolean(config.shorts_subtitles),
+      shorts_selection_mode: String(config.shorts_selection_mode),
+      caption_font_family: String(config.caption_font_family),
+      caption_font_size: Number(config.caption_font_size),
+      caption_font_weight: String(config.caption_font_weight),
+      caption_italic: Boolean(config.caption_italic),
+      caption_uppercase: Boolean(config.caption_uppercase),
+      caption_primary_color: String(config.caption_primary_color),
+      caption_highlight_color: String(config.caption_highlight_color),
+      caption_outline_color: String(config.caption_outline_color),
+      caption_outline_width: Number(config.caption_outline_width),
+      caption_shadow_color: String(config.caption_shadow_color),
+      caption_shadow_offset: Number(config.caption_shadow_offset),
+      caption_shadow_opacity: Number(config.caption_shadow_opacity),
+      caption_background_color: String(config.caption_background_color),
+      caption_background_opacity: Number(config.caption_background_opacity),
+      caption_background_padding: Number(config.caption_background_padding),
+      caption_alignment: Number(config.caption_alignment),
+      caption_position_x: Number(config.caption_position_x),
+      caption_position_y: Number(config.caption_position_y),
+      caption_max_width: Number(config.caption_max_width),
+      caption_animation: String(config.caption_animation),
+      caption_word_timing: String(config.caption_word_timing),
       transcribe: Boolean(config.transcribe),
       asr_base_url: String(config.asr_base_url || "").trim() || null,
       asr_model: String(config.asr_model || "whisper-1"),
@@ -320,6 +348,25 @@
     }
     if (config.cull_retakes && !transcript.trim()) {
       error = "Retake culling needs an SRT transcript path.";
+      return;
+    }
+    if (config.shorts && !transcript.trim() && !config.transcribe) {
+      error = "Shorts need an SRT transcript or local/ASR transcription enabled.";
+      return;
+    }
+    if (Number(config.shorts_min_count) > Number(config.shorts_count)) {
+      error = "Shorts minimum count cannot exceed the target count.";
+      return;
+    }
+    if (Number(config.zoom_min_scale) > Number(config.zoom_max_scale)) {
+      error = "Minimum zoom cannot exceed maximum zoom.";
+      return;
+    }
+    if (
+      Number(config.punch_in_scale) < Number(config.zoom_min_scale) ||
+      Number(config.punch_in_scale) > Number(config.zoom_max_scale)
+    ) {
+      error = "Punch-in scale must be inside the zoom min/max range.";
       return;
     }
     busy = true;
@@ -672,7 +719,7 @@
             {#each [
               { id: "youtube", label: "YouTube", copy: "Clean cuts, J-cuts, punch-ins" },
               { id: "lecture", label: "Lecture", copy: "Longer pauses, stable frame" },
-              { id: "shorts", label: "Shorts", copy: "Tighter pacing, vertical output" }
+              { id: "shorts", label: "Main + Shorts", copy: "Keep the edit; add vertical clips" }
             ] as option}
               <button
                 type="button"
@@ -688,6 +735,32 @@
                 <span class="mt-1 block text-[10px] leading-4 opacity-70">{option.copy}</span>
               </button>
             {/each}
+          </div>
+          <div class="mt-3 rounded-xl border border-white/10 bg-neutral-950/40 p-3">
+            <label class="flex items-center justify-between gap-3 text-xs text-neutral-300">
+              <span>
+                <span class="block font-medium text-neutral-200">Also render vertical shorts</span>
+                <span class="mt-0.5 block text-[10px] text-neutral-600">The main project stays intact; MP4 Shorts are added under <span class="font-mono">shorts/</span>.</span>
+              </span>
+              <input
+                type="checkbox"
+                checked={Boolean(config.shorts)}
+                onchange={() => { config.shorts = !config.shorts; preset = "custom"; }}
+                class="h-4 w-4 rounded border-neutral-700 bg-neutral-800"
+              />
+            </label>
+            {#if config.shorts}
+              <div class="mt-3 grid grid-cols-2 gap-2">
+                <label class="text-[10px] uppercase tracking-wide text-neutral-500">
+                  Target
+                  <input type="number" min="1" max="20" value={config.shorts_count} oninput={(event) => setField("shorts_count", Number(event.currentTarget.value))} class="mt-1 w-full rounded-lg border border-white/10 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100" />
+                </label>
+                <label class="text-[10px] uppercase tracking-wide text-neutral-500">
+                  Minimum
+                  <input type="number" min="1" max="20" value={config.shorts_min_count} oninput={(event) => setField("shorts_min_count", Number(event.currentTarget.value))} class="mt-1 w-full rounded-lg border border-white/10 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100" />
+                </label>
+              </div>
+            {/if}
           </div>
           <p class="mt-2 text-[10px] leading-4 text-neutral-600">Tune individual modules below. Any change switches the preset to custom.</p>
         </div>
@@ -936,6 +1009,24 @@
                         oninput={(event) => setField(field.key, Number(event.currentTarget.value))}
                         class="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-sm text-neutral-100 disabled:opacity-50"
                       />
+                    {:else if field.type === "color"}
+                      <span class="flex gap-1">
+                        <input
+                          id={`${module.id}-${field.key}`}
+                          type="color"
+                          value={config[field.key]}
+                          disabled={!field.implemented}
+                          oninput={(event) => setField(field.key, event.currentTarget.value)}
+                          class="h-9 w-12 rounded-lg border border-neutral-700 bg-neutral-950 p-1 disabled:opacity-50"
+                        />
+                        <input
+                          type="text"
+                          value={config[field.key]}
+                          disabled={!field.implemented}
+                          oninput={(event) => setField(field.key, event.currentTarget.value)}
+                          class="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-xs text-neutral-100 disabled:opacity-50"
+                        />
+                      </span>
                     {:else if field.type === "select"}
                       <select
                         id={`${module.id}-${field.key}`}

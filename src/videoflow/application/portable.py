@@ -34,6 +34,8 @@ from videoflow.application.retakes import (
 )
 from videoflow.application.shorts import (
     build_ass,
+    build_ass_lines,
+    caption_lines,
     select_shorts,
     sentence_events,
     slugify,
@@ -46,6 +48,7 @@ from videoflow.domain.config import (
     JlCutsConfig,
     ModuleEnabled,
     ModulesConfig,
+    ShortsConfig,
     TranscribeConfig,
     VadEngine,
     ZoomsConfig,
@@ -135,6 +138,7 @@ def run_portable(
     shorts_min_sec: int = 30,
     shorts_max_sec: int = 60,
     shorts_subtitles: bool = True,
+    shorts_config: ShortsConfig | None = None,
     overrides: Sequence[ManualOverride] | None = None,
     transcribe: bool = False,
     asr_base_url: str | None = None,
@@ -435,10 +439,24 @@ def run_portable(
     if shorts:
         if not transcript:
             raise IngestError("Shorts require a transcript. Provide an SRT.")
-        if shorts_min_sec <= 0 or shorts_max_sec < shorts_min_sec:
+        short_cfg = shorts_config or ShortsConfig(
+            target_duration_min_sec=shorts_min_sec,
+            target_duration_max_sec=shorts_max_sec,
+            min_clips=1,
+            max_clips_to_generate=max(1, shorts_count),
+            burn_subtitles=shorts_subtitles,
+        )
+        if (
+            short_cfg.target_duration_min_sec <= 0
+            or short_cfg.target_duration_max_sec < short_cfg.target_duration_min_sec
+        ):
             raise IngestError("Invalid shorts duration window.")
-        minimum = timebase.seconds_to_samples(Fraction(shorts_min_sec), Rounding.NEAREST)
-        maximum = timebase.seconds_to_samples(Fraction(shorts_max_sec), Rounding.NEAREST)
+        minimum = timebase.seconds_to_samples(
+            Fraction(short_cfg.target_duration_min_sec), Rounding.NEAREST
+        )
+        maximum = timebase.seconds_to_samples(
+            Fraction(short_cfg.target_duration_max_sec), Rounding.NEAREST
+        )
         cuts = cull_intervals(transcript, discard)
         kept = [item for item in transcript if item.id not in set(discard)]
         gate()
@@ -447,7 +465,9 @@ def run_portable(
                 kept,
                 min_samples=minimum,
                 max_samples=maximum,
-                count=max(1, shorts_count),
+                count=max(1, short_cfg.max_clips_to_generate),
+                min_clips=short_cfg.min_clips,
+                selection_mode=short_cfg.selection_mode,
                 sample_rate=media.audio_sample_rate,
                 cuts=cuts,
                 client=llm_client,
@@ -464,11 +484,25 @@ def run_portable(
                     )
                 slug = slugify(clip.title, index)
                 ass_path = None
-                if shorts_subtitles:
-                    events = sentence_events(kept, clip.pieces, sample_rate=media.audio_sample_rate)
-                    if events:
+                if short_cfg.burn_subtitles:
+                    style = short_cfg.caption_style
+                    lines = caption_lines(
+                        kept,
+                        clip.pieces,
+                        sample_rate=media.audio_sample_rate,
+                        word_timing=style.word_timing,
+                        warnings=warnings,
+                    )
+                    if lines:
                         ass_path = shorts_dir / f"{slug}.ass"
-                        write_text(ass_path, build_ass(events))
+                        write_text(ass_path, build_ass_lines(lines, style=style))
+                    else:
+                        events = sentence_events(
+                            kept, clip.pieces, sample_rate=media.audio_sample_rate
+                        )
+                        if events:
+                            ass_path = shorts_dir / f"{slug}.ass"
+                            write_text(ass_path, build_ass(events, style=style))
                 destination = shorts_dir / f"{slug}.mp4"
                 engine.render_short(
                     source_path,

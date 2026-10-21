@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import tempfile
 from collections.abc import Sequence
@@ -15,6 +16,7 @@ from mcp.server import MCPServer
 
 from videoflow.adapters.faster_whisper import FasterWhisperAdapter
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.adapters.llm import OpenAICompatibleLlm
 from videoflow.adapters.whisper import WhisperCliAdapter
 from videoflow.application.export_service import FILENAMES, export_timeline
 from videoflow.application.jobs import JobManager
@@ -70,8 +72,13 @@ OVERRIDE_KEYS = {
     "speech_pad_after_ms",
     "offset_ms",
     "crossfade_ms",
+    "fade_in_ms",
+    "fade_out_ms",
+    "fade_curve",
     "handle_check",
     "zoom_mode",
+    "zoom_min_scale",
+    "zoom_max_scale",
     "punch_in_scale",
     "anchor_point",
     "progressive_zoom",
@@ -87,9 +94,32 @@ OVERRIDE_KEYS = {
     "llm_model",
     "shorts",
     "shorts_count",
+    "shorts_min_count",
     "shorts_min_sec",
     "shorts_max_sec",
     "shorts_subtitles",
+    "shorts_selection_mode",
+    "caption_font_family",
+    "caption_font_size",
+    "caption_font_weight",
+    "caption_italic",
+    "caption_uppercase",
+    "caption_primary_color",
+    "caption_highlight_color",
+    "caption_outline_color",
+    "caption_outline_width",
+    "caption_shadow_color",
+    "caption_shadow_offset",
+    "caption_shadow_opacity",
+    "caption_background_color",
+    "caption_background_opacity",
+    "caption_background_padding",
+    "caption_alignment",
+    "caption_position_x",
+    "caption_position_y",
+    "caption_max_width",
+    "caption_animation",
+    "caption_word_timing",
     "overrides",
     "transcribe",
     "asr_base_url",
@@ -235,8 +265,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         if compute_type not in {"int8", "float16", "float32"}:
             return _error("invalid_arguments", f"Unsupported compute type: {compute_type}")
         use_faster_whisper = engine == "faster-whisper" or (
-            engine == "auto"
-            and FasterWhisperAdapter.available(model, model=model_path)  # type: ignore[arg-type]
+            engine == "auto" and FasterWhisperAdapter.available(model, model=model_path)  # type: ignore[arg-type]
         )
         try:
             adapter = FFmpegAdapter()
@@ -266,9 +295,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         selected = "faster-whisper" if use_faster_whisper else "whisper"
         if use_faster_whisper:
             selected_model: Path | None = (
-                Path(model_path).expanduser()
-                if model_path
-                else find_faster_whisper_model(model)
+                Path(model_path).expanduser() if model_path else find_faster_whisper_model(model)
             )
             if selected_model is None:
                 selected_model = expected_faster_whisper_model(model)
@@ -436,6 +463,8 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         min_duration: int = 30,
         max_duration: int = 60,
         count: int = 3,
+        min_count: int | None = None,
+        selection_mode: str = "auto",
         subtitles: bool = True,
     ) -> dict[str, object]:
         """Propose vertical clips in source time. YOLO reframing is not available in v1."""
@@ -444,6 +473,14 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             return _error("invalid_arguments", "Invalid shorts duration window")
         if not 1 <= count <= 20:
             return _error("invalid_arguments", "count must be between 1 and 20")
+        resolved_min = min(3, count) if min_count is None else min_count
+        if not 1 <= resolved_min <= count:
+            return _error(
+                "invalid_arguments",
+                "count/min_count must satisfy 1 <= min_count <= count <= 20",
+            )
+        if selection_mode not in {"auto", "llm", "heuristic"}:
+            return _error("invalid_arguments", "Unsupported shorts selection mode")
         transcript = _transcript_for(last)
         if transcript is None:
             return _error(
@@ -460,18 +497,33 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         )
         cuts = cull_intervals(transcript, sorted(culls))
         kept = [item for item in transcript if item.id not in culls]
+        warnings: list[str] = []
+        client = None
+        base_url = os.environ.get("VIDEOWFLOW_LLM_BASE_URL")
+        if base_url:
+            client = OpenAICompatibleLlm(
+                base_url=base_url,
+                model=os.environ.get("VIDEOWFLOW_LLM_MODEL", "qwen2.5:7b-instruct"),
+                api_key=os.environ.get("VIDEOWFLOW_LLM_API_KEY"),
+            )
         clips = select_shorts(
             kept,
             min_samples=minimum,
             max_samples=maximum,
             count=count,
+            min_clips=resolved_min,
+            selection_mode=selection_mode,
             sample_rate=rate,
             cuts=cuts,
+            client=client,
+            warnings=warnings,
         )
         return {
             "ok": True,
             "count": len(clips),
+            "min_count": resolved_min,
             "clips": [clip.to_dict(rate) for clip in clips],
+            "warnings": warnings,
             "subtitles": subtitles,
             "applies_to_next_run": False,
         }

@@ -152,7 +152,7 @@ cached intermediate artifacts, and export files.
 | FR-81 | Return at most `max_clips_to_generate` clips. |
 | FR-82 | Convert a source-time window into the culled timeline. Drop a clip that falls below the minimum after conform; never pad with discarded takes. |
 | FR-83 | `center_crop_9_16` is the only implemented reframe in v1. |
-| FR-84 | Burn karaoke subtitles when `burn_subtitles` is true, using the selected preset. |
+| FR-84 | Burn karaoke subtitles when `burn_subtitles` is true. Style is fully configurable: font family/size/weight/italic/uppercase, primary/highlight/outline colors, outline width, shadow color/offset/opacity, background color/opacity/padding, alignment, normalized position, max width, animation, and word-timing fallback. |
 | FR-85 | `export_format` selects timeline clips, standalone MP4s, or both. |
 
 ### 5.10 Module 08 — Export
