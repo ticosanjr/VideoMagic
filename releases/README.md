@@ -39,6 +39,8 @@ videoflow-0.9.0-windows-x86_64.exe
 
 ## Current
 
+- `v0.21.1`: Premiere xmeml audio `transitionitem` fades and Kdenlive keyframed
+  `volume` fades. Linux binary, AppImage, and Windows PE built and smoke-tested.
 - `v0.21.0`: configurable zoom bounds, audio fades, Shorts target/minimum and
   selection strategy, `run --shorts`, and full caption/karaoke styling across
   UI, API, project config, presets, and MCP. Linux binary, AppImage, and Windows

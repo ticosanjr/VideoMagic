@@ -67,6 +67,19 @@ def export_xmeml(state: ProjectState, output_path: Path) -> Path:
     audio_items: list[ET.Element] = []
     audio_track = ET.SubElement(audio_element, "track")
     for index, clip in enumerate(state.audio_segments):
+        audio_start = timebase.sample_to_frame(clip.timeline_in_sample, Rounding.NEAREST)
+        audio_end = timebase.sample_to_frame(clip.timeline_out_sample, Rounding.CEIL)
+        fade_in_frames = timebase.sample_to_frame(clip.fade_in_samples, Rounding.CEIL)
+        fade_out_frames = timebase.sample_to_frame(clip.fade_out_samples, Rounding.CEIL)
+        if fade_in_frames > 0:
+            _append_audio_fade(
+                audio_track,
+                media,
+                start=audio_start,
+                end=min(audio_end, audio_start + fade_in_frames),
+                alignment="start-black",
+                number=index + 1,
+            )
         item = ET.SubElement(audio_track, "clipitem", {"id": f"audioitem-{index + 1}"})
         ET.SubElement(item, "name").text = clip.clip_id
         ET.SubElement(item, "duration").text = str(media.duration_frames)
@@ -88,6 +101,15 @@ def export_xmeml(state: ProjectState, output_path: Path) -> Path:
         ET.SubElement(source_track, "trackindex").text = "1"
         _append_file(item, media, file_id=f"file-audio-{index + 1}")
         audio_items.append(item)
+        if fade_out_frames > 0:
+            _append_audio_fade(
+                audio_track,
+                media,
+                start=max(audio_start, audio_end - fade_out_frames),
+                end=audio_end,
+                alignment="end-black",
+                number=index + 1,
+            )
 
     for index, (video_item, audio_item) in enumerate(
         zip(video_items, audio_items, strict=True), start=1
@@ -107,6 +129,30 @@ def _append_sequence_timecode(sequence: ET.Element, media: MediaInfo) -> None:
     _append_rate(timecode, media)
     ET.SubElement(timecode, "frame").text = "0"
     ET.SubElement(timecode, "displayformat").text = "NDF"
+
+
+def _append_audio_fade(
+    parent: ET.Element,
+    media: MediaInfo,
+    *,
+    start: int,
+    end: int,
+    alignment: str,
+    number: int,
+) -> None:
+    if end <= start:
+        return
+    item = ET.SubElement(parent, "transitionitem", {"id": f"audiofade-{number}-{alignment}"})
+    ET.SubElement(item, "start").text = str(start)
+    ET.SubElement(item, "end").text = str(end)
+    ET.SubElement(item, "alignment").text = alignment
+    _append_rate(item, media)
+    effect = ET.SubElement(item, "effect")
+    ET.SubElement(effect, "name").text = "Cross Fade ( 0dB)"
+    ET.SubElement(effect, "effectid").text = "KGAudioTransCrossFade0dB"
+    ET.SubElement(effect, "effectcategory").text = "audio"
+    ET.SubElement(effect, "effecttype").text = "transition"
+    ET.SubElement(effect, "mediatype").text = "audio"
 
 
 def _append_rate(parent: ET.Element, media: MediaInfo) -> None:

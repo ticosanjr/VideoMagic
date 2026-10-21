@@ -4,7 +4,7 @@ This is the editor's guide. Installation belongs to the
 [operator manual](operator.md).
 
 > Status: the portable CLI, REST API, rack UI, and MCP surface run real jobs in
-> 0.21.0. Local Faster-Whisper quality transcription is available with a
+> 0.21.1. Local Faster-Whisper quality transcription is available with a
 > whisper.cpp fallback. The rack browses local files and folders through the
 > server allowlist; it does not upload media. Per-module reruns and direct MP4
 > rendering remain future work.

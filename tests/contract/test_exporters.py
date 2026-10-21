@@ -92,6 +92,10 @@ def test_xmeml_export_has_separate_video_and_audio_tracks(tmp_path: Path) -> Non
         assert file_element.findtext("name")
     assert len(video_items[0].findall("link")) == 2
     assert len(audio_items[0].findall("link")) == 2
+    transitions = root.findall("./sequence/media/audio/track/transitionitem")
+    assert transitions
+    assert transitions[0].findtext("alignment") in {"start-black", "end-black"}
+    assert transitions[0].findtext("effect/effectid") == "KGAudioTransCrossFade0dB"
 
 
 def test_kdenlive_export_is_a_native_mlt_project(tmp_path: Path) -> None:
@@ -110,6 +114,8 @@ def test_kdenlive_export_is_a_native_mlt_project(tmp_path: Path) -> None:
     assert resource is not None and resource.text
     assert len(root.findall("./playlist[@id='playlist0']/entry")) == 2
     assert len(root.findall("./playlist[@id='playlist2']/entry")) == 2
+    volume = root.find("./playlist[@id='playlist2']/entry/filter/property[@name='level']")
+    assert volume is not None and "-60" in (volume.text or "")
     sequence = next(
         tractor
         for tractor in root.findall("tractor")

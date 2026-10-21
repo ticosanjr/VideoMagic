@@ -56,7 +56,7 @@ GET /health
 ```
 
 ```json
-{ "status": "ok", "service": "videoflow", "version": "0.21.0" }
+{ "status": "ok", "service": "videoflow", "version": "0.21.1" }
 ```
 
 ```http
@@ -66,7 +66,7 @@ GET /api/v1/system
 ```json
 {
   "ok": true,
-  "version": "0.21.0",
+  "version": "0.21.1",
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
@@ -435,7 +435,7 @@ On success, `job.result` is the `run_portable` report:
 ```json
 {
   "ok": true,
-  "version": "0.21.0",
+  "version": "0.21.1",
   "vad_engine": "silero",
   "speech_interval_count": 3,
   "video_segment_count": 3,
@@ -573,7 +573,7 @@ The flag is persisted in `module_enabled` and consumed by the next project run.
 
 ### Run a module
 
-Per-module reruns are not implemented in 0.21.0. The route validates the
+Per-module reruns are not implemented in 0.21.1. The route validates the
 project and module id, then returns:
 
 ```json

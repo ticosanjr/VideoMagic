@@ -142,7 +142,7 @@ def _append_playlist(
                 source_in,
                 media.timebase().sample_to_frame(clip.source_out_sample, Rounding.CEIL) - 1,
             )
-        ET.SubElement(
+        entry = ET.SubElement(
             playlist,
             "entry",
             {
@@ -151,6 +151,8 @@ def _append_playlist(
                 "out": _timecode(source_out, media.fps_num, media.fps_den),
             },
         )
+        if not video:
+            _append_volume_fade(entry, clip, media, source_out - source_in + 1)
 
 
 def _append_track_tractor(
@@ -275,6 +277,38 @@ def _append_final_tractor(parent: ET.Element, *, sequence_id: str, duration: str
 
 def _property(parent: ET.Element, name: str, value: str) -> None:
     ET.SubElement(parent, "property", {"name": name}).text = value
+
+
+def _append_volume_fade(entry: ET.Element, clip, media, duration_frames: int) -> None:
+    fade_in = media.timebase().sample_to_frame(clip.fade_in_samples, Rounding.CEIL)
+    fade_out = media.timebase().sample_to_frame(clip.fade_out_samples, Rounding.CEIL)
+    if fade_in <= 0 and fade_out <= 0:
+        return
+    fade_in = min(fade_in, max(0, duration_frames - 1))
+    fade_out = min(fade_out, max(0, duration_frames - 1))
+    points: list[tuple[int, int]] = []
+    if fade_in > 0:
+        points.extend([(0, -60), (fade_in, 0)])
+    else:
+        points.append((0, 0))
+    if fade_out > 0:
+        points.append((max(0, duration_frames - 1 - fade_out), 0))
+        points.append((max(0, duration_frames - 1), -60))
+    level = ";".join(f"{frame}={value}" for frame, value in points)
+    filter_element = ET.SubElement(
+        entry,
+        "filter",
+        {
+            "id": f"filter-{clip.clip_id}",
+            "in": _timecode(0, media.fps_num, media.fps_den),
+            "out": _timecode(max(0, duration_frames - 1), media.fps_num, media.fps_den),
+        },
+    )
+    _property(filter_element, "window", "75")
+    _property(filter_element, "max_gain", "20dB")
+    _property(filter_element, "mlt_service", "volume")
+    _property(filter_element, "kdenlive_id", "volume")
+    _property(filter_element, "level", level)
 
 
 def _timecode(frame: int, fps_num: int, fps_den: int) -> str:

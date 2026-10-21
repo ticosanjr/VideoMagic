@@ -43,7 +43,9 @@ contiguous audio track.
 
 FCPXML represents this with `audioStart` and `audioDuration` on the composite
 `asset-clip`, which is Apple's documented mechanism for J/L-cuts. xmeml and MLT
-represent it with separate video and audio clips.
+represent it with separate video and audio clips. xmeml emits single-sided
+audio `transitionitem` fades; Kdenlive emits keyframed `volume` filters.
+FCPXML fade elements are still pending.
 
 ## 3. Resolve — FCPXML
 

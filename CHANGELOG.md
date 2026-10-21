@@ -3,6 +3,25 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.21.1] — 2026-10-21
+
+### Fixed
+
+- Premiere xmeml now writes single-sided `transitionitem` fades for audio
+  fade-in and fade-out edges, using the Cross Fade (0 dB) audio transition.
+- Kdenlive MLT audio entries now carry a keyframed `volume` filter for the same
+  fades. The project still opens as a native `.kdenlive` sequence.
+- FCPXML/Resolve fade transitions remain pending; the FCPXML artifact still
+  carries the audio offsets but not dedicated fade elements.
+
+### Verified
+
+- Tests: 315 passed, 11 xfailed, 7 deselected; coverage 99.00%; ruff and mypy
+  clean.
+- Linux and Windows binaries emitted six xmeml audio transition items and a
+  Kdenlive volume keyframe ramp. Sizes and SHA-256 values are in
+  `releases/v0.21.1/release-notes.md` and `manifest.json`.
+
 ## [0.21.0] — 2026-10-21
 
 ### Added
