@@ -10,6 +10,7 @@ Implemented today:
 - `GET /api/v1/capabilities`
 - `GET /api/v1/fs/roots`, `GET /api/v1/fs/list`, `POST /api/v1/fs/mkdir`
 - `GET /api/v1/media/probe`
+- `GET /api/v1/assets/fonts`, `POST /api/v1/assets/fonts`
 - `POST /api/v1/jobs`, `GET /api/v1/jobs`, `GET /api/v1/jobs/{id}`,
   `POST /api/v1/jobs/{id}/cancel`, `GET /api/v1/jobs/{id}/events`
 - `POST /api/v1/projects`, `GET /api/v1/projects`,
@@ -444,6 +445,19 @@ Content-Type: application/json
 The source must come from a succeeded job. The endpoint writes a new MP4 and
 ASS under `shorts/edited/`, updates `shorts.json` and the job result, and leaves
 the original render available. `caption_style` is merged into the project style.
+
+### Fonts
+
+```http
+GET /api/v1/assets/fonts
+POST /api/v1/assets/fonts?name=Inter.ttf
+Content-Type: application/octet-stream
+<font bytes>
+```
+
+Only TTF/OTF files up to 20 MB are accepted. The response includes the internal
+family name used by libass; the renderer passes the asset directory as
+`fontsdir`.
 
 ### Generate Short metadata
 

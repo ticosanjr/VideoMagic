@@ -42,13 +42,15 @@ For HTTP:
 
 ## 2. Tools
 
-All fifteen tools execute real work. `videoflow_load_media` remembers the source.
+All seventeen tools execute real work. `videoflow_load_media` remembers the source.
 Analysis tools work immediately. Edit tools stage configuration for the next
 `videoflow_run_pipeline`; the result says `applies_to_next_run` when a job is
 still required.
 
 | Tool | Inputs | Behavior |
 | --- | --- | --- |
+| `videoflow_list_fonts` | none | **live**: uploaded font family names and paths |
+| `videoflow_upload_font` | `file_path` | **live**: copies a TTF/OTF from the allowed roots into the font asset store |
 | `videoflow_list_capabilities` | `allow_external_services` | **live**: feature availability, provider policy, and blocked reasons |
 | `videoflow_load_media` | `file_path` | **live**: probes and remembers the source; loading a different source clears the old MCP project context |
 | `videoflow_run_vad` | `noise_db`, `min_silence_ms`, `min_speech_ms`, `vad_engine`, `speech_threshold`, `speech_pad_before_ms`, `speech_pad_after_ms` | **live**: Silero when available, FFmpeg fallback; returns sample intervals, removable silence, and the selected engine |
@@ -153,6 +155,7 @@ The complete path, using only public tools:
 13. call videoflow_list_capabilities before using an external provider
 14. call videoflow_edit_short to trim, retitle, or reframe a completed Short
 15. call videoflow_generate_short_metadata for platform copy
+16. call videoflow_list_fonts or videoflow_upload_font for caption typography
 ```
 
 `videoflow_transcribe` writes a cached SRT and stages it, so the next pipeline

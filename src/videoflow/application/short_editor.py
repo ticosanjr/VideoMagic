@@ -12,6 +12,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application.fonts import fonts_dir
 from videoflow.application.shorts import (
     build_ass,
     build_ass_lines,
@@ -147,6 +148,7 @@ def edit_short(
         ass_path=ass_path,
         width=width,
         height=height,
+        fontsdir=str(fonts_dir()),
     )
 
     previous_path = entry.get("path")

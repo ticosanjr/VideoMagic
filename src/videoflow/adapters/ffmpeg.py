@@ -173,6 +173,7 @@ class FFmpegAdapter:
         ass_path: Path | None = None,
         width: int = 1080,
         height: int = 1920,
+        fontsdir: str | None = None,
     ) -> Path:
         """Render concatenated source pieces as a vertical H.264 short."""
 
@@ -253,6 +254,9 @@ class FFmpegAdapter:
             final = combined
             if ass_path is not None:
                 final = work / "final.mp4"
+                ass_filter = f"ass='{_filter_path(ass_path)}'"
+                if fontsdir:
+                    ass_filter += f":fontsdir='{_filter_path(Path(fontsdir))}'"
                 self._capture(
                     [
                         "ffmpeg",
@@ -263,7 +267,7 @@ class FFmpegAdapter:
                         "-i",
                         str(combined),
                         "-vf",
-                        f"ass='{_filter_path(ass_path)}'",
+                        ass_filter,
                         "-c:v",
                         "libx264",
                         "-preset",

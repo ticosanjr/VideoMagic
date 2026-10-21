@@ -14,6 +14,7 @@ from pathlib import Path
 
 from videoflow import __version__
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application.fonts import fonts_dir
 from videoflow.application.portable import run_portable
 from videoflow.application.retakes import cull_intervals
 from videoflow.application.retakes import cull_retakes as cull_transcript_retakes
@@ -651,6 +652,7 @@ def _shorts(args: argparse.Namespace) -> int:
             ass_path=ass_path,
             width=width,
             height=height,
+            fontsdir=str(fonts_dir()),
         )
         entry = clip.to_dict(media.audio_sample_rate)
         entry["aspect_ratio"] = args.aspect

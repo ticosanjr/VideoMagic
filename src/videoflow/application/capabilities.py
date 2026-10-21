@@ -120,6 +120,15 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "videoflow_generate_shorts",
         ),
         _entry(
+            "custom_fonts",
+            "Custom fonts",
+            "shorts",
+            "available",
+            "Upload TTF/OTF files and use their internal family names in ASS.",
+            "POST /api/v1/assets/fonts",
+            "videoflow_upload_font",
+        ),
+        _entry(
             "caption_branding",
             "Caption branding",
             "shorts",

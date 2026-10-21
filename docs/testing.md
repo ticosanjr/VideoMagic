@@ -15,7 +15,7 @@ hides the contract. VideoFlow resolves this with two layers:
 
 | Scope | Line coverage | Notes |
 | --- | --- | --- |
-| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.03% (339 passing, 11 strict xfail, 7 deselected) |
+| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.03% (342 passing, 11 strict xfail, 7 deselected) |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |
 | UI | `npm run check` and `npm run build` | Manual: start a job from the rack and confirm progress and artifacts |
@@ -80,6 +80,7 @@ smokes run locally and are recorded in the release notes.
 | `test_retake_service.py` | Windows, ids, exact fallback, guard, subtraction |
 | `test_shorts.py` | Heuristic/LLM windows, prompt/reprompt, auto hook, virality, filler cuts, censor, keyword/emoji/brand styling, culls, karaoke ASS, proportional fallback, events, source trimming |
 | `test_metadata.py` | Platform limits, hashtags, tone, title fallback, invalid inputs |
+| `test_fonts.py` | TTF family parsing, asset round-trip, invalid uploads |
 | `test_portable.py` | End-to-end portable service with a fake engine and retakes |
 | `test_jobs.py` | Job completion, failure, cancellation, queue limit, pruning, VAD/Faster-Whisper, detailed zoom/fade/Shorts/caption forwarding |
 | `test_telemetry.py` | Stage lifecycle, durations, logs, filters, cap |

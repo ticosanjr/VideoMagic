@@ -36,6 +36,8 @@ follow semantic versioning once the project reaches 1.0.
   Short editor's Metadata tab.
 - Caption keyword highlighting, contextual emoji mapping, and brand vocabulary
   rewriting. Empty keyword lists auto-select frequent content words.
+- Custom TTF/OTF font upload with internal-family detection, a local font asset
+  store, UI font picker, `fontsdir` rendering, and API/MCP access.
 
 ### Changed
 
@@ -54,7 +56,7 @@ follow semantic versioning once the project reaches 1.0.
 
 ### Verified
 
-- Tests: 339 passed, 11 xfailed, 7 deselected; coverage 99.03%; ruff and mypy
+- Tests: 342 passed, 11 xfailed, 7 deselected; coverage 99.03%; ruff and mypy
   clean.
 - UI: `svelte-check` reports 0 errors and 0 warnings; 13 Vitest tests and the
   production build pass.

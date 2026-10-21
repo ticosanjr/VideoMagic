@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
@@ -22,6 +22,7 @@ from videoflow.application.capabilities import (
 )
 from videoflow.application.export_service import export_timeline
 from videoflow.application.filesystem import create_directory, list_directory, roots_payload
+from videoflow.application.fonts import list_fonts, save_font
 from videoflow.application.jobs import TERMINAL, Job, JobManager
 from videoflow.application.presets import get_preset, load_presets, save_preset
 from videoflow.application.projects import (
@@ -258,6 +259,21 @@ def register_routes(
 ) -> None:
     project_job_lock = threading.Lock()
     app.state.project_store = projects
+    @app.get("/api/v1/assets/fonts")
+    def fonts() -> dict[str, object]:
+        return {"ok": True, "fonts": list_fonts()}
+
+    @app.post("/api/v1/assets/fonts", status_code=201)
+    async def upload_font(name: str, request: Request) -> dict[str, object]:
+        try:
+            asset = save_font(name, await request.body())
+        except FilesystemError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "font_invalid", "message": str(exc)},
+            ) from exc
+        return {"ok": True, "font": asset}
+
     @app.get("/api/v1/capabilities")
     def capabilities(allow_external: bool = False) -> dict[str, object]:
         return {

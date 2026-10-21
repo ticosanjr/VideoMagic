@@ -25,6 +25,16 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "system",
     ),
     ToolSpec(
+        "videoflow_list_fonts",
+        "List uploaded caption fonts and their internal family names.",
+        "assets",
+    ),
+    ToolSpec(
+        "videoflow_upload_font",
+        "Copy a TTF/OTF from the allowed roots into the font asset store.",
+        "assets",
+    ),
+    ToolSpec(
         "videoflow_load_media",
         "Register a source video and return technical metadata. Does not modify the file.",
         "ingest",

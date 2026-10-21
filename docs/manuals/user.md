@@ -182,6 +182,8 @@ vertical-only output.
   auto-select frequent content words.
 - **Emojis**: map words to emojis with `word=emoji` pairs.
 - **Brand vocabulary**: rewrite ASR variants with `wrong=Preferred` pairs.
+- **Custom fonts**: upload a TTF/OTF in the Shorts tab. The upload reports the
+  internal family name; click it to put that name in Caption font.
 - **Metadata**: open a Short's **Metadata** tab, choose platform/tone, and
   generate title, description, hashtags, and character limits.
 - **Duration** is checked after retake culling. The Shorts tab also has

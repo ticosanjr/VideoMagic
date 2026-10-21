@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import CapabilitiesPanel from "$lib/CapabilitiesPanel.svelte";
   import CaptionPreview from "$lib/CaptionPreview.svelte";
+  import FontManager from "$lib/FontManager.svelte";
   import LogDrawer from "$lib/LogDrawer.svelte";
   import PathPicker from "$lib/PathPicker.svelte";
   import ShortEditor from "$lib/ShortEditor.svelte";
@@ -1212,6 +1213,9 @@
             </div>
             {#if module.id === "shorts"}
               <div class="px-4 pb-4">
+                <div class="mb-3">
+                  <FontManager onSelect={(family) => (config.caption_font_family = family)} />
+                </div>
                 <div class="mb-3 rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
                   <div class="flex flex-wrap items-center justify-between gap-2">
                     <div>

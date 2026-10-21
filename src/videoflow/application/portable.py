@@ -26,6 +26,7 @@ from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.adapters.whisper import WhisperCliAdapter
 from videoflow.application.capabilities import ensure_external_allowed
 from videoflow.application.export_service import export_timeline
+from videoflow.application.fonts import fonts_dir
 from videoflow.application.retakes import (
     cull_intervals,
     subtract_spans,
@@ -565,6 +566,7 @@ def run_portable(
                     ass_path=ass_path,
                     width=width,
                     height=height,
+                    fontsdir=str(fonts_dir()),
                 )
                 entry = clip.to_dict(media.audio_sample_rate)
                 entry["aspect_ratio"] = short_cfg.aspect_ratio

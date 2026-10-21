@@ -237,6 +237,13 @@ export interface Job {
   stages: JobStage[];
 }
 
+export interface FontAsset {
+  file: string;
+  name: string;
+  family: string;
+  size_bytes: number;
+}
+
 export interface Capability {
   id: string;
   name: string;
@@ -431,6 +438,28 @@ export async function createDirectory(parent: string, name: string): Promise<FsE
 export function probeMedia(path: string): Promise<ProbedMedia> {
   const query = new URLSearchParams({ path });
   return request<ProbedMedia>(`/api/v1/media/probe?${query.toString()}`);
+}
+
+export async function getFonts(): Promise<FontAsset[]> {
+  const response = await request<{ ok: boolean; fonts: FontAsset[] }>("/api/v1/assets/fonts");
+  return response.fonts;
+}
+
+export async function uploadFont(file: File): Promise<FontAsset> {
+  const response = await fetch(`/api/v1/assets/fonts?name=${encodeURIComponent(file.name)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/octet-stream" },
+    body: file
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    const detail = payload?.detail;
+    throw new ApiError(
+      detail?.code ?? "font_upload_failed",
+      detail?.message ?? "Font upload failed"
+    );
+  }
+  return payload.font as FontAsset;
 }
 
 export async function getCapabilities(allowExternal = false): Promise<CapabilitiesResponse> {

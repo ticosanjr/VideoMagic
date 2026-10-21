@@ -106,7 +106,9 @@ vocabulary, and censor word list/replacement.
 Keyword highlighting colors matching words in sentence captions. If the keyword
 list is empty, the renderer auto-selects frequent content words. Emojis are
 appended to matching words. Brand vocabulary rewrites ASR variants before
-caption styling.
+caption styling. TTF/OTF files can be stored under
+`<home>/assets/fonts`; libass receives that directory through `fontsdir`, and
+the internal family name should be used in `font_family`.
 
 The renderer writes ASS and lets FFmpeg burn it. If the transcript has word
 timings, it emits karaoke `\k`/`\kf` tags. Otherwise `word_timing=proportional`

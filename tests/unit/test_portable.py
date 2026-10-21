@@ -55,6 +55,7 @@ class FakeAdapter:
         ass_path: Path | None = None,
         width: int = 1080,
         height: int = 1920,
+        fontsdir: str | None = None,
     ) -> Path:
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(b"mp4")

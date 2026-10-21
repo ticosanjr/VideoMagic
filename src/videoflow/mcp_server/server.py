@@ -24,6 +24,7 @@ from videoflow.application.capabilities import (
     external_services_allowed,
 )
 from videoflow.application.export_service import FILENAMES, export_timeline
+from videoflow.application.fonts import list_fonts, save_font
 from videoflow.application.jobs import JobManager
 from videoflow.application.retakes import cull_intervals
 from videoflow.application.retakes import cull_retakes as cull_transcript_retakes
@@ -179,6 +180,23 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
                 allow_external_services=allow_external_services
             ),
         }
+
+    @mcp.tool()
+    def videoflow_list_fonts() -> dict[str, object]:
+        """List uploaded caption fonts and their internal family names."""
+
+        return {"ok": True, "fonts": list_fonts()}
+
+    @mcp.tool()
+    def videoflow_upload_font(file_path: str) -> dict[str, object]:
+        """Copy a TTF/OTF from the allowed roots into the local font asset store."""
+
+        try:
+            source = resolve_allowed(Path(file_path), allowed_roots())
+            asset = save_font(source.name, source.read_bytes())
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {"ok": True, "font": asset}
 
     @mcp.tool()
     def videoflow_load_media(file_path: str) -> dict[str, object]:
