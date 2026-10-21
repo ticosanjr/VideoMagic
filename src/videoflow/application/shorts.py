@@ -74,6 +74,7 @@ class ShortClip:
     crop_focus_x: float = 0.5
     crop_focus_y: float = 0.5
     energy_peaks: int = 0
+    scene_changes: int = 0
 
     @property
     def duration_samples(self) -> int:
@@ -100,6 +101,7 @@ class ShortClip:
             "crop_focus_x": round(self.crop_focus_x, 4),
             "crop_focus_y": round(self.crop_focus_y, 4),
             "energy_peaks": self.energy_peaks,
+            "scene_changes": self.scene_changes,
         }
 
 
@@ -131,6 +133,7 @@ def select_shorts(
     remove_fillers: bool = False,
     filler_words: Sequence[str] = (),
     energy_intervals: Sequence[tuple[int, int]] = (),
+    scene_intervals: Sequence[tuple[int, int]] = (),
 ) -> list[ShortClip]:
     notes = warnings if warnings is not None else []
     if prompt_mode not in {"replace", "refine"}:
@@ -167,6 +170,7 @@ def select_shorts(
             prompt_mode=prompt_mode,
             previous=previous,
             energy_intervals=energy_intervals,
+            scene_intervals=scene_intervals,
         )
         if not llm_clips:
             notes.append("LLM returned no usable shorts; using heuristic selection")
@@ -184,6 +188,7 @@ def select_shorts(
         focus=focus,
         previous_ids=previous_ids if prompt_mode == "refine" else set(),
         energy_intervals=energy_intervals,
+        scene_intervals=scene_intervals,
     )
     selected = _merge_clips(llm_clips, heuristic, count) if llm_clips else heuristic
     selected = _apply_hooks(selected, sentences, hook_mode, min_samples, max_samples)
@@ -385,6 +390,7 @@ def _heuristic(
     focus: str = "",
     previous_ids: set[int] | None = None,
     energy_intervals: Sequence[tuple[int, int]] = (),
+    scene_intervals: Sequence[tuple[int, int]] = (),
 ) -> list[ShortClip]:
     candidates: list[ShortClip] = []
     for start_index, sentence in enumerate(sentences):
@@ -417,6 +423,14 @@ def _heuristic(
             bonus = min(6.0, 1.5 * energy_count)
             score += bonus
             breakdown.append(("audio_energy", bonus))
+        scene_count = sum(
+            1 for start_scene, end_scene in scene_intervals
+            if start_scene < end and end_scene > start
+        )
+        if scene_count:
+            bonus = min(4.0, 1.0 * scene_count)
+            score += bonus
+            breakdown.append(("scene_change", bonus))
         hook = _best_hook(chosen_sentences, min_samples, max_samples, focus)
         candidates.append(
             ShortClip(
@@ -433,6 +447,7 @@ def _heuristic(
                 virality_score=virality,
                 score_breakdown=tuple(breakdown),
                 energy_peaks=energy_count,
+                scene_changes=scene_count,
             )
         )
     candidates.sort(key=lambda item: item.score, reverse=True)
@@ -703,6 +718,7 @@ def _from_llm(
     remove_fillers: bool = False,
     filler_words: Sequence[str] = (),
     energy_intervals: Sequence[tuple[int, int]] = (),
+    scene_intervals: Sequence[tuple[int, int]] = (),
 ) -> list[ShortClip]:
     by_id = {item.id: item for item in sentences}
     payload = [{"id": item.id, "text": item.text} for item in sentences]
@@ -751,6 +767,14 @@ def _from_llm(
             bonus = min(6.0, 1.5 * energy_count)
             score += bonus
             breakdown.append(("audio_energy", bonus))
+        scene_count = sum(
+            1 for start_scene, end_scene in scene_intervals
+            if start_scene < end and end_scene > start
+        )
+        if scene_count:
+            bonus = min(4.0, 1.0 * scene_count)
+            score += bonus
+            breakdown.append(("scene_change", bonus))
         hook_id = proposal.hook_sentence_id
         if hook_id not in {item.id for item in chosen}:
             hook = _best_hook(chosen, min_samples, max_samples, focus)
@@ -772,6 +796,7 @@ def _from_llm(
                 virality_score=virality,
                 score_breakdown=tuple(breakdown),
                 energy_peaks=energy_count,
+                scene_changes=scene_count,
             )
         )
     return clips

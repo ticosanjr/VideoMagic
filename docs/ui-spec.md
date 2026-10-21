@@ -116,7 +116,7 @@ of controls:
 | --- | --- |
 | Speech | Ingest, voice detection, transcription, retakes |
 | Edit | J/L cuts, fades, zooms, framing |
-| Shorts | Target/minimum, prompt/reprompt, auto hook, audio-energy boost, reframing/tracking, filler cuts, audio enhancement, watermark, intro/outro, music, brand templates, censor, keyword/emoji/brand styling, custom fonts, metadata, duration presets, aspect ratio, source window, captions, score, preview |
+| Shorts | Target/minimum, prompt/reprompt, auto hook, audio-energy + scene boosts, reframing/tracking, filler cuts, audio enhancement, watermark, intro/outro, music, brand templates, censor, keyword/emoji/brand styling, custom fonts, metadata, duration presets, aspect ratio, source window, captions, score, preview |
 | Export | NLE targets and FCPXML dialect |
 | Providers | Capability manifest and external-service opt-in/blocking |
 

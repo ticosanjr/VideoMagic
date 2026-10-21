@@ -27,6 +27,7 @@ from videoflow.application.shorts import (
     short_dimensions,
     slugify,
 )
+from videoflow.application.video_analysis import detect_scene_changes, scene_intervals
 from videoflow.domain.config import (
     AudioEnhanceConfig,
     CaptionStyle,
@@ -246,6 +247,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     run.add_argument("--shorts-remove-fillers", action="store_true")
     run.add_argument("--shorts-audio-energy", action="store_true")
+    run.add_argument("--shorts-scene-change", action="store_true")
     run.add_argument(
         "--shorts-reframe",
         choices=("center_crop_9_16", "motion_tracking", "face_tracking"),
@@ -315,6 +317,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     shorts.add_argument("--remove-fillers", action="store_true")
     shorts.add_argument("--audio-energy", action="store_true")
+    shorts.add_argument("--scene-change", action="store_true")
     shorts.add_argument(
         "--reframe",
         choices=("center_crop_9_16", "motion_tracking", "face_tracking"),
@@ -454,6 +457,7 @@ def _run(args: argparse.Namespace) -> int:
         hook_mode=args.shorts_hook_mode,
         remove_fillers=args.shorts_remove_fillers,
         audio_energy_boost=args.shorts_audio_energy,
+        scene_change_boost=args.shorts_scene_change,
         reframe_mode=args.shorts_reframe,
         filler_words=args.shorts_filler_word or ["hum", "hmm", "uh", "um", "ah", "eh", "erm", "er"],
         caption_style=CaptionStyle(
@@ -628,6 +632,11 @@ def _shorts(args: argparse.Namespace) -> int:
         print("--max-sec must be greater than --min-sec.", file=sys.stderr)
         return 2
     warnings: list[str] = []
+    scene_intervals_data: tuple[tuple[int, int], ...] = ()
+    if args.scene_change:
+        scene_intervals_data = tuple(
+            scene_intervals(detect_scene_changes(source), sample_rate=media.audio_sample_rate)
+        )
     previous = (
         previous_shorts_from_report(output / "shorts.json")
         if args.prompt_mode == "refine"
@@ -649,6 +658,7 @@ def _shorts(args: argparse.Namespace) -> int:
         hook_mode=args.hook_mode,
         remove_fillers=args.remove_fillers,
         filler_words=args.filler_word,
+        scene_intervals=scene_intervals_data,
     )
     if args.reframe in {"motion_tracking", "face_tracking"}:
         from dataclasses import replace as replace_clip

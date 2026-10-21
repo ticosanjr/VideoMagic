@@ -142,6 +142,7 @@ OVERRIDE_KEYS = {
     "shorts_hook_mode",
     "shorts_reframe_mode",
     "shorts_audio_energy_boost",
+    "shorts_scene_change_boost",
     "shorts_remove_fillers",
     "shorts_filler_words",
     "shorts_aspect",
@@ -684,6 +685,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         hook_mode: str = "off",
         reframe_mode: str = "center_crop_9_16",
         audio_energy_boost: bool = False,
+        scene_change_boost: bool = False,
         remove_fillers: bool = False,
         filler_words: list[str] | None = None,
     ) -> dict[str, object]:
@@ -771,6 +773,24 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             if prompt_mode == "refine"
             else []
         )
+        scene_intervals_data: tuple[tuple[int, int], ...] = ()
+        if scene_change_boost:
+            try:
+                from videoflow.application.video_analysis import (
+                    detect_scene_changes,
+                    scene_intervals,
+                )
+
+                scene_source = last.get("source")
+                if isinstance(scene_source, Path):
+                    scene_intervals_data = tuple(
+                        scene_intervals(
+                            detect_scene_changes(scene_source),
+                            sample_rate=rate,
+                        )
+                    )
+            except VideoFlowError:
+                pass
         clips = select_shorts(
             kept,
             min_samples=minimum,
@@ -789,6 +809,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             hook_mode=hook_mode,
             remove_fillers=remove_fillers,
             filler_words=filler_words or (),
+            scene_intervals=scene_intervals_data,
         )
         if audio_energy_boost:
             try:
@@ -825,6 +846,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
                 "shorts_hook_mode": hook_mode,
                 "shorts_reframe_mode": reframe_mode,
                 "shorts_audio_energy_boost": audio_energy_boost,
+                "shorts_scene_change_boost": scene_change_boost,
                 "shorts_remove_fillers": remove_fillers,
                 "shorts_filler_words": filler_words or [],
                 "allow_external_services": allow_external_services,
@@ -844,6 +866,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             "hook_mode": hook_mode,
             "reframe_mode": reframe_mode,
             "audio_energy_boost": audio_energy_boost,
+            "scene_change_boost": scene_change_boost,
             "remove_fillers": remove_fillers,
             "filler_words": filler_words or [],
             "clips": [clip.to_dict(rate) for clip in clips],

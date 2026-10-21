@@ -208,6 +208,8 @@ vertical-only output.
   face tracking falls back to motion when OpenCV is unavailable.
 - **Audio-energy boost**: gives extra score to clips overlapping loud audio
   peaks. The Short reports how many peaks it covers.
+- **Scene-change boost**: gives extra score to clips around visual cuts detected
+  by FFmpeg; the Short reports `scene_changes`.
 - **Project templates / config**: save reusable run configuration, apply it, and
   export/import a versioned non-secret JSON envelope.
 - **Duration** is checked after retake culling. The Shorts tab also has

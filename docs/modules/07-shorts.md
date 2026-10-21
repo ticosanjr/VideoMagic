@@ -101,6 +101,13 @@ PNG/JPEG assets from the image store can be prepended/appended to a Short with
 configurable durations. Cards are normalized to the Short size, given silent
 audio, and concatenated after captions, overlays, music, and voice-over.
 
+## Scene-change curation
+
+`scene_change_boost` runs FFmpeg's `select='gt(scene,...)',showinfo` detector and
+maps visual cuts to sample windows. Short candidates receive an explainable
+score bonus and expose `scene_changes`. Emotion/laughter and object detectors
+remain optional model work.
+
 ## Audio-energy curation
 
 `audio_energy_boost` extracts 16 kHz mono PCM, computes RMS windows, and merges

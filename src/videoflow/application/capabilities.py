@@ -176,6 +176,15 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "videoflow_upload_font",
         ),
         _entry(
+            "scene_changes",
+            "Scene-change analysis",
+            "editing",
+            "available",
+            "FFmpeg scene scores that boost Shorts around visual cuts.",
+            "POST /api/v1/jobs",
+            "videoflow_run_pipeline",
+        ),
+        _entry(
             "motion_tracking",
             "Motion tracking",
             "editing",

@@ -31,7 +31,7 @@ install time. A GPU is not required.
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 361 passing, 11 strict xfail, 7 deselected
+uv run pytest                       # 363 passing, 11 strict xfail, 7 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model
@@ -99,8 +99,8 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   caption styling, custom font upload, optional speech enhancement, watermark
   overlays, intro/outro cards, music beds with ducking, external TTS voice-over,
   translation dubbing, brand templates, project templates/config import-export,
-  motion/face-assisted reframing, audio-energy curation, platform metadata,
-  thumbnails,
+  motion/face-assisted reframing, audio-energy and scene-change curation,
+  platform metadata, thumbnails,
   retake-aware conforming, 9:16/1:1/16:9 render, an optional source window,
   burned ASS captions, a live aspect-aware preview, and a per-Short
   trim/retitle/reframe editor.

@@ -233,6 +233,7 @@ class ProjectStore:
             "shorts_remove_fillers": config.shorts.remove_fillers,
             "shorts_filler_words": config.shorts.filler_words,
             "shorts_audio_energy_boost": config.shorts.audio_energy_boost,
+            "shorts_scene_change_boost": config.shorts.scene_change_boost,
             "shorts_reframe_mode": config.shorts.reframe_mode,
             "shorts_aspect": config.shorts.aspect_ratio,
             "shorts_source_start_sec": config.shorts.source_start_sec,

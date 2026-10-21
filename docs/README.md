@@ -33,6 +33,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Brand templates | implemented; reusable caption, overlay, music, and intro/outro bundles |
 | Project templates and config I/O | implemented; flat non-secret options, CRUD, export/import |
 | Audio-energy curation | implemented; loud-peak intervals boost Short scores |
+| Scene-change curation | implemented; FFmpeg scene cuts boost Short scores |
 | Motion tracking | implemented; frame-difference focus estimation for reframing |
 | Face tracking | optional; OpenCV face detection with motion fallback |
 | Per-Short editor | implemented; trim, retitle, reframe, caption overrides, re-render |

@@ -60,6 +60,8 @@ follow semantic versioning once the project reaches 1.0.
   options.
 - Audio-energy peak analysis that boosts Short candidates and exposes peak
   counts.
+- FFmpeg scene-change analysis that boosts Short candidates around visual cuts
+  and exposes scene counts.
 
 ### Changed
 
@@ -78,7 +80,7 @@ follow semantic versioning once the project reaches 1.0.
 
 ### Verified
 
-- Tests: 361 passed, 11 xfailed, 7 deselected; coverage 99.06%; ruff and mypy
+- Tests: 363 passed, 11 xfailed, 7 deselected; coverage 99.06%; ruff and mypy
   clean.
 - UI: `svelte-check` reports 0 errors and 0 warnings; 13 Vitest tests and the
   production build pass.

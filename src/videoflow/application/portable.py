@@ -51,6 +51,7 @@ from videoflow.application.timeline_builder import build_timeline
 from videoflow.application.tracking import track_focus_x
 from videoflow.application.vad import detect_speech as detect_vad
 from videoflow.application.vad import pad_spans
+from videoflow.application.video_analysis import detect_scene_changes, scene_intervals
 from videoflow.domain.config import (
     JlCutsConfig,
     ModuleEnabled,
@@ -511,6 +512,17 @@ def run_portable(
             else []
         )
         energy_intervals: tuple[tuple[int, int], ...] = ()
+        scene_intervals_data: tuple[tuple[int, int], ...] = ()
+        if short_cfg.scene_change_boost:
+            try:
+                scene_intervals_data = tuple(
+                    scene_intervals(
+                        detect_scene_changes(source_path),
+                        sample_rate=media.audio_sample_rate,
+                    )
+                )
+            except IngestError as exc:
+                warnings.append(f"Scene analysis skipped: {exc.message}")
         if short_cfg.audio_energy_boost:
             try:
                 energy_intervals = tuple(
@@ -537,6 +549,7 @@ def run_portable(
                 previous=previous,
                 hook_mode=short_cfg.hook_mode,
                 energy_intervals=energy_intervals,
+                scene_intervals=scene_intervals_data,
             )
             if short_cfg.reframe_mode in {"motion_tracking", "face_tracking"}:
                 tracked: list[ShortClip] = []

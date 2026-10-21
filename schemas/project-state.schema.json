@@ -1045,6 +1045,11 @@
           "title": "Reprompt",
           "type": "string"
         },
+        "scene_change_boost": {
+          "default": false,
+          "title": "Scene Change Boost",
+          "type": "boolean"
+        },
         "selection_mode": {
           "default": "auto",
           "enum": [

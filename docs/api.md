@@ -236,6 +236,7 @@ Content-Type: application/json
   "shorts_hook_mode": "off",
   "shorts_reframe_mode": "center_crop_9_16",
   "shorts_audio_energy_boost": false,
+  "shorts_scene_change_boost": false,
   "shorts_remove_fillers": false,
   "shorts_filler_words": ["hum", "hmm", "uh", "um"],
   "shorts_aspect": "9:16",

@@ -123,7 +123,7 @@ All config models forbid unknown fields. That is deliberate: a request containin
 | `RetakesConfig` | no secret value; `secret_name` only; temperature fixed at 0 |
 | `JlCutsConfig` | offset 100–500 ms, crossfade 10–50 ms |
 | `ZoomsConfig` | scale 1.05–1.30 |
-| `ShortsConfig` | min ≤ max; 1–20 clips; prompt/reprompt; hook modes; audio-energy boost; reframe center/motion/face; filler list; aspect 9:16/1:1/16:9; source end > start |
+| `ShortsConfig` | min ≤ max; 1–20 clips; prompt/reprompt; hook modes; audio-energy and scene boosts; reframe center/motion/face; filler list; aspect 9:16/1:1/16:9; source end > start |
 | `ProvidersConfig` | external services opt-in; optional remote-host allowlist |
 | `AudioEnhanceConfig` | opt-in high-pass, denoise, and loudnorm for rendered Shorts |
 | `OverlayConfig` | watermark asset, position, margin, width ratio, opacity |

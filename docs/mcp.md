@@ -100,7 +100,7 @@ Presets accepted by `run_pipeline`:
 `shorts_count`, `shorts_min_count`, `shorts_min_sec`, `shorts_max_sec`,
 `shorts_subtitles`, `shorts_selection_mode`, `shorts_prompt`, `shorts_reprompt`,
 `shorts_prompt_mode`, `shorts_hook_mode`, `shorts_reframe_mode`, `shorts_audio_energy_boost`,
-`shorts_remove_fillers`,
+`shorts_scene_change_boost`, `shorts_remove_fillers`,
 `shorts_filler_words`, `shorts_aspect`, `shorts_source_start_sec`,
 `shorts_source_end_sec`, `allow_external_services`, `allowed_external_hosts`,
 `caption_*`, `caption_censor_enabled`, `caption_censor_words`,

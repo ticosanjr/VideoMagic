@@ -122,6 +122,7 @@ export interface JobOptions {
   shorts_hook_mode?: string;
   shorts_reframe_mode?: string;
   shorts_audio_energy_boost?: boolean;
+  shorts_scene_change_boost?: boolean;
   shorts_remove_fillers?: boolean;
   shorts_filler_words?: string[];
   shorts_aspect?: string;
@@ -406,6 +407,7 @@ export interface NewJob {
   shorts_hook_mode: "off" | "metadata" | "repeat" | "reorder";
   shorts_reframe_mode: "center_crop_9_16" | "motion_tracking" | "face_tracking" | "auto_face_tracking_yolo";
   shorts_audio_energy_boost: boolean;
+  shorts_scene_change_boost: boolean;
   shorts_remove_fillers: boolean;
   shorts_filler_words: string[];
   shorts_aspect: string;

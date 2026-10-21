@@ -78,6 +78,7 @@ export type ConfigKey =
   | "shorts_hook_mode"
   | "shorts_reframe_mode"
   | "shorts_audio_energy_boost"
+  | "shorts_scene_change_boost"
   | "shorts_remove_fillers"
   | "shorts_filler_words"
   | "audio_enhance"
@@ -230,6 +231,7 @@ export const defaultConfig: JobConfig = {
   shorts_hook_mode: "off",
   shorts_reframe_mode: "center_crop_9_16",
   shorts_audio_energy_boost: false,
+  shorts_scene_change_boost: false,
   shorts_remove_fillers: false,
   shorts_filler_words: "hum, hmm, uh, um, ah, eh, erm, er",
   audio_enhance: false,
@@ -758,6 +760,13 @@ export const modules: RackModule[] = [
         type: "bool",
         implemented: true,
         help: "Adds a score bonus to clips overlapping loud audio peaks."
+      },
+      {
+        key: "shorts_scene_change_boost",
+        label: "Boost scene changes",
+        type: "bool",
+        implemented: true,
+        help: "Adds a score bonus to clips around visual scene changes."
       },
       {
         key: "shorts_remove_fillers",

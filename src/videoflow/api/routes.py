@@ -148,6 +148,7 @@ class NewJobRequest(BaseModel):
         default_factory=lambda: ["hum", "hmm", "uh", "um", "ah", "eh", "erm", "er"]
     )
     shorts_audio_energy_boost: bool = False
+    shorts_scene_change_boost: bool = False
     shorts_reframe_mode: Literal[
         "center_crop_9_16", "motion_tracking", "face_tracking", "auto_face_tracking_yolo"
     ] = "center_crop_9_16"
@@ -476,6 +477,7 @@ def register_routes(
                     "shorts_remove_fillers": request.shorts_remove_fillers,
                     "shorts_filler_words": request.shorts_filler_words,
                     "shorts_audio_energy_boost": request.shorts_audio_energy_boost,
+                    "shorts_scene_change_boost": request.shorts_scene_change_boost,
                     "shorts_reframe_mode": request.shorts_reframe_mode,
                     "shorts_aspect": request.shorts_aspect,
                     "shorts_source_start_sec": request.shorts_source_start_sec,

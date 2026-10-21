@@ -325,6 +325,7 @@
         | "face_tracking"
         | "auto_face_tracking_yolo",
       shorts_audio_energy_boost: Boolean(config.shorts_audio_energy_boost),
+      shorts_scene_change_boost: Boolean(config.shorts_scene_change_boost),
       shorts_remove_fillers: Boolean(config.shorts_remove_fillers),
       shorts_filler_words: String(config.shorts_filler_words || "")
         .split(",")
