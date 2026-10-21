@@ -76,6 +76,8 @@ export type ConfigKey =
   | "shorts_reprompt"
   | "shorts_prompt_mode"
   | "shorts_hook_mode"
+  | "shorts_remove_fillers"
+  | "shorts_filler_words"
   | "shorts_aspect"
   | "shorts_source_start_sec"
   | "shorts_source_end_sec"
@@ -102,6 +104,9 @@ export type ConfigKey =
   | "caption_max_width"
   | "caption_animation"
   | "caption_word_timing"
+  | "caption_censor_enabled"
+  | "caption_censor_words"
+  | "caption_censor_replacement"
   | "dialect"
   | "export_targets";
 
@@ -189,6 +194,8 @@ export const defaultConfig: JobConfig = {
   shorts_reprompt: "",
   shorts_prompt_mode: "replace",
   shorts_hook_mode: "off",
+  shorts_remove_fillers: false,
+  shorts_filler_words: "hum, hmm, uh, um, ah, eh, erm, er",
   shorts_aspect: "9:16",
   shorts_source_start_sec: 0,
   shorts_source_end_sec: 0,
@@ -215,6 +222,9 @@ export const defaultConfig: JobConfig = {
   caption_max_width: 0.9,
   caption_animation: "none",
   caption_word_timing: "engine",
+  caption_censor_enabled: false,
+  caption_censor_words: "porra, merda, caralho, foda, fuck, shit, bitch, asshole",
+  caption_censor_replacement: "***",
   dialect: "1.9",
   export_targets: ["resolve", "premiere", "kdenlive"]
 };
@@ -663,6 +673,20 @@ export const modules: RackModule[] = [
         help: "Refine loads the previous shorts.json from the output folder."
       },
       {
+        key: "shorts_remove_fillers",
+        label: "Remove filler words",
+        type: "bool",
+        implemented: true,
+        help: "Cuts filler words when word timings are available."
+      },
+      {
+        key: "shorts_filler_words",
+        label: "Filler words",
+        type: "text",
+        implemented: true,
+        help: "Comma-separated. Defaults: hum, hmm, uh, um, ah, eh, erm, er."
+      },
+      {
         key: "shorts_hook_mode",
         label: "Auto hook",
         type: "select",
@@ -855,6 +879,20 @@ export const modules: RackModule[] = [
           { value: "proportional", label: "Proportional fallback" },
           { value: "sentence", label: "Sentence only" }
         ]
+      },
+      { key: "caption_censor_enabled", label: "Censor profanity", type: "bool", implemented: true },
+      {
+        key: "caption_censor_words",
+        label: "Censor words",
+        type: "text",
+        implemented: true,
+        help: "Comma-separated list; matching is case-insensitive."
+      },
+      {
+        key: "caption_censor_replacement",
+        label: "Censor replacement",
+        type: "text",
+        implemented: true
       }
     ]
   },

@@ -69,6 +69,7 @@ class ShortClip:
     hook_end_sample: int | None = None
     virality_score: float = 0.0
     score_breakdown: tuple[tuple[str, float], ...] = ()
+    filler_words_removed: tuple[str, ...] = ()
 
     @property
     def duration_samples(self) -> int:
@@ -91,6 +92,7 @@ class ShortClip:
             "hook_sentence_id": self.hook_sentence_id,
             "hook_start_sample": self.hook_start_sample,
             "hook_end_sample": self.hook_end_sample,
+            "filler_words_removed": list(self.filler_words_removed),
         }
 
 
@@ -119,6 +121,8 @@ def select_shorts(
     prompt_mode: str = "replace",
     previous: Sequence[ShortClip] = (),
     hook_mode: str = "off",
+    remove_fillers: bool = False,
+    filler_words: Sequence[str] = (),
 ) -> list[ShortClip]:
     notes = warnings if warnings is not None else []
     if prompt_mode not in {"replace", "refine"}:
@@ -173,6 +177,8 @@ def select_shorts(
     )
     selected = _merge_clips(llm_clips, heuristic, count) if llm_clips else heuristic
     selected = _apply_hooks(selected, sentences, hook_mode, min_samples, max_samples)
+    if remove_fillers:
+        selected = _apply_fillers(selected, sentences, filler_words)
     selected.sort(key=lambda item: item.start_sample)
     if len(selected) < min_clips:
         notes.append(
@@ -604,6 +610,42 @@ def previous_shorts_from_report(path: Path) -> list[ShortClip]:
     return clips
 
 
+def _apply_fillers(
+    clips: Sequence[ShortClip],
+    sentences: Sequence[Sentence],
+    filler_words: Sequence[str],
+) -> list[ShortClip]:
+    terms = {word.casefold().strip(".,!?;:") for word in filler_words if word.strip()}
+    if not terms:
+        return list(clips)
+    by_id = {item.id: item for item in sentences}
+    result: list[ShortClip] = []
+    for clip in clips:
+        intervals: list[tuple[int, int]] = []
+        removed: list[str] = []
+        for sentence in (by_id[item] for item in clip.sentence_ids if item in by_id):
+            for word in sentence.words:
+                clean = re.sub(r"[^\wÀ-ÿ']", "", word.word).casefold()
+                if clean in terms:
+                    intervals.append((word.start_sample, word.end_sample))
+                    removed.append(word.word)
+        if not intervals:
+            result.append(clip)
+            continue
+        pieces = tuple(subtract_spans(list(clip.pieces), intervals))
+        if not pieces:
+            result.append(clip)
+            continue
+        result.append(
+            replace(
+                clip,
+                pieces=pieces,
+                filler_words_removed=tuple(removed),
+            )
+        )
+    return result
+
+
 def _proportional_words(
     text: str,
     start: float,
@@ -638,6 +680,8 @@ def _from_llm(
     prompt_mode: str = "replace",
     previous: Sequence[ShortClip] = (),
     hook_mode: str = "off",
+    remove_fillers: bool = False,
+    filler_words: Sequence[str] = (),
 ) -> list[ShortClip]:
     by_id = {item.id: item for item in sentences}
     payload = [{"id": item.id, "text": item.text} for item in sentences]
@@ -716,7 +760,22 @@ def _ass_text(text: str) -> str:
 
 
 def _display_text(text: str, style: CaptionStyle) -> str:
-    return text.upper() if style.uppercase else text
+    value = text.upper() if style.uppercase else text
+    return _censor_text(value, style)
+
+
+def _censor_text(text: str, style: CaptionStyle) -> str:
+    if not style.censor_enabled or not style.censor_words:
+        return text
+    terms = sorted(
+        (re.escape(word) for word in style.censor_words if word.strip()),
+        key=len,
+        reverse=True,
+    )
+    if not terms:
+        return text
+    pattern = re.compile(r"\b(" + "|".join(terms) + r")\b", re.IGNORECASE)
+    return pattern.sub(style.censor_replacement, text)
 
 
 def _karaoke_text(line: CaptionLine, style: CaptionStyle) -> str:

@@ -98,7 +98,9 @@ target/minimum/selection, prompt/reprompt, aspect ratio, source window, and capt
 font/colors/box/shadow/position. Duration buttons set common min/max pairs. The
 caption preview follows the selected aspect and shows the configured font,
 colors, outline, shadow, box, alignment, and position. The per-Short editor has
-Clip and Captions tabs and writes a fresh render under `shorts/edited/`.
+Clip, Captions, and Metadata tabs. Saving a clip/caption edit writes a fresh
+render under `shorts/edited/`; the Metadata tab generates platform title,
+description, and hashtags.
 
 The picker never offers a parent above the allowlisted root. If a symlink points
 outside the roots it is omitted. Network shares and unlisted disks require an
@@ -113,7 +115,7 @@ of controls:
 | --- | --- |
 | Speech | Ingest, voice detection, transcription, retakes |
 | Edit | J/L cuts, fades, zooms, framing |
-| Shorts | Target/minimum, prompt/reprompt, auto hook, duration presets, aspect ratio, source window, captions, score, preview |
+| Shorts | Target/minimum, prompt/reprompt, auto hook, filler cuts, censor, metadata, duration presets, aspect ratio, source window, captions, score, preview |
 | Export | NLE targets and FCPXML dialect |
 | Providers | Capability manifest and external-service opt-in/blocking |
 

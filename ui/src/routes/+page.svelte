@@ -302,6 +302,11 @@
         | "metadata"
         | "repeat"
         | "reorder",
+      shorts_remove_fillers: Boolean(config.shorts_remove_fillers),
+      shorts_filler_words: String(config.shorts_filler_words || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
       shorts_aspect: String(config.shorts_aspect || "9:16"),
       shorts_source_start_sec: Number(config.shorts_source_start_sec || 0),
       shorts_source_end_sec: Number(config.shorts_source_end_sec || 0) || null,
@@ -331,6 +336,12 @@
       caption_max_width: Number(config.caption_max_width),
       caption_animation: String(config.caption_animation),
       caption_word_timing: String(config.caption_word_timing),
+      caption_censor_enabled: Boolean(config.caption_censor_enabled),
+      caption_censor_words: String(config.caption_censor_words || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+      caption_censor_replacement: String(config.caption_censor_replacement || "***"),
       transcribe: Boolean(config.transcribe),
       asr_base_url: String(config.asr_base_url || "").trim() || null,
       asr_model: String(config.asr_model || "whisper-1"),

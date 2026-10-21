@@ -29,6 +29,11 @@ follow semantic versioning once the project reaches 1.0.
   virality score with a per-factor breakdown. Hook/score metadata appears in
   `shorts.json` and the rack.
 - Short result badges expose the selected aspect, virality score, and hook text.
+- Caption profanity masking with a configurable word list/replacement.
+- Optional filler-word cuts for Shorts when word timings are available.
+- Deterministic social metadata (title, description, hashtags, character limits)
+  for YouTube, TikTok, Instagram, and LinkedIn, exposed via API/MCP and the
+  Short editor's Metadata tab.
 
 ### Changed
 
@@ -37,7 +42,7 @@ follow semantic versioning once the project reaches 1.0.
   pruned folder.
 - Release staging is documented as the canonical artifact store. Generated
   `build/`, `dist/`, coverage files, and caches are cleaned after each release.
-- MCP now exposes fourteen tools and four resources.
+- MCP now exposes fifteen tools and four resources.
 
 ### Docs
 
@@ -47,7 +52,7 @@ follow semantic versioning once the project reaches 1.0.
 
 ### Verified
 
-- Tests: 331 passed, 11 xfailed, 7 deselected; coverage 99.02%; ruff and mypy
+- Tests: 337 passed, 11 xfailed, 7 deselected; coverage 99.02%; ruff and mypy
   clean.
 - UI: `svelte-check` reports 0 errors and 0 warnings; 13 Vitest tests and the
   production build pass.

@@ -26,6 +26,7 @@ from videoflow.application.shorts import (
     slugify,
 )
 from videoflow.domain.config import (
+    CaptionStyle,
     JlCutsConfig,
     ShortsConfig,
     TranscribeConfig,
@@ -240,6 +241,11 @@ def _parser() -> argparse.ArgumentParser:
         default="off",
         help="Auto-hook behavior: metadata only, repeat at start, or reorder first.",
     )
+    run.add_argument("--shorts-remove-fillers", action="store_true")
+    run.add_argument("--shorts-filler-word", action="append", default=[])
+    run.add_argument("--caption-censor", action="store_true")
+    run.add_argument("--caption-censor-word", action="append", default=[])
+    run.add_argument("--caption-censor-replacement", default="***")
     run.add_argument(
         "--no-shorts-subtitles",
         action="store_true",
@@ -297,6 +303,8 @@ def _parser() -> argparse.ArgumentParser:
         choices=("off", "metadata", "repeat", "reorder"),
         default="off",
     )
+    shorts.add_argument("--remove-fillers", action="store_true")
+    shorts.add_argument("--filler-word", action="append", default=[])
     shorts.add_argument("--no-subtitles", action="store_true")
     shorts.add_argument("--cull-retakes", action="store_true")
     shorts.add_argument("--llm-base-url", default=os.environ.get("VIDEOWFLOW_LLM_BASE_URL"))
@@ -427,6 +435,14 @@ def _run(args: argparse.Namespace) -> int:
         reprompt=args.shorts_reprompt,
         prompt_mode=args.shorts_prompt_mode,
         hook_mode=args.shorts_hook_mode,
+        remove_fillers=args.shorts_remove_fillers,
+        filler_words=args.shorts_filler_word or ["hum", "hmm", "uh", "um", "ah", "eh", "erm", "er"],
+        caption_style=CaptionStyle(
+            censor_enabled=args.caption_censor,
+            censor_words=args.caption_censor_word
+            or ["porra", "merda", "caralho", "foda", "fuck", "shit", "bitch", "asshole"],
+            censor_replacement=args.caption_censor_replacement,
+        ),
         aspect_ratio=args.shorts_aspect,
         source_start_sec=args.shorts_start_sec,
         source_end_sec=args.shorts_end_sec,
@@ -609,6 +625,8 @@ def _shorts(args: argparse.Namespace) -> int:
         prompt_mode=args.prompt_mode,
         previous=previous,
         hook_mode=args.hook_mode,
+        remove_fillers=args.remove_fillers,
+        filler_words=args.filler_word,
     )
     if not clips:
         print(json.dumps({"ok": False, "warnings": warnings}, indent=2), file=sys.stderr)

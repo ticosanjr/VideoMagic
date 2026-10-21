@@ -70,6 +70,11 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "shorts",
     ),
     ToolSpec(
+        "videoflow_generate_short_metadata",
+        "Generate platform-aware title, description, and hashtags for a Short.",
+        "shorts",
+    ),
+    ToolSpec(
         "videoflow_export_fcpxml",
         "Export the latest completed timeline for Resolve, Premiere, or Kdenlive.",
         "export",

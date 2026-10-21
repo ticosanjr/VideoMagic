@@ -34,6 +34,7 @@ from videoflow.application.projects import (
 )
 from videoflow.application.short_editor import ShortEditOptions
 from videoflow.application.short_editor import edit_short as edit_short_service
+from videoflow.application.short_metadata import generate_short_metadata
 from videoflow.domain.config import ModuleEnabled
 from videoflow.domain.errors import (
     CapabilityUnavailableError,
@@ -109,6 +110,10 @@ class NewJobRequest(BaseModel):
     shorts_reprompt: str = Field(default="", max_length=2000)
     shorts_prompt_mode: Literal["replace", "refine"] = "replace"
     shorts_hook_mode: Literal["off", "metadata", "repeat", "reorder"] = "off"
+    shorts_remove_fillers: bool = False
+    shorts_filler_words: list[str] = Field(
+        default_factory=lambda: ["hum", "hmm", "uh", "um", "ah", "eh", "erm", "er"]
+    )
     shorts_aspect: Literal["9:16", "1:1", "16:9"] = "9:16"
     shorts_source_start_sec: float = Field(default=0.0, ge=0.0)
     shorts_source_end_sec: float | None = Field(default=None, ge=0.0)
@@ -135,6 +140,13 @@ class NewJobRequest(BaseModel):
     caption_max_width: float = Field(default=0.9, ge=0.2, le=1.0)
     caption_animation: Literal["none", "pop", "sweep"] = "none"
     caption_word_timing: Literal["engine", "proportional", "sentence"] = "engine"
+    caption_censor_enabled: bool = False
+    caption_censor_words: list[str] = Field(
+        default_factory=lambda: [
+            "porra", "merda", "caralho", "foda", "fuck", "shit", "bitch", "asshole"
+        ]
+    )
+    caption_censor_replacement: str = Field(default="***", min_length=1, max_length=20)
     overrides: list[OverrideRequest] = Field(default_factory=list)
     transcribe: bool = False
     asr_base_url: str | None = None
@@ -191,6 +203,12 @@ class ProjectRunRequest(BaseModel):
 class ExportRequest(BaseModel):
     targets: list[Literal["resolve", "premiere", "kdenlive"]] | None = None
     dialect: Literal["1.9", "1.10"] | None = None
+
+
+class ShortMetadataRequest(BaseModel):
+    platform: Literal["youtube", "tiktok", "instagram", "linkedin"] = "youtube"
+    tone: Literal["engaging", "professional", "educational", "bold"] = "engaging"
+    extra_hashtags: list[str] = Field(default_factory=list)
 
 
 class ShortEditRequest(BaseModel):
@@ -298,6 +316,8 @@ def register_routes(
                     "shorts_reprompt": request.shorts_reprompt,
                     "shorts_prompt_mode": request.shorts_prompt_mode,
                     "shorts_hook_mode": request.shorts_hook_mode,
+                    "shorts_remove_fillers": request.shorts_remove_fillers,
+                    "shorts_filler_words": request.shorts_filler_words,
                     "shorts_aspect": request.shorts_aspect,
                     "shorts_source_start_sec": request.shorts_source_start_sec,
                     "shorts_source_end_sec": request.shorts_source_end_sec,
@@ -324,6 +344,9 @@ def register_routes(
                     "caption_max_width": request.caption_max_width,
                     "caption_animation": request.caption_animation,
                     "caption_word_timing": request.caption_word_timing,
+                    "caption_censor_enabled": request.caption_censor_enabled,
+                    "caption_censor_words": request.caption_censor_words,
+                    "caption_censor_replacement": request.caption_censor_replacement,
                     "overrides": [item.model_dump() for item in request.overrides],
                     "transcribe": request.transcribe,
                     "asr_base_url": request.asr_base_url,
@@ -464,6 +487,32 @@ def register_routes(
             "ok": True,
             "short": entry,
             "download": f"/api/v1/jobs/{job_id}/shorts/{index}",
+        }
+
+    @app.post("/api/v1/jobs/{job_id}/shorts/{index}/metadata")
+    def short_metadata(
+        job_id: str, index: int, request: ShortMetadataRequest
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            if job.status != "succeeded" or job.result is None:
+                raise StateNotReadyError(
+                    "The job must succeed before metadata can be generated."
+                )
+            metadata = generate_short_metadata(
+                output=job.output,
+                index=index,
+                result=job.result,
+                platform=request.platform,
+                tone=request.tone,
+                extra_hashtags=tuple(request.extra_hashtags),
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+        return {
+            "ok": True,
+            "metadata": metadata,
+            "short": job.result["shorts"][index],
         }
 
     @app.get("/api/v1/jobs/{job_id}/state")

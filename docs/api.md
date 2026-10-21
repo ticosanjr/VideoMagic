@@ -227,6 +227,8 @@ Content-Type: application/json
   "shorts_reprompt": "more energy",
   "shorts_prompt_mode": "replace",
   "shorts_hook_mode": "off",
+  "shorts_remove_fillers": false,
+  "shorts_filler_words": ["hum", "hmm", "uh", "um"],
   "shorts_aspect": "9:16",
   "shorts_source_start_sec": 0,
   "shorts_source_end_sec": null,
@@ -253,6 +255,9 @@ Content-Type: application/json
   "caption_max_width": 0.9,
   "caption_animation": "none",
   "caption_word_timing": "engine",
+  "caption_censor_enabled": false,
+  "caption_censor_words": ["porra", "merda"],
+  "caption_censor_replacement": "***",
   "overrides": [
     { "sentence_id": 4, "action": "keep" },
     { "sentence_id": 7, "action": "discard" }
@@ -433,6 +438,20 @@ Content-Type: application/json
 The source must come from a succeeded job. The endpoint writes a new MP4 and
 ASS under `shorts/edited/`, updates `shorts.json` and the job result, and leaves
 the original render available. `caption_style` is merged into the project style.
+
+### Generate Short metadata
+
+```http
+POST /api/v1/jobs/{job_id}/shorts/{index}/metadata
+Content-Type: application/json
+```
+
+```json
+{ "platform": "youtube", "tone": "engaging", "extra_hashtags": ["#pricing"] }
+```
+
+Returns a deterministic title, description, hashtags, and platform character
+limits, and stores the result under `short.metadata.<platform>`.
 
 ### Download a short
 

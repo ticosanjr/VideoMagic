@@ -379,3 +379,47 @@ def test_virality_score_has_a_transparent_breakdown() -> None:
     breakdown = dict(clips[0].score_breakdown)
     assert breakdown["question"] == 4.0
     assert breakdown["prompt"] > 0
+
+
+def test_caption_censor_masks_words_without_changing_timing() -> None:
+    from videoflow.application.shorts import CaptionLine, CaptionStyle, build_ass_lines
+
+    style = CaptionStyle(censor_enabled=True, censor_words=["merda"], censor_replacement="***")
+    ass = build_ass_lines(
+        [CaptionLine(start=0, end=1, text="Que merda de dia")],
+        style=style,
+    )
+    assert "***" in ass
+    assert "merda" not in ass.lower()
+
+
+def test_filler_removal_trims_word_intervals() -> None:
+    from videoflow.domain.state import WordTiming
+
+    words = [
+        WordTiming(word="um", start_sample=0, end_sample=RATE, probability=1.0),
+        WordTiming(word="hello", start_sample=RATE, end_sample=2 * RATE, probability=1.0),
+        WordTiming(word="um", start_sample=2 * RATE, end_sample=3 * RATE, probability=1.0),
+        WordTiming(word="world", start_sample=3 * RATE, end_sample=9 * RATE, probability=1.0),
+    ]
+    sentences = [
+        Sentence(
+            id=0,
+            start_sample=0,
+            end_sample=9 * RATE,
+            text="um hello um world",
+            words=words,
+        )
+    ]
+    clips = select_shorts(
+        sentences,
+        min_samples=5 * RATE,
+        max_samples=10 * RATE,
+        count=1,
+        sample_rate=RATE,
+        selection_mode="heuristic",
+        remove_fillers=True,
+        filler_words=["um"],
+    )
+    assert clips[0].pieces == ((RATE, 2 * RATE), (3 * RATE, 9 * RATE))
+    assert clips[0].filler_words_removed == ("um", "um")

@@ -91,6 +91,14 @@ class Job:
 
 
 
+def _string_list(value: object, default: list[str]) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    return default
+
+
 def _shorts_config(options: dict[str, object]) -> ShortsConfig:
     count = max(1, int(options.get("shorts_count", 3)))
     requested_min = options.get("shorts_min_count")
@@ -105,6 +113,11 @@ def _shorts_config(options: dict[str, object]) -> ShortsConfig:
         reprompt=str(options.get("shorts_reprompt", "")),
         prompt_mode=str(options.get("shorts_prompt_mode", "replace")),  # type: ignore[arg-type]
         hook_mode=str(options.get("shorts_hook_mode", "off")),  # type: ignore[arg-type]
+        remove_fillers=bool(options.get("shorts_remove_fillers", False)),
+        filler_words=_string_list(
+            options.get("shorts_filler_words"),
+            ["hum", "hmm", "uh", "um", "ah", "eh", "erm", "er"],
+        ),
         aspect_ratio=str(options.get("shorts_aspect", "9:16")),  # type: ignore[arg-type]
         source_start_sec=float(options.get("shorts_source_start_sec", 0.0)),
         source_end_sec=(
@@ -140,6 +153,12 @@ def _caption_style(options: dict[str, object]) -> CaptionStyle:
         max_width=float(options.get("caption_max_width", 0.9)),
         animation=str(options.get("caption_animation", "none")),  # type: ignore[arg-type]
         word_timing=str(options.get("caption_word_timing", "engine")),  # type: ignore[arg-type]
+        censor_enabled=bool(options.get("caption_censor_enabled", False)),
+        censor_words=_string_list(
+            options.get("caption_censor_words"),
+            ["porra", "merda", "caralho", "foda", "fuck", "shit", "bitch", "asshole"],
+        ),
+        censor_replacement=str(options.get("caption_censor_replacement", "***")),
     )
 
 class JobManager:

@@ -1,5 +1,11 @@
 <script lang="ts">
-  import { editShort, errorMessage, type ShortClip } from "$lib/api";
+  import {
+    editShort,
+    errorMessage,
+    generateShortMetadata,
+    type ShortClip,
+    type ShortMetadata
+  } from "$lib/api";
 
   let {
     jobId,
@@ -17,7 +23,7 @@
     onSaved: (value: ShortClip) => void;
   } = $props();
 
-  let tab = $state<"clip" | "captions">("clip");
+  let tab = $state<"clip" | "captions" | "metadata">("clip");
   let title = $state("");
   let startSec = $state(0);
   let endSec = $state(0);
@@ -29,6 +35,11 @@
   let backgroundOpacity = $state(0);
   let busy = $state(false);
   let error = $state("");
+  let platform = $state("youtube");
+  let tone = $state("engaging");
+  let metadata = $state<ShortMetadata | null>(null);
+  let metadataBusy = $state(false);
+  let metadataError = $state("");
 
   $effect(() => {
     if (!open) return;
@@ -44,7 +55,34 @@
     primaryColor = String(style.primary_color ?? "#FFFFFF");
     highlightColor = String(style.highlight_color ?? "#FFD400");
     backgroundOpacity = Number(style.background_opacity ?? 0);
+    platform = "youtube";
+    tone = "engaging";
+    metadata = short.metadata?.youtube ?? null;
+    metadataError = "";
   });
+
+  function setPlatform(value: string) {
+    platform = value;
+    metadata = short.metadata?.[value] ?? null;
+    metadataError = "";
+  }
+
+  async function generateMetadata() {
+    if (metadataBusy) return;
+    metadataBusy = true;
+    metadataError = "";
+    try {
+      const response = await generateShortMetadata(jobId, index, {
+        platform,
+        tone
+      });
+      metadata = response.metadata;
+    } catch (reason) {
+      metadataError = errorMessage(reason);
+    } finally {
+      metadataBusy = false;
+    }
+  }
 
   async function save() {
     if (busy) return;
@@ -115,6 +153,15 @@
         >
           Captions
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "metadata"}
+          onclick={() => (tab = "metadata")}
+          class={`rounded-t-lg px-3 py-2 text-xs font-medium ${tab === "metadata" ? "bg-neutral-800 text-sky-200" : "text-neutral-400 hover:text-neutral-200"}`}
+        >
+          Metadata
+        </button>
       </div>
 
       <div class="space-y-4 p-4">
@@ -178,7 +225,7 @@
             />
             Burn captions on the edited render
           </label>
-        {:else}
+        {:else if tab === "captions"}
           <div class="grid gap-3 sm:grid-cols-2">
             <label class="block text-xs text-neutral-300">
               <span class="text-[10px] uppercase tracking-wide text-neutral-500">Font size</span>
@@ -228,6 +275,70 @@
           <p class="text-[10px] leading-4 text-neutral-500">
             Other caption fields inherit from the project style.
           </p>
+        {:else}
+          <div class="grid gap-3 sm:grid-cols-2">
+            <label class="block text-xs text-neutral-300">
+              <span class="text-[10px] uppercase tracking-wide text-neutral-500">Platform</span>
+              <select
+                value={platform}
+                onchange={(event) => setPlatform(event.currentTarget.value)}
+                class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+              >
+                <option value="youtube">YouTube</option>
+                <option value="tiktok">TikTok</option>
+                <option value="instagram">Instagram</option>
+                <option value="linkedin">LinkedIn</option>
+              </select>
+            </label>
+            <label class="block text-xs text-neutral-300">
+              <span class="text-[10px] uppercase tracking-wide text-neutral-500">Tone</span>
+              <select
+                value={tone}
+                onchange={(event) => (tone = event.currentTarget.value)}
+                class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+              >
+                <option value="engaging">Engaging</option>
+                <option value="professional">Professional</option>
+                <option value="educational">Educational</option>
+                <option value="bold">Bold</option>
+              </select>
+            </label>
+          </div>
+
+          <button
+            type="button"
+            onclick={generateMetadata}
+            disabled={metadataBusy}
+            class="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-200 disabled:opacity-40"
+          >
+            {metadataBusy ? "Generating…" : "Generate metadata"}
+          </button>
+
+          {#if metadataError}
+            <p class="rounded-lg border border-rose-500/20 bg-rose-950/30 p-2 text-[11px] text-rose-300">{metadataError}</p>
+          {/if}
+
+          {#if metadata}
+            <div class="space-y-3 rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
+              <div>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-[10px] uppercase tracking-wide text-neutral-500">Title</span>
+                  <button type="button" onclick={() => (title = metadata?.title ?? title)} class="text-[10px] text-sky-300 hover:text-sky-200">
+                    Use as title
+                  </button>
+                </div>
+                <p class="mt-1 text-xs text-neutral-200">{metadata.title}</p>
+              </div>
+              <div>
+                <span class="text-[10px] uppercase tracking-wide text-neutral-500">Description</span>
+                <p class="mt-1 whitespace-pre-wrap text-[11px] leading-5 text-neutral-400">{metadata.description}</p>
+              </div>
+              <div>
+                <span class="text-[10px] uppercase tracking-wide text-neutral-500">Hashtags</span>
+                <p class="mt-1 text-[11px] text-sky-300">{metadata.hashtags.join(" ")}</p>
+              </div>
+            </div>
+          {/if}
         {/if}
 
         {#if error}
@@ -236,20 +347,27 @@
       </div>
 
       <div class="flex flex-wrap items-center justify-between gap-2 border-t border-neutral-800 p-4">
-        <span class="text-[10px] text-neutral-500">{short.duration_sec.toFixed(2)} s original</span>
-        <div class="flex gap-2">
+        {#if tab === "metadata"}
+          <span class="text-[10px] text-neutral-500">Metadata is saved when generated.</span>
           <button type="button" onclick={onClose} class="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300">
-            Cancel
+            Close
           </button>
-          <button
-            type="button"
-            onclick={save}
-            disabled={busy}
-            class="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
-          >
-            {busy ? "Rendering…" : "Save and re-render"}
-          </button>
-        </div>
+        {:else}
+          <span class="text-[10px] text-neutral-500">{short.duration_sec.toFixed(2)} s original</span>
+          <div class="flex gap-2">
+            <button type="button" onclick={onClose} class="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300">
+              Cancel
+            </button>
+            <button
+              type="button"
+              onclick={save}
+              disabled={busy}
+              class="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+            >
+              {busy ? "Rendering…" : "Save and re-render"}
+            </button>
+          </div>
+        {/if}
       </div>
     </div>
   </div>

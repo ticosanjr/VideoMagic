@@ -208,6 +208,8 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
             "shorts_reprompt": "more energy",
             "shorts_prompt_mode": "refine",
             "shorts_hook_mode": "repeat",
+            "shorts_remove_fillers": True,
+            "shorts_filler_words": ["um", "uh"],
             "shorts_aspect": "1:1",
             "shorts_source_start_sec": 5,
             "shorts_source_end_sec": 50,
@@ -219,6 +221,9 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
             "asr_model": "whisper-1",
             "asr_language": "en",
             "whisper_model": "/models/ggml-small.bin",
+            "caption_censor_enabled": True,
+            "caption_censor_words": ["merda"],
+            "caption_censor_replacement": "***",
         },
     )
     assert response.status_code == 202
@@ -235,7 +240,11 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
     assert options["shorts_reprompt"] == "more energy"
     assert options["shorts_prompt_mode"] == "refine"
     assert options["shorts_hook_mode"] == "repeat"
+    assert options["shorts_remove_fillers"] is True
+    assert options["shorts_filler_words"] == ["um", "uh"]
     assert options["shorts_aspect"] == "1:1"
+    assert options["caption_censor_enabled"] is True
+    assert options["caption_censor_words"] == ["merda"]
     assert options["shorts_source_start_sec"] == 5
     assert options["shorts_source_end_sec"] == 50
     assert options["allow_external_services"] is True
@@ -401,3 +410,63 @@ def test_edit_short_updates_result_and_writes_a_new_render(monkeypatch, tmp_path
     assert job.result["shorts"][0]["title"] == "Edited"
     saved = json.loads((output / "shorts.json").read_text(encoding="utf-8"))
     assert saved["clips"][0]["title"] == "Edited"
+
+
+def test_short_metadata_is_generated_and_persisted(monkeypatch, tmp_path: Path) -> None:
+    from videoflow.application.jobs import Job
+    from videoflow.domain.state import MediaInfo, ProjectState, Sentence
+
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    output = tmp_path / "out"
+    output.mkdir()
+    state = ProjectState(
+        media_info=MediaInfo(
+            source_path=str(source),
+            duration_frames=30,
+            fps_num=30,
+            fps_den=1,
+            width=1920,
+            height=1080,
+            audio_sample_rate=48000,
+        ),
+        transcript=[
+            Sentence(
+                id=0,
+                start_sample=0,
+                end_sample=48000,
+                text="The finance market crashed after the bank decision.",
+            )
+        ],
+    )
+    (output / "project_state.json").write_text(state.model_dump_json(indent=2), encoding="utf-8")
+    entry = {
+        "title": "Market crash",
+        "pieces": [[0, 48000]],
+        "start_sample": 0,
+        "end_sample": 48000,
+        "start_sec": 0.0,
+        "end_sec": 1.0,
+        "duration_sec": 1.0,
+        "path": str(output / "short.mp4"),
+    }
+    (output / "shorts.json").write_text(
+        json.dumps({"ok": True, "clips": [entry]}), encoding="utf-8"
+    )
+    job = Job(source=source, output=output, options={})
+    job.status = "succeeded"
+    job.result = {"ok": True, "shorts": [entry]}
+    manager = JobManager()
+    manager._jobs[str(job.job_id)] = job
+    client = TestClient(create_app(jobs=manager))
+    response = client.post(
+        f"/api/v1/jobs/{job.job_id}/shorts/0/metadata",
+        json={"platform": "tiktok", "tone": "bold"},
+    )
+    assert response.status_code == 200
+    metadata = response.json()["metadata"]
+    assert metadata["platform"] == "tiktok"
+    assert "#fyp" in metadata["hashtags"]
+    assert "changes" in metadata["description"]
+    saved = json.loads((output / "shorts.json").read_text(encoding="utf-8"))
+    assert saved["clips"][0]["metadata"]["tiktok"]["title"] == metadata["title"]

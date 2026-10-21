@@ -184,6 +184,15 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "videoflow_generate_shorts",
         ),
         _entry(
+            "metadata",
+            "Social metadata",
+            "export",
+            "available",
+            "Deterministic title, description, and hashtags per platform.",
+            "POST /api/v1/jobs/{job_id}/shorts/{index}/metadata",
+            "videoflow_generate_short_metadata",
+        ),
+        _entry(
             "virality_score",
             "Virality score",
             "curation",

@@ -38,6 +38,9 @@ Find self-contained moments in the transcript and turn them into vertical clips.
 | `reprompt` | empty | refinement instruction |
 | `prompt_mode` | `replace` | replace/refine |
 | `hook_mode` | `off` | off/metadata/repeat/reorder |
+| `remove_fillers` | `false` | cut filler words when word timings exist |
+| `filler_words` | `hum, hmm, uh, um, ...` | configurable token list |
+| `caption_style.censor_enabled` | `false` | mask profanity in ASS captions |
 | `aspect_ratio` | `9:16` | 9:16 / 1:1 / 16:9 |
 | `source_start_sec` | 0 | ≥ 0; sentences must start at or after it |
 | `source_end_sec` | none | > start; sentences must end at or before it |
@@ -79,6 +82,18 @@ from its original position.
 Every clip also carries a 0–100 `virality_score` and a transparent
 `score_breakdown` (markers, question, exclamation, numbers, prompt, duration).
 This is an explainable heuristic, not a platform-trained prediction.
+
+## Fillers, censor, and metadata
+
+When `remove_fillers` is on and the transcript has word timings, filler-word
+intervals are subtracted from the Short pieces. Captions only render words that
+remain inside the pieces. Caption profanity masking is a case-insensitive word
+list with a configurable replacement.
+
+`POST /api/v1/jobs/{job_id}/shorts/{index}/metadata` generates a deterministic
+title, description, hashtags, and platform character limits for YouTube,
+TikTok, Instagram, or LinkedIn. Results are stored under the Short's
+`metadata.<platform>` entry.
 
 ## Captions and karaoke
 

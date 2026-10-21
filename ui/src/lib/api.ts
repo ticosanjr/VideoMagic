@@ -118,6 +118,8 @@ export interface JobOptions {
   shorts_reprompt?: string;
   shorts_prompt_mode?: string;
   shorts_hook_mode?: string;
+  shorts_remove_fillers?: boolean;
+  shorts_filler_words?: string[];
   shorts_aspect?: string;
   shorts_source_start_sec?: number;
   shorts_source_end_sec?: number | null;
@@ -178,9 +180,19 @@ export interface ShortClip {
   height?: number;
   subtitles?: string;
   caption_style?: Record<string, unknown>;
+  metadata?: Record<string, ShortMetadata>;
   edited_at?: string;
   edit_count?: number;
   previous_path?: string;
+}
+
+export interface ShortMetadata {
+  title: string;
+  description: string;
+  hashtags: string[];
+  platform: string;
+  tone: string;
+  character_limits: { title: number; description: number };
 }
 
 export interface ShortEditPayload {
@@ -293,6 +305,8 @@ export interface NewJob {
   shorts_reprompt: string;
   shorts_prompt_mode: "replace" | "refine";
   shorts_hook_mode: "off" | "metadata" | "repeat" | "reorder";
+  shorts_remove_fillers: boolean;
+  shorts_filler_words: string[];
   shorts_aspect: string;
   shorts_source_start_sec: number;
   shorts_source_end_sec: number | null;
@@ -319,6 +333,9 @@ export interface NewJob {
   caption_max_width: number;
   caption_animation: string;
   caption_word_timing: string;
+  caption_censor_enabled: boolean;
+  caption_censor_words: string[];
+  caption_censor_replacement: string;
   overrides: { sentence_id: number; action: "keep" | "discard" }[];
 }
 
@@ -430,6 +447,17 @@ export async function editShort(
   payload: ShortEditPayload
 ): Promise<{ ok: boolean; short: ShortClip; download: string }> {
   return request(`/api/v1/jobs/${jobId}/shorts/${index}/edit`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function generateShortMetadata(
+  jobId: string,
+  index: number,
+  payload: { platform: string; tone: string; extra_hashtags?: string[] }
+): Promise<{ ok: boolean; metadata: ShortMetadata; short: ShortClip }> {
+  return request(`/api/v1/jobs/${jobId}/shorts/${index}/metadata`, {
     method: "POST",
     body: JSON.stringify(payload)
   });

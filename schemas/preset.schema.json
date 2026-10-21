@@ -41,6 +41,25 @@
           "title": "Background Padding",
           "type": "integer"
         },
+        "censor_enabled": {
+          "default": false,
+          "title": "Censor Enabled",
+          "type": "boolean"
+        },
+        "censor_replacement": {
+          "default": "***",
+          "maxLength": 20,
+          "minLength": 1,
+          "title": "Censor Replacement",
+          "type": "string"
+        },
+        "censor_words": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Censor Words",
+          "type": "array"
+        },
         "font_family": {
           "default": "Arial",
           "minLength": 1,
@@ -470,6 +489,13 @@
           "title": "Export Format",
           "type": "string"
         },
+        "filler_words": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Filler Words",
+          "type": "array"
+        },
         "hook_mode": {
           "default": "off",
           "enum": [
@@ -518,6 +544,11 @@
           ],
           "title": "Reframe Mode",
           "type": "string"
+        },
+        "remove_fillers": {
+          "default": false,
+          "title": "Remove Fillers",
+          "type": "boolean"
         },
         "reprompt": {
           "default": "",

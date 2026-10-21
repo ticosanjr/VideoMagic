@@ -218,6 +218,12 @@ def test_run_passes_short_and_detailed_config_options(monkeypatch, tmp_path, cap
                 "refine",
                 "--shorts-hook-mode",
                 "repeat",
+                "--shorts-remove-fillers",
+                "--shorts-filler-word",
+                "um",
+                "--caption-censor",
+                "--caption-censor-word",
+                "merda",
                 "--shorts-start-sec",
                 "5",
                 "--shorts-end-sec",
@@ -246,6 +252,10 @@ def test_run_passes_short_and_detailed_config_options(monkeypatch, tmp_path, cap
     assert seen["shorts_config"].reprompt == "more energy"
     assert seen["shorts_config"].prompt_mode == "refine"
     assert seen["shorts_config"].hook_mode == "repeat"
+    assert seen["shorts_config"].remove_fillers is True
+    assert seen["shorts_config"].filler_words == ["um"]
+    assert seen["shorts_config"].caption_style.censor_enabled is True
+    assert seen["shorts_config"].caption_style.censor_words == ["merda"]
     assert seen["shorts_config"].source_start_sec == 5
     assert seen["shorts_config"].source_end_sec == 50
     assert isinstance(seen["jl"], JlCutsConfig)

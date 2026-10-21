@@ -126,6 +126,20 @@ class CaptionStyle(StrictModel):
     max_width: float = Field(default=0.9, ge=0.2, le=1.0)
     animation: CaptionAnimation = "none"
     word_timing: CaptionWordTiming = "engine"
+    censor_enabled: bool = False
+    censor_words: list[str] = Field(
+        default_factory=lambda: [
+            "porra",
+            "merda",
+            "caralho",
+            "foda",
+            "fuck",
+            "shit",
+            "bitch",
+            "asshole",
+        ]
+    )
+    censor_replacement: str = Field(default="***", min_length=1, max_length=20)
 
 
 class ShortsConfig(StrictModel):
@@ -138,6 +152,10 @@ class ShortsConfig(StrictModel):
     reprompt: str = Field(default="", max_length=2000)
     prompt_mode: ShortsPromptMode = "replace"
     hook_mode: ShortsHookMode = "off"
+    remove_fillers: bool = False
+    filler_words: list[str] = Field(
+        default_factory=lambda: ["hum", "hmm", "uh", "um", "ah", "eh", "erm", "er"]
+    )
     reframe_mode: ReframeMode = "center_crop_9_16"
     aspect_ratio: ShortsAspect = "9:16"
     source_start_sec: float = Field(default=0.0, ge=0.0)

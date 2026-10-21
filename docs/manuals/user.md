@@ -175,6 +175,11 @@ vertical-only output.
   highest-scoring sentence inside the selected clip.
 - **Virality score**: a 0–100 explainable score with a breakdown. It is a
   heuristic aid, not a guarantee or a platform-trained prediction.
+- **Fillers**: enable **Remove filler words** to subtract configured tokens when
+  word timings exist.
+- **Censor**: enable **Censor profanity** and edit the comma-separated word list.
+- **Metadata**: open a Short's **Metadata** tab, choose platform/tone, and
+  generate title, description, hashtags, and character limits.
 - **Duration** is checked after retake culling. The Shorts tab also has
   `0–1`, `1–3`, `3–5`, and `5–10` minute presets.
 - **Aspect ratio** is `9:16`, `1:1`, or `16:9`. ASS and FFmpeg use the same

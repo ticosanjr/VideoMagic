@@ -29,6 +29,7 @@ from videoflow.application.retakes import cull_intervals
 from videoflow.application.retakes import cull_retakes as cull_transcript_retakes
 from videoflow.application.short_editor import ShortEditOptions
 from videoflow.application.short_editor import edit_short as edit_short_service
+from videoflow.application.short_metadata import generate_short_metadata
 from videoflow.application.shorts import select_shorts
 from videoflow.application.vad import detect_speech as detect_vad
 from videoflow.domain.errors import InvalidRetakeIdsError, StateNotReadyError, VideoFlowError
@@ -110,6 +111,8 @@ OVERRIDE_KEYS = {
     "shorts_reprompt",
     "shorts_prompt_mode",
     "shorts_hook_mode",
+    "shorts_remove_fillers",
+    "shorts_filler_words",
     "shorts_aspect",
     "shorts_source_start_sec",
     "shorts_source_end_sec",
@@ -136,6 +139,9 @@ OVERRIDE_KEYS = {
     "caption_max_width",
     "caption_animation",
     "caption_word_timing",
+    "caption_censor_enabled",
+    "caption_censor_words",
+    "caption_censor_replacement",
     "overrides",
     "transcribe",
     "asr_base_url",
@@ -504,6 +510,8 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         reprompt: str = "",
         prompt_mode: str = "replace",
         hook_mode: str = "off",
+        remove_fillers: bool = False,
+        filler_words: list[str] | None = None,
     ) -> dict[str, object]:
         """Propose social clips in source time with an optional source window."""
 
@@ -598,6 +606,8 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             prompt_mode=prompt_mode,
             previous=previous,
             hook_mode=hook_mode,
+            remove_fillers=remove_fillers,
+            filler_words=filler_words or (),
         )
         last["shorts"] = clips
         pending = last.setdefault("pending_options", {})
@@ -611,6 +621,8 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
                 "shorts_reprompt": reprompt,
                 "shorts_prompt_mode": prompt_mode,
                 "shorts_hook_mode": hook_mode,
+                "shorts_remove_fillers": remove_fillers,
+                "shorts_filler_words": filler_words or [],
                 "allow_external_services": allow_external_services,
                 "allowed_external_hosts": allowed_external_hosts or [],
             }
@@ -626,6 +638,8 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             "reprompt": reprompt,
             "prompt_mode": prompt_mode,
             "hook_mode": hook_mode,
+            "remove_fillers": remove_fillers,
+            "filler_words": filler_words or [],
             "clips": [clip.to_dict(rate) for clip in clips],
             "warnings": warnings,
             "subtitles": subtitles,
@@ -679,6 +693,44 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             "ok": True,
             "short": entry,
             "download": f"/api/v1/jobs/{job_id}/shorts/{index}",
+        }
+
+    @mcp.tool()
+    def videoflow_generate_short_metadata(
+        index: int,
+        platform: str = "youtube",
+        tone: str = "engaging",
+        extra_hashtags: list[str] | None = None,
+    ) -> dict[str, object]:
+        """Generate platform-aware title, description, and hashtags for a Short."""
+
+        if platform not in {"youtube", "tiktok", "instagram", "linkedin"}:
+            return _error("invalid_arguments", "Unsupported platform")
+        if tone not in {"engaging", "professional", "educational", "bold"}:
+            return _error("invalid_arguments", "Unsupported tone")
+        job_id = last.get("job_id")
+        if not isinstance(job_id, str):
+            return _error("job_required", "Run videoflow_run_pipeline first.")
+        try:
+            job = manager.get(job_id)
+            if job.status != "succeeded" or job.result is None:
+                raise StateNotReadyError(
+                    "The job must succeed before metadata can be generated."
+                )
+            metadata = generate_short_metadata(
+                output=job.output,
+                index=index,
+                result=job.result,
+                platform=platform,
+                tone=tone,
+                extra_hashtags=tuple(extra_hashtags or ()),
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {
+            "ok": True,
+            "metadata": metadata,
+            "short": job.result["shorts"][index],
         }
 
     @mcp.tool()
