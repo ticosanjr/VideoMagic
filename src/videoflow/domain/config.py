@@ -195,6 +195,15 @@ class ProvidersConfig(StrictModel):
     allowed_hosts: list[str] = Field(default_factory=list)
 
 
+class IntroOutroConfig(StrictModel):
+    intro_enabled: bool = False
+    intro_asset: str = ""
+    intro_duration_sec: float = Field(default=2.0, ge=0.2, le=10.0)
+    outro_enabled: bool = False
+    outro_asset: str = ""
+    outro_duration_sec: float = Field(default=2.0, ge=0.2, le=10.0)
+
+
 class TtsConfig(StrictModel):
     provider: Literal["none", "openai_compatible"] = "none"
     base_url: str = ""
@@ -243,6 +252,7 @@ class ModulesConfig(StrictModel):
     overlay: OverlayConfig = Field(default_factory=OverlayConfig)
     music: MusicConfig = Field(default_factory=MusicConfig)
     tts: TtsConfig = Field(default_factory=TtsConfig)
+    intro_outro: IntroOutroConfig = Field(default_factory=IntroOutroConfig)
     ingest: IngestConfig = Field(default_factory=IngestConfig)
     vad: VadConfig = Field(default_factory=VadConfig)
     transcribe: TranscribeConfig = Field(default_factory=TranscribeConfig)

@@ -217,6 +217,111 @@ class FFmpegAdapter:
         )
         return target
 
+    def _attach_cards(
+        self,
+        source: Path,
+        *,
+        width: int,
+        height: int,
+        intro_path: Path | None,
+        outro_path: Path | None,
+        intro_duration: float,
+        outro_duration: float,
+        work: Path,
+    ) -> Path:
+        command = [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            str(source),
+        ]
+        filters: list[str] = []
+        labels: list[str] = []
+        filters.append(
+            f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+            f"crop={width}:{height},setsar=1,fps=30,setpts=PTS-STARTPTS[v0]"
+        )
+        filters.append(
+            "[0:a]aformat=sample_rates=48000:channel_layouts=stereo,"
+            "asetpts=PTS-STARTPTS[a0]"
+        )
+        labels.extend(["[v0]", "[a0]"])
+        index = 1
+        segments: list[tuple[Path, float]] = []
+        if intro_path is not None:
+            segments.append((Path(intro_path), max(0.2, intro_duration)))
+        segments.append((Path(source), 0.0))
+        if outro_path is not None:
+            segments.append((Path(outro_path), max(0.2, outro_duration)))
+        # The source is input 0; cards are added after it.
+        for path, duration in segments:
+            if path == Path(source):
+                continue
+            command.extend(["-loop", "1", "-t", f"{duration:.3f}", "-i", str(path)])
+            video_index = index
+            audio_index = index + 1
+            command.extend(
+                [
+                    "-f",
+                    "lavfi",
+                    "-t",
+                    f"{duration:.3f}",
+                    "-i",
+                    "anullsrc=channel_layout=stereo:sample_rate=48000",
+                ]
+            )
+            filters.append(
+                f"[{video_index}:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+                f"crop={width}:{height},setsar=1,fps=30,trim=duration={duration:.3f},"
+                f"setpts=PTS-STARTPTS[v{index}]"
+            )
+            filters.append(
+                f"[{audio_index}:a]atrim=0:{duration:.3f},asetpts=PTS-STARTPTS[a{index}]"
+            )
+            labels.extend([f"[v{index}]", f"[a{index}]"])
+            index += 2
+        # Rebuild in intro/source/outro order with labels by segment.
+        ordered: list[str] = []
+        cursor = 1
+        if intro_path is not None:
+            ordered.extend([f"[v{cursor}]", f"[a{cursor}]"])
+            cursor += 2
+        ordered.extend(["[v0]", "[a0]"])
+        if outro_path is not None:
+            ordered.extend([f"[v{cursor}]", f"[a{cursor}]"])
+        filters.append("".join(ordered) + f"concat=n={len(ordered) // 2}:v=1:a=1[v][a]")
+        output = work / "cards.mp4"
+        command.extend(
+            [
+                "-filter_complex",
+                ";".join(filters),
+                "-map",
+                "[v]",
+                "-map",
+                "[a]",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "20",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-movflags",
+                "+faststart",
+                str(output),
+            ]
+        )
+        self._capture(command)
+        return output
+
     def render_thumbnail(
         self,
         source: Path,
@@ -275,6 +380,10 @@ class FFmpegAdapter:
         music_ducking: bool = True,
         music_fade_in_ms: int = 250,
         music_fade_out_ms: int = 500,
+        intro_path: Path | None = None,
+        outro_path: Path | None = None,
+        intro_duration_sec: float = 2.0,
+        outro_duration_sec: float = 2.0,
     ) -> Path:
         """Render concatenated source pieces as a vertical H.264 short."""
 
@@ -490,6 +599,17 @@ class FFmpegAdapter:
                     ]
                 )
                 final = music_final
+            if intro_path is not None or outro_path is not None:
+                final = self._attach_cards(
+                    final,
+                    width=width,
+                    height=height,
+                    intro_path=intro_path,
+                    outro_path=outro_path,
+                    intro_duration=intro_duration_sec,
+                    outro_duration=outro_duration_sec,
+                    work=work,
+                )
             shutil.move(str(final), target)
         finally:
             shutil.rmtree(work, ignore_errors=True)

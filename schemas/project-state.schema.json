@@ -384,6 +384,47 @@
       "title": "IngestConfig",
       "type": "object"
     },
+    "IntroOutroConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "intro_asset": {
+          "default": "",
+          "title": "Intro Asset",
+          "type": "string"
+        },
+        "intro_duration_sec": {
+          "default": 2.0,
+          "maximum": 10.0,
+          "minimum": 0.2,
+          "title": "Intro Duration Sec",
+          "type": "number"
+        },
+        "intro_enabled": {
+          "default": false,
+          "title": "Intro Enabled",
+          "type": "boolean"
+        },
+        "outro_asset": {
+          "default": "",
+          "title": "Outro Asset",
+          "type": "string"
+        },
+        "outro_duration_sec": {
+          "default": 2.0,
+          "maximum": 10.0,
+          "minimum": 0.2,
+          "title": "Outro Duration Sec",
+          "type": "number"
+        },
+        "outro_enabled": {
+          "default": false,
+          "title": "Outro Enabled",
+          "type": "boolean"
+        }
+      },
+      "title": "IntroOutroConfig",
+      "type": "object"
+    },
     "JlCutsConfig": {
       "additionalProperties": false,
       "properties": {
@@ -596,6 +637,9 @@
         },
         "ingest": {
           "$ref": "#/$defs/IngestConfig"
+        },
+        "intro_outro": {
+          "$ref": "#/$defs/IntroOutroConfig"
         },
         "jl_cuts": {
           "$ref": "#/$defs/JlCutsConfig"

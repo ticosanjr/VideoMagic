@@ -236,6 +236,11 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
             "music_asset": "track.mp3",
             "music_volume": 0.2,
             "music_ducking": False,
+            "intro_enabled": True,
+            "intro_asset": "intro.png",
+            "intro_duration_sec": 1.5,
+            "outro_enabled": True,
+            "outro_asset": "outro.png",
             "caption_keyword_highlight_enabled": True,
             "caption_keyword_words": ["pricing"],
             "caption_emoji_enabled": True,
@@ -278,6 +283,11 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
     assert options["music_asset"] == "track.mp3"
     assert options["music_volume"] == 0.2
     assert options["music_ducking"] is False
+    assert options["intro_enabled"] is True
+    assert options["intro_asset"] == "intro.png"
+    assert options["intro_duration_sec"] == 1.5
+    assert options["outro_enabled"] is True
+    assert options["outro_asset"] == "outro.png"
     assert options["shorts_source_start_sec"] == 5
     assert options["shorts_source_end_sec"] == 50
     assert options["allow_external_services"] is True

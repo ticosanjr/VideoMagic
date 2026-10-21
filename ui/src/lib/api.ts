@@ -145,6 +145,12 @@ export interface JobOptions {
   music_ducking?: boolean;
   music_fade_in_ms?: number;
   music_fade_out_ms?: number;
+  intro_enabled?: boolean;
+  intro_asset?: string;
+  intro_duration_sec?: number;
+  outro_enabled?: boolean;
+  outro_asset?: string;
+  outro_duration_sec?: number;
   caption_font_family?: string;
   caption_font_size?: number;
   caption_font_weight?: string;
@@ -393,6 +399,12 @@ export interface NewJob {
   music_ducking: boolean;
   music_fade_in_ms: number;
   music_fade_out_ms: number;
+  intro_enabled: boolean;
+  intro_asset: string;
+  intro_duration_sec: number;
+  outro_enabled: boolean;
+  outro_asset: string;
+  outro_duration_sec: number;
   caption_font_family: string;
   caption_font_size: number;
   caption_font_weight: string;

@@ -97,8 +97,8 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   focus, explainable virality scoring, auto-hook metadata/repeat/reorder,
   optional filler-word cuts, profanity-masked captions, keyword/emoji/brand
   caption styling, custom font upload, optional speech enhancement, watermark
-  overlays, music beds with ducking, external TTS voice-over, platform
-  metadata, thumbnails,
+  overlays, intro/outro cards, music beds with ducking, external TTS voice-over,
+  platform metadata, thumbnails,
   retake-aware conforming, 9:16/1:1/16:9 render, an optional source window,
   burned ASS captions, a live aspect-aware preview, and a per-Short
   trim/retitle/reframe editor.

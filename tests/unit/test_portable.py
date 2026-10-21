@@ -67,6 +67,10 @@ class FakeAdapter:
         music_ducking: bool = True,
         music_fade_in_ms: int = 250,
         music_fade_out_ms: int = 500,
+        intro_path: Path | None = None,
+        outro_path: Path | None = None,
+        intro_duration_sec: float = 2.0,
+        outro_duration_sec: float = 2.0,
     ) -> Path:
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(b"mp4")

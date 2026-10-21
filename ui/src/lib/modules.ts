@@ -98,6 +98,12 @@ export type ConfigKey =
   | "music_ducking"
   | "music_fade_in_ms"
   | "music_fade_out_ms"
+  | "intro_enabled"
+  | "intro_asset"
+  | "intro_duration_sec"
+  | "outro_enabled"
+  | "outro_asset"
+  | "outro_duration_sec"
   | "shorts_aspect"
   | "shorts_source_start_sec"
   | "shorts_source_end_sec"
@@ -242,6 +248,12 @@ export const defaultConfig: JobConfig = {
   music_ducking: true,
   music_fade_in_ms: 250,
   music_fade_out_ms: 500,
+  intro_enabled: false,
+  intro_asset: "",
+  intro_duration_sec: 2,
+  outro_enabled: false,
+  outro_asset: "",
+  outro_duration_sec: 2,
   shorts_aspect: "9:16",
   shorts_source_start_sec: 0,
   shorts_source_end_sec: 0,
@@ -900,6 +912,50 @@ export const modules: RackModule[] = [
         min: 0,
         max: 5000,
         step: 50
+      },
+      {
+        key: "intro_enabled",
+        label: "Intro card",
+        type: "bool",
+        implemented: true
+      },
+      {
+        key: "intro_asset",
+        label: "Intro image",
+        type: "text",
+        implemented: true,
+        help: "Filename from the image store."
+      },
+      {
+        key: "intro_duration_sec",
+        label: "Intro seconds",
+        type: "number",
+        implemented: true,
+        min: 0.2,
+        max: 10,
+        step: 0.1
+      },
+      {
+        key: "outro_enabled",
+        label: "Outro card",
+        type: "bool",
+        implemented: true
+      },
+      {
+        key: "outro_asset",
+        label: "Outro image",
+        type: "text",
+        implemented: true,
+        help: "Filename from the image store."
+      },
+      {
+        key: "outro_duration_sec",
+        label: "Outro seconds",
+        type: "number",
+        implemented: true,
+        min: 0.2,
+        max: 10,
+        step: 0.1
       },
       {
         key: "shorts_hook_mode",

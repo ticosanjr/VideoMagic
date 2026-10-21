@@ -338,6 +338,12 @@
       music_ducking: Boolean(config.music_ducking),
       music_fade_in_ms: Number(config.music_fade_in_ms),
       music_fade_out_ms: Number(config.music_fade_out_ms),
+      intro_enabled: Boolean(config.intro_enabled),
+      intro_asset: String(config.intro_asset || ""),
+      intro_duration_sec: Number(config.intro_duration_sec),
+      outro_enabled: Boolean(config.outro_enabled),
+      outro_asset: String(config.outro_asset || ""),
+      outro_duration_sec: Number(config.outro_duration_sec),
       caption_font_family: String(config.caption_font_family),
       caption_font_size: Number(config.caption_font_size),
       caption_font_weight: String(config.caption_font_weight),
@@ -1248,6 +1254,18 @@
                   <MusicManager
                     selected={String(config.music_asset || "")}
                     onSelect={(name) => (config.music_asset = name)}
+                  />
+                </div>
+                <div class="mb-3 grid gap-3 sm:grid-cols-2">
+                  <ImageManager
+                    label="Intro card"
+                    selected={String(config.intro_asset || "")}
+                    onSelect={(name) => (config.intro_asset = name)}
+                  />
+                  <ImageManager
+                    label="Outro card"
+                    selected={String(config.outro_asset || "")}
+                    onSelect={(name) => (config.outro_asset = name)}
                   />
                 </div>
                 <div class="mb-3 rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">

@@ -147,6 +147,12 @@ class NewJobRequest(BaseModel):
     music_ducking: bool = True
     music_fade_in_ms: int = Field(default=250, ge=0, le=5000)
     music_fade_out_ms: int = Field(default=500, ge=0, le=5000)
+    intro_enabled: bool = False
+    intro_asset: str = ""
+    intro_duration_sec: float = Field(default=2.0, ge=0.2, le=10.0)
+    outro_enabled: bool = False
+    outro_asset: str = ""
+    outro_duration_sec: float = Field(default=2.0, ge=0.2, le=10.0)
     caption_font_family: str = "Arial"
     caption_font_size: int = Field(default=72, ge=8, le=300)
     caption_font_weight: Literal["normal", "bold"] = "bold"
@@ -440,6 +446,12 @@ def register_routes(
                     "music_ducking": request.music_ducking,
                     "music_fade_in_ms": request.music_fade_in_ms,
                     "music_fade_out_ms": request.music_fade_out_ms,
+                    "intro_enabled": request.intro_enabled,
+                    "intro_asset": request.intro_asset,
+                    "intro_duration_sec": request.intro_duration_sec,
+                    "outro_enabled": request.outro_enabled,
+                    "outro_asset": request.outro_asset,
+                    "outro_duration_sec": request.outro_duration_sec,
                     "caption_font_family": request.caption_font_family,
                     "caption_font_size": request.caption_font_size,
                     "caption_font_weight": request.caption_font_weight,

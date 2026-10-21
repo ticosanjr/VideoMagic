@@ -28,6 +28,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Watermark overlay | implemented; PNG/JPEG asset store, position, margin, scale, opacity |
 | Background music | implemented; looping bed, volume, fades, sidechain ducking |
 | Voice-over | implemented; OpenAI-compatible TTS, mixed over a Short |
+| Intro/outro | implemented; image cards with configurable durations |
 | Per-Short editor | implemented; trim, retitle, reframe, caption overrides, re-render |
 | Capability/provider discovery and external policy | implemented; external providers are opt-in and globally blockable |
 | NLE audio fades | implemented in FCPXML, xmeml, and Kdenlive |

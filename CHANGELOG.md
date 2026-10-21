@@ -48,6 +48,8 @@ follow semantic versioning once the project reaches 1.0.
   fades, sidechain ducking, and AAC mix output.
 - External TTS voice-over: OpenAI-compatible synthesis, environment-only API
   key, original-audio ducking, mixed MP4, API/MCP/UI controls.
+- Intro/outro image cards with configurable durations, normalized size, silent
+  audio, and API/MCP/UI access.
 
 ### Changed
 
@@ -66,7 +68,7 @@ follow semantic versioning once the project reaches 1.0.
 
 ### Verified
 
-- Tests: 351 passed, 11 xfailed, 7 deselected; coverage 99.05%; ruff and mypy
+- Tests: 351 passed, 11 xfailed, 7 deselected; coverage 99.06%; ruff and mypy
   clean.
 - UI: `svelte-check` reports 0 errors and 0 warnings; 13 Vitest tests and the
   production build pass.

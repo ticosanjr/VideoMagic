@@ -173,6 +173,20 @@ def edit_short(
         music_ducking=state.modules_config.music.ducking,
         music_fade_in_ms=state.modules_config.music.fade_in_ms,
         music_fade_out_ms=state.modules_config.music.fade_out_ms,
+        intro_path=(
+            images_dir() / state.modules_config.intro_outro.intro_asset
+            if state.modules_config.intro_outro.intro_enabled
+            and state.modules_config.intro_outro.intro_asset
+            else None
+        ),
+        outro_path=(
+            images_dir() / state.modules_config.intro_outro.outro_asset
+            if state.modules_config.intro_outro.outro_enabled
+            and state.modules_config.intro_outro.outro_asset
+            else None
+        ),
+        intro_duration_sec=state.modules_config.intro_outro.intro_duration_sec,
+        outro_duration_sec=state.modules_config.intro_outro.outro_duration_sec,
     )
 
     previous_path = entry.get("path")

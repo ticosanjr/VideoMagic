@@ -120,6 +120,15 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "videoflow_generate_shorts",
         ),
         _entry(
+            "intro_outro",
+            "Intro/outro cards",
+            "shorts",
+            "available",
+            "PNG/JPEG intro and outro cards with configurable durations.",
+            "POST /api/v1/jobs",
+            "videoflow_run_pipeline",
+        ),
+        _entry(
             "voiceover",
             "Voice-over",
             "audio",

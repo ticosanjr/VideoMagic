@@ -4,8 +4,9 @@
 
   let {
     selected = "",
+    label = "Watermark / overlay",
     onSelect
-  }: { selected?: string; onSelect: (name: string) => void } = $props();
+  }: { selected?: string; label?: string; onSelect: (name: string) => void } = $props();
   let images = $state<ImageAsset[]>([]);
   let loading = $state(true);
   let busy = $state(false);
@@ -49,7 +50,7 @@
 <div class="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
   <div class="flex flex-wrap items-center justify-between gap-2">
     <div>
-      <p class="text-[11px] uppercase tracking-wide text-neutral-500">Watermark / overlay</p>
+      <p class="text-[11px] uppercase tracking-wide text-neutral-500">{label}</p>
       <p class="mt-1 text-[10px] text-neutral-500">PNG or JPEG, max 15 MB.</p>
     </div>
     <input bind:this={input} type="file" accept=".png,.jpg,.jpeg" onchange={upload} class="hidden" />

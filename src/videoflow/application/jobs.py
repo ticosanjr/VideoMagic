@@ -27,6 +27,7 @@ from videoflow.application.telemetry import JobTelemetry
 from videoflow.domain.config import (
     AudioEnhanceConfig,
     CaptionStyle,
+    IntroOutroConfig,
     JlCutsConfig,
     ModuleEnabled,
     ModulesConfig,
@@ -322,6 +323,24 @@ class JobManager:
             if music_config.enabled and music_config.asset
             else None
         )
+        intro_config = IntroOutroConfig(
+            intro_enabled=bool(options.get("intro_enabled", False)),
+            intro_asset=str(options.get("intro_asset", "")),
+            intro_duration_sec=float(options.get("intro_duration_sec", 2.0)),
+            outro_enabled=bool(options.get("outro_enabled", False)),
+            outro_asset=str(options.get("outro_asset", "")),
+            outro_duration_sec=float(options.get("outro_duration_sec", 2.0)),
+        )
+        intro_path = (
+            images_dir() / intro_config.intro_asset
+            if intro_config.intro_enabled and intro_config.intro_asset
+            else None
+        )
+        outro_path = (
+            images_dir() / intro_config.outro_asset
+            if intro_config.outro_enabled and intro_config.outro_asset
+            else None
+        )
         audio_config = AudioEnhanceConfig(
             enabled=bool(options.get("audio_enhance", False)),
             highpass_hz=int(options.get("audio_highpass_hz", 80)),
@@ -457,6 +476,10 @@ class JobManager:
                 music_ducking=music_config.ducking,
                 music_fade_in_ms=music_config.fade_in_ms,
                 music_fade_out_ms=music_config.fade_out_ms,
+                intro_path=intro_path,
+                outro_path=outro_path,
+                intro_duration_sec=intro_config.intro_duration_sec,
+                outro_duration_sec=intro_config.outro_duration_sec,
             )
             if job.finalizer is not None and not job.cancel_requested:
                 job.finalizer(job)

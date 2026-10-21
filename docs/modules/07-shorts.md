@@ -95,6 +95,12 @@ title, description, hashtags, and platform character limits for YouTube,
 TikTok, Instagram, or LinkedIn. Results are stored under the Short's
 `metadata.<platform>` entry.
 
+## Intro and outro cards
+
+PNG/JPEG assets from the image store can be prepended/appended to a Short with
+configurable durations. Cards are normalized to the Short size, given silent
+audio, and concatenated after captions, overlays, music, and voice-over.
+
 ## Voice-over
 
 `POST /api/v1/jobs/{job_id}/shorts/{index}/voiceover` calls an

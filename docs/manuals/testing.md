@@ -17,7 +17,7 @@ Expected for the current suite:
 
 ```
 351 passed, 11 xfailed, 7 deselected
-coverage 99.05%
+coverage 99.06%
 UI: 13 passed (Vitest)
 ```
 
