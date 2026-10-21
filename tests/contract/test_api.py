@@ -58,3 +58,51 @@ def test_service_controls_are_rejected_without_a_managed_server() -> None:
     response = TestClient(create_app()).post("/api/v1/system/restart")
     assert response.status_code == 409
     assert response.json()["detail"]["code"] == "service_control_unavailable"
+
+
+def test_services_endpoint_lists_discovered_processes(monkeypatch, tmp_path) -> None:
+    from videoflow.api import routes
+    from videoflow.application.services import ServiceProcess
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
+    monkeypatch.setattr(
+        routes,
+        "discover_services",
+        lambda current_pid=None: [
+            ServiceProcess(
+                pid=123,
+                cmdline=("/tmp/videoflow", "serve"),
+                ports=(8765,),
+                version="0.20.0",
+            )
+        ],
+    )
+    response = TestClient(create_app()).get("/api/v1/services")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["services"][0]["pid"] == 123
+    assert payload["services"][0]["version"] == "0.20.0"
+    assert payload["log_path"].endswith("server.log")
+
+
+def test_services_log_returns_tail(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
+    log = tmp_path / "logs" / "server.log"
+    log.parent.mkdir(parents=True)
+    log.write_text("one\ntwo\nthree\n", encoding="utf-8")
+    response = TestClient(create_app()).get("/api/v1/services/log", params={"lines": 2})
+    assert response.status_code == 200
+    assert response.json()["text"] == "two\nthree\n"
+
+
+def test_cleanup_services_returns_stopped_pids(monkeypatch) -> None:
+    from videoflow.api import routes
+
+    monkeypatch.setattr(
+        routes,
+        "stop_other_services",
+        lambda current_pid=None: {"stopped": [9], "failed": [], "services": []},
+    )
+    response = TestClient(create_app()).post("/api/v1/services/cleanup")
+    assert response.status_code == 200
+    assert response.json()["stopped"] == [9]

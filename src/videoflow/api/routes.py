@@ -78,6 +78,14 @@ from videoflow.application.publishing import (
     list_targets,
     save_target,
 )
+from videoflow.application.services import (
+    append_server_log,
+    discover_services,
+    read_server_log,
+    server_log_path,
+    stop_other_services,
+    stop_service_pid,
+)
 from videoflow.application.short_editor import ShortEditOptions
 from videoflow.application.short_editor import edit_short as edit_short_service
 from videoflow.application.short_metadata import generate_short_metadata
@@ -1650,6 +1658,63 @@ def register_routes(
         except VideoFlowError as exc:
             fail(exc)
         return {"ok": True, "path": str(path), "media": media.model_dump(mode="json")}
+
+    @app.get("/api/v1/services")
+    def services_list(request: Request) -> dict[str, object]:
+        services = [
+            item.to_dict()
+            for item in discover_services(current_pid=os.getpid())
+            if item.kind != "launcher"
+        ]
+        return {
+            "ok": True,
+            "pid": os.getpid(),
+            "port": getattr(request.app.state, "port", None),
+            "log_path": str(server_log_path()),
+            "services": services,
+        }
+
+    @app.get("/api/v1/services/log")
+    def services_log(lines: int = 200) -> dict[str, object]:
+        return {
+            "ok": True,
+            "path": str(server_log_path()),
+            "text": read_server_log(lines),
+        }
+
+    @app.post("/api/v1/services/cleanup")
+    def services_cleanup() -> dict[str, object]:
+        result = stop_other_services(current_pid=os.getpid())
+        append_server_log(f"cleanup result={result}")
+        return {"ok": True, **result}
+
+    @app.post("/api/v1/services/{pid}/stop")
+    def services_stop(pid: int) -> dict[str, object]:
+        services = {
+            item.pid: item for item in discover_services(current_pid=os.getpid())
+        }
+        target = services.get(pid)
+        if target is None:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "ok": False,
+                    "code": "service_not_found",
+                    "message": f"VideoFlow service {pid} was not found.",
+                },
+            )
+        if target.current or target.protected:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "ok": False,
+                    "code": "service_protected",
+                    "message": "Use Stop service for the current process.",
+                },
+            )
+        stopped = stop_service_pid(pid)
+        append_server_log(f"stop requested pid={pid} stopped={stopped}")
+        return {"ok": True, "stopped": stopped, "pid": pid}
 
     @app.post("/api/v1/system/restart")
     def system_restart(request: Request) -> dict[str, object]:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import contextlib
 import json
 import os
 import platform
@@ -11,6 +10,7 @@ import signal
 import subprocess
 import sys
 import time
+import traceback
 from collections.abc import Sequence
 from fractions import Fraction
 from pathlib import Path
@@ -22,6 +22,22 @@ from videoflow.application.fonts import fonts_dir
 from videoflow.application.portable import run_portable
 from videoflow.application.retakes import cull_intervals
 from videoflow.application.retakes import cull_retakes as cull_transcript_retakes
+from videoflow.application.services import (
+    append_server_log,
+    discover_services,
+    port_is_busy,
+    probe_service,
+    process_alive,
+    read_pid_file,
+    remove_pid_file,
+    server_log_path,
+    stop_other_services,
+    stop_services_on_port,
+    write_pid_file,
+)
+from videoflow.application.services import (
+    pid_file as service_pid_file,
+)
 from videoflow.application.shorts import (
     build_ass,
     previous_shorts_from_report,
@@ -73,6 +89,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _serve(args)
         if args.command == "stop":
             return _stop(args)
+        if args.command == "cleanup":
+            return _cleanup()
         if args.command == "restart":
             return _restart(args)
         if args.command == "status":
@@ -351,6 +369,9 @@ def _parser() -> argparse.ArgumentParser:
         help="Open the rack UI in the default browser after startup.",
     )
 
+    sub.add_parser(
+        "cleanup", help="Stop every VideoFlow service except the current process."
+    )
     stop = sub.add_parser("stop", help="Stop the local VideoFlow service.")
     stop.add_argument("--timeout", type=float, default=5.0)
     restart = sub.add_parser("restart", help="Restart the local service and keep it running.")
@@ -749,21 +770,55 @@ def _serve(args: argparse.Namespace) -> int:
     from videoflow.api.app import create_http_app
 
     os.environ.setdefault("VIDEOWFLOW_HOME", str(ensure_home()))
-    url = _running_service(args.host, args.port)
-    if url is not None:
-        print(f"VideoFlow is already running at {url}")
-        if args.open:
-            import webbrowser
+    append_server_log(f"serve requested host={args.host} port={args.port} pid={os.getpid()}")
+    url = _ui_url(args.host, args.port)
+    health = probe_service(args.host, args.port)
+    if health is not None:
+        version = str(health.get("version") or "unknown")
+        if version == __version__:
+            print(f"VideoFlow {version} is already running at {url}")
+            if args.open:
+                import webbrowser
 
-            webbrowser.open(url)
-        return 0
+                webbrowser.open(url)
+            return 0
+        print(
+            f"Found VideoFlow {version} on port {args.port}; "
+            f"stopping it before starting {__version__}.",
+            flush=True,
+        )
+        append_server_log(
+            f"replacing old service version={version} port={args.port}"
+        )
+        result = stop_services_on_port(args.host, args.port)
+        append_server_log(f"replacement result={result}")
+        if not result["free"]:
+            print(
+                "Could not stop the older VideoFlow service on port "
+                f"{args.port}. Stop it manually and try again.",
+                file=sys.stderr,
+            )
+            return 1
+    elif port_is_busy(args.host, args.port):
+        result = stop_services_on_port(args.host, args.port)
+        if not result["free"]:
+            print(
+                f"Port {args.port} is already in use by another process. "
+                "Close it or choose --port.",
+                file=sys.stderr,
+            )
+            return 1
 
     print(
         f"VideoFlow {__version__} starting at {_ui_url(args.host, args.port)} "
         "(the portable build can take a few seconds to unpack).",
         flush=True,
     )
+    print(f"Log: {server_log_path()}", flush=True)
+    append_server_log(f"starting version={__version__} port={args.port}")
     app = create_http_app()
+    app.state.port = args.port
+    app.state.host = args.host
     pid_path = _pid_file()
     _write_pid(pid_path, args.host, args.port)
     opened = False
@@ -776,7 +831,11 @@ def _serve(args: argparse.Namespace) -> int:
             if args.open and not opened:
                 opened = True
                 _schedule_browser(_ui_url(args.host, args.port))
-            server.run()
+            try:
+                server.run()
+            except Exception:
+                append_server_log(traceback.format_exc())
+                raise
             if not bool(getattr(app.state, "restart_requested", False)):
                 break
             print("VideoFlow service restarting...")
@@ -786,54 +845,28 @@ def _serve(args: argparse.Namespace) -> int:
             )
     finally:
         _remove_pid(pid_path)
+        append_server_log(f"stopped pid={os.getpid()}")
     return 0
 
 
 def _pid_file() -> Path:
-    return portable_home() / "server.pid"
+    return service_pid_file()
 
 
 def _write_pid(path: Path, host: str, port: int) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(
-            {
-                "pid": os.getpid(),
-                "host": host,
-                "port": port,
-                "url": _ui_url(host, port),
-                "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            },
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
-    )
+    write_pid_file(host, port)
 
 
 def _read_pid(path: Path) -> dict[str, object]:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    if isinstance(payload, int):
-        return {"pid": payload}
-    return payload if isinstance(payload, dict) else {}
+    return read_pid_file()
 
 
 def _remove_pid(path: Path) -> None:
-    with contextlib.suppress(OSError):
-        path.unlink()
+    remove_pid_file()
 
 
 def _process_alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
+    return process_alive(pid)
 
 
 def _stop(args: argparse.Namespace) -> int:
@@ -866,6 +899,12 @@ def _stop(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cleanup() -> int:
+    result = stop_other_services()
+    print(json.dumps(result, indent=2))
+    return 0 if not result["failed"] else 1
+
+
 def _restart(args: argparse.Namespace) -> int:
     _stop(argparse.Namespace(timeout=5.0))
     time.sleep(0.4)
@@ -880,6 +919,9 @@ def _status() -> int:
     except (TypeError, ValueError):
         pid = 0
     running = pid > 0 and _process_alive(pid)
+    services = [
+        item.to_dict() for item in discover_services() if item.kind != "launcher"
+    ]
     print(
         json.dumps(
             {
@@ -887,26 +929,12 @@ def _status() -> int:
                 "pid": pid or None,
                 "url": payload.get("url")
                 or _ui_url(str(payload.get("host", "127.0.0.1")), int(payload.get("port", 8765))),
+                "services": services,
             },
             indent=2,
         )
     )
     return 0
-
-
-def _running_service(host: str, port: int) -> str | None:
-    import urllib.error
-    import urllib.request
-
-    url = _ui_url(host, port)
-    try:
-        with urllib.request.urlopen(f"{url}health", timeout=0.6) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except (OSError, ValueError, urllib.error.URLError):
-        return None
-    if isinstance(payload, dict) and payload.get("service") == "videoflow":
-        return url
-    return None
 
 
 def _ui_url(host: str, port: int) -> str:

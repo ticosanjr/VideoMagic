@@ -6,7 +6,7 @@ timeline: it removes silence and retakes, adds J-cuts and punch-ins, proposes
 vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive.
 
-> Status: 0.22.1 alpha. The portable Linux binary, Linux AppImage, and Windows
+> Status: 0.22.2 alpha. The portable Linux binary, Linux AppImage, and Windows
 > PE run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical shorts, and
@@ -62,7 +62,7 @@ uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper \
 ./dist/videoflow demo -o ./demo
 ./dist/videoflow run ~/Videos/interview.mp4 -o ./interview-edit --transcribe
 ./dist/videoflow serve --open       # API + MCP HTTP + rack UI, stays running
-./dist/videoflow status             # is the local service running?
+./dist/videoflow status             # PID, URL, and all discovered services
 ./dist/videoflow restart            # stop, then start again
 ./dist/videoflow stop               # stop the local service
 ./dist/videoflow mcp                # MCP over stdio
@@ -125,9 +125,10 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   state/preset/export resources. Streamable HTTP is mounted on the local API.
 - Unified CLI (`run`, `serve`, `mcp`, `doctor`, `demo`, `version`) and a
   PyInstaller onefile build for Linux and Windows.
-- Tabbed rack UI (Speech, Edit, Shorts, Studio, Export, Models, Providers), a
+- Tabbed rack UI (Speech, Edit, Shorts, Studio, Export, Models, Services, Providers), a
   capability manifest, opt-in external-provider policy, a model downloader,
-  Short aspect/window/resolution controls, and Restart/Stop service buttons.
+  Short aspect/window/resolution controls, a Services tab for process cleanup,
+  and Restart/Stop service buttons.
 - Local job API with SSE progress, plus persistent project routes for media,
   module config, provider policy, transcript overrides, exports, and operator
   presets.

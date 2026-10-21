@@ -3,6 +3,26 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.22.2] - 2026-10-21
+
+### Fixed
+
+- Starting a new VideoFlow build no longer reuses an older service on the same
+  port. The launcher reads `/health`, compares versions, stops the old
+  VideoFlow process tree, waits for the port, and starts the current version.
+  This removes the "already running" loop that kept a 0.20.0 service alive.
+- Discovery now finds VideoFlow `serve`/`mcp`/`desktop` processes through
+  `/proc`, including AppImage-mounted binaries and their parent processes.
+- Added a **Services** tab with the current PID, port, version, URL, other
+  VideoFlow services, per-process Stop, Stop all others, Restart current, and
+  Stop current.
+- The Services tab shows the server log and its path; startup, version
+  replacement, cleanup, restart, and crashes are appended to
+  `videoflow-data/logs/server.log`.
+- `videoflow status` now lists discovered services in addition to the PID file.
+- Cleanup stops port-owning children before launchers/parents and falls back to
+  SIGKILL when SIGTERM does not finish in time.
+
 ## [0.22.1] - 2026-10-21
 
 ### Fixed

@@ -13,6 +13,7 @@
   import StatusIcon from "$lib/StatusIcon.svelte";
   import StudioPanel from "$lib/StudioPanel.svelte";
   import ModelsPanel from "$lib/ModelsPanel.svelte";
+  import ServicesPanel from "$lib/ServicesPanel.svelte";
   import {
     cancelJob,
     createJob,
@@ -87,6 +88,8 @@
   let serviceBusy = $state<"" | "restart" | "stop">("");
   let serviceStopped = $state(false);
   let serviceError = $state("");
+  let systemError = $state("");
+  let connecting = $state(true);
 
   const visibleModules = $derived(modules.filter((module) => module.tab === activeTab));
 
@@ -94,10 +97,27 @@
 
   const VIDEO_EXTENSIONS = ["mp4", "mov", "mkv", "webm", "m4v", "avi", "mts", "m2ts"];
 
+  async function connectToService() {
+    connecting = true;
+    systemError = "";
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      try {
+        system = await getSystem();
+        connecting = false;
+        return;
+      } catch (reason) {
+        systemError = errorMessage(reason);
+        if (attempt === 29) {
+          connecting = false;
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
+  }
+
   onMount(() => {
-    getSystem()
-      .then((payload) => (system = payload))
-      .catch((reason) => (error = errorMessage(reason)));
+    void connectToService();
     void refreshHistory();
     clock = setInterval(() => (now = Date.now()), 1000);
     return () => {
@@ -769,8 +789,8 @@
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-2 text-xs">
-        <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-mono text-[11px] text-neutral-400">{system?.version ?? "offline"}</span>
-        <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-500">FFmpeg {system?.ffmpeg ? "ready" : "missing"}</span>
+        <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-mono text-[11px] text-neutral-400">{system?.version ?? (connecting ? "connecting…" : "offline")}</span>
+        <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-500">FFmpeg {system?.ffmpeg ? "ready" : connecting ? "checking…" : "missing"}</span>
         <button
           type="button"
           onclick={() => openLog()}
@@ -780,7 +800,25 @@
           Global log
           {#if job}<span class="ml-1 text-neutral-600">{job.log_count}</span>{/if}
         </button>
-        {#if serviceStopped}
+        {#if !system && !serviceStopped}
+      <div class="rounded-2xl border border-sky-400/20 bg-sky-950/30 px-4 py-3 text-xs text-sky-200">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p class="font-medium">{connecting ? "Connecting to the local VideoFlow service…" : "Could not reach the local service."}</p>
+            <p class="mt-1 text-sky-200/70">
+              {connecting
+                ? "The portable build can take a few seconds to unpack on first launch."
+                : systemError || "Start VideoFlow again or run videoflow restart."}
+            </p>
+          </div>
+          <button type="button" onclick={() => void connectToService()} disabled={connecting} class="rounded-lg border border-sky-400/30 px-3 py-1.5 text-[11px] disabled:opacity-40">
+            {connecting ? "Connecting…" : "Retry now"}
+          </button>
+        </div>
+      </div>
+    {/if}
+
+    {#if serviceStopped}
           <span class="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-[11px] text-amber-200">
             Service stopped · close this tab
           </span>
@@ -804,6 +842,24 @@
         {/if}
       </div>
     </header>
+
+    {#if !system && !serviceStopped}
+      <div class="rounded-2xl border border-sky-400/20 bg-sky-950/30 px-4 py-3 text-xs text-sky-200">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p class="font-medium">{connecting ? "Connecting to the local VideoFlow service…" : "Could not reach the local service."}</p>
+            <p class="mt-1 text-sky-200/70">
+              {connecting
+                ? "The portable build can take a few seconds to unpack on first launch."
+                : systemError || "Start VideoFlow again or run videoflow restart."}
+            </p>
+          </div>
+          <button type="button" onclick={() => void connectToService()} disabled={connecting} class="rounded-lg border border-sky-400/30 px-3 py-1.5 text-[11px] disabled:opacity-40">
+            {connecting ? "Connecting…" : "Retry now"}
+          </button>
+        </div>
+      </div>
+    {/if}
 
     {#if serviceStopped}
       <div class="rounded-2xl border border-amber-400/20 bg-amber-950/30 px-4 py-3 text-xs text-amber-200">
@@ -1202,7 +1258,7 @@
             }`}
           >
             {tab.label}
-            {#if tab.id !== "providers"}
+            {#if !["providers", "services"].includes(tab.id)}
               <span class="rounded-full bg-black/20 px-1.5 py-0.5 text-[9px] text-neutral-500">
                 {modules.filter((module) => module.tab === tab.id).length}
               </span>
@@ -1215,6 +1271,8 @@
         <StudioPanel {job} {config} onEdit={openShortEditor} />
       {:else if activeTab === "models"}
         <ModelsPanel allowExternal={config.allow_external_services} />
+      {:else if activeTab === "services"}
+        <ServicesPanel />
       {:else if activeTab === "providers"}
         <CapabilitiesPanel
           allowExternal={Boolean(config.allow_external_services)}

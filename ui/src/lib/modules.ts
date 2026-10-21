@@ -26,6 +26,7 @@ export type ModuleTab =
   | "studio"
   | "export"
   | "models"
+  | "services"
   | "providers";
 
 export type ConfigKey =
@@ -315,6 +316,7 @@ export const moduleTabs: { id: ModuleTab; label: string; hint: string }[] = [
   { id: "studio", label: "Studio", hint: "AI analysis, timeline, keyframes, tracks, and transitions" },
   { id: "export", label: "Export", hint: "NLE targets and FCPXML dialect" },
   { id: "models", label: "Models", hint: "Optional on-demand speech and vision models" },
+  { id: "services", label: "Services", hint: "Inspect, stop, and restart local VideoFlow processes" },
   { id: "providers", label: "Providers", hint: "Local models and optional external services" }
 ];
 

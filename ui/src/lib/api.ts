@@ -19,6 +19,26 @@ export interface LocalModel {
   path: string;
 }
 
+export interface ServiceProcessInfo {
+  pid: number;
+  cmdline: string[];
+  ports: number[];
+  port: number | null;
+  version: string | null;
+  url: string | null;
+  kind: string;
+  current: boolean;
+  protected: boolean;
+}
+
+export interface ServicesResponse {
+  ok: boolean;
+  pid: number;
+  port: number | null;
+  log_path: string;
+  services: ServiceProcessInfo[];
+}
+
 export interface FsRoot {
   name: string;
   path: string;
@@ -588,6 +608,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError("http_error", payload?.detail ?? response.statusText);
   }
   return payload as T;
+}
+
+export async function listServices(): Promise<ServicesResponse> {
+  return request<ServicesResponse>("/api/v1/services");
+}
+
+export async function getServiceLog(lines = 200): Promise<{ ok: boolean; path: string; text: string }> {
+  return request(`/api/v1/services/log?lines=${lines}`);
+}
+
+export async function cleanupServices(): Promise<{
+  ok: boolean;
+  stopped: number[];
+  failed: number[];
+}> {
+  return request("/api/v1/services/cleanup", { method: "POST" });
+}
+
+export async function stopServicePid(pid: number): Promise<{ ok: boolean; stopped: boolean; pid: number }> {
+  return request(`/api/v1/services/${pid}/stop`, { method: "POST" });
 }
 
 export async function restartService(): Promise<void> {

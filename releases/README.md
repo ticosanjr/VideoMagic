@@ -47,6 +47,8 @@ videoflow-0.21.2-windows-x86_64.exe
 
 ## Current
 
+- `v0.22.2`: version-aware replacement of old services, Services control tab,
+  process cleanup, and server logs.
 - `v0.22.1`: file-browser 500 fix, persistent service lifecycle, Restart/Stop
   controls, `status`/`stop`/`restart` commands, and single-instance reopen.
 - `v0.22.0`: LLM vision Studio, LLM emoji captions, on-demand model downloads,
