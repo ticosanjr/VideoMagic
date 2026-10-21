@@ -16,8 +16,8 @@ uv run mypy
 Expected for the current suite:
 
 ```
-346 passed, 11 xfailed, 7 deselected
-coverage 99.04%
+349 passed, 11 xfailed, 7 deselected
+coverage 99.05%
 UI: 13 passed (Vitest)
 ```
 
@@ -108,7 +108,7 @@ print(asyncio.run(build_server().list_tools()))
 PY
 ```
 
-Expect twenty tools. Analysis tools answer immediately; edit tools stage options
+Expect twenty-two tools. Analysis tools answer immediately; edit tools stage options
 for the next pipeline run. A successful smoke should load media, run VAD,
 transcribe, read the transcript, start a job, poll it to success, and export.
 
@@ -142,7 +142,7 @@ env -i PATH=/nonexistent ./dist/videoflow demo -o /tmp/videoflow-demo
 env -i PATH=/nonexistent ./dist/videoflow serve --port 8799
 ```
 
-Then check `/health`, `/`, `/mcp/`, and the twenty tools over `videoflow mcp`.
+Then check `/health`, `/`, `/mcp/`, and the twenty-two tools over `videoflow mcp`.
 On Windows, run the same commands with `videoflow.exe`; FFmpeg is found inside
 the bundle, so an empty `PATH` is the proof.
 

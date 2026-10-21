@@ -12,6 +12,7 @@ Implemented today:
 - `GET /api/v1/media/probe`
 - `GET /api/v1/assets/fonts`, `POST /api/v1/assets/fonts`
 - `GET /api/v1/assets/images`, `POST /api/v1/assets/images`
+- `GET /api/v1/assets/music`, `POST /api/v1/assets/music`
 - Short thumbnail generation and download
 - `POST /api/v1/jobs`, `GET /api/v1/jobs`, `GET /api/v1/jobs/{id}`,
   `POST /api/v1/jobs/{id}/cancel`, `GET /api/v1/jobs/{id}/events`
@@ -251,6 +252,12 @@ Content-Type: application/json
   "overlay_margin_px": 32,
   "overlay_width_ratio": 0.18,
   "overlay_opacity": 0.9,
+  "music_enabled": false,
+  "music_asset": "",
+  "music_volume": 0.18,
+  "music_ducking": true,
+  "music_fade_in_ms": 250,
+  "music_fade_out_ms": 500,
   "caption_font_family": "Arial",
   "caption_font_size": 72,
   "caption_font_weight": "bold",
@@ -461,6 +468,18 @@ Content-Type: application/json
 The source must come from a succeeded job. The endpoint writes a new MP4 and
 ASS under `shorts/edited/`, updates `shorts.json` and the job result, and leaves
 the original render available. `caption_style` is merged into the project style.
+
+### Music
+
+```http
+GET /api/v1/assets/music
+POST /api/v1/assets/music?name=track.mp3
+Content-Type: application/octet-stream
+<audio bytes>
+```
+
+MP3, WAV, M4A, AAC, or OGG up to 100 MB. Use the returned `name` as
+`music_asset`.
 
 ### Images
 

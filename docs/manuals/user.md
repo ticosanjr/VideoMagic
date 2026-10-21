@@ -192,6 +192,8 @@ vertical-only output.
   normalization for rendered Shorts. NLE exports keep the source audio.
 - **Watermark**: upload a PNG/JPEG, choose position/margin/size/opacity, and
   enable the overlay for rendered Shorts.
+- **Music**: upload an audio track, set volume/fades, and optionally duck it under
+  speech.
 - **Duration** is checked after retake culling. The Shorts tab also has
   `0–1`, `1–3`, `3–5`, and `5–10` minute presets.
 - **Aspect ratio** is `9:16`, `1:1`, or `16:9`. ASS and FFmpeg use the same

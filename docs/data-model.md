@@ -127,6 +127,7 @@ All config models forbid unknown fields. That is deliberate: a request containin
 | `ProvidersConfig` | external services opt-in; optional remote-host allowlist |
 | `AudioEnhanceConfig` | opt-in high-pass, denoise, and loudnorm for rendered Shorts |
 | `OverlayConfig` | watermark asset, position, margin, width ratio, opacity |
+| `MusicConfig` | music asset, volume, ducking, fades |
 | `CaptionStyle.censor_*` | optional profanity word list and replacement |
 | `CaptionStyle` branding | keyword list/color, emoji map, brand vocabulary |
 | `ExportConfig` | dialect 1.9/1.10, write flags |

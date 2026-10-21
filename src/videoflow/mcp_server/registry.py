@@ -25,6 +25,16 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "system",
     ),
     ToolSpec(
+        "videoflow_list_music",
+        "List uploaded background-music tracks.",
+        "assets",
+    ),
+    ToolSpec(
+        "videoflow_upload_music",
+        "Copy an audio track from the allowed roots into the music store.",
+        "assets",
+    ),
+    ToolSpec(
         "videoflow_list_images",
         "List uploaded watermark/overlay images.",
         "assets",

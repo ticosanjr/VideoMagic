@@ -15,6 +15,7 @@ from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.audio import audio_filters as audio_filter_list
 from videoflow.application.fonts import fonts_dir
 from videoflow.application.images import images_dir
+from videoflow.application.music import music_dir
 from videoflow.application.shorts import (
     build_ass,
     build_ass_lines,
@@ -162,6 +163,16 @@ def edit_short(
         overlay_margin=state.modules_config.overlay.margin_px,
         overlay_width_ratio=state.modules_config.overlay.width_ratio,
         overlay_opacity=state.modules_config.overlay.opacity,
+        music_path=(
+            music_dir() / state.modules_config.music.asset
+            if state.modules_config.music.enabled
+            and state.modules_config.music.asset
+            else None
+        ),
+        music_volume=state.modules_config.music.volume,
+        music_ducking=state.modules_config.music.ducking,
+        music_fade_in_ms=state.modules_config.music.fade_in_ms,
+        music_fade_out_ms=state.modules_config.music.fade_out_ms,
     )
 
     previous_path = entry.get("path")

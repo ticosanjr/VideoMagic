@@ -232,6 +232,10 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
             "overlay_asset": "logo.png",
             "overlay_position": "top_left",
             "overlay_width_ratio": 0.2,
+            "music_enabled": True,
+            "music_asset": "track.mp3",
+            "music_volume": 0.2,
+            "music_ducking": False,
             "caption_keyword_highlight_enabled": True,
             "caption_keyword_words": ["pricing"],
             "caption_emoji_enabled": True,
@@ -270,6 +274,10 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
     assert options["overlay_asset"] == "logo.png"
     assert options["overlay_position"] == "top_left"
     assert options["overlay_width_ratio"] == 0.2
+    assert options["music_enabled"] is True
+    assert options["music_asset"] == "track.mp3"
+    assert options["music_volume"] == 0.2
+    assert options["music_ducking"] is False
     assert options["shorts_source_start_sec"] == 5
     assert options["shorts_source_end_sec"] == 50
     assert options["allow_external_services"] is True

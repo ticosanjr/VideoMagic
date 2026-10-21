@@ -42,13 +42,15 @@ For HTTP:
 
 ## 2. Tools
 
-All twenty tools execute real work. `videoflow_load_media` remembers the source.
+All twenty-two tools execute real work. `videoflow_load_media` remembers the source.
 Analysis tools work immediately. Edit tools stage configuration for the next
 `videoflow_run_pipeline`; the result says `applies_to_next_run` when a job is
 still required.
 
 | Tool | Inputs | Behavior |
 | --- | --- | --- |
+| `videoflow_list_music` | none | **live**: uploaded music tracks |
+| `videoflow_upload_music` | `file_path` | **live**: copies an audio track into the music store |
 | `videoflow_list_images` | none | **live**: uploaded watermark/overlay images |
 | `videoflow_upload_image` | `file_path` | **live**: copies a PNG/JPEG from the allowed roots into the image store |
 | `videoflow_list_fonts` | none | **live**: uploaded font family names and paths |
@@ -97,7 +99,8 @@ Presets accepted by `run_pipeline`:
 `audio_noise_floor_db`, `audio_loudnorm`, `audio_target_lufs`,
 `audio_true_peak_db`, `overlay_enabled`, `overlay_asset`, `overlay_position`,
 `overlay_margin_px`, `overlay_width_ratio`, `overlay_opacity`,
-`caption_censor_replacement`,
+`music_enabled`, `music_asset`, `music_volume`, `music_ducking`,
+`music_fade_in_ms`, `music_fade_out_ms`, `caption_censor_replacement`,
 `caption_keyword_highlight_enabled`,
 `caption_keyword_color`, `caption_keyword_words`, `caption_emoji_enabled`,
 `caption_emoji_map`, `caption_brand_vocabulary`, `zoom_min_scale`,
@@ -166,6 +169,7 @@ The complete path, using only public tools:
 16. call videoflow_list_fonts or videoflow_upload_font for caption typography
 17. call videoflow_generate_short_thumbnail for a cover image
 18. call videoflow_list_images or videoflow_upload_image for watermarks
+19. call videoflow_list_music or videoflow_upload_music for background music
 ```
 
 `videoflow_transcribe` writes a cached SRT and stages it, so the next pipeline

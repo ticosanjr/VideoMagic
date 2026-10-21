@@ -195,6 +195,15 @@ class ProvidersConfig(StrictModel):
     allowed_hosts: list[str] = Field(default_factory=list)
 
 
+class MusicConfig(StrictModel):
+    enabled: bool = False
+    asset: str = ""
+    volume: float = Field(default=0.18, ge=0.0, le=1.0)
+    ducking: bool = True
+    fade_in_ms: int = Field(default=250, ge=0, le=5000)
+    fade_out_ms: int = Field(default=500, ge=0, le=5000)
+
+
 class OverlayConfig(StrictModel):
     enabled: bool = False
     asset: str = ""
@@ -221,6 +230,7 @@ class ModulesConfig(StrictModel):
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
     audio: AudioEnhanceConfig = Field(default_factory=AudioEnhanceConfig)
     overlay: OverlayConfig = Field(default_factory=OverlayConfig)
+    music: MusicConfig = Field(default_factory=MusicConfig)
     ingest: IngestConfig = Field(default_factory=IngestConfig)
     vad: VadConfig = Field(default_factory=VadConfig)
     transcribe: TranscribeConfig = Field(default_factory=TranscribeConfig)

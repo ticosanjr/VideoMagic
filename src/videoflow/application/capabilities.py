@@ -120,6 +120,15 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "videoflow_generate_shorts",
         ),
         _entry(
+            "music_bed",
+            "Background music",
+            "shorts",
+            "available",
+            "Looping music bed with volume, fades, and optional speech ducking.",
+            "POST /api/v1/assets/music",
+            "videoflow_upload_music",
+        ),
+        _entry(
             "watermark",
             "Watermark overlay",
             "shorts",

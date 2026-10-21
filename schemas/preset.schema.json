@@ -445,6 +445,9 @@
         "jl_cuts": {
           "$ref": "#/$defs/JlCutsConfig"
         },
+        "music": {
+          "$ref": "#/$defs/MusicConfig"
+        },
         "overlay": {
           "$ref": "#/$defs/OverlayConfig"
         },
@@ -468,6 +471,49 @@
         }
       },
       "title": "ModulesConfig",
+      "type": "object"
+    },
+    "MusicConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "asset": {
+          "default": "",
+          "title": "Asset",
+          "type": "string"
+        },
+        "ducking": {
+          "default": true,
+          "title": "Ducking",
+          "type": "boolean"
+        },
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "fade_in_ms": {
+          "default": 250,
+          "maximum": 5000,
+          "minimum": 0,
+          "title": "Fade In Ms",
+          "type": "integer"
+        },
+        "fade_out_ms": {
+          "default": 500,
+          "maximum": 5000,
+          "minimum": 0,
+          "title": "Fade Out Ms",
+          "type": "integer"
+        },
+        "volume": {
+          "default": 0.18,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Volume",
+          "type": "number"
+        }
+      },
+      "title": "MusicConfig",
       "type": "object"
     },
     "OverlayConfig": {

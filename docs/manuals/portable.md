@@ -446,7 +446,7 @@ testing is still recommended before wide distribution.
 - [ ] A real `videoflow run` reports `"vad_engine": "silero"` on a speech clip.
 - [ ] The artifacts parse (XML/MLT) and open in the three NLEs.
 - [ ] `videoflow serve` answers `/health`, `/`, and `/mcp/`.
-- [ ] An MCP host lists twenty tools over `videoflow mcp`.
+- [ ] An MCP host lists twenty-two tools over `videoflow mcp`.
 - [ ] The plain binary runs with `PATH` empty, proving bundled FFmpeg is used.
 - [ ] The AppImage runs `version` and `demo` (normal PATH for FUSE).
 - [ ] The Windows `.exe` runs `version`, `doctor`, and `demo` (natively or under

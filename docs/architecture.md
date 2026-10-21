@@ -52,6 +52,7 @@ Rules:
 | `application/capabilities.py` | Capability manifest, provider policy, and external-host guard |
 | `application/fonts.py` | Local TTF/OTF asset store and family-name parser |
 | `application/images.py` | Local PNG/JPEG watermark asset store |
+| `application/music.py` | Local music asset store and ducking/mix filter |
 | `application/audio.py` | FFmpeg audio-enhancement filter builder |
 | `application/short_editor.py` | Per-Short trim, retitle, reframe, caption override, and re-render |
 | `application/portable.py` | Ingest → VAD → timeline → export run |

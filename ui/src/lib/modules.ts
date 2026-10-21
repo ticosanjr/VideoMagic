@@ -92,6 +92,12 @@ export type ConfigKey =
   | "overlay_margin_px"
   | "overlay_width_ratio"
   | "overlay_opacity"
+  | "music_enabled"
+  | "music_asset"
+  | "music_volume"
+  | "music_ducking"
+  | "music_fade_in_ms"
+  | "music_fade_out_ms"
   | "shorts_aspect"
   | "shorts_source_start_sec"
   | "shorts_source_end_sec"
@@ -230,6 +236,12 @@ export const defaultConfig: JobConfig = {
   overlay_margin_px: 32,
   overlay_width_ratio: 0.18,
   overlay_opacity: 0.9,
+  music_enabled: false,
+  music_asset: "",
+  music_volume: 0.18,
+  music_ducking: true,
+  music_fade_in_ms: 250,
+  music_fade_out_ms: 500,
   shorts_aspect: "9:16",
   shorts_source_start_sec: 0,
   shorts_source_end_sec: 0,
@@ -842,6 +854,52 @@ export const modules: RackModule[] = [
         min: 0,
         max: 1,
         step: 0.05
+      },
+      {
+        key: "music_enabled",
+        label: "Background music",
+        type: "bool",
+        implemented: true
+      },
+      {
+        key: "music_asset",
+        label: "Music track",
+        type: "text",
+        implemented: true,
+        help: "Filename from the music asset store."
+      },
+      {
+        key: "music_volume",
+        label: "Music volume",
+        type: "number",
+        implemented: true,
+        min: 0,
+        max: 1,
+        step: 0.01
+      },
+      {
+        key: "music_ducking",
+        label: "Duck under speech",
+        type: "bool",
+        implemented: true
+      },
+      {
+        key: "music_fade_in_ms",
+        label: "Music fade in (ms)",
+        type: "number",
+        implemented: true,
+        min: 0,
+        max: 5000,
+        step: 50
+      },
+      {
+        key: "music_fade_out_ms",
+        label: "Music fade out (ms)",
+        type: "number",
+        implemented: true,
+        min: 0,
+        max: 5000,
+        step: 50
       },
       {
         key: "shorts_hook_mode",

@@ -139,6 +139,12 @@ export interface JobOptions {
   overlay_margin_px?: number;
   overlay_width_ratio?: number;
   overlay_opacity?: number;
+  music_enabled?: boolean;
+  music_asset?: string;
+  music_volume?: number;
+  music_ducking?: boolean;
+  music_fade_in_ms?: number;
+  music_fade_out_ms?: number;
   caption_font_family?: string;
   caption_font_size?: number;
   caption_font_weight?: string;
@@ -261,6 +267,12 @@ export interface Job {
   stages: JobStage[];
 }
 
+export interface MusicAsset {
+  file: string;
+  name: string;
+  size_bytes: number;
+}
+
 export interface ImageAsset {
   file: string;
   name: string;
@@ -363,6 +375,12 @@ export interface NewJob {
   overlay_margin_px: number;
   overlay_width_ratio: number;
   overlay_opacity: number;
+  music_enabled: boolean;
+  music_asset: string;
+  music_volume: number;
+  music_ducking: boolean;
+  music_fade_in_ms: number;
+  music_fade_out_ms: number;
   caption_font_family: string;
   caption_font_size: number;
   caption_font_weight: string;
@@ -482,6 +500,28 @@ export async function createDirectory(parent: string, name: string): Promise<FsE
 export function probeMedia(path: string): Promise<ProbedMedia> {
   const query = new URLSearchParams({ path });
   return request<ProbedMedia>(`/api/v1/media/probe?${query.toString()}`);
+}
+
+export async function getMusic(): Promise<MusicAsset[]> {
+  const response = await request<{ ok: boolean; music: MusicAsset[] }>("/api/v1/assets/music");
+  return response.music;
+}
+
+export async function uploadMusic(file: File): Promise<MusicAsset> {
+  const response = await fetch(`/api/v1/assets/music?name=${encodeURIComponent(file.name)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/octet-stream" },
+    body: file
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    const detail = payload?.detail;
+    throw new ApiError(
+      detail?.code ?? "music_upload_failed",
+      detail?.message ?? "Music upload failed"
+    );
+  }
+  return payload.music as MusicAsset;
 }
 
 export async function getImages(): Promise<ImageAsset[]> {

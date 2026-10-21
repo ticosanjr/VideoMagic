@@ -27,6 +27,7 @@ from videoflow.application.export_service import FILENAMES, export_timeline
 from videoflow.application.fonts import list_fonts, save_font
 from videoflow.application.images import list_images, save_image
 from videoflow.application.jobs import JobManager
+from videoflow.application.music import list_music, save_music
 from videoflow.application.retakes import cull_intervals
 from videoflow.application.retakes import cull_retakes as cull_transcript_retakes
 from videoflow.application.short_editor import ShortEditOptions
@@ -135,6 +136,12 @@ OVERRIDE_KEYS = {
     "overlay_margin_px",
     "overlay_width_ratio",
     "overlay_opacity",
+    "music_enabled",
+    "music_asset",
+    "music_volume",
+    "music_ducking",
+    "music_fade_in_ms",
+    "music_fade_out_ms",
     "caption_font_family",
     "caption_font_size",
     "caption_font_weight",
@@ -202,6 +209,23 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         """List uploaded caption fonts and their internal family names."""
 
         return {"ok": True, "fonts": list_fonts()}
+
+    @mcp.tool()
+    def videoflow_list_music() -> dict[str, object]:
+        """List uploaded background-music tracks."""
+
+        return {"ok": True, "music": list_music()}
+
+    @mcp.tool()
+    def videoflow_upload_music(file_path: str) -> dict[str, object]:
+        """Copy an audio track from the allowed roots into the music store."""
+
+        try:
+            source = resolve_allowed(Path(file_path), allowed_roots())
+            asset = save_music(source.name, source.read_bytes())
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {"ok": True, "music": asset}
 
     @mcp.tool()
     def videoflow_list_images() -> dict[str, object]:

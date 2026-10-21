@@ -25,6 +25,7 @@ from videoflow.application.filesystem import create_directory, list_directory, r
 from videoflow.application.fonts import list_fonts, save_font
 from videoflow.application.images import list_images, save_image
 from videoflow.application.jobs import TERMINAL, Job, JobManager
+from videoflow.application.music import list_music, save_music
 from videoflow.application.presets import get_preset, load_presets, save_preset
 from videoflow.application.projects import (
     ProjectStore,
@@ -138,6 +139,12 @@ class NewJobRequest(BaseModel):
     overlay_margin_px: int = Field(default=32, ge=0, le=400)
     overlay_width_ratio: float = Field(default=0.18, ge=0.03, le=1.0)
     overlay_opacity: float = Field(default=0.9, ge=0.0, le=1.0)
+    music_enabled: bool = False
+    music_asset: str = ""
+    music_volume: float = Field(default=0.18, ge=0.0, le=1.0)
+    music_ducking: bool = True
+    music_fade_in_ms: int = Field(default=250, ge=0, le=5000)
+    music_fade_out_ms: int = Field(default=500, ge=0, le=5000)
     caption_font_family: str = "Arial"
     caption_font_size: int = Field(default=72, ge=8, le=300)
     caption_font_weight: Literal["normal", "bold"] = "bold"
@@ -283,6 +290,21 @@ def register_routes(
 ) -> None:
     project_job_lock = threading.Lock()
     app.state.project_store = projects
+    @app.get("/api/v1/assets/music")
+    def music() -> dict[str, object]:
+        return {"ok": True, "music": list_music()}
+
+    @app.post("/api/v1/assets/music", status_code=201)
+    async def upload_music(name: str, request: Request) -> dict[str, object]:
+        try:
+            asset = save_music(name, await request.body())
+        except FilesystemError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "music_invalid", "message": str(exc)},
+            ) from exc
+        return {"ok": True, "music": asset}
+
     @app.get("/api/v1/assets/images")
     def images() -> dict[str, object]:
         return {"ok": True, "images": list_images()}
@@ -398,6 +420,12 @@ def register_routes(
                     "overlay_margin_px": request.overlay_margin_px,
                     "overlay_width_ratio": request.overlay_width_ratio,
                     "overlay_opacity": request.overlay_opacity,
+                    "music_enabled": request.music_enabled,
+                    "music_asset": request.music_asset,
+                    "music_volume": request.music_volume,
+                    "music_ducking": request.music_ducking,
+                    "music_fade_in_ms": request.music_fade_in_ms,
+                    "music_fade_out_ms": request.music_fade_out_ms,
                     "caption_font_family": request.caption_font_family,
                     "caption_font_size": request.caption_font_size,
                     "caption_font_weight": request.caption_font_weight,

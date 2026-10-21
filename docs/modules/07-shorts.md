@@ -95,6 +95,12 @@ title, description, hashtags, and platform character limits for YouTube,
 TikTok, Instagram, or LinkedIn. Results are stored under the Short's
 `metadata.<platform>` entry.
 
+## Background music
+
+`MusicConfig` selects an uploaded track, volume, fades, and optional speech
+ducking. The track is looped, trimmed to the Short duration, mixed with the
+voice, and encoded as AAC after captions/overlays. NLE exports are unchanged.
+
 ## Watermark overlay
 
 PNG/JPEG assets live under `<home>/assets/images`. `OverlayConfig` controls

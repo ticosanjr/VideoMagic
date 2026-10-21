@@ -4,6 +4,7 @@
   import CaptionPreview from "$lib/CaptionPreview.svelte";
   import FontManager from "$lib/FontManager.svelte";
   import ImageManager from "$lib/ImageManager.svelte";
+  import MusicManager from "$lib/MusicManager.svelte";
   import LogDrawer from "$lib/LogDrawer.svelte";
   import PathPicker from "$lib/PathPicker.svelte";
   import ShortEditor from "$lib/ShortEditor.svelte";
@@ -331,6 +332,12 @@
       overlay_margin_px: Number(config.overlay_margin_px),
       overlay_width_ratio: Number(config.overlay_width_ratio),
       overlay_opacity: Number(config.overlay_opacity),
+      music_enabled: Boolean(config.music_enabled),
+      music_asset: String(config.music_asset || ""),
+      music_volume: Number(config.music_volume),
+      music_ducking: Boolean(config.music_ducking),
+      music_fade_in_ms: Number(config.music_fade_in_ms),
+      music_fade_out_ms: Number(config.music_fade_out_ms),
       caption_font_family: String(config.caption_font_family),
       caption_font_size: Number(config.caption_font_size),
       caption_font_weight: String(config.caption_font_weight),
@@ -1235,6 +1242,12 @@
                   <ImageManager
                     selected={String(config.overlay_asset || "")}
                     onSelect={(name) => (config.overlay_asset = name)}
+                  />
+                </div>
+                <div class="mb-3">
+                  <MusicManager
+                    selected={String(config.music_asset || "")}
+                    onSelect={(name) => (config.music_asset = name)}
                   />
                 </div>
                 <div class="mb-3 rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">

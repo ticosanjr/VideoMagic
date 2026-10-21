@@ -21,6 +21,7 @@ from videoflow.adapters.llm import OpenAICompatibleLlm
 from videoflow.application.audio import audio_filters
 from videoflow.application.capabilities import ensure_external_allowed
 from videoflow.application.images import images_dir
+from videoflow.application.music import music_dir
 from videoflow.application.portable import run_portable
 from videoflow.application.telemetry import JobTelemetry
 from videoflow.domain.config import (
@@ -29,6 +30,7 @@ from videoflow.domain.config import (
     JlCutsConfig,
     ModuleEnabled,
     ModulesConfig,
+    MusicConfig,
     OverlayConfig,
     ShortsConfig,
     TranscribeConfig,
@@ -307,6 +309,19 @@ class JobManager:
             if overlay_config.enabled and overlay_config.asset
             else None
         )
+        music_config = MusicConfig(
+            enabled=bool(options.get("music_enabled", False)),
+            asset=str(options.get("music_asset", "")),
+            volume=float(options.get("music_volume", 0.18)),
+            ducking=bool(options.get("music_ducking", True)),
+            fade_in_ms=int(options.get("music_fade_in_ms", 250)),
+            fade_out_ms=int(options.get("music_fade_out_ms", 500)),
+        )
+        music_path = (
+            music_dir() / music_config.asset
+            if music_config.enabled and music_config.asset
+            else None
+        )
         audio_config = AudioEnhanceConfig(
             enabled=bool(options.get("audio_enhance", False)),
             highpass_hz=int(options.get("audio_highpass_hz", 80)),
@@ -437,6 +452,11 @@ class JobManager:
                 overlay_margin=overlay_config.margin_px,
                 overlay_width_ratio=overlay_config.width_ratio,
                 overlay_opacity=overlay_config.opacity,
+                music_path=music_path,
+                music_volume=music_config.volume,
+                music_ducking=music_config.ducking,
+                music_fade_in_ms=music_config.fade_in_ms,
+                music_fade_out_ms=music_config.fade_out_ms,
             )
             if job.finalizer is not None and not job.cancel_requested:
                 job.finalizer(job)

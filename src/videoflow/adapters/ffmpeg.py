@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from videoflow.application.music import music_filter
 from videoflow.domain.errors import IngestError
 from videoflow.domain.state import MediaInfo
 from videoflow.domain.timebase import Rounding, Timebase
@@ -216,6 +217,11 @@ class FFmpegAdapter:
         overlay_margin: int = 32,
         overlay_width_ratio: float = 0.18,
         overlay_opacity: float = 0.9,
+        music_path: Path | None = None,
+        music_volume: float = 0.18,
+        music_ducking: bool = True,
+        music_fade_in_ms: int = 250,
+        music_fade_out_ms: int = 500,
     ) -> Path:
         """Render concatenated source pieces as a vertical H.264 short."""
 
@@ -387,6 +393,50 @@ class FFmpegAdapter:
                     ]
                 )
                 final = overlay_final
+            if music_path is not None:
+                music = Path(music_path).expanduser()
+                if not music.is_file():
+                    raise IngestError(f"Music file does not exist: {music}")
+                music_final = work / "music.mp4"
+                duration_sec = sum(end - start for start, end in pieces) / sample_rate
+                self._capture(
+                    [
+                        "ffmpeg",
+                        "-hide_banner",
+                        "-loglevel",
+                        "error",
+                        "-y",
+                        "-i",
+                        str(final),
+                        "-stream_loop",
+                        "-1",
+                        "-i",
+                        str(music),
+                        "-filter_complex",
+                        music_filter(
+                            duration_sec,
+                            volume=music_volume,
+                            ducking=music_ducking,
+                            fade_in_ms=music_fade_in_ms,
+                            fade_out_ms=music_fade_out_ms,
+                        ),
+                        "-map",
+                        "0:v",
+                        "-map",
+                        "[a]",
+                        "-c:v",
+                        "copy",
+                        "-c:a",
+                        "aac",
+                        "-b:a",
+                        "192k",
+                        "-shortest",
+                        "-movflags",
+                        "+faststart",
+                        str(music_final),
+                    ]
+                )
+                final = music_final
             shutil.move(str(final), target)
         finally:
             shutil.rmtree(work, ignore_errors=True)

@@ -62,6 +62,11 @@ class FakeAdapter:
         overlay_margin: int = 32,
         overlay_width_ratio: float = 0.18,
         overlay_opacity: float = 0.9,
+        music_path: Path | None = None,
+        music_volume: float = 0.18,
+        music_ducking: bool = True,
+        music_fade_in_ms: int = 250,
+        music_fade_out_ms: int = 500,
     ) -> Path:
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(b"mp4")
