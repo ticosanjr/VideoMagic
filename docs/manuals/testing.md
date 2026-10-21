@@ -16,7 +16,7 @@ uv run mypy
 Expected for the current suite:
 
 ```
-315 passed, 11 xfailed, 7 deselected
+316 passed, 11 xfailed, 7 deselected
 coverage 99.00%
 UI: 13 passed (Vitest)
 ```
@@ -157,7 +157,10 @@ Run `docs/testing.md` section 11. Record:
 - the cache-timing observation;
 - any accepted deviation.
 
-A release without the manual section is not a release.
+Before tagging, run `uv run python scripts/release.py --require-all --keep 3`,
+confirm only three `releases/v*` folders remain, then remove `build/`, `dist/`,
+coverage files, and generated caches. A release without the manual section is
+not a release.
 
 ## 12. Reading a failure
 

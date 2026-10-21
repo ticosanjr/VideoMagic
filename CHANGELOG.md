@@ -3,6 +3,22 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [Unreleased]
+
+### Changed
+
+- `scripts/release.py` now keeps only the three newest `releases/v*` folders.
+  `--keep N` changes the retention count, and the release output lists every
+  pruned folder.
+- Release staging is documented as the canonical artifact store. Generated
+  `build/`, `dist/`, coverage files, and caches are cleaned after each release.
+
+### Docs
+
+- Refreshed the README, module specs, testing notes, UI spec, and operator
+  manuals to describe FCPXML audio fades, the live caption preview, and the
+  three-release retention policy.
+
 ## [0.21.2] — 2026-10-21
 
 ### Added

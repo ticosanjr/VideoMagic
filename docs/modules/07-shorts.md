@@ -3,9 +3,9 @@
 ## Implementation status
 
 Implemented: deterministic and LLM sentence selection, retake-aware conforming,
-1080x1920 render, ASS captions, `videoflow shorts`, job/API/MCP execution, a
-telemetry stage, and MP4 download. Not yet: face tracking and karaoke
-word-level captions.
+1080x1920 render, ASS captions, karaoke word timing, a live 9:16 caption
+preview in the rack, `videoflow shorts`, job/API/MCP execution, a telemetry
+stage, and MP4 download. Not yet: face tracking and a per-Short editor.
 
 ## Purpose
 
@@ -70,6 +70,9 @@ The renderer writes ASS and lets FFmpeg burn it. If the transcript has word
 timings, it emits karaoke `\k`/`\kf` tags. Otherwise `word_timing=proportional`
 distributes the sentence duration across words; `sentence` disables karaoke.
 Text is escaped.
+
+The rack preview is an approximate HTML rendering of the same style fields. It
+updates without rendering a video; the burned-in result still comes from ASS.
 
 ## Failure modes
 

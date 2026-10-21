@@ -21,7 +21,8 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Rack UI driving real portable jobs, logs, overrides, shorts | implemented; source/output/transcript/model selection uses the path picker |
 | Project-scoped routes, revisions, transcript API, presets | implemented; per-module rerun is typed 501 |
 | Shorts selection/rendering and API download | implemented |
-| Audio transitions, keyframed zooms, MP4 | specified, stubbed |
+| NLE audio fades | implemented in FCPXML, xmeml, and Kdenlive |
+| Keyframed progressive zooms, direct MP4 | specified, stubbed |
 
 Every stub has a strict `xfail` contract in `tests/contract/`.
 

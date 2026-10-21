@@ -18,6 +18,7 @@ Minimum: 18.6. Newer 19/20 releases are preferred for FCPXML 1.10.
    - video clips are in order;
    - audio starts before video at a J-cut (zoom into the waveform);
    - a punch-in clip is visibly scaled;
+   - an audio fade sits on each cut edge;
    - no red offline media.
 8. Play each join with headphones. There must be no click.
 
@@ -68,6 +69,7 @@ Minimum: 23.04. The artifact is a native `.kdenlive` MLT XML project, not OTIO.
 5. Check:
    - V1 and A1 exist as separate tracks;
    - a J-cut is visible as an audio clip that starts earlier;
+   - an audio volume ramp sits on each cut edge;
    - the timeline duration matches the run summary;
    - no missing clips.
 6. Play the joins.
@@ -86,6 +88,7 @@ For each editor, record:
 - [ ] clip count matches the export
 - [ ] J-cut audio offset is visible
 - [ ] punch-in is visible
+- [ ] audio fades are visible at the joins
 - [ ] no offline media
 - [ ] no click at three sampled joins
 - [ ] 60-minute import holds lip sync at the end

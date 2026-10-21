@@ -2,7 +2,8 @@
 
 The binaries stay local and are uploaded to a GitHub Release manually. Only the
 checksums, manifest, and notes are committed, because GitHub rejects files over
-100 MB in normal git history.
+100 MB in normal git history. The three newest version folders are kept by
+default; older folders are pruned after a successful stage.
 """
 
 from __future__ import annotations
@@ -11,12 +12,36 @@ import argparse
 import hashlib
 import json
 import platform
+import re
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RELEASES = ROOT / "releases"
+_VERSION_DIR = re.compile(r"v(\d+)\.(\d+)\.(\d+)")
+
+
+def _release_key(path: Path) -> tuple[int, int, int] | None:
+    match = _VERSION_DIR.fullmatch(path.name)
+    if match is None:
+        return None
+    return int(match.group(1)), int(match.group(2)), int(match.group(3))
+
+
+def _prune_old_releases(root: Path, keep: int = 3) -> list[Path]:
+    if keep < 1:
+        raise ValueError("keep must be at least 1")
+    versioned: list[tuple[tuple[int, int, int], Path]] = []
+    for path in root.iterdir():
+        key = _release_key(path)
+        if path.is_dir() and key is not None:
+            versioned.append((key, path))
+    versioned.sort(key=lambda item: item[0])
+    stale = [path for _, path in versioned[:-keep]] if len(versioned) > keep else []
+    for path in stale:
+        shutil.rmtree(path)
+    return stale
 
 
 def default_artifacts(version: str) -> tuple[tuple[Path, str], ...]:
@@ -45,11 +70,19 @@ def main() -> int:
     parser.add_argument("--version", default=__version__)
     parser.add_argument("--force", action="store_true")
     parser.add_argument(
+        "--keep",
+        type=int,
+        default=3,
+        help="Keep this many newest release folders (default: 3).",
+    )
+    parser.add_argument(
         "--require-all",
         action="store_true",
         help="Fail if a default artifact is missing.",
     )
     args = parser.parse_args()
+    if args.keep < 1:
+        parser.error("--keep must be at least 1")
 
     target_dir = RELEASES / f"v{args.version}"
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -138,7 +171,10 @@ smoke-tested under Wine in this release.
 """,
             encoding="utf-8",
         )
-    print(f"release staged in {target_dir}")
+    removed = _prune_old_releases(RELEASES, keep=args.keep)
+    for path in removed:
+        print(f"pruned {path}")
+    print(f"release staged in {target_dir} (keeping {args.keep} versions)")
     return 0
 
 

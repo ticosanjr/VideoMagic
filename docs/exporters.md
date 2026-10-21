@@ -98,6 +98,21 @@ Mapping:
 | Fade | keyframed `adjust-volume` ramp inside the `asset-clip` |
 | Markers | not emitted yet |
 
+Audio fades use clip-relative volume keyframes:
+
+```xml
+<adjust-volume>
+  <param name="amount">
+    <keyframeAnimation>
+      <keyframe time="0s" value="-60dB" interp="linear"/>
+      <keyframe time="1/50s" value="0dB" interp="linear"/>
+      <keyframe time="1s" value="0dB" interp="linear"/>
+      <keyframe time="51/50s" value="-60dB" interp="linear"/>
+    </keyframeAnimation>
+  </param>
+</adjust-volume>
+```
+
 Dialect notes:
 
 - `tcFormat` is `DF` only for drop-frame NTSC rates. The sequence `audioRate`

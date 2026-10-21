@@ -15,7 +15,7 @@ hides the contract. VideoFlow resolves this with two layers:
 
 | Scope | Line coverage | Notes |
 | --- | --- | --- |
-| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.00% (315 passing, 11 strict xfail, 7 deselected) |
+| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.00% (316 passing, 11 strict xfail, 7 deselected) |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |
 | UI | `npm run check` and `npm run build` | Manual: start a job from the rack and confirm progress and artifacts |
@@ -83,13 +83,14 @@ smokes run locally and are recorded in the release notes.
 | `test_jobs.py` | Job completion, failure, cancellation, queue limit, pruning, VAD/Faster-Whisper, detailed zoom/fade/Shorts/caption forwarding |
 | `test_telemetry.py` | Stage lifecycle, durations, logs, filters, cap |
 | `test_cli.py` | `version`, `doctor`, `run` dispatch, VAD/Faster-Whisper, Shorts and zoom/fade options, usage |
+| `test_release.py` | Release retention keeps the newest three folders and rejects invalid limits |
 | `test_runtime.py` | Portable home, binary/model discovery including Faster-Whisper, UI discovery, allowed roots |
 
 ### Contract (passing now)
 
 | File | Covers |
 | --- | --- |
-| `test_exporters.py` | FCPXML 1.9/1.10 media-rep, xmeml v4 full files/links, native Kdenlive MLT, export service, preflight failures |
+| `test_exporters.py` | FCPXML 1.9/1.10 media-rep and audio fades, xmeml v4 full files/links and transitions, native Kdenlive MLT and volume fades, export service, preflight failures |
 | `test_ingest_media.py` | Real FFprobe, PCM extraction, and silence detection (`media`) |
 | `test_shorts_media.py` | Renders two 1080x1920 clips with ASS via the CLI (`media`) |
 | `test_api_jobs.py` | Job create/poll, stages/logs, new options, path jail, SSE, system, real media (`media`) |
@@ -106,14 +107,14 @@ smokes run locally and are recorded in the release notes.
 
 | File | Contract |
 | --- | --- |
-| `test_exporters.py` | Audio transitions at joins (AC-01); direct MP4 render |
+| `test_exporters.py` | Audio fades in all three dialects (AC-01); direct MP4 render |
 | `test_pipeline.py` | Per-module `execute` methods and the rack runner |
 
 ## 6. Acceptance coverage
 
 | Criterion | Automated proof | Manual proof |
 | --- | --- | --- |
-| AC-01 no click | Fade metadata is tested; NLE transitions are still xfail | Listen at three joins per NLE |
+| AC-01 no click | Fade structures are tested in FCPXML, xmeml, and Kdenlive; manual import remains xfail | Listen at three joins per NLE |
 | AC-02 lip sync | Every video edge is a frame index; builder tests cover frame coverage; 60-minute rational proof | Spot-check a long import |
 | AC-03 last take | Fake LLM drops the final take; guard restores it | Inspector shows a restoration |
 | AC-04 agent autonomy | Scripted MCP session produces three timelines and three shorts | None |
@@ -209,6 +210,9 @@ Run before tagging a release:
    intact and the job is not stuck `running`.
 8. Switch the UI to English only. Search the build output for Portuguese
    strings.
+9. Stage with `scripts/release.py --require-all --keep 3`, confirm only three
+   release folders remain, and remove `build/`, `dist/`, coverage files, and
+   generated caches.
 
 Record the result in the release notes, not in a chat.
 

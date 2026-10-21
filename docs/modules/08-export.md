@@ -3,8 +3,10 @@
 ## Implementation status
 
 FCPXML 1.9/1.10, xmeml, and native Kdenlive MLT XML are implemented and
-covered by contract tests. `export_timeline` writes all three from one state. Audio transitions, keyframed
-progressive zooms, and MP4 render are still pending. The three-app import spike is
+covered by contract tests. `export_timeline` writes all three from one state.
+Audio fades are emitted in all three dialects: xmeml `transitionitem` entries,
+Kdenlive keyframed `volume` filters, and FCPXML `adjust-volume` ramps. Keyframed
+progressive zooms and MP4 render are still pending. The three-app import spike is
 a release gate.
 
 ## Purpose

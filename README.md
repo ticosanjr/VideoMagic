@@ -31,7 +31,7 @@ install time. A GPU is not required.
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 315 passing, 11 strict xfail, 7 deselected
+uv run pytest                       # 316 passing, 11 strict xfail, 7 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model
@@ -71,7 +71,8 @@ uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper \
   --with-silero --with-faster-whisper                    # Linux
 uv run python scripts/build_appimage.py                  # VideoFlow-X.Y.Z-x86_64.AppImage
 # Windows PE: Windows Python + PyInstaller, or Wine + embeddable Python
-uv run python scripts/release.py                         # stage releases/vX.Y.Z
+uv run python scripts/release.py --require-all             # stage and keep 3 releases
+rm -rf build dist .coverage .hypothesis .pytest_cache .mypy_cache .ruff_cache
 ```
 
 See [docs/manuals/portable.md](docs/manuals/portable.md).
@@ -93,13 +94,15 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - Optional ASR HTTP through an OpenAI-compatible `/audio/transcriptions`
   endpoint.
 - Vertical shorts: deterministic or LLM selection, retake-aware conforming,
-  1080x1920 render, and burned ASS captions.
+  1080x1920 render, burned ASS captions, and a live 9:16 caption preview in the
+  rack.
 - Deterministic timeline: frame-quantised video, sample-aligned audio, merged
   speech spans, J/L-cut audio boundaries with handle checks, logarithmic fade
   metadata, and alternating punch-ins.
 - FCPXML 1.9/1.10 for Resolve, xmeml v4 for Premiere, and native `.kdenlive`
   MLT XML for Kdenlive, from one validated timeline. J/L-cuts are represented
-  with `audioStart` and `audioDuration` in FCPXML.
+  with `audioStart` and `audioDuration` in FCPXML. All three artifacts carry
+  audio fades, and the FCPXML output validates against Apple's 1.9 DTD.
 - Pure domain: rational time, cache hashing, planning, retake guard, path jail,
   redaction, schema generation.
 - MCP server with twelve live tools and four resources: media ingest, Silero
@@ -116,8 +119,9 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 ## Not implemented yet
 
 - Cache-backed per-block reruns; the route currently returns typed `501`.
-- NLE audio transitions, keyframed progressive zooms, and direct MP4 rendering.
-- Face tracking.
+- Keyframed progressive zooms and direct MP4 rendering.
+- Face tracking and a per-Short editor.
+- Manual import validation in Resolve, Premiere, and Kdenlive.
 - A signed Windows binary (SmartScreen will warn).
 
 Every unimplemented contract has a test marked `xfail`, so the suite stays green

@@ -465,4 +465,5 @@ testing is still recommended before wide distribution.
 - The rack UI drives the portable run. Persistent projects and operator presets
   are available through the REST API; per-block reruns are a later pass.
 - Built-in transcription is the bundled tiny model; larger models improve
-  quality but are not shipped. NLE audio transitions remain future work.
+  quality but are not shipped. Audio fades are written to all three NLE
+  artifacts; keyframed progressive zooms remain future work.

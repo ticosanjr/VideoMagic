@@ -41,7 +41,7 @@ Implemented:
 Stubbed, with `xfail` contracts:
 
 - per-module `execute` methods and per-module reruns
-- NLE audio transitions, keyframed progressive zooms, and direct MP4 rendering
+- keyframed progressive zooms and direct MP4 rendering
 
 ## 3. Layout
 
@@ -107,7 +107,8 @@ The three timeline writers already share `exporters/common.py` and
 5. Add a golden file under `tests/fixtures/`.
 6. Add or update the manual import step in `docs/manuals/nle-import.md`.
 
-Audio transitions and keyframed progressive zooms are the next exporter slice.
+Keyframed progressive zooms and direct MP4 rendering are the next exporter slice.
+Audio fades now ship in all three NLE artifacts.
 Do not add a guessed attribute without the three-app import spike.
 
 ## 7. Changing a schema
@@ -189,9 +190,12 @@ PE32+ executable was smoke-tested under Wine. GitHub Actions is not used.
 3. Manual NLE script in `docs/testing.md`.
 4. `CHANGELOG.md` updated.
 5. Version bumped in `pyproject.toml` and `src/videoflow/__init__.py`.
-6. Tag. There is no license yet; resolve that before a public release.
+6. Stage with `uv run python scripts/release.py --require-all`. It keeps only the
+   three newest `releases/v*` folders.
+7. Remove `build/`, `dist/`, `.coverage`, and generated caches after staging.
+8. Tag. There is no license yet; resolve that before a public release.
 
-## 13. Definition of done
+## 14. Definition of done
 
 - The contract test exists and is not xfail.
 - The failure cases from the module spec are covered.

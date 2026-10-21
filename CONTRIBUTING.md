@@ -50,6 +50,9 @@ npm run build
 - Do not edit a generated schema by hand. Run `scripts/export_schemas.py`.
 - Do not commit media. Generate fixtures with FFmpeg.
 - Do not leave an `xfail` that now passes; strict mode will fail the suite.
+- Keep at most three release folders. `scripts/release.py` prunes older ones.
+- After staging a release, remove `build/`, `dist/`, coverage files, and
+  generated caches.
 
 ## Commits
 

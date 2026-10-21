@@ -187,8 +187,8 @@ Done:
 Next, in order:
 
 13. Cache-backed per-block runs and the full rack inspector
-14. NLE audio transitions, keyframed zooms, subtitles, MP4
-15. Three-app import spike and long-file QA
+14. Keyframed progressive zooms, subtitle rendering polish, MP4
+15. Three-app import spike, per-Short editor, and long-file QA
 
 Each pass removes the `xfail` marker for its contracts and adds the media
 integration tests described in [testing.md](testing.md).

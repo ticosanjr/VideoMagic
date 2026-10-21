@@ -3,7 +3,8 @@
 Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript. English strings only.
 
 0.21.2 keeps the full telemetry rack from 0.13 and adds detailed configuration
-for zoom bounds, audio fades, Shorts count/selection, and caption/karaoke style.
+for zoom bounds, audio fades, Shorts count/selection, and caption/karaoke style,
+plus a live 9:16 caption preview and audio fades in all three NLE exports.
 The setup card shows source metadata, an output suggestion, starting-point
 cards, an explicit “Also render vertical shorts” control, inline validation, and
 a clear primary action. Per-block progress, start/finish timestamps, duration,
@@ -93,9 +94,9 @@ The picker is a modal dialog with:
 - Escape to close, focus trapping, and visible focus states.
 
 Short-form controls are one continuous form: zoom bounds, fade timings, Shorts
-target/minimum/selection, and caption font/colors/box/shadow/position. A live 9:16 caption preview shows the
-configured font, colors, outline, shadow, box, alignment, and position. A
-per-Short editor is still planned.
+target/minimum/selection, and caption font/colors/box/shadow/position. A live
+9:16 caption preview shows the configured font, colors, outline, shadow, box,
+alignment, and position. A per-Short editor is still planned.
 
 The picker never offers a parent above the allowlisted root. If a symlink points
 outside the roots it is omitted. Network shares and unlisted disks require an
@@ -194,5 +195,6 @@ polls job status every 5 s until the stream returns.
 
 ## 8. Out of scope
 
-Timeline scrubbing, video preview compositing, subtitle styling preview, and
-multi-project tabs. The UI edits decisions, not pixels.
+Timeline scrubbing, video preview compositing, a per-Short editor, and
+multi-project tabs. The caption preview is style-only; the UI edits decisions,
+not pixels.

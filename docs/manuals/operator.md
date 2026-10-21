@@ -219,7 +219,9 @@ Then:
 - schema migration if `schema_version` changed;
 - model digest check;
 - one short end-to-end run;
-- the manual NLE script before a release tag.
+- the manual NLE script before a release tag;
+- `scripts/release.py` keeps the three newest release folders, then remove
+  `build/`, `dist/`, coverage files, and generated caches.
 
 ## 12. Recovery
 

@@ -170,6 +170,8 @@ vertical-only output.
   highlight/outline colors, outline width, shadow color/offset/opacity, box
   color/opacity/padding, alignment, position, max width, animation, and word
   timing are configurable in the rack, API, and MCP.
+- **Caption preview**: the Shorts card shows a live 9:16 approximation of the
+  selected style. The burned-in result still comes from ASS.
 - **Stop words**: a long source can still yield fewer than the minimum; the UI
   and `run.json` report the warning.
 
@@ -182,6 +184,7 @@ bad take.
 - **xmeml version 4** for Premiere.
 - **Native `.kdenlive` MLT XML** for Kdenlive.
 - **MP4** is a preview, not the master.
+- All three NLE timelines include audio fades at cut edges.
 
 All enabled artifacts are written to `.videoflow/exports/`.
 
