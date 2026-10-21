@@ -37,6 +37,7 @@ from videoflow.application.shorts import (
     build_ass,
     build_ass_lines,
     caption_lines,
+    previous_shorts_from_report,
     select_shorts,
     sentence_events,
     short_dimensions,
@@ -485,8 +486,13 @@ def run_portable(
             if item.start_sample >= range_start and item.end_sample <= range_end
         ]
         width, height = short_dimensions(short_cfg.aspect_ratio)
+        previous = (
+            previous_shorts_from_report(output_path / "shorts.json")
+            if short_cfg.prompt_mode == "refine"
+            else []
+        )
         gate()
-        with stage("shorts", "shorts", "Shorts", "Selecting vertical clips") as meta:
+        with stage("shorts", "shorts", "Shorts", "Selecting social clips") as meta:
             selected = select_shorts(
                 kept,
                 min_samples=minimum,
@@ -498,6 +504,10 @@ def run_portable(
                 cuts=cuts,
                 client=llm_client,
                 warnings=warnings,
+                prompt=short_cfg.prompt,
+                reprompt=short_cfg.reprompt,
+                prompt_mode=short_cfg.prompt_mode,
+                previous=previous,
             )
             shorts_dir = output_path / "shorts"
             for index, clip in enumerate(selected, start=1):

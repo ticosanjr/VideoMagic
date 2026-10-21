@@ -20,7 +20,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | MCP: fourteen tools and four resources | implemented; analysis, capabilities, staged edits, jobs, export, resources |
 | Rack UI driving real portable jobs, logs, overrides, shorts | implemented; tabbed Speech/Edit/Shorts/Export/Providers layout and path picker |
 | Project-scoped routes, revisions, transcript API, presets | implemented; per-module rerun is typed 501 |
-| Shorts selection/rendering and API download | implemented; 9:16, 1:1, 16:9, optional source window |
+| Shorts selection/rendering and API download | implemented; prompt/reprompt, 9:16, 1:1, 16:9, optional source window |
 | Per-Short editor | implemented; trim, retitle, reframe, caption overrides, re-render |
 | Capability/provider discovery and external policy | implemented; external providers are opt-in and globally blockable |
 | NLE audio fades | implemented in FCPXML, xmeml, and Kdenlive |

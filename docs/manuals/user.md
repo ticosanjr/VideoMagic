@@ -164,6 +164,12 @@ vertical-only output.
 - **Selection**: `auto` uses the LLM when an endpoint is configured, then the
   heuristic; `llm` requires ranking; `heuristic` ranks hook, impact, numbers,
   contrast, and diversity without a model.
+- **Prompt**: describe the topic you want, for example “the pricing and margin
+  discussion”. The heuristic boosts matching terms and the LLM receives it as
+  an explicit focus.
+- **Reprompt**: set prompt mode to **Refine previous selection** and describe the
+  adjustment. The previous `shorts.json` is used as context; without one, it
+  falls back to replacement.
 - **Duration** is checked after retake culling. The Shorts tab also has
   `0–1`, `1–3`, `3–5`, and `5–10` minute presets.
 - **Aspect ratio** is `9:16`, `1:1`, or `16:9`. ASS and FFmpeg use the same

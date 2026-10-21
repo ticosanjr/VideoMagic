@@ -25,6 +25,7 @@ SubtitlePreset = Literal["tiktok_bold", "minimalist_box", "highlight_word"]
 ShortsExportFormat = Literal["fcpxml_timeline", "standalone_mp4", "both"]
 ShortsSelectionMode = Literal["auto", "llm", "heuristic"]
 ShortsAspect = Literal["9:16", "1:1", "16:9"]
+ShortsPromptMode = Literal["replace", "refine"]
 CaptionAnimation = Literal["none", "pop", "sweep"]
 CaptionWordTiming = Literal["engine", "proportional", "sentence"]
 FadeCurve = Literal["linear", "logarithmic"]
@@ -132,6 +133,9 @@ class ShortsConfig(StrictModel):
     min_clips: int = Field(default=3, ge=1, le=20)
     max_clips_to_generate: int = Field(default=3, ge=1, le=20)
     selection_mode: ShortsSelectionMode = "auto"
+    prompt: str = Field(default="", max_length=2000)
+    reprompt: str = Field(default="", max_length=2000)
+    prompt_mode: ShortsPromptMode = "replace"
     reframe_mode: ReframeMode = "center_crop_9_16"
     aspect_ratio: ShortsAspect = "9:16"
     source_start_sec: float = Field(default=0.0, ge=0.0)

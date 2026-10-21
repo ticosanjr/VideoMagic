@@ -61,3 +61,5 @@ def test_manifest_marks_external_providers_blocked_by_default() -> None:
     assert entries["external_llm"]["status"] == "blocked"
     assert "External services are disabled" in str(entries["external_llm"]["reason"])
     assert entries["shorts_editor"]["status"] == "available"
+    assert entries["prompt_to_clip"]["status"] == "available"
+    assert entries["reprompt"]["status"] == "available"

@@ -16,8 +16,8 @@ uv run mypy
 Expected for the current suite:
 
 ```
-325 passed, 11 xfailed, 7 deselected
-coverage 99.01%
+329 passed, 11 xfailed, 7 deselected
+coverage 99.02%
 UI: 13 passed (Vitest)
 ```
 

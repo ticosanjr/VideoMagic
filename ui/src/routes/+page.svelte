@@ -294,6 +294,9 @@
       shorts_max_sec: Number(config.shorts_max_sec),
       shorts_subtitles: Boolean(config.shorts_subtitles),
       shorts_selection_mode: String(config.shorts_selection_mode),
+      shorts_prompt: String(config.shorts_prompt || ""),
+      shorts_reprompt: String(config.shorts_reprompt || ""),
+      shorts_prompt_mode: String(config.shorts_prompt_mode || "replace") as "replace" | "refine",
       shorts_aspect: String(config.shorts_aspect || "9:16"),
       shorts_source_start_sec: Number(config.shorts_source_start_sec || 0),
       shorts_source_end_sec: Number(config.shorts_source_end_sec || 0) || null,
@@ -1139,6 +1142,15 @@
                         oninput={(event) => setField(field.key, event.currentTarget.value)}
                         class="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-sm text-neutral-100 disabled:opacity-50"
                       />
+                    {:else if field.type === "textarea"}
+                      <textarea
+                        id={`${module.id}-${field.key}`}
+                        rows="3"
+                        value={config[field.key]}
+                        disabled={!field.implemented}
+                        oninput={(event) => setField(field.key, event.currentTarget.value)}
+                        class="w-full resize-y rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-sm text-neutral-100 disabled:opacity-50"
+                      ></textarea>
                     {:else if field.type === "targets"}
                       <div class="flex flex-wrap gap-3">
                         {#each targetOptions as target}

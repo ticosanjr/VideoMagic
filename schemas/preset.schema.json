@@ -484,6 +484,21 @@
           "title": "Min Clips",
           "type": "integer"
         },
+        "prompt": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "prompt_mode": {
+          "default": "replace",
+          "enum": [
+            "replace",
+            "refine"
+          ],
+          "title": "Prompt Mode",
+          "type": "string"
+        },
         "reframe_mode": {
           "default": "center_crop_9_16",
           "enum": [
@@ -491,6 +506,12 @@
             "auto_face_tracking_yolo"
           ],
           "title": "Reframe Mode",
+          "type": "string"
+        },
+        "reprompt": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Reprompt",
           "type": "string"
         },
         "selection_mode": {

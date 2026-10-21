@@ -105,6 +105,9 @@ class NewJobRequest(BaseModel):
     shorts_max_sec: int = Field(default=60, ge=1, le=600)
     shorts_subtitles: bool = True
     shorts_selection_mode: Literal["auto", "llm", "heuristic"] = "auto"
+    shorts_prompt: str = Field(default="", max_length=2000)
+    shorts_reprompt: str = Field(default="", max_length=2000)
+    shorts_prompt_mode: Literal["replace", "refine"] = "replace"
     shorts_aspect: Literal["9:16", "1:1", "16:9"] = "9:16"
     shorts_source_start_sec: float = Field(default=0.0, ge=0.0)
     shorts_source_end_sec: float | None = Field(default=None, ge=0.0)
@@ -290,6 +293,9 @@ def register_routes(
                     "shorts_max_sec": request.shorts_max_sec,
                     "shorts_subtitles": request.shorts_subtitles,
                     "shorts_selection_mode": request.shorts_selection_mode,
+                    "shorts_prompt": request.shorts_prompt,
+                    "shorts_reprompt": request.shorts_reprompt,
+                    "shorts_prompt_mode": request.shorts_prompt_mode,
                     "shorts_aspect": request.shorts_aspect,
                     "shorts_source_start_sec": request.shorts_source_start_sec,
                     "shorts_source_end_sec": request.shorts_source_end_sec,

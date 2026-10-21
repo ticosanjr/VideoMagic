@@ -94,7 +94,7 @@ The picker is a modal dialog with:
 - Escape to close, focus trapping, and visible focus states.
 
 Short-form controls are one continuous form: zoom bounds, fade timings, Shorts
-target/minimum/selection, aspect ratio, source window, and caption
+target/minimum/selection, prompt/reprompt, aspect ratio, source window, and caption
 font/colors/box/shadow/position. Duration buttons set common min/max pairs. The
 caption preview follows the selected aspect and shows the configured font,
 colors, outline, shadow, box, alignment, and position. The per-Short editor has
@@ -113,7 +113,7 @@ of controls:
 | --- | --- |
 | Speech | Ingest, voice detection, transcription, retakes |
 | Edit | J/L cuts, fades, zooms, framing |
-| Shorts | Target/minimum, duration presets, aspect ratio, source window, captions, preview |
+| Shorts | Target/minimum, prompt/reprompt, duration presets, aspect ratio, source window, captions, preview |
 | Export | NLE targets and FCPXML dialect |
 | Providers | Capability manifest and external-service opt-in/blocking |
 

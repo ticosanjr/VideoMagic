@@ -106,6 +106,9 @@ OVERRIDE_KEYS = {
     "shorts_max_sec",
     "shorts_subtitles",
     "shorts_selection_mode",
+    "shorts_prompt",
+    "shorts_reprompt",
+    "shorts_prompt_mode",
     "shorts_aspect",
     "shorts_source_start_sec",
     "shorts_source_end_sec",
@@ -182,6 +185,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
                 "transcript_source",
                 "vad",
                 "retake_discards",
+                "shorts",
             ):
                 last.pop(key, None)
             last["pending_options"] = {}
@@ -495,6 +499,9 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         end_sec: float | None = None,
         allow_external_services: bool = False,
         allowed_external_hosts: list[str] | None = None,
+        prompt: str = "",
+        reprompt: str = "",
+        prompt_mode: str = "replace",
     ) -> dict[str, object]:
         """Propose social clips in source time with an optional source window."""
 
@@ -502,6 +509,8 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             return _error("invalid_arguments", "Invalid shorts duration window")
         if aspect_ratio not in {"9:16", "1:1", "16:9"}:
             return _error("invalid_arguments", "aspect_ratio must be 9:16, 1:1, or 16:9")
+        if prompt_mode not in {"replace", "refine"}:
+            return _error("invalid_arguments", "prompt_mode must be replace or refine")
         if start_sec < 0 or (end_sec is not None and end_sec <= start_sec):
             return _error("invalid_arguments", "Invalid shorts source window")
         if not 1 <= count <= 20:
@@ -562,6 +571,11 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
                 model=os.environ.get("VIDEOWFLOW_LLM_MODEL", "qwen2.5:7b-instruct"),
                 api_key=os.environ.get("VIDEOWFLOW_LLM_API_KEY"),
             )
+        previous = (
+            [item for item in last.get("shorts", []) if hasattr(item, "sentence_ids")]
+            if prompt_mode == "refine"
+            else []
+        )
         clips = select_shorts(
             kept,
             min_samples=minimum,
@@ -573,7 +587,12 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             cuts=cuts,
             client=client,
             warnings=warnings,
+            prompt=prompt,
+            reprompt=reprompt,
+            prompt_mode=prompt_mode,
+            previous=previous,
         )
+        last["shorts"] = clips
         pending = last.setdefault("pending_options", {})
         pending.update(
             {
@@ -581,6 +600,9 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
                 "shorts_aspect": aspect_ratio,
                 "shorts_source_start_sec": start_sec,
                 "shorts_source_end_sec": end_sec,
+                "shorts_prompt": prompt,
+                "shorts_reprompt": reprompt,
+                "shorts_prompt_mode": prompt_mode,
                 "allow_external_services": allow_external_services,
                 "allowed_external_hosts": allowed_external_hosts or [],
             }
@@ -592,6 +614,9 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             "aspect_ratio": aspect_ratio,
             "source_start_sec": start_sec,
             "source_end_sec": end_sec,
+            "prompt": prompt,
+            "reprompt": reprompt,
+            "prompt_mode": prompt_mode,
             "clips": [clip.to_dict(rate) for clip in clips],
             "warnings": warnings,
             "subtitles": subtitles,

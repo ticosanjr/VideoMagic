@@ -57,7 +57,7 @@ still required.
 | `videoflow_cull_retakes` | `discard_sentence_ids`, `manual_word_indices` | **live/staged**: automatic exact-repeat culling plus manual sentence discards; the guard protects the final take |
 | `videoflow_configure_zooms` | `mode`, `scale`, `anchor` | **live/staged**: punch-in, anchor, and pan metadata |
 | `videoflow_apply_jcuts` | `offset_ms`, `crossfade_ms` | **live/staged**: audio offset and logarithmic micro-fades |
-| `videoflow_generate_shorts` | `min_duration`, `max_duration`, `count`, `min_count`, `selection_mode`, `subtitles`, `aspect_ratio`, `start_sec`, `end_sec`, `allow_external_services` | **live**: ranked social clip proposals in source time; aspect/window apply to the next run |
+| `videoflow_generate_shorts` | `min_duration`, `max_duration`, `count`, `min_count`, `selection_mode`, `subtitles`, `aspect_ratio`, `start_sec`, `end_sec`, `allow_external_services`, `prompt`, `reprompt`, `prompt_mode` | **live**: ranked social clip proposals in source time; aspect/window/prompt apply to the next run |
 | `videoflow_edit_short` | `index`, `title`, `start_sec`, `end_sec`, `aspect_ratio`, `burn_subtitles`, `caption_style` | **live**: re-renders one Short into `shorts/edited/` |
 | `videoflow_export_fcpxml` | `output_path`, `target_nle` | **live**: exports the latest completed timeline |
 | `videoflow_run_pipeline` | `preset_name`, `overrides`, optional `source`, optional `output` | **live**: starts a real job |
@@ -82,7 +82,8 @@ Presets accepted by `run_pipeline`:
 `export_targets`, `dialect`, `transcript`, `cull_retakes`, `strictness`,
 `retake_strategy`, `context_window`, `llm_base_url`, `llm_model`, `shorts`,
 `shorts_count`, `shorts_min_count`, `shorts_min_sec`, `shorts_max_sec`,
-`shorts_subtitles`, `shorts_selection_mode`, `shorts_aspect`, `shorts_source_start_sec`,
+`shorts_subtitles`, `shorts_selection_mode`, `shorts_prompt`, `shorts_reprompt`,
+`shorts_prompt_mode`, `shorts_aspect`, `shorts_source_start_sec`,
 `shorts_source_end_sec`, `allow_external_services`, `allowed_external_hosts`,
 `caption_*`, `zoom_min_scale`,
 `zoom_max_scale`, `fade_in_ms`, `fade_out_ms`, `fade_curve`,

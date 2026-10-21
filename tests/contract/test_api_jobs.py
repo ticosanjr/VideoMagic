@@ -204,6 +204,9 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
             "shorts_min_sec": 5,
             "shorts_max_sec": 10,
             "shorts_subtitles": False,
+            "shorts_prompt": "pricing",
+            "shorts_reprompt": "more energy",
+            "shorts_prompt_mode": "refine",
             "shorts_aspect": "1:1",
             "shorts_source_start_sec": 5,
             "shorts_source_end_sec": 50,
@@ -227,6 +230,9 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
     assert options["export_targets"] == ["resolve"]
     assert options["context_window"] == 20
     assert options["shorts_count"] == 2
+    assert options["shorts_prompt"] == "pricing"
+    assert options["shorts_reprompt"] == "more energy"
+    assert options["shorts_prompt_mode"] == "refine"
     assert options["shorts_aspect"] == "1:1"
     assert options["shorts_source_start_sec"] == 5
     assert options["shorts_source_end_sec"] == 50

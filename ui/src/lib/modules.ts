@@ -9,7 +9,15 @@ export type Status =
   | "cancelled"
   | "succeeded";
 
-export type FieldType = "number" | "bool" | "select" | "text" | "color" | "targets" | "readonly";
+export type FieldType =
+  | "number"
+  | "bool"
+  | "select"
+  | "text"
+  | "textarea"
+  | "color"
+  | "targets"
+  | "readonly";
 
 export type ModuleTab = "speech" | "edit" | "shorts" | "export" | "providers";
 
@@ -64,6 +72,9 @@ export type ConfigKey =
   | "shorts_max_sec"
   | "shorts_subtitles"
   | "shorts_selection_mode"
+  | "shorts_prompt"
+  | "shorts_reprompt"
+  | "shorts_prompt_mode"
   | "shorts_aspect"
   | "shorts_source_start_sec"
   | "shorts_source_end_sec"
@@ -173,6 +184,9 @@ export const defaultConfig: JobConfig = {
   shorts_max_sec: 60,
   shorts_subtitles: true,
   shorts_selection_mode: "auto",
+  shorts_prompt: "",
+  shorts_reprompt: "",
+  shorts_prompt_mode: "replace",
   shorts_aspect: "9:16",
   shorts_source_start_sec: 0,
   shorts_source_end_sec: 0,
@@ -620,6 +634,31 @@ export const modules: RackModule[] = [
           { value: "llm", label: "LLM ranking" },
           { value: "heuristic", label: "Heuristic ranking" }
         ]
+      },
+      {
+        key: "shorts_prompt",
+        label: "Prompt / topic",
+        type: "textarea",
+        implemented: true,
+        help: "Optional focus for selection, e.g. 'the part about pricing and margins'."
+      },
+      {
+        key: "shorts_reprompt",
+        label: "Reprompt",
+        type: "textarea",
+        implemented: true,
+        help: "Refinement instruction used with prompt_mode=refine."
+      },
+      {
+        key: "shorts_prompt_mode",
+        label: "Prompt mode",
+        type: "select",
+        implemented: true,
+        options: [
+          { value: "replace", label: "Replace selection" },
+          { value: "refine", label: "Refine previous selection" }
+        ],
+        help: "Refine loads the previous shorts.json from the output folder."
       },
       {
         key: "shorts_aspect",

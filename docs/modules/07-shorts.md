@@ -34,6 +34,9 @@ Find self-contained moments in the transcript and turn them into vertical clips.
 | `min_clips` | 3 | 1–20 |
 | `max_clips_to_generate` | 3 | 1–20 |
 | `selection_mode` | `auto` | auto/llm/heuristic |
+| `prompt` | empty | topic or instruction for selection |
+| `reprompt` | empty | refinement instruction |
+| `prompt_mode` | `replace` | replace/refine |
 | `aspect_ratio` | `9:16` | 9:16 / 1:1 / 16:9 |
 | `source_start_sec` | 0 | ≥ 0; sentences must start at or after it |
 | `source_end_sec` | none | > start; sentences must end at or before it |
@@ -45,8 +48,9 @@ Find self-contained moments in the transcript and turn them into vertical clips.
 ## Algorithm
 
 1. Rank candidates by hook, impact, emotion, concrete numbers, contrast, and
-   diversity. With an LLM, ask for the most important clips; otherwise use the
-   heuristic. Both paths avoid overlapping windows.
+   diversity. A prompt adds topic terms to the heuristic score and an explicit
+   focus block to the LLM prompt. `prompt_mode=refine` passes the previous
+   `shorts.json` selection as context. Both paths avoid overlapping windows.
 2. Accept only windows whose edges align with sentence boundaries.
 3. Convert source samples to the kept timeline; intersect with the cull set.
 4. Measure the conformed duration.

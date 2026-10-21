@@ -31,7 +31,7 @@ install time. A GPU is not required.
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 325 passing, 11 strict xfail, 7 deselected
+uv run pytest                       # 329 passing, 11 strict xfail, 7 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model
@@ -93,10 +93,10 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   fallback; larger CTranslate2 and GGML models can be selected locally.
 - Optional ASR HTTP through an OpenAI-compatible `/audio/transcriptions`
   endpoint.
-- Vertical/social shorts: deterministic or LLM selection, retake-aware
-  conforming, 9:16/1:1/16:9 render, an optional source window, burned ASS
-  captions, a live aspect-aware preview, and a per-Short trim/retitle/reframe
-  editor.
+- Vertical/social shorts: deterministic or LLM selection, prompt/reprompt
+  focus, retake-aware conforming, 9:16/1:1/16:9 render, an optional source
+  window, burned ASS captions, a live aspect-aware preview, and a per-Short
+  trim/retitle/reframe editor.
 - Deterministic timeline: frame-quantised video, sample-aligned audio, merged
   speech spans, J/L-cut audio boundaries with handle checks, logarithmic fade
   metadata, and alternating punch-ins.

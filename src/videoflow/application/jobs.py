@@ -101,6 +101,9 @@ def _shorts_config(options: dict[str, object]) -> ShortsConfig:
         min_clips=minimum,
         max_clips_to_generate=count,
         selection_mode=str(options.get("shorts_selection_mode", "auto")),  # type: ignore[arg-type]
+        prompt=str(options.get("shorts_prompt", "")),
+        reprompt=str(options.get("shorts_reprompt", "")),
+        prompt_mode=str(options.get("shorts_prompt_mode", "replace")),  # type: ignore[arg-type]
         aspect_ratio=str(options.get("shorts_aspect", "9:16")),  # type: ignore[arg-type]
         source_start_sec=float(options.get("shorts_source_start_sec", 0.0)),
         source_end_sec=(

@@ -210,6 +210,12 @@ def test_run_passes_short_and_detailed_config_options(monkeypatch, tmp_path, cap
                 "heuristic",
                 "--shorts-aspect",
                 "16:9",
+                "--shorts-prompt",
+                "pricing",
+                "--shorts-reprompt",
+                "more energy",
+                "--shorts-prompt-mode",
+                "refine",
                 "--shorts-start-sec",
                 "5",
                 "--shorts-end-sec",
@@ -234,6 +240,9 @@ def test_run_passes_short_and_detailed_config_options(monkeypatch, tmp_path, cap
     assert seen["shorts_config"].min_clips == 3
     assert seen["shorts_config"].selection_mode == "heuristic"
     assert seen["shorts_config"].aspect_ratio == "16:9"
+    assert seen["shorts_config"].prompt == "pricing"
+    assert seen["shorts_config"].reprompt == "more energy"
+    assert seen["shorts_config"].prompt_mode == "refine"
     assert seen["shorts_config"].source_start_sec == 5
     assert seen["shorts_config"].source_end_sec == 50
     assert isinstance(seen["jl"], JlCutsConfig)

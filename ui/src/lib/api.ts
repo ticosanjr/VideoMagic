@@ -114,6 +114,9 @@ export interface JobOptions {
   shorts_max_sec?: number;
   shorts_subtitles?: boolean;
   shorts_selection_mode?: string;
+  shorts_prompt?: string;
+  shorts_reprompt?: string;
+  shorts_prompt_mode?: string;
   shorts_aspect?: string;
   shorts_source_start_sec?: number;
   shorts_source_end_sec?: number | null;
@@ -279,6 +282,9 @@ export interface NewJob {
   zoom_max_scale: number;
   shorts_min_count: number;
   shorts_selection_mode: string;
+  shorts_prompt: string;
+  shorts_reprompt: string;
+  shorts_prompt_mode: "replace" | "refine";
   shorts_aspect: string;
   shorts_source_start_sec: number;
   shorts_source_end_sec: number | null;

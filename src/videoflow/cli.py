@@ -19,6 +19,7 @@ from videoflow.application.retakes import cull_intervals
 from videoflow.application.retakes import cull_retakes as cull_transcript_retakes
 from videoflow.application.shorts import (
     build_ass,
+    previous_shorts_from_report,
     select_shorts,
     sentence_events,
     short_dimensions,
@@ -219,6 +220,21 @@ def _parser() -> argparse.ArgumentParser:
         default="auto",
     )
     run.add_argument(
+        "--shorts-prompt",
+        default="",
+        help="Topic or instruction used to focus Short selection.",
+    )
+    run.add_argument(
+        "--shorts-reprompt",
+        default="",
+        help="Refinement instruction for an existing Short selection.",
+    )
+    run.add_argument(
+        "--shorts-prompt-mode",
+        choices=("replace", "refine"),
+        default="replace",
+    )
+    run.add_argument(
         "--no-shorts-subtitles",
         action="store_true",
         help="Disable burned captions in Shorts.",
@@ -267,6 +283,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     shorts.add_argument("--start-sec", type=float, default=0.0)
     shorts.add_argument("--end-sec", type=float, default=None)
+    shorts.add_argument("--prompt", default="", help="Topic or instruction for selection.")
+    shorts.add_argument("--reprompt", default="", help="Refinement instruction.")
+    shorts.add_argument("--prompt-mode", choices=("replace", "refine"), default="replace")
     shorts.add_argument("--no-subtitles", action="store_true")
     shorts.add_argument("--cull-retakes", action="store_true")
     shorts.add_argument("--llm-base-url", default=os.environ.get("VIDEOWFLOW_LLM_BASE_URL"))
@@ -393,6 +412,9 @@ def _run(args: argparse.Namespace) -> int:
         min_clips=args.shorts_min_count,
         max_clips_to_generate=args.shorts_count,
         selection_mode=args.shorts_selection_mode,
+        prompt=args.shorts_prompt,
+        reprompt=args.shorts_reprompt,
+        prompt_mode=args.shorts_prompt_mode,
         aspect_ratio=args.shorts_aspect,
         source_start_sec=args.shorts_start_sec,
         source_end_sec=args.shorts_end_sec,
@@ -556,6 +578,11 @@ def _shorts(args: argparse.Namespace) -> int:
         print("--max-sec must be greater than --min-sec.", file=sys.stderr)
         return 2
     warnings: list[str] = []
+    previous = (
+        previous_shorts_from_report(output / "shorts.json")
+        if args.prompt_mode == "refine"
+        else []
+    )
     clips = select_shorts(
         kept,
         min_samples=minimum,
@@ -565,6 +592,10 @@ def _shorts(args: argparse.Namespace) -> int:
         cuts=cuts,
         client=client,
         warnings=warnings,
+        prompt=args.prompt,
+        reprompt=args.reprompt,
+        prompt_mode=args.prompt_mode,
+        previous=previous,
     )
     if not clips:
         print(json.dumps({"ok": False, "warnings": warnings}, indent=2), file=sys.stderr)

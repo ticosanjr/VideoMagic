@@ -22,6 +22,9 @@ follow semantic versioning once the project reaches 1.0.
 - Per-Short editor: trim, retitle, aspect/frame size, caption overrides, and
   re-render. The API is `POST /api/v1/jobs/{job_id}/shorts/{index}/edit`, the
   MCP tool is `videoflow_edit_short`, and the rack uses Clip/Captions tabs.
+- Prompt-to-Clip and reprompt for Short selection: topic focus, refinement
+  context from the previous `shorts.json`, heuristic term boosts, and LLM focus.
+  Exposed in CLI, API, MCP, project config, and the Shorts tab.
 
 ### Changed
 
@@ -40,7 +43,7 @@ follow semantic versioning once the project reaches 1.0.
 
 ### Verified
 
-- Tests: 325 passed, 11 xfailed, 7 deselected; coverage 99.01%; ruff and mypy
+- Tests: 329 passed, 11 xfailed, 7 deselected; coverage 99.02%; ruff and mypy
   clean.
 - UI: `svelte-check` reports 0 errors and 0 warnings; 13 Vitest tests and the
   production build pass.

@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from videoflow.application.shorts import (
@@ -219,3 +221,114 @@ def test_slice_pieces_trims_an_assembled_short() -> None:
     assert slice_pieces(pieces, 10, 20) == [(20, 30)]
     assert slice_pieces(pieces, 10, 10) == []
     assert slice_pieces(pieces, 25, 25) == []
+
+
+def test_prompt_biases_heuristic_selection() -> None:
+    sentences = [
+        sentence(0, 0, 10, "This cooking pasta recipe is simple."),
+        sentence(1, 10, 20, "The finance market crashed today."),
+        sentence(2, 20, 30, "Cooking with fresh basil changes everything."),
+    ]
+    clips = select_shorts(
+        sentences,
+        min_samples=5 * RATE,
+        max_samples=10 * RATE,
+        count=1,
+        sample_rate=RATE,
+        selection_mode="heuristic",
+        prompt="cooking basil",
+    )
+    assert len(clips) == 1
+    assert clips[0].sentence_ids in {(0,), (2,)}
+
+
+def test_llm_prompt_receives_focus_and_previous_selection() -> None:
+    from videoflow.application.shorts import ShortClip
+
+    sentences = [sentence(0, 0, 10), sentence(1, 10, 20)]
+    previous = [
+        ShortClip(
+            title="Old clip",
+            start_sample=0,
+            end_sample=10 * RATE,
+            sentence_ids=(0,),
+            pieces=((0, 10 * RATE),),
+        )
+    ]
+
+    class Client:
+        def complete_json(self, prompt: str, schema_name: str) -> dict:
+            assert "cooking" in prompt
+            assert "more energy" in prompt
+            assert "Old clip" in prompt
+            return {
+                "clips": [{"title": "Refined", "sentence_ids": [1]}],
+                "reasoning": "matches the focus",
+            }
+
+    clips = select_shorts(
+        sentences,
+        min_samples=5 * RATE,
+        max_samples=20 * RATE,
+        count=1,
+        sample_rate=RATE,
+        client=Client(),  # type: ignore[arg-type]
+        prompt="cooking",
+        reprompt="more energy",
+        prompt_mode="refine",
+        previous=previous,
+    )
+    assert clips[0].title == "Refined"
+
+
+def test_previous_shorts_loader_reads_a_completed_report(tmp_path) -> None:
+    from videoflow.application.shorts import ShortClip, previous_shorts_from_report
+
+    original = ShortClip(
+        title="Cooking",
+        start_sample=0,
+        end_sample=10 * RATE,
+        sentence_ids=(0, 1),
+        pieces=((0, 10 * RATE),),
+        score=3.5,
+    )
+    report = tmp_path / "shorts.json"
+    report.write_text(
+        json.dumps({"ok": True, "clips": [original.to_dict(RATE)]}), encoding="utf-8"
+    )
+    loaded = previous_shorts_from_report(report)
+    assert len(loaded) == 1
+    assert loaded[0].title == "Cooking"
+    assert loaded[0].sentence_ids == (0, 1)
+    assert loaded[0].pieces == ((0, 10 * RATE),)
+
+
+def test_reprompt_refine_can_change_the_topic() -> None:
+    sentences = [
+        sentence(0, 0, 10, "Cooking pasta with fresh basil."),
+        sentence(1, 10, 20, "The finance market crashed after the bank decision."),
+    ]
+    first = select_shorts(
+        sentences,
+        min_samples=5 * RATE,
+        max_samples=10 * RATE,
+        count=1,
+        sample_rate=RATE,
+        selection_mode="heuristic",
+        prompt="finance bank",
+    )
+    refined = select_shorts(
+        sentences,
+        min_samples=5 * RATE,
+        max_samples=10 * RATE,
+        count=1,
+        sample_rate=RATE,
+        selection_mode="heuristic",
+        prompt="finance bank",
+        prompt_mode="refine",
+        reprompt="cooking basil",
+        previous=first,
+    )
+    assert first[0].sentence_ids == (1,)
+    assert refined[0].sentence_ids in {(0,), (1,)}
+    assert refined[0].sentence_ids == (0,)
