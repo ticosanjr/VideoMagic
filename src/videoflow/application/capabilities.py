@@ -74,6 +74,16 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "videoflow_load_media",
         ),
         _entry(
+            "url_import",
+            "URL import",
+            "ingest",
+            "available",
+            "Download public http(s) links through yt-dlp.",
+            "POST /api/v1/media/import",
+            "videoflow_import_url",
+            requires=["yt-dlp", "network access"],
+        ),
+        _entry(
             "local_transcription",
             "Local transcription",
             "speech",

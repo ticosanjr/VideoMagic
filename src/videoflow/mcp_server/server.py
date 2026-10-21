@@ -58,6 +58,7 @@ from videoflow.application.short_editor import edit_short as edit_short_service
 from videoflow.application.short_metadata import generate_short_metadata
 from videoflow.application.shorts import select_shorts
 from videoflow.application.thumbnail import generate_short_thumbnail
+from videoflow.application.url_import import import_url
 from videoflow.application.vad import detect_speech as detect_vad
 from videoflow.application.voiceover import generate_short_voiceover
 from videoflow.domain.config import DubbingConfig, TtsConfig
@@ -346,6 +347,32 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         except VideoFlowError as exc:
             return exc.to_dict()
         return {"ok": True, "font": asset}
+
+    @mcp.tool()
+    def videoflow_import_url(
+        url: str,
+        max_height: int = 1080,
+        allow_playlist: bool = False,
+        allow_external_services: bool = False,
+        allowed_external_hosts: list[str] | None = None,
+    ) -> dict[str, object]:
+        """Download a public URL with yt-dlp and remember the local file."""
+
+        try:
+            path = import_url(
+                url,
+                max_height=max_height,
+                allow_playlist=allow_playlist,
+                allow_external_services=allow_external_services,
+                allowed_external_hosts=tuple(allowed_external_hosts or ()),
+            )
+            media = FFmpegAdapter().probe(path)
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        last["source"] = path
+        last["media"] = media
+        last["pending_options"] = {}
+        return {"ok": True, "path": str(path), "media": media.model_dump(mode="json")}
 
     @mcp.tool()
     def videoflow_load_media(file_path: str) -> dict[str, object]:

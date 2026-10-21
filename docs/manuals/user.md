@@ -24,6 +24,10 @@ You still finish the edit in your NLE. VideoFlow never touches the source file.
 
 ## 2. First run
 
+Public URLs can be imported from the Source card when external services are
+enabled. The downloaded file lands in the VideoFlow downloads folder and then
+follows the normal local probe.
+
 ### Portable CLI (available now)
 
 The portable path is usable today:

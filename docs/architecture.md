@@ -59,6 +59,7 @@ Rules:
 | `application/tracking.py` | Motion/face focus estimation for Short reframing |
 | `application/audio_analysis.py` | Audio-energy peak extraction |
 | `application/video_analysis.py` | FFmpeg scene-change detection |
+| `application/url_import.py` | yt-dlp source download and policy guard |
 | `application/project_templates.py` | Flat project templates and config envelopes |
 | `application/audio.py` | FFmpeg audio-enhancement filter builder |
 | `application/short_editor.py` | Per-Short trim, retitle, reframe, caption override, and re-render |

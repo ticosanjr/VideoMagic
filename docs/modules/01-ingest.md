@@ -12,6 +12,12 @@ Validate the container, establish the rational timebase, and produce the audio
 that every later module uses. Ingest is the only module that reads the source
 video container.
 
+## URL import
+
+`POST /api/v1/media/import` downloads a public http(s) URL through yt-dlp into
+`<home>/downloads`, then runs the normal probe. External services must be
+enabled and the host allowlist applies. Playlists are disabled by default.
+
 ## Inputs
 
 - Source path (already checked by the path jail).

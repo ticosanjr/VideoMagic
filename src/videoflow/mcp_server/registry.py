@@ -85,6 +85,11 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "assets",
     ),
     ToolSpec(
+        "videoflow_import_url",
+        "Download a public URL with yt-dlp and remember the local file.",
+        "ingest",
+    ),
+    ToolSpec(
         "videoflow_load_media",
         "Register a source video and return technical metadata. Does not modify the file.",
         "ingest",

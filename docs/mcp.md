@@ -42,7 +42,7 @@ For HTTP:
 
 ## 2. Tools
 
-All thirty tools execute real work. `videoflow_load_media` remembers the source.
+All thirty-one tools execute real work. `videoflow_load_media` remembers the source.
 Analysis tools work immediately. Edit tools stage configuration for the next
 `videoflow_run_pipeline`; the result says `applies_to_next_run` when a job is
 still required.
@@ -62,6 +62,7 @@ still required.
 | `videoflow_list_fonts` | none | **live**: uploaded font family names and paths |
 | `videoflow_upload_font` | `file_path` | **live**: copies a TTF/OTF from the allowed roots into the font asset store |
 | `videoflow_list_capabilities` | `allow_external_services` | **live**: feature availability, provider policy, and blocked reasons |
+| `videoflow_import_url` | `url`, `max_height`, `allow_playlist`, `allow_external_services`, `allowed_external_hosts` | **live**: yt-dlp download plus probe |
 | `videoflow_load_media` | `file_path` | **live**: probes and remembers the source; loading a different source clears the old MCP project context |
 | `videoflow_run_vad` | `noise_db`, `min_silence_ms`, `min_speech_ms`, `vad_engine`, `speech_threshold`, `speech_pad_before_ms`, `speech_pad_after_ms` | **live**: Silero when available, FFmpeg fallback; returns sample intervals, removable silence, and the selected engine |
 | `videoflow_transcribe` | `model`, `language`, `engine`, `device`, `compute_type`, `vad_filter`, `model_path` | **live**: local Faster-Whisper or whisper.cpp; returns sentences and stages an SRT for the next run |
@@ -185,6 +186,7 @@ The complete path, using only public tools:
 21. call videoflow_dub_short for translation dubbing
 22. call videoflow_list_brand_templates or videoflow_save_brand_template for reusable branding
 23. call videoflow_list_project_templates / videoflow_export_config for project presets
+24. call videoflow_import_url for public source links
 ```
 
 `videoflow_transcribe` writes a cached SRT and stages it, so the next pipeline

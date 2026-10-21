@@ -18,6 +18,7 @@
     getJob,
     getJobState,
     getSystem,
+    importMedia,
     listJobs,
     probeMedia,
     type Job,
@@ -70,6 +71,9 @@
   let sourceMedia = $state<ProbedMedia | null>(null);
   let mediaLoading = $state(false);
   let mediaError = $state("");
+  let sourceUrl = $state("");
+  let importingUrl = $state(false);
+  let urlError = $state("");
   let toast = $state<{ kind: "success" | "error"; message: string } | null>(null);
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
   let preset = $state<"youtube" | "lecture" | "shorts" | "custom">("custom");
@@ -164,6 +168,30 @@
     } else if (kind === "whisper_model") {
       config.whisper_model = path;
       preset = "custom";
+    }
+  }
+
+  async function importSourceUrl() {
+    if (!sourceUrl.trim() || importingUrl) return;
+    importingUrl = true;
+    urlError = "";
+    try {
+      const result = await importMedia(sourceUrl.trim(), {
+        allow_external_services: Boolean(config.allow_external_services),
+        allowed_external_hosts: String(config.allowed_external_hosts || "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean)
+      });
+      source = result.path;
+      if (!output.trim() || !outputTouched) applySuggestedOutput(result.path);
+      await inspectSource(result.path);
+      sourceUrl = "";
+      notify("success", "URL imported");
+    } catch (reason) {
+      urlError = errorMessage(reason);
+    } finally {
+      importingUrl = false;
     }
   }
 
@@ -780,6 +808,27 @@
               <span class="mt-2 text-sm font-medium text-neutral-200">Choose source video</span>
               <span class="mt-1 text-[10px] text-neutral-600">MP4, MOV, MKV, WebM, M4V, AVI</span>
             </button>
+          {/if}
+          <div class="mt-3 flex gap-2">
+            <input
+              type="url"
+              value={sourceUrl}
+              oninput={(event) => (sourceUrl = event.currentTarget.value)}
+              placeholder="https://…"
+              class="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100 placeholder:text-neutral-600"
+            />
+            <button
+              type="button"
+              onclick={importSourceUrl}
+              disabled={importingUrl || !sourceUrl.trim()}
+              class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-[10px] text-neutral-300 hover:border-sky-500/60 hover:text-sky-200 disabled:opacity-40"
+            >
+              {importingUrl ? "Importing…" : "Import URL"}
+            </button>
+          </div>
+          {#if urlError}<p class="mt-1 text-[10px] text-rose-300">{urlError}</p>{/if}
+          {#if !config.allow_external_services}
+            <p class="mt-1 text-[10px] text-neutral-600">Enable external services in Providers to import URLs.</p>
           {/if}
         </div>
 

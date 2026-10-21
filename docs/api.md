@@ -10,6 +10,7 @@ Implemented today:
 - `GET /api/v1/capabilities`
 - `GET /api/v1/fs/roots`, `GET /api/v1/fs/list`, `POST /api/v1/fs/mkdir`
 - `GET /api/v1/media/probe`
+- `POST /api/v1/media/import`
 - `GET /api/v1/assets/fonts`, `POST /api/v1/assets/fonts`
 - `GET /api/v1/assets/images`, `POST /api/v1/assets/images`
 - `GET /api/v1/assets/music`, `POST /api/v1/assets/music`
@@ -94,6 +95,25 @@ GET /api/v1/capabilities?allow_external=true
 Returns feature availability plus the effective external-service policy. A
 blocked provider includes a reason string. `VIDEOWFLOW_ALLOW_EXTERNAL=0` is a
 global kill switch; localhost providers remain available.
+
+### URL import
+
+```http
+POST /api/v1/media/import
+Content-Type: application/json
+```
+
+```json
+{
+  "url": "https://example.com/video",
+  "max_height": 1080,
+  "allow_playlist": false,
+  "allow_external_services": true
+}
+```
+
+Downloads into `<home>/downloads` with yt-dlp and returns the local path plus
+probe metadata. Host allowlists and the global external kill switch apply.
 
 ### Filesystem browser
 

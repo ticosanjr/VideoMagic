@@ -62,6 +62,7 @@ inserts, so the UI remains a vertical chain.
 - **Output picker**: browses directories, shows which are writable, and can
   create a new folder. Selecting a source suggests `<source-stem>-videoflow`.
 - **Transcript picker**: optional `.srt` file, filtered in the same browser.
+- **URL import**: a public URL field imports through yt-dlp when external services are enabled.
 - **Starting point**: YouTube, Lecture, and Main + Shorts cards. The Shorts
   add-on keeps the main project and adds vertical MP4s; manual changes switch
   the badge to Custom.

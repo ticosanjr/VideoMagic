@@ -46,6 +46,12 @@ export interface FsListing {
   mode: "file" | "directory";
 }
 
+export interface ImportedMedia {
+  ok: boolean;
+  path: string;
+  media: ProbedMedia["media"];
+}
+
 export interface ProbedMedia {
   ok: boolean;
   path: string;
@@ -555,6 +561,21 @@ export async function createDirectory(parent: string, name: string): Promise<FsE
     body: JSON.stringify({ parent, name })
   });
   return response.entry;
+}
+
+export async function importMedia(
+  url: string,
+  options: {
+    max_height?: number;
+    allow_playlist?: boolean;
+    allow_external_services?: boolean;
+    allowed_external_hosts?: string[];
+  } = {}
+): Promise<ImportedMedia> {
+  return request<ImportedMedia>("/api/v1/media/import", {
+    method: "POST",
+    body: JSON.stringify({ url, ...options })
+  });
 }
 
 export function probeMedia(path: string): Promise<ProbedMedia> {

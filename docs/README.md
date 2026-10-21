@@ -16,8 +16,9 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | SRT transcript import and LLM retake culling | implemented |
 | Local Faster-Whisper with whisper.cpp fallback, and ASR HTTP | implemented; pinned small model bundled in release builds |
 | Local filesystem browser with allowlisted roots | implemented; no media upload |
+| URL import | implemented via optional yt-dlp; external policy and host allowlist apply |
 | Jobs, job REST routes, SSE, live MCP jobs | implemented for the portable path |
-| MCP: thirty tools and four resources | implemented; analysis, capabilities, staged edits, jobs, export, resources |
+| MCP: thirty-one tools and four resources | implemented; analysis, capabilities, staged edits, jobs, export, resources |
 | Rack UI driving real portable jobs, logs, overrides, shorts | implemented; tabbed Speech/Edit/Shorts/Export/Providers layout and path picker |
 | Project-scoped routes, revisions, transcript API, presets | implemented; per-module rerun is typed 501 |
 | Shorts selection/rendering and API download | implemented; prompt/reprompt, explainable virality score, auto hook, filler cuts, censor, 9:16, 1:1, 16:9, optional source window |

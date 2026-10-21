@@ -67,6 +67,7 @@ from videoflow.application.short_editor import ShortEditOptions
 from videoflow.application.short_editor import edit_short as edit_short_service
 from videoflow.application.short_metadata import generate_short_metadata
 from videoflow.application.thumbnail import generate_short_thumbnail
+from videoflow.application.url_import import import_url
 from videoflow.application.voiceover import generate_short_voiceover
 from videoflow.domain.config import DubbingConfig, ModuleEnabled, TtsConfig
 from videoflow.domain.errors import (
@@ -258,6 +259,14 @@ class NewProjectRequest(BaseModel):
 
 class MediaRequest(BaseModel):
     file_path: str = Field(min_length=1)
+
+
+class MediaImportRequest(BaseModel):
+    url: str = Field(min_length=1)
+    max_height: int = Field(default=1080, ge=144, le=4320)
+    allow_playlist: bool = False
+    allow_external_services: bool = False
+    allowed_external_hosts: list[str] = Field(default_factory=list)
 
 
 class NewDirectoryRequest(BaseModel):
@@ -1387,6 +1396,21 @@ def register_routes(
             }
         except VideoFlowError as exc:
             fail(exc)
+
+    @app.post("/api/v1/media/import", status_code=201)
+    def import_media(request: MediaImportRequest) -> dict[str, object]:
+        try:
+            path = import_url(
+                request.url,
+                max_height=request.max_height,
+                allow_playlist=request.allow_playlist,
+                allow_external_services=request.allow_external_services,
+                allowed_external_hosts=tuple(request.allowed_external_hosts),
+            )
+            media = FFmpegAdapter().probe(path)
+        except VideoFlowError as exc:
+            fail(exc)
+        return {"ok": True, "path": str(path), "media": media.model_dump(mode="json")}
 
     @app.get("/api/v1/system")
     def system() -> dict[str, object]:
