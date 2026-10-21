@@ -289,11 +289,11 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "dubbing",
             "Dubbing",
             "audio",
-            "planned",
-            "Optional external or local voice-preserving dubbing.",
-            "planned",
-            "planned",
-            requires=["external provider or local model"],
+            "available",
+            "Translation plus external TTS dubbing over a Short.",
+            "POST /api/v1/jobs/{job_id}/shorts/{index}/dub",
+            "videoflow_dub_short",
+            requires=["external LLM", "external TTS"],
         ),
     ]
 

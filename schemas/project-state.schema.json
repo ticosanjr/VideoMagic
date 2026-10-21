@@ -326,6 +326,27 @@
       "title": "CaptionStyle",
       "type": "object"
     },
+    "DubbingConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "original_volume": {
+          "default": 0.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Original Volume",
+          "type": "number"
+        },
+        "target_language": {
+          "default": "en",
+          "maxLength": 20,
+          "minLength": 2,
+          "title": "Target Language",
+          "type": "string"
+        }
+      },
+      "title": "DubbingConfig",
+      "type": "object"
+    },
     "ExportConfig": {
       "additionalProperties": false,
       "properties": {
@@ -631,6 +652,9 @@
       "properties": {
         "audio": {
           "$ref": "#/$defs/AudioEnhanceConfig"
+        },
+        "dubbing": {
+          "$ref": "#/$defs/DubbingConfig"
         },
         "export": {
           "$ref": "#/$defs/ExportConfig"

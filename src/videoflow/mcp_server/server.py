@@ -23,6 +23,7 @@ from videoflow.application.capabilities import (
     ensure_external_allowed,
     external_services_allowed,
 )
+from videoflow.application.dubbing import generate_short_dubbing
 from videoflow.application.export_service import FILENAMES, export_timeline
 from videoflow.application.fonts import list_fonts, save_font
 from videoflow.application.images import list_images, save_image
@@ -37,7 +38,7 @@ from videoflow.application.shorts import select_shorts
 from videoflow.application.thumbnail import generate_short_thumbnail
 from videoflow.application.vad import detect_speech as detect_vad
 from videoflow.application.voiceover import generate_short_voiceover
-from videoflow.domain.config import TtsConfig
+from videoflow.domain.config import DubbingConfig, TtsConfig
 from videoflow.domain.errors import InvalidRetakeIdsError, StateNotReadyError, VideoFlowError
 from videoflow.domain.paths import resolve_allowed
 from videoflow.domain.state import MediaInfo, ProjectState, Sentence
@@ -909,6 +910,78 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         return {
             "ok": True,
             "voiceover": payload,
+            "short": job.result["shorts"][index],
+        }
+
+    @mcp.tool()
+    def videoflow_dub_short(
+        index: int,
+        target_language: str = "en",
+        text: str | None = None,
+        base_url: str | None = None,
+        model: str = "tts-1",
+        voice: str = "alloy",
+        speed: float = 1.0,
+        volume: float = 1.0,
+        original_volume: float = 0.0,
+        llm_base_url: str | None = None,
+        llm_model: str = "qwen2.5:7b-instruct",
+        allow_external_services: bool = False,
+        allowed_external_hosts: list[str] | None = None,
+    ) -> dict[str, object]:
+        """Translate and dub one completed Short with external TTS."""
+
+        job_id = last.get("job_id")
+        if not isinstance(job_id, str):
+            return _error("job_required", "Run videoflow_run_pipeline first.")
+        try:
+            job = manager.get(job_id)
+            if job.status != "succeeded" or job.result is None:
+                raise StateNotReadyError(
+                    "The job must succeed before dubbing can be generated."
+                )
+            state = ProjectState.model_validate_json(
+                (job.output / "project_state.json").read_text(encoding="utf-8")
+            )
+            stored_tts = state.modules_config.tts
+            tts = TtsConfig(
+                provider="openai_compatible",
+                base_url=base_url or stored_tts.base_url,
+                model=model or stored_tts.model,
+                voice=voice or stored_tts.voice,
+                secret_name=stored_tts.secret_name,
+                speed=speed,
+                volume=volume,
+                original_volume=original_volume,
+            )
+            dubbing = DubbingConfig(
+                target_language=target_language,
+                original_volume=original_volume,
+            )
+            payload = generate_short_dubbing(
+                output=job.output,
+                index=index,
+                result=job.result,
+                source_text=text,
+                target_language=target_language,
+                tts=tts,
+                dubbing=dubbing,
+                llm_base_url=(
+                    llm_base_url
+                    or state.modules_config.retakes.base_url
+                    or "http://localhost:11434/v1"
+                ),
+                llm_model=llm_model or state.modules_config.retakes.model_name,
+                llm_api_key=os.environ.get("VIDEOWFLOW_LLM_API_KEY"),
+                tts_api_key=os.environ.get(tts.secret_name),
+                allow_external_services=allow_external_services,
+                allowed_external_hosts=tuple(allowed_external_hosts or ()),
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {
+            "ok": True,
+            "dubbing": payload,
             "short": job.result["shorts"][index],
         }
 

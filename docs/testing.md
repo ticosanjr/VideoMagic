@@ -15,7 +15,7 @@ hides the contract. VideoFlow resolves this with two layers:
 
 | Scope | Line coverage | Notes |
 | --- | --- | --- |
-| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.06% (351 passing, 11 strict xfail, 7 deselected) |
+| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.06% (353 passing, 11 strict xfail, 7 deselected) |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |
 | UI | `npm run check` and `npm run build` | Manual: start a job from the rack and confirm progress and artifacts |
@@ -85,6 +85,7 @@ smokes run locally and are recorded in the release notes.
 | `test_images.py` | PNG asset round-trip and invalid image rejection |
 | `test_music.py` | Mix filter, ducking, fades, and music asset store |
 | `test_tts.py` | OpenAI-compatible speech synthesis request and audio write |
+| `test_dubbing.py` | Translation prompt and response validation |
 | `test_portable.py` | End-to-end portable service with a fake engine and retakes |
 | `test_jobs.py` | Job completion, failure, cancellation, queue limit, pruning, VAD/Faster-Whisper, detailed zoom/fade/Shorts/caption forwarding |
 | `test_telemetry.py` | Stage lifecycle, durations, logs, filters, cap |

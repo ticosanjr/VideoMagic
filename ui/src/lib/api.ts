@@ -210,9 +210,22 @@ export interface ShortClip {
   thumbnail?: string;
   thumbnails?: ShortThumbnail[];
   voiceover?: ShortVoiceover;
+  dubbing?: ShortDubbing;
   edited_at?: string;
   edit_count?: number;
   previous_path?: string;
+}
+
+export interface ShortDubbing {
+  source_text: string;
+  translated_text: string;
+  target_language: string;
+  audio_path: string;
+  path: string;
+  provider: string;
+  model: string;
+  voice: string;
+  original_volume: number;
 }
 
 export interface ShortVoiceover {
@@ -641,6 +654,27 @@ export async function generateShortVoiceover(
   }
 ): Promise<{ ok: boolean; voiceover: ShortVoiceover; short: ShortClip }> {
   return request(`/api/v1/jobs/${jobId}/shorts/${index}/voiceover`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function generateShortDubbing(
+  jobId: string,
+  index: number,
+  payload: {
+    text?: string;
+    target_language: string;
+    base_url?: string;
+    model?: string;
+    voice?: string;
+    llm_base_url?: string;
+    llm_model?: string;
+    allow_external_services?: boolean;
+    allowed_external_hosts?: string[];
+  }
+): Promise<{ ok: boolean; dubbing: ShortDubbing; short: ShortClip }> {
+  return request(`/api/v1/jobs/${jobId}/shorts/${index}/dub`, {
     method: "POST",
     body: JSON.stringify(payload)
   });

@@ -4,6 +4,7 @@
     errorMessage,
     generateShortMetadata,
     generateShortThumbnail,
+    generateShortDubbing,
     generateShortVoiceover,
     type ShortClip,
     type ShortMetadata,
@@ -57,6 +58,14 @@
   let voiceoverVoice = $state("alloy");
   let voiceoverBusy = $state(false);
   let voiceoverError = $state("");
+  let dubLanguage = $state("en");
+  let dubBaseUrl = $state("");
+  let dubModel = $state("tts-1");
+  let dubVoice = $state("alloy");
+  let dubLlmBaseUrl = $state("");
+  let dubLlmModel = $state("qwen2.5:7b-instruct");
+  let dubBusy = $state(false);
+  let dubError = $state("");
 
   $effect(() => {
     if (!open) return;
@@ -84,6 +93,13 @@
     voiceoverModel = short.voiceover?.model ?? "tts-1";
     voiceoverVoice = short.voiceover?.voice ?? "alloy";
     voiceoverError = "";
+    dubLanguage = short.dubbing?.target_language ?? "en";
+    dubBaseUrl = "";
+    dubModel = short.dubbing?.model ?? "tts-1";
+    dubVoice = short.dubbing?.voice ?? "alloy";
+    dubLlmBaseUrl = "";
+    dubLlmModel = "qwen2.5:7b-instruct";
+    dubError = "";
   });
 
   function setPlatform(value: string) {
@@ -106,6 +122,33 @@
       metadataError = errorMessage(reason);
     } finally {
       metadataBusy = false;
+    }
+  }
+
+  async function makeDubbing() {
+    if (dubBusy) return;
+    dubBusy = true;
+    dubError = "";
+    try {
+      const hosts = allowedHosts
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      const response = await generateShortDubbing(jobId, index, {
+        target_language: dubLanguage,
+        base_url: dubBaseUrl.trim() || undefined,
+        model: dubModel,
+        voice: dubVoice,
+        llm_base_url: dubLlmBaseUrl.trim() || undefined,
+        llm_model: dubLlmModel,
+        allow_external_services: allowExternal,
+        allowed_external_hosts: hosts
+      });
+      onSaved(response.short);
+    } catch (reason) {
+      dubError = errorMessage(reason);
+    } finally {
+      dubBusy = false;
     }
   }
 
@@ -498,6 +541,70 @@
             {#if short.voiceover}
               <p class="mt-2 text-[10px] text-emerald-300">
                 Voice-over mixed · {short.voiceover.model} · {short.voiceover.voice}
+              </p>
+            {/if}
+          </div>
+
+          <div class="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
+            <p class="text-[10px] uppercase tracking-wide text-neutral-500">Dubbing / translation</p>
+            <div class="mt-2 grid gap-2 sm:grid-cols-3">
+              <input
+                type="text"
+                value={dubLanguage}
+                oninput={(event) => (dubLanguage = event.currentTarget.value)}
+                placeholder="target language"
+                class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100"
+              />
+              <input
+                type="text"
+                value={dubModel}
+                oninput={(event) => (dubModel = event.currentTarget.value)}
+                placeholder="TTS model"
+                class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100"
+              />
+              <input
+                type="text"
+                value={dubVoice}
+                oninput={(event) => (dubVoice = event.currentTarget.value)}
+                placeholder="TTS voice"
+                class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100"
+              />
+              <input
+                type="text"
+                value={dubBaseUrl}
+                oninput={(event) => (dubBaseUrl = event.currentTarget.value)}
+                placeholder="TTS base URL"
+                class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100"
+              />
+              <input
+                type="text"
+                value={dubLlmBaseUrl}
+                oninput={(event) => (dubLlmBaseUrl = event.currentTarget.value)}
+                placeholder="LLM base URL"
+                class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100"
+              />
+              <input
+                type="text"
+                value={dubLlmModel}
+                oninput={(event) => (dubLlmModel = event.currentTarget.value)}
+                placeholder="LLM model"
+                class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100"
+              />
+            </div>
+            <button
+              type="button"
+              onclick={makeDubbing}
+              disabled={dubBusy || !allowExternal}
+              class="mt-2 rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/10 px-3 py-1.5 text-xs font-medium text-fuchsia-200 disabled:opacity-40"
+            >
+              {dubBusy ? "Dubbing…" : "Translate and dub"}
+            </button>
+            {#if dubError}
+              <p class="mt-2 text-[10px] text-rose-300">{dubError}</p>
+            {/if}
+            {#if short.dubbing}
+              <p class="mt-2 text-[10px] text-emerald-300">
+                Dubbed to {short.dubbing.target_language} · {short.dubbing.model} · {short.dubbing.voice}
               </p>
             {/if}
           </div>

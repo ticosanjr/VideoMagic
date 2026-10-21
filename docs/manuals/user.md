@@ -198,6 +198,9 @@ vertical-only output.
   model, and voice. External services must be enabled in Providers.
 - **Intro/outro**: pick uploaded images and durations. Cards are added after the
   Short render, with silent audio.
+- **Dubbing**: enter the target language and LLM/TTS endpoints. The transcript is
+  translated, synthesized, and mixed over the Short. External services must be
+  enabled.
 - **Duration** is checked after retake culling. The Shorts tab also has
   `0–1`, `1–3`, `3–5`, and `5–10` minute presets.
 - **Aspect ratio** is `9:16`, `1:1`, or `16:9`. ASS and FFmpeg use the same

@@ -130,6 +130,7 @@ All config models forbid unknown fields. That is deliberate: a request containin
 | `MusicConfig` | music asset, volume, ducking, fades |
 | `TtsConfig` | provider, base URL, model, voice, speed, volume, original volume; secret name only |
 | `IntroOutroConfig` | image assets and 0.2–10 s card durations |
+| `DubbingConfig` | target language and original volume |
 | `CaptionStyle.censor_*` | optional profanity word list and replacement |
 | `CaptionStyle` branding | keyword list/color, emoji map, brand vocabulary |
 | `ExportConfig` | dialect 1.9/1.10, write flags |

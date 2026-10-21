@@ -195,6 +195,11 @@ class ProvidersConfig(StrictModel):
     allowed_hosts: list[str] = Field(default_factory=list)
 
 
+class DubbingConfig(StrictModel):
+    target_language: str = Field(default="en", min_length=2, max_length=20)
+    original_volume: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
 class IntroOutroConfig(StrictModel):
     intro_enabled: bool = False
     intro_asset: str = ""
@@ -253,6 +258,7 @@ class ModulesConfig(StrictModel):
     music: MusicConfig = Field(default_factory=MusicConfig)
     tts: TtsConfig = Field(default_factory=TtsConfig)
     intro_outro: IntroOutroConfig = Field(default_factory=IntroOutroConfig)
+    dubbing: DubbingConfig = Field(default_factory=DubbingConfig)
     ingest: IngestConfig = Field(default_factory=IngestConfig)
     vad: VadConfig = Field(default_factory=VadConfig)
     transcribe: TranscribeConfig = Field(default_factory=TranscribeConfig)

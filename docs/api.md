@@ -529,6 +529,28 @@ path and stores it under `short.thumbnails`.
 GET /api/v1/jobs/{job_id}/shorts/{index}/thumbnail
 ```
 
+### Generate Short dubbing
+
+```http
+POST /api/v1/jobs/{job_id}/shorts/{index}/dub
+Content-Type: application/json
+```
+
+```json
+{
+  "target_language": "en",
+  "base_url": "http://localhost:8880/v1",
+  "model": "tts-1",
+  "voice": "alloy",
+  "llm_base_url": "http://localhost:11434/v1",
+  "llm_model": "qwen2.5:7b-instruct",
+  "allow_external_services": true
+}
+```
+
+Translates the Short transcript, synthesizes the translation, and mixes it over
+the Short. `original_volume` defaults to `0` for dub-only.
+
 ### Generate Short voice-over
 
 ```http

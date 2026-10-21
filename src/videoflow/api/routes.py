@@ -21,6 +21,7 @@ from videoflow.application.capabilities import (
     capability_manifest,
     external_services_allowed,
 )
+from videoflow.application.dubbing import generate_short_dubbing
 from videoflow.application.export_service import export_timeline
 from videoflow.application.filesystem import create_directory, list_directory, roots_payload
 from videoflow.application.fonts import list_fonts, save_font
@@ -41,7 +42,7 @@ from videoflow.application.short_editor import edit_short as edit_short_service
 from videoflow.application.short_metadata import generate_short_metadata
 from videoflow.application.thumbnail import generate_short_thumbnail
 from videoflow.application.voiceover import generate_short_voiceover
-from videoflow.domain.config import ModuleEnabled, TtsConfig
+from videoflow.domain.config import DubbingConfig, ModuleEnabled, TtsConfig
 from videoflow.domain.errors import (
     CapabilityUnavailableError,
     FilesystemError,
@@ -243,6 +244,21 @@ class ProjectRunRequest(BaseModel):
 class ExportRequest(BaseModel):
     targets: list[Literal["resolve", "premiere", "kdenlive"]] | None = None
     dialect: Literal["1.9", "1.10"] | None = None
+
+
+class ShortDubbingRequest(BaseModel):
+    text: str | None = None
+    target_language: str = Field(default="en", min_length=2, max_length=20)
+    base_url: str | None = None
+    model: str = "tts-1"
+    voice: str = "alloy"
+    speed: float = Field(default=1.0, ge=0.25, le=4.0)
+    volume: float = Field(default=1.0, ge=0.0, le=1.0)
+    original_volume: float = Field(default=0.0, ge=0.0, le=1.0)
+    llm_base_url: str | None = None
+    llm_model: str = "qwen2.5:7b-instruct"
+    allow_external_services: bool = False
+    allowed_external_hosts: list[str] = Field(default_factory=list)
 
 
 class ShortVoiceoverRequest(BaseModel):
@@ -745,6 +761,57 @@ def register_routes(
             fail(exc)
         return {"ok": True, "voiceover": payload, "short": job.result["shorts"][index]}
 
+    @app.post("/api/v1/jobs/{job_id}/shorts/{index}/dub")
+    def short_dubbing(
+        job_id: str, index: int, request: ShortDubbingRequest
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            if job.status != "succeeded" or job.result is None:
+                raise StateNotReadyError(
+                    "The job must succeed before dubbing can be generated."
+                )
+            state = ProjectState.model_validate_json(
+                (job.output / "project_state.json").read_text(encoding="utf-8")
+            )
+            stored_tts = state.modules_config.tts
+            tts = TtsConfig(
+                provider="openai_compatible",
+                base_url=request.base_url or stored_tts.base_url,
+                model=request.model or stored_tts.model,
+                voice=request.voice or stored_tts.voice,
+                secret_name=stored_tts.secret_name,
+                speed=request.speed,
+                volume=request.volume,
+                original_volume=request.original_volume,
+            )
+            dubbing = DubbingConfig(
+                target_language=request.target_language,
+                original_volume=request.original_volume,
+            )
+            payload = generate_short_dubbing(
+                output=job.output,
+                index=index,
+                result=job.result,
+                source_text=request.text,
+                target_language=request.target_language,
+                tts=tts,
+                dubbing=dubbing,
+                llm_base_url=(
+                    request.llm_base_url
+                    or state.modules_config.retakes.base_url
+                    or "http://localhost:11434/v1"
+                ),
+                llm_model=request.llm_model or state.modules_config.retakes.model_name,
+                llm_api_key=os.environ.get("VIDEOWFLOW_LLM_API_KEY"),
+                tts_api_key=os.environ.get(tts.secret_name),
+                allow_external_services=request.allow_external_services,
+                allowed_external_hosts=tuple(request.allowed_external_hosts),
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+        return {"ok": True, "dubbing": payload, "short": job.result["shorts"][index]}
+
     @app.get("/api/v1/jobs/{job_id}/state")
     def job_state(job_id: str) -> dict[str, object]:
         try:
@@ -1229,6 +1296,7 @@ def status_for(code: str) -> int:
         "state_not_ready": 409,
         "short_edit_failed": 422,
         "tts_failed": 502,
+        "llm_failed": 502,
         "transcript_not_found": 404,
         "transcript_required": 422,
         "invalid_override": 422,

@@ -115,6 +115,11 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "shorts",
     ),
     ToolSpec(
+        "videoflow_dub_short",
+        "Translate and dub one completed Short with external TTS.",
+        "shorts",
+    ),
+    ToolSpec(
         "videoflow_export_fcpxml",
         "Export the latest completed timeline for Resolve, Premiere, or Kdenlive.",
         "export",

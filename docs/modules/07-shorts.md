@@ -101,6 +101,14 @@ PNG/JPEG assets from the image store can be prepended/appended to a Short with
 configurable durations. Cards are normalized to the Short size, given silent
 audio, and concatenated after captions, overlays, music, and voice-over.
 
+## Dubbing
+
+`POST /api/v1/jobs/{job_id}/shorts/{index}/dub` sends the Short transcript to an
+OpenAI-compatible chat endpoint for translation, then to the TTS endpoint, and
+mixes the translated narration over the Short. The default original volume is
+zero for dub-only playback; it is configurable. API keys stay in environment
+variables.
+
 ## Voice-over
 
 `POST /api/v1/jobs/{job_id}/shorts/{index}/voiceover` calls an

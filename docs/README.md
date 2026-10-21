@@ -17,7 +17,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Local Faster-Whisper with whisper.cpp fallback, and ASR HTTP | implemented; pinned small model bundled in release builds |
 | Local filesystem browser with allowlisted roots | implemented; no media upload |
 | Jobs, job REST routes, SSE, live MCP jobs | implemented for the portable path |
-| MCP: twenty-three tools and four resources | implemented; analysis, capabilities, staged edits, jobs, export, resources |
+| MCP: twenty-four tools and four resources | implemented; analysis, capabilities, staged edits, jobs, export, resources |
 | Rack UI driving real portable jobs, logs, overrides, shorts | implemented; tabbed Speech/Edit/Shorts/Export/Providers layout and path picker |
 | Project-scoped routes, revisions, transcript API, presets | implemented; per-module rerun is typed 501 |
 | Shorts selection/rendering and API download | implemented; prompt/reprompt, explainable virality score, auto hook, filler cuts, censor, 9:16, 1:1, 16:9, optional source window |
@@ -29,6 +29,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Background music | implemented; looping bed, volume, fades, sidechain ducking |
 | Voice-over | implemented; OpenAI-compatible TTS, mixed over a Short |
 | Intro/outro | implemented; image cards with configurable durations |
+| Dubbing | implemented; translation plus external TTS over a Short |
 | Per-Short editor | implemented; trim, retitle, reframe, caption overrides, re-render |
 | Capability/provider discovery and external policy | implemented; external providers are opt-in and globally blockable |
 | NLE audio fades | implemented in FCPXML, xmeml, and Kdenlive |
