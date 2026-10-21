@@ -102,7 +102,7 @@ colors, outline, shadow, box, alignment, and position. The per-Short editor has
 Clip, Captions, and Metadata tabs. Saving a clip/caption edit writes a fresh
 render under `shorts/edited/`; the Metadata tab generates platform title,
 description, hashtags, a PNG thumbnail with preview/download, a TTS voice-over,
-and translation dubbing.
+translation dubbing, multimodal analysis, and webhook scheduling.
 
 The picker never offers a parent above the allowlisted root. If a symlink points
 outside the roots it is omitted. Network shares and unlisted disks require an

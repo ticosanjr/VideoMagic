@@ -37,7 +37,7 @@ def track_focus_x(
     *,
     mode: str = "motion_tracking",
 ) -> tuple[float, str]:
-    frames = _frames(source, pieces, sample_rate)
+    frames = frames_from_pieces(source, pieces, sample_rate)
     if mode == "face_tracking":
         try:
             face_focus = _face_focus(frames)
@@ -49,7 +49,7 @@ def track_focus_x(
     return focus_x_from_frames(frames), "motion_tracking"
 
 
-def _frames(
+def frames_from_pieces(
     source: Path,
     pieces: Sequence[tuple[int, int]],
     sample_rate: int,

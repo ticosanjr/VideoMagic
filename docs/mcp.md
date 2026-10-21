@@ -42,7 +42,7 @@ For HTTP:
 
 ## 2. Tools
 
-All thirty-one tools execute real work. `videoflow_load_media` remembers the source.
+All thirty-six tools execute real work. `videoflow_load_media` remembers the source.
 Analysis tools work immediately. Edit tools stage configuration for the next
 `videoflow_run_pipeline`; the result says `applies_to_next_run` when a job is
 still required.
@@ -53,6 +53,11 @@ still required.
 | `videoflow_upload_music` | `file_path` | **live**: copies an audio track into the music store |
 | `videoflow_list_images` | none | **live**: uploaded watermark/overlay images |
 | `videoflow_upload_image` | `file_path` | **live**: copies a PNG/JPEG from the allowed roots into the image store |
+| `videoflow_list_publish_targets` | none | **live**: webhook targets |
+| `videoflow_save_publish_target` | `name`, `webhook_url`, `description`, `secret_name`, `enabled` | **live**: save a webhook target |
+| `videoflow_list_publish_queue` | none | **live**: scheduled/sent/failed items |
+| `videoflow_analyze_short` | `index` | **live**: audio-emotion proxy, motion, optional faces |
+| `videoflow_schedule_short` | `index`, `target`, `platform`, `tone`, `scheduled_at` | **live**: generate metadata and enqueue |
 | `videoflow_list_project_templates` | none | **live**: saved project configurations |
 | `videoflow_save_project_template` | `name`, `template` | **live**: save a flat run configuration |
 | `videoflow_export_config` | `options` | **live**: versioned non-secret envelope |
@@ -187,6 +192,8 @@ The complete path, using only public tools:
 22. call videoflow_list_brand_templates or videoflow_save_brand_template for reusable branding
 23. call videoflow_list_project_templates / videoflow_export_config for project presets
 24. call videoflow_import_url for public source links
+25. call videoflow_schedule_short for webhook publishing
+26. call videoflow_analyze_short for optional multimodal analysis
 ```
 
 `videoflow_transcribe` writes a cached SRT and stages it, so the next pipeline

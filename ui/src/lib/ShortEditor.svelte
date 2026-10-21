@@ -1,4 +1,6 @@
 <script lang="ts">
+  import PublishPanel from "$lib/PublishPanel.svelte";
+  import { analyzeShort, type ShortAnalysis } from "$lib/api";
   import {
     editShort,
     errorMessage,
@@ -66,6 +68,9 @@
   let dubLlmModel = $state("qwen2.5:7b-instruct");
   let dubBusy = $state(false);
   let dubError = $state("");
+  let analysis = $state<ShortAnalysis | null>(null);
+  let analysisBusy = $state(false);
+  let analysisError = $state("");
 
   $effect(() => {
     if (!open) return;
@@ -100,6 +105,8 @@
     dubLlmBaseUrl = "";
     dubLlmModel = "qwen2.5:7b-instruct";
     dubError = "";
+    analysis = short.analysis ?? null;
+    analysisError = "";
   });
 
   function setPlatform(value: string) {
@@ -122,6 +129,20 @@
       metadataError = errorMessage(reason);
     } finally {
       metadataBusy = false;
+    }
+  }
+
+  async function runAnalysis() {
+    if (analysisBusy) return;
+    analysisBusy = true;
+    analysisError = "";
+    try {
+      const response = await analyzeShort(jobId, index);
+      analysis = response.analysis;
+    } catch (reason) {
+      analysisError = errorMessage(reason);
+    } finally {
+      analysisBusy = false;
     }
   }
 
@@ -608,6 +629,36 @@
               </p>
             {/if}
           </div>
+
+          <div class="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-[10px] uppercase tracking-wide text-neutral-500">Multimodal analysis</p>
+              <button
+                type="button"
+                onclick={runAnalysis}
+                disabled={analysisBusy}
+                class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40"
+              >
+                {analysisBusy ? "Analyzing…" : "Analyze"}
+              </button>
+            </div>
+            {#if analysisError}<p class="mt-2 text-[10px] text-rose-300">{analysisError}</p>{/if}
+            {#if analysis}
+              <div class="mt-2 grid gap-1 text-[10px] text-neutral-400 sm:grid-cols-2">
+                <p>Audio: <span class="text-neutral-200">{analysis.audio.label}</span></p>
+                <p>Motion: <span class="text-neutral-200">{analysis.visual.motion ? `${Math.round(analysis.visual.motion.coverage * 100)}%` : "none"}</span></p>
+                <p>Faces: <span class="text-neutral-200">{analysis.visual.face_count ?? "model not installed"}</span></p>
+                <p>Visual provider: <span class="text-neutral-200">{analysis.visual.provider}</span></p>
+              </div>
+            {/if}
+          </div>
+
+          <PublishPanel
+            {jobId}
+            {index}
+            allowExternal={allowExternal}
+            allowedHosts={allowedHosts}
+          />
         {/if}
 
         {#if error}

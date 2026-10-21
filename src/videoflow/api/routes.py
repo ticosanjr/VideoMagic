@@ -35,6 +35,7 @@ from videoflow.application.filesystem import create_directory, list_directory, r
 from videoflow.application.fonts import list_fonts, save_font
 from videoflow.application.images import list_images, save_image
 from videoflow.application.jobs import TERMINAL, Job, JobManager
+from videoflow.application.multimodal import analyze_short_entry
 from videoflow.application.music import list_music, save_music
 from videoflow.application.presets import get_preset, load_presets, save_preset
 from videoflow.application.project_templates import (
@@ -62,6 +63,16 @@ from videoflow.application.projects import (
     apply_module_enabled,
     apply_overrides,
     apply_preset,
+)
+from videoflow.application.publishing import (
+    PublishTarget,
+    cancel_publish,
+    delete_target,
+    dispatch_due,
+    enqueue_publish,
+    list_queue,
+    list_targets,
+    save_target,
 )
 from videoflow.application.short_editor import ShortEditOptions
 from videoflow.application.short_editor import edit_short as edit_short_service
@@ -286,6 +297,28 @@ class ProjectRunRequest(BaseModel):
 class ExportRequest(BaseModel):
     targets: list[Literal["resolve", "premiere", "kdenlive"]] | None = None
     dialect: Literal["1.9", "1.10"] | None = None
+
+
+class PublishTargetRequest(BaseModel):
+    description: str = ""
+    webhook_url: str = Field(min_length=1)
+    secret_name: str = "VIDEOWFLOW_PUBLISH_TOKEN"
+    enabled: bool = True
+
+
+class PublishShortRequest(BaseModel):
+    target: str = Field(min_length=1)
+    platform: Literal["youtube", "tiktok", "instagram", "linkedin"] = "youtube"
+    tone: Literal["engaging", "professional", "educational", "bold"] = "engaging"
+    scheduled_at: str | None = None
+    extra_hashtags: list[str] = Field(default_factory=list)
+    allow_external_services: bool = False
+    allowed_external_hosts: list[str] = Field(default_factory=list)
+
+
+class PublishDispatchRequest(BaseModel):
+    allow_external_services: bool = False
+    allowed_external_hosts: list[str] = Field(default_factory=list)
 
 
 class ConfigExportRequest(BaseModel):
@@ -570,6 +603,82 @@ def register_routes(
         except VideoFlowError as exc:
             raise HTTPException(status_code=status_for(exc.code), detail=exc.to_dict()) from exc
         return {"ok": True, "job": job.to_dict()}
+
+    @app.get("/api/v1/publish/targets")
+    def publish_targets() -> dict[str, object]:
+        return {"ok": True, "targets": list_targets()}
+
+    @app.put("/api/v1/publish/targets/{name}")
+    def put_publish_target(name: str, request: PublishTargetRequest) -> dict[str, object]:
+        return {
+            "ok": True,
+            "target": save_target(
+                PublishTarget(name=name, **request.model_dump())
+            ),
+        }
+
+    @app.delete("/api/v1/publish/targets/{name}")
+    def remove_publish_target(name: str) -> dict[str, object]:
+        delete_target(name)
+        return {"ok": True, "deleted": name}
+
+    @app.get("/api/v1/publish/queue")
+    def publish_queue() -> dict[str, object]:
+        return {"ok": True, "items": list_queue()}
+
+    @app.post("/api/v1/publish/queue/{item_id}/cancel")
+    def cancel_publish_item(item_id: str) -> dict[str, object]:
+        try:
+            return {"ok": True, "item": cancel_publish(item_id)}
+        except VideoFlowError as exc:
+            fail(exc)
+
+    @app.post("/api/v1/publish/dispatch")
+    def publish_dispatch(request: PublishDispatchRequest) -> dict[str, object]:
+        items = dispatch_due(
+            allow_external_services=request.allow_external_services,
+            allowed_hosts=tuple(request.allowed_external_hosts),
+        )
+        return {"ok": True, "items": items}
+
+    @app.post("/api/v1/jobs/{job_id}/shorts/{index}/publish")
+    def publish_short(
+        job_id: str, index: int, request: PublishShortRequest
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            if job.status != "succeeded" or job.result is None:
+                raise StateNotReadyError(
+                    "The job must succeed before a Short can be published."
+                )
+            shorts = job.result.get("shorts")
+            if not isinstance(shorts, list) or index < 0 or index >= len(shorts):
+                raise StateNotReadyError("Short index is out of range.")
+            entry = shorts[index]
+            if not isinstance(entry, dict) or not entry.get("path"):
+                raise StateNotReadyError("Short asset is missing.")
+            metadata = generate_short_metadata(
+                output=job.output,
+                index=index,
+                result=job.result,
+                platform=request.platform,
+                tone=request.tone,
+                extra_hashtags=tuple(request.extra_hashtags),
+            )
+            item = enqueue_publish(
+                target_name=request.target,
+                asset_path=Path(str(entry["path"])),
+                title=str(metadata["title"]),
+                description=str(metadata["description"]),
+                hashtags=[str(tag) for tag in metadata["hashtags"]],
+                platform=request.platform,
+                scheduled_at=request.scheduled_at,
+                job_id=job_id,
+                short_index=index,
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+        return {"ok": True, "item": item}
 
     @app.get("/api/v1/project-templates")
     def project_templates() -> dict[str, object]:
@@ -953,6 +1062,25 @@ def register_routes(
         except VideoFlowError as exc:
             fail(exc)
         return {"ok": True, "dubbing": payload, "short": job.result["shorts"][index]}
+
+    @app.post("/api/v1/jobs/{job_id}/shorts/{index}/analyze")
+    def analyze_short(job_id: str, index: int) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            if job.status != "succeeded" or job.result is None:
+                raise StateNotReadyError("The job must succeed before analysis.")
+            analysis = analyze_short_entry(
+                output=job.output,
+                index=index,
+                result=job.result,
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+        return {
+            "ok": True,
+            "analysis": analysis,
+            "short": job.result["shorts"][index],
+        }
 
     @app.get("/api/v1/jobs/{job_id}/state")
     def job_state(job_id: str) -> dict[str, object]:

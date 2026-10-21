@@ -131,6 +131,9 @@ All config models forbid unknown fields. That is deliberate: a request containin
 | `TtsConfig` | provider, base URL, model, voice, speed, volume, original volume; secret name only |
 | `IntroOutroConfig` | image assets and 0.2–10 s card durations |
 | `DubbingConfig` | target language and original volume |
+| `PublishTarget` | webhook URL, secret name, enabled |
+| `PublishQueueItem` | asset, metadata, schedule, status, attempts |
+| `ShortClip.analysis` | audio labels, motion, optional face statistics |
 | `BrandTemplate` | caption style, overlay, music, and intro/outro bundle |
 | `CaptionStyle.censor_*` | optional profanity word list and replacement |
 | `CaptionStyle` branding | keyword list/color, emoji map, brand vocabulary |

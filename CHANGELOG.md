@@ -64,6 +64,10 @@ follow semantic versioning once the project reaches 1.0.
   and exposes scene counts.
 - Public URL import through yt-dlp, external-policy guarded, with API/MCP/UI
   integration and normal media probing.
+- Webhook publishing and scheduling with target CRUD, generated metadata, a
+  durable queue, bearer-token secret references, and a local daemon.
+- Optional multimodal Short analysis: audio-emotion heuristics, visual motion
+  regions, and OpenCV face statistics when installed.
 
 ### Changed
 
@@ -72,7 +76,7 @@ follow semantic versioning once the project reaches 1.0.
   pruned folder.
 - Release staging is documented as the canonical artifact store. Generated
   `build/`, `dist/`, coverage files, and caches are cleaned after each release.
-- MCP now exposes thirty-one tools and four resources.
+- MCP now exposes thirty-six tools and four resources.
 
 ### Docs
 
@@ -82,7 +86,7 @@ follow semantic versioning once the project reaches 1.0.
 
 ### Verified
 
-- Tests: 366 passed, 11 xfailed, 7 deselected; coverage 99.06%; ruff and mypy
+- Tests: 370 passed, 11 xfailed, 7 deselected; coverage 99.06%; ruff and mypy
   clean.
 - UI: `svelte-check` reports 0 errors and 0 warnings; 13 Vitest tests and the
   production build pass.

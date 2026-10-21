@@ -15,7 +15,7 @@ hides the contract. VideoFlow resolves this with two layers:
 
 | Scope | Line coverage | Notes |
 | --- | --- | --- |
-| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.06% (366 passing, 11 strict xfail, 7 deselected) |
+| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.06% (370 passing, 11 strict xfail, 7 deselected) |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |
 | UI | `npm run check` and `npm run build` | Manual: start a job from the rack and confirm progress and artifacts |
@@ -91,6 +91,8 @@ smokes run locally and are recorded in the release notes.
 | `test_audio_analysis.py` | Loud-region peaks and silence fallback |
 | `test_video_analysis.py` | Scene-time parsing, deduplication, and sample windows |
 | `test_url_import.py` | yt-dlp command, missing binary, non-http URL rejection |
+| `test_publishing.py` | Webhook dispatch and queue cancellation |
+| `test_multimodal.py` | Audio-feature labels and motion-region centroids |
 | `test_project_templates.py` | Template round-trip, sanitization, config import/export |
 | `test_portable.py` | End-to-end portable service with a fake engine and retakes |
 | `test_jobs.py` | Job completion, failure, cancellation, queue limit, pruning, VAD/Faster-Whisper, detailed zoom/fade/Shorts/caption forwarding |

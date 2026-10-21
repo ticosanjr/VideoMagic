@@ -35,6 +35,7 @@ from videoflow.application.export_service import FILENAMES, export_timeline
 from videoflow.application.fonts import list_fonts, save_font
 from videoflow.application.images import list_images, save_image
 from videoflow.application.jobs import JobManager
+from videoflow.application.multimodal import analyze_short_entry
 from videoflow.application.music import list_music, save_music
 from videoflow.application.project_templates import (
     ProjectTemplate,
@@ -50,6 +51,19 @@ from videoflow.application.project_templates import (
 )
 from videoflow.application.project_templates import (
     save_template as save_project_template,
+)
+from videoflow.application.publishing import (
+    PublishTarget,
+    enqueue_publish,
+)
+from videoflow.application.publishing import (
+    list_queue as list_publish_queue,
+)
+from videoflow.application.publishing import (
+    list_targets as list_publish_targets,
+)
+from videoflow.application.publishing import (
+    save_target as save_publish_target,
 )
 from videoflow.application.retakes import cull_intervals
 from videoflow.application.retakes import cull_retakes as cull_transcript_retakes
@@ -228,6 +242,88 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
     manager = jobs or JobManager()
     mcp = MCPServer(SERVER_NAME)
     last: dict[str, Any] = {"pending_options": {}}
+
+    @mcp.tool()
+    def videoflow_list_publish_targets() -> dict[str, object]:
+        """List configured webhook publish targets."""
+
+        return {"ok": True, "targets": list_publish_targets()}
+
+    @mcp.tool()
+    def videoflow_save_publish_target(
+        name: str,
+        webhook_url: str,
+        description: str = "",
+        secret_name: str = "VIDEOWFLOW_PUBLISH_TOKEN",
+        enabled: bool = True,
+    ) -> dict[str, object]:
+        """Save a webhook publishing target."""
+
+        return {
+            "ok": True,
+            "target": save_publish_target(
+                PublishTarget(
+                    name=name,
+                    webhook_url=webhook_url,
+                    description=description,
+                    secret_name=secret_name,
+                    enabled=enabled,
+                )
+            ),
+        }
+
+    @mcp.tool()
+    def videoflow_list_publish_queue() -> dict[str, object]:
+        """List scheduled or completed publishing items."""
+
+        return {"ok": True, "items": list_publish_queue()}
+
+    @mcp.tool()
+    def videoflow_schedule_short(
+        index: int,
+        target: str,
+        platform: str = "youtube",
+        tone: str = "engaging",
+        scheduled_at: str | None = None,
+    ) -> dict[str, object]:
+        """Generate metadata and schedule one Short for a webhook target."""
+
+        job_id = last.get("job_id")
+        if not isinstance(job_id, str):
+            return _error("job_required", "Run videoflow_run_pipeline first.")
+        try:
+            job = manager.get(job_id)
+            if job.status != "succeeded" or job.result is None:
+                raise StateNotReadyError("The job must succeed first.")
+            shorts = job.result.get("shorts")
+            if not isinstance(shorts, list) or index < 0 or index >= len(shorts):
+                raise StateNotReadyError("Short index is out of range.")
+            entry = shorts[index]
+            if not isinstance(entry, dict) or not entry.get("path"):
+                raise StateNotReadyError("Short asset is missing.")
+            from videoflow.application.short_metadata import generate_short_metadata
+
+            metadata = generate_short_metadata(
+                output=job.output,
+                index=index,
+                result=job.result,
+                platform=platform,
+                tone=tone,
+            )
+            item = enqueue_publish(
+                target_name=target,
+                asset_path=Path(str(entry["path"])),
+                title=str(metadata["title"]),
+                description=str(metadata["description"]),
+                hashtags=[str(tag) for tag in metadata["hashtags"]],
+                platform=platform,
+                scheduled_at=scheduled_at,
+                job_id=job_id,
+                short_index=index,
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {"ok": True, "item": item}
 
     @mcp.tool()
     def videoflow_list_project_templates() -> dict[str, object]:
@@ -1148,6 +1244,30 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         return {
             "ok": True,
             "dubbing": payload,
+            "short": job.result["shorts"][index],
+        }
+
+    @mcp.tool()
+    def videoflow_analyze_short(index: int) -> dict[str, object]:
+        """Run optional audio-emotion and visual-motion analysis on a Short."""
+
+        job_id = last.get("job_id")
+        if not isinstance(job_id, str):
+            return _error("job_required", "Run videoflow_run_pipeline first.")
+        try:
+            job = manager.get(job_id)
+            if job.status != "succeeded" or job.result is None:
+                raise StateNotReadyError("The job must succeed before analysis.")
+            analysis = analyze_short_entry(
+                output=job.output,
+                index=index,
+                result=job.result,
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {
+            "ok": True,
+            "analysis": analysis,
             "short": job.result["shorts"][index],
         }
 

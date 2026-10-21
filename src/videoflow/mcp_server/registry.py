@@ -20,6 +20,26 @@ class ResourceSpec:
 
 TOOL_SPECS: tuple[ToolSpec, ...] = (
     ToolSpec(
+        "videoflow_list_publish_targets",
+        "List configured webhook publish targets.",
+        "publishing",
+    ),
+    ToolSpec(
+        "videoflow_save_publish_target",
+        "Save a webhook publishing target.",
+        "publishing",
+    ),
+    ToolSpec(
+        "videoflow_list_publish_queue",
+        "List scheduled or completed publishing items.",
+        "publishing",
+    ),
+    ToolSpec(
+        "videoflow_schedule_short",
+        "Generate metadata and schedule one Short for a webhook target.",
+        "publishing",
+    ),
+    ToolSpec(
         "videoflow_list_project_templates",
         "List saved project configuration templates.",
         "configuration",
@@ -152,6 +172,11 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ToolSpec(
         "videoflow_dub_short",
         "Translate and dub one completed Short with external TTS.",
+        "shorts",
+    ),
+    ToolSpec(
+        "videoflow_analyze_short",
+        "Run optional audio-emotion and visual-motion analysis on a Short.",
         "shorts",
     ),
     ToolSpec(

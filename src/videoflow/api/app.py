@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -15,6 +16,7 @@ from videoflow import __version__
 from videoflow.api.routes import register_routes
 from videoflow.application.jobs import JobManager
 from videoflow.application.projects import ProjectStore
+from videoflow.application.publishing import start_scheduler, stop_scheduler
 from videoflow.domain.constants import DEFAULT_API_HOST, DEFAULT_API_PORT
 from videoflow.runtime import ui_dir
 
@@ -30,6 +32,7 @@ def create_app(
     with_mcp: bool = False,
     jobs: JobManager | None = None,
     projects: ProjectStore | None = None,
+    start_publisher: bool = False,
 ) -> FastAPI:
     """Build the loopback app.
 
@@ -61,6 +64,16 @@ def create_app(
         lifespan=lifespan,
     )
     _install_common(app)
+
+    if start_publisher:
+        @app.on_event("startup")
+        def _start_publish_scheduler() -> None:
+            if os.environ.get("VIDEOWFLOW_PUBLISH_SCHEDULER", "1") != "0":
+                start_scheduler()
+
+        @app.on_event("shutdown")
+        def _stop_publish_scheduler() -> None:
+            stop_scheduler()
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -100,7 +113,11 @@ def create_app(
 def create_http_app(ui: Path | None = None) -> FastAPI:
     """Loopback app with API routes, MCP HTTP, and an optional static rack UI."""
 
-    return create_app(with_mcp=True, ui=ui if ui is not None else ui_dir())
+    return create_app(
+        with_mcp=True,
+        ui=ui if ui is not None else ui_dir(),
+        start_publisher=True,
+    )
 
 
 def _install_common(app: FastAPI) -> None:

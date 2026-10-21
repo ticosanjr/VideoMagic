@@ -11,6 +11,8 @@ Implemented today:
 - `GET /api/v1/fs/roots`, `GET /api/v1/fs/list`, `POST /api/v1/fs/mkdir`
 - `GET /api/v1/media/probe`
 - `POST /api/v1/media/import`
+- `GET/PUT/DELETE /api/v1/publish/targets`, `GET /api/v1/publish/queue`,
+  `POST /api/v1/publish/dispatch`, `POST /api/v1/jobs/{id}/shorts/{index}/publish`
 - `GET /api/v1/assets/fonts`, `POST /api/v1/assets/fonts`
 - `GET /api/v1/assets/images`, `POST /api/v1/assets/images`
 - `GET /api/v1/assets/music`, `POST /api/v1/assets/music`
@@ -95,6 +97,26 @@ GET /api/v1/capabilities?allow_external=true
 Returns feature availability plus the effective external-service policy. A
 blocked provider includes a reason string. `VIDEOWFLOW_ALLOW_EXTERNAL=0` is a
 global kill switch; localhost providers remain available.
+
+### Analyze a Short
+
+```http
+POST /api/v1/jobs/{job_id}/shorts/{index}/analyze
+```
+
+Returns audio features/label, visual motion, optional face statistics, and
+caveats. Results are stored under `short.analysis`.
+
+### Publishing
+
+```http
+PUT /api/v1/publish/targets/studio
+POST /api/v1/jobs/{job_id}/shorts/{index}/publish
+GET /api/v1/publish/queue
+```
+
+Targets are webhook URLs with a secret-name reference. Scheduled items are sent
+by the local daemon, or manually via `POST /api/v1/publish/dispatch`.
 
 ### URL import
 

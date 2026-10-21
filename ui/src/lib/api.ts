@@ -222,9 +222,21 @@ export interface ShortClip {
   thumbnails?: ShortThumbnail[];
   voiceover?: ShortVoiceover;
   dubbing?: ShortDubbing;
+  analysis?: ShortAnalysis;
   edited_at?: string;
   edit_count?: number;
   previous_path?: string;
+}
+
+export interface ShortAnalysis {
+  audio: { label: string; rms: number; zcr: number; variation: number };
+  visual: {
+    motion: { x: number; y: number; coverage: number } | null;
+    face_count: number | null;
+    face_focus_x: number | null;
+    provider: string;
+  };
+  caveats: string[];
 }
 
 export interface ShortDubbing {
@@ -307,6 +319,28 @@ export interface Job {
   duration_ms: number | null;
   log_count: number;
   stages: JobStage[];
+}
+
+export interface PublishTarget {
+  name: string;
+  description: string;
+  webhook_url: string;
+  secret_name: string;
+  enabled: boolean;
+}
+
+export interface PublishQueueItem {
+  id: string;
+  target: string;
+  asset_path: string;
+  title: string;
+  description: string;
+  hashtags: string[];
+  platform: string;
+  scheduled_at: string;
+  status: string;
+  attempts: number;
+  last_error: string;
 }
 
 export interface ProjectTemplate {
@@ -583,6 +617,52 @@ export function probeMedia(path: string): Promise<ProbedMedia> {
   return request<ProbedMedia>(`/api/v1/media/probe?${query.toString()}`);
 }
 
+export async function getPublishTargets(): Promise<PublishTarget[]> {
+  const response = await request<{ ok: boolean; targets: PublishTarget[] }>(
+    "/api/v1/publish/targets"
+  );
+  return response.targets;
+}
+
+export async function savePublishTarget(
+  name: string,
+  webhookUrl: string,
+  description = ""
+): Promise<PublishTarget> {
+  const response = await request<{ ok: boolean; target: PublishTarget }>(
+    `/api/v1/publish/targets/${encodeURIComponent(name)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        description,
+        webhook_url: webhookUrl,
+        secret_name: "VIDEOWFLOW_PUBLISH_TOKEN",
+        enabled: true
+      })
+    }
+  );
+  return response.target;
+}
+
+export async function scheduleShortPublish(
+  jobId: string,
+  index: number,
+  payload: {
+    target: string;
+    platform: string;
+    tone: string;
+    scheduled_at?: string | null;
+    allow_external_services?: boolean;
+    allowed_external_hosts?: string[];
+  }
+): Promise<PublishQueueItem> {
+  const response = await request<{ ok: boolean; item: PublishQueueItem }>(
+    `/api/v1/jobs/${jobId}/shorts/${index}/publish`,
+    { method: "POST", body: JSON.stringify(payload) }
+  );
+  return response.item;
+}
+
 export async function getProjectTemplates(): Promise<ProjectTemplate[]> {
   const response = await request<{ ok: boolean; templates: ProjectTemplate[] }>(
     "/api/v1/project-templates"
@@ -781,6 +861,13 @@ export async function generateShortVoiceover(
     method: "POST",
     body: JSON.stringify(payload)
   });
+}
+
+export async function analyzeShort(
+  jobId: string,
+  index: number
+): Promise<{ ok: boolean; analysis: ShortAnalysis; short: ShortClip }> {
+  return request(`/api/v1/jobs/${jobId}/shorts/${index}/analyze`, { method: "POST" });
 }
 
 export async function generateShortDubbing(
