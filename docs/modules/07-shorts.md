@@ -100,7 +100,13 @@ TikTok, Instagram, or LinkedIn. Results are stored under the Short's
 Caption style is a full `CaptionStyle` model: font family, size, weight, italic,
 uppercase, primary/highlight/outline colors, outline width, shadow color/offset/
 opacity, background box color/opacity/padding, alignment, normalized position,
-max width, animation, and word-timing fallback.
+max width, animation, word-timing fallback, keyword highlight, emoji map, brand
+vocabulary, and censor word list/replacement.
+
+Keyword highlighting colors matching words in sentence captions. If the keyword
+list is empty, the renderer auto-selects frequent content words. Emojis are
+appended to matching words. Brand vocabulary rewrites ASR variants before
+caption styling.
 
 The renderer writes ASS and lets FFmpeg burn it. If the transcript has word
 timings, it emits karaoke `\k`/`\kf` tags. Otherwise `word_timing=proportional`

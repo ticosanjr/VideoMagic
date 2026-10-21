@@ -107,6 +107,12 @@ export type ConfigKey =
   | "caption_censor_enabled"
   | "caption_censor_words"
   | "caption_censor_replacement"
+  | "caption_keyword_highlight_enabled"
+  | "caption_keyword_color"
+  | "caption_keyword_words"
+  | "caption_emoji_enabled"
+  | "caption_emoji_map"
+  | "caption_brand_vocabulary"
   | "dialect"
   | "export_targets";
 
@@ -225,6 +231,12 @@ export const defaultConfig: JobConfig = {
   caption_censor_enabled: false,
   caption_censor_words: "porra, merda, caralho, foda, fuck, shit, bitch, asshole",
   caption_censor_replacement: "***",
+  caption_keyword_highlight_enabled: false,
+  caption_keyword_color: "#00E5FF",
+  caption_keyword_words: "",
+  caption_emoji_enabled: false,
+  caption_emoji_map: "money=💰, idea=💡, warning=⚠️, fire=🔥, growth=📈",
+  caption_brand_vocabulary: "",
   dialect: "1.9",
   export_targets: ["resolve", "premiere", "kdenlive"]
 };
@@ -893,6 +905,45 @@ export const modules: RackModule[] = [
         label: "Censor replacement",
         type: "text",
         implemented: true
+      },
+      {
+        key: "caption_keyword_highlight_enabled",
+        label: "Highlight keywords",
+        type: "bool",
+        implemented: true
+      },
+      {
+        key: "caption_keyword_color",
+        label: "Keyword color",
+        type: "color",
+        implemented: true
+      },
+      {
+        key: "caption_keyword_words",
+        label: "Keyword words",
+        type: "text",
+        implemented: true,
+        help: "Comma-separated. Empty auto-selects the top words."
+      },
+      {
+        key: "caption_emoji_enabled",
+        label: "Context emojis",
+        type: "bool",
+        implemented: true
+      },
+      {
+        key: "caption_emoji_map",
+        label: "Emoji map",
+        type: "text",
+        implemented: true,
+        help: "Comma-separated word=emoji pairs."
+      },
+      {
+        key: "caption_brand_vocabulary",
+        label: "Brand vocabulary",
+        type: "text",
+        implemented: true,
+        help: "Comma-separated wrong=Preferred pairs."
       }
     ]
   },

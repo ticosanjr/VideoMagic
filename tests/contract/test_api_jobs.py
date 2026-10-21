@@ -224,6 +224,11 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
             "caption_censor_enabled": True,
             "caption_censor_words": ["merda"],
             "caption_censor_replacement": "***",
+            "caption_keyword_highlight_enabled": True,
+            "caption_keyword_words": ["pricing"],
+            "caption_emoji_enabled": True,
+            "caption_emoji_map": {"money": "💰"},
+            "caption_brand_vocabulary": {"video flow": "VideoFlow"},
         },
     )
     assert response.status_code == 202
@@ -245,6 +250,10 @@ def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
     assert options["shorts_aspect"] == "1:1"
     assert options["caption_censor_enabled"] is True
     assert options["caption_censor_words"] == ["merda"]
+    assert options["caption_keyword_highlight_enabled"] is True
+    assert options["caption_keyword_words"] == ["pricing"]
+    assert options["caption_emoji_map"] == {"money": "💰"}
+    assert options["caption_brand_vocabulary"] == {"video flow": "VideoFlow"}
     assert options["shorts_source_start_sec"] == 5
     assert options["shorts_source_end_sec"] == 50
     assert options["allow_external_services"] is True

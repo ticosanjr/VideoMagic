@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -244,7 +245,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         if line.words and caption.word_timing != "sentence":
             text = _karaoke_text(line, caption)
         else:
-            text = _ass_text(_display_text(line.text, caption))
+            text = _ass_text(_sentence_text(line.text, caption))
         rows.append(
             f"Dialogue: 0,{_ass_time(line.start)},{_ass_time(line.end)},Default,,0,0,0,,{override}{text}"
         )
@@ -760,8 +761,60 @@ def _ass_text(text: str) -> str:
 
 
 def _display_text(text: str, style: CaptionStyle) -> str:
-    value = text.upper() if style.uppercase else text
+    value = text
+    for source, target in style.brand_vocabulary.items():
+        if source.strip():
+            value = re.sub(
+                rf"\b{re.escape(source)}\b",
+                target,
+                value,
+                flags=re.IGNORECASE,
+            )
+    value = value.upper() if style.uppercase else value
     return _censor_text(value, style)
+
+
+def _sentence_text(text: str, style: CaptionStyle) -> str:
+    value = _display_text(text, style)
+    if style.keyword_highlight_enabled:
+        keywords = style.keyword_words or _auto_keywords(value)
+        if keywords:
+            pattern = re.compile(
+                r"\b(" + "|".join(re.escape(word) for word in keywords) + r")\b",
+                re.IGNORECASE,
+            )
+            value = pattern.sub(
+                lambda match: f"{{\\c&H{_ass_rgb(style.keyword_color)}&}}"
+                f"{match.group(0)}{{\\c&H{_ass_rgb(style.primary_color)}&}}",
+                value,
+            )
+    if style.emoji_enabled and style.emoji_map:
+        for word, emoji in sorted(style.emoji_map.items(), key=lambda item: -len(item[0])):
+            if word.strip():
+                value = re.sub(
+                    rf"\b{re.escape(word)}\b",
+                    f"{word} {emoji}",
+                    value,
+                    count=1,
+                    flags=re.IGNORECASE,
+                )
+    return value
+
+
+def _auto_keywords(text: str) -> list[str]:
+    words = [
+        word
+        for word in re.findall(r"[A-Za-zÀ-ÿ0-9]{4,}", text.casefold())
+        if word not in _STOPWORDS
+    ]
+    return [word for word, _count in Counter(words).most_common(3)]
+
+
+def _ass_rgb(value: str) -> str:
+    red = value[1:3]
+    green = value[3:5]
+    blue = value[5:7]
+    return f"{blue}{green}{red}".upper()
 
 
 def _censor_text(text: str, style: CaptionStyle) -> str:

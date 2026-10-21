@@ -423,3 +423,33 @@ def test_filler_removal_trims_word_intervals() -> None:
     )
     assert clips[0].pieces == ((RATE, 2 * RATE), (3 * RATE, 9 * RATE))
     assert clips[0].filler_words_removed == ("um", "um")
+
+
+def test_keyword_highlight_and_emoji_are_rendered() -> None:
+    from videoflow.application.shorts import CaptionLine, CaptionStyle, build_ass_lines
+
+    style = CaptionStyle(
+        keyword_highlight_enabled=True,
+        keyword_words=["basil"],
+        keyword_color="#FF0000",
+        emoji_enabled=True,
+        emoji_map={"basil": "🌿"},
+    )
+    ass = build_ass_lines(
+        [CaptionLine(start=0, end=1, text="fresh basil sauce")],
+        style=style,
+    )
+    assert r"\c&H0000FF&" in ass
+    assert "🌿" in ass
+
+
+def test_brand_vocabulary_rewrites_caption_text() -> None:
+    from videoflow.application.shorts import CaptionLine, CaptionStyle, build_ass_lines
+
+    style = CaptionStyle(brand_vocabulary={"video flow": "VideoFlow"})
+    ass = build_ass_lines(
+        [CaptionLine(start=0, end=1, text="the video flow pipeline")],
+        style=style,
+    )
+    assert "VideoFlow" in ass
+    assert "video flow" not in ass.lower()

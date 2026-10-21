@@ -120,6 +120,15 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "videoflow_generate_shorts",
         ),
         _entry(
+            "caption_branding",
+            "Caption branding",
+            "shorts",
+            "available",
+            "Keyword highlighting, contextual emoji, and brand vocabulary.",
+            "POST /api/v1/jobs",
+            "videoflow_run_pipeline",
+        ),
+        _entry(
             "caption_preview",
             "Caption preview",
             "shorts",

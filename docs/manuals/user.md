@@ -178,6 +178,10 @@ vertical-only output.
 - **Fillers**: enable **Remove filler words** to subtract configured tokens when
   word timings exist.
 - **Censor**: enable **Censor profanity** and edit the comma-separated word list.
+- **Keyword highlight**: color configured words, or leave the list empty to
+  auto-select frequent content words.
+- **Emojis**: map words to emojis with `word=emoji` pairs.
+- **Brand vocabulary**: rewrite ASR variants with `wrong=Preferred` pairs.
 - **Metadata**: open a Short's **Metadata** tab, choose platform/tone, and
   generate title, description, hashtags, and character limits.
 - **Duration** is checked after retake culling. The Shorts tab also has

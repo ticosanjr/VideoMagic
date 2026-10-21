@@ -22,6 +22,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Project-scoped routes, revisions, transcript API, presets | implemented; per-module rerun is typed 501 |
 | Shorts selection/rendering and API download | implemented; prompt/reprompt, explainable virality score, auto hook, filler cuts, censor, 9:16, 1:1, 16:9, optional source window |
 | Social metadata | implemented; deterministic title, description, and hashtags for YouTube, TikTok, Instagram, LinkedIn |
+| Caption branding | implemented; keyword highlight, emoji map, brand vocabulary, and profanity mask |
 | Per-Short editor | implemented; trim, retitle, reframe, caption overrides, re-render |
 | Capability/provider discovery and external policy | implemented; external providers are opt-in and globally blockable |
 | NLE audio fades | implemented in FCPXML, xmeml, and Kdenlive |

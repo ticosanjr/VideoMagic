@@ -91,6 +91,23 @@ class Job:
 
 
 
+def _string_dict(value: object, default: dict[str, str]) -> dict[str, str]:
+    if isinstance(value, dict):
+        return {
+            str(key).strip(): str(item).strip()
+            for key, item in value.items()
+            if str(key).strip()
+        }
+    if isinstance(value, str):
+        parsed: dict[str, str] = {}
+        for item in value.split(","):
+            key, separator, item_value = item.partition("=")
+            if separator and key.strip() and item_value.strip():
+                parsed[key.strip()] = item_value.strip()
+        return parsed or default
+    return default
+
+
 def _string_list(value: object, default: list[str]) -> list[str]:
     if isinstance(value, list):
         return [str(item).strip() for item in value if str(item).strip()]
@@ -159,6 +176,12 @@ def _caption_style(options: dict[str, object]) -> CaptionStyle:
             ["porra", "merda", "caralho", "foda", "fuck", "shit", "bitch", "asshole"],
         ),
         censor_replacement=str(options.get("caption_censor_replacement", "***")),
+        keyword_highlight_enabled=bool(options.get("caption_keyword_highlight_enabled", False)),
+        keyword_color=str(options.get("caption_keyword_color", "#00E5FF")),
+        keyword_words=_string_list(options.get("caption_keyword_words"), []),
+        emoji_enabled=bool(options.get("caption_emoji_enabled", False)),
+        emoji_map=_string_dict(options.get("caption_emoji_map"), {}),
+        brand_vocabulary=_string_dict(options.get("caption_brand_vocabulary"), {}),
     )
 
 class JobManager:

@@ -147,6 +147,12 @@ class NewJobRequest(BaseModel):
         ]
     )
     caption_censor_replacement: str = Field(default="***", min_length=1, max_length=20)
+    caption_keyword_highlight_enabled: bool = False
+    caption_keyword_color: str = Field(default="#00E5FF", pattern=r"^#[0-9A-Fa-f]{6}$")
+    caption_keyword_words: list[str] = Field(default_factory=list)
+    caption_emoji_enabled: bool = False
+    caption_emoji_map: dict[str, str] = Field(default_factory=dict)
+    caption_brand_vocabulary: dict[str, str] = Field(default_factory=dict)
     overrides: list[OverrideRequest] = Field(default_factory=list)
     transcribe: bool = False
     asr_base_url: str | None = None
@@ -347,6 +353,12 @@ def register_routes(
                     "caption_censor_enabled": request.caption_censor_enabled,
                     "caption_censor_words": request.caption_censor_words,
                     "caption_censor_replacement": request.caption_censor_replacement,
+                    "caption_keyword_highlight_enabled": request.caption_keyword_highlight_enabled,
+                    "caption_keyword_color": request.caption_keyword_color,
+                    "caption_keyword_words": request.caption_keyword_words,
+                    "caption_emoji_enabled": request.caption_emoji_enabled,
+                    "caption_emoji_map": request.caption_emoji_map,
+                    "caption_brand_vocabulary": request.caption_brand_vocabulary,
                     "overrides": [item.model_dump() for item in request.overrides],
                     "transcribe": request.transcribe,
                     "asr_base_url": request.asr_base_url,

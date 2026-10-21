@@ -126,6 +126,7 @@ All config models forbid unknown fields. That is deliberate: a request containin
 | `ShortsConfig` | min ≤ max; 1–20 clips; prompt/reprompt; replace/refine; hook off/metadata/repeat/reorder; filler list; aspect 9:16/1:1/16:9; source end > start |
 | `ProvidersConfig` | external services opt-in; optional remote-host allowlist |
 | `CaptionStyle.censor_*` | optional profanity word list and replacement |
+| `CaptionStyle` branding | keyword list/color, emoji map, brand vocabulary |
 | `ExportConfig` | dialect 1.9/1.10, write flags |
 
 ## 3. Presets

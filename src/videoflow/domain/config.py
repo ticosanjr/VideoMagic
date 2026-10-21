@@ -140,6 +140,12 @@ class CaptionStyle(StrictModel):
         ]
     )
     censor_replacement: str = Field(default="***", min_length=1, max_length=20)
+    keyword_highlight_enabled: bool = False
+    keyword_color: str = Field(default="#00E5FF", pattern=r"^#[0-9A-Fa-f]{6}$")
+    keyword_words: list[str] = Field(default_factory=list)
+    emoji_enabled: bool = False
+    emoji_map: dict[str, str] = Field(default_factory=dict)
+    brand_vocabulary: dict[str, str] = Field(default_factory=dict)
 
 
 class ShortsConfig(StrictModel):

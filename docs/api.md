@@ -258,6 +258,12 @@ Content-Type: application/json
   "caption_censor_enabled": false,
   "caption_censor_words": ["porra", "merda"],
   "caption_censor_replacement": "***",
+  "caption_keyword_highlight_enabled": false,
+  "caption_keyword_color": "#00E5FF",
+  "caption_keyword_words": [],
+  "caption_emoji_enabled": false,
+  "caption_emoji_map": { "money": "💰" },
+  "caption_brand_vocabulary": { "video flow": "VideoFlow" },
   "overrides": [
     { "sentence_id": 4, "action": "keep" },
     { "sentence_id": 7, "action": "discard" }

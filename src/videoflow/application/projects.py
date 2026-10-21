@@ -261,6 +261,14 @@ class ProjectStore:
             "caption_censor_enabled": config.shorts.caption_style.censor_enabled,
             "caption_censor_words": config.shorts.caption_style.censor_words,
             "caption_censor_replacement": config.shorts.caption_style.censor_replacement,
+            "caption_keyword_highlight_enabled": (
+                config.shorts.caption_style.keyword_highlight_enabled
+            ),
+            "caption_keyword_color": config.shorts.caption_style.keyword_color,
+            "caption_keyword_words": config.shorts.caption_style.keyword_words,
+            "caption_emoji_enabled": config.shorts.caption_style.emoji_enabled,
+            "caption_emoji_map": config.shorts.caption_style.emoji_map,
+            "caption_brand_vocabulary": config.shorts.caption_style.brand_vocabulary,
             "overrides": [item.model_dump(mode="json") for item in state.manual_overrides],
             "transcribe": enabled.transcribe and not has_transcript,
             "asr_language": config.transcribe.language,

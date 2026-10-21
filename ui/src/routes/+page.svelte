@@ -342,6 +342,15 @@
         .map((item) => item.trim())
         .filter(Boolean),
       caption_censor_replacement: String(config.caption_censor_replacement || "***"),
+      caption_keyword_highlight_enabled: Boolean(config.caption_keyword_highlight_enabled),
+      caption_keyword_color: String(config.caption_keyword_color || "#00E5FF"),
+      caption_keyword_words: String(config.caption_keyword_words || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+      caption_emoji_enabled: Boolean(config.caption_emoji_enabled),
+      caption_emoji_map: parsePairs(config.caption_emoji_map),
+      caption_brand_vocabulary: parsePairs(config.caption_brand_vocabulary),
       transcribe: Boolean(config.transcribe),
       asr_base_url: String(config.asr_base_url || "").trim() || null,
       asr_model: String(config.asr_model || "whisper-1"),
@@ -588,6 +597,16 @@
     }
     shortEditor = null;
     notify("success", "Short re-rendered");
+  }
+
+  function parsePairs(value: unknown): Record<string, string> {
+    const pairs: Record<string, string> = {};
+    for (const item of String(value || "").split(",")) {
+      const [key, ...rest] = item.split("=");
+      const target = rest.join("=").trim();
+      if (key.trim() && target) pairs[key.trim()] = target;
+    }
+    return pairs;
   }
 
   function setShortDuration(min: number, max: number) {

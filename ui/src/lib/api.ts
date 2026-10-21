@@ -336,6 +336,12 @@ export interface NewJob {
   caption_censor_enabled: boolean;
   caption_censor_words: string[];
   caption_censor_replacement: string;
+  caption_keyword_highlight_enabled: boolean;
+  caption_keyword_color: string;
+  caption_keyword_words: string[];
+  caption_emoji_enabled: boolean;
+  caption_emoji_map: Record<string, string>;
+  caption_brand_vocabulary: Record<string, string>;
   overrides: { sentence_id: number; action: "keep" | "discard" }[];
 }
 

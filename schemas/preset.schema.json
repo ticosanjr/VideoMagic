@@ -41,6 +41,13 @@
           "title": "Background Padding",
           "type": "integer"
         },
+        "brand_vocabulary": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Brand Vocabulary",
+          "type": "object"
+        },
         "censor_enabled": {
           "default": false,
           "title": "Censor Enabled",
@@ -59,6 +66,18 @@
           },
           "title": "Censor Words",
           "type": "array"
+        },
+        "emoji_enabled": {
+          "default": false,
+          "title": "Emoji Enabled",
+          "type": "boolean"
+        },
+        "emoji_map": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Emoji Map",
+          "type": "object"
         },
         "font_family": {
           "default": "Arial",
@@ -92,6 +111,24 @@
           "default": false,
           "title": "Italic",
           "type": "boolean"
+        },
+        "keyword_color": {
+          "default": "#00E5FF",
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "title": "Keyword Color",
+          "type": "string"
+        },
+        "keyword_highlight_enabled": {
+          "default": false,
+          "title": "Keyword Highlight Enabled",
+          "type": "boolean"
+        },
+        "keyword_words": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Keyword Words",
+          "type": "array"
         },
         "max_width": {
           "default": 0.9,
