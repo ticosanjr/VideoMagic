@@ -7,6 +7,7 @@ and lets every item reuse the normal recipe checkpoints.
 from __future__ import annotations
 
 import contextlib
+import json
 import threading
 import time
 from dataclasses import dataclass, field
@@ -90,18 +91,62 @@ class Batch:
             "created_at": self.created_at,
             "started_at": self.started_at,
             "finished_at": self.finished_at,
+            "recipe": self.recipe,
             "items": [item.to_dict() for item in self.items],
         }
 
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> Batch:
+        items = [
+            BatchItem(
+                source=Path(str(item.get("source", ""))),
+                output=Path(str(item.get("output", ""))),
+                status=str(item.get("status", "pending")),  # type: ignore[arg-type]
+                job_id=item.get("job_id"),
+                message=str(item.get("message", "")),
+                started_at=item.get("started_at"),
+                finished_at=item.get("finished_at"),
+            )
+            for item in payload.get("items", [])
+            if isinstance(item, dict)
+        ]
+        batch = cls(
+            source_dir=Path(str(payload.get("source_dir", ""))),
+            output_root=Path(str(payload.get("output_root", ""))),
+            recipe_id=str(payload.get("recipe_id", "recipe")),
+            recipe=payload.get("recipe") if isinstance(payload.get("recipe"), dict) else {},
+            items=items,
+            resume=bool(payload.get("resume", True)),
+        )
+        batch.batch_id = UUID(str(payload["batch_id"])) if payload.get("batch_id") else uuid4()
+        batch.status = str(payload.get("status", "queued"))  # type: ignore[assignment]
+        batch.completed = int(payload.get("completed", 0))
+        batch.failed = int(payload.get("failed", 0))
+        batch.current_job_id = payload.get("current_job_id")
+        batch.message = str(payload.get("message", ""))
+        batch.created_at = str(payload.get("created_at", _now()))
+        batch.started_at = payload.get("started_at")
+        batch.finished_at = payload.get("finished_at")
+        return batch
+
 
 class BatchManager:
-    """In-process batch queue. Batch history is intentionally not persisted."""
+    """Sequential batch queue with optional JSON persistence."""
 
-    def __init__(self, jobs: JobManager, *, history: int = 20) -> None:
+    def __init__(
+        self,
+        jobs: JobManager,
+        *,
+        history: int = 20,
+        store_dir: Path | None = None,
+    ) -> None:
         self._jobs = jobs
         self._history = history
+        self._store_dir = Path(store_dir).expanduser() if store_dir is not None else None
         self._batches: dict[str, Batch] = {}
         self._lock = threading.Lock()
+        if self._store_dir is not None:
+            self._load()
 
     def start(
         self,
@@ -154,6 +199,7 @@ class BatchManager:
         with self._lock:
             self._prune()
             self._batches[str(batch.batch_id)] = batch
+            self._persist(batch)
         thread = threading.Thread(
             target=self._work,
             args=(batch,),
@@ -166,6 +212,15 @@ class BatchManager:
     def get(self, batch_id: str) -> Batch:
         with self._lock:
             batch = self._batches.get(batch_id)
+            if batch is None and self._store_dir is not None:
+                path = self._store_dir / f"{batch_id}.json"
+                if path.is_file():
+                    try:
+                        batch = Batch.from_dict(json.loads(path.read_text(encoding="utf-8")))
+                    except (OSError, ValueError, KeyError):
+                        batch = None
+                    if batch is not None:
+                        self._batches[batch_id] = batch
             if batch is None:
                 raise BatchError(f"Unknown batch: {batch_id}")
             return batch
@@ -193,6 +248,7 @@ class BatchManager:
             batch.status = "running"
             batch.started_at = _now()
             batch.message = "Starting batch"
+            self._persist(batch)
         try:
             for item in batch.items:
                 if batch.cancel_requested:
@@ -203,6 +259,7 @@ class BatchManager:
                     item.status = "running"
                     item.started_at = _now()
                     item.message = "Starting"
+                    self._persist(batch)
                 job = None
                 while job is None:
                     if batch.cancel_requested:
@@ -228,6 +285,7 @@ class BatchManager:
                 with self._lock:
                     batch.current_job_id = str(job.job_id)
                     item.job_id = str(job.job_id)
+                    self._persist(batch)
                 while True:
                     current = self._jobs.get(str(job.job_id))
                     if current.status in TERMINAL:
@@ -245,6 +303,7 @@ class BatchManager:
                         batch.failed += 1
                     batch.current_job_id = None
                     batch.message = f"{batch.completed}/{len(batch.items)} processed"
+                    self._persist(batch)
                 if batch.cancel_requested:
                     break
         finally:
@@ -259,6 +318,40 @@ class BatchManager:
                     batch.status = "succeeded"
                     batch.message = "Finished"
                 batch.finished_at = _now()
+                self._persist(batch)
+
+    def _persist(self, batch: Batch) -> None:
+        if self._store_dir is None:
+            return
+        try:
+            self._store_dir.mkdir(parents=True, exist_ok=True)
+            path = self._store_dir / f"{batch.batch_id}.json"
+            temporary = path.with_suffix(".json.tmp")
+            temporary.write_text(
+                json.dumps(batch.to_dict(), indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            temporary.replace(path)
+        except OSError:
+            pass
+
+    def _load(self) -> None:
+        if self._store_dir is None or not self._store_dir.is_dir():
+            return
+        for path in sorted(self._store_dir.glob("*.json")):
+            try:
+                batch = Batch.from_dict(json.loads(path.read_text(encoding="utf-8")))
+            except (OSError, ValueError, KeyError):
+                continue
+            if batch.status in {"queued", "running"}:
+                batch.status = "failed"
+                batch.message = "Interrupted by service restart"
+                for item in batch.items:
+                    if item.status in {"pending", "running"}:
+                        item.status = "failed"
+                        item.message = "Interrupted by service restart"
+                self._persist(batch)
+            self._batches[str(batch.batch_id)] = batch
 
     def _prune(self) -> None:
         finished = [
@@ -271,3 +364,6 @@ class BatchManager:
         finished.sort(key=lambda item: item.finished_at or "")
         for batch in finished[: len(finished) - self._history]:
             self._batches.pop(str(batch.batch_id), None)
+            if self._store_dir is not None:
+                with contextlib.suppress(OSError):
+                    (self._store_dir / f"{batch.batch_id}.json").unlink()

@@ -25,10 +25,12 @@
     runRecipe,
     runRecipeStep,
     saveRecipe,
+    validateExports,
     validateRecipe,
     type Batch,
     type Job,
     type Recipe,
+    type NleValidationReport,
     type RecipeSummary,
     type RunRecord,
     type StepManifest
@@ -101,6 +103,10 @@
   let historyOpen = $state(false);
   let historyRuns = $state<RunRecord[]>([]);
   let historyBusy = $state(false);
+  let nleOpen = $state(false);
+  let nleReport = $state<NleValidationReport | null>(null);
+  let nleBusy = $state(false);
+  let nleError = $state("");
   let comparison = $state<{
     current: Job;
     previous: Job;
@@ -362,6 +368,60 @@
     patchParams({ caption_style: { ...style, [key]: value } });
   }
 
+  type SchemaField = {
+    key: string;
+    label: string;
+    kind: "boolean" | "number" | "enum" | "text";
+    options: string[];
+    minimum?: number;
+    maximum?: number;
+    step?: number;
+    value: unknown;
+  };
+
+  function schemaFields(type: string): SchemaField[] {
+    const manifest = manifestFor(type);
+    const schema = (manifest?.params_schema ?? {}) as {
+      properties?: Record<string, Record<string, unknown>>;
+    };
+    const params = selectedParams();
+    return Object.entries(schema.properties ?? {}).flatMap(([key, spec]) => {
+      const rawType = spec.type;
+      if (rawType !== "boolean" && rawType !== "number" && rawType !== "integer" && rawType !== "string") {
+        return [];
+      }
+      const enumValues = Array.isArray(spec.enum)
+        ? spec.enum.map((item) => String(item))
+        : [];
+      const kind = rawType === "boolean"
+        ? "boolean"
+        : rawType === "number" || rawType === "integer"
+          ? "number"
+          : enumValues.length
+            ? "enum"
+            : "text";
+      return [{
+        key,
+        label: String(spec.title ?? key.replaceAll("_", " ")),
+        kind,
+        options: enumValues,
+        minimum: typeof spec.minimum === "number" ? spec.minimum : undefined,
+        maximum: typeof spec.maximum === "number" ? spec.maximum : undefined,
+        step: rawType === "integer" ? 1 : undefined,
+        value: params[key] ?? spec.default
+      } satisfies SchemaField];
+    });
+  }
+
+  function setSchemaField(field: SchemaField, raw: string | boolean) {
+    let value: unknown = raw;
+    if (field.kind === "number") {
+      value = Number(raw);
+      if (!Number.isFinite(value)) return;
+    }
+    patchParams({ [field.key]: value });
+  }
+
   function paramString(key: string, fallback = ""): string {
     const value = selectedParams()[key];
     return typeof value === "string" ? value : value === undefined || value === null ? fallback : String(value);
@@ -394,6 +454,23 @@
       "speaker_colors",
       value.split(",").map((item) => item.trim()).filter(Boolean)
     );
+  }
+
+  async function openNleValidation() {
+    if (!inputOutput.trim()) {
+      error = "Choose an output directory to validate exports.";
+      return;
+    }
+    nleBusy = true;
+    nleError = "";
+    try {
+      nleReport = await validateExports(inputOutput.trim());
+      nleOpen = true;
+    } catch (reason) {
+      nleError = errorMessage(reason);
+    } finally {
+      nleBusy = false;
+    }
   }
 
   async function openHistory() {
@@ -878,6 +955,15 @@
         </button>
         <button
           type="button"
+          data-testid="nle-validate"
+          onclick={() => void openNleValidation()}
+          disabled={nleBusy}
+          class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500 disabled:opacity-40"
+        >
+          {nleBusy ? "Validating…" : "Validate"}
+        </button>
+        <button
+          type="button"
           data-testid="recipe-runs"
           onclick={() => void openHistory()}
           disabled={historyBusy}
@@ -1189,6 +1275,55 @@
                     {/if}
                   </div>
                 {/if}
+                {#if selectedType && schemaFields(selectedType).length}
+                  <div class="mt-3 rounded-lg border border-neutral-800 bg-neutral-900/60 p-2">
+                    <p class="text-[10px] uppercase tracking-wide text-neutral-500">Schema fields</p>
+                    <div class="mt-2 space-y-2">
+                      {#each schemaFields(selectedType) as field (field.key)}
+                        <label class="block text-[10px] text-neutral-400">
+                          {field.label}
+                          {#if field.kind === "boolean"}
+                            <input
+                              data-testid={`schema-${field.key}`}
+                              type="checkbox"
+                              checked={field.value === true}
+                              onchange={(event) => setSchemaField(field, event.currentTarget.checked)}
+                              class="mt-1 block"
+                            />
+                          {:else if field.kind === "enum"}
+                            <select
+                              data-testid={`schema-${field.key}`}
+                              value={field.value === undefined || field.value === null ? "" : String(field.value)}
+                              onchange={(event) => setSchemaField(field, event.currentTarget.value)}
+                              class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100"
+                            >
+                              {#each field.options as option}<option value={option}>{option}</option>{/each}
+                            </select>
+                          {:else if field.kind === "number"}
+                            <input
+                              data-testid={`schema-${field.key}`}
+                              type="number"
+                              min={field.minimum}
+                              max={field.maximum}
+                              step={field.step}
+                              value={typeof field.value === "number" ? field.value : ""}
+                              oninput={(event) => setSchemaField(field, event.currentTarget.value)}
+                              class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100"
+                            />
+                          {:else}
+                            <input
+                              data-testid={`schema-${field.key}`}
+                              type="text"
+                              value={field.value === undefined || field.value === null ? "" : String(field.value)}
+                              oninput={(event) => setSchemaField(field, event.currentTarget.value)}
+                              class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100"
+                            />
+                          {/if}
+                        </label>
+                      {/each}
+                    </div>
+                  </div>
+                {/if}
                 <div class="mt-2 flex items-center justify-between gap-2">
                   <p class="text-[10px] text-neutral-500">Parameters (JSON)</p>
                   <button type="button" onclick={openStepJson} class="rounded border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-300 hover:border-sky-500">Expand</button>
@@ -1269,6 +1404,19 @@
           {/each}
         </div>
       {/if}
+      {#if job.result?.broll_plan && Object.keys(job.result.broll_plan).length}
+        <div class="mt-3 rounded-lg border border-neutral-800 bg-neutral-950/60 p-2">
+          <p class="text-[10px] uppercase tracking-wide text-neutral-500">B-roll plan</p>
+          {#each Object.entries(job.result.broll_plan) as [title, entries]}
+            <div class="mt-1 text-[10px] text-neutral-300">{title}</div>
+            {#each entries as entry}
+              <div class="ml-2 truncate font-mono text-[9px] text-neutral-500">
+                {entry.provider ?? "local"} · {entry.license ?? "operator"} · {entry.path}
+              </div>
+            {/each}
+          {/each}
+        </div>
+      {/if}
       {#if job.result?.warnings?.length}
         <ul class="mt-3 space-y-1 text-[10px] text-amber-200">
           {#each job.result.warnings as warning}<li>{warning}</li>{/each}
@@ -1276,6 +1424,45 @@
       {/if}
     </section>
   {/if}
+
+  {#if nleOpen && nleReport}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="presentation"
+      onclick={(event) => { if (event.currentTarget === event.target) nleOpen = false; }}>
+      <div class="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="NLE validation">
+        <div class="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
+          <div>
+            <h3 class="text-sm font-semibold text-white">NLE export validation</h3>
+            <p class="text-[10px] text-neutral-500">{nleReport.directory}</p>
+          </div>
+          <button type="button" onclick={() => (nleOpen = false)} class="rounded px-2 text-neutral-500 hover:text-neutral-200" aria-label="Close validation">×</button>
+        </div>
+        <div data-testid="nle-report" class="min-h-0 flex-1 overflow-y-auto p-3">
+          <div class="space-y-2">
+            {#each Object.entries(nleReport.exports) as [name, check]}
+              <div class="rounded-xl border border-neutral-800 bg-neutral-900/60 p-3">
+                <div class="flex items-center justify-between">
+                  <p class="text-xs font-medium uppercase text-neutral-200">{name}</p>
+                  <span class={`rounded px-2 py-0.5 text-[10px] ${check.ok ? "bg-emerald-500/10 text-emerald-300" : "bg-rose-500/10 text-rose-300"}`}>{check.ok ? "ok" : "failed"}</span>
+                </div>
+                <p class="mt-1 break-all font-mono text-[9px] text-neutral-500">{check.path}</p>
+                {#each check.errors as error}<p class="mt-1 text-[10px] text-rose-300">{error}</p>{/each}
+                {#each check.warnings as warning}<p class="mt-1 text-[10px] text-amber-300">{warning}</p>{/each}
+                <div class="mt-2 flex flex-wrap gap-2 text-[9px] text-neutral-500">
+                  {#each Object.entries(check) as [key, value]}
+                    {#if !["ok", "path", "errors", "warnings"].includes(key)}
+                      <span>{key}: {String(value)}</span>
+                    {/if}
+                  {/each}
+                </div>
+              </div>
+            {/each}
+          </div>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  {#if nleError}<p class="text-[10px] text-rose-300">{nleError}</p>{/if}
 
   {#if historyOpen}
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="presentation"

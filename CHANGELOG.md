@@ -3,6 +3,28 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.37.0] - 2026-10-22
+
+### Added
+
+- **Schema-driven inspector.** Primitive parameters are rendered from each
+  step's `params_schema` (boolean, number, enum, text), not only from the
+  hand-written quick controls.
+- **NLE validation in the UI.** A Validate action calls
+  `POST /api/v1/exports/validate` and shows per-format status, counts, errors,
+  and warnings.
+- **B-roll plan viewer.** Job results expose `broll_plan`, and the UI shows the
+  provider, license, and path for each planned clip.
+- **Persistent batch history.** Batch JSON is written to the VideoFlow home,
+  reloaded on restart, and interrupted batches are marked failed.
+- Playwright now covers schema fields and the NLE validation modal.
+- JSON-only configuration policy documented for project data and tests.
+
+### Notes
+
+- GitHub Actions still uses YAML because the platform requires it.
+- 437 Python tests and 5 Playwright tests pass.
+
 ## [0.36.0] - 2026-10-22
 
 ### Added

@@ -1,5 +1,73 @@
-{"ok":true,"steps":[
- {"type":"ingest","title":"Ingest media","description":"Probe and extract PCM","requires":[],"produces":["media","pcm"],"params_schema":{"properties":{"extract_pcm":{"default":true}}}},
- {"type":"edit.timeline","title":"Build timeline","description":"Build timeline","requires":["audio.vad"],"produces":["timeline"],"params_schema":{"properties":{"transition_frames":{"default":0},"transition_type":{"default":"crossfade"},"progressive_zoom":{"default":false}}}},
- {"type":"shorts.render","title":"Render Shorts","description":"Render Shorts","requires":["shorts.select"],"produces":["short_files"],"params_schema":{"properties":{"split_screen":{"default":false},"broll_enabled":{"default":true}}}}
-]}
+{
+  "ok": true,
+  "steps": [
+    {
+      "type": "ingest",
+      "title": "Ingest media",
+      "description": "Probe and extract PCM",
+      "requires": [],
+      "produces": [
+        "media",
+        "pcm"
+      ],
+      "params_schema": {
+        "properties": {
+          "extract_pcm": {
+            "default": true,
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    {
+      "type": "edit.timeline",
+      "title": "Build timeline",
+      "description": "Build timeline",
+      "requires": [
+        "audio.vad"
+      ],
+      "produces": [
+        "timeline"
+      ],
+      "params_schema": {
+        "properties": {
+          "transition_frames": {
+            "default": 0,
+            "type": "string"
+          },
+          "transition_type": {
+            "default": "crossfade",
+            "type": "string"
+          },
+          "progressive_zoom": {
+            "default": false,
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    {
+      "type": "shorts.render",
+      "title": "Render Shorts",
+      "description": "Render Shorts",
+      "requires": [
+        "shorts.select"
+      ],
+      "produces": [
+        "short_files"
+      ],
+      "params_schema": {
+        "properties": {
+          "split_screen": {
+            "default": false,
+            "type": "boolean"
+          },
+          "broll_enabled": {
+            "default": true,
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  ]
+}

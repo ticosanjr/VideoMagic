@@ -112,10 +112,12 @@ class BrollStep(BaseStep):
             plan[clip.title] = entries
             io.report(int((index + 1) / total * 100), f"Planned B-roll {index + 1}/{total}")
         context.metadata["broll_plan"] = plan
-        (context.output / "broll.json").write_text(
+        broll_path = context.output / "broll.json"
+        broll_path.write_text(
             json.dumps({"ok": True, "shorts": plan}, indent=2) + "\n",
             encoding="utf-8",
         )
+        context.artifacts["broll"] = str(broll_path)
         context.hashes["broll"] = digest_payload(plan)
         io.report(100, f"{sum(len(items) for items in plan.values())} B-roll overlays planned")
 

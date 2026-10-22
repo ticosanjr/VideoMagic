@@ -589,3 +589,19 @@ def test_export_validation_route(monkeypatch, tmp_path: Path) -> None:
     )
     assert response.status_code == 200, response.text
     assert response.json()["ok"] is True
+
+
+def test_maintenance_prune_route(monkeypatch, tmp_path: Path) -> None:
+    client, _store = make_client(monkeypatch, tmp_path)
+    output = tmp_path / "out"
+    steps = output / "work" / "steps"
+    steps.mkdir(parents=True)
+    for index in range(3):
+        (steps / f"step{index}").mkdir()
+    response = client.post(
+        "/api/v1/maintenance/prune",
+        json={"output": str(output), "keep_steps": 1},
+    )
+    assert response.status_code == 200, response.text
+    assert len(list(steps.iterdir())) == 1
+    assert response.json()["freed_bytes"] == 0

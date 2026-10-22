@@ -131,12 +131,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 2143,
+                  "duration": 2137,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-22T21:40:21.907Z",
+                  "startTime": "2026-10-22T21:59:17.474Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -146,7 +146,7 @@
           ],
           "id": "723a17b4fbf153e3b0b6-a89ab63210a219aacb71",
           "file": "recipes.spec.ts",
-          "line": 28,
+          "line": 29,
           "column": 1
         },
         {
@@ -165,12 +165,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1051,
+                  "duration": 1010,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-22T21:40:24.198Z",
+                  "startTime": "2026-10-22T21:59:19.756Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -180,7 +180,75 @@
           ],
           "id": "723a17b4fbf153e3b0b6-70fb96269b26a2814820",
           "file": "recipes.spec.ts",
-          "line": 40,
+          "line": 41,
+          "column": 1
+        },
+        {
+          "title": "edits a schema-derived field",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1012,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-22T21:59:20.787Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "723a17b4fbf153e3b0b6-fdc5f68b918309202b20",
+          "file": "recipes.spec.ts",
+          "line": 48,
+          "column": 1
+        },
+        {
+          "title": "validates NLE exports from the UI",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 946,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-22T21:59:21.822Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "723a17b4fbf153e3b0b6-e91d5df6f5edce1e6e4a",
+          "file": "recipes.spec.ts",
+          "line": 56,
           "column": 1
         },
         {
@@ -199,12 +267,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1119,
+                  "duration": 953,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-22T21:40:25.264Z",
+                  "startTime": "2026-10-22T21:59:22.785Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -214,7 +282,7 @@
           ],
           "id": "723a17b4fbf153e3b0b6-d67b748f13862af07c93",
           "file": "recipes.spec.ts",
-          "line": 47,
+          "line": 64,
           "column": 1
         }
       ]
@@ -222,9 +290,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-10-22T21:40:15.658Z",
-    "duration": 10904.505,
-    "expected": 3,
+    "startTime": "2026-10-22T21:59:11.317Z",
+    "duration": 12605.743,
+    "expected": 5,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

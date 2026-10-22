@@ -359,6 +359,9 @@ export interface Job {
     cache_misses?: string[];
     step_runs?: StepRun[];
     shorts?: ShortClip[];
+    broll_plan?: Record<string, Record<string, unknown>[]>;
+    speaker_count?: number;
+    diarization_method?: string;
     state_path?: string;
     report_path?: string;
     elapsed_seconds?: number;
@@ -1081,6 +1084,27 @@ export async function runBatch(payload: {
     body: JSON.stringify(payload)
   });
   return response.batch;
+}
+
+export interface NleExportCheck {
+  ok: boolean;
+  path: string;
+  errors: string[];
+  warnings: string[];
+  [key: string]: unknown;
+}
+
+export interface NleValidationReport {
+  ok: boolean;
+  directory: string;
+  exports: Record<string, NleExportCheck>;
+}
+
+export async function validateExports(output: string): Promise<NleValidationReport> {
+  return request<NleValidationReport>("/api/v1/exports/validate", {
+    method: "POST",
+    body: JSON.stringify({ output })
+  });
 }
 
 export async function getRunHistory(output: string): Promise<RunRecord[]> {

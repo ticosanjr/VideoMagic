@@ -7,7 +7,7 @@ vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive. The primary surface is a recipe DAG editor; the classic rack
 panels remain available for manual control.
 
-> Status: 0.36.0 alpha. The portable Linux binary, Linux AppImage, and Windows
+> Status: 0.37.0 alpha. The portable Linux binary, Linux AppImage, and Windows
 > PE run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical shorts, and
@@ -168,7 +168,12 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - Pexels stock B-roll provider alongside local assets.
 - Automatic split-screen for multi-speaker dialogue clips.
 - Failed recipe runs persist a `work/failure.json` with the failing stage, error, FFmpeg command, stderr, and log tail.
-- Playwright E2E tests for the recipe graph, inspector, palette, and run-history browser.
+- Playwright E2E tests for the recipe graph, inspector, schema fields, palette, NLE validation, and run-history browser.
+- Schema-derived inspector fields for primitive step parameters.
+- NLE validation from the Recipes tab.
+- B-roll plan display with provider, license, and path.
+- Batch history persisted as JSON and reloaded after restart.
+- Configuration and test data are JSON; the only YAML files are the GitHub Actions workflows, which GitHub requires.
 - Versioned JSON migration gates for recipes and project state.
 - Output maintenance: checkpoint/B-roll/run-history pruning via CLI or API.
 

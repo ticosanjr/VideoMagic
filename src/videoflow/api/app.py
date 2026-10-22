@@ -19,7 +19,7 @@ from videoflow.application.projects import ProjectStore
 from videoflow.application.publishing import start_scheduler, stop_scheduler
 from videoflow.domain.constants import DEFAULT_API_HOST, DEFAULT_API_PORT
 from videoflow.engine.batch import BatchManager
-from videoflow.runtime import ui_dir
+from videoflow.runtime import portable_home, ui_dir
 
 UI_ORIGINS = (
     "http://127.0.0.1:5173",
@@ -42,7 +42,7 @@ def create_app(
     """
 
     manager = jobs or JobManager()
-    batches = BatchManager(manager)
+    batches = BatchManager(manager, store_dir=portable_home() / "batches")
     store = projects or ProjectStore()
     mcp_app = None
     lifespan = None

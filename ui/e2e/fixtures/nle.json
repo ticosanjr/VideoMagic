@@ -1,0 +1,30 @@
+{
+  "ok": true,
+  "directory": "/tmp/out/exports",
+  "exports": {
+    "fcpxml": {
+      "ok": true,
+      "path": "/tmp/out/exports/timeline.fcpxml",
+      "errors": [],
+      "warnings": [],
+      "clips": 2,
+      "transitions": 1
+    },
+    "xmeml": {
+      "ok": true,
+      "path": "/tmp/out/exports/timeline.xml",
+      "errors": [],
+      "warnings": [],
+      "clips": 2,
+      "transitions": 1
+    },
+    "kdenlive": {
+      "ok": true,
+      "path": "/tmp/out/exports/timeline.kdenlive",
+      "errors": [],
+      "warnings": [],
+      "clips": 2,
+      "affine_filters": 2
+    }
+  }
+}
