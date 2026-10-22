@@ -30,6 +30,7 @@
     type Job,
     type Recipe,
     type RecipeSummary,
+    type RunRecord,
     type StepManifest
   } from "$lib/api";
 
@@ -67,7 +68,9 @@
   });
   let inputSource = $state("");
   let inputOutput = $state("");
-  let picker = $state<"source" | "output" | "batch-source" | "batch-output" | null>(null);
+  let picker = $state<
+    "source" | "output" | "batch-source" | "batch-output" | "broll" | null
+  >(null);
   let paramText = $state("{}");
   let paramError = $state("");
   let inspectorOpen = $state(false);
@@ -95,6 +98,9 @@
   let batchPoll: ReturnType<typeof setInterval> | undefined;
   let previousJob = $state<Job | null>(null);
   let compareOpen = $state(false);
+  let historyOpen = $state(false);
+  let historyRuns = $state<RunRecord[]>([]);
+  let historyBusy = $state(false);
   let comparison = $state<{
     current: Job;
     previous: Job;
@@ -337,6 +343,112 @@
         animated: true
       }
     ];
+  }
+
+  function selectedParams(): Record<string, unknown> {
+    const node = nodes.find((item) => item.id === selectedId);
+    if (!node) return {};
+    return (nodeData(node).params ?? {}) as Record<string, unknown>;
+  }
+
+  function patchParams(patch: Record<string, unknown>) {
+    updateParams(JSON.stringify({ ...selectedParams(), ...patch }, null, 2));
+  }
+
+  function patchCaptionStyle(key: string, value: unknown) {
+    const style = (selectedParams().caption_style ?? {}) as Record<string, unknown>;
+    patchParams({ caption_style: { ...style, [key]: value } });
+  }
+
+  function paramString(key: string, fallback = ""): string {
+    const value = selectedParams()[key];
+    return typeof value === "string" ? value : value === undefined || value === null ? fallback : String(value);
+  }
+
+  function paramNumber(key: string, fallback = 0): number {
+    const value = selectedParams()[key];
+    return typeof value === "number" ? value : Number(value ?? fallback) || fallback;
+  }
+
+  function paramBoolean(key: string, fallback = false): boolean {
+    const value = selectedParams()[key];
+    return typeof value === "boolean" ? value : fallback;
+  }
+
+  function captionString(key: string, fallback = ""): string {
+    const style = (selectedParams().caption_style ?? {}) as Record<string, unknown>;
+    const value = style[key];
+    return typeof value === "string" ? value : fallback;
+  }
+
+  function speakerColorsText(): string {
+    const style = (selectedParams().caption_style ?? {}) as Record<string, unknown>;
+    const colors = style.speaker_colors;
+    return Array.isArray(colors) ? colors.join(", ") : "";
+  }
+
+  function setSpeakerColors(value: string) {
+    patchCaptionStyle(
+      "speaker_colors",
+      value.split(",").map((item) => item.trim()).filter(Boolean)
+    );
+  }
+
+  async function openHistory() {
+    if (!inputOutput.trim()) {
+      error = "Choose an output directory to load run history.";
+      return;
+    }
+    historyBusy = true;
+    error = "";
+    try {
+      historyRuns = await getRunHistory(inputOutput.trim());
+      historyOpen = true;
+    } catch (reason) {
+      error = errorMessage(reason);
+    } finally {
+      historyBusy = false;
+    }
+  }
+
+  function jobFromRecord(record: RunRecord, current: Job): Job {
+    return {
+      job_id: record.job_id,
+      status: "succeeded",
+      progress: 100,
+      stage: "done",
+      message: "",
+      source: current.source,
+      output: current.output,
+      options: {},
+      result: {
+        ok: true,
+        recipe_id: record.recipe_id,
+        step_runs: record.step_runs,
+        cache_hits: record.cache_hits,
+        cache_misses: record.cache_misses,
+        artifacts: record.artifacts,
+        warnings: record.warnings,
+        elapsed_seconds: record.duration_ms / 1000
+      },
+      error: null,
+      created_at: record.created_at,
+      started_at: record.started_at,
+      finished_at: null,
+      duration_ms: record.duration_ms,
+      log_count: 0,
+      stages: []
+    };
+  }
+
+  function compareRecord(record: RunRecord) {
+    if (!job) {
+      error = "Run a recipe first, then choose a previous run to compare.";
+      return;
+    }
+    previousJob = jobFromRecord(record, job);
+    historyOpen = false;
+    buildComparison();
   }
 
   function updateParams(value: string): boolean {
@@ -658,6 +770,7 @@
     if (picker === "output") inputOutput = path;
     if (picker === "batch-source") batchSourceDir = path;
     if (picker === "batch-output") batchOutputRoot = path;
+    if (picker === "broll") patchParams({ asset_dir: path });
     picker = null;
   }
 
@@ -760,6 +873,14 @@
           class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500"
         >
           Batch
+        </button>
+        <button
+          type="button"
+          onclick={() => void openHistory()}
+          disabled={historyBusy}
+          class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500 disabled:opacity-40"
+        >
+          {historyBusy ? "Runs…" : "Runs"}
         </button>
         <button
           type="button"
@@ -907,6 +1028,7 @@
             <div class="min-h-0 flex-1 overflow-y-auto p-3">
               {#if selectedId}
                 {@const selectedNode = nodes.find((node) => node.id === selectedId)}
+                {@const selectedType = selectedNode ? nodeData(selectedNode).type : ""}
                 {#if selectedNode}
                   <div class="flex items-center justify-between gap-2">
                     <p class="text-[10px] text-neutral-500">{nodeData(selectedNode).type}</p>
@@ -914,6 +1036,96 @@
                       <button type="button" onclick={() => void runToHere(selectedId ?? "")} disabled={busy} class="rounded border border-sky-500/40 px-2 py-0.5 text-[10px] text-sky-300 disabled:opacity-40">Run to here</button>
                       <button type="button" onclick={removeSelected} class="text-[10px] text-rose-300 hover:text-rose-200">Remove</button>
                     </div>
+                  </div>
+                {/if}
+                {#if selectedType === "edit.timeline"}
+                  <div class="mt-3 rounded-lg border border-neutral-800 bg-neutral-900/60 p-2">
+                    <p class="text-[10px] uppercase tracking-wide text-neutral-500">Transitions</p>
+                    <div class="mt-2 grid grid-cols-2 gap-2">
+                      <label class="text-[10px] text-neutral-400">Frames
+                        <input type="number" min="0" max="120" value={paramNumber("transition_frames", 0)}
+                          oninput={(event) => patchParams({ transition_frames: Number(event.currentTarget.value) })}
+                          class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
+                      </label>
+                      <label class="text-[10px] text-neutral-400">Type
+                        <select value={paramString("transition_type", "crossfade")}
+                          onchange={(event) => patchParams({ transition_type: event.currentTarget.value })}
+                          class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100">
+                          <option value="crossfade">Crossfade</option>
+                          <option value="fade_to_black">Fade to black</option>
+                        </select>
+                      </label>
+                    </div>
+                    <label class="mt-2 flex items-center gap-2 text-[10px] text-neutral-400">
+                      <input type="checkbox" checked={paramBoolean("progressive_zoom")} onchange={(event) => patchParams({ progressive_zoom: event.currentTarget.checked })} />
+                      Progressive zoom keyframes
+                    </label>
+                  </div>
+                {/if}
+                {#if selectedType === "audio.diarize"}
+                  <div class="mt-3 rounded-lg border border-neutral-800 bg-neutral-900/60 p-2">
+                    <p class="text-[10px] uppercase tracking-wide text-neutral-500">Speaker turns</p>
+                    <div class="mt-2 grid grid-cols-2 gap-2">
+                      <label class="text-[10px] text-neutral-400">Method
+                        <select value={paramString("method", "heuristic")} onchange={(event) => patchParams({ method: event.currentTarget.value })}
+                          class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100">
+                          <option value="heuristic">Heuristic</option>
+                          <option value="none">Disabled</option>
+                        </select>
+                      </label>
+                      <label class="text-[10px] text-neutral-400">Pause (ms)
+                        <input type="number" min="50" max="5000" value={paramNumber("pause_ms", 400)}
+                          oninput={(event) => patchParams({ pause_ms: Number(event.currentTarget.value) })}
+                          class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
+                      </label>
+                    </div>
+                  </div>
+                {/if}
+                {#if selectedType === "broll.plan"}
+                  <div class="mt-3 rounded-lg border border-neutral-800 bg-neutral-900/60 p-2">
+                    <p class="text-[10px] uppercase tracking-wide text-neutral-500">Local B-roll</p>
+                    <label class="mt-2 block text-[10px] text-neutral-400">Asset directory
+                      <div class="mt-1 flex gap-1">
+                        <input type="text" value={paramString("asset_dir")}
+                          oninput={(event) => patchParams({ asset_dir: event.currentTarget.value })}
+                          placeholder="/path/to/broll"
+                          class="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" />
+                        <button type="button" onclick={() => (picker = "broll")} class="rounded border border-neutral-700 px-2 text-[10px] text-neutral-300 hover:border-sky-500">Browse</button>
+                      </div>
+                    </label>
+                    <div class="mt-2 grid grid-cols-2 gap-2">
+                      <label class="text-[10px] text-neutral-400">Max per Short
+                        <input type="number" min="1" max="5" value={paramNumber("max_per_short", 1)}
+                          oninput={(event) => patchParams({ max_per_short: Number(event.currentTarget.value) })}
+                          class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
+                      </label>
+                      <label class="text-[10px] text-neutral-400">Cutaway sec
+                        <input type="number" min="0.2" max="30" step="0.1" value={paramNumber("duration_sec", 2)}
+                          oninput={(event) => patchParams({ duration_sec: Number(event.currentTarget.value) })}
+                          class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
+                      </label>
+                    </div>
+                  </div>
+                {/if}
+                {#if selectedType === "shorts.render" || selectedType === "shorts.captions"}
+                  <div class="mt-3 rounded-lg border border-neutral-800 bg-neutral-900/60 p-2">
+                    <p class="text-[10px] uppercase tracking-wide text-neutral-500">Captions and layout</p>
+                    <label class="mt-2 block text-[10px] text-neutral-400">Speaker colors (comma-separated)
+                      <input type="text" value={speakerColorsText()}
+                        oninput={(event) => setSpeakerColors(event.currentTarget.value)}
+                        placeholder="#FFFFFF, #00E5FF, #FFD400"
+                        class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" />
+                    </label>
+                    {#if selectedType === "shorts.render"}
+                      <label class="mt-2 flex items-center gap-2 text-[10px] text-neutral-400">
+                        <input type="checkbox" checked={paramBoolean("split_screen")} onchange={(event) => patchParams({ split_screen: event.currentTarget.checked })} />
+                        Split-screen vertical frame
+                      </label>
+                      <label class="mt-1 flex items-center gap-2 text-[10px] text-neutral-400">
+                        <input type="checkbox" checked={paramBoolean("broll_enabled", true)} onchange={(event) => patchParams({ broll_enabled: event.currentTarget.checked })} />
+                        Apply planned B-roll
+                      </label>
+                    {/if}
                   </div>
                 {/if}
                 <div class="mt-2 flex items-center justify-between gap-2">
@@ -1001,6 +1213,41 @@
         </ul>
       {/if}
     </section>
+  {/if}
+
+  {#if historyOpen}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="presentation"
+      onclick={(event) => { if (event.currentTarget === event.target) historyOpen = false; }}>
+      <div class="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="Run history">
+        <div class="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
+          <div>
+            <h3 class="text-sm font-semibold text-white">Run history</h3>
+            <p class="text-[10px] text-neutral-500">{historyRuns.length} persisted run(s) in {inputOutput}</p>
+          </div>
+          <button type="button" onclick={() => (historyOpen = false)} class="rounded px-2 text-neutral-500 hover:text-neutral-200" aria-label="Close history">×</button>
+        </div>
+        <div class="min-h-0 flex-1 overflow-y-auto p-3">
+          {#if historyRuns.length === 0}
+            <p class="p-4 text-xs text-neutral-500">No runs recorded for this output yet.</p>
+          {:else}
+            <div class="space-y-2">
+              {#each [...historyRuns].reverse() as record}
+                <div class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-neutral-800 bg-neutral-900/60 px-3 py-2">
+                  <div class="min-w-0">
+                    <p class="truncate text-xs text-neutral-200">{record.recipe_id || "recipe"}</p>
+                    <p class="font-mono text-[10px] text-neutral-500">{record.job_id.slice(0, 8)} · {new Date(record.created_at).toLocaleString()} · {(record.duration_ms / 1000).toFixed(1)}s</p>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class={`rounded px-2 py-0.5 text-[10px] ${record.status === "succeeded" ? "bg-emerald-500/10 text-emerald-300" : "bg-rose-500/10 text-rose-300"}`}>{record.status}</span>
+                    <button type="button" onclick={() => compareRecord(record)} class="rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-300 hover:bg-sky-500/10">Compare</button>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      </div>
+    </div>
   {/if}
 
   {#if compareOpen && comparison}
@@ -1276,7 +1523,9 @@
             ? "Choose output directory"
             : picker === "batch-source"
               ? "Choose batch input folder"
-              : "Choose batch output root"
+              : picker === "broll"
+                ? "Choose local B-roll asset folder"
+                : "Choose batch output root"
       }
       initialPath={
         picker === "source"
@@ -1285,7 +1534,9 @@
             ? inputOutput
             : picker === "batch-source"
               ? batchSourceDir
-              : batchOutputRoot
+              : picker === "broll"
+                ? paramString("asset_dir")
+                : batchOutputRoot
       }
       onclose={() => (picker = null)}
       onselect={(path) => choose(path)}

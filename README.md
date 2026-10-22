@@ -7,7 +7,7 @@ vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive. The primary surface is a recipe DAG editor; the classic rack
 panels remain available for manual control.
 
-> Status: 0.31.0 alpha. The portable Linux binary, Linux AppImage, and Windows
+> Status: 0.32.0 alpha. The portable Linux binary, Linux AppImage, and Windows
 > PE run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical shorts, and
@@ -47,7 +47,7 @@ The same contract is available at `POST /api/v1/recipes/run` and through
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 417 passing, 10 strict xfail, 8 deselected
+uv run pytest                       # 419 passing, 10 strict xfail, 8 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model
@@ -160,13 +160,16 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - Heuristic speaker turns with speaker-colored ASS captions.
 - Local B-roll planning and full-frame B-roll overlays for Shorts.
 - Split-screen Shorts rendering.
-- Local Piper TTS voice-over through the API.
+- Local Piper TTS voice-over through the API and UI.
+- Recipe inspector controls for transitions, speaker turns, B-roll, split-screen, and caption colors.
+- Persisted run history browser in the recipe UI.
+- Kdenlive affine transforms/keyframes plus opacity/volume transition filters.
 
 ## Not implemented yet
 
 - Project-scoped per-block reruns; the legacy route returns typed `501`. Recipe
   steps already use per-step checkpoints.
-- Kdenlive transforms and per-cut transitions.
+- Kdenlive exact cross-dissolve validation; transitions are emitted as affine opacity/volume fades.
 - Model-based diarization; speaker turns are currently heuristic.
 - Face tracking for the main timeline.
 - Manual import validation in Resolve, Premiere, and Kdenlive.

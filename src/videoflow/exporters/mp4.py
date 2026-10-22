@@ -50,6 +50,7 @@ def _video_filters(clip: VideoSegment, media: MediaInfo) -> list[str]:
         f"trim=start_frame={clip.source_in_frame}:end_frame={clip.source_out_frame}",
         "setpts=PTS-STARTPTS",
         *_transform_filters(clip, media),
+        "settb=AVTB",
     ]
     return filters
 

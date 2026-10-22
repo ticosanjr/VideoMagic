@@ -352,3 +352,33 @@ def test_mp4_filter_graph_uses_fades_for_fade_to_black(tmp_path: Path) -> None:
     assert "xfade=" not in graph
     assert video_label == "[vout]"
     assert audio_label == "[aout]"
+
+
+def test_kdenlive_applies_transform_and_transition_filters(tmp_path: Path) -> None:
+    state = transition_state(tmp_path, transition_type="crossfade")
+    output = export_kdenlive(state, tmp_path / "timeline.kdenlive")
+    root = ET.parse(output).getroot()
+    video_entries = root.findall("./playlist[@id='playlist0']/entry")
+    assert len(video_entries) == 2
+    affine = video_entries[0].find("filter/property[@name='mlt_service']")
+    assert affine is not None and affine.text == "affine"
+    geometry = video_entries[0].find("filter/property[@name='transition.rect']")
+    assert geometry is not None and geometry.text
+    assert ";" in (geometry.text or "")
+    audio = root.find("./playlist[@id='playlist2']/entry/filter/property[@name='level']")
+    assert audio is not None and "-60" in (audio.text or "")
+
+
+def test_mp4_crossfade_normalizes_timebase_with_zoom(tmp_path: Path) -> None:
+    from videoflow.domain.state import TransformKeyframe
+    from videoflow.exporters.mp4 import build_filter_graph
+
+    state = transition_state(tmp_path)
+    state.video_segments[1].transform.keyframes = [
+        TransformKeyframe(at=0.0, scale=1.0),
+        TransformKeyframe(at=1.0, scale=1.15),
+    ]
+    graph, video_label, _ = build_filter_graph(state)
+    assert "settb=AVTB" in graph
+    assert "xfade=transition=fade" in graph
+    assert video_label == "[vx1]"

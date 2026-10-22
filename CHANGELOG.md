@@ -3,6 +3,27 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.32.0] - 2026-10-22
+
+### Added
+
+- **Kdenlive transforms and keyframes.** Video entries receive an MLT `affine`
+  filter with static geometry or `transition.rect` keyframes.
+- **Kdenlive transition fades.** Clip transitions add opacity keyframes and
+  volume ramps in the MLT project.
+- **Recipe inspector quick controls** for transition frames/type, progressive
+  zoom, speaker turns, B-roll directory, split-screen, B-roll application, and
+  caption speaker colors.
+- **Run history browser** in the Recipes tab, with persisted runs and comparison.
+- **Piper provider controls** in the Short editor, with binary and model path.
+- README, exporter docs, and capability status updated.
+
+### Notes
+
+- Kdenlive crossfades are emitted as opacity/volume fades rather than a validated
+  exact cross-dissolve; Kdenlive itself is not available on this build host.
+- 419 Python tests and 14 UI tests pass.
+
 ## [0.31.0] - 2026-10-22
 
 ### Added

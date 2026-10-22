@@ -1167,9 +1167,12 @@ export async function generateShortVoiceover(
   index: number,
   payload: {
     text: string;
+    provider?: "openai_compatible" | "piper";
     base_url?: string;
     model?: string;
     voice?: string;
+    binary?: string;
+    model_path?: string;
     allow_external_services?: boolean;
     allowed_external_hosts?: string[];
   }

@@ -51,7 +51,14 @@ def export_kdenlive(state: ProjectState, output_path: Path) -> Path:
     ET.SubElement(root, "playlist", {"id": "playlist1"})
     _append_track_tractor(root, "tractor0", "playlist0", "playlist1", audio=False)
 
-    _append_playlist(root, "playlist2", state.audio_segments, media, video=False)
+    _append_playlist(
+        root,
+        "playlist2",
+        state.audio_segments,
+        media,
+        video=False,
+        transitions=[clip.transition_out for clip in state.video_segments],
+    )
     ET.SubElement(root, "playlist", {"id": "playlist3"})
     _append_track_tractor(root, "tractor1", "playlist2", "playlist3", audio=True)
 
@@ -130,9 +137,14 @@ def _append_playlist(
     media,
     *,
     video: bool,
+    transitions: list | None = None,
 ) -> None:
     playlist = ET.SubElement(parent, "playlist", {"id": playlist_id})
-    for clip in clips:
+    previous_transition = None
+    for index, clip in enumerate(clips):
+        current_transition = (
+            clip.transition_out if video else (transitions[index] if transitions else None)
+        )
         if video:
             source_in = clip.source_in_frame
             source_out = max(clip.source_in_frame, clip.source_out_frame - 1)
@@ -142,6 +154,7 @@ def _append_playlist(
                 source_in,
                 media.timebase().sample_to_frame(clip.source_out_sample, Rounding.CEIL) - 1,
             )
+        duration_frames = source_out - source_in + 1
         entry = ET.SubElement(
             playlist,
             "entry",
@@ -151,8 +164,25 @@ def _append_playlist(
                 "out": _timecode(source_out, media.fps_num, media.fps_den),
             },
         )
-        if not video:
-            _append_volume_fade(entry, clip, media, source_out - source_in + 1)
+        if video:
+            _append_video_filter(
+                entry,
+                clip,
+                media,
+                duration_frames,
+                previous_transition=previous_transition,
+                index=index,
+            )
+        else:
+            _append_volume_fade(
+                entry,
+                clip,
+                media,
+                duration_frames,
+                previous_transition=previous_transition,
+                current_transition=current_transition,
+            )
+        previous_transition = current_transition
 
 
 def _append_track_tractor(
@@ -279,9 +309,21 @@ def _property(parent: ET.Element, name: str, value: str) -> None:
     ET.SubElement(parent, "property", {"name": name}).text = value
 
 
-def _append_volume_fade(entry: ET.Element, clip, media, duration_frames: int) -> None:
+def _append_volume_fade(
+    entry: ET.Element,
+    clip,
+    media,
+    duration_frames: int,
+    *,
+    previous_transition=None,
+    current_transition=None,
+) -> None:
     fade_in = media.timebase().sample_to_frame(clip.fade_in_samples, Rounding.CEIL)
     fade_out = media.timebase().sample_to_frame(clip.fade_out_samples, Rounding.CEIL)
+    if previous_transition is not None and previous_transition.audio:
+        fade_in = max(fade_in, previous_transition.duration_frames)
+    if current_transition is not None and current_transition.audio:
+        fade_out = max(fade_out, current_transition.duration_frames)
     if fade_in <= 0 and fade_out <= 0:
         return
     fade_in = min(fade_in, max(0, duration_frames - 1))
@@ -309,6 +351,131 @@ def _append_volume_fade(entry: ET.Element, clip, media, duration_frames: int) ->
     _property(filter_element, "mlt_service", "volume")
     _property(filter_element, "kdenlive_id", "volume")
     _property(filter_element, "level", level)
+
+
+def _append_video_filter(
+    entry: ET.Element,
+    clip,
+    media,
+    duration_frames: int,
+    *,
+    previous_transition=None,
+    index: int = 0,
+) -> None:
+    transform = clip.transform
+    fade_in = (
+        previous_transition.duration_frames
+        if previous_transition is not None
+        else 0
+    )
+    fade_out = (
+        clip.transition_out.duration_frames
+        if clip.transition_out is not None
+        else 0
+    )
+    fade_in = min(fade_in, max(0, duration_frames - 1))
+    fade_out = min(fade_out, max(0, duration_frames - 1))
+    keyframes: dict[int, tuple[int, int, int, int, float]] = {}
+    if transform.keyframes:
+        for keyframe in transform.keyframes:
+            frame = round(keyframe.at * max(1, duration_frames - 1))
+            keyframes[frame] = _transform_rect(
+                media,
+                keyframe.scale,
+                keyframe.pos_x,
+                keyframe.pos_y,
+                transform.anchor,
+                transform.pan_direction,
+                1.0,
+            )
+    elif (
+        transform.scale != 1.0
+        or transform.pos_x != 0.0
+        or transform.pos_y != 0.0
+        or transform.type != "none"
+        or transform.pan_direction != "none"
+    ):
+        keyframes[0] = _transform_rect(
+            media,
+            transform.scale,
+            transform.pos_x,
+            transform.pos_y,
+            transform.anchor,
+            transform.pan_direction,
+            1.0,
+        )
+    if fade_in > 0:
+        base = keyframes.get(0) or _transform_rect(
+            media,
+            transform.scale,
+            transform.pos_x,
+            transform.pos_y,
+            transform.anchor,
+            transform.pan_direction,
+            1.0,
+        )
+        keyframes[0] = (*base[:4], 0.0)
+        keyframes[fade_in] = (*keyframes.get(fade_in, base)[:4], 1.0)
+    if fade_out > 0:
+        base = keyframes.get(0) or _transform_rect(
+            media,
+            transform.scale,
+            transform.pos_x,
+            transform.pos_y,
+            transform.anchor,
+            transform.pan_direction,
+            1.0,
+        )
+        start = max(0, duration_frames - 1 - fade_out)
+        keyframes[start] = (*keyframes.get(start, base)[:4], 1.0)
+        keyframes[max(0, duration_frames - 1)] = (*base[:4], 0.0)
+    if not keyframes:
+        return
+    ordered = [keyframes[frame] for frame in sorted(keyframes)]
+    if len(ordered) == 1:
+        geometry = " ".join(str(value) for value in ordered[0])
+    else:
+        geometry = ";".join(
+            f"{frame}=" + " ".join(str(value) for value in values)
+            for frame, values in sorted(keyframes.items())
+        )
+    filter_element = ET.SubElement(
+        entry,
+        "filter",
+        {
+            "id": f"filter-transform-{index}-{clip.clip_id}",
+            "in": _timecode(0, media.fps_num, media.fps_den),
+            "out": _timecode(max(0, duration_frames - 1), media.fps_num, media.fps_den),
+        },
+    )
+    _property(filter_element, "mlt_service", "affine")
+    _property(filter_element, "kdenlive_id", "affine")
+    _property(filter_element, "transition.fill", "1")
+    _property(filter_element, "transition.distort", "1")
+    _property(filter_element, "transition.rect", geometry)
+    _property(filter_element, "transition.geometry", geometry)
+
+
+def _transform_rect(
+    media,
+    scale: float,
+    pos_x: float,
+    pos_y: float,
+    anchor: str,
+    pan_direction: str,
+    opacity: float,
+) -> tuple[int, int, int, int, float]:
+    width = round(media.width * scale)
+    height = round(media.height * scale)
+    x = round((media.width - width) / 2 + pos_x * media.width)
+    y = round((media.height - height) / 2 + pos_y * media.height)
+    if anchor == "upper_third":
+        y -= round((height - media.height) / 3)
+    if pan_direction == "left_to_right":
+        x -= media.width // 12
+    elif pan_direction == "right_to_left":
+        x += media.width // 12
+    return x, y, width, height, opacity
 
 
 def _timecode(frame: int, fps_num: int, fps_den: int) -> str:

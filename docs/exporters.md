@@ -94,8 +94,8 @@ Mapping:
 | J/L-cut | `audioStart`, `audioDuration` |
 | Punch-in | `<adjust-transform scale="1.15 1.15" position="0 180"/>` |
 | Pan | `<adjust-transform position="..."/>` |
-| Progressive zoom | FCPXML `adjust-transform` scale keyframes, XMEML Basic Motion keyframes, and MP4 `zoompan` |
-| Transitions | FCPXML `transition`, XMEML video `transitionitem`, MP4 `xfade`/fades; Kdenlive pending |
+| Progressive zoom | FCPXML `adjust-transform` scale keyframes, XMEML Basic Motion keyframes, MP4 `zoompan`, and Kdenlive affine `transition.rect` keyframes |
+| Transitions | FCPXML `transition`, XMEML video `transitionitem`, MP4 `xfade`/fades, Kdenlive affine opacity/volume fades |
 | Fade | keyframed `adjust-volume` ramp inside the `asset-clip` |
 | Markers | not emitted yet |
 

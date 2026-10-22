@@ -59,6 +59,9 @@
   let voiceoverBaseUrl = $state("");
   let voiceoverModel = $state("tts-1");
   let voiceoverVoice = $state("alloy");
+  let voiceoverProvider = $state<"openai_compatible" | "piper">("openai_compatible");
+  let voiceoverBinary = $state("piper");
+  let voiceoverModelPath = $state("");
   let voiceoverBusy = $state(false);
   let voiceoverError = $state("");
   let dubLanguage = $state("en");
@@ -103,6 +106,9 @@
     voiceoverBaseUrl = "";
     voiceoverModel = short.voiceover?.model ?? "tts-1";
     voiceoverVoice = short.voiceover?.voice ?? "alloy";
+    voiceoverProvider = short.voiceover?.provider === "piper" ? "piper" : "openai_compatible";
+    voiceoverBinary = "piper";
+    voiceoverModelPath = "";
     voiceoverError = "";
     dubLanguage = short.dubbing?.target_language ?? "en";
     dubBaseUrl = "";
@@ -217,9 +223,12 @@
         .filter(Boolean);
       const response = await generateShortVoiceover(jobId, index, {
         text: voiceoverText,
+        provider: voiceoverProvider,
         base_url: voiceoverBaseUrl.trim() || undefined,
         model: voiceoverModel,
         voice: voiceoverVoice,
+        binary: voiceoverBinary,
+        model_path: voiceoverModelPath,
         allow_external_services: allowExternal,
         allowed_external_hosts: hosts
       });
@@ -569,38 +578,67 @@
               placeholder="Narration text"
               class="mt-2 w-full resize-y rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
             ></textarea>
-            <div class="mt-2 grid gap-2 sm:grid-cols-3">
-              <input
-                type="text"
-                value={voiceoverBaseUrl}
-                oninput={(event) => (voiceoverBaseUrl = event.currentTarget.value)}
-                placeholder="TTS base URL"
-                class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100"
-              />
-              <input
-                type="text"
-                value={voiceoverModel}
-                oninput={(event) => (voiceoverModel = event.currentTarget.value)}
-                placeholder="model"
-                class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100"
-              />
-              <input
-                type="text"
-                value={voiceoverVoice}
-                oninput={(event) => (voiceoverVoice = event.currentTarget.value)}
-                placeholder="voice"
-                class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100"
-              />
+            <div class="mt-2">
+              <select
+                value={voiceoverProvider}
+                onchange={(event) => (voiceoverProvider = event.currentTarget.value as "openai_compatible" | "piper")}
+                class="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100"
+              >
+                <option value="openai_compatible">OpenAI-compatible TTS</option>
+                <option value="piper">Local Piper</option>
+              </select>
             </div>
+            {#if voiceoverProvider === "piper"}
+              <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                <input
+                  type="text"
+                  value={voiceoverBinary}
+                  oninput={(event) => (voiceoverBinary = event.currentTarget.value)}
+                  placeholder="piper binary"
+                  class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100"
+                />
+                <input
+                  type="text"
+                  value={voiceoverModelPath}
+                  oninput={(event) => (voiceoverModelPath = event.currentTarget.value)}
+                  placeholder="/path/to/voice.onnx"
+                  class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100"
+                />
+              </div>
+            {:else}
+              <div class="mt-2 grid gap-2 sm:grid-cols-3">
+                <input
+                  type="text"
+                  value={voiceoverBaseUrl}
+                  oninput={(event) => (voiceoverBaseUrl = event.currentTarget.value)}
+                  placeholder="TTS base URL"
+                  class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100"
+                />
+                <input
+                  type="text"
+                  value={voiceoverModel}
+                  oninput={(event) => (voiceoverModel = event.currentTarget.value)}
+                  placeholder="model"
+                  class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100"
+                />
+                <input
+                  type="text"
+                  value={voiceoverVoice}
+                  oninput={(event) => (voiceoverVoice = event.currentTarget.value)}
+                  placeholder="voice"
+                  class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100"
+                />
+              </div>
+            {/if}
             <button
               type="button"
               onclick={makeVoiceover}
-              disabled={voiceoverBusy || !allowExternal}
+              disabled={voiceoverBusy || (voiceoverProvider === "openai_compatible" && !allowExternal)}
               class="mt-2 rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-200 disabled:opacity-40"
             >
               {voiceoverBusy ? "Generating…" : "Generate voice-over"}
             </button>
-            {#if !allowExternal}
+            {#if voiceoverProvider === "openai_compatible" && !allowExternal}
               <p class="mt-1 text-[10px] text-amber-300">Enable external services in Providers first.</p>
             {/if}
             {#if voiceoverError}
