@@ -106,6 +106,12 @@ class Transform(StrictModel):
     keyframes: list[TransformKeyframe] = Field(default_factory=list)
 
 
+class Transition(StrictModel):
+    type: Literal["crossfade", "fade_to_black"] = "crossfade"
+    duration_frames: int = Field(default=6, ge=1, le=120)
+    audio: bool = True
+
+
 class VideoSegment(StrictModel):
     clip_id: str = Field(min_length=1)
     source_in_frame: int = Field(ge=0)
@@ -113,6 +119,7 @@ class VideoSegment(StrictModel):
     timeline_in_frame: int = Field(ge=0)
     timeline_out_frame: int = Field(ge=0)
     transform: Transform = Field(default_factory=Transform)
+    transition_out: Transition | None = None
 
     @model_validator(mode="after")
     def exclusive_ranges(self) -> Self:

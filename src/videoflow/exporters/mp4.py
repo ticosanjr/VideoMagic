@@ -45,16 +45,16 @@ def _transform_filters(clip: VideoSegment, media: MediaInfo) -> list[str]:
     return filters
 
 
-def _video_chain(clip: VideoSegment, media: MediaInfo, index: int) -> str:
+def _video_filters(clip: VideoSegment, media: MediaInfo) -> list[str]:
     filters = [
         f"trim=start_frame={clip.source_in_frame}:end_frame={clip.source_out_frame}",
         "setpts=PTS-STARTPTS",
         *_transform_filters(clip, media),
     ]
-    return f"[0:v]{','.join(filters)}[v{index}]"
+    return filters
 
 
-def _audio_chain(clip: AudioSegment, media: MediaInfo, index: int) -> str:
+def _audio_filters(clip: AudioSegment, media: MediaInfo) -> list[str]:
     sample_rate = media.audio_sample_rate
     duration = (clip.source_out_sample - clip.source_in_sample) / sample_rate
     filters = [
@@ -68,7 +68,7 @@ def _audio_chain(clip: AudioSegment, media: MediaInfo, index: int) -> str:
         filters.append(
             f"afade=t=out:st={start:.6f}:d={clip.fade_out_samples / sample_rate:.6f}"
         )
-    return f"[0:a]{','.join(filters)}[a{index}]"
+    return filters
 
 
 def build_filter_graph(state: ProjectState) -> tuple[str, str, str]:
@@ -79,11 +79,87 @@ def build_filter_graph(state: ProjectState) -> tuple[str, str, str]:
     audio = sorted(state.audio_segments, key=lambda item: item.timeline_in_sample)
     if not video or not audio:
         raise ExportError("Timeline needs both video and audio segments")
+    fps = media.fps_num / media.fps_den
+    video_durations = [
+        (clip.timeline_out_frame - clip.timeline_in_frame) / fps for clip in video
+    ]
+    transitions = [clip.transition_out for clip in video[:-1]]
+    crossfade = any(item is not None and item.type == "crossfade" for item in transitions)
     chains: list[str] = []
     for index, clip in enumerate(video):
-        chains.append(_video_chain(clip, media, index))
+        filters = _video_filters(clip, media)
+        previous = transitions[index - 1] if index > 0 else None
+        current = transitions[index] if index < len(transitions) else None
+        if previous is not None and previous.type == "fade_to_black":
+            filters.append(
+                f"fade=t=in:st=0:d={previous.duration_frames / fps:.6f}"
+            )
+        if current is not None and current.type == "fade_to_black":
+            start = max(0.0, video_durations[index] - current.duration_frames / fps)
+            filters.append(
+                f"fade=t=out:st={start:.6f}:d={current.duration_frames / fps:.6f}"
+            )
+        chains.append(f"[0:v]{','.join(filters)}[v{index}]")
     for index, clip in enumerate(audio):
-        chains.append(_audio_chain(clip, media, index))
+        filters = _audio_filters(clip, media)
+        previous = transitions[index - 1] if index > 0 else None
+        current = transitions[index] if index < len(transitions) else None
+        if previous is not None and previous.audio and previous.type == "fade_to_black":
+            filters.append(
+                f"afade=t=in:st=0:d={previous.duration_frames / fps:.6f}"
+            )
+        if current is not None and current.audio and current.type == "fade_to_black":
+            start = max(
+                0.0,
+                (clip.timeline_out_sample - clip.timeline_in_sample)
+                / media.audio_sample_rate
+                - current.duration_frames / fps,
+            )
+            filters.append(
+                f"afade=t=out:st={start:.6f}:d={current.duration_frames / fps:.6f}"
+            )
+        chains.append(f"[0:a]{','.join(filters)}[a{index}]")
+
+    if crossfade:
+        current_video = "[v0]"
+        current_audio = "[a0]"
+        cumulative = video_durations[0]
+        for index, transition in enumerate(transitions, start=1):
+            if transition is None or transition.type != "crossfade":
+                chains.append(
+                    f"{current_video}[v{index}]concat=n=2:v=1:a=0[vx{index}]"
+                )
+                current_video = f"[vx{index}]"
+                if transition is None or transition.audio:
+                    chains.append(
+                        f"{current_audio}[a{index}]acrossfade=d=0.001[ax{index}]"
+                    )
+                else:
+                    chains.append(
+                        f"{current_audio}[a{index}]concat=n=2:v=0:a=1[ax{index}]"
+                    )
+                current_audio = f"[ax{index}]"
+                cumulative += video_durations[index]
+                continue
+            duration = transition.duration_frames / fps
+            offset = max(0.0, cumulative - duration)
+            chains.append(
+                f"{current_video}[v{index}]xfade=transition=fade:duration={duration:.6f}:"
+                f"offset={offset:.6f}[vx{index}]"
+            )
+            current_video = f"[vx{index}]"
+            if transition.audio:
+                chains.append(
+                    f"{current_audio}[a{index}]acrossfade=d={duration:.6f}[ax{index}]"
+                )
+            else:
+                chains.append(
+                    f"{current_audio}[a{index}]concat=n=2:v=0:a=1[ax{index}]"
+                )
+            current_audio = f"[ax{index}]"
+            cumulative += video_durations[index] - duration
+        return ";".join(chains), current_video, current_audio
+
     video_inputs = "".join(f"[v{index}]" for index in range(len(video)))
     audio_inputs = "".join(f"[a{index}]" for index in range(len(audio)))
     chains.append(f"{video_inputs}concat=n={len(video)}:v=1:a=0[vout]")

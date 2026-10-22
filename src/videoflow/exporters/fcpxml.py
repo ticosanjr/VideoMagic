@@ -120,6 +120,21 @@ def export_fcpxml(state: ProjectState, output_path: Path, *, dialect: Dialect = 
         )
         _append_transform(element, clip, media)
         _append_audio_fade(element, audio_clip, media)
+        if clip.transition_out is not None:
+            ET.SubElement(
+                spine,
+                "transition",
+                {
+                    "name": (
+                        "Cross Dissolve"
+                        if clip.transition_out.type == "crossfade"
+                        else "Fade to Black"
+                    ),
+                    "duration": format_rational_time(
+                        timebase.frames_to_seconds(clip.transition_out.duration_frames)
+                    ),
+                },
+            )
 
     return write_text(output_path, xml_document(root, "fcpxml"))
 

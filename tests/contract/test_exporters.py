@@ -289,3 +289,66 @@ def test_mp4_filter_graph_uses_zoompan_for_keyframes(tmp_path: Path) -> None:
 
     graph, _, _ = build_filter_graph(progressive_state(tmp_path))
     assert "zoompan=" in graph
+
+
+def transition_state(tmp_path: Path, transition_type: str = "crossfade") -> ProjectState:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    media = MediaInfo(
+        source_path=str(source),
+        duration_frames=90,
+        fps_num=30,
+        fps_den=1,
+        width=1920,
+        height=1080,
+        audio_sample_rate=48000,
+    )
+    built = build_timeline(
+        media,
+        [(0, 48000), (96000, 144000)],
+        jl=JlCutsConfig(enable_j_cuts=False),
+        zooms=ZoomsConfig(mode="manual_rules"),
+        transition_frames=6,
+        transition_type=transition_type,
+    )
+    return ProjectState(
+        media_info=media,
+        video_segments=list(built.video_segments),
+        audio_segments=list(built.audio_segments),
+    )
+
+
+def test_transition_metadata_reaches_exporters(tmp_path: Path) -> None:
+    state = transition_state(tmp_path)
+    assert state.video_segments[0].transition_out is not None
+    fcpxml = export_fcpxml(state, tmp_path / "timeline.fcpxml")
+    root = ET.parse(fcpxml).getroot()
+    assert root.find(".//spine/transition") is not None
+    xmeml = export_xmeml(state, tmp_path / "timeline.xml")
+    xroot = ET.parse(xmeml).getroot()
+    transitions = xroot.findall("./sequence/media/video/track/transitionitem")
+    assert len(transitions) == 1
+    assert transitions[0].findtext("effect/effectid") == "Cross Dissolve"
+
+
+def test_mp4_filter_graph_uses_xfade_for_crossfade(tmp_path: Path) -> None:
+    from videoflow.exporters.mp4 import build_filter_graph
+
+    graph, video_label, audio_label = build_filter_graph(transition_state(tmp_path))
+    assert "xfade=transition=fade" in graph
+    assert "acrossfade=d=" in graph
+    assert video_label == "[vx1]"
+    assert audio_label == "[ax1]"
+
+
+def test_mp4_filter_graph_uses_fades_for_fade_to_black(tmp_path: Path) -> None:
+    from videoflow.exporters.mp4 import build_filter_graph
+
+    graph, video_label, audio_label = build_filter_graph(
+        transition_state(tmp_path, transition_type="fade_to_black")
+    )
+    assert "fade=t=out" in graph
+    assert "fade=t=in" in graph
+    assert "xfade=" not in graph
+    assert video_label == "[vout]"
+    assert audio_label == "[aout]"

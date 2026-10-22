@@ -3,6 +3,25 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.29.0] - 2026-10-22
+
+### Added
+
+- **Clip transitions.** `VideoSegment.transition_out` carries a
+  `Transition` with `crossfade` or `fade_to_black`, duration, and audio flag.
+- `edit.timeline` accepts `transition_frames` and `transition_type`.
+- **FCPXML** emits a `transition` element between clips.
+- **XMEML** emits a video `transitionitem` with Cross Dissolve/Fade to Black.
+- **MP4** uses `xfade`/`acrossfade` for crossfades and video/audio fades for
+  fade-to-black.
+- Project-state schema updated for transitions.
+
+### Notes
+
+- Kdenlive does not apply clip transforms or per-cut transitions yet.
+- The transition duration reduces the MP4 duration for crossfades because the
+  clips overlap, as expected.
+
 ## [0.28.0] - 2026-10-22
 
 ### Added

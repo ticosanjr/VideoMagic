@@ -19,6 +19,7 @@ from videoflow.domain.state import (
     Transform,
     TransformKeyframe,
     TransformType,
+    Transition,
     VideoSegment,
 )
 from videoflow.domain.timebase import Rounding, Timebase
@@ -52,6 +53,8 @@ def build_timeline(
     *,
     jl: JlCutsConfig,
     zooms: ZoomsConfig,
+    transition_frames: int = 0,
+    transition_type: str = "crossfade",
     on_audio_done: Callable[[], None] | None = None,
 ) -> TimelineBuildResult:
     """Build the editable picture and dialogue tracks.
@@ -115,15 +118,25 @@ def build_timeline(
     if on_audio_done is not None:
         on_audio_done()
 
-    video_segments = tuple(
+    video_segments = [
         _video_segment(clip, index, zooms, warnings) for index, clip in enumerate(clips)
-    )
+    ]
     audio_segments = tuple(
         _audio_segment(clip, index, len(clips), timebase, jl) for index, clip in enumerate(clips)
     )
+    if transition_frames > 0 and len(video_segments) > 1:
+        for segment in video_segments[:-1]:
+            duration = min(
+                max(1, int(transition_frames)),
+                max(1, segment.timeline_out_frame - segment.timeline_in_frame - 1),
+            )
+            segment.transition_out = Transition(
+                type=transition_type,  # type: ignore[arg-type]
+                duration_frames=duration,
+            )
 
     return TimelineBuildResult(
-        video_segments=video_segments,
+        video_segments=tuple(video_segments),
         audio_segments=audio_segments,
         warnings=tuple(warnings),
     )

@@ -60,6 +60,13 @@ def export_xmeml(state: ProjectState, output_path: Path) -> Path:
         ET.SubElement(item, "out").text = str(clip.source_out_frame)
         _append_file(item, media, file_id=f"file-video-{index + 1}")
         _append_motion(item, clip)
+        if clip.transition_out is not None:
+            _append_video_transition(
+                video_track,
+                clip,
+                media,
+                number=index + 1,
+            )
         video_items.append(item)
 
     audio_element = ET.SubElement(media_element, "audio")
@@ -129,6 +136,30 @@ def _append_sequence_timecode(sequence: ET.Element, media: MediaInfo) -> None:
     _append_rate(timecode, media)
     ET.SubElement(timecode, "frame").text = "0"
     ET.SubElement(timecode, "displayformat").text = "NDF"
+
+
+def _append_video_transition(
+    parent: ET.Element,
+    clip,
+    media: MediaInfo,
+    *,
+    number: int,
+) -> None:
+    duration = clip.transition_out.duration_frames
+    cut = clip.timeline_out_frame
+    start = max(0, cut - duration // 2)
+    item = ET.SubElement(parent, "transitionitem", {"id": f"videotrans-{number}"})
+    ET.SubElement(item, "start").text = str(start)
+    ET.SubElement(item, "end").text = str(start + duration)
+    ET.SubElement(item, "alignment").text = "center"
+    _append_rate(item, media)
+    effect = ET.SubElement(item, "effect")
+    name = "Cross Dissolve" if clip.transition_out.type == "crossfade" else "Fade to Black"
+    ET.SubElement(effect, "name").text = name
+    ET.SubElement(effect, "effectid").text = name
+    ET.SubElement(effect, "effectcategory").text = "video"
+    ET.SubElement(effect, "effecttype").text = "transition"
+    ET.SubElement(effect, "mediatype").text = "video"
 
 
 def _append_audio_fade(

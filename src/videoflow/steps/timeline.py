@@ -39,6 +39,8 @@ class TimelineParams(BaseModel):
 
     pad_before_ms: int | None = Field(default=None, ge=0)
     pad_after_ms: int | None = Field(default=None, ge=0)
+    transition_frames: int = Field(default=0, ge=0, le=120)
+    transition_type: Literal["crossfade", "fade_to_black"] = "crossfade"
     project_id: str | None = None
     revision: int = Field(default=1, ge=1)
 
@@ -94,7 +96,14 @@ class TimelineStep(BaseStep):
             pan_direction=options.pan_direction,
         )
         io.report(20, "Building the cut timeline")
-        built = build_timeline(media, speech, jl=jl, zooms=zooms)
+        built = build_timeline(
+            media,
+            speech,
+            jl=jl,
+            zooms=zooms,
+            transition_frames=options.transition_frames,
+            transition_type=options.transition_type,
+        )
         project_id = UUID(options.project_id) if options.project_id else uuid4()
         context.state = ProjectState(
             project_id=project_id,

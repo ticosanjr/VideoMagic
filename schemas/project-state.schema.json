@@ -1310,6 +1310,34 @@
       "title": "TransformKeyframe",
       "type": "object"
     },
+    "Transition": {
+      "additionalProperties": false,
+      "properties": {
+        "audio": {
+          "default": true,
+          "title": "Audio",
+          "type": "boolean"
+        },
+        "duration_frames": {
+          "default": 6,
+          "maximum": 120,
+          "minimum": 1,
+          "title": "Duration Frames",
+          "type": "integer"
+        },
+        "type": {
+          "default": "crossfade",
+          "enum": [
+            "crossfade",
+            "fade_to_black"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "Transition",
+      "type": "object"
+    },
     "TtsConfig": {
       "additionalProperties": false,
       "properties": {
@@ -1496,6 +1524,17 @@
         },
         "transform": {
           "$ref": "#/$defs/Transform"
+        },
+        "transition_out": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Transition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
