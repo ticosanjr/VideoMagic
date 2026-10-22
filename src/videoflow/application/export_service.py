@@ -1,4 +1,4 @@
-"""One timeline, three NLE artifacts. The API and MCP call this service."""
+"""One timeline to NLE documents or a direct MP4. The API and MCP call this service."""
 
 from __future__ import annotations
 
@@ -10,15 +10,17 @@ from videoflow.domain.errors import ExportError
 from videoflow.domain.state import ProjectState
 from videoflow.exporters.fcpxml import Dialect, export_fcpxml
 from videoflow.exporters.kdenlive import export_kdenlive
+from videoflow.exporters.mp4 import export_mp4
 from videoflow.exporters.xmeml import export_xmeml
 
-Target = Literal["resolve", "premiere", "kdenlive"]
+Target = Literal["resolve", "premiere", "kdenlive", "mp4"]
 DEFAULT_TARGETS: tuple[Target, ...] = ("resolve", "premiere", "kdenlive")
 
 FILENAMES: dict[str, str] = {
     "resolve": "timeline.fcpxml",
     "premiere": "timeline.xml",
     "kdenlive": "timeline.kdenlive",
+    "mp4": "timeline.mp4",
 }
 
 
@@ -41,6 +43,8 @@ def export_timeline(
             artifacts[target] = export_fcpxml(state, destination, dialect=dialect)
         elif target == "premiere":
             artifacts[target] = export_xmeml(state, destination)
-        else:
+        elif target == "kdenlive":
             artifacts[target] = export_kdenlive(state, destination)
+        else:
+            artifacts[target] = export_mp4(state, destination)
     return artifacts

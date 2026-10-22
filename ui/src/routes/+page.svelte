@@ -719,7 +719,8 @@
   const targetOptions = [
     { id: "resolve", label: "Resolve" },
     { id: "premiere", label: "Premiere" },
-    { id: "kdenlive", label: "Kdenlive" }
+    { id: "kdenlive", label: "Kdenlive" },
+    { id: "mp4", label: "MP4" }
   ];
 
   const durationPresets = [

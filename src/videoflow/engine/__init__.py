@@ -1,5 +1,6 @@
 """Recipe execution engine."""
 
+from videoflow.engine.batch import Batch, BatchManager
 from videoflow.engine.recipes import (
     BUILTIN_RECIPES,
     builtin_recipe,
@@ -12,6 +13,8 @@ from videoflow.engine.runner import RecipeRunner, RecipeRunResult, StepRun
 
 __all__ = [
     "BUILTIN_RECIPES",
+    "Batch",
+    "BatchManager",
     "RecipeRunResult",
     "StepRun",
     "RecipeRunner",

@@ -409,6 +409,34 @@ export interface RecipeSummary {
   source: string;
 }
 
+export interface BatchItem {
+  source: string;
+  output: string;
+  status: "pending" | "running" | "succeeded" | "failed" | "cancelled";
+  job_id: string | null;
+  message: string;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+export interface Batch {
+  batch_id: string;
+  status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+  message: string;
+  source_dir: string;
+  output_root: string;
+  recipe_id: string;
+  resume: boolean;
+  total: number;
+  completed: number;
+  failed: number;
+  current_job_id: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  items: BatchItem[];
+}
+
 export interface StepRun {
   id: string;
   type: string;
@@ -1019,6 +1047,37 @@ export async function runRecipe(payload: {
     body: JSON.stringify(payload)
   });
   return response.job;
+}
+
+export async function runBatch(payload: {
+  source_dir: string;
+  output_root: string;
+  recipe: Recipe;
+  recursive?: boolean;
+  extensions?: string[];
+  resume?: boolean;
+  max_files?: number;
+}): Promise<Batch> {
+  const response = await request<{ ok: boolean; batch: Batch }>("/api/v1/batches", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+  return response.batch;
+}
+
+export async function getBatch(batchId: string): Promise<Batch> {
+  const response = await request<{ ok: boolean; batch: Batch }>(
+    `/api/v1/batches/${encodeURIComponent(batchId)}`
+  );
+  return response.batch;
+}
+
+export async function cancelBatch(batchId: string): Promise<Batch> {
+  const response = await request<{ ok: boolean; batch: Batch }>(
+    `/api/v1/batches/${encodeURIComponent(batchId)}/cancel`,
+    { method: "POST" }
+  );
+  return response.batch;
 }
 
 export async function runRecipeStep(

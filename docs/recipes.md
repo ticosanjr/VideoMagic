@@ -49,7 +49,7 @@ and enabled steps that depend on disabled steps.
 | `shorts.reframe` | `shorts.select` | crop focus via static crop, motion, or face tracking |
 | `shorts.captions` | `shorts.select` | ASS caption files per Short |
 | `shorts.render` | `shorts.select` (+ optional reframe/captions) | MP4 + `shorts.json`; uses caption files when present |
-| `export.nle` | `edit.timeline` | FCPXML, XMEML, Kdenlive |
+| `export.nle` | `edit.timeline` | FCPXML, XMEML, Kdenlive, and/or MP4 |
 
 `GET /api/v1/steps` returns each step's JSON parameter schema. The UI uses that
 manifest to generate node defaults, so new steps do not require a new node
@@ -65,6 +65,7 @@ videoflow recipe validate recipes/viral_shorts_batch.json
 videoflow recipe run recipes/viral_shorts_batch.json /media/source.mp4 -o /media/out
 videoflow recipe step recipes/viral_shorts_batch.json shorts /media/source.mp4 -o /media/out
 videoflow recipe run recipes/viral_shorts_batch.json /media/source.mp4 -o /media/out --force
+videoflow recipe batch recipes/viral_shorts_batch.json /media/inbox -o /media/out --recursive
 ```
 
 ## REST
@@ -77,6 +78,10 @@ PUT  /api/v1/recipes/{id}
 POST /api/v1/recipes/validate
 POST /api/v1/recipes/run
 POST /api/v1/steps/{step_id}/run
+POST /api/v1/batches
+GET  /api/v1/batches
+GET  /api/v1/batches/{id}
+POST /api/v1/batches/{id}/cancel
 ```
 
 `POST /api/v1/recipes/run` accepts either a complete `recipe` object or a
@@ -98,6 +103,8 @@ job.
 - `videoflow_run_recipe`
 - `videoflow_run_recipe_inline`
 - `videoflow_run_step` — dependencies plus one named step, then stop
+- `videoflow_run_batch` — run a recipe over a folder
+- `videoflow_get_batch` / `videoflow_cancel_batch` — inspect or cancel a folder batch
 
 Agents should call `videoflow_run_recipe` and then poll `videoflow_get_job`.
 The MCP server and the UI share the same `JobManager`.
@@ -161,6 +168,28 @@ result expose `step_runs`:
 
 The visual editor colors each node as `cached`, `executed`, `running`, or
 `failed`, and the step inspector has **Run to here** for a partial run.
+
+## Folder batches
+
+`POST /api/v1/batches` runs a recipe over every matching media file in a folder.
+Files are processed one at a time, each into its own output folder, and each
+item is a normal job with its own progress, cancellation, logs, and checkpoints.
+
+```bash
+videoflow recipe batch recipes/viral_shorts_batch.json /media/inbox -o /media/out --recursive
+```
+
+Request fields: `source_dir`, `output_root`, `recipe` or `recipe_id`,
+`recursive`, `extensions`, `resume`, and `max_files`. The UI exposes the same
+flow through the **Batch** modal. `GET /api/v1/batches/{id}` returns item-level
+status.
+
+## Direct MP4
+
+`export.nle` accepts `mp4` in its `targets` list. The exporter builds one FFmpeg
+filter graph from the validated timeline, applies J/L-cut audio ranges and
+static transforms, and writes H.264/AAC with `+faststart`. The legacy job form
+also exposes an **MP4** target.
 
 ## Artifacts
 

@@ -18,6 +18,7 @@ from videoflow.application.jobs import JobManager
 from videoflow.application.projects import ProjectStore
 from videoflow.application.publishing import start_scheduler, stop_scheduler
 from videoflow.domain.constants import DEFAULT_API_HOST, DEFAULT_API_PORT
+from videoflow.engine.batch import BatchManager
 from videoflow.runtime import ui_dir
 
 UI_ORIGINS = (
@@ -41,13 +42,14 @@ def create_app(
     """
 
     manager = jobs or JobManager()
+    batches = BatchManager(manager)
     store = projects or ProjectStore()
     mcp_app = None
     lifespan = None
     if with_mcp:
         from videoflow.mcp_server.server import build_server
 
-        mcp = build_server(manager)
+        mcp = build_server(manager, batches)
         mcp_app = mcp.streamable_http_app(streamable_http_path="/")
 
         @asynccontextmanager
@@ -65,6 +67,7 @@ def create_app(
     )
     _install_common(app)
     app.state.jobs = manager
+    app.state.batches = batches
 
     @app.middleware("http")
     async def cache_and_version_headers(
@@ -98,7 +101,7 @@ def create_app(
     def health() -> dict[str, str]:
         return {"status": "ok", "service": "videoflow", "version": __version__}
 
-    register_routes(app, manager, store)
+    register_routes(app, manager, store, batches)
 
     if mcp_app is not None:
         app.mount("/mcp", mcp_app)

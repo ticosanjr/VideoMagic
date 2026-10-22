@@ -47,6 +47,7 @@ videoflow-0.21.2-windows-x86_64.exe
 
 ## Current
 
+- `v0.26.0`: direct main-timeline MP4 render, folder batches with item-level jobs, and batch UI.
 - `v0.25.0`: per-step checkpoints and resume, step-scoped CLI/REST/MCP runs, per-node cached/executed state, and dependency validation.
 - `v0.24.0`: independent Shorts reframe/captions steps, recipe VAD/transcript cache, full-width recipe canvas, and collapsible/JSON-modal editor controls.
 - `v0.23.1`: recipe path allowlist enforcement, Shorts/retakes dependency fix, and user-recipe overrides.

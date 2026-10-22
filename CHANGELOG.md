@@ -3,6 +3,35 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.26.0] - 2026-10-22
+
+### Added
+
+- **Direct main-timeline MP4 render.** `export.nle` accepts `mp4` as a target.
+  The exporter builds a filter graph from the validated timeline, applies
+  J/L-cut audio ranges, fades, and static transforms, and writes H.264/AAC with
+  `+faststart`. The legacy job form and recipe editor expose the target.
+- **Folder batches.** `videoflow recipe batch`, `POST /api/v1/batches`,
+  `videoflow_run_batch`, `videoflow_get_batch`, and `videoflow_cancel_batch`
+  process a folder one file at a time. Each item is a normal job with its own
+  output folder, progress, cancellation, logs, and recipe checkpoints.
+- **Batch UI.** The Recipes tab has a **Batch** modal with folder pickers,
+  recursive mode, extension filter, item-level progress, and cancel.
+- **Capability manifest entries** for direct MP4 and folder batches.
+
+### Changed
+
+- `ExportParams.targets` and `NewJobRequest.export_targets` accept `mp4`.
+- `FFmpegAdapter.render` is implemented with a one-hour render timeout.
+- Built-in recipe validation now enforces required upstream step types.
+
+### Validation
+
+- 405 Python tests passed; 14 UI tests passed.
+- Real FFmpeg media rendered through the timeline filter graph and was probed
+  back at the source dimensions.
+- A two-file batch completed both items into separate output folders.
+
 ## [0.25.0] - 2026-10-22
 
 ### Added

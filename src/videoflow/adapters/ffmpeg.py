@@ -24,6 +24,7 @@ from videoflow.domain.timebase import Rounding, Timebase
 from videoflow.runtime import find_binary
 
 DEFAULT_TIMEOUT_SECONDS = 600
+DEFAULT_RENDER_TIMEOUT_SECONDS = 3600
 
 _SILENCE_START = re.compile(r"silence_start:\s*(-?[0-9.]+)")
 _SILENCE_END = re.compile(r"silence_end:\s*([0-9.]+)")
@@ -619,8 +620,13 @@ class FFmpegAdapter:
             shutil.rmtree(work, ignore_errors=True)
         return target
 
-    def render(self, args: list[str]) -> None:
-        raise NotImplementedError("FFmpeg render is not implemented in this scaffold")
+    def render(self, args: list[str], *, timeout: int = DEFAULT_RENDER_TIMEOUT_SECONDS) -> None:
+        """Run an FFmpeg render command and raise on failure."""
+
+        self._capture(
+            ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", *args],
+            timeout=timeout,
+        )
 
     def _run_json(self, args: list[str]) -> dict[str, Any]:
         raw = self._run(args)
@@ -636,7 +642,9 @@ class FFmpegAdapter:
         stdout, _ = self._capture(args)
         return stdout
 
-    def _capture(self, args: list[str]) -> tuple[str, str]:
+    def _capture(
+        self, args: list[str], *, timeout: int = DEFAULT_TIMEOUT_SECONDS
+    ) -> tuple[str, str]:
         binary = find_binary(args[0])
         if binary is None:
             raise IngestError(f"{args[0]} is not available. Place it next to the executable.")
@@ -646,11 +654,11 @@ class FFmpegAdapter:
                 [binary, *args[1:]],
                 capture_output=True,
                 text=True,
-                timeout=DEFAULT_TIMEOUT_SECONDS,
+                timeout=timeout,
                 check=False,
             )
         except subprocess.TimeoutExpired as exc:
-            raise IngestError(f"{args[0]} timed out after {DEFAULT_TIMEOUT_SECONDS}s") from exc
+            raise IngestError(f"{args[0]} timed out after {timeout}s") from exc
         if completed.returncode != 0:
             tail = completed.stderr.strip().splitlines()[-50:]
             self._emit("error", "\n".join(tail) or f"{args[0]} failed")

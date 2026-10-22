@@ -7,12 +7,12 @@ vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive. The primary surface is a recipe DAG editor; the classic rack
 panels remain available for manual control.
 
-> Status: 0.25.0 alpha. The portable Linux binary, Linux AppImage, and Windows
+> Status: 0.26.0 alpha. The portable Linux binary, Linux AppImage, and Windows
 > PE run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical shorts, and
 > three NLE exports. The local API, MCP server, and rack UI execute real jobs;
-> all forty-eight MCP tools and four resources are live, including recipe execution. The rack browses local files
+> all fifty-two MCP tools and four resources are live, including recipe, step, and folder-batch execution. The rack browses local files
 > and folders instead of requiring typed paths. Projects persist atomic,
 > revisioned state under `.videoflow/`, and the REST API manages media, modules,
 > transcripts, exports, and operator presets.
@@ -47,7 +47,7 @@ The same contract is available at `POST /api/v1/recipes/run` and through
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 401 passing, 11 strict xfail, 7 deselected
+uv run pytest                       # 405 passing, 11 strict xfail, 7 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model
@@ -149,12 +149,15 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   module config, provider policy, transcript overrides, exports, and operator
   presets.
 - MCP tools that start, poll, and cancel real pipeline jobs.
+- Direct main-timeline MP4 render from the validated timeline.
+- Folder batches with one job per file, item-level progress, cancellation, and checkpoints.
 
 ## Not implemented yet
 
-- Cache-backed per-block reruns; the route currently returns typed `501`.
-- Keyframed progressive video transitions and direct main-timeline MP4 rendering.
-- Face tracking.
+- Project-scoped per-block reruns; the legacy route returns typed `501`. Recipe
+  steps already use per-step checkpoints.
+- Keyframed progressive video transitions.
+- Face tracking for the main timeline.
 - Manual import validation in Resolve, Premiere, and Kdenlive.
 - A signed Windows binary (SmartScreen will warn).
 

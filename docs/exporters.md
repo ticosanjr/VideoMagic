@@ -7,7 +7,7 @@ One timeline model, three NLE dialects, one optional render.
 | DaVinci Resolve | FCPXML 1.9 (1.10 optional) | typed XML builder | implemented |
 | Adobe Premiere Pro | FCP 7 XML (`xmeml`) | typed XML builder | implemented |
 | Kdenlive 23.04+ | native `.kdenlive` MLT XML | typed XML builder | implemented |
-| Preview / shorts | MP4 | FFmpeg | stub |
+| Preview / main timeline / shorts | MP4 | FFmpeg | implemented |
 
 All exporters live in `src/videoflow/exporters/`. `export_timeline` writes the
 three timeline artifacts from one validated state.
@@ -214,6 +214,15 @@ Kdenlive artifact. `export_otio` remains available as a library helper for other
 OTIO hosts, but it is not the Kdenlive deliverable.
 
 ## 6. MP4
+
+The direct MP4 exporter builds a filter graph from the validated timeline:
+
+- video: `trim` + `setpts` + optional static scale/crop, then `concat`;
+- audio: `atrim` + `asetpts` + optional fades, then `concat`;
+- output: H.264 (`libx264`), AAC, `+faststart`.
+
+`export.nle` accepts `mp4` as a target. The render is not a replacement for the
+NLE master; it is the direct review/social deliverable.
 
 FFmpeg direct render is for shorts and previews. It is a stub. When implemented it
 will apply the cull list, transforms, and fades, burn subtitles, and write

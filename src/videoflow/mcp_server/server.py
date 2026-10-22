@@ -90,6 +90,7 @@ from videoflow.domain.paths import resolve_allowed
 from videoflow.domain.state import MediaInfo, ProjectState, Sentence
 from videoflow.domain.timebase import Rounding
 from videoflow.domain.transcript import format_srt
+from videoflow.engine.batch import BatchManager
 from videoflow.engine.recipes import (
     get_recipe,
     list_recipes,
@@ -256,8 +257,12 @@ OVERRIDE_KEYS = {
 }
 
 
-def build_server(jobs: JobManager | None = None) -> MCPServer:
+def build_server(
+    jobs: JobManager | None = None,
+    batches: BatchManager | None = None,
+) -> MCPServer:
     manager = jobs or JobManager()
+    batch_manager = batches or BatchManager(manager)
     mcp = MCPServer(SERVER_NAME)
     last: dict[str, Any] = {"pending_options": {}}
 
@@ -1766,6 +1771,62 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         last["output"] = resolved_output
         last["job_id"] = str(job.job_id)
         return {"ok": True, "job": job.to_dict()}
+
+    @mcp.tool()
+    def videoflow_run_batch(
+        recipe: dict[str, object] | None = None,
+        recipe_id: str | None = None,
+        source_dir: str = "",
+        output_root: str = "",
+        recursive: bool = False,
+        extensions: list[str] | None = None,
+        resume: bool = True,
+    ) -> dict[str, object]:
+        """Run a recipe over every matching media file in a folder."""
+
+        try:
+            if (recipe is None) == (recipe_id is None):
+                return _error("recipe_required", "Provide exactly one of recipe or recipe_id.")
+            parsed = (
+                parse_recipe(recipe)  # type: ignore[arg-type]
+                if recipe is not None
+                else get_recipe(str(recipe_id))
+            )
+            roots = allowed_roots()
+            resolved_source = resolve_allowed(Path(source_dir), roots)
+            resolved_output = resolve_allowed(Path(output_root), roots)
+            parsed = resolve_recipe_paths(parsed, roots)
+            parsed.validate_graph(step_types(), requires_by_type=requirements_by_type())
+            batch = batch_manager.start(
+                resolved_source,
+                resolved_output,
+                parsed.model_dump(mode="json"),
+                recipe_id=parsed.id,
+                recursive=recursive,
+                extensions=list(extensions or []),
+                resume=resume,
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {"ok": True, "batch": batch.to_dict()}
+
+    @mcp.tool()
+    def videoflow_get_batch(batch_id: str) -> dict[str, object]:
+        """Return one folder batch and its item statuses."""
+
+        try:
+            return {"ok": True, "batch": batch_manager.get(batch_id).to_dict()}
+        except VideoFlowError as exc:
+            return exc.to_dict()
+
+    @mcp.tool()
+    def videoflow_cancel_batch(batch_id: str) -> dict[str, object]:
+        """Cancel a folder batch and its current job."""
+
+        try:
+            return {"ok": True, "batch": batch_manager.cancel(batch_id).to_dict()}
+        except VideoFlowError as exc:
+            return exc.to_dict()
 
     _ = (TOOL_SPECS, RESOURCE_SPECS)
     return mcp

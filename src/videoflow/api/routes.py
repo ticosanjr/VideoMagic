@@ -117,6 +117,7 @@ from videoflow.domain.errors import (
 from videoflow.domain.paths import resolve_allowed
 from videoflow.domain.state import ManualOverride, MediaInfo, ProjectState
 from videoflow.domain.transcript import format_srt
+from videoflow.engine.batch import BatchManager
 from videoflow.engine.recipes import (
     get_recipe,
     list_recipes,
@@ -162,7 +163,7 @@ class NewJobRequest(BaseModel):
     progressive_zoom: bool = False
     pan_direction: Literal["none", "left_to_right", "right_to_left"] = "none"
     dialect: Literal["1.9", "1.10"] = "1.9"
-    export_targets: list[Literal["resolve", "premiere", "kdenlive"]] = Field(
+    export_targets: list[Literal["resolve", "premiere", "kdenlive", "mp4"]] = Field(
         default_factory=lambda: ["resolve", "premiere", "kdenlive"],
         min_length=1,
     )
@@ -305,6 +306,23 @@ class RecipeRunRequest(BaseModel):
 
     @model_validator(mode="after")
     def exactly_one_recipe(self) -> RecipeRunRequest:
+        if (self.recipe is None) == (self.recipe_id is None):
+            raise ValueError("provide exactly one of recipe or recipe_id")
+        return self
+
+
+class BatchRequest(BaseModel):
+    source_dir: str = Field(min_length=1)
+    output_root: str = Field(min_length=1)
+    recipe: dict[str, Any] | None = None
+    recipe_id: str | None = None
+    recursive: bool = False
+    extensions: list[str] = Field(default_factory=list)
+    resume: bool = True
+    max_files: int = Field(default=200, ge=1, le=2000)
+
+    @model_validator(mode="after")
+    def exactly_one_recipe(self) -> BatchRequest:
         if (self.recipe is None) == (self.recipe_id is None):
             raise ValueError("provide exactly one of recipe or recipe_id")
         return self
@@ -472,10 +490,15 @@ def _job_event_stream(job: Job) -> Iterator[str]:
 
 
 def register_routes(
-    app: FastAPI, jobs: JobManager, projects: ProjectStore
+    app: FastAPI,
+    jobs: JobManager,
+    projects: ProjectStore,
+    batches: BatchManager | None = None,
 ) -> None:
     project_job_lock = threading.Lock()
     app.state.project_store = projects
+    batch_manager = batches or BatchManager(jobs)
+    app.state.batches = batch_manager
 
     def start_recipe_job(request: RecipeRunRequest, through: str | None) -> dict[str, object]:
         roots = allowed_roots()
@@ -617,6 +640,58 @@ def register_routes(
         except VideoFlowError as exc:
             fail(exc)
             raise
+
+    @app.post("/api/v1/batches", status_code=202)
+    def create_batch(request: BatchRequest) -> dict[str, object]:
+        roots = allowed_roots()
+        try:
+            source_dir = resolve_allowed(Path(request.source_dir), roots)
+            output_root = resolve_allowed(Path(request.output_root), roots)
+            if request.recipe is not None:
+                recipe = parse_recipe(request.recipe)
+            else:
+                recipe = get_recipe(str(request.recipe_id))
+            recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+            recipe = resolve_recipe_paths(recipe, roots)
+            batch = batch_manager.start(
+                source_dir,
+                output_root,
+                recipe.model_dump(mode="json"),
+                recipe_id=recipe.id,
+                recursive=request.recursive,
+                extensions=request.extensions,
+                resume=request.resume,
+                max_files=request.max_files,
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "batch": batch.to_dict()}
+
+    @app.get("/api/v1/batches")
+    def list_batches() -> dict[str, object]:
+        return {
+            "ok": True,
+            "batches": [batch.to_dict() for batch in batch_manager.list()],
+        }
+
+    @app.get("/api/v1/batches/{batch_id}")
+    def get_batch(batch_id: str) -> dict[str, object]:
+        try:
+            batch = batch_manager.get(batch_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "batch": batch.to_dict()}
+
+    @app.post("/api/v1/batches/{batch_id}/cancel")
+    def cancel_batch(batch_id: str) -> dict[str, object]:
+        try:
+            batch = batch_manager.cancel(batch_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "batch": batch.to_dict()}
 
     @app.post("/api/v1/jobs", status_code=202)
     def create_job(request: NewJobRequest) -> dict[str, object]:
@@ -1941,6 +2016,7 @@ def status_for(code: str) -> int:
         "invalid_config": 422,
         "recipe_invalid": 422,
         "step_failed": 422,
+        "batch_invalid": 422,
         "export_failed": 422,
         "ingest_failed": 422,
         "not_implemented": 501,

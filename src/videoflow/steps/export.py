@@ -19,7 +19,7 @@ from videoflow.steps.registry import register_step
 class ExportParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    targets: list[Literal["resolve", "premiere", "kdenlive"]] = Field(
+    targets: list[Literal["resolve", "premiere", "kdenlive", "mp4"]] = Field(
         default_factory=lambda: ["resolve", "premiere", "kdenlive"]
     )
     dialect: Dialect = "1.9"
@@ -29,8 +29,8 @@ class ExportParams(BaseModel):
 @register_step
 class ExportStep(BaseStep):
     type = "export.nle"
-    title = "Export NLE timelines"
-    description = "Write FCPXML, XMEML, and Kdenlive documents from the same timeline."
+    title = "Export timelines"
+    description = "Write FCPXML, XMEML, Kdenlive, and/or a direct MP4 from the same timeline."
     requires = ("edit.timeline",)
     produces = ("nle_artifacts",)
     params_model = ExportParams

@@ -264,6 +264,21 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "Run the dependencies and one named recipe step, then stop.",
         "recipes",
     ),
+    ToolSpec(
+        "videoflow_run_batch",
+        "Run a recipe over every matching media file in a folder.",
+        "recipes",
+    ),
+    ToolSpec(
+        "videoflow_get_batch",
+        "Return one folder batch and its item statuses.",
+        "recipes",
+    ),
+    ToolSpec(
+        "videoflow_cancel_batch",
+        "Cancel a folder batch and its current job.",
+        "recipes",
+    ),
 )
 
 RESOURCE_SPECS: tuple[ResourceSpec, ...] = (

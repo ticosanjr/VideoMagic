@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (0.25.0)
+## Implementation status (0.26.0)
 
 | Area | State |
 | --- | --- |
@@ -12,7 +12,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Silero VAD via ONNX Runtime with FFmpeg `silencedetect` fallback | implemented |
 | Deterministic timeline, J/L-cuts, fades, punch-ins | implemented |
 | FCPXML 1.9/1.10, xmeml v4, native Kdenlive MLT export | implemented |
-| Portable artifacts | 0.25.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
+| Portable artifacts | 0.26.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
 | SRT transcript import and LLM retake culling | implemented |
 | Local Faster-Whisper with whisper.cpp fallback, and ASR HTTP | implemented; pinned small model bundled in release builds |
 | Local filesystem browser with allowlisted roots | implemented; no media upload |
@@ -20,7 +20,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Webhook publishing | implemented; targets, persistent queue, scheduler, metadata generation |
 | Multimodal analysis | implemented; audio-emotion heuristics, motion, optional OpenCV faces, and OpenAI-compatible LLM vision |
 | Jobs, job REST routes, SSE, live MCP jobs | implemented for the portable and recipe paths, including per-step checkpoints and step-scoped runs |
-| MCP: forty-nine tools and four resources | implemented; recipes, step runs, analysis, capabilities, models, staged edits, jobs, export, resources |
+| MCP: fifty-two tools and four resources | implemented; recipes, step/batch runs, analysis, capabilities, models, staged edits, jobs, export, resources |
 | Rack UI driving real portable and recipe jobs | implemented; Recipes (first tab), Speech/Edit/Shorts/Studio/Export/Models/Services/Providers, logs, overrides, path picker |
 | Project-scoped routes, revisions, transcript API, presets | implemented; per-module rerun is typed 501 |
 | Shorts selection/rendering and API download | implemented; prompt/reprompt, explainable virality score, auto hook, filler cuts, censor, 9:16, 1:1, 16:9, optional source window |
@@ -42,7 +42,9 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Per-Short editor | implemented; trim, retitle, reframe, caption overrides, re-render |
 | Capability/provider discovery and external policy | implemented; external providers are opt-in and globally blockable |
 | NLE audio fades | implemented in FCPXML, xmeml, and Kdenlive |
-| Keyframed progressive zooms, direct MP4 | specified, stubbed |
+| Direct main-timeline MP4 | implemented with H.264/AAC and timeline filter graph |
+| Folder batches | implemented; sequential queue, per-item jobs, cancellation, checkpoints |
+| Keyframed progressive zooms | specified, stubbed |
 
 Every stub has a strict `xfail` contract in `tests/contract/`.
 

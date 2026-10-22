@@ -50,6 +50,8 @@ Recipe tools use the same `JobManager` as the UI and REST API:
 - `videoflow_run_recipe` — run a named recipe.
 - `videoflow_run_recipe_inline` — run an inline DAG.
 - `videoflow_run_step` — run one step and its dependencies, then stop.
+- `videoflow_run_batch` — run a recipe over a folder.
+- `videoflow_get_batch` / `videoflow_cancel_batch` — inspect or cancel a batch.
 
 Agents should call `videoflow_run_recipe`, then poll `videoflow_get_job` and
 download artifacts through the job routes. Recipe paths are still resolved by

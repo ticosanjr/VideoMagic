@@ -111,3 +111,36 @@ def test_silence_detection_finds_gated_speech(tmp_path: Path) -> None:
     assert len(spans) == 2
     assert spans[0][0] == 0
     assert spans[-1][1] == 4 * 48000
+
+
+@pytest.mark.media
+def test_direct_mp4_render_from_a_real_timeline(fixture: Path, tmp_path: Path) -> None:
+    from videoflow.application.timeline_builder import build_timeline
+    from videoflow.domain.config import JlCutsConfig, ZoomsConfig
+    from videoflow.domain.state import ProjectState
+    from videoflow.domain.timebase import Rounding
+    from videoflow.exporters.mp4 import export_mp4
+
+    adapter = FFmpegAdapter()
+    media = adapter.probe(fixture)
+    timebase = media.timebase()
+    duration_samples = timebase.seconds_to_samples(
+        timebase.frames_to_seconds(media.duration_frames), Rounding.NEAREST
+    )
+    built = build_timeline(
+        media,
+        [(0, duration_samples)],
+        jl=JlCutsConfig(enable_j_cuts=False),
+        zooms=ZoomsConfig(mode="manual_rules"),
+    )
+    state = ProjectState(
+        media_info=media,
+        video_segments=list(built.video_segments),
+        audio_segments=list(built.audio_segments),
+    )
+    output = export_mp4(state, tmp_path / "main.mp4")
+    assert output.is_file()
+    assert output.stat().st_size > 1000
+    rendered = adapter.probe(output)
+    assert rendered.width == media.width
+    assert rendered.height == media.height

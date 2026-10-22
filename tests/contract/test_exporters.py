@@ -216,7 +216,22 @@ def test_every_join_contains_a_fade(tmp_path: Path) -> None:
     )
 
 
-@pytest.mark.xfail(reason="Direct render lands with the shorts pass", strict=True)
-def test_mp4_export_writes_a_file(tmp_path: Path) -> None:
-    output = export_mp4(sample_state(tmp_path), tmp_path / "preview.mp4")
-    assert output.exists()
+def test_mp4_export_builds_the_timeline_filter_graph(tmp_path: Path) -> None:
+    state = sample_state(tmp_path)
+    seen: dict[str, object] = {}
+
+    class FakeRenderer:
+        def render(self, args: list[str]) -> None:
+            seen["args"] = args
+            Path(args[-1]).write_bytes(b"mp4")
+
+    output = export_mp4(state, tmp_path / "preview.mp4", adapter=FakeRenderer())
+    args = seen["args"]
+    assert output.is_file()
+    assert isinstance(args, list)
+    assert "-filter_complex" in args
+    graph = args[args.index("-filter_complex") + 1]
+    assert "concat=n=2:v=1:a=0[vout]" in graph
+    assert "concat=n=2:v=0:a=1[aout]" in graph
+    assert "libx264" in args
+    assert args[args.index("-map") + 1] == "[vout]"

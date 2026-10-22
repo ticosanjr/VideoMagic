@@ -187,6 +187,12 @@ class RecipeError(VideoFlowError):
     code = "recipe_invalid"
 
 
+class BatchError(VideoFlowError):
+    """A batch request or batch item is invalid."""
+
+    code = "batch_invalid"
+
+
 class StepExecutionError(VideoFlowError):
     """A named recipe step failed."""
 

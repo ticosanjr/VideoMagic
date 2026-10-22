@@ -402,6 +402,20 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print only the final JSON report.",
     )
+    recipe_batch = recipe_sub.add_parser("batch", help="Run a recipe over a folder.")
+    recipe_batch.add_argument("recipe", help="Path to a JSON recipe or a built-in recipe id.")
+    recipe_batch.add_argument("source_dir", type=Path)
+    recipe_batch.add_argument("-o", "--out", type=Path, default=None)
+    recipe_batch.add_argument("--recursive", action="store_true")
+    recipe_batch.add_argument(
+        "--extensions",
+        default="",
+        help="Comma-separated suffixes; empty uses the media defaults.",
+    )
+    recipe_batch.add_argument("--max-files", type=int, default=200)
+    recipe_batch.add_argument("--force", action="store_true")
+    recipe_batch.add_argument("--json", action="store_true")
+
     recipe_cache = recipe_sub.add_parser("cache", help="Show or clear the analysis cache.")
     cache_sub = recipe_cache.add_subparsers(dest="cache_command")
     cache_sub.add_parser("path", help="Print the cache directory.")
@@ -842,6 +856,42 @@ def _recipe(args: argparse.Namespace) -> int:
                 indent=2,
             )
         )
+        return 0
+    if command == "batch":
+        from videoflow.application.jobs import JobManager
+        from videoflow.engine.batch import BatchManager
+
+        path = Path(args.recipe).expanduser()
+        recipe = load_recipe(path) if path.is_file() else get_recipe(args.recipe)
+        recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+        output = args.out or args.source_dir / "videoflow-batch"
+        jobs = JobManager()
+        batches = BatchManager(jobs)
+        extensions = [
+            item.strip() for item in args.extensions.split(",") if item.strip()
+        ]
+        batch = batches.start(
+            args.source_dir,
+            output,
+            recipe.model_dump(mode="json"),
+            recipe_id=recipe.id,
+            recursive=args.recursive,
+            extensions=extensions,
+            resume=not getattr(args, "force", False),
+            max_files=args.max_files,
+        )
+        try:
+            while batch.status not in {"succeeded", "failed", "cancelled"}:
+                if not getattr(args, "json", False):
+                    print(
+                        f"[{batch.completed}/{len(batch.items)}] {batch.status}: {batch.message}",
+                        file=sys.stderr,
+                    )
+                time.sleep(0.5)
+                batch = batches.get(str(batch.batch_id))
+        except KeyboardInterrupt:
+            batches.cancel(str(batch.batch_id))
+        print(json.dumps({"ok": True, "batch": batch.to_dict()}, indent=2))
         return 0
     if command == "cache":
         from videoflow.steps.cache import cache_dir, clear_cache

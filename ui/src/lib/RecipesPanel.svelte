@@ -17,10 +17,14 @@
     getRecipe,
     listRecipes,
     listRecipeSteps,
+    cancelBatch,
+    getBatch,
+    runBatch,
     runRecipe,
     runRecipeStep,
     saveRecipe,
     validateRecipe,
+    type Batch,
     type Job,
     type Recipe,
     type RecipeSummary,
@@ -61,7 +65,7 @@
   });
   let inputSource = $state("");
   let inputOutput = $state("");
-  let picker = $state<"source" | "output" | null>(null);
+  let picker = $state<"source" | "output" | "batch-source" | "batch-output" | null>(null);
   let paramText = $state("{}");
   let paramError = $state("");
   let inspectorOpen = $state(false);
@@ -79,6 +83,14 @@
   let busy = $state(false);
   let resume = $state(true);
   let poll: ReturnType<typeof setInterval> | undefined;
+  let batchOpen = $state(false);
+  let batchSourceDir = $state("");
+  let batchOutputRoot = $state("");
+  let batchRecursive = $state(false);
+  let batchExtensions = $state("");
+  let batchBusy = $state(false);
+  let batch = $state<Batch | null>(null);
+  let batchPoll: ReturnType<typeof setInterval> | undefined;
 
   const stepOrder = [
     "ingest",
@@ -140,7 +152,10 @@
     })();
   });
 
-  onDestroy(() => clearInterval(poll));
+  onDestroy(() => {
+    clearInterval(poll);
+    clearInterval(batchPoll);
+  });
 
   function nodeData(node: Node): NodeData {
     return node.data as unknown as NodeData;
@@ -519,7 +534,64 @@
   function choose(path: string) {
     if (picker === "source") inputSource = path;
     if (picker === "output") inputOutput = path;
+    if (picker === "batch-source") batchSourceDir = path;
+    if (picker === "batch-output") batchOutputRoot = path;
     picker = null;
+  }
+
+  async function startBatch() {
+    error = "";
+    status = "";
+    if (!batchSourceDir.trim() || !batchOutputRoot.trim()) {
+      error = "Choose a batch input folder and an output root first.";
+      return;
+    }
+    batchBusy = true;
+    try {
+      const extensions = batchExtensions
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      batch = await runBatch({
+        source_dir: batchSourceDir.trim(),
+        output_root: batchOutputRoot.trim(),
+        recipe: recipeFromGraph(),
+        recursive: batchRecursive,
+        extensions,
+        resume,
+        max_files: 200
+      });
+      watchBatch(batch.batch_id);
+      status = `Batch ${batch.batch_id} started.`;
+    } catch (reason) {
+      error = errorMessage(reason);
+    } finally {
+      batchBusy = false;
+    }
+  }
+
+  function watchBatch(batchId: string) {
+    clearInterval(batchPoll);
+    batchPoll = setInterval(async () => {
+      try {
+        batch = await getBatch(batchId);
+        if (["succeeded", "failed", "cancelled"].includes(batch.status)) {
+          clearInterval(batchPoll);
+        }
+      } catch (reason) {
+        error = errorMessage(reason);
+        clearInterval(batchPoll);
+      }
+    }, 900);
+  }
+
+  async function stopBatch() {
+    if (!batch) return;
+    try {
+      batch = await cancelBatch(batch.batch_id);
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
   }
 
   function downloadRecipe() {
@@ -555,6 +627,17 @@
           class="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1.5 font-medium text-sky-200 hover:bg-sky-500/20"
         >
           + Add step
+        </button>
+        <button
+          type="button"
+          onclick={() => {
+            batchOpen = true;
+            addOpen = false;
+            inspectorOpen = false;
+          }}
+          class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500"
+        >
+          Batch
         </button>
         <button
           type="button"
@@ -787,6 +870,90 @@
     </section>
   {/if}
 
+  {#if batchOpen}
+    <div
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
+      role="presentation"
+      onclick={(event) => {
+        if (event.currentTarget === event.target) batchOpen = false;
+      }}
+    >
+      <div class="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="Folder batch">
+        <div class="flex items-start justify-between gap-3 border-b border-neutral-800 px-5 py-3">
+          <div>
+            <h3 class="text-sm font-semibold text-white">Folder batch</h3>
+            <p class="mt-1 text-[11px] text-neutral-500">Run this recipe over every matching media file, one at a time.</p>
+          </div>
+          <button type="button" onclick={() => (batchOpen = false)} class="rounded px-2 text-neutral-500 hover:text-neutral-200" aria-label="Close batch">×</button>
+        </div>
+        <div class="min-h-0 flex-1 overflow-y-auto p-5">
+          <div class="grid gap-3 sm:grid-cols-2">
+            <label class="block text-[10px] uppercase tracking-wide text-neutral-500">
+              Input folder
+              <span class="mt-1 flex gap-1">
+                <input bind:value={batchSourceDir} placeholder="/media/inbox" class="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 font-mono text-[11px] text-neutral-200" />
+                <button type="button" onclick={() => (picker = "batch-source")} class="rounded-lg border border-neutral-700 px-2 text-[11px] text-neutral-300">…</button>
+              </span>
+            </label>
+            <label class="block text-[10px] uppercase tracking-wide text-neutral-500">
+              Output root
+              <span class="mt-1 flex gap-1">
+                <input bind:value={batchOutputRoot} placeholder="/media/out" class="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 font-mono text-[11px] text-neutral-200" />
+                <button type="button" onclick={() => (picker = "batch-output")} class="rounded-lg border border-neutral-700 px-2 text-[11px] text-neutral-300">…</button>
+              </span>
+            </label>
+            <label class="block text-[10px] text-neutral-500">
+              Extensions
+              <input bind:value={batchExtensions} placeholder=".mp4,.mov (empty = defaults)" class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 font-mono text-[10px] text-neutral-200" />
+            </label>
+            <label class="flex items-end gap-2 pb-1 text-[11px] text-neutral-300">
+              <input type="checkbox" bind:checked={batchRecursive} class="h-4 w-4 rounded border-neutral-700 bg-neutral-900" />
+              Include subfolders
+            </label>
+          </div>
+          <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <p class="text-[10px] text-neutral-500">Each file gets its own output folder and reuses the same recipe checkpoints.</p>
+            <div class="flex gap-2">
+              {#if batch && ["queued", "running"].includes(batch.status)}
+                <button type="button" onclick={() => void stopBatch()} class="rounded-lg border border-rose-500/40 px-3 py-1.5 text-xs text-rose-200">Cancel batch</button>
+              {/if}
+              <button type="button" onclick={() => void startBatch()} disabled={batchBusy} class="rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-medium text-neutral-950 hover:bg-sky-400 disabled:opacity-50">
+                {batchBusy ? "Starting…" : "Start batch"}
+              </button>
+            </div>
+          </div>
+
+          {#if batch}
+            <div class="mt-5 rounded-xl border border-neutral-800 bg-neutral-900/50 p-3">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p class="font-mono text-[10px] text-neutral-500">{batch.batch_id}</p>
+                  <p class="mt-1 text-xs text-neutral-300">{batch.message}</p>
+                </div>
+                <span class="rounded-full border border-neutral-700 px-2.5 py-1 text-[10px] uppercase text-neutral-300">{batch.status}</span>
+              </div>
+              <div class="mt-3 h-2 overflow-hidden rounded-full bg-neutral-800">
+                <div class="h-full rounded-full bg-sky-400 transition-all" style={`width: ${batch.total ? (batch.completed / batch.total) * 100 : 0}%`}></div>
+              </div>
+              <p class="mt-1 text-[10px] text-neutral-500">{batch.completed}/{batch.total} processed · {batch.failed} failed</p>
+              <div class="mt-3 max-h-64 space-y-1 overflow-y-auto">
+                {#each batch.items as item}
+                  <div class="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-950/60 px-2 py-1.5 text-[10px]">
+                    <span class={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                      item.status === "succeeded" ? "bg-emerald-400" : item.status === "failed" ? "bg-rose-400" : item.status === "running" ? "animate-pulse bg-amber-400" : "bg-neutral-600"
+                    }`}></span>
+                    <span class="min-w-0 flex-1 truncate font-mono text-neutral-300">{item.source}</span>
+                    <span class="shrink-0 text-neutral-500">{item.status}</span>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
+        </div>
+      </div>
+    </div>
+  {/if}
+
   {#if configOpen}
     <div
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
@@ -904,8 +1071,24 @@
     <PathPicker
       open={true}
       mode={picker === "source" ? "file" : "directory"}
-      title={picker === "source" ? "Choose source video" : "Choose output directory"}
-      initialPath={picker === "source" ? inputSource : inputOutput}
+      title={
+        picker === "source"
+          ? "Choose source video"
+          : picker === "output"
+            ? "Choose output directory"
+            : picker === "batch-source"
+              ? "Choose batch input folder"
+              : "Choose batch output root"
+      }
+      initialPath={
+        picker === "source"
+          ? inputSource
+          : picker === "output"
+            ? inputOutput
+            : picker === "batch-source"
+              ? batchSourceDir
+              : batchOutputRoot
+      }
       onclose={() => (picker = null)}
       onselect={(path) => choose(path)}
     />
