@@ -742,7 +742,12 @@ class FFmpegAdapter:
             tail = completed.stderr.strip().splitlines()[-50:]
             self._emit("error", "\n".join(tail) or f"{args[0]} failed")
             stderr = " ".join(tail[-3:])
-            raise IngestError(f"{args[0]} failed: {stderr or 'unknown error'}")
+            command = " ".join([Path(binary).name, *args[1:]])
+            raise IngestError(
+                f"{args[0]} failed: {stderr or 'unknown error'}",
+                command=command,
+                stderr=completed.stderr,
+            )
         return completed.stdout, completed.stderr
 
 

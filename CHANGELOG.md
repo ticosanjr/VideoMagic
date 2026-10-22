@@ -3,6 +3,27 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.35.0] - 2026-10-22
+
+### Added
+
+- **Failed-run diagnostics.** Recipe failures write `work/failure.json` with the
+  stage, error payload, FFmpeg command, stderr tail, and the last 200 log lines.
+- **Failed runs in history.** `run-history.json` now records `failed` and
+  `cancelled` runs with their error, so the UI survives restarts and shows them.
+- **Playwright E2E.** Installed `@playwright/test`, added a JSON reporter, and
+  covered the recipe graph, inspector transition controls, step palette, and
+  persisted run-history browser.
+- Refactored job history recording into one path for success, failure, and
+  cancellation.
+- `docs/testing.md` now reflects CI and Playwright.
+
+### Notes
+
+- GitHub Actions still needs a Playwright step; this release wires the local
+  command and JSON report first.
+- 427 Python tests, 14 Vitest tests, and 3 Playwright tests pass.
+
 ## [0.34.0] - 2026-10-22
 
 ### Added

@@ -7,7 +7,7 @@ vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive. The primary surface is a recipe DAG editor; the classic rack
 panels remain available for manual control.
 
-> Status: 0.34.0 alpha. The portable Linux binary, Linux AppImage, and Windows
+> Status: 0.35.0 alpha. The portable Linux binary, Linux AppImage, and Windows
 > PE run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical shorts, and
@@ -47,7 +47,7 @@ The same contract is available at `POST /api/v1/recipes/run` and through
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 426 passing, 10 strict xfail, 8 deselected
+uv run pytest                       # 427 passing, 10 strict xfail, 8 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model
@@ -167,6 +167,8 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - Optional pyannote model-based diarization with heuristic fallback.
 - Pexels stock B-roll provider alongside local assets.
 - Automatic split-screen for multi-speaker dialogue clips.
+- Failed recipe runs persist a `work/failure.json` with the failing stage, error, FFmpeg command, stderr, and log tail.
+- Playwright E2E tests for the recipe graph, inspector, palette, and run-history browser.
 
 ## Not implemented yet
 

@@ -583,31 +583,18 @@ class JobManager:
                     job.message = "Finished"
                     payload = result.to_dict()
                     job.result = payload
-                    from videoflow.engine.history import append_run
-
-                    append_run(
-                        job.output,
-                        {
-                            "job_id": str(job.job_id),
-                            "status": "succeeded",
-                            "recipe_id": payload.get("recipe_id", ""),
-                            "created_at": job.created_at,
-                            "started_at": job.started_at,
-                            "duration_ms": int(
-                                float(payload.get("elapsed_seconds", 0)) * 1000
-                            ),
-                            "step_runs": payload.get("step_runs", []),
-                            "cache_hits": payload.get("cache_hits", []),
-                            "cache_misses": payload.get("cache_misses", []),
-                            "artifacts": payload.get("artifacts", {}),
-                            "warnings": payload.get("warnings", []),
-                        },
-                    )
         except JobCancelledError as exc:
+            job.telemetry.fail_running(exc.message)
             with self._lock:
                 job.status = "cancelled"
                 job.stage = "cancelled"
                 job.message = str(exc)
+                job.error = {
+                    "ok": False,
+                    "code": "job_cancelled",
+                    "message": str(exc),
+                }
+            _write_failure(job)
         except VideoFlowError as exc:
             job.telemetry.fail_running(exc.message)
             with self._lock:
@@ -615,6 +602,7 @@ class JobManager:
                 job.stage = job.stage or "failed"
                 job.message = exc.message
                 job.error = exc.to_dict()
+            _write_failure(job)
         except Exception as exc:  # pragma: no cover - unexpected worker failure
             traceback.print_exc()
             job.telemetry.fail_running(str(exc))
@@ -623,10 +611,12 @@ class JobManager:
                 job.stage = job.stage or "failed"
                 job.message = str(exc)
                 job.error = {"ok": False, "code": "internal_error", "message": str(exc)}
+            _write_failure(job)
         finally:
             with self._lock:
                 job.finished_at = _now()
             _write_log(job)
+            _record_recipe_history(job)
 
     def _prune(self) -> None:
         finished = [job for job in self._jobs.values() if job.status in TERMINAL]
@@ -635,6 +625,61 @@ class JobManager:
         finished.sort(key=lambda item: item.finished_at or "")
         for job in finished[: len(finished) - self._history]:
             self._jobs.pop(str(job.job_id), None)
+
+
+def _record_recipe_history(job: Job) -> None:
+    from videoflow.engine.history import append_run
+
+    payload = job.result or {}
+    recipe = job.options.get("recipe") if isinstance(job.options, dict) else None
+    recipe_id = ""
+    if isinstance(recipe, dict):
+        recipe_id = str(recipe.get("id", ""))
+    recipe_id = str(payload.get("recipe_id") or recipe_id)
+    append_run(
+        job.output,
+        {
+            "job_id": str(job.job_id),
+            "status": job.status,
+            "recipe_id": recipe_id,
+            "created_at": job.created_at,
+            "started_at": job.started_at,
+            "finished_at": job.finished_at,
+            "duration_ms": _duration_ms(job.started_at, job.finished_at) or 0,
+            "step_runs": payload.get("step_runs", []),
+            "cache_hits": payload.get("cache_hits", []),
+            "cache_misses": payload.get("cache_misses", []),
+            "artifacts": payload.get("artifacts", {}),
+            "warnings": payload.get("warnings", []),
+            "error": job.error,
+            "message": job.message,
+        },
+    )
+
+
+def _write_failure(job: Job) -> None:
+    try:
+        path = job.output / "work" / "failure.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        lines = job.telemetry.dump().splitlines()[-200:]
+        path.write_text(
+            json.dumps(
+                {
+                    "ok": False,
+                    "job_id": str(job.job_id),
+                    "stage": job.stage,
+                    "message": job.message,
+                    "error": job.error,
+                    "logs": lines,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
 
 
 def _duration_ms(started_at: str | None, finished_at: str | None) -> int | None:

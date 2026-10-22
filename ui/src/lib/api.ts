@@ -451,6 +451,8 @@ export interface RunRecord {
   cache_misses: string[];
   artifacts: Record<string, string>;
   warnings: string[];
+  error?: { ok: boolean; code: string; message: string } | null;
+  message?: string;
 }
 
 export interface StepRun {

@@ -16,6 +16,7 @@
 </script>
 
 <div
+  data-testid={`step-${data.type}`}
   class={`min-w-[190px] rounded-2xl border px-3 py-2.5 text-left shadow-xl transition ${
     selected
       ? "border-sky-400/70 bg-sky-950/80 ring-2 ring-sky-400/20"

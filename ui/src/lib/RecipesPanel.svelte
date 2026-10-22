@@ -416,8 +416,8 @@
   function jobFromRecord(record: RunRecord, current: Job): Job {
     return {
       job_id: record.job_id,
-      status: "succeeded",
-      progress: 100,
+      status: record.status as Job["status"],
+      progress: record.status === "succeeded" ? 100 : 0,
       stage: "done",
       message: "",
       source: current.source,
@@ -433,7 +433,7 @@
         warnings: record.warnings,
         elapsed_seconds: record.duration_ms / 1000
       },
-      error: null,
+      error: record.error ?? null,
       created_at: record.created_at,
       started_at: record.started_at,
       finished_at: null,
@@ -878,6 +878,7 @@
         </button>
         <button
           type="button"
+          data-testid="recipe-runs"
           onclick={() => void openHistory()}
           disabled={historyBusy}
           class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500 disabled:opacity-40"
@@ -1003,6 +1004,7 @@
               {#each filteredSteps as step}
                 <button
                   type="button"
+                  data-testid={`add-${step.type}`}
                   onclick={() => addStep(step.type)}
                   class="w-full rounded-lg border border-neutral-800 px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:border-sky-500/60 hover:text-sky-200"
                   title={step.description}
@@ -1045,12 +1047,12 @@
                     <p class="text-[10px] uppercase tracking-wide text-neutral-500">Transitions</p>
                     <div class="mt-2 grid grid-cols-2 gap-2">
                       <label class="text-[10px] text-neutral-400">Frames
-                        <input type="number" min="0" max="120" value={paramNumber("transition_frames", 0)}
+                        <input data-testid="transition-frames" type="number" min="0" max="120" value={paramNumber("transition_frames", 0)}
                           oninput={(event) => patchParams({ transition_frames: Number(event.currentTarget.value) })}
                           class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
                       </label>
                       <label class="text-[10px] text-neutral-400">Type
-                        <select value={paramString("transition_type", "crossfade")}
+                        <select data-testid="transition-type" value={paramString("transition_type", "crossfade")}
                           onchange={(event) => patchParams({ transition_type: event.currentTarget.value })}
                           class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100">
                           <option value="crossfade">Crossfade</option>
@@ -1192,6 +1194,7 @@
                   <button type="button" onclick={openStepJson} class="rounded border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-300 hover:border-sky-500">Expand</button>
                 </div>
                 <textarea
+                  data-testid="step-params-json"
                   value={paramText}
                   oninput={(event) => updateParams(event.currentTarget.value)}
                   rows="12"
@@ -1285,7 +1288,7 @@
           </div>
           <button type="button" onclick={() => (historyOpen = false)} class="rounded px-2 text-neutral-500 hover:text-neutral-200" aria-label="Close history">×</button>
         </div>
-        <div class="min-h-0 flex-1 overflow-y-auto p-3">
+        <div data-testid="run-history" class="min-h-0 flex-1 overflow-y-auto p-3">
           {#if historyRuns.length === 0}
             <p class="p-4 text-xs text-neutral-500">No runs recorded for this output yet.</p>
           {:else}

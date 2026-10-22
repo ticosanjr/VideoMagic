@@ -156,6 +156,25 @@ class IngestError(VideoFlowError):
 
     code = "ingest_failed"
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        command: str | None = None,
+        stderr: str = "",
+    ) -> None:
+        super().__init__(message)
+        self.command = command
+        self.stderr = stderr
+
+    def to_dict(self) -> dict[str, object]:
+        payload = super().to_dict()
+        if self.command:
+            payload["command"] = self.command
+        if self.stderr:
+            payload["stderr"] = self.stderr[-8000:]
+        return payload
+
 
 class ExportError(VideoFlowError):
     """The timeline cannot be represented as a valid NLE document."""

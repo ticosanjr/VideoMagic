@@ -1,0 +1,4 @@
+{"ok":true,"recipe":{"schema_version":1,"id":"example_recipe","name":"Example recipe","description":"E2E recipe","llm":{"provider":"none","base_url":null,"model":"","api_key_env":"VIDEOWFLOW_LLM_API_KEY","timeout_seconds":90},"steps":[
+ {"id":"ingest","type":"ingest","needs":[],"enabled":true,"params":{}},
+ {"id":"timeline","type":"edit.timeline","needs":["ingest"],"enabled":true,"params":{"transition_frames":0,"transition_type":"crossfade"}}
+]}}

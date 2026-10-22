@@ -670,3 +670,56 @@ def test_broll_plan_reaches_short_render(tmp_path: Path) -> None:
     assert result.context.metadata["broll_plan"]
     assert seen["broll_path"] is not None
     assert Path(str(seen["broll_path"])).is_file()
+
+
+def test_failed_recipe_writes_failure_and_history(monkeypatch, tmp_path: Path) -> None:
+    from videoflow.application.jobs import JobManager
+    from videoflow.domain.errors import IngestError
+    from videoflow.engine.history import read_runs
+
+    class FailingRunner:
+        def __init__(self, recipe) -> None:
+            self.recipe = recipe
+
+        def run(self, source, output, **_kwargs):
+            raise IngestError(
+                "ffmpeg failed: bad filter",
+                command="ffmpeg -filter_complex bad",
+                stderr="bad filter graph",
+            )
+
+    monkeypatch.setattr("videoflow.engine.runner.RecipeRunner", FailingRunner)
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    recipe = {
+        "id": "failing_recipe",
+        "name": "Failing recipe",
+        "steps": [{"id": "ingest", "type": "ingest"}],
+    }
+    output = tmp_path / "out"
+    job = JobManager().start(
+        source,
+        output,
+        {"mode": "recipe", "recipe": recipe},
+    )
+    import time
+
+    for _ in range(100):
+        current = job
+        if current.status in {"succeeded", "failed", "cancelled"}:
+            break
+        time.sleep(0.01)
+        current = job
+    # JobManager mutates the returned Job object in place.
+    assert job.status == "failed"
+    failure = output / "work" / "failure.json"
+    for _ in range(100):
+        if failure.is_file() and read_runs(output):
+            break
+        time.sleep(0.01)
+    assert failure.is_file()
+    payload = json.loads(failure.read_text())
+    assert payload["error"]["command"].startswith("ffmpeg")
+    runs = read_runs(output)
+    assert runs[-1]["status"] == "failed"
+    assert runs[-1]["error"]["code"] == "ingest_failed"

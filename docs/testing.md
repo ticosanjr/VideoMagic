@@ -15,10 +15,10 @@ hides the contract. VideoFlow resolves this with two layers:
 
 | Scope | Line coverage | Notes |
 | --- | --- | --- |
-| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 99.06% (370 passing, 11 strict xfail, 7 deselected) |
+| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 98.62% (427 passing, 10 strict xfail, 8 deselected) |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |
-| UI | `npm run check` and `npm run build` | Manual: start a job from the rack and confirm progress and artifacts |
+| UI | `npm run check`, `npm test`, `npm run test:e2e`, `npm run build` | Playwright: recipe graph, inspector, palette, run history |
 
 A stub is excluded from coverage only when it is listed in
 `[tool.coverage.run].omit`. `# pragma: no cover` is reserved for platform-only
@@ -40,8 +40,9 @@ uv run python scripts/build_portable.py --fetch-ffmpeg  # packaging smoke
 
 The default run excludes `media`, `slow`, and `manual`. Use `--no-cov` for a
 subset run so the global coverage gate does not fail on modules that were not
-imported. There is no GitHub Actions workflow; lint, types, tests, and portable
-smokes run locally and are recorded in the release notes.
+imported. GitHub Actions runs Linux lint/Python/UI checks. Playwright runs with
+`cd ui && npm run test:e2e`; its JSON report lands in
+`ui/test-results/results.json`.
 
 ## 4. Markers
 
