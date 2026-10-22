@@ -79,6 +79,10 @@ class ShortClip:
     crop_focus_y: float = 0.5
     energy_peaks: int = 0
     scene_changes: int = 0
+    split_screen: bool = False
+    split_screen_zoom: float = 1.0
+    split_screen_focus_left: float = 0.5
+    split_screen_focus_right: float = 0.5
 
     @property
     def duration_samples(self) -> int:
@@ -106,6 +110,10 @@ class ShortClip:
             "crop_focus_y": round(self.crop_focus_y, 4),
             "energy_peaks": self.energy_peaks,
             "scene_changes": self.scene_changes,
+            "split_screen": self.split_screen,
+            "split_screen_zoom": round(self.split_screen_zoom, 3),
+            "split_screen_focus_left": round(self.split_screen_focus_left, 4),
+            "split_screen_focus_right": round(self.split_screen_focus_right, 4),
         }
 
 
@@ -153,6 +161,10 @@ def short_clip_from_dict(payload: dict[str, object]) -> ShortClip:
         crop_focus_y=float(payload.get("crop_focus_y", 0.5)),
         energy_peaks=int(payload.get("energy_peaks", 0)),
         scene_changes=int(payload.get("scene_changes", 0)),
+        split_screen=bool(payload.get("split_screen", False)),
+        split_screen_zoom=float(payload.get("split_screen_zoom", 1.0)),
+        split_screen_focus_left=float(payload.get("split_screen_focus_left", 0.5)),
+        split_screen_focus_right=float(payload.get("split_screen_focus_right", 0.5)),
     )
 
 

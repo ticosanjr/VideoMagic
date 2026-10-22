@@ -50,3 +50,71 @@ def test_speaker_color_is_emitted_in_ass() -> None:
         height=1920,
     )
     assert "\\c&H" in ass
+
+
+def test_model_turns_are_assigned_by_overlap(tmp_path: Path, monkeypatch) -> None:
+    from videoflow.adapters.diarization import SpeakerTurn
+    from videoflow.domain.errors import CapabilityUnavailableError
+
+    ctx = context(tmp_path)
+    ctx.pcm_path = tmp_path / "source.wav"
+    ctx.pcm_path.write_bytes(b"RIFF")
+
+    class FakeDiarizer:
+        def __init__(self, **kwargs):
+            pass
+
+        def diarize(self, audio_path, *, sample_rate):
+            return [
+                SpeakerTurn(0, 48000, "A"),
+                SpeakerTurn(96000, 240000, "B"),
+            ]
+
+    monkeypatch.setattr("videoflow.steps.diarize.PyannoteDiarizer", FakeDiarizer)
+    DiarizeStep().run(
+        ctx,
+        DiarizeParams(method="pyannote", fallback_to_heuristic=False),
+        StepIO(),
+    )
+    assert [sentence.speaker for sentence in ctx.transcript] == [0, 1, 1]
+    assert ctx.metadata["diarization_method"] == "pyannote"
+
+    class MissingDiarizer:
+        def __init__(self, **kwargs):
+            pass
+
+        def diarize(self, audio_path, *, sample_rate):
+            raise CapabilityUnavailableError("diarization", "missing model")
+
+    monkeypatch.setattr("videoflow.steps.diarize.PyannoteDiarizer", MissingDiarizer)
+    (tmp_path / "fallback").mkdir()
+    fallback = context(tmp_path / "fallback")
+    fallback.pcm_path = tmp_path / "source.wav"
+    DiarizeStep().run(fallback, DiarizeParams(method="pyannote"), StepIO())
+    assert fallback.metadata["diarization_method"] == "heuristic"
+    assert fallback.warnings
+
+
+def test_reframe_enables_split_screen_for_multi_speaker_clip(tmp_path: Path) -> None:
+    from videoflow.application.shorts import ShortClip
+    from videoflow.steps.shorts_reframe import ReframeParams, ReframeStep
+
+    ctx = context(tmp_path)
+    ctx.transcript[1] = ctx.transcript[1].model_copy(update={"speaker": 1})
+    ctx.selected_shorts = [
+        ShortClip(
+            title="Dialogue",
+            start_sample=0,
+            end_sample=240000,
+            sentence_ids=(0, 1, 2),
+            pieces=((0, 240000),),
+        )
+    ]
+    ReframeStep().run(
+        ctx,
+        ReframeParams(mode="center_crop_9_16", split_screen_on_dialogue=True),
+        StepIO(),
+    )
+    clip = ctx.selected_shorts[0]
+    assert clip.split_screen is True
+    assert clip.split_screen_focus_left < clip.split_screen_focus_right

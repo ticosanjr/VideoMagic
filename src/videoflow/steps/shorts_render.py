@@ -28,6 +28,9 @@ class RenderShortsParams(BaseModel):
 
     burn_subtitles: bool = True
     split_screen: bool = False
+    split_screen_zoom: float = Field(default=1.0, ge=1.0, le=2.0)
+    split_screen_focus_left: float = Field(default=0.5, ge=0.0, le=1.0)
+    split_screen_focus_right: float = Field(default=0.5, ge=0.0, le=1.0)
     broll_enabled: bool = True
     caption_style: CaptionStyle = Field(default_factory=CaptionStyle)
     audio_filters: list[str] = Field(default_factory=list)
@@ -67,13 +70,13 @@ class RenderShortsStep(BaseStep):
         shorts_dir.mkdir(parents=True, exist_ok=True)
         discard = set(context.discard_sentence_ids)
         kept = [item for item in context.transcript if item.id not in discard]
-        entries = {entry.get("title"): dict(entry) for entry in context.shorts}
+        short_entries = {entry.get("title"): dict(entry) for entry in context.shorts}
         rendered: list[dict[str, object]] = []
         total = max(1, len(context.selected_shorts))
         for index, clip in enumerate(context.selected_shorts, start=1):
             io.check_cancel()
             io.report(int(index / total * 90), f"Rendering {index}/{total}")
-            entry = entries.get(clip.title, clip.to_dict(media.audio_sample_rate))
+            entry = short_entries.get(clip.title, clip.to_dict(media.audio_sample_rate))
             slug = slugify(clip.title, index)
             width = int(entry.get("width", 1080))
             height = int(entry.get("height", 1920))
@@ -119,9 +122,13 @@ class RenderShortsStep(BaseStep):
             broll = None
             plan = context.metadata.get("broll_plan")
             if options.broll_enabled and isinstance(plan, dict):
-                entries = plan.get(clip.title)
-                if isinstance(entries, list) and entries and isinstance(entries[0], dict):
-                    broll = entries[0]
+                broll_entries = plan.get(clip.title)
+                if (
+                    isinstance(broll_entries, list)
+                    and broll_entries
+                    and isinstance(broll_entries[0], dict)
+                ):
+                    broll = broll_entries[0]
             destination = shorts_dir / f"{slug}.mp4"
             adapter.render_short(
                 Path(context.source),
@@ -140,7 +147,14 @@ class RenderShortsStep(BaseStep):
                 overlay_opacity=options.overlay_opacity,
                 crop_focus_x=clip.crop_focus_x,
                 crop_focus_y=clip.crop_focus_y,
-                split_screen=options.split_screen,
+                split_screen=options.split_screen or bool(entry.get("split_screen")),
+                split_screen_zoom=float(entry.get("split_screen_zoom", options.split_screen_zoom)),
+                split_screen_focus_left=float(
+                    entry.get("split_screen_focus_left", options.split_screen_focus_left)
+                ),
+                split_screen_focus_right=float(
+                    entry.get("split_screen_focus_right", options.split_screen_focus_right)
+                ),
                 broll_path=Path(str(broll["path"])) if broll else None,
                 broll_start_sec=float(broll.get("start_sec", 0.0)) if broll else 0.0,
                 broll_duration_sec=float(broll.get("duration_sec", 2.0)) if broll else 2.0,

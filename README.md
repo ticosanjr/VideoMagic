@@ -7,7 +7,7 @@ vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive. The primary surface is a recipe DAG editor; the classic rack
 panels remain available for manual control.
 
-> Status: 0.32.0 alpha. The portable Linux binary, Linux AppImage, and Windows
+> Status: 0.33.0 alpha. The portable Linux binary, Linux AppImage, and Windows
 > PE run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical shorts, and
@@ -47,7 +47,7 @@ The same contract is available at `POST /api/v1/recipes/run` and through
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 419 passing, 10 strict xfail, 8 deselected
+uv run pytest                       # 423 passing, 10 strict xfail, 8 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model
@@ -164,13 +164,16 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - Recipe inspector controls for transitions, speaker turns, B-roll, split-screen, and caption colors.
 - Persisted run history browser in the recipe UI.
 - Kdenlive affine transforms/keyframes plus opacity/volume transition filters.
+- Optional pyannote model-based diarization with heuristic fallback.
+- Pexels stock B-roll provider alongside local assets.
+- Automatic split-screen for multi-speaker dialogue clips.
 
 ## Not implemented yet
 
 - Project-scoped per-block reruns; the legacy route returns typed `501`. Recipe
   steps already use per-step checkpoints.
 - Kdenlive exact cross-dissolve validation; transitions are emitted as affine opacity/volume fades.
-- Model-based diarization; speaker turns are currently heuristic.
+- Pyannote is optional and requires a model/install; heuristic remains the default.
 - Face tracking for the main timeline.
 - Manual import validation in Resolve, Premiere, and Kdenlive.
 - A signed Windows binary (SmartScreen will warn).

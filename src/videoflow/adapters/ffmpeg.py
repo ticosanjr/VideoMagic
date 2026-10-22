@@ -388,6 +388,9 @@ class FFmpegAdapter:
         crop_focus_x: float = 0.5,
         crop_focus_y: float = 0.5,
         split_screen: bool = False,
+        split_screen_zoom: float = 1.0,
+        split_screen_focus_left: float = 0.5,
+        split_screen_focus_right: float = 0.5,
         broll_path: Path | None = None,
         broll_start_sec: float = 0.0,
         broll_duration_sec: float = 2.0,
@@ -408,14 +411,19 @@ class FFmpegAdapter:
                 duration = (end - start) / sample_rate
                 if split_screen:
                     half = max(2, width // 2)
+                    zoom = max(1.0, min(2.0, float(split_screen_zoom)))
+                    focus_left = max(0.0, min(1.0, float(split_screen_focus_left)))
+                    focus_right = max(0.0, min(1.0, float(split_screen_focus_right)))
                     video_args = [
                         "-filter_complex",
                         (
                             "[0:v]split=2[a][b];"
-                            f"[a]crop=iw/2:ih:0:0,scale={half}:{height}:"
+                            f"[a]crop=trunc(iw/(2*{zoom})/2)*2:ih:"
+                            f"(iw-ow)*{focus_left}:0,scale={half}:{height}:"
                             "force_original_aspect_ratio=increase,"
                             f"crop={half}:{height},setsar=1[left];"
-                            f"[b]crop=iw/2:ih:iw/2:0,scale={half}:{height}:"
+                            f"[b]crop=trunc(iw/(2*{zoom})/2)*2:ih:"
+                            f"iw/2+(iw/2-ow)*{focus_right}:0,scale={half}:{height}:"
                             "force_original_aspect_ratio=increase,"
                             f"crop={half}:{height},setsar=1[right];"
                             "[left][right]hstack=inputs=2"

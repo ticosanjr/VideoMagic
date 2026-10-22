@@ -3,6 +3,27 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.33.0] - 2026-10-22
+
+### Added
+
+- **Optional model-based diarization.** `audio.diarize` supports
+  `method: "pyannote"` with `model_path`, `device`, and an HF token environment
+  variable. It falls back to the pause heuristic by default.
+- **Pexels B-roll provider.** `broll.plan` can search and download portrait
+  stock clips using `PEXELS_API_KEY`; local assets remain the default.
+- **Dialogue split-screen.** `shorts.reframe` marks multi-speaker clips for the
+  two-panel layout, and the renderer supports per-panel focus and zoom.
+- B-roll plans now include provider, license, attribution, and source URL.
+- UI controls for pyannote, Pexels, dialogue split, and panel focus/zoom.
+- Optional `diarization` dependency extra.
+
+### Notes
+
+- Pyannote is not installed in this build; the adapter is lazy and tested with a
+  fake pipeline plus the heuristic fallback.
+- Pexels is opt-in and requires an API key; local B-roll remains fully offline.
+
 ## [0.32.0] - 2026-10-22
 
 ### Added

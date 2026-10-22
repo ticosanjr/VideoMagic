@@ -118,11 +118,13 @@
     "ingest",
     "audio.vad",
     "transcribe",
+    "audio.diarize",
     "retakes.cull",
     "edit.timeline",
     "shorts.select",
     "shorts.reframe",
     "shorts.captions",
+    "broll.plan",
     "shorts.render",
     "export.nle"
   ];
@@ -1070,6 +1072,7 @@
                         <select value={paramString("method", "heuristic")} onchange={(event) => patchParams({ method: event.currentTarget.value })}
                           class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100">
                           <option value="heuristic">Heuristic</option>
+                          <option value="pyannote">pyannote model</option>
                           <option value="none">Disabled</option>
                         </select>
                       </label>
@@ -1079,11 +1082,40 @@
                           class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
                       </label>
                     </div>
+                    {#if paramString("method", "heuristic") === "pyannote"}
+                      <label class="mt-2 block text-[10px] text-neutral-400">Model
+                        <input type="text" value={paramString("model_path", "pyannote/speaker-diarization-3.1")}
+                          oninput={(event) => patchParams({ model_path: event.currentTarget.value })}
+                          class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" />
+                      </label>
+                      <label class="mt-1 flex items-center gap-2 text-[10px] text-neutral-400">
+                        <input type="checkbox" checked={paramBoolean("fallback_to_heuristic", true)} onchange={(event) => patchParams({ fallback_to_heuristic: event.currentTarget.checked })} />
+                        Fall back to heuristic if the model is unavailable
+                      </label>
+                    {/if}
                   </div>
                 {/if}
                 {#if selectedType === "broll.plan"}
                   <div class="mt-3 rounded-lg border border-neutral-800 bg-neutral-900/60 p-2">
-                    <p class="text-[10px] uppercase tracking-wide text-neutral-500">Local B-roll</p>
+                    <p class="text-[10px] uppercase tracking-wide text-neutral-500">B-roll source</p>
+                    <label class="mt-2 block text-[10px] text-neutral-400">Provider
+                      <select value={paramString("provider", "local")} onchange={(event) => patchParams({ provider: event.currentTarget.value })}
+                        class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100">
+                        <option value="local">Local assets</option>
+                        <option value="pexels">Pexels stock</option>
+                      </select>
+                    </label>
+                    <label class="mt-2 block text-[10px] text-neutral-400">Search hint
+                      <input type="text" value={paramString("query")} oninput={(event) => patchParams({ query: event.currentTarget.value })}
+                        placeholder="optional keywords"
+                        class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
+                    </label>
+                    {#if paramString("provider", "local") === "pexels"}
+                      <label class="mt-2 block text-[10px] text-neutral-400">API key environment variable
+                        <input type="text" value={paramString("api_key_env", "PEXELS_API_KEY")} oninput={(event) => patchParams({ api_key_env: event.currentTarget.value })}
+                          class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" />
+                      </label>
+                    {:else}
                     <label class="mt-2 block text-[10px] text-neutral-400">Asset directory
                       <div class="mt-1 flex gap-1">
                         <input type="text" value={paramString("asset_dir")}
@@ -1093,6 +1125,7 @@
                         <button type="button" onclick={() => (picker = "broll")} class="rounded border border-neutral-700 px-2 text-[10px] text-neutral-300 hover:border-sky-500">Browse</button>
                       </div>
                     </label>
+                    {/if}
                     <div class="mt-2 grid grid-cols-2 gap-2">
                       <label class="text-[10px] text-neutral-400">Max per Short
                         <input type="number" min="1" max="5" value={paramNumber("max_per_short", 1)}
@@ -1105,6 +1138,15 @@
                           class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
                       </label>
                     </div>
+                  </div>
+                {/if}
+                {#if selectedType === "shorts.reframe"}
+                  <div class="mt-3 rounded-lg border border-neutral-800 bg-neutral-900/60 p-2">
+                    <p class="text-[10px] uppercase tracking-wide text-neutral-500">Dialogue layout</p>
+                    <label class="mt-2 flex items-center gap-2 text-[10px] text-neutral-400">
+                      <input type="checkbox" checked={paramBoolean("split_screen_on_dialogue")} onchange={(event) => patchParams({ split_screen_on_dialogue: event.currentTarget.checked })} />
+                      Use split-screen when a clip has multiple speakers
+                    </label>
                   </div>
                 {/if}
                 {#if selectedType === "shorts.render" || selectedType === "shorts.captions"}
@@ -1121,6 +1163,23 @@
                         <input type="checkbox" checked={paramBoolean("split_screen")} onchange={(event) => patchParams({ split_screen: event.currentTarget.checked })} />
                         Split-screen vertical frame
                       </label>
+                      <div class="mt-2 grid grid-cols-3 gap-2">
+                        <label class="text-[10px] text-neutral-400">Zoom
+                          <input type="number" min="1" max="2" step="0.05" value={paramNumber("split_screen_zoom", 1)}
+                            oninput={(event) => patchParams({ split_screen_zoom: Number(event.currentTarget.value) })}
+                            class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
+                        </label>
+                        <label class="text-[10px] text-neutral-400">Left focus
+                          <input type="number" min="0" max="1" step="0.05" value={paramNumber("split_screen_focus_left", 0.5)}
+                            oninput={(event) => patchParams({ split_screen_focus_left: Number(event.currentTarget.value) })}
+                            class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
+                        </label>
+                        <label class="text-[10px] text-neutral-400">Right focus
+                          <input type="number" min="0" max="1" step="0.05" value={paramNumber("split_screen_focus_right", 0.5)}
+                            oninput={(event) => patchParams({ split_screen_focus_right: Number(event.currentTarget.value) })}
+                            class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
+                        </label>
+                      </div>
                       <label class="mt-1 flex items-center gap-2 text-[10px] text-neutral-400">
                         <input type="checkbox" checked={paramBoolean("broll_enabled", true)} onchange={(event) => patchParams({ broll_enabled: event.currentTarget.checked })} />
                         Apply planned B-roll
