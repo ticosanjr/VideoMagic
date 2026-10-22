@@ -34,6 +34,21 @@ progressive zoom:
 - XMEML: 2 clips, 1 transition, 1 motion effect.
 - Kdenlive: 2 clips, 2 affine filters, 4 tractors.
 
+## MLT/Kdenlive render smoke
+
+If `melt` is installed, render the generated project directly:
+
+```bash
+uv run python scripts/melt_check.py timeline.kdenlive --output /tmp/kdenlive-smoke.mp4
+```
+
+The script returns JSON with `ok`, `returncode`, stdout, and stderr. It is a
+stronger check than XML parsing because MLT must resolve the project graph.
+
+The media test `test_kdenlive_project_renders_with_melt` runs this path in CI
+when `melt` is available. MLT may warn about missing optional plugins such as
+`movit`, `qtblend`, or `affine`; those warnings are reported, not hidden.
+
 ## Manual import checklist
 
 Automated XML checks do not prove that an NLE accepts the project. Run this

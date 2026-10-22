@@ -3,6 +3,25 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.42.0] - 2026-10-23
+
+### Added
+
+- **MLT/Kdenlive render smoke.** `scripts/melt_check.py` renders a generated
+  Kdenlive/MLT project with `melt` and returns a JSON verdict.
+- A media test builds a real two-cut project, exports Kdenlive, and renders it
+  with `melt` when available.
+- CI installs `melt` and runs the media suite.
+- Final Windows, AppImage, Linux, and SBOM assets are produced by the tag
+  release workflow.
+
+### Notes
+
+- The exact Kdenlive cross-dissolve remains a limitation; the generated project
+  uses affine opacity/volume fades.
+- Manual Resolve/Premiere/Kdenlive import QA remains pending.
+- 443 Python tests, 8 media tests, 14 Vitest tests, and 6 Playwright tests pass.
+
 ## [0.41.0] - 2026-10-23
 
 ### Added
