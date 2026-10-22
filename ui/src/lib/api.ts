@@ -367,6 +367,45 @@ export interface Job {
   stages: JobStage[];
 }
 
+export interface RecipeStep {
+  id: string;
+  type: string;
+  needs: string[];
+  enabled: boolean;
+  params: Record<string, unknown>;
+}
+
+export interface Recipe {
+  schema_version: 1;
+  id: string;
+  name: string;
+  description: string;
+  llm: {
+    provider: "none" | "openai_compatible" | "opencode";
+    base_url: string | null;
+    model: string;
+    api_key_env: string;
+    timeout_seconds: number;
+  };
+  steps: RecipeStep[];
+}
+
+export interface StepManifest {
+  type: string;
+  title: string;
+  description: string;
+  requires: string[];
+  produces: string[];
+  params_schema: Record<string, unknown>;
+}
+
+export interface RecipeSummary {
+  id: string;
+  name: string;
+  description: string;
+  source: string;
+}
+
 export interface PublishTarget {
   name: string;
   description: string;
@@ -915,6 +954,53 @@ export async function getCapabilities(allowExternal = false): Promise<Capabiliti
 
 export async function createJob(payload: NewJob): Promise<Job> {
   const response = await request<{ ok: boolean; job: Job }>("/api/v1/jobs", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+  return response.job;
+}
+
+export async function listRecipeSteps(): Promise<StepManifest[]> {
+  const response = await request<{ ok: boolean; steps: StepManifest[] }>("/api/v1/steps");
+  return response.steps;
+}
+
+export async function listRecipes(): Promise<RecipeSummary[]> {
+  const response = await request<{ ok: boolean; recipes: RecipeSummary[] }>("/api/v1/recipes");
+  return response.recipes;
+}
+
+export async function getRecipe(recipeId: string): Promise<Recipe> {
+  const response = await request<{ ok: boolean; recipe: Recipe }>(
+    `/api/v1/recipes/${encodeURIComponent(recipeId)}`
+  );
+  return response.recipe;
+}
+
+export async function saveRecipe(recipe: Recipe): Promise<Recipe> {
+  const response = await request<{ ok: boolean; recipe: Recipe }>(
+    `/api/v1/recipes/${encodeURIComponent(recipe.id)}`,
+    { method: "PUT", body: JSON.stringify(recipe) }
+  );
+  return response.recipe;
+}
+
+export async function validateRecipe(
+  recipe: Recipe
+): Promise<{ ok: boolean; recipe: Recipe; order: string[] }> {
+  return request<{ ok: boolean; recipe: Recipe; order: string[] }>("/api/v1/recipes/validate", {
+    method: "POST",
+    body: JSON.stringify(recipe)
+  });
+}
+
+export async function runRecipe(payload: {
+  source: string;
+  output: string;
+  recipe: Recipe;
+  save_recipe?: boolean;
+}): Promise<Job> {
+  const response = await request<{ ok: boolean; job: Job }>("/api/v1/recipes/run", {
     method: "POST",
     body: JSON.stringify(payload)
   });

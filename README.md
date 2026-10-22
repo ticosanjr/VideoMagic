@@ -4,14 +4,15 @@ Local, non-destructive video pre-edit pipeline with a sequential rack UI and an
 MCP server. VideoFlow turns a raw talking-head recording into an editable
 timeline: it removes silence and retakes, adds J-cuts and punch-ins, proposes
 vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
-and Kdenlive.
+and Kdenlive. The primary surface is a recipe DAG editor; the classic rack
+panels remain available for manual control.
 
-> Status: 0.22.3 alpha. The portable Linux binary, Linux AppImage, and Windows
+> Status: 0.23.0 alpha. The portable Linux binary, Linux AppImage, and Windows
 > PE run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical shorts, and
 > three NLE exports. The local API, MCP server, and rack UI execute real jobs;
-> all forty-one MCP tools and four resources are live. The rack browses local files
+> all forty-eight MCP tools and four resources are live, including recipe execution. The rack browses local files
 > and folders instead of requiring typed paths. Projects persist atomic,
 > revisioned state under `.videoflow/`, and the REST API manages media, modules,
 > transcripts, exports, and operator presets.
@@ -28,11 +29,25 @@ Faster-Whisper runtimes but not their large weights; download the small model
 from the Models tab when needed. A build with `--with-models` embeds the weights
 and works fully offline out of the box. A GPU is not required.
 
+## Recipes
+
+A recipe is a JSON DAG shared by the UI, CLI, REST API, and MCP tools:
+
+```bash
+videoflow recipe list
+videoflow recipe validate recipes/youtube_talking_head.json
+videoflow recipe run recipes/viral_shorts_batch.json /media/source.mp4 -o /media/out
+```
+
+The same contract is available at `POST /api/v1/recipes/run` and through
+`videoflow_run_recipe_inline`. See `docs/recipes.md` and
+`schemas/recipe.schema.json`.
+
 ## Quick start
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 370 passing, 11 strict xfail, 7 deselected
+uv run pytest                       # 391 passing, 11 strict xfail, 7 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model
@@ -125,8 +140,9 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   state/preset/export resources. Streamable HTTP is mounted on the local API.
 - Unified CLI (`run`, `serve`, `mcp`, `doctor`, `demo`, `version`) and a
   PyInstaller onefile build for Linux and Windows.
-- Sticky top workspace navigation (Speech, Edit, Shorts, Studio, Export, Models,
-  Services, Providers), a capability manifest, opt-in external-provider policy, a model downloader,
+- Recipes-first workspace: a Svelte Flow DAG editor backed by a typed recipe
+  engine, plus the classic Speech, Edit, Shorts, Studio, Export, Models,
+  Services, and Providers tabs, a capability manifest, opt-in external-provider policy, a model downloader,
   Short aspect/window/resolution controls, a Services tab for process cleanup,
   and Restart/Stop service buttons.
 - Local job API with SSE progress, plus persistent project routes for media,

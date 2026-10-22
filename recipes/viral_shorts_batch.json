@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "id": "viral_shorts_batch",
+  "name": "Viral Shorts batch",
+  "description": "Main timeline plus three vertical Shorts with burned captions.",
+  "llm": {
+    "provider": "none"
+  },
+  "steps": [
+    {
+      "id": "ingest",
+      "type": "ingest",
+      "params": {
+        "extract_pcm": true
+      }
+    },
+    {
+      "id": "vad",
+      "type": "audio.vad",
+      "needs": [
+        "ingest"
+      ],
+      "params": {}
+    },
+    {
+      "id": "transcribe",
+      "type": "transcribe",
+      "needs": [
+        "ingest"
+      ],
+      "params": {
+        "mode": "auto",
+        "language": "pt",
+        "model_size": "small"
+      }
+    },
+    {
+      "id": "retakes",
+      "type": "retakes.cull",
+      "needs": [
+        "transcribe"
+      ],
+      "params": {
+        "enabled": true
+      }
+    },
+    {
+      "id": "timeline",
+      "type": "edit.timeline",
+      "needs": [
+        "vad",
+        "retakes"
+      ],
+      "params": {}
+    },
+    {
+      "id": "shorts",
+      "type": "shorts.select",
+      "needs": [
+        "transcribe"
+      ],
+      "params": {
+        "target_duration_min_sec": 30,
+        "target_duration_max_sec": 60,
+        "min_clips": 1,
+        "max_clips_to_generate": 3,
+        "selection_mode": "auto",
+        "burn_subtitles": true
+      }
+    },
+    {
+      "id": "render_shorts",
+      "type": "shorts.render",
+      "needs": [
+        "shorts"
+      ],
+      "params": {
+        "burn_subtitles": true
+      }
+    },
+    {
+      "id": "export",
+      "type": "export.nle",
+      "needs": [
+        "timeline"
+      ],
+      "params": {
+        "targets": [
+          "resolve",
+          "premiere",
+          "kdenlive"
+        ]
+      }
+    }
+  ]
+}

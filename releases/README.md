@@ -47,6 +47,7 @@ videoflow-0.21.2-windows-x86_64.exe
 
 ## Current
 
+- `v0.23.0`: recipe engine v1, Recipes-first Svelte Flow editor, recipe CLI/REST/MCP, typed step registry, and built-in DAG recipes.
 - `v0.22.3`: sticky top tab navigation, cache-busted UI, version mismatch
   warning, and a startup lock for repeated AppImage double-clicks.
 - `v0.22.2`: version-aware replacement of old services, Services control tab,

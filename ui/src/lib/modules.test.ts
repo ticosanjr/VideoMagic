@@ -5,6 +5,7 @@ describe("module tabs", () => {
   it("keeps every primary workspace discoverable", () => {
     const ids = moduleTabs.map((tab) => tab.id);
     expect(ids).toEqual([
+      "recipes",
       "speech",
       "edit",
       "shorts",

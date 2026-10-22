@@ -3,6 +3,44 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.23.0] - 2026-10-22
+
+### Added
+
+- **Recipe engine v1.** Recipes are versioned DAGs of typed steps with
+  explicit dependencies, stable ids, parameter schemas, progress, cancellation,
+  and per-step hashes. The engine validates duplicate ids, unknown step types,
+  missing dependencies, disabled dependencies, and cycles before execution.
+- **Step registry.** Ingest, voice detection, transcription, retakes, timeline,
+  Shorts selection, Shorts rendering, and NLE export are independently
+  invocable. The legacy pipeline remains available and is covered by a parity
+  test against the recipe path.
+- **Recipes tab, first in the workspace.** A Svelte Flow canvas edits the DAG,
+  exposes JSON parameters per node, loads built-in recipes, validates, saves,
+  downloads, and runs jobs with live progress.
+- **Recipe API.** `GET /api/v1/steps`, `GET /api/v1/recipes`,
+  `GET /api/v1/recipes/{id}`, `PUT /api/v1/recipes/{id}`,
+  `POST /api/v1/recipes/validate`, and `POST /api/v1/recipes/run`.
+- **Recipe MCP tools.** `videoflow_list_steps`, `videoflow_list_recipes`,
+  `videoflow_get_recipe`, `videoflow_validate_recipe`,
+  `videoflow_save_recipe`, `videoflow_run_recipe`, and
+  `videoflow_run_recipe_inline`.
+- **Recipe CLI.** `videoflow recipe list|steps|show|validate|run`.
+- **Built-in recipes and examples.** `youtube_talking_head`,
+  `viral_shorts_batch`, and `full_podcast_curation`, mirrored under `recipes/`.
+- **LLM router.** OpenAI-compatible local/cloud endpoints are the default; an
+  opt-in OpenCode CLI adapter adds timeouts, a non-shell subprocess, output
+  limits, and strict JSON parsing. Secrets are stored by environment variable
+  name, never inside recipes.
+- **Recipe JSON Schema** at `schemas/recipe.schema.json`.
+
+### Notes
+
+- The visual editor is additive: the existing Speech, Edit, Shorts, Studio,
+  Export, Models, Services, and Providers tabs remain available.
+- The v1 recipe scope is the current pipeline. B-roll, TTS, and new vision
+  models remain future steps.
+
 ## [0.22.3] - 2026-10-21
 
 ### Fixed

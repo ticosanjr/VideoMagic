@@ -92,6 +92,7 @@ from videoflow.application.short_metadata import generate_short_metadata
 from videoflow.application.thumbnail import generate_short_thumbnail
 from videoflow.application.url_import import import_url
 from videoflow.application.voiceover import generate_short_voiceover
+from videoflow.core.recipe import parse_recipe, recipe_to_dict
 from videoflow.domain.config import (
     DubbingConfig,
     MediaLanguage,
@@ -106,6 +107,7 @@ from videoflow.domain.errors import (
     MediaNotFoundError,
     MediaNotRegisteredError,
     ModuleBypassedError,
+    RecipeError,
     StateNotReadyError,
     TranscriptNotFoundError,
     TranscriptRequiredError,
@@ -115,7 +117,10 @@ from videoflow.domain.errors import (
 from videoflow.domain.paths import resolve_allowed
 from videoflow.domain.state import ManualOverride, MediaInfo, ProjectState
 from videoflow.domain.transcript import format_srt
+from videoflow.engine.recipes import get_recipe, list_recipes, save_user_recipe
 from videoflow.runtime import allowed_roots, find_binary, portable_home
+from videoflow.steps import manifest as step_manifest
+from videoflow.steps import step_types
 
 logger = logging.getLogger(__name__)
 
@@ -280,6 +285,21 @@ class NewJobRequest(BaseModel):
             and self.shorts_source_end_sec <= self.shorts_source_start_sec
         ):
             raise ValueError("shorts_source_end_sec must be greater than shorts_source_start_sec")
+        return self
+
+
+class RecipeRunRequest(BaseModel):
+    source: str = Field(min_length=1)
+    output: str = Field(min_length=1)
+    recipe: dict[str, Any] | None = None
+    recipe_id: str | None = None
+    transcript_sentences: list[dict[str, Any]] = Field(default_factory=list)
+    save_recipe: bool = False
+
+    @model_validator(mode="after")
+    def exactly_one_recipe(self) -> RecipeRunRequest:
+        if (self.recipe is None) == (self.recipe_id is None):
+            raise ValueError("provide exactly one of recipe or recipe_id")
         return self
 
 
@@ -501,6 +521,78 @@ def register_routes(
             "external_services_allowed": external_services_allowed(allow_external),
             "capabilities": capability_manifest(allow_external_services=allow_external),
         }
+
+    @app.get("/api/v1/steps")
+    def list_steps() -> dict[str, object]:
+        return {"ok": True, "steps": step_manifest()}
+
+    @app.get("/api/v1/recipes")
+    def recipes() -> dict[str, object]:
+        return {"ok": True, "recipes": list_recipes()}
+
+    @app.get("/api/v1/recipes/{recipe_id}")
+    def recipe_detail(recipe_id: str) -> dict[str, object]:
+        try:
+            recipe = get_recipe(recipe_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "recipe": recipe_to_dict(recipe)}
+
+    @app.put("/api/v1/recipes/{recipe_id}")
+    def save_recipe(recipe_id: str, payload: dict[str, Any]) -> dict[str, object]:
+        try:
+            recipe = parse_recipe(payload)
+            if recipe.id != recipe_id:
+                raise RecipeError("recipe id does not match the URL")
+            recipe.validate_graph(step_types())
+            path = save_user_recipe(recipe)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "recipe": recipe_to_dict(recipe), "path": str(path)}
+
+    @app.post("/api/v1/recipes/validate")
+    def validate_recipe(payload: dict[str, Any]) -> dict[str, object]:
+        try:
+            recipe = parse_recipe(payload)
+            recipe.validate_graph(step_types())
+            order = recipe.topological_order()
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {
+            "ok": True,
+            "recipe": recipe_to_dict(recipe),
+            "order": [step.id for step in order],
+        }
+
+    @app.post("/api/v1/recipes/run", status_code=202)
+    def run_recipe(request: RecipeRunRequest) -> dict[str, object]:
+        roots = allowed_roots()
+        try:
+            source = resolve_allowed(Path(request.source), roots)
+            output = resolve_allowed(Path(request.output), roots)
+            if request.recipe is not None:
+                recipe = parse_recipe(request.recipe)
+            else:
+                recipe = get_recipe(str(request.recipe_id))
+            recipe.validate_graph(step_types())
+            if request.save_recipe:
+                save_user_recipe(recipe)
+            job = jobs.start(
+                source,
+                output,
+                {
+                    "mode": "recipe",
+                    "recipe": recipe.model_dump(mode="json"),
+                    "transcript_sentences": request.transcript_sentences,
+                },
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "job": job.to_dict()}
 
     @app.post("/api/v1/jobs", status_code=202)
     def create_job(request: NewJobRequest) -> dict[str, object]:
@@ -1823,6 +1915,8 @@ def status_for(code: str) -> int:
         "word_overrides_not_supported": 422,
         "invalid_time": 422,
         "invalid_config": 422,
+        "recipe_invalid": 422,
+        "step_failed": 422,
         "export_failed": 422,
         "ingest_failed": 422,
         "not_implemented": 501,

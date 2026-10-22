@@ -78,6 +78,7 @@ from videoflow.application.thumbnail import generate_short_thumbnail
 from videoflow.application.url_import import import_url
 from videoflow.application.vad import detect_speech as detect_vad
 from videoflow.application.voiceover import generate_short_voiceover
+from videoflow.core.recipe import parse_recipe, recipe_to_dict
 from videoflow.domain.config import DubbingConfig, TtsConfig
 from videoflow.domain.errors import (
     CapabilityUnavailableError,
@@ -89,6 +90,7 @@ from videoflow.domain.paths import resolve_allowed
 from videoflow.domain.state import MediaInfo, ProjectState, Sentence
 from videoflow.domain.timebase import Rounding
 from videoflow.domain.transcript import format_srt
+from videoflow.engine.recipes import get_recipe, list_recipes, save_user_recipe
 from videoflow.mcp_server.registry import RESOURCE_SPECS, TOOL_SPECS
 from videoflow.runtime import (
     allowed_roots,
@@ -96,6 +98,8 @@ from videoflow.runtime import (
     find_faster_whisper_model,
     find_whisper_model,
 )
+from videoflow.steps import manifest as step_manifest
+from videoflow.steps import step_types
 
 SERVER_NAME = "VideoFlow"
 
@@ -1578,6 +1582,122 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             },
             indent=2,
         )
+
+    @mcp.tool()
+    def videoflow_list_steps() -> dict[str, object]:
+        """List every recipe step and its JSON parameter schema."""
+
+        return {"ok": True, "steps": step_manifest()}
+
+    @mcp.tool()
+    def videoflow_list_recipes() -> dict[str, object]:
+        """List built-in and operator recipes."""
+
+        return {"ok": True, "recipes": list_recipes()}
+
+    @mcp.tool()
+    def videoflow_get_recipe(recipe_id: str) -> dict[str, object]:
+        """Return one complete recipe document."""
+
+        try:
+            recipe = get_recipe(recipe_id)
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {"ok": True, "recipe": recipe_to_dict(recipe)}
+
+    @mcp.tool()
+    def videoflow_validate_recipe(recipe: dict[str, object]) -> dict[str, object]:
+        """Validate a recipe DAG and return its execution order."""
+
+        try:
+            parsed = parse_recipe(recipe)  # type: ignore[arg-type]
+            parsed.validate_graph(step_types())
+            order = [step.id for step in parsed.topological_order()]
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except ValueError as exc:
+            return _error("recipe_invalid", str(exc))
+        return {"ok": True, "recipe": recipe_to_dict(parsed), "order": order}
+
+    @mcp.tool()
+    def videoflow_save_recipe(recipe: dict[str, object]) -> dict[str, object]:
+        """Validate and save a recipe under the VideoFlow home directory."""
+
+        try:
+            parsed = parse_recipe(recipe)  # type: ignore[arg-type]
+            parsed.validate_graph(step_types())
+            path = save_user_recipe(parsed)
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {"ok": True, "recipe": recipe_to_dict(parsed), "path": str(path)}
+
+    @mcp.tool()
+    def videoflow_run_recipe(
+        recipe_id: str,
+        source: str | None = None,
+        output: str | None = None,
+    ) -> dict[str, object]:
+        """Run a named recipe on a source file and return the job."""
+
+        try:
+            source_path = Path(source) if source else last.get("source")
+            if not isinstance(source_path, Path):
+                return _source_required()
+            roots = allowed_roots()
+            resolved_source = resolve_allowed(source_path, roots)
+            output_path = (
+                Path(output)
+                if output
+                else resolved_source.with_name(f"{resolved_source.stem}-videoflow")
+            )
+            resolved_output = resolve_allowed(output_path, roots)
+            recipe = get_recipe(recipe_id)
+            recipe.validate_graph(step_types())
+            job = manager.start(
+                resolved_source,
+                resolved_output,
+                {"mode": "recipe", "recipe": recipe.model_dump(mode="json")},
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        last["source"] = resolved_source
+        last["output"] = resolved_output
+        last["job_id"] = str(job.job_id)
+        return {"ok": True, "job": job.to_dict()}
+
+    @mcp.tool()
+    def videoflow_run_recipe_inline(
+        recipe: dict[str, object],
+        source: str | None = None,
+        output: str | None = None,
+    ) -> dict[str, object]:
+        """Run an inline recipe on a source file and return the job."""
+
+        try:
+            source_path = Path(source) if source else last.get("source")
+            if not isinstance(source_path, Path):
+                return _source_required()
+            roots = allowed_roots()
+            resolved_source = resolve_allowed(source_path, roots)
+            output_path = (
+                Path(output)
+                if output
+                else resolved_source.with_name(f"{resolved_source.stem}-videoflow")
+            )
+            resolved_output = resolve_allowed(output_path, roots)
+            parsed = parse_recipe(recipe)  # type: ignore[arg-type]
+            parsed.validate_graph(step_types())
+            job = manager.start(
+                resolved_source,
+                resolved_output,
+                {"mode": "recipe", "recipe": parsed.model_dump(mode="json")},
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        last["source"] = resolved_source
+        last["output"] = resolved_output
+        last["job_id"] = str(job.job_id)
+        return {"ok": True, "job": job.to_dict()}
 
     _ = (TOOL_SPECS, RESOURCE_SPECS)
     return mcp

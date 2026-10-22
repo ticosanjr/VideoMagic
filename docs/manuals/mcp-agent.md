@@ -30,7 +30,7 @@ HTTP:
 ```
 
 Restart the host after changing the config. All tools and resources in this
-manual are live in 0.22.3.
+manual are live in 0.23.0.
 
 ## 2. Tool groups
 

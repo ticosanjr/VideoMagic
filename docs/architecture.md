@@ -46,6 +46,11 @@ Rules:
 | `domain/timeline.py` | Overlap and packing checks |
 | `domain/paths.py` | Path allowlist jail |
 | `domain/redact.py` | Secret redaction |
+| `core/recipe.py` | Versioned recipe DAG contract and validation |
+| `core/context.py` | Typed artifact context shared by recipe steps |
+| `steps/` | Atomic ingest, VAD, transcription, retakes, timeline, Shorts, and export steps |
+| `engine/runner.py` | Topological execution, progress, telemetry, and report writing |
+| `engine/recipes.py` | Built-in and operator recipe discovery |
 | `application/cache.py` | Canonical module hashing |
 | `application/timeline_builder.py` | Deterministic cuts, J/L boundaries, fades, zoom metadata |
 | `application/export_service.py` | One validated timeline to three NLE artifacts |

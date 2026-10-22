@@ -181,6 +181,27 @@ class JobNotFoundError(VideoFlowError):
     code = "job_not_found"
 
 
+class RecipeError(VideoFlowError):
+    """A recipe is invalid, references an unknown step, or cannot be executed."""
+
+    code = "recipe_invalid"
+
+
+class StepExecutionError(VideoFlowError):
+    """A named recipe step failed."""
+
+    code = "step_failed"
+
+    def __init__(self, step_id: str, message: str) -> None:
+        self.step_id = step_id
+        super().__init__(f"Step {step_id}: {message}")
+
+    def to_dict(self) -> dict[str, object]:
+        payload = super().to_dict()
+        payload["step_id"] = self.step_id
+        return payload
+
+
 class TranscriptError(VideoFlowError):
     """A subtitle file cannot be parsed as a transcript."""
 

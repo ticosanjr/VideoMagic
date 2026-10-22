@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "id": "youtube_talking_head",
+  "name": "YouTube talking head",
+  "description": "Clean speech, remove repeats, build the main timeline, and export an NLE project.",
+  "llm": {
+    "provider": "none"
+  },
+  "steps": [
+    {
+      "id": "ingest",
+      "type": "ingest",
+      "params": {
+        "extract_pcm": true
+      }
+    },
+    {
+      "id": "vad",
+      "type": "audio.vad",
+      "needs": [
+        "ingest"
+      ],
+      "params": {}
+    },
+    {
+      "id": "transcribe",
+      "type": "transcribe",
+      "needs": [
+        "ingest"
+      ],
+      "params": {
+        "mode": "auto",
+        "language": "pt",
+        "model_size": "small"
+      }
+    },
+    {
+      "id": "retakes",
+      "type": "retakes.cull",
+      "needs": [
+        "transcribe"
+      ],
+      "params": {
+        "enabled": true
+      }
+    },
+    {
+      "id": "timeline",
+      "type": "edit.timeline",
+      "needs": [
+        "vad",
+        "retakes"
+      ],
+      "params": {}
+    },
+    {
+      "id": "export",
+      "type": "export.nle",
+      "needs": [
+        "timeline"
+      ],
+      "params": {
+        "targets": [
+          "resolve",
+          "premiere",
+          "kdenlive"
+        ]
+      }
+    }
+  ]
+}

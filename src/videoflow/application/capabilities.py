@@ -74,6 +74,16 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "videoflow_load_media",
         ),
         _entry(
+            "recipe_engine",
+            "Recipe engine",
+            "automation",
+            "available",
+            "Versioned DAG recipes with typed steps, validation, caching hashes, "
+            "CLI, REST, and MCP execution.",
+            "POST /api/v1/recipes/run",
+            "videoflow_run_recipe",
+        ),
+        _entry(
             "url_import",
             "URL import",
             "ingest",

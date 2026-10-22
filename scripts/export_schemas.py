@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from videoflow.core.recipe import Recipe
 from videoflow.domain.state import ApiError, JobRecord, LlmRetakeResponse, Preset, ProjectState
 
 MODELS = {
@@ -18,6 +19,7 @@ MODELS = {
     "llm-retake-response": LlmRetakeResponse,
     "api-error": ApiError,
     "job-record": JobRecord,
+    "recipe": Recipe,
 }
 
 

@@ -224,6 +224,41 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "Ask the active job to stop between modules.",
         "export",
     ),
+    ToolSpec(
+        "videoflow_list_steps",
+        "List every recipe step and its JSON parameter schema.",
+        "recipes",
+    ),
+    ToolSpec(
+        "videoflow_list_recipes",
+        "List built-in and operator recipes.",
+        "recipes",
+    ),
+    ToolSpec(
+        "videoflow_get_recipe",
+        "Return one complete recipe document.",
+        "recipes",
+    ),
+    ToolSpec(
+        "videoflow_validate_recipe",
+        "Validate a recipe DAG and return its execution order.",
+        "recipes",
+    ),
+    ToolSpec(
+        "videoflow_save_recipe",
+        "Validate and save a recipe under the VideoFlow home directory.",
+        "recipes",
+    ),
+    ToolSpec(
+        "videoflow_run_recipe",
+        "Run a named recipe on a source file and return the job.",
+        "recipes",
+    ),
+    ToolSpec(
+        "videoflow_run_recipe_inline",
+        "Run an inline recipe on a source file and return the job.",
+        "recipes",
+    ),
 )
 
 RESOURCE_SPECS: tuple[ResourceSpec, ...] = (

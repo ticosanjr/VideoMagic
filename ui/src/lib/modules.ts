@@ -20,6 +20,7 @@ export type FieldType =
   | "readonly";
 
 export type ModuleTab =
+  | "recipes"
   | "speech"
   | "edit"
   | "shorts"
@@ -310,6 +311,7 @@ export const defaultConfig: JobConfig = {
 };
 
 export const moduleTabs: { id: ModuleTab; label: string; hint: string }[] = [
+  { id: "recipes", label: "Recipes", hint: "Visual DAG builder and recipe runner" },
   { id: "speech", label: "Speech", hint: "Ingest, voice detection, transcription, and retakes" },
   { id: "edit", label: "Edit", hint: "J/L cuts, fades, and framing" },
   { id: "shorts", label: "Shorts", hint: "Curation, captions, aspect ratio, and render" },

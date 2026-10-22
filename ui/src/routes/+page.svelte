@@ -14,6 +14,7 @@
   import StudioPanel from "$lib/StudioPanel.svelte";
   import ModelsPanel from "$lib/ModelsPanel.svelte";
   import ServicesPanel from "$lib/ServicesPanel.svelte";
+  import RecipesPanel from "$lib/RecipesPanel.svelte";
   import {
     cancelJob,
     createJob,
@@ -83,7 +84,7 @@
   let toast = $state<{ kind: "success" | "error"; message: string } | null>(null);
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
   let preset = $state<"youtube" | "lecture" | "shorts" | "custom">("custom");
-  let activeTab = $state<ModuleTab>("speech");
+  let activeTab = $state<ModuleTab>("recipes");
   let shortEditor = $state<{ index: number; short: ShortClip } | null>(null);
   let probeToken = 0;
   let serviceBusy = $state<"" | "restart" | "stop">("");
@@ -1278,7 +1279,9 @@
 
     <div id="pipeline-content" class="grid scroll-mt-24 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
     <section aria-label="Pipeline modules" class="space-y-3">
-      {#if activeTab === "studio"}
+      {#if activeTab === "recipes"}
+        <RecipesPanel {source} {output} />
+      {:else if activeTab === "studio"}
         <StudioPanel {job} {config} onEdit={openShortEditor} />
       {:else if activeTab === "models"}
         <ModelsPanel allowExternal={config.allow_external_services} />

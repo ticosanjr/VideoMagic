@@ -1,0 +1,130 @@
+{
+  "$defs": {
+    "LlmRecipeConfig": {
+      "additionalProperties": false,
+      "description": "Provider selection for optional LLM steps.\n\nSecrets are referenced by environment variable name, never stored inline.",
+      "properties": {
+        "api_key_env": {
+          "default": "VIDEOWFLOW_LLM_API_KEY",
+          "title": "Api Key Env",
+          "type": "string"
+        },
+        "base_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base Url"
+        },
+        "model": {
+          "default": "",
+          "title": "Model",
+          "type": "string"
+        },
+        "provider": {
+          "default": "none",
+          "enum": [
+            "openai_compatible",
+            "opencode",
+            "none"
+          ],
+          "title": "Provider",
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "default": 90.0,
+          "exclusiveMinimum": 0.0,
+          "maximum": 600.0,
+          "title": "Timeout Seconds",
+          "type": "number"
+        }
+      },
+      "title": "LlmRecipeConfig",
+      "type": "object"
+    },
+    "RecipeStep": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "needs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Needs",
+          "type": "array"
+        },
+        "params": {
+          "additionalProperties": true,
+          "title": "Params",
+          "type": "object"
+        },
+        "type": {
+          "minLength": 1,
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "title": "RecipeStep",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "description": {
+      "default": "",
+      "title": "Description",
+      "type": "string"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "llm": {
+      "$ref": "#/$defs/LlmRecipeConfig"
+    },
+    "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/RecipeStep"
+      },
+      "minItems": 1,
+      "title": "Steps",
+      "type": "array"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "steps"
+  ],
+  "title": "Recipe",
+  "type": "object"
+}

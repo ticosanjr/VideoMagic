@@ -269,6 +269,9 @@ class JobManager:
             return job
 
     def _work(self, job: Job) -> None:
+        if job.options.get("mode") == "recipe":
+            self._work_recipe(job)
+            return
         with self._lock:
             job.status = "running"
             job.started_at = _now()
@@ -522,6 +525,81 @@ class JobManager:
                     "code": "internal_error",
                     "message": str(exc),
                 }
+        finally:
+            with self._lock:
+                job.finished_at = _now()
+            _write_log(job)
+
+    def _work_recipe(self, job: Job) -> None:
+        from videoflow.core.recipe import Recipe
+        from videoflow.engine.runner import RecipeRunner
+
+        with self._lock:
+            job.status = "running"
+            job.started_at = _now()
+            job.message = "Starting recipe"
+
+        def progress(stage: str, percent: int, message: str) -> None:
+            with self._lock:
+                job.stage = stage
+                job.progress = percent
+                job.message = message
+
+        def log(module: str, level: str, message: str) -> None:
+            job.telemetry.log(module, level, message)
+
+        def should_cancel() -> bool:
+            return job.cancel_requested
+
+        try:
+            recipe = Recipe.model_validate(job.options.get("recipe") or {})
+            transcript_sentences = [
+                Sentence.model_validate(item)
+                for item in job.options.get("transcript_sentences", [])
+            ]
+            runner = RecipeRunner(recipe)
+            result = runner.run(
+                job.source,
+                job.output,
+                progress=progress,
+                should_cancel=should_cancel,
+                log=log,
+                telemetry=job.telemetry,
+                transcript_sentences=transcript_sentences,
+            )
+            if job.finalizer is not None and not job.cancel_requested:
+                job.finalizer(job)
+            with self._lock:
+                if job.cancel_requested:
+                    job.status = "cancelled"
+                    job.stage = "cancelled"
+                    job.message = "Cancelled"
+                else:
+                    job.status = "succeeded"
+                    job.progress = 100
+                    job.stage = "done"
+                    job.message = "Finished"
+                    job.result = result.to_dict()
+        except JobCancelledError as exc:
+            with self._lock:
+                job.status = "cancelled"
+                job.stage = "cancelled"
+                job.message = str(exc)
+        except VideoFlowError as exc:
+            job.telemetry.fail_running(exc.message)
+            with self._lock:
+                job.status = "failed"
+                job.stage = job.stage or "failed"
+                job.message = exc.message
+                job.error = exc.to_dict()
+        except Exception as exc:  # pragma: no cover - unexpected worker failure
+            traceback.print_exc()
+            job.telemetry.fail_running(str(exc))
+            with self._lock:
+                job.status = "failed"
+                job.stage = job.stage or "failed"
+                job.message = str(exc)
+                job.error = {"ok": False, "code": "internal_error", "message": str(exc)}
         finally:
             with self._lock:
                 job.finished_at = _now()

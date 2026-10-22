@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "id": "full_podcast_curation",
+  "name": "Full podcast curation",
+  "description": "Long-form cut, NLE exports, and five Shorts with audio-energy and scene boosts.",
+  "llm": {
+    "provider": "none"
+  },
+  "steps": [
+    {
+      "id": "ingest",
+      "type": "ingest",
+      "params": {
+        "extract_pcm": true
+      }
+    },
+    {
+      "id": "vad",
+      "type": "audio.vad",
+      "needs": [
+        "ingest"
+      ],
+      "params": {}
+    },
+    {
+      "id": "transcribe",
+      "type": "transcribe",
+      "needs": [
+        "ingest"
+      ],
+      "params": {
+        "mode": "auto",
+        "language": "pt",
+        "model_size": "small"
+      }
+    },
+    {
+      "id": "retakes",
+      "type": "retakes.cull",
+      "needs": [
+        "transcribe"
+      ],
+      "params": {
+        "enabled": true
+      }
+    },
+    {
+      "id": "timeline",
+      "type": "edit.timeline",
+      "needs": [
+        "vad",
+        "retakes"
+      ],
+      "params": {}
+    },
+    {
+      "id": "shorts",
+      "type": "shorts.select",
+      "needs": [
+        "transcribe"
+      ],
+      "params": {
+        "target_duration_min_sec": 25,
+        "target_duration_max_sec": 55,
+        "min_clips": 1,
+        "max_clips_to_generate": 5,
+        "selection_mode": "auto",
+        "audio_energy_boost": true,
+        "scene_change_boost": true,
+        "burn_subtitles": true
+      }
+    },
+    {
+      "id": "render_shorts",
+      "type": "shorts.render",
+      "needs": [
+        "shorts"
+      ],
+      "params": {
+        "burn_subtitles": true
+      }
+    },
+    {
+      "id": "export",
+      "type": "export.nle",
+      "needs": [
+        "timeline"
+      ],
+      "params": {
+        "targets": [
+          "resolve",
+          "premiere",
+          "kdenlive"
+        ]
+      }
+    }
+  ]
+}
