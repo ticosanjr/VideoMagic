@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (0.37.0)
+## Implementation status (0.38.0)
 
 | Area | State |
 | --- | --- |
@@ -12,7 +12,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Silero VAD via ONNX Runtime with FFmpeg `silencedetect` fallback | implemented |
 | Deterministic timeline, J/L-cuts, fades, punch-ins | implemented |
 | FCPXML 1.9/1.10, xmeml v4, native Kdenlive MLT export | implemented |
-| Portable artifacts | 0.37.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
+| Portable artifacts | 0.38.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
 | Run history | persisted in `work/run-history.json`, including failed runs, exposed by `GET /api/v1/runs` |
 | Diagnostics | `work/failure.json` includes stage, error, FFmpeg command, stderr, and log tail |
 | NLE validation | `scripts/validate_nle.py` and `POST /api/v1/exports/validate` |
@@ -55,7 +55,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Clip transitions | crossfade and fade-to-black in FCPXML, XMEML, and MP4 |
 | Speaker turns | heuristic or optional pyannote model, with speaker-colored captions |
 | B-roll | local assets or Pexels stock, full-frame Short overlays |
-| Split-screen | two-panel Short rendering, auto-enabled for dialogue |
+| Split-screen | two-panel Short rendering, auto for dialogue, optional second source |
 | Local TTS | Piper CLI voice-over through API and Short editor |
 | Folder batches | implemented; sequential queue, per-item jobs, cancellation, checkpoints |
 | Keyframed progressive zooms | implemented in FCPXML, XMEML, and direct MP4 |

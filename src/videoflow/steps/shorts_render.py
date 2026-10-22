@@ -31,6 +31,7 @@ class RenderShortsParams(BaseModel):
     split_screen_zoom: float = Field(default=1.0, ge=1.0, le=2.0)
     split_screen_focus_left: float = Field(default=0.5, ge=0.0, le=1.0)
     split_screen_focus_right: float = Field(default=0.5, ge=0.0, le=1.0)
+    second_source_path: str | None = None
     broll_enabled: bool = True
     caption_style: CaptionStyle = Field(default_factory=CaptionStyle)
     audio_filters: list[str] = Field(default_factory=list)
@@ -154,6 +155,9 @@ class RenderShortsStep(BaseStep):
                 ),
                 split_screen_focus_right=float(
                     entry.get("split_screen_focus_right", options.split_screen_focus_right)
+                ),
+                second_source_path=(
+                    Path(options.second_source_path) if options.second_source_path else None
                 ),
                 broll_path=Path(str(broll["path"])) if broll else None,
                 broll_start_sec=float(broll.get("start_sec", 0.0)) if broll else 0.0,

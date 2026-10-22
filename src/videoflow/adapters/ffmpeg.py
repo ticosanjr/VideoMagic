@@ -391,6 +391,7 @@ class FFmpegAdapter:
         split_screen_zoom: float = 1.0,
         split_screen_focus_left: float = 0.5,
         split_screen_focus_right: float = 0.5,
+        second_source_path: Path | None = None,
         broll_path: Path | None = None,
         broll_start_sec: float = 0.0,
         broll_duration_sec: float = 2.0,
@@ -409,26 +410,51 @@ class FFmpegAdapter:
             for index, (start, end) in enumerate(pieces):
                 piece = work / f"piece-{index:02d}.mp4"
                 duration = (end - start) / sample_rate
+                second = Path(second_source_path).expanduser() if second_source_path else None
                 if split_screen:
                     half = max(2, width // 2)
                     zoom = max(1.0, min(2.0, float(split_screen_zoom)))
                     focus_left = max(0.0, min(1.0, float(split_screen_focus_left)))
                     focus_right = max(0.0, min(1.0, float(split_screen_focus_right)))
-                    video_args = [
-                        "-filter_complex",
-                        (
-                            "[0:v]split=2[a][b];"
-                            f"[a]crop=trunc(iw/(2*{zoom})/2)*2:ih:"
-                            f"(iw-ow)*{focus_left}:0,scale={half}:{height}:"
-                            "force_original_aspect_ratio=increase,"
-                            f"crop={half}:{height},setsar=1[left];"
-                            f"[b]crop=trunc(iw/(2*{zoom})/2)*2:ih:"
-                            f"iw/2+(iw/2-ow)*{focus_right}:0,scale={half}:{height}:"
-                            "force_original_aspect_ratio=increase,"
-                            f"crop={half}:{height},setsar=1[right];"
-                            "[left][right]hstack=inputs=2"
-                        ),
-                    ]
+                    if second is not None:
+                        if not second.is_file():
+                            raise IngestError(
+                                f"Second split-screen source does not exist: {second}"
+                            )
+                        video_args = [
+                            "-filter_complex",
+                            (
+                                f"[0:v]crop=trunc(iw/(2*{zoom})/2)*2:ih:"
+                                f"(iw-ow)*{focus_left}:0,scale={half}:{height}:"
+                                "force_original_aspect_ratio=increase,"
+                                f"crop={half}:{height},setsar=1[left];"
+                                f"[1:v]crop=trunc(iw/(2*{zoom})/2)*2:ih:"
+                                f"iw/2+(iw/2-ow)*{focus_right}:0,scale={half}:{height}:"
+                                "force_original_aspect_ratio=increase,"
+                                f"crop={half}:{height},setsar=1[right];"
+                                "[left][right]hstack=inputs=2[v]"
+                            ),
+                            "-map",
+                            "[v]",
+                            "-map",
+                            "0:a?",
+                        ]
+                    else:
+                        video_args = [
+                            "-filter_complex",
+                            (
+                                "[0:v]split=2[a][b];"
+                                f"[a]crop=trunc(iw/(2*{zoom})/2)*2:ih:"
+                                f"(iw-ow)*{focus_left}:0,scale={half}:{height}:"
+                                "force_original_aspect_ratio=increase,"
+                                f"crop={half}:{height},setsar=1[left];"
+                                f"[b]crop=trunc(iw/(2*{zoom})/2)*2:ih:"
+                                f"iw/2+(iw/2-ow)*{focus_right}:0,scale={half}:{height}:"
+                                "force_original_aspect_ratio=increase,"
+                                f"crop={half}:{height},setsar=1[right];"
+                                "[left][right]hstack=inputs=2"
+                            ),
+                        ]
                 else:
                     video_args = [
                         "-vf",
@@ -450,6 +476,18 @@ class FFmpegAdapter:
                         f"{duration:.6f}",
                         "-i",
                         str(source_path),
+                        *(
+                            [
+                                "-ss",
+                                f"{start / sample_rate:.6f}",
+                                "-t",
+                                f"{duration:.6f}",
+                                "-i",
+                                str(second),
+                            ]
+                            if split_screen and second is not None
+                            else []
+                        ),
                         *video_args,
                         "-c:v",
                         "libx264",

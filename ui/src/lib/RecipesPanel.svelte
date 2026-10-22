@@ -71,7 +71,7 @@
   let inputSource = $state("");
   let inputOutput = $state("");
   let picker = $state<
-    "source" | "output" | "batch-source" | "batch-output" | "broll" | null
+    "source" | "output" | "batch-source" | "batch-output" | "broll" | "second-source" | null
   >(null);
   let paramText = $state("{}");
   let paramError = $state("");
@@ -850,6 +850,7 @@
     if (picker === "batch-source") batchSourceDir = path;
     if (picker === "batch-output") batchOutputRoot = path;
     if (picker === "broll") patchParams({ asset_dir: path });
+    if (picker === "second-source") patchParams({ second_source_path: path });
     picker = null;
   }
 
@@ -1250,6 +1251,15 @@
                       <label class="mt-2 flex items-center gap-2 text-[10px] text-neutral-400">
                         <input type="checkbox" checked={paramBoolean("split_screen")} onchange={(event) => patchParams({ split_screen: event.currentTarget.checked })} />
                         Split-screen vertical frame
+                      </label>
+                      <label class="mt-2 block text-[10px] text-neutral-400">Second source (optional)
+                        <div class="mt-1 flex gap-1">
+                          <input type="text" value={paramString("second_source_path")}
+                            oninput={(event) => patchParams({ second_source_path: event.currentTarget.value })}
+                            placeholder="/path/to/second-angle.mp4"
+                            class="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" />
+                          <button type="button" onclick={() => (picker = "second-source")} class="rounded border border-neutral-700 px-2 text-[10px] text-neutral-300 hover:border-sky-500">Browse</button>
+                        </div>
                       </label>
                       <div class="mt-2 grid grid-cols-3 gap-2">
                         <label class="text-[10px] text-neutral-400">Zoom
@@ -1764,10 +1774,12 @@
   {#if picker}
     <PathPicker
       open={true}
-      mode={picker === "source" ? "file" : "directory"}
+      mode={picker === "source" || picker === "second-source" ? "file" : "directory"}
       title={
         picker === "source"
           ? "Choose source video"
+          : picker === "second-source"
+            ? "Choose second split-screen source"
           : picker === "output"
             ? "Choose output directory"
             : picker === "batch-source"
@@ -1779,6 +1791,8 @@
       initialPath={
         picker === "source"
           ? inputSource
+          : picker === "second-source"
+            ? paramString("second_source_path")
           : picker === "output"
             ? inputOutput
             : picker === "batch-source"

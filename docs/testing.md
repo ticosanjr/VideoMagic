@@ -15,10 +15,10 @@ hides the contract. VideoFlow resolves this with two layers:
 
 | Scope | Line coverage | Notes |
 | --- | --- | --- |
-| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 98.62% (427 passing, 10 strict xfail, 8 deselected) |
+| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 98.32% (438 passing, 10 strict xfail, 8 deselected) |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |
-| UI | `npm run check`, `npm test`, `npm run test:e2e`, `npm run build` | Playwright: recipe graph, inspector, palette, run history |
+| UI | `npm run check`, `npm test`, `npm run test:e2e`, `npm run build` | Playwright: graph, inspector, schema fields, split-screen source, palette, NLE validation, run history |
 
 A stub is excluded from coverage only when it is listed in
 `[tool.coverage.run].omit`. `# pragma: no cover` is reserved for platform-only

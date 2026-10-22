@@ -220,7 +220,13 @@ def resolve_recipe_paths(recipe: Recipe, roots: list[Path]) -> Recipe:
         if step.get("type") == "transcribe" and params.get("srt_path"):
             params["srt_path"] = str(resolve_allowed(Path(str(params["srt_path"])), roots))
         if step.get("type") == "shorts.render":
-            for key in ("overlay_path", "music_path", "intro_path", "outro_path"):
+            for key in (
+                "overlay_path",
+                "music_path",
+                "intro_path",
+                "outro_path",
+                "second_source_path",
+            ):
                 if params.get(key):
                     params[key] = str(resolve_allowed(Path(str(params[key])), roots))
         if step.get("type") == "broll.plan" and params.get("asset_dir"):

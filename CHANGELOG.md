@@ -3,6 +3,26 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.38.0] - 2026-10-23
+
+### Added
+
+- **Two-source split-screen.** `shorts.render.second_source_path` renders the
+  left panel from the main source and the right panel from a second angle.
+  Without a second source, the same-source two-panel layout remains.
+- UI control and file picker for the second split-screen source.
+- Repository policy test: project configuration and test data are JSON; only
+  GitHub Actions workflows may be YAML.
+- Playwright coverage for the second-source control.
+- Final Windows PE workflow run and release attachment.
+
+### Notes
+
+- Exact Kdenlive cross-dissolve is still not validated; Kdenlive uses the
+  affine opacity/volume transition fades.
+- Manual Resolve/Premiere/Kdenlive import QA remains pending.
+- 438 Python tests, 14 Vitest tests, and 6 Playwright tests pass.
+
 ## [0.37.0] - 2026-10-22
 
 ### Added

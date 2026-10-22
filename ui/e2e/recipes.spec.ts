@@ -45,6 +45,13 @@ test("adds a step from the JSON-backed palette", async ({ page }) => {
   await expect(page.getByTestId("step-shorts.render")).toBeVisible();
 });
 
+test("exposes the second split-screen source control", async ({ page }) => {
+  await page.getByTestId("recipe-add-step").click();
+  await page.getByTestId("add-shorts.render").click();
+  await page.getByTestId("step-shorts.render").click();
+  await expect(page.getByPlaceholder("/path/to/second-angle.mp4")).toBeVisible();
+});
+
 test("edits a schema-derived field", async ({ page }) => {
   await page.getByTestId("step-ingest").click();
   await expect(page.getByTestId("schema-extract_pcm")).toBeVisible();

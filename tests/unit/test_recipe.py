@@ -84,6 +84,7 @@ class FakeAdapter:
         split_screen_zoom: float = 1.0,
         split_screen_focus_left: float = 0.5,
         split_screen_focus_right: float = 0.5,
+        second_source_path: Path | None = None,
         broll_path: Path | None = None,
         broll_start_sec: float = 0.0,
         broll_duration_sec: float = 2.0,
