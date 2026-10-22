@@ -52,6 +52,7 @@ def default_artifacts(version: str) -> tuple[tuple[Path, str], ...]:
             f"VideoFlow-{version}-x86_64.AppImage",
         ),
         (ROOT / "dist" / "videoflow.exe", f"videoflow-{version}-windows-x86_64.exe"),
+        (ROOT / "dist" / "sbom.json", "sbom.json"),
     )
 
 

@@ -7,7 +7,7 @@ vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive. The primary surface is a recipe DAG editor; the classic rack
 panels remain available for manual control.
 
-> Status: 0.38.0 alpha. The portable Linux binary, Linux AppImage, and Windows
+> Status: 0.39.0 alpha. The portable Linux binary, Linux AppImage, and Windows
 > PE run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical shorts, and
@@ -175,6 +175,9 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - Batch history persisted as JSON and reloaded after restart.
 - Two-source split-screen: left panel from the main source, right panel from a second angle.
 - Repository policy test enforcing JSON for project data and tests.
+- Automatic tag release workflow for Linux, AppImage, Windows, SBOM, and checksums.
+- Windows smoke test (`version`, `doctor`, `demo`) in CI.
+- CI media tests and automatic post-run checkpoint pruning.
 - Configuration and test data are JSON; the only YAML files are the GitHub Actions workflows, which GitHub requires.
 - Versioned JSON migration gates for recipes and project state.
 - Output maintenance: checkpoint/B-roll/run-history pruning via CLI or API.

@@ -2,8 +2,6 @@ name: Windows portable build
 
 on:
   workflow_dispatch:
-  push:
-    tags: ["v*"]
 
 jobs:
   build:
@@ -25,6 +23,12 @@ jobs:
         run: uv sync --extra dev --group dev
       - name: Build Windows executable
         run: uv run python scripts/build_portable.py --fetch-ffmpeg --with-silero
+      - name: Smoke test Windows executable
+        shell: pwsh
+        run: |
+          .\dist\videoflow.exe version
+          .\dist\videoflow.exe doctor
+          .\dist\videoflow.exe demo -o demo-smoke
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:

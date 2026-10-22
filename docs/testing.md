@@ -29,7 +29,7 @@ fallbacks and must be justified in review.
 ```bash
 uv run pytest                           # unit + contract, coverage gate
 uv run pytest -q -m "not xfail"         # only implemented behavior
-uv run pytest -m media --no-cov         # real FFmpeg fixtures
+uv run pytest -m media --no-cov         # real FFmpeg fixtures (also in CI)
 uv run pytest -m slow --no-cov          # performance checks
 uv run pytest -m manual --no-cov        # prints the manual checklist
 uv run ruff check .
@@ -40,7 +40,7 @@ uv run python scripts/build_portable.py --fetch-ffmpeg  # packaging smoke
 
 The default run excludes `media`, `slow`, and `manual`. Use `--no-cov` for a
 subset run so the global coverage gate does not fail on modules that were not
-imported. GitHub Actions runs Linux lint/Python/UI checks. Playwright runs with
+imported. GitHub Actions runs Linux lint, Python, media, UI, and Playwright checks. Playwright runs with
 `cd ui && npm run test:e2e`; its JSON report lands in
 `ui/test-results/results.json`.
 

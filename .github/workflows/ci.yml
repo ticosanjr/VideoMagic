@@ -27,6 +27,8 @@ jobs:
         run: uv run ruff check src tests scripts
       - name: Python tests
         run: uv run pytest -q
+      - name: Python media tests
+        run: uv run pytest -q -m media --no-cov
       - name: UI dependencies
         working-directory: ui
         run: npm ci
@@ -42,3 +44,5 @@ jobs:
       - name: UI build
         working-directory: ui
         run: npm run build
+      - name: SBOM
+        run: uv run python scripts/generate_sbom.py --output dist/sbom.json

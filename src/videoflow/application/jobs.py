@@ -655,6 +655,17 @@ def _record_recipe_history(job: Job) -> None:
             "message": job.message,
         },
     )
+    if job.status == "succeeded" and os.environ.get("VIDEOWFLOW_PRUNE_AFTER_RUN", "1") != "0":
+        try:
+            from videoflow.engine.maintenance import prune_output
+
+            prune_output(
+                job.output,
+                keep_days=int(os.environ.get("VIDEOWFLOW_KEEP_DAYS", "14")),
+                keep_steps=int(os.environ.get("VIDEOWFLOW_KEEP_STEPS", "200")),
+            )
+        except (OSError, ValueError):
+            pass
 
 
 def _write_failure(job: Job) -> None:

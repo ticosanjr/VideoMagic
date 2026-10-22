@@ -1,0 +1,110 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: UI dependencies and build
+        working-directory: ui
+        run: npm ci && npm run build
+      - name: Python dependencies
+        run: uv sync --extra dev --group dev --extra faster-whisper
+      - name: Build Linux executable
+        run: uv run python scripts/build_portable.py --with-ffmpeg --with-whisper --with-silero --with-faster-whisper
+      - name: Build AppImage
+        run: uv run python scripts/build_appimage.py
+      - name: Generate SBOM
+        run: uv run python scripts/generate_sbom.py --output dist/sbom.json
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: videoflow-linux
+          path: |
+            dist/videoflow
+            dist/VideoFlow-*-x86_64.AppImage
+          if-no-files-found: error
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: videoflow-sbom
+          path: dist/sbom.json
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: UI dependencies and build
+        working-directory: ui
+        run: npm ci; npm run build
+      - name: Python dependencies
+        run: uv sync --extra dev --group dev
+      - name: Build Windows executable
+        run: uv run python scripts/build_portable.py --fetch-ffmpeg --with-silero
+      - name: Smoke test Windows executable
+        shell: pwsh
+        run: |
+          .\dist\videoflow.exe version
+          .\dist\videoflow.exe doctor
+          .\dist\videoflow.exe demo -o demo-smoke
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: videoflow-windows
+          path: dist/videoflow.exe
+          if-no-files-found: error
+
+  publish:
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Stage release assets
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dist
+          cp artifacts/videoflow-linux/videoflow dist/videoflow
+          cp artifacts/videoflow-linux/VideoFlow-*-x86_64.AppImage "dist/VideoFlow-${VERSION}-x86_64.AppImage"
+          cp artifacts/videoflow-windows/videoflow.exe dist/videoflow.exe
+          cp artifacts/videoflow-sbom/sbom.json dist/sbom.json
+          uv sync --extra dev --group dev
+          uv run python scripts/release.py --version "$VERSION" --force
+          gh release create "$GITHUB_REF_NAME" \
+            "releases/${VERSION}/videoflow-${VERSION}-linux-x86_64" \
+            "releases/${VERSION}/VideoFlow-${VERSION}-x86_64.AppImage" \
+            "releases/${VERSION}/videoflow-${VERSION}-windows-x86_64.exe" \
+            "releases/${VERSION}/sbom.json" \
+            --title "VideoFlow ${VERSION}" \
+            --notes-file "releases/${VERSION}/release-notes.md"
+        env:
+          GH_TOKEN: ${{ github.token }}

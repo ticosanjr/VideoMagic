@@ -65,7 +65,11 @@ def test_create_and_poll_a_job(monkeypatch, tmp_path: Path) -> None:
     client = make_client(monkeypatch, tmp_path)
     response = client.post(
         "/api/v1/jobs",
-        json={"source": str(source), "output": str(tmp_path / "out")},
+        json={
+            "source": str(source),
+            "output": str(tmp_path / "out"),
+            "vad_engine": "ffmpeg",
+        },
     )
     assert response.status_code == 202
     job = response.json()["job"]
@@ -130,7 +134,11 @@ def test_state_is_missing_before_a_run(monkeypatch, tmp_path: Path) -> None:
     client = make_client(monkeypatch, tmp_path)
     client.post(
         "/api/v1/jobs",
-        json={"source": str(source), "output": str(tmp_path / "out")},
+        json={
+            "source": str(source),
+            "output": str(tmp_path / "out"),
+            "vad_engine": "ffmpeg",
+        },
     )
     # Fake runner writes state immediately; unknown job is the stable 404 case.
     assert client.get("/api/v1/jobs/missing/state").status_code == 404
@@ -142,7 +150,11 @@ def test_artifact_download_is_confined_to_the_job_output(monkeypatch, tmp_path: 
     client = make_client(monkeypatch, tmp_path)
     job = client.post(
         "/api/v1/jobs",
-        json={"source": str(source), "output": str(tmp_path / "out")},
+        json={
+            "source": str(source),
+            "output": str(tmp_path / "out"),
+            "vad_engine": "ffmpeg",
+        },
     ).json()["job"]
     wait_http(client, job["job_id"])
     response = client.get(f"/api/v1/jobs/{job['job_id']}/artifacts/resolve")
@@ -157,7 +169,11 @@ def test_job_reports_stages_and_logs(monkeypatch, tmp_path: Path) -> None:
     client = make_client(monkeypatch, tmp_path)
     job = client.post(
         "/api/v1/jobs",
-        json={"source": str(source), "output": str(tmp_path / "out")},
+        json={
+            "source": str(source),
+            "output": str(tmp_path / "out"),
+            "vad_engine": "ffmpeg",
+        },
     ).json()["job"]
     finished = wait_http(client, job["job_id"])
     assert finished["stages"][0]["id"] == "ingest"
@@ -323,7 +339,11 @@ def test_events_stream_delivers_the_terminal_state(monkeypatch, tmp_path: Path) 
     client = make_client(monkeypatch, tmp_path)
     job = client.post(
         "/api/v1/jobs",
-        json={"source": str(source), "output": str(tmp_path / "out")},
+        json={
+            "source": str(source),
+            "output": str(tmp_path / "out"),
+            "vad_engine": "ffmpeg",
+        },
     ).json()["job"]
     wait_http(client, job["job_id"])
     response = client.get(f"/api/v1/jobs/{job['job_id']}/events")
@@ -374,7 +394,11 @@ def test_real_job_writes_three_artifacts(monkeypatch, tmp_path: Path) -> None:
     client = TestClient(create_app())
     job = client.post(
         "/api/v1/jobs",
-        json={"source": str(source), "output": str(tmp_path / "out")},
+        json={
+            "source": str(source),
+            "output": str(tmp_path / "out"),
+            "vad_engine": "ffmpeg",
+        },
     ).json()["job"]
     finished = wait_http(client, job["job_id"], timeout=60)
     assert finished["status"] == "succeeded", finished

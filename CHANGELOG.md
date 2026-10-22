@@ -3,6 +3,27 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.39.0] - 2026-10-23
+
+### Added
+
+- **Tag-driven release workflow.** `v*` tags build Linux, AppImage, and Windows
+  artifacts, generate an SBOM, stage checksums, and publish the GitHub release.
+- **Windows smoke test.** The Windows runner executes `version`, `doctor`, and
+  `demo` before uploading the executable.
+- **Media tests in CI.** `pytest -m media --no-cov` now runs on Ubuntu.
+- **SBOM.** `scripts/generate_sbom.py` writes a CycloneDX-style JSON SBOM; the
+  release includes `sbom.json`.
+- **Automatic retention.** Successful recipe runs prune checkpoints beyond 200
+  and run history beyond 30. Opt out with `VIDEOWFLOW_PRUNE_AFTER_RUN=0`.
+- Fixed the media API test to force the FFmpeg VAD path instead of depending on
+  Silero's speech classification.
+
+### Notes
+
+- 439 Python, 14 Vitest, and 6 Playwright tests pass.
+- Media suite: 7 passing.
+
 ## [0.38.0] - 2026-10-23
 
 ### Added
