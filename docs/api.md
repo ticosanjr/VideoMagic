@@ -14,6 +14,7 @@ Implemented today:
 - `POST /api/v1/batches`, `GET /api/v1/batches`,
   `GET /api/v1/batches/{id}`, `POST /api/v1/batches/{id}/cancel`
 - `GET /api/v1/runs?output=...` returns the persisted run history
+- `POST /api/v1/exports/validate` checks FCPXML, XMEML, and Kdenlive structure
 - `GET /api/v1/fs/roots`, `GET /api/v1/fs/list`, `POST /api/v1/fs/mkdir`
 - `GET /api/v1/media/probe`
 - `POST /api/v1/media/import`
@@ -36,8 +37,9 @@ Implemented today:
   `PUT /api/v1/presets/{name}`
 - `GET /mcp/` (MCP Streamable HTTP) and `GET /` (rack UI when built)
 
-Per-module reruns are the one project route reserved for the next engine pass.
-They return `501 not_implemented`; the full project run is implemented.
+Per-module reruns now plan the rack graph, return a cached no-op when the target
+is already current, or start the full project pipeline with the target included.
+Recipe runs remain the checkpointed path.
 
 ## 1. Conventions
 
@@ -64,7 +66,7 @@ They return `501 not_implemented`; the full project run is implemented.
 | 422 | validation, `invalid_time`, `media_not_found`, `transcript_required`, `invalid_override`, `word_overrides_not_supported`, `invalid_config`, `invalid_preset_name`, `preset_invalid`, `export_failed`, `short_edit_failed`, `not_a_directory`, `invalid_directory_name` |
 | 429 | `job_queue_full` |
 | 500 | `project_state_invalid`, `filesystem_error` |
-| 501 | `not_implemented` (per-module reruns) |
+| 501 | `not_implemented` for capabilities not present in this build |
 
 ## 2. Health and system
 
@@ -73,7 +75,7 @@ GET /health
 ```
 
 ```json
-{ "status": "ok", "service": "videoflow", "version": "0.33.0" }
+{ "status": "ok", "service": "videoflow", "version": "0.34.0" }
 ```
 
 ```http
@@ -83,7 +85,7 @@ GET /api/v1/system
 ```json
 {
   "ok": true,
-  "version": "0.33.0",
+  "version": "0.34.0",
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
@@ -707,7 +709,7 @@ On success, `job.result` is the `run_portable` report:
 ```json
 {
   "ok": true,
-  "version": "0.33.0",
+  "version": "0.34.0",
   "vad_engine": "silero",
   "speech_interval_count": 3,
   "video_segment_count": 3,
@@ -845,19 +847,13 @@ The flag is persisted in `module_enabled` and consumed by the next project run.
 
 ### Run a module
 
-Per-module reruns are not implemented in 0.33.0. The route validates the
-project and module id, then returns:
+The route plans the selected module and its enabled upstream dependencies.
 
-```json
-{
-  "detail": {
-    "ok": false,
-    "code": "not_implemented",
-    "message": "Per-module reruns are not implemented in this build. Run the full project pipeline instead.",
-    "capability": "module_run"
-  }
-}
-```
+- If the target is already cached, it returns `202` with
+  `{"mode": "cached", "job": null}`.
+- Otherwise it starts the full legacy project pipeline and returns
+  `{"mode": "full_pipeline", "planned": [...]}`.
+- Recipe runs are the checkpointed alternative and execute only changed steps.
 
 ### Run the project
 

@@ -3,6 +3,30 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.34.0] - 2026-10-22
+
+### Added
+
+- **NLE structural validation.** `scripts/validate_nle.py` and
+  `POST /api/v1/exports/validate` parse FCPXML, XMEML, and Kdenlive exports and
+  report clips, transitions, keyframes, effects, and affine filters.
+- **Manual NLE checklist** in `docs/nle-qa.md`.
+- **Legacy module rerun.** The project module route plans the rack graph,
+  returns a cached no-op, or starts the full project pipeline. It no longer
+  returns `501`.
+- **Windows PE in releases.** The Windows workflow downloads a PE32+ x86-64
+  executable and the release script attaches it when present.
+- CI can be dispatched manually and runs Python and UI checks.
+
+### Notes
+
+- The legacy module route reruns the full graph; it does not yet execute one
+  module in isolation. Recipe steps remain the checkpointed path.
+- Resolve, Premiere, and Kdenlive are not installed here, so manual import QA is
+  still pending. Automated XML validation passes.
+- The Windows binary is unsigned; SmartScreen may warn.
+- 426 Python tests and 14 UI tests pass.
+
 ## [0.33.0] - 2026-10-22
 
 ### Added

@@ -382,3 +382,19 @@ def test_mp4_crossfade_normalizes_timebase_with_zoom(tmp_path: Path) -> None:
     assert "settb=AVTB" in graph
     assert "xfade=transition=fade" in graph
     assert video_label == "[vx1]"
+
+
+def test_nle_validation_accepts_exported_timelines(tmp_path: Path) -> None:
+    from videoflow.application.nle_validation import validate_nle_exports
+
+    state = transition_state(tmp_path)
+    exports = tmp_path / "exports"
+    exports.mkdir()
+    export_fcpxml(state, exports / "timeline.fcpxml")
+    export_xmeml(state, exports / "timeline.xml")
+    export_kdenlive(state, exports / "timeline.kdenlive")
+    report = validate_nle_exports(exports)
+    assert report["ok"] is True
+    assert report["exports"]["fcpxml"]["transitions"] == 1
+    assert report["exports"]["xmeml"]["transitions"] == 1
+    assert report["exports"]["kdenlive"]["affine_filters"] >= 1

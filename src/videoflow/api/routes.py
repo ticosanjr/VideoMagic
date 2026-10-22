@@ -41,6 +41,7 @@ from videoflow.application.models import install_model, list_models, remove_mode
 from videoflow.application.multimodal import analyze_short_entry
 from videoflow.application.multimodal_llm import analyze_short_llm_entry
 from videoflow.application.music import list_music, save_music
+from videoflow.application.nle_validation import validate_nle_exports
 from videoflow.application.presets import get_preset, load_presets, save_preset
 from videoflow.application.project_templates import (
     ProjectTemplate,
@@ -78,6 +79,7 @@ from videoflow.application.publishing import (
     list_targets,
     save_target,
 )
+from videoflow.application.runner import PipelineRunner
 from videoflow.application.services import (
     append_server_log,
     discover_services,
@@ -411,6 +413,10 @@ class ShortDubbingRequest(BaseModel):
     allowed_external_hosts: list[str] = Field(default_factory=list)
 
 
+class ExportValidationRequest(BaseModel):
+    output: str = Field(min_length=1)
+
+
 class ShortVoiceoverRequest(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
     provider: Literal["openai_compatible", "piper"] = "openai_compatible"
@@ -671,6 +677,22 @@ def register_routes(
             fail(exc)
             raise
         return {"ok": True, "batch": batch.to_dict()}
+
+    @app.post("/api/v1/exports/validate")
+    def validate_exports(request: ExportValidationRequest) -> dict[str, object]:
+        try:
+            resolved = resolve_allowed(Path(request.output), allowed_roots())
+            directory = (
+                resolved
+                if (resolved / "timeline.fcpxml").is_file()
+                else resolved / "exports"
+            )
+            if not directory.is_dir():
+                raise FilesystemError(f"Export directory does not exist: {directory}")
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return validate_nle_exports(directory)
 
     @app.get("/api/v1/runs")
     def list_runs(output: str) -> dict[str, object]:
@@ -1562,19 +1584,58 @@ def register_routes(
             "state": state.model_dump(mode="json"),
         }
 
-    @app.post("/api/v1/projects/{project_id}/modules/{module_id}/run")
+    @app.post("/api/v1/projects/{project_id}/modules/{module_id}/run", status_code=202)
     def run_module(project_id: UUID, module_id: str) -> dict[str, object]:
         try:
-            projects.get(project_id)
+            record = projects.get(project_id)
             if module_id not in ModuleEnabled.model_fields:
                 raise UnknownModuleError(module_id)
-            raise CapabilityUnavailableError(
-                "module_run",
-                "Per-module reruns are not implemented in this build. "
-                "Run the full project pipeline instead.",
+            state = projects.read_state(project_id)
+            media = state.media_info
+            if media is None:
+                raise MediaNotRegisteredError("Register source media before running.")
+            source = resolve_allowed(Path(media.source_path), allowed_roots())
+            if not source.is_file():
+                raise MediaNotFoundError(str(source))
+            status = _project_module_status(record, state)
+            plan = PipelineRunner().plan(
+                status,
+                target=module_id,
+                run_upstream=True,
+                enabled=state.module_enabled.model_dump(),
             )
+            if not plan.modules:
+                return {
+                    "ok": True,
+                    "job": None,
+                    "mode": "cached",
+                    "module_id": module_id,
+                    "planned": [],
+                    "skipped": list(plan.skipped),
+                }
+            with project_job_lock:
+                assert_project_idle(project_id)
+                options = projects.run_options(record, state)
+                job = jobs.start(
+                    source,
+                    record.videoflow_dir,
+                    options,
+                    finalizer=lambda _job: projects.record_job_state(project_id),
+                )
         except VideoFlowError as exc:
             fail(exc)
+        return {
+            "ok": True,
+            "job": job.to_dict(),
+            "mode": "full_pipeline",
+            "module_id": module_id,
+            "planned": list(plan.modules),
+            "skipped": list(plan.skipped),
+            "message": (
+                "The legacy project pipeline reruns the full graph; recipe runs "
+                "use per-step checkpoints."
+            ),
+        }
 
     @app.post("/api/v1/projects/{project_id}/run", status_code=202)
     def run_project(project_id: UUID, request: ProjectRunRequest) -> dict[str, object]:
@@ -1997,6 +2058,23 @@ def probe_media(path: Path) -> MediaInfo:
     return FFmpegAdapter().probe(path)
 
 
+def _project_module_status(record, state) -> dict[str, str]:
+    """Approximate the rack module cache from the persisted project state."""
+
+    timeline = bool(state.video_segments and state.audio_segments)
+    exports = record.videoflow_dir / "exports"
+    return {
+        "ingest": "cached" if state.media_info is not None else "missing",
+        "vad": "cached" if state.vad_intervals else "missing",
+        "transcribe": "cached" if state.transcript else "missing",
+        "retakes": "cached" if state.transcript else "missing",
+        "jl_cuts": "cached" if timeline else "missing",
+        "zooms": "cached" if timeline else "missing",
+        "shorts": "cached" if (record.videoflow_dir / "shorts.json").is_file() else "missing",
+        "export": "cached" if exports.is_dir() and any(exports.iterdir()) else "missing",
+    }
+
+
 def status_for(code: str) -> int:
     return {
         "path_not_allowed": 403,
@@ -2009,6 +2087,7 @@ def status_for(code: str) -> int:
         "job_queue_full": 429,
         "job_not_found": 404,
         "job_already_running": 409,
+        "upstream_dirty": 409,
         "project_not_found": 404,
         "project_exists": 409,
         "project_state_invalid": 500,

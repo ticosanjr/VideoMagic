@@ -15,6 +15,7 @@ from videoflow.domain.state import (
     AudioSegment,
     MediaInfo,
     ProjectState,
+    SampleSpan,
     Sentence,
     VideoSegment,
     WordTiming,
@@ -203,9 +204,18 @@ def test_module_config_and_enabled_flags_persist(monkeypatch, tmp_path: Path) ->
     assert unknown.status_code == 404
     assert unknown.json()["detail"]["code"] == "unknown_module"
 
+    register_media(client, monkeypatch, tmp_path, project_id)
+    client.put(
+        f"/api/v1/projects/{project_id}/modules/zooms/enabled",
+        json={"enabled": True},
+    )
     module_run = client.post(f"/api/v1/projects/{project_id}/modules/zooms/run")
-    assert module_run.status_code == 501
-    assert module_run.json()["detail"]["code"] == "not_implemented"
+    assert module_run.status_code == 202, module_run.text
+    payload = module_run.json()
+    assert payload["mode"] == "full_pipeline"
+    assert "zooms" in payload["planned"]
+    assert payload["job"] is not None
+    wait_job(client, payload["job"]["job_id"])
 
 
 def test_transcript_read_and_atomic_overrides(monkeypatch, tmp_path: Path) -> None:
@@ -503,3 +513,79 @@ def test_unknown_project_returns_typed_404(monkeypatch, tmp_path: Path) -> None:
     assert response.status_code == 404
     assert response.json()["detail"]["code"] == "project_not_found"
     assert client.get(f"/api/v1/projects/{missing}/events").status_code == 404
+
+
+def test_module_run_is_a_noop_when_target_is_cached(monkeypatch, tmp_path: Path) -> None:
+    client, store = make_client(monkeypatch, tmp_path)
+    project_id = create_project(client, tmp_path / "project")
+    register_media(client, monkeypatch, tmp_path, project_id)
+    state = store.read_state(project_id)
+    state = state.model_copy(
+        update={
+            "vad_intervals": [SampleSpan(start_sample=0, end_sample=48000)],
+            "transcript": [Sentence(id=0, start_sample=0, end_sample=48000, text="hi")],
+            "video_segments": [
+                VideoSegment(
+                    clip_id="c1",
+                    source_in_frame=0,
+                    source_out_frame=30,
+                    timeline_in_frame=0,
+                    timeline_out_frame=30,
+                )
+            ],
+            "audio_segments": [
+                AudioSegment(
+                    clip_id="c1",
+                    source_in_sample=0,
+                    source_out_sample=48000,
+                    timeline_in_sample=0,
+                    timeline_out_sample=48000,
+                )
+            ],
+        }
+    )
+    state, record = store.save_state(project_id, state)
+    (record.videoflow_dir / "exports").mkdir(parents=True, exist_ok=True)
+    (record.videoflow_dir / "exports" / "timeline.fcpxml").write_text("x")
+    (record.videoflow_dir / "shorts.json").write_text("{}")
+    response = client.post(f"/api/v1/projects/{project_id}/modules/export/run")
+    assert response.status_code == 202, response.text
+    payload = response.json()
+    assert payload["mode"] == "cached"
+    assert payload["job"] is None
+    assert payload["planned"] == []
+
+
+def test_export_validation_route(monkeypatch, tmp_path: Path) -> None:
+    from videoflow.application.timeline_builder import build_timeline
+    from videoflow.domain.config import JlCutsConfig, ZoomsConfig
+    from videoflow.exporters.fcpxml import export_fcpxml
+    from videoflow.exporters.kdenlive import export_kdenlive
+    from videoflow.exporters.xmeml import export_xmeml
+
+    client, _store = make_client(monkeypatch, tmp_path)
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    media = media_info(source)
+    built = build_timeline(
+        media,
+        [(0, 24000), (48000, 72000)],
+        jl=JlCutsConfig(enable_j_cuts=False),
+        zooms=ZoomsConfig(mode="manual_rules"),
+        transition_frames=4,
+    )
+    state = ProjectState(
+        media_info=media,
+        video_segments=list(built.video_segments),
+        audio_segments=list(built.audio_segments),
+    )
+    exports = tmp_path / "out" / "exports"
+    exports.mkdir(parents=True)
+    export_fcpxml(state, exports / "timeline.fcpxml")
+    export_xmeml(state, exports / "timeline.xml")
+    export_kdenlive(state, exports / "timeline.kdenlive")
+    response = client.post(
+        "/api/v1/exports/validate", json={"output": str(tmp_path / "out")}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["ok"] is True
