@@ -3,6 +3,26 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.36.0] - 2026-10-22
+
+### Added
+
+- **Schema gates.** Recipes and project state now pass through explicit
+  `schema_version` migration functions. Missing optional fields in older recipe
+  JSON are filled before validation; future versions fail with a typed error.
+- **Output maintenance.** `prune_output` removes old checkpoints beyond a keep
+  count, stale B-roll cache files, and trims run history.
+- CLI: `videoflow recipe cache prune --output ... --keep-steps ... --keep-runs ...`.
+- API: `POST /api/v1/maintenance/prune`.
+- Tests for migrations, malformed/future versions, checkpoint pruning, history
+  trimming, and dry runs.
+
+### Notes
+
+- Checkpoints are still output-local and can be rebuilt; pruning never touches
+  source media or export artifacts.
+- 434 Python tests pass.
+
 ## [0.35.0] - 2026-10-22
 
 ### Added

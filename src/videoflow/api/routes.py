@@ -121,6 +121,7 @@ from videoflow.domain.state import ManualOverride, MediaInfo, ProjectState
 from videoflow.domain.transcript import format_srt
 from videoflow.engine.batch import BatchManager
 from videoflow.engine.history import read_runs
+from videoflow.engine.maintenance import prune_output
 from videoflow.engine.recipes import (
     get_recipe,
     list_recipes,
@@ -417,6 +418,14 @@ class ExportValidationRequest(BaseModel):
     output: str = Field(min_length=1)
 
 
+class MaintenancePruneRequest(BaseModel):
+    output: str = Field(min_length=1)
+    keep_days: int = Field(default=14, ge=1, le=3650)
+    keep_steps: int = Field(default=200, ge=1, le=10000)
+    keep_runs: int = Field(default=30, ge=1, le=1000)
+    dry_run: bool = False
+
+
 class ShortVoiceoverRequest(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
     provider: Literal["openai_compatible", "piper"] = "openai_compatible"
@@ -677,6 +686,23 @@ def register_routes(
             fail(exc)
             raise
         return {"ok": True, "batch": batch.to_dict()}
+
+    @app.post("/api/v1/maintenance/prune")
+    def maintenance_prune(request: MaintenancePruneRequest) -> dict[str, object]:
+        try:
+            resolved = resolve_allowed(Path(request.output), allowed_roots())
+            if not resolved.is_dir():
+                raise FilesystemError(f"Output directory does not exist: {resolved}")
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return prune_output(
+            resolved,
+            keep_days=request.keep_days,
+            keep_steps=request.keep_steps,
+            keep_runs=request.keep_runs,
+            dry_run=request.dry_run,
+        )
 
     @app.post("/api/v1/exports/validate")
     def validate_exports(request: ExportValidationRequest) -> dict[str, object]:

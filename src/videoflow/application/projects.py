@@ -19,6 +19,7 @@ from videoflow.domain.errors import (
     UnknownModuleError,
     WordOverridesNotSupportedError,
 )
+from videoflow.domain.migrations import migrate_project_state
 from videoflow.domain.paths import resolve_allowed
 from videoflow.domain.state import ManualOverride, MediaInfo, Preset, ProjectState
 from videoflow.runtime import allowed_roots
@@ -390,7 +391,8 @@ class ProjectStore:
         self, path: Path, *, project_id: UUID | None = None
     ) -> ProjectState:
         try:
-            state = ProjectState.model_validate_json(path.read_text(encoding="utf-8"))
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            state = ProjectState.model_validate(migrate_project_state(payload))
         except (OSError, ValueError) as exc:
             raise ProjectStateError(f"Cannot read project state {path}: {exc}") from exc
         if project_id is not None and state.project_id != project_id:

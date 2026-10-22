@@ -15,6 +15,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from videoflow.domain.errors import RecipeError
+from videoflow.domain.migrations import migrate_recipe
 
 STEP_ID = re.compile(r"^[a-zA-Z][a-zA-Z0-9_.-]{0,63}$")
 RECIPE_ID = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$")
@@ -159,7 +160,7 @@ class Recipe(StrictModel):
 
 def parse_recipe(payload: dict[str, Any]) -> Recipe:
     try:
-        return Recipe.model_validate(payload)
+        return Recipe.model_validate(migrate_recipe(payload))
     except ValidationError as exc:
         first = exc.errors()[0] if exc.errors() else {}
         location = ".".join(str(part) for part in first.get("loc", ()))

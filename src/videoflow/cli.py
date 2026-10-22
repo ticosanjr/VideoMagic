@@ -420,6 +420,15 @@ def _parser() -> argparse.ArgumentParser:
     cache_sub = recipe_cache.add_subparsers(dest="cache_command")
     cache_sub.add_parser("path", help="Print the cache directory.")
     cache_sub.add_parser("clear", help="Delete cached VAD and transcript entries.")
+    cache_prune = cache_sub.add_parser(
+        "prune", help="Trim output-local checkpoints, B-roll cache, and run history."
+    )
+    cache_prune.add_argument("--output", required=True)
+    cache_prune.add_argument("--keep-days", type=int, default=14)
+    cache_prune.add_argument("--keep-steps", type=int, default=200)
+    cache_prune.add_argument("--keep-runs", type=int, default=30)
+    cache_prune.add_argument("--dry-run", action="store_true")
+    cache_prune.add_argument("--json", action="store_true")
 
     serve = sub.add_parser("serve", help="Serve the API, MCP HTTP, and rack UI.")
     serve.add_argument("--host", default="127.0.0.1")
@@ -896,6 +905,18 @@ def _recipe(args: argparse.Namespace) -> int:
     if command == "cache":
         from videoflow.steps.cache import cache_dir, clear_cache
 
+        if getattr(args, "cache_command", None) == "prune":
+            from videoflow.engine.maintenance import prune_output
+
+            result = prune_output(
+                Path(args.output).expanduser(),
+                keep_days=args.keep_days,
+                keep_steps=args.keep_steps,
+                keep_runs=args.keep_runs,
+                dry_run=args.dry_run,
+            )
+            print(json.dumps(result, indent=2))
+            return 0
         if getattr(args, "cache_command", None) == "clear":
             print(json.dumps({"ok": True, "removed": clear_cache()}))
         else:

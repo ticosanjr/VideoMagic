@@ -15,6 +15,7 @@ Implemented today:
   `GET /api/v1/batches/{id}`, `POST /api/v1/batches/{id}/cancel`
 - `GET /api/v1/runs?output=...` returns the persisted run history
 - `POST /api/v1/exports/validate` checks FCPXML, XMEML, and Kdenlive structure
+- `POST /api/v1/maintenance/prune` trims output checkpoints, B-roll cache, and run history
 - `GET /api/v1/fs/roots`, `GET /api/v1/fs/list`, `POST /api/v1/fs/mkdir`
 - `GET /api/v1/media/probe`
 - `POST /api/v1/media/import`
@@ -75,7 +76,7 @@ GET /health
 ```
 
 ```json
-{ "status": "ok", "service": "videoflow", "version": "0.35.0" }
+{ "status": "ok", "service": "videoflow", "version": "0.36.0" }
 ```
 
 ```http
@@ -85,7 +86,7 @@ GET /api/v1/system
 ```json
 {
   "ok": true,
-  "version": "0.35.0",
+  "version": "0.36.0",
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
@@ -709,7 +710,7 @@ On success, `job.result` is the `run_portable` report:
 ```json
 {
   "ok": true,
-  "version": "0.35.0",
+  "version": "0.36.0",
   "vad_engine": "silero",
   "speech_interval_count": 3,
   "video_segment_count": 3,
