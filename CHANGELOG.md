@@ -3,6 +3,23 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.41.0] - 2026-10-23
+
+### Added
+
+- **Inline preview.** MP4 artifacts render in the recipe result panel, and
+  rendered Shorts get video previews.
+- **Artifact serving API.**
+  - `GET /api/v1/jobs/{id}/artifacts/{name}`.
+  - `GET /api/v1/jobs/{id}/shorts/{index}/file`.
+  - Both paths are constrained to the job output directory.
+- API tests for artifact and Short file serving.
+
+### Notes
+
+- Previews use the rendered file; there is no low-res proxy yet.
+- 443 Python tests, 14 Vitest tests, and 6 Playwright tests pass.
+
 ## [0.40.0] - 2026-10-23
 
 ### Added

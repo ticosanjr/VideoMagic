@@ -1309,6 +1309,14 @@ export async function getLogs(
   return response.logs;
 }
 
+export function jobArtifactUrl(jobId: string, artifactName: string): string {
+  return `/api/v1/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(artifactName)}`;
+}
+
+export function shortFileUrl(jobId: string, index: number): string {
+  return `/api/v1/jobs/${encodeURIComponent(jobId)}/shorts/${index}/file`;
+}
+
 export function logDownloadUrl(jobId: string, module?: string): string {
   const params = new URLSearchParams({ download: "1" });
   if (module) params.set("module", module);

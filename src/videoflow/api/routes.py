@@ -1249,6 +1249,56 @@ def register_routes(
             "short": job.result["shorts"][index],
         }
 
+    @app.get("/api/v1/jobs/{job_id}/artifacts/{artifact_name}")
+    def download_job_artifact(job_id: str, artifact_name: str) -> FileResponse:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
+        artifacts = (job.result or {}).get("artifacts") or {}
+        raw = artifacts.get(artifact_name) if isinstance(artifacts, dict) else None
+        if not raw:
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "artifact_not_found", "message": artifact_name},
+            )
+        path = Path(str(raw)).expanduser().resolve()
+        output = job.output.expanduser().resolve()
+        if not path.is_relative_to(output) or not path.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "artifact_not_found", "message": artifact_name},
+            )
+        return FileResponse(path, filename=path.name)
+
+    @app.get("/api/v1/jobs/{job_id}/shorts/{index}/file")
+    def download_short_file(job_id: str, index: int) -> FileResponse:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
+        shorts = (job.result or {}).get("shorts") or []
+        if not isinstance(shorts, list) or index < 0 or index >= len(shorts):
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "shorts_not_found", "message": str(index)},
+            )
+        entry = shorts[index]
+        raw = entry.get("path") if isinstance(entry, dict) else None
+        if not raw:
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "short_file_not_found"},
+            )
+        path = Path(str(raw)).expanduser().resolve()
+        output = job.output.expanduser().resolve()
+        if not path.is_relative_to(output) or not path.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "short_file_not_found"},
+            )
+        return FileResponse(path, media_type="video/mp4", filename=path.name)
+
     @app.post("/api/v1/jobs/{job_id}/shorts/{index}/thumbnail")
     def short_thumbnail(
         job_id: str, index: int, request: ShortThumbnailRequest

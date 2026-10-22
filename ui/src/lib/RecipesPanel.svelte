@@ -15,6 +15,8 @@
     errorMessage,
     getJob,
     getRecipe,
+    jobArtifactUrl,
+    shortFileUrl,
     getRunHistory,
     listJobs,
     listRecipes,
@@ -1421,8 +1423,29 @@
             <div class="rounded-lg border border-neutral-800 bg-neutral-950/60 p-2 text-[10px]">
               <span class="uppercase text-neutral-500">{target}</span>
               <span class="mt-0.5 block break-all font-mono text-emerald-300">{path}</span>
+              {#if String(path).toLowerCase().endsWith(".mp4")}
+                <video
+                  class="mt-2 w-full rounded border border-neutral-800"
+                  controls
+                  preload="metadata"
+                  src={jobArtifactUrl(job.job_id, target)}
+                ><track kind="captions" src="data:text/vtt;charset=utf-8,WEBVTT%0A%0A" /></video>
+              {/if}
             </div>
           {/each}
+        </div>
+      {/if}
+      {#if job.result?.shorts?.length}
+        <div class="mt-3">
+          <p class="text-[10px] uppercase tracking-wide text-neutral-500">Short previews</p>
+          <div class="mt-2 grid gap-2 sm:grid-cols-2">
+            {#each job.result.shorts.slice(0, 4) as short, index}
+              <div class="rounded-lg border border-neutral-800 bg-neutral-950/60 p-2">
+                <p class="truncate text-[10px] text-neutral-300">{short.title}</p>
+                <video class="mt-1 w-full rounded" controls preload="metadata" src={shortFileUrl(job.job_id, index)}><track kind="captions" src="data:text/vtt;charset=utf-8,WEBVTT%0A%0A" /></video>
+              </div>
+            {/each}
+          </div>
         </div>
       {/if}
       {#if job.result?.broll_plan && Object.keys(job.result.broll_plan).length}
