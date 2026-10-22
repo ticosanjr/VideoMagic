@@ -41,7 +41,7 @@ def create_app(
     only exercise the JSON API leave it off.
     """
 
-    manager = jobs or JobManager()
+    manager = jobs or JobManager(store_dir=portable_home() / "jobs")
     batches = BatchManager(manager, store_dir=portable_home() / "batches")
     store = projects or ProjectStore()
     mcp_app = None

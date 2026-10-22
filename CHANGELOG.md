@@ -3,6 +3,25 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.40.0] - 2026-10-23
+
+### Added
+
+- **Job persistence.** `JobManager` writes each job as JSON under the VideoFlow
+  home and reloads it on restart. Queued/running jobs become `failed` with
+  `job_interrupted`, so the API never reports a dead job as live.
+- **Batch resume.** `POST /api/v1/batches/{id}/resume` and the batch modal
+  restart failed/cancelled batches, skipping items already succeeded.
+- **Shared persistence pattern** for jobs and batches: atomic JSON writes,
+  restart reload, interrupted-state recovery.
+- Tests for job restart, interrupted jobs, and batch resume.
+
+### Notes
+
+- The legacy `PipelineRunner.execute` contract remains an xfail; planning is
+  live, and the recipe engine is the execution path.
+- 442 Python tests, 14 Vitest tests, and 6 Playwright tests pass.
+
 ## [0.39.0] - 2026-10-23
 
 ### Added
