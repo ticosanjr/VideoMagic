@@ -10,7 +10,7 @@ Implemented today:
 - `GET /api/v1/capabilities`
 - `GET /api/v1/steps`, `GET /api/v1/recipes`, `GET /api/v1/recipes/{id}`,
   `PUT /api/v1/recipes/{id}`, `POST /api/v1/recipes/validate`,
-  `POST /api/v1/recipes/run`
+  `POST /api/v1/recipes/run`, `POST /api/v1/steps/{step_id}/run`
 - `GET /api/v1/fs/roots`, `GET /api/v1/fs/list`, `POST /api/v1/fs/mkdir`
 - `GET /api/v1/media/probe`
 - `POST /api/v1/media/import`
@@ -70,7 +70,7 @@ GET /health
 ```
 
 ```json
-{ "status": "ok", "service": "videoflow", "version": "0.24.0" }
+{ "status": "ok", "service": "videoflow", "version": "0.25.0" }
 ```
 
 ```http
@@ -80,7 +80,7 @@ GET /api/v1/system
 ```json
 {
   "ok": true,
-  "version": "0.24.0",
+  "version": "0.25.0",
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
@@ -704,7 +704,7 @@ On success, `job.result` is the `run_portable` report:
 ```json
 {
   "ok": true,
-  "version": "0.24.0",
+  "version": "0.25.0",
   "vad_engine": "silero",
   "speech_interval_count": 3,
   "video_segment_count": 3,
@@ -842,7 +842,7 @@ The flag is persisted in `module_enabled` and consumed by the next project run.
 
 ### Run a module
 
-Per-module reruns are not implemented in 0.24.0. The route validates the
+Per-module reruns are not implemented in 0.25.0. The route validates the
 project and module id, then returns:
 
 ```json

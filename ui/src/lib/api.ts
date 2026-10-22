@@ -355,6 +355,7 @@ export interface Job {
     artifacts?: Record<string, string>;
     cache_hits?: string[];
     cache_misses?: string[];
+    step_runs?: StepRun[];
     shorts?: ShortClip[];
     state_path?: string;
     report_path?: string;
@@ -406,6 +407,15 @@ export interface RecipeSummary {
   name: string;
   description: string;
   source: string;
+}
+
+export interface StepRun {
+  id: string;
+  type: string;
+  status: "cached" | "executed";
+  elapsed_ms: number;
+  fingerprint: string;
+  outputs: string[];
 }
 
 export interface PublishTarget {
@@ -1001,11 +1011,33 @@ export async function runRecipe(payload: {
   output: string;
   recipe: Recipe;
   save_recipe?: boolean;
+  resume?: boolean;
+  through?: string | null;
 }): Promise<Job> {
   const response = await request<{ ok: boolean; job: Job }>("/api/v1/recipes/run", {
     method: "POST",
     body: JSON.stringify(payload)
   });
+  return response.job;
+}
+
+export async function runRecipeStep(
+  stepId: string,
+  payload: {
+    source: string;
+    output: string;
+    recipe: Recipe;
+    save_recipe?: boolean;
+    resume?: boolean;
+  }
+): Promise<Job> {
+  const response = await request<{ ok: boolean; job: Job }>(
+    `/api/v1/steps/${encodeURIComponent(stepId)}/run`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }
+  );
   return response.job;
 }
 

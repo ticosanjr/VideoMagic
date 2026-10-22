@@ -50,3 +50,6 @@ class IngestStep(BaseStep):
             io.emit("info", f"PCM SHA-256 {context.pcm_digest}")
         context.hashes["ingest"] = context.pcm_digest or media.model_dump_json()
         io.report(100, "Media ready")
+
+    def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
+        return (context.pcm_path,) if context.pcm_path is not None else ()

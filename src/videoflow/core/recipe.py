@@ -67,7 +67,12 @@ class Recipe(StrictModel):
             raise ValueError("recipe id must contain [A-Za-z0-9_.-]")
         return value
 
-    def validate_graph(self, known_types: set[str] | None = None) -> None:
+    def validate_graph(
+        self,
+        known_types: set[str] | None = None,
+        *,
+        requires_by_type: dict[str, tuple[str, ...]] | None = None,
+    ) -> None:
         """Reject duplicate ids, unknown dependencies, unknown types, and cycles."""
 
         ids = [step.id for step in self.steps]
@@ -85,7 +90,27 @@ class Recipe(StrictModel):
                     raise RecipeError(
                         f"Step {step.id!r} needs unknown step {dependency!r}"
                     )
-        self.topological_order()
+        order = self.topological_order()
+        if requires_by_type:
+            by_id = {step.id: step for step in order}
+            for step in order:
+                ancestors: set[str] = set()
+                stack = list(step.needs)
+                while stack:
+                    dependency = stack.pop()
+                    if dependency in ancestors:
+                        continue
+                    ancestors.add(dependency)
+                    stack.extend(by_id[dependency].needs)
+                provided = {by_id[item].type for item in ancestors}
+                missing = sorted(
+                    set(requires_by_type.get(step.type, ())) - provided
+                )
+                if missing:
+                    raise RecipeError(
+                        f"Step {step.id!r} ({step.type}) requires missing upstream "
+                        f"step types: {', '.join(missing)}"
+                    )
 
     def enabled_steps(self) -> list[RecipeStep]:
         return [step for step in self.steps if step.enabled]

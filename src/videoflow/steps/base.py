@@ -54,6 +54,7 @@ class BaseStep(ABC):
     """Base class for recipe steps."""
 
     type: str = "base"
+    version: str = "1"
     title: str = "Base"
     description: str = ""
     requires: tuple[str, ...] = ()
@@ -66,6 +67,11 @@ class BaseStep(ABC):
 
     def validate_params(self, payload: dict[str, Any] | None) -> BaseModel:
         return self.params_model.model_validate(payload or {})
+
+    def cache_outputs(self, context: Any) -> tuple[Any, ...]:
+        """Files that must still exist before a checkpoint can be reused."""
+
+        return ()
 
     def manifest(self) -> dict[str, Any]:
         schema = self.params_model.model_json_schema()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -52,3 +53,6 @@ class ExportStep(BaseStep):
             {name: str(path) for name, path in artifacts.items()}
         )
         io.report(100, f"{len(artifacts)} NLE artifacts written")
+
+    def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
+        return tuple(Path(path) for path in context.artifacts.values())

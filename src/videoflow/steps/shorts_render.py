@@ -160,3 +160,8 @@ class RenderShortsStep(BaseStep):
         message = f"{len(rendered)} shorts rendered"
         io.emit("info", message, module="shorts")
         io.report(100, message)
+
+    def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
+        outputs = [Path(str(entry["path"])) for entry in context.shorts if entry.get("path")]
+        report = context.output / "shorts.json"
+        return (*outputs, report) if outputs else ()

@@ -35,5 +35,9 @@ def iter_steps() -> Iterable[BaseStep]:
         yield _STEPS[step_type]()
 
 
+def requirements_by_type() -> dict[str, tuple[str, ...]]:
+    return {step.type: step.requires for step in iter_steps()}
+
+
 def manifest() -> list[dict[str, object]]:
     return [step.manifest() for step in iter_steps()]

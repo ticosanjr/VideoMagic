@@ -38,6 +38,7 @@
       "id": "retakes",
       "type": "retakes.cull",
       "needs": [
+        "vad",
         "transcribe"
       ],
       "params": {

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.application.shorts import (
@@ -103,3 +105,6 @@ class CaptionsStep(BaseStep):
         context.short_captions = captions
         context.hashes["captions"] = digest_payload(captions)
         io.report(100, f"{len(captions)} caption files ready")
+
+    def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
+        return tuple(Path(path) for path in context.short_captions.values())

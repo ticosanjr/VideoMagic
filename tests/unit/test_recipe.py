@@ -12,7 +12,7 @@ from videoflow.core.recipe import parse_recipe
 from videoflow.domain.errors import RecipeError
 from videoflow.domain.state import MediaInfo
 from videoflow.engine.runner import RecipeRunner
-from videoflow.steps import step_types
+from videoflow.steps import requirements_by_type, step_types
 
 
 class FakeAdapter:
@@ -114,7 +114,7 @@ def base_steps(transcript: Path, *, shorts: bool = False) -> dict:
         {
             "id": "retakes",
             "type": "retakes.cull",
-            "needs": ["transcribe"],
+            "needs": ["vad", "transcribe"],
             "params": {"enabled": True},
         },
         {"id": "timeline", "type": "edit.timeline", "needs": ["vad", "retakes"]},
@@ -171,7 +171,7 @@ def test_recipe_validation_rejects_cycles_and_unknown_types(tmp_path: Path) -> N
         }
     )
     with pytest.raises(RecipeError, match="cycle"):
-        cycle.validate_graph(step_types())
+        cycle.validate_graph(step_types(), requires_by_type=requirements_by_type())
     unknown = parse_recipe(
         {
             "id": "unknown",
@@ -180,7 +180,7 @@ def test_recipe_validation_rejects_cycles_and_unknown_types(tmp_path: Path) -> N
         }
     )
     with pytest.raises(RecipeError, match="unknown type"):
-        unknown.validate_graph(step_types())
+        unknown.validate_graph(step_types(), requires_by_type=requirements_by_type())
 
 
 def test_recipe_runner_matches_legacy_timeline(tmp_path: Path) -> None:
@@ -188,7 +188,7 @@ def test_recipe_runner_matches_legacy_timeline(tmp_path: Path) -> None:
     source.write_bytes(b"fixture")
     transcript = srt(tmp_path / "subs.srt", repeat=True)
     recipe = parse_recipe(base_steps(transcript))
-    recipe.validate_graph(step_types())
+    recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
     result = RecipeRunner(recipe, adapter=FakeAdapter()).run(source, tmp_path / "recipe")
     legacy = run_portable(
         source,
@@ -216,7 +216,7 @@ def test_recipe_runner_renders_shorts(tmp_path: Path) -> None:
     source.write_bytes(b"fixture")
     transcript = srt(tmp_path / "subs.srt")
     recipe = parse_recipe(base_steps(transcript, shorts=True))
-    recipe.validate_graph(step_types())
+    recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
     result = RecipeRunner(recipe, adapter=FakeAdapter()).run(source, tmp_path / "out")
     assert result.context.shorts
     assert (tmp_path / "out" / "shorts.json").is_file()
@@ -238,11 +238,17 @@ def test_recipe_runner_requires_transcript_for_shorts(tmp_path: Path) -> None:
                     "needs": ["ingest"],
                     "params": {"engine": "ffmpeg"},
                 },
-                {"id": "shorts", "type": "shorts.select", "needs": ["ingest"]},
+                {
+                    "id": "transcribe",
+                    "type": "transcribe",
+                    "needs": ["ingest"],
+                    "params": {"mode": "none"},
+                },
+                {"id": "shorts", "type": "shorts.select", "needs": ["transcribe"]},
             ],
         }
     )
-    recipe.validate_graph(step_types())
+    recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
     with pytest.raises(Exception, match="transcript"):
         RecipeRunner(recipe, adapter=FakeAdapter()).run(source, tmp_path / "out")
 
@@ -332,11 +338,13 @@ def test_recipe_paths_are_resolved_inside_the_allowlist(tmp_path: Path) -> None:
             "id": "paths",
             "name": "Paths",
             "steps": [
+                {"id": "ingest", "type": "ingest"},
                 {
                     "id": "transcribe",
                     "type": "transcribe",
+                    "needs": ["ingest"],
                     "params": {"mode": "srt", "srt_path": "/etc/passwd"},
-                }
+                },
             ],
         }
     )
@@ -362,7 +370,7 @@ def test_vad_cache_is_reused_across_outputs(tmp_path: Path) -> None:
             ],
         }
     )
-    recipe.validate_graph(step_types())
+    recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
     adapter = FakeAdapter()
     first = RecipeRunner(recipe, adapter=adapter).run(source, tmp_path / "one")
     second = RecipeRunner(recipe, adapter=adapter).run(source, tmp_path / "two")
@@ -408,7 +416,7 @@ def test_transcript_cache_is_reused(tmp_path: Path) -> None:
             ],
         }
     )
-    recipe.validate_graph(step_types())
+    recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
     client = FakeAsr()
     first = RecipeRunner(recipe, adapter=FakeAdapter(), asr_client=client).run(
         source, tmp_path / "one"
@@ -494,10 +502,129 @@ def test_reframe_and_captions_are_independent_steps(monkeypatch, tmp_path: Path)
             ],
         }
     )
-    recipe.validate_graph(step_types())
+    recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
     result = RecipeRunner(recipe, adapter=CapturingAdapter()).run(source, tmp_path / "out")
     assert result.context.short_captions
     assert seen["ass_path"] is not None
     assert Path(str(seen["ass_path"])).is_file()
     assert seen["crop_focus_x"] == 0.25
     assert not result.context.cache_hits
+
+
+def test_second_run_reuses_every_checkpoint(tmp_path: Path) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    transcript = srt(tmp_path / "subs.srt")
+    recipe = parse_recipe(base_steps(transcript))
+    recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+    adapter = FakeAdapter()
+    first = RecipeRunner(recipe, adapter=adapter).run(source, tmp_path / "out")
+    second = RecipeRunner(recipe, adapter=adapter).run(source, tmp_path / "out")
+    assert all(run.status == "executed" for run in first.step_runs)
+    assert all(run.status == "cached" for run in second.step_runs)
+    assert adapter.detect_calls == 1
+    assert (tmp_path / "out" / "exports" / "timeline.fcpxml").is_file()
+
+
+def test_missing_output_invalidates_only_that_step(tmp_path: Path) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    transcript = srt(tmp_path / "subs.srt")
+    recipe = parse_recipe(base_steps(transcript))
+    recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+    adapter = FakeAdapter()
+    RecipeRunner(recipe, adapter=adapter).run(source, tmp_path / "out")
+    artifact = tmp_path / "out" / "exports" / "timeline.fcpxml"
+    artifact.unlink()
+    second = RecipeRunner(recipe, adapter=adapter).run(source, tmp_path / "out")
+    by_id = {run.id: run.status for run in second.step_runs}
+    assert by_id["export"] == "executed"
+    assert by_id["timeline"] == "cached"
+    assert artifact.is_file()
+
+
+def test_run_through_stops_after_target(tmp_path: Path) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    transcript = srt(tmp_path / "subs.srt")
+    recipe = parse_recipe(base_steps(transcript))
+    recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+    result = RecipeRunner(recipe, adapter=FakeAdapter()).run(
+        source, tmp_path / "out", through="vad"
+    )
+    assert [run.id for run in result.step_runs] == ["ingest", "vad"]
+    assert not (tmp_path / "out" / "project_state.json").exists()
+    assert not (tmp_path / "out" / "exports" / "timeline.fcpxml").exists()
+
+
+def test_recipe_rejects_missing_upstream_step_type(tmp_path: Path) -> None:
+    recipe = parse_recipe(
+        {
+            "id": "missing_vad",
+            "name": "Missing VAD",
+            "steps": [
+                {"id": "ingest", "type": "ingest"},
+                {
+                    "id": "transcribe",
+                    "type": "transcribe",
+                    "needs": ["ingest"],
+                    "params": {"mode": "none"},
+                },
+                {
+                    "id": "retakes",
+                    "type": "retakes.cull",
+                    "needs": ["transcribe"],
+                    "params": {"enabled": True},
+                },
+            ],
+        }
+    )
+    with pytest.raises(RecipeError, match="audio.vad"):
+        recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+
+
+def test_step_api_starts_a_through_job(tmp_path: Path) -> None:
+    from videoflow.application.jobs import Job
+
+    class FakeJobs:
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+
+        def start(self, source, output, options=None, **kwargs):
+            self.calls.append({"source": source, "output": output, "options": options})
+            return Job(source=source, output=output, options=options or {})
+
+    home = tmp_path / "videoflow-home"
+    home.mkdir(parents=True)
+    source = home / "source.mp4"
+    source.write_bytes(b"fixture")
+    output = home / "out"
+    jobs = FakeJobs()
+    client = TestClient(create_app(jobs=jobs))
+    recipe = base_steps(srt(home / "subs.srt"))
+    response = client.post(
+        "/api/v1/steps/vad/run",
+        json={
+            "source": str(source),
+            "output": str(output),
+            "recipe": recipe,
+        },
+    )
+    assert response.status_code == 202
+    assert jobs.calls[0]["options"]["through"] == "vad"
+    assert jobs.calls[0]["options"]["resume"] is True
+
+
+def test_second_shorts_run_reuses_checkpoints_and_selected_clips(tmp_path: Path) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    transcript = srt(tmp_path / "subs.srt")
+    recipe = parse_recipe(base_steps(transcript, shorts=True))
+    recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+    adapter = FakeAdapter()
+    first = RecipeRunner(recipe, adapter=adapter).run(source, tmp_path / "out")
+    second = RecipeRunner(recipe, adapter=adapter).run(source, tmp_path / "out")
+    assert first.context.shorts
+    assert len(second.context.selected_shorts) == len(first.context.selected_shorts)
+    assert second.context.shorts[0]["path"] == first.context.shorts[0]["path"]
+    assert all(run.status == "cached" for run in second.step_runs)

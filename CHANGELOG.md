@@ -3,6 +3,34 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.25.0] - 2026-10-22
+
+### Added
+
+- **Per-step checkpoints.** Every successful recipe step writes
+  `work/steps/<id>/manifest.json` and `snapshot.json`. A fingerprint covers the
+  step type/version, validated parameters, source fingerprint, and upstream
+  step hashes. Matching steps are reused across runs in the same output
+  directory, and file-producing steps verify that their outputs still exist.
+- **Step-scoped runs.** `POST /api/v1/steps/{step_id}/run`,
+  `videoflow recipe step ...`, and the MCP tool `videoflow_run_step` execute a
+  step and its dependency closure, then stop.
+- **Resume controls.** `videoflow recipe run|step --force` ignores
+  checkpoints; the Recipes Config modal has a reuse-checkpoints switch.
+- **Per-node execution state.** The graph shows cached, executed, running, and
+  failed nodes. The inspector has **Run to here**.
+- **Step run reporting.** Job results and `run.json` expose `step_runs` with
+  status, elapsed time, fingerprint, and outputs.
+- **Dependency validation.** Recipes are rejected when a step's declared
+  upstream types are missing, preventing steps from running with absent VAD or
+  transcript context.
+
+### Fixed
+
+- `retakes.cull` now explicitly requires `audio.vad` in addition to the
+  transcript, so partial runs cannot subtract culls from empty speech.
+- Built-in Shorts recipes place NLE export after Shorts rendering.
+
 ## [0.24.0] - 2026-10-22
 
 ### Added

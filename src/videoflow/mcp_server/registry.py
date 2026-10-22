@@ -259,6 +259,11 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "Run an inline recipe on a source file and return the job.",
         "recipes",
     ),
+    ToolSpec(
+        "videoflow_run_step",
+        "Run the dependencies and one named recipe step, then stop.",
+        "recipes",
+    ),
 )
 
 RESOURCE_SPECS: tuple[ResourceSpec, ...] = (

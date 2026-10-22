@@ -36,7 +36,7 @@ class RetakesStep(BaseStep):
     type = "retakes.cull"
     title = "Retakes"
     description = "Remove exact repeats and failed takes, then apply manual overrides."
-    requires = ("transcribe",)
+    requires = ("audio.vad", "transcribe")
     produces = ("retake_decisions",)
     params_model = RetakesParams
 

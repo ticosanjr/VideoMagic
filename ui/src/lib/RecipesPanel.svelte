@@ -18,6 +18,7 @@
     listRecipes,
     listRecipeSteps,
     runRecipe,
+    runRecipeStep,
     saveRecipe,
     validateRecipe,
     type Job,
@@ -34,7 +35,13 @@
     output?: string;
   } = $props();
 
-  type NodeData = { title: string; type: string; params: Record<string, unknown> };
+  type NodeStatus = "idle" | "running" | "cached" | "executed" | "failed";
+  type NodeData = {
+    title: string;
+    type: string;
+    params: Record<string, unknown>;
+    status?: NodeStatus;
+  };
 
   const nodeTypes = { step: StepNode };
   let steps = $state<StepManifest[]>([]);
@@ -70,6 +77,7 @@
   let validation = $state<string[]>([]);
   let job = $state<Job | null>(null);
   let busy = $state(false);
+  let resume = $state(true);
   let poll: ReturnType<typeof setInterval> | undefined;
 
   const stepOrder = [
@@ -190,7 +198,8 @@
         data: {
           title: manifest?.title ?? step.type,
           type: step.type,
-          params: step.params
+          params: step.params,
+          status: "idle"
         }
       } satisfies Node;
     });
@@ -258,7 +267,8 @@
         data: {
           title: manifest.title,
           type,
-          params: defaultsFor(manifest)
+          params: defaultsFor(manifest),
+          status: "idle"
         }
       } satisfies Node
     ];
@@ -369,6 +379,46 @@
     if (!inspectorOpen) addOpen = false;
   }
 
+  function setStatuses(statuses: Record<string, NodeStatus>) {
+    nodes = nodes.map((node) => {
+      const status = statuses[node.id];
+      return status ? { ...node, data: { ...nodeData(node), status } } : node;
+    });
+  }
+
+  function resetStatuses() {
+    setStatuses(Object.fromEntries(nodes.map((node) => [node.id, "idle" as NodeStatus])));
+  }
+
+  function applyJobStatuses(current: Job) {
+    if (current.status === "running" || current.status === "queued") {
+      const statuses: Record<string, NodeStatus> = {};
+      for (const stage of current.stages) {
+        if (stage.status === "running") statuses[stage.id] = "running";
+        else if (stage.status === "succeeded") statuses[stage.id] = "executed";
+        else if (stage.status === "failed") statuses[stage.id] = "failed";
+      }
+      setStatuses(statuses);
+      return;
+    }
+    if (current.status === "failed") {
+      const statuses: Record<string, NodeStatus> = {};
+      for (const stage of current.stages) {
+        if (stage.status === "failed") statuses[stage.id] = "failed";
+      }
+      if (current.stage) statuses[current.stage] = "failed";
+      setStatuses(statuses);
+      return;
+    }
+    if (current.result?.step_runs?.length) {
+      const statuses: Record<string, NodeStatus> = {};
+      for (const run of current.result.step_runs) {
+        statuses[run.id] = run.status === "cached" ? "cached" : "executed";
+      }
+      setStatuses(statuses);
+    }
+  }
+
   async function validate() {
     error = "";
     status = "";
@@ -402,6 +452,7 @@
       return;
     }
     busy = true;
+    resetStatuses();
     try {
       const recipe = recipeFromGraph();
       await validateRecipe(recipe);
@@ -409,10 +460,39 @@
         source: inputSource.trim(),
         output: inputOutput.trim(),
         recipe,
-        save_recipe: true
+        save_recipe: true,
+        resume
       });
       watch(job.job_id);
       status = `Job ${job.job_id} started.`;
+    } catch (reason) {
+      error = errorMessage(reason);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function runToHere(stepId: string) {
+    error = "";
+    status = "";
+    if (!inputSource.trim() || !inputOutput.trim()) {
+      error = "Choose a source file and an output directory first.";
+      return;
+    }
+    busy = true;
+    resetStatuses();
+    try {
+      const recipe = recipeFromGraph();
+      await validateRecipe(recipe);
+      job = await runRecipeStep(stepId, {
+        source: inputSource.trim(),
+        output: inputOutput.trim(),
+        recipe,
+        save_recipe: true,
+        resume
+      });
+      watch(job.job_id);
+      status = `Job ${job.job_id} started through ${stepId}.`;
     } catch (reason) {
       error = errorMessage(reason);
     } finally {
@@ -425,6 +505,7 @@
     poll = setInterval(async () => {
       try {
         job = await getJob(jobId);
+        if (job) applyJobStatuses(job);
         if (["succeeded", "failed", "cancelled"].includes(job.status)) {
           clearInterval(poll);
         }
@@ -624,7 +705,10 @@
                 {#if selectedNode}
                   <div class="flex items-center justify-between gap-2">
                     <p class="text-[10px] text-neutral-500">{nodeData(selectedNode).type}</p>
-                    <button type="button" onclick={removeSelected} class="text-[10px] text-rose-300 hover:text-rose-200">Remove</button>
+                    <div class="flex items-center gap-2">
+                      <button type="button" onclick={() => void runToHere(selectedId ?? "")} disabled={busy} class="rounded border border-sky-500/40 px-2 py-0.5 text-[10px] text-sky-300 disabled:opacity-40">Run to here</button>
+                      <button type="button" onclick={removeSelected} class="text-[10px] text-rose-300 hover:text-rose-200">Remove</button>
+                    </div>
                   </div>
                 {/if}
                 <div class="mt-2 flex items-center justify-between gap-2">
@@ -673,6 +757,12 @@
         <div class="h-full rounded-full bg-sky-400 transition-all" style={`width: ${job.progress}%`}></div>
       </div>
       <p class="mt-2 text-[11px] text-neutral-400">{job.stage}: {job.message} · {job.progress}%</p>
+      {#if job.result?.step_runs?.length}
+        <p class="mt-1 text-[10px] text-neutral-500">
+          Steps: {job.result.step_runs.filter((run) => run.status === "cached").length} cached ·
+          {job.result.step_runs.filter((run) => run.status === "executed").length} executed
+        </p>
+      {/if}
       {#if job.result?.cache_hits?.length}
         <p class="mt-1 text-[10px] text-emerald-300">Cache hits: {job.result.cache_hits.join(", ")}</p>
       {/if}
@@ -737,6 +827,10 @@
           <label class="block text-[10px] text-neutral-500">
             Model
             <input bind:value={llm.model} placeholder="qwen2.5:7b-instruct" class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-[11px] text-neutral-200" />
+          </label>
+          <label class="flex items-center gap-2 text-[11px] text-neutral-300 sm:col-span-2">
+            <input type="checkbox" bind:checked={resume} class="h-4 w-4 rounded border-neutral-700 bg-neutral-900" />
+            Reuse existing step checkpoints when the fingerprint matches
           </label>
           {#if llm.provider !== "none"}
             <label class="block text-[10px] text-neutral-500 sm:col-span-2">

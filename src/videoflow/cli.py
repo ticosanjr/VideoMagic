@@ -376,6 +376,28 @@ def _parser() -> argparse.ArgumentParser:
     recipe_run.add_argument("source", type=Path)
     recipe_run.add_argument("-o", "--out", type=Path, default=None)
     recipe_run.add_argument(
+        "--force",
+        action="store_true",
+        help="Ignore existing step checkpoints and execute every step.",
+    )
+    recipe_run.add_argument(
+        "--json",
+        action="store_true",
+        help="Print only the final JSON report.",
+    )
+    recipe_step = recipe_sub.add_parser(
+        "step", help="Run the dependencies and one named recipe step."
+    )
+    recipe_step.add_argument("recipe", help="Path to a JSON recipe or a built-in recipe id.")
+    recipe_step.add_argument("step_id", help="Target step id (the run stops after it).")
+    recipe_step.add_argument("source", type=Path)
+    recipe_step.add_argument("-o", "--out", type=Path, default=None)
+    recipe_step.add_argument(
+        "--force",
+        action="store_true",
+        help="Ignore existing step checkpoints and execute dependencies again.",
+    )
+    recipe_step.add_argument(
         "--json",
         action="store_true",
         help="Print only the final JSON report.",
@@ -794,7 +816,7 @@ def _recipe(args: argparse.Namespace) -> int:
     from videoflow.engine.recipes import get_recipe, list_recipes
     from videoflow.engine.runner import RecipeRunner
     from videoflow.steps import manifest as step_manifest
-    from videoflow.steps import step_types
+    from videoflow.steps import requirements_by_type, step_types
 
     command = getattr(args, "recipe_command", None)
     if command == "list":
@@ -809,7 +831,7 @@ def _recipe(args: argparse.Namespace) -> int:
         return 0
     if command == "validate":
         recipe = load_recipe(args.recipe)
-        recipe.validate_graph(step_types())
+        recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
         print(
             json.dumps(
                 {
@@ -832,17 +854,41 @@ def _recipe(args: argparse.Namespace) -> int:
     if command == "run":
         path = Path(args.recipe).expanduser()
         recipe = load_recipe(path) if path.is_file() else get_recipe(args.recipe)
-        recipe.validate_graph(step_types())
+        recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
         output = args.out or args.source.with_name(f"{args.source.stem}-videoflow")
 
         def progress(stage: str, percent: int, message: str) -> None:
             if not getattr(args, "json", False):
                 print(f"[{percent:3d}%] {stage}: {message}", file=sys.stderr)
 
-        result = RecipeRunner(recipe).run(args.source, output, progress=progress)
+        result = RecipeRunner(recipe).run(
+            args.source,
+            output,
+            progress=progress,
+            resume=not getattr(args, "force", False),
+        )
         print(json.dumps(result.to_dict(), indent=2))
         return 0
-    print("Use: videoflow recipe {list,steps,show,validate,run}", file=sys.stderr)
+    if command == "step":
+        path = Path(args.recipe).expanduser()
+        recipe = load_recipe(path) if path.is_file() else get_recipe(args.recipe)
+        recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+        output = args.out or args.source.with_name(f"{args.source.stem}-videoflow")
+
+        def step_progress(stage: str, percent: int, message: str) -> None:
+            if not getattr(args, "json", False):
+                print(f"[{percent:3d}%] {stage}: {message}", file=sys.stderr)
+
+        result = RecipeRunner(recipe).run(
+            args.source,
+            output,
+            progress=step_progress,
+            through=args.step_id,
+            resume=not getattr(args, "force", False),
+        )
+        print(json.dumps(result.to_dict(), indent=2))
+        return 0
+    print("Use: videoflow recipe {list,steps,show,validate,run,step,cache}", file=sys.stderr)
     return 2
 
 

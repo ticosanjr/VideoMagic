@@ -13,7 +13,13 @@ from videoflow.steps import (
     transcribe,
 )
 from videoflow.steps.base import BaseStep, EmptyParams, StepIO
-from videoflow.steps.registry import get_step, iter_steps, manifest, step_types
+from videoflow.steps.registry import (
+    get_step,
+    iter_steps,
+    manifest,
+    requirements_by_type,
+    step_types,
+)
 
 __all__ = [
     "BaseStep",
@@ -25,6 +31,7 @@ __all__ = [
     "ingest",
     "iter_steps",
     "manifest",
+    "requirements_by_type",
     "retakes",
     "shorts_captions",
     "shorts_reframe",

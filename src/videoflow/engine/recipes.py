@@ -31,7 +31,7 @@ _TRANSCRIBE = {
 _RETAKES = {
     "id": "retakes",
     "type": "retakes.cull",
-    "needs": ["transcribe"],
+    "needs": ["vad", "transcribe"],
     "params": {"enabled": True},
 }
 _TIMELINE = {
@@ -45,6 +45,10 @@ _EXPORT = {
     "type": "export.nle",
     "needs": ["timeline"],
     "params": {"targets": ["resolve", "premiere", "kdenlive"]},
+}
+_EXPORT_WITH_SHORTS = {
+    **_EXPORT,
+    "needs": ["timeline", "render_shorts"],
 }
 
 BUILTIN_RECIPES: dict[str, dict[str, Any]] = {
@@ -101,7 +105,7 @@ BUILTIN_RECIPES: dict[str, dict[str, Any]] = {
                 "needs": ["reframe", "captions"],
                 "params": {"burn_subtitles": True},
             },
-            _EXPORT,
+            _EXPORT_WITH_SHORTS,
         ],
     },
     "full_podcast_curation": {
@@ -151,7 +155,7 @@ BUILTIN_RECIPES: dict[str, dict[str, Any]] = {
                 "needs": ["reframe", "captions"],
                 "params": {"burn_subtitles": True},
             },
-            _EXPORT,
+            _EXPORT_WITH_SHORTS,
         ],
     },
 }

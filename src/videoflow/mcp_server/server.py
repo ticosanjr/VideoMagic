@@ -104,7 +104,7 @@ from videoflow.runtime import (
     find_whisper_model,
 )
 from videoflow.steps import manifest as step_manifest
-from videoflow.steps import step_types
+from videoflow.steps import requirements_by_type, step_types
 
 SERVER_NAME = "VideoFlow"
 
@@ -1616,7 +1616,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
 
         try:
             parsed = parse_recipe(recipe)  # type: ignore[arg-type]
-            parsed.validate_graph(step_types())
+            parsed.validate_graph(step_types(), requires_by_type=requirements_by_type())
             order = [step.id for step in parsed.topological_order()]
         except VideoFlowError as exc:
             return exc.to_dict()
@@ -1630,7 +1630,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
 
         try:
             parsed = parse_recipe(recipe)  # type: ignore[arg-type]
-            parsed.validate_graph(step_types())
+            parsed.validate_graph(step_types(), requires_by_type=requirements_by_type())
             path = save_user_recipe(parsed)
         except VideoFlowError as exc:
             return exc.to_dict()
@@ -1641,6 +1641,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         recipe_id: str,
         source: str | None = None,
         output: str | None = None,
+        resume: bool = True,
     ) -> dict[str, object]:
         """Run a named recipe on a source file and return the job."""
 
@@ -1658,11 +1659,15 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             resolved_output = resolve_allowed(output_path, roots)
             recipe = get_recipe(recipe_id)
             recipe = resolve_recipe_paths(recipe, roots)
-            recipe.validate_graph(step_types())
+            recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
             job = manager.start(
                 resolved_source,
                 resolved_output,
-                {"mode": "recipe", "recipe": recipe.model_dump(mode="json")},
+                {
+                    "mode": "recipe",
+                    "recipe": recipe.model_dump(mode="json"),
+                    "resume": resume,
+                },
             )
         except VideoFlowError as exc:
             return exc.to_dict()
@@ -1676,6 +1681,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
         recipe: dict[str, object],
         source: str | None = None,
         output: str | None = None,
+        resume: bool = True,
     ) -> dict[str, object]:
         """Run an inline recipe on a source file and return the job."""
 
@@ -1693,11 +1699,66 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             resolved_output = resolve_allowed(output_path, roots)
             parsed = parse_recipe(recipe)  # type: ignore[arg-type]
             parsed = resolve_recipe_paths(parsed, roots)
-            parsed.validate_graph(step_types())
+            parsed.validate_graph(step_types(), requires_by_type=requirements_by_type())
             job = manager.start(
                 resolved_source,
                 resolved_output,
-                {"mode": "recipe", "recipe": parsed.model_dump(mode="json")},
+                {
+                    "mode": "recipe",
+                    "recipe": parsed.model_dump(mode="json"),
+                    "resume": resume,
+                },
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        last["source"] = resolved_source
+        last["output"] = resolved_output
+        last["job_id"] = str(job.job_id)
+        return {"ok": True, "job": job.to_dict()}
+
+    @mcp.tool()
+    def videoflow_run_step(
+        step_id: str,
+        recipe: dict[str, object] | None = None,
+        recipe_id: str | None = None,
+        source: str | None = None,
+        output: str | None = None,
+        resume: bool = True,
+    ) -> dict[str, object]:
+        """Run the dependencies and one named step, then stop."""
+
+        try:
+            if (recipe is None) == (recipe_id is None):
+                return _error("recipe_required", "Provide exactly one of recipe or recipe_id.")
+            parsed = (
+                parse_recipe(recipe)  # type: ignore[arg-type]
+                if recipe is not None
+                else get_recipe(str(recipe_id))
+            )
+            source_path = Path(source) if source else last.get("source")
+            if not isinstance(source_path, Path):
+                return _source_required()
+            roots = allowed_roots()
+            resolved_source = resolve_allowed(source_path, roots)
+            output_path = (
+                Path(output)
+                if output
+                else resolved_source.with_name(f"{resolved_source.stem}-videoflow")
+            )
+            resolved_output = resolve_allowed(output_path, roots)
+            parsed = resolve_recipe_paths(parsed, roots)
+            parsed.validate_graph(step_types(), requires_by_type=requirements_by_type())
+            if step_id not in {step.id for step in parsed.enabled_steps()}:
+                return _error("unknown_step", f"Unknown or disabled step: {step_id}")
+            job = manager.start(
+                resolved_source,
+                resolved_output,
+                {
+                    "mode": "recipe",
+                    "recipe": parsed.model_dump(mode="json"),
+                    "through": step_id,
+                    "resume": resume,
+                },
             )
         except VideoFlowError as exc:
             return exc.to_dict()

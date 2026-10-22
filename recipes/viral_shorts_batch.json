@@ -38,6 +38,7 @@
       "id": "retakes",
       "type": "retakes.cull",
       "needs": [
+        "vad",
         "transcribe"
       ],
       "params": {
@@ -104,7 +105,8 @@
       "id": "export",
       "type": "export.nle",
       "needs": [
-        "timeline"
+        "timeline",
+        "render_shorts"
       ],
       "params": {
         "targets": [

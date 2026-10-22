@@ -125,7 +125,7 @@ from videoflow.engine.recipes import (
 )
 from videoflow.runtime import allowed_roots, find_binary, portable_home
 from videoflow.steps import manifest as step_manifest
-from videoflow.steps import step_types
+from videoflow.steps import requirements_by_type, step_types
 
 logger = logging.getLogger(__name__)
 
@@ -300,6 +300,8 @@ class RecipeRunRequest(BaseModel):
     recipe_id: str | None = None
     transcript_sentences: list[dict[str, Any]] = Field(default_factory=list)
     save_recipe: bool = False
+    through: str | None = None
+    resume: bool = True
 
     @model_validator(mode="after")
     def exactly_one_recipe(self) -> RecipeRunRequest:
@@ -474,6 +476,34 @@ def register_routes(
 ) -> None:
     project_job_lock = threading.Lock()
     app.state.project_store = projects
+
+    def start_recipe_job(request: RecipeRunRequest, through: str | None) -> dict[str, object]:
+        roots = allowed_roots()
+        source = resolve_allowed(Path(request.source), roots)
+        output = resolve_allowed(Path(request.output), roots)
+        if request.recipe is not None:
+            recipe = parse_recipe(request.recipe)
+        else:
+            recipe = get_recipe(str(request.recipe_id))
+        recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+        if through is not None and through not in {step.id for step in recipe.enabled_steps()}:
+            raise RecipeError(f"Unknown or disabled step: {through}")
+        recipe = resolve_recipe_paths(recipe, roots)
+        if request.save_recipe:
+            save_user_recipe(recipe)
+        job = jobs.start(
+            source,
+            output,
+            {
+                "mode": "recipe",
+                "recipe": recipe.model_dump(mode="json"),
+                "transcript_sentences": request.transcript_sentences,
+                "through": through,
+                "resume": request.resume,
+            },
+        )
+        return {"ok": True, "job": job.to_dict()}
+
     @app.get("/api/v1/assets/music")
     def music() -> dict[str, object]:
         return {"ok": True, "music": list_music()}
@@ -550,7 +580,7 @@ def register_routes(
             recipe = parse_recipe(payload)
             if recipe.id != recipe_id:
                 raise RecipeError("recipe id does not match the URL")
-            recipe.validate_graph(step_types())
+            recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
             path = save_user_recipe(recipe)
         except VideoFlowError as exc:
             fail(exc)
@@ -561,7 +591,7 @@ def register_routes(
     def validate_recipe(payload: dict[str, Any]) -> dict[str, object]:
         try:
             recipe = parse_recipe(payload)
-            recipe.validate_graph(step_types())
+            recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
             order = recipe.topological_order()
         except VideoFlowError as exc:
             fail(exc)
@@ -574,31 +604,19 @@ def register_routes(
 
     @app.post("/api/v1/recipes/run", status_code=202)
     def run_recipe(request: RecipeRunRequest) -> dict[str, object]:
-        roots = allowed_roots()
         try:
-            source = resolve_allowed(Path(request.source), roots)
-            output = resolve_allowed(Path(request.output), roots)
-            if request.recipe is not None:
-                recipe = parse_recipe(request.recipe)
-            else:
-                recipe = get_recipe(str(request.recipe_id))
-            recipe.validate_graph(step_types())
-            recipe = resolve_recipe_paths(recipe, roots)
-            if request.save_recipe:
-                save_user_recipe(recipe)
-            job = jobs.start(
-                source,
-                output,
-                {
-                    "mode": "recipe",
-                    "recipe": recipe.model_dump(mode="json"),
-                    "transcript_sentences": request.transcript_sentences,
-                },
-            )
+            return start_recipe_job(request, request.through)
         except VideoFlowError as exc:
             fail(exc)
             raise
-        return {"ok": True, "job": job.to_dict()}
+
+    @app.post("/api/v1/steps/{step_id}/run", status_code=202)
+    def run_step(step_id: str, request: RecipeRunRequest) -> dict[str, object]:
+        try:
+            return start_recipe_job(request, step_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
 
     @app.post("/api/v1/jobs", status_code=202)
     def create_job(request: NewJobRequest) -> dict[str, object]:

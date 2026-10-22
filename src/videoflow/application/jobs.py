@@ -566,6 +566,8 @@ class JobManager:
                 log=log,
                 telemetry=job.telemetry,
                 transcript_sentences=transcript_sentences,
+                through=job.options.get("through"),
+                resume=bool(job.options.get("resume", True)),
             )
             if job.finalizer is not None and not job.cancel_requested:
                 job.finalizer(job)

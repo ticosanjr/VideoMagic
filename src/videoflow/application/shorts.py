@@ -109,6 +109,53 @@ class ShortClip:
         }
 
 
+def short_clip_from_dict(payload: dict[str, object]) -> ShortClip:
+    """Rebuild a selected clip from its JSON representation."""
+
+    pieces = tuple(
+        (int(piece[0]), int(piece[1]))
+        for piece in payload.get("pieces", [])  # type: ignore[union-attr]
+        if isinstance(piece, (list, tuple)) and len(piece) >= 2
+    )
+    breakdown = payload.get("score_breakdown") or {}
+    score_breakdown = tuple(
+        (str(key), float(value))
+        for key, value in breakdown.items()  # type: ignore[union-attr]
+    ) if isinstance(breakdown, dict) else ()
+    filler = payload.get("filler_words_removed") or []
+    return ShortClip(
+        title=str(payload.get("title", "Short")),
+        start_sample=int(payload.get("start_sample", 0)),
+        end_sample=int(payload.get("end_sample", 0)),
+        sentence_ids=tuple(int(item) for item in payload.get("sentence_ids", [])),  # type: ignore[union-attr]
+        pieces=pieces,
+        score=float(payload.get("score", 0.0)),
+        hook_text=str(payload["hook"]) if payload.get("hook") is not None else None,
+        hook_sentence_id=(
+            int(payload["hook_sentence_id"])
+            if payload.get("hook_sentence_id") is not None
+            else None
+        ),
+        hook_start_sample=(
+            int(payload["hook_start_sample"])
+            if payload.get("hook_start_sample") is not None
+            else None
+        ),
+        hook_end_sample=(
+            int(payload["hook_end_sample"])
+            if payload.get("hook_end_sample") is not None
+            else None
+        ),
+        virality_score=float(payload.get("virality_score", 0.0)),
+        score_breakdown=score_breakdown,
+        filler_words_removed=tuple(str(item) for item in filler),  # type: ignore[union-attr]
+        crop_focus_x=float(payload.get("crop_focus_x", 0.5)),
+        crop_focus_y=float(payload.get("crop_focus_y", 0.5)),
+        energy_peaks=int(payload.get("energy_peaks", 0)),
+        scene_changes=int(payload.get("scene_changes", 0)),
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class CaptionLine:
     start: float
