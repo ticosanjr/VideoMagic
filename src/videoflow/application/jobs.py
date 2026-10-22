@@ -581,7 +581,28 @@ class JobManager:
                     job.progress = 100
                     job.stage = "done"
                     job.message = "Finished"
-                    job.result = result.to_dict()
+                    payload = result.to_dict()
+                    job.result = payload
+                    from videoflow.engine.history import append_run
+
+                    append_run(
+                        job.output,
+                        {
+                            "job_id": str(job.job_id),
+                            "status": "succeeded",
+                            "recipe_id": payload.get("recipe_id", ""),
+                            "created_at": job.created_at,
+                            "started_at": job.started_at,
+                            "duration_ms": int(
+                                float(payload.get("elapsed_seconds", 0)) * 1000
+                            ),
+                            "step_runs": payload.get("step_runs", []),
+                            "cache_hits": payload.get("cache_hits", []),
+                            "cache_misses": payload.get("cache_misses", []),
+                            "artifacts": payload.get("artifacts", {}),
+                            "warnings": payload.get("warnings", []),
+                        },
+                    )
         except JobCancelledError as exc:
             with self._lock:
                 job.status = "cancelled"

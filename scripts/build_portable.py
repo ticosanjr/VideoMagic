@@ -70,6 +70,11 @@ def main() -> int:
         help="Bundle speech model weights. Off by default for the lean download.",
     )
     parser.add_argument("--name", default="videoflow")
+    parser.add_argument(
+        "--onedir",
+        action="store_true",
+        help="Build a directory bundle instead of a onefile executable.",
+    )
     parser.add_argument("--clean", action="store_true", default=True)
     args = parser.parse_args()
 
@@ -169,6 +174,7 @@ def main() -> int:
         os.environ["VIDEOWFLOW_WITH_FASTER_WHISPER"] = "1"
 
     os.environ["VIDEOWFLOW_BUNDLE_MODELS"] = "1" if args.with_models else "0"
+    os.environ["VIDEOWFLOW_ONEDIR"] = "1" if args.onedir else "0"
 
     command = [
         sys.executable,
@@ -184,11 +190,17 @@ def main() -> int:
         return completed.returncode
 
     name = f"{args.name}{'.exe' if os.name == 'nt' else ''}"
-    output = ROOT / "dist" / name
-    if not output.is_file():
-        print(f"expected artifact is missing: {output}", file=sys.stderr)
-        return 1
-    print(f"built: {output} ({output.stat().st_size / 1_000_000:.1f} MB)")
+    output = ROOT / "dist" / (args.name if args.onedir else name)
+    if args.onedir:
+        if not output.is_dir():
+            print(f"expected artifact is missing: {output}", file=sys.stderr)
+            return 1
+        print(f"built: {output} (onedir)")
+    else:
+        if not output.is_file():
+            print(f"expected artifact is missing: {output}", file=sys.stderr)
+            return 1
+        print(f"built: {output} ({output.stat().st_size / 1_000_000:.1f} MB)")
     print("smoke: run the binary with `version`, `doctor`, and `demo`.")
     return 0
 

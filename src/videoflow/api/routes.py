@@ -118,6 +118,7 @@ from videoflow.domain.paths import resolve_allowed
 from videoflow.domain.state import ManualOverride, MediaInfo, ProjectState
 from videoflow.domain.transcript import format_srt
 from videoflow.engine.batch import BatchManager
+from videoflow.engine.history import read_runs
 from videoflow.engine.recipes import (
     get_recipe,
     list_recipes,
@@ -667,6 +668,15 @@ def register_routes(
             fail(exc)
             raise
         return {"ok": True, "batch": batch.to_dict()}
+
+    @app.get("/api/v1/runs")
+    def list_runs(output: str) -> dict[str, object]:
+        try:
+            resolved = resolve_allowed(Path(output), allowed_roots())
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "runs": read_runs(resolved)}
 
     @app.get("/api/v1/batches")
     def list_batches() -> dict[str, object]:

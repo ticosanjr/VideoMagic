@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Python dependencies
+        run: uv sync --extra dev --group dev
+      - name: Python lint
+        run: uv run ruff check src tests scripts
+      - name: Python tests
+        run: uv run pytest -q
+      - name: UI dependencies
+        working-directory: ui
+        run: npm ci
+      - name: UI checks
+        working-directory: ui
+        run: npm run check && npm test -- --run
+      - name: UI build
+        working-directory: ui
+        run: npm run build

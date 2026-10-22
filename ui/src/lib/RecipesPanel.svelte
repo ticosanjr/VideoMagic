@@ -15,6 +15,7 @@
     errorMessage,
     getJob,
     getRecipe,
+    getRunHistory,
     listJobs,
     listRecipes,
     listRecipeSteps,
@@ -539,6 +540,45 @@
   async function loadPrevious(current: Job) {
     if (current.status !== "succeeded") return;
     try {
+      const records = await getRunHistory(current.output);
+      const record = records
+        .filter(
+          (item) =>
+            item.job_id !== current.job_id &&
+            item.recipe_id === current.result?.recipe_id &&
+            item.status === "succeeded"
+        )
+        .sort((left, right) => right.created_at.localeCompare(left.created_at))[0];
+      if (record) {
+        previousJob = {
+          job_id: record.job_id,
+          status: "succeeded",
+          progress: 100,
+          stage: "done",
+          message: "",
+          source: current.source,
+          output: current.output,
+          options: {},
+          result: {
+            ok: true,
+            recipe_id: record.recipe_id,
+            step_runs: record.step_runs,
+            cache_hits: record.cache_hits,
+            cache_misses: record.cache_misses,
+            artifacts: record.artifacts,
+            warnings: record.warnings,
+            elapsed_seconds: record.duration_ms / 1000
+          },
+          error: null,
+          created_at: record.created_at,
+          started_at: record.started_at,
+          finished_at: null,
+          duration_ms: record.duration_ms,
+          log_count: 0,
+          stages: []
+        };
+        return;
+      }
       const history = await listJobs();
       const candidates = history
         .filter(

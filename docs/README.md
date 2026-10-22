@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (0.29.0)
+## Implementation status (0.30.0)
 
 | Area | State |
 | --- | --- |
@@ -12,7 +12,9 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Silero VAD via ONNX Runtime with FFmpeg `silencedetect` fallback | implemented |
 | Deterministic timeline, J/L-cuts, fades, punch-ins | implemented |
 | FCPXML 1.9/1.10, xmeml v4, native Kdenlive MLT export | implemented |
-| Portable artifacts | 0.29.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
+| Portable artifacts | 0.30.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
+| Run history | persisted in `work/run-history.json` and exposed by `GET /api/v1/runs` |
+| CI and Windows | GitHub Actions test workflow and Windows portable artifact workflow |
 | SRT transcript import and LLM retake culling | implemented |
 | Local Faster-Whisper with whisper.cpp fallback, and ASR HTTP | implemented; pinned small model bundled in release builds |
 | Local filesystem browser with allowlisted roots | implemented; no media upload |

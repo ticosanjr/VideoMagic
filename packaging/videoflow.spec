@@ -130,11 +130,12 @@ analysis = Analysis(
 
 pyz = PYZ(analysis.pure)
 
+onedir = os.environ.get("VIDEOWFLOW_ONEDIR") == "1"
 exe = EXE(
     pyz,
     analysis.scripts,
-    analysis.binaries,
-    analysis.datas,
+    [] if onedir else analysis.binaries,
+    [] if onedir else analysis.datas,
     [],
     name="videoflow",
     debug=False,
@@ -147,4 +148,15 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    exclude_binaries=onedir,
 )
+
+if onedir:
+    COLLECT(
+        exe,
+        analysis.binaries,
+        analysis.datas,
+        strip=False,
+        upx=False,
+        name="videoflow",
+    )

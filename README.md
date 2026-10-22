@@ -7,7 +7,7 @@ vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive. The primary surface is a recipe DAG editor; the classic rack
 panels remain available for manual control.
 
-> Status: 0.29.0 alpha. The portable Linux binary, Linux AppImage, and Windows
+> Status: 0.30.0 alpha. The portable Linux binary, Linux AppImage, and Windows
 > PE run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical shorts, and
@@ -47,7 +47,7 @@ The same contract is available at `POST /api/v1/recipes/run` and through
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 411 passing, 11 strict xfail, 7 deselected
+uv run pytest                       # 413 passing, 11 strict xfail, 7 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model
@@ -154,6 +154,9 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - Crossfade and fade-to-black transitions in FCPXML, XMEML, and MP4.
 - Folder batches with one job per file, item-level progress, cancellation, and checkpoints.
 - Run comparison: previous versus current step status, timings, cache hits, and warnings.
+- Persistent run history in `work/run-history.json`, readable through `GET /api/v1/runs`.
+- GitHub Actions for Linux tests and a Windows portable build.
+- Optional `--onedir` PyInstaller build.
 
 ## Not implemented yet
 

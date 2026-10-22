@@ -439,6 +439,20 @@ export interface Batch {
   items: BatchItem[];
 }
 
+export interface RunRecord {
+  job_id: string;
+  status: string;
+  recipe_id: string;
+  created_at: string;
+  started_at: string | null;
+  duration_ms: number;
+  step_runs: StepRun[];
+  cache_hits: string[];
+  cache_misses: string[];
+  artifacts: Record<string, string>;
+  warnings: string[];
+}
+
 export interface StepRun {
   id: string;
   type: string;
@@ -1065,6 +1079,14 @@ export async function runBatch(payload: {
     body: JSON.stringify(payload)
   });
   return response.batch;
+}
+
+export async function getRunHistory(output: string): Promise<RunRecord[]> {
+  const query = new URLSearchParams({ output });
+  const response = await request<{ ok: boolean; runs: RunRecord[] }>(
+    `/api/v1/runs?${query.toString()}`
+  );
+  return response.runs;
 }
 
 export async function getBatch(batchId: string): Promise<Batch> {

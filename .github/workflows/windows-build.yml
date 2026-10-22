@@ -1,0 +1,33 @@
+name: Windows portable build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: UI dependencies and build
+        working-directory: ui
+        run: npm ci; npm run build
+      - name: Python dependencies
+        run: uv sync --extra dev --group dev
+      - name: Build Windows executable
+        run: uv run python scripts/build_portable.py --fetch-ffmpeg --with-silero
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: videoflow-windows-x86_64
+          path: dist/videoflow.exe
+          if-no-files-found: error

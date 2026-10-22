@@ -3,6 +3,19 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.30.0] - 2026-10-22
+
+### Added
+
+- **Persistent run history.** Successful recipe runs append a compact record to
+  `<output>/work/run-history.json`; `GET /api/v1/runs?output=...` exposes it.
+  The comparison modal uses this history, so it survives a server restart.
+- **GitHub Actions CI.** Linux tests and UI checks run on push and pull request.
+- **Windows portable build workflow.** A `windows-latest` workflow builds and
+  uploads `videoflow.exe`.
+- **Optional onedir build.** `scripts/build_portable.py --onedir` uses PyInstaller
+  `COLLECT` instead of a onefile executable.
+
 ## [0.29.0] - 2026-10-22
 
 ### Added

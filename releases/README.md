@@ -47,6 +47,7 @@ videoflow-0.21.2-windows-x86_64.exe
 
 ## Current
 
+- `v0.30.0`: persistent run history, CI, Windows build workflow, and optional onedir packaging.
 - `v0.29.0`: crossfade and fade-to-black transitions in FCPXML, XMEML, and MP4.
 - `v0.28.0`: progressive zoom keyframes in FCPXML, XMEML, and direct MP4; schema update.
 - `v0.27.0`: run comparison modal with per-step status, timings, cache counts, and warnings.
