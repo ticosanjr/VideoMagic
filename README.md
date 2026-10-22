@@ -7,7 +7,7 @@ vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive. The primary surface is a recipe DAG editor; the classic rack
 panels remain available for manual control.
 
-> Status: 0.26.0 alpha. The portable Linux binary, Linux AppImage, and Windows
+> Status: 0.27.0 alpha. The portable Linux binary, Linux AppImage, and Windows
 > PE run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical shorts, and
@@ -151,6 +151,7 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - MCP tools that start, poll, and cancel real pipeline jobs.
 - Direct main-timeline MP4 render from the validated timeline.
 - Folder batches with one job per file, item-level progress, cancellation, and checkpoints.
+- Run comparison: previous versus current step status, timings, cache hits, and warnings.
 
 ## Not implemented yet
 

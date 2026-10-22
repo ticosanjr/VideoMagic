@@ -15,6 +15,7 @@
     errorMessage,
     getJob,
     getRecipe,
+    listJobs,
     listRecipes,
     listRecipeSteps,
     cancelBatch,
@@ -91,6 +92,20 @@
   let batchBusy = $state(false);
   let batch = $state<Batch | null>(null);
   let batchPoll: ReturnType<typeof setInterval> | undefined;
+  let previousJob = $state<Job | null>(null);
+  let compareOpen = $state(false);
+  let comparison = $state<{
+    current: Job;
+    previous: Job;
+    steps: {
+      id: string;
+      type: string;
+      previousStatus: string;
+      currentStatus: string;
+      previousMs: number;
+      currentMs: number;
+    }[];
+  } | null>(null);
 
   const stepOrder = [
     "ingest",
@@ -468,6 +483,9 @@
     }
     busy = true;
     resetStatuses();
+    previousJob = null;
+    comparison = null;
+    compareOpen = false;
     try {
       const recipe = recipeFromGraph();
       await validateRecipe(recipe);
@@ -496,6 +514,9 @@
     }
     busy = true;
     resetStatuses();
+    previousJob = null;
+    comparison = null;
+    compareOpen = false;
     try {
       const recipe = recipeFromGraph();
       await validateRecipe(recipe);
@@ -515,6 +536,66 @@
     }
   }
 
+  async function loadPrevious(current: Job) {
+    if (current.status !== "succeeded") return;
+    try {
+      const history = await listJobs();
+      const candidates = history
+        .filter(
+          (item) =>
+            item.job_id !== current.job_id &&
+            item.output === current.output &&
+            item.result?.recipe_id === current.result?.recipe_id &&
+            item.status === "succeeded"
+        )
+        .sort((left, right) => right.created_at.localeCompare(left.created_at));
+      previousJob = candidates[0] ?? null;
+    } catch {
+      previousJob = null;
+    }
+  }
+
+  function buildComparison() {
+    if (!job || !previousJob) return;
+    const previousRuns = new Map(
+      (previousJob.result?.step_runs ?? []).map((run) => [run.id, run])
+    );
+    const currentRuns = job.result?.step_runs ?? [];
+    comparison = {
+      current: job,
+      previous: previousJob,
+      steps: currentRuns.map((run) => {
+        const previous = previousRuns.get(run.id);
+        return {
+          id: run.id,
+          type: run.type,
+          previousStatus: previous?.status ?? "—",
+          currentStatus: run.status,
+          previousMs: previous?.elapsed_ms ?? 0,
+          currentMs: run.elapsed_ms
+        };
+      })
+    };
+    compareOpen = true;
+  }
+
+  function runDuration(run: Job): string {
+    if (run.duration_ms !== null && run.duration_ms !== undefined) {
+      return `${(run.duration_ms / 1000).toFixed(1)}s`;
+    }
+    return run.result?.elapsed_seconds !== undefined
+      ? `${run.result.elapsed_seconds.toFixed(1)}s`
+      : "—";
+  }
+
+  function cachedCount(run: Job): number {
+    return (run.result?.step_runs ?? []).filter((step) => step.status === "cached").length;
+  }
+
+  function executedCount(run: Job): number {
+    return (run.result?.step_runs ?? []).filter((step) => step.status === "executed").length;
+  }
+
   function watch(jobId: string) {
     clearInterval(poll);
     poll = setInterval(async () => {
@@ -523,6 +604,7 @@
         if (job) applyJobStatuses(job);
         if (["succeeded", "failed", "cancelled"].includes(job.status)) {
           clearInterval(poll);
+          void loadPrevious(job);
         }
       } catch (reason) {
         error = errorMessage(reason);
@@ -849,6 +931,17 @@
       {#if job.result?.cache_hits?.length}
         <p class="mt-1 text-[10px] text-emerald-300">Cache hits: {job.result.cache_hits.join(", ")}</p>
       {/if}
+      {#if previousJob}
+        <div class="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-neutral-800 bg-neutral-950/60 px-3 py-2">
+          <p class="text-[10px] text-neutral-500">
+            Previous run: <span class="text-neutral-300">{runDuration(previousJob)}</span> ·
+            {cachedCount(previousJob)} cached · {executedCount(previousJob)} executed
+          </p>
+          <button type="button" onclick={buildComparison} class="rounded-lg border border-sky-500/40 px-2.5 py-1 text-[10px] text-sky-300 hover:bg-sky-500/10">
+            Compare
+          </button>
+        </div>
+      {/if}
       {#if job.error}
         <p class="mt-2 rounded-lg border border-rose-500/20 bg-rose-950/30 p-2 text-[11px] text-rose-200">{job.error.message}</p>
       {/if}
@@ -868,6 +961,71 @@
         </ul>
       {/if}
     </section>
+  {/if}
+
+  {#if compareOpen && comparison}
+    <div
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
+      role="presentation"
+      onclick={(event) => {
+        if (event.currentTarget === event.target) compareOpen = false;
+      }}
+    >
+      <div class="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="Run comparison">
+        <div class="flex items-start justify-between gap-3 border-b border-neutral-800 px-5 py-3">
+          <div>
+            <h3 class="text-sm font-semibold text-white">Run comparison</h3>
+            <p class="mt-1 text-[11px] text-neutral-500">Same output and recipe; current run versus the previous successful run.</p>
+          </div>
+          <button type="button" onclick={() => (compareOpen = false)} class="rounded px-2 text-neutral-500 hover:text-neutral-200" aria-label="Close comparison">×</button>
+        </div>
+        <div class="min-h-0 flex-1 overflow-y-auto p-5">
+          <div class="grid gap-3 sm:grid-cols-2">
+            {#each [{ label: "Current", run: comparison.current }, { label: "Previous", run: comparison.previous }] as item}
+              <div class="rounded-xl border border-neutral-800 bg-neutral-900/50 p-3">
+                <p class="text-[10px] uppercase tracking-wide text-neutral-500">{item.label}</p>
+                <p class="mt-1 font-mono text-[10px] text-neutral-400">{item.run.job_id}</p>
+                <div class="mt-2 grid grid-cols-2 gap-2 text-[11px]">
+                  <span class="text-neutral-500">Duration</span><span class="text-neutral-200">{runDuration(item.run)}</span>
+                  <span class="text-neutral-500">Cached</span><span class="text-emerald-300">{cachedCount(item.run)}</span>
+                  <span class="text-neutral-500">Executed</span><span class="text-sky-300">{executedCount(item.run)}</span>
+                  <span class="text-neutral-500">Warnings</span><span class="text-amber-300">{item.run.result?.warnings?.length ?? 0}</span>
+                </div>
+              </div>
+            {/each}
+          </div>
+          <div class="mt-4 overflow-hidden rounded-xl border border-neutral-800">
+            <table class="w-full text-left text-[11px]">
+              <thead class="bg-neutral-900 text-[9px] uppercase tracking-wide text-neutral-500">
+                <tr>
+                  <th class="px-3 py-2">Step</th>
+                  <th class="px-3 py-2">Previous</th>
+                  <th class="px-3 py-2">Current</th>
+                  <th class="px-3 py-2 text-right">Prev ms</th>
+                  <th class="px-3 py-2 text-right">Now ms</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each comparison.steps as step}
+                  <tr class="border-t border-neutral-800">
+                    <td class="px-3 py-2">
+                      <span class="block text-neutral-200">{step.id}</span>
+                      <span class="font-mono text-[9px] text-neutral-600">{step.type}</span>
+                    </td>
+                    <td class="px-3 py-2 text-neutral-400">{step.previousStatus}</td>
+                    <td class="px-3 py-2">
+                      <span class={step.currentStatus === "cached" ? "text-emerald-300" : "text-sky-300"}>{step.currentStatus}</span>
+                    </td>
+                    <td class="px-3 py-2 text-right font-mono text-neutral-500">{step.previousMs}</td>
+                    <td class="px-3 py-2 text-right font-mono text-neutral-300">{step.currentMs}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
   {/if}
 
   {#if batchOpen}

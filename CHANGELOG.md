@@ -3,6 +3,22 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.27.0] - 2026-10-22
+
+### Added
+
+- **Run comparison.** After a successful recipe run, the UI finds the previous
+  successful job for the same output and recipe and offers a comparison modal.
+  It shows duration, cached/executed counts, warnings, and a per-step table with
+  previous/current status and elapsed milliseconds.
+- The comparison uses the normal job history; no new persistent store is
+  required.
+
+### Notes
+
+- Keyframed progressive zooms and video transitions remain the next creative
+  editing pass. This release focuses on run observability.
+
 ## [0.26.0] - 2026-10-22
 
 ### Added

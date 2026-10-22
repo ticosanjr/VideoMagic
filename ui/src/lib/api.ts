@@ -345,6 +345,8 @@ export interface Job {
   options: Partial<JobOptions>;
   result: {
     ok: boolean;
+    mode?: string;
+    recipe_id?: string;
     video_segment_count?: number;
     speech_interval_count?: number;
     transcript_sentence_count?: number;
