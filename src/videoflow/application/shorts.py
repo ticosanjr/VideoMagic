@@ -162,6 +162,7 @@ class CaptionLine:
     end: float
     text: str
     words: tuple[tuple[float, float, str], ...] = ()
+    speaker: int = 0
 
 
 def select_shorts(
@@ -304,6 +305,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         if line.end <= line.start:
             continue
         override = f"{{\\an{caption.alignment}\\pos({x},{y})"
+        if caption.speaker_colors and line.speaker < len(caption.speaker_colors):
+            override += f"\\c{_ass_color(caption.speaker_colors[line.speaker])}"
         if caption.animation == "pop":
             override += "\\t(0,100,\\fscx110\\fscy110)\\t(100,220,\\fscx100\\fscy100)"
         override += "}"
@@ -370,7 +373,15 @@ def caption_lines(
                         "Captions fell back to sentence timing because the transcript has no word timings"
                     )
                     warned = True
-            lines.append(CaptionLine(start=output_start, end=output_end, text=text, words=words))
+            lines.append(
+                CaptionLine(
+                    start=output_start,
+                    end=output_end,
+                    text=text,
+                    words=words,
+                    speaker=sentence.speaker,
+                )
+            )
         cursor += piece_duration
     return lines
 

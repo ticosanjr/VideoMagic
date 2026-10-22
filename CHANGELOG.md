@@ -3,6 +3,28 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.31.0] - 2026-10-22
+
+### Added
+
+- **Heuristic speaker turns.** `audio.diarize` assigns speaker ids by pause
+  length. Captions use `CaptionStyle.speaker_colors` for per-speaker colors.
+- **Local B-roll.** `broll.plan` matches files in a local asset directory to
+  selected Shorts and writes `broll.json`; `shorts.render` applies full-frame
+  B-roll overlays.
+- **Split-screen Shorts.** `shorts.render` accepts `split_screen` and renders a
+  two-panel vertical frame.
+- **Local Piper TTS.** The voice-over route accepts `provider: "piper"` with a
+  binary and voice model path, in addition to OpenAI-compatible TTS.
+- Capability manifest entries for transitions, speaker turns, B-roll,
+  split-screen, and local TTS.
+
+### Notes
+
+- Diarization is heuristic, not model-based speaker identification.
+- B-roll is local-asset matching, not a stock-video search service.
+- Kdenlive parity for transforms and transitions remains pending.
+
 ## [0.30.0] - 2026-10-22
 
 ### Added

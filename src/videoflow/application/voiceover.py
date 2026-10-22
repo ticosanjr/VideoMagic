@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
-from videoflow.adapters.tts import OpenAITtsAdapter
+from videoflow.adapters.tts import OpenAITtsAdapter, PiperTtsAdapter
 from videoflow.application.capabilities import ensure_external_allowed
 from videoflow.application.shorts import slugify
 from videoflow.domain.config import TtsConfig
@@ -27,18 +27,23 @@ def generate_short_voiceover(
     allow_external_services: bool = False,
     allowed_external_hosts: tuple[str, ...] = (),
 ) -> dict[str, object]:
-    if config.provider != "openai_compatible" or not config.base_url:
+    if config.provider == "openai_compatible" and not config.base_url:
         raise TtsError(
             "Configure an OpenAI-compatible TTS provider and base URL first."
         )
+    if config.provider == "piper" and not config.model_path:
+        raise TtsError("Configure a Piper voice model path first.")
+    if config.provider == "none":
+        raise TtsError("Configure a TTS provider first.")
     if not text.strip():
         raise ShortEditError("Voice-over text is empty.")
-    ensure_external_allowed(
-        config.base_url,
-        capability="external_tts",
-        allow_external_services=allow_external_services,
-        allowed_hosts=allowed_external_hosts,
-    )
+    if config.provider == "openai_compatible":
+        ensure_external_allowed(
+            config.base_url,
+            capability="external_tts",
+            allow_external_services=allow_external_services,
+            allowed_hosts=allowed_external_hosts,
+        )
     shorts = result.get("shorts")
     if not isinstance(shorts, list) or index < 0 or index >= len(shorts):
         raise ShortEditError(f"Short index {index} is out of range.")
@@ -63,17 +68,24 @@ def generate_short_voiceover(
     voice_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S-%f")
     slug = slugify(str(entry.get("title") or "short"), index + 1)
-    audio_path = voice_dir / f"{slug}-{stamp}.mp3"
-    OpenAITtsAdapter(
-        base_url=config.base_url,
-        model=config.model,
-        voice=config.voice,
-        api_key=api_key,
-    ).synthesize(
-        text,
-        audio_path,
-        speed=config.speed,
-    )
+    suffix = ".wav" if config.provider == "piper" else ".mp3"
+    audio_path = voice_dir / f"{slug}-{stamp}{suffix}"
+    if config.provider == "piper":
+        PiperTtsAdapter(
+            binary=config.binary,
+            model_path=config.model_path,
+        ).synthesize(text, audio_path, speed=config.speed)
+    else:
+        OpenAITtsAdapter(
+            base_url=config.base_url,
+            model=config.model,
+            voice=config.voice,
+            api_key=api_key,
+        ).synthesize(
+            text,
+            audio_path,
+            speed=config.speed,
+        )
     mixed_path = voice_dir / f"{slug}-{stamp}.mp4"
     FFmpegAdapter().mix_voiceover(
         Path(raw_source),

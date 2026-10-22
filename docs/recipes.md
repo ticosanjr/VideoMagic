@@ -44,6 +44,8 @@ and enabled steps that depend on disabled steps.
 | `audio.vad` | `ingest` | speech intervals, VAD engine |
 | `transcribe` | `ingest` | transcript (SRT, project, Faster-Whisper, whisper.cpp, HTTP, or none) |
 | `retakes.cull` | `audio.vad`, `transcribe` | discard/restore decisions, updated speech |
+| `audio.diarize` | `transcribe` | heuristic speaker ids for captions |
+| `broll.plan` | `shorts.select` | local B-roll overlay plan |
 | `edit.timeline` | `audio.vad` | validated `ProjectState` |
 | `shorts.select` | `transcribe` | selected Short clips |
 | `shorts.reframe` | `shorts.select` | crop focus via static crop, motion, or face tracking |

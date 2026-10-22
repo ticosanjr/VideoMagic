@@ -183,6 +183,9 @@ class CaptionStyle(StrictModel):
     emoji_enabled: bool = False
     emoji_map: dict[str, str] = Field(default_factory=dict)
     brand_vocabulary: dict[str, str] = Field(default_factory=dict)
+    speaker_colors: list[str] = Field(
+        default_factory=lambda: ["#FFFFFF", "#00E5FF", "#FFD400", "#FF6B6B"]
+    )
 
 
 class ShortsConfig(StrictModel):
@@ -250,11 +253,13 @@ class IntroOutroConfig(StrictModel):
 
 
 class TtsConfig(StrictModel):
-    provider: Literal["none", "openai_compatible"] = "none"
+    provider: Literal["none", "openai_compatible", "piper"] = "none"
     base_url: str = ""
     model: str = "tts-1"
     voice: str = "alloy"
     secret_name: str = "VIDEOWFLOW_TTS_API_KEY"
+    binary: str = "piper"
+    model_path: str = ""
     speed: float = Field(default=1.0, ge=0.25, le=4.0)
     volume: float = Field(default=1.0, ge=0.0, le=1.0)
     original_volume: float = Field(default=0.35, ge=0.0, le=1.0)

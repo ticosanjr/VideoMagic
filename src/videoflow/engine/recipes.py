@@ -223,6 +223,8 @@ def resolve_recipe_paths(recipe: Recipe, roots: list[Path]) -> Recipe:
             for key in ("overlay_path", "music_path", "intro_path", "outro_path"):
                 if params.get(key):
                     params[key] = str(resolve_allowed(Path(str(params[key])), roots))
+        if step.get("type") == "broll.plan" and params.get("asset_dir"):
+            params["asset_dir"] = str(resolve_allowed(Path(str(params["asset_dir"])), roots))
     return parse_recipe(payload)
 
 

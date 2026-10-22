@@ -387,6 +387,10 @@ class FFmpegAdapter:
         outro_duration_sec: float = 2.0,
         crop_focus_x: float = 0.5,
         crop_focus_y: float = 0.5,
+        split_screen: bool = False,
+        broll_path: Path | None = None,
+        broll_start_sec: float = 0.0,
+        broll_duration_sec: float = 2.0,
     ) -> Path:
         """Render concatenated source pieces as a vertical H.264 short."""
 
@@ -402,6 +406,29 @@ class FFmpegAdapter:
             for index, (start, end) in enumerate(pieces):
                 piece = work / f"piece-{index:02d}.mp4"
                 duration = (end - start) / sample_rate
+                if split_screen:
+                    half = max(2, width // 2)
+                    video_args = [
+                        "-filter_complex",
+                        (
+                            "[0:v]split=2[a][b];"
+                            f"[a]crop=iw/2:ih:0:0,scale={half}:{height}:"
+                            "force_original_aspect_ratio=increase,"
+                            f"crop={half}:{height},setsar=1[left];"
+                            f"[b]crop=iw/2:ih:iw/2:0,scale={half}:{height}:"
+                            "force_original_aspect_ratio=increase,"
+                            f"crop={half}:{height},setsar=1[right];"
+                            "[left][right]hstack=inputs=2"
+                        ),
+                    ]
+                else:
+                    video_args = [
+                        "-vf",
+                        f"scale={width}:{height}:force_original_aspect_ratio=increase,"
+                        f"crop={width}:{height}:"
+                        f"(iw-ow)*{max(0.0, min(1.0, crop_focus_x))}:"
+                        f"(ih-oh)*{max(0.0, min(1.0, crop_focus_y))},setsar=1",
+                    ]
                 self._capture(
                     [
                         "ffmpeg",
@@ -415,11 +442,7 @@ class FFmpegAdapter:
                         f"{duration:.6f}",
                         "-i",
                         str(source_path),
-                        "-vf",
-                        f"scale={width}:{height}:force_original_aspect_ratio=increase,"
-                        f"crop={width}:{height}:"
-                        f"(iw-ow)*{max(0.0, min(1.0, crop_focus_x))}:"
-                        f"(ih-oh)*{max(0.0, min(1.0, crop_focus_y))},setsar=1",
+                        *video_args,
                         "-c:v",
                         "libx264",
                         "-preset",
@@ -472,6 +495,54 @@ class FFmpegAdapter:
                     ]
                 )
             final = combined
+            if broll_path is not None:
+                broll = Path(broll_path).expanduser()
+                if not broll.is_file():
+                    raise IngestError(f"B-roll asset does not exist: {broll}")
+                with_broll = work / "broll.mp4"
+                start = max(0.0, float(broll_start_sec))
+                end = start + max(0.1, float(broll_duration_sec))
+                self._capture(
+                    [
+                        "ffmpeg",
+                        "-hide_banner",
+                        "-loglevel",
+                        "error",
+                        "-y",
+                        "-i",
+                        str(combined),
+                        "-stream_loop",
+                        "-1",
+                        "-i",
+                        str(broll),
+                        "-filter_complex",
+                        (
+                            f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+                            f"crop={width}:{height},setsar=1[b];"
+                            f"[0:v][b]overlay=0:0:enable='between(t,{start:.6f},{end:.6f})'[v]"
+                        ),
+                        "-map",
+                        "[v]",
+                        "-map",
+                        "0:a?",
+                        "-c:v",
+                        "libx264",
+                        "-preset",
+                        "veryfast",
+                        "-crf",
+                        "20",
+                        "-pix_fmt",
+                        "yuv420p",
+                        "-c:a",
+                        "copy",
+                        "-shortest",
+                        "-movflags",
+                        "+faststart",
+                        str(with_broll),
+                    ]
+                )
+                final = with_broll
+                combined = with_broll
             if ass_path is not None:
                 final = work / "final.mp4"
                 ass_filter = f"ass='{_filter_path(ass_path)}'"

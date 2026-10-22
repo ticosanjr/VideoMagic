@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (0.30.0)
+## Implementation status (0.31.0)
 
 | Area | State |
 | --- | --- |
@@ -12,7 +12,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Silero VAD via ONNX Runtime with FFmpeg `silencedetect` fallback | implemented |
 | Deterministic timeline, J/L-cuts, fades, punch-ins | implemented |
 | FCPXML 1.9/1.10, xmeml v4, native Kdenlive MLT export | implemented |
-| Portable artifacts | 0.30.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
+| Portable artifacts | 0.31.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
 | Run history | persisted in `work/run-history.json` and exposed by `GET /api/v1/runs` |
 | CI and Windows | GitHub Actions test workflow and Windows portable artifact workflow |
 | SRT transcript import and LLM retake culling | implemented |
@@ -45,6 +45,11 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Capability/provider discovery and external policy | implemented; external providers are opt-in and globally blockable |
 | NLE audio fades | implemented in FCPXML, xmeml, and Kdenlive |
 | Direct main-timeline MP4 | implemented with H.264/AAC and timeline filter graph |
+| Clip transitions | crossfade and fade-to-black in FCPXML, XMEML, and MP4 |
+| Speaker turns | heuristic pause-based speaker ids and speaker-colored captions |
+| Local B-roll | local asset matching and full-frame Short overlays |
+| Split-screen | two-panel Short rendering |
+| Local TTS | Piper CLI voice-over, optional binary/model |
 | Folder batches | implemented; sequential queue, per-item jobs, cancellation, checkpoints |
 | Keyframed progressive zooms | implemented in FCPXML, XMEML, and direct MP4 |
 | Clip transitions | implemented in FCPXML, XMEML, and MP4; Kdenlive pending |

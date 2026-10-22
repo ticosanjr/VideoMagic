@@ -307,6 +307,13 @@
           "title": "Shadow Opacity",
           "type": "number"
         },
+        "speaker_colors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Speaker Colors",
+          "type": "array"
+        },
         "uppercase": {
           "default": false,
           "title": "Uppercase",
@@ -914,6 +921,12 @@
           "title": "Id",
           "type": "integer"
         },
+        "speaker": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Speaker",
+          "type": "integer"
+        },
         "start_sample": {
           "minimum": 0,
           "title": "Start Sample",
@@ -1346,9 +1359,19 @@
           "title": "Base Url",
           "type": "string"
         },
+        "binary": {
+          "default": "piper",
+          "title": "Binary",
+          "type": "string"
+        },
         "model": {
           "default": "tts-1",
           "title": "Model",
+          "type": "string"
+        },
+        "model_path": {
+          "default": "",
+          "title": "Model Path",
           "type": "string"
         },
         "original_volume": {
@@ -1362,7 +1385,8 @@
           "default": "none",
           "enum": [
             "none",
-            "openai_compatible"
+            "openai_compatible",
+            "piper"
           ],
           "title": "Provider",
           "type": "string"

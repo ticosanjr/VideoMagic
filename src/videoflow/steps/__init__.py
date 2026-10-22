@@ -2,6 +2,8 @@
 
 from videoflow.steps import (
     audio,
+    broll,
+    diarize,
     export,
     ingest,
     retakes,
@@ -26,6 +28,8 @@ __all__ = [
     "EmptyParams",
     "StepIO",
     "audio",
+    "broll",
+    "diarize",
     "export",
     "get_step",
     "ingest",

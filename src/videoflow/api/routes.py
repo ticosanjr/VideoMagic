@@ -413,9 +413,12 @@ class ShortDubbingRequest(BaseModel):
 
 class ShortVoiceoverRequest(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
+    provider: Literal["openai_compatible", "piper"] = "openai_compatible"
     base_url: str | None = None
     model: str = "tts-1"
     voice: str = "alloy"
+    binary: str = "piper"
+    model_path: str = ""
     speed: float = Field(default=1.0, ge=0.25, le=4.0)
     volume: float = Field(default=1.0, ge=0.0, le=1.0)
     original_volume: float = Field(default=0.35, ge=0.0, le=1.0)
@@ -1262,11 +1265,13 @@ def register_routes(
             )
             stored = state.modules_config.tts
             config = TtsConfig(
-                provider="openai_compatible",
+                provider=request.provider,
                 base_url=request.base_url or stored.base_url,
                 model=request.model or stored.model,
                 voice=request.voice or stored.voice,
                 secret_name=stored.secret_name,
+                binary=request.binary or stored.binary,
+                model_path=request.model_path or stored.model_path,
                 speed=request.speed,
                 volume=request.volume,
                 original_volume=request.original_volume,

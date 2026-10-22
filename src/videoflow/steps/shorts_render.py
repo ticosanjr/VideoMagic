@@ -27,6 +27,8 @@ class RenderShortsParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     burn_subtitles: bool = True
+    split_screen: bool = False
+    broll_enabled: bool = True
     caption_style: CaptionStyle = Field(default_factory=CaptionStyle)
     audio_filters: list[str] = Field(default_factory=list)
     overlay_path: str | None = None
@@ -114,6 +116,12 @@ class RenderShortsStep(BaseStep):
                                 height=height,
                             ),
                         )
+            broll = None
+            plan = context.metadata.get("broll_plan")
+            if options.broll_enabled and isinstance(plan, dict):
+                entries = plan.get(clip.title)
+                if isinstance(entries, list) and entries and isinstance(entries[0], dict):
+                    broll = entries[0]
             destination = shorts_dir / f"{slug}.mp4"
             adapter.render_short(
                 Path(context.source),
@@ -132,6 +140,10 @@ class RenderShortsStep(BaseStep):
                 overlay_opacity=options.overlay_opacity,
                 crop_focus_x=clip.crop_focus_x,
                 crop_focus_y=clip.crop_focus_y,
+                split_screen=options.split_screen,
+                broll_path=Path(str(broll["path"])) if broll else None,
+                broll_start_sec=float(broll.get("start_sec", 0.0)) if broll else 0.0,
+                broll_duration_sec=float(broll.get("duration_sec", 2.0)) if broll else 2.0,
                 music_path=Path(options.music_path) if options.music_path else None,
                 music_volume=options.music_volume,
                 music_ducking=options.music_ducking,

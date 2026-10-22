@@ -80,6 +80,10 @@ class FakeAdapter:
         outro_duration_sec: float = 2.0,
         crop_focus_x: float = 0.5,
         crop_focus_y: float = 0.5,
+        split_screen: bool = False,
+        broll_path: Path | None = None,
+        broll_start_sec: float = 0.0,
+        broll_duration_sec: float = 2.0,
     ) -> Path:
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(b"mp4")
@@ -628,3 +632,38 @@ def test_second_shorts_run_reuses_checkpoints_and_selected_clips(tmp_path: Path)
     assert len(second.context.selected_shorts) == len(first.context.selected_shorts)
     assert second.context.shorts[0]["path"] == first.context.shorts[0]["path"]
     assert all(run.status == "cached" for run in second.step_runs)
+
+
+def test_broll_plan_reaches_short_render(tmp_path: Path) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    transcript = srt(tmp_path / "subs.srt")
+    assets = tmp_path / "broll"
+    assets.mkdir()
+    (assets / "same-line.mp4").write_bytes(b"broll")
+    recipe = base_steps(transcript, shorts=True)
+    recipe["steps"].insert(
+        6,
+        {
+            "id": "broll",
+            "type": "broll.plan",
+            "needs": ["shorts"],
+            "params": {"asset_dir": str(assets)},
+        },
+    )
+    for step in recipe["steps"]:
+        if step["id"] == "render":
+            step["needs"] = ["shorts", "broll"]
+    parsed = parse_recipe(recipe)
+    parsed.validate_graph(step_types(), requires_by_type=requirements_by_type())
+    seen: dict[str, object] = {}
+
+    class CapturingAdapter(FakeAdapter):
+        def render_short(self, *args, **kwargs):
+            seen["broll_path"] = kwargs.get("broll_path")
+            return super().render_short(*args, **kwargs)
+
+    result = RecipeRunner(parsed, adapter=CapturingAdapter()).run(source, tmp_path / "out")
+    assert result.context.metadata["broll_plan"]
+    assert seen["broll_path"] is not None
+    assert Path(str(seen["broll_path"])).is_file()

@@ -71,6 +71,7 @@ class Sentence(StrictModel):
     start_sample: int = Field(ge=0)
     end_sample: int = Field(ge=0)
     text: str
+    speaker: int = Field(default=0, ge=0)
     words: list[WordTiming] = Field(default_factory=list)
 
     @model_validator(mode="after")
