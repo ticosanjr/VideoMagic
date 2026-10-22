@@ -8,6 +8,7 @@ from typing import Any
 
 from videoflow.core.recipe import RECIPE_ID, Recipe, load_recipe, parse_recipe
 from videoflow.domain.errors import RecipeError
+from videoflow.domain.paths import resolve_allowed
 from videoflow.runtime import portable_home
 
 _INGEST = {
@@ -72,7 +73,7 @@ BUILTIN_RECIPES: dict[str, dict[str, Any]] = {
             {
                 "id": "shorts",
                 "type": "shorts.select",
-                "needs": ["transcribe"],
+                "needs": ["transcribe", "retakes"],
                 "params": {
                     "target_duration_min_sec": 30,
                     "target_duration_max_sec": 60,
@@ -108,7 +109,7 @@ BUILTIN_RECIPES: dict[str, dict[str, Any]] = {
             {
                 "id": "shorts",
                 "type": "shorts.select",
-                "needs": ["transcribe"],
+                "needs": ["transcribe", "retakes"],
                 "params": {
                     "target_duration_min_sec": 25,
                     "target_duration_max_sec": 55,
@@ -178,6 +179,23 @@ def list_recipes() -> list[dict[str, object]]:
         )
         seen.add(recipe_id)
     return recipes
+
+
+def resolve_recipe_paths(recipe: Recipe, roots: list[Path]) -> Recipe:
+    """Resolve operator-supplied paths inside the allowlist before execution."""
+
+    payload = recipe.model_dump(mode="json")
+    for step in payload.get("steps", []):
+        params = step.get("params")
+        if not isinstance(params, dict):
+            continue
+        if step.get("type") == "transcribe" and params.get("srt_path"):
+            params["srt_path"] = str(resolve_allowed(Path(str(params["srt_path"])), roots))
+        if step.get("type") == "shorts.render":
+            for key in ("overlay_path", "music_path", "intro_path", "outro_path"):
+                if params.get(key):
+                    params[key] = str(resolve_allowed(Path(str(params[key])), roots))
+    return parse_recipe(payload)
 
 
 def get_recipe(recipe_id: str) -> Recipe:

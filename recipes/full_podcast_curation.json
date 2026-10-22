@@ -57,7 +57,8 @@
       "id": "shorts",
       "type": "shorts.select",
       "needs": [
-        "transcribe"
+        "transcribe",
+        "retakes"
       ],
       "params": {
         "target_duration_min_sec": 25,

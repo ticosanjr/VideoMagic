@@ -117,7 +117,12 @@ from videoflow.domain.errors import (
 from videoflow.domain.paths import resolve_allowed
 from videoflow.domain.state import ManualOverride, MediaInfo, ProjectState
 from videoflow.domain.transcript import format_srt
-from videoflow.engine.recipes import get_recipe, list_recipes, save_user_recipe
+from videoflow.engine.recipes import (
+    get_recipe,
+    list_recipes,
+    resolve_recipe_paths,
+    save_user_recipe,
+)
 from videoflow.runtime import allowed_roots, find_binary, portable_home
 from videoflow.steps import manifest as step_manifest
 from videoflow.steps import step_types
@@ -578,6 +583,7 @@ def register_routes(
             else:
                 recipe = get_recipe(str(request.recipe_id))
             recipe.validate_graph(step_types())
+            recipe = resolve_recipe_paths(recipe, roots)
             if request.save_recipe:
                 save_user_recipe(recipe)
             job = jobs.start(

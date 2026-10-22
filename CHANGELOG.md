@@ -3,6 +3,18 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.23.1] - 2026-10-22
+
+### Fixed
+
+- Recipe path parameters are now resolved through the same allowlist jail as
+  media, output, and transcript paths. This covers `srt_path` and the
+  overlay/music/intro/outro assets of `shorts.render` in REST and MCP runs.
+- Built-in Shorts recipes now depend on the retakes step, so selection uses the
+  same cull decisions as the main timeline instead of racing it.
+- Operator recipes under the VideoFlow home directory override built-in recipes
+  with the same id, and recipe ids are validated before any filesystem lookup.
+
 ## [0.23.0] - 2026-10-22
 
 ### Added

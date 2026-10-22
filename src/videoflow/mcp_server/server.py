@@ -90,7 +90,12 @@ from videoflow.domain.paths import resolve_allowed
 from videoflow.domain.state import MediaInfo, ProjectState, Sentence
 from videoflow.domain.timebase import Rounding
 from videoflow.domain.transcript import format_srt
-from videoflow.engine.recipes import get_recipe, list_recipes, save_user_recipe
+from videoflow.engine.recipes import (
+    get_recipe,
+    list_recipes,
+    resolve_recipe_paths,
+    save_user_recipe,
+)
 from videoflow.mcp_server.registry import RESOURCE_SPECS, TOOL_SPECS
 from videoflow.runtime import (
     allowed_roots,
@@ -1652,6 +1657,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             )
             resolved_output = resolve_allowed(output_path, roots)
             recipe = get_recipe(recipe_id)
+            recipe = resolve_recipe_paths(recipe, roots)
             recipe.validate_graph(step_types())
             job = manager.start(
                 resolved_source,
@@ -1686,6 +1692,7 @@ def build_server(jobs: JobManager | None = None) -> MCPServer:
             )
             resolved_output = resolve_allowed(output_path, roots)
             parsed = parse_recipe(recipe)  # type: ignore[arg-type]
+            parsed = resolve_recipe_paths(parsed, roots)
             parsed.validate_graph(step_types())
             job = manager.start(
                 resolved_source,

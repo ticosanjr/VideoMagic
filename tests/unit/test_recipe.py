@@ -318,3 +318,24 @@ def test_job_manager_runs_recipe_mode(monkeypatch, tmp_path: Path) -> None:
     assert current.status == "succeeded"
     assert current.result is not None
     assert current.result["recipe_id"] == "job_recipe"
+
+
+def test_recipe_paths_are_resolved_inside_the_allowlist(tmp_path: Path) -> None:
+    from videoflow.domain.errors import PathJailError
+    from videoflow.engine.recipes import resolve_recipe_paths
+
+    recipe = parse_recipe(
+        {
+            "id": "paths",
+            "name": "Paths",
+            "steps": [
+                {
+                    "id": "transcribe",
+                    "type": "transcribe",
+                    "params": {"mode": "srt", "srt_path": "/etc/passwd"},
+                }
+            ],
+        }
+    )
+    with pytest.raises(PathJailError):
+        resolve_recipe_paths(recipe, [tmp_path])
