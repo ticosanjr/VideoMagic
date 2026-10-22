@@ -724,3 +724,26 @@ def test_failed_recipe_writes_failure_and_history(monkeypatch, tmp_path: Path) -
     runs = read_runs(output)
     assert runs[-1]["status"] == "failed"
     assert runs[-1]["error"]["code"] == "ingest_failed"
+
+
+def test_second_split_source_is_resolved_inside_allowlist(tmp_path: Path) -> None:
+    from videoflow.domain.errors import PathJailError
+    from videoflow.engine.recipes import resolve_recipe_paths
+
+    recipe = parse_recipe(
+        {
+            "id": "second_source",
+            "name": "Second source",
+            "steps": [
+                {"id": "ingest", "type": "ingest"},
+                {
+                    "id": "render",
+                    "type": "shorts.render",
+                    "needs": ["ingest"],
+                    "params": {"second_source_path": "/etc/passwd"},
+                },
+            ],
+        }
+    )
+    with pytest.raises(PathJailError):
+        resolve_recipe_paths(recipe, [tmp_path])

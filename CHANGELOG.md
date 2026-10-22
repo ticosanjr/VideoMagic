@@ -21,7 +21,7 @@ follow semantic versioning once the project reaches 1.0.
 - Exact Kdenlive cross-dissolve is still not validated; Kdenlive uses the
   affine opacity/volume transition fades.
 - Manual Resolve/Premiere/Kdenlive import QA remains pending.
-- 438 Python tests, 14 Vitest tests, and 6 Playwright tests pass.
+- 439 Python tests, 14 Vitest tests, and 6 Playwright tests pass.
 
 ## [0.37.0] - 2026-10-22
 
