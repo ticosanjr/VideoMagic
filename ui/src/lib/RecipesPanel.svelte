@@ -21,6 +21,7 @@
     listRecipeSteps,
     cancelBatch,
     getBatch,
+    resumeBatch,
     runBatch,
     runRecipe,
     runRecipeStep,
@@ -900,6 +901,16 @@
     }, 900);
   }
 
+  async function resumeCurrentBatch() {
+    if (!batch) return;
+    try {
+      batch = await resumeBatch(batch.batch_id);
+      watchBatch(batch.batch_id);
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
   async function stopBatch() {
     if (!batch) return;
     try {
@@ -1620,6 +1631,9 @@
             <div class="flex gap-2">
               {#if batch && ["queued", "running"].includes(batch.status)}
                 <button type="button" onclick={() => void stopBatch()} class="rounded-lg border border-rose-500/40 px-3 py-1.5 text-xs text-rose-200">Cancel batch</button>
+              {/if}
+              {#if batch && ["failed", "cancelled"].includes(batch.status)}
+                <button type="button" onclick={() => void resumeCurrentBatch()} class="rounded-lg border border-sky-500/40 px-3 py-1.5 text-xs text-sky-200">Resume batch</button>
               {/if}
               <button type="button" onclick={() => void startBatch()} disabled={batchBusy} class="rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-medium text-neutral-950 hover:bg-sky-400 disabled:opacity-50">
                 {batchBusy ? "Starting…" : "Start batch"}

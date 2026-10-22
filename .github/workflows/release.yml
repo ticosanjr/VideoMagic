@@ -100,11 +100,11 @@ jobs:
           uv sync --extra dev --group dev
           uv run python scripts/release.py --version "$VERSION" --force
           gh release create "$GITHUB_REF_NAME" \
-            "releases/${VERSION}/videoflow-${VERSION}-linux-x86_64" \
-            "releases/${VERSION}/VideoFlow-${VERSION}-x86_64.AppImage" \
-            "releases/${VERSION}/videoflow-${VERSION}-windows-x86_64.exe" \
-            "releases/${VERSION}/sbom.json" \
+            "releases/v${VERSION}/videoflow-${VERSION}-linux-x86_64" \
+            "releases/v${VERSION}/VideoFlow-${VERSION}-x86_64.AppImage" \
+            "releases/v${VERSION}/videoflow-${VERSION}-windows-x86_64.exe" \
+            "releases/v${VERSION}/sbom.json" \
             --title "VideoFlow ${VERSION}" \
-            --notes-file "releases/${VERSION}/release-notes.md"
+            --notes-file "releases/v${VERSION}/release-notes.md"
         env:
           GH_TOKEN: ${{ github.token }}

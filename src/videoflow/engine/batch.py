@@ -243,6 +243,32 @@ class BatchManager:
                     self._jobs.cancel(batch.current_job_id)
             return batch
 
+    def resume(self, batch_id: str) -> Batch:
+        batch = self.get(batch_id)
+        with self._lock:
+            if batch.status not in {"failed", "cancelled"}:
+                return batch
+            for item in batch.items:
+                if item.status != "succeeded":
+                    item.status = "pending"
+                    item.message = "Waiting for resume"
+                    item.finished_at = None
+            batch.status = "queued"
+            batch.cancel_requested = False
+            batch.failed = 0
+            batch.completed = sum(1 for item in batch.items if item.status == "succeeded")
+            batch.finished_at = None
+            batch.message = "Resuming batch"
+            self._persist(batch)
+        thread = threading.Thread(
+            target=self._work,
+            args=(batch,),
+            name=f"videoflow-batch-{batch.batch_id}",
+            daemon=True,
+        )
+        thread.start()
+        return batch
+
     def _work(self, batch: Batch) -> None:
         with self._lock:
             batch.status = "running"
@@ -251,6 +277,8 @@ class BatchManager:
             self._persist(batch)
         try:
             for item in batch.items:
+                if batch.resume and item.status == "succeeded":
+                    continue
                 if batch.cancel_requested:
                     item.status = "cancelled"
                     item.message = "Cancelled before start"

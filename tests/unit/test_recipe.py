@@ -747,3 +747,55 @@ def test_second_split_source_is_resolved_inside_allowlist(tmp_path: Path) -> Non
     )
     with pytest.raises(PathJailError):
         resolve_recipe_paths(recipe, [tmp_path])
+
+
+def test_job_history_survives_restart(tmp_path: Path) -> None:
+    from videoflow.application.jobs import JobManager
+
+    def runner(source, output, **kwargs):
+        return {"ok": True, "elapsed_seconds": 0.1}
+
+    store = tmp_path / "jobs"
+    manager = JobManager(runner=runner, store_dir=store)
+    job = manager.start(tmp_path / "source.mp4", tmp_path / "out", {})
+    import time
+
+    for _ in range(200):
+        if job.status in {"succeeded", "failed", "cancelled"}:
+            path = store / f"{job.job_id}.json"
+            if path.is_file():
+                try:
+                    if json.loads(path.read_text())["status"] == job.status:
+                        break
+                except (OSError, ValueError):
+                    pass
+        time.sleep(0.01)
+    reopened = JobManager(runner=runner, store_dir=store)
+    assert reopened.get(str(job.job_id)).status == "succeeded"
+    assert reopened.list()
+
+
+def test_interrupted_job_is_marked_failed(tmp_path: Path) -> None:
+    import json
+    from uuid import uuid4
+
+    from videoflow.application.jobs import JobManager
+
+    store = tmp_path / "jobs"
+    store.mkdir()
+    job_id = uuid4()
+    (store / f"{job_id}.json").write_text(
+        json.dumps(
+            {
+                "job_id": str(job_id),
+                "status": "running",
+                "source": str(tmp_path / "source.mp4"),
+                "output": str(tmp_path / "out"),
+                "options": {},
+            }
+        )
+    )
+    manager = JobManager(store_dir=store)
+    restored = manager.get(str(job_id))
+    assert restored.status == "failed"
+    assert restored.error["code"] == "job_interrupted"

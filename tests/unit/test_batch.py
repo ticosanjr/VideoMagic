@@ -158,3 +158,44 @@ def test_interrupted_batch_is_marked_failed_on_load(tmp_path: Path) -> None:
     assert restored.status == "failed"
     assert restored.items[0].status == "failed"
     assert "restart" in restored.message
+
+
+def test_batch_resume_skips_completed_items(tmp_path: Path) -> None:
+    import json
+    from uuid import uuid4
+
+    source = tmp_path / "in"
+    source.mkdir()
+    (source / "a.mp4").write_bytes(b"a")
+    (source / "b.mp4").write_bytes(b"b")
+    store = tmp_path / "store"
+    store.mkdir()
+    batch_id = uuid4()
+    payload = {
+        "batch_id": str(batch_id),
+        "status": "failed",
+        "source_dir": str(source),
+        "output_root": str(tmp_path / "out"),
+        "recipe_id": "batch",
+        "recipe": {"id": "batch"},
+        "items": [
+            {
+                "source": str(source / "a.mp4"),
+                "output": str(tmp_path / "out" / "a"),
+                "status": "succeeded",
+            },
+            {
+                "source": str(source / "b.mp4"),
+                "output": str(tmp_path / "out" / "b"),
+                "status": "failed",
+            },
+        ],
+    }
+    (store / f"{batch_id}.json").write_text(json.dumps(payload))
+    jobs = FakeJobs()
+    manager = BatchManager(jobs, store_dir=store)  # type: ignore[arg-type]
+    resumed = manager.resume(str(batch_id))
+    finished = wait_batch(manager, str(resumed.batch_id))
+    assert finished.status == "succeeded"
+    assert len(jobs.started) == 1
+    assert jobs.started[0][0].name == "b.mp4"

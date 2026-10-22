@@ -6,6 +6,7 @@ history but never damages a project already written to disk.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import threading
@@ -202,12 +203,16 @@ class JobManager:
         *,
         max_active: int = 2,
         history: int = 50,
+        store_dir: Path | None = None,
     ) -> None:
         self._runner = runner
         self._max_active = max_active
         self._history = history
+        self._store_dir = Path(store_dir).expanduser() if store_dir is not None else None
         self._jobs: dict[str, Job] = {}
         self._lock = threading.Lock()
+        if self._store_dir is not None:
+            self._load_jobs()
 
     def start(
         self,
@@ -231,6 +236,7 @@ class JobManager:
                 finalizer=finalizer,
             )
             self._jobs[str(job.job_id)] = job
+            self._persist_job(job)
         thread = threading.Thread(
             target=self._work,
             args=(job,),
@@ -243,6 +249,15 @@ class JobManager:
     def get(self, job_id: str) -> Job:
         with self._lock:
             job = self._jobs.get(job_id)
+            if job is None and self._store_dir is not None:
+                path = self._store_dir / f"{job_id}.json"
+                if path.is_file():
+                    try:
+                        job = _job_from_dict(json.loads(path.read_text(encoding="utf-8")))
+                    except (OSError, ValueError, KeyError, TypeError):
+                        job = None
+                    if job is not None:
+                        self._jobs[job_id] = job
             if job is None:
                 raise JobNotFoundError(f"Unknown job: {job_id}")
             return job
@@ -266,6 +281,7 @@ class JobManager:
                 job.finished_at = _now()
             else:
                 job.message = "Cancellation requested"
+            self._persist_job(job)
             return job
 
     def _work(self, job: Job) -> None:
@@ -529,6 +545,7 @@ class JobManager:
             with self._lock:
                 job.finished_at = _now()
             _write_log(job)
+            self._persist_job(job)
 
     def _work_recipe(self, job: Job) -> None:
         from videoflow.core.recipe import Recipe
@@ -617,6 +634,43 @@ class JobManager:
                 job.finished_at = _now()
             _write_log(job)
             _record_recipe_history(job)
+            self._persist_job(job)
+
+    def _persist_job(self, job: Job) -> None:
+        if self._store_dir is None:
+            return
+        try:
+            self._store_dir.mkdir(parents=True, exist_ok=True)
+            path = self._store_dir / f"{job.job_id}.json"
+            temporary = path.with_suffix(".json.tmp")
+            temporary.write_text(
+                json.dumps(job.to_dict(), indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            temporary.replace(path)
+        except OSError:
+            pass
+
+    def _load_jobs(self) -> None:
+        if self._store_dir is None or not self._store_dir.is_dir():
+            return
+        for path in sorted(self._store_dir.glob("*.json")):
+            try:
+                job = _job_from_dict(json.loads(path.read_text(encoding="utf-8")))
+            except (OSError, ValueError, KeyError, TypeError):
+                continue
+            if job.status in {"queued", "running"}:
+                job.status = "failed"
+                job.stage = "failed"
+                job.message = "Interrupted by service restart"
+                job.finished_at = _now()
+                job.error = {
+                    "ok": False,
+                    "code": "job_interrupted",
+                    "message": "Interrupted by service restart",
+                }
+                self._persist_job(job)
+            self._jobs[str(job.job_id)] = job
 
     def _prune(self) -> None:
         finished = [job for job in self._jobs.values() if job.status in TERMINAL]
@@ -625,6 +679,28 @@ class JobManager:
         finished.sort(key=lambda item: item.finished_at or "")
         for job in finished[: len(finished) - self._history]:
             self._jobs.pop(str(job.job_id), None)
+            if self._store_dir is not None:
+                with contextlib.suppress(OSError):
+                    (self._store_dir / f"{job.job_id}.json").unlink(missing_ok=True)
+
+
+def _job_from_dict(payload: dict[str, Any]) -> Job:
+    job = Job(
+        source=Path(str(payload.get("source", ""))),
+        output=Path(str(payload.get("output", ""))),
+        options=payload.get("options") if isinstance(payload.get("options"), dict) else {},
+    )
+    job.job_id = UUID(str(payload["job_id"])) if payload.get("job_id") else uuid4()
+    job.status = str(payload.get("status", "queued"))  # type: ignore[assignment]
+    job.progress = int(payload.get("progress", 0))
+    job.stage = str(payload.get("stage", "queued"))
+    job.message = str(payload.get("message", ""))
+    job.result = payload.get("result") if isinstance(payload.get("result"), dict) else None
+    job.error = payload.get("error") if isinstance(payload.get("error"), dict) else None
+    job.created_at = str(payload.get("created_at", _now()))
+    job.started_at = payload.get("started_at")
+    job.finished_at = payload.get("finished_at")
+    return job
 
 
 def _record_recipe_history(job: Job) -> None:

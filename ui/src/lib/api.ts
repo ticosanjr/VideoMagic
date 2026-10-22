@@ -1122,6 +1122,14 @@ export async function getBatch(batchId: string): Promise<Batch> {
   return response.batch;
 }
 
+export async function resumeBatch(batchId: string): Promise<Batch> {
+  const response = await request<{ ok: boolean; batch: Batch }>(
+    `/api/v1/batches/${encodeURIComponent(batchId)}/resume`,
+    { method: "POST" }
+  );
+  return response.batch;
+}
+
 export async function cancelBatch(batchId: string): Promise<Batch> {
   const response = await request<{ ok: boolean; batch: Batch }>(
     `/api/v1/batches/${encodeURIComponent(batchId)}/cancel`,

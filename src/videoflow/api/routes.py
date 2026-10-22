@@ -736,6 +736,14 @@ def register_routes(
             "batches": [batch.to_dict() for batch in batch_manager.list()],
         }
 
+    @app.post("/api/v1/batches/{batch_id}/resume")
+    def resume_batch(batch_id: str) -> dict[str, object]:
+        try:
+            batch = batch_manager.resume(batch_id)
+        except VideoFlowError as exc:
+            fail(exc)
+        return {"ok": True, "batch": batch.to_dict()}
+
     @app.get("/api/v1/batches/{batch_id}")
     def get_batch(batch_id: str) -> dict[str, object]:
         try:
