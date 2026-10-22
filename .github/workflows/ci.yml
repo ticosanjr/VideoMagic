@@ -33,6 +33,12 @@ jobs:
       - name: UI checks
         working-directory: ui
         run: npm run check && npm test -- --run
+      - name: Install Playwright Chromium
+        working-directory: ui
+        run: npx playwright install --with-deps chromium
+      - name: UI E2E
+        working-directory: ui
+        run: npm run test:e2e
       - name: UI build
         working-directory: ui
         run: npm run build
