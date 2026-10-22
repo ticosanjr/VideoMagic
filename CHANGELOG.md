@@ -3,6 +3,39 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.24.0] - 2026-10-22
+
+### Added
+
+- **Independent Shorts steps.** `shorts.select`, `shorts.reframe`,
+  `shorts.captions`, and `shorts.render` are separate nodes. Reframe tracking
+  and ASS caption generation no longer happen inside selection/render.
+- **Recipe analysis cache.** `audio.vad` and local/HTTP `transcribe` results are
+  cached by source PCM digest plus step parameters under
+  `<videoflow-home>/cache/recipe-v1/`. The cache is shared across output
+  directories. `videoflow recipe cache path|clear` inspects or clears it;
+  `VIDEOWFLOW_RECIPE_CACHE=0` disables it.
+- **Cache hit/miss reporting.** `run.json`, job results, and `PipelineContext`
+  expose `cache_hits` and `cache_misses`.
+- **Full-width recipe canvas.** The Recipes tab now spans the whole content
+  area and hides the legacy run-summary sidebar while active.
+- **Collapsible recipe controls.** The step inspector is an overlay that opens
+  on node click; the step palette is a filterable popover; recipe settings and
+  the full recipe/step JSON editor are modal dialogs with a large text area.
+
+### Changed
+
+- The built-in Shorts recipes now run `shorts.reframe` and `shorts.captions`
+  explicitly before `shorts.render`.
+- `shorts.select` no longer tracks faces. If a recipe sets a non-center
+  `reframe_mode` on selection, it emits a warning and leaves tracking to
+  `shorts.reframe`.
+
+### Fixed
+
+- Added a test-isolation home so recipe cache entries never touch the
+  developer's real `~/.videoflow` directory.
+
 ## [0.23.1] - 2026-10-22
 
 ### Fixed

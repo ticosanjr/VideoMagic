@@ -353,6 +353,8 @@ export interface Job {
     transcript_source?: string;
     warnings?: string[];
     artifacts?: Record<string, string>;
+    cache_hits?: string[];
+    cache_misses?: string[];
     shorts?: ShortClip[];
     state_path?: string;
     report_path?: string;

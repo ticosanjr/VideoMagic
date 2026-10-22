@@ -7,10 +7,12 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.adapters.silero import SileroVadAdapter
 from videoflow.application.vad import detect_speech
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import IngestError
 from videoflow.steps.base import BaseStep, StepIO
+from videoflow.steps.cache import cache_get, cache_key, cache_put
 from videoflow.steps.common import adapter_for, digest_payload, require_media
 from videoflow.steps.registry import register_step
 
@@ -41,6 +43,29 @@ class VadStep(BaseStep):
         options = VadParams.model_validate(params)
         media = require_media(context)
         adapter = adapter_for(context, io)
+        key = cache_key(
+            {
+                "kind": "vad",
+                "source": context.pcm_digest or str(context.source),
+                "params": options.model_dump(mode="json"),
+                "silero": SileroVadAdapter.available(),
+            }
+        )
+        cached = cache_get("vad", key)
+        if cached is not None:
+            spans = [(int(start), int(end)) for start, end in cached.get("spans", [])]
+            if spans:
+                context.speech_intervals = spans
+                context.vad_engine = str(cached.get("engine", "cache"))
+                context.metadata["speech_pad_before_ms"] = options.pad_before_ms
+                context.metadata["speech_pad_after_ms"] = options.pad_after_ms
+                context.metadata["min_speech_ms"] = options.min_speech_ms
+                context.hashes["vad"] = key
+                context.cache_hits.append("audio.vad")
+                io.emit("info", f"{len(spans)} speech intervals (cached)")
+                io.report(100, "Speech intervals loaded from cache")
+                return
+        context.cache_misses.append("audio.vad")
         io.report(15, "Detecting speech and silence")
         detection = detect_speech(
             adapter,
@@ -69,6 +94,11 @@ class VadStep(BaseStep):
         context.metadata["min_speech_ms"] = options.min_speech_ms
         context.hashes["vad"] = digest_payload(
             {"spans": detection.spans, "engine": detection.engine}
+        )
+        cache_put(
+            "vad",
+            key,
+            {"spans": detection.spans, "engine": detection.engine},
         )
         io.emit("info", f"{len(detection.spans)} speech intervals ({detection.engine})")
         io.report(100, "Speech intervals ready")

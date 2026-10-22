@@ -39,7 +39,10 @@ class PipelineContext(BaseModel):
     shorts: list[dict[str, Any]] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     artifacts: dict[str, str] = Field(default_factory=dict)
+    short_captions: dict[str, str] = Field(default_factory=dict)
     hashes: dict[str, str] = Field(default_factory=dict)
+    cache_hits: list[str] = Field(default_factory=list)
+    cache_misses: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
     selected_shorts: list[Any] = Field(default_factory=list, exclude=True, repr=False)
 
@@ -70,4 +73,6 @@ class PipelineContext(BaseModel):
             "warnings": list(self.warnings),
             "artifacts": dict(self.artifacts),
             "hashes": dict(self.hashes),
+            "cache_hits": list(self.cache_hits),
+            "cache_misses": list(self.cache_misses),
         }

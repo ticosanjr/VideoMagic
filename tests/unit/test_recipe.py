@@ -18,6 +18,7 @@ from videoflow.steps import step_types
 class FakeAdapter:
     def __init__(self, speech: list[tuple[int, int]] | None = None) -> None:
         self.speech = speech if speech is not None else [(0, 48000), (96000, 144000)]
+        self.detect_calls = 0
 
     def probe(self, path: Path) -> MediaInfo:
         return MediaInfo(
@@ -48,6 +49,7 @@ class FakeAdapter:
         min_silence_ms: int = 400,
         min_speech_ms: int = 100,
     ) -> list[tuple[int, int]]:
+        self.detect_calls += 1
         return self.speech
 
     def render_short(
@@ -249,7 +251,8 @@ def test_recipe_api_lists_steps_and_validates() -> None:
     client = TestClient(create_app())
     steps = client.get("/api/v1/steps")
     assert steps.status_code == 200
-    assert "ingest" in {item["type"] for item in steps.json()["steps"]}
+    step_types_payload = {item["type"] for item in steps.json()["steps"]}
+    assert {"ingest", "shorts.reframe", "shorts.captions", "shorts.render"} <= step_types_payload
     recipes = client.get("/api/v1/recipes")
     assert recipes.status_code == 200
     assert {item["id"] for item in recipes.json()["recipes"]} >= {
@@ -339,3 +342,162 @@ def test_recipe_paths_are_resolved_inside_the_allowlist(tmp_path: Path) -> None:
     )
     with pytest.raises(PathJailError):
         resolve_recipe_paths(recipe, [tmp_path])
+
+
+def test_vad_cache_is_reused_across_outputs(tmp_path: Path) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    recipe = parse_recipe(
+        {
+            "id": "cache_vad",
+            "name": "Cache VAD",
+            "steps": [
+                {"id": "ingest", "type": "ingest"},
+                {
+                    "id": "vad",
+                    "type": "audio.vad",
+                    "needs": ["ingest"],
+                    "params": {"engine": "ffmpeg"},
+                },
+            ],
+        }
+    )
+    recipe.validate_graph(step_types())
+    adapter = FakeAdapter()
+    first = RecipeRunner(recipe, adapter=adapter).run(source, tmp_path / "one")
+    second = RecipeRunner(recipe, adapter=adapter).run(source, tmp_path / "two")
+    assert "audio.vad" in first.context.cache_misses
+    assert "audio.vad" in second.context.cache_hits
+    assert adapter.detect_calls == 1
+    assert second.context.speech_intervals == first.context.speech_intervals
+
+
+class FakeAsr:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def transcribe(self, wav: Path, sample_rate: int) -> list:
+        self.calls += 1
+        from videoflow.domain.state import Sentence
+
+        return [
+            Sentence(
+                id=0,
+                start_sample=0,
+                end_sample=48000,
+                text="Cached sentence.",
+            )
+        ]
+
+
+def test_transcript_cache_is_reused(tmp_path: Path) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    recipe = parse_recipe(
+        {
+            "id": "cache_asr",
+            "name": "Cache ASR",
+            "steps": [
+                {"id": "ingest", "type": "ingest"},
+                {
+                    "id": "transcribe",
+                    "type": "transcribe",
+                    "needs": ["ingest"],
+                    "params": {"mode": "http", "base_url": "http://127.0.0.1:9/v1"},
+                },
+            ],
+        }
+    )
+    recipe.validate_graph(step_types())
+    client = FakeAsr()
+    first = RecipeRunner(recipe, adapter=FakeAdapter(), asr_client=client).run(
+        source, tmp_path / "one"
+    )
+    second = RecipeRunner(recipe, adapter=FakeAdapter(), asr_client=client).run(
+        source, tmp_path / "two"
+    )
+    assert client.calls == 1
+    assert "transcribe" in first.context.cache_misses
+    assert "transcribe" in second.context.cache_hits
+    assert second.context.transcript[0].text == "Cached sentence."
+
+
+def test_reframe_and_captions_are_independent_steps(monkeypatch, tmp_path: Path) -> None:
+
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    transcript = tmp_path / "subs.srt"
+    transcript.write_text(
+        "1\n00:00:00,000 --> 00:00:03,000\nA complete sentence for captions.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "videoflow.steps.shorts_reframe.track_focus_x",
+        lambda *args, **kwargs: (0.25, "motion_tracking"),
+    )
+    seen: dict[str, object] = {}
+
+    class CapturingAdapter(FakeAdapter):
+        def render_short(self, *args, **kwargs):
+            seen["ass_path"] = kwargs.get("ass_path")
+            seen["crop_focus_x"] = kwargs.get("crop_focus_x")
+            return super().render_short(*args, **kwargs)
+
+    recipe = parse_recipe(
+        {
+            "id": "reframe_captions",
+            "name": "Reframe and captions",
+            "steps": [
+                {"id": "ingest", "type": "ingest"},
+                {
+                    "id": "vad",
+                    "type": "audio.vad",
+                    "needs": ["ingest"],
+                    "params": {"engine": "ffmpeg"},
+                },
+                {
+                    "id": "transcribe",
+                    "type": "transcribe",
+                    "needs": ["ingest"],
+                    "params": {"mode": "srt", "srt_path": str(transcript)},
+                },
+                {
+                    "id": "shorts",
+                    "type": "shorts.select",
+                    "needs": ["transcribe"],
+                    "params": {
+                        "target_duration_min_sec": 1,
+                        "target_duration_max_sec": 5,
+                        "min_clips": 1,
+                        "max_clips_to_generate": 1,
+                        "selection_mode": "heuristic",
+                    },
+                },
+                {
+                    "id": "reframe",
+                    "type": "shorts.reframe",
+                    "needs": ["shorts"],
+                    "params": {"mode": "motion_tracking"},
+                },
+                {
+                    "id": "captions",
+                    "type": "shorts.captions",
+                    "needs": ["shorts"],
+                    "params": {"enabled": True},
+                },
+                {
+                    "id": "render",
+                    "type": "shorts.render",
+                    "needs": ["reframe", "captions"],
+                    "params": {"burn_subtitles": True},
+                },
+            ],
+        }
+    )
+    recipe.validate_graph(step_types())
+    result = RecipeRunner(recipe, adapter=CapturingAdapter()).run(source, tmp_path / "out")
+    assert result.context.short_captions
+    assert seen["ass_path"] is not None
+    assert Path(str(seen["ass_path"])).is_file()
+    assert seen["crop_focus_x"] == 0.25
+    assert not result.context.cache_hits

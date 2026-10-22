@@ -72,10 +72,31 @@
       }
     },
     {
+      "id": "reframe",
+      "type": "shorts.reframe",
+      "needs": [
+        "shorts"
+      ],
+      "params": {
+        "mode": "center_crop_9_16"
+      }
+    },
+    {
+      "id": "captions",
+      "type": "shorts.captions",
+      "needs": [
+        "shorts"
+      ],
+      "params": {
+        "enabled": true
+      }
+    },
+    {
       "id": "render_shorts",
       "type": "shorts.render",
       "needs": [
-        "shorts"
+        "reframe",
+        "captions"
       ],
       "params": {
         "burn_subtitles": true

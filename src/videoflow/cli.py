@@ -380,6 +380,10 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print only the final JSON report.",
     )
+    recipe_cache = recipe_sub.add_parser("cache", help="Show or clear the analysis cache.")
+    cache_sub = recipe_cache.add_subparsers(dest="cache_command")
+    cache_sub.add_parser("path", help="Print the cache directory.")
+    cache_sub.add_parser("clear", help="Delete cached VAD and transcript entries.")
 
     serve = sub.add_parser("serve", help="Serve the API, MCP HTTP, and rack UI.")
     serve.add_argument("--host", default="127.0.0.1")
@@ -816,6 +820,14 @@ def _recipe(args: argparse.Namespace) -> int:
                 indent=2,
             )
         )
+        return 0
+    if command == "cache":
+        from videoflow.steps.cache import cache_dir, clear_cache
+
+        if getattr(args, "cache_command", None) == "clear":
+            print(json.dumps({"ok": True, "removed": clear_cache()}))
+        else:
+            print(json.dumps({"ok": True, "path": str(cache_dir())}))
         return 0
     if command == "run":
         path = Path(args.recipe).expanduser()

@@ -13,8 +13,10 @@ from videoflow.adapters.faster_whisper import FasterWhisperAdapter
 from videoflow.adapters.whisper import WhisperCliAdapter
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import IngestError, TranscriptionError
+from videoflow.domain.state import Sentence
 from videoflow.domain.transcript import parse_srt_file
 from videoflow.steps.base import BaseStep, StepIO
+from videoflow.steps.cache import cache_get, cache_key, cache_put
 from videoflow.steps.common import adapter_for, digest_payload, require_media
 from videoflow.steps.registry import register_step
 
@@ -92,6 +94,35 @@ class TranscribeStep(BaseStep):
             io.report(100, f"{len(context.transcript)} sentences from SRT")
             return
 
+        source_key = context.pcm_digest
+        key = cache_key(
+            {
+                "kind": "transcript",
+                "source": source_key,
+                "mode": mode,
+                "params": options.model_dump(mode="json"),
+                "env_base_url": os.environ.get("VIDEOWFLOW_ASR_BASE_URL"),
+                "client": type(io.asr_client).__name__ if io.asr_client is not None else "default",
+            }
+        ) if source_key else ""
+        if key:
+            cached = cache_get("transcript", key)
+            if cached is not None:
+                try:
+                    context.transcript = [
+                        Sentence.model_validate(item) for item in cached.get("sentences", [])
+                    ]
+                except (ValueError, TypeError):
+                    context.transcript = []
+                if context.transcript:
+                    context.transcript_source = str(cached.get("source", mode))
+                    context.hashes["transcribe"] = key
+                    context.cache_hits.append("transcribe")
+                    io.emit("info", f"{len(context.transcript)} sentences from cache")
+                    io.report(100, "Transcript loaded from cache")
+                    return
+        context.cache_misses.append("transcribe")
+
         io.report(20, "Preparing speech-to-text")
         client = io.asr_client
         if client is None:
@@ -134,6 +165,15 @@ class TranscribeStep(BaseStep):
         context.hashes["transcribe"] = digest_payload(
             [sentence.model_dump(mode="json") for sentence in transcript]
         )
+        if key:
+            cache_put(
+                "transcript",
+                key,
+                {
+                    "sentences": [sentence.model_dump(mode="json") for sentence in transcript],
+                    "source": mode,
+                },
+            )
         io.emit("info", f"{len(transcript)} sentences from {mode}")
         io.report(100, "Transcript ready")
 

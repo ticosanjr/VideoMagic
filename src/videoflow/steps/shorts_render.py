@@ -76,7 +76,11 @@ class RenderShortsStep(BaseStep):
             width = int(entry.get("width", 1080))
             height = int(entry.get("height", 1920))
             ass_path: Path | None = None
-            if options.burn_subtitles:
+            cached_caption = context.short_captions.get(clip.title)
+            captions_disabled = bool(context.metadata.get("captions_disabled"))
+            if options.burn_subtitles and cached_caption and Path(cached_caption).is_file():
+                ass_path = Path(cached_caption)
+            elif options.burn_subtitles and not captions_disabled:
                 lines = caption_lines(
                     kept,
                     clip.pieces,

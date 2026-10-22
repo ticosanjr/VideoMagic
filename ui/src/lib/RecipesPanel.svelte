@@ -57,6 +57,13 @@
   let picker = $state<"source" | "output" | null>(null);
   let paramText = $state("{}");
   let paramError = $state("");
+  let inspectorOpen = $state(false);
+  let addOpen = $state(false);
+  let configOpen = $state(false);
+  let jsonModal = $state<"step" | "recipe" | null>(null);
+  let recipeJsonText = $state("");
+  let jsonError = $state("");
+  let stepQuery = $state("");
   let lastSelected = "";
   let status = $state("");
   let error = $state("");
@@ -64,6 +71,36 @@
   let job = $state<Job | null>(null);
   let busy = $state(false);
   let poll: ReturnType<typeof setInterval> | undefined;
+
+  const stepOrder = [
+    "ingest",
+    "audio.vad",
+    "transcribe",
+    "retakes.cull",
+    "edit.timeline",
+    "shorts.select",
+    "shorts.reframe",
+    "shorts.captions",
+    "shorts.render",
+    "export.nle"
+  ];
+
+  const filteredSteps = $derived(
+    steps
+      .filter((step) => {
+        const query = stepQuery.trim().toLocaleLowerCase();
+        if (!query) return true;
+        return (
+          step.title.toLocaleLowerCase().includes(query) ||
+          step.type.toLocaleLowerCase().includes(query)
+        );
+      })
+      .sort((left, right) => {
+        const a = stepOrder.indexOf(left.type);
+        const b = stepOrder.indexOf(right.type);
+        return (a < 0 ? 999 : a) - (b < 0 ? 999 : b);
+      })
+  );
 
   $effect(() => {
     inputSource = source;
@@ -169,6 +206,8 @@
     selectedId = null;
     lastSelected = "";
     paramText = "{}";
+    inspectorOpen = false;
+    addOpen = false;
   }
 
   async function loadRecipe(id: string) {
@@ -224,6 +263,8 @@
       } satisfies Node
     ];
     selectedId = id;
+    addOpen = false;
+    inspectorOpen = true;
   }
 
   function removeSelected() {
@@ -257,9 +298,9 @@
     ];
   }
 
-  function updateParams(value: string) {
+  function updateParams(value: string): boolean {
     paramText = value;
-    if (!selectedId) return;
+    if (!selectedId) return false;
     try {
       const parsed = JSON.parse(value);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -271,9 +312,61 @@
           : node
       );
       paramError = "";
+      return true;
     } catch (reason) {
       paramError = reason instanceof Error ? reason.message : String(reason);
+      return false;
     }
+  }
+
+  function openStepJson() {
+    if (!selectedId) return;
+    jsonError = "";
+    jsonModal = "step";
+  }
+
+  function openRecipeJson() {
+    jsonError = "";
+    addOpen = false;
+    inspectorOpen = false;
+    recipeJsonText = JSON.stringify(recipeFromGraph(), null, 2);
+    jsonModal = "recipe";
+  }
+
+  function applyJson() {
+    jsonError = "";
+    if (jsonModal === "step") {
+      if (!updateParams(paramText)) {
+        jsonError = paramError;
+        return;
+      }
+      jsonModal = null;
+      return;
+    }
+    if (jsonModal === "recipe") {
+      try {
+        const parsed = JSON.parse(recipeJsonText) as Recipe;
+        if (!parsed || !Array.isArray(parsed.steps)) {
+          throw new Error("Recipe JSON must contain a steps array");
+        }
+        graphFromRecipe({
+          schema_version: 1,
+          id: parsed.id || recipeId,
+          name: parsed.name || recipeName,
+          description: parsed.description ?? "",
+          llm: parsed.llm ?? llm,
+          steps: parsed.steps
+        });
+        jsonModal = null;
+      } catch (reason) {
+        jsonError = reason instanceof Error ? reason.message : String(reason);
+      }
+    }
+  }
+
+  function toggleInspector() {
+    inspectorOpen = !inspectorOpen;
+    if (!inspectorOpen) addOpen = false;
   }
 
   async function validate() {
@@ -362,19 +455,59 @@
 </script>
 
 <div class="space-y-3">
-  <section class="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900/50">
-    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-800 px-4 py-3">
-      <div>
+  <section class="relative overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900/50">
+    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800 px-3 py-3 sm:px-4">
+      <div class="min-w-0">
         <h2 class="text-sm font-semibold text-white">Recipe builder</h2>
-        <p class="mt-0.5 text-[11px] text-neutral-500">
+        <p class="mt-0.5 hidden text-[11px] text-neutral-500 sm:block">
           Connect steps into a DAG. The engine executes dependencies in order; nothing is uploaded.
         </p>
       </div>
-      <div class="flex flex-wrap items-center gap-2 text-xs">
+      <div class="flex flex-wrap items-center justify-end gap-1.5 text-xs">
+        <button
+          type="button"
+          data-testid="recipe-add-step"
+          onclick={() => {
+            addOpen = !addOpen;
+            inspectorOpen = false;
+          }}
+          class="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1.5 font-medium text-sky-200 hover:bg-sky-500/20"
+        >
+          + Add step
+        </button>
+        <button
+          type="button"
+          onclick={() => {
+            configOpen = true;
+            addOpen = false;
+          }}
+          class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500"
+        >
+          Config
+        </button>
+        <button
+          type="button"
+          onclick={toggleInspector}
+          aria-pressed={inspectorOpen}
+          class={`rounded-lg border px-2.5 py-1.5 ${
+            inspectorOpen
+              ? "border-sky-500/50 bg-sky-500/10 text-sky-200"
+              : "border-neutral-700 text-neutral-300 hover:border-sky-500"
+          }`}
+        >
+          Inspector
+        </button>
+        <button
+          type="button"
+          onclick={openRecipeJson}
+          class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500"
+        >
+          JSON
+        </button>
         <select
           value={recipeId}
           onchange={(event) => void loadRecipe(event.currentTarget.value)}
-          class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-200"
+          class="max-w-[190px] rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-200"
           aria-label="Load recipe"
         >
           {#each recipes as recipe}
@@ -382,7 +515,7 @@
           {/each}
         </select>
         <button type="button" onclick={downloadRecipe} class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500">
-          Download JSON
+          Download
         </button>
         <button type="button" onclick={() => void save()} class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500">
           Save
@@ -396,30 +529,31 @@
           disabled={busy}
           class="rounded-lg bg-sky-500 px-3 py-1.5 font-medium text-neutral-950 hover:bg-sky-400 disabled:opacity-50"
         >
-          {busy ? "Starting…" : "Run recipe"}
+          {busy ? "Starting…" : "Run"}
         </button>
       </div>
     </div>
 
-    <div class="grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-      <div>
-        <div class="mb-2 grid gap-2 sm:grid-cols-2">
-          <label class="block text-[10px] uppercase tracking-wide text-neutral-500">
-            Input file
-            <span class="mt-1 flex gap-1">
-              <input bind:value={inputSource} placeholder="/media/source.mp4" class="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[11px] text-neutral-200" />
-              <button type="button" onclick={() => (picker = "source")} class="rounded-lg border border-neutral-700 px-2 text-[11px] text-neutral-300">…</button>
-            </span>
-          </label>
-          <label class="block text-[10px] uppercase tracking-wide text-neutral-500">
-            Output directory
-            <span class="mt-1 flex gap-1">
-              <input bind:value={inputOutput} placeholder="/media/output" class="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[11px] text-neutral-200" />
-              <button type="button" onclick={() => (picker = "output")} class="rounded-lg border border-neutral-700 px-2 text-[11px] text-neutral-300">…</button>
-            </span>
-          </label>
-        </div>
-        <div class="h-[480px] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950">
+    <div class="p-3 sm:p-4">
+      <div class="mb-3 grid gap-2 sm:grid-cols-2">
+        <label class="block text-[10px] uppercase tracking-wide text-neutral-500">
+          Input file
+          <span class="mt-1 flex gap-1">
+            <input bind:value={inputSource} placeholder="/media/source.mp4" class="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[11px] text-neutral-200" />
+            <button type="button" onclick={() => (picker = "source")} class="rounded-lg border border-neutral-700 px-2 text-[11px] text-neutral-300">…</button>
+          </span>
+        </label>
+        <label class="block text-[10px] uppercase tracking-wide text-neutral-500">
+          Output directory
+          <span class="mt-1 flex gap-1">
+            <input bind:value={inputOutput} placeholder="/media/output" class="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[11px] text-neutral-200" />
+            <button type="button" onclick={() => (picker = "output")} class="rounded-lg border border-neutral-700 px-2 text-[11px] text-neutral-300">…</button>
+          </span>
+        </label>
+      </div>
+
+      <div class="relative">
+        <div class="h-[clamp(560px,72vh,920px)] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950">
           <SvelteFlow
             bind:nodes
             bind:edges
@@ -429,87 +563,93 @@
             maxZoom={1.6}
             colorMode="dark"
             onconnect={onConnect}
-            onnodeclick={({ node }) => (selectedId = node.id)}
+            onnodeclick={({ node }) => {
+              selectedId = node.id;
+              inspectorOpen = true;
+            }}
           >
             <Background gap={20} size={1} />
             <Controls />
             <MiniMap pannable zoomable />
           </SvelteFlow>
         </div>
+
+        {#if addOpen}
+          <div class="absolute left-2 top-2 z-40 flex max-h-[calc(100%-1rem)] w-[min(340px,calc(100%-1rem))] flex-col overflow-hidden rounded-2xl border border-sky-500/30 bg-neutral-950/98 shadow-2xl backdrop-blur">
+            <div class="flex items-center justify-between border-b border-neutral-800 px-3 py-2">
+              <div>
+                <p class="text-[10px] uppercase tracking-wide text-sky-300">Add step</p>
+                <p class="text-[10px] text-neutral-500">Click to place a node on the canvas.</p>
+              </div>
+              <button type="button" onclick={() => (addOpen = false)} class="rounded px-1.5 text-neutral-500 hover:text-neutral-200" aria-label="Close add step">×</button>
+            </div>
+            <div class="p-2">
+              <input
+                bind:value={stepQuery}
+                placeholder="Filter steps…"
+                class="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-[11px] text-neutral-200"
+              />
+            </div>
+            <div class="min-h-0 flex-1 space-y-1 overflow-y-auto p-2 pt-0">
+              {#each filteredSteps as step}
+                <button
+                  type="button"
+                  onclick={() => addStep(step.type)}
+                  class="w-full rounded-lg border border-neutral-800 px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:border-sky-500/60 hover:text-sky-200"
+                  title={step.description}
+                >
+                  <span class="block">{step.title}</span>
+                  <span class="font-mono text-[9px] text-neutral-600">{step.type}</span>
+                </button>
+              {/each}
+              {#if filteredSteps.length === 0}
+                <p class="px-2 py-3 text-[11px] text-neutral-500">No step matches that filter.</p>
+              {/if}
+            </div>
+          </div>
+        {/if}
+
+        {#if inspectorOpen}
+          <aside class="absolute bottom-2 right-2 top-2 z-30 flex w-[min(380px,calc(100%-1rem))] flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950/98 shadow-2xl backdrop-blur">
+            <div class="flex items-center justify-between border-b border-neutral-800 px-3 py-2">
+              <div class="min-w-0">
+                <p class="text-[10px] uppercase tracking-wide text-neutral-500">Step inspector</p>
+                <p class="truncate font-mono text-[11px] text-sky-300">{selectedId ?? "No node selected"}</p>
+              </div>
+              <button type="button" onclick={() => (inspectorOpen = false)} class="rounded px-1.5 text-neutral-500 hover:text-neutral-200" aria-label="Close inspector">×</button>
+            </div>
+            <div class="min-h-0 flex-1 overflow-y-auto p-3">
+              {#if selectedId}
+                {@const selectedNode = nodes.find((node) => node.id === selectedId)}
+                {#if selectedNode}
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="text-[10px] text-neutral-500">{nodeData(selectedNode).type}</p>
+                    <button type="button" onclick={removeSelected} class="text-[10px] text-rose-300 hover:text-rose-200">Remove</button>
+                  </div>
+                {/if}
+                <div class="mt-2 flex items-center justify-between gap-2">
+                  <p class="text-[10px] text-neutral-500">Parameters (JSON)</p>
+                  <button type="button" onclick={openStepJson} class="rounded border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-300 hover:border-sky-500">Expand</button>
+                </div>
+                <textarea
+                  value={paramText}
+                  oninput={(event) => updateParams(event.currentTarget.value)}
+                  rows="12"
+                  spellcheck="false"
+                  class="mt-1 w-full resize-y rounded-lg border border-neutral-700 bg-neutral-950 p-2 font-mono text-[10px] text-neutral-200"
+                ></textarea>
+                {#if paramError}<p class="mt-1 text-[10px] text-rose-300">{paramError}</p>{/if}
+                <p class="mt-2 text-[9px] leading-4 text-neutral-600">
+                  JSON is applied to the node while it is valid. Use Expand for a large editor.
+                </p>
+              {:else}
+                <p class="text-[11px] text-neutral-500">Click a node to edit it. Use <span class="text-sky-300">+ Add step</span> to place a new one.</p>
+                <button type="button" onclick={() => { inspectorOpen = false; addOpen = true; }} class="mt-3 w-full rounded-lg border border-neutral-700 px-2 py-1.5 text-[11px] text-neutral-300 hover:border-sky-500">Open step palette</button>
+              {/if}
+            </div>
+          </aside>
+        {/if}
       </div>
-
-      <aside class="space-y-3">
-        <div class="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
-          <p class="text-[10px] uppercase tracking-wide text-neutral-500">Recipe identity</p>
-          <label class="mt-2 block text-[10px] text-neutral-500">
-            ID
-            <input bind:value={recipeId} class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[11px] text-neutral-200" />
-          </label>
-          <label class="mt-2 block text-[10px] text-neutral-500">
-            Name
-            <input bind:value={recipeName} class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-200" />
-          </label>
-          <label class="mt-2 block text-[10px] text-neutral-500">
-            Description
-            <textarea bind:value={recipeDescription} rows="2" class="mt-1 w-full resize-y rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-200"></textarea>
-          </label>
-        </div>
-
-        <div class="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
-          <div class="flex items-center justify-between">
-            <p class="text-[10px] uppercase tracking-wide text-neutral-500">Selected step</p>
-            <button type="button" onclick={removeSelected} disabled={!selectedId} class="text-[10px] text-rose-300 disabled:opacity-30">Remove</button>
-          </div>
-          {#if selectedId}
-            <p class="mt-1 font-mono text-[11px] text-sky-300">{selectedId}</p>
-            <p class="mt-1 text-[10px] text-neutral-500">Edit parameters as JSON. Invalid JSON is not saved to the node.</p>
-            <textarea
-              value={paramText}
-              oninput={(event) => updateParams(event.currentTarget.value)}
-              rows="10"
-              spellcheck="false"
-              class="mt-2 w-full resize-y rounded-lg border border-neutral-700 bg-neutral-950 p-2 font-mono text-[10px] text-neutral-200"
-            ></textarea>
-            {#if paramError}<p class="mt-1 text-[10px] text-rose-300">{paramError}</p>{/if}
-          {:else}
-            <p class="mt-2 text-[11px] text-neutral-500">Click a node to edit its parameters, or add a step below.</p>
-          {/if}
-        </div>
-
-        <div class="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
-          <p class="text-[10px] uppercase tracking-wide text-neutral-500">Add step</p>
-          <div class="mt-2 grid gap-1.5">
-            {#each steps as step}
-              <button
-                type="button"
-                onclick={() => addStep(step.type)}
-                class="rounded-lg border border-neutral-800 px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:border-sky-500/60 hover:text-sky-200"
-                title={step.description}
-              >
-                <span class="block">{step.title}</span>
-                <span class="font-mono text-[9px] text-neutral-600">{step.type}</span>
-              </button>
-            {/each}
-          </div>
-        </div>
-
-        <div class="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
-          <p class="text-[10px] uppercase tracking-wide text-neutral-500">LLM router</p>
-          <select bind:value={llm.provider} class="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-200">
-            <option value="none">None (local-only)</option>
-            <option value="openai_compatible">OpenAI-compatible</option>
-            <option value="opencode">OpenCode CLI (opt-in)</option>
-          </select>
-          {#if llm.provider !== "none"}
-            <input bind:value={llm.model} placeholder="model name" class="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-200" />
-            <input bind:value={llm.base_url} placeholder="http://localhost:11434/v1" class="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-200" />
-            <input bind:value={llm.api_key_env} placeholder="API key env var" class="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-200" />
-          {/if}
-          <p class="mt-2 text-[9px] leading-4 text-neutral-600">
-            Secrets stay in environment variables. The recipe stores only the variable name.
-          </p>
-        </div>
-      </aside>
     </div>
   </section>
 
@@ -533,6 +673,9 @@
         <div class="h-full rounded-full bg-sky-400 transition-all" style={`width: ${job.progress}%`}></div>
       </div>
       <p class="mt-2 text-[11px] text-neutral-400">{job.stage}: {job.message} · {job.progress}%</p>
+      {#if job.result?.cache_hits?.length}
+        <p class="mt-1 text-[10px] text-emerald-300">Cache hits: {job.result.cache_hits.join(", ")}</p>
+      {/if}
       {#if job.error}
         <p class="mt-2 rounded-lg border border-rose-500/20 bg-rose-950/30 p-2 text-[11px] text-rose-200">{job.error.message}</p>
       {/if}
@@ -552,6 +695,115 @@
         </ul>
       {/if}
     </section>
+  {/if}
+
+  {#if configOpen}
+    <div
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
+      role="presentation"
+      onclick={(event) => {
+        if (event.currentTarget === event.target) configOpen = false;
+      }}
+    >
+      <div class="max-h-[86vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-neutral-700 bg-neutral-950 p-5 shadow-2xl" role="dialog" aria-modal="true" aria-label="Recipe settings">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h3 class="text-sm font-semibold text-white">Recipe settings</h3>
+            <p class="mt-1 text-[11px] text-neutral-500">Identity and optional LLM router. Secrets stay in environment variables.</p>
+          </div>
+          <button type="button" onclick={() => (configOpen = false)} class="rounded px-2 text-neutral-500 hover:text-neutral-200" aria-label="Close settings">×</button>
+        </div>
+        <div class="mt-4 grid gap-3 sm:grid-cols-2">
+          <label class="block text-[10px] text-neutral-500">
+            Recipe ID
+            <input bind:value={recipeId} class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 font-mono text-[11px] text-neutral-200" />
+          </label>
+          <label class="block text-[10px] text-neutral-500">
+            Name
+            <input bind:value={recipeName} class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-[11px] text-neutral-200" />
+          </label>
+          <label class="block text-[10px] text-neutral-500 sm:col-span-2">
+            Description
+            <textarea bind:value={recipeDescription} rows="2" class="mt-1 w-full resize-y rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-[11px] text-neutral-200"></textarea>
+          </label>
+          <label class="block text-[10px] text-neutral-500">
+            LLM provider
+            <select bind:value={llm.provider} class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-[11px] text-neutral-200">
+              <option value="none">None (local-only)</option>
+              <option value="openai_compatible">OpenAI-compatible</option>
+              <option value="opencode">OpenCode CLI (opt-in)</option>
+            </select>
+          </label>
+          <label class="block text-[10px] text-neutral-500">
+            Model
+            <input bind:value={llm.model} placeholder="qwen2.5:7b-instruct" class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-[11px] text-neutral-200" />
+          </label>
+          {#if llm.provider !== "none"}
+            <label class="block text-[10px] text-neutral-500 sm:col-span-2">
+              Base URL
+              <input bind:value={llm.base_url} placeholder="http://localhost:11434/v1" class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 font-mono text-[10px] text-neutral-200" />
+            </label>
+            <label class="block text-[10px] text-neutral-500">
+              API key env var
+              <input bind:value={llm.api_key_env} class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 font-mono text-[10px] text-neutral-200" />
+            </label>
+            <label class="block text-[10px] text-neutral-500">
+              Timeout (s)
+              <input type="number" bind:value={llm.timeout_seconds} min="1" max="600" class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-[11px] text-neutral-200" />
+            </label>
+          {/if}
+        </div>
+        <div class="mt-4 flex justify-end">
+          <button type="button" onclick={() => (configOpen = false)} class="rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-medium text-neutral-950 hover:bg-sky-400">Done</button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  {#if jsonModal}
+    <div
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 sm:p-4"
+      role="presentation"
+      onclick={(event) => {
+        if (event.currentTarget === event.target) jsonModal = null;
+      }}
+    >
+      <div class="flex h-[88vh] w-[min(1100px,96vw)] flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="JSON editor">
+        <div class="flex items-center justify-between gap-3 border-b border-neutral-800 px-4 py-3">
+          <div>
+            <h3 class="text-sm font-semibold text-white">{jsonModal === "recipe" ? "Recipe JSON" : "Step parameters"}</h3>
+            <p class="mt-0.5 text-[10px] text-neutral-500">
+              {jsonModal === "recipe" ? "Edit the full DAG, then apply it to the canvas." : `Editing ${selectedId ?? "selected step"}.`}
+            </p>
+          </div>
+          <button type="button" onclick={() => (jsonModal = null)} class="rounded px-2 text-neutral-500 hover:text-neutral-200" aria-label="Close JSON editor">×</button>
+        </div>
+        <div class="flex min-h-0 flex-1 flex-col p-3">
+          {#if jsonModal === "recipe"}
+            <textarea
+              bind:value={recipeJsonText}
+              spellcheck="false"
+              class="min-h-0 flex-1 resize-none rounded-xl border border-neutral-700 bg-neutral-950 p-3 font-mono text-xs leading-5 text-neutral-200"
+            ></textarea>
+          {:else}
+            <textarea
+              value={paramText}
+              oninput={(event) => updateParams(event.currentTarget.value)}
+              spellcheck="false"
+              class="min-h-0 flex-1 resize-none rounded-xl border border-neutral-700 bg-neutral-950 p-3 font-mono text-xs leading-5 text-neutral-200"
+            ></textarea>
+          {/if}
+          {#if jsonError}<p class="mt-2 text-[11px] text-rose-300">{jsonError}</p>{/if}
+        </div>
+        <div class="flex items-center justify-between gap-2 border-t border-neutral-800 px-4 py-3">
+          <p class="text-[10px] text-neutral-500">Apply updates the canvas locally. Run Validate to check the DAG on the server.</p>
+          <div class="flex gap-2">
+            <button type="button" onclick={() => (jsonModal = null)} class="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300">Cancel</button>
+            <button type="button" onclick={applyJson} class="rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-medium text-neutral-950 hover:bg-sky-400">Apply</button>
+          </div>
+        </div>
+      </div>
+    </div>
   {/if}
 
   {#if picker}

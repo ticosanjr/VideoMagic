@@ -46,7 +46,9 @@ and enabled steps that depend on disabled steps.
 | `retakes.cull` | `transcribe` | discard/restore decisions, updated speech |
 | `edit.timeline` | `audio.vad` | validated `ProjectState` |
 | `shorts.select` | `transcribe` | selected Short clips |
-| `shorts.render` | `shorts.select` | MP4 + ASS files and `shorts.json` |
+| `shorts.reframe` | `shorts.select` | crop focus via static crop, motion, or face tracking |
+| `shorts.captions` | `shorts.select` | ASS caption files per Short |
+| `shorts.render` | `shorts.select` (+ optional reframe/captions) | MP4 + `shorts.json`; uses caption files when present |
 | `export.nle` | `edit.timeline` | FCPXML, XMEML, Kdenlive |
 
 `GET /api/v1/steps` returns each step's JSON parameter schema. The UI uses that
@@ -104,6 +106,27 @@ The MCP server and the UI share the same `JobManager`.
 
 Secrets are referenced by environment variable name. A recipe never contains
 an API key.
+
+## Cache
+
+`audio.vad` and local/HTTP `transcribe` results are cached by source PCM digest
+plus step parameters under:
+
+```text
+<videoflow-home>/cache/recipe-v1/
+```
+
+The cache is shared across output directories, so a second recipe run can reuse
+VAD and a local/HTTP transcript even when the project folder changes. Use:
+
+```bash
+videoflow recipe cache path
+videoflow recipe cache clear
+```
+
+Set `VIDEOWFLOW_RECIPE_CACHE=0` to disable it. SRT/project transcripts are read
+directly and are not cached. The run report lists `cache_hits` and
+`cache_misses`.
 
 ## Artifacts
 

@@ -787,7 +787,7 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-950">
-  <div class="mx-auto flex min-h-screen max-w-[1400px] flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+  <div class={`mx-auto flex min-h-screen flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 ${activeTab === "recipes" ? "max-w-[1800px]" : "max-w-[1400px]"}`}>
     <header class="flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-center gap-3">
         <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-300 ring-1 ring-inset ring-sky-400/20">
@@ -926,6 +926,7 @@
       </div>
     {/if}
 
+    {#if activeTab !== "recipes"}
     <section class="overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-neutral-900 via-neutral-900/80 to-neutral-950 shadow-2xl shadow-black/20">
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
         <div>
@@ -1276,12 +1277,16 @@
         </div>
       {/if}
     </section>
+    {/if}
 
+    {#if activeTab === "recipes"}
+      <div id="pipeline-content" class="scroll-mt-24">
+        <RecipesPanel {source} {output} />
+      </div>
+    {:else}
     <div id="pipeline-content" class="grid scroll-mt-24 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
     <section aria-label="Pipeline modules" class="space-y-3">
-      {#if activeTab === "recipes"}
-        <RecipesPanel {source} {output} />
-      {:else if activeTab === "studio"}
+      {#if activeTab === "studio"}
         <StudioPanel {job} {config} onEdit={openShortEditor} />
       {:else if activeTab === "models"}
         <ModelsPanel allowExternal={config.allow_external_services} />
@@ -1646,7 +1651,9 @@
       </section>
     </aside>
   </div>
+  {/if}
 
+  {#if activeTab !== "recipes"}
   <section class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-5">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -1735,6 +1742,7 @@
       </p>
     {/if}
   </section>
+  {/if}
 
   <footer class="pb-4 text-xs text-neutral-500">
     <p>

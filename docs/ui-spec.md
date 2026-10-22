@@ -2,7 +2,7 @@
 
 Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript. English strings only.
 
-0.23.1 keeps the full telemetry rack from 0.13 and adds detailed configuration
+0.24.0 keeps the full telemetry rack from 0.13 and adds detailed configuration
 for zoom bounds, audio fades, Shorts count/selection, and caption/karaoke style,
 plus a live 9:16 caption preview and audio fades in all three NLE exports.
 The setup card shows source metadata, an output suggestion, starting-point
@@ -29,7 +29,7 @@ persisted presets, and word-level inspector controls.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ VideoFlow      0.23.1   FFmpeg ready          [Global log]   │
+│ VideoFlow      0.24.0   FFmpeg ready          [Global log]   │
 ├──────────────────────────────────────────────────────────────┤
 │ New project                                      [Run]       │
 │  01 Source video        [Choose / Change]                    │
@@ -125,7 +125,13 @@ the pipeline does not read as one long wall of controls:
 | Services | Local service discovery, restart, stop, cleanup, logs |
 | Providers | Capability manifest and external-service opt-in/blocking |
 
-The tab bar keeps the current run summary and history sidebar visible. Module
+The Recipes tab uses the full content width and hides the legacy New project
+and run-summary panels. The step palette is a filterable popover, the step
+inspector is a right-side overlay that opens on node click, and recipe settings
+plus step/recipe JSON use modal editors. This keeps the canvas wide while the
+controls remain one click away.
+
+The manual tabs keep the current run summary and history sidebar visible. Module
 counts are shown per tab. The Providers tab is not a pipeline module; it reads
 `GET /api/v1/capabilities` and explains available, blocked, partial, and planned
 features.

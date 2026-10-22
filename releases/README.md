@@ -47,6 +47,7 @@ videoflow-0.21.2-windows-x86_64.exe
 
 ## Current
 
+- `v0.24.0`: independent Shorts reframe/captions steps, recipe VAD/transcript cache, full-width recipe canvas, and collapsible/JSON-modal editor controls.
 - `v0.23.1`: recipe path allowlist enforcement, Shorts/retakes dependency fix, and user-recipe overrides.
 - `v0.23.0`: recipe engine v1, Recipes-first Svelte Flow editor, recipe CLI/REST/MCP, typed step registry, and built-in DAG recipes.
 - `v0.22.3`: sticky top tab navigation, cache-busted UI, version mismatch

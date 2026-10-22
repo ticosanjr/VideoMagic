@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
 from fractions import Fraction
 from pathlib import Path
 
@@ -15,7 +14,6 @@ from videoflow.application.shorts import (
     select_shorts,
     short_dimensions,
 )
-from videoflow.application.tracking import track_focus_x
 from videoflow.application.video_analysis import detect_scene_changes, scene_intervals
 from videoflow.core.context import PipelineContext
 from videoflow.domain.config import ShortsConfig
@@ -118,22 +116,11 @@ class ShortsSelectStep(BaseStep):
             energy_intervals=energy,
             scene_intervals=scenes,
         )
-        if options.reframe_mode in {"motion_tracking", "face_tracking"}:
-            io.report(55, "Tracking the active speaker")
-            tracked = []
-            for clip in selected:
-                focus, used_mode = track_focus_x(
-                    Path(context.source),
-                    clip.pieces,
-                    media.audio_sample_rate,
-                    mode=options.reframe_mode,
-                )
-                if used_mode != options.reframe_mode:
-                    warnings.append(
-                        f"{options.reframe_mode} unavailable; used {used_mode}"
-                    )
-                tracked.append(replace(clip, crop_focus_x=focus))
-            selected = tracked
+        if options.reframe_mode != "center_crop_9_16":
+            warnings.append(
+                "reframe_mode is handled by the shorts.reframe step; "
+                "shorts.select no longer tracks faces"
+            )
 
         context.selected_shorts = list(selected)
         context.shorts = [

@@ -7,7 +7,7 @@ vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive. The primary surface is a recipe DAG editor; the classic rack
 panels remain available for manual control.
 
-> Status: 0.23.1 alpha. The portable Linux binary, Linux AppImage, and Windows
+> Status: 0.24.0 alpha. The portable Linux binary, Linux AppImage, and Windows
 > PE run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical shorts, and
@@ -47,7 +47,7 @@ The same contract is available at `POST /api/v1/recipes/run` and through
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 392 passing, 11 strict xfail, 7 deselected
+uv run pytest                       # 395 passing, 11 strict xfail, 7 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model
