@@ -212,7 +212,7 @@ def _append_link(
 
 def _append_motion(parent: ET.Element, clip: VideoSegment) -> None:
     transform = clip.transform
-    if transform.scale == 1.0:
+    if transform.scale == 1.0 and not transform.keyframes:
         return
     filter_element = ET.SubElement(parent, "filter")
     effect = ET.SubElement(filter_element, "effect")
@@ -225,6 +225,12 @@ def _append_motion(parent: ET.Element, clip: VideoSegment) -> None:
     ET.SubElement(parameter, "parameterid").text = "scale"
     ET.SubElement(parameter, "name").text = "Scale"
     ET.SubElement(parameter, "value").text = str(round(transform.scale * 100))
+    if transform.keyframes:
+        duration = max(1, clip.timeline_out_frame - clip.timeline_in_frame)
+        for keyframe in transform.keyframes:
+            key = ET.SubElement(parameter, "keyframe")
+            ET.SubElement(key, "when").text = str(round(keyframe.at * duration))
+            ET.SubElement(key, "value").text = str(round(keyframe.scale * 100))
 
 
 def _premiere_path_url(path: str) -> str:

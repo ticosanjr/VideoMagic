@@ -235,3 +235,57 @@ def test_mp4_export_builds_the_timeline_filter_graph(tmp_path: Path) -> None:
     assert "concat=n=2:v=0:a=1[aout]" in graph
     assert "libx264" in args
     assert args[args.index("-map") + 1] == "[vout]"
+
+
+def progressive_state(tmp_path: Path) -> ProjectState:
+    from videoflow.domain.config import ZoomsConfig
+
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    media = MediaInfo(
+        source_path=str(source),
+        duration_frames=90,
+        fps_num=30,
+        fps_den=1,
+        width=1920,
+        height=1080,
+        audio_sample_rate=48000,
+    )
+    built = build_timeline(
+        media,
+        [(0, 48000), (96000, 144000)],
+        jl=JlCutsConfig(enable_j_cuts=False),
+        zooms=ZoomsConfig(mode="alternate_cuts", progressive_zoom=True),
+    )
+    return ProjectState(
+        media_info=media,
+        video_segments=list(built.video_segments),
+        audio_segments=list(built.audio_segments),
+    )
+
+
+def test_fcpxml_emits_progressive_zoom_keyframes(tmp_path: Path) -> None:
+    output = export_fcpxml(progressive_state(tmp_path), tmp_path / "timeline.fcpxml")
+    root = ET.parse(output).getroot()
+    keyframes = root.findall(
+        ".//adjust-transform/param[@name='scale']/keyframeAnimation/keyframe"
+    )
+    assert len(keyframes) == 2
+    assert keyframes[0].attrib["time"] == "0s"
+    assert keyframes[-1].attrib["value"] != keyframes[0].attrib["value"]
+
+
+def test_xmeml_emits_progressive_zoom_keyframes(tmp_path: Path) -> None:
+    output = export_xmeml(progressive_state(tmp_path), tmp_path / "timeline.xml")
+    root = ET.parse(output).getroot()
+    keyframes = root.findall(".//effect[effectid='basicmotion']/parameter/keyframe")
+    assert len(keyframes) == 2
+    assert keyframes[0].findtext("when") == "0"
+    assert keyframes[-1].findtext("value") != keyframes[0].findtext("value")
+
+
+def test_mp4_filter_graph_uses_zoompan_for_keyframes(tmp_path: Path) -> None:
+    from videoflow.exporters.mp4 import build_filter_graph
+
+    graph, _, _ = build_filter_graph(progressive_state(tmp_path))
+    assert "zoompan=" in graph

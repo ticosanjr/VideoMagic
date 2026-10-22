@@ -49,7 +49,7 @@ An empty rule list is neutral.
 
 ### progressive_zoom
 
-For a punched segment, replace the static scale with two keyframes: 1.0 at the
+For a punched segment, the timeline stores two normalized keyframes: 1.0 at the
 start, `punch_in_scale` at the end, or the reverse. The interpolation is linear in
 the NLE.
 

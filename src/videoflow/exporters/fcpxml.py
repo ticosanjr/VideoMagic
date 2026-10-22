@@ -2,8 +2,8 @@
 
 J/L-cuts use ``audioStart`` and ``audioDuration`` on the composite asset-clip,
 which is the FCPXML mechanism for offsetting audio from its own picture.
-Audio fade edges use keyframed ``adjust-volume`` ramps. Keyframed progressive
-zooms are not emitted yet; see ``docs/exporters.md``.
+Audio fade edges use keyframed ``adjust-volume`` ramps. Progressive zooms use a
+keyframed ``adjust-transform`` scale parameter.
 """
 
 from __future__ import annotations
@@ -167,6 +167,24 @@ def _append_audio_fade(element: ET.Element, clip: AudioSegment, media: MediaInfo
 
 def _append_transform(element: ET.Element, clip: VideoSegment, media: MediaInfo) -> None:
     transform = clip.transform
+    if transform.keyframes:
+        adjustment = ET.SubElement(element, "adjust-transform", {"enabled": "1"})
+        parameter = ET.SubElement(adjustment, "param", {"name": "scale"})
+        animation = ET.SubElement(parameter, "keyframeAnimation")
+        duration = max(1, clip.timeline_out_frame - clip.timeline_in_frame)
+        timebase = media.timebase()
+        for keyframe in transform.keyframes:
+            frame = round(keyframe.at * duration)
+            ET.SubElement(
+                animation,
+                "keyframe",
+                {
+                    "time": format_rational_time(timebase.frames_to_seconds(frame)),
+                    "value": f"{keyframe.scale:g}",
+                    "curve": keyframe.curve,
+                },
+            )
+        return
     if transform.scale == 1.0 and transform.type == "none" and transform.pan_direction == "none":
         return
     x = 0

@@ -88,6 +88,14 @@ class ManualOverride(StrictModel):
     action: OverrideAction
 
 
+class TransformKeyframe(StrictModel):
+    at: float = Field(ge=0.0, le=1.0)
+    scale: float = Field(ge=1.0, le=4.0)
+    pos_x: float = 0.0
+    pos_y: float = 0.0
+    curve: Literal["linear", "smooth"] = "linear"
+
+
 class Transform(StrictModel):
     scale: float = Field(default=1.0, ge=1.0, le=4.0)
     pos_x: float = 0.0
@@ -95,6 +103,7 @@ class Transform(StrictModel):
     type: TransformType = "none"
     anchor: AnchorPoint = "upper_third"
     pan_direction: PanDirection = "none"
+    keyframes: list[TransformKeyframe] = Field(default_factory=list)
 
 
 class VideoSegment(StrictModel):

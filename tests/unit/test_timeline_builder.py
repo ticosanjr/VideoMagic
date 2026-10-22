@@ -137,6 +137,7 @@ def test_zooms_alternate_and_respect_manual_and_face_fallback() -> None:
     assert result.video_segments[0].transform.scale == 1.0
     assert result.video_segments[1].transform.scale == 1.2
     assert result.video_segments[1].transform.type == "slow_zoom_in"
+    assert [item.scale for item in result.video_segments[1].transform.keyframes] == [1.0, 1.2]
     assert any("face detection" in warning for warning in result.warnings)
 
 

@@ -7,7 +7,7 @@ vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive. The primary surface is a recipe DAG editor; the classic rack
 panels remain available for manual control.
 
-> Status: 0.27.0 alpha. The portable Linux binary, Linux AppImage, and Windows
+> Status: 0.28.0 alpha. The portable Linux binary, Linux AppImage, and Windows
 > PE run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical shorts, and
@@ -47,7 +47,7 @@ The same contract is available at `POST /api/v1/recipes/run` and through
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 405 passing, 11 strict xfail, 7 deselected
+uv run pytest                       # 408 passing, 11 strict xfail, 7 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model
@@ -150,6 +150,7 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   presets.
 - MCP tools that start, poll, and cancel real pipeline jobs.
 - Direct main-timeline MP4 render from the validated timeline.
+- Progressive zoom keyframes in FCPXML, XMEML, and MP4.
 - Folder batches with one job per file, item-level progress, cancellation, and checkpoints.
 - Run comparison: previous versus current step status, timings, cache hits, and warnings.
 
@@ -157,7 +158,7 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 
 - Project-scoped per-block reruns; the legacy route returns typed `501`. Recipe
   steps already use per-step checkpoints.
-- Keyframed progressive video transitions.
+- Keyframed video transitions between clips.
 - Face tracking for the main timeline.
 - Manual import validation in Resolve, Premiere, and Kdenlive.
 - A signed Windows binary (SmartScreen will warn).

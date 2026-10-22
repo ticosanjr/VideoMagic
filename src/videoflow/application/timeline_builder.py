@@ -17,6 +17,7 @@ from videoflow.domain.state import (
     AudioSegment,
     MediaInfo,
     Transform,
+    TransformKeyframe,
     TransformType,
     VideoSegment,
 )
@@ -280,6 +281,12 @@ def _transform(index: int, config: ZoomsConfig, warnings: list[str]) -> Transfor
         pos_x = 0.0
         if kind == "none":
             kind = "pan"
+    keyframes: list[TransformKeyframe] = []
+    if kind == "slow_zoom_in" and scale > 1.0:
+        keyframes = [
+            TransformKeyframe(at=0.0, scale=config.min_scale, curve="smooth"),
+            TransformKeyframe(at=1.0, scale=scale, curve="smooth"),
+        ]
     return Transform(
         scale=scale,
         pos_x=pos_x,
@@ -287,4 +294,5 @@ def _transform(index: int, config: ZoomsConfig, warnings: list[str]) -> Transfor
         type=kind,
         anchor=anchor,
         pan_direction=config.pan_direction,
+        keyframes=keyframes,
     )

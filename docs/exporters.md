@@ -94,7 +94,7 @@ Mapping:
 | J/L-cut | `audioStart`, `audioDuration` |
 | Punch-in | `<adjust-transform scale="1.15 1.15" position="0 180"/>` |
 | Pan | `<adjust-transform position="..."/>` |
-| Progressive zoom | stored as metadata; keyframes are not emitted yet |
+| Progressive zoom | FCPXML `adjust-transform` scale keyframes, XMEML Basic Motion keyframes, and MP4 `zoompan` |
 | Fade | keyframed `adjust-volume` ramp inside the `asset-clip` |
 | Markers | not emitted yet |
 

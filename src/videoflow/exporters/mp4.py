@@ -14,6 +14,24 @@ from videoflow.exporters.common import require_timeline
 def _transform_filters(clip: VideoSegment, media: MediaInfo) -> list[str]:
     transform = clip.transform
     filters: list[str] = []
+    if transform.keyframes:
+        first = transform.keyframes[0]
+        last = transform.keyframes[-1]
+        duration = max(1, clip.source_out_frame - clip.source_in_frame)
+        span = max(1, duration - 1)
+        zoom = (
+            f"{first.scale:g}+({last.scale:g}-{first.scale:g})"
+            f"*(on-1)/{span}"
+        )
+        filters.append(
+            "zoompan="
+            f"z='{zoom}':"
+            "x='iw/2-(iw/zoom/2)':"
+            "y='ih/2-(ih/zoom/2)':"
+            f"d=1:s={media.width}x{media.height}:"
+            f"fps={media.fps_num}/{media.fps_den}"
+        )
+        return filters
     scale = float(transform.scale)
     if scale > 1.0001:
         width = max(2, round(media.width * scale / 2) * 2)

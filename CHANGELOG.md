@@ -3,6 +3,27 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.28.0] - 2026-10-22
+
+### Added
+
+- **Progressive zoom keyframes.** `Transform` now carries normalized scale
+  keyframes. `progressive_zoom` generates two smooth keyframes (minimum scale
+  to punch-in scale) for alternating clips.
+- **FCPXML keyframes.** `adjust-transform` emits a keyframed `scale` parameter
+  with clip-relative rational times.
+- **XMEML keyframes.** Basic Motion scale emits `keyframe` entries with
+  clip-relative frame positions.
+- **MP4 keyframes.** The direct renderer uses `zoompan` for clips with
+  keyframes, keeping the output dimensions stable.
+- Project state schema updated for `TransformKeyframe`.
+
+### Notes
+
+- Kdenlive does not apply clip transforms yet, so keyframes are not represented
+  there.
+- Transitions between clips remain the next editing pass.
+
 ## [0.27.0] - 2026-10-22
 
 ### Added

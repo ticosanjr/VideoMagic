@@ -1218,6 +1218,13 @@
           "title": "Anchor",
           "type": "string"
         },
+        "keyframes": {
+          "items": {
+            "$ref": "#/$defs/TransformKeyframe"
+          },
+          "title": "Keyframes",
+          "type": "array"
+        },
         "pan_direction": {
           "default": "none",
           "enum": [
@@ -1259,6 +1266,48 @@
         }
       },
       "title": "Transform",
+      "type": "object"
+    },
+    "TransformKeyframe": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "At",
+          "type": "number"
+        },
+        "curve": {
+          "default": "linear",
+          "enum": [
+            "linear",
+            "smooth"
+          ],
+          "title": "Curve",
+          "type": "string"
+        },
+        "pos_x": {
+          "default": 0.0,
+          "title": "Pos X",
+          "type": "number"
+        },
+        "pos_y": {
+          "default": 0.0,
+          "title": "Pos Y",
+          "type": "number"
+        },
+        "scale": {
+          "maximum": 4.0,
+          "minimum": 1.0,
+          "title": "Scale",
+          "type": "number"
+        }
+      },
+      "required": [
+        "at",
+        "scale"
+      ],
+      "title": "TransformKeyframe",
       "type": "object"
     },
     "TtsConfig": {
