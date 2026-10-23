@@ -6,11 +6,8 @@ describe("module tabs", () => {
     const ids = moduleTabs.map((tab) => tab.id);
     expect(ids).toEqual([
       "recipes",
-      "speech",
-      "edit",
-      "shorts",
-      "studio",
-      "export",
+      "assets",
+      "timeline",
       "models",
       "services",
       "providers"
