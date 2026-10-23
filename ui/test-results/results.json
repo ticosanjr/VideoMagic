@@ -131,12 +131,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1920,
+                  "duration": 1160,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T12:32:44.733Z",
+                  "startTime": "2026-10-23T13:44:19.713Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -165,12 +165,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 963,
+                  "duration": 609,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T12:32:46.797Z",
+                  "startTime": "2026-10-23T13:44:20.968Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -199,12 +199,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 958,
+                  "duration": 587,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T12:32:47.772Z",
+                  "startTime": "2026-10-23T13:44:21.591Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -233,12 +233,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1494,
+                  "duration": 655,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T12:32:48.751Z",
+                  "startTime": "2026-10-23T13:44:22.191Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -267,12 +267,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 954,
+                  "duration": 613,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T12:32:50.266Z",
+                  "startTime": "2026-10-23T13:44:22.857Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -301,12 +301,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 933,
+                  "duration": 590,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T12:32:51.236Z",
+                  "startTime": "2026-10-23T13:44:23.480Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -335,12 +335,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1256,
+                  "duration": 671,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T12:32:52.180Z",
+                  "startTime": "2026-10-23T13:44:24.081Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -369,12 +369,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 997,
+                  "duration": 596,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T12:32:53.452Z",
+                  "startTime": "2026-10-23T13:44:24.762Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -403,12 +403,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 956,
+                  "duration": 567,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T12:32:54.462Z",
+                  "startTime": "2026-10-23T13:44:25.366Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -437,12 +437,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 898,
+                  "duration": 557,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T12:32:55.440Z",
+                  "startTime": "2026-10-23T13:44:25.941Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -471,12 +471,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1054,
+                  "duration": 568,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T12:32:56.358Z",
+                  "startTime": "2026-10-23T13:44:26.507Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -491,7 +491,7 @@
         },
         {
           "title": "opens the asset library tab",
-          "ok": true,
+          "ok": false,
           "tags": [],
           "tests": [
             {
@@ -504,18 +504,58 @@
                 {
                   "workerIndex": 0,
                   "parallelIndex": 0,
-                  "status": "passed",
-                  "duration": 936,
-                  "errors": [],
+                  "status": "failed",
+                  "duration": 5190,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('step-edit.timeline')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" getByTestId('step-edit.timeline') with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('step-edit.timeline')\u001b[22m\n",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('step-edit.timeline')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" getByTestId('step-edit.timeline') with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('step-edit.timeline')\u001b[22m\n\n    at /home/rafael/Documents/ProjetosAI/VideoMagic/ui/e2e/recipes.spec.ts:28:56",
+                    "location": {
+                      "file": "/home/rafael/Documents/ProjetosAI/VideoMagic/ui/e2e/recipes.spec.ts",
+                      "column": 56,
+                      "line": 28
+                    },
+                    "snippet": "  26 |   await page.goto(\"/\");\n  27 |   await expect(page.getByRole(\"heading\", { name: \"Recipe builder\" })).toBeVisible();\n> 28 |   await expect(page.getByTestId(\"step-edit.timeline\")).toBeVisible();\n     |                                                        ^\n  29 | });\n  30 |\n  31 | test(\"loads saved node layout and inline fields\", async ({ page }) => {"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/home/rafael/Documents/ProjetosAI/VideoMagic/ui/e2e/recipes.spec.ts",
+                        "column": 56,
+                        "line": 28
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('step-edit.timeline')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" getByTestId('step-edit.timeline') with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('step-edit.timeline')\u001b[22m\n\n\n  26 |   await page.goto(\"/\");\n  27 |   await expect(page.getByRole(\"heading\", { name: \"Recipe builder\" })).toBeVisible();\n> 28 |   await expect(page.getByTestId(\"step-edit.timeline\")).toBeVisible();\n     |                                                        ^\n  29 | });\n  30 |\n  31 | test(\"loads saved node layout and inline fields\", async ({ page }) => {\n    at /home/rafael/Documents/ProjetosAI/VideoMagic/ui/e2e/recipes.spec.ts:28:56"
+                    }
+                  ],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T12:32:57.425Z",
+                  "startTime": "2026-10-23T13:44:27.083Z",
                   "annotations": [],
-                  "attachments": []
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/home/rafael/Documents/ProjetosAI/VideoMagic/ui/test-results/recipes-opens-the-asset-library-tab-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/home/rafael/Documents/ProjetosAI/VideoMagic/ui/test-results/recipes-opens-the-asset-library-tab-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/home/rafael/Documents/ProjetosAI/VideoMagic/ui/test-results/recipes-opens-the-asset-library-tab-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/home/rafael/Documents/ProjetosAI/VideoMagic/ui/e2e/recipes.spec.ts",
+                    "column": 56,
+                    "line": 28
+                  }
                 }
               ],
-              "status": "expected"
+              "status": "unexpected"
             }
           ],
           "id": "723a17b4fbf153e3b0b6-9bad12e8c9c7be4c61ea",
@@ -536,15 +576,15 @@
               "projectName": "chromium",
               "results": [
                 {
-                  "workerIndex": 0,
+                  "workerIndex": 1,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 775,
+                  "duration": 642,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T12:32:58.373Z",
+                  "startTime": "2026-10-23T13:44:32.875Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -570,15 +610,15 @@
               "projectName": "chromium",
               "results": [
                 {
-                  "workerIndex": 0,
+                  "workerIndex": 1,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 851,
+                  "duration": 554,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T12:32:59.159Z",
+                  "startTime": "2026-10-23T13:44:33.608Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -596,11 +636,11 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-10-23T12:32:39.092Z",
-    "duration": 21109.308999999997,
-    "expected": 14,
+    "startTime": "2026-10-23T13:44:16.288Z",
+    "duration": 17983.040999999997,
+    "expected": 13,
     "skipped": 0,
-    "unexpected": 0,
+    "unexpected": 1,
     "flaky": 0
   }
 }

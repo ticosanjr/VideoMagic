@@ -16,6 +16,8 @@ def test_catalog_lists_both_optional_models(monkeypatch, tmp_path: Path) -> None
         "whisper-tiny",
     }
     assert all(item["installed"] is False for item in listed)
+    assert {item["capability"] for item in listed} == {"asr", "diarization"}
+    assert all("used_by" in item for item in listed)
 
 
 def test_install_refuses_unknown_model(monkeypatch, tmp_path: Path) -> None:

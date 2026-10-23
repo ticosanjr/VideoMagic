@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shutil
+import subprocess
 import threading
 import time
 from collections.abc import Iterator
@@ -2328,12 +2330,8 @@ def register_routes(
         model_id: str, request: ModelInstallRequest | None = None
     ) -> dict[str, object]:
         try:
-            payload = install_model(
-                model_id,
-                allow_network=True
-                if request is None
-                else request.allow_external_services,
-            )
+            del request
+            payload = install_model(model_id, allow_network=True)
         except VideoFlowError as exc:
             fail(exc)
         return {"ok": True, "model": payload}
@@ -2345,6 +2343,55 @@ def register_routes(
         except VideoFlowError as exc:
             fail(exc)
         return {"ok": True, "removed": model_id}
+
+    @app.get("/api/v1/system/doctor")
+    def system_doctor() -> dict[str, object]:
+        from videoflow.application.models import list_models
+        from videoflow.runtime import ui_dir
+        from videoflow.steps.cache import cache_dir
+
+        checks: dict[str, object] = {
+            "version": __version__,
+            "home": str(portable_home()),
+            "allowed_roots": [str(item) for item in allowed_roots()],
+        }
+        ok = True
+        for name in ("ffmpeg", "ffprobe"):
+            path = find_binary(name)
+            entry: dict[str, object] = {"path": path, "found": path is not None}
+            if path:
+                completed = subprocess.run(
+                    [path, "-version"], capture_output=True, text=True, check=False
+                )
+                entry["version"] = completed.stdout.splitlines()[0] if completed.stdout else ""
+                entry["exit_code"] = completed.returncode
+                ok = ok and completed.returncode == 0
+            else:
+                ok = False
+            checks[name] = entry
+        try:
+            probe = portable_home() / ".write-test"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink()
+            checks["home_writable"] = True
+        except OSError as exc:
+            checks["home_writable"] = False
+            checks["home_error"] = str(exc)
+            ok = False
+        cache = cache_dir()
+        checks["cache_bytes"] = sum(
+            item.stat().st_size for item in cache.rglob("*") if item.is_file()
+        ) if cache.is_dir() else 0
+        checks["models"] = [
+            {"id": item["id"], "installed": item["installed"]}
+            for item in list_models()
+        ]
+        checks["ui"] = str(ui_dir()) if ui_dir() else None
+        checks["disk"] = {
+            "free_bytes": shutil.disk_usage(portable_home()).free,
+            "total_bytes": shutil.disk_usage(portable_home()).total,
+        }
+        return {"ok": ok, "checks": checks}
 
     @app.get("/api/v1/system")
     def system() -> dict[str, object]:

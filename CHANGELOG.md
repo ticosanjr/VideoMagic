@@ -3,6 +3,26 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.53.0] - 2026-10-23
+
+### Changed
+
+- **Models page** now groups by capability and shows used-by steps, license,
+  source, installed size, and explicit downloads. Model download is decoupled
+  from the external-provider toggle.
+- **Services page** has a Doctor/diagnostics panel, destructive-action
+  confirmations, and bounded cache/disk reporting.
+- **Providers page** separates policy from the capability catalog; the catalog
+  is collapsed, searchable, filterable, and hides API/MCP details by default.
+- Added `GET /api/v1/system/doctor`.
+- Model manifest JSON includes capability, used_by, license, and source.
+
+### Notes
+
+- Provider connection tests and per-provider secret forms are still pending.
+- 456 Python tests, 8 media tests, 14 Vitest tests, and 14 Playwright tests pass.
+- Distribution remains out of scope.
+
 ## [0.52.0] - 2026-10-23
 
 ### Added

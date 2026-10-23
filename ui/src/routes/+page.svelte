@@ -1300,7 +1300,7 @@
       {#if activeTab === "studio"}
         <StudioPanel {job} {config} onEdit={openShortEditor} />
       {:else if activeTab === "models"}
-        <ModelsPanel allowExternal={config.allow_external_services} />
+        <ModelsPanel />
       {:else if activeTab === "services"}
         <ServicesPanel />
       {:else if activeTab === "providers"}

@@ -22,6 +22,9 @@
   let response = $state<CapabilitiesResponse | null>(null);
   let loading = $state(true);
   let error = $state("");
+  let query = $state("");
+  let statusFilter = $state("");
+  let catalogOpen = $state(false);
 
   const categories = ["ingest", "speech", "shorts", "export", "providers", "curation", "editing", "audio"];
 
@@ -29,9 +32,23 @@
     categories
       .map((category) => ({
         category,
-        items: (response?.capabilities ?? []).filter((item) => item.category === category)
+        items: (response?.capabilities ?? []).filter((item) => {
+          if (statusFilter && item.status !== statusFilter) return false;
+          const needle = query.trim().toLocaleLowerCase();
+          return !needle ||
+            item.name.toLocaleLowerCase().includes(needle) ||
+            item.description.toLocaleLowerCase().includes(needle) ||
+            category.toLocaleLowerCase().includes(needle);
+        })
       }))
       .filter((group) => group.items.length > 0)
+  );
+
+  const counts = $derived(
+    (response?.capabilities ?? []).reduce<Record<string, number>>((totals, item) => {
+      totals[item.status] = (totals[item.status] ?? 0) + 1;
+      return totals;
+    }, {})
   );
 
   const statusStyles: Record<string, string> = {
@@ -114,44 +131,64 @@
   </div>
 
   {#if loading}
-    <div class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4 text-xs text-neutral-500">
-      Reading capabilities…
-    </div>
+    <div class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4 text-xs text-neutral-500">Reading capabilities…</div>
   {:else if error}
-    <div class="rounded-2xl border border-rose-500/20 bg-rose-950/20 p-4 text-xs text-rose-300">
-      {error}
-    </div>
+    <div class="rounded-2xl border border-rose-500/20 bg-rose-950/20 p-4 text-xs text-rose-300">{error}</div>
   {:else}
-    <div class="grid gap-3 lg:grid-cols-2">
-      {#each grouped as group}
-        <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
-          <h3 class="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
-            {group.category}
-          </h3>
-          <div class="mt-3 space-y-2">
-            {#each group.items as item}
-              <article class="rounded-xl border border-neutral-800 bg-neutral-950/50 p-3">
-                <div class="flex flex-wrap items-start justify-between gap-2">
-                  <div class="min-w-0">
-                    <p class="text-xs font-medium text-neutral-200">{item.name}</p>
-                    <p class="mt-0.5 text-[10px] leading-4 text-neutral-500">{item.description}</p>
-                  </div>
-                  <span class="rounded-full px-2 py-0.5 text-[9px] font-medium uppercase tracking-wide ring-1 {statusStyles[item.status] ?? statusStyles.planned}">
-                    {item.status}
-                  </span>
-                </div>
-                {#if item.reason}
-                  <p class="mt-2 text-[10px] leading-4 text-rose-300/80">{item.reason}</p>
-                {/if}
-                <dl class="mt-2 grid gap-1 text-[9px] text-neutral-600 sm:grid-cols-2">
-                  <div><dt class="inline text-neutral-500">API </dt><dd class="inline font-mono">{item.api}</dd></div>
-                  <div><dt class="inline text-neutral-500">MCP </dt><dd class="inline font-mono">{item.mcp}</dd></div>
-                </dl>
-              </article>
-            {/each}
-          </div>
-        </section>
-      {/each}
-    </div>
+    <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 class="text-xs font-semibold text-neutral-100">Implemented surface</h3>
+          <p class="mt-1 text-[10px] text-neutral-500">A compact health view. The full API/MCP matrix is developer detail.</p>
+        </div>
+        <div class="flex flex-wrap gap-1.5 text-[9px] uppercase">
+          {#each ["available", "partial", "planned", "blocked"] as status}
+            <span class={`rounded-full px-2 py-1 ring-1 ${statusStyles[status]}`}>{status} {counts[status] ?? 0}</span>
+          {/each}
+        </div>
+      </div>
+      <button type="button" onclick={() => (catalogOpen = !catalogOpen)} class="mt-3 rounded-lg border border-neutral-700 px-3 py-1.5 text-[10px] text-neutral-300 hover:border-sky-500">
+        {catalogOpen ? "Hide capability catalog" : "Show capability catalog"}
+      </button>
+    </section>
+
+    {#if catalogOpen}
+      <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
+        <div class="flex flex-wrap gap-2">
+          <input bind:value={query} placeholder="Search capabilities…" class="min-w-[200px] flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-xs text-neutral-200" />
+          <select bind:value={statusFilter} class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-200">
+            <option value="">All statuses</option>
+            <option value="available">Available</option>
+            <option value="partial">Partial</option>
+            <option value="planned">Planned</option>
+            <option value="blocked">Blocked</option>
+          </select>
+        </div>
+        <div class="mt-3 grid gap-3 lg:grid-cols-2">
+          {#each grouped as group}
+            <div class="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
+              <h3 class="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{group.category}</h3>
+              <div class="mt-2 space-y-2">
+                {#each group.items as item}
+                  <article class="rounded-lg border border-neutral-800 bg-neutral-900/60 p-2">
+                    <div class="flex flex-wrap items-start justify-between gap-2">
+                      <p class="text-[11px] font-medium text-neutral-200">{item.name}</p>
+                      <span class={`rounded-full px-2 py-0.5 text-[8px] uppercase ring-1 ${statusStyles[item.status] ?? statusStyles.planned}`}>{item.status}</span>
+                    </div>
+                    <p class="mt-1 text-[10px] leading-4 text-neutral-500">{item.description}</p>
+                    {#if item.reason}<p class="mt-1 text-[9px] text-rose-300/80">{item.reason}</p>{/if}
+                    <details class="mt-1">
+                      <summary class="cursor-pointer text-[9px] text-neutral-600">API / MCP</summary>
+                      <p class="mt-1 break-all font-mono text-[9px] text-neutral-600">API {item.api}</p>
+                      <p class="break-all font-mono text-[9px] text-neutral-600">MCP {item.mcp}</p>
+                    </details>
+                  </article>
+                {/each}
+              </div>
+            </div>
+          {/each}
+        </div>
+      </section>
+    {/if}
   {/if}
 </div>

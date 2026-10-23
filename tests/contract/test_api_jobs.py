@@ -891,3 +891,17 @@ def test_timeline_route_from_project_state(monkeypatch, tmp_path: Path) -> None:
     assert payload["duration_sec"] == 1.0
     assert payload["video"][0]["id"] == "v1"
     assert payload["audio"][0]["id"] == "a1"
+
+
+def test_system_doctor_reports_checks() -> None:
+    from fastapi.testclient import TestClient
+
+    from videoflow.api.app import create_app
+
+    client = TestClient(create_app())
+    response = client.get("/api/v1/system/doctor")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["checks"]["version"]
+    assert "ffmpeg" in payload["checks"]
+    assert "disk" in payload["checks"]

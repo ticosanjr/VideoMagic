@@ -2,6 +2,7 @@
   import {
     cleanupServices,
     errorMessage,
+    getDoctor,
     getServiceLog,
     listServices,
     restartService,
@@ -19,6 +20,8 @@
   let logText = $state("");
   let logOpen = $state(false);
   let logBusy = $state(false);
+  let doctor = $state<Record<string, unknown> | null>(null);
+  let doctorBusy = $state(false);
 
   const others = $derived(
     services.filter((service) => !service.current && !service.protected)
@@ -37,6 +40,7 @@
 
   async function stopOne(service: ServiceProcessInfo) {
     if (busy) return;
+    if (!window.confirm(`Stop VideoFlow service PID ${service.pid}?`)) return;
     busy = service.pid;
     error = "";
     message = "";
@@ -53,6 +57,7 @@
 
   async function stopAllOthers() {
     if (busy || !others.length) return;
+    if (!window.confirm(`Stop ${others.length} other VideoFlow service(s)?`)) return;
     busy = "all";
     error = "";
     message = "";
@@ -89,6 +94,18 @@
     }
   }
 
+  async function runDoctor() {
+    doctorBusy = true;
+    error = "";
+    try {
+      doctor = (await getDoctor()).checks;
+    } catch (reason) {
+      error = errorMessage(reason);
+    } finally {
+      doctorBusy = false;
+    }
+  }
+
   async function restartCurrent() {
     if (busy) return;
     busy = "restart";
@@ -106,6 +123,7 @@
 
   async function stopCurrent() {
     if (busy) return;
+    if (!window.confirm("Stop the current VideoFlow service? The UI will go offline.")) return;
     busy = "stop";
     error = "";
     try {
@@ -170,6 +188,19 @@
         <pre class="mt-2 max-h-64 overflow-auto rounded-lg border border-neutral-800 bg-neutral-950 p-3 font-mono text-[10px] leading-5 text-neutral-400">{logText || "The server log is empty."}</pre>
       {/if}
     </div>
+  </div>
+
+  <div class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <h3 class="text-xs font-semibold text-neutral-100">Doctor / diagnostics</h3>
+        <p class="mt-1 text-[10px] text-neutral-500">FFmpeg, home, cache, disk, models, and environment checks.</p>
+      </div>
+      <button type="button" onclick={() => void runDoctor()} disabled={doctorBusy} class="rounded-lg border border-sky-500/40 px-3 py-1.5 text-[10px] text-sky-200 disabled:opacity-40">{doctorBusy ? "Running…" : "Run doctor"}</button>
+    </div>
+    {#if doctor}
+      <pre class="mt-3 max-h-72 overflow-auto rounded-lg border border-neutral-800 bg-neutral-950 p-3 font-mono text-[10px] leading-5 text-neutral-400">{JSON.stringify(doctor, null, 2)}</pre>
+    {/if}
   </div>
 
   <div class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">

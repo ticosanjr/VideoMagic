@@ -15,6 +15,10 @@ export interface LocalModel {
   label: string;
   size_mb: number;
   kind: string;
+  capability: string;
+  used_by: string[];
+  license: string;
+  source: string;
   installed: boolean;
   path: string;
 }
@@ -765,15 +769,12 @@ export async function listLocalModels(): Promise<LocalModel[]> {
   return response.models;
 }
 
-export async function installLocalModel(
-  modelId: string,
-  allowExternal = true
-): Promise<LocalModel> {
+export async function installLocalModel(modelId: string): Promise<LocalModel> {
   const response = await request<{ ok: boolean; model: LocalModel }>(
     `/api/v1/models/${encodeURIComponent(modelId)}/install`,
     {
       method: "POST",
-      body: JSON.stringify({ allow_external_services: allowExternal })
+      body: JSON.stringify({ allow_external_services: true })
     }
   );
   return response.model;
@@ -781,6 +782,10 @@ export async function installLocalModel(
 
 export async function removeLocalModel(modelId: string): Promise<void> {
   await request(`/api/v1/models/${encodeURIComponent(modelId)}`, { method: "DELETE" });
+}
+
+export async function getDoctor(): Promise<{ ok: boolean; checks: Record<string, unknown> }> {
+  return request("/api/v1/system/doctor");
 }
 
 export function getSystem(): Promise<SystemInfo> {

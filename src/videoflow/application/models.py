@@ -24,6 +24,10 @@ _WHISPER_TINY = (
 CATALOG: dict[str, dict[str, Any]] = {
     "faster-whisper-small": {
         "label": "Faster-Whisper small",
+        "capability": "asr",
+        "used_by": ["transcribe"],
+        "license": "MIT",
+        "source": "Systran/faster-whisper-small",
         "size_mb": 484,
         "kind": "faster-whisper",
         "target": "faster-whisper/small",
@@ -40,6 +44,10 @@ CATALOG: dict[str, dict[str, Any]] = {
     },
     "pyannote-diarization-3.1": {
         "label": "pyannote speaker diarization 3.1",
+        "capability": "diarization",
+        "used_by": ["audio.diarize"],
+        "license": "model card",
+        "source": "pyannote/speaker-diarization-3.1",
         "size_mb": 320,
         "kind": "pyannote",
         "target": "pyannote/speaker-diarization-3.1",
@@ -47,6 +55,10 @@ CATALOG: dict[str, dict[str, Any]] = {
     },
     "whisper-tiny": {
         "label": "whisper.cpp tiny",
+        "capability": "asr",
+        "used_by": ["transcribe"],
+        "license": "MIT",
+        "source": "ggerganov/whisper.cpp",
         "size_mb": 75,
         "kind": "whisper",
         "target": "whisper/ggml-tiny.bin",
@@ -99,6 +111,10 @@ def list_models() -> list[dict[str, object]]:
             "label": entry["label"],
             "size_mb": entry["size_mb"],
             "kind": entry["kind"],
+            "capability": entry.get("capability", "other"),
+            "used_by": list(entry.get("used_by", [])),
+            "license": entry.get("license", ""),
+            "source": entry.get("source", ""),
             "installed": _installed(model_id),
             "path": str(_target(model_id)),
         }
