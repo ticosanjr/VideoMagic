@@ -857,3 +857,18 @@ def test_job_manager_lists_with_pagination(tmp_path: Path) -> None:
     jobs = manager.list(limit=1)
     assert len(jobs) == 1
     assert jobs[0].job_id in {first.job_id, second.job_id}
+
+
+def test_planned_content_step_is_bypassed(tmp_path: Path) -> None:
+    from videoflow.engine.runner import RecipeRunner
+
+    recipe = parse_recipe(
+        {
+            "id": "bypass",
+            "name": "Bypass",
+            "steps": [{"id": "idea", "type": "content.idea"}],
+        }
+    )
+    result = RecipeRunner(recipe).run(tmp_path / "source.mp4", tmp_path / "out")
+    assert result.step_runs[0].status == "skipped"
+    assert result.context.metadata["step_progress"]["idea"] == 100

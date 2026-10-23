@@ -64,6 +64,9 @@
     type: string;
     params: Record<string, unknown>;
     schema?: Record<string, unknown>;
+    implementation?: "available" | "partial" | "planned";
+    icon?: string;
+    color?: string;
     status?: NodeStatus;
     progress?: number;
     expanded?: boolean;
@@ -317,6 +320,9 @@
           type: step.type,
           params: step.params,
           schema: manifest?.params_schema ?? {},
+          implementation: manifest?.status ?? "available",
+          icon: manifest?.icon ?? "●",
+          color: manifest?.color ?? "#38bdf8",
           status: "idle",
           progress: 0,
           expanded: recipeUi.nodes[step.id].expanded,
@@ -422,6 +428,9 @@
           type,
           params: defaultsFor(manifest),
           schema: manifest.params_schema,
+          implementation: manifest.status ?? "available",
+          icon: manifest.icon ?? "●",
+          color: manifest.color ?? "#38bdf8",
           status: "idle",
           progress: 0,
           expanded: true,
@@ -1111,7 +1120,8 @@
       const statuses: Record<string, NodeStatus> = {};
       const progress: Record<string, number> = {};
       for (const run of current.result.step_runs) {
-        statuses[run.id] = run.status === "cached" ? "cached" : "executed";
+        statuses[run.id] =
+          run.status === "cached" ? "cached" : run.status === "skipped" ? "skipped" : "executed";
         progress[run.id] = run.progress ?? 100;
       }
       setStatuses(statuses, progress);
@@ -1626,7 +1636,13 @@
                   class="w-full rounded-lg border border-neutral-800 px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:border-sky-500/60 hover:text-sky-200"
                   title={step.description}
                 >
-                  <span class="block">{step.title}</span>
+                  <span class="flex items-center gap-1.5">
+                    <span style={`color:${step.color ?? "#38bdf8"}`}>{step.icon ?? "●"}</span>
+                    <span class="block">{step.title}</span>
+                    {#if (step.status ?? "available") !== "available"}
+                      <span class={`ml-auto rounded px-1 py-0.5 text-[8px] uppercase ${(step.status ?? "available") === "partial" ? "bg-amber-500/10 text-amber-300" : "bg-neutral-700/60 text-neutral-400"}`}>{step.status}</span>
+                    {/if}
+                  </span>
                   <span class="font-mono text-[9px] text-neutral-600">{step.type}</span>
                 </button>
               {/each}

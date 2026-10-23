@@ -21,6 +21,8 @@ export type FieldType =
 
 export type ModuleTab =
   | "recipes"
+  | "assets"
+  | "timeline"
   | "speech"
   | "edit"
   | "shorts"
@@ -312,11 +314,8 @@ export const defaultConfig: JobConfig = {
 
 export const moduleTabs: { id: ModuleTab; label: string; hint: string }[] = [
   { id: "recipes", label: "Recipes", hint: "Visual DAG builder and recipe runner" },
-  { id: "speech", label: "Speech", hint: "Ingest, voice detection, transcription, and retakes" },
-  { id: "edit", label: "Edit", hint: "J/L cuts, fades, and framing" },
-  { id: "shorts", label: "Shorts", hint: "Curation, captions, aspect ratio, and render" },
-  { id: "studio", label: "Studio", hint: "AI analysis, timeline, keyframes, tracks, and transitions" },
-  { id: "export", label: "Export", hint: "NLE targets and FCPXML dialect" },
+  { id: "assets", label: "Assets", hint: "Local media, audio, images, fonts, tags, and licenses" },
+  { id: "timeline", label: "Timeline", hint: "Storyboard and read-only timeline for successful jobs" },
   { id: "models", label: "Models", hint: "Optional on-demand speech and vision models" },
   { id: "services", label: "Services", hint: "Inspect, stop, and restart local VideoFlow processes" },
   { id: "providers", label: "Providers", hint: "Local models and optional external services" }

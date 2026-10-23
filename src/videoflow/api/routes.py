@@ -18,6 +18,13 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from videoflow import __version__
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application.assets import (
+    get_asset,
+    list_assets,
+    remove_asset,
+    scan_directory,
+    update_tags,
+)
 from videoflow.application.brand_templates import (
     BrandTemplate,
     apply_brand_options,
@@ -414,6 +421,16 @@ class ShortDubbingRequest(BaseModel):
     allowed_external_hosts: list[str] = Field(default_factory=list)
 
 
+class AssetScanRequest(BaseModel):
+    directory: str = Field(min_length=1)
+    tags: list[str] = Field(default_factory=list)
+    recursive: bool = True
+
+
+class AssetTagsRequest(BaseModel):
+    tags: list[str] = Field(default_factory=list)
+
+
 class ExportValidationRequest(BaseModel):
     output: str = Field(min_length=1)
 
@@ -723,6 +740,66 @@ def register_routes(
                 dry_run=request.dry_run,
             )
         return result
+
+    @app.get("/api/v1/assets")
+    def list_assets_route(
+        q: str = "",
+        kind: str = "",
+        limit: int = 500,
+    ) -> dict[str, object]:
+        return {"ok": True, "assets": list_assets(q, kind, limit)}
+
+    @app.post("/api/v1/assets/scan")
+    def scan_assets(request: AssetScanRequest) -> dict[str, object]:
+        try:
+            directory = resolve_allowed(Path(request.directory), allowed_roots())
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        records = scan_directory(
+            directory,
+            tags=request.tags,
+            recursive=request.recursive,
+        )
+        return {"ok": True, "scanned": len(records), "assets": records}
+
+    @app.patch("/api/v1/assets/{asset_id}")
+    def tag_asset(asset_id: str, request: AssetTagsRequest) -> dict[str, object]:
+        asset = update_tags(asset_id, request.tags)
+        if asset is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "asset_not_found", "message": asset_id},
+            )
+        return {"ok": True, "asset": asset}
+
+    @app.delete("/api/v1/assets/{asset_id}")
+    def delete_asset(asset_id: str) -> dict[str, object]:
+        if not remove_asset(asset_id):
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "asset_not_found", "message": asset_id},
+            )
+        return {"ok": True}
+
+    @app.get("/api/v1/assets/{asset_id}/file")
+    def asset_file(asset_id: str) -> FileResponse:
+        asset = get_asset(asset_id)
+        if asset is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "asset_not_found", "message": asset_id},
+            )
+        try:
+            path = resolve_allowed(Path(str(asset["path"])), allowed_roots())
+        except VideoFlowError as exc:
+            raise HTTPException(status_code=403, detail=exc.to_dict()) from exc
+        if not path.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "asset_file_not_found"},
+            )
+        return FileResponse(path, filename=path.name)
 
     @app.post("/api/v1/exports/validate")
     def validate_exports(request: ExportValidationRequest) -> dict[str, object]:
@@ -1315,6 +1392,82 @@ def register_routes(
                 detail={"ok": False, "code": "preview_not_found"},
             )
         return FileResponse(preview, media_type="video/mp4", filename="preview.mp4")
+
+    @app.get("/api/v1/jobs/{job_id}/timeline")
+    def job_timeline(job_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            state_path = Path(
+                str((job.result or {}).get("state_path") or job.output / "project_state.json")
+            )
+            if not state_path.is_file():
+                raise StateNotReadyError("The job has no project_state.json timeline.")
+            state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "timeline_invalid", "message": str(exc)},
+            ) from exc
+        media = state.media_info
+        fps = (media.fps_num / media.fps_den) if media is not None else 30.0
+        duration = max(
+            (clip.timeline_out_frame for clip in state.video_segments),
+            default=0,
+        ) / max(0.001, fps)
+        return {
+            "ok": True,
+            "job_id": job_id,
+            "duration_sec": round(duration, 3),
+            "video": [
+                {
+                    "id": clip.clip_id,
+                    "start_sec": round(clip.timeline_in_frame / fps, 3),
+                    "end_sec": round(clip.timeline_out_frame / fps, 3),
+                    "source_in_frame": clip.source_in_frame,
+                    "source_out_frame": clip.source_out_frame,
+                    "zoom": clip.transform.scale,
+                    "keyframes": len(clip.transform.keyframes),
+                    "transition": clip.transition_out.type if clip.transition_out else None,
+                }
+                for clip in state.video_segments
+            ],
+            "audio": [
+                {
+                    "id": clip.clip_id,
+                    "start_sec": round(
+                        clip.timeline_in_sample / max(1, media.audio_sample_rate), 3
+                    ),
+                    "end_sec": round(
+                        clip.timeline_out_sample / max(1, media.audio_sample_rate), 3
+                    ),
+                }
+                for clip in state.audio_segments
+            ]
+            if media is not None
+            else [],
+            "captions": [
+                {
+                    "id": sentence.id,
+                    "start_sec": round(
+                        sentence.start_sample / max(1, media.audio_sample_rate), 3
+                    ),
+                    "end_sec": round(
+                        sentence.end_sample / max(1, media.audio_sample_rate), 3
+                    ),
+                    "text": sentence.text,
+                    "speaker": sentence.speaker,
+                }
+                for sentence in state.transcript
+            ]
+            if media is not None
+            else [],
+            "shorts": (job.result or {}).get("shorts", []),
+            "broll": (job.result or {}).get("broll_plan", {}),
+            "preview_url": f"/api/v1/jobs/{job_id}/preview/file",
+        }
 
     @app.get("/api/v1/jobs/{job_id}/artifacts/{artifact_name}")
     def download_job_artifact(job_id: str, artifact_name: str) -> FileResponse:

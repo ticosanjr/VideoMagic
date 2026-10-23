@@ -3,6 +3,7 @@
 from videoflow.steps import (
     audio,
     broll,
+    content,
     diarize,
     export,
     ingest,
@@ -29,6 +30,7 @@ __all__ = [
     "StepIO",
     "audio",
     "broll",
+    "content",
     "diarize",
     "export",
     "get_step",

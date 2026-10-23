@@ -16,6 +16,7 @@ async function mockApi(page: Page) {
     if (path === "/api/v1/runs") return route.fulfill({ json: fixture("runs.json") });
     if (path === "/api/v1/exports/validate") return route.fulfill({ json: fixture("nle.json") });
     if (path === "/api/v1/batches") return route.fulfill({ json: fixture("batches.json") });
+    if (path === "/api/v1/assets") return route.fulfill({ json: fixture("assets.json") });
     return route.fulfill({ json: { ok: true } });
   });
 }
@@ -110,6 +111,18 @@ test("cycles node width from the node header", async ({ page }) => {
   await page.getByTestId("step-width-ingest").click();
   const after = await node.boundingBox();
   expect(after?.width).not.toBe(before?.width);
+});
+
+test("opens the asset library tab", async ({ page }) => {
+  await page.getByRole("tab", { name: "Assets" }).click();
+  await expect(page.getByRole("heading", { name: "Asset library" })).toBeVisible();
+  await expect(page.getByText("No assets yet")).toBeVisible();
+});
+
+test("opens the timeline tab", async ({ page }) => {
+  await page.getByRole("tab", { name: "Timeline" }).click();
+  await expect(page.getByRole("heading", { name: "Timeline" })).toBeVisible();
+  await expect(page.getByText("Run a recipe to populate the timeline.")).toBeVisible();
 });
 
 test("opens persisted run history and shows failures", async ({ page }) => {

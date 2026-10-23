@@ -108,6 +108,106 @@ BUILTIN_RECIPES: dict[str, dict[str, Any]] = {
             _EXPORT_WITH_SHORTS,
         ],
     },
+    "content_cycle": {
+        "schema_version": 1,
+        "id": "content_cycle",
+        "name": "Content cycle",
+        "description": (
+            "Full content lifecycle: idea, research, script, storyboard, production, "
+            "audio, Shorts, titles, thumbnail, publishing, analytics, and review. "
+            "Planned nodes are bypassed until implemented."
+        ),
+        "llm": {"provider": "none"},
+        "steps": [
+            {"id": "idea", "type": "content.idea", "params": {}},
+            {"id": "research", "type": "content.research", "needs": ["idea"], "params": {}},
+            {"id": "script", "type": "content.script", "needs": ["research"], "params": {}},
+            _INGEST,
+            _VAD,
+            _TRANSCRIBE,
+            _RETAKES,
+            _TIMELINE,
+            {
+                "id": "storyboard",
+                "type": "storyboard.plan",
+                "needs": ["script", "timeline"],
+                "params": {},
+            },
+            {
+                "id": "assets",
+                "type": "assets.index",
+                "needs": ["ingest"],
+                "params": {"asset_dir": ""},
+            },
+            {
+                "id": "shorts",
+                "type": "shorts.select",
+                "needs": ["transcribe", "retakes"],
+                "params": {
+                    "target_duration_min_sec": 30,
+                    "target_duration_max_sec": 60,
+                    "min_clips": 1,
+                    "max_clips_to_generate": 3,
+                    "selection_mode": "auto",
+                },
+            },
+            {
+                "id": "reframe",
+                "type": "shorts.reframe",
+                "needs": ["shorts"],
+                "params": {"mode": "center_crop_9_16"},
+            },
+            {
+                "id": "captions",
+                "type": "shorts.captions",
+                "needs": ["shorts"],
+                "params": {"enabled": True},
+            },
+            {
+                "id": "render_shorts",
+                "type": "shorts.render",
+                "needs": ["reframe", "captions"],
+                "params": {"burn_subtitles": True},
+            },
+            {
+                "id": "audio_master",
+                "type": "audio.master",
+                "needs": ["timeline"],
+                "params": {},
+            },
+            {
+                "id": "titles",
+                "type": "titles.plan",
+                "needs": ["timeline"],
+                "params": {},
+            },
+            {
+                "id": "thumbnail",
+                "type": "thumbnail.generate",
+                "needs": ["render_shorts"],
+                "params": {},
+            },
+            {
+                "id": "publish",
+                "type": "publish.webhook",
+                "needs": ["render_shorts", "thumbnail"],
+                "params": {},
+            },
+            {
+                "id": "analytics",
+                "type": "analytics.import",
+                "needs": ["publish"],
+                "params": {},
+            },
+            {
+                "id": "review",
+                "type": "review.queue",
+                "needs": ["titles", "thumbnail"],
+                "params": {},
+            },
+            _EXPORT_WITH_SHORTS,
+        ],
+    },
     "full_podcast_curation": {
         "schema_version": 1,
         "id": "full_podcast_curation",

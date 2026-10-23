@@ -12,6 +12,9 @@
       params: Record<string, unknown>;
       schema?: Record<string, unknown>;
       status?: "idle" | "queued" | "running" | "cached" | "executed" | "failed" | "skipped";
+      implementation?: "available" | "partial" | "planned";
+      icon?: string;
+      color?: string;
       progress?: number;
       expanded?: boolean;
       pinned?: boolean;
@@ -37,6 +40,8 @@
   let jsonErrors = $state<Record<string, string>>({});
   const status = $derived(data.status ?? "idle");
   const progress = $derived(Math.max(0, Math.min(100, Math.round(data.progress ?? 0))));
+  const implementation = $derived(data.implementation ?? "available");
+  const iconColor = $derived(data.color ?? "#38bdf8");
   const width = $derived(data.expanded ? Math.max(360, data.width ?? 420) : 230);
 
   function fieldError(field: RecipeField): string | null {
@@ -72,7 +77,7 @@
 
 <div
   data-testid={`step-${data.type}`}
-  class={`relative rounded-2xl border text-left shadow-xl transition ${
+  class={`relative rounded-2xl border text-left shadow-xl transition ${implementation === "planned" ? "border-dashed" : ""} ${
     selected
       ? "border-sky-400/70 bg-sky-950/80 ring-2 ring-sky-400/20"
       : status === "failed"
@@ -91,7 +96,13 @@
   <div class="px-3 py-2.5">
     <div class="flex items-start justify-between gap-2">
       <div class="min-w-0">
-        <p class="truncate text-xs font-semibold text-neutral-100">{data.title}</p>
+        <div class="flex items-center gap-1.5">
+          <span class="text-sm" style={`color:${iconColor}`}>{data.icon ?? "●"}</span>
+          <p class="truncate text-xs font-semibold text-neutral-100">{data.title}</p>
+          {#if implementation !== "available"}
+            <span class={`rounded px-1 py-0.5 text-[8px] uppercase ${implementation === "partial" ? "bg-amber-500/10 text-amber-300" : "bg-neutral-700/60 text-neutral-400"}`}>{implementation}</span>
+          {/if}
+        </div>
         <p class="mt-0.5 truncate font-mono text-[10px] text-sky-300/80">{data.type}</p>
       </div>
       <div class="flex shrink-0 items-center gap-1">
@@ -104,6 +115,7 @@
     <div class="mt-2 flex items-center gap-2">
       <span class={`h-1.5 w-1.5 rounded-full ${
         status === "running" ? "animate-pulse bg-amber-400" :
+        status === "skipped" ? "bg-neutral-500" :
         status === "cached" ? "bg-emerald-400" :
         status === "executed" ? "bg-sky-400" :
         status === "failed" ? "bg-rose-400" : "bg-neutral-600"
@@ -117,6 +129,9 @@
 
     {#if data.expanded}
       <div class="mt-3 space-y-2 border-t border-white/5 pt-2">
+        {#if implementation === "planned"}
+          <p class="rounded border border-dashed border-neutral-700 bg-neutral-950/60 p-2 text-[10px] text-neutral-400">Not implemented in this build. The recipe runner will bypass this node.</p>
+        {/if}
         {#if groups.length === 0}
           <p class="text-[10px] text-neutral-500">No simple fields. Use JSON.</p>
         {/if}

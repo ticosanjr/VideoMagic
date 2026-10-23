@@ -27,7 +27,7 @@ from videoflow.steps import get_step, requirements_by_type, step_types
 from videoflow.steps.base import StepIO
 from videoflow.steps.cache import cache_key
 
-StepStatus = Literal["cached", "executed"]
+StepStatus = Literal["cached", "executed", "skipped"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,6 +162,25 @@ class RecipeRunner:
             directory = step_dir(output_path, recipe_step.id)
             manifest_path = directory / "manifest.json"
             snapshot_path = directory / "snapshot.json"
+
+            if step.bypass:
+                context.hashes[recipe_step.id] = fingerprint
+                context.metadata.setdefault("step_progress", {})[recipe_step.id] = 100
+                step_runs.append(
+                    StepRun(
+                        id=recipe_step.id,
+                        type=step.type,
+                        status="skipped",
+                        elapsed_ms=0,
+                        fingerprint=fingerprint,
+                        outputs=(),
+                        progress=100,
+                    )
+                )
+                if step_progress is not None:
+                    step_progress(recipe_step.id, 100, f"{step.title} bypassed")
+                io.report(100, f"{step.title} bypassed")
+                continue
 
             if resume:
                 cached = self._load_checkpoint(

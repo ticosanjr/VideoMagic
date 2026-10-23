@@ -32,6 +32,10 @@ class ReframeParams(BaseModel):
 @register_step
 class ReframeStep(BaseStep):
     type = "shorts.reframe"
+    status = "partial"
+    icon = "⛶"
+    color = "#f59e0b"
+
     title = "Reframe Shorts"
     description = (
         "Choose the crop focus for each selected Short, optionally tracking the "

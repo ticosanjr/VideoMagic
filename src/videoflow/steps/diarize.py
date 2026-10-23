@@ -47,6 +47,10 @@ def _heuristic(sentences, *, pause: int, max_speakers: int):
 @register_step
 class DiarizeStep(BaseStep):
     type = "audio.diarize"
+    status = "partial"
+    icon = "◉"
+    color = "#f59e0b"
+
     title = "Speaker turns"
     description = (
         "Assign speaker ids by pause heuristic or by an optional pyannote model."

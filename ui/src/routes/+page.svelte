@@ -15,6 +15,8 @@
   import ModelsPanel from "$lib/ModelsPanel.svelte";
   import ServicesPanel from "$lib/ServicesPanel.svelte";
   import RecipesPanel from "$lib/RecipesPanel.svelte";
+  import AssetsPanel from "$lib/AssetsPanel.svelte";
+  import TimelinePanel from "$lib/TimelinePanel.svelte";
   import {
     cancelJob,
     createJob,
@@ -788,7 +790,7 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-950">
-  <div class={`mx-auto flex min-h-screen flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 ${activeTab === "recipes" ? "max-w-[1800px]" : "max-w-[1400px]"}`}>
+  <div class={`mx-auto flex min-h-screen flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 ${activeTab === "recipes" || activeTab === "timeline" ? "max-w-[1800px]" : "max-w-[1600px]"}`}>
     <header class="flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-center gap-3">
         <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-300 ring-1 ring-inset ring-sky-400/20">
@@ -927,7 +929,7 @@
       </div>
     {/if}
 
-    {#if activeTab !== "recipes"}
+    {#if activeTab !== "recipes" && activeTab !== "assets" && activeTab !== "timeline"}
     <section class="overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-neutral-900 via-neutral-900/80 to-neutral-950 shadow-2xl shadow-black/20">
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
         <div>
@@ -1283,6 +1285,14 @@
     {#if activeTab === "recipes"}
       <div id="pipeline-content" class="scroll-mt-24">
         <RecipesPanel {source} {output} />
+      </div>
+    {:else if activeTab === "assets"}
+      <div id="pipeline-content" class="scroll-mt-24">
+        <AssetsPanel />
+      </div>
+    {:else if activeTab === "timeline"}
+      <div id="pipeline-content" class="scroll-mt-24">
+        <TimelinePanel />
       </div>
     {:else}
     <div id="pipeline-content" class="grid scroll-mt-24 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">

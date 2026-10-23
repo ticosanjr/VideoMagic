@@ -36,6 +36,10 @@ class BrollParams(BaseModel):
 @register_step
 class BrollStep(BaseStep):
     type = "broll.plan"
+    status = "partial"
+    icon = "▦"
+    color = "#f59e0b"
+
     title = "B-roll plan"
     description = (
         "Assign local assets or Pexels stock clips to selected Shorts as full-frame cutaways."

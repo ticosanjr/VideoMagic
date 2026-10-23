@@ -24,7 +24,11 @@
             "default": []
           }
         }
-      }
+      },
+      "status": "available",
+      "icon": "\u25cf",
+      "color": "#38bdf8",
+      "bypass": false
     },
     {
       "type": "edit.timeline",
@@ -51,7 +55,11 @@
             "type": "boolean"
           }
         }
-      }
+      },
+      "status": "available",
+      "icon": "\u25cf",
+      "color": "#38bdf8",
+      "bypass": false
     },
     {
       "type": "shorts.render",
@@ -74,7 +82,11 @@
             "type": "boolean"
           }
         }
-      }
+      },
+      "status": "available",
+      "icon": "\u25cf",
+      "color": "#38bdf8",
+      "bypass": false
     }
   ]
 }

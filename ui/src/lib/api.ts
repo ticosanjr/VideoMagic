@@ -422,6 +422,10 @@ export interface StepManifest {
   requires: string[];
   produces: string[];
   params_schema: Record<string, unknown>;
+  status?: "available" | "partial" | "planned";
+  icon?: string;
+  color?: string;
+  bypass?: boolean;
 }
 
 export interface RecipeSummary {
@@ -478,7 +482,7 @@ export interface RunRecord {
 export interface StepRun {
   id: string;
   type: string;
-  status: "cached" | "executed";
+  status: "cached" | "executed" | "skipped";
   elapsed_ms: number;
   progress?: number;
   fingerprint: string;
@@ -1299,6 +1303,97 @@ export async function generateShortThumbnail(
 export async function getJob(jobId: string): Promise<Job> {
   const response = await request<{ ok: boolean; job: Job }>(`/api/v1/jobs/${jobId}`);
   return response.job;
+}
+
+export interface TimelineClip {
+  id: string;
+  start_sec: number;
+  end_sec: number;
+  source_in_frame?: number;
+  source_out_frame?: number;
+  zoom?: number;
+  keyframes?: number;
+  transition?: string | null;
+}
+
+export interface TimelineData {
+  ok: boolean;
+  job_id: string;
+  duration_sec: number;
+  video: TimelineClip[];
+  audio: TimelineClip[];
+  captions: Array<{
+    id: number;
+    start_sec: number;
+    end_sec: number;
+    text: string;
+    speaker: number;
+  }>;
+  shorts: ShortClip[];
+  broll: Record<string, Array<Record<string, unknown>>>;
+  preview_url: string;
+}
+
+export interface AssetRecord {
+  id: string;
+  path: string;
+  name: string;
+  kind: "video" | "audio" | "image" | "font" | "other";
+  suffix: string;
+  size_bytes: number;
+  modified_at: string;
+  added_at: string;
+  tags: string[];
+  license: string;
+  source: string;
+}
+
+export async function getTimeline(jobId: string): Promise<TimelineData> {
+  return request<TimelineData>(`/api/v1/jobs/${encodeURIComponent(jobId)}/timeline`);
+}
+
+export async function listAssets(q = "", kind = ""): Promise<AssetRecord[]> {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (kind) params.set("kind", kind);
+  const response = await request<{ ok: boolean; assets: AssetRecord[] }>(
+    `/api/v1/assets?${params.toString()}`
+  );
+  return response.assets;
+}
+
+export async function scanAssets(
+  directory: string,
+  tags: string[] = [],
+  recursive = true
+): Promise<AssetRecord[]> {
+  const response = await request<{ ok: boolean; assets: AssetRecord[] }>(
+    "/api/v1/assets/scan",
+    {
+      method: "POST",
+      body: JSON.stringify({ directory, tags, recursive })
+    }
+  );
+  return response.assets;
+}
+
+export async function removeAsset(assetId: string): Promise<void> {
+  await request(`/api/v1/assets/${encodeURIComponent(assetId)}`, { method: "DELETE" });
+}
+
+export async function updateAssetTags(
+  assetId: string,
+  tags: string[]
+): Promise<AssetRecord> {
+  const response = await request<{ ok: boolean; asset: AssetRecord }>(
+    `/api/v1/assets/${encodeURIComponent(assetId)}`,
+    { method: "PATCH", body: JSON.stringify({ tags }) }
+  );
+  return response.asset;
+}
+
+export function assetFileUrl(assetId: string): string {
+  return `/api/v1/assets/${encodeURIComponent(assetId)}/file`;
 }
 
 export async function listJobs(): Promise<Job[]> {

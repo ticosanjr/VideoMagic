@@ -3,6 +3,30 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.52.0] - 2026-10-23
+
+### Added
+
+- **Recipes-first navigation.** Speech, Edit, Shorts, Studio, and Export were
+  removed from the top-level UI; Recipes is the execution surface.
+- **Content-cycle nodes.** Idea, research, script, storyboard, asset index,
+  audio master, titles, thumbnail, publish, analytics, and review.
+- **Implementation status.** New steps expose `status`, `icon`, `color`, and
+  `bypass`; planned nodes show a dashed card and are skipped by the runner.
+- **Asset library.** Scan local folders, search by name/tag/kind, edit tags,
+  view license metadata, download, and remove entries.
+- **Read-only timeline.** Video, audio, captions, B-roll, playhead, and preview
+  from a successful job.
+- New `content_cycle` built-in recipe with implemented and bypassed nodes.
+- UI tests for the Assets and Timeline tabs.
+
+### Notes
+
+- The legacy rack code is no longer reachable from the UI; its backend routes
+  remain for compatibility.
+- 455 Python tests, 8 media tests, 14 Vitest tests, and 14 Playwright tests pass.
+- Distribution remains out of scope.
+
 ## [0.51.0] - 2026-10-23
 
 ### Added

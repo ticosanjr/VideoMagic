@@ -833,3 +833,61 @@ def test_preview_proxy_routes(monkeypatch, tmp_path: Path) -> None:
     served = client.get(f"/api/v1/jobs/{job.job_id}/preview/file")
     assert served.status_code == 200
     assert served.content == b"proxy"
+
+
+def test_timeline_route_from_project_state(monkeypatch, tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+
+    from videoflow.api.app import create_app
+    from videoflow.application.jobs import JobManager
+    from videoflow.domain.state import AudioSegment, MediaInfo, ProjectState, VideoSegment
+
+    def runner(source, output, **kwargs):
+        output = Path(output)
+        output.mkdir(parents=True, exist_ok=True)
+        state = ProjectState(
+            media_info=MediaInfo(
+                source_path=str(source),
+                duration_frames=50,
+                fps_num=25,
+                fps_den=1,
+                width=320,
+                height=240,
+                audio_sample_rate=48000,
+            ),
+            video_segments=[
+                VideoSegment(
+                    clip_id="v1",
+                    source_in_frame=0,
+                    source_out_frame=25,
+                    timeline_in_frame=0,
+                    timeline_out_frame=25,
+                )
+            ],
+            audio_segments=[
+                AudioSegment(
+                    clip_id="a1",
+                    source_in_sample=0,
+                    source_out_sample=48000,
+                    timeline_in_sample=0,
+                    timeline_out_sample=48000,
+                )
+            ],
+        )
+        path = output / "project_state.json"
+        path.write_text(state.model_dump_json())
+        return {"ok": True, "state_path": str(path), "artifacts": {}, "shorts": []}
+
+    manager = JobManager(runner=runner)
+    job = manager.start(tmp_path / "source.mp4", tmp_path / "out", {})
+    for _ in range(200):
+        if job.status in {"succeeded", "failed", "cancelled"}:
+            break
+        time.sleep(0.01)
+    client = TestClient(create_app(jobs=manager))
+    response = client.get(f"/api/v1/jobs/{job.job_id}/timeline")
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["duration_sec"] == 1.0
+    assert payload["video"][0]["id"] == "v1"
+    assert payload["audio"][0]["id"] == "a1"

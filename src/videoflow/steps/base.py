@@ -63,6 +63,13 @@ class BaseStep(ABC):
     requires: tuple[str, ...] = ()
     produces: tuple[str, ...] = ()
     params_model: type[BaseModel] = EmptyParams
+    status: str = "available"
+    icon: str = "●"
+    color: str = "#38bdf8"
+
+    @property
+    def bypass(self) -> bool:
+        return self.status == "planned"
 
     @abstractmethod
     def run(self, context: Any, params: BaseModel, io: StepIO) -> None:
@@ -85,4 +92,8 @@ class BaseStep(ABC):
             "requires": list(self.requires),
             "produces": list(self.produces),
             "params_schema": schema,
+            "status": self.status,
+            "icon": self.icon,
+            "color": self.color,
+            "bypass": self.bypass,
         }
