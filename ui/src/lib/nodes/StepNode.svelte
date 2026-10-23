@@ -20,6 +20,7 @@
       onToggle?: () => void;
       onPin?: () => void;
       onWidth?: () => void;
+      onResize?: (width: number) => void;
       onPatch?: (path: string[], value: unknown) => void;
       onPickPath?: (path: string[]) => void;
       onRun?: () => void;
@@ -31,6 +32,8 @@
   } = $props();
 
   const groups = $derived(fieldGroups(data.schema ?? {}, data.params ?? {}));
+  let jsonDrafts = $state<Record<string, string>>({});
+  let jsonErrors = $state<Record<string, string>>({});
   const status = $derived(data.status ?? "idle");
   const progress = $derived(Math.max(0, Math.min(100, Math.round(data.progress ?? 0))));
   const width = $derived(data.expanded ? Math.max(360, data.width ?? 420) : 230);
@@ -48,14 +51,27 @@
   }
 
   function displayValue(field: RecipeField): string {
-    if (field.value === undefined || field.value === null) return "";
+    if (field.value === undefined || field.value === null) return field.kind === "json" ? "[]" : "";
+    if (field.kind === "json") return jsonDrafts[field.id] ?? JSON.stringify(field.value);
     return String(field.value);
   }
+
+  function changeJson(field: RecipeField, raw: string) {
+    jsonDrafts = { ...jsonDrafts, [field.id]: raw };
+    try {
+      const parsed = JSON.parse(raw);
+      jsonErrors = { ...jsonErrors, [field.id]: "" };
+      data.onPatch?.(field.path, parsed);
+    } catch {
+      jsonErrors = { ...jsonErrors, [field.id]: "Invalid JSON" };
+    }
+  }
+
 </script>
 
 <div
   data-testid={`step-${data.type}`}
-  class={`rounded-2xl border text-left shadow-xl transition ${
+  class={`relative rounded-2xl border text-left shadow-xl transition ${
     selected
       ? "border-sky-400/70 bg-sky-950/80 ring-2 ring-sky-400/20"
       : status === "failed"
@@ -110,7 +126,7 @@
             {/if}
             <div class="space-y-1.5">
               {#each group.fields as field}
-                {@const error = fieldError(field)}
+                {@const error = jsonErrors[field.id] || fieldError(field)}
                 <label class="block text-[10px] text-neutral-400">
                   <span class="flex items-center gap-1">
                     {field.label}
@@ -145,6 +161,14 @@
                       oninput={(event) => change(field, event.currentTarget.value)}
                       class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100"
                     />
+                  {:else if field.kind === "json"}
+                    <textarea
+                      data-testid={`field-${field.id}`}
+                      rows="3"
+                      value={displayValue(field)}
+                      oninput={(event) => changeJson(field, event.currentTarget.value)}
+                      class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 p-2 font-mono text-[10px] text-neutral-100"
+                    ></textarea>
                   {:else if field.kind === "path"}
                     <span class="mt-1 flex gap-1">
                       <input

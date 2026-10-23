@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (0.48.0)
+## Implementation status (0.49.0)
 
 | Area | State |
 | --- | --- |
@@ -12,7 +12,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Silero VAD via ONNX Runtime with FFmpeg `silencedetect` fallback | implemented |
 | Deterministic timeline, J/L-cuts, fades, punch-ins | implemented |
 | FCPXML 1.9/1.10, xmeml v4, native Kdenlive MLT export | implemented |
-| Portable artifacts | 0.48.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
+| Portable artifacts | 0.49.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
 | Run history | persisted in `work/run-history.json`, including failed runs, paginated by `GET /api/v1/runs` |
 | Diagnostics | `work/failure.json` includes stage, error, FFmpeg command, stderr, and log tail |
 | NLE validation | `scripts/validate_nle.py` and `POST /api/v1/exports/validate` |
@@ -25,7 +25,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Batch resume | resume failed/cancelled batches and skip completed items |
 | Preview | inline MP4/Short previews plus an on-demand 540p proxy in the UI |
 | MLT smoke | optional `melt` render check for generated Kdenlive projects |
-| Recipe UI | inline node fields, schema validation, saved layout, per-step progress, NLE validation modal, B-roll plan viewer |
+| Recipe UI | inline node fields, array JSON, undo/redo, cycle prevention, saved layout, per-step progress, NLE validation |
 | Windows PE | built by the Windows GitHub Actions workflow and attached to releases |
 | CI and Windows | GitHub Actions test workflow and Windows portable artifact workflow |
 | SRT transcript import and LLM retake culling | implemented |

@@ -18,7 +18,9 @@
         "type": "ingest",
         "needs": [],
         "enabled": true,
-        "params": {}
+        "params": {
+          "notes": []
+        }
       },
       {
         "id": "timeline",

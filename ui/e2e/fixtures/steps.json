@@ -15,6 +15,13 @@
           "extract_pcm": {
             "default": true,
             "type": "boolean"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
           }
         }
       }

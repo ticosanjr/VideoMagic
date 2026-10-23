@@ -39,6 +39,22 @@ test("edits a field directly inside the node", async ({ page }) => {
   await expect(page.getByTestId("step-params-json")).toHaveValue(/"extract_pcm": false/);
 });
 
+test("edits an array field as JSON", async ({ page }) => {
+  await page.getByTestId("step-ingest").click();
+  const field = page.getByTestId("field-notes");
+  await expect(field).toBeVisible();
+  await field.fill('["one", "two"]');
+  await expect(page.getByTestId("step-params-json")).toHaveValue(/"notes": \[/);
+});
+
+test("undoes a structural edit", async ({ page }) => {
+  await page.getByTestId("recipe-add-step").click();
+  await page.getByTestId("add-shorts.render").click();
+  await expect(page.getByTestId("step-shorts.render")).toBeVisible();
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByTestId("step-shorts.render")).toHaveCount(0);
+});
+
 test("loads the recipe graph and edits transition parameters", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Recipe builder" })).toBeVisible();
   await expect(page.getByTestId("step-edit.timeline")).toBeVisible();

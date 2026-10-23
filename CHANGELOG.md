@@ -3,6 +3,24 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.49.0] - 2026-10-23
+
+### Added
+
+- **Cycle prevention in the canvas.** New edges that would create a cycle are
+  rejected immediately.
+- **Undo/redo** for structural edits and node drags.
+- **Array fields** render as JSON textareas with inline parse validation.
+- **UI build guard.** `build_portable.py` rebuilds the Svelte UI and refuses a
+  stale `ui/build/index.html` whose version differs from `version.ts`.
+- Fixed the 0.48 local release mismatch where the server was 0.48.0 and the
+  bundled UI was 0.34.0.
+
+### Notes
+
+- Node width remains a cycle control, not drag-resize.
+- 452 Python tests, 8 media tests, 14 Vitest tests, and 12 Playwright tests pass.
+
 ## [0.48.0] - 2026-10-23
 
 ### Added

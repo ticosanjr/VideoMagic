@@ -95,6 +95,8 @@
   let layoutStatus = $state("");
   let viewport = $state({ x: 0, y: 0, zoom: 1 });
   let hasSavedViewport = $state(false);
+  let undoStack = $state<Recipe[]>([]);
+  let redoStack = $state<Recipe[]>([]);
   let uiSaveTimer: ReturnType<typeof setTimeout> | undefined;
   let nodePathTarget = $state<{ nodeId: string; path: string[] } | null>(null);
   let nodePathMode = $state<"file" | "directory">("file");
@@ -317,6 +319,7 @@
           onToggle: () => toggleNodeExpanded(step.id),
           onPin: () => toggleNodePinned(step.id),
           onWidth: () => cycleNodeWidth(step.id),
+          onResize: (width: number) => resizeNode(step.id, width),
           onPatch: (path: string[], value: unknown) => patchNodeParams(step.id, path, value),
           onPickPath: (path: string[]) => openNodePathPicker(step.id, path),
           onRun: () => void runToHere(step.id),
@@ -394,6 +397,7 @@
   function addStep(type: string) {
     const manifest = manifestFor(type);
     if (!manifest) return;
+    pushUndo();
     let suffix = 1;
     let id = type.replace(/[^a-zA-Z0-9_.-]/g, "_");
     while (nodes.some((node) => node.id === id)) {
@@ -419,6 +423,7 @@
           onToggle: () => toggleNodeExpanded(id),
           onPin: () => toggleNodePinned(id),
           onWidth: () => cycleNodeWidth(id),
+          onResize: (width: number) => resizeNode(id, width),
           onPatch: (path: string[], value: unknown) => patchNodeParams(id, path, value),
           onPickPath: (path: string[]) => openNodePathPicker(id, path),
           onRun: () => void runToHere(id),
@@ -459,6 +464,30 @@
     ) {
       return;
     }
+    const adjacency = new Map<string, string[]>();
+    for (const edge of edges) {
+      const list = adjacency.get(edge.source) ?? [];
+      list.push(edge.target);
+      adjacency.set(edge.source, list);
+    }
+    const reaches = (from: string, to: string): boolean => {
+      if (from === to) return true;
+      const stack = [from];
+      const seen = new Set<string>();
+      while (stack.length) {
+        const current = stack.pop()!;
+        if (seen.has(current)) continue;
+        seen.add(current);
+        if (current === to) return true;
+        for (const next of adjacency.get(current) ?? []) stack.push(next);
+      }
+      return false;
+    };
+    if (reaches(connection.target, connection.source)) {
+      error = "This connection would create a cycle.";
+      return;
+    }
+    pushUndo();
     edges = [
       ...edges,
       {
@@ -682,6 +711,46 @@
     }
   }
 
+  function snapshotRecipe(): Recipe {
+    return JSON.parse(JSON.stringify(recipeFromGraph())) as Recipe;
+  }
+
+  function pushUndo() {
+    undoStack = [...undoStack.slice(-49), snapshotRecipe()];
+    redoStack = [];
+  }
+
+  function restoreRecipe(recipe: Recipe) {
+    graphFromRecipe(recipe);
+    scheduleUiSave();
+  }
+
+  function undo() {
+    const previous = undoStack.at(-1);
+    if (!previous) return;
+    redoStack = [...redoStack, snapshotRecipe()];
+    undoStack = undoStack.slice(0, -1);
+    restoreRecipe(previous);
+  }
+
+  function redo() {
+    const next = redoStack.at(-1);
+    if (!next) return;
+    undoStack = [...undoStack, snapshotRecipe()];
+    redoStack = redoStack.slice(0, -1);
+    restoreRecipe(next);
+  }
+
+  function resizeNode(id: string, width: number) {
+    setNodeUi(id, { width });
+    nodes = nodes.map((node) =>
+      node.id === id
+        ? { ...node, data: { ...nodeData(node), width } }
+        : node
+    );
+    scheduleUiSave();
+  }
+
   function scheduleUiSave() {
     clearTimeout(uiSaveTimer);
     layoutStatus = "saving…";
@@ -790,6 +859,7 @@
 
   function duplicateNode(id: string) {
     const source = nodes.find((node) => node.id === id);
+    if (source) pushUndo();
     if (!source) return;
     const data = nodeData(source);
     let suffix = 2;
@@ -808,6 +878,7 @@
         onToggle: () => toggleNodeExpanded(nextId),
         onPin: () => toggleNodePinned(nextId),
         onWidth: () => cycleNodeWidth(nextId),
+        onResize: (width: number) => resizeNode(nextId, width),
         onPatch: (path: string[], value: unknown) => patchNodeParams(nextId, path, value),
         onPickPath: (path: string[]) => openNodePathPicker(nextId, path),
         onRun: () => void runToHere(nextId),
@@ -833,6 +904,7 @@
   }
 
   function removeNode(id: string) {
+    pushUndo();
     nodes = nodes.filter((node) => node.id !== id);
     edges = edges.filter((edge) => edge.source !== id && edge.target !== id);
     delete recipeUi.nodes[id];
@@ -842,6 +914,10 @@
       paramText = "{}";
     }
     scheduleUiSave();
+  }
+
+  function handleNodeDragStart() {
+    pushUndo();
   }
 
   function handleNodeDragStop(event: { nodes?: Node[] }) {
@@ -1409,6 +1485,8 @@
         >
           Inspector
         </button>
+        <button type="button" onclick={undo} disabled={!undoStack.length} class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500 disabled:opacity-40">Undo</button>
+        <button type="button" onclick={redo} disabled={!redoStack.length} class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500 disabled:opacity-40">Redo</button>
         <button
           type="button"
           data-testid="recipe-reset-layout"
@@ -1484,6 +1562,7 @@
             maxZoom={1.6}
             colorMode="dark"
             onconnect={onConnect}
+            onnodedragstart={handleNodeDragStart}
             onnodedragstop={handleNodeDragStop}
             onmoveend={() => scheduleUiSave()}
             onnodeclick={({ node }) => selectNode(node.id)}

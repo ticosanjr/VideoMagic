@@ -1,4 +1,4 @@
-export type RecipeFieldKind = "boolean" | "number" | "enum" | "text" | "color" | "path";
+export type RecipeFieldKind = "boolean" | "number" | "enum" | "text" | "color" | "path" | "json";
 
 export interface RecipeField {
   path: string[];
@@ -95,7 +95,26 @@ function buildField(
 ): RecipeField | null {
   const resolved = resolve(schema, root);
   const type = resolved.type;
-  if (type === "object" || type === "array") return null;
+  if (type === "object") return null;
+  if (type === "array") {
+    return {
+      path,
+      id: path.join("."),
+      label: humanize(key),
+      kind: "json",
+      options: [],
+      minimum: undefined,
+      maximum: undefined,
+      step: undefined,
+      integer: false,
+      required,
+      format: "",
+      pattern: "",
+      placeholder: "JSON array",
+      help: typeof resolved.description === "string" ? resolved.description : "",
+      value: getPath(params, path) ?? resolved.default ?? []
+    };
+  }
   if (!["boolean", "number", "integer", "string"].includes(String(type))) return null;
   const enumValues = Array.isArray(resolved.enum)
     ? resolved.enum.map((value) => String(value))
