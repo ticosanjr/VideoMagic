@@ -104,6 +104,7 @@ jobs:
             "releases/v${VERSION}/VideoFlow-${VERSION}-x86_64.AppImage" \
             "releases/v${VERSION}/videoflow-${VERSION}-windows-x86_64.exe" \
             "releases/v${VERSION}/sbom.json" \
+            "releases/v${VERSION}/SHA256SUMS" \
             --title "VideoFlow ${VERSION}" \
             --notes-file "releases/v${VERSION}/release-notes.md"
         env:
