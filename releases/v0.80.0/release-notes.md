@@ -1,7 +1,8 @@
 # VideoFlow 0.80.0 beta
 
-0.80.0 is the local-first beta. Distribution, signing, macOS packaging, and
-onedir builds remain out of scope.
+0.80.0 is the local-first beta, built locally on Linux. Distribution, signing,
+macOS packaging, onedir, and Windows cross-builds remain out of scope for this
+local release folder. GitHub Actions is not used.
 
 ## Timeline
 
@@ -36,6 +37,7 @@ onedir builds remain out of scope.
 - 7 media tests passed, 1 skipped.
 - 13 Vitest tests passed.
 - 19 Playwright tests passed.
+- Linux binary and AppImage verified locally with `version` and `serve`.
 
 ## Notes
 

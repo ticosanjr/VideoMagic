@@ -1,7 +1,7 @@
 # Release artifacts
 
-This directory mirrors the artifacts attached to GitHub Releases. Binaries are
-ignored by git; only the notes and checksums are tracked.
+Releases are built locally and staged here. Binaries are ignored by git; only
+the manifest, checksums, and notes are tracked. GitHub Actions is not used.
 
 ## Current
 

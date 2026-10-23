@@ -67,6 +67,18 @@ npm install
 npm run dev                         # http://127.0.0.1:5173
 ```
 
+## Local release build
+
+Releases are built and staged locally; GitHub Actions is not used.
+
+```bash
+./scripts/release_local.sh 0.80.0
+```
+
+This builds the UI, the Linux portable binary, the AppImage, the SBOM, and
+writes `releases/v0.80.0/SHA256SUMS` and `manifest.json`. Nothing is pushed or
+published. The three newest release folders are kept.
+
 ## Portable executable
 
 One file per OS, no Python, Node, or FFmpeg install required when built with
