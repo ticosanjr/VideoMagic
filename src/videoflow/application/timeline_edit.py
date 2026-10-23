@@ -10,7 +10,7 @@ from videoflow.domain.errors import InvalidTimeError
 from videoflow.domain.state import ProjectState
 from videoflow.domain.timebase import Rounding
 
-TimelineAction = Literal["trim", "move", "delete", "split", "ripple"]
+TimelineAction = Literal["trim", "move", "delete", "split", "ripple", "ripple_trim"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,6 +158,55 @@ def _split_video(state: ProjectState, clip_id: str, split_sec: float) -> None:
         state.audio_segments.insert(audio_index + 1, audio_right)
 
 
+def _ripple_trim(
+    state: ProjectState,
+    edit: TimelineEdit,
+    *,
+    fps: float,
+    media,
+) -> None:
+    video = next((clip for clip in state.video_segments if clip.clip_id == edit.clip_id), None)
+    if video is None:
+        raise InvalidTimeError(f"Unknown clip: {edit.clip_id}")
+    audio = next((clip for clip in state.audio_segments if clip.clip_id == edit.clip_id), None)
+    old_end_frame = video.timeline_out_frame
+    old_end_sample = audio.timeline_out_sample if audio is not None else 0
+    apply_timeline_edit(
+        state,
+        TimelineEdit(
+            clip_id=edit.clip_id,
+            action="trim",
+            start_sec=edit.start_sec,
+            end_sec=edit.end_sec,
+        ),
+    )
+    new_end_frame = video.timeline_out_frame
+    frame_delta = new_end_frame - old_end_frame
+    if frame_delta:
+        for clip in state.video_segments:
+            if clip is video:
+                continue
+            if clip.timeline_in_frame >= old_end_frame:
+                clip.timeline_in_frame = max(0, clip.timeline_in_frame + frame_delta)
+                clip.timeline_out_frame = max(
+                    clip.timeline_in_frame + 1, clip.timeline_out_frame + frame_delta
+                )
+    if audio is not None:
+        sample_delta = audio.timeline_out_sample - old_end_sample
+        if sample_delta:
+            for clip in state.audio_segments:
+                if clip is audio:
+                    continue
+                if clip.timeline_in_sample >= old_end_sample:
+                    clip.timeline_in_sample = max(
+                        0, clip.timeline_in_sample + sample_delta
+                    )
+                    clip.timeline_out_sample = max(
+                        clip.timeline_in_sample + 1,
+                        clip.timeline_out_sample + sample_delta,
+                    )
+
+
 def apply_timeline_edit(state: ProjectState, edit: TimelineEdit) -> ProjectState:
     fps = _fps(state)
     media = state.media_info
@@ -173,6 +222,12 @@ def apply_timeline_edit(state: ProjectState, edit: TimelineEdit) -> ProjectState
 
     if edit.action == "ripple":
         _shift_after_delete(state, edit.clip_id, ripple=True)
+        return state
+
+    if edit.action == "ripple_trim":
+        if edit.start_sec is None or edit.end_sec is None:
+            raise InvalidTimeError("Ripple trim requires start and end.")
+        _ripple_trim(state, edit, fps=fps, media=media)
         return state
 
     if edit.action == "split":

@@ -3,6 +3,47 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.80.0] - 2026-10-23
+
+### Added
+
+- **Timeline pro.** Shift-click multi-select, atomic batch edits, group move,
+  bulk delete/ripple, ripple trim, real clip thumbnails, markers, and
+  per-track mute/solo/lock.
+- **Background MP4 render queue.** Progress, cancel, and download; filters,
+  titles, color, and audio-master chain are applied.
+- **Caption undo.** Caption edits now share the timeline history.
+- **Schedule reliability.** SQLite-backed schedules with a JSON migration,
+  retry/backoff, run history, watch-file size/mtime signatures, and concurrency
+  through the job manager.
+- **Provider failover.** LLM chains retry providers in order; ASR/TTS/vision
+  read the configured provider when no explicit endpoint is supplied.
+- **Secret store.** Environment, OS keyring, or 0600 fallback with presence-only
+  API and provider-panel controls.
+- **Translation.** `transcript.translate` writes translated JSON and SRT through
+  the recipe LLM provider.
+- **Delivery metrics.** Review comments and thumbnail CTR metrics; A/B selection.
+- **NLE sidecars.** Exports now package titles, LUT/eq, audio-master filters,
+  B-roll plans, and markers with instructions.
+- **Audio QA.** `audio.qa` measures EBU R128 integrated loudness and true peak
+  and warns when out of spec.
+- **MCP parity.** Timeline edit, B-roll approval, providers, schedules, and
+  review decisions are available as MCP tools.
+
+### Validation
+
+- 464 Python tests passed.
+- 7 media tests passed, 1 skipped.
+- 13 Vitest tests passed.
+- 19 Playwright tests passed.
+
+### Notes
+
+- Distribution, signing, macOS packaging, and onedir builds remain out of
+  scope.
+- Manual NLE QA, frame-accurate per-clip waveforms, and translation quality
+  review remain future work.
+
 ## [0.70.0] - 2026-10-23
 
 ### Added

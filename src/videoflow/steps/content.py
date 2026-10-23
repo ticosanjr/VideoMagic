@@ -214,6 +214,62 @@ class AudioMasterStep(BaseStep):
         return (Path(path),) if path else ()
 
 
+class AudioQaParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target_lufs: float = Field(default=-16.0, ge=-30.0, le=-5.0)
+    tolerance_lu: float = Field(default=2.0, ge=0.0, le=10.0)
+    max_true_peak_db: float = Field(default=-1.0, ge=-20.0, le=0.0)
+
+
+@register_step
+class AudioQaStep(BaseStep):
+    type = "audio.qa"
+    title = "Audio QA"
+    description = "Measure EBU R128 integrated loudness and true peak for delivery."
+    status = "available"
+    icon = "◉"
+    color = "#22c55e"
+    requires = ("ingest",)
+    produces = ("audio_qa",)
+    params_model = AudioQaParams
+
+    def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
+        options = AudioQaParams.model_validate(params)
+        master = context.artifacts.get("audio_master")
+        source = Path(master) if master else Path(context.source)
+        measurement = FFmpegAdapter().measure_loudness(source)
+        lufs = float(measurement["integrated_lufs"])
+        peak = float(measurement["true_peak_dbfs"])
+        passed = (
+            abs(lufs - options.target_lufs) <= options.tolerance_lu
+            and peak <= options.max_true_peak_db
+        )
+        payload = {
+            "ok": True,
+            "source": str(source),
+            "integrated_lufs": lufs,
+            "true_peak_dbfs": peak,
+            "target_lufs": options.target_lufs,
+            "max_true_peak_db": options.max_true_peak_db,
+            "passed": passed,
+        }
+        target = context.output / "audio" / "qa.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        context.artifacts["audio_qa"] = str(target)
+        context.metadata["audio_qa"] = payload
+        if not passed:
+            context.warnings.append(
+                f"Audio QA out of spec: {lufs:.1f} LUFS, peak {peak:.1f} dBFS"
+            )
+        io.report(100, f"{lufs:.1f} LUFS · peak {peak:.1f} dBFS")
+
+    def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
+        path = context.artifacts.get("audio_qa")
+        return (Path(path),) if path else ()
+
+
 class ColorGradeParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

@@ -828,8 +828,22 @@ export async function cancelModelDownload(modelId: string): Promise<void> {
 export async function listProviders(): Promise<{
   providers: ProviderConfig[];
   fallbacks: Record<string, ProviderConfig[]>;
+  secret_backend?: string;
 }> {
   return request("/api/v1/providers");
+}
+
+export async function setProviderSecret(providerId: string, value: string): Promise<void> {
+  await request(`/api/v1/providers/${encodeURIComponent(providerId)}/secret`, {
+    method: "POST",
+    body: JSON.stringify({ value })
+  });
+}
+
+export async function deleteProviderSecret(providerId: string): Promise<void> {
+  await request(`/api/v1/providers/${encodeURIComponent(providerId)}/secret`, {
+    method: "DELETE"
+  });
 }
 
 export async function saveProvider(provider: ProviderConfig): Promise<ProviderConfig> {
@@ -1157,6 +1171,47 @@ export async function getJobThumbnails(jobId: string): Promise<{
   selected: string;
 }> {
   return request(`/api/v1/jobs/${encodeURIComponent(jobId)}/thumbnails`);
+}
+
+export async function getThumbnailMetrics(
+  jobId: string
+): Promise<Array<{ name: string; impressions: number; clicks: number; ctr: number }>> {
+  const response = await request<{
+    ok: boolean;
+    metrics: Array<{ name: string; impressions: number; clicks: number; ctr: number }>;
+  }>(`/api/v1/jobs/${encodeURIComponent(jobId)}/thumbnails/metrics`);
+  return response.metrics;
+}
+
+export async function recordThumbnailMetric(
+  jobId: string,
+  name: string,
+  payload: { impressions?: number; clicks?: number }
+): Promise<void> {
+  await request(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/thumbnails/${encodeURIComponent(name)}/metric`,
+    { method: "POST", body: JSON.stringify(payload) }
+  );
+}
+
+export async function getReviewComments(
+  jobId: string
+): Promise<Array<{ author: string; text: string; time_sec: number | null; at: string }>> {
+  const response = await request<{
+    ok: boolean;
+    comments: Array<{ author: string; text: string; time_sec: number | null; at: string }>;
+  }>(`/api/v1/jobs/${encodeURIComponent(jobId)}/review/comments`);
+  return response.comments;
+}
+
+export async function addReviewComment(
+  jobId: string,
+  payload: { author?: string; text: string; time_sec?: number | null }
+): Promise<void> {
+  await request(`/api/v1/jobs/${encodeURIComponent(jobId)}/review/comments`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
 }
 
 export async function selectJobThumbnail(jobId: string, name: string): Promise<void> {
@@ -1510,7 +1565,22 @@ export interface TimelineData {
   shorts: ShortClip[];
   broll: Record<string, Array<Record<string, unknown>>>;
   broll_approval: Record<string, { approved: number[]; order: number[] }>;
+  markers: TimelineMarker[];
+  tracks: Record<string, TrackState>;
   preview_url: string;
+}
+
+export interface TimelineMarker {
+  id: string;
+  time_sec: number;
+  label: string;
+  color: string;
+}
+
+export interface TrackState {
+  muted: boolean;
+  solo: boolean;
+  locked: boolean;
 }
 
 export interface ProviderConfig {
@@ -1532,6 +1602,7 @@ export interface ProviderConfig {
   is_default: boolean;
   fallback: string[];
   notes: string;
+  secret_present?: boolean;
 }
 
 export interface ModelDownload {
@@ -1564,7 +1635,7 @@ export async function editTimeline(
   jobId: string,
   payload: {
     clip_id: string;
-    action: "trim" | "move" | "delete" | "split" | "ripple";
+    action: "trim" | "move" | "delete" | "split" | "ripple" | "ripple_trim";
     start_sec?: number;
     end_sec?: number;
     delta_sec?: number;
@@ -1581,6 +1652,57 @@ export async function editTimeline(
     method: "PATCH",
     body: JSON.stringify(payload)
   });
+}
+
+export async function editTimelineBatch(
+  jobId: string,
+  edits: Array<{
+    clip_id: string;
+    action: "trim" | "move" | "delete" | "split" | "ripple" | "ripple_trim";
+    start_sec?: number;
+    end_sec?: number;
+    delta_sec?: number;
+    split_sec?: number;
+  }>
+): Promise<{ ok: boolean; revision: number; applied: number }> {
+  return request(`/api/v1/jobs/${encodeURIComponent(jobId)}/timeline/batch`, {
+    method: "PATCH",
+    body: JSON.stringify({ edits })
+  });
+}
+
+export async function addTimelineMarker(
+  jobId: string,
+  payload: { time_sec: number; label?: string; color?: string }
+): Promise<TimelineMarker[]> {
+  const response = await request<{ ok: boolean; markers: TimelineMarker[] }>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/timeline/markers`,
+    { method: "POST", body: JSON.stringify(payload) }
+  );
+  return response.markers;
+}
+
+export async function removeTimelineMarker(
+  jobId: string,
+  markerId: string
+): Promise<TimelineMarker[]> {
+  const response = await request<{ ok: boolean; markers: TimelineMarker[] }>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/timeline/markers/${encodeURIComponent(markerId)}`,
+    { method: "DELETE" }
+  );
+  return response.markers;
+}
+
+export async function updateTimelineTrack(
+  jobId: string,
+  track: string,
+  state: TrackState
+): Promise<Record<string, TrackState>> {
+  const response = await request<{ ok: boolean; tracks: Record<string, TrackState> }>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/timeline/tracks/${encodeURIComponent(track)}`,
+    { method: "PUT", body: JSON.stringify(state) }
+  );
+  return response.tracks;
 }
 
 export async function updateTimelineClip(
@@ -1747,6 +1869,38 @@ export interface PreviewStatus {
   percent: number;
   message?: string;
   error?: string;
+}
+
+export interface RenderStatus {
+  job_id?: string;
+  status: "idle" | "queued" | "rendering" | "ready" | "failed" | "cancelled";
+  percent: number;
+  message?: string;
+  error?: string;
+}
+
+export async function startRender(jobId: string): Promise<RenderStatus> {
+  const response = await request<{ ok: boolean; render: RenderStatus }>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/render`,
+    { method: "POST" }
+  );
+  return response.render;
+}
+
+export async function getRenderStatus(jobId: string): Promise<RenderStatus> {
+  return request<RenderStatus>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/render/status`
+  );
+}
+
+export async function cancelRender(jobId: string): Promise<void> {
+  await request(`/api/v1/jobs/${encodeURIComponent(jobId)}/render/cancel`, {
+    method: "POST"
+  });
+}
+
+export function renderFileUrl(jobId: string): string {
+  return `/api/v1/jobs/${encodeURIComponent(jobId)}/render/file`;
 }
 
 export async function getPreviewStatus(jobId: string): Promise<PreviewStatus> {

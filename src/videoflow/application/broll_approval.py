@@ -8,6 +8,8 @@ from pathlib import Path
 from videoflow.domain.errors import StateNotReadyError
 
 APPROVAL_FILE = "broll_approval.json"
+HISTORY_FILE = "broll_history.json"
+MAX_HISTORY = 20
 
 
 def _path(output: Path) -> Path:
@@ -34,6 +36,34 @@ def load_approvals(output: Path) -> dict[str, dict[str, list[int]]]:
     return result
 
 
+def _history(output: Path) -> dict[str, list[str]]:
+    path = Path(output) / HISTORY_FILE
+    if not path.is_file():
+        return {"undo": [], "redo": []}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"undo": [], "redo": []}
+    return {
+        "undo": [str(item) for item in payload.get("undo", [])][-MAX_HISTORY:],
+        "redo": [str(item) for item in payload.get("redo", [])][-MAX_HISTORY:],
+    }
+
+
+def _save_history(output: Path, history: dict[str, list[str]]) -> None:
+    path = Path(output) / HISTORY_FILE
+    path.write_text(
+        json.dumps(
+            {
+                "undo": history["undo"][-MAX_HISTORY:],
+                "redo": history["redo"][-MAX_HISTORY:],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def save_approval(
     output: Path,
     *,
@@ -54,10 +84,38 @@ def save_approval(
         if item not in clean_order:
             clean_order.append(item)
     approvals = load_approvals(output)
+    history = _history(output)
+    history["undo"].append(json.dumps(approvals))
+    history["redo"] = []
+    _save_history(output, history)
     approvals[title] = {"approved": clean_approved, "order": clean_order}
     path = _path(output)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(approvals, indent=2) + "\n", encoding="utf-8")
+    return approvals
+
+
+def undo_approval(output: Path) -> dict[str, dict[str, list[int]]]:
+    history = _history(output)
+    if not history["undo"]:
+        return load_approvals(output)
+    payload = history["undo"].pop()
+    history["redo"].append(json.dumps(load_approvals(output)))
+    _save_history(output, history)
+    approvals = json.loads(payload)
+    _path(output).write_text(json.dumps(approvals, indent=2) + "\n", encoding="utf-8")
+    return approvals
+
+
+def redo_approval(output: Path) -> dict[str, dict[str, list[int]]]:
+    history = _history(output)
+    if not history["redo"]:
+        return load_approvals(output)
+    payload = history["redo"].pop()
+    history["undo"].append(json.dumps(load_approvals(output)))
+    _save_history(output, history)
+    approvals = json.loads(payload)
+    _path(output).write_text(json.dumps(approvals, indent=2) + "\n", encoding="utf-8")
     return approvals
 
 

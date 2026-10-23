@@ -230,3 +230,100 @@ def test_schedule_crud_and_run_now(monkeypatch, tmp_path: Path) -> None:
     deleted = client.delete("/api/v1/schedules/watch-one")
     assert deleted.status_code == 200
     assert client.get("/api/v1/schedules").json()["schedules"] == []
+
+
+def test_timeline_batch_move(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    job = _job(manager, tmp_path)
+    response = client.patch(
+        f"/api/v1/jobs/{job.job_id}/timeline/batch",
+        json={
+            "edits": [
+                {"clip_id": "v1", "action": "move", "delta_sec": 0.2},
+                {"clip_id": "v2", "action": "move", "delta_sec": 0.2},
+            ]
+        },
+    )
+    assert response.status_code == 200, response.text
+    payload = client.get(f"/api/v1/jobs/{job.job_id}/timeline").json()
+    assert payload["video"][0]["start_sec"] == 0.2
+    assert payload["video"][1]["start_sec"] == 1.2
+    assert payload["revision"] == 2
+
+
+def test_markers_and_track_state(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    job = _job(manager, tmp_path)
+    marker = client.post(
+        f"/api/v1/jobs/{job.job_id}/timeline/markers",
+        json={"time_sec": 1.5, "label": "cut here"},
+    )
+    assert marker.status_code == 201, marker.text
+    assert marker.json()["markers"][0]["label"] == "cut here"
+    track = client.put(
+        f"/api/v1/jobs/{job.job_id}/timeline/tracks/audio",
+        json={"muted": True, "solo": False, "locked": False},
+    )
+    assert track.status_code == 200, track.text
+    payload = client.get(f"/api/v1/jobs/{job.job_id}/timeline").json()
+    assert payload["markers"][0]["time_sec"] == 1.5
+    assert payload["tracks"]["audio"]["muted"] is True
+
+
+def test_review_comments_and_thumbnail_metrics(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    job = _job(manager, tmp_path)
+    output = tmp_path / "out"
+    (output / "review.json").write_text('{"checks": [{"id": "timeline", "ok": true}]}')
+    thumbs = output / "thumbnails"
+    thumbs.mkdir(exist_ok=True)
+    (thumbs / "thumbnail-1.png").write_bytes(b"png")
+    (thumbs / "thumbnail-2.png").write_bytes(b"png")
+    comment = client.post(
+        f"/api/v1/jobs/{job.job_id}/review/comments",
+        json={"author": "qa", "text": "looks good", "time_sec": 1.0},
+    )
+    assert comment.status_code == 201, comment.text
+    assert comment.json()["comments"][0]["text"] == "looks good"
+    metric = client.post(
+        f"/api/v1/jobs/{job.job_id}/thumbnails/thumbnail-1.png/metric",
+        json={"impressions": 10, "clicks": 2},
+    )
+    assert metric.status_code == 200, metric.text
+    metrics = client.get(f"/api/v1/jobs/{job.job_id}/thumbnails/metrics").json()["metrics"]
+    assert metrics[0]["ctr"] == 0.2
+    selected = client.post(
+        f"/api/v1/jobs/{job.job_id}/thumbnails/select",
+        json={"name": "thumbnail-2.png"},
+    )
+    assert selected.status_code == 200
+    listing = client.get(f"/api/v1/jobs/{job.job_id}/thumbnails").json()
+    assert listing["selected"] == "thumbnail-2.png"
+
+
+def test_provider_secret_presence(monkeypatch, tmp_path: Path) -> None:
+    client, _ = _client(monkeypatch, tmp_path)
+    provider = {
+        "id": "secret-llm",
+        "name": "Secret LLM",
+        "capability": "llm",
+        "base_url": "http://127.0.0.1:11434/v1",
+        "api_key_env": "VIDEOWFLOW_TEST_PROVIDER_KEY",
+        "model": "test",
+        "enabled": True,
+        "is_default": True,
+        "fallback": [],
+        "notes": "",
+    }
+    assert client.put("/api/v1/providers/secret-llm", json=provider).status_code == 200
+    stored = client.post(
+        "/api/v1/providers/secret-llm/secret", json={"value": "top-secret"}
+    )
+    assert stored.status_code == 200, stored.text
+    listing = client.get("/api/v1/providers").json()
+    assert listing["providers"][0]["secret_present"] is True
+    assert "top-secret" not in str(listing)
+    cleared = client.delete("/api/v1/providers/secret-llm/secret")
+    assert cleared.status_code == 200
+    listing = client.get("/api/v1/providers").json()
+    assert listing["providers"][0]["secret_present"] is False

@@ -5,22 +5,34 @@
   import ShortEditor from "$lib/ShortEditor.svelte";
   import WaveformStrip from "$lib/WaveformStrip.svelte";
   import {
+    addTimelineMarker,
     approveBroll,
     cancelPreview,
+    cancelRender,
     createJobPreview,
     editTimeline,
+    editTimelineBatch,
     errorMessage,
     getJobReview,
     getJobThumbnails,
     getPreviewStatus,
+    getRenderStatus,
     getTimeline,
     jobArtifactUrl,
     jobThumbnailUrl,
     listJobs,
+    addReviewComment,
     decideJobReview,
+    getReviewComments,
+    getThumbnailMetrics,
+    recordThumbnailMetric,
     selectJobThumbnail,
     redoTimeline,
+    removeTimelineMarker,
+    renderFileUrl,
+    startRender,
     undoTimeline,
+    updateTimelineTrack,
     updateJobCaption,
     updateTimelineClip,
     type Job,
@@ -37,6 +49,7 @@
   let zoom = $state(80);
   let snap = $state(true);
   let selectedClip = $state<TimelineData["video"][number] | null>(null);
+  let selectedIds = $state<string[]>([]);
   let clipStart = $state(0);
   let clipEnd = $state(0);
   let clipDelta = $state(1);
@@ -55,6 +68,14 @@
   let reviewComment = $state("");
   let reviewBusy = $state(false);
   let thumbnails = $state<{ variants: string[]; selected: string }>({ variants: [], selected: "" });
+  let thumbMetrics = $state<Array<{ name: string; impressions: number; clicks: number; ctr: number }>>([]);
+  let reviewComments = $state<Array<{ author: string; text: string; time_sec: number | null; at: string }>>([]);
+  let commentDraft = $state("");
+  let markerLabel = $state("");
+  let renderBusy = $state(false);
+  let renderPercent = $state(0);
+  let renderMessage = $state("");
+  let renderReady = $state(false);
   let selectedCaption = $state<number | null>(null);
   let captionDraft = $state("");
   let captionBusy = $state(false);
@@ -117,9 +138,11 @@
     error = "";
     editStatus = "";
     try {
-      timeline = await getTimeline(selected);
+      const loaded = await getTimeline(selected);
+      timeline = { ...loaded, markers: loaded.markers ?? [], tracks: loaded.tracks ?? {} };
       if (!keepClipId) playhead = 0;
       selectedCaption = null;
+      if (!keepClipId) selectedIds = [];
       const keep = keepClipId
         ? timeline.video.find((clip) => clip.id === keepClipId) ?? null
         : null;
@@ -155,6 +178,16 @@
     } catch {
       thumbnails = { variants: [], selected: "" };
     }
+    try {
+      thumbMetrics = await getThumbnailMetrics(selected);
+    } catch {
+      thumbMetrics = [];
+    }
+    try {
+      reviewComments = await getReviewComments(selected);
+    } catch {
+      reviewComments = [];
+    }
   }
 
   async function decideReview(approved: boolean) {
@@ -175,11 +208,110 @@
     }
   }
 
+  async function addComment() {
+    if (!commentDraft.trim()) return;
+    try {
+      await addReviewComment(selected, {
+        text: commentDraft.trim(),
+        time_sec: playhead
+      });
+      commentDraft = "";
+      reviewComments = await getReviewComments(selected);
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
+  async function bumpMetric(name: string, key: "impressions" | "clicks") {
+    try {
+      await recordThumbnailMetric(selected, name, { [key]: 1 });
+      thumbMetrics = await getThumbnailMetrics(selected);
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
   async function chooseThumbnail(name: string) {
     try {
       await selectJobThumbnail(selected, name);
       thumbnails = { ...thumbnails, selected: name };
       status = `Thumbnail ${name} selected.`;
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
+  async function renderTimeline() {
+    renderBusy = true;
+    renderPercent = 0;
+    renderMessage = "Queued";
+    error = "";
+    try {
+      await startRender(selected);
+      for (let attempt = 0; attempt < 1200; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 700));
+        const current = await getRenderStatus(selected);
+        renderPercent = current.percent;
+        renderMessage = current.message ?? current.status;
+        if (current.status === "ready") {
+          renderReady = true;
+          status = "MP4 render ready.";
+          return;
+        }
+        if (current.status === "failed" || current.status === "cancelled") {
+          error = current.error || `Render ${current.status}.`;
+          return;
+        }
+      }
+      error = "Render timed out. Check the server log.";
+    } catch (reason) {
+      error = errorMessage(reason);
+    } finally {
+      renderBusy = false;
+    }
+  }
+
+  async function stopRender() {
+    try {
+      await cancelRender(selected);
+      renderMessage = "Cancelling…";
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
+  async function addMarker() {
+    try {
+      const markers = await addTimelineMarker(selected, {
+        time_sec: playhead,
+        label: markerLabel.trim() || `Marker ${Math.round(playhead * 10) / 10}s`
+      });
+      if (timeline) timeline = { ...timeline, markers };
+      markerLabel = "";
+      status = "Marker added.";
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
+  async function removeMarker(markerId: string) {
+    try {
+      const markers = await removeTimelineMarker(selected, markerId);
+      if (timeline) timeline = { ...timeline, markers };
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
+  async function toggleTrack(track: string, key: "muted" | "solo" | "locked") {
+    if (!timeline) return;
+    const current = timeline.tracks?.[track] ?? { muted: false, solo: false, locked: false };
+    try {
+      const tracks = await updateTimelineTrack(selected, track, {
+        ...current,
+        [key]: !current[key]
+      });
+      timeline = { ...timeline, tracks };
     } catch (reason) {
       error = errorMessage(reason);
     }
@@ -201,7 +333,26 @@
     brollApproved = approved;
   }
 
-  function selectClip(clip: TimelineData["video"][number] | null) {
+  function selectClip(clip: TimelineData["video"][number] | null, additive = false) {
+    if (!clip) {
+      selectedClip = null;
+      selectedIds = [];
+      editStatus = "";
+      return;
+    }
+    if (additive) {
+      if (selectedIds.includes(clip.id)) {
+        selectedIds = selectedIds.filter((id) => id !== clip.id);
+        if (selectedIds.length === 0) {
+          selectedClip = null;
+          return;
+        }
+      } else {
+        selectedIds = [...selectedIds, clip.id];
+      }
+    } else {
+      selectedIds = [clip.id];
+    }
     selectedClip = clip;
     if (clip) {
       clipStart = clip.start_sec;
@@ -341,6 +492,20 @@
     }
   }
 
+  async function applyBatch(edits: Array<Record<string, unknown>>) {
+    editBusy = true;
+    error = "";
+    try {
+      const response = await editTimelineBatch(selected, edits as never);
+      status = `Batch applied to ${response.applied} clip(s) at revision ${response.revision}.`;
+      await loadTimeline(selectedClip?.id ?? "");
+    } catch (reason) {
+      error = errorMessage(reason);
+    } finally {
+      editBusy = false;
+    }
+  }
+
   function trimSelected() {
     if (!selectedClip) return;
     void applyEdit("trim", { start_sec: clipStart, end_sec: clipEnd });
@@ -348,12 +513,32 @@
 
   function moveSelected() {
     if (!selectedClip) return;
-    void applyEdit("move", { delta_sec: clipDelta });
+    if (selectedIds.length > 1) {
+      void applyBatch(
+        selectedIds.map((id) => ({
+          clip_id: id,
+          action: "move",
+          delta_sec: clipDelta
+        }))
+      );
+    } else {
+      void applyEdit("move", { delta_sec: clipDelta });
+    }
   }
 
   function deleteSelected(ripple = false) {
-    if (!selectedClip) return;
-    void applyEdit(ripple ? "ripple" : "delete");
+    const ids = selectedIds.length ? selectedIds : selectedClip ? [selectedClip.id] : [];
+    if (!ids.length) return;
+    if (ids.length > 1) {
+      void applyBatch(
+        ids.map((id) => ({
+          clip_id: id,
+          action: ripple ? "ripple" : "delete"
+        }))
+      );
+    } else if (selectedClip) {
+      void applyEdit(ripple ? "ripple" : "delete");
+    }
   }
 
   function splitSelected() {
@@ -531,9 +716,10 @@
         <span class="mx-1 h-4 w-px bg-neutral-800"></span>
         <button type="button" onclick={() => void undo()} disabled={!timeline.can_undo || editBusy} class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Undo</button>
         <button type="button" onclick={() => void redo()} disabled={!timeline.can_redo || editBusy} class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Redo</button>
+        {#if selectedIds.length > 1}<span class="rounded bg-sky-500/10 px-2 py-1 text-[10px] text-sky-200">{selectedIds.length} selected</span>{/if}
         <button type="button" onclick={splitSelected} disabled={!selectedClip || editBusy} class="rounded-lg border border-violet-500/40 px-2 py-1 text-[10px] text-violet-200 disabled:opacity-40" title="Split selected clip at playhead (S)">Split</button>
-        <button type="button" onclick={() => deleteSelected(false)} disabled={!selectedClip || editBusy} class="rounded-lg border border-rose-500/40 px-2 py-1 text-[10px] text-rose-200 disabled:opacity-40" title="Delete selected clip (Delete)">Delete</button>
-        <button type="button" onclick={() => deleteSelected(true)} disabled={!selectedClip || editBusy} class="rounded-lg border border-rose-500/30 px-2 py-1 text-[10px] text-rose-300 disabled:opacity-40" title="Delete and close the gap (Shift+Delete)">Ripple</button>
+        <button type="button" onclick={() => deleteSelected(false)} disabled={!selectedIds.length && !selectedClip || editBusy} class="rounded-lg border border-rose-500/40 px-2 py-1 text-[10px] text-rose-200 disabled:opacity-40" title="Delete selected clip (Delete)">Delete</button>
+        <button type="button" onclick={() => deleteSelected(true)} disabled={!selectedIds.length && !selectedClip || editBusy} class="rounded-lg border border-rose-500/30 px-2 py-1 text-[10px] text-rose-300 disabled:opacity-40" title="Delete and close the gap (Shift+Delete)">Ripple</button>
         <label class="ml-auto flex items-center gap-1.5 text-[10px] text-neutral-500">
           <input type="checkbox" bind:checked={snap} class="h-3.5 w-3.5 rounded border-neutral-700 bg-neutral-800" />
           Snap
@@ -546,15 +732,42 @@
         </label>
       </div>
 
+      <div class="flex flex-wrap gap-2 border-b border-neutral-800 px-3 py-1.5">
+        {#each [["video", "V1"], ["audio", "A1"], ["captions", "S1"], ["broll", "B1"]] as [trackId, label]}
+          {@const state = timeline.tracks?.[trackId] ?? { muted: false, solo: false, locked: false }}
+          <div class="flex items-center gap-1 rounded border border-neutral-800 bg-neutral-950/60 px-1.5 py-0.5 text-[9px] text-neutral-400">
+            <span class="font-mono text-neutral-500">{label}</span>
+            <button type="button" onclick={() => void toggleTrack(trackId, "muted")} class={`rounded px-1 ${state.muted ? "bg-rose-500/20 text-rose-300" : "text-neutral-500 hover:text-neutral-200"}`} aria-label={`Mute ${label}`}>M</button>
+            <button type="button" onclick={() => void toggleTrack(trackId, "solo")} class={`rounded px-1 ${state.solo ? "bg-amber-500/20 text-amber-300" : "text-neutral-500 hover:text-neutral-200"}`} aria-label={`Solo ${label}`}>S</button>
+            <button type="button" onclick={() => void toggleTrack(trackId, "locked")} class={`rounded px-1 ${state.locked ? "bg-sky-500/20 text-sky-300" : "text-neutral-500 hover:text-neutral-200"}`} aria-label={`Lock ${label}`}>L</button>
+          </div>
+        {/each}
+        <div class="ml-auto flex flex-wrap items-center gap-1">
+          <button type="button" onclick={() => void renderTimeline()} disabled={renderBusy || !selected} class="rounded border border-emerald-500/40 px-2 py-0.5 text-[10px] text-emerald-200 disabled:opacity-40">{renderBusy ? `Rendering ${renderPercent}%` : "Render MP4"}</button>
+          {#if renderBusy}<button type="button" onclick={() => void stopRender()} class="rounded border border-rose-500/30 px-1.5 py-0.5 text-[10px] text-rose-300">Cancel</button>{/if}
+          {#if renderReady}<a href={renderFileUrl(selected)} download class="rounded border border-emerald-500/40 px-1.5 py-0.5 text-[10px] text-emerald-200">Download</a>{/if}
+          <input bind:value={markerLabel} placeholder="Marker label" class="w-28 rounded border border-neutral-800 bg-neutral-950 px-1.5 py-0.5 text-[10px] text-neutral-200" />
+          <button type="button" onclick={() => void addMarker()} class="rounded border border-sky-500/40 px-2 py-0.5 text-[10px] text-sky-200">+ Marker</button>
+          {#if renderBusy}<span class="text-[9px] text-neutral-500">{renderMessage}</span>{/if}
+        </div>
+      </div>
+
       <TimelineCanvas
         {timeline}
+        jobId={selected}
+        markers={timeline.markers ?? []}
+        tracks={timeline.tracks ?? {}}
         {playhead}
         {zoom}
         selectedClipId={selectedClip?.id ?? ""}
+        {selectedIds}
         {snap}
         {brollApproved}
         onSeek={seek}
         onSelectClip={selectClip}
+        onMoveClips={(ids, delta) => {
+          void applyBatch(ids.map((id) => ({ clip_id: id, action: "move", delta_sec: delta })));
+        }}
         onMoveClip={(id, delta) => {
           const clip = timeline?.video.find((item) => item.id === id) ?? null;
           if (clip) {
@@ -694,6 +907,22 @@
                 </div>
               {/if}
             </div>
+
+            <div class="rounded-xl border border-neutral-800 bg-neutral-900/40 p-3">
+              <div class="flex items-center justify-between">
+                <p class="text-[10px] uppercase tracking-wide text-neutral-500">Markers</p>
+                <span class="text-[9px] text-neutral-600">{timeline.markers.length}</span>
+              </div>
+              <div class="mt-2 max-h-32 space-y-1 overflow-auto">
+                {#each timeline.markers as marker}
+                  <div class="flex items-center gap-1 rounded bg-neutral-950/60 px-1.5 py-1">
+                    <button type="button" onclick={() => seek(marker.time_sec)} class="min-w-0 flex-1 truncate text-left text-[10px] text-sky-200">{marker.time_sec.toFixed(2)}s · {marker.label || "Marker"}</button>
+                    <button type="button" onclick={() => void removeMarker(marker.id)} class="rounded px-1 text-[10px] text-neutral-500 hover:text-rose-300" aria-label="Remove marker">×</button>
+                  </div>
+                {/each}
+                {#if !timeline.markers.length}<p class="text-[10px] text-neutral-600">No markers.</p>{/if}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -794,16 +1023,35 @@
             <button type="button" onclick={() => void decideReview(true)} disabled={reviewBusy || !reviewChecks.length} class="rounded border border-emerald-500/40 px-2 py-1 text-[10px] text-emerald-200 disabled:opacity-40">Approve</button>
             <button type="button" onclick={() => void decideReview(false)} disabled={reviewBusy || !reviewChecks.length} class="rounded border border-rose-500/40 px-2 py-1 text-[10px] text-rose-200 disabled:opacity-40">Reject</button>
           </div>
+          <div class="mt-3 space-y-1">
+            {#each reviewComments as comment}
+              <div class="rounded bg-neutral-900/70 px-2 py-1 text-[10px] text-neutral-300">
+                <span class="text-neutral-500">{comment.author}{comment.time_sec !== null ? ` @ ${comment.time_sec.toFixed(2)}s` : ""}: </span>{comment.text}
+              </div>
+            {/each}
+            <div class="flex gap-1">
+              <input bind:value={commentDraft} placeholder="Review comment" class="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
+              <button type="button" onclick={() => void addComment()} disabled={!commentDraft.trim()} class="rounded border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Add</button>
+            </div>
+          </div>
         </div>
         <div class="rounded-xl border border-neutral-800 bg-neutral-950/50 p-3">
           <p class="text-[10px] uppercase tracking-wide text-neutral-500">Thumbnail A/B</p>
           {#if thumbnails.variants.length}
             <div class="mt-2 grid grid-cols-3 gap-2">
               {#each thumbnails.variants as variant}
-                <button type="button" onclick={() => void chooseThumbnail(variant)} class={`overflow-hidden rounded border ${thumbnails.selected === variant ? "border-sky-400 ring-1 ring-sky-400" : "border-neutral-800"}`}>
-                  <img src={jobThumbnailUrl(selected, variant)} alt={variant} class="aspect-video w-full object-cover" />
-                  <span class="block truncate px-1 py-0.5 text-[8px] text-neutral-400">{variant}</span>
-                </button>
+                {@const metric = thumbMetrics.find((item) => item.name === variant)}
+                <div class="space-y-1">
+                  <button type="button" onclick={() => void chooseThumbnail(variant)} class={`w-full overflow-hidden rounded border ${thumbnails.selected === variant ? "border-sky-400 ring-1 ring-sky-400" : "border-neutral-800"}`}>
+                    <img src={jobThumbnailUrl(selected, variant)} alt={variant} class="aspect-video w-full object-cover" />
+                    <span class="block truncate px-1 py-0.5 text-[8px] text-neutral-400">{variant}</span>
+                  </button>
+                  <div class="flex items-center gap-1 text-[8px] text-neutral-500">
+                    <span>CTR {(metric?.ctr ?? 0).toFixed(2)}</span>
+                    <button type="button" onclick={() => void bumpMetric(variant, "impressions")} class="rounded bg-neutral-800 px-1">+imp</button>
+                    <button type="button" onclick={() => void bumpMetric(variant, "clicks")} class="rounded bg-neutral-800 px-1">+click</button>
+                  </div>
+                </div>
               {/each}
             </div>
           {:else}

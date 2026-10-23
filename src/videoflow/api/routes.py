@@ -34,17 +34,26 @@ from videoflow.application.brand_templates import (
     list_templates,
     save_template,
 )
-from videoflow.application.broll_approval import load_approvals, save_approval
+from videoflow.application.broll_approval import (
+    load_approvals,
+    redo_approval,
+    save_approval,
+    undo_approval,
+)
 from videoflow.application.capabilities import (
     capability_manifest,
     external_services_allowed,
 )
 from videoflow.application.caption_ai import apply_llm_emoji
 from videoflow.application.deliverables import (
+    add_review_comment,
     approve_review,
+    list_review_comments,
     list_thumbnails,
+    record_thumbnail_metric,
     review_payload,
     select_thumbnail,
+    thumbnail_metrics,
 )
 from videoflow.application.dubbing import generate_short_dubbing
 from videoflow.application.filesystem import create_directory, list_directory, roots_payload
@@ -97,12 +106,20 @@ from videoflow.application.publishing import (
     list_targets,
     save_target,
 )
+from videoflow.application.render_queue import renders
 from videoflow.application.schedules import (
     RecipeSchedule,
     delete_schedule,
     load_schedules,
     run_now,
     upsert_schedule,
+)
+from videoflow.application.secrets import (
+    delete_secret,
+    get_secret,
+    secret_backend,
+    secret_present,
+    set_secret,
 )
 from videoflow.application.services import (
     append_server_log,
@@ -118,6 +135,15 @@ from videoflow.application.short_metadata import generate_short_metadata
 from videoflow.application.thumbnail import generate_short_thumbnail
 from videoflow.application.timeline_edit import TimelineEdit, apply_timeline_edit
 from videoflow.application.timeline_history import TimelineHistory
+from videoflow.application.timeline_meta import (
+    TimelineMeta,
+    TrackState,
+    add_marker,
+    load_meta,
+    remove_marker,
+    save_meta,
+    set_track,
+)
 from videoflow.application.url_import import import_url
 from videoflow.application.voiceover import generate_short_voiceover
 from videoflow.core.recipe import parse_recipe, recipe_to_dict
@@ -425,7 +451,7 @@ class ProviderTestRequest(BaseModel):
 
 class TimelineEditRequest(BaseModel):
     clip_id: str = Field(min_length=1)
-    action: Literal["trim", "move", "delete", "split", "ripple"]
+    action: Literal["trim", "move", "delete", "split", "ripple", "ripple_trim"]
     start_sec: float | None = Field(default=None, ge=0.0)
     end_sec: float | None = Field(default=None, ge=0.0)
     delta_sec: float = 0.0
@@ -442,6 +468,16 @@ class ClipUpdateRequest(BaseModel):
     fade_out_sec: float | None = Field(default=None, ge=0.0, le=30.0)
 
 
+class MarkerRequest(BaseModel):
+    time_sec: float = Field(ge=0.0)
+    label: str = Field(default="", max_length=300)
+    color: str = Field(default="#38bdf8", max_length=20)
+
+
+class TimelineBatchRequest(BaseModel):
+    edits: list[TimelineEditRequest] = Field(min_length=1, max_length=200)
+
+
 class ReviewDecisionRequest(BaseModel):
     approved: bool
     comment: str = Field(default="", max_length=4000)
@@ -450,6 +486,17 @@ class ReviewDecisionRequest(BaseModel):
 
 class ThumbnailSelectRequest(BaseModel):
     name: str = Field(min_length=1, max_length=300)
+
+
+class ThumbnailMetricRequest(BaseModel):
+    impressions: int = Field(default=0, ge=0)
+    clicks: int = Field(default=0, ge=0)
+
+
+class ReviewCommentRequest(BaseModel):
+    author: str = Field(default="local operator", max_length=120)
+    text: str = Field(min_length=1, max_length=4000)
+    time_sec: float | None = Field(default=None, ge=0.0)
 
 
 class BrollApprovalRequest(BaseModel):
@@ -790,7 +837,7 @@ def register_routes(
                 status_code=422,
                 detail={"ok": False, "code": "invalid_url", "message": request.base_url},
             )
-        api_key = os.environ.get(request.api_key_env, "")
+        api_key = get_secret(request.api_key_env)
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         try:
             response = httpx.get(
@@ -808,13 +855,64 @@ def register_routes(
             "secret_present": bool(api_key),
         }
 
+    def _providers_payload() -> list[dict[str, object]]:
+        return [
+            {**item, "secret_present": secret_present(str(item.get("api_key_env") or ""))}
+            for item in list_providers()
+        ]
+
     @app.get("/api/v1/providers")
     def providers_list() -> dict[str, object]:
         return {
             "ok": True,
-            "providers": list_providers(),
+            "providers": _providers_payload(),
             "fallbacks": fallback_manifest(),
+            "secret_backend": secret_backend(),
         }
+
+    @app.post("/api/v1/providers/{provider_id}/secret")
+    def providers_secret(provider_id: str, request: dict[str, str]) -> dict[str, object]:
+        value = str(request.get("value") or "")
+        if not value:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "empty_secret", "message": provider_id},
+            )
+        provider = next(
+            (item for item in list_providers() if item["id"] == provider_id), None
+        )
+        if provider is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "provider_not_found", "message": provider_id},
+            )
+        name = str(provider.get("api_key_env") or "")
+        if not name:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "secret_name_missing", "message": provider_id},
+            )
+        set_secret(name, value)
+        return {
+            "ok": True,
+            "secret_present": True,
+            "secret_backend": secret_backend(),
+        }
+
+    @app.delete("/api/v1/providers/{provider_id}/secret")
+    def providers_secret_delete(provider_id: str) -> dict[str, object]:
+        provider = next(
+            (item for item in list_providers() if item["id"] == provider_id), None
+        )
+        if provider is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "provider_not_found", "message": provider_id},
+            )
+        name = str(provider.get("api_key_env") or "")
+        if name:
+            delete_secret(name)
+        return {"ok": True, "secret_present": False, "secret_backend": secret_backend()}
 
     @app.put("/api/v1/providers/{provider_id}")
     def providers_save(provider_id: str, request: ProviderConfig) -> dict[str, object]:
@@ -1558,6 +1656,61 @@ def register_routes(
             "url": f"/api/v1/jobs/{job_id}/preview/file",
         }
 
+    @app.post("/api/v1/jobs/{job_id}/render", status_code=202)
+    def start_render(job_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            if job.status != "succeeded":
+                raise StateNotReadyError("The job must succeed before rendering.")
+            state = renders.start(job)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "render": state.to_dict()}
+
+    @app.get("/api/v1/jobs/{job_id}/render/status")
+    def render_status(job_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        state = renders.get(job_id)
+        output = renders.output_path(job)
+        if state is None:
+            return {
+                "ok": True,
+                "status": "ready" if output.is_file() else "idle",
+                "percent": 100 if output.is_file() else 0,
+            }
+        payload = state.to_dict()
+        payload["ok"] = True
+        return payload
+
+    @app.post("/api/v1/jobs/{job_id}/render/cancel")
+    def cancel_render(job_id: str) -> dict[str, object]:
+        state = renders.cancel(job_id)
+        if state is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "render_not_found", "message": job_id},
+            )
+        return {"ok": True, "render": state.to_dict()}
+
+    @app.get("/api/v1/jobs/{job_id}/render/file")
+    def download_render(job_id: str) -> FileResponse:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
+        path = renders.output_path(job)
+        if not path.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "render_not_found", "message": job_id},
+            )
+        return FileResponse(path, media_type="video/mp4", filename=path.name)
+
     @app.get("/api/v1/jobs/{job_id}/preview/status")
     def preview_status(job_id: str) -> dict[str, object]:
         try:
@@ -1729,6 +1882,52 @@ def register_routes(
             "warning": "Re-run export/render to refresh artifacts.",
         }
 
+    @app.patch("/api/v1/jobs/{job_id}/timeline/batch")
+    def edit_job_timeline_batch(
+        job_id: str, request: TimelineBatchRequest
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            state_path = _timeline_state_path(job)
+            history = _timeline_history(job)
+            current = ProjectState.model_validate_json(
+                state_path.read_text(encoding="utf-8")
+            )
+            previous = current.model_copy(deep=True)
+            working = current.model_copy(deep=True)
+            for item in request.edits:
+                working = apply_timeline_edit(
+                    working,
+                    TimelineEdit(
+                        clip_id=item.clip_id,
+                        action=item.action,
+                        start_sec=item.start_sec,
+                        end_sec=item.end_sec,
+                        delta_sec=item.delta_sec,
+                        split_sec=item.split_sec,
+                    ),
+                )
+            history.record(previous)
+            state = _apply_and_store(
+                job, working, state_path, history, previous.revision + 1
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "timeline_invalid", "message": str(exc)},
+            ) from exc
+        return {
+            "ok": True,
+            "revision": state.revision,
+            "applied": len(request.edits),
+            "can_undo": history.can_undo,
+            "can_redo": history.can_redo,
+            "warning": "Re-run export/render to refresh artifacts.",
+        }
+
     @app.post("/api/v1/jobs/{job_id}/timeline/undo")
     def undo_job_timeline(job_id: str) -> dict[str, object]:
         try:
@@ -1785,6 +1984,8 @@ def register_routes(
                 str((job.result or {}).get("state_path") or job.output / "project_state.json")
             )
             state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+            previous = state.model_copy(deep=True)
+            history = _timeline_history(job)
             found = False
             for sentence in state.transcript:
                 if sentence.id == sentence_id:
@@ -1793,7 +1994,10 @@ def register_routes(
                     break
             if not found:
                 raise TranscriptNotFoundError(f"Sentence {sentence_id}")
-            state_path.write_text(state.model_dump_json(indent=2) + "\n", encoding="utf-8")
+            history.record(previous)
+            state = _apply_and_store(
+                job, state, state_path, history, previous.revision + 1
+            )
         except VideoFlowError as exc:
             fail(exc)
             raise
@@ -1802,7 +2006,14 @@ def register_routes(
                 status_code=422,
                 detail={"ok": False, "code": "timeline_invalid", "message": str(exc)},
             ) from exc
-        return {"ok": True, "sentence_id": sentence_id, "text": request.text}
+        return {
+            "ok": True,
+            "sentence_id": sentence_id,
+            "text": request.text,
+            "revision": state.revision,
+            "can_undo": history.can_undo,
+            "can_redo": history.can_redo,
+        }
 
     @app.get("/api/v1/jobs/{job_id}/review")
     def job_review(job_id: str) -> dict[str, object]:
@@ -1830,6 +2041,32 @@ def register_routes(
             raise
         return {"ok": True, "approval": approval}
 
+    @app.get("/api/v1/jobs/{job_id}/review/comments")
+    def job_review_comments(job_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "comments": list_review_comments(job.output)}
+
+    @app.post("/api/v1/jobs/{job_id}/review/comments", status_code=201)
+    def add_job_review_comment(
+        job_id: str, request: ReviewCommentRequest
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            comments = add_review_comment(
+                job.output,
+                author=request.author,
+                text=request.text,
+                time_sec=request.time_sec,
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "comments": comments}
+
     @app.get("/api/v1/jobs/{job_id}/thumbnails")
     def job_thumbnails(job_id: str) -> dict[str, object]:
         try:
@@ -1838,6 +2075,52 @@ def register_routes(
             fail(exc)
             raise
         return {"ok": True, **list_thumbnails(job.output)}
+
+    @app.get("/api/v1/jobs/{job_id}/clips/{clip_id}/thumbnail")
+    def job_clip_thumbnail(job_id: str, clip_id: str) -> FileResponse:
+        try:
+            job = jobs.get(job_id)
+            state_path = Path(
+                str((job.result or {}).get("state_path") or job.output / "project_state.json")
+            )
+            state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+            clip = next(
+                (item for item in state.video_segments if item.clip_id == clip_id), None
+            )
+            if clip is None or state.media_info is None:
+                raise StateNotReadyError(f"Unknown clip: {clip_id}")
+            media = state.media_info
+            fps = media.fps_num / media.fps_den
+            slug = "".join(
+                char if char.isalnum() or char in "-_" else "-" for char in clip_id
+            )
+            target = job.output / "thumbnails" / "clips" / f"{slug}.png"
+            if not target.is_file():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                midpoint = (clip.source_in_frame + clip.source_out_frame) / 2
+                FFmpegAdapter().render_thumbnail(
+                    Path(media.source_path),
+                    target,
+                    time_sec=max(0.0, midpoint / max(1.0, fps)),
+                )
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        if not target.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "clip_thumbnail_not_found"},
+            )
+        return FileResponse(target, media_type="image/png", filename=target.name)
+
+    @app.get("/api/v1/jobs/{job_id}/thumbnails/metrics")
+    def job_thumbnail_metrics(job_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "metrics": thumbnail_metrics(job.output)}
 
     @app.get("/api/v1/jobs/{job_id}/thumbnails/{name}")
     def job_thumbnail_file(job_id: str, name: str) -> FileResponse:
@@ -1854,6 +2137,23 @@ def register_routes(
             )
         return FileResponse(path, media_type="image/png", filename=path.name)
 
+    @app.post("/api/v1/jobs/{job_id}/thumbnails/{name}/metric")
+    def record_job_thumbnail_metric(
+        job_id: str, name: str, request: ThumbnailMetricRequest
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            metric = record_thumbnail_metric(
+                job.output,
+                name,
+                impressions=request.impressions,
+                clicks=request.clicks,
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "metric": metric, "metrics": thumbnail_metrics(job.output)}
+
     @app.post("/api/v1/jobs/{job_id}/thumbnails/select")
     def choose_job_thumbnail(
         job_id: str, request: ThumbnailSelectRequest
@@ -1865,6 +2165,26 @@ def register_routes(
             fail(exc)
             raise
         return {"ok": True, **payload}
+
+    @app.post("/api/v1/jobs/{job_id}/broll/undo")
+    def undo_job_broll(job_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            approval = undo_approval(job.output)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "approval": approval}
+
+    @app.post("/api/v1/jobs/{job_id}/broll/redo")
+    def redo_job_broll(job_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            approval = redo_approval(job.output)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "approval": approval}
 
     @app.get("/api/v1/jobs/{job_id}/broll")
     def job_broll(job_id: str) -> dict[str, object]:
@@ -1897,6 +2217,73 @@ def register_routes(
             raise
         return {"ok": True, "approval": approval}
 
+    @app.get("/api/v1/jobs/{job_id}/timeline/meta")
+    def job_timeline_meta(job_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, **load_meta(job.output).model_dump(mode="json")}
+
+    @app.put("/api/v1/jobs/{job_id}/timeline/meta")
+    def replace_job_timeline_meta(
+        job_id: str, request: TimelineMeta
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            meta = save_meta(job.output, request)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, **meta.model_dump(mode="json")}
+
+    @app.post("/api/v1/jobs/{job_id}/timeline/markers", status_code=201)
+    def create_job_marker(job_id: str, request: MarkerRequest) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            marker = add_marker(
+                job.output,
+                marker_id=(
+                    f"m-{int(request.time_sec * 1000)}-"
+                    f"{len(load_meta(job.output).markers) + 1}"
+                ),
+                time_sec=request.time_sec,
+                label=request.label,
+                color=request.color,
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "markers": [item.model_dump(mode="json") for item in marker.markers]}
+
+    @app.delete("/api/v1/jobs/{job_id}/timeline/markers/{marker_id}")
+    def delete_job_marker(job_id: str, marker_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            meta = remove_marker(job.output, marker_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "markers": [item.model_dump(mode="json") for item in meta.markers]}
+
+    @app.put("/api/v1/jobs/{job_id}/timeline/tracks/{track}")
+    def update_job_track(
+        job_id: str, track: str, request: TrackState
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            meta = set_track(job.output, track, request)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {
+            "ok": True,
+            "tracks": {
+                key: value.model_dump() for key, value in meta.tracks.items()
+            },
+        }
+
     @app.get("/api/v1/jobs/{job_id}/timeline")
     def job_timeline(job_id: str) -> dict[str, object]:
         try:
@@ -1922,6 +2309,7 @@ def register_routes(
             default=0,
         ) / max(0.001, fps)
         history = _timeline_history(job)
+        meta = load_meta(job.output)
         broll_plan = (job.result or {}).get("broll_plan", {})
         return {
             "ok": True,
@@ -1988,6 +2376,8 @@ def register_routes(
             "shorts": (job.result or {}).get("shorts", []),
             "broll": broll_plan,
             "broll_approval": load_approvals(job.output),
+            "markers": [item.model_dump(mode="json") for item in meta.markers],
+            "tracks": {key: value.model_dump() for key, value in meta.tracks.items()},
             "preview_url": f"/api/v1/jobs/{job_id}/preview/file",
         }
 
@@ -2136,7 +2526,7 @@ def register_routes(
                 result=job.result,
                 text=request.text,
                 config=config,
-                api_key=os.environ.get(config.secret_name),
+                api_key=get_secret(config.secret_name),
                 allow_external_services=request.allow_external_services,
                 allowed_external_hosts=tuple(request.allowed_external_hosts),
             )
@@ -2195,8 +2585,8 @@ def register_routes(
                 llm_model=request.llm_model
                 or state.modules_config.retakes.model_name
                 or str((first_provider("llm") or {}).get("model") or ""),
-                llm_api_key=os.environ.get("VIDEOWFLOW_LLM_API_KEY"),
-                tts_api_key=os.environ.get(tts.secret_name),
+                llm_api_key=get_secret("VIDEOWFLOW_LLM_API_KEY"),
+                tts_api_key=get_secret(tts.secret_name),
                 allow_external_services=request.allow_external_services,
                 allowed_external_hosts=tuple(request.allowed_external_hosts),
             )
@@ -2231,7 +2621,7 @@ def register_routes(
                 model=request.model
                 or str(vision.get("model") or "")
                 or os.environ.get("VIDEOWFLOW_VISION_MODEL", "gpt-4o-mini"),
-                api_key=os.environ.get(
+                api_key=get_secret(
                     str(vision.get("api_key_env") or "VIDEOWFLOW_VISION_API_KEY")
                 ),
                 allow_external_services=request.allow_external_services,

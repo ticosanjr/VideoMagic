@@ -442,3 +442,121 @@ def test_export_mp4_applies_audio_color_and_title_filters(tmp_path: Path) -> Non
     assert "[aout]loudnorm" in graph
     assert "[vout]eq=contrast=1.1[vcolor]" in graph
     assert "ass=" in graph
+
+
+def test_timeline_batch_and_ripple_trim(tmp_path: Path) -> None:
+    state = state_with_two_clips()
+    edits = [
+        TimelineEdit(clip_id="v1", action="move", delta_sec=0.2),
+        TimelineEdit(clip_id="v2", action="move", delta_sec=0.2),
+    ]
+    working = state.model_copy(deep=True)
+    for edit in edits:
+        working = apply_timeline_edit(working, edit)
+    assert working.video_segments[0].timeline_in_frame == 5
+    assert working.video_segments[1].timeline_in_frame == 30
+
+    trimmed = state.model_copy(deep=True)
+    apply_timeline_edit(
+        trimmed,
+        TimelineEdit(
+            clip_id="v1", action="ripple_trim", start_sec=0.0, end_sec=0.5
+        ),
+    )
+    assert trimmed.video_segments[0].timeline_out_frame == 12
+    assert trimmed.video_segments[1].timeline_in_frame == 12
+
+
+def test_schedule_retry_and_sqlite_store(monkeypatch, tmp_path: Path) -> None:
+    from videoflow.application import schedules
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
+    monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+
+    class FailingJobs:
+        def start(self, *args, **kwargs):
+            raise RuntimeError("queue unavailable")
+
+    schedule = schedules.RecipeSchedule(
+        id="retry-one",
+        kind="interval",
+        recipe_id="youtube_talking_head",
+        source=str(source),
+        output=str(tmp_path / "out"),
+        interval_seconds=60,
+    )
+    schedules.upsert_schedule(schedule)
+    loaded = schedules.load_schedules()
+    assert loaded[0].id == "retry-one"
+    assert (tmp_path / "videoflow.db").is_file()
+    result = schedules.run_schedule(FailingJobs(), loaded[0])
+    assert result.attempts == 1
+    assert result.status.startswith("retry in")
+    assert result.runs[-1]["status"] == "failed"
+
+
+def test_secret_storage_fallback(tmp_path: Path, monkeypatch) -> None:
+    from videoflow.application import secrets
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
+    monkeypatch.setattr(secrets, "_keyring", lambda: None)
+    secrets.set_secret("VIDEOWFLOW_TEST_KEY", "super-secret")
+    assert secrets.get_secret("VIDEOWFLOW_TEST_KEY") == "super-secret"
+    assert secrets.secret_present("VIDEOWFLOW_TEST_KEY")
+    mode = (tmp_path / "secrets.json").stat().st_mode & 0o777
+    assert mode == 0o600
+    secrets.delete_secret("VIDEOWFLOW_TEST_KEY")
+    assert not secrets.secret_present("VIDEOWFLOW_TEST_KEY")
+
+
+def test_translation_step_writes_srt_and_json(tmp_path: Path) -> None:
+    from videoflow.core.context import PipelineContext
+    from videoflow.domain.state import Sentence
+    from videoflow.steps.base import StepIO
+    from videoflow.steps.translation import TranslationParams, TranslationStep
+
+    class FakeLlm:
+        def complete_json(self, prompt: str, schema_name: str) -> dict[str, object]:
+            return {"sentences": [{"id": 0, "text": "Hello"}, {"id": 1, "text": "World"}]}
+
+    state = state_with_two_clips()
+    state.transcript = [
+        Sentence(id=0, start_sample=0, end_sample=48000, text="Ola", speaker=0),
+        Sentence(id=1, start_sample=48000, end_sample=96000, text="Mundo", speaker=0),
+    ]
+    context = PipelineContext(
+        source=tmp_path / "source.mp4",
+        output=tmp_path / "out",
+        work=tmp_path / "out" / "work",
+        exports=tmp_path / "out" / "exports",
+        media=state.media_info,
+        state=state,
+        transcript=state.transcript,
+    )
+    TranslationStep().run(
+        context,
+        TranslationParams(target_language="en"),
+        StepIO(stage="translation", llm_client=FakeLlm()),
+    )
+    payload = json.loads(
+        (tmp_path / "out" / "translation" / "translated.json").read_text(encoding="utf-8")
+    )
+    assert payload["sentences"][0]["text"] == "Hello"
+    assert (tmp_path / "out" / "translation" / "translated-en.srt").is_file()
+
+
+def test_llm_fallback_tries_the_next_provider() -> None:
+    from videoflow.adapters.llm import FallbackLlm
+    from videoflow.domain.errors import LlmError
+
+    class Failing:
+        def complete_json(self, prompt: str, schema_name: str):
+            raise LlmError("offline")
+
+    class Working:
+        def complete_json(self, prompt: str, schema_name: str):
+            return {"ok": True}
+
+    assert FallbackLlm([Failing(), Working()]).complete_json("x", "y") == {"ok": True}

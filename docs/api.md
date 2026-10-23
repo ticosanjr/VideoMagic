@@ -72,7 +72,7 @@ GET /health
 ```
 
 ```json
-{ "status": "ok", "service": "videoflow", "version": "0.70.0" }
+{ "status": "ok", "service": "videoflow", "version": "0.80.0" }
 ```
 
 ```http
@@ -82,7 +82,7 @@ GET /api/v1/system
 ```json
 {
   "ok": true,
-  "version": "0.70.0",
+  "version": "0.80.0",
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
@@ -706,7 +706,7 @@ On success, `job.result` is the `run_portable` report:
 ```json
 {
   "ok": true,
-  "version": "0.70.0",
+  "version": "0.80.0",
   "vad_engine": "silero",
   "speech_interval_count": 3,
   "video_segment_count": 3,
@@ -733,15 +733,29 @@ Project state is created by recipe runs and edited through the job timeline API.
 - `GET /api/v1/jobs/{job_id}/timeline`, `PATCH /api/v1/jobs/{job_id}/timeline`
 - `POST /api/v1/jobs/{job_id}/timeline/undo`,
   `POST /api/v1/jobs/{job_id}/timeline/redo`
+- `PATCH /api/v1/jobs/{job_id}/timeline/batch` for atomic multi-clip edits
 - `PATCH /api/v1/jobs/{job_id}/timeline/clip/{clip_id}` for transitions,
   scale, position, and audio fades
+- `GET/PUT /api/v1/jobs/{job_id}/timeline/meta`,
+  `POST /api/v1/jobs/{job_id}/timeline/markers`,
+  `DELETE /api/v1/jobs/{job_id}/timeline/markers/{id}`,
+  `PUT /api/v1/jobs/{job_id}/timeline/tracks/{track}`
 - `GET/PATCH /api/v1/jobs/{job_id}/broll`
-- `GET/PATCH /api/v1/jobs/{job_id}/review`
+- `GET/PATCH /api/v1/jobs/{job_id}/review`,
+  `GET/POST /api/v1/jobs/{job_id}/review/comments`
 - `GET /api/v1/jobs/{job_id}/thumbnails`,
   `POST /api/v1/jobs/{job_id}/thumbnails/select`,
+  `GET /api/v1/jobs/{job_id}/thumbnails/metrics`,
+  `POST /api/v1/jobs/{job_id}/thumbnails/{name}/metric`,
   `GET /api/v1/jobs/{job_id}/thumbnails/{name}`
 - `GET /api/v1/schedules`, `PUT/DELETE /api/v1/schedules/{id}`,
   `POST /api/v1/schedules/{id}/run`
+- `POST /api/v1/jobs/{job_id}/render`,
+  `GET /api/v1/jobs/{job_id}/render/status`,
+  `POST /api/v1/jobs/{job_id}/render/cancel`,
+  `GET /api/v1/jobs/{job_id}/render/file`
+- `POST/DELETE /api/v1/providers/{id}/secret`
+- `PATCH /api/v1/jobs/{job_id}/broll/undo|redo`
 - `POST/GET /api/v1/jobs/{job_id}/preview`,
   `GET /api/v1/jobs/{job_id}/preview/status`,
   `POST /api/v1/jobs/{job_id}/preview/cancel`,
@@ -775,8 +789,19 @@ Shorts renderer consumes every approved entry, in the saved order.
 `/preview/status` for progress and call `/preview/cancel` to stop. Previews apply
 `titles.ass`, `color/filters.json`, and `audio/master-filters.json` when present.
 
-Schedules are stored in `recipe-schedules.json`. Review decisions live in
-`review_approval.json`; thumbnail selection lives in `thumbnail_choice.json`.
+Schedules are stored in SQLite (`videoflow.db`) with a one-time migration from
+`recipe-schedules.json`. Review decisions live in `review_approval.json`;
+comments in `review_comments.json`; thumbnail selection in
+`thumbnail_choice.json`; metrics in `thumbnail_metrics.json`.
+
+Secrets are read from the environment, OS keyring, or a 0600 `secrets.json`
+fallback. The API only reports presence.
+
+`transcript.translate` uses the recipe LLM provider and writes
+`translation/translated.json` plus an SRT. `audio.qa` writes
+`audio/qa.json` with EBU R128 integrated loudness and true peak. NLE exports
+include a `sidecars/` folder with titles, color filters, audio-master filters,
+B-roll, markers, and `sidecars.json`.
 
 Provider configuration lives in `$VIDEOWFLOW_HOME/providers.json`. Secrets are
 never stored; `api_key_env` names an environment variable. `resolve` returns

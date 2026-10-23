@@ -25,12 +25,14 @@ from videoflow.application.brand_templates import (
     list_templates,
     save_template,
 )
+from videoflow.application.broll_approval import save_approval
 from videoflow.application.capabilities import (
     capability_manifest,
     ensure_external_allowed,
     external_services_allowed,
 )
 from videoflow.application.caption_ai import apply_llm_emoji
+from videoflow.application.deliverables import approve_review
 from videoflow.application.dubbing import generate_short_dubbing
 from videoflow.application.export_service import FILENAMES, export_timeline
 from videoflow.application.fonts import list_fonts, save_font
@@ -55,6 +57,7 @@ from videoflow.application.project_templates import (
 from videoflow.application.project_templates import (
     save_template as save_project_template,
 )
+from videoflow.application.providers import fallback_manifest, list_providers
 from videoflow.application.publishing import (
     PublishTarget,
     enqueue_publish,
@@ -70,11 +73,19 @@ from videoflow.application.publishing import (
 )
 from videoflow.application.retakes import cull_intervals
 from videoflow.application.retakes import cull_retakes as cull_transcript_retakes
+from videoflow.application.schedules import (
+    RecipeSchedule,
+    load_schedules,
+    run_now,
+    upsert_schedule,
+)
 from videoflow.application.short_editor import ShortEditOptions
 from videoflow.application.short_editor import edit_short as edit_short_service
 from videoflow.application.short_metadata import generate_short_metadata
 from videoflow.application.shorts import select_shorts
 from videoflow.application.thumbnail import generate_short_thumbnail
+from videoflow.application.timeline_edit import TimelineEdit, apply_timeline_edit
+from videoflow.application.timeline_history import TimelineHistory
 from videoflow.application.url_import import import_url
 from videoflow.application.vad import detect_speech as detect_vad
 from videoflow.application.voiceover import generate_short_voiceover
@@ -88,6 +99,7 @@ from videoflow.domain.errors import (
 )
 from videoflow.domain.paths import resolve_allowed
 from videoflow.domain.state import MediaInfo, ProjectState, Sentence
+from videoflow.domain.state import ProjectState as TimelineProjectState
 from videoflow.domain.timebase import Rounding
 from videoflow.domain.transcript import format_srt
 from videoflow.engine.batch import BatchManager
@@ -1528,6 +1540,135 @@ def build_server(
         except VideoFlowError as exc:
             return exc.to_dict()
         return {"ok": True, "removed": model_id}
+
+    def _timeline_job(job_id: str | None):
+        resolved = job_id or last.get("job_id")
+        if not resolved:
+            raise StateNotReadyError("No job is loaded. Run a pipeline first.")
+        return manager.get(str(resolved))
+
+    @mcp.tool()
+    def videoflow_edit_timeline(
+        clip_id: str,
+        action: str,
+        start_sec: float | None = None,
+        end_sec: float | None = None,
+        delta_sec: float = 0.0,
+        split_sec: float | None = None,
+        job_id: str | None = None,
+    ) -> dict[str, object]:
+        """Edit one clip and persist undo history."""
+
+        try:
+            job = _timeline_job(job_id)
+            state_path = Path(
+                str((job.result or {}).get("state_path") or job.output / "project_state.json")
+            )
+            history = TimelineHistory(job.output / "timeline_history.json")
+            state = TimelineProjectState.model_validate_json(
+                state_path.read_text(encoding="utf-8")
+            )
+            previous = state.model_copy(deep=True)
+            state = apply_timeline_edit(
+                state,
+                TimelineEdit(
+                    clip_id=clip_id,
+                    action=action,  # type: ignore[arg-type]
+                    start_sec=start_sec,
+                    end_sec=end_sec,
+                    delta_sec=delta_sec,
+                    split_sec=split_sec,
+                ),
+            )
+            history.record(previous)
+            state = state.model_copy(update={"revision": previous.revision + 1})
+            state_path.write_text(state.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {"ok": True, "revision": state.revision, "can_undo": history.can_undo}
+
+    @mcp.tool()
+    def videoflow_approve_broll(
+        title: str,
+        approved: list[int],
+        order: list[int] | None = None,
+        job_id: str | None = None,
+    ) -> dict[str, object]:
+        """Approve and order planned B-roll for one Short."""
+
+        try:
+            job = _timeline_job(job_id)
+            plan = (job.result or {}).get("broll_plan", {})
+            approvals = save_approval(
+                job.output,
+                title=title,
+                approved=approved,
+                order=order,
+                plan=plan if isinstance(plan, dict) else {},
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {"ok": True, "approval": approvals}
+
+    @mcp.tool()
+    def videoflow_list_providers() -> dict[str, object]:
+        """List configured providers and fallback chains."""
+
+        return {
+            "ok": True,
+            "providers": list_providers(),
+            "fallbacks": fallback_manifest(),
+        }
+
+    @mcp.tool()
+    def videoflow_list_schedules() -> dict[str, object]:
+        """List recipe schedules and watch folders."""
+
+        return {
+            "ok": True,
+            "schedules": [item.model_dump(mode="json") for item in load_schedules()],
+        }
+
+    @mcp.tool()
+    def videoflow_save_schedule(schedule: dict[str, object]) -> dict[str, object]:
+        """Create or replace a recipe schedule."""
+
+        try:
+            saved = upsert_schedule(RecipeSchedule.model_validate(schedule))
+        except (ValueError, VideoFlowError) as exc:
+            return {"ok": False, "message": str(exc)}
+        return {"ok": True, "schedule": saved.model_dump(mode="json")}
+
+    @mcp.tool()
+    def videoflow_run_schedule(schedule_id: str) -> dict[str, object]:
+        """Run a schedule immediately."""
+
+        try:
+            schedule = run_now(manager, schedule_id)
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {"ok": True, "schedule": schedule.model_dump(mode="json")}
+
+    @mcp.tool()
+    def videoflow_decide_review(
+        approved: bool,
+        comment: str = "",
+        reviewer: str = "",
+        job_id: str | None = None,
+    ) -> dict[str, object]:
+        """Approve or reject the review checklist for a job."""
+
+        try:
+            job = _timeline_job(job_id)
+            approval = approve_review(
+                job.output,
+                approved=approved,
+                comment=comment,
+                reviewer=reviewer,
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {"ok": True, "approval": approval}
 
     @mcp.resource("videoflow://project/state")
     def project_state() -> str:

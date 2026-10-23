@@ -4,7 +4,7 @@ This is the editor's guide. Installation belongs to the
 [operator manual](operator.md).
 
 > Status: the portable CLI, REST API, recipe studio, canvas timeline, and MCP
-> surface run real jobs in 0.70.0. Local Faster-Whisper quality transcription is
+> surface run real jobs in 0.80.0. Local Faster-Whisper quality transcription is
 > available with a whisper.cpp fallback. The UI browses local files and folders
 > through the server allowlist; it does not upload media.
 
@@ -274,6 +274,10 @@ undo/redo, split at the playhead, delete, ripple delete, zoom, fit, and a snap
 toggle. Keyboard shortcuts are Space, `S`, Delete, Shift+Delete, and
 Ctrl/Cmd+Z.
 
+Shift-click selects multiple clips for group move or bulk delete/ripple.
+Markers and track mute/solo/lock are persisted per job. **Render MP4** queues a
+background timeline render with progress, cancel, and download.
+
 The video preview and waveform stay synced with the playhead. **Render preview**
 builds a 540p proxy in the background with progress and cancel; it applies the
 title plan, color/LUT grade, and audio-master filters. The playhead timecode is
@@ -293,8 +297,8 @@ save. The renderer consumes only approved entries in that order.
 
 ## 6. Providers and models
 
-Providers are stored in `providers.json`; secrets remain in environment
-variables. Pick a default per capability and list fallback IDs. The resolve
+Providers are stored in `providers.json`; secrets use the environment, OS
+keyring, or a 0600 local fallback and are never returned by the API. Pick a default per capability and list fallback IDs. The resolve
 endpoint returns the default followed by fallbacks, and the LLM job runner uses
 the first configured provider when no explicit base URL is set.
 
@@ -308,10 +312,12 @@ Create a schedule in the Automation tab:
 
 - **Once** runs the recipe at the next scheduler tick.
 - **Interval** runs every N seconds after the previous run.
-- **Watch folder** queues a new job for each matching file not seen before.
+- **Watch folder** queues a new job for each matching file whose size or mtime
+  changed.
 
-Each item records status, last run, errors, and seen files. The scheduler polls
-every 20 seconds and can be disabled with `VIDEOWFLOW_RECIPE_SCHEDULER=0`.
+Schedules live in SQLite, keep a bounded run history, and retry with backoff up
+to the configured limit. The scheduler polls every 20 seconds and can be
+disabled with `VIDEOWFLOW_RECIPE_SCHEDULER=0`.
 
 ## 8. Exporting to an editor
 

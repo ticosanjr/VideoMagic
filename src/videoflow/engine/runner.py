@@ -357,6 +357,15 @@ class RecipeRunner:
             return None
         base_url = config.base_url or os.environ.get("VIDEOWFLOW_LLM_BASE_URL")
         model = config.model or os.environ.get("VIDEOWFLOW_LLM_MODEL", "")
+        if not base_url or not model:
+            try:
+                from videoflow.application.providers import first_provider
+
+                provider = first_provider("llm") or {}
+            except Exception:
+                provider = {}
+            base_url = base_url or str(provider.get("base_url") or "")
+            model = model or str(provider.get("model") or "")
         if config.provider == "opencode":
             from videoflow.adapters.opencode import OpenCodeLlm
 
@@ -374,9 +383,11 @@ class RecipeRunner:
                     "LLM provider requested without base_url/model; continuing without it",
                 )
             return None
+        from videoflow.application.secrets import get_secret
+
         return OpenAICompatibleLlm(
             base_url=base_url,
             model=model,
-            api_key=os.environ.get(config.api_key_env),
+            api_key=get_secret(config.api_key_env),
             timeout=config.timeout_seconds,
         )

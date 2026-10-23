@@ -279,6 +279,41 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "Cancel a folder batch and its current job.",
         "recipes",
     ),
+    ToolSpec(
+        "videoflow_edit_timeline",
+        "Trim, move, split, delete, or ripple a clip in a job timeline.",
+        "timeline",
+    ),
+    ToolSpec(
+        "videoflow_approve_broll",
+        "Approve and order planned B-roll for one Short.",
+        "timeline",
+    ),
+    ToolSpec(
+        "videoflow_list_providers",
+        "List configured providers, fallback chains, and secret presence.",
+        "providers",
+    ),
+    ToolSpec(
+        "videoflow_list_schedules",
+        "List recipe schedules and watch folders.",
+        "automation",
+    ),
+    ToolSpec(
+        "videoflow_save_schedule",
+        "Create or replace a recipe schedule.",
+        "automation",
+    ),
+    ToolSpec(
+        "videoflow_run_schedule",
+        "Run a schedule immediately.",
+        "automation",
+    ),
+    ToolSpec(
+        "videoflow_decide_review",
+        "Approve or reject the review checklist for a job.",
+        "review",
+    ),
 )
 
 RESOURCE_SPECS: tuple[ResourceSpec, ...] = (

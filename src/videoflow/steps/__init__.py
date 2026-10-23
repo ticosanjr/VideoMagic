@@ -15,6 +15,7 @@ from videoflow.steps import (
     shorts_select,
     timeline,
     transcribe,
+    translation,
 )
 from videoflow.steps.base import BaseStep, EmptyParams, StepIO
 from videoflow.steps.registry import (
@@ -48,4 +49,5 @@ __all__ = [
     "step_types",
     "timeline",
     "transcribe",
+    "translation",
 ]

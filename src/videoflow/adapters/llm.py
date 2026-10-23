@@ -76,6 +76,23 @@ class OpenAICompatibleLlm:
             raise LlmError(f"Cannot reach the LLM endpoint: {exc.__class__.__name__}") from exc
 
 
+class FallbackLlm:
+    """Try each configured provider in order and return the first usable JSON."""
+
+    def __init__(self, clients: list[OpenAICompatibleLlm]) -> None:
+        self.clients = clients
+
+    def complete_json(self, prompt: str, schema_name: str) -> dict[str, Any]:
+        last: Exception | None = None
+        for client in self.clients:
+            try:
+                return client.complete_json(prompt, schema_name)
+            except LlmError as exc:
+                last = exc
+                continue
+        raise LlmError(str(last) if last is not None else "No LLM provider is configured")
+
+
 def _parse_json(content: str) -> dict[str, Any]:
     text = content.strip()
     if text.startswith("```"):

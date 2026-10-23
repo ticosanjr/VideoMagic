@@ -116,6 +116,42 @@ class FFmpegAdapter:
         temp.replace(target)
         return target
 
+    def measure_loudness(self, source: Path) -> dict[str, float]:
+        """Return EBU R128 integrated loudness and true peak for a media file."""
+
+        source_path = Path(source).expanduser()
+        if not source_path.is_file():
+            raise IngestError(f"Media does not exist: {source_path}")
+        _, stderr = self._capture(
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-nostats",
+                "-i",
+                str(source_path),
+                "-af",
+                "ebur128=peak=true",
+                "-f",
+                "null",
+                "-",
+            ],
+            timeout=1800,
+        )
+        integrated = [
+            float(match)
+            for match in re.findall(r"I:\s*(-?[0-9.]+)\s*LUFS", stderr)
+        ]
+        peaks = [
+            float(match)
+            for match in re.findall(r"Peak:\s*(-?[0-9.]+)\s*dBFS", stderr)
+        ]
+        if not integrated:
+            raise IngestError("Could not measure loudness.")
+        return {
+            "integrated_lufs": integrated[-1],
+            "true_peak_dbfs": peaks[-1] if peaks else 0.0,
+        }
+
     def master_audio(
         self,
         source: Path,

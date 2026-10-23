@@ -74,6 +74,12 @@ BUILTIN_RECIPES: dict[str, dict[str, Any]] = {
             _INGEST,
             _VAD,
             _TRANSCRIBE,
+            {
+                "id": "translation",
+                "type": "transcript.translate",
+                "needs": ["transcribe"],
+                "params": {"target_language": "en"},
+            },
             _RETAKES,
             _TIMELINE,
             {
@@ -181,6 +187,12 @@ BUILTIN_RECIPES: dict[str, dict[str, Any]] = {
                 "id": "audio_master",
                 "type": "audio.master",
                 "needs": ["timeline"],
+                "params": {},
+            },
+            {
+                "id": "audio_qa",
+                "type": "audio.qa",
+                "needs": ["audio_master"],
                 "params": {},
             },
             {

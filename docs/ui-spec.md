@@ -3,7 +3,7 @@
 Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript, Konva, and
 wavesurfer.js. English strings only.
 
-0.70.0 removes the legacy rack. The product is a recipe studio with a
+0.80.0 removes the legacy rack. The product is a recipe studio with a
 professional canvas timeline, automation schedules, and provider settings.
 Errors are persistent, sticky banners at the top of the page or panel; inline
 field validation remains next to the field.
@@ -62,11 +62,16 @@ The canvas is Konva; the audio waveform is wavesurfer.js.
 - Selected clips expose left/right trim handles; dragging shows a live ghost.
 - Toolbar: play/pause, timecode, undo, redo, split, delete, ripple delete,
   snap toggle, fit, and zoom.
+- Shift-click multi-select; group move and bulk delete/ripple use atomic batch
+  edits.
 - Keyboard: Space plays, `S` splits, Delete deletes, Shift+Delete ripples,
   Ctrl/Cmd+Z undoes, Ctrl/Cmd+Shift+Z redoes.
 - Editable playhead timecode input.
 - Clip inspector: timeline in/out, trim, move delta, transition type/length,
   scale, position, audio fade in/out, and keyframe count.
+- Markers with labels and jump-to-time; per-track mute/solo/lock.
+- Real clip thumbnails loaded from the job source.
+- Background MP4 render queue with progress, cancel, and download.
 - Incremental rendering: scene layer vs. overlay playhead/guides.
 - Caption list with in-place editing.
 - Preview: MP4 player plus waveform, both synced to the playhead. Background
@@ -80,16 +85,19 @@ The canvas is Konva; the audio waveform is wavesurfer.js.
 ## 5. Automation
 
 - Persistent schedules: once, interval, and watch folder.
-- A local scheduler polls every 20 seconds.
-- Run-now, status, last-run, errors, and seen-file tracking.
-- Schedules are stored in `recipe-schedules.json`.
+- SQLite storage with a one-time JSON migration.
+- Retry/backoff, bounded run history, per-file size/mtime signatures, and a
+  local 20-second scheduler.
+- Run-now, status, last-run, and errors.
 
 ## 6. Deliverables
 
-- Review checklist from `review.json` with approve/reject, reviewer, and
-  comment persisted in `review_approval.json`.
+- Review checklist from `review.json` with approve/reject, reviewer, comments,
+  and a comment thread.
 - Thumbnail variants from `thumbnails/*.png`; the selected variant is stored in
-  `thumbnail_choice.json`.
+  `thumbnail_choice.json`, with impressions/clicks/CTR metrics.
+- NLE sidecars package titles, LUT/eq, audio master filters, B-roll, and markers.
+- Audio QA reports EBU R128 loudness and true peak.
 
 ## 7. Assets
 
@@ -110,7 +118,8 @@ VideoFlow processes, doctor output, server log download, and support bundle.
 
 ## 10. Providers
 
-Providers are persisted in `$VIDEOWFLOW_HOME/providers.json`.
+Providers are persisted in `$VIDEOWFLOW_HOME/providers.json`. Secrets use the
+environment, OS keyring, or a 0600 local fallback; only presence is exposed.
 
 - Capabilities: LLM, ASR, TTS, vision, stock, translation, diarization,
   publishing.

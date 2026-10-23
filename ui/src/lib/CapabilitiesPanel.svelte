@@ -6,8 +6,10 @@
     errorMessage,
     getCapabilities,
     listProviders,
+    deleteProviderSecret,
     saveProvider,
     setDefaultProvider,
+    setProviderSecret,
     testProvider,
     type Capability,
     type CapabilitiesResponse,
@@ -41,6 +43,8 @@
   let providers = $state<ProviderConfig[]>([]);
   let fallbacks = $state<Record<string, ProviderConfig[]>>({});
   let providerBusy = $state("");
+  let secretDrafts = $state<Record<string, string>>({});
+  let secretBackend = $state("");
   let providerMessage = $state("");
   let providerError = $state("");
   let draft = $state<ProviderConfig>(blankProvider());
@@ -73,6 +77,7 @@
       const payload = await listProviders();
       providers = payload.providers;
       fallbacks = payload.fallbacks;
+      secretBackend = payload.secret_backend ?? "";
     } catch (reason) {
       providerError = errorMessage(reason);
     }
@@ -87,7 +92,9 @@
     providerError = "";
     providerMessage = "";
     try {
-      const saved = await saveProvider({ ...draft, id: draft.id.trim().toLowerCase() });
+      const payload = { ...draft, id: draft.id.trim().toLowerCase() };
+      delete (payload as { secret_present?: boolean }).secret_present;
+      const saved = await saveProvider(payload);
       providerMessage = `${saved.name} saved.`;
       draft = blankProvider();
       await refreshProviders();
@@ -104,6 +111,36 @@
     try {
       await deleteProvider(providerId);
       providerMessage = `${providerId} removed.`;
+      await refreshProviders();
+    } catch (reason) {
+      providerError = errorMessage(reason);
+    } finally {
+      providerBusy = "";
+    }
+  }
+
+  async function saveSecret(providerId: string) {
+    const value = (secretDrafts[providerId] ?? "").trim();
+    if (!value) return;
+    providerBusy = providerId;
+    providerError = "";
+    try {
+      await setProviderSecret(providerId, value);
+      secretDrafts = { ...secretDrafts, [providerId]: "" };
+      providerMessage = `Secret stored for ${providerId}.`;
+      await refreshProviders();
+    } catch (reason) {
+      providerError = errorMessage(reason);
+    } finally {
+      providerBusy = "";
+    }
+  }
+
+  async function clearSecret(providerId: string) {
+    providerBusy = providerId;
+    try {
+      await deleteProviderSecret(providerId);
+      providerMessage = `Secret cleared for ${providerId}.`;
       await refreshProviders();
     } catch (reason) {
       providerError = errorMessage(reason);
@@ -291,7 +328,7 @@
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 class="text-xs font-semibold text-neutral-100">Configured providers</h3>
-          <p class="mt-1 text-[10px] text-neutral-500">Saved in providers.json. The default provider is tried first; fallbacks are tried in order.</p>
+          <p class="mt-1 text-[10px] text-neutral-500">Saved in providers.json. The default provider is tried first; fallbacks are tried in order. Secrets: {secretBackend || "environment or keyring"}.</p>
         </div>
         {#if providerMessage}<span class="text-[10px] text-emerald-300">{providerMessage}</span>{/if}
       </div>
@@ -325,6 +362,9 @@
               <span class="text-neutral-300">{provider.name}</span>
               <span class="rounded bg-neutral-800 px-1.5 py-0.5 text-[8px] uppercase text-neutral-400">{provider.capability}</span>
               {#if !provider.enabled}<span class="text-[8px] uppercase text-neutral-600">disabled</span>{/if}
+              {#if provider.api_key_env}
+                <span class={`text-[8px] uppercase ${provider.secret_present ? "text-emerald-300" : "text-amber-300"}`}>{provider.secret_present ? "secret present" : "secret missing"}</span>
+              {/if}
               <span class="ml-auto flex gap-1">
                 {#if !provider.is_default}
                   <button type="button" onclick={() => void makeDefault(provider.id)} disabled={Boolean(providerBusy)} class="rounded border border-neutral-700 px-1.5 py-0.5 text-[9px] text-neutral-300 disabled:opacity-40">default</button>
@@ -332,6 +372,21 @@
                 <button type="button" onclick={() => editProvider(provider)} class="rounded border border-neutral-700 px-1.5 py-0.5 text-[9px] text-sky-300">edit</button>
                 <button type="button" onclick={() => void removeProvider(provider.id)} disabled={Boolean(providerBusy)} class="rounded border border-rose-500/30 px-1.5 py-0.5 text-[9px] text-rose-300 disabled:opacity-40">remove</button>
               </span>
+              {#if provider.api_key_env}
+                <div class="mt-1 flex w-full items-center gap-1">
+                  <input
+                    type="password"
+                    value={secretDrafts[provider.id] ?? ""}
+                    oninput={(event) => (secretDrafts = { ...secretDrafts, [provider.id]: event.currentTarget.value })}
+                    placeholder={`Set ${provider.api_key_env}`}
+                    class="min-w-0 flex-1 rounded border border-neutral-800 bg-neutral-950 px-1.5 py-0.5 font-mono text-[9px] text-neutral-200"
+                  />
+                  <button type="button" onclick={() => void saveSecret(provider.id)} disabled={Boolean(providerBusy)} class="rounded border border-emerald-500/30 px-1.5 py-0.5 text-[9px] text-emerald-300 disabled:opacity-40">Save secret</button>
+                  {#if provider.secret_present}
+                    <button type="button" onclick={() => void clearSecret(provider.id)} disabled={Boolean(providerBusy)} class="rounded border border-rose-500/30 px-1.5 py-0.5 text-[9px] text-rose-300 disabled:opacity-40">Clear</button>
+                  {/if}
+                </div>
+              {/if}
             </div>
           {/each}
         </div>

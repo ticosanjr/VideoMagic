@@ -18,12 +18,13 @@ from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
-from videoflow.adapters.llm import OpenAICompatibleLlm
+from videoflow.adapters.llm import FallbackLlm, OpenAICompatibleLlm
 from videoflow.application.audio import audio_filters
 from videoflow.application.capabilities import ensure_external_allowed
 from videoflow.application.images import images_dir
 from videoflow.application.music import music_dir
 from videoflow.application.portable import run_portable
+from videoflow.application.secrets import get_secret
 from videoflow.application.telemetry import JobTelemetry
 from videoflow.domain.config import (
     AudioEnhanceConfig,
@@ -398,13 +399,16 @@ class JobManager:
         )
         base_url = options.get("llm_base_url") or os.environ.get("VIDEOWFLOW_LLM_BASE_URL")
         provider_model = ""
+        provider_chain: list[dict[str, object]] = []
         if not base_url:
             from videoflow.application.providers import resolve_chain
 
-            chain = [item for item in resolve_chain("llm") if item.get("base_url")]
-            if chain:
-                base_url = str(chain[0]["base_url"])
-                provider_model = str(chain[0].get("model") or "")
+            provider_chain = [
+                item for item in resolve_chain("llm") if item.get("base_url")
+            ]
+            if provider_chain:
+                base_url = str(provider_chain[0]["base_url"])
+                provider_model = str(provider_chain[0].get("model") or "")
 
         telemetry = job.telemetry
 
@@ -433,15 +437,31 @@ class JobManager:
                 allowed_external_hosts=allowed_external_hosts,
                     allowed_hosts=allowed_external_hosts,
                 )
-                llm = OpenAICompatibleLlm(
-                    base_url=str(base_url),
-                    model=str(
-                        options.get("llm_model")
-                        or provider_model
-                        or os.environ.get("VIDEOWFLOW_LLM_MODEL", "qwen2.5:7b-instruct")
-                    ),
-                    api_key=os.environ.get("VIDEOWFLOW_LLM_API_KEY"),
+                model = str(
+                    options.get("llm_model")
+                    or provider_model
+                    or os.environ.get("VIDEOWFLOW_LLM_MODEL", "qwen2.5:7b-instruct")
                 )
+                clients = [
+                    OpenAICompatibleLlm(
+                        base_url=str(item["base_url"]),
+                        model=str(item.get("model") or model),
+                        api_key=os.environ.get(
+                            str(item.get("api_key_env") or "VIDEOWFLOW_LLM_API_KEY")
+                        ),
+                    )
+                    for item in provider_chain
+                    if item.get("base_url")
+                ]
+                if not clients:
+                    clients = [
+                        OpenAICompatibleLlm(
+                            base_url=str(base_url),
+                            model=model,
+                            api_key=get_secret("VIDEOWFLOW_LLM_API_KEY"),
+                        )
+                    ]
+                llm = FallbackLlm(clients) if len(clients) > 1 else clients[0]
             else:
                 llm = None
             project_id = options.get("project_id")

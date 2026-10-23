@@ -4,38 +4,49 @@
 
   let {
     timeline,
+    jobId = "",
     playhead = 0,
     zoom = 70,
     selectedClipId = "",
+    selectedIds = [],
     snap = true,
     brollApproved = {},
+    markers = [],
+    tracks = {},
     onSeek,
     onSelectClip,
     onMoveClip,
+    onMoveClips,
     onTrimClip,
     onZoom
   }: {
     timeline: TimelineData;
+    jobId?: string;
     playhead?: number;
     zoom?: number;
     selectedClipId?: string;
+    selectedIds?: string[];
     snap?: boolean;
     brollApproved?: Record<string, number[]>;
+    markers?: Array<{ id: string; time_sec: number; label: string; color: string }>;
+    tracks?: Record<string, { muted: boolean; solo: boolean; locked: boolean }>;
     onSeek: (time: number) => void;
-    onSelectClip: (clip: TimelineData["video"][number] | null) => void;
+    onSelectClip: (clip: TimelineData["video"][number] | null, additive?: boolean) => void;
     onMoveClip: (clipId: string, deltaSec: number) => void;
+    onMoveClips: (clipIds: string[], deltaSec: number) => void;
     onTrimClip: (clipId: string, startSec: number, endSec: number) => void;
     onZoom?: (zoom: number) => void;
   } = $props();
 
   const HEADER = 96;
-  const HEIGHT = 340;
+  const HEIGHT = 342;
   const RULER = 30;
   const TRACKS = [
     { id: "video", label: "V1 · VIDEO", y: 32, h: 96, color: "#0ea5e9", fill: "#082f49" },
     { id: "audio", label: "A1 · DIALOGUE", y: 132, h: 58, color: "#10b981", fill: "#022c22" },
     { id: "captions", label: "S1 · CAPTIONS", y: 194, h: 48, color: "#8b5cf6", fill: "#2e1065" },
-    { id: "broll", label: "B1 · B-ROLL", y: 246, h: 62, color: "#f59e0b", fill: "#451a03" }
+    { id: "broll", label: "B1 · B-ROLL", y: 246, h: 62, color: "#f59e0b", fill: "#451a03" },
+    { id: "markers", label: "M1 · MARKERS", y: 310, h: 26, color: "#38bdf8", fill: "#0c4a6e" }
   ];
 
   let container = $state<HTMLDivElement | null>(null);
@@ -223,12 +234,36 @@
           strokeWidth: 1
         })
       );
+      const state = tracks[track.id];
+      if (state?.muted || state?.locked) {
+        layer.add(
+          new konva.Rect({
+            x: HEADER,
+            y: track.y,
+            width: width - HEADER,
+            height: track.h,
+            fill: "#000000",
+            opacity: 0.38,
+            listening: false
+          })
+        );
+        layer.add(
+          new konva.Text({
+            x: HEADER + 6,
+            y: track.y + 4,
+            text: state.locked ? "LOCKED" : "MUTED",
+            fontSize: 7,
+            fill: "#f87171",
+            listening: false
+          })
+        );
+      }
     }
   }
 
   function drawVideoClips(layer: any) {
     for (const clip of timeline.video) {
-      const selected = clip.id === selectedClipId;
+      const selected = clip.id === selectedClipId || selectedIds.includes(clip.id);
       const clipWidth = Math.max(6, (clip.end_sec - clip.start_sec) * zoom);
       const group = new konva.Group({
         x: x(clip.start_sec),
@@ -243,9 +278,27 @@
           fill: selected ? "#0c4a6e" : TRACKS[0].fill,
           stroke: selected ? "#38bdf8" : "#0369a1",
           strokeWidth: selected ? 2 : 1,
-          cornerRadius: 4
+          cornerRadius: 4,
+          opacity: jobId ? 0.72 : 1
         })
       );
+      if (jobId) {
+        const img = new window.Image();
+        img.onload = () => {
+          if (!group.getStage()) return;
+          const thumbnail = new konva.Image({
+            image: img,
+            width: clipWidth,
+            height: TRACKS[0].h - 8,
+            opacity: 0.9,
+            listening: false
+          });
+          group.add(thumbnail);
+          thumbnail.moveToBottom();
+          group.getLayer()?.batchDraw();
+        };
+        img.src = `/api/v1/jobs/${encodeURIComponent(jobId)}/clips/${encodeURIComponent(clip.id)}/thumbnail`;
+      }
       const tickCount = Math.max(1, Math.floor(clipWidth / 14));
       for (let index = 1; index < tickCount; index += 1) {
         group.add(
@@ -306,7 +359,7 @@
       }
       group.on("click tap", (event: any) => {
         event.cancelBubble = true;
-        onSelectClip(clip);
+        onSelectClip(clip, Boolean(event.evt?.shiftKey));
       });
       group.on("mouseenter", () => {
         if (stage) stage.container().style.cursor = "grab";
@@ -334,7 +387,13 @@
         const snapped = (group.x() - HEADER) / zoom;
         group.x(x(clip.start_sec));
         const delta = snapped - clip.start_sec;
-        if (Math.abs(delta) > 0.001) onMoveClip(clip.id, delta);
+        if (Math.abs(delta) > 0.001) {
+          if (selectedIds.includes(clip.id) && selectedIds.length > 1) {
+            onMoveClips(selectedIds, delta);
+          } else {
+            onMoveClip(clip.id, delta);
+          }
+        }
       });
       layer.add(group);
     }
@@ -467,6 +526,40 @@
     }
   }
 
+  function drawMarkers(layer: any) {
+    for (const marker of markers) {
+      layer.add(
+        new konva.Line({
+          points: [x(marker.time_sec), 310, x(marker.time_sec), 336],
+          stroke: marker.color,
+          strokeWidth: 2,
+          listening: false
+        })
+      );
+      layer.add(
+        new konva.Circle({
+          x: x(marker.time_sec),
+          y: 313,
+          radius: 3,
+          fill: marker.color,
+          listening: false
+        })
+      );
+      if (marker.label) {
+        layer.add(
+          new konva.Text({
+            x: x(marker.time_sec) + 5,
+            y: 318,
+            text: marker.label,
+            fontSize: 7,
+            fill: "#bae6fd",
+            listening: false
+          })
+        );
+      }
+    }
+  }
+
   function drawBackground() {
     if (!konva || !container) return;
     buildStage();
@@ -503,6 +596,7 @@
     drawAudioClips(scene);
     drawCaptions(scene);
     drawBroll(scene);
+    drawMarkers(scene);
     scene.draw();
   }
 
@@ -630,9 +724,13 @@
 
   $effect(() => {
     timeline;
+    jobId;
     zoom;
     selectedClipId;
+    selectedIds;
     brollApproved;
+    markers;
+    tracks;
     if (stage) {
       drawBackground();
       drawOverlay();
