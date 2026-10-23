@@ -1389,6 +1389,22 @@ export interface AssetRecord {
   source: string;
 }
 
+export async function editTimeline(
+  jobId: string,
+  payload: {
+    clip_id: string;
+    action: "trim" | "move" | "delete";
+    start_sec?: number;
+    end_sec?: number;
+    delta_sec?: number;
+  }
+): Promise<{ ok: boolean; revision: number; warning: string }> {
+  return request(`/api/v1/jobs/${encodeURIComponent(jobId)}/timeline`, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
+}
+
 export async function updateJobCaption(
   jobId: string,
   sentenceId: number,

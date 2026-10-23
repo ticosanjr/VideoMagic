@@ -904,6 +904,19 @@ def test_timeline_route_from_project_state(monkeypatch, tmp_path: Path) -> None:
     assert patched.status_code == 200, patched.text
     timeline = client.get(f"/api/v1/jobs/{job.job_id}/timeline").json()
     assert timeline["captions"][0]["text"] == "new caption"
+    edited = client.patch(
+        f"/api/v1/jobs/{job.job_id}/timeline",
+        json={"clip_id": "v1", "action": "trim", "start_sec": 0.0, "end_sec": 0.5},
+    )
+    assert edited.status_code == 200, edited.text
+    timeline = client.get(f"/api/v1/jobs/{job.job_id}/timeline").json()
+    assert timeline["video"][0]["end_sec"] == 0.48
+    deleted = client.patch(
+        f"/api/v1/jobs/{job.job_id}/timeline",
+        json={"clip_id": "v1", "action": "delete"},
+    )
+    assert deleted.status_code == 200, deleted.text
+    assert client.get(f"/api/v1/jobs/{job.job_id}/timeline").json()["video"] == []
 
 
 def test_system_doctor_reports_checks() -> None:

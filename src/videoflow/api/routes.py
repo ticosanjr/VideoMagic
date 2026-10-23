@@ -102,6 +102,7 @@ from videoflow.application.short_editor import ShortEditOptions
 from videoflow.application.short_editor import edit_short as edit_short_service
 from videoflow.application.short_metadata import generate_short_metadata
 from videoflow.application.thumbnail import generate_short_thumbnail
+from videoflow.application.timeline_edit import TimelineEdit, apply_timeline_edit
 from videoflow.application.url_import import import_url
 from videoflow.application.voiceover import generate_short_voiceover
 from videoflow.core.recipe import parse_recipe, recipe_to_dict
@@ -436,6 +437,14 @@ class ProviderTestRequest(BaseModel):
     base_url: str = Field(min_length=1)
     api_key_env: str = "VIDEOWFLOW_LLM_API_KEY"
     path: str = "/models"
+
+
+class TimelineEditRequest(BaseModel):
+    clip_id: str = Field(min_length=1)
+    action: Literal["trim", "move", "delete"]
+    start_sec: float | None = Field(default=None, ge=0.0)
+    end_sec: float | None = Field(default=None, ge=0.0)
+    delta_sec: float = 0.0
 
 
 class CaptionUpdateRequest(BaseModel):
@@ -1446,6 +1455,40 @@ def register_routes(
                 detail={"ok": False, "code": "preview_not_found"},
             )
         return FileResponse(preview, media_type="video/mp4", filename="preview.mp4")
+
+    @app.patch("/api/v1/jobs/{job_id}/timeline")
+    def edit_job_timeline(job_id: str, request: TimelineEditRequest) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            state_path = Path(
+                str((job.result or {}).get("state_path") or job.output / "project_state.json")
+            )
+            state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+            state = apply_timeline_edit(
+                state,
+                TimelineEdit(
+                    clip_id=request.clip_id,
+                    action=request.action,
+                    start_sec=request.start_sec,
+                    end_sec=request.end_sec,
+                    delta_sec=request.delta_sec,
+                ),
+            )
+            state = state.model_copy(update={"revision": state.revision + 1})
+            state_path.write_text(state.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "timeline_invalid", "message": str(exc)},
+            ) from exc
+        return {
+            "ok": True,
+            "revision": state.revision,
+            "warning": "Re-run export/render to refresh artifacts.",
+        }
 
     @app.patch("/api/v1/jobs/{job_id}/captions/{sentence_id}")
     def update_job_caption(

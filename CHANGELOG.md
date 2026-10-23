@@ -3,6 +3,26 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.62.0] - 2026-10-23
+
+### Added
+
+- **Timeline editing foundation.** Trim, move, and delete clips through
+  `PATCH /api/v1/jobs/{id}/timeline`; state revision increments and a re-render
+  warning is returned.
+- Timeline clip selection and edit controls.
+- Caption editing remains available.
+- Provider connection test, services doctor, model capability groups, recipe
+  history/templates, flow-node bypasses, storyboard/thumbnail nodes.
+- Legacy New project/ProjectTemplateManager removed from settings pages.
+
+### Notes
+
+- Full drag/trim handles, B-roll approval, provider persistence/fallback,
+  scheduler, analytics, and audio master remain future work.
+- 459 Python tests, 8 media tests, 14 Vitest tests, and 15 Playwright tests pass.
+- Distribution remains out of scope.
+
 ## [0.57.0] - 2026-10-23
 
 ### Added

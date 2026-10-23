@@ -4,6 +4,7 @@
     errorMessage,
     getTimeline,
     jobArtifactUrl,
+    editTimeline,
     listJobs,
     updateJobCaption,
     type Job,
@@ -20,6 +21,12 @@
   let captionDraft = $state("");
   let captionBusy = $state(false);
   let captionStatus = $state("");
+  let selectedClip = $state<TimelineData["video"][number] | null>(null);
+  let clipStart = $state(0);
+  let clipEnd = $state(0);
+  let clipDelta = $state(0);
+  let editBusy = $state(false);
+  let editStatus = $state("");
 
   const duration = $derived(Math.max(1, timeline?.duration_sec ?? 1));
   const previewJob = $derived(jobs.find((job) => job.job_id === selected));
@@ -62,6 +69,36 @@
       timeline = null;
     } finally {
       loading = false;
+    }
+  }
+
+  function selectClip(clip: TimelineData["video"][number]) {
+    selectedClip = clip;
+    clipStart = clip.start_sec;
+    clipEnd = clip.end_sec;
+    clipDelta = 1;
+    editStatus = "";
+  }
+
+  async function applyEdit(action: "trim" | "move" | "delete") {
+    if (!selectedClip) return;
+    editBusy = true;
+    editStatus = "";
+    try {
+      const response = await editTimeline(selected, {
+        clip_id: selectedClip.id,
+        action,
+        start_sec: action === "trim" ? clipStart : undefined,
+        end_sec: action === "trim" ? clipEnd : undefined,
+        delta_sec: action === "move" ? clipDelta : undefined
+      });
+      editStatus = response.warning;
+      selectedClip = null;
+      await loadTimeline();
+    } catch (reason) {
+      editStatus = errorMessage(reason);
+    } finally {
+      editBusy = false;
     }
   }
 
@@ -132,7 +169,7 @@
           <span class="text-[10px] uppercase tracking-wide text-neutral-500">Video</span>
           <div class="relative h-14 rounded-lg bg-neutral-900">
             {#each timeline.video as clip}
-              <button type="button" class="absolute top-1 h-12 overflow-hidden rounded border border-sky-500/40 bg-sky-500/20 px-1 text-left text-[9px] text-sky-200" style={`left:${pct(clip.start_sec)}%;width:${Math.max(0.5, pct(clip.end_sec) - pct(clip.start_sec))}%`} title={clip.id}>
+              <button type="button" onclick={() => selectClip(clip)} class={`absolute top-1 h-12 overflow-hidden rounded border px-1 text-left text-[9px] ${selectedClip?.id === clip.id ? "border-sky-300 bg-sky-500/35 text-white" : "border-sky-500/40 bg-sky-500/20 text-sky-200"}`} style={`left:${pct(clip.start_sec)}%;width:${Math.max(0.5, pct(clip.end_sec) - pct(clip.start_sec))}%`} title={clip.id}>
                 <span class="block truncate">{clip.id}</span>
                 {#if clip.keyframes}<span class="text-[8px] text-sky-300/70">zoom {clip.keyframes} keys</span>{/if}
                 {#if clip.transition}<span class="text-[8px] text-amber-300/80">{clip.transition}</span>{/if}
@@ -168,6 +205,20 @@
           </div>
         {/if}
       </div>
+      {#if selectedClip}
+        <div class="border-t border-neutral-800 p-3">
+          <p class="text-[10px] uppercase tracking-wide text-neutral-500">Edit clip {selectedClip.id}</p>
+          <div class="mt-2 flex flex-wrap items-end gap-2">
+            <label class="text-[10px] text-neutral-400">Start (s)<input type="number" min="0" step="0.01" bind:value={clipStart} class="mt-1 block w-24 rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" /></label>
+            <label class="text-[10px] text-neutral-400">End (s)<input type="number" min="0" step="0.01" bind:value={clipEnd} class="mt-1 block w-24 rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" /></label>
+            <button type="button" onclick={() => void applyEdit("trim")} disabled={editBusy} class="rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-300 disabled:opacity-40">Trim</button>
+            <label class="text-[10px] text-neutral-400">Move (s)<input type="number" step="0.1" bind:value={clipDelta} class="mt-1 block w-20 rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" /></label>
+            <button type="button" onclick={() => void applyEdit("move")} disabled={editBusy} class="rounded border border-neutral-600 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Move</button>
+            <button type="button" onclick={() => void applyEdit("delete")} disabled={editBusy} class="rounded border border-rose-500/40 px-2 py-1 text-[10px] text-rose-300 disabled:opacity-40">Delete</button>
+          </div>
+          {#if editStatus}<p class="mt-1 text-[10px] text-amber-300">{editStatus}</p>{/if}
+        </div>
+      {/if}
       {#if selectedCaption !== null}
         <div class="border-t border-neutral-800 p-3">
           <p class="text-[10px] uppercase tracking-wide text-neutral-500">Edit caption #{selectedCaption}</p>
