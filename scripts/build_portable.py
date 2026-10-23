@@ -9,12 +9,43 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import os
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def ensure_ui_build() -> bool:
+    """Rebuild the Svelte UI and reject a bundle with the wrong version."""
+
+    ui = ROOT / "ui"
+    version_file = ui / "src" / "lib" / "version.ts"
+    if not version_file.is_file():
+        print("UI version file is missing", file=sys.stderr)
+        return False
+    match = re.search(r'UI_VERSION\s*=\s*"([^"]+)"', version_file.read_text(encoding="utf-8"))
+    if match is None:
+        print("UI version could not be read", file=sys.stderr)
+        return False
+    version = match.group(1)
+    if not (ui / "node_modules").is_dir():
+        print("ui/node_modules is missing; run npm ci before building", file=sys.stderr)
+        return False
+    completed = subprocess.run(["npm", "run", "build"], cwd=ui, check=False)
+    if completed.returncode != 0:
+        print("UI build failed", file=sys.stderr)
+        return False
+    index = ui / "build" / "index.html"
+    if not index.is_file() or f"ui {version}" not in index.read_text(encoding="utf-8"):
+        print(
+            f"UI build is stale: expected ui {version} in ui/build/index.html",
+            file=sys.stderr,
+        )
+        return False
+    return True
 
 
 def main() -> int:
@@ -76,7 +107,14 @@ def main() -> int:
         help="Build a directory bundle instead of a onefile executable.",
     )
     parser.add_argument("--clean", action="store_true", default=True)
+    parser.add_argument(
+        "--skip-ui-build",
+        action="store_true",
+        help="Do not rebuild the Svelte UI before packaging (not recommended).",
+    )
     args = parser.parse_args()
+    if not args.skip_ui_build and not ensure_ui_build():
+        return 1
 
     vendor = ROOT / "vendor"
     if args.fetch_ffmpeg:
