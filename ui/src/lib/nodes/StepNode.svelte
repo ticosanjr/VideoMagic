@@ -27,6 +27,7 @@
       onDuplicate?: () => void;
       onRemove?: () => void;
       onOpenJson?: () => void;
+      onLogs?: () => void;
     };
     selected?: boolean;
   } = $props();
@@ -217,6 +218,7 @@
         <div class="flex flex-wrap gap-1 pt-1">
           <button type="button" onclick={(event) => { event.stopPropagation(); data.onRun?.(); }} class="rounded border border-sky-500/40 px-1.5 py-0.5 text-[9px] text-sky-300 hover:bg-sky-500/10">Run to here</button>
           <button type="button" onclick={(event) => { event.stopPropagation(); data.onOpenJson?.(); }} class="rounded border border-neutral-700 px-1.5 py-0.5 text-[9px] text-neutral-300 hover:border-sky-500">JSON</button>
+          <button type="button" onclick={(event) => { event.stopPropagation(); data.onLogs?.(); }} class="rounded border border-neutral-700 px-1.5 py-0.5 text-[9px] text-neutral-300 hover:border-sky-500">Logs</button>
           <button type="button" onclick={(event) => { event.stopPropagation(); data.onDuplicate?.(); }} class="rounded border border-neutral-700 px-1.5 py-0.5 text-[9px] text-neutral-300 hover:border-sky-500">Duplicate</button>
           <button type="button" onclick={(event) => { event.stopPropagation(); data.onRemove?.(); }} class="rounded border border-rose-500/30 px-1.5 py-0.5 text-[9px] text-rose-300 hover:bg-rose-500/10">Remove</button>
         </div>

@@ -15,6 +15,7 @@
   import {
     errorMessage,
     getJob,
+    getLogs,
     getRecipe,
     jobArtifactUrl,
     shortFileUrl,
@@ -157,6 +158,11 @@
   let proxyUrl = $state("");
   let proxyBusy = $state(false);
   let proxyError = $state("");
+  let logOpen = $state(false);
+  let logStep = $state("");
+  let logLines = $state<Awaited<ReturnType<typeof getLogs>>>([]);
+  let logBusy = $state(false);
+  let logError = $state("");
   let comparison = $state<{
     current: Job;
     previous: Job;
@@ -325,6 +331,7 @@
           onRun: () => void runToHere(step.id),
           onDuplicate: () => duplicateNode(step.id),
           onRemove: () => removeNode(step.id),
+          onLogs: () => void openStepLogs(step.id),
           onOpenJson: () => {
             selectedId = step.id;
             openStepJson();
@@ -429,6 +436,7 @@
           onRun: () => void runToHere(id),
           onDuplicate: () => duplicateNode(id),
           onRemove: () => removeNode(id),
+          onLogs: () => void openStepLogs(id),
           onOpenJson: () => {
             selectedId = id;
             openStepJson();
@@ -600,6 +608,25 @@
       "speaker_colors",
       value.split(",").map((item) => item.trim()).filter(Boolean)
     );
+  }
+
+  async function openStepLogs(stepId: string) {
+    if (!job) {
+      error = "Run a recipe to inspect step logs.";
+      return;
+    }
+    logStep = stepId;
+    logOpen = true;
+    logBusy = true;
+    logError = "";
+    try {
+      logLines = await getLogs(job.job_id, stepId, undefined, 300);
+    } catch (reason) {
+      logError = errorMessage(reason);
+      logLines = [];
+    } finally {
+      logBusy = false;
+    }
   }
 
   async function generateProxy() {
@@ -884,6 +911,7 @@
         onRun: () => void runToHere(nextId),
         onDuplicate: () => duplicateNode(nextId),
         onRemove: () => removeNode(nextId),
+        onLogs: () => void openStepLogs(nextId),
         onOpenJson: () => {
           selectedId = nextId;
           openStepJson();
@@ -1972,6 +2000,26 @@
         </ul>
       {/if}
     </section>
+  {/if}
+
+  {#if logOpen}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="presentation"
+      onclick={(event) => { if (event.currentTarget === event.target) logOpen = false; }}>
+      <div class="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="Step logs">
+        <div class="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
+          <div><h3 class="text-sm font-semibold text-white">Step logs</h3><p class="font-mono text-[10px] text-sky-300">{logStep}</p></div>
+          <button type="button" onclick={() => (logOpen = false)} class="rounded px-2 text-neutral-500 hover:text-neutral-200" aria-label="Close logs">×</button>
+        </div>
+        <div class="min-h-0 flex-1 overflow-auto p-3 font-mono text-[10px]">
+          {#if logBusy}<p class="text-neutral-500">Loading…</p>{/if}
+          {#if logError}<p class="text-rose-300">{logError}</p>{/if}
+          {#each logLines as line}
+            <p class={`whitespace-pre-wrap ${line.level === "error" ? "text-rose-300" : line.level === "warning" ? "text-amber-300" : "text-neutral-400"}`}>{line.timestamp} {line.level.toUpperCase()} {line.message}</p>
+          {/each}
+          {#if !logBusy && !logLines.length && !logError}<p class="text-neutral-500">No log lines for this step yet.</p>{/if}
+        </div>
+      </div>
+    </div>
   {/if}
 
   {#if nleOpen && nleReport}

@@ -3,6 +3,21 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.51.0] - 2026-10-23
+
+### Added
+
+- **Per-step logs.** Recipe nodes have a Logs action that opens the log lines for
+  that step from the current job.
+- Final editor/scale polish for the 0.49–0.51 sequence.
+- UI build guard from 0.49 keeps future releases from bundling a stale UI.
+
+### Notes
+
+- 452 Python tests, 8 media tests, 14 Vitest tests, and 12 Playwright tests pass.
+- Kdenlive exact cross-dissolve and manual NLE QA remain pending.
+- Distribution remains out of scope.
+
 ## [0.50.0] - 2026-10-23
 
 ### Added
