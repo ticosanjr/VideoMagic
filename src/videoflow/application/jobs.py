@@ -198,6 +198,16 @@ def _caption_style(options: dict[str, object]) -> CaptionStyle:
         brand_vocabulary=_string_dict(options.get("caption_brand_vocabulary"), {}),
     )
 
+def _provider_value(capability: str, key: str) -> str:
+    try:
+        from videoflow.application.providers import first_provider
+
+        provider = first_provider(capability)  # type: ignore[arg-type]
+    except Exception:
+        return ""
+    return str(provider.get(key) or "") if provider else ""
+
+
 class JobManager:
     def __init__(
         self,
@@ -475,8 +485,13 @@ class JobManager:
                 ],
                 transcribe=bool(options.get("transcribe", False)),
                 asr_base_url=options.get("asr_base_url")
-                or os.environ.get("VIDEOWFLOW_ASR_BASE_URL"),
-                asr_model=str(options.get("asr_model", "whisper-1")),
+                or os.environ.get("VIDEOWFLOW_ASR_BASE_URL")
+                or _provider_value("asr", "base_url"),
+                asr_model=str(
+                    options.get("asr_model")
+                    or _provider_value("asr", "model")
+                    or "whisper-1"
+                ),
                 asr_language=str(options.get("asr_language", "pt")),
                 whisper_model=options.get("whisper_model") or None,
                 faster_whisper_model=options.get("faster_whisper_model") or None,

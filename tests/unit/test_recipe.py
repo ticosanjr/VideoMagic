@@ -89,6 +89,7 @@ class FakeAdapter:
         broll_path: Path | None = None,
         broll_start_sec: float = 0.0,
         broll_duration_sec: float = 2.0,
+        broll_clips: object = None,
     ) -> Path:
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(b"mp4")
@@ -665,13 +666,14 @@ def test_broll_plan_reaches_short_render(tmp_path: Path) -> None:
 
     class CapturingAdapter(FakeAdapter):
         def render_short(self, *args, **kwargs):
-            seen["broll_path"] = kwargs.get("broll_path")
+            seen["broll_clips"] = kwargs.get("broll_clips")
             return super().render_short(*args, **kwargs)
 
     result = RecipeRunner(parsed, adapter=CapturingAdapter()).run(source, tmp_path / "out")
     assert result.context.metadata["broll_plan"]
-    assert seen["broll_path"] is not None
-    assert Path(str(seen["broll_path"])).is_file()
+    clips = seen["broll_clips"]
+    assert isinstance(clips, list) and clips
+    assert Path(str(clips[0][0])).is_file()
 
 
 def test_failed_recipe_writes_failure_and_history(monkeypatch, tmp_path: Path) -> None:

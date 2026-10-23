@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -168,6 +169,10 @@ def build_filter_graph(state: ProjectState) -> tuple[str, str, str]:
     return ";".join(chains), "[vout]", "[aout]"
 
 
+def _filter_path(path: Path) -> str:
+    return str(path).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
+
+
 def export_mp4(
     state: ProjectState,
     output_path: Path,
@@ -175,6 +180,9 @@ def export_mp4(
     adapter: Any | None = None,
     crf: int = 18,
     preset: str = "medium",
+    audio_filters: Sequence[str] | None = None,
+    video_filters: Sequence[str] | None = None,
+    ass_path: Path | None = None,
 ) -> Path:
     """Render the validated main timeline to an H.264/AAC MP4."""
 
@@ -182,6 +190,17 @@ def export_mp4(
     if media is None:
         raise ExportError("Project has no media")
     graph, video_label, audio_label = build_filter_graph(state)
+    filters = [item for item in (audio_filters or []) if item]
+    if filters:
+        graph += f";{audio_label}{','.join(filters)}[amaster]"
+        audio_label = "[amaster]"
+    color_filters = [item for item in (video_filters or []) if item]
+    if color_filters:
+        graph += f";{video_label}{','.join(color_filters)}[vcolor]"
+        video_label = "[vcolor]"
+    if ass_path is not None:
+        graph += f";{video_label}ass='{_filter_path(Path(ass_path))}'[vtitle]"
+        video_label = "[vtitle]"
     destination = Path(output_path).expanduser()
     destination.parent.mkdir(parents=True, exist_ok=True)
     renderer = adapter or FFmpegAdapter()

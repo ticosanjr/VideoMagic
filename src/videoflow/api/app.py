@@ -16,6 +16,7 @@ from videoflow import __version__
 from videoflow.api.routes import register_routes
 from videoflow.application.jobs import JobManager
 from videoflow.application.publishing import start_scheduler, stop_scheduler
+from videoflow.application.schedules import start_recipe_scheduler, stop_recipe_scheduler
 from videoflow.domain.constants import DEFAULT_API_HOST, DEFAULT_API_PORT
 from videoflow.engine.batch import BatchManager
 from videoflow.runtime import portable_home, ui_dir
@@ -85,13 +86,16 @@ def create_app(
 
     if start_publisher:
         @app.on_event("startup")
-        def _start_publish_scheduler() -> None:
+        def _start_background_schedulers() -> None:
             if os.environ.get("VIDEOWFLOW_PUBLISH_SCHEDULER", "1") != "0":
                 start_scheduler()
+            if os.environ.get("VIDEOWFLOW_RECIPE_SCHEDULER", "1") != "0":
+                start_recipe_scheduler(manager)
 
         @app.on_event("shutdown")
-        def _stop_publish_scheduler() -> None:
+        def _stop_background_schedulers() -> None:
             stop_scheduler()
+            stop_recipe_scheduler()
 
     @app.get("/health")
     def health() -> dict[str, str]:

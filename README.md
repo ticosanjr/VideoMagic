@@ -6,16 +6,17 @@ recording into an editable timeline: it removes silence and retakes, adds
 J-cuts and punch-ins, proposes vertical Shorts, masters the dialogue bed, and
 exports timelines for DaVinci Resolve, Adobe Premiere Pro, and Kdenlive.
 
-> Status: 0.67.0 alpha. The portable Linux binary, Linux AppImage, and Windows
+> Status: 0.70.0 alpha. The portable Linux binary, Linux AppImage, and Windows
 > PE run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical Shorts,
-> audio mastering, title/lower-third planning, analytics import, and three NLE
-> exports. The recipe studio, canvas timeline, and provider settings execute
-> against the local API and MCP server. The canvas supports drag, trim handles,
-> split, ripple delete, undo/redo, snapping, waveform, and synced preview.
-> Projects persist atomic, revisioned JSON state under `.videoflow/`, and the
-> legacy project/module routes have been removed.
+> audio mastering, burned titles, color/LUT grading, analytics import, review
+> approval, and three NLE exports. The recipe studio, canvas timeline,
+> automation schedules, and provider settings execute against the local API and
+> MCP server. The canvas supports drag, trim handles, split, ripple delete,
+> undo/redo, snapping, waveform, background preview, and per-clip transitions,
+> fades, and scale. Projects persist atomic, revisioned JSON state under
+> `.videoflow/`, and the legacy project/module routes have been removed.
 
 ## Requirements
 
@@ -47,7 +48,7 @@ The same contract is available at `POST /api/v1/recipes/run` and through
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 448 passing, 1 strict xfail, 9 deselected
+uv run pytest                       # 455 passing, 1 strict xfail, 9 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model

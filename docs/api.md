@@ -72,7 +72,7 @@ GET /health
 ```
 
 ```json
-{ "status": "ok", "service": "videoflow", "version": "0.67.0" }
+{ "status": "ok", "service": "videoflow", "version": "0.70.0" }
 ```
 
 ```http
@@ -82,7 +82,7 @@ GET /api/v1/system
 ```json
 {
   "ok": true,
-  "version": "0.67.0",
+  "version": "0.70.0",
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
@@ -706,7 +706,7 @@ On success, `job.result` is the `run_portable` report:
 ```json
 {
   "ok": true,
-  "version": "0.67.0",
+  "version": "0.70.0",
   "vad_engine": "silero",
   "speech_interval_count": 3,
   "video_segment_count": 3,
@@ -733,8 +733,18 @@ Project state is created by recipe runs and edited through the job timeline API.
 - `GET /api/v1/jobs/{job_id}/timeline`, `PATCH /api/v1/jobs/{job_id}/timeline`
 - `POST /api/v1/jobs/{job_id}/timeline/undo`,
   `POST /api/v1/jobs/{job_id}/timeline/redo`
+- `PATCH /api/v1/jobs/{job_id}/timeline/clip/{clip_id}` for transitions,
+  scale, position, and audio fades
 - `GET/PATCH /api/v1/jobs/{job_id}/broll`
-- `GET /api/v1/jobs/{job_id}/preview`,
+- `GET/PATCH /api/v1/jobs/{job_id}/review`
+- `GET /api/v1/jobs/{job_id}/thumbnails`,
+  `POST /api/v1/jobs/{job_id}/thumbnails/select`,
+  `GET /api/v1/jobs/{job_id}/thumbnails/{name}`
+- `GET /api/v1/schedules`, `PUT/DELETE /api/v1/schedules/{id}`,
+  `POST /api/v1/schedules/{id}/run`
+- `POST/GET /api/v1/jobs/{job_id}/preview`,
+  `GET /api/v1/jobs/{job_id}/preview/status`,
+  `POST /api/v1/jobs/{job_id}/preview/cancel`,
   `GET /api/v1/jobs/{job_id}/preview/file`
 - `GET /api/v1/providers`, `PUT /api/v1/providers/{id}`,
   `DELETE /api/v1/providers/{id}`,
@@ -759,7 +769,14 @@ warning that rendered artifacts must be refreshed.
 ```
 
 B-roll approvals live in `broll_approval.json` inside the job output. The
-Shorts renderer consumes only approved entries, in the saved order.
+Shorts renderer consumes every approved entry, in the saved order.
+
+`POST /preview?background=true` starts a worker and returns immediately. Poll
+`/preview/status` for progress and call `/preview/cancel` to stop. Previews apply
+`titles.ass`, `color/filters.json`, and `audio/master-filters.json` when present.
+
+Schedules are stored in `recipe-schedules.json`. Review decisions live in
+`review_approval.json`; thumbnail selection lives in `thumbnail_choice.json`.
 
 Provider configuration lives in `$VIDEOWFLOW_HOME/providers.json`. Secrets are
 never stored; `api_key_env` names an environment variable. `resolve` returns

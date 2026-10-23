@@ -6,15 +6,23 @@
   import WaveformStrip from "$lib/WaveformStrip.svelte";
   import {
     approveBroll,
+    cancelPreview,
     createJobPreview,
     editTimeline,
     errorMessage,
+    getJobReview,
+    getJobThumbnails,
+    getPreviewStatus,
     getTimeline,
     jobArtifactUrl,
+    jobThumbnailUrl,
     listJobs,
+    decideJobReview,
+    selectJobThumbnail,
     redoTimeline,
     undoTimeline,
     updateJobCaption,
+    updateTimelineClip,
     type Job,
     type TimelineData
   } from "$lib/api";
@@ -34,12 +42,27 @@
   let clipDelta = $state(1);
   let editBusy = $state(false);
   let editStatus = $state("");
+  let transitionType = $state<"crossfade" | "fade_to_black" | "none">("none");
+  let transitionFrames = $state(6);
+  let clipScale = $state(1);
+  let posX = $state(0);
+  let posY = $state(0);
+  let fadeIn = $state(0);
+  let fadeOut = $state(0);
+  let styleBusy = $state(false);
+  let reviewChecks = $state<Array<{ id: string; label: string; ok: boolean }>>([]);
+  let reviewApproval = $state<Record<string, unknown>>({});
+  let reviewComment = $state("");
+  let reviewBusy = $state(false);
+  let thumbnails = $state<{ variants: string[]; selected: string }>({ variants: [], selected: "" });
   let selectedCaption = $state<number | null>(null);
   let captionDraft = $state("");
   let captionBusy = $state(false);
   let captionStatus = $state("");
   let previewUrl = $state("");
   let previewBusy = $state(false);
+  let previewPercent = $state(0);
+  let previewMessage = $state("");
   let videoEl = $state<HTMLVideoElement | null>(null);
   let playing = $state(false);
   let brollOrder = $state<Record<string, number[]>>({});
@@ -106,11 +129,59 @@
       const mp4 = Object.entries(artifacts).find(([name]) => name === "mp4" || name.endsWith("mp4"));
       previewUrl = mp4 ? jobArtifactUrl(selected, mp4[0]) : "";
       syncBroll(timeline);
+      await loadDeliverables();
     } catch (reason) {
       error = errorMessage(reason);
       timeline = null;
     } finally {
       loading = false;
+    }
+  }
+
+  async function loadDeliverables() {
+    try {
+      const review = await getJobReview(selected);
+      const payload = (review.review ?? {}) as {
+        checks?: Array<{ id: string; label: string; ok: boolean }>;
+      };
+      reviewChecks = payload.checks ?? [];
+      reviewApproval = review.approval ?? {};
+    } catch {
+      reviewChecks = [];
+      reviewApproval = {};
+    }
+    try {
+      thumbnails = await getJobThumbnails(selected);
+    } catch {
+      thumbnails = { variants: [], selected: "" };
+    }
+  }
+
+  async function decideReview(approved: boolean) {
+    reviewBusy = true;
+    error = "";
+    try {
+      await decideJobReview(selected, {
+        approved,
+        comment: reviewComment,
+        reviewer: "local operator"
+      });
+      status = approved ? "Review approved." : "Review rejected.";
+      await loadDeliverables();
+    } catch (reason) {
+      error = errorMessage(reason);
+    } finally {
+      reviewBusy = false;
+    }
+  }
+
+  async function chooseThumbnail(name: string) {
+    try {
+      await selectJobThumbnail(selected, name);
+      thumbnails = { ...thumbnails, selected: name };
+      status = `Thumbnail ${name} selected.`;
+    } catch (reason) {
+      error = errorMessage(reason);
     }
   }
 
@@ -136,8 +207,39 @@
       clipStart = clip.start_sec;
       clipEnd = clip.end_sec;
       clipDelta = 1;
+      transitionType = (clip.transition as "crossfade" | "fade_to_black" | null) ?? "none";
+      transitionFrames = clip.transition_frames || 6;
+      clipScale = clip.zoom ?? 1;
+      posX = clip.pos_x ?? 0;
+      posY = clip.pos_y ?? 0;
+      const audio = timeline?.audio.find((item) => item.id === clip.id);
+      fadeIn = audio?.fade_in_sec ?? 0;
+      fadeOut = audio?.fade_out_sec ?? 0;
     }
     editStatus = "";
+  }
+
+  async function saveClipStyle() {
+    if (!selectedClip) return;
+    styleBusy = true;
+    error = "";
+    try {
+      const response = await updateTimelineClip(selected, selectedClip.id, {
+        transition_type: transitionType,
+        transition_duration_frames: transitionFrames,
+        scale: clipScale,
+        pos_x: posX,
+        pos_y: posY,
+        fade_in_sec: fadeIn,
+        fade_out_sec: fadeOut
+      });
+      status = `Clip style saved at revision ${response.revision}.`;
+      await loadTimeline(selectedClip.id);
+    } catch (reason) {
+      error = errorMessage(reason);
+    } finally {
+      styleBusy = false;
+    }
   }
 
   function seek(value: number) {
@@ -174,15 +276,45 @@
 
   async function buildPreview() {
     previewBusy = true;
+    previewPercent = 0;
+    previewMessage = "Queued";
     error = "";
     try {
-      const payload = await createJobPreview(selected, true);
-      previewUrl = `${payload.url}?t=${Date.now()}`;
-      status = "Browser preview rendered from the current timeline.";
+      const payload = await createJobPreview(selected, true, true);
+      const initial = typeof payload.status === "object" ? payload.status : null;
+      if (initial) {
+        previewPercent = initial.percent;
+        previewMessage = initial.message ?? initial.status;
+      }
+      for (let attempt = 0; attempt < 600; attempt += 1) {
+        if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 700));
+        const current = await getPreviewStatus(selected);
+        previewPercent = current.percent;
+        previewMessage = current.message ?? current.status;
+        if (current.status === "ready") {
+          previewUrl = `${payload.url}?t=${Date.now()}`;
+          status = "Browser preview rendered from the current timeline.";
+          return;
+        }
+        if (current.status === "failed" || current.status === "cancelled") {
+          error = current.error || `Preview ${current.status}.`;
+          return;
+        }
+      }
+      error = "Preview render timed out. Check the server log.";
     } catch (reason) {
       error = errorMessage(reason);
     } finally {
       previewBusy = false;
+    }
+  }
+
+  async function stopPreview() {
+    try {
+      await cancelPreview(selected);
+      previewMessage = "Cancelling…";
+    } catch (reason) {
+      error = errorMessage(reason);
     }
   }
 
@@ -383,7 +515,19 @@
           {playing ? "Pause" : "Play"}
         </button>
         <span class="rounded bg-neutral-900 px-2 py-1 font-mono text-[10px] text-neutral-300" data-testid="timeline-timecode">{timecode(playhead)}</span>
-        <span class="font-mono text-[10px] text-neutral-600">{playhead.toFixed(3)}s · frame {Math.round(playhead * fps)}</span>
+        <label class="flex items-center gap-1 font-mono text-[10px] text-neutral-600">
+          <input
+            type="number"
+            min="0"
+            max={duration}
+            step="0.01"
+            value={Math.round(playhead * 1000) / 1000}
+            onchange={(event) => seek(Number(event.currentTarget.value))}
+            class="w-20 rounded border border-neutral-800 bg-neutral-900 px-1.5 py-1 text-[10px] text-neutral-300"
+            aria-label="Playhead seconds"
+          />
+          s · frame {Math.round(playhead * fps)}
+        </label>
         <span class="mx-1 h-4 w-px bg-neutral-800"></span>
         <button type="button" onclick={() => void undo()} disabled={!timeline.can_undo || editBusy} class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Undo</button>
         <button type="button" onclick={() => void redo()} disabled={!timeline.can_redo || editBusy} class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Redo</button>
@@ -457,6 +601,17 @@
                 <button type="button" onclick={() => void buildPreview()} disabled={previewBusy || !selected} class="mt-3 rounded-lg border border-sky-500/40 px-3 py-1.5 text-[11px] text-sky-200 disabled:opacity-40">
                   {previewBusy ? "Rendering…" : "Render preview"}
                 </button>
+                {#if previewBusy}
+                  <div class="mt-2 w-full max-w-sm">
+                    <div class="h-1.5 overflow-hidden rounded-full bg-neutral-800">
+                      <div class="h-full rounded-full bg-sky-400 transition-all" style={`width:${previewPercent}%`}></div>
+                    </div>
+                    <div class="mt-1 flex items-center justify-between text-[10px] text-neutral-500">
+                      <span>{previewMessage || "Rendering"} · {previewPercent}%</span>
+                      <button type="button" onclick={() => void stopPreview()} class="text-rose-300 hover:text-white">Cancel</button>
+                    </div>
+                  </div>
+                {/if}
               </div>
             {/if}
           </div>
@@ -483,6 +638,30 @@
                     <input type="number" step="0.1" bind:value={clipDelta} class="mt-1 block w-20 rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
                   </label>
                   <button type="button" onclick={moveSelected} disabled={editBusy} class="rounded border border-neutral-600 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Move</button>
+                </div>
+                <div class="mt-3 grid grid-cols-2 gap-2 border-t border-neutral-800 pt-2">
+                  <label class="text-[10px] text-neutral-400">Transition
+                    <select bind:value={transitionType} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100">
+                      <option value="none">cut</option>
+                      <option value="crossfade">crossfade</option>
+                      <option value="fade_to_black">fade to black</option>
+                    </select>
+                  </label>
+                  <label class="text-[10px] text-neutral-400">Frames
+                    <input type="number" min="1" max="120" step="1" bind:value={transitionFrames} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
+                  </label>
+                  <label class="text-[10px] text-neutral-400">Scale
+                    <input type="number" min="1" max="3" step="0.01" bind:value={clipScale} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
+                  </label>
+                  <label class="text-[10px] text-neutral-400">Fade in (s)
+                    <input type="number" min="0" max="30" step="0.05" bind:value={fadeIn} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
+                  </label>
+                  <label class="text-[10px] text-neutral-400">Fade out (s)
+                    <input type="number" min="0" max="30" step="0.05" bind:value={fadeOut} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
+                  </label>
+                  <div class="flex items-end">
+                    <button type="button" onclick={() => void saveClipStyle()} disabled={styleBusy} class="w-full rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-300 disabled:opacity-40">{styleBusy ? "Saving…" : "Save style"}</button>
+                  </div>
                 </div>
                 <p class="mt-2 text-[10px] text-neutral-500">
                   Transition: {selectedClip.transition ?? "cut"} · keyframes: {selectedClip.keyframes ?? 0} · zoom {selectedClip.zoom?.toFixed(2) ?? "1.00"}
@@ -583,6 +762,55 @@
       {:else}
         <p class="mt-2 text-[10px] text-neutral-500">This job has no B-roll plan. Add a <span class="font-mono">broll.plan</span> step to the recipe.</p>
       {/if}
+    </section>
+
+    <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 class="text-xs font-semibold text-neutral-100">Deliverables</h3>
+          <p class="mt-1 text-[10px] text-neutral-500">Review checklist, approval, and thumbnail variants from this run.</p>
+        </div>
+        <span class={`rounded-full px-2 py-0.5 text-[9px] uppercase ${reviewApproval.approved ? "bg-emerald-500/10 text-emerald-300" : "bg-amber-500/10 text-amber-300"}`}>
+          {reviewApproval.approved ? "approved" : "pending review"}
+        </span>
+      </div>
+      <div class="mt-3 grid gap-3 lg:grid-cols-2">
+        <div class="rounded-xl border border-neutral-800 bg-neutral-950/50 p-3">
+          <p class="text-[10px] uppercase tracking-wide text-neutral-500">Review checks</p>
+          {#if reviewChecks.length}
+            <ul class="mt-2 space-y-1">
+              {#each reviewChecks as check}
+                <li class="flex items-center gap-2 text-[10px]">
+                  <span class={check.ok ? "text-emerald-300" : "text-amber-300"}>{check.ok ? "✓" : "•"}</span>
+                  <span class={check.ok ? "text-neutral-300" : "text-amber-200"}>{check.label}</span>
+                </li>
+              {/each}
+            </ul>
+          {:else}
+            <p class="mt-2 text-[10px] text-neutral-600">No review.json in this run. Add a <span class="font-mono">review.queue</span> step.</p>
+          {/if}
+          <textarea rows="2" bind:value={reviewComment} placeholder="Review comment" class="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100"></textarea>
+          <div class="mt-2 flex gap-2">
+            <button type="button" onclick={() => void decideReview(true)} disabled={reviewBusy || !reviewChecks.length} class="rounded border border-emerald-500/40 px-2 py-1 text-[10px] text-emerald-200 disabled:opacity-40">Approve</button>
+            <button type="button" onclick={() => void decideReview(false)} disabled={reviewBusy || !reviewChecks.length} class="rounded border border-rose-500/40 px-2 py-1 text-[10px] text-rose-200 disabled:opacity-40">Reject</button>
+          </div>
+        </div>
+        <div class="rounded-xl border border-neutral-800 bg-neutral-950/50 p-3">
+          <p class="text-[10px] uppercase tracking-wide text-neutral-500">Thumbnail A/B</p>
+          {#if thumbnails.variants.length}
+            <div class="mt-2 grid grid-cols-3 gap-2">
+              {#each thumbnails.variants as variant}
+                <button type="button" onclick={() => void chooseThumbnail(variant)} class={`overflow-hidden rounded border ${thumbnails.selected === variant ? "border-sky-400 ring-1 ring-sky-400" : "border-neutral-800"}`}>
+                  <img src={jobThumbnailUrl(selected, variant)} alt={variant} class="aspect-video w-full object-cover" />
+                  <span class="block truncate px-1 py-0.5 text-[8px] text-neutral-400">{variant}</span>
+                </button>
+              {/each}
+            </div>
+          {:else}
+            <p class="mt-2 text-[10px] text-neutral-600">No thumbnail variants. Add a <span class="font-mono">thumbnail.generate</span> step with <span class="font-mono">variants</span>.</p>
+          {/if}
+        </div>
+      </div>
     </section>
   {/if}
 </div>

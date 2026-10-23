@@ -3,9 +3,10 @@
 Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript, Konva, and
 wavesurfer.js. English strings only.
 
-0.67.0 removes the legacy rack. The product is now a recipe studio with a
-professional canvas timeline. Errors are persistent, sticky banners at the top
-of the page or panel; inline field validation remains next to the field.
+0.70.0 removes the legacy rack. The product is a recipe studio with a
+professional canvas timeline, automation schedules, and provider settings.
+Errors are persistent, sticky banners at the top of the page or panel; inline
+field validation remains next to the field.
 
 ## 1. Layout
 
@@ -63,33 +64,51 @@ The canvas is Konva; the audio waveform is wavesurfer.js.
   snap toggle, fit, and zoom.
 - Keyboard: Space plays, `S` splits, Delete deletes, Shift+Delete ripples,
   Ctrl/Cmd+Z undoes, Ctrl/Cmd+Shift+Z redoes.
-- Clip inspector: timeline in/out, trim, move delta, transition, keyframes.
+- Editable playhead timecode input.
+- Clip inspector: timeline in/out, trim, move delta, transition type/length,
+  scale, position, audio fade in/out, and keyframe count.
+- Incremental rendering: scene layer vs. overlay playhead/guides.
 - Caption list with in-place editing.
-- Preview: MP4 player plus waveform, both synced to the playhead. A 540p
-  browser proxy can be rendered on demand.
+- Preview: MP4 player plus waveform, both synced to the playhead. Background
+  540p proxy rendering with progress and cancellation; titles, color/LUT, and
+  audio-master filters are applied to the preview render.
 - Shorts cards open the Short editor (reframe, captions, metadata, thumbnail,
   voice-over, dubbing, analysis, publish).
 - B-roll approval: approve/reject and reorder per Short, persisted to
   `broll_approval.json`; the renderer consumes only approved entries.
 
-## 5. Assets
+## 5. Automation
+
+- Persistent schedules: once, interval, and watch folder.
+- A local scheduler polls every 20 seconds.
+- Run-now, status, last-run, errors, and seen-file tracking.
+- Schedules are stored in `recipe-schedules.json`.
+
+## 6. Deliverables
+
+- Review checklist from `review.json` with approve/reject, reviewer, and
+  comment persisted in `review_approval.json`.
+- Thumbnail variants from `thumbnails/*.png`; the selected variant is stored in
+  `thumbnail_choice.json`.
+
+## 7. Assets
 
 Scan folders into the local index, search, filter by kind, edit tags and
 license, download, and remove. Assets are served by the local API.
 
-## 6. Models
+## 8. Models
 
 Models are grouped by capability. Downloads run in the background with
 progress, cancellation, checksum verification, installed path, disk usage, and
 "used by" provenance. The default model per capability is stored in the model
 settings; provider configuration is separate.
 
-## 7. Services
+## 9. Services
 
 Health polling, service discovery, current-service restart/shutdown, stop other
 VideoFlow processes, doctor output, server log download, and support bundle.
 
-## 8. Providers
+## 10. Providers
 
 Providers are persisted in `$VIDEOWFLOW_HOME/providers.json`.
 
@@ -102,7 +121,7 @@ Providers are persisted in `$VIDEOWFLOW_HOME/providers.json`.
 - `GET /api/v1/providers/resolve?capability=...` returns the default followed by
   its fallback chain.
 
-## 9. Persistence and invalidation
+## 11. Persistence and invalidation
 
 - `project_state.json` is the single source of truth for the timeline.
 - Every timeline edit increments `revision` and writes one undo entry in
@@ -112,7 +131,7 @@ Providers are persisted in `$VIDEOWFLOW_HOME/providers.json`.
 - B-roll approvals, provider configuration, model downloads, and publish queue
   state are JSON files under the VideoFlow home or job output.
 
-## 10. Accessibility and responsiveness
+## 12. Accessibility and responsiveness
 
 - Navigation uses `role="tab"` buttons with `aria-selected`.
 - Error banners use `role="alert"`.

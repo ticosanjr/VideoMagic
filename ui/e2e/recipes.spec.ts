@@ -17,6 +17,7 @@ async function mockApi(page: Page) {
     if (path === "/api/v1/exports/validate") return route.fulfill({ json: fixture("nle.json") });
     if (path === "/api/v1/batches") return route.fulfill({ json: fixture("batches.json") });
     if (path === "/api/v1/assets") return route.fulfill({ json: fixture("assets.json") });
+    if (path === "/api/v1/schedules") return route.fulfill({ json: { ok: true, schedules: [] } });
     return route.fulfill({ json: { ok: true } });
   });
 }
@@ -124,6 +125,12 @@ test("opens the asset library tab", async ({ page }) => {
   await page.getByRole("tab", { name: "Assets" }).click();
   await expect(page.getByRole("heading", { name: "Asset library" })).toBeVisible();
   await expect(page.getByText("No assets yet")).toBeVisible();
+});
+
+test("opens the automation tab", async ({ page }) => {
+  await page.getByRole("tab", { name: "Automation" }).click();
+  await expect(page.getByRole("heading", { name: "Automation" })).toBeVisible();
+  await expect(page.getByText("No schedules yet.")).toBeVisible();
 });
 
 test("opens the timeline tab", async ({ page }) => {

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import threading
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 
 from videoflow.application.models import install_model, installed_path
+from videoflow.runtime import portable_home
 
 
 def _now() -> str:
@@ -42,6 +45,48 @@ class ModelDownloadManager:
     def __init__(self) -> None:
         self._items: dict[str, ModelDownload] = {}
         self._lock = threading.Lock()
+        self._load()
+
+    @property
+    def path(self) -> Path:
+        return portable_home() / "model-downloads.json"
+
+    def _load(self) -> None:
+        path = self.path
+        if not path.is_file():
+            return
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return
+        for item in payload.get("items", []):
+            try:
+                entry = ModelDownload(
+                    model_id=str(item["model_id"]),
+                    status=str(item.get("status", "interrupted")),
+                    percent=int(item.get("percent", 0)),
+                    message=str(item.get("message", "")),
+                    error=str(item.get("error", "")),
+                    started_at=str(item.get("started_at", _now())),
+                    finished_at=str(item.get("finished_at", "")),
+                )
+            except (KeyError, TypeError, ValueError):
+                continue
+            if entry.status in {"queued", "downloading"}:
+                entry.status = "interrupted"
+                entry.message = "Interrupted by restart"
+            self._items[entry.model_id] = entry
+
+    def _save(self) -> None:
+        path = self.path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {"items": [item.to_dict() for item in self._items.values()]}, indent=2
+            )
+            + "\n",
+            encoding="utf-8",
+        )
 
     def start(self, model_id: str, *, allow_network: bool = True) -> ModelDownload:
         with self._lock:
@@ -50,6 +95,7 @@ class ModelDownloadManager:
                 return active
             item = ModelDownload(model_id=model_id)
             self._items[model_id] = item
+            self._save()
         thread = threading.Thread(
             target=self._work,
             args=(model_id, allow_network),
@@ -64,6 +110,7 @@ class ModelDownloadManager:
             item = self._items[model_id]
             item.status = "downloading"
             item.message = "Starting"
+            self._save()
 
         def progress(percent: int, message: str) -> None:
             with self._lock:
@@ -91,12 +138,14 @@ class ModelDownloadManager:
                     item.error = str(exc)
                     item.message = "Download failed"
                 item.finished_at = _now()
+                self._save()
             return
         with self._lock:
             item.status = "installed"
             item.percent = 100
             item.message = "Installed"
             item.finished_at = _now()
+            self._save()
 
     def cancel(self, model_id: str) -> ModelDownload | None:
         with self._lock:
@@ -105,6 +154,7 @@ class ModelDownloadManager:
                 return None
             if item.status in {"queued", "downloading"}:
                 item.cancel_requested = True
+                self._save()
             return item
 
     def get(self, model_id: str) -> ModelDownload | None:

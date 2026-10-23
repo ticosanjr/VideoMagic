@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (0.67.0)
+## Implementation status (0.70.0)
 
 | Area | State |
 | --- | --- |
@@ -12,7 +12,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Silero VAD via ONNX Runtime with FFmpeg `silencedetect` fallback | implemented |
 | Deterministic timeline, J/L-cuts, fades, punch-ins | implemented |
 | FCPXML 1.9/1.10, xmeml v4, native Kdenlive MLT export | implemented |
-| Portable artifacts | 0.67.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
+| Portable artifacts | 0.70.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
 | Run history | persisted in `work/run-history.json`, including failed runs, paginated by `GET /api/v1/runs` |
 | Diagnostics | `work/failure.json` includes stage, error, FFmpeg command, stderr, and log tail |
 | NLE validation | `scripts/validate_nle.py` and `POST /api/v1/exports/validate` |
@@ -20,14 +20,14 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Maintenance | output and global-cache pruning by age/size |
 | Preview proxy | on-demand 540p MP4 for browser preview |
 | Step logs | per-node log viewer backed by `GET /api/v1/jobs/{id}/logs?module=...` |
-| Content cycle | idea/research/script/storyboard/assets, real audio master/titles/analytics/review, thumbnail variants, and publish bypass |
+| Content cycle | idea/research/script/storyboard/assets, real audio master/titles/analytics/review, color/LUT, thumbnail variants, and publish bypass |
 | Assets | local library scan, search, tags, license, delete, and file serving |
-| Timeline | canvas editing with drag, trim handles, split, ripple, undo/redo, snapping, waveform, synced preview, and persisted B-roll approval |
+| Timeline | canvas editing with drag, trim handles, split, ripple, undo/redo, snapping, waveform, background preview, per-clip transition/fade/scale, and persisted B-roll approval |
 | Release | tag-triggered Linux/AppImage/Windows/SBOM release workflow |
 | Batch persistence | JSON batch history under the VideoFlow home, reloaded after restart, paginated API/UI |
 | Job persistence | job JSON under the VideoFlow home; interrupted jobs fail safely on restart |
 | Batch resume | resume failed/cancelled batches and skip completed items |
-| Preview | synced MP4 preview plus waveform; on-demand 540p proxy |
+| Preview | synced MP4 preview plus waveform; background 540p proxy with titles, color, and audio-master filters |
 | MLT smoke | optional `melt` render check for generated Kdenlive projects |
 | Recipe UI | inline node fields, array JSON, undo/redo, cycle prevention, saved layout, per-step progress, NLE validation |
 | Windows PE | built by the Windows GitHub Actions workflow and attached to releases |
@@ -37,6 +37,8 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Local filesystem browser with allowlisted roots | implemented; no media upload |
 | URL import | implemented via optional yt-dlp; external policy and host allowlist apply |
 | Webhook publishing | implemented; targets, persistent queue, scheduler, metadata generation |
+| Recipe automation | implemented; once/interval schedules and watch folders with a local scheduler |
+| Review and thumbnails | implemented; approve/reject with comments and A/B thumbnail selection |
 | Multimodal analysis | implemented; audio-emotion heuristics, motion, optional OpenCV faces, and OpenAI-compatible LLM vision |
 | Jobs, job REST routes, SSE, live MCP jobs | implemented for the portable and recipe paths, including per-step checkpoints and step-scoped runs |
 | MCP: fifty-two tools and four resources | implemented; recipes, step/batch runs, analysis, capabilities, models, staged edits, jobs, export, resources |

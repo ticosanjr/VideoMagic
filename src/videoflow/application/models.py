@@ -177,20 +177,32 @@ def install_model(
         )
         destination = target / name if is_directory else target
         temp = destination.with_suffix(destination.suffix + ".part")
+        existing = temp.stat().st_size if temp.is_file() else 0
         digest = hashlib.sha256()
+        if existing:
+            with temp.open("rb") as handle:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    digest.update(chunk)
+        headers = {"Range": f"bytes={existing}-"} if existing else {}
         with httpx.stream(
-            "GET", url, follow_redirects=True, timeout=600.0
+            "GET", url, follow_redirects=True, timeout=600.0, headers=headers
         ) as response:
-            if response.status_code >= 400:
+            resumed = existing > 0 and response.status_code == 206
+            if response.status_code >= 400 and not (
+                resumed or (existing and response.status_code == 416)
+            ):
                 raise FilesystemError(
                     f"Model download returned HTTP {response.status_code}: {url}"
                 )
-            total_bytes = int(response.headers.get("content-length") or 0)
-            written = 0
-            with temp.open("wb") as handle:
+            if existing and not resumed:
+                existing = 0
+                digest = hashlib.sha256()
+            total_bytes = int(response.headers.get("content-length") or 0) + existing
+            written = existing
+            mode = "ab" if resumed else "wb"
+            with temp.open(mode) as handle:
                 for chunk in response.iter_bytes():
                     if should_cancel is not None and should_cancel():
-                        temp.unlink(missing_ok=True)
                         from videoflow.domain.errors import JobCancelledError
 
                         raise JobCancelledError("Model download cancelled")
@@ -221,5 +233,6 @@ def remove_model(model_id: str) -> None:
         shutil.rmtree(target)
     elif target.exists():
         target.unlink()
+        target.with_suffix(target.suffix + ".part").unlink(missing_ok=True)
     else:
         raise StateNotReadyError(f"Model is not installed: {model_id}")

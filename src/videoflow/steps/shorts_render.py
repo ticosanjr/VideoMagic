@@ -122,7 +122,7 @@ class RenderShortsStep(BaseStep):
                                 height=height,
                             ),
                         )
-            broll = None
+            broll_clips: list[tuple[Path, float, float]] = []
             plan = context.metadata.get("broll_plan")
             if options.broll_enabled and isinstance(plan, dict):
                 broll_entries = plan.get(clip.title)
@@ -135,12 +135,21 @@ class RenderShortsStep(BaseStep):
                         for index in order
                         if 0 <= index < len(broll_entries)
                     ]
-                if (
-                    isinstance(broll_entries, list)
-                    and broll_entries
-                    and isinstance(broll_entries[0], dict)
-                ):
-                    broll = broll_entries[0]
+                if isinstance(broll_entries, list):
+                    for item in broll_entries:
+                        if not isinstance(item, dict) or not item.get("path"):
+                            continue
+                        path = Path(str(item["path"])).expanduser()
+                        if not path.is_file():
+                            context.warnings.append(f"B-roll asset missing: {path}")
+                            continue
+                        broll_clips.append(
+                            (
+                                path,
+                                float(item.get("start_sec") or 0.0),
+                                float(item.get("duration_sec") or 2.0),
+                            )
+                        )
             destination = shorts_dir / f"{slug}.mp4"
             adapter.render_short(
                 Path(context.source),
@@ -171,9 +180,7 @@ class RenderShortsStep(BaseStep):
                     Path(options.second_source_path) if options.second_source_path else None
                 ),
                 mix_second_audio=options.mix_second_audio,
-                broll_path=Path(str(broll["path"])) if broll else None,
-                broll_start_sec=float(broll.get("start_sec", 0.0)) if broll else 0.0,
-                broll_duration_sec=float(broll.get("duration_sec", 2.0)) if broll else 2.0,
+                broll_clips=broll_clips or None,
                 music_path=Path(options.music_path) if options.music_path else None,
                 music_volume=options.music_volume,
                 music_ducking=options.music_ducking,

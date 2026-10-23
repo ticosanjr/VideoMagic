@@ -3,6 +3,53 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.70.0] - 2026-10-23
+
+### Added
+
+- **Incremental timeline rendering.** The scene layer is rebuilt only when the
+  timeline, zoom, selection, or B-roll changes. The playhead and guides live on
+  an overlay layer, so scrubbing no longer reconstructs every clip.
+- **Background preview rendering.** `POST /preview?background=true` starts a
+  worker with progress, cancellation, and `GET /preview/status`. The UI shows
+  the percentage and can cancel.
+- **Burned titles.** `titles.plan` writes `titles.ass`; MP4 previews and
+  exports apply title cards and speaker lower thirds.
+- **Audio master in the render path.** `audio.master` writes
+  `audio/master-filters.json`; previews apply the same high-pass, denoise, and
+  EBU R128 chain to the mixed timeline audio.
+- **Color/LUT step.** `color.grade` writes deterministic `eq` and optional
+  `.cube` LUT filters consumed by MP4 previews.
+- **Multi-entry B-roll rendering.** Every approved B-roll entry is overlaid in
+  order instead of only the first one.
+- **Per-clip style editing.** Timeline API and inspector now edit transitions,
+  transition length, scale, position, and audio fade in/out.
+- **Editable playhead timecode** and persisted clip style revisioning.
+- **Isolated flow loops.** `flow.loop` over files gives each item its own
+  source, output, artifacts, warnings, and Shorts.
+- **Provider fallbacks for LLM, ASR, TTS, and vision.** The configured chain is
+  used when no explicit endpoint is supplied.
+- **Recipe automation.** Persistent `once`, `interval`, and `watch` schedules
+  with a 20-second local scheduler, run-now, status, and errors.
+- **Review approval and thumbnail A/B.** Persist approval/comments and the
+  selected thumbnail variant; the timeline shows both deliverables.
+- **Resumable model downloads.** Partial files are hashed and resumed with HTTP
+  Range; statuses survive a restart as `interrupted`.
+
+### Validation
+
+- 455 Python tests passed.
+- 7 media tests passed, 1 skipped.
+- 13 Vitest tests passed.
+- 19 Playwright tests passed.
+
+### Notes
+
+- Distribution, signing, macOS packaging, and onedir builds remain out of
+  scope.
+- Manual NLE QA, multicam editing beyond split-screen, and frame-accurate
+  multi-select dragging remain future work.
+
 ## [0.67.0] - 2026-10-23
 
 ### Added
@@ -191,7 +238,7 @@ follow semantic versioning once the project reaches 1.0.
 
 - The legacy rack code is no longer reachable from the UI; its backend routes
   remain for compatibility.
-- 455 Python tests, 8 media tests, 14 Vitest tests, and 14 Playwright tests pass.
+- 459 Python tests, 8 media tests, 14 Vitest tests, and 14 Playwright tests pass.
 - Distribution remains out of scope.
 
 ## [0.51.0] - 2026-10-23

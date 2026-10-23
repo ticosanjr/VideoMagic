@@ -476,6 +476,7 @@ class FFmpegAdapter:
         broll_path: Path | None = None,
         broll_start_sec: float = 0.0,
         broll_duration_sec: float = 2.0,
+        broll_clips: Sequence[tuple[Path, float, float]] | None = None,
     ) -> Path:
         """Render concatenated source pieces as a vertical H.264 short."""
 
@@ -628,34 +629,61 @@ class FFmpegAdapter:
                     ]
                 )
             final = combined
-            if broll_path is not None:
-                broll = Path(broll_path).expanduser()
-                if not broll.is_file():
-                    raise IngestError(f"B-roll asset does not exist: {broll}")
+            clips: list[tuple[Path, float, float]] = []
+            if broll_clips:
+                clips = [
+                    (Path(path).expanduser(), float(start), float(duration))
+                    for path, start, duration in broll_clips
+                ]
+            elif broll_path is not None:
+                clips = [
+                    (
+                        Path(broll_path).expanduser(),
+                        float(broll_start_sec),
+                        float(broll_duration_sec),
+                    )
+                ]
+            if clips:
+                for path, _, _ in clips:
+                    if not path.is_file():
+                        raise IngestError(f"B-roll asset does not exist: {path}")
                 with_broll = work / "broll.mp4"
-                start = max(0.0, float(broll_start_sec))
-                end = start + max(0.1, float(broll_duration_sec))
-                self._capture(
+                command = [
+                    "ffmpeg",
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-y",
+                    "-i",
+                    str(combined),
+                ]
+                for path, _, _ in clips:
+                    command.extend(["-stream_loop", "-1", "-i", str(path)])
+                chains = [
+                    (
+                        f"[{index + 1}:v]scale={width}:{height}:"
+                        "force_original_aspect_ratio=increase,"
+                        f"crop={width}:{height},setsar=1[b{index}]"
+                    )
+                    for index in range(len(clips))
+                ]
+                current = "[0:v]"
+                for index, (_, start, duration) in enumerate(clips):
+                    begin = max(0.0, start)
+                    finish = begin + max(0.1, duration)
+                    label = f"[v{index}]"
+                    chains.append(
+                        f"{current}[b{index}]overlay=0:0:"
+                        f"enable='between(t,{begin:.6f},{finish:.6f})'"
+                        f"{label}"
+                    )
+                    current = label
+                command.extend(
                     [
-                        "ffmpeg",
-                        "-hide_banner",
-                        "-loglevel",
-                        "error",
-                        "-y",
-                        "-i",
-                        str(combined),
-                        "-stream_loop",
-                        "-1",
-                        "-i",
-                        str(broll),
                         "-filter_complex",
-                        (
-                            f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
-                            f"crop={width}:{height},setsar=1[b];"
-                            f"[0:v][b]overlay=0:0:enable='between(t,{start:.6f},{end:.6f})'[v]"
-                        ),
+                        ";".join(chains),
                         "-map",
-                        "[v]",
+                        current,
                         "-map",
                         "0:a?",
                         "-c:v",
@@ -674,6 +702,7 @@ class FFmpegAdapter:
                         str(with_broll),
                     ]
                 )
+                self._capture(command)
                 final = with_broll
                 combined = with_broll
             if ass_path is not None:

@@ -131,12 +131,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1128,
+                  "duration": 2713,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T15:49:03.896Z",
+                  "startTime": "2026-10-23T16:50:19.134Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -146,7 +146,7 @@
           ],
           "id": "723a17b4fbf153e3b0b6-76a628276147768c3a15",
           "file": "recipes.spec.ts",
-          "line": 31,
+          "line": 32,
           "column": 1
         },
         {
@@ -165,12 +165,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 621,
+                  "duration": 1345,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T15:49:05.113Z",
+                  "startTime": "2026-10-23T16:50:22.057Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -180,7 +180,7 @@
           ],
           "id": "723a17b4fbf153e3b0b6-f7dd95b01486fc68a951",
           "file": "recipes.spec.ts",
-          "line": 36,
+          "line": 37,
           "column": 1
         },
         {
@@ -199,12 +199,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 553,
+                  "duration": 1623,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T15:49:05.750Z",
+                  "startTime": "2026-10-23T16:50:23.434Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -214,7 +214,7 @@
           ],
           "id": "723a17b4fbf153e3b0b6-1f0c75d343e8099da680",
           "file": "recipes.spec.ts",
-          "line": 43,
+          "line": 44,
           "column": 1
         },
         {
@@ -233,12 +233,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 684,
+                  "duration": 1802,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T15:49:06.316Z",
+                  "startTime": "2026-10-23T16:50:25.085Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -248,7 +248,7 @@
           ],
           "id": "723a17b4fbf153e3b0b6-0b14830234b7a564852b",
           "file": "recipes.spec.ts",
-          "line": 51,
+          "line": 52,
           "column": 1
         },
         {
@@ -267,12 +267,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 562,
+                  "duration": 1305,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T15:49:07.012Z",
+                  "startTime": "2026-10-23T16:50:26.911Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -282,7 +282,7 @@
           ],
           "id": "723a17b4fbf153e3b0b6-a89ab63210a219aacb71",
           "file": "recipes.spec.ts",
-          "line": 59,
+          "line": 60,
           "column": 1
         },
         {
@@ -301,12 +301,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 621,
+                  "duration": 1640,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T15:49:07.583Z",
+                  "startTime": "2026-10-23T16:50:28.238Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -316,7 +316,7 @@
           ],
           "id": "723a17b4fbf153e3b0b6-70fb96269b26a2814820",
           "file": "recipes.spec.ts",
-          "line": 71,
+          "line": 72,
           "column": 1
         },
         {
@@ -335,12 +335,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 713,
+                  "duration": 1168,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T15:49:08.213Z",
+                  "startTime": "2026-10-23T16:50:29.896Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -350,7 +350,7 @@
           ],
           "id": "723a17b4fbf153e3b0b6-85d7f0638d572d88b7d7",
           "file": "recipes.spec.ts",
-          "line": 78,
+          "line": 79,
           "column": 1
         },
         {
@@ -369,12 +369,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 564,
+                  "duration": 1191,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T15:49:08.935Z",
+                  "startTime": "2026-10-23T16:50:31.083Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -384,7 +384,7 @@
           ],
           "id": "723a17b4fbf153e3b0b6-fdc5f68b918309202b20",
           "file": "recipes.spec.ts",
-          "line": 85,
+          "line": 86,
           "column": 1
         },
         {
@@ -403,12 +403,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 553,
+                  "duration": 1605,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T15:49:09.513Z",
+                  "startTime": "2026-10-23T16:50:32.302Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -418,7 +418,7 @@
           ],
           "id": "723a17b4fbf153e3b0b6-e91d5df6f5edce1e6e4a",
           "file": "recipes.spec.ts",
-          "line": 93,
+          "line": 94,
           "column": 1
         },
         {
@@ -437,12 +437,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 507,
+                  "duration": 1091,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T15:49:10.075Z",
+                  "startTime": "2026-10-23T16:50:33.922Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -452,7 +452,7 @@
           ],
           "id": "723a17b4fbf153e3b0b6-99695d66073a345620d1",
           "file": "recipes.spec.ts",
-          "line": 101,
+          "line": 102,
           "column": 1
         },
         {
@@ -471,12 +471,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 583,
+                  "duration": 1248,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T15:49:10.590Z",
+                  "startTime": "2026-10-23T16:50:35.033Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -486,7 +486,7 @@
           ],
           "id": "723a17b4fbf153e3b0b6-3075b29f9dc03779d504",
           "file": "recipes.spec.ts",
-          "line": 107,
+          "line": 108,
           "column": 1
         },
         {
@@ -505,12 +505,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 574,
+                  "duration": 1048,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T15:49:11.183Z",
+                  "startTime": "2026-10-23T16:50:36.297Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -520,7 +520,7 @@
           ],
           "id": "723a17b4fbf153e3b0b6-d30ff475a952a6de64c6",
           "file": "recipes.spec.ts",
-          "line": 116,
+          "line": 117,
           "column": 1
         },
         {
@@ -539,12 +539,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 529,
+                  "duration": 1512,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T15:49:11.765Z",
+                  "startTime": "2026-10-23T16:50:37.366Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -554,7 +554,41 @@
           ],
           "id": "723a17b4fbf153e3b0b6-9bad12e8c9c7be4c61ea",
           "file": "recipes.spec.ts",
-          "line": 123,
+          "line": 124,
+          "column": 1
+        },
+        {
+          "title": "opens the automation tab",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1123,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-23T16:50:38.899Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "723a17b4fbf153e3b0b6-47ebc923847b8d562614",
+          "file": "recipes.spec.ts",
+          "line": 130,
           "column": 1
         },
         {
@@ -573,12 +607,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 528,
+                  "duration": 1503,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T15:49:12.306Z",
+                  "startTime": "2026-10-23T16:50:40.046Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -588,7 +622,7 @@
           ],
           "id": "723a17b4fbf153e3b0b6-cfaff35f31da1ee40f24",
           "file": "recipes.spec.ts",
-          "line": 129,
+          "line": 136,
           "column": 1
         },
         {
@@ -607,12 +641,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 618,
+                  "duration": 1620,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T15:49:12.842Z",
+                  "startTime": "2026-10-23T16:50:41.573Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -622,7 +656,7 @@
           ],
           "id": "723a17b4fbf153e3b0b6-d67b748f13862af07c93",
           "file": "recipes.spec.ts",
-          "line": 135,
+          "line": 142,
           "column": 1
         }
       ]
@@ -649,12 +683,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 922,
+                  "duration": 1203,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T15:49:13.476Z",
+                  "startTime": "2026-10-23T16:50:43.232Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -683,12 +717,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 557,
+                  "duration": 1207,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T15:49:14.415Z",
+                  "startTime": "2026-10-23T16:50:44.452Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -717,12 +751,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 850,
+                  "duration": 1715,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T15:49:14.990Z",
+                  "startTime": "2026-10-23T16:50:45.679Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -740,9 +774,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-10-23T15:49:00.707Z",
-    "duration": 15256.135999999999,
-    "expected": 18,
+    "startTime": "2026-10-23T16:50:11.686Z",
+    "duration": 35956.464,
+    "expected": 19,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

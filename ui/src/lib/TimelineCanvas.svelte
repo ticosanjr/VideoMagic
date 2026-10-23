@@ -40,9 +40,11 @@
 
   let container = $state<HTMLDivElement | null>(null);
   let stage: any = null;
-  let layer: any = null;
+  let scene: any = null;
   let overlay: any = null;
   let konva: any = null;
+  let playheadLine: any = null;
+  let playheadKnob: any = null;
   let guideLine: any = null;
   let guideRect: any = null;
   let scrubbing = false;
@@ -93,7 +95,8 @@
         points: [0, RULER, 0, HEIGHT],
         stroke: "#fbbf24",
         strokeWidth: 1,
-        dash: [4, 3]
+        dash: [4, 3],
+        listening: false
       });
       overlay.add(guideLine);
     }
@@ -113,7 +116,8 @@
       guideRect = new konva.Rect({
         stroke: "#fbbf24",
         strokeWidth: 2,
-        dash: [5, 3]
+        dash: [5, 3],
+        listening: false
       });
       overlay.add(guideRect);
     }
@@ -135,9 +139,9 @@
   function buildStage() {
     if (!konva || !container || stage) return;
     stage = new konva.Stage({ container, width, height: HEIGHT });
-    layer = new konva.Layer();
-    overlay = new konva.Layer({ listening: false });
-    stage.add(layer);
+    scene = new konva.Layer({ listening: true });
+    overlay = new konva.Layer({ listening: true });
+    stage.add(scene);
     stage.add(overlay);
 
     stage.on("mousedown touchstart", (event: any) => {
@@ -167,41 +171,7 @@
     });
   }
 
-  function draw() {
-    if (!konva || !container) return;
-    buildStage();
-    if (!stage || !layer) return;
-    stage.width(width);
-    layer.destroyChildren();
-    overlay.destroyChildren();
-    guideLine = null;
-    guideRect = null;
-
-    layer.add(new konva.Rect({ x: 0, y: 0, width, height: HEIGHT, fill: "#09090b" }));
-    layer.add(
-      new konva.Rect({
-        x: 0,
-        y: 0,
-        width: HEADER,
-        height: HEIGHT,
-        fill: "#0c0c0f",
-        stroke: "#27272a",
-        strokeWidth: 1
-      })
-    );
-    layer.add(
-      new konva.Text({ x: 10, y: 8, text: "TIMELINE", fontSize: 10, fill: "#71717a", fontStyle: "bold" })
-    );
-    layer.add(
-      new konva.Text({
-        x: 10,
-        y: 310,
-        text: `${timeline.video.length} clips · ${timeline.captions.length} captions · ${Math.round(timeline.duration_sec)}s`,
-        fontSize: 8,
-        fill: "#52525b"
-      })
-    );
-
+  function drawRuler(layer: any) {
     const majorStep = zoom >= 110 ? 1 : zoom >= 50 ? 2 : zoom >= 24 ? 5 : 10;
     for (let second = 0; second <= Math.ceil(timeline.duration_sec) + 1; second += 1) {
       const major = second % majorStep === 0;
@@ -209,17 +179,27 @@
         new konva.Line({
           points: [x(second), RULER, x(second), HEIGHT],
           stroke: major ? "#27272a" : "#17171a",
-          strokeWidth: 1
+          strokeWidth: 1,
+          listening: false
         })
       );
       if (major) {
         layer.add(
-          new konva.Text({ x: x(second) + 3, y: 8, text: `${second}s`, fontSize: 9, fill: "#71717a" })
+          new konva.Text({
+            x: x(second) + 3,
+            y: 8,
+            text: `${second}s`,
+            fontSize: 9,
+            fill: "#71717a",
+            listening: false
+          })
         );
       }
     }
-    layer.add(new konva.Rect({ x: 0, y: RULER, width, height: 1, fill: "#3f3f46" }));
+    layer.add(new konva.Rect({ x: 0, y: RULER, width, height: 1, fill: "#3f3f46", listening: false }));
+  }
 
+  function drawTracks(layer: any) {
     for (const track of TRACKS) {
       layer.add(
         new konva.Text({
@@ -228,7 +208,8 @@
           text: track.label,
           fontSize: 8,
           fill: "#a1a1aa",
-          fontStyle: "bold"
+          fontStyle: "bold",
+          listening: false
         })
       );
       layer.add(
@@ -243,8 +224,9 @@
         })
       );
     }
+  }
 
-    // Video clips with film-strip ticks and trim handles.
+  function drawVideoClips(layer: any) {
     for (const clip of timeline.video) {
       const selected = clip.id === selectedClipId;
       const clipWidth = Math.max(6, (clip.end_sec - clip.start_sec) * zoom);
@@ -271,7 +253,8 @@
             points: [index * 14, 20, index * 14, TRACKS[0].h - 12],
             stroke: selected ? "#0ea5e9" : "#0c4a6e",
             strokeWidth: 1,
-            opacity: 0.8
+            opacity: 0.8,
+            listening: false
           })
         );
       }
@@ -283,24 +266,43 @@
           text: clip.id,
           fontSize: 9,
           fill: "#e0f2fe",
-          ellipsis: true
+          ellipsis: true,
+          listening: false
         })
       );
-      const duration = (clip.end_sec - clip.start_sec).toFixed(2);
       group.add(
         new konva.Text({
           x: 5,
           y: 19,
-          text: `${duration}s`,
+          text: `${(clip.end_sec - clip.start_sec).toFixed(2)}s`,
           fontSize: 8,
-          fill: "#7dd3fc"
+          fill: "#7dd3fc",
+          listening: false
         })
       );
       if (clip.keyframes) {
-        group.add(new konva.Text({ x: 5, y: 33, text: `${clip.keyframes} keyframes`, fontSize: 8, fill: "#bae6fd" }));
+        group.add(
+          new konva.Text({
+            x: 5,
+            y: 33,
+            text: `${clip.keyframes} keyframes`,
+            fontSize: 8,
+            fill: "#bae6fd",
+            listening: false
+          })
+        );
       }
       if (clip.transition) {
-        group.add(new konva.Text({ x: 5, y: 45, text: clip.transition, fontSize: 8, fill: "#fcd34d" }));
+        group.add(
+          new konva.Text({
+            x: 5,
+            y: 45,
+            text: clip.transition,
+            fontSize: 8,
+            fill: "#fcd34d",
+            listening: false
+          })
+        );
       }
       group.on("click tap", (event: any) => {
         event.cancelBubble = true;
@@ -335,74 +337,10 @@
         if (Math.abs(delta) > 0.001) onMoveClip(clip.id, delta);
       });
       layer.add(group);
-
-      if (selected) {
-        for (const edge of ["left", "right"] as const) {
-          const handleX = edge === "left" ? x(clip.start_sec) - 4 : x(clip.end_sec) - 4;
-          const handle = new konva.Rect({
-            x: handleX,
-            y: TRACKS[0].y + 2,
-            width: 8,
-            height: TRACKS[0].h - 4,
-            fill: "#f43f5e",
-            cornerRadius: 2,
-            draggable: true
-          });
-          handle.on("mouseenter", () => {
-            if (stage) stage.container().style.cursor = "ew-resize";
-          });
-          handle.on("mouseleave", () => {
-            if (stage) stage.container().style.cursor = "default";
-          });
-          handle.on("dragstart", (event: any) => {
-            event.cancelBubble = true;
-            trim = {
-              id: clip.id,
-              edge,
-              originX: handle.x(),
-              start: clip.start_sec,
-              end: clip.end_sec
-            };
-          });
-          handle.on("dragmove", (event: any) => {
-            event.cancelBubble = true;
-            handle.y(TRACKS[0].y + 2);
-            if (!trim) return;
-            const delta = (handle.x() - trim.originX) / zoom;
-            if (edge === "left") {
-              trimGhost = {
-                id: clip.id,
-                start: Math.max(0, Math.min(trim.end - 0.05, trim.start + delta)),
-                end: trim.end
-              };
-            } else {
-              trimGhost = {
-                id: clip.id,
-                start: trim.start,
-                end: Math.max(trim.start + 0.05, Math.min(timeline.duration_sec, trim.end + delta))
-              };
-            }
-            showTrim(trimGhost.start, trimGhost.end, TRACKS[0]);
-          });
-          handle.on("dragend", (event: any) => {
-            event.cancelBubble = true;
-            const ghost = trimGhost;
-            trim = null;
-            trimGhost = null;
-            hideTrim();
-            if (!ghost) return;
-            const start = Math.round(ghost.start * 1000) / 1000;
-            const end = Math.round(ghost.end * 1000) / 1000;
-            if (Math.abs(start - clip.start_sec) > 0.001 || Math.abs(end - clip.end_sec) > 0.001) {
-              onTrimClip(clip.id, start, end);
-            }
-          });
-          layer.add(handle);
-        }
-      }
     }
+  }
 
-    // Audio clips.
+  function drawAudioClips(layer: any) {
     for (const clip of timeline.audio) {
       const clipWidth = Math.max(4, (clip.end_sec - clip.start_sec) * zoom);
       layer.add(
@@ -413,7 +351,8 @@
           height: TRACKS[1].h - 10,
           fill: "#064e3b",
           stroke: "#059669",
-          cornerRadius: 3
+          cornerRadius: 3,
+          listening: false
         })
       );
       const bars = Math.max(1, Math.floor(clipWidth / 5));
@@ -430,7 +369,8 @@
             ],
             stroke: "#34d399",
             strokeWidth: 1.5,
-            opacity: 0.7
+            opacity: 0.7,
+            listening: false
           })
         );
       }
@@ -440,24 +380,27 @@
           y: TRACKS[1].y + 5,
           text: clip.id,
           fontSize: 8,
-          fill: "#a7f3d0"
+          fill: "#a7f3d0",
+          listening: false
         })
       );
     }
+  }
 
-    // Captions.
+  function drawCaptions(layer: any) {
     for (const caption of timeline.captions.slice(0, 500)) {
       const clipWidth = Math.max(3, (caption.end_sec - caption.start_sec) * zoom);
-      const selected = caption.start_sec <= playhead && playhead <= caption.end_sec;
+      const current = caption.start_sec <= playhead && playhead <= caption.end_sec;
       layer.add(
         new konva.Rect({
           x: x(caption.start_sec),
           y: TRACKS[2].y + 5,
           width: clipWidth,
           height: TRACKS[2].h - 10,
-          fill: selected ? "#6d28d9" : TRACKS[2].fill,
+          fill: current ? "#6d28d9" : TRACKS[2].fill,
           stroke: "#8b5cf6",
-          cornerRadius: 3
+          cornerRadius: 3,
+          listening: false
         })
       );
       if (clipWidth > 40) {
@@ -470,28 +413,30 @@
             fontSize: 8,
             fill: "#ede9fe",
             ellipsis: true,
-            wrap: "none"
+            wrap: "none",
+            listening: false
           })
         );
       }
     }
+  }
 
-    // B-roll plan chips: each Short owns an independent plan, shown in sequence.
+  function drawBroll(layer: any) {
     let chipX = x(0);
     for (const [title, entries] of Object.entries(timeline.broll ?? {})) {
-      const approved = brollApproved[title]?.length ?? timeline.broll_approval?.[title]?.approved?.length ?? 0;
+      const approved =
+        brollApproved[title]?.length ?? timeline.broll_approval?.[title]?.approved?.length ?? 0;
       const chipWidth = Math.max(90, Math.min(220, timeline.duration_sec * zoom * 0.18));
-      const fill = approved > 0 ? "#78350f" : "#27272a";
-      const stroke = approved > 0 ? "#f59e0b" : "#52525b";
       layer.add(
         new konva.Rect({
           x: chipX,
           y: TRACKS[3].y + 5,
           width: chipWidth,
           height: TRACKS[3].h - 10,
-          fill,
-          stroke,
-          cornerRadius: 4
+          fill: approved > 0 ? "#78350f" : "#27272a",
+          stroke: approved > 0 ? "#f59e0b" : "#52525b",
+          cornerRadius: 4,
+          listening: false
         })
       );
       layer.add(
@@ -503,7 +448,8 @@
           fontSize: 8,
           fill: "#fde68a",
           ellipsis: true,
-          wrap: "none"
+          wrap: "none",
+          listening: false
         })
       );
       layer.add(
@@ -512,22 +458,136 @@
           y: TRACKS[3].y + 23,
           text: `${approved}/${entries.length} approved`,
           fontSize: 8,
-          fill: approved > 0 ? "#fbbf24" : "#a1a1aa"
+          fill: approved > 0 ? "#fbbf24" : "#a1a1aa",
+          listening: false
         })
       );
       chipX += chipWidth + 8;
       if (chipX > width - 40) break;
     }
+  }
 
-    // Playhead.
-    layer.add(
-      new konva.Line({
-        points: [x(playhead), RULER, x(playhead), HEIGHT],
-        stroke: "#fb7185",
-        strokeWidth: 2
+  function drawBackground() {
+    if (!konva || !container) return;
+    buildStage();
+    if (!stage || !scene) return;
+    stage.width(width);
+    scene.destroyChildren();
+    scene.add(new konva.Rect({ x: 0, y: 0, width, height: HEIGHT, fill: "#09090b" }));
+    scene.add(
+      new konva.Rect({
+        x: 0,
+        y: 0,
+        width: HEADER,
+        height: HEIGHT,
+        fill: "#0c0c0f",
+        stroke: "#27272a",
+        strokeWidth: 1
       })
     );
-    const knob = new konva.Circle({
+    scene.add(
+      new konva.Text({ x: 10, y: 8, text: "TIMELINE", fontSize: 10, fill: "#71717a", fontStyle: "bold" })
+    );
+    scene.add(
+      new konva.Text({
+        x: 10,
+        y: 310,
+        text: `${timeline.video.length} clips · ${timeline.captions.length} captions · ${Math.round(timeline.duration_sec)}s`,
+        fontSize: 8,
+        fill: "#52525b"
+      })
+    );
+    drawRuler(scene);
+    drawTracks(scene);
+    drawVideoClips(scene);
+    drawAudioClips(scene);
+    drawCaptions(scene);
+    drawBroll(scene);
+    scene.draw();
+  }
+
+  function drawOverlay() {
+    if (!konva || !overlay) return;
+    overlay.destroyChildren();
+    playheadLine = null;
+    playheadKnob = null;
+    guideLine = null;
+    guideRect = null;
+
+    const clip = timeline.video.find((item) => item.id === selectedClipId);
+    if (clip) {
+      for (const edge of ["left", "right"] as const) {
+        const handleX = edge === "left" ? x(clip.start_sec) - 4 : x(clip.end_sec) - 4;
+        const handle = new konva.Rect({
+          x: handleX,
+          y: TRACKS[0].y + 2,
+          width: 8,
+          height: TRACKS[0].h - 4,
+          fill: "#f43f5e",
+          cornerRadius: 2,
+          draggable: true
+        });
+        handle.on("mouseenter", () => {
+          if (stage) stage.container().style.cursor = "ew-resize";
+        });
+        handle.on("mouseleave", () => {
+          if (stage) stage.container().style.cursor = "default";
+        });
+        handle.on("dragstart", (event: any) => {
+          event.cancelBubble = true;
+          trim = {
+            id: clip.id,
+            edge,
+            originX: handle.x(),
+            start: clip.start_sec,
+            end: clip.end_sec
+          };
+        });
+        handle.on("dragmove", (event: any) => {
+          event.cancelBubble = true;
+          handle.y(TRACKS[0].y + 2);
+          if (!trim) return;
+          const delta = (handle.x() - trim.originX) / zoom;
+          if (edge === "left") {
+            trimGhost = {
+              id: clip.id,
+              start: Math.max(0, Math.min(trim.end - 0.05, trim.start + delta)),
+              end: trim.end
+            };
+          } else {
+            trimGhost = {
+              id: clip.id,
+              start: trim.start,
+              end: Math.max(trim.start + 0.05, Math.min(timeline.duration_sec, trim.end + delta))
+            };
+          }
+          showTrim(trimGhost.start, trimGhost.end, TRACKS[0]);
+        });
+        handle.on("dragend", (event: any) => {
+          event.cancelBubble = true;
+          const ghost = trimGhost;
+          trim = null;
+          trimGhost = null;
+          hideTrim();
+          if (!ghost) return;
+          const start = Math.round(ghost.start * 1000) / 1000;
+          const end = Math.round(ghost.end * 1000) / 1000;
+          if (Math.abs(start - clip.start_sec) > 0.001 || Math.abs(end - clip.end_sec) > 0.001) {
+            onTrimClip(clip.id, start, end);
+          }
+        });
+        overlay.add(handle);
+      }
+    }
+
+    playheadLine = new konva.Line({
+      points: [x(playhead), RULER, x(playhead), HEIGHT],
+      stroke: "#fb7185",
+      strokeWidth: 2,
+      listening: false
+    });
+    overlay.add(playheadLine);
+    playheadKnob = new konva.Circle({
       x: x(playhead),
       y: 16,
       radius: 6,
@@ -540,32 +600,48 @@
         y: 16
       })
     });
-    knob.on("dragmove", () => {
-      const pointer = stage.getPointerPosition();
+    playheadKnob.on("dragmove", () => {
+      const pointer = stage?.getPointerPosition();
       if (pointer) onSeek(timeAt(pointer.x));
     });
-    layer.add(knob);
-    layer.draw();
+    overlay.add(playheadKnob);
+    overlay.draw();
+  }
+
+  function updatePlayhead() {
+    if (!playheadLine || !playheadKnob || !overlay) return;
+    playheadLine.points([x(playhead), RULER, x(playhead), HEIGHT]);
+    playheadKnob.x(x(playhead));
+    overlay.batchDraw();
   }
 
   onMount(async () => {
     konva = (await import("konva")).default;
-    draw();
+    drawBackground();
+    drawOverlay();
   });
 
   onDestroy(() => {
     stage?.destroy();
     stage = null;
-    layer = null;
+    scene = null;
+    overlay = null;
   });
 
   $effect(() => {
     timeline;
-    playhead;
     zoom;
     selectedClipId;
     brollApproved;
-    if (stage) draw();
+    if (stage) {
+      drawBackground();
+      drawOverlay();
+    }
+  });
+
+  $effect(() => {
+    playhead;
+    updatePlayhead();
   });
 </script>
 

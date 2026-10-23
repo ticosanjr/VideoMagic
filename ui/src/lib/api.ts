@@ -439,6 +439,23 @@ export interface RecipeSummary {
   source: string;
 }
 
+export interface RecipeSchedule {
+  id: string;
+  kind: "once" | "interval" | "watch";
+  recipe_id: string;
+  source: string;
+  output: string;
+  interval_seconds: number;
+  watch_dir: string;
+  pattern: string;
+  enabled: boolean;
+  last_run: string;
+  status: string;
+  last_error: string;
+  created_at: string;
+  seen_paths: string[];
+}
+
 export interface BatchItem {
   source: string;
   output: string;
@@ -1118,6 +1135,68 @@ export async function listRecipes(): Promise<RecipeSummary[]> {
   return response.recipes;
 }
 
+export async function getJobReview(jobId: string): Promise<{
+  review: Record<string, unknown>;
+  approval: Record<string, unknown>;
+}> {
+  return request(`/api/v1/jobs/${encodeURIComponent(jobId)}/review`);
+}
+
+export async function decideJobReview(
+  jobId: string,
+  payload: { approved: boolean; comment?: string; reviewer?: string }
+): Promise<void> {
+  await request(`/api/v1/jobs/${encodeURIComponent(jobId)}/review`, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function getJobThumbnails(jobId: string): Promise<{
+  variants: string[];
+  selected: string;
+}> {
+  return request(`/api/v1/jobs/${encodeURIComponent(jobId)}/thumbnails`);
+}
+
+export async function selectJobThumbnail(jobId: string, name: string): Promise<void> {
+  await request(`/api/v1/jobs/${encodeURIComponent(jobId)}/thumbnails/select`, {
+    method: "POST",
+    body: JSON.stringify({ name })
+  });
+}
+
+export function jobThumbnailUrl(jobId: string, name: string): string {
+  return `/api/v1/jobs/${encodeURIComponent(jobId)}/thumbnails/${encodeURIComponent(name)}`;
+}
+
+export async function listSchedules(): Promise<RecipeSchedule[]> {
+  const response = await request<{ ok: boolean; schedules: RecipeSchedule[] }>(
+    "/api/v1/schedules"
+  );
+  return response.schedules;
+}
+
+export async function saveSchedule(schedule: RecipeSchedule): Promise<RecipeSchedule> {
+  const response = await request<{ ok: boolean; schedule: RecipeSchedule }>(
+    `/api/v1/schedules/${encodeURIComponent(schedule.id)}`,
+    { method: "PUT", body: JSON.stringify(schedule) }
+  );
+  return response.schedule;
+}
+
+export async function deleteSchedule(scheduleId: string): Promise<void> {
+  await request(`/api/v1/schedules/${encodeURIComponent(scheduleId)}`, { method: "DELETE" });
+}
+
+export async function runScheduleNow(scheduleId: string): Promise<RecipeSchedule> {
+  const response = await request<{ ok: boolean; schedule: RecipeSchedule }>(
+    `/api/v1/schedules/${encodeURIComponent(scheduleId)}/run`,
+    { method: "POST" }
+  );
+  return response.schedule;
+}
+
 export async function getRecipe(recipeId: string): Promise<Recipe> {
   const response = await request<{ ok: boolean; recipe: Recipe }>(
     `/api/v1/recipes/${encodeURIComponent(recipeId)}`
@@ -1402,8 +1481,13 @@ export interface TimelineClip {
   source_in_frame?: number;
   source_out_frame?: number;
   zoom?: number;
+  pos_x?: number;
+  pos_y?: number;
   keyframes?: number;
   transition?: string | null;
+  transition_frames?: number;
+  fade_in_sec?: number;
+  fade_out_sec?: number;
 }
 
 export interface TimelineData {
@@ -1452,7 +1536,7 @@ export interface ProviderConfig {
 
 export interface ModelDownload {
   model_id: string;
-  status: "queued" | "downloading" | "installed" | "failed" | "cancelled";
+  status: "queued" | "downloading" | "installed" | "failed" | "cancelled" | "interrupted";
   percent: number;
   message: string;
   error: string;
@@ -1497,6 +1581,25 @@ export async function editTimeline(
     method: "PATCH",
     body: JSON.stringify(payload)
   });
+}
+
+export async function updateTimelineClip(
+  jobId: string,
+  clipId: string,
+  payload: {
+    transition_type?: "crossfade" | "fade_to_black" | "none";
+    transition_duration_frames?: number;
+    scale?: number;
+    pos_x?: number;
+    pos_y?: number;
+    fade_in_sec?: number;
+    fade_out_sec?: number;
+  }
+): Promise<{ ok: boolean; revision: number; can_undo: boolean; can_redo: boolean }> {
+  return request(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/timeline/clip/${encodeURIComponent(clipId)}`,
+    { method: "PATCH", body: JSON.stringify(payload) }
+  );
 }
 
 export async function undoTimeline(jobId: string): Promise<void> {
@@ -1624,9 +1727,36 @@ export async function getLogs(
 
 export async function createJobPreview(
   jobId: string,
-  force = false
-): Promise<{ ok: boolean; path: string; url: string }> {
-  return request(`/api/v1/jobs/${encodeURIComponent(jobId)}/preview?force=${force}`, {
+  force = false,
+  background = false
+): Promise<{
+  ok: boolean;
+  status?: PreviewStatus | "ready";
+  path?: string;
+  url: string;
+}> {
+  return request(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/preview?force=${force}&background=${background}`,
+    { method: "POST" }
+  );
+}
+
+export interface PreviewStatus {
+  job_id: string;
+  status: "idle" | "queued" | "rendering" | "ready" | "failed" | "cancelled";
+  percent: number;
+  message?: string;
+  error?: string;
+}
+
+export async function getPreviewStatus(jobId: string): Promise<PreviewStatus> {
+  return request<PreviewStatus>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/preview/status`
+  );
+}
+
+export async function cancelPreview(jobId: string): Promise<void> {
+  await request(`/api/v1/jobs/${encodeURIComponent(jobId)}/preview/cancel`, {
     method: "POST"
   });
 }

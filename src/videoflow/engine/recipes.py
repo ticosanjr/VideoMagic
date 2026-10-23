@@ -172,6 +172,12 @@ BUILTIN_RECIPES: dict[str, dict[str, Any]] = {
                 "params": {"burn_subtitles": True},
             },
             {
+                "id": "color",
+                "type": "color.grade",
+                "needs": ["timeline"],
+                "params": {},
+            },
+            {
                 "id": "audio_master",
                 "type": "audio.master",
                 "needs": ["timeline"],

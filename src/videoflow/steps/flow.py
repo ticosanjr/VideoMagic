@@ -167,20 +167,62 @@ class LoopStep(_FlowStep):
         elif options.over == "files":
             pattern = options.glob or "*"
             base = context.source.parent
-            items = [
-                {"path": str(path)}
-                for path in sorted(base.glob(pattern))[: options.max_items]
-                if path.is_file() and path != context.source
-            ]
+            items = []
+            for path in sorted(base.glob(pattern)):
+                if len(items) >= options.max_items:
+                    break
+                if not path.is_file() or path == context.source:
+                    continue
+                try:
+                    if path.is_relative_to(context.output):
+                        continue
+                except ValueError:
+                    pass
+                items.append({"path": str(path)})
         else:
             items = []
         if not items:
             io.report(100, "Loop has no items")
             return
+
+        isolated = options.over == "files"
         for index, item in enumerate(items, start=1):
             context.metadata["loop_index"] = index
             context.metadata["loop_item"] = item
-            _run_steps(context, specs, io, depth=int(context.metadata.get("_flow_depth", 0)) + 1)
+            if isolated:
+                path = Path(str(item["path"]))
+                slug = "".join(
+                    char if char.isalnum() or char in {"-", "_"} else "-"
+                    for char in path.stem
+                ).strip("-") or "item"
+                child = context.model_copy(deep=True)
+                child.source = path
+                child.output = context.output / "loop" / f"{index:03d}-{slug}"
+                child.work = child.output / "work"
+                child.exports = child.output / "exports"
+                child.output.mkdir(parents=True, exist_ok=True)
+                child.work.mkdir(parents=True, exist_ok=True)
+                child.exports.mkdir(parents=True, exist_ok=True)
+                _run_steps(
+                    child,
+                    specs,
+                    io,
+                    depth=int(context.metadata.get("_flow_depth", 0)) + 1,
+                )
+                context.metadata.setdefault("loop_runs", []).append(
+                    {"item": str(path), "output": str(child.output), "summary": child.summary()}
+                )
+                for key, value in child.artifacts.items():
+                    context.artifacts[f"{slug}/{key}"] = value
+                context.shorts.extend(child.shorts)
+                context.warnings.extend(f"{slug}: {item}" for item in child.warnings)
+            else:
+                _run_steps(
+                    context,
+                    specs,
+                    io,
+                    depth=int(context.metadata.get("_flow_depth", 0)) + 1,
+                )
             io.report(int(index / len(items) * 100), f"Loop {index}/{len(items)}")
         context.metadata.pop("loop_item", None)
         io.report(100, f"Loop finished ({len(items)} item(s))")

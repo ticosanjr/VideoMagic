@@ -173,3 +173,60 @@ def test_provider_crud_roundtrip(monkeypatch, tmp_path: Path) -> None:
     removed = client.delete("/api/v1/providers/local-llm")
     assert removed.status_code == 200
     assert client.get("/api/v1/providers").json()["providers"] == []
+
+
+def test_clip_style_update_roundtrip(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    job = _job(manager, tmp_path)
+    response = client.patch(
+        f"/api/v1/jobs/{job.job_id}/timeline/clip/v1",
+        json={
+            "transition_type": "fade_to_black",
+            "transition_duration_frames": 8,
+            "scale": 1.2,
+            "fade_in_sec": 0.25,
+            "fade_out_sec": 0.5,
+        },
+    )
+    assert response.status_code == 200, response.text
+    payload = client.get(f"/api/v1/jobs/{job.job_id}/timeline").json()
+    clip = payload["video"][0]
+    assert clip["transition"] == "fade_to_black"
+    assert clip["transition_frames"] == 8
+    assert clip["zoom"] == 1.2
+    audio = payload["audio"][0]
+    assert audio["fade_in_sec"] == 0.25
+    assert audio["fade_out_sec"] == 0.5
+    assert payload["revision"] == 2
+
+
+def test_schedule_crud_and_run_now(monkeypatch, tmp_path: Path) -> None:
+    client, _ = _client(monkeypatch, tmp_path)
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    schedule = {
+        "id": "watch-one",
+        "kind": "interval",
+        "recipe_id": "youtube_talking_head",
+        "source": str(source),
+        "output": str(tmp_path / "out-scheduled"),
+        "interval_seconds": 60,
+        "watch_dir": "",
+        "pattern": "*.mp4",
+        "enabled": True,
+        "last_run": "",
+        "status": "idle",
+        "last_error": "",
+        "created_at": "",
+        "seen_paths": [],
+    }
+    saved = client.put("/api/v1/schedules/watch-one", json=schedule)
+    assert saved.status_code == 200, saved.text
+    listing = client.get("/api/v1/schedules").json()
+    assert listing["schedules"][0]["id"] == "watch-one"
+    run = client.post("/api/v1/schedules/watch-one/run")
+    assert run.status_code == 200, run.text
+    assert run.json()["schedule"]["status"] in {"queued", "failed"}
+    deleted = client.delete("/api/v1/schedules/watch-one")
+    assert deleted.status_code == 200
+    assert client.get("/api/v1/schedules").json()["schedules"] == []

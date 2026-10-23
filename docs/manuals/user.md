@@ -4,7 +4,7 @@ This is the editor's guide. Installation belongs to the
 [operator manual](operator.md).
 
 > Status: the portable CLI, REST API, recipe studio, canvas timeline, and MCP
-> surface run real jobs in 0.67.0. Local Faster-Whisper quality transcription is
+> surface run real jobs in 0.70.0. Local Faster-Whisper quality transcription is
 > available with a whisper.cpp fallback. The UI browses local files and folders
 > through the server allowlist; it does not upload media.
 
@@ -259,7 +259,9 @@ The studio has six tabs:
   the only execution path.
 - **Assets** — scan folders, search, tag, license, download, and remove local
   media.
-- **Timeline** — edit the canonical `project_state.json` on a canvas.
+- **Timeline** — edit the canonical `project_state.json` on a canvas, preview
+  with titles/color/audio filters, and approve deliverables.
+- **Automation** — once/interval schedules and watch folders.
 - **Models** — download speech/vision models with progress and cancellation.
 - **Services** — inspect, restart, or stop local VideoFlow processes.
 - **Providers** — persist provider endpoints, defaults, and fallback chains.
@@ -272,15 +274,19 @@ undo/redo, split at the playhead, delete, ripple delete, zoom, fit, and a snap
 toggle. Keyboard shortcuts are Space, `S`, Delete, Shift+Delete, and
 Ctrl/Cmd+Z.
 
-The video preview and waveform stay synced with the playhead. If no preview
-exists, press **Render preview** to build a 540p browser proxy.
+The video preview and waveform stay synced with the playhead. **Render preview**
+builds a 540p proxy in the background with progress and cancel; it applies the
+title plan, color/LUT grade, and audio-master filters. The playhead timecode is
+editable.
 
 Every edit increments `revision` and writes `timeline_history.json`. Rendered
 artifacts are not silently reused; re-run the export or recipe after editing.
 
-Captions can be edited in the right-hand list. Shorts expose the full Short
-editor: reframe, captions, metadata, thumbnail, voice-over, dubbing, analysis,
-and publishing.
+Captions can be edited in the right-hand list. The clip inspector edits
+transition type/length, scale, position, and audio fade in/out. Shorts expose
+the full Short editor: reframe, captions, metadata, thumbnail, voice-over,
+dubbing, analysis, and publishing. Deliverables show the review checklist,
+approval state, and thumbnail A/B variants.
 
 B-roll plans are listed per Short. Approve or reject entries, reorder them, and
 save. The renderer consumes only approved entries in that order.
@@ -296,7 +302,18 @@ Model downloads run in the background with progress, cancellation, checksum
 verification, and disk usage. Weights are optional and live under the
 VideoFlow home.
 
-## 7. Exporting to an editor
+## 7. Automation
+
+Create a schedule in the Automation tab:
+
+- **Once** runs the recipe at the next scheduler tick.
+- **Interval** runs every N seconds after the previous run.
+- **Watch folder** queues a new job for each matching file not seen before.
+
+Each item records status, last run, errors, and seen files. The scheduler polls
+every 20 seconds and can be disabled with `VIDEOWFLOW_RECIPE_SCHEDULER=0`.
+
+## 8. Exporting to an editor
 
 See the [NLE import manual](nle-import.md). The short version:
 
@@ -307,7 +324,7 @@ See the [NLE import manual](nle-import.md). The short version:
 Check three things after import: audio is offset at a J-cut, the punch-in is
 visible, and no join clicks.
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 | Symptom | Fix |
 | --- | --- |
@@ -320,7 +337,7 @@ visible, and no join clicks.
 | Premiere will not open the file | Use the `.xml`, not the `.fcpxml`. |
 | Shorts are shorter than expected | Culls reduce the window; that is by design. |
 
-## 9. What VideoFlow will not do
+## 10. What VideoFlow will not do
 
 Distribution, code signing, macOS packaging, final color grading, and multicam
 switching are out of scope. It prepares the edit; you finish it in your NLE.

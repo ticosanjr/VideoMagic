@@ -40,6 +40,12 @@ from videoflow.application.capabilities import (
     external_services_allowed,
 )
 from videoflow.application.caption_ai import apply_llm_emoji
+from videoflow.application.deliverables import (
+    approve_review,
+    list_thumbnails,
+    review_payload,
+    select_thumbnail,
+)
 from videoflow.application.dubbing import generate_short_dubbing
 from videoflow.application.filesystem import create_directory, list_directory, roots_payload
 from videoflow.application.fonts import list_fonts, save_font
@@ -52,6 +58,7 @@ from videoflow.application.multimodal_llm import analyze_short_llm_entry
 from videoflow.application.music import list_music, save_music
 from videoflow.application.nle_validation import validate_nle_exports
 from videoflow.application.presets import get_preset, load_presets, save_preset
+from videoflow.application.previews import build_preview, previews
 from videoflow.application.project_templates import (
     ProjectTemplate,
     export_config,
@@ -74,6 +81,7 @@ from videoflow.application.providers import (
     ProviderConfig,
     delete_provider,
     fallback_manifest,
+    first_provider,
     list_providers,
     resolve_chain,
     set_default,
@@ -88,6 +96,13 @@ from videoflow.application.publishing import (
     list_queue,
     list_targets,
     save_target,
+)
+from videoflow.application.schedules import (
+    RecipeSchedule,
+    delete_schedule,
+    load_schedules,
+    run_now,
+    upsert_schedule,
 )
 from videoflow.application.services import (
     append_server_log,
@@ -121,7 +136,7 @@ from videoflow.domain.errors import (
     VideoFlowError,
 )
 from videoflow.domain.paths import resolve_allowed
-from videoflow.domain.state import MediaInfo, ProjectState
+from videoflow.domain.state import MediaInfo, ProjectState, Transition
 from videoflow.engine.batch import BatchManager
 from videoflow.engine.history import read_runs
 from videoflow.engine.maintenance import prune_output
@@ -133,7 +148,6 @@ from videoflow.engine.recipes import (
     restore_recipe_version,
     save_user_recipe,
 )
-from videoflow.exporters.mp4 import export_mp4
 from videoflow.runtime import allowed_roots, find_binary, portable_home
 from videoflow.steps import get_step, requirements_by_type, step_types
 from videoflow.steps import manifest as step_manifest
@@ -416,6 +430,26 @@ class TimelineEditRequest(BaseModel):
     end_sec: float | None = Field(default=None, ge=0.0)
     delta_sec: float = 0.0
     split_sec: float | None = Field(default=None, ge=0.0)
+
+
+class ClipUpdateRequest(BaseModel):
+    transition_type: Literal["crossfade", "fade_to_black", "none"] | None = None
+    transition_duration_frames: int | None = Field(default=None, ge=1, le=120)
+    scale: float | None = Field(default=None, ge=1.0, le=3.0)
+    pos_x: float | None = Field(default=None, ge=-1.0, le=1.0)
+    pos_y: float | None = Field(default=None, ge=-1.0, le=1.0)
+    fade_in_sec: float | None = Field(default=None, ge=0.0, le=30.0)
+    fade_out_sec: float | None = Field(default=None, ge=0.0, le=30.0)
+
+
+class ReviewDecisionRequest(BaseModel):
+    approved: bool
+    comment: str = Field(default="", max_length=4000)
+    reviewer: str = Field(default="", max_length=120)
+
+
+class ThumbnailSelectRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=300)
 
 
 class BrollApprovalRequest(BaseModel):
@@ -832,6 +866,45 @@ def register_routes(
                 detail={"ok": False, "code": "unknown_capability", "message": capability},
             )
         return {"ok": True, "capability": capability, "chain": resolve_chain(capability)}
+
+    @app.get("/api/v1/schedules")
+    def schedules_list() -> dict[str, object]:
+        return {
+            "ok": True,
+            "schedules": [item.model_dump(mode="json") for item in load_schedules()],
+        }
+
+    @app.put("/api/v1/schedules/{schedule_id}")
+    def schedules_save(schedule_id: str, request: RecipeSchedule) -> dict[str, object]:
+        try:
+            if request.id != schedule_id:
+                raise HTTPException(
+                    status_code=422,
+                    detail={"ok": False, "code": "schedule_id_mismatch", "message": schedule_id},
+                )
+            saved = upsert_schedule(request)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "schedule": saved.model_dump(mode="json")}
+
+    @app.delete("/api/v1/schedules/{schedule_id}")
+    def schedules_delete(schedule_id: str) -> dict[str, object]:
+        try:
+            delete_schedule(schedule_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "deleted": schedule_id}
+
+    @app.post("/api/v1/schedules/{schedule_id}/run")
+    def schedules_run(schedule_id: str) -> dict[str, object]:
+        try:
+            schedule = run_now(jobs, schedule_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "schedule": schedule.model_dump(mode="json")}
 
     @app.get("/api/v1/assets")
     def list_assets_route(
@@ -1453,37 +1526,66 @@ def register_routes(
         }
 
     @app.post("/api/v1/jobs/{job_id}/preview")
-    def create_preview(job_id: str, force: bool = False) -> dict[str, object]:
+    def create_preview(
+        job_id: str, force: bool = False, background: bool = False
+    ) -> dict[str, object]:
         try:
             job = jobs.get(job_id)
             if job.status != "succeeded":
                 raise StateNotReadyError("The job must succeed before preview rendering.")
             preview = job.output / "preview" / "preview.mp4"
-            if force or not preview.is_file():
-                preview.parent.mkdir(parents=True, exist_ok=True)
-                state_path = Path(
-                    str(
-                        (job.result or {}).get("state_path")
-                        or job.output / "project_state.json"
-                    )
-                )
-                if state_path.is_file():
-                    state = ProjectState.model_validate_json(
-                        state_path.read_text(encoding="utf-8")
-                    )
-                    full = job.output / "preview" / "timeline-preview.mp4"
-                    export_mp4(state, full)
-                    FFmpegAdapter().transcode_preview(full, preview)
-                else:
-                    source = _job_preview_source(job)
-                    FFmpegAdapter().transcode_preview(source, preview)
+            if background:
+                state = previews.start(job)
+                return {
+                    "ok": True,
+                    "status": state.to_dict(),
+                    "url": f"/api/v1/jobs/{job_id}/preview/file",
+                }
+            if not force and preview.is_file():
+                return {
+                    "ok": True,
+                    "status": "ready",
+                    "path": str(preview),
+                    "url": f"/api/v1/jobs/{job_id}/preview/file",
+                }
+            build_preview(job)
         except VideoFlowError as exc:
             fail(exc)
         return {
             "ok": True,
+            "status": "ready",
             "path": str(preview),
             "url": f"/api/v1/jobs/{job_id}/preview/file",
         }
+
+    @app.get("/api/v1/jobs/{job_id}/preview/status")
+    def preview_status(job_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        state = previews.get(job_id)
+        preview = job.output / "preview" / "preview.mp4"
+        if state is None:
+            return {
+                "ok": True,
+                "status": "ready" if preview.is_file() else "idle",
+                "percent": 100 if preview.is_file() else 0,
+            }
+        payload = state.to_dict()
+        payload["ok"] = True
+        return payload
+
+    @app.post("/api/v1/jobs/{job_id}/preview/cancel")
+    def cancel_preview(job_id: str) -> dict[str, object]:
+        state = previews.cancel(job_id)
+        if state is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "preview_not_found", "message": job_id},
+            )
+        return {"ok": True, "status": state.to_dict()}
 
     @app.get("/api/v1/jobs/{job_id}/preview/file")
     def download_preview(job_id: str) -> FileResponse:
@@ -1550,6 +1652,75 @@ def register_routes(
                 status_code=422,
                 detail={"ok": False, "code": "timeline_invalid", "message": str(exc)},
             ) from exc
+        return {
+            "ok": True,
+            "revision": state.revision,
+            "can_undo": history.can_undo,
+            "can_redo": history.can_redo,
+            "warning": "Re-run export/render to refresh artifacts.",
+        }
+
+    @app.patch("/api/v1/jobs/{job_id}/timeline/clip/{clip_id}")
+    def update_timeline_clip(
+        job_id: str, clip_id: str, request: ClipUpdateRequest
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            state_path = _timeline_state_path(job)
+            history = _timeline_history(job)
+            state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+            previous = state.model_copy(deep=True)
+            video = next(
+                (clip for clip in state.video_segments if clip.clip_id == clip_id), None
+            )
+            audio = next(
+                (clip for clip in state.audio_segments if clip.clip_id == clip_id), None
+            )
+            if video is None and audio is None:
+                raise StateNotReadyError(f"Unknown clip: {clip_id}")
+            if video is not None:
+                if request.transition_type is not None:
+                    if request.transition_type == "none":
+                        video.transition_out = None
+                    else:
+                        video.transition_out = Transition(
+                            type=request.transition_type,
+                            duration_frames=request.transition_duration_frames
+                            or (
+                                video.transition_out.duration_frames
+                                if video.transition_out
+                                else 6
+                            ),
+                        )
+                transform = video.transform
+                video.transform = transform.model_copy(
+                    update={
+                        key: value
+                        for key, value in {
+                            "scale": request.scale,
+                            "pos_x": request.pos_x,
+                            "pos_y": request.pos_y,
+                        }.items()
+                        if value is not None
+                    }
+                )
+            if audio is not None:
+                rate = (
+                    state.media_info.audio_sample_rate
+                    if state.media_info is not None
+                    else 48000
+                )
+                if request.fade_in_sec is not None:
+                    audio.fade_in_samples = round(request.fade_in_sec * rate)
+                if request.fade_out_sec is not None:
+                    audio.fade_out_samples = round(request.fade_out_sec * rate)
+            history.record(previous)
+            state = _apply_and_store(
+                job, state, state_path, history, previous.revision + 1
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
         return {
             "ok": True,
             "revision": state.revision,
@@ -1633,6 +1804,68 @@ def register_routes(
             ) from exc
         return {"ok": True, "sentence_id": sentence_id, "text": request.text}
 
+    @app.get("/api/v1/jobs/{job_id}/review")
+    def job_review(job_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, **review_payload(job.output)}
+
+    @app.patch("/api/v1/jobs/{job_id}/review")
+    def decide_job_review(
+        job_id: str, request: ReviewDecisionRequest
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            approval = approve_review(
+                job.output,
+                approved=request.approved,
+                comment=request.comment,
+                reviewer=request.reviewer,
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "approval": approval}
+
+    @app.get("/api/v1/jobs/{job_id}/thumbnails")
+    def job_thumbnails(job_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, **list_thumbnails(job.output)}
+
+    @app.get("/api/v1/jobs/{job_id}/thumbnails/{name}")
+    def job_thumbnail_file(job_id: str, name: str) -> FileResponse:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
+        directory = (job.output / "thumbnails").resolve()
+        path = (directory / name).resolve()
+        if path.parent != directory or not path.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "thumbnail_not_found", "message": name},
+            )
+        return FileResponse(path, media_type="image/png", filename=path.name)
+
+    @app.post("/api/v1/jobs/{job_id}/thumbnails/select")
+    def choose_job_thumbnail(
+        job_id: str, request: ThumbnailSelectRequest
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            payload = select_thumbnail(job.output, request.name)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, **payload}
+
     @app.get("/api/v1/jobs/{job_id}/broll")
     def job_broll(job_id: str) -> dict[str, object]:
         try:
@@ -1706,8 +1939,13 @@ def register_routes(
                     "source_in_frame": clip.source_in_frame,
                     "source_out_frame": clip.source_out_frame,
                     "zoom": clip.transform.scale,
+                    "pos_x": clip.transform.pos_x,
+                    "pos_y": clip.transform.pos_y,
                     "keyframes": len(clip.transform.keyframes),
                     "transition": clip.transition_out.type if clip.transition_out else None,
+                    "transition_frames": (
+                        clip.transition_out.duration_frames if clip.transition_out else 0
+                    ),
                 }
                 for clip in state.video_segments
             ],
@@ -1719,6 +1957,12 @@ def register_routes(
                     ),
                     "end_sec": round(
                         clip.timeline_out_sample / max(1, media.audio_sample_rate), 3
+                    ),
+                    "fade_in_sec": round(
+                        clip.fade_in_samples / max(1, media.audio_sample_rate), 3
+                    ),
+                    "fade_out_sec": round(
+                        clip.fade_out_samples / max(1, media.audio_sample_rate), 3
                     ),
                 }
                 for clip in state.audio_segments
@@ -1868,12 +2112,18 @@ def register_routes(
                 (job.output / "project_state.json").read_text(encoding="utf-8")
             )
             stored = state.modules_config.tts
+            tts_provider = first_provider("tts") or {}
             config = TtsConfig(
                 provider=request.provider,
-                base_url=request.base_url or stored.base_url,
-                model=request.model or stored.model,
+                base_url=request.base_url
+                or stored.base_url
+                or str(tts_provider.get("base_url") or ""),
+                model=request.model
+                or stored.model
+                or str(tts_provider.get("model") or ""),
                 voice=request.voice or stored.voice,
-                secret_name=stored.secret_name,
+                secret_name=stored.secret_name
+                or str(tts_provider.get("api_key_env") or "VIDEOWFLOW_TTS_API_KEY"),
                 binary=request.binary or stored.binary,
                 model_path=request.model_path or stored.model_path,
                 speed=request.speed,
@@ -1908,12 +2158,18 @@ def register_routes(
                 (job.output / "project_state.json").read_text(encoding="utf-8")
             )
             stored_tts = state.modules_config.tts
+            tts_provider = first_provider("tts") or {}
             tts = TtsConfig(
                 provider="openai_compatible",
-                base_url=request.base_url or stored_tts.base_url,
-                model=request.model or stored_tts.model,
+                base_url=request.base_url
+                or stored_tts.base_url
+                or str(tts_provider.get("base_url") or ""),
+                model=request.model
+                or stored_tts.model
+                or str(tts_provider.get("model") or ""),
                 voice=request.voice or stored_tts.voice,
-                secret_name=stored_tts.secret_name,
+                secret_name=stored_tts.secret_name
+                or str(tts_provider.get("api_key_env") or "VIDEOWFLOW_TTS_API_KEY"),
                 speed=request.speed,
                 volume=request.volume,
                 original_volume=request.original_volume,
@@ -1933,9 +2189,12 @@ def register_routes(
                 llm_base_url=(
                     request.llm_base_url
                     or state.modules_config.retakes.base_url
+                    or str((first_provider("llm") or {}).get("base_url") or "")
                     or "http://localhost:11434/v1"
                 ),
-                llm_model=request.llm_model or state.modules_config.retakes.model_name,
+                llm_model=request.llm_model
+                or state.modules_config.retakes.model_name
+                or str((first_provider("llm") or {}).get("model") or ""),
                 llm_api_key=os.environ.get("VIDEOWFLOW_LLM_API_KEY"),
                 tts_api_key=os.environ.get(tts.secret_name),
                 allow_external_services=request.allow_external_services,
@@ -1953,7 +2212,12 @@ def register_routes(
             job = jobs.get(job_id)
             if job.status != "succeeded" or job.result is None:
                 raise StateNotReadyError("The job must succeed before analysis.")
-            base_url = request.base_url or os.environ.get("VIDEOWFLOW_VISION_BASE_URL")
+            vision = first_provider("vision") or {}
+            base_url = (
+                request.base_url
+                or os.environ.get("VIDEOWFLOW_VISION_BASE_URL")
+                or str(vision.get("base_url") or "")
+            )
             if not base_url:
                 raise CapabilityUnavailableError(
                     "external_vision",
@@ -1964,10 +2228,12 @@ def register_routes(
                 index=index,
                 result=job.result,
                 base_url=base_url,
-                model=request.model or os.environ.get(
-                    "VIDEOWFLOW_VISION_MODEL", "gpt-4o-mini"
+                model=request.model
+                or str(vision.get("model") or "")
+                or os.environ.get("VIDEOWFLOW_VISION_MODEL", "gpt-4o-mini"),
+                api_key=os.environ.get(
+                    str(vision.get("api_key_env") or "VIDEOWFLOW_VISION_API_KEY")
                 ),
-                api_key=os.environ.get("VIDEOWFLOW_VISION_API_KEY"),
                 allow_external_services=request.allow_external_services,
                 allowed_external_hosts=tuple(request.allowed_external_hosts),
                 max_frames=request.max_frames,

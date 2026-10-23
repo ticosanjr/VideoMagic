@@ -167,6 +167,11 @@ def resolve_chain(capability: Capability) -> list[dict[str, object]]:
     return chain
 
 
+def first_provider(capability: Capability) -> dict[str, object] | None:
+    chain = resolve_chain(capability)
+    return chain[0] if chain else None
+
+
 def fallback_manifest() -> dict[str, list[dict[str, object]]]:
     capabilities: tuple[Capability, ...] = (
         "llm",

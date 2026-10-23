@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.audio import audio_filters
+from videoflow.application.titles import render_titles_ass
 from videoflow.core.context import PipelineContext
 from videoflow.domain.config import AudioEnhanceConfig
 from videoflow.domain.errors import IngestError
@@ -201,10 +202,74 @@ class AudioMasterStep(BaseStep):
         )
         context.artifacts["audio_master"] = str(target)
         context.metadata["audio_master_filters"] = filters
+        filters_path = context.output / "audio" / "master-filters.json"
+        filters_path.write_text(
+            json.dumps({"filters": filters}, indent=2) + "\n", encoding="utf-8"
+        )
+        context.artifacts["audio_master_filters"] = str(filters_path)
         io.report(100, "Audio master ready")
 
     def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
         path = context.artifacts.get("audio_master")
+        return (Path(path),) if path else ()
+
+
+class ColorGradeParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lut_path: str = ""
+    brightness: float = Field(default=0.0, ge=-1.0, le=1.0)
+    contrast: float = Field(default=1.0, ge=0.1, le=4.0)
+    saturation: float = Field(default=1.0, ge=0.0, le=4.0)
+    gamma: float = Field(default=1.0, ge=0.1, le=4.0)
+
+
+@register_step
+class ColorGradeStep(BaseStep):
+    type = "color.grade"
+    title = "Color / LUT"
+    description = "Apply a .cube LUT and deterministic eq grade to the MP4 preview/render."
+    status = "available"
+    icon = "◐"
+    color = "#22c55e"
+    produces = ("color_grade",)
+    params_model = ColorGradeParams
+
+    def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
+        options = ColorGradeParams.model_validate(params)
+        filters: list[str] = []
+        lut = Path(options.lut_path).expanduser() if options.lut_path else None
+        if lut is not None:
+            if not lut.is_file():
+                raise IngestError(f"LUT does not exist: {lut}")
+            escaped = str(lut).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
+            filters.append(f"lut3d='{escaped}'")
+        if (
+            options.brightness != 0.0
+            or options.contrast != 1.0
+            or options.saturation != 1.0
+            or options.gamma != 1.0
+        ):
+            filters.append(
+                "eq="
+                f"brightness={options.brightness}:"
+                f"contrast={options.contrast}:"
+                f"saturation={options.saturation}:"
+                f"gamma={options.gamma}"
+            )
+        target = context.output / "color" / "filters.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            json.dumps({"filters": filters, "lut": str(lut) if lut else ""}, indent=2)
+            + "\n",
+            encoding="utf-8",
+        )
+        context.artifacts["color_filters"] = str(target)
+        context.metadata["color_filters"] = filters
+        io.report(100, f"{len(filters)} color filter(s) planned")
+
+    def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
+        path = context.artifacts.get("color_filters")
         return (Path(path),) if path else ()
 
 
@@ -298,6 +363,14 @@ class TitlesStep(BaseStep):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         context.artifacts["titles"] = str(target)
+        media = context.media
+        ass_path = render_titles_ass(
+            payload,
+            context.output / "titles.ass",
+            width=media.width if media is not None else 1920,
+            height=media.height if media is not None else 1080,
+        )
+        context.artifacts["titles_ass"] = str(ass_path)
         context.metadata["titles"] = payload
         io.report(100, f"{len(lower_thirds)} lower third(s), {len(title_cards)} title card(s)")
 

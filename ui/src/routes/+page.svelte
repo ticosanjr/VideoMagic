@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import AssetsPanel from "$lib/AssetsPanel.svelte";
+  import AutomationPanel from "$lib/AutomationPanel.svelte";
   import CapabilitiesPanel from "$lib/CapabilitiesPanel.svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
   import ModelsPanel from "$lib/ModelsPanel.svelte";
@@ -11,12 +12,13 @@
   import { UI_VERSION } from "$lib/version";
   import "../app.css";
 
-  type Tab = "recipes" | "assets" | "timeline" | "models" | "services" | "providers";
+  type Tab = "recipes" | "assets" | "timeline" | "automation" | "models" | "services" | "providers";
 
   const TABS: { id: Tab; label: string; hint: string }[] = [
     { id: "recipes", label: "Recipes", hint: "Visual recipe builder and runner" },
     { id: "assets", label: "Assets", hint: "Local media, audio, images, fonts, tags, and licenses" },
     { id: "timeline", label: "Timeline", hint: "Canvas timeline with preview, trim, split, and undo" },
+    { id: "automation", label: "Automation", hint: "Schedules and watch folders for recipes" },
     { id: "models", label: "Models", hint: "Optional on-demand speech and vision models" },
     { id: "services", label: "Services", hint: "Inspect, stop, and restart local VideoFlow processes" },
     { id: "providers", label: "Providers", hint: "Persistent provider configuration and fallbacks" }
@@ -111,11 +113,17 @@
     history.replaceState(null, "", `#${tab}`);
   }
 
-  onMount(() => {
+  function syncHash() {
     const hash = window.location.hash.replace("#", "") as Tab;
     if (TABS.some((tab) => tab.id === hash)) activeTab = hash;
+  }
+
+  onMount(() => {
+    syncHash();
+    window.addEventListener("hashchange", syncHash);
     void connectToService();
     return () => {
+      window.removeEventListener("hashchange", syncHash);
       clearTimeout(toastTimer);
     };
   });
@@ -234,6 +242,8 @@
         <AssetsPanel />
       {:else if activeTab === "timeline"}
         <TimelinePanel />
+      {:else if activeTab === "automation"}
+        <AutomationPanel />
       {:else if activeTab === "models"}
         <ModelsPanel />
       {:else if activeTab === "services"}
