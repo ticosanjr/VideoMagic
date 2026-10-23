@@ -104,12 +104,22 @@ class PexelsBrollProvider:
     def download(self, asset: BrollAsset, destination: Path) -> Path:
         if not asset.url:
             raise IngestError("Stock B-roll asset has no download URL.")
-        response = self.client.get(asset.url, headers={"Authorization": self.api_key})
-        if response.status_code != 200:
-            raise IngestError(f"Could not download B-roll asset: HTTP {response.status_code}")
         target = Path(destination).expanduser()
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(response.content)
+        temporary = target.with_suffix(target.suffix + ".part")
+        with self.client.stream(
+            "GET",
+            asset.url,
+            headers={"Authorization": self.api_key},
+        ) as response:
+            if response.status_code != 200:
+                raise IngestError(
+                    f"Could not download B-roll asset: HTTP {response.status_code}"
+                )
+            with temporary.open("wb") as handle:
+                for chunk in response.iter_bytes():
+                    handle.write(chunk)
+        temporary.replace(target)
         return target
 
 

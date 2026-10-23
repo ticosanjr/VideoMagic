@@ -47,8 +47,14 @@ def main() -> int:
         timeout=args.timeout,
         check=False,
     )
+    plugin_warnings = [
+        line
+        for line in completed.stderr.splitlines()
+        if "failed to load filter" in line or "failed to load transition" in line
+    ]
     payload = {
         "ok": completed.returncode == 0 and output.is_file() and output.stat().st_size > 0,
+        "plugin_warnings": plugin_warnings,
         "project": str(project),
         "output": str(output),
         "returncode": completed.returncode,

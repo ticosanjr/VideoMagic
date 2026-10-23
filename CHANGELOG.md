@@ -3,6 +3,23 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.50.0] - 2026-10-23
+
+### Added
+
+- **Local pyannote auto-detection.** If the Models catalog installed the model,
+  `audio.diarize` uses it when `model_path` is the default Hugging Face id.
+- **Streaming Pexels downloads.** Stock clips are written chunk-by-chunk to a
+  `.part` file instead of being buffered entirely in memory.
+- **Melt plugin diagnostics.** `melt_check.py` reports failed filter/transition
+  plugin loads separately from the render verdict.
+
+### Notes
+
+- 452 Python tests, 8 media tests, 14 Vitest tests, and 12 Playwright tests pass.
+- Exact Kdenlive cross-dissolve and manual NLE QA remain pending.
+- Distribution remains out of scope.
+
 ## [0.49.0] - 2026-10-23
 
 ### Added

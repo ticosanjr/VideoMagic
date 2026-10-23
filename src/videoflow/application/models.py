@@ -85,6 +85,13 @@ def _installed(model_id: str) -> bool:
     return target.is_file()
 
 
+def installed_path(model_id: str) -> Path | None:
+    try:
+        return _target(model_id) if _installed(model_id) else None
+    except StateNotReadyError:
+        return None
+
+
 def list_models() -> list[dict[str, object]]:
     return [
         {

@@ -71,9 +71,16 @@ class DiarizeStep(BaseStep):
             if context.pcm_path is None or not Path(context.pcm_path).is_file():
                 raise IngestError("Model-based diarization needs the extracted PCM audio.")
             token = os.environ.get(options.hf_token_env) or None
+            model_path = options.model_path
+            if model_path in ("", "pyannote/speaker-diarization-3.1"):
+                from videoflow.application.models import installed_path
+
+                local = installed_path("pyannote-diarization-3.1")
+                if local is not None:
+                    model_path = str(local)
             try:
                 turns = PyannoteDiarizer(
-                    model_path=options.model_path,
+                    model_path=model_path,
                     device=options.device,
                     hf_token=token,
                 ).diarize(Path(context.pcm_path), sample_rate=sample_rate)
