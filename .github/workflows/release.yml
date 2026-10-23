@@ -22,11 +22,28 @@ jobs:
           cache-dependency-path: ui/package-lock.json
       - name: Install static FFmpeg
         run: |
-          curl -fsSL https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o /tmp/ffmpeg.tar.xz
+          set -euo pipefail
           mkdir -p /tmp/ffmpeg-static
-          tar -xJf /tmp/ffmpeg.tar.xz -C /tmp/ffmpeg-static --strip-components=1
-          sudo install /tmp/ffmpeg-static/ffmpeg /usr/local/bin/ffmpeg
-          sudo install /tmp/ffmpeg-static/ffprobe /usr/local/bin/ffprobe
+          strip=1
+          if ! curl --retry 3 --retry-delay 5 -fsSL \
+              https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz \
+              -o /tmp/ffmpeg.tar.xz; then
+            rm -f /tmp/ffmpeg.tar.xz
+          fi
+          if [ ! -f /tmp/ffmpeg.tar.xz ] || ! tar -tJf /tmp/ffmpeg.tar.xz >/dev/null 2>&1; then
+            echo "Primary FFmpeg mirror unavailable; using BtbN."
+            curl --retry 3 --retry-delay 5 -fsSL \
+              https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz \
+              -o /tmp/ffmpeg.tar.xz
+            strip=2
+          fi
+          tar -xJf /tmp/ffmpeg.tar.xz -C /tmp/ffmpeg-static --strip-components=$strip
+          found_ffmpeg=$(find /tmp/ffmpeg-static -name ffmpeg -type f | head -1)
+          found_ffprobe=$(find /tmp/ffmpeg-static -name ffprobe -type f | head -1)
+          test -n "$found_ffmpeg"
+          test -n "$found_ffprobe"
+          sudo install "$found_ffmpeg" /usr/local/bin/ffmpeg
+          sudo install "$found_ffprobe" /usr/local/bin/ffprobe
       - name: UI dependencies and build
         working-directory: ui
         run: npm ci && npm run build
