@@ -199,3 +199,18 @@ def test_batch_resume_skips_completed_items(tmp_path: Path) -> None:
     assert finished.status == "succeeded"
     assert len(jobs.started) == 1
     assert jobs.started[0][0].name == "b.mp4"
+
+
+def test_batch_list_paginates(tmp_path: Path) -> None:
+    source = tmp_path / "in"
+    source.mkdir()
+    (source / "a.mp4").write_bytes(b"a")
+    manager = BatchManager(FakeJobs())  # type: ignore[arg-type]
+    batch = manager.start(
+        source,
+        tmp_path / "out",
+        {"id": "batch", "name": "Batch", "steps": [{"id": "ingest", "type": "ingest"}]},
+    )
+    wait_batch(manager, str(batch.batch_id))
+    assert manager.list(limit=1, offset=0)[0].batch_id == batch.batch_id
+    assert manager.list(limit=1, offset=1) == []

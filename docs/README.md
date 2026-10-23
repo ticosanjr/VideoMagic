@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (0.47.0)
+## Implementation status (0.48.0)
 
 | Area | State |
 | --- | --- |
@@ -12,15 +12,15 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Silero VAD via ONNX Runtime with FFmpeg `silencedetect` fallback | implemented |
 | Deterministic timeline, J/L-cuts, fades, punch-ins | implemented |
 | FCPXML 1.9/1.10, xmeml v4, native Kdenlive MLT export | implemented |
-| Portable artifacts | 0.47.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
-| Run history | persisted in `work/run-history.json`, including failed runs, exposed by `GET /api/v1/runs` |
+| Portable artifacts | 0.48.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
+| Run history | persisted in `work/run-history.json`, including failed runs, paginated by `GET /api/v1/runs` |
 | Diagnostics | `work/failure.json` includes stage, error, FFmpeg command, stderr, and log tail |
 | NLE validation | `scripts/validate_nle.py` and `POST /api/v1/exports/validate` |
 | Schema gates | recipe and project-state `schema_version` migration |
 | Maintenance | output and global-cache pruning by age/size |
 | Preview proxy | on-demand 540p MP4 for browser preview |
 | Release | tag-triggered Linux/AppImage/Windows/SBOM release workflow |
-| Batch persistence | JSON batch history under the VideoFlow home, reloaded after restart |
+| Batch persistence | JSON batch history under the VideoFlow home, reloaded after restart, paginated API/UI |
 | Job persistence | job JSON under the VideoFlow home; interrupted jobs fail safely on restart |
 | Batch resume | resume failed/cancelled batches and skip completed items |
 | Preview | inline MP4/Short previews plus an on-demand 540p proxy in the UI |

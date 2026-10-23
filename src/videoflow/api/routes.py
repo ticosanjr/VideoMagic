@@ -741,19 +741,29 @@ def register_routes(
         return validate_nle_exports(directory)
 
     @app.get("/api/v1/runs")
-    def list_runs(output: str) -> dict[str, object]:
+    def list_runs(
+        output: str,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> dict[str, object]:
         try:
             resolved = resolve_allowed(Path(output), allowed_roots())
         except VideoFlowError as exc:
             fail(exc)
             raise
-        return {"ok": True, "runs": read_runs(resolved)}
-
-    @app.get("/api/v1/batches")
-    def list_batches() -> dict[str, object]:
         return {
             "ok": True,
-            "batches": [batch.to_dict() for batch in batch_manager.list()],
+            "runs": read_runs(resolved, limit=limit, offset=offset),
+            "total": len(read_runs(resolved)),
+        }
+
+    @app.get("/api/v1/batches")
+    def list_batches(limit: int | None = None, offset: int = 0) -> dict[str, object]:
+        batches = batch_manager.list(limit=limit, offset=offset)
+        return {
+            "ok": True,
+            "batches": [batch.to_dict() for batch in batches],
+            "total": len(batch_manager.list()),
         }
 
     @app.post("/api/v1/batches/{batch_id}/resume")
@@ -1088,8 +1098,12 @@ def register_routes(
         return {"ok": True, "options": options}
 
     @app.get("/api/v1/jobs")
-    def list_jobs() -> dict[str, object]:
-        return {"ok": True, "jobs": [job.to_dict() for job in jobs.list()]}
+    def list_jobs(limit: int | None = None, offset: int = 0) -> dict[str, object]:
+        return {
+            "ok": True,
+            "jobs": [job.to_dict() for job in jobs.list(limit=limit, offset=offset)],
+            "total": len(jobs.list()),
+        }
 
     @app.get("/api/v1/jobs/{job_id}")
     def get_job(job_id: str) -> dict[str, object]:

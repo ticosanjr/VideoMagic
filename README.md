@@ -7,7 +7,7 @@ vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive. The primary surface is a recipe DAG editor; the classic rack
 panels remain available for manual control.
 
-> Status: 0.47.0 alpha. The portable Linux binary, Linux AppImage, and Windows
+> Status: 0.48.0 alpha. The portable Linux binary, Linux AppImage, and Windows
 > PE run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical shorts, and
@@ -191,6 +191,8 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - Legacy runner execution scaffold removed; recipe engine owns execution.
 - pyannote 3.1 model downloader in the Models catalog using Hugging Face.
 - Saved viewport, node width cycling, proxy preview in the UI, and persisted batch history.
+- Pagination for jobs, batches, and run history.
+- Batch history list and proxy generation in the editor.
 - Configuration and test data are JSON; the only YAML files are the GitHub Actions workflows, which GitHub requires.
 - Versioned JSON migration gates for recipes and project state.
 - Output maintenance: checkpoint/B-roll/run-history pruning via CLI or API.

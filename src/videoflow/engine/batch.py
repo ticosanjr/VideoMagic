@@ -225,9 +225,13 @@ class BatchManager:
                 raise BatchError(f"Unknown batch: {batch_id}")
             return batch
 
-    def list(self) -> list[Batch]:
+    def list(self, *, limit: int | None = None, offset: int = 0) -> list[Batch]:
         with self._lock:
-            return sorted(self._batches.values(), key=lambda item: item.created_at, reverse=True)
+            batches = sorted(self._batches.values(), key=lambda item: item.created_at, reverse=True)
+        start = max(0, int(offset))
+        if limit is None:
+            return batches[start:]
+        return batches[start : start + max(0, int(limit))]
 
     def cancel(self, batch_id: str) -> Batch:
         with self._lock:

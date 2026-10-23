@@ -843,3 +843,17 @@ def test_step_io_reports_local_and_overall_progress() -> None:
     io.report(50, "half")
     assert local == [("timeline", 50, "half")]
     assert overall == [("timeline", 37, "half")]
+
+
+def test_job_manager_lists_with_pagination(tmp_path: Path) -> None:
+    from videoflow.application.jobs import JobManager
+
+    def runner(source, output, **kwargs):
+        return {"ok": True}
+
+    manager = JobManager(runner=runner)
+    first = manager.start(tmp_path / "a.mp4", tmp_path / "a", {})
+    second = manager.start(tmp_path / "b.mp4", tmp_path / "b", {})
+    jobs = manager.list(limit=1)
+    assert len(jobs) == 1
+    assert jobs[0].job_id in {first.job_id, second.job_id}

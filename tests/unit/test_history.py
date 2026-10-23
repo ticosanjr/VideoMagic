@@ -41,3 +41,14 @@ def test_history_api_reads_an_output(tmp_path: Path) -> None:
     response = client.get("/api/v1/runs", params={"output": str(output)})
     assert response.status_code == 200
     assert response.json()["runs"][0]["job_id"] == "a"
+
+
+def test_history_paginates(tmp_path: Path) -> None:
+    from videoflow.engine.history import read_runs
+
+    for index in range(5):
+        append_run(tmp_path, {"job_id": str(index), "status": "succeeded"})
+    assert [item["job_id"] for item in read_runs(tmp_path, limit=2, offset=1)] == [
+        "1",
+        "2",
+    ]

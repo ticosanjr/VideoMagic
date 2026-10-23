@@ -3,6 +3,24 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.48.0] - 2026-10-23
+
+### Added
+
+- **Pagination.** Jobs, batches, and persisted run history accept `limit` and
+  `offset` and return `total`.
+- **Batch history UI.** The batch modal lists persisted batches and loads them.
+- **Proxy preview UI.** Successful jobs can generate and play the 540p proxy.
+- **Viewport and node width persistence** in the recipe canvas.
+- Tests for history pagination, batch pagination, and job listing.
+
+### Notes
+
+- Arrays and deeply nested objects still use the advanced JSON editor.
+- Kdenlive cross-dissolve and manual NLE QA remain pending.
+- 452 Python tests, 8 media tests, 14 Vitest tests, and 10 Playwright tests pass.
+- Distribution work remains out of scope.
+
 ## [0.47.0] - 2026-10-23
 
 ### Added

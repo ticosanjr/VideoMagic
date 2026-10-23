@@ -264,9 +264,13 @@ class JobManager:
                 raise JobNotFoundError(f"Unknown job: {job_id}")
             return job
 
-    def list(self) -> list[Job]:
+    def list(self, *, limit: int | None = None, offset: int = 0) -> list[Job]:
         with self._lock:
-            return sorted(self._jobs.values(), key=lambda item: item.created_at, reverse=True)
+            jobs = sorted(self._jobs.values(), key=lambda item: item.created_at, reverse=True)
+        start = max(0, int(offset))
+        if limit is None:
+            return jobs[start:]
+        return jobs[start : start + max(0, int(limit))]
 
     def cancel(self, job_id: str) -> Job:
         with self._lock:

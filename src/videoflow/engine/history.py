@@ -30,7 +30,12 @@ def append_run(output: Path, record: dict[str, Any], *, limit: int = MAX_RUNS) -
     return path
 
 
-def read_runs(output: Path) -> list[dict[str, Any]]:
+def read_runs(
+    output: Path,
+    *,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
     path = history_path(output)
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -39,4 +44,8 @@ def read_runs(output: Path) -> list[dict[str, Any]]:
     runs = payload.get("runs") if isinstance(payload, dict) else None
     if not isinstance(runs, list):
         return []
-    return [item for item in runs if isinstance(item, dict)]
+    items = [item for item in runs if isinstance(item, dict)]
+    start = max(0, int(offset))
+    if limit is None:
+        return items[start:]
+    return items[start : start + max(0, int(limit))]
