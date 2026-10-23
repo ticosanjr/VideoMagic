@@ -840,7 +840,13 @@ def test_timeline_route_from_project_state(monkeypatch, tmp_path: Path) -> None:
 
     from videoflow.api.app import create_app
     from videoflow.application.jobs import JobManager
-    from videoflow.domain.state import AudioSegment, MediaInfo, ProjectState, VideoSegment
+    from videoflow.domain.state import (
+        AudioSegment,
+        MediaInfo,
+        ProjectState,
+        Sentence,
+        VideoSegment,
+    )
 
     def runner(source, output, **kwargs):
         output = Path(output)
@@ -873,6 +879,7 @@ def test_timeline_route_from_project_state(monkeypatch, tmp_path: Path) -> None:
                     timeline_out_sample=48000,
                 )
             ],
+            transcript=[Sentence(id=0, start_sample=0, end_sample=48000, text="old")],
         )
         path = output / "project_state.json"
         path.write_text(state.model_dump_json())
@@ -891,6 +898,12 @@ def test_timeline_route_from_project_state(monkeypatch, tmp_path: Path) -> None:
     assert payload["duration_sec"] == 1.0
     assert payload["video"][0]["id"] == "v1"
     assert payload["audio"][0]["id"] == "a1"
+    patched = client.patch(
+        f"/api/v1/jobs/{job.job_id}/captions/0", json={"text": "new caption"}
+    )
+    assert patched.status_code == 200, patched.text
+    timeline = client.get(f"/api/v1/jobs/{job.job_id}/timeline").json()
+    assert timeline["captions"][0]["text"] == "new caption"
 
 
 def test_system_doctor_reports_checks() -> None:
@@ -905,3 +918,33 @@ def test_system_doctor_reports_checks() -> None:
     assert payload["checks"]["version"]
     assert "ffmpeg" in payload["checks"]
     assert "disk" in payload["checks"]
+
+
+def test_provider_connection_test(monkeypatch) -> None:
+    import httpx
+    from fastapi.testclient import TestClient
+
+    from videoflow.api import routes
+    from videoflow.api.app import create_app
+
+    monkeypatch.setenv("TEST_PROVIDER_KEY", "secret")
+    monkeypatch.setattr(
+        routes.httpx,
+        "get",
+        lambda *args, **kwargs: httpx.Response(
+            200, text='{"data":[]}', request=httpx.Request("GET", str(args[0]))
+        ),
+    )
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/v1/providers/test",
+        json={
+            "base_url": "http://127.0.0.1:11434/v1",
+            "api_key_env": "TEST_PROVIDER_KEY",
+            "path": "/models",
+        },
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["secret_present"] is True

@@ -12,7 +12,9 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.core.context import PipelineContext
+from videoflow.domain.errors import IngestError
 from videoflow.steps.base import BaseStep, EmptyParams, StepIO
 from videoflow.steps.registry import register_step
 
@@ -52,11 +54,59 @@ class ScriptStep(_BypassStep):
 
 
 @register_step
-class StoryboardStep(_BypassStep):
+class StoryboardStep(BaseStep):
     type = "storyboard.plan"
     title = "Storyboard / shot list"
-    description = "Planned: scene-by-scene storyboard and shot list."
+    description = "Write a JSON storyboard from the validated timeline and transcript."
+    status = "available"
     icon = "▤"
+    color = "#22c55e"
+    requires = ("edit.timeline",)
+    params_model = EmptyParams
+
+    def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
+        if context.state is None:
+            raise IngestError("Storyboard requires a validated timeline.")
+        media = context.media
+        fps = (media.fps_num / media.fps_den) if media is not None else 30.0
+        state = context.state
+        payload = {
+            "ok": True,
+            "duration_sec": round(
+                max((clip.timeline_out_frame for clip in state.video_segments), default=0)
+                / max(0.001, fps),
+                3,
+            ),
+            "scenes": [
+                {
+                    "id": clip.clip_id,
+                    "start_sec": round(clip.timeline_in_frame / fps, 3),
+                    "end_sec": round(clip.timeline_out_frame / fps, 3),
+                    "transition": clip.transition_out.type if clip.transition_out else None,
+                    "keyframes": len(clip.transform.keyframes),
+                }
+                for clip in state.video_segments
+            ],
+            "captions": [
+                {
+                    "id": sentence.id,
+                    "text": sentence.text,
+                    "speaker": sentence.speaker,
+                }
+                for sentence in state.transcript
+            ],
+            "shorts": list(context.shorts),
+            "broll_plan": context.metadata.get("broll_plan", {}),
+        }
+        context.output.mkdir(parents=True, exist_ok=True)
+        target = context.output / "storyboard.json"
+        target.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        context.artifacts["storyboard"] = str(target)
+        io.report(100, "Storyboard ready")
+
+    def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
+        path = context.artifacts.get("storyboard")
+        return (Path(path),) if path else ()
 
 
 class AssetIndexParams(BaseModel):
@@ -116,11 +166,36 @@ class TitlesStep(_BypassStep):
 
 
 @register_step
-class ThumbnailStep(_BypassStep):
+class ThumbnailStep(BaseStep):
     type = "thumbnail.generate"
     title = "Thumbnail / cover"
-    description = "Planned: automatic thumbnail and A/B cover variants."
+    description = "Render a thumbnail frame from the source."
+    status = "available"
     icon = "▣"
+    color = "#22c55e"
+    requires = ("ingest",)
+    params_model = EmptyParams
+
+    def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
+        if context.media is None:
+            raise IngestError("Thumbnail requires ingested media.")
+        duration = (
+            context.media.duration_frames
+            * context.media.fps_den
+            / max(1, context.media.fps_num)
+        )
+        target = context.output / "thumbnails" / "thumbnail.png"
+        FFmpegAdapter().render_thumbnail(
+            Path(context.source),
+            target,
+            time_sec=max(0.0, duration / 2),
+        )
+        context.artifacts["thumbnail"] = str(target)
+        io.report(100, "Thumbnail ready")
+
+    def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
+        path = context.artifacts.get("thumbnail")
+        return (Path(path),) if path else ()
 
 
 @register_step

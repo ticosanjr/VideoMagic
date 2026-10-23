@@ -3,6 +3,7 @@
   import {
     errorMessage,
     getCapabilities,
+    testProvider,
     type Capability,
     type CapabilitiesResponse
   } from "$lib/api";
@@ -25,6 +26,12 @@
   let query = $state("");
   let statusFilter = $state("");
   let catalogOpen = $state(false);
+  let testUrl = $state("http://127.0.0.1:11434/v1");
+  let testKeyEnv = $state("VIDEOWFLOW_LLM_API_KEY");
+  let testPath = $state("/models");
+  let testBusy = $state(false);
+  let testResult = $state<{ ok: boolean; status_code: number | null; message: string; secret_present: boolean } | null>(null);
+  let testError = $state("");
 
   const categories = ["ingest", "speech", "shorts", "export", "providers", "curation", "editing", "audio"];
 
@@ -57,6 +64,23 @@
     partial: "bg-amber-400/10 text-amber-300 ring-amber-400/20",
     planned: "bg-neutral-800 text-neutral-400 ring-neutral-700"
   };
+
+  async function runProviderTest() {
+    testBusy = true;
+    testError = "";
+    testResult = null;
+    try {
+      testResult = await testProvider({
+        base_url: testUrl,
+        api_key_env: testKeyEnv,
+        path: testPath
+      });
+    } catch (reason) {
+      testError = errorMessage(reason);
+    } finally {
+      testBusy = false;
+    }
+  }
 
   async function refresh(value = allowExternal) {
     loading = true;
@@ -128,6 +152,24 @@
         Comma-separated allowlist. Empty means any remote host while external access is on.
       </span>
     </label>
+  </div>
+
+  <div class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
+    <h3 class="text-xs font-semibold text-neutral-100">Connection test</h3>
+    <p class="mt-1 text-[10px] text-neutral-500">Test an OpenAI-compatible or other HTTP provider. Secrets are read from the environment and never displayed.</p>
+    <div class="mt-3 grid gap-2 lg:grid-cols-[1fr_1fr_120px_auto]">
+      <input bind:value={testUrl} placeholder="http://127.0.0.1:11434/v1" class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" />
+      <input bind:value={testKeyEnv} placeholder="VIDEOWFLOW_LLM_API_KEY" class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" />
+      <input bind:value={testPath} placeholder="/models" class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" />
+      <button type="button" onclick={() => void runProviderTest()} disabled={testBusy} class="rounded-lg border border-sky-500/40 px-3 py-1.5 text-[10px] text-sky-200 disabled:opacity-40">{testBusy ? "Testing…" : "Test"}</button>
+    </div>
+    {#if testError}<p class="mt-2 text-[10px] text-rose-300">{testError}</p>{/if}
+    {#if testResult}
+      <div class={`mt-2 rounded-lg border p-2 text-[10px] ${testResult.ok ? "border-emerald-500/30 bg-emerald-950/20 text-emerald-300" : "border-rose-500/30 bg-rose-950/20 text-rose-300"}`}>
+        <p>{testResult.ok ? "Connection OK" : "Connection failed"} · HTTP {testResult.status_code ?? "—"} · secret {testResult.secret_present ? "present" : "missing"}</p>
+        {#if testResult.message}<p class="mt-1 break-all font-mono text-[9px] text-neutral-400">{testResult.message}</p>{/if}
+      </div>
+    {/if}
   </div>
 
   {#if loading}

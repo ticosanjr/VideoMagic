@@ -784,6 +784,17 @@ export async function removeLocalModel(modelId: string): Promise<void> {
   await request(`/api/v1/models/${encodeURIComponent(modelId)}`, { method: "DELETE" });
 }
 
+export async function testProvider(payload: {
+  base_url: string;
+  api_key_env: string;
+  path: string;
+}): Promise<{ ok: boolean; status_code: number | null; message: string; secret_present: boolean }> {
+  return request("/api/v1/providers/test", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
 export async function getDoctor(): Promise<{ ok: boolean; checks: Record<string, unknown> }> {
   return request("/api/v1/system/doctor");
 }
@@ -1073,6 +1084,31 @@ export async function saveRecipe(recipe: Recipe): Promise<Recipe> {
   return response.recipe;
 }
 
+export interface RecipeHistoryEntry {
+  version: string;
+  name: string;
+  description: string;
+  step_count: number;
+}
+
+export async function getRecipeHistory(recipeId: string): Promise<RecipeHistoryEntry[]> {
+  const response = await request<{ ok: boolean; history: RecipeHistoryEntry[] }>(
+    `/api/v1/recipes/${encodeURIComponent(recipeId)}/history`
+  );
+  return response.history;
+}
+
+export async function restoreRecipeVersion(
+  recipeId: string,
+  version: string
+): Promise<Recipe> {
+  const response = await request<{ ok: boolean; recipe: Recipe }>(
+    `/api/v1/recipes/${encodeURIComponent(recipeId)}/history/${encodeURIComponent(version)}/restore`,
+    { method: "POST" }
+  );
+  return response.recipe;
+}
+
 export async function validateRecipe(
   recipe: Recipe
 ): Promise<{ ok: boolean; recipe: Recipe; order: string[] }> {
@@ -1351,6 +1387,17 @@ export interface AssetRecord {
   tags: string[];
   license: string;
   source: string;
+}
+
+export async function updateJobCaption(
+  jobId: string,
+  sentenceId: number,
+  text: string
+): Promise<void> {
+  await request(`/api/v1/jobs/${encodeURIComponent(jobId)}/captions/${sentenceId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ text })
+  });
 }
 
 export async function getTimeline(jobId: string): Promise<TimelineData> {

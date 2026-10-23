@@ -3,6 +3,58 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.56.0] - 2026-10-23
+
+### Added
+
+- **Timeline caption editing.** Clicking a caption opens an editor and writes
+  the new text back to `project_state.json`.
+- `PATCH /api/v1/jobs/{id}/captions/{sentence_id}`.
+- **Storyboard node** now writes `storyboard.json` from the validated timeline,
+  captions, Shorts, and B-roll plan.
+- **Thumbnail node** now renders a real thumbnail frame from the source.
+- Timeline selection state and save feedback.
+
+### Notes
+
+- 459 Python tests, 8 media tests, 14 Vitest tests, and 14 Playwright tests pass.
+- Timeline drag/trim is still pending.
+- Distribution remains out of scope.
+
+## [0.55.0] - 2026-10-23
+
+### Added
+
+- **Recipe version history.** Saving a recipe snapshots the previous JSON; the
+  API can list and restore versions.
+- **Save as** in the recipe header for forks/duplicates.
+- **History modal** with restore.
+- Planned control-flow nodes: `flow.conditional`, `flow.loop`, `flow.subflow`.
+- 458 Python tests and 14 Playwright tests pass.
+
+## [0.54.0] - 2026-10-23
+
+### Changed
+
+- Removed the legacy **New project** card and **ProjectTemplateManager** from
+  Models/Services/Providers.
+- Added a provider connection test:
+  - base URL;
+  - secret env name;
+  - path;
+  - HTTP status;
+  - secret presence.
+- API: `POST /api/v1/providers/test`.
+- Provider page now separates policy from the collapsed capability catalog.
+- Models page downloads are explicit and decoupled from the external-provider
+  toggle.
+- Services page has Doctor diagnostics and destructive-action confirmations.
+
+### Notes
+
+- 457 Python tests, 8 media tests, 14 Vitest tests, and 14 Playwright tests pass.
+- Distribution remains out of scope.
+
 ## [0.53.0] - 2026-10-23
 
 ### Changed

@@ -872,3 +872,74 @@ def test_planned_content_step_is_bypassed(tmp_path: Path) -> None:
     result = RecipeRunner(recipe).run(tmp_path / "source.mp4", tmp_path / "out")
     assert result.step_runs[0].status == "skipped"
     assert result.context.metadata["step_progress"]["idea"] == 100
+
+
+def test_recipe_history_and_restore(monkeypatch, tmp_path: Path) -> None:
+    from videoflow.engine.recipes import (
+        list_recipe_history,
+        restore_recipe_version,
+        save_user_recipe,
+    )
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
+    first = parse_recipe(
+        {"id": "history_recipe", "name": "First", "steps": [{"id": "ingest", "type": "ingest"}]}
+    )
+    second = parse_recipe(
+        {"id": "history_recipe", "name": "Second", "steps": [{"id": "ingest", "type": "ingest"}]}
+    )
+    save_user_recipe(first)
+    save_user_recipe(second)
+    history = list_recipe_history("history_recipe")
+    assert history
+    restored = restore_recipe_version("history_recipe", str(history[0]["version"]))
+    assert restored.name == "First"
+
+
+def test_storyboard_step_writes_json(tmp_path: Path) -> None:
+    from videoflow.core.context import PipelineContext
+    from videoflow.domain.state import AudioSegment, MediaInfo, ProjectState, VideoSegment
+    from videoflow.steps.base import StepIO
+    from videoflow.steps.content import StoryboardStep
+
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    media = MediaInfo(
+        source_path=str(source),
+        duration_frames=30,
+        fps_num=30,
+        fps_den=1,
+        width=320,
+        height=240,
+        audio_sample_rate=48000,
+    )
+    ctx = PipelineContext(
+        source=source,
+        output=tmp_path / "out",
+        work=tmp_path / "out" / "work",
+        exports=tmp_path / "out" / "exports",
+        media=media,
+        state=ProjectState(
+            media_info=media,
+            video_segments=[
+                VideoSegment(
+                    clip_id="v1",
+                    source_in_frame=0,
+                    source_out_frame=30,
+                    timeline_in_frame=0,
+                    timeline_out_frame=30,
+                )
+            ],
+            audio_segments=[
+                AudioSegment(
+                    clip_id="a1",
+                    source_in_sample=0,
+                    source_out_sample=48000,
+                    timeline_in_sample=0,
+                    timeline_out_sample=48000,
+                )
+            ],
+        ),
+    )
+    StoryboardStep().run(ctx, {}, StepIO())
+    assert (tmp_path / "out" / "storyboard.json").is_file()

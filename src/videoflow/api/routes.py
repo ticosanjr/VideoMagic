@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID
 
+import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field, ValidationError, model_validator
@@ -133,8 +134,10 @@ from videoflow.engine.history import read_runs
 from videoflow.engine.maintenance import prune_output
 from videoflow.engine.recipes import (
     get_recipe,
+    list_recipe_history,
     list_recipes,
     resolve_recipe_paths,
+    restore_recipe_version,
     save_user_recipe,
 )
 from videoflow.runtime import allowed_roots, find_binary, portable_home
@@ -429,6 +432,16 @@ class AssetScanRequest(BaseModel):
     recursive: bool = True
 
 
+class ProviderTestRequest(BaseModel):
+    base_url: str = Field(min_length=1)
+    api_key_env: str = "VIDEOWFLOW_LLM_API_KEY"
+    path: str = "/models"
+
+
+class CaptionUpdateRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
+
+
 class AssetTagsRequest(BaseModel):
     tags: list[str] = Field(default_factory=list)
 
@@ -651,6 +664,19 @@ def register_routes(
             raise
         return {"ok": True, "recipe": recipe_to_dict(recipe), "path": str(path)}
 
+    @app.get("/api/v1/recipes/{recipe_id}/history")
+    def recipe_history(recipe_id: str) -> dict[str, object]:
+        return {"ok": True, "history": list_recipe_history(recipe_id)}
+
+    @app.post("/api/v1/recipes/{recipe_id}/history/{version}/restore")
+    def restore_history(recipe_id: str, version: str) -> dict[str, object]:
+        try:
+            recipe = restore_recipe_version(recipe_id, version)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "recipe": recipe_to_dict(recipe)}
+
     @app.post("/api/v1/recipes/validate")
     def validate_recipe(payload: dict[str, Any]) -> dict[str, object]:
         try:
@@ -742,6 +768,32 @@ def register_routes(
                 dry_run=request.dry_run,
             )
         return result
+
+    @app.post("/api/v1/providers/test")
+    def test_provider(request: ProviderTestRequest) -> dict[str, object]:
+        base = request.base_url.rstrip("/")
+        if not (base.startswith("http://") or base.startswith("https://")):
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "invalid_url", "message": request.base_url},
+            )
+        api_key = os.environ.get(request.api_key_env, "")
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        try:
+            response = httpx.get(
+                f"{base}{request.path}",
+                headers=headers,
+                timeout=10.0,
+                follow_redirects=True,
+            )
+        except httpx.HTTPError as exc:
+            return {"ok": False, "status_code": None, "message": str(exc)}
+        return {
+            "ok": 200 <= response.status_code < 400,
+            "status_code": response.status_code,
+            "message": response.text[:500],
+            "secret_present": bool(api_key),
+        }
 
     @app.get("/api/v1/assets")
     def list_assets_route(
@@ -1394,6 +1446,35 @@ def register_routes(
                 detail={"ok": False, "code": "preview_not_found"},
             )
         return FileResponse(preview, media_type="video/mp4", filename="preview.mp4")
+
+    @app.patch("/api/v1/jobs/{job_id}/captions/{sentence_id}")
+    def update_job_caption(
+        job_id: str, sentence_id: int, request: CaptionUpdateRequest
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            state_path = Path(
+                str((job.result or {}).get("state_path") or job.output / "project_state.json")
+            )
+            state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+            found = False
+            for sentence in state.transcript:
+                if sentence.id == sentence_id:
+                    sentence.text = request.text
+                    found = True
+                    break
+            if not found:
+                raise TranscriptNotFoundError(f"Sentence {sentence_id}")
+            state_path.write_text(state.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "timeline_invalid", "message": str(exc)},
+            ) from exc
+        return {"ok": True, "sentence_id": sentence_id, "text": request.text}
 
     @app.get("/api/v1/jobs/{job_id}/timeline")
     def job_timeline(job_id: str) -> dict[str, object]:

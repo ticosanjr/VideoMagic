@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+import time
 from pathlib import Path
 from typing import Any
 
@@ -345,9 +347,51 @@ def get_recipe(recipe_id: str) -> Recipe:
     raise RecipeError(f"Unknown recipe: {recipe_id}")
 
 
+def recipe_history_dir(recipe_id: str) -> Path:
+    return user_recipes_dir() / "history" / recipe_id
+
+
 def save_user_recipe(recipe: Recipe) -> Path:
     directory = user_recipes_dir()
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{recipe.id}.json"
+    if path.is_file():
+        history = recipe_history_dir(recipe.id)
+        history.mkdir(parents=True, exist_ok=True)
+        stamp = time.time_ns()
+        shutil.copy2(path, history / f"{stamp}.json")
+        entries = sorted(history.glob("*.json"), key=lambda item: item.stem)
+        for stale in entries[:-20]:
+            stale.unlink(missing_ok=True)
     path.write_text(json.dumps(recipe.model_dump(mode="json"), indent=2) + "\n", encoding="utf-8")
     return path
+
+
+def list_recipe_history(recipe_id: str) -> list[dict[str, object]]:
+    directory = recipe_history_dir(recipe_id)
+    entries: list[dict[str, object]] = []
+    if not directory.is_dir():
+        return entries
+    for path in sorted(directory.glob("*.json"), key=lambda item: item.stem, reverse=True):
+        try:
+            recipe = load_recipe(path)
+        except RecipeError:
+            continue
+        entries.append(
+            {
+                "version": path.stem,
+                "name": recipe.name,
+                "description": recipe.description,
+                "step_count": len(recipe.steps),
+            }
+        )
+    return entries
+
+
+def restore_recipe_version(recipe_id: str, version: str) -> Recipe:
+    path = recipe_history_dir(recipe_id) / f"{version}.json"
+    if not path.is_file():
+        raise RecipeError(f"Unknown recipe version: {version}")
+    recipe = load_recipe(path)
+    save_user_recipe(recipe)
+    return recipe

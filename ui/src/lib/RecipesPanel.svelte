@@ -17,6 +17,7 @@
     getJob,
     getLogs,
     getRecipe,
+    getRecipeHistory,
     jobArtifactUrl,
     shortFileUrl,
     getRunHistory,
@@ -31,6 +32,7 @@
     runBatch,
     runRecipe,
     runRecipeStep,
+    restoreRecipeVersion,
     saveRecipe,
     validateExports,
     validateRecipe,
@@ -38,6 +40,7 @@
     type Job,
     type Recipe,
     type NleValidationReport,
+    type RecipeHistoryEntry,
     type RecipeSummary,
     type RunRecord,
     type StepManifest
@@ -154,6 +157,9 @@
   let historyOpen = $state(false);
   let historyRuns = $state<RunRecord[]>([]);
   let historyBusy = $state(false);
+  let recipeHistoryOpen = $state(false);
+  let recipeHistory = $state<RecipeHistoryEntry[]>([]);
+  let recipeHistoryError = $state("");
   let nleOpen = $state(false);
   let nleReport = $state<NleValidationReport | null>(null);
   let nleBusy = $state(false);
@@ -1141,6 +1147,36 @@
     }
   }
 
+  async function saveAs() {
+    const id = window.prompt("New recipe id", `${recipeId}_copy`);
+    if (!id) return;
+    const name = window.prompt("New recipe name", `${recipeName} copy`);
+    if (!name) return;
+    recipeId = id;
+    recipeName = name;
+    await save();
+  }
+
+  async function openRecipeHistory() {
+    recipeHistoryOpen = true;
+    recipeHistoryError = "";
+    try {
+      recipeHistory = await getRecipeHistory(recipeId);
+    } catch (reason) {
+      recipeHistoryError = errorMessage(reason);
+    }
+  }
+
+  async function restoreHistory(version: string) {
+    try {
+      graphFromRecipe(await restoreRecipeVersion(recipeId, version));
+      recipeHistoryOpen = false;
+      status = `Restored recipe version ${version}`;
+    } catch (reason) {
+      recipeHistoryError = errorMessage(reason);
+    }
+  }
+
   async function save() {
     error = "";
     status = "";
@@ -1555,6 +1591,12 @@
         </button>
         <button type="button" onclick={() => void save()} class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500">
           Save
+        </button>
+        <button type="button" onclick={() => void saveAs()} class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500">
+          Save as
+        </button>
+        <button type="button" onclick={() => void openRecipeHistory()} class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500">
+          History
         </button>
         <button type="button" onclick={() => void validate()} class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500">
           Validate
@@ -2016,6 +2058,28 @@
         </ul>
       {/if}
     </section>
+  {/if}
+
+  {#if recipeHistoryOpen}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="presentation"
+      onclick={(event) => { if (event.currentTarget === event.target) recipeHistoryOpen = false; }}>
+      <div class="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="Recipe history">
+        <div class="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
+          <div><h3 class="text-sm font-semibold text-white">Recipe history</h3><p class="font-mono text-[10px] text-sky-300">{recipeId}</p></div>
+          <button type="button" onclick={() => (recipeHistoryOpen = false)} class="rounded px-2 text-neutral-500 hover:text-neutral-200" aria-label="Close history">×</button>
+        </div>
+        <div class="min-h-0 flex-1 overflow-y-auto p-3">
+          {#if recipeHistoryError}<p class="text-[10px] text-rose-300">{recipeHistoryError}</p>{/if}
+          {#if !recipeHistory.length && !recipeHistoryError}<p class="text-xs text-neutral-500">Save the recipe twice to create versions.</p>{/if}
+          {#each recipeHistory as entry}
+            <div class="mb-2 flex items-center justify-between gap-2 rounded-lg border border-neutral-800 bg-neutral-900/60 p-2">
+              <div class="min-w-0"><p class="truncate text-xs text-neutral-200">{entry.name}</p><p class="text-[9px] text-neutral-500">{entry.version} · {entry.step_count} steps</p></div>
+              <button type="button" onclick={() => void restoreHistory(entry.version)} class="rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-300">Restore</button>
+            </div>
+          {/each}
+        </div>
+      </div>
+    </div>
   {/if}
 
   {#if logOpen}

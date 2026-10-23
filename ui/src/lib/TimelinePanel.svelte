@@ -5,6 +5,7 @@
     getTimeline,
     jobArtifactUrl,
     listJobs,
+    updateJobCaption,
     type Job,
     type TimelineData
   } from "$lib/api";
@@ -15,6 +16,10 @@
   let loading = $state(false);
   let error = $state("");
   let playhead = $state(0);
+  let selectedCaption = $state<number | null>(null);
+  let captionDraft = $state("");
+  let captionBusy = $state(false);
+  let captionStatus = $state("");
 
   const duration = $derived(Math.max(1, timeline?.duration_sec ?? 1));
   const previewJob = $derived(jobs.find((job) => job.job_id === selected));
@@ -57,6 +62,32 @@
       timeline = null;
     } finally {
       loading = false;
+    }
+  }
+
+  function editCaption(caption: TimelineData["captions"][number]) {
+    selectedCaption = caption.id;
+    captionDraft = caption.text;
+    captionStatus = "";
+  }
+
+  async function saveCaption() {
+    if (selectedCaption === null || !timeline) return;
+    captionBusy = true;
+    captionStatus = "";
+    try {
+      await updateJobCaption(selected, selectedCaption, captionDraft.trim());
+      timeline = {
+        ...timeline,
+        captions: timeline.captions.map((caption) =>
+          caption.id === selectedCaption ? { ...caption, text: captionDraft.trim() } : caption
+        )
+      };
+      captionStatus = "Saved to project_state.json";
+    } catch (reason) {
+      captionStatus = errorMessage(reason);
+    } finally {
+      captionBusy = false;
     }
   }
 
@@ -122,9 +153,9 @@
           <span class="text-[10px] uppercase tracking-wide text-neutral-500">Captions</span>
           <div class="relative h-14 rounded-lg bg-neutral-900">
             {#each timeline.captions as caption}
-              <div class="absolute top-1 h-12 overflow-hidden rounded border border-violet-500/30 bg-violet-500/15 px-1 text-[8px] text-violet-200" style={`left:${pct(caption.start_sec)}%;width:${Math.max(0.5, pct(caption.end_sec) - pct(caption.start_sec))}%`} title={caption.text}>
+              <button type="button" onclick={() => editCaption(caption)} class={`absolute top-1 h-12 overflow-hidden rounded border px-1 text-left text-[8px] ${selectedCaption === caption.id ? "border-sky-400 bg-sky-500/25 text-sky-100" : "border-violet-500/30 bg-violet-500/15 text-violet-200"}`} style={`left:${pct(caption.start_sec)}%;width:${Math.max(0.5, pct(caption.end_sec) - pct(caption.start_sec))}%`} title={caption.text}>
                 <span class="line-clamp-3">{caption.text}</span>
-              </div>
+              </button>
             {/each}
           </div>
         </div>
@@ -137,6 +168,16 @@
           </div>
         {/if}
       </div>
+      {#if selectedCaption !== null}
+        <div class="border-t border-neutral-800 p-3">
+          <p class="text-[10px] uppercase tracking-wide text-neutral-500">Edit caption #{selectedCaption}</p>
+          <textarea rows="3" bind:value={captionDraft} class="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100"></textarea>
+          <div class="mt-2 flex items-center gap-2">
+            <button type="button" onclick={() => void saveCaption()} disabled={captionBusy} class="rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-300 disabled:opacity-40">{captionBusy ? "Saving…" : "Save caption"}</button>
+            {#if captionStatus}<span class="text-[10px] text-neutral-400">{captionStatus}</span>{/if}
+          </div>
+        </div>
+      {/if}
       {#if previewArtifact}
         <div class="border-t border-neutral-800 p-3">
           <video class="max-h-[420px] w-full rounded-lg bg-black" controls preload="metadata" src={jobArtifactUrl(selected, previewArtifact)}><track kind="captions" src="data:text/vtt;charset=utf-8,WEBVTT%0A%0A" /></video>
