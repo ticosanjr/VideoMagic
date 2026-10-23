@@ -34,7 +34,12 @@ def ensure_ui_build() -> bool:
     if not (ui / "node_modules").is_dir():
         print("ui/node_modules is missing; run npm ci before building", file=sys.stderr)
         return False
-    completed = subprocess.run(["npm", "run", "build"], cwd=ui, check=False)
+    completed = subprocess.run(
+        "npm run build",
+        cwd=ui,
+        shell=True,
+        check=False,
+    )
     if completed.returncode != 0:
         print("UI build failed", file=sys.stderr)
         return False
