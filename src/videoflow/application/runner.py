@@ -1,13 +1,16 @@
-"""Pipeline runner. Planning is implemented; execution is not."""
+"""Legacy rack planning.
+
+Execution belongs to the recipe engine; this module only plans which legacy rack
+modules would need to run.
+"""
 
 from __future__ import annotations
 
 from videoflow.domain.planning import RunPlan, plan_run
-from videoflow.domain.state import ProjectState
 
 
 class PipelineRunner:
-    """Owns one project run. ``execute`` is intentionally unimplemented."""
+    """Plan a legacy rack run; execution is owned by the recipe engine."""
 
     def plan(
         self,
@@ -18,6 +21,3 @@ class PipelineRunner:
         enabled: dict[str, bool] | None = None,
     ) -> RunPlan:
         return plan_run(status, target=target, run_upstream=run_upstream, enabled=enabled)
-
-    def execute(self, state: ProjectState, plan: RunPlan) -> ProjectState:
-        raise NotImplementedError("pipeline execution is not implemented in this scaffold")

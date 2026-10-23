@@ -423,10 +423,13 @@ def _parser() -> argparse.ArgumentParser:
     cache_prune = cache_sub.add_parser(
         "prune", help="Trim output-local checkpoints, B-roll cache, and run history."
     )
-    cache_prune.add_argument("--output", required=True)
+    cache_prune.add_argument("--output", default="")
     cache_prune.add_argument("--keep-days", type=int, default=14)
     cache_prune.add_argument("--keep-steps", type=int, default=200)
     cache_prune.add_argument("--keep-runs", type=int, default=30)
+    cache_prune.add_argument("--global-cache", action="store_true")
+    cache_prune.add_argument("--cache-days", type=int, default=30)
+    cache_prune.add_argument("--cache-max-mb", type=int, default=512)
     cache_prune.add_argument("--dry-run", action="store_true")
     cache_prune.add_argument("--json", action="store_true")
 
@@ -907,14 +910,23 @@ def _recipe(args: argparse.Namespace) -> int:
 
         if getattr(args, "cache_command", None) == "prune":
             from videoflow.engine.maintenance import prune_output
+            from videoflow.steps.cache import prune_cache
 
-            result = prune_output(
-                Path(args.output).expanduser(),
-                keep_days=args.keep_days,
-                keep_steps=args.keep_steps,
-                keep_runs=args.keep_runs,
-                dry_run=args.dry_run,
-            )
+            result: dict[str, object] = {"ok": True}
+            if args.output:
+                result["output"] = prune_output(
+                    Path(args.output).expanduser(),
+                    keep_days=args.keep_days,
+                    keep_steps=args.keep_steps,
+                    keep_runs=args.keep_runs,
+                    dry_run=args.dry_run,
+                )
+            if args.global_cache or not args.output:
+                result["global_cache"] = prune_cache(
+                    max_age_days=args.cache_days,
+                    max_bytes=args.cache_max_mb * 1024 * 1024,
+                    dry_run=args.dry_run,
+                )
             print(json.dumps(result, indent=2))
             return 0
         if getattr(args, "cache_command", None) == "clear":

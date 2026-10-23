@@ -7,7 +7,7 @@ vertical shorts, and exports timelines for DaVinci Resolve, Adobe Premiere Pro,
 and Kdenlive. The primary surface is a recipe DAG editor; the classic rack
 panels remain available for manual control.
 
-> Status: 0.44.0 alpha. The portable Linux binary, Linux AppImage, and Windows
+> Status: 0.45.0 alpha. The portable Linux binary, Linux AppImage, and Windows
 > PE run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical shorts, and
@@ -186,6 +186,9 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - Live per-step progress on each node.
 - Two-source split-screen can mix both audio tracks.
 - Stable Pexels B-roll cache keyed by source URL.
+- On-demand 540p preview proxy endpoint.
+- Global analysis-cache pruning by age and size.
+- Legacy runner execution scaffold removed; recipe engine owns execution.
 - Configuration and test data are JSON; the only YAML files are the GitHub Actions workflows, which GitHub requires.
 - Versioned JSON migration gates for recipes and project state.
 - Output maintenance: checkpoint/B-roll/run-history pruning via CLI or API.

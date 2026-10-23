@@ -799,3 +799,37 @@ def test_job_artifact_and_short_file_routes(tmp_path: Path) -> None:
     short = client.get(f"/api/v1/jobs/{job.job_id}/shorts/0/file")
     assert short.status_code == 200
     assert short.content == b"short"
+
+
+def test_preview_proxy_routes(monkeypatch, tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+
+    from videoflow.api import routes
+    from videoflow.api.app import create_app
+    from videoflow.application.jobs import JobManager
+
+    def runner(source, output, **kwargs):
+        output = Path(output)
+        output.mkdir(parents=True, exist_ok=True)
+        artifact = output / "timeline.mp4"
+        artifact.write_bytes(b"mp4")
+        return {"ok": True, "artifacts": {"mp4": str(artifact)}, "shorts": []}
+
+    monkeypatch.setattr(
+        routes.FFmpegAdapter,
+        "transcode_preview",
+        lambda self, source, target: target.write_bytes(b"proxy") or target,
+    )
+    manager = JobManager(runner=runner)
+    job = manager.start(tmp_path / "source.mp4", tmp_path / "out", {})
+    for _ in range(200):
+        if job.status in {"succeeded", "failed", "cancelled"}:
+            break
+        time.sleep(0.01)
+    client = TestClient(create_app(jobs=manager))
+    created = client.post(f"/api/v1/jobs/{job.job_id}/preview")
+    assert created.status_code == 200, created.text
+    assert created.json()["url"].endswith("/preview/file")
+    served = client.get(f"/api/v1/jobs/{job.job_id}/preview/file")
+    assert served.status_code == 200
+    assert served.content == b"proxy"

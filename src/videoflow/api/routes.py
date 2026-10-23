@@ -423,6 +423,9 @@ class MaintenancePruneRequest(BaseModel):
     keep_days: int = Field(default=14, ge=1, le=3650)
     keep_steps: int = Field(default=200, ge=1, le=10000)
     keep_runs: int = Field(default=30, ge=1, le=1000)
+    include_global_cache: bool = False
+    cache_days: int = Field(default=30, ge=1, le=3650)
+    cache_max_mb: int = Field(default=512, ge=1, le=100000)
     dry_run: bool = False
 
 
@@ -696,13 +699,22 @@ def register_routes(
         except VideoFlowError as exc:
             fail(exc)
             raise
-        return prune_output(
+        result = prune_output(
             resolved,
             keep_days=request.keep_days,
             keep_steps=request.keep_steps,
             keep_runs=request.keep_runs,
             dry_run=request.dry_run,
         )
+        if request.include_global_cache:
+            from videoflow.steps.cache import prune_cache
+
+            result["global_cache"] = prune_cache(
+                max_age_days=request.cache_days,
+                max_bytes=request.cache_max_mb * 1024 * 1024,
+                dry_run=request.dry_run,
+            )
+        return result
 
     @app.post("/api/v1/exports/validate")
     def validate_exports(request: ExportValidationRequest) -> dict[str, object]:
@@ -1248,6 +1260,39 @@ def register_routes(
             "metadata": metadata,
             "short": job.result["shorts"][index],
         }
+
+    @app.post("/api/v1/jobs/{job_id}/preview")
+    def create_preview(job_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            if job.status != "succeeded":
+                raise StateNotReadyError("The job must succeed before preview rendering.")
+            source = _job_preview_source(job)
+            preview = job.output / "preview" / "preview.mp4"
+            if not preview.is_file():
+                preview.parent.mkdir(parents=True, exist_ok=True)
+                FFmpegAdapter().transcode_preview(source, preview)
+        except VideoFlowError as exc:
+            fail(exc)
+        return {
+            "ok": True,
+            "path": str(preview),
+            "url": f"/api/v1/jobs/{job_id}/preview/file",
+        }
+
+    @app.get("/api/v1/jobs/{job_id}/preview/file")
+    def download_preview(job_id: str) -> FileResponse:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
+        preview = job.output / "preview" / "preview.mp4"
+        if not preview.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "preview_not_found"},
+            )
+        return FileResponse(preview, media_type="video/mp4", filename="preview.mp4")
 
     @app.get("/api/v1/jobs/{job_id}/artifacts/{artifact_name}")
     def download_job_artifact(job_id: str, artifact_name: str) -> FileResponse:
@@ -2140,6 +2185,24 @@ def register_routes(
 
 def probe_media(path: Path) -> MediaInfo:
     return FFmpegAdapter().probe(path)
+
+
+def _job_preview_source(job) -> Path:
+    result = job.result or {}
+    artifacts = result.get("artifacts") or {}
+    if isinstance(artifacts, dict):
+        for value in artifacts.values():
+            path = Path(str(value)).expanduser()
+            if path.suffix.lower() == ".mp4" and path.is_file():
+                return path
+    shorts = result.get("shorts") or []
+    if isinstance(shorts, list):
+        for entry in shorts:
+            if isinstance(entry, dict) and entry.get("path"):
+                path = Path(str(entry["path"])).expanduser()
+                if path.is_file():
+                    return path
+    raise StateNotReadyError("The job has no MP4 artifact to preview.")
 
 
 def _project_module_status(record, state) -> dict[str, str]:

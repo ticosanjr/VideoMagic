@@ -323,6 +323,48 @@ class FFmpegAdapter:
         self._capture(command)
         return output
 
+    def transcode_preview(
+        self,
+        source: Path,
+        destination: Path,
+        *,
+        width: int = 540,
+    ) -> Path:
+        """Write a small H.264/AAC proxy for in-browser preview."""
+
+        source_path = Path(source).expanduser()
+        target = Path(destination).expanduser()
+        if not source_path.is_file():
+            raise IngestError(f"Preview source does not exist: {source_path}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        self._capture(
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-i",
+                str(source_path),
+                "-vf",
+                f"scale={max(2, width)}:-2",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "28",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "64k",
+                "-movflags",
+                "+faststart",
+                str(target),
+            ]
+        )
+        return target
+
     def render_thumbnail(
         self,
         source: Path,

@@ -47,3 +47,20 @@ def test_prune_dry_run_does_not_delete(tmp_path: Path) -> None:
     result = prune_output(tmp_path, keep_steps=1, dry_run=True)
     assert len(list(steps.iterdir())) == 3
     assert result["dry_run"] is True
+
+
+def test_global_cache_prune_by_age_and_size(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("VIDEOFLOW_HOME", str(tmp_path / "home"))
+    from videoflow.steps.cache import cache_dir, prune_cache
+
+    directory = cache_dir() / "transcript"
+    directory.mkdir(parents=True)
+    old = directory / "old.json"
+    old.write_text("{}")
+    os.utime(old, (time.time() - 90 * 86400, time.time() - 90 * 86400))
+    new = directory / "new.json"
+    new.write_text("{}")
+    result = prune_cache(max_age_days=30, max_bytes=1024 * 1024)
+    assert result["ok"] is True
+    assert str(old) in result["removed"]
+    assert new.is_file()

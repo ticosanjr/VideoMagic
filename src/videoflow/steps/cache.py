@@ -10,6 +10,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import time
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -61,6 +63,49 @@ def cache_put(kind: str, key: str, payload: dict[str, Any]) -> Path | None:
     except OSError:
         return None
     return target
+
+
+def prune_cache(
+    *,
+    max_age_days: int = 30,
+    max_bytes: int = 512 * 1024 * 1024,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Trim the global analysis cache by age and size."""
+
+    directory = cache_dir()
+    if not directory.is_dir():
+        return {"ok": True, "removed": [], "freed_bytes": 0, "kept_bytes": 0}
+    cutoff = time.time() - max(1, max_age_days) * 86400
+    files: list[tuple[float, int, Path]] = []
+    for path in directory.rglob("*.json"):
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        files.append((stat.st_mtime, stat.st_size, path))
+    files.sort(key=lambda item: item[0], reverse=True)
+    kept = 0
+    removed: list[str] = []
+    freed = 0
+    for mtime, size, path in files:
+        stale = mtime < cutoff
+        over = kept + size > max(1, max_bytes)
+        if stale or over:
+            removed.append(str(path))
+            freed += size
+            if not dry_run:
+                with suppress(OSError):
+                    path.unlink()
+        else:
+            kept += size
+    return {
+        "ok": True,
+        "removed": removed,
+        "freed_bytes": freed,
+        "kept_bytes": kept,
+        "dry_run": dry_run,
+    }
 
 
 def clear_cache() -> int:

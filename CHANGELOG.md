@@ -3,6 +3,26 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.45.0] - 2026-10-23
+
+### Added
+
+- **Preview proxy.** `POST /api/v1/jobs/{id}/preview` writes a 540p
+  H.264/AAC proxy, served by `GET /api/v1/jobs/{id}/preview/file`.
+- **Global cache pruning.** `prune_cache` trims analysis entries by age and
+  total size; exposed through `videoflow recipe cache prune --global-cache` and
+  the maintenance API.
+- **Engine cleanup.** Removed the unimplemented `PipelineRunner.execute`
+  scaffold; legacy planning remains, execution belongs to the recipe engine.
+- Tests for the preview proxy and global cache pruning.
+
+### Notes
+
+- Preview is generated on demand; it is not automatically created after every
+  render.
+- 447 Python tests, 8 media tests, 14 Vitest tests, and 8 Playwright tests pass.
+- Distribution work remains out of scope.
+
 ## [0.44.0] - 2026-10-23
 
 ### Added
