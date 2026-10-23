@@ -113,6 +113,13 @@ test("cycles node width from the node header", async ({ page }) => {
   expect(after?.width).not.toBe(before?.width);
 });
 
+test("opens the recipe template gallery", async ({ page }) => {
+  await page.getByRole("button", { name: "Templates" }).click();
+  const dialog = page.getByRole("dialog", { name: "Recipe templates" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("Example recipe")).toBeVisible();
+});
+
 test("opens the asset library tab", async ({ page }) => {
   await page.getByRole("tab", { name: "Assets" }).click();
   await expect(page.getByRole("heading", { name: "Asset library" })).toBeVisible();

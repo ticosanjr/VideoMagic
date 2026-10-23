@@ -3,6 +3,23 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.57.0] - 2026-10-23
+
+### Added
+
+- **Recipe template gallery** with search and built-in/user recipes.
+- Final recipe-management polish: Save as, version history, restore, and
+  templates in one place.
+- Timeline caption editing and implemented storyboard/thumbnail nodes from the
+  0.56 work.
+- Settings pages cleanup, provider connection test, services doctor, and models
+  grouped by capability from the 0.54 work.
+
+### Notes
+
+- 459 Python tests, 8 media tests, 14 Vitest tests, and 15 Playwright tests pass.
+- Distribution remains out of scope.
+
 ## [0.56.0] - 2026-10-23
 
 ### Added

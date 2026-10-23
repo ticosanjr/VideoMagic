@@ -160,6 +160,8 @@
   let recipeHistoryOpen = $state(false);
   let recipeHistory = $state<RecipeHistoryEntry[]>([]);
   let recipeHistoryError = $state("");
+  let templatesOpen = $state(false);
+  let templateQuery = $state("");
   let nleOpen = $state(false);
   let nleReport = $state<NleValidationReport | null>(null);
   let nleBusy = $state(false);
@@ -199,6 +201,16 @@
     "shorts.render",
     "export.nle"
   ];
+
+  const filteredTemplates = $derived(
+    recipes.filter((recipe) => {
+      const query = templateQuery.trim().toLocaleLowerCase();
+      return !query ||
+        recipe.name.toLocaleLowerCase().includes(query) ||
+        recipe.description.toLocaleLowerCase().includes(query) ||
+        recipe.id.toLocaleLowerCase().includes(query);
+    })
+  );
 
   const filteredSteps = $derived(
     steps
@@ -1586,6 +1598,9 @@
             <option value={recipe.id}>{recipe.name}</option>
           {/each}
         </select>
+        <button type="button" onclick={() => (templatesOpen = true)} class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500">
+          Templates
+        </button>
         <button type="button" onclick={downloadRecipe} class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500">
           Download
         </button>
@@ -2058,6 +2073,32 @@
         </ul>
       {/if}
     </section>
+  {/if}
+
+  {#if templatesOpen}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="presentation"
+      onclick={(event) => { if (event.currentTarget === event.target) templatesOpen = false; }}>
+      <div class="flex max-h-[82vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="Recipe templates">
+        <div class="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
+          <div><h3 class="text-sm font-semibold text-white">Recipe templates</h3><p class="text-[10px] text-neutral-500">Built-in workflows and your saved recipes.</p></div>
+          <button type="button" onclick={() => (templatesOpen = false)} class="rounded px-2 text-neutral-500 hover:text-neutral-200" aria-label="Close templates">×</button>
+        </div>
+        <div class="border-b border-neutral-800 p-3">
+          <input bind:value={templateQuery} placeholder="Search templates…" class="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-xs text-neutral-200" />
+        </div>
+        <div class="min-h-0 flex-1 overflow-y-auto p-3">
+          <div class="grid gap-2 sm:grid-cols-2">
+            {#each filteredTemplates as recipe}
+              <button type="button" onclick={() => { templatesOpen = false; void loadRecipe(recipe.id); }} class="rounded-xl border border-neutral-800 bg-neutral-900/60 p-3 text-left hover:border-sky-500">
+                <p class="text-xs font-medium text-neutral-100">{recipe.name}</p>
+                <p class="mt-1 line-clamp-2 text-[10px] leading-4 text-neutral-500">{recipe.description || "No description"}</p>
+                <p class="mt-2 font-mono text-[9px] text-neutral-600">{recipe.id} · {recipe.source}</p>
+              </button>
+            {/each}
+          </div>
+        </div>
+      </div>
+    </div>
   {/if}
 
   {#if recipeHistoryOpen}
