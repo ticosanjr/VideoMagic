@@ -365,12 +365,14 @@ export interface Job {
     state_path?: string;
     report_path?: string;
     elapsed_seconds?: number;
+    step_progress?: Record<string, number>;
   } | null;
   error: { ok: boolean; code: string; message: string } | null;
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
   duration_ms: number | null;
+  step_progress?: Record<string, number>;
   log_count: number;
   stages: JobStage[];
 }
@@ -381,6 +383,20 @@ export interface RecipeStep {
   needs: string[];
   enabled: boolean;
   params: Record<string, unknown>;
+}
+
+export interface RecipeNodeUi {
+  x: number;
+  y: number;
+  expanded: boolean;
+  pinned: boolean;
+  width: number;
+}
+
+export interface RecipeUi {
+  version: number;
+  viewport: { x: number; y: number; zoom: number };
+  nodes: Record<string, RecipeNodeUi>;
 }
 
 export interface Recipe {
@@ -395,6 +411,7 @@ export interface Recipe {
     api_key_env: string;
     timeout_seconds: number;
   };
+  ui?: RecipeUi;
   steps: RecipeStep[];
 }
 
@@ -463,6 +480,7 @@ export interface StepRun {
   type: string;
   status: "cached" | "executed";
   elapsed_ms: number;
+  progress?: number;
   fingerprint: string;
   outputs: string[];
 }

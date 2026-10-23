@@ -36,6 +36,7 @@ def migrate_recipe(payload: dict[str, Any]) -> dict[str, Any]:
     migrated.setdefault("schema_version", RECIPE_SCHEMA_VERSION)
     migrated.setdefault("description", "")
     migrated.setdefault("llm", {})
+    migrated.setdefault("ui", {})
     steps = migrated.get("steps")
     if isinstance(steps, list):
         migrated["steps"] = [

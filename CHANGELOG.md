@@ -3,6 +3,28 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.43.0] - 2026-10-23
+
+### Added
+
+- **Inline recipe nodes.** Each node expands into schema-derived fields with
+  labels, descriptions, validation, enums, booleans, numbers, colors and path
+  pickers.
+- **Saved canvas.** Recipe JSON carries optional `ui` layout metadata:
+  positions, expanded/pinned state, width, and viewport. UI-only changes do not
+  invalidate checkpoints.
+- **Autosave layout.** Dragging or pinning a node saves the recipe layout after a
+  short debounce. `Auto layout` resets positions.
+- **Per-step progress.** `StepIO` reports local progress; jobs expose
+  `step_progress`; each node shows state and percentage.
+- **Field validation.** Drafts remain editable, but Run is blocked while fields
+  have errors. Server validation remains authoritative.
+- Playwright coverage for saved inline layout and direct node edits.
+
+### Notes
+
+- 445 Python tests, 14 Vitest tests, and 8 Playwright tests pass.
+
 ## [0.42.0] - 2026-10-23
 
 ### Added

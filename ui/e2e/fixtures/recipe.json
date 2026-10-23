@@ -1,4 +1,61 @@
-{"ok":true,"recipe":{"schema_version":1,"id":"example_recipe","name":"Example recipe","description":"E2E recipe","llm":{"provider":"none","base_url":null,"model":"","api_key_env":"VIDEOWFLOW_LLM_API_KEY","timeout_seconds":90},"steps":[
- {"id":"ingest","type":"ingest","needs":[],"enabled":true,"params":{}},
- {"id":"timeline","type":"edit.timeline","needs":["ingest"],"enabled":true,"params":{"transition_frames":0,"transition_type":"crossfade"}}
-]}}
+{
+  "ok": true,
+  "recipe": {
+    "schema_version": 1,
+    "id": "example_recipe",
+    "name": "Example recipe",
+    "description": "E2E recipe",
+    "llm": {
+      "provider": "none",
+      "base_url": null,
+      "model": "",
+      "api_key_env": "VIDEOWFLOW_LLM_API_KEY",
+      "timeout_seconds": 90
+    },
+    "steps": [
+      {
+        "id": "ingest",
+        "type": "ingest",
+        "needs": [],
+        "enabled": true,
+        "params": {}
+      },
+      {
+        "id": "timeline",
+        "type": "edit.timeline",
+        "needs": [
+          "ingest"
+        ],
+        "enabled": true,
+        "params": {
+          "transition_frames": 0,
+          "transition_type": "crossfade"
+        }
+      }
+    ],
+    "ui": {
+      "version": 1,
+      "viewport": {
+        "x": 0,
+        "y": 0,
+        "zoom": 1
+      },
+      "nodes": {
+        "ingest": {
+          "x": 60,
+          "y": 60,
+          "expanded": false,
+          "pinned": false,
+          "width": 420
+        },
+        "timeline": {
+          "x": 340,
+          "y": 60,
+          "expanded": true,
+          "pinned": true,
+          "width": 420
+        }
+      }
+    }
+  }
+}

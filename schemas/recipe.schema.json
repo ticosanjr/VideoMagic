@@ -47,6 +47,40 @@
       "title": "LlmRecipeConfig",
       "type": "object"
     },
+    "RecipeNodeUi": {
+      "additionalProperties": false,
+      "properties": {
+        "expanded": {
+          "default": false,
+          "title": "Expanded",
+          "type": "boolean"
+        },
+        "pinned": {
+          "default": false,
+          "title": "Pinned",
+          "type": "boolean"
+        },
+        "width": {
+          "default": 420,
+          "maximum": 900,
+          "minimum": 280,
+          "title": "Width",
+          "type": "integer"
+        },
+        "x": {
+          "default": 0.0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "default": 0.0,
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "title": "RecipeNodeUi",
+      "type": "object"
+    },
     "RecipeStep": {
       "additionalProperties": false,
       "properties": {
@@ -83,6 +117,53 @@
       ],
       "title": "RecipeStep",
       "type": "object"
+    },
+    "RecipeUi": {
+      "additionalProperties": false,
+      "properties": {
+        "nodes": {
+          "additionalProperties": {
+            "$ref": "#/$defs/RecipeNodeUi"
+          },
+          "title": "Nodes",
+          "type": "object"
+        },
+        "version": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "viewport": {
+          "$ref": "#/$defs/RecipeViewport"
+        }
+      },
+      "title": "RecipeUi",
+      "type": "object"
+    },
+    "RecipeViewport": {
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "default": 0.0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "default": 0.0,
+          "title": "Y",
+          "type": "number"
+        },
+        "zoom": {
+          "default": 1.0,
+          "exclusiveMinimum": 0.0,
+          "maximum": 4.0,
+          "title": "Zoom",
+          "type": "number"
+        }
+      },
+      "title": "RecipeViewport",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -118,6 +199,9 @@
       "minItems": 1,
       "title": "Steps",
       "type": "array"
+    },
+    "ui": {
+      "$ref": "#/$defs/RecipeUi"
     }
   },
   "required": [

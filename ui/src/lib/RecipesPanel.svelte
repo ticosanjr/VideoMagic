@@ -10,6 +10,7 @@
     type Node
   } from "@xyflow/svelte";
   import StepNode from "$lib/nodes/StepNode.svelte";
+  import { setPath, validateParams } from "$lib/recipeFields";
   import PathPicker from "$lib/PathPicker.svelte";
   import {
     errorMessage,
@@ -47,12 +48,32 @@
     output?: string;
   } = $props();
 
-  type NodeStatus = "idle" | "running" | "cached" | "executed" | "failed";
+  type NodeStatus =
+    | "idle"
+    | "queued"
+    | "running"
+    | "cached"
+    | "executed"
+    | "failed"
+    | "skipped";
   type NodeData = {
     title: string;
     type: string;
     params: Record<string, unknown>;
+    schema?: Record<string, unknown>;
     status?: NodeStatus;
+    progress?: number;
+    expanded?: boolean;
+    pinned?: boolean;
+    width?: number;
+    onToggle?: () => void;
+    onPin?: () => void;
+    onPatch?: (path: string[], value: unknown) => void;
+    onPickPath?: (path: string[]) => void;
+    onRun?: () => void;
+    onDuplicate?: () => void;
+    onRemove?: () => void;
+    onOpenJson?: () => void;
   };
 
   const nodeTypes = { step: StepNode };
@@ -64,6 +85,15 @@
   let recipeId = $state("my_recipe");
   let recipeName = $state("My recipe");
   let recipeDescription = $state("");
+  let recipeUi = $state<NonNullable<Recipe["ui"]>>({
+    version: 1,
+    viewport: { x: 0, y: 0, zoom: 1 },
+    nodes: {}
+  });
+  let layoutStatus = $state("");
+  let uiSaveTimer: ReturnType<typeof setTimeout> | undefined;
+  let nodePathTarget = $state<{ nodeId: string; path: string[] } | null>(null);
+  let nodePathMode = $state<"file" | "directory">("file");
   let llm = $state<Recipe["llm"]>({
     provider: "none",
     base_url: null,
@@ -74,7 +104,14 @@
   let inputSource = $state("");
   let inputOutput = $state("");
   let picker = $state<
-    "source" | "output" | "batch-source" | "batch-output" | "broll" | "second-source" | null
+    | "source"
+    | "output"
+    | "batch-source"
+    | "batch-output"
+    | "broll"
+    | "second-source"
+    | "node-path"
+    | null
   >(null);
   let paramText = $state("{}");
   let paramError = $state("");
@@ -188,6 +225,7 @@
   onDestroy(() => {
     clearInterval(poll);
     clearInterval(batchPoll);
+    clearTimeout(uiSaveTimer);
   });
 
   function nodeData(node: Node): NodeData {
@@ -232,6 +270,11 @@
     recipeName = recipe.name;
     recipeDescription = recipe.description;
     llm = recipe.llm;
+    recipeUi = recipe.ui ?? {
+      version: 1,
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: {}
+    };
     const depth = levels(recipe);
     const rows: Record<number, number> = {};
     const next = recipe.steps.map((step) => {
@@ -239,15 +282,39 @@
       const row = rows[column] ?? 0;
       rows[column] = row + 1;
       const manifest = manifestFor(step.type);
+      const saved = recipeUi.nodes[step.id];
+      recipeUi.nodes[step.id] = {
+        x: saved?.x ?? 60 + column * 280,
+        y: saved?.y ?? 60 + row * 150,
+        expanded: saved?.expanded ?? false,
+        pinned: saved?.pinned ?? false,
+        width: saved?.width ?? 420
+      };
       return {
         id: step.id,
         type: "step",
-        position: { x: 60 + column * 280, y: 60 + row * 150 },
+        position: { x: recipeUi.nodes[step.id].x, y: recipeUi.nodes[step.id].y },
         data: {
           title: manifest?.title ?? step.type,
           type: step.type,
           params: step.params,
-          status: "idle"
+          schema: manifest?.params_schema ?? {},
+          status: "idle",
+          progress: 0,
+          expanded: recipeUi.nodes[step.id].expanded,
+          pinned: recipeUi.nodes[step.id].pinned,
+          width: recipeUi.nodes[step.id].width,
+          onToggle: () => toggleNodeExpanded(step.id),
+          onPin: () => toggleNodePinned(step.id),
+          onPatch: (path: string[], value: unknown) => patchNodeParams(step.id, path, value),
+          onPickPath: (path: string[]) => openNodePathPicker(step.id, path),
+          onRun: () => void runToHere(step.id),
+          onDuplicate: () => duplicateNode(step.id),
+          onRemove: () => removeNode(step.id),
+          onOpenJson: () => {
+            selectedId = step.id;
+            openStepJson();
+          }
         }
       } satisfies Node;
     });
@@ -284,6 +351,22 @@
       name: recipeName.trim() || "Untitled recipe",
       description: recipeDescription,
       llm,
+      ui: {
+        version: 1,
+        viewport: recipeUi.viewport,
+        nodes: Object.fromEntries(
+          nodes.map((node) => [
+            node.id,
+            {
+              x: node.position.x,
+              y: node.position.y,
+              expanded: Boolean(nodeData(node).expanded),
+              pinned: Boolean(nodeData(node).pinned),
+              width: nodeData(node).width ?? 420
+            }
+          ])
+        )
+      },
       steps: nodes.map((node) => {
         const data = nodeData(node);
         return {
@@ -316,23 +399,42 @@
           title: manifest.title,
           type,
           params: defaultsFor(manifest),
-          status: "idle"
+          schema: manifest.params_schema,
+          status: "idle",
+          progress: 0,
+          expanded: true,
+          pinned: false,
+          width: 420,
+          onToggle: () => toggleNodeExpanded(id),
+          onPin: () => toggleNodePinned(id),
+          onPatch: (path: string[], value: unknown) => patchNodeParams(id, path, value),
+          onPickPath: (path: string[]) => openNodePathPicker(id, path),
+          onRun: () => void runToHere(id),
+          onDuplicate: () => duplicateNode(id),
+          onRemove: () => removeNode(id),
+          onOpenJson: () => {
+            selectedId = id;
+            openStepJson();
+          }
         }
       } satisfies Node
     ];
+    recipeUi.nodes[id] = {
+      x: 80 + (nodes.length % 4) * 240,
+      y: 100 + Math.floor(nodes.length / 4) * 140,
+      expanded: true,
+      pinned: false,
+      width: 420
+    };
     selectedId = id;
+    lastSelected = "";
     addOpen = false;
     inspectorOpen = true;
+    scheduleUiSave();
   }
 
   function removeSelected() {
-    if (!selectedId) return;
-    const id = selectedId;
-    nodes = nodes.filter((node) => node.id !== id);
-    edges = edges.filter((edge) => edge.source !== id && edge.target !== id);
-    selectedId = null;
-    lastSelected = "";
-    paramText = "{}";
+    if (selectedId) removeNode(selectedId);
   }
 
   function onConnect(connection: Connection) {
@@ -554,6 +656,211 @@
     }
   }
 
+  function scheduleUiSave() {
+    clearTimeout(uiSaveTimer);
+    layoutStatus = "saving…";
+    uiSaveTimer = setTimeout(async () => {
+      try {
+        await saveRecipe(recipeFromGraph());
+        recipes = await listRecipes();
+        layoutStatus = "layout saved";
+      } catch (reason) {
+        layoutStatus = errorMessage(reason);
+      }
+    }, 700);
+  }
+
+  function setNodeUi(id: string, patch: Partial<NonNullable<Recipe["ui"]>["nodes"][string]>) {
+    const current = recipeUi.nodes[id] ?? {
+      x: 60,
+      y: 60,
+      expanded: false,
+      pinned: false,
+      width: 420
+    };
+    recipeUi = {
+      ...recipeUi,
+      nodes: { ...recipeUi.nodes, [id]: { ...current, ...patch } }
+    };
+  }
+
+  function selectNode(id: string) {
+    selectedId = id;
+    inspectorOpen = true;
+    if (!recipeUi.nodes[id]?.expanded) toggleNodeExpanded(id);
+  }
+
+  function toggleNodeExpanded(id: string) {
+    const current = recipeUi.nodes[id];
+    if (!current) return;
+    const next = !current.expanded;
+    const updates: Record<string, boolean> = {};
+    for (const node of nodes) {
+      const data = nodeData(node);
+      updates[node.id] = node.id === id ? next : next && !data.pinned ? false : Boolean(data.expanded);
+    }
+    nodes = nodes.map((node) => ({
+      ...node,
+      data: { ...nodeData(node), expanded: updates[node.id] ?? false }
+    }));
+    recipeUi = {
+      ...recipeUi,
+      nodes: Object.fromEntries(
+        Object.entries(recipeUi.nodes).map(([key, value]) => [
+          key,
+          { ...value, expanded: updates[key] ?? value.expanded }
+        ])
+      )
+    };
+    setNodeUi(id, { expanded: next });
+    scheduleUiSave();
+  }
+
+  function toggleNodePinned(id: string) {
+    const current = recipeUi.nodes[id];
+    if (!current) return;
+    const pinned = !current.pinned;
+    setNodeUi(id, { pinned });
+    nodes = nodes.map((node) =>
+      node.id === id
+        ? { ...node, data: { ...nodeData(node), pinned } }
+        : node
+    );
+    scheduleUiSave();
+  }
+
+  function patchNodeParams(id: string, path: string[], value: unknown) {
+    const node = nodes.find((item) => item.id === id);
+    if (!node) return;
+    const params = setPath({ ...(nodeData(node).params ?? {}) }, path, value);
+    nodes = nodes.map((item) =>
+      item.id === id
+        ? { ...item, data: { ...nodeData(item), params } }
+        : item
+    );
+    if (selectedId === id) {
+      paramText = JSON.stringify(params, null, 2);
+    }
+  }
+
+  function openNodePathPicker(nodeId: string, path: string[]) {
+    nodePathTarget = { nodeId, path };
+    nodePathMode = /dir|directory|asset_dir/i.test(path[path.length - 1] ?? "") ? "directory" : "file";
+    picker = "node-path";
+  }
+
+  function duplicateNode(id: string) {
+    const source = nodes.find((node) => node.id === id);
+    if (!source) return;
+    const data = nodeData(source);
+    let suffix = 2;
+    let nextId = `${id}_copy`;
+    while (nodes.some((node) => node.id === nextId)) {
+      nextId = `${id}_copy${suffix++}`;
+    }
+    const position = { x: source.position.x + 40, y: source.position.y + 40 };
+    const copy: Node = {
+      ...source,
+      id: nextId,
+      position,
+      selected: false,
+      data: {
+        ...data,
+        onToggle: () => toggleNodeExpanded(nextId),
+        onPin: () => toggleNodePinned(nextId),
+        onPatch: (path: string[], value: unknown) => patchNodeParams(nextId, path, value),
+        onPickPath: (path: string[]) => openNodePathPicker(nextId, path),
+        onRun: () => void runToHere(nextId),
+        onDuplicate: () => duplicateNode(nextId),
+        onRemove: () => removeNode(nextId),
+        onOpenJson: () => {
+          selectedId = nextId;
+          openStepJson();
+        }
+      }
+    };
+    nodes = [...nodes, copy];
+    recipeUi.nodes[nextId] = {
+      x: position.x,
+      y: position.y,
+      expanded: Boolean(data.expanded),
+      pinned: false,
+      width: data.width ?? 420
+    };
+    selectedId = nextId;
+    lastSelected = "";
+    scheduleUiSave();
+  }
+
+  function removeNode(id: string) {
+    nodes = nodes.filter((node) => node.id !== id);
+    edges = edges.filter((edge) => edge.source !== id && edge.target !== id);
+    delete recipeUi.nodes[id];
+    if (selectedId === id) {
+      selectedId = null;
+      lastSelected = "";
+      paramText = "{}";
+    }
+    scheduleUiSave();
+  }
+
+  function handleNodeDragStop(event: { nodes?: Node[] }) {
+    for (const dragged of event.nodes ?? []) {
+      const current = recipeUi.nodes[dragged.id];
+      if (current) {
+        recipeUi.nodes[dragged.id] = {
+          ...current,
+          x: dragged.position.x,
+          y: dragged.position.y
+        };
+      }
+    }
+    scheduleUiSave();
+  }
+
+  function resetLayout() {
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    const depth: Record<string, number> = {};
+    const visit = (id: string, trail: Set<string> = new Set()): number => {
+      if (depth[id] !== undefined) return depth[id];
+      if (trail.has(id)) return 0;
+      const node = byId.get(id);
+      if (!node) return 0;
+      trail.add(id);
+      const level = Math.max(
+        0,
+        ...edges
+          .filter((edge) => edge.target === id)
+          .map((edge) => visit(edge.source, trail) + 1)
+      );
+      trail.delete(id);
+      depth[id] = level;
+      return level;
+    };
+    const rows: Record<number, number> = {};
+    nodes = nodes.map((node) => {
+      const column = visit(node.id);
+      const row = rows[column] ?? 0;
+      rows[column] = row + 1;
+      const position = { x: 60 + column * 300, y: 60 + row * 170 };
+      recipeUi.nodes[node.id] = { ...(recipeUi.nodes[node.id] ?? {}), x: position.x, y: position.y } as NonNullable<Recipe["ui"]>["nodes"][string];
+      return { ...node, position };
+    });
+    layoutStatus = "auto layout";
+    scheduleUiSave();
+  }
+
+  function nodeValidationErrors(): Record<string, string> {
+    const errors: Record<string, string> = {};
+    for (const node of nodes) {
+      const data = nodeData(node);
+      for (const [key, message] of Object.entries(validateParams(data.schema ?? {}, data.params ?? {}))) {
+        errors[`${node.id}.${key}`] = message;
+      }
+    }
+    return errors;
+  }
+
   function openStepJson() {
     if (!selectedId) return;
     jsonError = "";
@@ -604,10 +911,26 @@
     if (!inspectorOpen) addOpen = false;
   }
 
-  function setStatuses(statuses: Record<string, NodeStatus>) {
+  function setStatuses(statuses: Record<string, NodeStatus>, progress: Record<string, number> = {}) {
     nodes = nodes.map((node) => {
       const status = statuses[node.id];
-      return status ? { ...node, data: { ...nodeData(node), status } } : node;
+      const percent = progress[node.id];
+      if (!status && percent === undefined) return node;
+      const data = nodeData(node);
+      return {
+        ...node,
+        data: {
+          ...data,
+          status: status ?? data.status,
+          progress:
+            percent ??
+            (status === "cached" || status === "executed"
+              ? 100
+              : status === "failed"
+                ? 0
+                : data.progress)
+        }
+      };
     });
   }
 
@@ -618,12 +941,17 @@
   function applyJobStatuses(current: Job) {
     if (current.status === "running" || current.status === "queued") {
       const statuses: Record<string, NodeStatus> = {};
+      const progress: Record<string, number> = {};
       for (const stage of current.stages) {
         if (stage.status === "running") statuses[stage.id] = "running";
         else if (stage.status === "succeeded") statuses[stage.id] = "executed";
         else if (stage.status === "failed") statuses[stage.id] = "failed";
       }
-      setStatuses(statuses);
+      for (const [id, percent] of Object.entries(current.step_progress ?? {})) {
+        progress[id] = percent;
+        if (percent < 100 && !statuses[id]) statuses[id] = "running";
+      }
+      setStatuses(statuses, progress);
       return;
     }
     if (current.status === "failed") {
@@ -637,10 +965,12 @@
     }
     if (current.result?.step_runs?.length) {
       const statuses: Record<string, NodeStatus> = {};
+      const progress: Record<string, number> = {};
       for (const run of current.result.step_runs) {
         statuses[run.id] = run.status === "cached" ? "cached" : "executed";
+        progress[run.id] = run.progress ?? 100;
       }
-      setStatuses(statuses);
+      setStatuses(statuses, progress);
     }
   }
 
@@ -676,6 +1006,11 @@
       error = "Choose a source file and an output directory first.";
       return;
     }
+    const fieldErrors = nodeValidationErrors();
+    if (Object.keys(fieldErrors).length) {
+      error = `Fix ${Object.keys(fieldErrors).length} field error(s) before running.`;
+      return;
+    }
     busy = true;
     resetStatuses();
     previousJob = null;
@@ -705,6 +1040,11 @@
     status = "";
     if (!inputSource.trim() || !inputOutput.trim()) {
       error = "Choose a source file and an output directory first.";
+      return;
+    }
+    const fieldErrors = nodeValidationErrors();
+    if (Object.keys(fieldErrors).length) {
+      error = `Fix ${Object.keys(fieldErrors).length} field error(s) before running.`;
       return;
     }
     busy = true;
@@ -854,6 +1194,10 @@
     if (picker === "batch-output") batchOutputRoot = path;
     if (picker === "broll") patchParams({ asset_dir: path });
     if (picker === "second-source") patchParams({ second_source_path: path });
+    if (picker === "node-path" && nodePathTarget) {
+      patchNodeParams(nodePathTarget.nodeId, nodePathTarget.path, path);
+      nodePathTarget = null;
+    }
     picker = null;
   }
 
@@ -1009,6 +1353,14 @@
         </button>
         <button
           type="button"
+          data-testid="recipe-reset-layout"
+          onclick={resetLayout}
+          class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500"
+        >
+          Auto layout
+        </button>
+        <button
+          type="button"
           onclick={openRecipeJson}
           class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500"
         >
@@ -1073,10 +1425,8 @@
             maxZoom={1.6}
             colorMode="dark"
             onconnect={onConnect}
-            onnodeclick={({ node }) => {
-              selectedId = node.id;
-              inspectorOpen = true;
-            }}
+            onnodedragstop={handleNodeDragStop}
+            onnodeclick={({ node }) => selectNode(node.id)}
           >
             <Background gap={20} size={1} />
             <Controls />
@@ -1811,12 +2161,14 @@
   {#if picker}
     <PathPicker
       open={true}
-      mode={picker === "source" || picker === "second-source" ? "file" : "directory"}
+      mode={picker === "node-path" ? nodePathMode : picker === "source" || picker === "second-source" ? "file" : "directory"}
       title={
         picker === "source"
           ? "Choose source video"
           : picker === "second-source"
             ? "Choose second split-screen source"
+          : picker === "node-path"
+            ? "Choose step field path"
           : picker === "output"
             ? "Choose output directory"
             : picker === "batch-source"
@@ -1830,6 +2182,8 @@
           ? inputSource
           : picker === "second-source"
             ? paramString("second_source_path")
+          : picker === "node-path"
+            ? ""
           : picker === "output"
             ? inputOutput
             : picker === "batch-source"

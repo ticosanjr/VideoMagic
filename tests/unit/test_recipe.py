@@ -799,3 +799,46 @@ def test_interrupted_job_is_marked_failed(tmp_path: Path) -> None:
     restored = manager.get(str(job_id))
     assert restored.status == "failed"
     assert restored.error["code"] == "job_interrupted"
+
+
+def test_recipe_ui_layout_round_trips() -> None:
+    recipe = parse_recipe(
+        {
+            "id": "layout",
+            "name": "Layout",
+            "ui": {
+                "version": 1,
+                "viewport": {"x": 10, "y": 20, "zoom": 1.2},
+                "nodes": {
+                    "ingest": {
+                        "x": 120,
+                        "y": 80,
+                        "expanded": True,
+                        "pinned": True,
+                        "width": 520,
+                    }
+                },
+            },
+            "steps": [{"id": "ingest", "type": "ingest"}],
+        }
+    )
+    assert recipe.ui.nodes["ingest"].x == 120
+    assert recipe.ui.nodes["ingest"].expanded is True
+    assert recipe.ui.viewport.zoom == 1.2
+
+
+def test_step_io_reports_local_and_overall_progress() -> None:
+    from videoflow.steps.base import StepIO
+
+    local: list[tuple[str, int, str]] = []
+    overall: list[tuple[str, int, str]] = []
+    io = StepIO(
+        stage="timeline",
+        index=2,
+        total=4,
+        progress=lambda stage, percent, message: overall.append((stage, percent, message)),
+        step_progress=lambda stage, percent, message: local.append((stage, percent, message)),
+    )
+    io.report(50, "half")
+    assert local == [("timeline", 50, "half")]
+    assert overall == [("timeline", 37, "half")]

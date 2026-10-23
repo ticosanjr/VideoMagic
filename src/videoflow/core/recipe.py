@@ -38,6 +38,26 @@ class LlmRecipeConfig(StrictModel):
     timeout_seconds: float = Field(default=90.0, gt=0.0, le=600.0)
 
 
+class RecipeNodeUi(StrictModel):
+    x: float = 0.0
+    y: float = 0.0
+    expanded: bool = False
+    pinned: bool = False
+    width: int = Field(default=420, ge=280, le=900)
+
+
+class RecipeViewport(StrictModel):
+    x: float = 0.0
+    y: float = 0.0
+    zoom: float = Field(default=1.0, gt=0.0, le=4.0)
+
+
+class RecipeUi(StrictModel):
+    version: int = Field(default=1, ge=1)
+    viewport: RecipeViewport = Field(default_factory=RecipeViewport)
+    nodes: dict[str, RecipeNodeUi] = Field(default_factory=dict)
+
+
 class RecipeStep(StrictModel):
     id: str
     type: str = Field(min_length=1)
@@ -59,6 +79,7 @@ class Recipe(StrictModel):
     name: str = Field(min_length=1, max_length=200)
     description: str = ""
     llm: LlmRecipeConfig = Field(default_factory=LlmRecipeConfig)
+    ui: RecipeUi = Field(default_factory=RecipeUi)
     steps: list[RecipeStep] = Field(min_length=1)
 
     @field_validator("id")

@@ -26,6 +26,18 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByTestId("step-edit.timeline")).toBeVisible();
 });
 
+test("loads saved node layout and inline fields", async ({ page }) => {
+  await expect(page.getByTestId("field-transition_frames")).toBeVisible();
+  await expect(page.getByTestId("step-pin-edit.timeline")).toBeVisible();
+});
+
+test("edits a field directly inside the node", async ({ page }) => {
+  await page.getByTestId("step-ingest").click();
+  await expect(page.getByTestId("field-extract_pcm")).toBeVisible();
+  await page.getByTestId("field-extract_pcm").uncheck();
+  await expect(page.getByTestId("step-params-json")).toHaveValue(/"extract_pcm": false/);
+});
+
 test("loads the recipe graph and edits transition parameters", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Recipe builder" })).toBeVisible();
   await expect(page.getByTestId("step-edit.timeline")).toBeVisible();

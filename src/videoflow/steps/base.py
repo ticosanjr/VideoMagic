@@ -28,6 +28,7 @@ class StepIO:
     llm_client: Any | None = None
     asr_client: Any | None = None
     progress: Callable[[str, int, str], None] | None = None
+    step_progress: Callable[[str, int, str], None] | None = None
     should_cancel: Callable[[], bool] | None = None
     log: Callable[[str, str, str], None] | None = None
 
@@ -42,6 +43,8 @@ class StepIO:
         if self.progress is None:
             return
         local = max(0, min(100, int(percent)))
+        if self.step_progress is not None:
+            self.step_progress(self.stage, local, message)
         overall = int(((self.index - 1) * 100 + local) / max(1, self.total))
         self.progress(self.stage, overall, message)
 

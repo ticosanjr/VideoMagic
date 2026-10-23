@@ -74,6 +74,7 @@ class Job:
     started_at: str | None = None
     finished_at: str | None = None
     telemetry: JobTelemetry = field(default_factory=JobTelemetry)
+    step_progress: dict[str, int] = field(default_factory=dict)
     finalizer: Callable[[Job], None] | None = field(default=None, repr=False)
 
     def to_dict(self) -> dict[str, Any]:
@@ -92,6 +93,7 @@ class Job:
             "started_at": self.started_at,
             "finished_at": self.finished_at,
             "duration_ms": _duration_ms(self.started_at, self.finished_at),
+            "step_progress": dict(self.step_progress),
             "log_count": self.telemetry.log_count(),
             "stages": self.telemetry.stages(),
         }
@@ -565,6 +567,12 @@ class JobManager:
         def log(module: str, level: str, message: str) -> None:
             job.telemetry.log(module, level, message)
 
+        def step_progress(stage: str, percent: int, message: str) -> None:
+            with self._lock:
+                job.step_progress[stage] = max(0, min(100, int(percent)))
+                job.stage = stage
+                job.message = message
+
         def should_cancel() -> bool:
             return job.cancel_requested
 
@@ -700,6 +708,11 @@ def _job_from_dict(payload: dict[str, Any]) -> Job:
     job.created_at = str(payload.get("created_at", _now()))
     job.started_at = payload.get("started_at")
     job.finished_at = payload.get("finished_at")
+    job.step_progress = {
+        str(key): int(value)
+        for key, value in (payload.get("step_progress") or {}).items()
+        if isinstance(value, (int, float))
+    }
     return job
 
 

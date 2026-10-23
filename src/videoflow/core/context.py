@@ -73,6 +73,7 @@ class PipelineContext(BaseModel):
             "broll_plan": self.metadata.get("broll_plan", {}),
             "speaker_count": self.metadata.get("speaker_count", 0),
             "diarization_method": self.metadata.get("diarization_method", "none"),
+            "step_progress": self.metadata.get("step_progress", {}),
             "warnings": list(self.warnings),
             "artifacts": dict(self.artifacts),
             "hashes": dict(self.hashes),

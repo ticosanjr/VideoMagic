@@ -38,6 +38,7 @@ class StepRun:
     elapsed_ms: int
     fingerprint: str
     outputs: tuple[str, ...]
+    progress: int = 100
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -45,6 +46,7 @@ class StepRun:
             "type": self.type,
             "status": self.status,
             "elapsed_ms": self.elapsed_ms,
+            "progress": self.progress,
             "fingerprint": self.fingerprint,
             "outputs": list(self.outputs),
         }
@@ -97,6 +99,7 @@ class RecipeRunner:
         output: Path,
         *,
         progress: Any | None = None,
+        step_progress: Any | None = None,
         should_cancel: Any | None = None,
         log: Any | None = None,
         telemetry: Any | None = None,
@@ -152,6 +155,7 @@ class RecipeRunner:
                 llm_client=llm,
                 asr_client=self.asr_client,
                 progress=progress,
+                step_progress=step_progress,
                 should_cancel=should_cancel,
                 log=log,
             )
@@ -174,8 +178,12 @@ class RecipeRunner:
                             elapsed_ms=0,
                             fingerprint=fingerprint,
                             outputs=cached,
+                            progress=100,
                         )
                     )
+                    context.metadata.setdefault("step_progress", {})[recipe_step.id] = 100
+                    if step_progress is not None:
+                        step_progress(recipe_step.id, 100, "Cached checkpoint reused")
                     if telemetry is not None:
                         telemetry.start(
                             recipe_step.id,
@@ -197,6 +205,7 @@ class RecipeRunner:
                 )
             io.check_cancel()
             step_started = time.perf_counter()
+            context.metadata.setdefault("step_progress", {})[recipe_step.id] = 0
             try:
                 step.run(context, params, io)
             except Exception as exc:
@@ -207,6 +216,9 @@ class RecipeRunner:
                     raise
                 raise StepExecutionError(recipe_step.id, str(exc)) from exc
             elapsed_ms = int((time.perf_counter() - step_started) * 1000)
+            context.metadata.setdefault("step_progress", {})[recipe_step.id] = 100
+            if step_progress is not None:
+                step_progress(recipe_step.id, 100, f"{step.title} ready")
             context.hashes[recipe_step.id] = fingerprint
             outputs = tuple(str(path) for path in step.cache_outputs(context))
             write_json(
@@ -239,6 +251,7 @@ class RecipeRunner:
                     elapsed_ms=elapsed_ms,
                     fingerprint=fingerprint,
                     outputs=outputs,
+                    progress=100,
                 )
             )
             if telemetry is not None:
