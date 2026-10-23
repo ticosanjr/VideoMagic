@@ -3,6 +3,25 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.47.0] - 2026-10-23
+
+### Added
+
+- **Saved viewport.** The recipe canvas restores the persisted pan/zoom and saves
+  viewport changes.
+- **Node width cycling.** Expanded nodes cycle between compact, medium, and wide
+  widths; the choice is persisted.
+- **Proxy preview in the UI.** A 540p proxy can be generated from a successful
+  job and played inline.
+- **Persisted batch history.** The batch modal lists stored batches and loads
+  them.
+- URL and schema-pattern validation for inline fields.
+
+### Notes
+
+- Arrays and deeply nested objects still fall back to the advanced JSON editor.
+- 449 Python tests, 8 media tests, 14 Vitest tests, and 10 Playwright tests pass.
+
 ## [0.46.0] - 2026-10-23
 
 ### Added

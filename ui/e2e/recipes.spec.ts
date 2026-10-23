@@ -15,6 +15,7 @@ async function mockApi(page: Page) {
     if (path === "/api/v1/recipes/example_recipe") return route.fulfill({ json: fixture("recipe.json") });
     if (path === "/api/v1/runs") return route.fulfill({ json: fixture("runs.json") });
     if (path === "/api/v1/exports/validate") return route.fulfill({ json: fixture("nle.json") });
+    if (path === "/api/v1/batches") return route.fulfill({ json: fixture("batches.json") });
     return route.fulfill({ json: { ok: true } });
   });
 }
@@ -78,6 +79,21 @@ test("validates NLE exports from the UI", async ({ page }) => {
   await expect(page.getByTestId("nle-report")).toBeVisible();
   await expect(page.getByText("NLE export validation")).toBeVisible();
   await expect(page.getByText("affine_filters: 2")).toBeVisible();
+});
+
+test("opens persisted batch history", async ({ page }) => {
+  await page.getByRole("button", { name: "Batch" }).click();
+  await expect(page.getByText("Persisted batches")).toBeVisible();
+  await expect(page.getByText(/11111111/)).toBeVisible();
+});
+
+test("cycles node width from the node header", async ({ page }) => {
+  await page.getByTestId("step-ingest").click();
+  const node = page.getByTestId("step-ingest");
+  const before = await node.boundingBox();
+  await page.getByTestId("step-width-ingest").click();
+  const after = await node.boundingBox();
+  expect(after?.width).not.toBe(before?.width);
 });
 
 test("opens persisted run history and shows failures", async ({ page }) => {

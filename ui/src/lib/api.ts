@@ -1133,6 +1133,11 @@ export async function getRunHistory(output: string): Promise<RunRecord[]> {
   return response.runs;
 }
 
+export async function listBatches(): Promise<Batch[]> {
+  const response = await request<{ ok: boolean; batches: Batch[] }>("/api/v1/batches");
+  return response.batches;
+}
+
 export async function getBatch(batchId: string): Promise<Batch> {
   const response = await request<{ ok: boolean; batch: Batch }>(
     `/api/v1/batches/${encodeURIComponent(batchId)}`
@@ -1325,6 +1330,14 @@ export async function getLogs(
     `/api/v1/jobs/${jobId}/logs?${params.toString()}`
   );
   return response.logs;
+}
+
+export async function createJobPreview(
+  jobId: string
+): Promise<{ ok: boolean; path: string; url: string }> {
+  return request(`/api/v1/jobs/${encodeURIComponent(jobId)}/preview`, {
+    method: "POST"
+  });
 }
 
 export function jobArtifactUrl(jobId: string, artifactName: string): string {

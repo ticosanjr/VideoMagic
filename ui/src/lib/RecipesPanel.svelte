@@ -23,7 +23,9 @@
     listRecipes,
     listRecipeSteps,
     cancelBatch,
+    createJobPreview,
     getBatch,
+    listBatches,
     resumeBatch,
     runBatch,
     runRecipe,
@@ -91,6 +93,8 @@
     nodes: {}
   });
   let layoutStatus = $state("");
+  let viewport = $state({ x: 0, y: 0, zoom: 1 });
+  let hasSavedViewport = $state(false);
   let uiSaveTimer: ReturnType<typeof setTimeout> | undefined;
   let nodePathTarget = $state<{ nodeId: string; path: string[] } | null>(null);
   let nodePathMode = $state<"file" | "directory">("file");
@@ -137,6 +141,7 @@
   let batchExtensions = $state("");
   let batchBusy = $state(false);
   let batch = $state<Batch | null>(null);
+  let batchHistory = $state<Batch[]>([]);
   let batchPoll: ReturnType<typeof setInterval> | undefined;
   let previousJob = $state<Job | null>(null);
   let compareOpen = $state(false);
@@ -147,6 +152,9 @@
   let nleReport = $state<NleValidationReport | null>(null);
   let nleBusy = $state(false);
   let nleError = $state("");
+  let proxyUrl = $state("");
+  let proxyBusy = $state(false);
+  let proxyError = $state("");
   let comparison = $state<{
     current: Job;
     previous: Job;
@@ -275,6 +283,8 @@
       viewport: { x: 0, y: 0, zoom: 1 },
       nodes: {}
     };
+    hasSavedViewport = Boolean(recipe.ui?.viewport);
+    viewport = { ...recipeUi.viewport };
     const depth = levels(recipe);
     const rows: Record<number, number> = {};
     const next = recipe.steps.map((step) => {
@@ -306,6 +316,7 @@
           width: recipeUi.nodes[step.id].width,
           onToggle: () => toggleNodeExpanded(step.id),
           onPin: () => toggleNodePinned(step.id),
+          onWidth: () => cycleNodeWidth(step.id),
           onPatch: (path: string[], value: unknown) => patchNodeParams(step.id, path, value),
           onPickPath: (path: string[]) => openNodePathPicker(step.id, path),
           onRun: () => void runToHere(step.id),
@@ -353,7 +364,7 @@
       llm,
       ui: {
         version: 1,
-        viewport: recipeUi.viewport,
+        viewport,
         nodes: Object.fromEntries(
           nodes.map((node) => [
             node.id,
@@ -407,6 +418,7 @@
           width: 420,
           onToggle: () => toggleNodeExpanded(id),
           onPin: () => toggleNodePinned(id),
+          onWidth: () => cycleNodeWidth(id),
           onPatch: (path: string[], value: unknown) => patchNodeParams(id, path, value),
           onPickPath: (path: string[]) => openNodePathPicker(id, path),
           onRun: () => void runToHere(id),
@@ -559,6 +571,20 @@
       "speaker_colors",
       value.split(",").map((item) => item.trim()).filter(Boolean)
     );
+  }
+
+  async function generateProxy() {
+    if (!job) return;
+    proxyBusy = true;
+    proxyError = "";
+    try {
+      const response = await createJobPreview(job.job_id);
+      proxyUrl = response.url;
+    } catch (reason) {
+      proxyError = errorMessage(reason);
+    } finally {
+      proxyBusy = false;
+    }
   }
 
   async function openNleValidation() {
@@ -716,6 +742,19 @@
     scheduleUiSave();
   }
 
+  function cycleNodeWidth(id: string) {
+    const node = nodes.find((item) => item.id === id);
+    if (!node) return;
+    const widths = [360, 480, 600];
+    const current = nodeData(node).width ?? 420;
+    const next = widths[(widths.findIndex((value) => value >= current) + 1) % widths.length] ?? 480;
+    setNodeUi(id, { width: next });
+    nodes = nodes.map((item) =>
+      item.id === id ? { ...item, data: { ...nodeData(item), width: next } } : item
+    );
+    scheduleUiSave();
+  }
+
   function toggleNodePinned(id: string) {
     const current = recipeUi.nodes[id];
     if (!current) return;
@@ -768,6 +807,7 @@
         ...data,
         onToggle: () => toggleNodeExpanded(nextId),
         onPin: () => toggleNodePinned(nextId),
+        onWidth: () => cycleNodeWidth(nextId),
         onPatch: (path: string[], value: unknown) => patchNodeParams(nextId, path, value),
         onPickPath: (path: string[]) => openNodePathPicker(nextId, path),
         onRun: () => void runToHere(nextId),
@@ -1016,6 +1056,8 @@
     previousJob = null;
     comparison = null;
     compareOpen = false;
+    proxyUrl = "";
+    proxyError = "";
     try {
       const recipe = recipeFromGraph();
       await validateRecipe(recipe);
@@ -1201,6 +1243,26 @@
     picker = null;
   }
 
+  async function openBatchHistory() {
+    batchOpen = true;
+    addOpen = false;
+    inspectorOpen = false;
+    try {
+      batchHistory = await listBatches();
+    } catch {
+      batchHistory = [];
+    }
+  }
+
+  async function loadBatch(batchId: string) {
+    try {
+      batch = await getBatch(batchId);
+      watchBatch(batchId);
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
   async function startBatch() {
     error = "";
     status = "";
@@ -1302,11 +1364,7 @@
         </button>
         <button
           type="button"
-          onclick={() => {
-            batchOpen = true;
-            addOpen = false;
-            inspectorOpen = false;
-          }}
+          onclick={() => void openBatchHistory()}
           class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500"
         >
           Batch
@@ -1420,12 +1478,14 @@
             bind:nodes
             bind:edges
             {nodeTypes}
-            fitView
+            fitView={!hasSavedViewport}
+            bind:viewport
             minZoom={0.2}
             maxZoom={1.6}
             colorMode="dark"
             onconnect={onConnect}
             onnodedragstop={handleNodeDragStop}
+            onmoveend={() => scheduleUiSave()}
             onnodeclick={({ node }) => selectNode(node.id)}
           >
             <Background gap={20} size={1} />
@@ -1789,6 +1849,18 @@
           {/each}
         </div>
       {/if}
+      {#if job.status === "succeeded" && job.result?.artifacts && Object.keys(job.result.artifacts).length}
+        <div class="mt-3 rounded-lg border border-neutral-800 bg-neutral-950/60 p-2">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-[10px] uppercase tracking-wide text-neutral-500">Preview proxy</p>
+            <button type="button" onclick={() => void generateProxy()} disabled={proxyBusy} class="rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-300 disabled:opacity-40">{proxyBusy ? "Gerando…" : "Gerar proxy 540p"}</button>
+          </div>
+          {#if proxyError}<p class="mt-1 text-[10px] text-rose-300">{proxyError}</p>{/if}
+          {#if proxyUrl}
+            <video class="mt-2 w-full rounded border border-neutral-800" controls preload="metadata" src={proxyUrl}><track kind="captions" src="data:text/vtt;charset=utf-8,WEBVTT%0A%0A" /></video>
+          {/if}
+        </div>
+      {/if}
       {#if job.result?.shorts?.length}
         <div class="mt-3">
           <p class="text-[10px] uppercase tracking-wide text-neutral-500">Short previews</p>
@@ -2040,6 +2112,20 @@
                     <span class="min-w-0 flex-1 truncate font-mono text-neutral-300">{item.source}</span>
                     <span class="shrink-0 text-neutral-500">{item.status}</span>
                   </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
+
+          {#if batchHistory.length}
+            <div class="mt-4 rounded-xl border border-neutral-800 bg-neutral-900/40 p-3">
+              <p class="text-[10px] uppercase tracking-wide text-neutral-500">Persisted batches</p>
+              <div class="mt-2 max-h-40 space-y-1 overflow-y-auto">
+                {#each batchHistory as entry}
+                  <button type="button" onclick={() => void loadBatch(entry.batch_id)} class="flex w-full items-center justify-between gap-2 rounded-lg border border-neutral-800 bg-neutral-950/60 px-2 py-1.5 text-left text-[10px] hover:border-sky-500">
+                    <span class="min-w-0 truncate font-mono text-neutral-400">{entry.batch_id.slice(0, 8)} · {entry.recipe_id}</span>
+                    <span class="text-neutral-500">{entry.status} · {entry.completed}/{entry.total}</span>
+                  </button>
                 {/each}
               </div>
             </div>

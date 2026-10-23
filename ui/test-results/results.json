@@ -131,12 +131,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1895,
+                  "duration": 1922,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T06:13:34.332Z",
+                  "startTime": "2026-10-23T10:09:01.669Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -146,7 +146,7 @@
           ],
           "id": "723a17b4fbf153e3b0b6-76a628276147768c3a15",
           "file": "recipes.spec.ts",
-          "line": 29,
+          "line": 30,
           "column": 1
         },
         {
@@ -165,12 +165,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 946,
+                  "duration": 970,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T06:13:36.387Z",
+                  "startTime": "2026-10-23T10:09:03.739Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -180,11 +180,79 @@
           ],
           "id": "723a17b4fbf153e3b0b6-f7dd95b01486fc68a951",
           "file": "recipes.spec.ts",
-          "line": 34,
+          "line": 35,
           "column": 1
         },
         {
           "title": "loads the recipe graph and edits transition parameters",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1075,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-23T10:09:04.725Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "723a17b4fbf153e3b0b6-a89ab63210a219aacb71",
+          "file": "recipes.spec.ts",
+          "line": 42,
+          "column": 1
+        },
+        {
+          "title": "adds a step from the JSON-backed palette",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1061,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-23T10:09:05.817Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "723a17b4fbf153e3b0b6-70fb96269b26a2814820",
+          "file": "recipes.spec.ts",
+          "line": 54,
+          "column": 1
+        },
+        {
+          "title": "exposes the second split-screen source control",
           "ok": true,
           "tags": [],
           "tests": [
@@ -204,75 +272,7 @@
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T06:13:37.354Z",
-                  "annotations": [],
-                  "attachments": []
-                }
-              ],
-              "status": "expected"
-            }
-          ],
-          "id": "723a17b4fbf153e3b0b6-a89ab63210a219aacb71",
-          "file": "recipes.spec.ts",
-          "line": 41,
-          "column": 1
-        },
-        {
-          "title": "adds a step from the JSON-backed palette",
-          "ok": true,
-          "tags": [],
-          "tests": [
-            {
-              "timeout": 30000,
-              "annotations": [],
-              "expectedStatus": "passed",
-              "projectId": "chromium",
-              "projectName": "chromium",
-              "results": [
-                {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
-                  "status": "passed",
-                  "duration": 1104,
-                  "errors": [],
-                  "stdout": [],
-                  "stderr": [],
-                  "retry": 0,
-                  "startTime": "2026-10-23T06:13:38.382Z",
-                  "annotations": [],
-                  "attachments": []
-                }
-              ],
-              "status": "expected"
-            }
-          ],
-          "id": "723a17b4fbf153e3b0b6-70fb96269b26a2814820",
-          "file": "recipes.spec.ts",
-          "line": 53,
-          "column": 1
-        },
-        {
-          "title": "exposes the second split-screen source control",
-          "ok": true,
-          "tags": [],
-          "tests": [
-            {
-              "timeout": 30000,
-              "annotations": [],
-              "expectedStatus": "passed",
-              "projectId": "chromium",
-              "projectName": "chromium",
-              "results": [
-                {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
-                  "status": "passed",
-                  "duration": 1165,
-                  "errors": [],
-                  "stdout": [],
-                  "stderr": [],
-                  "retry": 0,
-                  "startTime": "2026-10-23T06:13:39.507Z",
+                  "startTime": "2026-10-23T10:09:06.896Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -282,7 +282,7 @@
           ],
           "id": "723a17b4fbf153e3b0b6-85d7f0638d572d88b7d7",
           "file": "recipes.spec.ts",
-          "line": 60,
+          "line": 61,
           "column": 1
         },
         {
@@ -301,12 +301,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 944,
+                  "duration": 970,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T06:13:40.689Z",
+                  "startTime": "2026-10-23T10:09:07.925Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -316,7 +316,7 @@
           ],
           "id": "723a17b4fbf153e3b0b6-fdc5f68b918309202b20",
           "file": "recipes.spec.ts",
-          "line": 67,
+          "line": 68,
           "column": 1
         },
         {
@@ -335,12 +335,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 863,
+                  "duration": 839,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T06:13:41.647Z",
+                  "startTime": "2026-10-23T10:09:08.909Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -350,7 +350,75 @@
           ],
           "id": "723a17b4fbf153e3b0b6-e91d5df6f5edce1e6e4a",
           "file": "recipes.spec.ts",
-          "line": 75,
+          "line": 76,
+          "column": 1
+        },
+        {
+          "title": "opens persisted batch history",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 829,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-23T10:09:09.769Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "723a17b4fbf153e3b0b6-99695d66073a345620d1",
+          "file": "recipes.spec.ts",
+          "line": 84,
+          "column": 1
+        },
+        {
+          "title": "cycles node width from the node header",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1018,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-23T10:09:10.611Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "723a17b4fbf153e3b0b6-3075b29f9dc03779d504",
+          "file": "recipes.spec.ts",
+          "line": 90,
           "column": 1
         },
         {
@@ -369,12 +437,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 918,
+                  "duration": 915,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-23T06:13:42.528Z",
+                  "startTime": "2026-10-23T10:09:11.641Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -384,7 +452,7 @@
           ],
           "id": "723a17b4fbf153e3b0b6-d67b748f13862af07c93",
           "file": "recipes.spec.ts",
-          "line": 83,
+          "line": 99,
           "column": 1
         }
       ]
@@ -392,9 +460,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-10-23T06:13:28.325Z",
-    "duration": 15318.44,
-    "expected": 8,
+    "startTime": "2026-10-23T10:08:55.827Z",
+    "duration": 16909.845999999998,
+    "expected": 10,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

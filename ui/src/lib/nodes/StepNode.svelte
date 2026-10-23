@@ -19,6 +19,7 @@
       errors?: Record<string, string>;
       onToggle?: () => void;
       onPin?: () => void;
+      onWidth?: () => void;
       onPatch?: (path: string[], value: unknown) => void;
       onPickPath?: (path: string[]) => void;
       onRun?: () => void;
@@ -77,6 +78,7 @@
         <p class="mt-0.5 truncate font-mono text-[10px] text-sky-300/80">{data.type}</p>
       </div>
       <div class="flex shrink-0 items-center gap-1">
+        <button type="button" data-testid={`step-width-${data.type}`} title="Cycle width" onclick={(event) => { event.stopPropagation(); data.onWidth?.(); }} class="rounded px-1 text-[11px] text-neutral-500 hover:text-neutral-200">↔</button>
         <button type="button" data-testid={`step-pin-${data.type}`} title={data.pinned ? "Unpin" : "Pin open"} onclick={(event) => { event.stopPropagation(); data.onPin?.(); }} class={`rounded px-1 text-[11px] ${data.pinned ? "text-amber-300" : "text-neutral-500 hover:text-neutral-200"}`}>⌖</button>
         <button type="button" data-testid={`step-toggle-${data.type}`} title={data.expanded ? "Collapse" : "Expand"} onclick={(event) => { event.stopPropagation(); data.onToggle?.(); }} class="rounded px-1 text-[11px] text-neutral-500 hover:text-neutral-200">{data.expanded ? "▴" : "▾"}</button>
       </div>

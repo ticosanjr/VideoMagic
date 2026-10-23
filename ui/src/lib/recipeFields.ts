@@ -11,6 +11,8 @@ export interface RecipeField {
   step?: number;
   integer: boolean;
   required: boolean;
+  format: string;
+  pattern: string;
   placeholder: string;
   help: string;
   value: unknown;
@@ -113,6 +115,8 @@ function buildField(
     step: type === "integer" ? 1 : undefined,
     integer: type === "integer",
     required,
+    format: typeof resolved.format === "string" ? resolved.format : "",
+    pattern: typeof resolved.pattern === "string" ? resolved.pattern : "",
     placeholder: description || (kind === "path" ? "/path/to/file" : ""),
     help: description,
     value: getPath(params, path) ?? resolved.default
@@ -181,6 +185,21 @@ export function validateField(field: RecipeField): string | null {
   }
   if (field.kind === "color" && !/^#[0-9a-f]{6}$/i.test(String(value))) {
     return "Use #RRGGBB";
+  }
+  if (field.format === "uri" || /(^|_)url$/i.test(field.id)) {
+    try {
+      const parsed = new URL(String(value));
+      if (!["http:", "https:"].includes(parsed.protocol)) return "Use http:// or https://";
+    } catch {
+      return "Invalid URL";
+    }
+  }
+  if (field.pattern) {
+    try {
+      if (!new RegExp(field.pattern).test(String(value))) return "Invalid format";
+    } catch {
+      // Ignore an invalid server-provided pattern.
+    }
   }
   return null;
 }

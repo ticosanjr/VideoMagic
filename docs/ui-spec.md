@@ -2,7 +2,7 @@
 
 Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript. English strings only.
 
-0.46.0 keeps the full telemetry rack from 0.13 and adds detailed configuration
+0.47.0 keeps the full telemetry rack from 0.13 and adds detailed configuration
 for zoom bounds, audio fades, Shorts count/selection, and caption/karaoke style,
 plus a live 9:16 caption preview and audio fades in all three NLE exports.
 The setup card shows source metadata, an output suggestion, starting-point
@@ -29,7 +29,7 @@ persisted presets, and word-level inspector controls.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ VideoFlow      0.46.0   FFmpeg ready          [Global log]   │
+│ VideoFlow      0.47.0   FFmpeg ready          [Global log]   │
 ├──────────────────────────────────────────────────────────────┤
 │ New project                                      [Run]       │
 │  01 Source video        [Choose / Change]                    │
