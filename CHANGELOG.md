@@ -3,6 +3,24 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.44.0] - 2026-10-23
+
+### Added
+
+- **Second-source audio mix.** `shorts.render.mix_second_audio` mixes the second
+  split-screen source with the primary audio, with a UI checkbox.
+- **Stable Pexels cache.** Stock downloads are keyed by the source URL hash, so
+  repeated plans reuse the same file instead of re-downloading.
+- B-roll plan remains auditable with provider, license, attribution, and source
+  URL.
+
+### Notes
+
+- The second source is still operator-supplied; face detection and automatic
+  source assignment remain future work.
+- pyannote and Pexels still need real model/API validation.
+- 445 Python tests, 14 Vitest tests, and 8 Playwright tests pass.
+
 ## [0.43.0] - 2026-10-23
 
 ### Added

@@ -392,6 +392,7 @@ class FFmpegAdapter:
         split_screen_focus_left: float = 0.5,
         split_screen_focus_right: float = 0.5,
         second_source_path: Path | None = None,
+        mix_second_audio: bool = False,
         broll_path: Path | None = None,
         broll_start_sec: float = 0.0,
         broll_duration_sec: float = 2.0,
@@ -421,6 +422,11 @@ class FFmpegAdapter:
                             raise IngestError(
                                 f"Second split-screen source does not exist: {second}"
                             )
+                        audio_graph = (
+                            ";[0:a][1:a]amix=inputs=2:duration=first:dropout_transition=0[a]"
+                            if mix_second_audio
+                            else ""
+                        )
                         video_args = [
                             "-filter_complex",
                             (
@@ -433,11 +439,12 @@ class FFmpegAdapter:
                                 "force_original_aspect_ratio=increase,"
                                 f"crop={half}:{height},setsar=1[right];"
                                 "[left][right]hstack=inputs=2[v]"
+                                + audio_graph
                             ),
                             "-map",
                             "[v]",
                             "-map",
-                            "0:a?",
+                            "[a]" if mix_second_audio else "0:a?",
                         ]
                     else:
                         video_args = [

@@ -32,6 +32,7 @@ class RenderShortsParams(BaseModel):
     split_screen_focus_left: float = Field(default=0.5, ge=0.0, le=1.0)
     split_screen_focus_right: float = Field(default=0.5, ge=0.0, le=1.0)
     second_source_path: str | None = None
+    mix_second_audio: bool = False
     broll_enabled: bool = True
     caption_style: CaptionStyle = Field(default_factory=CaptionStyle)
     audio_filters: list[str] = Field(default_factory=list)
@@ -159,6 +160,7 @@ class RenderShortsStep(BaseStep):
                 second_source_path=(
                     Path(options.second_source_path) if options.second_source_path else None
                 ),
+                mix_second_audio=options.mix_second_audio,
                 broll_path=Path(str(broll["path"])) if broll else None,
                 broll_start_sec=float(broll.get("start_sec", 0.0)) if broll else 0.0,
                 broll_duration_sec=float(broll.get("duration_sec", 2.0)) if broll else 2.0,

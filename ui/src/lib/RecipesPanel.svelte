@@ -1642,6 +1642,10 @@
                         </label>
                       </div>
                       <label class="mt-1 flex items-center gap-2 text-[10px] text-neutral-400">
+                        <input type="checkbox" checked={paramBoolean("mix_second_audio")} onchange={(event) => patchParams({ mix_second_audio: event.currentTarget.checked })} />
+                        Mix second-source audio
+                      </label>
+                      <label class="mt-1 flex items-center gap-2 text-[10px] text-neutral-400">
                         <input type="checkbox" checked={paramBoolean("broll_enabled", true)} onchange={(event) => patchParams({ broll_enabled: event.currentTarget.checked })} />
                         Apply planned B-roll
                       </label>

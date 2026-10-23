@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -77,11 +78,8 @@ class BrollStep(BaseStep):
                 path = asset.path
                 if path is None and asset.url:
                     suffix = Path(asset.url.split("?")[0]).suffix or ".mp4"
-                    target = (
-                        context.output
-                        / "broll-cache"
-                        / f"{clip.sentence_ids[0] if clip.sentence_ids else index}-{offset}{suffix}"
-                    )
+                    cache_key = hashlib.sha1(asset.url.encode("utf-8")).hexdigest()[:16]
+                    target = context.output / "broll-cache" / f"{cache_key}{suffix}"
                     try:
                         path = provider.download(asset, target)
                     except Exception as exc:
