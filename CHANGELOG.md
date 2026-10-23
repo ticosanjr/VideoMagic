@@ -3,6 +3,44 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.86.0] - 2026-10-23
+
+### Added
+
+- **Settings Hub.** `settings.json` with runtime, paths, models, automation,
+  quality, UI, LLM, speech, TTS, stock, and translation sections; export,
+  import, reset, environment overrides, and restart-required markers.
+- **Runtime wiring.** Settings influence job workers/history, allowed roots,
+  cache/models dirs, FFmpeg/FFprobe resolution, scheduler interval, LLM
+  temperature/timeout/retries, and TTS/stock defaults.
+- **Model Manager 2.0.** Expanded ASR catalog (Faster-Whisper tiny/base/small/
+  medium/large-v3 and whisper.cpp base/small/medium), per-capability defaults,
+  device/compute/threads, local model registration, and file/checksum
+  verification.
+- **Service Manager 2.0.** SQLite-backed service definitions with start/stop,
+  health checks, autostart, logs, and arbitrary local commands (Ollama, LM
+  Studio, whisper.cpp server, Piper, ComfyUI, and others).
+- **Library.** Brand templates, project templates, presets, fonts, images, and
+  music are available again in the UI.
+- **Diagnostics 2.0.** Doctor checks FFmpeg capabilities, CUDA/ONNX providers,
+  SQLite integrity, providers, service definitions, models, disk, and settings;
+  support bundle ZIP redacts environment values.
+- **LLM controls.** Temperature, timeout, max tokens, retries, and JSON mode.
+
+### Validation
+
+- 467 Python tests passed.
+- 7 media tests passed, 1 skipped.
+- 13 Vitest tests passed.
+- 19 Playwright tests passed.
+
+### Notes
+
+- Local release build only; GitHub Actions is disabled for automatic releases.
+- Distribution, signing, macOS packaging, and Windows cross-builds remain out of
+  scope.
+- Manual NLE QA and per-clip waveforms remain future work.
+
 ## [0.80.0] - 2026-10-23
 
 ### Added

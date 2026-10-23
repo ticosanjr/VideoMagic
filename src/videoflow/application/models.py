@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import shutil
 from collections.abc import Callable
@@ -21,6 +22,46 @@ _FASTER_WHISPER_SMALL = (
 _WHISPER_TINY = (
     "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin"
 )
+
+def _faster_entry(size: str, repo: str, size_mb: int) -> dict[str, Any]:
+    base = f"https://huggingface.co/{repo}/resolve/main"
+    return {
+        "label": f"Faster-Whisper {size}",
+        "capability": "asr",
+        "used_by": ["transcribe"],
+        "license": "MIT",
+        "source": repo,
+        "size_mb": size_mb,
+        "kind": "faster-whisper",
+        "target": f"faster-whisper/{size}",
+        "files": [
+            (f"{base}/config.json", "config.json", None),
+            (f"{base}/tokenizer.json", "tokenizer.json", None),
+            (f"{base}/vocabulary.txt", "vocabulary.txt", None),
+            (f"{base}/model.bin", "model.bin", None),
+        ],
+    }
+
+
+def _whisper_entry(size: str, size_mb: int) -> dict[str, Any]:
+    return {
+        "label": f"whisper.cpp {size}",
+        "capability": "asr",
+        "used_by": ["transcribe"],
+        "license": "MIT",
+        "source": "ggerganov/whisper.cpp",
+        "size_mb": size_mb,
+        "kind": "whisper",
+        "target": f"whisper/ggml-{size}.bin",
+        "files": [
+            (
+                f"https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-{size}.bin",
+                f"ggml-{size}.bin",
+                None,
+            )
+        ],
+    }
+
 
 CATALOG: dict[str, dict[str, Any]] = {
     "faster-whisper-small": {
@@ -54,6 +95,15 @@ CATALOG: dict[str, dict[str, Any]] = {
         "target": "pyannote/speaker-diarization-3.1",
         "repo": "pyannote/speaker-diarization-3.1",
     },
+    "faster-whisper-tiny": _faster_entry("tiny", "Systran/faster-whisper-tiny", 75),
+    "faster-whisper-base": _faster_entry("base", "Systran/faster-whisper-base", 145),
+    "faster-whisper-medium": _faster_entry("medium", "Systran/faster-whisper-medium", 1530),
+    "faster-whisper-large-v3": _faster_entry(
+        "large-v3", "Systran/faster-whisper-large-v3", 3090
+    ),
+    "whisper-base": _whisper_entry("base", 142),
+    "whisper-small": _whisper_entry("small", 466),
+    "whisper-medium": _whisper_entry("medium", 1500),
     "whisper-tiny": {
         "label": "whisper.cpp tiny",
         "capability": "asr",
@@ -74,23 +124,131 @@ CATALOG: dict[str, dict[str, Any]] = {
 }
 
 
+LOCAL_FILE = "models-local.json"
+
+
+def _local_models() -> dict[str, dict[str, Any]]:
+    path = portable_home() / LOCAL_FILE
+    if not path.is_file():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {
+        str(key): dict(value)
+        for key, value in payload.items()
+        if isinstance(value, dict)
+    }
+
+
+def _entry(model_id: str) -> dict[str, Any]:
+    if model_id in CATALOG:
+        return CATALOG[model_id]
+    local = _local_models().get(model_id)
+    if local is None:
+        raise StateNotReadyError(f"Unknown model: {model_id}")
+    return local
+
+
+def register_local_model(
+    *,
+    model_id: str,
+    label: str,
+    capability: str,
+    path: str,
+    kind: str = "local",
+    license: str = "",
+) -> dict[str, object]:
+    target = Path(path).expanduser()
+    if not target.exists():
+        raise StateNotReadyError(f"Local model path does not exist: {target}")
+    if not model_id.strip():
+        raise StateNotReadyError("Model id is empty.")
+    payload = _local_models()
+    payload[model_id] = {
+        "label": label or model_id,
+        "capability": capability or "other",
+        "used_by": ["local"],
+        "license": license,
+        "source": "local",
+        "size_mb": round(target.stat().st_size / 1_000_000) if target.is_file() else 0,
+        "kind": kind,
+        "path": str(target),
+    }
+    path_file = portable_home() / LOCAL_FILE
+    path_file.parent.mkdir(parents=True, exist_ok=True)
+    path_file.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return payload[model_id]
+
+
+def remove_local_model(model_id: str) -> None:
+    payload = _local_models()
+    if payload.pop(model_id, None) is None:
+        raise StateNotReadyError(f"Unknown local model: {model_id}")
+    path_file = portable_home() / LOCAL_FILE
+    path_file.parent.mkdir(parents=True, exist_ok=True)
+    path_file.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def verify_model(model_id: str) -> dict[str, object]:
+    entry = _entry(model_id)
+    if entry.get("kind") == "local":
+        path = Path(str(entry.get("path") or "")).expanduser()
+        return {"id": model_id, "ok": path.exists(), "path": str(path)}
+    if entry.get("kind") == "pyannote":
+        target = _target(model_id)
+        return {"id": model_id, "ok": _installed(model_id), "path": str(target)}
+    files = entry.get("files", [])
+    missing: list[str] = []
+    checks: list[dict[str, object]] = []
+    target = _target(model_id)
+    for _, name, expected in files:
+        path = target / name if entry.get("kind") == "faster-whisper" else target
+        exists = path.is_file()
+        digest = hashlib.sha256(path.read_bytes()).hexdigest() if exists else ""
+        checks.append(
+            {
+                "file": path.name,
+                "exists": exists,
+                "checksum_ok": None if not expected else digest == expected,
+            }
+        )
+        if not exists or (expected and digest != expected):
+            missing.append(path.name)
+    return {
+        "id": model_id,
+        "ok": not missing,
+        "path": str(target),
+        "files": checks,
+        "invalid": missing,
+    }
+
+
 def models_dir() -> Path:
-    directory = portable_home() / "models"
+    try:
+        from videoflow.application.settings import load_settings
+
+        configured = load_settings().paths.models_dir
+    except Exception:
+        configured = ""
+    directory = Path(configured).expanduser() if configured else portable_home() / "models"
     directory.mkdir(parents=True, exist_ok=True)
     return directory
 
 
 def _target(model_id: str) -> Path:
-    try:
-        entry = CATALOG[model_id]
-    except KeyError as exc:
-        raise StateNotReadyError(f"Unknown model: {model_id}") from exc
+    entry = _entry(model_id)
+    if entry.get("kind") == "local":
+        return Path(str(entry.get("path") or "")).expanduser()
     return models_dir() / str(entry["target"])
 
 
 def _installed(model_id: str) -> bool:
     target = _target(model_id)
-    kind = CATALOG[model_id]["kind"]
+    kind = _entry(model_id)["kind"]
+    if kind == "local":
+        return target.exists()
     if kind == "faster-whisper":
         return (target / "model.bin").is_file() and (target / "config.json").is_file()
     if kind == "pyannote":
@@ -118,8 +276,9 @@ def list_models() -> list[dict[str, object]]:
             "source": entry.get("source", ""),
             "installed": _installed(model_id),
             "path": str(_target(model_id)),
+            "custom": model_id not in CATALOG,
         }
-        for model_id, entry in CATALOG.items()
+        for model_id, entry in {**CATALOG, **_local_models()}.items()
     ]
 
 
@@ -141,7 +300,7 @@ def install_model(
     if _installed(model_id):
         report(100, "Already installed")
         return {"id": model_id, "installed": True, "path": str(_target(model_id))}
-    entry = CATALOG.get(model_id)
+    entry = CATALOG.get(model_id) or _local_models().get(model_id)
     if entry is None:
         raise StateNotReadyError(f"Unknown model: {model_id}")
     target = _target(model_id)
@@ -228,6 +387,10 @@ def install_model(
 
 
 def remove_model(model_id: str) -> None:
+    entry = _entry(model_id)
+    if entry.get("kind") == "local":
+        remove_local_model(model_id)
+        return
     target = _target(model_id)
     if target.is_dir():
         shutil.rmtree(target)

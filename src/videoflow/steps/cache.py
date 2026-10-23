@@ -25,7 +25,14 @@ def cache_enabled() -> bool:
 
 
 def cache_dir() -> Path:
-    return portable_home() / "cache" / f"recipe-v{CACHE_VERSION}"
+    try:
+        from videoflow.application.settings import load_settings
+
+        configured = load_settings().paths.cache_dir
+    except Exception:
+        configured = ""
+    root = Path(configured).expanduser() if configured else portable_home() / "cache"
+    return root / f"recipe-v{CACHE_VERSION}"
 
 
 def cache_key(payload: Any) -> str:

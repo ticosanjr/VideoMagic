@@ -4,24 +4,28 @@
   import AutomationPanel from "$lib/AutomationPanel.svelte";
   import CapabilitiesPanel from "$lib/CapabilitiesPanel.svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
+  import LibraryPanel from "$lib/LibraryPanel.svelte";
   import ModelsPanel from "$lib/ModelsPanel.svelte";
   import RecipesPanel from "$lib/RecipesPanel.svelte";
   import ServicesPanel from "$lib/ServicesPanel.svelte";
+  import SettingsPanel from "$lib/SettingsPanel.svelte";
   import TimelinePanel from "$lib/TimelinePanel.svelte";
   import { errorMessage, getSystem, restartService, stopService, type SystemInfo } from "$lib/api";
   import { UI_VERSION } from "$lib/version";
   import "../app.css";
 
-  type Tab = "recipes" | "assets" | "timeline" | "automation" | "models" | "services" | "providers";
+  type Tab = "recipes" | "assets" | "timeline" | "automation" | "library" | "models" | "services" | "providers" | "settings";
 
   const TABS: { id: Tab; label: string; hint: string }[] = [
     { id: "recipes", label: "Recipes", hint: "Visual recipe builder and runner" },
     { id: "assets", label: "Assets", hint: "Local media, audio, images, fonts, tags, and licenses" },
     { id: "timeline", label: "Timeline", hint: "Canvas timeline with preview, trim, split, and undo" },
     { id: "automation", label: "Automation", hint: "Schedules and watch folders for recipes" },
+    { id: "library", label: "Library", hint: "Brand templates, presets, fonts, images, and music" },
     { id: "models", label: "Models", hint: "Optional on-demand speech and vision models" },
     { id: "services", label: "Services", hint: "Inspect, stop, and restart local VideoFlow processes" },
-    { id: "providers", label: "Providers", hint: "Persistent provider configuration and fallbacks" }
+    { id: "providers", label: "Providers", hint: "Persistent provider configuration and fallbacks" },
+    { id: "settings", label: "Settings", hint: "Local runtime, paths, models, speech, TTS, and quality" }
   ];
 
   let system = $state<SystemInfo | null>(null);
@@ -244,6 +248,8 @@
         <TimelinePanel />
       {:else if activeTab === "automation"}
         <AutomationPanel />
+      {:else if activeTab === "library"}
+        <LibraryPanel />
       {:else if activeTab === "models"}
         <ModelsPanel />
       {:else if activeTab === "services"}
@@ -255,6 +261,8 @@
           onToggle={(value) => (allowExternal = value)}
           onHosts={(value) => (allowedHosts = value)}
         />
+      {:else if activeTab === "settings"}
+        <SettingsPanel />
       {/if}
     </div>
 

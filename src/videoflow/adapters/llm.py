@@ -28,17 +28,23 @@ class OpenAICompatibleLlm:
         api_key: str | None = None,
         timeout: float = 90.0,
         transport: httpx.BaseTransport | None = None,
+        temperature: float = 0.0,
+        max_tokens: int = 0,
+        retries: int = 2,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self._api_key = api_key or ""
         self.timeout = timeout
         self._transport = transport
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self.retries = max(0, int(retries))
 
     def complete_json(self, prompt: str, schema_name: str) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "model": self.model,
-            "temperature": 0,
+            "temperature": self.temperature,
             "stream": False,
             "messages": [
                 {"role": "system", "content": f"{SYSTEM_PROMPT} schema={schema_name}"},
@@ -46,6 +52,8 @@ class OpenAICompatibleLlm:
             ],
             "response_format": {"type": "json_object"},
         }
+        if self.max_tokens > 0:
+            payload["max_tokens"] = self.max_tokens
         response = self._post(payload)
         if response.status_code == 400:
             payload.pop("response_format", None)
@@ -65,15 +73,26 @@ class OpenAICompatibleLlm:
         headers = {"Content-Type": "application/json"}
         if self._api_key:
             headers["Authorization"] = f"Bearer {self._api_key}"
-        try:
-            with httpx.Client(timeout=self.timeout, transport=self._transport) as client:
-                return client.post(
-                    f"{self.base_url}/chat/completions",
-                    headers=headers,
-                    json=payload,
-                )
-        except httpx.HTTPError as exc:
-            raise LlmError(f"Cannot reach the LLM endpoint: {exc.__class__.__name__}") from exc
+        last: Exception | None = None
+        for attempt in range(self.retries + 1):
+            try:
+                with httpx.Client(timeout=self.timeout, transport=self._transport) as client:
+                    response = client.post(
+                        f"{self.base_url}/chat/completions",
+                        headers=headers,
+                        json=payload,
+                    )
+                if response.status_code < 500 or attempt >= self.retries:
+                    return response
+            except httpx.HTTPError as exc:
+                last = exc
+                if attempt >= self.retries:
+                    raise LlmError(
+                        f"Cannot reach the LLM endpoint: {exc.__class__.__name__}"
+                    ) from exc
+        if last is not None:
+            raise LlmError(f"Cannot reach the LLM endpoint: {last.__class__.__name__}")
+        raise LlmError("LLM request failed")
 
 
 class FallbackLlm:

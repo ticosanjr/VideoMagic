@@ -384,10 +384,15 @@ class RecipeRunner:
                 )
             return None
         from videoflow.application.secrets import get_secret
+        from videoflow.application.settings import load_settings
 
+        llm_settings = load_settings().llm
         return OpenAICompatibleLlm(
             base_url=base_url,
             model=model,
             api_key=get_secret(config.api_key_env),
-            timeout=config.timeout_seconds,
+            timeout=config.timeout_seconds or llm_settings.timeout_seconds,
+            temperature=llm_settings.temperature,
+            max_tokens=llm_settings.max_tokens,
+            retries=llm_settings.retries,
         )

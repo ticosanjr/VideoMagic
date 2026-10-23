@@ -6,8 +6,7 @@ recording into an editable timeline: it removes silence and retakes, adds
 J-cuts and punch-ins, proposes vertical Shorts, masters the dialogue bed, and
 exports timelines for DaVinci Resolve, Adobe Premiere Pro, and Kdenlive.
 
-> Status: 0.80.0 beta. The portable Linux binary, Linux AppImage, and Windows
-> PE run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
+> Status: 0.86.0 beta. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical Shorts,
 > audio mastering and loudness QA, burned titles, color/LUT grading, analytics
@@ -17,8 +16,9 @@ exports timelines for DaVinci Resolve, Adobe Premiere Pro, and Kdenlive.
 > multi-select, markers, track mute/solo/lock, clip thumbnails, drag, trim,
 > split, ripple, undo/redo, snapping, waveform, background preview and render
 > queues, and per-clip transitions, fades, and scale. Projects persist atomic,
-> revisioned JSON state under `.videoflow/`; schedules use SQLite; legacy
-> project/module routes are removed.
+> revisioned JSON state under `.videoflow/`; schedules and service definitions
+> use SQLite; settings, providers, secrets, models, and diagnostics are
+> configurable locally. Legacy project/module routes are removed.
 
 ## Requirements
 
@@ -72,11 +72,11 @@ npm run dev                         # http://127.0.0.1:5173
 Releases are built and staged locally; GitHub Actions is not used.
 
 ```bash
-./scripts/release_local.sh 0.80.0
+./scripts/release_local.sh 0.86.0
 ```
 
 This builds the UI, the Linux portable binary, the AppImage, the SBOM, and
-writes `releases/v0.80.0/SHA256SUMS` and `manifest.json`. Nothing is pushed or
+writes `releases/v0.86.0/SHA256SUMS` and `manifest.json`. Nothing is pushed or
 published. The three newest release folders are kept.
 
 ## Portable executable
@@ -104,8 +104,7 @@ Artifacts are built locally, never in GitHub Actions:
 uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper \
   --with-silero --with-faster-whisper                    # Linux
 uv run python scripts/build_appimage.py                  # VideoFlow-X.Y.Z-x86_64.AppImage
-# Windows PE: Windows Python + PyInstaller, or Wine + embeddable Python
-uv run python scripts/release.py --require-all             # stage and keep 3 releases
+./scripts/release_local.sh 0.86.0                          # UI + Linux + AppImage + SBOM + checksums
 rm -rf build dist .coverage .hypothesis .pytest_cache .mypy_cache .ruff_cache
 ```
 
@@ -170,7 +169,7 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - Folder batches with one job per file, item-level progress, cancellation, and checkpoints.
 - Run comparison: previous versus current step status, timings, cache hits, and warnings.
 - Persistent run history in `work/run-history.json`, readable through `GET /api/v1/runs`.
-- GitHub Actions for Linux tests and a Windows portable build.
+- Local release script for Linux/AppImage; Windows cross-build is optional and separate.
 - Optional `--onedir` PyInstaller build.
 - Heuristic speaker turns with speaker-colored ASS captions.
 - Local B-roll planning and full-frame B-roll overlays for Shorts.
@@ -221,7 +220,7 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - Recipe template gallery with search, save-as, history, and final 0.57 polish.
 - Timeline trim/move/delete with project-state revisioning; provider connection test; services doctor; content-cycle statuses.
 - Batch history list and proxy generation in the editor.
-- Configuration and test data are JSON; the only YAML files are the GitHub Actions workflows, which GitHub requires.
+- Configuration and test data are JSON; the only YAML files are the manual GitHub workflow definitions.
 - Versioned JSON migration gates for recipes and project state.
 - Output maintenance: checkpoint/B-roll/run-history pruning via CLI or API.
 

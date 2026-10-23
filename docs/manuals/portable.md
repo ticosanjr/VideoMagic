@@ -14,9 +14,10 @@ There is no installer and no Python/Node requirement on the target machine.
 | Linux x86_64 | `VideoFlow-X.Y.Z-x86_64.AppImage` | FUSE, or `--appimage-extract-and-run` |
 | Windows x86_64 | `videoflow-X.Y.Z-windows-x86_64.exe` | Windows 10/11 x64 |
 
-PyInstaller cannot cross-compile in the usual sense. This project builds the
-Linux artifacts natively and the Windows PE locally with Wine WoW64 plus the
-Windows embeddable Python. No GitHub Actions workflow is used.
+PyInstaller cannot cross-compile in the usual sense. The local release script
+builds Linux and AppImage natively. A Windows PE can be cross-built separately
+with Wine WoW64 plus the Windows embeddable Python; it is not part of the local
+Linux release. No GitHub Actions workflow runs automatically.
 
 ## 1. What the executable does
 
@@ -407,7 +408,7 @@ typed install hint.
 
 ```bash
 uv run python scripts/build_appimage.py
-./dist/VideoFlow-0.80.0-x86_64.AppImage version
+./dist/VideoFlow-0.86.0-x86_64.AppImage version
 ```
 
 The AppImage wraps the same onefile binary. Opening it with no arguments starts

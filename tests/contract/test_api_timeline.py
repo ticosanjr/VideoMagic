@@ -327,3 +327,68 @@ def test_provider_secret_presence(monkeypatch, tmp_path: Path) -> None:
     assert cleared.status_code == 200
     listing = client.get("/api/v1/providers").json()
     assert listing["providers"][0]["secret_present"] is False
+
+
+def test_settings_roundtrip(monkeypatch, tmp_path: Path) -> None:
+    client, _ = _client(monkeypatch, tmp_path)
+    original = client.get("/api/v1/settings").json()["settings"]
+    assert original["runtime"]["max_jobs"] == 2
+    original["runtime"]["max_jobs"] = 3
+    original["llm"]["temperature"] = 0.4
+    saved = client.put("/api/v1/settings", json=original)
+    assert saved.status_code == 200, saved.text
+    loaded = client.get("/api/v1/settings").json()["settings"]
+    assert loaded["runtime"]["max_jobs"] == 3
+    assert loaded["llm"]["temperature"] == 0.4
+    reset = client.post("/api/v1/settings/reset")
+    assert reset.status_code == 200
+    assert client.get("/api/v1/settings").json()["settings"]["runtime"]["max_jobs"] == 2
+
+
+def test_local_model_registration_and_verify(monkeypatch, tmp_path: Path) -> None:
+    client, _ = _client(monkeypatch, tmp_path)
+    model_path = tmp_path / "custom-model.bin"
+    model_path.write_bytes(b"model")
+    registered = client.post(
+        "/api/v1/models/local",
+        json={
+            "id": "custom-asr",
+            "label": "Custom ASR",
+            "capability": "asr",
+            "path": str(model_path),
+            "kind": "local",
+        },
+    )
+    assert registered.status_code == 201, registered.text
+    models = client.get("/api/v1/models").json()["models"]
+    assert any(item["id"] == "custom-asr" and item["custom"] for item in models)
+    verified = client.post("/api/v1/models/custom-asr/verify")
+    assert verified.status_code == 200
+    assert verified.json()["verification"]["ok"] is True
+
+
+def test_service_definition_crud_and_support_bundle(monkeypatch, tmp_path: Path) -> None:
+    client, _ = _client(monkeypatch, tmp_path)
+    service = {
+        "id": "local-test",
+        "name": "Local test",
+        "command": "/bin/true",
+        "args": [],
+        "cwd": str(tmp_path),
+        "env": {},
+        "port": 0,
+        "health_url": "",
+        "autostart": False,
+        "enabled": True,
+    }
+    saved = client.put("/api/v1/services/definitions/local-test", json=service)
+    assert saved.status_code == 200, saved.text
+    listing = client.get("/api/v1/services/definitions").json()
+    assert listing["services"][0]["id"] == "local-test"
+    deleted = client.delete("/api/v1/services/definitions/local-test")
+    assert deleted.status_code == 200
+
+    bundle = client.get("/api/v1/system/support-bundle")
+    assert bundle.status_code == 200
+    assert bundle.headers["content-type"] == "application/zip"
+    assert len(bundle.content) > 100

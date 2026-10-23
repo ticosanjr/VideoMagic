@@ -17,6 +17,9 @@ from videoflow.api.routes import register_routes
 from videoflow.application.jobs import JobManager
 from videoflow.application.publishing import start_scheduler, stop_scheduler
 from videoflow.application.schedules import start_recipe_scheduler, stop_recipe_scheduler
+from videoflow.application.service_definitions import autostart
+from videoflow.application.service_definitions import stop_all as stop_managed_services
+from videoflow.application.settings import load_settings
 from videoflow.domain.constants import DEFAULT_API_HOST, DEFAULT_API_PORT
 from videoflow.engine.batch import BatchManager
 from videoflow.runtime import portable_home, ui_dir
@@ -40,7 +43,12 @@ def create_app(
     only exercise the JSON API leave it off.
     """
 
-    manager = jobs or JobManager(store_dir=portable_home() / "jobs")
+    settings = load_settings()
+    manager = jobs or JobManager(
+        store_dir=portable_home() / "jobs",
+        max_active=settings.runtime.max_jobs,
+        history=settings.runtime.history,
+    )
     batches = BatchManager(manager, store_dir=portable_home() / "batches")
     mcp_app = None
     lifespan = None
@@ -89,13 +97,22 @@ def create_app(
         def _start_background_schedulers() -> None:
             if os.environ.get("VIDEOWFLOW_PUBLISH_SCHEDULER", "1") != "0":
                 start_scheduler()
-            if os.environ.get("VIDEOWFLOW_RECIPE_SCHEDULER", "1") != "0":
-                start_recipe_scheduler(manager)
+            if (
+                os.environ.get("VIDEOWFLOW_RECIPE_SCHEDULER", "1") != "0"
+                and settings.automation.enabled
+            ):
+                start_recipe_scheduler(
+                    manager,
+                    interval=settings.automation.scheduler_interval_seconds,
+                )
+            if os.environ.get("VIDEOWFLOW_SERVICE_AUTOSTART", "1") != "0":
+                autostart()
 
         @app.on_event("shutdown")
         def _stop_background_schedulers() -> None:
             stop_scheduler()
             stop_recipe_scheduler()
+            stop_managed_services()
 
     @app.get("/health")
     def health() -> dict[str, str]:

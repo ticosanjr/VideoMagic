@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (0.80.0)
+## Implementation status (0.86.0)
 
 | Area | State |
 | --- | --- |
@@ -12,9 +12,9 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Silero VAD via ONNX Runtime with FFmpeg `silencedetect` fallback | implemented |
 | Deterministic timeline, J/L-cuts, fades, punch-ins | implemented |
 | FCPXML 1.9/1.10, xmeml v4, native Kdenlive MLT export | implemented |
-| Portable artifacts | 0.80.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
+| Portable artifacts | 0.86.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
 | Run history | persisted in `work/run-history.json`, including failed runs, paginated by `GET /api/v1/runs` |
-| Diagnostics | `work/failure.json` includes stage, error, FFmpeg command, stderr, and log tail |
+| Diagnostics | doctor covers FFmpeg capabilities, CUDA/ONNX, SQLite, providers, services, models, disk, and settings; support bundle ZIP |
 | NLE validation | `scripts/validate_nle.py` and `POST /api/v1/exports/validate` |
 | Schema gates | recipe and project-state `schema_version` migration |
 | Maintenance | output and global-cache pruning by age/size |
@@ -30,7 +30,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Preview | synced MP4 preview plus waveform; background 540p proxy with titles, color, and audio-master filters |
 | MLT smoke | optional `melt` render check for generated Kdenlive projects |
 | Recipe UI | inline node fields, array JSON, undo/redo, cycle prevention, saved layout, per-step progress, NLE validation |
-| Windows PE | built by the Windows GitHub Actions workflow and attached to releases |
+| Windows PE | not part of the local Linux release; cross-build separately if needed |
 | CI and Windows | GitHub Actions test workflow and Windows portable artifact workflow |
 | SRT transcript import and LLM retake culling | implemented |
 | Local Faster-Whisper with whisper.cpp fallback, and ASR HTTP | implemented; pinned small model bundled in release builds |
@@ -41,6 +41,9 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Secrets and failover | implemented; env/keyring/0600 secret store and ordered LLM provider failover |
 | Recipe automation | implemented; SQLite schedules, retry/backoff, run history, watch-file signatures, and a local scheduler |
 | Review and thumbnails | implemented; approve/reject with comment threads and A/B thumbnail CTR metrics |
+| Settings | implemented; settings.json with runtime, paths, models, automation, quality, LLM/speech/TTS, stock, translation, and export/import |
+| Library | implemented; brand/project templates, presets, fonts, images, and music |
+| Managed services | implemented; SQLite service definitions with start/stop, health, autostart, and logs |
 | Multimodal analysis | implemented; audio-emotion heuristics, motion, optional OpenCV faces, and OpenAI-compatible LLM vision |
 | Jobs, job REST routes, SSE, live MCP jobs | implemented for the portable and recipe paths, including per-step checkpoints and step-scoped runs |
 | MCP: fifty-two tools and four resources | implemented; recipes, step/batch runs, analysis, capabilities, models, staged edits, jobs, export, resources |

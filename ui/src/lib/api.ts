@@ -21,6 +21,7 @@ export interface LocalModel {
   source: string;
   installed: boolean;
   path: string;
+  custom?: boolean;
 }
 
 export interface ServiceProcessInfo {
@@ -439,6 +440,107 @@ export interface RecipeSummary {
   source: string;
 }
 
+export interface AppSettings {
+  schema_version: 1;
+  runtime: {
+    host: string;
+    port: number;
+    open_browser: boolean;
+    log_level: "debug" | "info" | "warning" | "error";
+    max_jobs: number;
+    history: number;
+    locale: string;
+  };
+  paths: {
+    allowed_roots: string[];
+    ffmpeg: string;
+    ffprobe: string;
+    cache_dir: string;
+    models_dir: string;
+    output_root: string;
+    temp_dir: string;
+  };
+  models: {
+    defaults: Record<string, string>;
+    device: "cpu" | "cuda" | "auto";
+    compute_type: string;
+    threads: number;
+    hf_token_env: string;
+  };
+  automation: {
+    scheduler_interval_seconds: number;
+    max_retries: number;
+    retry_backoff_seconds: number;
+    enabled: boolean;
+  };
+  quality: {
+    target_lufs: number;
+    true_peak_db: number;
+    vmaf_threshold: number;
+    proxy_height: number;
+  };
+  ui: {
+    theme: "dark" | "light" | "system";
+    density: "comfortable" | "compact";
+    timeline_snap: boolean;
+  };
+  llm: {
+    temperature: number;
+    timeout_seconds: number;
+    max_tokens: number;
+    retries: number;
+    json_mode: boolean;
+  };
+  speech: {
+    engine: "auto" | "faster-whisper" | "whisper-cli";
+    language: string;
+    device: "cpu" | "cuda" | "auto";
+    compute_type: string;
+    vad_filter: boolean;
+    diarization_model: string;
+  };
+  tts: {
+    provider: "openai_compatible" | "piper";
+    voice: string;
+    model: string;
+    format: "mp3" | "wav";
+    speed: number;
+  };
+  stock: {
+    provider: "local" | "pexels";
+    pexels_key_env: string;
+    asset_dir: string;
+  };
+  translation: {
+    target_language: string;
+    source_language: string;
+  };
+}
+
+export interface ServiceDefinition {
+  id: string;
+  name: string;
+  command: string;
+  args: string[];
+  cwd: string;
+  env: Record<string, string>;
+  port: number;
+  health_url: string;
+  autostart: boolean;
+  enabled: boolean;
+}
+
+export interface ServiceDefinitionStatus {
+  id: string;
+  name: string;
+  status: "stopped" | "running" | "exited";
+  pid: number | null;
+  healthy: boolean | null;
+  port: number;
+  started_at: string;
+  last_error: string;
+}
+
 export interface RecipeSchedule {
   id: string;
   kind: "once" | "interval" | "watch";
@@ -797,6 +899,30 @@ export async function installLocalModel(modelId: string): Promise<LocalModel> {
   return response.model;
 }
 
+export async function registerLocalModel(payload: {
+  id: string;
+  label: string;
+  capability: string;
+  path: string;
+  kind?: string;
+  license?: string;
+}): Promise<void> {
+  await request("/api/v1/models/local", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function verifyLocalModel(
+  modelId: string
+): Promise<{ id: string; ok: boolean; path: string; invalid?: string[] }> {
+  const response = await request<{
+    ok: boolean;
+    verification: { id: string; ok: boolean; path: string; invalid?: string[] };
+  }>(`/api/v1/models/${encodeURIComponent(modelId)}/verify`, { method: "POST" });
+  return response.verification;
+}
+
 export async function removeLocalModel(modelId: string): Promise<void> {
   await request(`/api/v1/models/${encodeURIComponent(modelId)}`, { method: "DELETE" });
 }
@@ -877,6 +1003,10 @@ export async function testProvider(payload: {
 
 export async function getDoctor(): Promise<{ ok: boolean; checks: Record<string, unknown> }> {
   return request("/api/v1/system/doctor");
+}
+
+export function supportBundleUrl(): string {
+  return "/api/v1/system/support-bundle";
 }
 
 export function getSystem(): Promise<SystemInfo> {
@@ -1027,6 +1157,24 @@ export async function importConfig(
     { method: "POST", body: JSON.stringify({ schema_version: schemaVersion, options }) }
   );
   return response.options;
+}
+
+export async function getPresets(): Promise<Array<{ name: string; preset: Record<string, unknown> }>> {
+  const response = await request<{
+    ok: boolean;
+    presets: Array<{ name: string; preset: Record<string, unknown> }>;
+  }>("/api/v1/presets");
+  return response.presets;
+}
+
+export async function savePreset(
+  name: string,
+  preset: Record<string, unknown>
+): Promise<void> {
+  await request(`/api/v1/presets/${encodeURIComponent(name)}`, {
+    method: "PUT",
+    body: JSON.stringify(preset)
+  });
 }
 
 export async function getBrandTemplates(): Promise<BrandTemplate[]> {
@@ -1223,6 +1371,83 @@ export async function selectJobThumbnail(jobId: string, name: string): Promise<v
 
 export function jobThumbnailUrl(jobId: string, name: string): string {
   return `/api/v1/jobs/${encodeURIComponent(jobId)}/thumbnails/${encodeURIComponent(name)}`;
+}
+
+export async function getSettings(): Promise<{
+  settings: AppSettings;
+  env: Record<string, string>;
+  restart_required: string[];
+}> {
+  return request("/api/v1/settings");
+}
+
+export async function saveSettings(settings: AppSettings): Promise<AppSettings> {
+  const response = await request<{ ok: boolean; settings: AppSettings }>(
+    "/api/v1/settings",
+    { method: "PUT", body: JSON.stringify(settings) }
+  );
+  return response.settings;
+}
+
+export async function resetSettings(): Promise<AppSettings> {
+  const response = await request<{ ok: boolean; settings: AppSettings }>(
+    "/api/v1/settings/reset",
+    { method: "POST" }
+  );
+  return response.settings;
+}
+
+export async function listServiceDefinitions(): Promise<{
+  services: ServiceDefinition[];
+  statuses: ServiceDefinitionStatus[];
+}> {
+  return request("/api/v1/services/definitions");
+}
+
+export async function saveServiceDefinition(
+  service: ServiceDefinition
+): Promise<ServiceDefinition> {
+  const response = await request<{ ok: boolean; service: ServiceDefinition }>(
+    `/api/v1/services/definitions/${encodeURIComponent(service.id)}`,
+    { method: "PUT", body: JSON.stringify(service) }
+  );
+  return response.service;
+}
+
+export async function deleteServiceDefinition(serviceId: string): Promise<void> {
+  await request(`/api/v1/services/definitions/${encodeURIComponent(serviceId)}`, {
+    method: "DELETE"
+  });
+}
+
+export async function startManagedService(
+  serviceId: string
+): Promise<ServiceDefinitionStatus> {
+  const response = await request<{ ok: boolean; service: ServiceDefinitionStatus }>(
+    `/api/v1/services/definitions/${encodeURIComponent(serviceId)}/start`,
+    { method: "POST" }
+  );
+  return response.service;
+}
+
+export async function stopManagedService(
+  serviceId: string
+): Promise<ServiceDefinitionStatus> {
+  const response = await request<{ ok: boolean; service: ServiceDefinitionStatus }>(
+    `/api/v1/services/definitions/${encodeURIComponent(serviceId)}/stop`,
+    { method: "POST" }
+  );
+  return response.service;
+}
+
+export async function getManagedServiceLogs(
+  serviceId: string,
+  lines = 200
+): Promise<string> {
+  const response = await request<{ ok: boolean; text: string }>(
+    `/api/v1/services/definitions/${encodeURIComponent(serviceId)}/logs?lines=${lines}`
+  );
+  return response.text;
 }
 
 export async function listSchedules(): Promise<RecipeSchedule[]> {

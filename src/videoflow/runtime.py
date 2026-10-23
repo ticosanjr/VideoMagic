@@ -54,6 +54,14 @@ def find_binary(name: str) -> str | None:
     override = os.environ.get(f"VIDEOWFLOW_{name.upper()}")
     if override:
         return override
+    try:
+        from videoflow.application.settings import effective_ffmpeg
+
+        configured = effective_ffmpeg(name)
+        if configured:
+            return configured
+    except Exception:
+        pass
     suffix = ".exe" if os.name == "nt" else ""
     candidates = (
         bundle_root() / "vendor" / f"{name}{suffix}",
@@ -79,6 +87,14 @@ def allowed_roots() -> list[Path]:
     roots = [Path(item).expanduser() for item in raw.split(os.pathsep) if item]
     if roots:
         return roots
+    try:
+        from videoflow.application.settings import effective_roots
+
+        configured = [Path(item).expanduser() for item in effective_roots()]
+        if configured:
+            return configured
+    except Exception:
+        pass
     candidates = [Path.home()]
     with contextlib.suppress(OSError):
         # A launcher can start the frozen binary from a directory that has

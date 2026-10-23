@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import io
 import json
 import logging
 import os
 import shutil
 import subprocess
 import time
+import zipfile
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Literal
@@ -61,7 +63,13 @@ from videoflow.application.fonts import list_fonts, save_font
 from videoflow.application.images import list_images, save_image
 from videoflow.application.jobs import TERMINAL, Job, JobManager
 from videoflow.application.model_downloads import downloads as model_downloads
-from videoflow.application.models import install_model, list_models, remove_model
+from videoflow.application.models import (
+    install_model,
+    list_models,
+    register_local_model,
+    remove_model,
+    verify_model,
+)
 from videoflow.application.multimodal import analyze_short_entry
 from videoflow.application.multimodal_llm import analyze_short_llm_entry
 from videoflow.application.music import list_music, save_music
@@ -121,6 +129,17 @@ from videoflow.application.secrets import (
     secret_present,
     set_secret,
 )
+from videoflow.application.service_definitions import (
+    ServiceDefinition,
+    delete_definition,
+    list_definitions,
+    list_statuses,
+    read_logs,
+    save_definition,
+    start_service,
+    status_service,
+    stop_service,
+)
 from videoflow.application.services import (
     append_server_log,
     discover_services,
@@ -128,6 +147,12 @@ from videoflow.application.services import (
     server_log_path,
     stop_other_services,
     stop_service_pid,
+)
+from videoflow.application.settings import (
+    AppSettings,
+    env_overrides,
+    load_settings,
+    save_settings,
 )
 from videoflow.application.short_editor import ShortEditOptions
 from videoflow.application.short_editor import edit_short as edit_short_service
@@ -559,6 +584,15 @@ class ShortVisionRequest(BaseModel):
 
 class ModelInstallRequest(BaseModel):
     allow_external_services: bool = True
+
+
+class LocalModelRequest(BaseModel):
+    id: str = Field(min_length=1, max_length=80)
+    label: str = ""
+    capability: str = "other"
+    path: str = Field(min_length=1)
+    kind: str = "local"
+    license: str = ""
 
 
 class ShortEmojiRequest(BaseModel):
@@ -2503,6 +2537,7 @@ def register_routes(
             )
             stored = state.modules_config.tts
             tts_provider = first_provider("tts") or {}
+            tts_defaults = load_settings().tts
             config = TtsConfig(
                 provider=request.provider,
                 base_url=request.base_url
@@ -2510,8 +2545,9 @@ def register_routes(
                 or str(tts_provider.get("base_url") or ""),
                 model=request.model
                 or stored.model
-                or str(tts_provider.get("model") or ""),
-                voice=request.voice or stored.voice,
+                or str(tts_provider.get("model") or "")
+                or tts_defaults.model,
+                voice=request.voice or stored.voice or tts_defaults.voice,
                 secret_name=stored.secret_name
                 or str(tts_provider.get("api_key_env") or "VIDEOWFLOW_TTS_API_KEY"),
                 binary=request.binary or stored.binary,
@@ -2549,6 +2585,7 @@ def register_routes(
             )
             stored_tts = state.modules_config.tts
             tts_provider = first_provider("tts") or {}
+            tts_defaults = load_settings().tts
             tts = TtsConfig(
                 provider="openai_compatible",
                 base_url=request.base_url
@@ -2556,8 +2593,9 @@ def register_routes(
                 or str(tts_provider.get("base_url") or ""),
                 model=request.model
                 or stored_tts.model
-                or str(tts_provider.get("model") or ""),
-                voice=request.voice or stored_tts.voice,
+                or str(tts_provider.get("model") or "")
+                or tts_defaults.model,
+                voice=request.voice or stored_tts.voice or tts_defaults.voice,
                 secret_name=stored_tts.secret_name
                 or str(tts_provider.get("api_key_env") or "VIDEOWFLOW_TTS_API_KEY"),
                 speed=request.speed,
@@ -2821,6 +2859,79 @@ def register_routes(
             fail(exc)
         return {"ok": True, "path": str(path), "media": media.model_dump(mode="json")}
 
+    @app.get("/api/v1/services/definitions")
+    def service_definitions_list() -> dict[str, object]:
+        return {
+            "ok": True,
+            "services": [item.model_dump(mode="json") for item in list_definitions()],
+            "statuses": list_statuses(),
+        }
+
+    @app.put("/api/v1/services/definitions/{service_id}")
+    def service_definition_save(
+        service_id: str, request: ServiceDefinition
+    ) -> dict[str, object]:
+        try:
+            if request.id != service_id:
+                raise HTTPException(
+                    status_code=422,
+                    detail={"ok": False, "code": "service_id_mismatch", "message": service_id},
+                )
+            saved = save_definition(request)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "service": saved.model_dump(mode="json")}
+
+    @app.delete("/api/v1/services/definitions/{service_id}")
+    def service_definition_delete(service_id: str) -> dict[str, object]:
+        try:
+            delete_definition(service_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "deleted": service_id}
+
+    @app.post("/api/v1/services/definitions/{service_id}/start")
+    def service_definition_start(service_id: str) -> dict[str, object]:
+        try:
+            status = start_service(service_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "service": status}
+
+    @app.post("/api/v1/services/definitions/{service_id}/stop")
+    def service_definition_stop(service_id: str) -> dict[str, object]:
+        try:
+            status = stop_service(service_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "service": status}
+
+    @app.get("/api/v1/services/definitions/{service_id}/status")
+    def service_definition_status(service_id: str) -> dict[str, object]:
+        try:
+            status = status_service(service_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "service": status}
+
+    @app.get("/api/v1/services/definitions/{service_id}/logs")
+    def service_definition_logs(service_id: str, lines: int = 200) -> dict[str, object]:
+        try:
+            status = status_service(service_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {
+            "ok": True,
+            "service": status,
+            "text": read_logs(service_id, lines=max(1, min(2000, lines))),
+        }
+
     @app.get("/api/v1/services")
     def services_list(request: Request) -> dict[str, object]:
         services = [
@@ -2951,6 +3062,31 @@ def register_routes(
             )
         return {"ok": True, "download": payload.to_dict()}
 
+    @app.post("/api/v1/models/local", status_code=201)
+    def models_register_local(request: LocalModelRequest) -> dict[str, object]:
+        try:
+            payload = register_local_model(
+                model_id=request.id,
+                label=request.label or request.id,
+                capability=request.capability,
+                path=request.path,
+                kind=request.kind,
+                license=request.license,
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "model": payload}
+
+    @app.post("/api/v1/models/{model_id}/verify")
+    def models_verify(model_id: str) -> dict[str, object]:
+        try:
+            payload = verify_model(model_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "verification": payload}
+
     @app.delete("/api/v1/models/{model_id}")
     def models_remove(model_id: str) -> dict[str, object]:
         try:
@@ -3006,7 +3142,145 @@ def register_routes(
             "free_bytes": shutil.disk_usage(portable_home()).free,
             "total_bytes": shutil.disk_usage(portable_home()).total,
         }
+        ffmpeg = find_binary("ffmpeg")
+        if ffmpeg:
+            codecs = subprocess.run(
+                [ffmpeg, "-hide_banner", "-codecs"],
+                capture_output=True,
+                text=True,
+                check=False,
+            ).stdout
+            filters = subprocess.run(
+                [ffmpeg, "-hide_banner", "-filters"],
+                capture_output=True,
+                text=True,
+                check=False,
+            ).stdout
+            checks["ffmpeg_capabilities"] = {
+                "libx264": "libx264" in codecs,
+                "aac": "aac" in codecs,
+                "ass": " ass " in filters,
+                "lut3d": "lut3d" in filters,
+                "ebur128": "ebur128" in filters,
+                "loudnorm": "loudnorm" in filters,
+            }
+        try:
+            import ctranslate2
+
+            checks["cuda_devices"] = int(ctranslate2.get_cuda_device_count())
+        except Exception:
+            checks["cuda_devices"] = 0
+        try:
+            import onnxruntime
+
+            checks["onnx_providers"] = list(onnxruntime.get_available_providers())
+        except Exception:
+            checks["onnx_providers"] = []
+        try:
+            import sqlite3
+
+            connection = sqlite3.connect(portable_home() / "videoflow.db")
+            integrity = connection.execute("PRAGMA integrity_check").fetchone()[0]
+            connection.close()
+            checks["database"] = {"integrity": integrity, "ok": integrity == "ok"}
+            ok = ok and integrity == "ok"
+        except Exception as exc:
+            checks["database"] = {"integrity": "unavailable", "ok": False, "error": str(exc)}
+        settings = load_settings()
+        checks["settings"] = {
+            "file": str(portable_home() / "settings.json"),
+            "valid": True,
+            "locale": settings.runtime.locale,
+            "theme": settings.ui.theme,
+        }
+        checks["providers"] = len(list_providers())
+        checks["service_definitions"] = len(list_definitions())
         return {"ok": ok, "checks": checks}
+
+    @app.get("/api/v1/system/support-bundle")
+    def system_support_bundle() -> StreamingResponse:
+        buffer = io.BytesIO()
+        settings = load_settings().model_dump(mode="json")
+        redacted_env = {key: "***" for key in env_overrides()}
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as bundle:
+            bundle.writestr(
+                "doctor.json", json.dumps(system_doctor(), indent=2) + "\n"
+            )
+            bundle.writestr(
+                "settings.json", json.dumps(settings, indent=2) + "\n"
+            )
+            bundle.writestr(
+                "environment.json", json.dumps(redacted_env, indent=2) + "\n"
+            )
+            bundle.writestr(
+                "providers.json",
+                json.dumps(list_providers(), indent=2) + "\n",
+            )
+            bundle.writestr(
+                "models.json", json.dumps(list_models(), indent=2) + "\n"
+            )
+            bundle.writestr(
+                "service-definitions.json",
+                json.dumps(
+                    [item.model_dump(mode="json") for item in list_definitions()],
+                    indent=2,
+                )
+                + "\n",
+            )
+            log = server_log_path()
+            if log.is_file():
+                bundle.write(log, "server.log")
+        buffer.seek(0)
+        return StreamingResponse(
+            buffer,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": "attachment; filename=videoflow-support.zip"
+            },
+        )
+
+    @app.get("/api/v1/settings")
+    def settings_get() -> dict[str, object]:
+        return {
+            "ok": True,
+            "settings": load_settings().model_dump(mode="json"),
+            "env": env_overrides(),
+            "restart_required": [
+                "runtime.host",
+                "runtime.port",
+                "runtime.max_jobs",
+                "runtime.history",
+                "paths.ffmpeg",
+                "paths.ffprobe",
+                "paths.allowed_roots",
+                "paths.cache_dir",
+                "paths.models_dir",
+                "automation.scheduler_interval_seconds",
+            ],
+        }
+
+    @app.put("/api/v1/settings")
+    def settings_put(request: AppSettings) -> dict[str, object]:
+        saved = save_settings(request)
+        return {"ok": True, "settings": saved.model_dump(mode="json")}
+
+    @app.post("/api/v1/settings/reset")
+    def settings_reset() -> dict[str, object]:
+        saved = save_settings(AppSettings())
+        return {"ok": True, "settings": saved.model_dump(mode="json")}
+
+    @app.get("/api/v1/settings/export")
+    def settings_export() -> dict[str, object]:
+        return {
+            "ok": True,
+            "file": "videoflow-settings.json",
+            "settings": load_settings().model_dump(mode="json"),
+        }
+
+    @app.post("/api/v1/settings/import")
+    def settings_import(request: AppSettings) -> dict[str, object]:
+        saved = save_settings(request)
+        return {"ok": True, "settings": saved.model_dump(mode="json")}
 
     @app.get("/api/v1/system")
     def system() -> dict[str, object]:

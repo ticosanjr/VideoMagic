@@ -72,7 +72,7 @@ GET /health
 ```
 
 ```json
-{ "status": "ok", "service": "videoflow", "version": "0.80.0" }
+{ "status": "ok", "service": "videoflow", "version": "0.86.0" }
 ```
 
 ```http
@@ -82,7 +82,7 @@ GET /api/v1/system
 ```json
 {
   "ok": true,
-  "version": "0.80.0",
+  "version": "0.86.0",
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
@@ -706,7 +706,7 @@ On success, `job.result` is the `run_portable` report:
 ```json
 {
   "ok": true,
-  "version": "0.80.0",
+  "version": "0.86.0",
   "vad_engine": "silero",
   "speech_interval_count": 3,
   "video_segment_count": 3,
@@ -760,6 +760,13 @@ Project state is created by recipe runs and edited through the job timeline API.
   `GET /api/v1/jobs/{job_id}/preview/status`,
   `POST /api/v1/jobs/{job_id}/preview/cancel`,
   `GET /api/v1/jobs/{job_id}/preview/file`
+- `GET/PUT /api/v1/settings`, `POST /api/v1/settings/reset`,
+  `GET /api/v1/settings/export`, `POST /api/v1/settings/import`
+- `GET /api/v1/system/doctor`, `GET /api/v1/system/support-bundle`
+- `GET/PUT/DELETE /api/v1/services/definitions`,
+  `POST /api/v1/services/definitions/{id}/start|stop`,
+  `GET /api/v1/services/definitions/{id}/status|logs`
+- `POST /api/v1/models/local`, `POST /api/v1/models/{id}/verify`
 - `GET /api/v1/providers`, `PUT /api/v1/providers/{id}`,
   `DELETE /api/v1/providers/{id}`,
   `POST /api/v1/providers/{id}/default`,
@@ -788,6 +795,12 @@ Shorts renderer consumes every approved entry, in the saved order.
 `POST /preview?background=true` starts a worker and returns immediately. Poll
 `/preview/status` for progress and call `/preview/cancel` to stop. Previews apply
 `titles.ass`, `color/filters.json`, and `audio/master-filters.json` when present.
+
+Settings are stored in `$VIDEOWFLOW_HOME/settings.json`. Runtime/path changes are
+marked restart-required. Service definitions are stored in `videoflow.db`.
+Local models are registered in `models-local.json`. The support bundle is a ZIP
+with doctor output, settings, redacted environment, providers, models, service
+definitions, and the server log.
 
 Schedules are stored in SQLite (`videoflow.db`) with a one-time migration from
 `recipe-schedules.json`. Review decisions live in `review_approval.json`;

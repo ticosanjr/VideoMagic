@@ -2,10 +2,15 @@
   import ErrorBanner from "$lib/ErrorBanner.svelte";
   import {
     cancelModelDownload,
+    getSettings,
     listLocalModels,
     listModelDownloads,
+    registerLocalModel,
     removeLocalModel,
     startModelDownload,
+    verifyLocalModel,
+    saveSettings,
+    type AppSettings,
     type LocalModel,
     type ModelDownload
   } from "$lib/api";
@@ -16,6 +21,9 @@
   let error = $state("");
   let downloads = $state<Record<string, ModelDownload>>({});
   let poll: ReturnType<typeof setInterval> | undefined;
+  let settings = $state<AppSettings | null>(null);
+  let verification = $state<Record<string, { ok: boolean; invalid?: string[] }>>({});
+  let localDraft = $state({ id: "", label: "", capability: "asr", path: "", kind: "local" });
 
   const grouped = $derived(
     Object.entries(
@@ -34,6 +42,8 @@
   async function refresh() {
     try {
       models = await listLocalModels();
+      const configured = await getSettings();
+      settings = configured.settings;
       const items = await listModelDownloads();
       downloads = items.reduce<Record<string, ModelDownload>>((result, item) => {
         result[item.model_id] = item;
@@ -100,6 +110,42 @@
     }
   }
 
+  async function setDefault(capability: string, modelId: string) {
+    if (!settings) return;
+    settings.models.defaults[capability] = modelId;
+    try {
+      settings = await saveSettings(settings);
+      message = `${capability} default is now ${modelId || "unset"}.`;
+    } catch (reason) {
+      error = String(reason instanceof Error ? reason.message : reason);
+    }
+  }
+
+  async function verify(model: LocalModel) {
+    try {
+      const result = await verifyLocalModel(model.id);
+      verification = { ...verification, [model.id]: result };
+      message = result.ok ? `${model.label} verified.` : `${model.label} needs attention.`;
+    } catch (reason) {
+      error = String(reason instanceof Error ? reason.message : reason);
+    }
+  }
+
+  async function importLocal() {
+    if (!localDraft.id.trim() || !localDraft.path.trim()) {
+      error = "Local model id and path are required.";
+      return;
+    }
+    try {
+      await registerLocalModel(localDraft);
+      localDraft = { id: "", label: "", capability: "asr", path: "", kind: "local" };
+      message = "Local model registered.";
+      await refresh();
+    } catch (reason) {
+      error = String(reason instanceof Error ? reason.message : reason);
+    }
+  }
+
   $effect(() => {
     void refresh();
     return () => clearInterval(poll);
@@ -125,11 +171,41 @@
     {#if message}<p class="mt-2 text-[10px] text-emerald-300">{message}</p>{/if}
   </section>
 
+  <section class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <h3 class="text-xs font-semibold text-neutral-100">Import a local model</h3>
+        <p class="mt-1 text-[10px] text-neutral-500">Register an existing folder or file without downloading it. Device/compute defaults live in Settings.</p>
+      </div>
+      {#if settings}<span class="text-[9px] text-neutral-500">device {settings.models.device} · {settings.models.compute_type}</span>{/if}
+    </div>
+    <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+      <input bind:value={localDraft.id} placeholder="id" class="rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" />
+      <input bind:value={localDraft.label} placeholder="label" class="rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[10px] text-neutral-100" />
+      <input bind:value={localDraft.capability} placeholder="capability" class="rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[10px] text-neutral-100" />
+      <input bind:value={localDraft.path} placeholder="/path/to/model" class="rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" />
+      <input bind:value={localDraft.kind} placeholder="kind" class="rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[10px] text-neutral-100" />
+    </div>
+    <button type="button" onclick={() => void importLocal()} class="mt-2 rounded-lg border border-sky-500/40 px-3 py-1.5 text-[10px] text-sky-200">Register local model</button>
+  </section>
+
   {#each grouped as [capability, items]}
     <section class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
-      <div class="flex items-center justify-between">
+      <div class="flex flex-wrap items-center justify-between gap-2">
         <h3 class="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">{capability}</h3>
-        <span class="text-[10px] text-neutral-600">{items.length} model(s)</span>
+        <div class="flex items-center gap-2">
+          <label class="text-[9px] text-neutral-600">default
+            <select
+              value={settings?.models.defaults?.[capability] ?? ""}
+              onchange={(event) => void setDefault(capability, event.currentTarget.value)}
+              class="ml-1 rounded border border-neutral-800 bg-neutral-950 px-1 py-0.5 text-[9px] text-neutral-300"
+            >
+              <option value="">unset</option>
+              {#each items as option}<option value={option.id}>{option.label}</option>{/each}
+            </select>
+          </label>
+          <span class="text-[10px] text-neutral-600">{items.length} model(s)</span>
+        </div>
       </div>
       <div class="mt-3 space-y-2">
         {#each items as model}
@@ -142,6 +218,7 @@
                   <span class={`rounded-full px-2 py-0.5 text-[9px] uppercase ${model.installed ? "bg-emerald-500/10 text-emerald-300" : "bg-neutral-800 text-neutral-400"}`}>
                     {model.installed ? "installed" : "not installed"}
                   </span>
+                  {#if model.custom}<span class="rounded-full bg-sky-500/10 px-2 py-0.5 text-[9px] uppercase text-sky-300">local</span>{/if}
                 </div>
                 <p class="mt-1 text-[10px] text-neutral-500">
                   {model.kind} · {model.size_mb} MB · {model.license || "license unknown"}
@@ -152,6 +229,7 @@
                 <p class="mt-1 break-all font-mono text-[9px] text-neutral-600" title={model.path}>{model.path}</p>
               </div>
               <div class="flex items-center gap-2">
+                <button type="button" onclick={() => void verify(model)} class="rounded-lg border border-neutral-700 px-2 py-1.5 text-[10px] text-neutral-300">Verify</button>
                 {#if activeDownload(model.id)}
                   <button type="button" onclick={() => void cancel(model)} class="rounded-lg border border-rose-500/30 px-2.5 py-1.5 text-[10px] text-rose-200">Cancel</button>
                 {:else}
@@ -166,6 +244,11 @@
                 {/if}
               </div>
             </div>
+            {#if verification[model.id]}
+              <p class={`mt-1 text-[9px] ${verification[model.id].ok ? "text-emerald-300" : "text-amber-300"}`}>
+                {verification[model.id].ok ? "Files verified." : `Needs attention: ${verification[model.id].invalid?.join(", ") || "missing files"}`}
+              </p>
+            {/if}
             {#if download && download.status !== "installed"}
               <div class="mt-2">
                 <div class="flex items-center justify-between text-[9px] text-neutral-500">

@@ -10,11 +10,11 @@ from videoflow.application import models
 def test_catalog_lists_both_optional_models(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
     listed = models.list_models()
-    assert {item["id"] for item in listed} == {
+    assert {
         "faster-whisper-small",
         "pyannote-diarization-3.1",
         "whisper-tiny",
-    }
+    }.issubset({item["id"] for item in listed})
     assert all(item["installed"] is False for item in listed)
     assert {item["capability"] for item in listed} == {"asr", "diarization"}
     assert all("used_by" in item for item in listed)

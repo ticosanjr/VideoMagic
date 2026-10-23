@@ -50,6 +50,19 @@ class BrollStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = BrollParams.model_validate(params)
+        try:
+            from videoflow.application.settings import load_settings
+
+            stock = load_settings().stock
+        except Exception:
+            stock = None
+        if stock is not None:
+            if options.provider == "local" and not options.asset_dir and stock.provider == "pexels":
+                options = options.model_copy(update={"provider": "pexels"})
+            if not options.asset_dir and stock.asset_dir:
+                options = options.model_copy(update={"asset_dir": stock.asset_dir})
+            if options.api_key_env == "PEXELS_API_KEY" and stock.pexels_key_env:
+                options = options.model_copy(update={"api_key_env": stock.pexels_key_env})
         if not context.selected_shorts:
             io.report(100, "No Shorts selected")
             return
