@@ -19,10 +19,12 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: ui/package-lock.json
-      - name: Install FFmpeg
+      - name: Ensure FFmpeg
         run: |
-          sudo apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
-          sudo apt-get install -y ffmpeg melt
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=30
+            sudo apt-get install -y ffmpeg
+          fi
       - name: Python dependencies
         run: uv sync --extra dev --group dev
       - name: Python lint
