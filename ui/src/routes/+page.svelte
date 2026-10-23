@@ -1,104 +1,38 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import BrandTemplateManager from "$lib/BrandTemplateManager.svelte";
-  import CapabilitiesPanel from "$lib/CapabilitiesPanel.svelte";
-  import CaptionPreview from "$lib/CaptionPreview.svelte";
-  import FontManager from "$lib/FontManager.svelte";
-  import ImageManager from "$lib/ImageManager.svelte";
-  import MusicManager from "$lib/MusicManager.svelte";
-  import LogDrawer from "$lib/LogDrawer.svelte";
-  import PathPicker from "$lib/PathPicker.svelte";
-  import ShortEditor from "$lib/ShortEditor.svelte";
-  import StatusIcon from "$lib/StatusIcon.svelte";
-  import StudioPanel from "$lib/StudioPanel.svelte";
-  import ModelsPanel from "$lib/ModelsPanel.svelte";
-  import ServicesPanel from "$lib/ServicesPanel.svelte";
-  import RecipesPanel from "$lib/RecipesPanel.svelte";
   import AssetsPanel from "$lib/AssetsPanel.svelte";
+  import CapabilitiesPanel from "$lib/CapabilitiesPanel.svelte";
+  import ErrorBanner from "$lib/ErrorBanner.svelte";
+  import ModelsPanel from "$lib/ModelsPanel.svelte";
+  import RecipesPanel from "$lib/RecipesPanel.svelte";
+  import ServicesPanel from "$lib/ServicesPanel.svelte";
   import TimelinePanel from "$lib/TimelinePanel.svelte";
-  import {
-    cancelJob,
-    createJob,
-    errorMessage,
-    getJob,
-    getJobState,
-    getSystem,
-    importMedia,
-    restartService,
-    stopService,
-    listJobs,
-    probeMedia,
-    type Job,
-    type JobState,
-    type JobStage,
-    type ProbedMedia,
-    type ShortClip,
-    type SystemInfo
-  } from "$lib/api";
-  import {
-    elapsedMs,
-    formatBytes,
-    formatDateTime,
-    formatDuration,
-    formatSeconds,
-    statusText
-  } from "$lib/format";
+  import { errorMessage, getSystem, restartService, stopService, type SystemInfo } from "$lib/api";
   import { UI_VERSION } from "$lib/version";
-  import { baseName, parentPath, suggestOutputPath } from "$lib/paths";
-  import {
-    defaultConfig,
-    modules,
-    moduleTabs,
-    statusLabel,
-    statusStyles,
-    type ConfigKey,
-    type ModuleTab,
-    type RackModule,
-    type Status
-  } from "$lib/modules";
   import "../app.css";
 
+  type Tab = "recipes" | "assets" | "timeline" | "models" | "services" | "providers";
+
+  const TABS: { id: Tab; label: string; hint: string }[] = [
+    { id: "recipes", label: "Recipes", hint: "Visual recipe builder and runner" },
+    { id: "assets", label: "Assets", hint: "Local media, audio, images, fonts, tags, and licenses" },
+    { id: "timeline", label: "Timeline", hint: "Canvas timeline with preview, trim, split, and undo" },
+    { id: "models", label: "Models", hint: "Optional on-demand speech and vision models" },
+    { id: "services", label: "Services", hint: "Inspect, stop, and restart local VideoFlow processes" },
+    { id: "providers", label: "Providers", hint: "Persistent provider configuration and fallbacks" }
+  ];
+
   let system = $state<SystemInfo | null>(null);
-  let source = $state("");
-  let output = $state("");
-  let transcript = $state("");
-  let config = $state<any>({ ...defaultConfig });
-  let job = $state<Job | null>(null);
-  let jobState = $state<JobState | null>(null);
-  let history = $state<Job[]>([]);
-  let error = $state("");
-  let busy = $state(false);
-  let logOpen = $state(false);
-  let logModule = $state<string | null>(null);
-  let overrides = $state<Record<number, "keep" | "discard">>({});
-  let now = $state(Date.now());
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let clock: ReturnType<typeof setInterval> | undefined;
-  let pickerKind = $state<PickerKind | null>(null);
-  let outputTouched = $state(false);
-  let sourceMedia = $state<ProbedMedia | null>(null);
-  let mediaLoading = $state(false);
-  let mediaError = $state("");
-  let sourceUrl = $state("");
-  let importingUrl = $state(false);
-  let urlError = $state("");
+  let activeTab = $state<Tab>("recipes");
+  let connecting = $state(true);
+  let systemError = $state("");
+  let serviceStopped = $state(false);
+  let serviceBusy = $state<"" | "restart" | "stop">("");
+  let serviceError = $state("");
   let toast = $state<{ kind: "success" | "error"; message: string } | null>(null);
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
-  let preset = $state<"youtube" | "lecture" | "shorts" | "custom">("custom");
-  let activeTab = $state<ModuleTab>("recipes");
-  let shortEditor = $state<{ index: number; short: ShortClip } | null>(null);
-  let probeToken = 0;
-  let serviceBusy = $state<"" | "restart" | "stop">("");
-  let serviceStopped = $state(false);
-  let serviceError = $state("");
-  let systemError = $state("");
-  let connecting = $state(true);
-
-  const visibleModules = $derived(modules.filter((module) => module.tab === activeTab));
-
-  type PickerKind = "source" | "output" | "transcript" | "faster_model" | "whisper_model";
-
-  const VIDEO_EXTENSIONS = ["mp4", "mov", "mkv", "webm", "m4v", "avi", "mts", "m2ts"];
+  let allowExternal = $state(false);
+  let allowedHosts = $state("");
 
   async function connectToService() {
     connecting = true;
@@ -119,37 +53,10 @@
     }
   }
 
-  onMount(() => {
-    void connectToService();
-    void refreshHistory();
-    clock = setInterval(() => (now = Date.now()), 1000);
-    return () => {
-      clearTimeout(timer);
-      clearTimeout(toastTimer);
-      clearInterval(clock);
-    };
-  });
-
-  const terminal = (status: string | undefined) =>
-    status === "succeeded" || status === "failed" || status === "cancelled";
-
-  const active = $derived(job?.status === "queued" || job?.status === "running");
-
-  const jobDuration = $derived(
-    job ? job.duration_ms ?? elapsedMs(job.started_at, job.finished_at, now) : null
-  );
-
-  const artifacts = $derived(
-    job?.result?.artifacts ? Object.entries(job.result.artifacts) : []
-  );
-
-  function applySuggestedOutput(path = source) {
-    output = suggestOutputPath(path);
-    outputTouched = false;
-  }
-
-  function openPicker(kind: PickerKind) {
-    pickerKind = kind;
+  function notify(kind: "success" | "error", message: string) {
+    clearTimeout(toastTimer);
+    toast = { kind, message };
+    toastTimer = setTimeout(() => (toast = null), 3200);
   }
 
   async function restartLocalService() {
@@ -195,601 +102,32 @@
     }
   }
 
-  function notify(kind: "success" | "error", message: string) {
-    clearTimeout(toastTimer);
-    toast = { kind, message };
-    toastTimer = setTimeout(() => (toast = null), 3200);
-  }
-
-  async function inspectSource(path: string) {
-    const token = ++probeToken;
-    sourceMedia = null;
-    mediaError = "";
-    if (!path.trim()) {
-      mediaLoading = false;
-      return;
-    }
-    mediaLoading = true;
-    try {
-      const probed = await probeMedia(path);
-      if (token === probeToken) sourceMedia = probed;
-    } catch (reason) {
-      if (token === probeToken) mediaError = errorMessage(reason);
-    } finally {
-      if (token === probeToken) mediaLoading = false;
-    }
-  }
-
-  function handlePick(path: string) {
-    const kind = pickerKind;
-    pickerKind = null;
-    if (kind === "source") {
-      source = path;
-      if (!output.trim() || !outputTouched) applySuggestedOutput(path);
-      void inspectSource(path);
-      notify("success", `${baseName(path)} selected`);
-    } else if (kind === "output") {
-      output = path;
-      outputTouched = true;
-      notify("success", "Output folder selected");
-    } else if (kind === "transcript") {
-      transcript = path;
-      notify("success", `${baseName(path)} selected`);
-    } else if (kind === "faster_model") {
-      config.faster_whisper_model = path;
-      preset = "custom";
-    } else if (kind === "whisper_model") {
-      config.whisper_model = path;
-      preset = "custom";
-    }
-  }
-
-  async function importSourceUrl() {
-    if (!sourceUrl.trim() || importingUrl) return;
-    importingUrl = true;
-    urlError = "";
-    try {
-      const result = await importMedia(sourceUrl.trim(), {
-        allow_external_services: Boolean(config.allow_external_services),
-        allowed_external_hosts: String(config.allowed_external_hosts || "")
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean)
-      });
-      source = result.path;
-      if (!output.trim() || !outputTouched) applySuggestedOutput(result.path);
-      await inspectSource(result.path);
-      sourceUrl = "";
-      notify("success", "URL imported");
-    } catch (reason) {
-      urlError = errorMessage(reason);
-    } finally {
-      importingUrl = false;
-    }
-  }
-
-  function clearSource() {
-    source = "";
-    sourceMedia = null;
-    mediaError = "";
-  }
-
-  function pickerMode(): "file" | "directory" {
-    return pickerKind === "output" || pickerKind === "faster_model" ? "directory" : "file";
-  }
-
-  function pickerTitle(): string {
-    if (pickerKind === "source") return "Choose source video";
-    if (pickerKind === "output") return "Choose output folder";
-    if (pickerKind === "transcript") return "Choose an SRT transcript";
-    if (pickerKind === "faster_model") return "Choose Faster-Whisper model folder";
-    return "Choose whisper.cpp model";
-  }
-
-  function pickerExtensions(): string[] {
-    if (pickerKind === "source") return VIDEO_EXTENSIONS;
-    if (pickerKind === "transcript") return ["srt"];
-    if (pickerKind === "whisper_model") return ["bin"];
-    return [];
-  }
-
-  function pickerInitialPath(): string {
-    if (pickerKind === "source" || pickerKind === "transcript") {
-      return parentPath(source);
-    }
-    if (pickerKind === "output") {
-      return parentPath(output) || parentPath(source);
-    }
-    if (pickerKind === "faster_model") return parentPath(config.faster_whisper_model || "");
-    return parentPath(config.whisper_model || "");
-  }
-
-  function mediaDurationSeconds(): number | null {
-    if (!sourceMedia) return null;
-    return (sourceMedia.media.duration_frames * sourceMedia.media.fps_den) / sourceMedia.media.fps_num;
-  }
-
-  function mediaFps(): string {
-    if (!sourceMedia) return "—";
-    const value = sourceMedia.media.fps_num / sourceMedia.media.fps_den;
-    return Number.isInteger(value) ? String(value) : value.toFixed(2);
-  }
-
-  function setField(key: ConfigKey, value: unknown) {
-    config[key] = value;
-    preset = "custom";
-  }
-
-  function toggleTarget(target: string) {
-    const current: string[] = Array.isArray(config.export_targets)
-      ? [...config.export_targets]
-      : [];
-    const next = current.includes(target)
-      ? current.filter((item) => item !== target)
-      : [...current, target];
-    if (next.length > 0) config.export_targets = next;
-    preset = "custom";
-  }
-
-  function applyPreset(name: "youtube" | "lecture" | "shorts") {
-    preset = name;
-    if (name === "youtube") {
-      config.noise_db = -30;
-      config.min_silence_ms = 400;
-      config.jcut = true;
-      config.lcut = false;
-      config.zooms = true;
-      config.shorts = false;
-    } else if (name === "lecture") {
-      config.noise_db = -30;
-      config.min_silence_ms = 700;
-      config.jcut = false;
-      config.lcut = false;
-      config.zooms = false;
-      config.shorts = false;
-    } else {
-      config.noise_db = -30;
-      config.min_silence_ms = 250;
-      config.jcut = true;
-      config.lcut = false;
-      config.zooms = true;
-      config.shorts = true;
-    }
-  }
-
-  function templateOptions() {
-    const payload = buildPayload();
-    const {
-      source: _source,
-      output: _output,
-      transcript: _transcript,
-      overrides: _overrides,
-      ...options
-    } = payload;
-    return options;
-  }
-
-  function buildPayload() {
-    return {
-      source: source.trim(),
-      output: output.trim(),
-      vad_engine: String(config.vad_engine || "auto"),
-      noise_db: Number(config.noise_db),
-      min_silence_ms: Number(config.min_silence_ms),
-      min_speech_ms: Number(config.min_speech_ms),
-      speech_threshold: Number(config.speech_threshold),
-      speech_pad_before_ms: Number(config.speech_pad_before_ms),
-      speech_pad_after_ms: Number(config.speech_pad_after_ms),
-      jcut: Boolean(config.jcut),
-      lcut: Boolean(config.lcut),
-      offset_ms: Number(config.offset_ms),
-      crossfade_ms: Number(config.crossfade_ms),
-      fade_in_ms: Number(config.fade_in_ms),
-      fade_out_ms: Number(config.fade_out_ms),
-      fade_curve: String(config.fade_curve),
-      handle_check: Boolean(config.handle_check),
-      zooms: Boolean(config.zooms),
-      zoom_mode: String(config.zoom_mode),
-      zoom_min_scale: Number(config.zoom_min_scale),
-      zoom_max_scale: Number(config.zoom_max_scale),
-      punch_in_scale: Number(config.punch_in_scale),
-      anchor_point: String(config.anchor_point),
-      progressive_zoom: Boolean(config.progressive_zoom),
-      pan_direction: String(config.pan_direction),
-      dialect: String(config.dialect) as "1.9" | "1.10",
-      export_targets: config.export_targets as string[],
-      transcript: transcript.trim() || null,
-      cull_retakes: Boolean(config.cull_retakes),
-      strictness: String(config.strictness),
-      retake_strategy: String(config.retake_strategy),
-      context_window: Number(config.context_window),
-      llm_base_url: String(config.llm_base_url || "").trim() || null,
-      llm_model: String(config.llm_model || "qwen2.5:7b-instruct"),
-      shorts: Boolean(config.shorts),
-      shorts_count: Number(config.shorts_count),
-      shorts_min_count: Number(config.shorts_min_count),
-      shorts_min_sec: Number(config.shorts_min_sec),
-      shorts_max_sec: Number(config.shorts_max_sec),
-      shorts_subtitles: Boolean(config.shorts_subtitles),
-      shorts_selection_mode: String(config.shorts_selection_mode),
-      shorts_prompt: String(config.shorts_prompt || ""),
-      shorts_reprompt: String(config.shorts_reprompt || ""),
-      shorts_prompt_mode: String(config.shorts_prompt_mode || "replace") as "replace" | "refine",
-      shorts_hook_mode: String(config.shorts_hook_mode || "off") as
-        | "off"
-        | "metadata"
-        | "repeat"
-        | "reorder",
-      shorts_reframe_mode: String(config.shorts_reframe_mode || "center_crop_9_16") as
-        | "center_crop_9_16"
-        | "motion_tracking"
-        | "face_tracking"
-        | "auto_face_tracking_yolo",
-      shorts_audio_energy_boost: Boolean(config.shorts_audio_energy_boost),
-      shorts_scene_change_boost: Boolean(config.shorts_scene_change_boost),
-      shorts_remove_fillers: Boolean(config.shorts_remove_fillers),
-      shorts_filler_words: String(config.shorts_filler_words || "")
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-      shorts_aspect: String(config.shorts_aspect || "9:16"),
-      shorts_resolution: Number(config.shorts_resolution || 1080),
-      shorts_source_start_sec: Number(config.shorts_source_start_sec || 0),
-      shorts_source_end_sec: Number(config.shorts_source_end_sec || 0) || null,
-      allow_external_services: Boolean(config.allow_external_services),
-      allowed_external_hosts: String(config.allowed_external_hosts || "")
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-      audio_enhance: Boolean(config.audio_enhance),
-      audio_highpass_hz: Number(config.audio_highpass_hz),
-      audio_denoise: Boolean(config.audio_denoise),
-      audio_denoise_db: Number(config.audio_denoise_db),
-      audio_noise_floor_db: Number(config.audio_noise_floor_db),
-      audio_loudnorm: Boolean(config.audio_loudnorm),
-      audio_target_lufs: Number(config.audio_target_lufs),
-      audio_true_peak_db: Number(config.audio_true_peak_db),
-      overlay_enabled: Boolean(config.overlay_enabled),
-      overlay_asset: String(config.overlay_asset || ""),
-      overlay_position: String(config.overlay_position || "bottom_right"),
-      overlay_margin_px: Number(config.overlay_margin_px),
-      overlay_width_ratio: Number(config.overlay_width_ratio),
-      overlay_opacity: Number(config.overlay_opacity),
-      music_enabled: Boolean(config.music_enabled),
-      music_asset: String(config.music_asset || ""),
-      music_volume: Number(config.music_volume),
-      music_ducking: Boolean(config.music_ducking),
-      music_fade_in_ms: Number(config.music_fade_in_ms),
-      music_fade_out_ms: Number(config.music_fade_out_ms),
-      intro_enabled: Boolean(config.intro_enabled),
-      intro_asset: String(config.intro_asset || ""),
-      intro_duration_sec: Number(config.intro_duration_sec),
-      outro_enabled: Boolean(config.outro_enabled),
-      outro_asset: String(config.outro_asset || ""),
-      outro_duration_sec: Number(config.outro_duration_sec),
-      caption_font_family: String(config.caption_font_family),
-      caption_font_size: Number(config.caption_font_size),
-      caption_font_weight: String(config.caption_font_weight),
-      caption_italic: Boolean(config.caption_italic),
-      caption_uppercase: Boolean(config.caption_uppercase),
-      caption_primary_color: String(config.caption_primary_color),
-      caption_highlight_color: String(config.caption_highlight_color),
-      caption_outline_color: String(config.caption_outline_color),
-      caption_outline_width: Number(config.caption_outline_width),
-      caption_shadow_color: String(config.caption_shadow_color),
-      caption_shadow_offset: Number(config.caption_shadow_offset),
-      caption_shadow_opacity: Number(config.caption_shadow_opacity),
-      caption_background_color: String(config.caption_background_color),
-      caption_background_opacity: Number(config.caption_background_opacity),
-      caption_background_padding: Number(config.caption_background_padding),
-      caption_alignment: Number(config.caption_alignment),
-      caption_position_x: Number(config.caption_position_x),
-      caption_position_y: Number(config.caption_position_y),
-      caption_max_width: Number(config.caption_max_width),
-      caption_animation: String(config.caption_animation),
-      caption_word_timing: String(config.caption_word_timing),
-      caption_censor_enabled: Boolean(config.caption_censor_enabled),
-      caption_censor_words: String(config.caption_censor_words || "")
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-      caption_censor_replacement: String(config.caption_censor_replacement || "***"),
-      caption_keyword_highlight_enabled: Boolean(config.caption_keyword_highlight_enabled),
-      caption_keyword_color: String(config.caption_keyword_color || "#00E5FF"),
-      caption_keyword_words: String(config.caption_keyword_words || "")
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-      caption_emoji_enabled: Boolean(config.caption_emoji_enabled),
-      caption_emoji_map: parsePairs(config.caption_emoji_map),
-      caption_brand_vocabulary: parsePairs(config.caption_brand_vocabulary),
-      transcribe: Boolean(config.transcribe),
-      asr_base_url: String(config.asr_base_url || "").trim() || null,
-      asr_model: String(config.asr_model || "whisper-1"),
-      asr_language: String(config.asr_language || "pt"),
-      whisper_engine: String(config.whisper_engine || "auto"),
-      whisper_model_size: String(config.whisper_model_size || "small"),
-      whisper_device: String(config.whisper_device || "cpu"),
-      whisper_compute_type: String(config.whisper_compute_type || "int8"),
-      whisper_vad_filter: Boolean(config.whisper_vad_filter),
-      whisper_model: String(config.whisper_model || "").trim() || null,
-      faster_whisper_model: String(config.faster_whisper_model || "").trim() || null,
-      overrides: Object.entries(overrides).map(([sentenceId, action]) => ({
-        sentence_id: Number(sentenceId),
-        action
-      }))
-    };
-  }
-
-  function setOverride(sentenceId: number, action: "keep" | "discard") {
-    const next = { ...overrides };
-    if (next[sentenceId] === action) delete next[sentenceId];
-    else next[sentenceId] = action;
-    overrides = next;
-  }
-
-  function effectiveAction(sentenceId: number): "keep" | "discard" {
-    if (overrides[sentenceId]) return overrides[sentenceId];
-    return jobState?.retake_culls.includes(sentenceId) ? "discard" : "keep";
-  }
-
-  async function applyOverrides() {
-    if (!jobState || Object.keys(overrides).length === 0 || active) return;
-    await start();
-  }
-
-  async function start() {
-    error = "";
-    if (!source.trim() || !output.trim()) {
-      error = "Source and output are required.";
-      return;
-    }
-    if (config.cull_retakes && !transcript.trim()) {
-      error = "Retake culling needs an SRT transcript path.";
-      return;
-    }
-    if (config.shorts && !transcript.trim() && !config.transcribe) {
-      error = "Shorts need an SRT transcript or local/ASR transcription enabled.";
-      return;
-    }
-    if (Number(config.shorts_min_count) > Number(config.shorts_count)) {
-      error = "Shorts minimum count cannot exceed the target count.";
-      return;
-    }
-    if (
-      Number(config.shorts_source_end_sec) > 0 &&
-      Number(config.shorts_source_end_sec) <= Number(config.shorts_source_start_sec)
-    ) {
-      error = "Shorts source end must be greater than the source start.";
-      return;
-    }
-    if (Number(config.zoom_min_scale) > Number(config.zoom_max_scale)) {
-      error = "Minimum zoom cannot exceed maximum zoom.";
-      return;
-    }
-    if (
-      Number(config.punch_in_scale) < Number(config.zoom_min_scale) ||
-      Number(config.punch_in_scale) > Number(config.zoom_max_scale)
-    ) {
-      error = "Punch-in scale must be inside the zoom min/max range.";
-      return;
-    }
-    busy = true;
-    jobState = null;
-    clearTimeout(timer);
-    try {
-      job = await createJob(buildPayload());
-      notify("success", "Pipeline started");
-      schedule();
-    } catch (reason) {
-      error = errorMessage(reason);
-    } finally {
-      busy = false;
-    }
-  }
-
-  function schedule() {
-    clearTimeout(timer);
-    if (!job || terminal(job.status)) return;
-    timer = setTimeout(refresh, 600);
-  }
-
-  async function refresh() {
-    if (!job) return;
-    try {
-      job = await getJob(job.job_id);
-      if (!terminal(job.status)) {
-        schedule();
-      } else {
-        if (job.status === "succeeded") await loadState();
-        await refreshHistory();
-      }
-    } catch (reason) {
-      error = errorMessage(reason);
-    }
-  }
-
-  async function refreshHistory() {
-    try {
-      history = await listJobs();
-    } catch {
-      // The history panel is optional; the run flow stays usable.
-    }
-  }
-
-  async function loadState() {
-    if (!job) return;
-    try {
-      jobState = await getJobState(job.job_id);
-    } catch {
-      jobState = null;
-    }
-  }
-
-  async function cancel() {
-    if (!job) return;
-    try {
-      job = await cancelJob(job.job_id);
-      schedule();
-    } catch (reason) {
-      error = errorMessage(reason);
-    }
-  }
-
-  async function selectJob(entry: Job) {
-    job = entry;
-    jobState = null;
-    error = "";
-    overrides = {};
-    source = entry.source;
-    output = entry.output;
-    outputTouched = true;
-    transcript = entry.options.transcript ?? "";
-    void inspectSource(entry.source);
-    if (entry.status === "succeeded") await loadState();
-  }
-
-  function stageFor(moduleId: string): JobStage | undefined {
-    return job?.stages?.find((item) => item.module === moduleId);
-  }
-
-  function statusFor(module: RackModule): Status {
-    if (!module.portable) return "bypassed";
-    if (module.id === "transcribe" && !transcript && !config.transcribe) return "bypassed";
-    if (module.id === "shorts" && (!config.shorts || !transcript)) return "bypassed";
-    if (module.id === "retakes" && (!config.cull_retakes || !transcript)) return "bypassed";
-    if (module.id === "jl_cuts" && !config.jcut && !config.lcut) return "bypassed";
-    if (module.id === "zooms" && !config.zooms) return "bypassed";
-    const stage = stageFor(module.id);
-    if (stage) return stage.status as Status;
-    if (job?.status === "succeeded") return "bypassed";
-    return "pending";
-  }
-
-  function progressFor(module: RackModule): number {
-    const status = statusFor(module);
-    if (status === "succeeded" || status === "cached") return 100;
-    if (status === "bypassed" || status === "pending" || status === "cancelled") return 0;
-    return stageFor(module.id)?.progress ?? 0;
-  }
-
-  function durationFor(module: RackModule): number | null {
-    const stage = stageFor(module.id);
-    if (!stage) return null;
-    if (stage.duration_ms !== null) return stage.duration_ms;
-    if (stage.status === "running") return elapsedMs(stage.started_at, null, now);
-    return null;
-  }
-
-  function isEnabled(module: RackModule): boolean {
-    if (!module.portable) return false;
-    if (!module.toggleKey) return true;
-    if (module.id === "jl_cuts") return Boolean(config.jcut || config.lcut);
-    return Boolean(config[module.toggleKey]);
-  }
-
-  function toggleModule(module: RackModule) {
-    if (!module.toggleKey) return;
-    preset = "custom";
-    if (module.id === "jl_cuts") {
-      const next = !(config.jcut || config.lcut);
-      config.jcut = next;
-      if (!next) config.lcut = false;
-      return;
-    }
-    config[module.toggleKey] = !config[module.toggleKey];
-  }
-
-  function barClass(status: Status): string {
-    if (status === "failed") return "bg-rose-500";
-    if (status === "succeeded" || status === "cached") return "bg-emerald-500";
-    if (status === "running") return "bg-sky-500";
-    if (status === "blocked" || status === "dirty") return "bg-amber-500";
-    return "bg-neutral-600";
-  }
-
-  function openLog(module?: string) {
-    logModule = module ?? null;
-    logOpen = true;
-  }
-
-  function sentenceText(id: number): string {
-    return jobState?.transcript.find((item) => item.id === id)?.text ?? `sentence ${id}`;
-  }
-
-  const targetOptions = [
-    { id: "resolve", label: "Resolve" },
-    { id: "premiere", label: "Premiere" },
-    { id: "kdenlive", label: "Kdenlive" },
-    { id: "mp4", label: "MP4" }
-  ];
-
-  const durationPresets = [
-    { label: "0–1 min", min: 1, max: 60 },
-    { label: "1–3 min", min: 60, max: 180 },
-    { label: "3–5 min", min: 180, max: 300 },
-    { label: "5–10 min", min: 300, max: 600 }
-  ];
-
-  function selectTab(id: ModuleTab) {
-    activeTab = id;
-    requestAnimationFrame(() => {
-      document.getElementById("pipeline-content")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start"
-      });
-    });
-  }
-
   function hardReload() {
-    window.location.replace(`/?v=${encodeURIComponent(UI_VERSION)}`);
+    window.location.href = `/?v=${encodeURIComponent(UI_VERSION)}`;
   }
 
-  function openShortEditor(index: number, short: ShortClip) {
-    shortEditor = { index, short };
+  function selectTab(tab: Tab) {
+    activeTab = tab;
+    history.replaceState(null, "", `#${tab}`);
   }
 
-  function savedShort(updated: ShortClip) {
-    if (job?.result?.shorts && shortEditor) {
-      const index = shortEditor.index;
-      job = {
-        ...job,
-        result: {
-          ...job.result,
-          shorts: job.result.shorts.map((item, itemIndex) =>
-            itemIndex === index ? updated : item
-          )
-        }
-      };
-    }
-    shortEditor = null;
-    notify("success", "Short re-rendered");
-  }
-
-  function parsePairs(value: unknown): Record<string, string> {
-    const pairs: Record<string, string> = {};
-    for (const item of String(value || "").split(",")) {
-      const [key, ...rest] = item.split("=");
-      const target = rest.join("=").trim();
-      if (key.trim() && target) pairs[key.trim()] = target;
-    }
-    return pairs;
-  }
-
-  function setShortDuration(min: number, max: number) {
-    config.shorts_min_sec = min;
-    config.shorts_max_sec = max;
-    preset = "custom";
-  }
+  onMount(() => {
+    const hash = window.location.hash.replace("#", "") as Tab;
+    if (TABS.some((tab) => tab.id === hash)) activeTab = hash;
+    void connectToService();
+    return () => {
+      clearTimeout(toastTimer);
+    };
+  });
 </script>
 
 <svelte:head>
-  <title>VideoFlow — Rack</title>
+  <title>VideoFlow — Recipe studio</title>
   <meta name="description" content="Local, non-destructive video pre-edit pipeline." />
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-950">
-  <div class={`mx-auto flex min-h-screen flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 ${activeTab === "recipes" || activeTab === "timeline" ? "max-w-[1800px]" : "max-w-[1600px]"}`}>
+  <div class={`mx-auto flex min-h-screen flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8 ${activeTab === "recipes" || activeTab === "timeline" ? "max-w-[1800px]" : "max-w-[1600px]"}`}>
     <header class="flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-center gap-3">
         <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-300 ring-1 ring-inset ring-sky-400/20">
@@ -801,81 +139,59 @@
         <div>
           <div class="flex items-center gap-2">
             <h1 class="text-xl font-semibold tracking-tight text-white">VideoFlow</h1>
-            <span class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-neutral-500">local</span>
+            <span class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-neutral-500">recipe studio</span>
           </div>
-          <p class="mt-0.5 text-xs text-neutral-500">Rough cut automation for talking-head video</p>
+          <p class="mt-0.5 text-xs text-neutral-500">Editable rough cuts and repeatable content recipes</p>
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-2 text-xs">
         <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-mono text-[11px] text-neutral-400" title="Server version">server {system?.version ?? (connecting ? "connecting…" : "offline")}</span>
         <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-mono text-[11px] text-neutral-500" title="UI bundle version">ui {UI_VERSION}</span>
         <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-500">FFmpeg {system?.ffmpeg ? "ready" : connecting ? "checking…" : "missing"}</span>
-        <button
-          type="button"
-          onclick={() => openLog()}
-          disabled={!job}
-          class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300 disabled:opacity-40"
-        >
-          Global log
-          {#if job}<span class="ml-1 text-neutral-600">{job.log_count}</span>{/if}
-        </button>
         {#if serviceStopped}
-          <span class="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-[11px] text-amber-200">
-            Service stopped · close this tab
-          </span>
+          <span class="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-[11px] text-amber-200">Service stopped · close this tab</span>
         {:else}
-          <button
-            type="button"
-            onclick={() => void restartLocalService()}
-            disabled={Boolean(serviceBusy)}
-            class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300 disabled:opacity-40"
-          >
+          <button type="button" onclick={() => void restartLocalService()} disabled={Boolean(serviceBusy)} class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300 disabled:opacity-40">
             {serviceBusy === "restart" ? "Restarting…" : "Restart service"}
           </button>
-          <button
-            type="button"
-            onclick={() => void stopLocalService()}
-            disabled={Boolean(serviceBusy)}
-            class="rounded-full border border-rose-500/20 bg-rose-500/[0.04] px-3 py-1 text-[11px] text-rose-300 transition hover:border-rose-400/40 hover:bg-rose-500/10 disabled:opacity-40"
-          >
+          <button type="button" onclick={() => void stopLocalService()} disabled={Boolean(serviceBusy)} class="rounded-full border border-rose-500/20 bg-rose-500/[0.04] px-3 py-1 text-[11px] text-rose-300 transition hover:border-rose-400/40 hover:bg-rose-500/10 disabled:opacity-40">
             {serviceBusy === "stop" ? "Stopping…" : "Stop service"}
           </button>
         {/if}
       </div>
     </header>
 
-    <nav class="sticky top-0 z-30 -mx-1 overflow-x-auto rounded-2xl border border-neutral-800 bg-neutral-950/95 p-1 shadow-lg shadow-black/30 backdrop-blur" aria-label="Pipeline areas">
-      <div class="flex min-w-max gap-1" role="tablist" aria-label="Pipeline areas">
-        {#each moduleTabs as tab}
-          {@const tabCount = modules.filter((module) => module.tab === tab.id).length}
+    <nav class="sticky top-0 z-30 -mx-1 overflow-x-auto rounded-2xl border border-neutral-800 bg-neutral-950/95 p-1 shadow-lg shadow-black/30 backdrop-blur" aria-label="Workspace areas">
+      <div class="flex min-w-max gap-1" role="tablist" aria-label="Workspace areas">
+        {#each TABS as tab}
           <button
             type="button"
             role="tab"
             aria-selected={activeTab === tab.id}
             title={tab.hint}
             onclick={() => selectTab(tab.id)}
-            class={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition ${
-              activeTab === tab.id
-                ? "bg-sky-500/15 text-sky-200 ring-1 ring-inset ring-sky-400/20"
-                : "text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-200"
-            }`}
+            class={`rounded-xl px-3 py-2 text-xs font-medium transition ${activeTab === tab.id ? "bg-sky-500/15 text-sky-200 ring-1 ring-inset ring-sky-400/20" : "text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-200"}`}
           >
             {tab.label}
-            {#if tabCount > 0}
-              <span class="rounded-full bg-black/20 px-1.5 py-0.5 text-[9px] text-neutral-500">{tabCount}</span>
-            {/if}
           </button>
         {/each}
       </div>
     </nav>
 
+    <ErrorBanner
+      message={[serviceError, systemError].filter(Boolean).join(" · ")}
+      title="The local service reported a problem"
+      onDismiss={() => {
+        serviceError = "";
+        systemError = "";
+      }}
+      testId="global-error-banner"
+    />
+
     {#if system && system.version !== UI_VERSION}
       <div class="rounded-2xl border border-amber-400/20 bg-amber-950/30 px-4 py-3 text-xs text-amber-200">
         <div class="flex flex-wrap items-center justify-between gap-2">
-          <p>
-            Server <span class="font-mono">{system.version}</span> and UI
-            <span class="font-mono">{UI_VERSION}</span> are different. Reload the UI from this server.
-          </p>
+          <p>Server <span class="font-mono">{system.version}</span> and UI <span class="font-mono">{UI_VERSION}</span> are different. Reload the UI from this server.</p>
           <button type="button" onclick={hardReload} class="rounded-lg border border-amber-400/30 px-3 py-1.5 text-[11px]">Reload UI</button>
         </div>
       </div>
@@ -887,9 +203,7 @@
           <div>
             <p class="font-medium">{connecting ? "Connecting to the local VideoFlow service…" : "Could not reach the local service."}</p>
             <p class="mt-1 text-sky-200/70">
-              {connecting
-                ? "The portable build can take a few seconds to unpack on first launch."
-                : systemError || "Start VideoFlow again or run videoflow restart."}
+              {connecting ? "The portable build can take a few seconds to unpack on first launch." : systemError || "Start VideoFlow again or run videoflow restart."}
             </p>
           </div>
           <button type="button" onclick={() => void connectToService()} disabled={connecting} class="rounded-lg border border-sky-400/30 px-3 py-1.5 text-[11px] disabled:opacity-40">
@@ -902,532 +216,40 @@
     {#if serviceStopped}
       <div class="rounded-2xl border border-amber-400/20 bg-amber-950/30 px-4 py-3 text-xs text-amber-200">
         <p class="font-medium">The local service is stopped.</p>
-        <p class="mt-1 text-amber-200/70">
-          Close this tab. To start again, reopen VideoFlow or run
-          <span class="font-mono">videoflow restart</span> in a terminal.
-        </p>
-      </div>
-    {:else if serviceError}
-      <div class="rounded-2xl border border-rose-400/20 bg-rose-950/30 px-4 py-3 text-xs text-rose-200">
-        {serviceError}
+        <p class="mt-1 text-amber-200/70">Close this tab. To start again, reopen VideoFlow or run <span class="font-mono">videoflow restart</span> in a terminal.</p>
       </div>
     {/if}
 
     {#if toast}
-      <div
-        class={`fixed right-4 top-4 z-[60] flex max-w-sm items-start gap-2 rounded-2xl border px-4 py-3 text-sm shadow-2xl ${
-          toast.kind === "error"
-            ? "border-rose-500/30 bg-rose-950 text-rose-200"
-            : "border-emerald-500/30 bg-emerald-950 text-emerald-200"
-        }`}
-        role="status"
-        aria-live="polite"
-      >
+      <div class={`fixed right-4 top-4 z-[60] flex max-w-sm items-start gap-2 rounded-2xl border px-4 py-3 text-sm shadow-2xl ${toast.kind === "error" ? "border-rose-500/30 bg-rose-950 text-rose-200" : "border-emerald-500/30 bg-emerald-950 text-emerald-200"}`} role="status" aria-live="polite">
         <span class={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${toast.kind === "error" ? "bg-rose-400" : "bg-emerald-400"}`}></span>
         <span>{toast.message}</span>
       </div>
     {/if}
 
-    {#if activeTab === "recipes"}
-      <div id="pipeline-content" class="scroll-mt-24">
-        <RecipesPanel {source} {output} />
-      </div>
-    {:else if activeTab === "assets"}
-      <div id="pipeline-content" class="scroll-mt-24">
+    <div id="workspace-content" class="scroll-mt-24">
+      {#if activeTab === "recipes"}
+        <RecipesPanel />
+      {:else if activeTab === "assets"}
         <AssetsPanel />
-      </div>
-    {:else if activeTab === "timeline"}
-      <div id="pipeline-content" class="scroll-mt-24">
+      {:else if activeTab === "timeline"}
         <TimelinePanel />
-      </div>
-    {:else}
-    <div id="pipeline-content" class="grid scroll-mt-24 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-    <section aria-label="Pipeline modules" class="space-y-3">
-      {#if activeTab === "studio"}
-        <StudioPanel {job} {config} onEdit={openShortEditor} />
       {:else if activeTab === "models"}
         <ModelsPanel />
       {:else if activeTab === "services"}
         <ServicesPanel />
       {:else if activeTab === "providers"}
         <CapabilitiesPanel
-          allowExternal={Boolean(config.allow_external_services)}
-          allowedHosts={String(config.allowed_external_hosts || "")}
-          onToggle={(value) => (config.allow_external_services = value)}
-          onHosts={(value) => (config.allowed_external_hosts = value)}
+          allowExternal={allowExternal}
+          {allowedHosts}
+          onToggle={(value) => (allowExternal = value)}
+          onHosts={(value) => (allowedHosts = value)}
         />
-      {:else}
-        {#each visibleModules as module}
-        {@const status = statusFor(module)}
-        {@const progress = progressFor(module)}
-        {@const duration = durationFor(module)}
-        {@const stage = stageFor(module.id)}
-        <article class="rounded-2xl border border-neutral-800 bg-neutral-900/50" data-module={module.id}>
-          <div class="p-4">
-            <div class="flex flex-wrap items-center gap-3">
-              <span class="w-8 font-mono text-xs text-neutral-500">{module.index}</span>
-              <StatusIcon status={status} size={18} />
-              <div class="min-w-0 flex-1">
-                <div class="flex flex-wrap items-center gap-2">
-                  <h2 class="text-sm font-semibold">{module.name}</h2>
-                  <span
-                    class="rounded-full px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide ring-1 {statusStyles[
-                      status
-                    ]}"
-                  >
-                    {statusLabel[status]}
-                  </span>
-                  {#if module.tag}
-                    <span class="rounded-full bg-neutral-800 px-2 py-0.5 text-[10px] uppercase text-neutral-500">
-                      {module.tag}
-                    </span>
-                  {/if}
-                </div>
-                <p class="mt-1 text-xs text-neutral-400">{module.summary}</p>
-              </div>
-              {#if module.toggleKey}
-                <label class="flex items-center gap-2 text-xs text-neutral-400">
-                  <input
-                    type="checkbox"
-                    checked={isEnabled(module)}
-                    disabled={!module.portable}
-                    onchange={() => toggleModule(module)}
-                    class="h-4 w-4 rounded border-neutral-700 bg-neutral-800"
-                  />
-                  {module.toggleLabel ?? "Enabled"}
-                </label>
-              {/if}
-              <button
-                type="button"
-                onclick={() => openLog(module.id)}
-                disabled={!job}
-                class="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:border-sky-500 disabled:opacity-40"
-              >
-                Log
-              </button>
-            </div>
-
-            <div class="mt-3 flex items-center gap-3">
-              <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-neutral-800">
-                <div
-                  class="h-full rounded-full transition-all {barClass(status)}"
-                  style={`width: ${progress}%`}
-                ></div>
-              </div>
-              <span class="w-10 text-right text-[11px] text-neutral-500">{progress}%</span>
-            </div>
-            <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-neutral-500">
-              <span>Started: {formatDateTime(stage?.started_at)}</span>
-              <span>Duration: {formatDuration(duration)}</span>
-              {#if stage?.message}<span class="truncate">{stage.message}</span>{/if}
-            </div>
-          </div>
-
-          <details class="border-t border-neutral-800">
-            <summary class="cursor-pointer px-4 py-2 text-xs font-medium text-neutral-400 hover:text-neutral-200">
-              Parameters
-            </summary>
-            <div class="grid gap-3 px-4 pb-4 sm:grid-cols-2 lg:grid-cols-3">
-              {#each module.fields as field}
-                <div class="rounded-xl bg-neutral-950/60 p-3">
-                  <div class="flex items-center justify-between gap-2">
-                    <label class="text-[11px] uppercase tracking-wide text-neutral-500" for={`${module.id}-${field.key}`}>
-                      {field.label}
-                    </label>
-                    {#if !field.implemented}
-                      <span class="rounded bg-neutral-800 px-1.5 py-0.5 text-[9px] uppercase text-neutral-500">
-                        later
-                      </span>
-                    {/if}
-                  </div>
-                  <div class="mt-2">
-                    {#if field.type === "bool"}
-                      <input
-                        id={`${module.id}-${field.key}`}
-                        type="checkbox"
-                        checked={Boolean(config[field.key])}
-                        disabled={!field.implemented}
-                        onchange={(event) => setField(field.key, event.currentTarget.checked)}
-                        class="h-4 w-4 rounded border-neutral-700 bg-neutral-800"
-                      />
-                    {:else if field.type === "number"}
-                      <input
-                        id={`${module.id}-${field.key}`}
-                        type="number"
-                        value={config[field.key]}
-                        min={field.min}
-                        max={field.max}
-                        step={field.step}
-                        disabled={!field.implemented}
-                        oninput={(event) => setField(field.key, Number(event.currentTarget.value))}
-                        class="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-sm text-neutral-100 disabled:opacity-50"
-                      />
-                    {:else if field.type === "color"}
-                      <span class="flex gap-1">
-                        <input
-                          id={`${module.id}-${field.key}`}
-                          type="color"
-                          value={config[field.key]}
-                          disabled={!field.implemented}
-                          oninput={(event) => setField(field.key, event.currentTarget.value)}
-                          class="h-9 w-12 rounded-lg border border-neutral-700 bg-neutral-950 p-1 disabled:opacity-50"
-                        />
-                        <input
-                          type="text"
-                          value={config[field.key]}
-                          disabled={!field.implemented}
-                          oninput={(event) => setField(field.key, event.currentTarget.value)}
-                          class="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-xs text-neutral-100 disabled:opacity-50"
-                        />
-                      </span>
-                    {:else if field.type === "select"}
-                      <select
-                        id={`${module.id}-${field.key}`}
-                        value={config[field.key]}
-                        disabled={!field.implemented}
-                        onchange={(event) => setField(field.key, event.currentTarget.value)}
-                        class="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-sm text-neutral-100 disabled:opacity-50"
-                      >
-                        {#each field.options ?? [] as option}
-                          <option value={option.value}>{option.label}</option>
-                        {/each}
-                      </select>
-                    {:else if field.type === "text"}
-                      <input
-                        id={`${module.id}-${field.key}`}
-                        type="text"
-                        value={config[field.key]}
-                        disabled={!field.implemented}
-                        oninput={(event) => setField(field.key, event.currentTarget.value)}
-                        class="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-sm text-neutral-100 disabled:opacity-50"
-                      />
-                    {:else if field.type === "textarea"}
-                      <textarea
-                        id={`${module.id}-${field.key}`}
-                        rows="3"
-                        value={config[field.key]}
-                        disabled={!field.implemented}
-                        oninput={(event) => setField(field.key, event.currentTarget.value)}
-                        class="w-full resize-y rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-sm text-neutral-100 disabled:opacity-50"
-                      ></textarea>
-                    {:else if field.type === "targets"}
-                      <div class="flex flex-wrap gap-3">
-                        {#each targetOptions as target}
-                          <label class="flex items-center gap-1.5 text-xs text-neutral-300">
-                            <input
-                              type="checkbox"
-                              checked={(config.export_targets as string[]).includes(target.id)}
-                              onchange={() => toggleTarget(target.id)}
-                              class="h-4 w-4 rounded border-neutral-700 bg-neutral-800"
-                            />
-                            {target.label}
-                          </label>
-                        {/each}
-                      </div>
-                    {:else}
-                      <p class="text-sm text-neutral-400">{String(config[field.key])}</p>
-                    {/if}
-                  </div>
-                  {#if field.help}
-                    <p class="mt-2 text-[10px] leading-4 text-neutral-500">{field.help}</p>
-                  {/if}
-                </div>
-              {/each}
-            </div>
-            {#if module.id === "shorts"}
-              <div class="px-4 pb-4">
-                <div class="mb-3">
-                  <FontManager onSelect={(family) => (config.caption_font_family = family)} />
-                </div>
-                <div class="mb-3">
-                  <ImageManager
-                    selected={String(config.overlay_asset || "")}
-                    onSelect={(name) => (config.overlay_asset = name)}
-                  />
-                </div>
-                <div class="mb-3">
-                  <MusicManager
-                    selected={String(config.music_asset || "")}
-                    onSelect={(name) => (config.music_asset = name)}
-                  />
-                </div>
-                <div class="mb-3">
-                  <BrandTemplateManager {config} />
-                </div>
-                <div class="mb-3 grid gap-3 sm:grid-cols-2">
-                  <ImageManager
-                    label="Intro card"
-                    selected={String(config.intro_asset || "")}
-                    onSelect={(name) => (config.intro_asset = name)}
-                  />
-                  <ImageManager
-                    label="Outro card"
-                    selected={String(config.outro_asset || "")}
-                    onSelect={(name) => (config.outro_asset = name)}
-                  />
-                </div>
-                <div class="mb-3 rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
-                  <div class="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p class="text-[11px] uppercase tracking-wide text-neutral-500">Clip length presets</p>
-                      <p class="mt-1 text-[10px] text-neutral-500">Sets the minimum and maximum Short duration.</p>
-                    </div>
-                    <div class="flex flex-wrap gap-1.5">
-                      {#each durationPresets as duration}
-                        <button
-                          type="button"
-                          onclick={() => setShortDuration(duration.min, duration.max)}
-                          class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 transition hover:border-sky-500/60 hover:text-sky-200"
-                        >
-                          {duration.label}
-                        </button>
-                      {/each}
-                    </div>
-                  </div>
-                </div>
-                <CaptionPreview {config} />
-              </div>
-            {/if}
-            {#if module.note}
-              <p class="px-4 pb-4 text-[11px] leading-5 text-neutral-500">{module.note}</p>
-            {/if}
-          </details>
-        </article>
-        {/each}
       {/if}
-    </section>
-
-    <aside class="space-y-4">
-      <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
-        <h2 class="text-sm font-semibold">Run summary</h2>
-        {#if job}
-          <div class="mt-3 flex items-center gap-2 text-sm">
-            <StatusIcon status={job.status === "queued" ? "pending" : job.status} size={18} />
-            <span class="capitalize">{statusText(job.status)}</span>
-          </div>
-          <dl class="mt-3 space-y-2 text-xs text-neutral-400">
-            <div><dt class="text-[10px] uppercase text-neutral-500">Started</dt><dd>{formatDateTime(job.started_at ?? job.created_at)}</dd></div>
-            <div><dt class="text-[10px] uppercase text-neutral-500">Finished</dt><dd>{formatDateTime(job.finished_at)}</dd></div>
-            <div><dt class="text-[10px] uppercase text-neutral-500">Duration</dt><dd>{formatDuration(jobDuration)}</dd></div>
-            <div><dt class="text-[10px] uppercase text-neutral-500">Stages</dt><dd>{job.stages.filter((item) => item.status === "succeeded").length} ok · {job.stages.filter((item) => item.status === "failed").length} failed</dd></div>
-          </dl>
-          {#if artifacts.length > 0}
-            <div class="mt-3 space-y-2">
-              {#each artifacts as [target, path]}
-                <a
-                  class="block rounded-lg border border-neutral-800 bg-neutral-950/60 p-2 text-[11px] text-emerald-300 hover:border-emerald-500/50"
-                  href={`/api/v1/jobs/${job.job_id}/artifacts/${target}`}
-                  download
-                >
-                  <span class="block uppercase text-neutral-500">{target}</span>
-                  <span class="break-all font-mono">{path}</span>
-                </a>
-              {/each}
-            </div>
-          {/if}
-          {#if job.result?.shorts?.length}
-            <div class="mt-3">
-              <p class="text-[10px] uppercase tracking-wide text-neutral-500">Shorts</p>
-              <div class="mt-2 space-y-2">
-                {#each job.result.shorts as clip, index}
-                  <div class="rounded-lg border border-neutral-800 bg-neutral-950/60 p-2 text-[11px]">
-                    <a
-                      class="block text-sky-300 hover:text-sky-200"
-                      href={`/api/v1/jobs/${job.job_id}/shorts/${index}`}
-                      download
-                    >
-                      <span class="block truncate">{clip.title}</span>
-                      <span class="text-[10px] text-neutral-500">
-                        {clip.duration_sec.toFixed(1)} s · {clip.aspect_ratio ?? "9:16"} · MP4
-                        {#if clip.virality_score !== undefined}· score {clip.virality_score.toFixed(0)}{/if}
-                        {#if clip.edit_count}· edit {clip.edit_count}{/if}
-                      </span>
-                    </a>
-                    {#if clip.hook}
-                      <p class="mt-1 line-clamp-2 text-[10px] text-amber-300/80">Hook: {clip.hook}</p>
-                    {/if}
-                    <div class="mt-2 flex gap-2">
-                      <button
-                        type="button"
-                        onclick={() => openShortEditor(index, clip)}
-                        class="rounded-md border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 hover:border-sky-500/60 hover:text-sky-200"
-                      >
-                        Edit
-                      </button>
-                      <a
-                        class="rounded-md border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 hover:border-emerald-500/60 hover:text-emerald-200"
-                        href={`/api/v1/jobs/${job.job_id}/shorts/${index}`}
-                        download
-                      >
-                        Download
-                      </a>
-                    </div>
-                  </div>
-                {/each}
-              </div>
-            </div>
-          {/if}
-        {:else}
-          <p class="mt-3 text-xs text-neutral-500">Run the pipeline to see timing, logs, and artifacts.</p>
-        {/if}
-      </section>
-
-      <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
-        <h2 class="text-sm font-semibold">Recent jobs</h2>
-        {#if history.length === 0}
-          <p class="mt-2 text-xs text-neutral-500">No jobs yet.</p>
-        {:else}
-          <div class="mt-3 space-y-2">
-            {#each history.slice(0, 6) as entry}
-              <button
-                type="button"
-                onclick={() => selectJob(entry)}
-                class="flex w-full items-center gap-2 rounded-lg border border-transparent px-2 py-2 text-left text-xs hover:border-neutral-700 hover:bg-neutral-950/60"
-              >
-                <StatusIcon status={entry.status === "queued" ? "pending" : entry.status} />
-                <span class="min-w-0 flex-1">
-                  <span class="block truncate text-neutral-300">{entry.source.split(/[\\/]/).pop()}</span>
-                  <span class="block text-[10px] text-neutral-500">{formatDateTime(entry.created_at)} · {formatDuration(entry.duration_ms)}</span>
-                </span>
-              </button>
-            {/each}
-          </div>
-        {/if}
-      </section>
-
-      <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4 text-xs text-neutral-400">
-        <h2 class="text-sm font-semibold text-neutral-200">System</h2>
-        <p class="mt-3">Version: <span class="font-mono text-neutral-300">{system?.version ?? "—"}</span></p>
-        <p class="mt-1">FFmpeg: <span class="break-all font-mono text-neutral-300">{system?.ffmpeg ?? "missing"}</span></p>
-        <p class="mt-1">Home: <span class="break-all font-mono text-neutral-300">{system?.home ?? "—"}</span></p>
-        <p class="mt-1">Roots: <span class="break-all font-mono text-neutral-300">{system?.allowed_roots.join(", ") || "—"}</span></p>
-      </section>
-    </aside>
-  </div>
-  {/if}
-
-  {#if activeTab !== "recipes"}
-  <section class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-5">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h2 class="text-sm font-semibold">Inspector</h2>
-        <p class="mt-1 text-xs text-neutral-400">
-          Transcript and retake decisions from the current job.
-        </p>
-      </div>
-      <span class="rounded-full bg-neutral-800 px-3 py-1 text-[11px] text-neutral-400">
-        {job?.result ? `${job.result.video_segment_count ?? 0} segments` : "No run"}
-      </span>
     </div>
-    {#if jobState}
-      <div class="mt-4 grid gap-2 text-xs text-neutral-300 sm:grid-cols-4">
-        <p>Sentences: {jobState.transcript.length}</p>
-        <p>Culled: {jobState.retake_culls.length}</p>
-        <p>Restored: {jobState.retake_guard_restores.length}</p>
-        <p>Overrides: {Object.keys(overrides).length}</p>
-      </div>
 
-      <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
-        <p class="text-[11px] uppercase tracking-wide text-neutral-500">Manual overrides</p>
-        <button
-          type="button"
-          onclick={applyOverrides}
-          disabled={Object.keys(overrides).length === 0 || active}
-          class="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
-        >
-          Apply overrides
-        </button>
-      </div>
-      <div class="mt-2 max-h-80 space-y-1 overflow-auto rounded-xl border border-neutral-800 bg-neutral-950/50 p-2">
-        {#each jobState.transcript.slice(0, 200) as sentence}
-          {@const action = effectiveAction(sentence.id)}
-          <div class="flex flex-wrap items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-neutral-900/60">
-            <span class="w-8 shrink-0 font-mono text-[10px] text-neutral-600">#{sentence.id}</span>
-            <span class="min-w-0 flex-1 {action === 'discard' ? 'text-rose-300 line-through' : 'text-neutral-300'}">
-              {sentence.text}
-            </span>
-            <button
-              type="button"
-              onclick={() => setOverride(sentence.id, "keep")}
-              class="rounded px-2 py-0.5 text-[10px] {action === 'keep' ? 'bg-emerald-500/15 text-emerald-300' : 'text-neutral-500 hover:text-emerald-300'}"
-            >
-              Keep
-            </button>
-            <button
-              type="button"
-              onclick={() => setOverride(sentence.id, "discard")}
-              class="rounded px-2 py-0.5 text-[10px] {action === 'discard' ? 'bg-rose-500/15 text-rose-300' : 'text-neutral-500 hover:text-rose-300'}"
-            >
-              Discard
-            </button>
-          </div>
-        {/each}
-      </div>
-      {#if jobState.transcript.length > 200}
-        <p class="mt-2 text-[10px] text-neutral-500">Showing the first 200 sentences.</p>
-      {/if}
-      {#if jobState.retake_guard_restores.length > 0}
-        <div class="mt-4">
-          <p class="text-[11px] uppercase tracking-wide text-neutral-500">Guard restorations</p>
-          <ul class="mt-2 space-y-1 text-xs text-emerald-300">
-            {#each jobState.retake_guard_restores as id}
-              <li>{sentenceText(id)}</li>
-            {/each}
-          </ul>
-        </div>
-      {/if}
-      {#if job?.result?.warnings?.length}
-        <ul class="mt-3 list-disc pl-5 text-xs text-amber-300">
-          {#each job.result.warnings as warning}
-            <li>{warning}</li>
-          {/each}
-        </ul>
-      {/if}
-    {:else if job?.result}
-      <div class="mt-4 grid gap-2 text-xs text-neutral-300 sm:grid-cols-3">
-        <p>Speech intervals: {job.result.speech_interval_count ?? "—"}</p>
-        <p>Segments: {job.result.video_segment_count ?? "—"}</p>
-        <p>Elapsed: {job.result.elapsed_seconds?.toFixed(2) ?? "—"} s</p>
-      </div>
-    {:else}
-      <p class="mt-4 text-xs text-neutral-500">
-        Start a run to populate transcript decisions and warnings.
-      </p>
-    {/if}
-  </section>
-  {/if}
-
-  <footer class="pb-4 text-xs text-neutral-500">
-    <p>
-      Local only. The server binds to 127.0.0.1. Every control shown is wired; future modules are
-      marked later.
-    </p>
-  </footer>
+    <footer class="pb-4 text-xs text-neutral-500">
+      <p>Local only. The server binds to 127.0.0.1. JSON project state is the single source of truth.</p>
+    </footer>
   </div>
 </div>
-
-<PathPicker
-  open={pickerKind !== null}
-  mode={pickerMode()}
-  title={pickerTitle()}
-  extensions={pickerExtensions()}
-  initialPath={pickerInitialPath()}
-  suggestedName={pickerKind === "output" && !outputTouched ? baseName(output) : ""}
-  onclose={() => (pickerKind = null)}
-  onselect={handlePick}
-/>
-
-{#if shortEditor && job}
-  <ShortEditor
-    jobId={job.job_id}
-    index={shortEditor.index}
-    short={shortEditor.short}
-    open={shortEditor !== null}
-    allowExternal={Boolean(config.allow_external_services)}
-    allowedHosts={String(config.allowed_external_hosts || "")}
-    onClose={() => (shortEditor = null)}
-    onSaved={savedShort}
-  />
-{/if}
-
-<LogDrawer jobId={job?.job_id ?? null} module={logModule} open={logOpen} onclose={() => (logOpen = false)} />

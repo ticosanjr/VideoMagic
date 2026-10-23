@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ErrorBanner from "$lib/ErrorBanner.svelte";
   import {
     cleanupServices,
     errorMessage,
@@ -141,6 +142,7 @@
 </script>
 
 <section class="space-y-3">
+  <ErrorBanner message={error} onDismiss={() => (error = "")} />
   <div class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
@@ -176,7 +178,6 @@
       </div>
     {/if}
     {#if message}<p class="mt-2 text-[10px] text-emerald-300">{message}</p>{/if}
-    {#if error}<p class="mt-2 text-[10px] text-rose-300">{error}</p>{/if}
     <div class="mt-3 border-t border-neutral-800 pt-3">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <p class="break-all font-mono text-[10px] text-neutral-600">{logPath}</p>

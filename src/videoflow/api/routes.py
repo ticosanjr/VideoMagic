@@ -7,12 +7,10 @@ import logging
 import os
 import shutil
 import subprocess
-import threading
 import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Literal
-from uuid import UUID
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
@@ -36,17 +34,18 @@ from videoflow.application.brand_templates import (
     list_templates,
     save_template,
 )
+from videoflow.application.broll_approval import load_approvals, save_approval
 from videoflow.application.capabilities import (
     capability_manifest,
     external_services_allowed,
 )
 from videoflow.application.caption_ai import apply_llm_emoji
 from videoflow.application.dubbing import generate_short_dubbing
-from videoflow.application.export_service import export_timeline
 from videoflow.application.filesystem import create_directory, list_directory, roots_payload
 from videoflow.application.fonts import list_fonts, save_font
 from videoflow.application.images import list_images, save_image
 from videoflow.application.jobs import TERMINAL, Job, JobManager
+from videoflow.application.model_downloads import downloads as model_downloads
 from videoflow.application.models import install_model, list_models, remove_model
 from videoflow.application.multimodal import analyze_short_entry
 from videoflow.application.multimodal_llm import analyze_short_llm_entry
@@ -71,13 +70,14 @@ from videoflow.application.project_templates import (
 from videoflow.application.project_templates import (
     save_template as save_project_template,
 )
-from videoflow.application.projects import (
-    ProjectStore,
-    apply_media,
-    apply_module_config,
-    apply_module_enabled,
-    apply_overrides,
-    apply_preset,
+from videoflow.application.providers import (
+    ProviderConfig,
+    delete_provider,
+    fallback_manifest,
+    list_providers,
+    resolve_chain,
+    set_default,
+    upsert_provider,
 )
 from videoflow.application.publishing import (
     PublishTarget,
@@ -89,7 +89,6 @@ from videoflow.application.publishing import (
     list_targets,
     save_target,
 )
-from videoflow.application.runner import PipelineRunner
 from videoflow.application.services import (
     append_server_log,
     discover_services,
@@ -103,33 +102,26 @@ from videoflow.application.short_editor import edit_short as edit_short_service
 from videoflow.application.short_metadata import generate_short_metadata
 from videoflow.application.thumbnail import generate_short_thumbnail
 from videoflow.application.timeline_edit import TimelineEdit, apply_timeline_edit
+from videoflow.application.timeline_history import TimelineHistory
 from videoflow.application.url_import import import_url
 from videoflow.application.voiceover import generate_short_voiceover
 from videoflow.core.recipe import parse_recipe, recipe_to_dict
 from videoflow.domain.config import (
     DubbingConfig,
     MediaLanguage,
-    ModuleEnabled,
     TtsConfig,
 )
 from videoflow.domain.errors import (
     CapabilityUnavailableError,
     FilesystemError,
-    JobAlreadyRunningError,
-    JobNotFoundError,
     MediaNotFoundError,
-    MediaNotRegisteredError,
-    ModuleBypassedError,
     RecipeError,
     StateNotReadyError,
     TranscriptNotFoundError,
-    TranscriptRequiredError,
-    UnknownModuleError,
     VideoFlowError,
 )
 from videoflow.domain.paths import resolve_allowed
-from videoflow.domain.state import ManualOverride, MediaInfo, ProjectState
-from videoflow.domain.transcript import format_srt
+from videoflow.domain.state import MediaInfo, ProjectState
 from videoflow.engine.batch import BatchManager
 from videoflow.engine.history import read_runs
 from videoflow.engine.maintenance import prune_output
@@ -141,6 +133,7 @@ from videoflow.engine.recipes import (
     restore_recipe_version,
     save_user_recipe,
 )
+from videoflow.exporters.mp4 import export_mp4
 from videoflow.runtime import allowed_roots, find_binary, portable_home
 from videoflow.steps import get_step, requirements_by_type, step_types
 from videoflow.steps import manifest as step_manifest
@@ -345,15 +338,6 @@ class BatchRequest(BaseModel):
         return self
 
 
-class NewProjectRequest(BaseModel):
-    root: str = Field(min_length=1)
-    preset: str | None = None
-
-
-class MediaRequest(BaseModel):
-    file_path: str = Field(min_length=1)
-
-
 class MediaImportRequest(BaseModel):
     url: str = Field(min_length=1)
     max_height: int = Field(default=1080, ge=144, le=4320)
@@ -365,20 +349,6 @@ class MediaImportRequest(BaseModel):
 class NewDirectoryRequest(BaseModel):
     parent: str = Field(min_length=1)
     name: str = Field(min_length=1, max_length=255)
-
-
-class EnabledRequest(BaseModel):
-    enabled: bool
-
-
-class ProjectRunRequest(BaseModel):
-    run_upstream: bool = False
-    force: bool = False
-
-
-class ExportRequest(BaseModel):
-    targets: list[Literal["resolve", "premiere", "kdenlive"]] | None = None
-    dialect: Literal["1.9", "1.10"] | None = None
 
 
 class PublishTargetRequest(BaseModel):
@@ -441,10 +411,17 @@ class ProviderTestRequest(BaseModel):
 
 class TimelineEditRequest(BaseModel):
     clip_id: str = Field(min_length=1)
-    action: Literal["trim", "move", "delete"]
+    action: Literal["trim", "move", "delete", "split", "ripple"]
     start_sec: float | None = Field(default=None, ge=0.0)
     end_sec: float | None = Field(default=None, ge=0.0)
     delta_sec: float = 0.0
+    split_sec: float | None = Field(default=None, ge=0.0)
+
+
+class BrollApprovalRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    approved: list[int] = Field(default_factory=list)
+    order: list[int] = Field(default_factory=list)
 
 
 class CaptionUpdateRequest(BaseModel):
@@ -535,10 +512,6 @@ class ShortEditRequest(BaseModel):
         return self
 
 
-class TranscriptOverridesRequest(BaseModel):
-    overrides: list[ManualOverride] = Field(default_factory=list)
-
-
 def _job_event_stream(job: Job) -> Iterator[str]:
     last: tuple[object, ...] | None = None
     while True:
@@ -555,11 +528,8 @@ def _job_event_stream(job: Job) -> Iterator[str]:
 def register_routes(
     app: FastAPI,
     jobs: JobManager,
-    projects: ProjectStore,
     batches: BatchManager | None = None,
 ) -> None:
-    project_job_lock = threading.Lock()
-    app.state.project_store = projects
     batch_manager = batches or BatchManager(jobs)
     app.state.batches = batch_manager
 
@@ -803,6 +773,65 @@ def register_routes(
             "message": response.text[:500],
             "secret_present": bool(api_key),
         }
+
+    @app.get("/api/v1/providers")
+    def providers_list() -> dict[str, object]:
+        return {
+            "ok": True,
+            "providers": list_providers(),
+            "fallbacks": fallback_manifest(),
+        }
+
+    @app.put("/api/v1/providers/{provider_id}")
+    def providers_save(provider_id: str, request: ProviderConfig) -> dict[str, object]:
+        try:
+            if request.id != provider_id:
+                raise HTTPException(
+                    status_code=422,
+                    detail={"ok": False, "code": "provider_id_mismatch", "message": provider_id},
+                )
+            payload = upsert_provider(request)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "provider": payload, "fallbacks": fallback_manifest()}
+
+    @app.delete("/api/v1/providers/{provider_id}")
+    def providers_delete(provider_id: str) -> dict[str, object]:
+        try:
+            delete_provider(provider_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "fallbacks": fallback_manifest()}
+
+    @app.post("/api/v1/providers/{provider_id}/default")
+    def providers_default(provider_id: str) -> dict[str, object]:
+        try:
+            payload = set_default(provider_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "provider": payload, "fallbacks": fallback_manifest()}
+
+    @app.get("/api/v1/providers/resolve")
+    def providers_resolve(capability: str = "llm") -> dict[str, object]:
+        known = {
+            "llm",
+            "asr",
+            "tts",
+            "vision",
+            "stock",
+            "translation",
+            "diarization",
+            "publishing",
+        }
+        if capability not in known:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "unknown_capability", "message": capability},
+            )
+        return {"ok": True, "capability": capability, "chain": resolve_chain(capability)}
 
     @app.get("/api/v1/assets")
     def list_assets_route(
@@ -1424,16 +1453,30 @@ def register_routes(
         }
 
     @app.post("/api/v1/jobs/{job_id}/preview")
-    def create_preview(job_id: str) -> dict[str, object]:
+    def create_preview(job_id: str, force: bool = False) -> dict[str, object]:
         try:
             job = jobs.get(job_id)
             if job.status != "succeeded":
                 raise StateNotReadyError("The job must succeed before preview rendering.")
-            source = _job_preview_source(job)
             preview = job.output / "preview" / "preview.mp4"
-            if not preview.is_file():
+            if force or not preview.is_file():
                 preview.parent.mkdir(parents=True, exist_ok=True)
-                FFmpegAdapter().transcode_preview(source, preview)
+                state_path = Path(
+                    str(
+                        (job.result or {}).get("state_path")
+                        or job.output / "project_state.json"
+                    )
+                )
+                if state_path.is_file():
+                    state = ProjectState.model_validate_json(
+                        state_path.read_text(encoding="utf-8")
+                    )
+                    full = job.output / "preview" / "timeline-preview.mp4"
+                    export_mp4(state, full)
+                    FFmpegAdapter().transcode_preview(full, preview)
+                else:
+                    source = _job_preview_source(job)
+                    FFmpegAdapter().transcode_preview(source, preview)
         except VideoFlowError as exc:
             fail(exc)
         return {
@@ -1456,14 +1499,34 @@ def register_routes(
             )
         return FileResponse(preview, media_type="video/mp4", filename="preview.mp4")
 
+    def _timeline_state_path(job: Job) -> Path:
+        return Path(
+            str((job.result or {}).get("state_path") or job.output / "project_state.json")
+        )
+
+    def _timeline_history(job: Job) -> TimelineHistory:
+        return TimelineHistory(job.output / "timeline_history.json")
+
+    def _apply_and_store(
+        job: Job,
+        state: ProjectState,
+        state_path: Path,
+        history: TimelineHistory,
+        revision: int,
+    ) -> ProjectState:
+        state = state.model_copy(update={"revision": revision})
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text(state.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        return state
+
     @app.patch("/api/v1/jobs/{job_id}/timeline")
     def edit_job_timeline(job_id: str, request: TimelineEditRequest) -> dict[str, object]:
         try:
             job = jobs.get(job_id)
-            state_path = Path(
-                str((job.result or {}).get("state_path") or job.output / "project_state.json")
-            )
+            state_path = _timeline_state_path(job)
+            history = _timeline_history(job)
             state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+            previous = state.model_copy(deep=True)
             state = apply_timeline_edit(
                 state,
                 TimelineEdit(
@@ -1472,10 +1535,13 @@ def register_routes(
                     start_sec=request.start_sec,
                     end_sec=request.end_sec,
                     delta_sec=request.delta_sec,
+                    split_sec=request.split_sec,
                 ),
             )
-            state = state.model_copy(update={"revision": state.revision + 1})
-            state_path.write_text(state.model_dump_json(indent=2) + "\n", encoding="utf-8")
+            history.record(previous)
+            state = _apply_and_store(
+                job, state, state_path, history, previous.revision + 1
+            )
         except VideoFlowError as exc:
             fail(exc)
             raise
@@ -1487,7 +1553,55 @@ def register_routes(
         return {
             "ok": True,
             "revision": state.revision,
+            "can_undo": history.can_undo,
+            "can_redo": history.can_redo,
             "warning": "Re-run export/render to refresh artifacts.",
+        }
+
+    @app.post("/api/v1/jobs/{job_id}/timeline/undo")
+    def undo_job_timeline(job_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            state_path = _timeline_state_path(job)
+            history = _timeline_history(job)
+            current = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+            restored = history.undo_state(current)
+            if restored is None:
+                raise StateNotReadyError("Nothing to undo.")
+            state = _apply_and_store(
+                job, restored, state_path, history, current.revision + 1
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {
+            "ok": True,
+            "revision": state.revision,
+            "can_undo": history.can_undo,
+            "can_redo": history.can_redo,
+        }
+
+    @app.post("/api/v1/jobs/{job_id}/timeline/redo")
+    def redo_job_timeline(job_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            state_path = _timeline_state_path(job)
+            history = _timeline_history(job)
+            current = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+            restored = history.redo_state(current)
+            if restored is None:
+                raise StateNotReadyError("Nothing to redo.")
+            state = _apply_and_store(
+                job, restored, state_path, history, current.revision + 1
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {
+            "ok": True,
+            "revision": state.revision,
+            "can_undo": history.can_undo,
+            "can_redo": history.can_redo,
         }
 
     @app.patch("/api/v1/jobs/{job_id}/captions/{sentence_id}")
@@ -1519,6 +1633,37 @@ def register_routes(
             ) from exc
         return {"ok": True, "sentence_id": sentence_id, "text": request.text}
 
+    @app.get("/api/v1/jobs/{job_id}/broll")
+    def job_broll(job_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        plan = (job.result or {}).get("broll_plan", {})
+        return {
+            "ok": True,
+            "plan": plan,
+            "approval": load_approvals(job.output),
+        }
+
+    @app.patch("/api/v1/jobs/{job_id}/broll")
+    def update_job_broll(job_id: str, request: BrollApprovalRequest) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            plan = (job.result or {}).get("broll_plan", {})
+            approval = save_approval(
+                job.output,
+                title=request.title,
+                approved=request.approved,
+                order=request.order,
+                plan=plan,
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "approval": approval}
+
     @app.get("/api/v1/jobs/{job_id}/timeline")
     def job_timeline(job_id: str) -> dict[str, object]:
         try:
@@ -1543,9 +1688,15 @@ def register_routes(
             (clip.timeline_out_frame for clip in state.video_segments),
             default=0,
         ) / max(0.001, fps)
+        history = _timeline_history(job)
+        broll_plan = (job.result or {}).get("broll_plan", {})
         return {
             "ok": True,
             "job_id": job_id,
+            "revision": state.revision,
+            "can_undo": history.can_undo,
+            "can_redo": history.can_redo,
+            "fps": round(fps, 6),
             "duration_sec": round(duration, 3),
             "video": [
                 {
@@ -1591,7 +1742,8 @@ def register_routes(
             if media is not None
             else [],
             "shorts": (job.result or {}).get("shorts", []),
-            "broll": (job.result or {}).get("broll_plan", {}),
+            "broll": broll_plan,
+            "broll_approval": load_approvals(job.output),
             "preview_url": f"/api/v1/jobs/{job_id}/preview/file",
         }
 
@@ -1902,349 +2054,6 @@ def register_routes(
     def fail(exc: VideoFlowError) -> None:
         raise HTTPException(status_code=status_for(exc.code), detail=exc.to_dict()) from exc
 
-    def project_jobs(project_id: UUID) -> list[Job]:
-        key = str(project_id)
-        return [
-            job for job in jobs.list() if str(job.options.get("project_id")) == key
-        ]
-
-    def active_project_job(project_id: UUID) -> Job | None:
-        for job in project_jobs(project_id):
-            if job.status not in TERMINAL:
-                return job
-        return None
-
-    def assert_project_idle(project_id: UUID) -> None:
-        active = active_project_job(project_id)
-        if active is not None:
-            raise JobAlreadyRunningError(active.stage)
-
-    @app.post("/api/v1/projects", status_code=201)
-    def create_project(request: NewProjectRequest) -> dict[str, object]:
-        try:
-            record, state = projects.create(Path(request.root), preset=request.preset)
-        except VideoFlowError as exc:
-            fail(exc)
-        return {"ok": True, "project": record.to_dict(), "state": state.model_dump(mode="json")}
-
-    @app.get("/api/v1/projects")
-    def list_projects() -> dict[str, object]:
-        try:
-            return {"ok": True, "projects": [record.to_dict() for record in projects.list()]}
-        except VideoFlowError as exc:
-            fail(exc)
-
-    @app.get("/api/v1/projects/{project_id}/state")
-    def project_state(project_id: UUID) -> dict[str, object]:
-        try:
-            return projects.read_state(project_id).model_dump(mode="json")
-        except VideoFlowError as exc:
-            fail(exc)
-
-    @app.post("/api/v1/projects/{project_id}/media")
-    def register_media(project_id: UUID, request: MediaRequest) -> dict[str, object]:
-        try:
-            projects.get(project_id)
-            source = resolve_allowed(Path(request.file_path), allowed_roots())
-            if not source.is_file():
-                raise MediaNotFoundError(str(source))
-            with project_job_lock:
-                assert_project_idle(project_id)
-                media = probe_media(source)
-                state = apply_media(projects.read_state(project_id), media)
-                state, record = projects.save_state(project_id, state)
-        except VideoFlowError as exc:
-            fail(exc)
-        return {
-            "ok": True,
-            "project": record.to_dict(),
-            "media": media.model_dump(mode="json"),
-            "state": state.model_dump(mode="json"),
-        }
-
-    @app.put("/api/v1/projects/{project_id}/modules/{module_id}/config")
-    def update_module_config(
-        project_id: UUID, module_id: str, patch: dict[str, Any]
-    ) -> dict[str, object]:
-        try:
-            with project_job_lock:
-                assert_project_idle(project_id)
-                state = projects.read_state(project_id)
-                try:
-                    updated = apply_module_config(state, module_id, patch)
-                except ValidationError as exc:
-                    raise HTTPException(
-                        status_code=422,
-                        detail={
-                            "ok": False,
-                            "code": "invalid_config",
-                            "message": str(exc),
-                        },
-                    ) from exc
-                state, record = projects.save_state(project_id, updated)
-        except VideoFlowError as exc:
-            fail(exc)
-        config = getattr(state.modules_config, module_id).model_dump(mode="json")
-        return {
-            "ok": True,
-            "project": record.to_dict(),
-            "module_id": module_id,
-            "config": config,
-            "state": state.model_dump(mode="json"),
-        }
-
-    @app.put("/api/v1/projects/{project_id}/modules/{module_id}/enabled")
-    def update_module_enabled(
-        project_id: UUID, module_id: str, request: EnabledRequest
-    ) -> dict[str, object]:
-        try:
-            with project_job_lock:
-                assert_project_idle(project_id)
-                updated = apply_module_enabled(
-                    projects.read_state(project_id), module_id, request.enabled
-                )
-                state, record = projects.save_state(project_id, updated)
-        except VideoFlowError as exc:
-            fail(exc)
-        return {
-            "ok": True,
-            "project": record.to_dict(),
-            "module_id": module_id,
-            "enabled": request.enabled,
-            "state": state.model_dump(mode="json"),
-        }
-
-    @app.post("/api/v1/projects/{project_id}/modules/{module_id}/run", status_code=202)
-    def run_module(project_id: UUID, module_id: str) -> dict[str, object]:
-        try:
-            record = projects.get(project_id)
-            if module_id not in ModuleEnabled.model_fields:
-                raise UnknownModuleError(module_id)
-            state = projects.read_state(project_id)
-            media = state.media_info
-            if media is None:
-                raise MediaNotRegisteredError("Register source media before running.")
-            source = resolve_allowed(Path(media.source_path), allowed_roots())
-            if not source.is_file():
-                raise MediaNotFoundError(str(source))
-            status = _project_module_status(record, state)
-            plan = PipelineRunner().plan(
-                status,
-                target=module_id,
-                run_upstream=True,
-                enabled=state.module_enabled.model_dump(),
-            )
-            if not plan.modules:
-                return {
-                    "ok": True,
-                    "job": None,
-                    "mode": "cached",
-                    "module_id": module_id,
-                    "planned": [],
-                    "skipped": list(plan.skipped),
-                }
-            with project_job_lock:
-                assert_project_idle(project_id)
-                options = projects.run_options(record, state)
-                job = jobs.start(
-                    source,
-                    record.videoflow_dir,
-                    options,
-                    finalizer=lambda _job: projects.record_job_state(project_id),
-                )
-        except VideoFlowError as exc:
-            fail(exc)
-        return {
-            "ok": True,
-            "job": job.to_dict(),
-            "mode": "full_pipeline",
-            "module_id": module_id,
-            "planned": list(plan.modules),
-            "skipped": list(plan.skipped),
-            "message": (
-                "The legacy project pipeline reruns the full graph; recipe runs "
-                "use per-step checkpoints."
-            ),
-        }
-
-    @app.post("/api/v1/projects/{project_id}/run", status_code=202)
-    def run_project(project_id: UUID, request: ProjectRunRequest) -> dict[str, object]:
-        del request
-        try:
-            record = projects.get(project_id)
-            state = projects.read_state(project_id)
-            media = state.media_info
-            if media is None:
-                raise MediaNotRegisteredError("Register source media before running.")
-            source = resolve_allowed(Path(media.source_path), allowed_roots())
-            if not source.is_file():
-                raise MediaNotFoundError(str(source))
-            if not state.module_enabled.ingest:
-                raise ModuleBypassedError("ingest")
-            if not state.module_enabled.vad:
-                raise ModuleBypassedError("vad")
-            if state.manual_overrides and not state.transcript:
-                raise TranscriptRequiredError(
-                    "Manual overrides require a transcript."
-                )
-            if (
-                state.module_enabled.shorts
-                and not state.transcript
-                and not state.module_enabled.transcribe
-            ):
-                raise TranscriptRequiredError(
-                    "Shorts require a transcript or an enabled transcribe module."
-                )
-            with project_job_lock:
-                assert_project_idle(project_id)
-                options = projects.run_options(record, state)
-                job = jobs.start(
-                    source,
-                    record.videoflow_dir,
-                    options,
-                    finalizer=lambda _job: projects.record_job_state(project_id),
-                )
-        except VideoFlowError as exc:
-            fail(exc)
-        return {"ok": True, "job": job.to_dict()}
-
-    @app.post("/api/v1/projects/{project_id}/cancel")
-    def cancel_project(project_id: UUID) -> dict[str, object]:
-        try:
-            projects.get(project_id)
-            with project_job_lock:
-                active = active_project_job(project_id)
-                if active is None:
-                    raise JobNotFoundError("The project has no active job.")
-                job = jobs.cancel(str(active.job_id))
-        except VideoFlowError as exc:
-            fail(exc)
-        return {"ok": True, "job": job.to_dict()}
-
-    @app.get("/api/v1/projects/{project_id}/events")
-    def project_events(project_id: UUID) -> StreamingResponse:
-        try:
-            projects.get(project_id)
-            matching = project_jobs(project_id)
-            if not matching:
-                raise JobNotFoundError("The project has no jobs yet.")
-            job = matching[0]
-        except VideoFlowError as exc:
-            fail(exc)
-        return StreamingResponse(
-            _job_event_stream(job),
-            media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache"},
-        )
-
-    @app.get("/api/v1/projects/{project_id}/transcript")
-    def project_transcript(
-        project_id: UUID, include_word_timestamps: bool = True
-    ) -> dict[str, object]:
-        try:
-            state = projects.read_state(project_id)
-        except VideoFlowError as exc:
-            fail(exc)
-        if not state.transcript:
-            fail(TranscriptNotFoundError("The project has no transcript yet."))
-        rate = state.media_info.audio_sample_rate if state.media_info else 48000
-        transcript: list[dict[str, object]] = []
-        for sentence in state.transcript:
-            item: dict[str, object] = {
-                "id": sentence.id,
-                "start_sample": sentence.start_sample,
-                "end_sample": sentence.end_sample,
-                "text": sentence.text,
-            }
-            if include_word_timestamps:
-                item["words"] = [word.model_dump(mode="json") for word in sentence.words]
-            transcript.append(item)
-        return {
-            "ok": True,
-            "project_id": str(state.project_id),
-            "revision": state.revision,
-            "sample_rate": rate,
-            "sentence_count": len(state.transcript),
-            "transcript": transcript,
-            "srt": format_srt(state.transcript, rate),
-        }
-
-    @app.patch("/api/v1/projects/{project_id}/transcript/overrides")
-    def update_transcript_overrides(
-        project_id: UUID, request: TranscriptOverridesRequest
-    ) -> dict[str, object]:
-        try:
-            with project_job_lock:
-                assert_project_idle(project_id)
-                state = projects.read_state(project_id)
-                if not state.transcript:
-                    raise TranscriptNotFoundError("The project has no transcript yet.")
-                updated = apply_overrides(state, request.overrides)
-                state, record = projects.save_state(project_id, updated)
-        except VideoFlowError as exc:
-            fail(exc)
-        return {
-            "ok": True,
-            "project": record.to_dict(),
-            "state": state.model_dump(mode="json"),
-        }
-
-    @app.post("/api/v1/projects/{project_id}/exports")
-    def project_exports(project_id: UUID, request: ExportRequest) -> dict[str, object]:
-        try:
-            with project_job_lock:
-                assert_project_idle(project_id)
-                record = projects.get(project_id)
-                state = projects.read_state(project_id)
-                if not state.video_segments:
-                    raise StateNotReadyError(
-                        "The project has no timeline to export yet."
-                    )
-                targets = request.targets
-                if targets is None:
-                    export_config = state.modules_config.export
-                    targets = []
-                    if export_config.write_fcpxml:
-                        targets.append("resolve")
-                    if export_config.write_xmeml:
-                        targets.append("premiere")
-                    if export_config.write_otio:
-                        targets.append("kdenlive")
-                if not targets:
-                    raise StateNotReadyError("No export targets are enabled.")
-                dialect = request.dialect or state.modules_config.export.fcpxml_dialect
-                artifacts = export_timeline(
-                    state,
-                    record.videoflow_dir / "exports",
-                    targets=targets,
-                    dialect=dialect,
-                )
-        except VideoFlowError as exc:
-            fail(exc)
-        return {
-            "ok": True,
-            "project": record.to_dict(),
-            "state_revision": state.revision,
-            "artifacts": {name: str(path) for name, path in artifacts.items()},
-        }
-
-    @app.post("/api/v1/projects/{project_id}/presets/{name}/apply")
-    def apply_project_preset(project_id: UUID, name: str) -> dict[str, object]:
-        try:
-            entry = get_preset(name)
-            with project_job_lock:
-                assert_project_idle(project_id)
-                state = apply_preset(projects.read_state(project_id), entry.preset)
-                state, record = projects.save_state(project_id, state)
-        except VideoFlowError as exc:
-            fail(exc)
-        return {
-            "ok": True,
-            "project": record.to_dict(),
-            "preset": entry.to_dict(),
-            "state": state.model_dump(mode="json"),
-        }
-
     @app.get("/api/v1/presets")
     def list_presets() -> dict[str, object]:
         try:
@@ -2454,11 +2263,37 @@ def register_routes(
         model_id: str, request: ModelInstallRequest | None = None
     ) -> dict[str, object]:
         try:
-            del request
-            payload = install_model(model_id, allow_network=True)
+            payload = install_model(
+                model_id,
+                allow_network=bool(request.allow_external_services) if request else True,
+            )
         except VideoFlowError as exc:
             fail(exc)
         return {"ok": True, "model": payload}
+
+    @app.post("/api/v1/models/{model_id}/download", status_code=202)
+    def models_download(
+        model_id: str, request: ModelInstallRequest | None = None
+    ) -> dict[str, object]:
+        payload = model_downloads.start(
+            model_id,
+            allow_network=bool(request.allow_external_services) if request else True,
+        )
+        return {"ok": True, "download": payload.to_dict()}
+
+    @app.get("/api/v1/models/downloads")
+    def models_downloads() -> dict[str, object]:
+        return {"ok": True, "downloads": model_downloads.list()}
+
+    @app.delete("/api/v1/models/downloads/{model_id}")
+    def models_download_cancel(model_id: str) -> dict[str, object]:
+        payload = model_downloads.cancel(model_id)
+        if payload is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "download_not_found", "message": model_id},
+            )
+        return {"ok": True, "download": payload.to_dict()}
 
     @app.delete("/api/v1/models/{model_id}")
     def models_remove(model_id: str) -> dict[str, object]:
@@ -2549,23 +2384,6 @@ def _job_preview_source(job) -> Path:
                 if path.is_file():
                     return path
     raise StateNotReadyError("The job has no MP4 artifact to preview.")
-
-
-def _project_module_status(record, state) -> dict[str, str]:
-    """Approximate the rack module cache from the persisted project state."""
-
-    timeline = bool(state.video_segments and state.audio_segments)
-    exports = record.videoflow_dir / "exports"
-    return {
-        "ingest": "cached" if state.media_info is not None else "missing",
-        "vad": "cached" if state.vad_intervals else "missing",
-        "transcribe": "cached" if state.transcript else "missing",
-        "retakes": "cached" if state.transcript else "missing",
-        "jl_cuts": "cached" if timeline else "missing",
-        "zooms": "cached" if timeline else "missing",
-        "shorts": "cached" if (record.videoflow_dir / "shorts.json").is_file() else "missing",
-        "export": "cached" if exports.is_dir() and any(exports.iterdir()) else "missing",
-    }
 
 
 def status_for(code: str) -> int:

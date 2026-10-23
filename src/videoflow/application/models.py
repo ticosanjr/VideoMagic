@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -122,8 +123,23 @@ def list_models() -> list[dict[str, object]]:
     ]
 
 
-def install_model(model_id: str, *, allow_network: bool = True) -> dict[str, object]:
+def install_model(
+    model_id: str,
+    *,
+    allow_network: bool = True,
+    progress: Callable[[int, str], None] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
+) -> dict[str, object]:
+    def report(percent: int, message: str) -> None:
+        if progress is not None:
+            progress(max(0, min(100, int(percent))), message)
+        if should_cancel is not None and should_cancel():
+            from videoflow.domain.errors import JobCancelledError
+
+            raise JobCancelledError("Model download cancelled")
+
     if _installed(model_id):
+        report(100, "Already installed")
         return {"id": model_id, "installed": True, "path": str(_target(model_id))}
     entry = CATALOG.get(model_id)
     if entry is None:
@@ -139,17 +155,21 @@ def install_model(model_id: str, *, allow_network: bool = True) -> dict[str, obj
                 "pyannote download needs huggingface_hub. Install the diarization extra."
             ) from exc
         target.parent.mkdir(parents=True, exist_ok=True)
+        report(5, "Downloading model snapshot")
         snapshot_download(
             repo_id=str(entry["repo"]),
             local_dir=target,
             token=os.environ.get("HF_TOKEN") or None,
         )
+        report(100, "Installed")
         return {"id": model_id, "installed": True, "path": str(target)}
     is_directory = entry["kind"] == "faster-whisper"
     target.parent.mkdir(parents=True, exist_ok=True)
     if is_directory:
         target.mkdir(exist_ok=True)
-    for url, name, expected in entry["files"]:
+    files = list(entry["files"])
+    for file_index, (url, name, expected) in enumerate(files):
+        report(int(file_index / max(1, len(files)) * 100), f"Downloading {name}")
         ensure_external_allowed(
             url,
             capability="model_download",
@@ -165,14 +185,33 @@ def install_model(model_id: str, *, allow_network: bool = True) -> dict[str, obj
                 raise FilesystemError(
                     f"Model download returned HTTP {response.status_code}: {url}"
                 )
+            total_bytes = int(response.headers.get("content-length") or 0)
+            written = 0
             with temp.open("wb") as handle:
                 for chunk in response.iter_bytes():
+                    if should_cancel is not None and should_cancel():
+                        temp.unlink(missing_ok=True)
+                        from videoflow.domain.errors import JobCancelledError
+
+                        raise JobCancelledError("Model download cancelled")
                     handle.write(chunk)
                     digest.update(chunk)
+                    written += len(chunk)
+                    if total_bytes > 0:
+                        fraction = written / total_bytes
+                        report(
+                            int(
+                                (file_index + fraction)
+                                / max(1, len(files))
+                                * 100
+                            ),
+                            f"Downloading {name}",
+                        )
         if expected and digest.hexdigest() != expected:
             temp.unlink(missing_ok=True)
             raise FilesystemError(f"Checksum mismatch for {url}")
         temp.replace(destination)
+    report(100, "Installed")
     return {"id": model_id, "installed": True, "path": str(target)}
 
 

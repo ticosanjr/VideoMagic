@@ -1,10 +1,21 @@
 <script lang="ts">
-  import { installLocalModel, listLocalModels, removeLocalModel, type LocalModel } from "$lib/api";
+  import ErrorBanner from "$lib/ErrorBanner.svelte";
+  import {
+    cancelModelDownload,
+    listLocalModels,
+    listModelDownloads,
+    removeLocalModel,
+    startModelDownload,
+    type LocalModel,
+    type ModelDownload
+  } from "$lib/api";
 
   let models = $state<LocalModel[]>([]);
   let busy = $state("");
   let message = $state("");
   let error = $state("");
+  let downloads = $state<Record<string, ModelDownload>>({});
+  let poll: ReturnType<typeof setInterval> | undefined;
 
   const grouped = $derived(
     Object.entries(
@@ -23,9 +34,30 @@
   async function refresh() {
     try {
       models = await listLocalModels();
+      const items = await listModelDownloads();
+      downloads = items.reduce<Record<string, ModelDownload>>((result, item) => {
+        result[item.model_id] = item;
+        return result;
+      }, {});
     } catch (reason) {
       error = String(reason instanceof Error ? reason.message : reason);
     }
+  }
+
+  function activeDownload(modelId: string): ModelDownload | undefined {
+    const item = downloads[modelId];
+    return item && (item.status === "queued" || item.status === "downloading") ? item : undefined;
+  }
+
+  function schedulePoll() {
+    clearInterval(poll);
+    poll = setInterval(async () => {
+      await refresh();
+      const running = Object.values(downloads).some(
+        (item) => item.status === "queued" || item.status === "downloading"
+      );
+      if (!running) clearInterval(poll);
+    }, 900);
   }
 
   async function install(model: LocalModel) {
@@ -33,13 +65,23 @@
     error = "";
     message = "";
     try {
-      await installLocalModel(model.id);
-      message = `${model.label} installed.`;
-      await refresh();
+      const download = await startModelDownload(model.id);
+      downloads = { ...downloads, [model.id]: download };
+      message = `Downloading ${model.label}…`;
+      schedulePoll();
     } catch (reason) {
       error = String(reason instanceof Error ? reason.message : reason);
     } finally {
       busy = "";
+    }
+  }
+
+  async function cancel(model: LocalModel) {
+    try {
+      await cancelModelDownload(model.id);
+      message = `Cancelling ${model.label}…`;
+    } catch (reason) {
+      error = String(reason instanceof Error ? reason.message : reason);
     }
   }
 
@@ -60,10 +102,12 @@
 
   $effect(() => {
     void refresh();
+    return () => clearInterval(poll);
   });
 </script>
 
 <div class="space-y-4">
+  <ErrorBanner message={error} onDismiss={() => (error = "")} />
   <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
@@ -79,7 +123,6 @@
       </div>
     </div>
     {#if message}<p class="mt-2 text-[10px] text-emerald-300">{message}</p>{/if}
-    {#if error}<p class="mt-2 text-[10px] text-rose-300">{error}</p>{/if}
   </section>
 
   {#each grouped as [capability, items]}
@@ -90,6 +133,7 @@
       </div>
       <div class="mt-3 space-y-2">
         {#each items as model}
+          {@const download = downloads[model.id]}
           <article class="rounded-xl border border-neutral-800 bg-neutral-950/50 p-3">
             <div class="flex flex-wrap items-start justify-between gap-3">
               <div class="min-w-0">
@@ -107,15 +151,33 @@
                 </p>
                 <p class="mt-1 break-all font-mono text-[9px] text-neutral-600" title={model.path}>{model.path}</p>
               </div>
-              <button
-                type="button"
-                onclick={() => void (model.installed ? remove(model) : install(model))}
-                disabled={busy === model.id}
-                class={`rounded-lg border px-3 py-1.5 text-[10px] disabled:opacity-40 ${model.installed ? "border-rose-500/30 bg-rose-500/10 text-rose-200" : "border-sky-500/30 bg-sky-500/10 text-sky-200"}`}
-              >
-                {busy === model.id ? "Working…" : model.installed ? "Remove" : "Download"}
-              </button>
+              <div class="flex items-center gap-2">
+                {#if activeDownload(model.id)}
+                  <button type="button" onclick={() => void cancel(model)} class="rounded-lg border border-rose-500/30 px-2.5 py-1.5 text-[10px] text-rose-200">Cancel</button>
+                {:else}
+                  <button
+                    type="button"
+                    onclick={() => void (model.installed ? remove(model) : install(model))}
+                    disabled={busy === model.id}
+                    class={`rounded-lg border px-3 py-1.5 text-[10px] disabled:opacity-40 ${model.installed ? "border-rose-500/30 bg-rose-500/10 text-rose-200" : "border-sky-500/30 bg-sky-500/10 text-sky-200"}`}
+                  >
+                    {busy === model.id ? "Starting…" : model.installed ? "Remove" : "Download"}
+                  </button>
+                {/if}
+              </div>
             </div>
+            {#if download && download.status !== "installed"}
+              <div class="mt-2">
+                <div class="flex items-center justify-between text-[9px] text-neutral-500">
+                  <span>{download.message || download.status}</span>
+                  <span>{download.percent}%</span>
+                </div>
+                <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-neutral-800">
+                  <div class={`h-full rounded-full ${download.status === "failed" ? "bg-rose-400" : download.status === "cancelled" ? "bg-neutral-500" : "bg-sky-400"}`} style={`width:${download.percent}%`}></div>
+                </div>
+                {#if download.error}<p class="mt-1 break-all text-[9px] text-rose-300">{download.error}</p>{/if}
+              </div>
+            {/if}
           </article>
         {/each}
       </div>

@@ -26,6 +26,8 @@
     "vitest": "^3.2.7"
   },
   "dependencies": {
-    "@xyflow/svelte": "^1.7.0"
+    "@xyflow/svelte": "^1.7.0",
+    "konva": "^10.9.0",
+    "wavesurfer.js": "^8.0.3"
   }
 }

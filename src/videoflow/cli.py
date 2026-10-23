@@ -1077,10 +1077,7 @@ def _serve_locked(args: argparse.Namespace, uvicorn, create_http_app) -> int:
             if not bool(getattr(app.state, "restart_requested", False)):
                 break
             print("VideoFlow service restarting...")
-            app = create_http_app(
-                jobs=app.state.jobs,
-                projects=app.state.projects,
-            )
+            app = create_http_app(jobs=app.state.jobs)
     finally:
         _remove_pid(pid_path)
         append_server_log(f"stopped pid={os.getpid()}")

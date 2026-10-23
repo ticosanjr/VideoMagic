@@ -15,7 +15,6 @@ from starlette.responses import RedirectResponse, Response
 from videoflow import __version__
 from videoflow.api.routes import register_routes
 from videoflow.application.jobs import JobManager
-from videoflow.application.projects import ProjectStore
 from videoflow.application.publishing import start_scheduler, stop_scheduler
 from videoflow.domain.constants import DEFAULT_API_HOST, DEFAULT_API_PORT
 from videoflow.engine.batch import BatchManager
@@ -32,7 +31,6 @@ def create_app(
     ui: Path | None = None,
     with_mcp: bool = False,
     jobs: JobManager | None = None,
-    projects: ProjectStore | None = None,
     start_publisher: bool = False,
 ) -> FastAPI:
     """Build the loopback app.
@@ -43,7 +41,6 @@ def create_app(
 
     manager = jobs or JobManager(store_dir=portable_home() / "jobs")
     batches = BatchManager(manager, store_dir=portable_home() / "batches")
-    store = projects or ProjectStore()
     mcp_app = None
     lifespan = None
     if with_mcp:
@@ -85,7 +82,6 @@ def create_app(
             response.headers["Cache-Control"] = "no-cache"
         return response
 
-    app.state.projects = store
 
     if start_publisher:
         @app.on_event("startup")
@@ -101,7 +97,7 @@ def create_app(
     def health() -> dict[str, str]:
         return {"status": "ok", "service": "videoflow", "version": __version__}
 
-    register_routes(app, manager, store, batches)
+    register_routes(app, manager, batches)
 
     if mcp_app is not None:
         app.mount("/mcp", mcp_app)
@@ -136,7 +132,6 @@ def create_http_app(
     ui: Path | None = None,
     *,
     jobs: JobManager | None = None,
-    projects: ProjectStore | None = None,
 ) -> FastAPI:
     """Loopback app with API routes, MCP HTTP, and an optional static rack UI."""
 
@@ -144,7 +139,6 @@ def create_http_app(
         with_mcp=True,
         ui=ui if ui is not None else ui_dir(),
         jobs=jobs,
-        projects=projects,
         start_publisher=True,
     )
 

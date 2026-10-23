@@ -3,12 +3,10 @@
 This is the editor's guide. Installation belongs to the
 [operator manual](operator.md).
 
-> Status: the portable CLI, REST API, rack UI, and MCP surface run real jobs in
-> 0.62.0. Local Faster-Whisper quality transcription is available with a
-> whisper.cpp fallback. The rack browses local files and folders through the
-> server allowlist; it does not upload media. Legacy module reruns now run the full
-> project pipeline; direct MP4 rendering is available through recipes and the
-> portable pipeline.
+> Status: the portable CLI, REST API, recipe studio, canvas timeline, and MCP
+> surface run real jobs in 0.67.0. Local Faster-Whisper quality transcription is
+> available with a whisper.cpp fallback. The UI browses local files and folders
+> through the server allowlist; it does not upload media.
 
 ## 1. The idea
 
@@ -71,7 +69,7 @@ With an SRT, the inspector lists every sentence: Keep/Discard sets a manual
 override, and **Apply overrides** starts a new job with that decision. Guard
 restorations are shown separately.
 
-The rack cards follow the active stage: green cached, blue running, yellow dirty,
+Recipe steps follow the active stage: green cached, blue running, yellow dirty,
 gray bypassed/later, red failed. Cancel stops between stages.
 
 The source/output paths must be inside the server's allowed roots
@@ -118,7 +116,7 @@ Leave the defaults unless you have a reason.
 
 ### 04 Retakes
 
-Today retakes come from an SRT file (the rack form does not expose this yet):
+Today retakes come from a transcript supplied to the recipe:
 
 ```bash
 videoflow run interview.mp4 -o edit --transcript interview.srt --cull-retakes
@@ -231,7 +229,7 @@ vertical-only output.
 - **Karaoke captions**: font family, size, weight, italic, uppercase, text/
   highlight/outline colors, outline width, shadow color/offset/opacity, box
   color/opacity/padding, alignment, position, max width, animation, and word
-  timing are configurable in the rack, API, and MCP.
+  timing are configurable in the recipe, API, and MCP.
 - **Caption preview**: the Shorts tab shows a live approximation in the selected
   aspect. The burned-in result still comes from ASS.
 - **Edit a Short**: use **Edit** in the run summary to trim, retitle, change
@@ -253,40 +251,52 @@ bad take.
 
 All enabled artifacts are written to `.videoflow/exports/`.
 
-## 4. Tabs and providers
+## 4. Workspace tabs
 
-The rack is split into Speech, Edit, Shorts, Export, and Providers tabs. The
-Providers tab shows which capabilities are available, partial, planned, or
-blocked. External providers are opt-in; the global kill switch is
-`VIDEOWFLOW_ALLOW_EXTERNAL=0`. Localhost providers remain available. The
-optional host allowlist restricts remote calls to listed hostnames.
+The studio has six tabs:
 
-## 5. Reading the inspector
+- **Recipes** — build, validate, run, save, and template recipe DAGs. This is
+  the only execution path.
+- **Assets** — scan folders, search, tag, license, download, and remove local
+  media.
+- **Timeline** — edit the canonical `project_state.json` on a canvas.
+- **Models** — download speech/vision models with progress and cancellation.
+- **Services** — inspect, restart, or stop local VideoFlow processes.
+- **Providers** — persist provider endpoints, defaults, and fallback chains.
 
-- Normal text: kept.
-- Red strike-through: removed as a retake.
-- Gray gap: removed silence.
-- Badge **restored**: the model tried to cut the final take and the guard saved
-  it.
+## 5. Timeline editing
 
-Click a word to hear the source range. Click again to keep or discard it manually.
-A manual decision wins over the model.
+Select a clip to expose red trim handles. Drag the clip body to move it; edges
+snap to the playhead, other clips, captions, and zero. The toolbar provides
+undo/redo, split at the playhead, delete, ripple delete, zoom, fit, and a snap
+toggle. Keyboard shortcuts are Space, `S`, Delete, Shift+Delete, and
+Ctrl/Cmd+Z.
 
-## 6. Rerunning cheaply
+The video preview and waveform stay synced with the playhead. If no preview
+exists, press **Render preview** to build a 540p browser proxy.
 
-Change only a zoom value and press Run. Modules 01–05 stay cached; zooms and
-export rerun. The card statuses tell you what will happen before you press it.
+Every edit increments `revision` and writes `timeline_history.json`. Rendered
+artifacts are not silently reused; re-run the export or recipe after editing.
 
-If you press **Run this block** on a card whose upstream is dirty, VideoFlow asks
-whether to run the required modules. It does not silently do extra work.
+Captions can be edited in the right-hand list. Shorts expose the full Short
+editor: reframe, captions, metadata, thumbnail, voice-over, dubbing, analysis,
+and publishing.
 
-## 7. Saving presets
+B-roll plans are listed per Short. Approve or reject entries, reorder them, and
+save. The renderer consumes only approved entries in that order.
 
-**Save preset** stores your current module config and on/off flags under
-`~/.videoflow/presets/`. It does not store media, secrets, or transcript. Share a
-preset by copying the JSON file.
+## 6. Providers and models
 
-## 8. Exporting to an editor
+Providers are stored in `providers.json`; secrets remain in environment
+variables. Pick a default per capability and list fallback IDs. The resolve
+endpoint returns the default followed by fallbacks, and the LLM job runner uses
+the first configured provider when no explicit base URL is set.
+
+Model downloads run in the background with progress, cancellation, checksum
+verification, and disk usage. Weights are optional and live under the
+VideoFlow home.
+
+## 7. Exporting to an editor
 
 See the [NLE import manual](nle-import.md). The short version:
 
@@ -297,20 +307,20 @@ See the [NLE import manual](nle-import.md). The short version:
 Check three things after import: audio is offset at a J-cut, the punch-in is
 visible, and no join clicks.
 
-## 9. Troubleshooting
+## 8. Troubleshooting
 
 | Symptom | Fix |
 | --- | --- |
-| Card is yellow after a change | Expected. It will reprocess. |
-| Run refuses with "upstream not cached" | Use the prompt to run the required modules. |
+| Error banner stays visible | Read the code/message, fix the field, then dismiss. |
+| Timeline will not split | Put the playhead strictly inside the selected clip. |
+| Preview is missing | Press **Render preview** or run an export that writes MP4. |
 | Transcription is very slow | Switch to `small`/`int8`, enable cache, or configure CUDA. |
 | Cuts clip the first consonant | Raise pad-before to 150–200 ms. |
 | Cuts feel too tight | Raise minimum silence. |
-| A word is missing from the export | Check a manual override and the inspector restoration badge. |
 | Premiere will not open the file | Use the `.xml`, not the `.fcpxml`. |
 | Shorts are shorter than expected | Culls reduce the window; that is by design. |
 
-## 10. What VideoFlow will not do
+## 9. What VideoFlow will not do
 
-Colour, mixing, multicam, b-roll, translation, or a final render for delivery.
-It prepares the edit; you finish it.
+Distribution, code signing, macOS packaging, final color grading, and multicam
+switching are out of scope. It prepares the edit; you finish it in your NLE.

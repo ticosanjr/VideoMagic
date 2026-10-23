@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ErrorBanner from "$lib/ErrorBanner.svelte";
   import { onMount } from "svelte";
   import {
     errorMessage,
@@ -86,7 +87,9 @@
   });
 </script>
 
-<div class="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
+<div class="space-y-3">
+  <ErrorBanner message={error} onDismiss={() => (error = "")} />
+  <div class="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
   <p class="text-[10px] uppercase tracking-wide text-neutral-500">Publish / schedule</p>
   <div class="mt-2 grid gap-2 sm:grid-cols-3">
     <select
@@ -138,7 +141,6 @@
     <p class="mt-1 text-[10px] text-amber-300">Enable external services in Providers first.</p>
   {/if}
   {#if message}<p class="mt-1 text-[10px] text-emerald-300">{message}</p>{/if}
-  {#if error}<p class="mt-1 text-[10px] text-rose-300">{error}</p>{/if}
 
   <details class="mt-2">
     <summary class="cursor-pointer text-[10px] text-neutral-500">Add webhook target</summary>
@@ -150,4 +152,5 @@
       Save target
     </button>
   </details>
+  </div>
 </div>

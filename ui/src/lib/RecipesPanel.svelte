@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ErrorBanner from "$lib/ErrorBanner.svelte";
   import { onDestroy, onMount } from "svelte";
   import {
     Background,
@@ -1504,6 +1505,11 @@
 </script>
 
 <div class="space-y-3">
+  <ErrorBanner message={error} onDismiss={() => (error = "")} />
+  {#if status}
+    <div role="status" class="rounded-2xl border border-emerald-500/20 bg-emerald-950/20 px-4 py-3 text-xs text-emerald-200">{status}</div>
+  {/if}
+
   <section class="relative overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900/50">
     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800 px-3 py-3 sm:px-4">
       <div class="min-w-0">
@@ -1968,12 +1974,6 @@
     </div>
   </section>
 
-  {#if error}
-    <div class="rounded-2xl border border-rose-500/30 bg-rose-950/30 px-4 py-3 text-xs text-rose-200">{error}</div>
-  {/if}
-  {#if status}
-    <div class="rounded-2xl border border-emerald-500/20 bg-emerald-950/20 px-4 py-3 text-xs text-emerald-200">{status}</div>
-  {/if}
 
   {#if job}
     <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">

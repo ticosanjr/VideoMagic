@@ -116,6 +116,44 @@ class FFmpegAdapter:
         temp.replace(target)
         return target
 
+    def master_audio(
+        self,
+        source: Path,
+        destination: Path,
+        *,
+        filters: Sequence[str] = (),
+        sample_rate: int = 48000,
+    ) -> Path:
+        """Render the dialogue bed with a deterministic audio filter chain."""
+
+        source_path = Path(source).expanduser()
+        if not source_path.is_file():
+            raise IngestError(f"Source does not exist: {source_path}")
+        target = Path(destination).expanduser()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temp = target.with_name(f"{target.stem}.part.wav")
+        command = [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            str(source_path),
+            "-vn",
+            "-ac",
+            "2",
+            "-ar",
+            str(sample_rate),
+        ]
+        chain = ",".join(item for item in filters if item)
+        if chain:
+            command.extend(["-af", chain])
+        command.extend(["-c:a", "pcm_s16le", "-f", "wav", str(temp)])
+        self._run(command)
+        temp.replace(target)
+        return target
+
     def pcm_digest(self, path: Path) -> str:
         digest = hashlib.sha256()
         with Path(path).open("rb") as handle:

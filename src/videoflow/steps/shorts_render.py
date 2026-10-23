@@ -7,6 +7,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.broll_approval import load_approvals
 from videoflow.application.fonts import fonts_dir
 from videoflow.application.shorts import (
     build_ass,
@@ -125,6 +126,15 @@ class RenderShortsStep(BaseStep):
             plan = context.metadata.get("broll_plan")
             if options.broll_enabled and isinstance(plan, dict):
                 broll_entries = plan.get(clip.title)
+                approvals = load_approvals(context.output)
+                approval = approvals.get(clip.title)
+                if isinstance(broll_entries, list) and approval is not None:
+                    order = approval.get("order") or approval.get("approved") or []
+                    broll_entries = [
+                        broll_entries[index]
+                        for index in order
+                        if 0 <= index < len(broll_entries)
+                    ]
                 if (
                     isinstance(broll_entries, list)
                     and broll_entries

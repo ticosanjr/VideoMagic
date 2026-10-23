@@ -1,243 +1,121 @@
-# Rack UI specification
+# Recipe studio and timeline UI specification
 
-Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript. English strings only.
+Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript, Konva, and
+wavesurfer.js. English strings only.
 
-0.62.0 keeps the full telemetry rack from 0.13 and adds detailed configuration
-for zoom bounds, audio fades, Shorts count/selection, and caption/karaoke style,
-plus a live 9:16 caption preview and audio fades in all three NLE exports.
-The setup card shows source metadata, an output suggestion, starting-point
-cards, an explicit “Also render vertical shorts” control, inline validation, and
-a clear primary action. Per-block progress, start/finish timestamps, duration,
-status icons, per-block and global log drawers, recent jobs, artifact downloads,
-and typed errors remain.
-
-Module cards render configuration from `modules.ts` field metadata. Implemented
-controls are bound to the job request; future controls are disabled and marked
-`later`. Transcribe accepts an SRT, a local Faster-Whisper or whisper.cpp engine,
-or an OpenAI-compatible ASR endpoint; SRT wins, and an ASR base URL takes
-precedence over the local engines. Shorts runs when enabled and a transcript is
-present, with rendered MP4s in the run summary.
-
-The inspector reads `GET /api/v1/jobs/{id}/state`, lists transcript sentences,
-and exposes Keep/Discard overrides plus an Apply overrides action. Applying
-starts a new job with the same configuration and the override set.
-
-The rest of this document is the contract for later passes: real per-block runs,
-persisted presets, and word-level inspector controls.
+0.67.0 removes the legacy rack. The product is now a recipe studio with a
+professional canvas timeline. Errors are persistent, sticky banners at the top
+of the page or panel; inline field validation remains next to the field.
 
 ## 1. Layout
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ VideoFlow      0.62.0   FFmpeg ready          [Global log]   │
+│ VideoFlow  recipe studio       server/ui versions   restart  │
 ├──────────────────────────────────────────────────────────────┤
-│ New project                                      [Run]       │
-│  01 Source video        [Choose / Change]                    │
-│     clip.mp4 · 12:04 · 1920×1080 · 30 fps · 48 kHz           │
-│  02 Output project      [Choose / Create]                    │
-│     /videos/clip-videoflow                                   │
-│  03 Transcript (SRT)    [Choose]                             │
-│  Starting point: YouTube · Lecture · Shorts · Custom         │
-│  ▸ Advanced paths and local models                           │
+│ Recipes  Assets  Timeline  Models  Services  Providers       │
 ├──────────────────────────────────────────────────────────────┤
-│ 01 Ingest        ● cached     [Run this block]        ▸      │
-│ 02 Voice detect  ● cached     [Run this block]        ▸      │
-│ 03 Transcribe    ◐ running    [Run this block]        ▾      │
-│ 04 Retakes       ○ dirty      [Run this block]        ▸      │
-│ …                                                            │
-├──────────────────────────────────────────────────────────────┤
-│ Inspector: transcript, kept / cut / retake, word overrides    │
+│ [sticky error banner when the last action fails]             │
+│                                                              │
+│ Active workspace                                             │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-The rack is the page. There is no dashboard or wizard. The filesystem picker is
-a modal utility, not a pipeline step. The editor's mental model is a chain of
-inserts, so the UI remains a vertical chain.
+There is no project creation wizard, no module rack, and no global run form.
+Recipes own execution; the timeline owns editing. The filesystem picker is a
+modal utility.
 
-## 2. Header and project setup
+## 2. Error contract
 
-- **Source picker**: opens the local filesystem browser, filters media
-  extensions, then calls `/api/v1/media/probe` and shows duration, resolution,
-  frame rate, audio rate, and size. It never uploads the file.
-- **Output picker**: browses directories, shows which are writable, and can
-  create a new folder. Selecting a source suggests `<source-stem>-videoflow`.
-- **Transcript picker**: optional `.srt` file, filtered in the same browser.
-- **URL import**: a public URL field imports through yt-dlp when external services are enabled.
-- **Starting point**: YouTube, Lecture, and Main + Shorts cards. The Shorts
-  add-on keeps the main project and adds vertical MP4s; manual changes switch
-  the badge to Custom.
-- **Detailed controls**: zoom min/max, fade in/out and curve, Shorts target and
-  minimum count, selection mode, and every caption/karaoke style field are
-  editable. Color fields use a native color picker plus a hex field.
-- **Advanced paths**: a collapsed fallback for typed paths plus Faster-Whisper
-  and whisper.cpp model pickers.
-- **Global progress**: active module and a per-module bar. No invented ETA. If an
-  ETA exists, it is derived from measured module time.
-- **Run pipeline**: starts the enabled, non-cached modules. Disabled while a job
-  runs or while a required source/output is missing, the zoom window is invalid,
-  or Shorts are enabled without a transcript/transcription path.
-- **Cancel**: replaces Run during a job.
+- One `ErrorBanner` component renders `role="alert"` and
+  `aria-live="assertive"`.
+- The banner is sticky at the top of the active panel and includes a copy
+  diagnostics action and a dismiss action.
+- Errors are never rendered below the content they belong to.
+- Toasts are reserved for transient success or failure notifications.
+- The timeline panel surfaces API errors through `testId="timeline-error"`.
 
-### Path picker
+## 3. Recipes
 
-The picker is a modal dialog with:
+- Svelte Flow DAG editor with inline node fields and a JSON escape hatch.
+- Per-step progress, cached/executed/skipped status, logs, and NLE validation.
+- Undo/redo for structural edits, saved layout, node width cycling, and pinning.
+- Recipe template gallery, save-as, version history, and restore.
+- Batch tab with persisted history and resume.
+- Flow nodes execute real work:
+  - `flow.conditional` evaluates `always`, `has_shorts`, `has_transcript`,
+    `artifact:<name>`, `metadata:<key>`, and `file:<path>`.
+  - `flow.loop` repeats inline steps over selected Shorts or matching files.
+  - `flow.subflow` runs an inline group or another recipe's steps.
 
-- quick-access chips for every allowlisted root;
-- breadcrumbs and an Up action that never escapes the containing root;
-- a search field for the current folder;
-- a hidden-file toggle;
-- rows with folder/file icon, name, size, modified date, and symlink marker;
-- single-click selection for files, click-to-enter for folders;
-- a New folder field and Create action in directory mode;
-- a footer with the selected absolute path and a disabled Select action until a
-  valid selection exists;
-- loading skeletons, empty states, and typed errors;
-- Escape to close, focus trapping, and visible focus states.
+## 4. Timeline
 
-Short-form controls are one continuous form: zoom bounds, fade timings, Shorts
-target/minimum/selection, prompt/reprompt, aspect ratio, source window, and caption
-font/colors/box/shadow/position. Duration buttons set common min/max pairs. The
-caption preview follows the selected aspect and shows the configured font,
-colors, outline, shadow, box, alignment, and position. The per-Short editor has
-Clip, Captions, and Metadata tabs. Saving a clip/caption edit writes a fresh
-render under `shorts/edited/`; the Metadata tab generates platform title,
-description, hashtags, a PNG thumbnail with preview/download, a TTS voice-over,
-translation dubbing, multimodal analysis, and webhook scheduling.
+The canvas is Konva; the audio waveform is wavesurfer.js.
 
-The picker never offers a parent above the allowlisted root. If a symlink points
-outside the roots it is omitted. Network shares and unlisted disks require an
-operator change to `VIDEOWFLOW_ALLOWED_ROOTS`.
+- Tracks: V1 video, A1 dialogue, S1 captions, B1 B-roll.
+- Ruler with second ticks, hover time, and click/drag scrubbing.
+- Playhead line and draggable knob.
+- Zoom slider, fit, and Ctrl/Cmd+wheel zoom.
+- Clips drag horizontally with snapping to the playhead, other clip edges,
+  captions, and zero.
+- Selected clips expose left/right trim handles; dragging shows a live ghost.
+- Toolbar: play/pause, timecode, undo, redo, split, delete, ripple delete,
+  snap toggle, fit, and zoom.
+- Keyboard: Space plays, `S` splits, Delete deletes, Shift+Delete ripples,
+  Ctrl/Cmd+Z undoes, Ctrl/Cmd+Shift+Z redoes.
+- Clip inspector: timeline in/out, trim, move delta, transition, keyframes.
+- Caption list with in-place editing.
+- Preview: MP4 player plus waveform, both synced to the playhead. A 540p
+  browser proxy can be rendered on demand.
+- Shorts cards open the Short editor (reframe, captions, metadata, thumbnail,
+  voice-over, dubbing, analysis, publish).
+- B-roll approval: approve/reject and reorder per Short, persisted to
+  `broll_approval.json`; the renderer consumes only approved entries.
 
-## 3. Tabs
+## 5. Assets
 
-The rack opens on **Recipes**, the visual DAG editor. The manual tabs remain so
-the pipeline does not read as one long wall of controls:
+Scan folders into the local index, search, filter by kind, edit tags and
+license, download, and remove. Assets are served by the local API.
 
-| Tab | Contents |
-| --- | --- |
-| Recipes | Svelte Flow DAG editor, step palette, parameter JSON, validation, save/download, run and live job progress |
-| Speech | Ingest, voice detection, transcription, retakes |
-| Edit | J/L cuts, fades, zooms, framing |
-| Shorts | Target/minimum, prompt/reprompt, auto hook, audio-energy + scene boosts, reframing/tracking, filler cuts, audio enhancement, watermark, intro/outro, music, brand templates, censor, keyword/emoji/brand styling, custom fonts, metadata, duration presets, aspect ratio, source window, captions, score, preview |
-| Studio | AI analysis, timeline, keyframes, tracks, transitions |
-| Export | NLE targets and FCPXML dialect |
-| Models | On-demand local model downloads |
-| Services | Local service discovery, restart, stop, cleanup, logs |
-| Providers | Capability manifest and external-service opt-in/blocking |
+## 6. Models
 
-The Recipes tab uses the full content width and hides the legacy New project
-and run-summary panels. A **Batch** modal runs the current recipe over a folder,
-with item-level progress and cancellation. The legacy Export card includes an
-**MP4** target. The step palette is a filterable popover, the step
-inspector is a right-side overlay that opens on node click, and recipe settings
-plus step/recipe JSON use modal editors. This keeps the canvas wide while the
-controls remain one click away.
+Models are grouped by capability. Downloads run in the background with
+progress, cancellation, checksum verification, installed path, disk usage, and
+"used by" provenance. The default model per capability is stored in the model
+settings; provider configuration is separate.
 
-Each node reports its latest execution state: **cached**, **executed**,
-**running**, or **failed**. The inspector also exposes **Run to here**, which
-runs only that node and its dependency closure. The Config modal contains the
-**Reuse existing step checkpoints** switch. After a successful run, **Compare**
-opens a modal with the previous successful run for the same output and recipe:
-duration, cached/executed counts, warnings, and per-step status/timing.
+## 7. Services
 
-The manual tabs keep the current run summary and history sidebar visible. Module
-counts are shown per tab. The Providers tab is not a pipeline module; it reads
-`GET /api/v1/capabilities` and explains available, blocked, partial, and planned
-features.
+Health polling, service discovery, current-service restart/shutdown, stop other
+VideoFlow processes, doctor output, server log download, and support bundle.
 
-## 4. Module card
+## 8. Providers
 
-Anatomy:
+Providers are persisted in `$VIDEOWFLOW_HOME/providers.json`.
 
-1. Index and name.
-2. Enable switch.
-3. Status badge.
-4. `Run this block`.
-5. Accordion body with the controls from the module spec.
+- Capabilities: LLM, ASR, TTS, vision, stock, translation, diarization,
+  publishing.
+- Fields: id, name, base URL, secret env name, model, enabled, default,
+  fallback IDs, notes.
+- The connection test reports HTTP status and secret presence without showing
+  the secret.
+- `GET /api/v1/providers/resolve?capability=...` returns the default followed by
+  its fallback chain.
 
-Status:
+## 9. Persistence and invalidation
 
-| Badge | Meaning | Color |
-| --- | --- | --- |
-| `cached` | Identity matches | green |
-| `dirty` | Parameters or upstream changed | yellow |
-| `running` | Executing | blue, animated |
-| `bypassed` | Switched off | gray |
-| `failed` | Last run failed | red |
-| `blocked` | Upstream not ready | orange |
+- `project_state.json` is the single source of truth for the timeline.
+- Every timeline edit increments `revision` and writes one undo entry in
+  `timeline_history.json`.
+- Edits do not claim rendered artifacts are fresh; the API returns a warning
+  that export/render must run again.
+- B-roll approvals, provider configuration, model downloads, and publish queue
+  state are JSON files under the VideoFlow home or job output.
 
-Clicking `Run this block` when the API returns `upstream_dirty` opens an inline
-panel: "Transcribe is not cached. Run it first?" with two buttons: **Run required
-modules** and **Cancel**. It never silently ignores the error.
+## 10. Accessibility and responsiveness
 
-Controls are generated from the config schema. Numeric fields show their range
-and units. A change marks the card dirty immediately, but does not persist until
-the debounce (400 ms) completes.
-
-## 5. Inspector
-
-Sections:
-
-- **Transcript**: sentences in source order. Kept text is normal. A retake cull is
-  struck through in red. Removed silence is a gray gap marker.
-- **Words**: a click selects a word. A second click opens Keep / Discard. The
-  audio slice plays from the API.
-- **Restorations**: a small badge on a sentence the guard saved. Tooltip: "The
-  model discarded this final take; the guard restored it."
-- **Warnings**: word timing below confidence threshold, a cut near a word edge,
-  or a shorts clip dropped after conform.
-
-Overrides are optimistic in the UI, then reconciled with the response. A failed
-write reverts the row and shows the error.
-
-## 6. States
-
-### Empty
-
-No media: the rack shows the eight cards in `bypassed` with a call to choose a
-source file. Run is disabled until source and output are present.
-
-### Loading
-
-A skeleton per card. No layout shift when the config arrives.
-
-### Error
-
-A card-level error keeps the rest of the rack usable. A project-level error
-(path denied, corrupt state) replaces the rack with a recovery panel.
-
-### Disconnected
-
-If SSE drops, the header shows **Reconnecting**. The UI keeps the last state and
-polls job status every 5 s until the stream returns.
-
-## 7. Accessibility
-
-- Every control has a label, not just a placeholder.
-- Status is text plus color, never color alone.
-- The accordion is keyboard operable and announces expanded state.
-- Focus is visible on dark and light themes.
-- The inspector does not rely on color for keep/discard; it uses strike-through
-  and an icon.
-- Reduced motion disables the running pulse.
-
-## 8. Implementation notes
-
-- API base is `/api/v1`; the dev server proxies to `127.0.0.1:8765`.
-- The path picker uses `/api/v1/fs/list`, `/api/v1/fs/mkdir`, and
-  `/api/v1/media/probe`; it never uploads media.
-- `PathPicker.svelte` owns modal state and focus; `paths.ts` owns pure path
-  helpers so Windows and POSIX suggestions are unit-tested.
-- Source metadata is advisory. A failed probe shows a warning but does not block
-  the run; the worker still probes the file.
-- State fetching uses a typed client generated from the JSON Schemas, not ad hoc
-  `any`.
-- The card config form is derived from `modules_config` in `ProjectState`.
-- SSE is `EventSource`; no polling fallback for progress except after a drop.
-- Toasts are for transient success. Persistent failures belong in the card.
-
-## 9. Out of scope
-
-Timeline scrubbing, video preview compositing, and multi-project tabs. The
-caption preview is style-only; the Short editor edits clips and captions, not
-individual video frames.
+- Navigation uses `role="tab"` buttons with `aria-selected`.
+- Error banners use `role="alert"`.
+- Timeline shortcuts ignore focused inputs, textareas, and selects.
+- Panels are usable from 360 px upward; the timeline scrolls horizontally
+  instead of shrinking clips below legibility.

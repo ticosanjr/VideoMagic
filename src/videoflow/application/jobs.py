@@ -387,6 +387,14 @@ class JobManager:
             str(item) for item in (options.get("allowed_external_hosts") or [])
         )
         base_url = options.get("llm_base_url") or os.environ.get("VIDEOWFLOW_LLM_BASE_URL")
+        provider_model = ""
+        if not base_url:
+            from videoflow.application.providers import resolve_chain
+
+            chain = [item for item in resolve_chain("llm") if item.get("base_url")]
+            if chain:
+                base_url = str(chain[0]["base_url"])
+                provider_model = str(chain[0].get("model") or "")
 
         telemetry = job.telemetry
 
@@ -419,6 +427,7 @@ class JobManager:
                     base_url=str(base_url),
                     model=str(
                         options.get("llm_model")
+                        or provider_model
                         or os.environ.get("VIDEOWFLOW_LLM_MODEL", "qwen2.5:7b-instruct")
                     ),
                     api_key=os.environ.get("VIDEOWFLOW_LLM_API_KEY"),

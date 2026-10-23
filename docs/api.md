@@ -31,17 +31,12 @@ Implemented today:
 - Short thumbnail generation and download
 - `POST /api/v1/jobs`, `GET /api/v1/jobs`, `GET /api/v1/jobs/{id}`,
   `POST /api/v1/jobs/{id}/cancel`, `GET /api/v1/jobs/{id}/events`
-- `POST /api/v1/projects`, `GET /api/v1/projects`,
-  `GET /api/v1/projects/{id}/state`
-- Project media, module config/enabled, run, cancel, events, transcript,
-  overrides, exports, and preset application
 - `GET /api/v1/presets`, `GET /api/v1/presets/{name}`,
   `PUT /api/v1/presets/{name}`
-- `GET /mcp/` (MCP Streamable HTTP) and `GET /` (rack UI when built)
+- `GET /mcp/` (MCP Streamable HTTP) and `GET /` (recipe studio UI when built)
 
-Per-module reruns now plan the rack graph, return a cached no-op when the target
-is already current, or start the full project pipeline with the target included.
-Recipe runs remain the checkpointed path.
+Recipe runs are the only project-producing path. Timeline edits operate on the
+canonical `project_state.json` and preserve undo/redo history.
 
 ## 1. Conventions
 
@@ -77,7 +72,7 @@ GET /health
 ```
 
 ```json
-{ "status": "ok", "service": "videoflow", "version": "0.62.0" }
+{ "status": "ok", "service": "videoflow", "version": "0.67.0" }
 ```
 
 ```http
@@ -87,7 +82,7 @@ GET /api/v1/system
 ```json
 {
   "ok": true,
-  "version": "0.62.0",
+  "version": "0.67.0",
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
@@ -711,7 +706,7 @@ On success, `job.result` is the `run_portable` report:
 ```json
 {
   "ok": true,
-  "version": "0.62.0",
+  "version": "0.67.0",
   "vad_engine": "silero",
   "speech_interval_count": 3,
   "video_segment_count": 3,
@@ -729,268 +724,46 @@ On success, `job.result` is the `run_portable` report:
 
 On failure, `job.error` is the typed error payload and `status` is `failed`.
 
-## 4. Project routes
+## 4. Recipe, timeline, and provider routes
 
-A project is a directory. VideoFlow owns only its hidden `.videoflow/`
-subdirectory and never modifies source media.
+The legacy project store, module rack routes, and per-module reruns are gone.
+Project state is created by recipe runs and edited through the job timeline API.
 
-```text
-/home/editor/projects/interview/
-  .videoflow/
-    project_state.json
-    revisions/000001.json
-    revisions/000002.json
-    work/
-    exports/
-    job.log
-```
+- `POST /api/v1/recipes/run`, `POST /api/v1/recipes/run/{step_id}`
+- `GET /api/v1/jobs/{job_id}/timeline`, `PATCH /api/v1/jobs/{job_id}/timeline`
+- `POST /api/v1/jobs/{job_id}/timeline/undo`,
+  `POST /api/v1/jobs/{job_id}/timeline/redo`
+- `GET/PATCH /api/v1/jobs/{job_id}/broll`
+- `GET /api/v1/jobs/{job_id}/preview`,
+  `GET /api/v1/jobs/{job_id}/preview/file`
+- `GET /api/v1/providers`, `PUT /api/v1/providers/{id}`,
+  `DELETE /api/v1/providers/{id}`,
+  `POST /api/v1/providers/{id}/default`,
+  `GET /api/v1/providers/resolve?capability=llm`
+- `GET /api/v1/models/downloads`, `POST /api/v1/models/{id}/download`,
+  `DELETE /api/v1/models/downloads/{id}`
+- `GET /api/v1/presets`, `GET /api/v1/presets/{name}`,
+  `PUT /api/v1/presets/{name}`
 
-The project id index is stored at
-`$VIDEOWFLOW_HOME/projects.json`. Operator presets live under
-`$VIDEOWFLOW_HOME/presets/`. In a frozen portable build,
-`$VIDEOWFLOW_HOME` is next to the executable.
-
-Every accepted state write increments `revision` and writes a snapshot under
-`revisions/`. The snapshot is written before the canonical
-`project_state.json` with a sibling temp file and atomic replace. A pipeline
-job writes its final state with the expected next revision; the API snapshots
-that file when the job succeeds.
-
-### Create
-
-```http
-POST /api/v1/projects
-```
+`PATCH /api/v1/jobs/{job_id}/timeline` accepts `trim`, `move`, `delete`,
+`split`, and `ripple`. Every edit validates against the source media, records
+one undo entry in `timeline_history.json`, increments `revision`, and returns a
+warning that rendered artifacts must be refreshed.
 
 ```json
 {
-  "root": "/home/editor/projects/interview",
-  "preset": "youtube-talking-head"
+  "clip_id": "c1",
+  "action": "split",
+  "split_sec": 12.5
 }
 ```
 
-`preset` is optional. The response is `201`:
+B-roll approvals live in `broll_approval.json` inside the job output. The
+Shorts renderer consumes only approved entries, in the saved order.
 
-```json
-{
-  "ok": true,
-  "project": {
-    "project_id": "8d1d4f0e-...",
-    "root": "/home/editor/projects/interview",
-    "revision": 1,
-    "created_at": "2026-10-20T14:00:00.000+00:00",
-    "updated_at": "2026-10-20T14:00:00.000+00:00"
-  },
-  "state": { "schema_version": 1, "revision": 1, "...": "..." }
-}
-```
-
-Creating the same root again is idempotent and returns the existing project.
-Root and media paths are resolved through the allowlist.
-
-### List and read
-
-```http
-GET /api/v1/projects
-GET /api/v1/projects/{project_id}/state
-```
-
-The list returns registry records, newest first. The state route returns the
-whole `ProjectState` document, not a wrapper.
-
-### Register media
-
-```http
-POST /api/v1/projects/{project_id}/media
-```
-
-```json
-{ "file_path": "/media/raw.mp4" }
-```
-
-The worker probes the file with FFprobe, persists `MediaInfo`, and invalidates
-derived results: PCM/VAD spans, transcript, culls, overrides, timeline
-segments, and vertical clips. It returns `media`, the updated `state`, and the
-project record. Unreadable files return `422 media_not_found`; paths outside the
-allowlist return `403 path_not_allowed`.
-
-## 5. Module and run routes
-
-```http
-PUT  /api/v1/projects/{project_id}/modules/{module_id}/config
-PUT  /api/v1/projects/{project_id}/modules/{module_id}/enabled
-POST /api/v1/projects/{project_id}/modules/{module_id}/run
-POST /api/v1/projects/{project_id}/run
-```
-
-`module_id` is one of `ingest`, `vad`, `transcribe`, `retakes`, `jl_cuts`,
-`zooms`, `shorts`, or `export`. Unknown ids return `404 unknown_module`.
-
-### Config
-
-The config body is a partial module config. It is merged over the current
-config and validated with the same Pydantic model used by the domain:
-
-```json
-{ "punch_in_scale": 1.25 }
-```
-
-Unknown fields and out-of-range values return `422 invalid_config`. A config
-change clears cached hashes; it does not delete timeline results, because the
-next full run recomputes them.
-
-### Enabled
-
-```json
-{ "enabled": false }
-```
-
-The flag is persisted in `module_enabled` and consumed by the next project run.
-
-### Run a module
-
-The route plans the selected module and its enabled upstream dependencies.
-
-- If the target is already cached, it returns `202` with
-  `{"mode": "cached", "job": null}`.
-- Otherwise it starts the full legacy project pipeline and returns
-  `{"mode": "full_pipeline", "planned": [...]}`.
-- Recipe runs are the checkpointed alternative and execute only changed steps.
-
-### Run the project
-
-```http
-POST /api/v1/projects/{project_id}/run
-```
-
-```json
-{ "run_upstream": false, "force": false }
-```
-
-Returns `202` with the same job envelope as `POST /api/v1/jobs`. The project
-run preserves:
-
-- `project_id` and the next state `revision`;
-- `modules_config` and `module_enabled`;
-- the persisted transcript, including word timings;
-- manual sentence overrides;
-- the configured export targets and FCPXML dialect.
-
-The portable engine honors the enabled flags for transcribe, retakes, J/L cuts,
-zooms, shorts, and export. `ingest` and `vad` are required; disabling either
-returns `409 module_bypassed`. A project without registered media returns
-`409 media_not_registered`. Shorts without a transcript require the transcribe
-module; otherwise the route returns `422 transcript_required`.
-
-After the worker writes state, the API records the revision snapshot. A project
-may have only one active job; a second start returns `409 job_already_running`.
-
-### Cancel
-
-```http
-POST /api/v1/projects/{project_id}/cancel
-```
-
-Cancels the active project job cooperatively. If no job is active, returns
-`404 job_not_found`.
-
-### Events
-
-```http
-GET /api/v1/projects/{project_id}/events
-Accept: text/event-stream
-```
-
-Streams the active or most recent job for the project. The payload and close
-behavior match the job events route. Projects with no job return
-`404 job_not_found`.
-
-## 6. Transcript, export, and preset routes
-
-### Transcript
-
-```http
-GET /api/v1/projects/{project_id}/transcript?include_word_timestamps=true
-```
-
-```json
-{
-  "ok": true,
-  "project_id": "8d1d4f0e-...",
-  "revision": 3,
-  "sample_rate": 48000,
-  "sentence_count": 2,
-  "transcript": [
-    {
-      "id": 0,
-      "start_sample": 0,
-      "end_sample": 48000,
-      "text": "Welcome back.",
-      "words": []
-    }
-  ],
-  "srt": "1\n00:00:00,000 --> 00:00:01,000\nWelcome back.\n"
-}
-```
-
-Projects without a transcript return `404 transcript_not_found`.
-
-### Overrides
-
-```http
-PATCH /api/v1/projects/{project_id}/transcript/overrides
-```
-
-```json
-{
-  "overrides": [
-    { "sentence_id": 4, "action": "keep" },
-    { "sentence_id": 7, "action": "discard" }
-  ]
-}
-```
-
-Overrides replace the whole set atomically, clear retake culls/guard restores,
-and invalidate timeline and vertical results. Unknown sentence ids return
-`422 invalid_override`.
-
-Word-level retakes are not supported yet. A request with `word_index` returns
-`422 word_overrides_not_supported`; sentence-level culling remains the
-authoritative behavior.
-
-### Export
-
-```http
-POST /api/v1/projects/{project_id}/exports
-```
-
-```json
-{ "targets": ["resolve", "premiere"], "dialect": "1.10" }
-```
-
-Both fields are optional. Without `targets`, the export flags in
-`modules_config.export` choose the artifacts. Paths stay under
-`.videoflow/exports/`. A project without timeline segments returns
-`409 state_not_ready`.
-
-### Presets
-
-```http
-GET  /api/v1/presets
-GET  /api/v1/presets/{name}
-PUT  /api/v1/presets/{name}
-POST /api/v1/projects/{project_id}/presets/{name}/apply
-```
-
-Preset names match `[a-z0-9][a-z0-9-]{0,63}`. `PUT` writes an operator preset
-under `$VIDEOWFLOW_HOME/presets/{name}.json`; the file keeps partial keys so
-new defaults still apply later. Operator files shadow shipped presets with the
-same name. Invalid names return `422 invalid_preset_name`; invalid configs
-return `422 preset_invalid`.
-
-`GET /api/v1/presets` returns full resolved configs plus a `source` of
-`shipped` or `operator`. Applying a preset replaces the project's module config
-and enabled flags atomically and increments the project revision.
+Provider configuration lives in `$VIDEOWFLOW_HOME/providers.json`. Secrets are
+never stored; `api_key_env` names an environment variable. `resolve` returns
+the enabled default followed by its fallback chain.
 
 ## 7. Security
 

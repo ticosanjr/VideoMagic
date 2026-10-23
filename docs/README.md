@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (0.62.0)
+## Implementation status (0.67.0)
 
 | Area | State |
 | --- | --- |
@@ -12,7 +12,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Silero VAD via ONNX Runtime with FFmpeg `silencedetect` fallback | implemented |
 | Deterministic timeline, J/L-cuts, fades, punch-ins | implemented |
 | FCPXML 1.9/1.10, xmeml v4, native Kdenlive MLT export | implemented |
-| Portable artifacts | 0.62.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
+| Portable artifacts | 0.67.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
 | Run history | persisted in `work/run-history.json`, including failed runs, paginated by `GET /api/v1/runs` |
 | Diagnostics | `work/failure.json` includes stage, error, FFmpeg command, stderr, and log tail |
 | NLE validation | `scripts/validate_nle.py` and `POST /api/v1/exports/validate` |
@@ -20,14 +20,14 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Maintenance | output and global-cache pruning by age/size |
 | Preview proxy | on-demand 540p MP4 for browser preview |
 | Step logs | per-node log viewer backed by `GET /api/v1/jobs/{id}/logs?module=...` |
-| Content cycle | idea/research/script/storyboard/assets/audio/titles/thumbnail/publish/analytics/review nodes with bypass |
+| Content cycle | idea/research/script/storyboard/assets, real audio master/titles/analytics/review, thumbnail variants, and publish bypass |
 | Assets | local library scan, search, tags, license, delete, and file serving |
-| Timeline | read-only storyboard/timeline from a successful job |
+| Timeline | canvas editing with drag, trim handles, split, ripple, undo/redo, snapping, waveform, synced preview, and persisted B-roll approval |
 | Release | tag-triggered Linux/AppImage/Windows/SBOM release workflow |
 | Batch persistence | JSON batch history under the VideoFlow home, reloaded after restart, paginated API/UI |
 | Job persistence | job JSON under the VideoFlow home; interrupted jobs fail safely on restart |
 | Batch resume | resume failed/cancelled batches and skip completed items |
-| Preview | inline MP4/Short previews plus an on-demand 540p proxy in the UI |
+| Preview | synced MP4 preview plus waveform; on-demand 540p proxy |
 | MLT smoke | optional `melt` render check for generated Kdenlive projects |
 | Recipe UI | inline node fields, array JSON, undo/redo, cycle prevention, saved layout, per-step progress, NLE validation |
 | Windows PE | built by the Windows GitHub Actions workflow and attached to releases |
@@ -87,7 +87,7 @@ Every stub has a strict `xfail` contract in `tests/contract/`.
 | [Testing](testing.md) | You are adding tests or running a release gate |
 | [API](api.md) | You are wiring the UI or a script |
 | [MCP](mcp.md) | You are connecting an agent |
-| [UI specification](ui-spec.md) | You are building the rack |
+| [UI specification](ui-spec.md) | Recipe studio and canvas timeline |
 | [Exporters](exporters.md) | You are writing FCPXML, xmeml, or Kdenlive MLT |
 | [Security](security.md) | You are handling paths, secrets, or prompts |
 

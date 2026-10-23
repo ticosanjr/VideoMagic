@@ -287,6 +287,9 @@
       </div>
 
       <div class="min-h-48 flex-1 overflow-y-auto px-3 py-2">
+        {#if error && listing}
+          <div class="sticky top-0 z-10 mb-2 rounded-xl border border-rose-500/30 bg-rose-950/95 px-3 py-2 text-xs text-rose-200" role="alert">{error}</div>
+        {/if}
         {#if loading}
           <div class="space-y-2 p-2" aria-label="Loading folder">
             {#each [1, 2, 3, 4] as row}
@@ -385,10 +388,6 @@
           {/if}
         {/if}
       </div>
-
-      {#if error && listing}
-        <p class="border-t border-rose-500/20 bg-rose-950/20 px-5 py-2 text-xs text-rose-300">{error}</p>
-      {/if}
 
       <footer class="flex flex-col gap-3 border-t border-white/10 bg-white/[0.02] px-5 py-4 sm:flex-row sm:items-center">
         <div class="min-w-0 flex-1">

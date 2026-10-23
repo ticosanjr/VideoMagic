@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ErrorBanner from "$lib/ErrorBanner.svelte";
   import { onMount } from "svelte";
   import PathPicker from "$lib/PathPicker.svelte";
   import {
@@ -95,6 +96,7 @@
 </script>
 
 <div class="space-y-4">
+  <ErrorBanner message={error} onDismiss={() => (error = "")} />
   <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
     <div class="flex flex-wrap items-end justify-between gap-3">
       <div>
@@ -119,7 +121,6 @@
     </div>
     <input bind:value={tags} placeholder="tags: interview, b-roll, music" class="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-xs text-neutral-200" />
     {#if status}<p class="mt-2 text-[11px] text-emerald-300">{status}</p>{/if}
-    {#if error}<p class="mt-2 text-[11px] text-rose-300">{error}</p>{/if}
   </section>
 
   <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

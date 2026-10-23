@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ErrorBanner from "$lib/ErrorBanner.svelte";
   import PublishPanel from "$lib/PublishPanel.svelte";
   import { analyzeShort, type ShortAnalysis } from "$lib/api";
   import {
@@ -305,6 +306,10 @@
         <button type="button" onclick={onClose} class="rounded-lg border border-neutral-700 px-2 py-1 text-xs text-neutral-400 hover:text-white">
           Close
         </button>
+      </div>
+
+      <div class="px-3 pt-3">
+        <ErrorBanner message={error} onDismiss={() => (error = "")} testId="short-editor-error" />
       </div>
 
       <div class="flex gap-1 border-b border-neutral-800 px-3 pt-3" role="tablist" aria-label="Short edit sections">
@@ -746,9 +751,6 @@
           />
         {/if}
 
-        {#if error}
-          <p class="rounded-lg border border-rose-500/20 bg-rose-950/30 p-2 text-[11px] text-rose-300">{error}</p>
-        {/if}
       </div>
 
       <div class="flex flex-wrap items-center justify-between gap-2 border-t border-neutral-800 p-4">

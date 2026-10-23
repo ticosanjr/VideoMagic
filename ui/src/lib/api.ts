@@ -784,6 +784,55 @@ export async function removeLocalModel(modelId: string): Promise<void> {
   await request(`/api/v1/models/${encodeURIComponent(modelId)}`, { method: "DELETE" });
 }
 
+export async function startModelDownload(modelId: string): Promise<ModelDownload> {
+  const response = await request<{ ok: boolean; download: ModelDownload }>(
+    `/api/v1/models/${encodeURIComponent(modelId)}/download`,
+    {
+      method: "POST",
+      body: JSON.stringify({ allow_external_services: true })
+    }
+  );
+  return response.download;
+}
+
+export async function listModelDownloads(): Promise<ModelDownload[]> {
+  const response = await request<{ ok: boolean; downloads: ModelDownload[] }>(
+    "/api/v1/models/downloads"
+  );
+  return response.downloads;
+}
+
+export async function cancelModelDownload(modelId: string): Promise<void> {
+  await request(`/api/v1/models/downloads/${encodeURIComponent(modelId)}`, {
+    method: "DELETE"
+  });
+}
+
+export async function listProviders(): Promise<{
+  providers: ProviderConfig[];
+  fallbacks: Record<string, ProviderConfig[]>;
+}> {
+  return request("/api/v1/providers");
+}
+
+export async function saveProvider(provider: ProviderConfig): Promise<ProviderConfig> {
+  const response = await request<{ ok: boolean; provider: ProviderConfig }>(
+    `/api/v1/providers/${encodeURIComponent(provider.id)}`,
+    { method: "PUT", body: JSON.stringify(provider) }
+  );
+  return response.provider;
+}
+
+export async function deleteProvider(providerId: string): Promise<void> {
+  await request(`/api/v1/providers/${encodeURIComponent(providerId)}`, { method: "DELETE" });
+}
+
+export async function setDefaultProvider(providerId: string): Promise<void> {
+  await request(`/api/v1/providers/${encodeURIComponent(providerId)}/default`, {
+    method: "POST"
+  });
+}
+
 export async function testProvider(payload: {
   base_url: string;
   api_key_env: string;
@@ -1360,6 +1409,10 @@ export interface TimelineClip {
 export interface TimelineData {
   ok: boolean;
   job_id: string;
+  revision: number;
+  can_undo: boolean;
+  can_redo: boolean;
+  fps: number;
   duration_sec: number;
   video: TimelineClip[];
   audio: TimelineClip[];
@@ -1372,7 +1425,41 @@ export interface TimelineData {
   }>;
   shorts: ShortClip[];
   broll: Record<string, Array<Record<string, unknown>>>;
+  broll_approval: Record<string, { approved: number[]; order: number[] }>;
   preview_url: string;
+}
+
+export interface ProviderConfig {
+  id: string;
+  name: string;
+  capability:
+    | "llm"
+    | "asr"
+    | "tts"
+    | "vision"
+    | "stock"
+    | "translation"
+    | "diarization"
+    | "publishing";
+  base_url: string;
+  api_key_env: string;
+  model: string;
+  enabled: boolean;
+  is_default: boolean;
+  fallback: string[];
+  notes: string;
+}
+
+export interface ModelDownload {
+  model_id: string;
+  status: "queued" | "downloading" | "installed" | "failed" | "cancelled";
+  percent: number;
+  message: string;
+  error: string;
+  started_at: string;
+  finished_at: string;
+  cancel_requested: boolean;
+  installed: boolean;
 }
 
 export interface AssetRecord {
@@ -1393,16 +1480,56 @@ export async function editTimeline(
   jobId: string,
   payload: {
     clip_id: string;
-    action: "trim" | "move" | "delete";
+    action: "trim" | "move" | "delete" | "split" | "ripple";
     start_sec?: number;
     end_sec?: number;
     delta_sec?: number;
+    split_sec?: number;
   }
-): Promise<{ ok: boolean; revision: number; warning: string }> {
+): Promise<{
+  ok: boolean;
+  revision: number;
+  can_undo: boolean;
+  can_redo: boolean;
+  warning: string;
+}> {
   return request(`/api/v1/jobs/${encodeURIComponent(jobId)}/timeline`, {
     method: "PATCH",
     body: JSON.stringify(payload)
   });
+}
+
+export async function undoTimeline(jobId: string): Promise<void> {
+  await request(`/api/v1/jobs/${encodeURIComponent(jobId)}/timeline/undo`, {
+    method: "POST"
+  });
+}
+
+export async function redoTimeline(jobId: string): Promise<void> {
+  await request(`/api/v1/jobs/${encodeURIComponent(jobId)}/timeline/redo`, {
+    method: "POST"
+  });
+}
+
+export async function getBroll(jobId: string): Promise<{
+  plan: Record<string, Array<Record<string, unknown>>>;
+  approval: Record<string, { approved: number[]; order: number[] }>;
+}> {
+  return request(`/api/v1/jobs/${encodeURIComponent(jobId)}/broll`);
+}
+
+export async function approveBroll(
+  jobId: string,
+  payload: { title: string; approved: number[]; order: number[] }
+): Promise<Record<string, { approved: number[]; order: number[] }>> {
+  const response = await request<{
+    ok: boolean;
+    approval: Record<string, { approved: number[]; order: number[] }>;
+  }>(`/api/v1/jobs/${encodeURIComponent(jobId)}/broll`, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
+  return response.approval;
 }
 
 export async function updateJobCaption(
@@ -1496,9 +1623,10 @@ export async function getLogs(
 }
 
 export async function createJobPreview(
-  jobId: string
+  jobId: string,
+  force = false
 ): Promise<{ ok: boolean; path: string; url: string }> {
-  return request(`/api/v1/jobs/${encodeURIComponent(jobId)}/preview`, {
+  return request(`/api/v1/jobs/${encodeURIComponent(jobId)}/preview?force=${force}`, {
     method: "POST"
   });
 }

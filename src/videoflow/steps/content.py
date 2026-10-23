@@ -7,13 +7,16 @@ pretending a missing engine ran.
 
 from __future__ import annotations
 
+import csv
 import json
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application.audio import audio_filters
 from videoflow.core.context import PipelineContext
+from videoflow.domain.config import AudioEnhanceConfig
 from videoflow.domain.errors import IngestError
 from videoflow.steps.base import BaseStep, EmptyParams, StepIO
 from videoflow.steps.registry import register_step
@@ -148,35 +151,181 @@ class AssetIndexStep(BaseStep):
         return (Path(path),) if path else ()
 
 
+class AudioMasterParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    highpass_hz: int = Field(default=80, ge=20, le=500)
+    denoise: bool = True
+    denoise_db: int = Field(default=12, ge=0, le=40)
+    noise_floor_db: int = Field(default=-30, ge=-80, le=0)
+    loudnorm: bool = True
+    target_lufs: float = Field(default=-16.0, ge=-30.0, le=-5.0)
+    true_peak_db: float = Field(default=-1.5, ge=-9.0, le=0.0)
+    sample_rate: int = Field(default=48000, ge=8000, le=192000)
+
+
 @register_step
-class AudioMasterStep(_BypassStep):
+class AudioMasterStep(BaseStep):
     type = "audio.master"
     title = "Audio master"
-    description = "Planned: EQ, denoise, compression, and loudness delivery."
+    description = "High-pass, denoise, and normalise the dialogue bed with EBU R128 loudness."
+    status = "available"
     icon = "♫"
     color = "#a78bfa"
+    requires = ("ingest",)
+    produces = ("audio_master",)
+    params_model = AudioMasterParams
+
+    def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
+        options = AudioMasterParams.model_validate(params)
+        if context.media is None:
+            raise IngestError("Audio master requires ingested media.")
+        filters = audio_filters(
+            AudioEnhanceConfig(
+                enabled=True,
+                highpass_hz=options.highpass_hz,
+                denoise=options.denoise,
+                denoise_db=options.denoise_db,
+                noise_floor_db=options.noise_floor_db,
+                loudnorm=options.loudnorm,
+                target_lufs=options.target_lufs,
+                true_peak_db=options.true_peak_db,
+            )
+        )
+        target = context.output / "audio" / "master.wav"
+        FFmpegAdapter().master_audio(
+            context.source,
+            target,
+            filters=filters,
+            sample_rate=options.sample_rate,
+        )
+        context.artifacts["audio_master"] = str(target)
+        context.metadata["audio_master_filters"] = filters
+        io.report(100, "Audio master ready")
+
+    def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
+        path = context.artifacts.get("audio_master")
+        return (Path(path),) if path else ()
+
+
+class TitlesParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    max_lower_thirds: int = Field(default=40, ge=1, le=500)
+    intro_title: str = ""
+    outro_title: str = ""
 
 
 @register_step
-class TitlesStep(_BypassStep):
+class TitlesStep(BaseStep):
     type = "titles.plan"
     title = "Titles / graphics"
-    description = "Planned: lower thirds, titles, and motion graphics."
+    description = "Plan title cards and speaker lower thirds from the timeline and Shorts."
+    status = "available"
     icon = "T"
+    color = "#22c55e"
+    requires = ("edit.timeline",)
+    produces = ("titles",)
+    params_model = TitlesParams
+
+    def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
+        options = TitlesParams.model_validate(params)
+        if context.state is None:
+            raise IngestError("Titles require a validated timeline.")
+        media = context.media
+        fps = (media.fps_num / media.fps_den) if media is not None else 30.0
+        transcript = context.state.transcript
+        rate = media.audio_sample_rate if media is not None else 48000
+        lower_thirds: list[dict[str, object]] = []
+        previous_speaker: int | None = None
+        for sentence in transcript:
+            if sentence.speaker == previous_speaker:
+                continue
+            previous_speaker = sentence.speaker
+            lower_thirds.append(
+                {
+                    "start_sec": round(sentence.start_sample / max(1, rate), 3),
+                    "end_sec": round(
+                        min(
+                            sentence.end_sample / max(1, rate),
+                            sentence.start_sample / max(1, rate) + 3.0,
+                        ),
+                        3,
+                    ),
+                    "speaker": sentence.speaker,
+                    "text": f"Speaker {sentence.speaker + 1}",
+                }
+            )
+            if len(lower_thirds) >= options.max_lower_thirds:
+                break
+        title_cards: list[dict[str, object]] = []
+        if options.intro_title:
+            title_cards.append(
+                {
+                    "kind": "intro",
+                    "start_sec": 0.0,
+                    "duration_sec": 2.0,
+                    "text": options.intro_title,
+                }
+            )
+        for index, short in enumerate(context.shorts):
+            title_cards.append(
+                {
+                    "kind": "short",
+                    "index": index,
+                    "text": str(short.get("title") or f"Short {index + 1}"),
+                }
+            )
+        if options.outro_title:
+            duration = max(
+                (clip.timeline_out_frame for clip in context.state.video_segments),
+                default=0,
+            ) / max(0.001, fps)
+            title_cards.append(
+                {
+                    "kind": "outro",
+                    "start_sec": round(max(0.0, duration - 2.0), 3),
+                    "duration_sec": 2.0,
+                    "text": options.outro_title,
+                }
+            )
+        payload = {
+            "ok": True,
+            "lower_thirds": lower_thirds,
+            "title_cards": title_cards,
+        }
+        target = context.output / "titles.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        context.artifacts["titles"] = str(target)
+        context.metadata["titles"] = payload
+        io.report(100, f"{len(lower_thirds)} lower third(s), {len(title_cards)} title card(s)")
+
+    def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
+        path = context.artifacts.get("titles")
+        return (Path(path),) if path else ()
+
+
+class ThumbnailParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    variants: int = Field(default=1, ge=1, le=5)
+    title: str = ""
 
 
 @register_step
 class ThumbnailStep(BaseStep):
     type = "thumbnail.generate"
     title = "Thumbnail / cover"
-    description = "Render a thumbnail frame from the source."
+    description = "Render one or more thumbnail candidates from the source."
     status = "available"
     icon = "▣"
     color = "#22c55e"
     requires = ("ingest",)
-    params_model = EmptyParams
+    params_model = ThumbnailParams
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
+        options = ThumbnailParams.model_validate(params)
         if context.media is None:
             raise IngestError("Thumbnail requires ingested media.")
         duration = (
@@ -184,18 +333,30 @@ class ThumbnailStep(BaseStep):
             * context.media.fps_den
             / max(1, context.media.fps_num)
         )
-        target = context.output / "thumbnails" / "thumbnail.png"
-        FFmpegAdapter().render_thumbnail(
-            Path(context.source),
-            target,
-            time_sec=max(0.0, duration / 2),
-        )
-        context.artifacts["thumbnail"] = str(target)
-        io.report(100, "Thumbnail ready")
+        fractions = [0.5, 0.35, 0.65, 0.2, 0.8]
+        targets: list[str] = []
+        adapter = FFmpegAdapter()
+        for index in range(options.variants):
+            target = context.output / "thumbnails" / f"thumbnail-{index + 1}.png"
+            adapter.render_thumbnail(
+                Path(context.source),
+                target,
+                time_sec=max(0.0, duration * fractions[index % len(fractions)]),
+            )
+            targets.append(str(target))
+            context.artifacts[f"thumbnail_{index + 1}"] = str(target)
+            io.report(
+                int((index + 1) / options.variants * 100),
+                f"Thumbnail {index + 1}/{options.variants}",
+            )
+        context.artifacts["thumbnail"] = targets[0]
+        context.metadata["thumbnails"] = targets
+        if options.title:
+            context.metadata["thumbnail_title"] = options.title
 
     def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
-        path = context.artifacts.get("thumbnail")
-        return (Path(path),) if path else ()
+        paths = [Path(path) for path in context.metadata.get("thumbnails", [])]
+        return tuple(paths)
 
 
 @register_step
@@ -206,17 +367,119 @@ class PublishStep(_BypassStep):
     icon = "↗"
 
 
+class AnalyticsParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    csv_path: str = ""
+
+
 @register_step
-class AnalyticsStep(_BypassStep):
+class AnalyticsStep(BaseStep):
     type = "analytics.import"
     title = "Analytics / feedback"
-    description = "Planned: retention, CTR, and variant feedback."
+    description = "Import retention/CTR metrics from CSV into a normalized JSON report."
+    status = "available"
     icon = "▥"
+    color = "#22c55e"
+    params_model = AnalyticsParams
+
+    def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
+        options = AnalyticsParams.model_validate(params)
+        rows: list[dict[str, str]] = []
+        if options.csv_path:
+            path = Path(options.csv_path).expanduser()
+            if not path.is_file():
+                raise IngestError(f"Analytics CSV does not exist: {path}")
+            with path.open("r", encoding="utf-8-sig", newline="") as handle:
+                rows = [dict(row) for row in csv.DictReader(handle)]
+        columns = sorted({key for row in rows for key in row})
+        numeric: dict[str, float] = {}
+        for column in columns:
+            values: list[float] = []
+            for row in rows:
+                try:
+                    values.append(float(str(row.get(column, "")).strip()))
+                except ValueError:
+                    continue
+            if values and len(values) == len(rows):
+                numeric[column] = round(sum(values) / len(values), 4)
+        payload = {
+            "ok": True,
+            "source": options.csv_path,
+            "row_count": len(rows),
+            "columns": columns,
+            "averages": numeric,
+            "rows": rows[:500],
+        }
+        target = context.output / "analytics.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        context.artifacts["analytics"] = str(target)
+        context.metadata["analytics"] = payload
+        io.report(100, f"Imported {len(rows)} analytics row(s)")
+
+    def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
+        path = context.artifacts.get("analytics")
+        return (Path(path),) if path else ()
 
 
 @register_step
-class ReviewStep(_BypassStep):
+class ReviewStep(BaseStep):
     type = "review.queue"
     title = "Review / approval"
-    description = "Planned: comments, approvals, and version comparison."
+    description = "Write a deterministic review checklist for the current run."
+    status = "available"
     icon = "✓"
+    color = "#22c55e"
+    params_model = EmptyParams
+
+    def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
+        state = context.state
+        checks = [
+            {
+                "id": "timeline",
+                "label": "Timeline has picture and dialogue",
+                "ok": bool(state and state.video_segments and state.audio_segments),
+            },
+            {
+                "id": "captions",
+                "label": "Transcript is present",
+                "ok": bool(context.transcript or (state and state.transcript)),
+            },
+            {
+                "id": "shorts",
+                "label": "At least one Short was selected",
+                "ok": bool(context.shorts),
+            },
+            {
+                "id": "thumbnail",
+                "label": "Thumbnail candidate exists",
+                "ok": "thumbnail" in context.artifacts,
+            },
+            {
+                "id": "audio_master",
+                "label": "Audio master exists",
+                "ok": "audio_master" in context.artifacts,
+            },
+            {
+                "id": "titles",
+                "label": "Title plan exists",
+                "ok": "titles" in context.artifacts,
+            },
+        ]
+        payload = {
+            "ok": True,
+            "approved": False,
+            "checks": checks,
+            "pending": [check["id"] for check in checks if not check["ok"]],
+        }
+        target = context.output / "review.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        context.artifacts["review"] = str(target)
+        context.metadata["review"] = payload
+        io.report(100, f"{len(checks) - len(payload['pending'])}/{len(checks)} checks ready")
+
+    def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
+        path = context.artifacts.get("review")
+        return (Path(path),) if path else ()

@@ -3,6 +3,64 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.67.0] - 2026-10-23
+
+### Added
+
+- **Professional canvas timeline.** Konva ruler, tracks, clip drag with
+  snapping, trim handles, split, delete, ripple delete, zoom, fit, playhead
+  scrubbing, and keyboard shortcuts.
+- **Synced preview and waveform.** MP4 preview and wavesurfer.js waveform both
+  seek with the timeline playhead; on-demand 540p proxy rendering.
+- **Undo and redo.** Every edit records `timeline_history.json`; the API exposes
+  `POST /timeline/undo` and `/timeline/redo`.
+- **B-roll approval.** Approve, reject, and reorder planned B-roll per Short;
+  persisted in `broll_approval.json` and consumed by the Shorts renderer.
+- **Persistent providers.** `providers.json` with capability defaults, secret
+  environment names, connection tests, and ordered fallback chains. The job
+  runner uses the LLM provider chain when no explicit base URL is set.
+- **Model download manager.** Background downloads with progress, cancellation,
+  checksum verification, and status polling.
+- **Executable flow nodes.** `flow.conditional`, `flow.loop`, and
+  `flow.subflow` run real nested steps or referenced recipes.
+- **Content depth.** Real `audio.master` (high-pass, FFT denoise, EBU R128),
+  `titles.plan` (title cards and speaker lower thirds), `analytics.import`
+  (CSV normalization), `review.queue` (pre-publish checklist), and multi-variant
+  thumbnails.
+- **Top-of-page errors.** A shared sticky `ErrorBanner` with alert semantics,
+  copy diagnostics, and dismissal is used across every panel. Footer error
+  blocks are gone.
+
+### Removed
+
+- Legacy project/module routes, `ProjectStore`, module registry, legacy planning
+  runner, and their tests.
+- Legacy rack UI: module cards, Studio panel, project templates screen, caption
+  preview, asset managers embedded in the rack, and dead configuration state.
+- The rack navigation tabs and the global run form. Recipes are the only
+  execution path; the filesystem picker remains.
+
+### Changed
+
+- `PATCH /api/v1/jobs/{id}/timeline` accepts `trim`, `move`, `delete`, `split`,
+  and `ripple`, returns undo/redo availability, and records history.
+- Timeline responses include revision, FPS, undo/redo state, and B-roll
+  approvals.
+- UI version is 0.67.0 and is checked against the server version at runtime.
+
+### Validation
+
+- 448 Python tests passed.
+- 7 media tests passed, 1 skipped.
+- 13 Vitest tests passed.
+- 18 Playwright tests passed.
+
+### Notes
+
+- Distribution, code signing, macOS packaging, and onedir builds remain out of
+  scope.
+- Face reframing, color/LUT, multicam, and manual NLE QA remain future work.
+
 ## [0.62.0] - 2026-10-23
 
 ### Added
