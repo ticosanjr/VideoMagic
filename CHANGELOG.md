@@ -3,6 +3,23 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.46.0] - 2026-10-23
+
+### Added
+
+- **pyannote model downloader.** The Models catalog can install
+  `pyannote/speaker-diarization-3.1` through `huggingface_hub`, using
+  `HF_TOKEN` when the repository is gated.
+- Installed model detection checks for `config.yaml`.
+- Mocked install test for the Hugging Face path.
+
+### Notes
+
+- Real pyannote inference still requires the `diarization` extra and model
+  access; the adapter remains lazy.
+- Kdenlive cross-dissolve and manual NLE import QA remain pending.
+- 449 Python tests, 8 media tests, 14 Vitest tests, and 8 Playwright tests pass.
+
 ## [0.45.0] - 2026-10-23
 
 ### Added

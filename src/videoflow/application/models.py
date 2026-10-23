@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import shutil
 from pathlib import Path
 from typing import Any
@@ -37,6 +38,13 @@ CATALOG: dict[str, dict[str, Any]] = {
             ),
         ],
     },
+    "pyannote-diarization-3.1": {
+        "label": "pyannote speaker diarization 3.1",
+        "size_mb": 320,
+        "kind": "pyannote",
+        "target": "pyannote/speaker-diarization-3.1",
+        "repo": "pyannote/speaker-diarization-3.1",
+    },
     "whisper-tiny": {
         "label": "whisper.cpp tiny",
         "size_mb": 75,
@@ -69,8 +77,11 @@ def _target(model_id: str) -> Path:
 
 def _installed(model_id: str) -> bool:
     target = _target(model_id)
-    if CATALOG[model_id]["kind"] == "faster-whisper":
+    kind = CATALOG[model_id]["kind"]
+    if kind == "faster-whisper":
         return (target / "model.bin").is_file() and (target / "config.json").is_file()
+    if kind == "pyannote":
+        return target.is_dir() and (target / "config.yaml").is_file()
     return target.is_file()
 
 
@@ -95,6 +106,22 @@ def install_model(model_id: str, *, allow_network: bool = True) -> dict[str, obj
     if entry is None:
         raise StateNotReadyError(f"Unknown model: {model_id}")
     target = _target(model_id)
+    if entry["kind"] == "pyannote":
+        if not allow_network:
+            raise FilesystemError("pyannote model download requires network access.")
+        try:
+            from huggingface_hub import snapshot_download
+        except ImportError as exc:
+            raise FilesystemError(
+                "pyannote download needs huggingface_hub. Install the diarization extra."
+            ) from exc
+        target.parent.mkdir(parents=True, exist_ok=True)
+        snapshot_download(
+            repo_id=str(entry["repo"]),
+            local_dir=target,
+            token=os.environ.get("HF_TOKEN") or None,
+        )
+        return {"id": model_id, "installed": True, "path": str(target)}
     is_directory = entry["kind"] == "faster-whisper"
     target.parent.mkdir(parents=True, exist_ok=True)
     if is_directory:

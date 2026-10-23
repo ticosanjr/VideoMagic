@@ -1,1 +1,1 @@
-{"ok": true, "version": "0.45.0", "home": "/tmp/videoflow-home", "allowed_roots": ["/tmp"], "ffmpeg": "/usr/bin/ffmpeg", "ffprobe": "/usr/bin/ffprobe"}
+{"ok": true, "version": "0.46.0", "home": "/tmp/videoflow-home", "allowed_roots": ["/tmp"], "ffmpeg": "/usr/bin/ffmpeg", "ffprobe": "/usr/bin/ffprobe"}
