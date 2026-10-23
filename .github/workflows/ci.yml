@@ -20,7 +20,7 @@ jobs:
           cache: npm
           cache-dependency-path: ui/package-lock.json
       - name: Install FFmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg melt
+        run: sudo apt-get install -y ffmpeg melt
       - name: Python dependencies
         run: uv sync --extra dev --group dev
       - name: Python lint
