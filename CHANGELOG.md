@@ -20,7 +20,7 @@ follow semantic versioning once the project reaches 1.0.
 
 - Preview is generated on demand; it is not automatically created after every
   render.
-- 447 Python tests, 8 media tests, 14 Vitest tests, and 8 Playwright tests pass.
+- 448 Python tests, 8 media tests, 14 Vitest tests, and 8 Playwright tests pass.
 - Distribution work remains out of scope.
 
 ## [0.44.0] - 2026-10-23
