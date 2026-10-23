@@ -605,3 +605,28 @@ def test_maintenance_prune_route(monkeypatch, tmp_path: Path) -> None:
     assert response.status_code == 200, response.text
     assert len(list(steps.iterdir())) == 1
     assert response.json()["freed_bytes"] == 0
+
+
+def test_recipe_validation_rejects_invalid_step_params(monkeypatch, tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+
+    from videoflow.api.app import create_app
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/v1/recipes/validate",
+        json={
+            "id": "bad_params",
+            "name": "Bad params",
+            "steps": [
+                {
+                    "id": "timeline",
+                    "type": "edit.timeline",
+                    "needs": [],
+                    "params": {"transition_frames": 999},
+                }
+            ],
+        },
+    )
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"]["code"] == "recipe_invalid"

@@ -129,8 +129,8 @@ from videoflow.engine.recipes import (
     save_user_recipe,
 )
 from videoflow.runtime import allowed_roots, find_binary, portable_home
+from videoflow.steps import get_step, requirements_by_type, step_types
 from videoflow.steps import manifest as step_manifest
-from videoflow.steps import requirements_by_type, step_types
 
 logger = logging.getLogger(__name__)
 
@@ -637,6 +637,14 @@ def register_routes(
         try:
             recipe = parse_recipe(payload)
             recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+            for step in recipe.steps:
+                try:
+                    get_step(step.type).validate_params(step.params)
+                except ValidationError as exc:
+                    first = exc.errors()[0] if exc.errors() else {}
+                    raise RecipeError(
+                        f"{step.id}: {first.get('msg', 'invalid parameters')}"
+                    ) from exc
             order = recipe.topological_order()
         except VideoFlowError as exc:
             fail(exc)
