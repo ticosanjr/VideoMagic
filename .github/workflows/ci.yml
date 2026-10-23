@@ -19,12 +19,14 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: ui/package-lock.json
-      - name: Ensure FFmpeg
+      - name: Install static FFmpeg
         run: |
-          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
-            sudo apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=30
-            sudo apt-get install -y ffmpeg
-          fi
+          curl -fsSL https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o /tmp/ffmpeg.tar.xz
+          mkdir -p /tmp/ffmpeg-static
+          tar -xJf /tmp/ffmpeg.tar.xz -C /tmp/ffmpeg-static --strip-components=1
+          sudo install /tmp/ffmpeg-static/ffmpeg /usr/local/bin/ffmpeg
+          sudo install /tmp/ffmpeg-static/ffprobe /usr/local/bin/ffprobe
+          ffmpeg -version | head -1
       - name: Python dependencies
         run: uv sync --extra dev --group dev
       - name: Python lint
