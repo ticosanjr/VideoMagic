@@ -3,7 +3,7 @@
 Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript, Konva, and
 wavesurfer.js. English strings only.
 
-0.95.0 removes the legacy rack. The product is a recipe studio with a
+0.96.0 removes the legacy rack. The product is a recipe studio with a
 professional canvas timeline, automation schedules, and provider settings.
 Errors are persistent, sticky banners at the top of the page or panel; inline
 field validation remains next to the field.
@@ -64,6 +64,10 @@ The canvas is Konva; the audio waveform is wavesurfer.js.
   snap toggle, fit, and zoom.
 - Shift-click multi-select; group move and bulk delete/ripple use atomic batch
   edits.
+- Jobs waiting for approval render an inline gate panel with comment,
+  approve, and reject actions.
+- Recipe variants are listed with output path, segment/short counts, and step
+  counts.
 - Keyboard: Space plays, `S` splits, Delete deletes, Shift+Delete ripples,
   Ctrl/Cmd+Z undoes, Ctrl/Cmd+Shift+Z redoes.
 - Editable playhead timecode input.
@@ -92,6 +96,7 @@ The canvas is Konva; the audio waveform is wavesurfer.js.
 ## 6. Automation
 
 - Persistent schedules: once, interval, and watch folder.
+- Job ids are reconciled into succeeded/failed/waiting states.
 - SQLite storage with a one-time JSON migration. Jobs, assets, batches, and
   service definitions are mirrored in SQLite with WAL.
 - Retry/backoff, bounded run history, per-file size/mtime signatures, and a
@@ -158,7 +163,13 @@ environment, OS keyring, or a 0600 local fallback; only presence is exposed.
 - `GET /api/v1/providers/resolve?capability=...` returns the default followed by
   its fallback chain.
 
-## 14. Persistence and invalidation
+## 14. Queue and recovery
+
+API/MCP jobs queue when worker slots are full instead of returning a 429 once
+the queue is enabled. Queued work is persisted with the job, survives service
+restart, and is requeued. Jobs carry a priority and drain highest-first.
+
+## 15. Persistence and invalidation
 
 - `project_state.json` is the single source of truth for the timeline.
 - Every timeline edit increments `revision` and writes one undo entry in
@@ -168,7 +179,7 @@ environment, OS keyring, or a 0600 local fallback; only presence is exposed.
 - B-roll approvals, provider configuration, model downloads, and publish queue
   state are JSON files under the VideoFlow home or job output.
 
-## 15. Accessibility and responsiveness
+## 16. Accessibility and responsiveness
 
 - Navigation uses `role="tab"` buttons with `aria-selected`.
 - Error banners use `role="alert"`.

@@ -3,6 +3,37 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.96.0] - 2026-10-24
+
+### Added
+
+- **Human gate UI.** Jobs waiting for approval show the gate title, comment
+  field, approve/reject buttons, and resume the recipe from checkpoints.
+- **Variant comparison.** Job results list every variant with output path,
+  segment/short counts, and step count.
+- **Analytics feedback.** `shorts.score` now reads analytics weights from
+  `analytics.review` or `delivery/analytics-review.json`.
+- **Scheduler job tracking.** Schedules reconcile queued/running job ids into
+  succeeded/failed/waiting states and surface failures.
+- **Persistent job queue.** API/MCP submissions queue instead of failing when
+  the worker limit is full; queued jobs survive restart and are requeued.
+- **Priority queue.** Jobs accept a priority and drain highest-first.
+- **Real thumbnail variants.** `thumbnail.pack` renders different frames/styles
+  and copies variants into the shared thumbnails directory.
+
+### Validation
+
+- 481 Python tests passed.
+- 7 media tests passed, 1 skipped.
+- 13 Vitest tests passed.
+- 19 Playwright tests passed.
+
+### Notes
+
+- No release was built for this version.
+- Native NLE effects, SFX/music mixing in the renderer, and parallel map
+  execution remain future work.
+
 ## [0.95.0] - 2026-10-24
 
 ### Added

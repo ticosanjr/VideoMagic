@@ -778,8 +778,10 @@ def test_job_history_survives_restart(tmp_path: Path) -> None:
     assert reopened.list()
 
 
-def test_interrupted_job_is_marked_failed(tmp_path: Path) -> None:
+def test_interrupted_job_is_requeued_on_restart(tmp_path: Path) -> None:
     import json
+    import threading
+    import time
     from uuid import uuid4
 
     from videoflow.application.jobs import JobManager
@@ -798,10 +800,21 @@ def test_interrupted_job_is_marked_failed(tmp_path: Path) -> None:
             }
         )
     )
-    manager = JobManager(store_dir=store)
+    release = threading.Event()
+
+    def runner(source, output, **kwargs):
+        release.wait(timeout=5)
+        return {"ok": True}
+
+    manager = JobManager(runner, store_dir=store)
     restored = manager.get(str(job_id))
-    assert restored.status == "failed"
-    assert restored.error["code"] == "job_interrupted"
+    assert restored.status in {"queued", "running"}
+    release.set()
+    for _ in range(200):
+        if restored.status in {"succeeded", "failed"}:
+            break
+        time.sleep(0.01)
+    assert restored.status == "succeeded"
 
 
 def test_recipe_ui_layout_round_trips() -> None:

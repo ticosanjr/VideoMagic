@@ -6,7 +6,7 @@ recording into an editable timeline: it removes silence and retakes, adds
 J-cuts and punch-ins, proposes vertical Shorts, masters the dialogue bed, and
 exports timelines for DaVinci Resolve, Adobe Premiere Pro, and Kdenlive.
 
-> Status: 0.95.0 release candidate. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
+> Status: 0.96.0 in development. Last release: 0.95.0. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical Shorts,
 > audio mastering and loudness QA, burned titles, color/LUT grading, analytics
@@ -74,11 +74,11 @@ npm run dev                         # http://127.0.0.1:5173
 Releases are built and staged locally; GitHub Actions is not used.
 
 ```bash
-./scripts/release_local.sh 0.95.0
+./scripts/release_local.sh 0.96.0
 ```
 
 This builds the UI, the Linux portable binary, the AppImage, the SBOM, and
-writes `releases/v0.95.0/SHA256SUMS` and `manifest.json`. Nothing is pushed or
+writes `releases/v0.96.0/SHA256SUMS` and `manifest.json`. Nothing is pushed or
 published. The three newest release folders are kept.
 
 ## Portable executable
@@ -106,7 +106,7 @@ Artifacts are built locally, never in GitHub Actions:
 uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper \
   --with-silero --with-faster-whisper                    # Linux
 uv run python scripts/build_appimage.py                  # VideoFlow-X.Y.Z-x86_64.AppImage
-./scripts/release_local.sh 0.95.0                          # UI + Linux + AppImage + SBOM + checksums
+./scripts/release_local.sh 0.96.0                          # UI + Linux + AppImage + SBOM + checksums
 rm -rf build dist .coverage .hypothesis .pytest_cache .mypy_cache .ruff_cache
 ```
 

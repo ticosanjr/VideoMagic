@@ -1477,7 +1477,9 @@ def build_server(
                 options["transcript"] = str(
                     resolve_allowed(Path(str(options["transcript"])), roots)
                 )
-            job = manager.start(resolved_source, resolved_output, options=options)
+            job = manager.start(
+                resolved_source, resolved_output, options=options, queue=True
+            )
         except VideoFlowError as exc:
             return exc.to_dict()
         except ValueError as exc:
@@ -1814,6 +1816,7 @@ def build_server(
                     "recipe": recipe.model_dump(mode="json"),
                     "resume": resume,
                 },
+                queue=True,
             )
         except VideoFlowError as exc:
             return exc.to_dict()

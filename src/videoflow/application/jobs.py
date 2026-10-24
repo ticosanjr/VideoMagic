@@ -74,6 +74,7 @@ class Job:
     result: dict[str, Any] | None = None
     error: dict[str, Any] | None = None
     cancel_requested: bool = False
+    priority: int = 0
     created_at: str = field(default_factory=_now)
     started_at: str | None = None
     finished_at: str | None = None
@@ -226,6 +227,7 @@ class JobManager:
         self._history = history
         self._store_dir = Path(store_dir).expanduser() if store_dir is not None else None
         self._jobs: dict[str, Job] = {}
+        self._pending: list[str] = []
         self._lock = threading.Lock()
         if self._store_dir is not None:
             self._load_jobs()
@@ -237,11 +239,13 @@ class JobManager:
         options: dict[str, Any] | None = None,
         *,
         finalizer: Callable[[Job], None] | None = None,
+        queue: bool = False,
+        priority: int = 0,
     ) -> Job:
         with self._lock:
             self._prune()
-            active = sum(1 for job in self._jobs.values() if job.status not in TERMINAL)
-            if active >= self._max_active:
+            active = sum(1 for job in self._jobs.values() if job.status == "running")
+            if active >= self._max_active and not queue:
                 raise JobQueueFullError(
                     f"{self._max_active} jobs are already active. Wait or cancel one."
                 )
@@ -250,9 +254,20 @@ class JobManager:
                 output=Path(output),
                 options=dict(options or {}),
                 finalizer=finalizer,
+                priority=priority,
             )
             self._jobs[str(job.job_id)] = job
-            self._persist_job(job)
+            if active >= self._max_active:
+                job.status = "queued"
+                job.message = "Queued for the next worker slot"
+                self._pending.append(str(job.job_id))
+                self._persist_job(job)
+            else:
+                self._persist_job(job)
+                self._launch(job)
+        return job
+
+    def _launch(self, job: Job) -> None:
         thread = threading.Thread(
             target=self._work,
             args=(job,),
@@ -260,7 +275,27 @@ class JobManager:
             daemon=True,
         )
         thread.start()
-        return job
+
+    def _drain_queue(self) -> None:
+        launch: list[Job] = []
+        with self._lock:
+            running = sum(1 for job in self._jobs.values() if job.status == "running")
+            self._pending.sort(
+                key=lambda job_id: (
+                    -self._jobs[job_id].priority,
+                    self._jobs[job_id].created_at,
+                )
+            )
+            while self._pending and running < self._max_active:
+                job_id = self._pending.pop(0)
+                job = self._jobs.get(job_id)
+                if job is None or job.status != "queued":
+                    continue
+                job.message = "Starting"
+                launch.append(job)
+                running += 1
+        for job in launch:
+            self._launch(job)
 
     def get(self, job_id: str) -> Job:
         with self._lock:
@@ -292,6 +327,15 @@ class JobManager:
             if job is None:
                 raise JobNotFoundError(f"Unknown job: {job_id}")
             if job.status in TERMINAL:
+                return job
+            if job.status == "queued":
+                with contextlib.suppress(ValueError):
+                    self._pending.remove(str(job.job_id))
+                job.status = "cancelled"
+                job.stage = "cancelled"
+                job.message = "Cancelled"
+                job.finished_at = _now()
+                self._persist_job(job)
                 return job
             job.cancel_requested = True
             if job.status == "queued":
@@ -599,6 +643,7 @@ class JobManager:
                 job.finished_at = _now()
             _write_log(job)
             self._persist_job(job)
+            self._drain_queue()
 
     def _work_recipe(self, job: Job) -> None:
         from videoflow.core.recipe import Recipe
@@ -743,6 +788,7 @@ class JobManager:
             _write_log(job)
             _record_recipe_history(job)
             self._persist_job(job)
+            self._drain_queue()
 
     def _persist_job(self, job: Job) -> None:
         if self._store_dir is None:
@@ -774,15 +820,11 @@ class JobManager:
             except (OSError, ValueError, KeyError, TypeError):
                 continue
             if job.status in {"queued", "running"}:
-                job.status = "failed"
-                job.stage = "failed"
-                job.message = "Interrupted by service restart"
-                job.finished_at = _now()
-                job.error = {
-                    "ok": False,
-                    "code": "job_interrupted",
-                    "message": "Interrupted by service restart",
-                }
+                job.status = "queued"
+                job.stage = "queued"
+                job.message = "Requeued after service restart"
+                job.error = None
+                self._pending.append(str(job.job_id))
                 self._persist_job(job)
             self._jobs[str(job.job_id)] = job
         try:
@@ -795,6 +837,7 @@ class JobManager:
                     self._jobs[job_id] = job
         except Exception:
             pass
+        self._drain_queue()
 
     def _prune(self) -> None:
         finished = [job for job in self._jobs.values() if job.status in TERMINAL]

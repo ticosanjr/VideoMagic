@@ -32,6 +32,7 @@
     listBatches,
     resumeBatch,
     runBatch,
+    resumeJob,
     runRecipe,
     runRecipeStep,
     restoreRecipeVersion,
@@ -151,6 +152,8 @@
   let recipeVariants = $state<Array<Record<string, unknown>>>([]);
   let variableValues = $state<Record<string, unknown>>({});
   let recipeProfile = $state("");
+  let gateComment = $state("");
+  let gateBusy = $state(false);
   let jsonError = $state("");
   let stepQuery = $state("");
   let lastSelected = "";
@@ -1229,6 +1232,26 @@
     }
   }
 
+  async function decideGate(approved: boolean) {
+    if (!job) return;
+    gateBusy = true;
+    error = "";
+    try {
+      const resumed = await resumeJob(job.job_id, {
+        approved,
+        comment: gateComment
+      });
+      job = resumed;
+      gateComment = "";
+      status = approved ? "Gate approved; job resumed." : "Gate rejected; job resumed.";
+      watch(resumed.job_id);
+    } catch (reason) {
+      error = errorMessage(reason);
+    } finally {
+      gateBusy = false;
+    }
+  }
+
   async function dryRun() {
     error = "";
     status = "";
@@ -1433,9 +1456,9 @@
       try {
         job = await getJob(jobId);
         if (job) applyJobStatuses(job);
-        if (["succeeded", "failed", "cancelled"].includes(job.status)) {
+        if (["succeeded", "failed", "cancelled", "waiting_approval"].includes(job.status)) {
           clearInterval(poll);
-          void loadPrevious(job);
+          if (job.status !== "waiting_approval") void loadPrevious(job);
         }
       } catch (reason) {
         error = errorMessage(reason);
@@ -2073,6 +2096,17 @@
         <div class="h-full rounded-full bg-sky-400 transition-all" style={`width: ${job.progress}%`}></div>
       </div>
       <p class="mt-2 text-[11px] text-neutral-400">{job.stage}: {job.message} · {job.progress}%</p>
+      {#if job.status === "waiting_approval"}
+        <div class="mt-3 rounded-xl border border-amber-400/30 bg-amber-950/30 p-3">
+          <p class="text-xs font-medium text-amber-200">{job.error?.title || "Approval required"}</p>
+          <p class="mt-1 text-[11px] text-amber-200/70">{job.error?.message}</p>
+          <textarea rows="2" bind:value={gateComment} placeholder="Decision comment" class="mt-2 w-full rounded-lg border border-amber-400/20 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100"></textarea>
+          <div class="mt-2 flex gap-2">
+            <button type="button" onclick={() => void decideGate(true)} disabled={gateBusy} class="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-[11px] text-emerald-200 disabled:opacity-40">Approve and resume</button>
+            <button type="button" onclick={() => void decideGate(false)} disabled={gateBusy} class="rounded-lg border border-rose-500/40 px-3 py-1.5 text-[11px] text-rose-200 disabled:opacity-40">Reject</button>
+          </div>
+        </div>
+      {/if}
       {#if job.result?.step_runs?.length}
         <p class="mt-1 text-[10px] text-neutral-500">
           Steps: {job.result.step_runs.filter((run) => run.status === "cached").length} cached ·
@@ -2095,6 +2129,28 @@
       {/if}
       {#if job.error}
         <p class="mt-2 rounded-lg border border-rose-500/20 bg-rose-950/30 p-2 text-[11px] text-rose-200">{job.error.message}</p>
+      {/if}
+      {#if job.result?.variants?.length}
+        <div class="mt-3 rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
+          <p class="text-[10px] uppercase tracking-wide text-neutral-500">Variants</p>
+          <div class="mt-2 overflow-x-auto">
+            <table class="w-full text-left text-[10px] text-neutral-400">
+              <thead><tr class="text-neutral-600"><th class="pr-3">name</th><th class="pr-3">output</th><th class="pr-3">segments</th><th class="pr-3">shorts</th><th class="pr-3">steps</th></tr></thead>
+              <tbody>
+                {#each job.result.variants as variant}
+                  {@const summary = variant.summary as Record<string, unknown>}
+                  <tr class="border-t border-neutral-800">
+                    <td class="py-1 pr-3 text-sky-300">{variant.name}</td>
+                    <td class="py-1 pr-3 break-all font-mono text-neutral-500">{variant.output}</td>
+                    <td class="py-1 pr-3">{String(summary.video_segment_count ?? "—")}</td>
+                    <td class="py-1 pr-3">{String(summary.short_count ?? "—")}</td>
+                    <td class="py-1 pr-3">{Array.isArray(summary.step_runs) ? summary.step_runs.length : "—"}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        </div>
       {/if}
       {#if job.result?.artifacts}
         <div class="mt-3 grid gap-1.5 sm:grid-cols-2">

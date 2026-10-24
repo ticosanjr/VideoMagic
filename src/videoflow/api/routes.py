@@ -689,6 +689,7 @@ def register_routes(
                 "variables": request.variables,
                 "profile": request.profile,
             },
+            queue=True,
         )
         return {"ok": True, "job": job.to_dict()}
 
@@ -1339,7 +1340,7 @@ def register_routes(
                 options.update(get_project_template(request.project_template).options)
             if request.brand_template:
                 options = apply_brand_options(options, request.brand_template)
-            job = jobs.start(source, output, options=options)
+            job = jobs.start(source, output, options=options, queue=True)
         except VideoFlowError as exc:
             raise HTTPException(status_code=status_for(exc.code), detail=exc.to_dict()) from exc
         return {"ok": True, "job": job.to_dict()}
@@ -1553,6 +1554,7 @@ def register_routes(
                 job.source,
                 job.output,
                 {**job.options, "resume": True},
+                queue=True,
             )
         except VideoFlowError as exc:
             fail(exc)

@@ -66,6 +66,7 @@ class RecipeSchedule(BaseModel):
                 "job_id": job_id,
                 "status": status,
                 "error": error,
+                "finished_at": "",
             }
         )
         self.runs = self.runs[-MAX_RUNS:]
@@ -283,10 +284,39 @@ def run_schedule(jobs: Any, schedule: RecipeSchedule) -> RecipeSchedule:
     return schedule
 
 
+def _sync_runs(jobs: Any, schedule: RecipeSchedule) -> bool:
+    changed = False
+    for run in schedule.runs:
+        job_id = str(run.get("job_id") or "")
+        if not job_id or run.get("status") not in {"queued", "running", "waiting_approval"}:
+            continue
+        try:
+            job = jobs.get(job_id)
+        except Exception:
+            continue
+        status = str(job.status)
+        if status in {"succeeded", "failed", "cancelled", "waiting_approval"}:
+            run["status"] = status
+            run["finished_at"] = job.finished_at or _now()
+            if status == "failed":
+                schedule.last_error = str((job.error or {}).get("message") or "job failed")
+            changed = True
+    if schedule.runs:
+        last = schedule.runs[-1]
+        status = str(last.get("status") or "")
+        if status in {"succeeded", "failed", "cancelled"}:
+            schedule.status = status
+        elif status == "waiting_approval":
+            schedule.status = "waiting_approval"
+    return changed
+
+
 def run_due(jobs: Any) -> list[RecipeSchedule]:
     items = load_schedules()
     changed = False
     now = datetime.now(UTC)
+    for schedule in items:
+        changed = _sync_runs(jobs, schedule) or changed
     for schedule in items:
         if not schedule.enabled:
             continue

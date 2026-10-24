@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Any, Literal
 
@@ -87,10 +88,23 @@ class ThumbnailPackStep(BaseStep):
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = ThumbnailPackParams.model_validate(params)
         result = _result(context)
-        for index, _ in enumerate(context.shorts):
-            for _ in range(options.variants):
+        directory = context.output / "thumbnails"
+        directory.mkdir(parents=True, exist_ok=True)
+        fractions = [0.15, 0.35, 0.55, 0.75, 0.9]
+        for index, entry in enumerate(context.shorts):
+            duration = float(entry.get("duration_sec") or 0.0) if isinstance(entry, dict) else 0.0
+            for variant in range(options.variants):
                 try:
-                    generate_short_thumbnail(output=context.output, index=index, result=result)
+                    payload = generate_short_thumbnail(
+                        output=context.output,
+                        index=index,
+                        result=result,
+                        time_sec=max(0.2, duration * fractions[variant % len(fractions)]),
+                        caption_style={"font_size": 60 + variant * 8},
+                    )
+                    source = Path(str(payload["path"]))
+                    target = directory / f"variant-{index + 1}-{variant + 1}.png"
+                    shutil.copy2(source, target)
                 except Exception as exc:
                     context.warnings.append(f"Thumbnail failed for Short {index}: {exc}")
         listing = list_thumbnails(context.output)

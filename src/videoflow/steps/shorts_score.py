@@ -66,7 +66,20 @@ class ShortsScoreStep(BaseStep):
         if not clips:
             io.report(100, "No Shorts to score")
             return
-        weights = WEIGHTS.get(options.profile, {})
+        weights = dict(WEIGHTS.get(options.profile, {}))
+        analytics = context.metadata.get("analytics_weights")
+        if not isinstance(analytics, dict):
+            review = context.output / "delivery" / "analytics-review.json"
+            if review.is_file():
+                try:
+                    analytics = json.loads(review.read_text(encoding="utf-8")).get("weights")
+                except (OSError, ValueError):
+                    analytics = None
+        if isinstance(analytics, dict):
+            for key, value in analytics.items():
+                if isinstance(value, (int, float)):
+                    weights[str(key)] = float(value)
+            weights["analytics"] = 1.0
         scored = []
         for clip in clips:
             total = 0.0

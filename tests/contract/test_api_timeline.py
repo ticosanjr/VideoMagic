@@ -392,3 +392,44 @@ def test_service_definition_crud_and_support_bundle(monkeypatch, tmp_path: Path)
     assert bundle.status_code == 200
     assert bundle.headers["content-type"] == "application/zip"
     assert len(bundle.content) > 100
+
+
+def test_human_gate_resume_route(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    recipe = {
+        "schema_version": 1,
+        "id": "gate_api",
+        "name": "Gate API",
+        "steps": [
+            {"id": "index", "type": "assets.index", "params": {"asset_dir": str(assets)}},
+            {
+                "id": "gate",
+                "type": "human.gate",
+                "needs": ["index"],
+                "params": {"gate_id": "review", "title": "Review"},
+            },
+        ],
+    }
+    job = manager.start(
+        source, tmp_path / "out", {"mode": "recipe", "recipe": recipe}, queue=True
+    )
+    for _ in range(300):
+        if job.status in {"waiting_approval", "failed", "succeeded"}:
+            break
+        time.sleep(0.01)
+    assert job.status == "waiting_approval", job.error
+    response = client.post(
+        f"/api/v1/jobs/{job.job_id}/resume",
+        json={"approved": True, "comment": "ok"},
+    )
+    assert response.status_code == 202, response.text
+    resumed = manager.get(response.json()["job"]["job_id"])
+    for _ in range(300):
+        if resumed.status in {"succeeded", "failed"}:
+            break
+        time.sleep(0.01)
+    assert resumed.status == "succeeded", resumed.error

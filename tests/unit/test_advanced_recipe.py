@@ -272,3 +272,80 @@ def test_i18n_locale_strings() -> None:
 
     # The UI translator is exercised through its JSON dictionary in Vitest.
     assert True
+
+
+def test_job_queue_waits_for_a_slot(tmp_path: Path) -> None:
+    from videoflow.application.jobs import JobManager
+
+    release = __import__("threading").Event()
+
+    def wait_runner(source, output, **kwargs):
+        release.wait(timeout=10)
+        return {"ok": True}
+
+    manager = JobManager(wait_runner, max_active=1)
+    first = manager.start(tmp_path / "a.mp4", tmp_path / "out-a", queue=True)
+    second = manager.start(tmp_path / "b.mp4", tmp_path / "out-b", queue=True)
+    assert first.status in {"queued", "running"}
+    assert second.status == "queued"
+    release.set()
+    for _ in range(200):
+        if first.status in {"succeeded", "failed"} and second.status in {
+            "succeeded",
+            "failed",
+        }:
+            break
+        time.sleep(0.01)
+    assert first.status == "succeeded"
+    assert second.status == "succeeded"
+
+
+def test_scheduler_syncs_job_status(tmp_path: Path, monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from videoflow.application import schedules
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
+    schedule = schedules.RecipeSchedule(
+        id="sync",
+        kind="interval",
+        recipe_id="youtube_talking_head",
+        source=str(tmp_path / "source.mp4"),
+        output=str(tmp_path / "out"),
+    )
+    schedule.runs = [{"job_id": "j1", "status": "queued", "finished_at": ""}]
+
+    class Jobs:
+        def get(self, job_id: str):
+            return SimpleNamespace(
+                status="succeeded", finished_at="2026-10-24T00:00:00+00:00", error=None
+            )
+
+    assert schedules._sync_runs(Jobs(), schedule) is True
+    assert schedule.runs[0]["status"] == "succeeded"
+    assert schedule.status == "succeeded"
+
+
+def test_analytics_weights_affect_scoring(tmp_path: Path) -> None:
+    from videoflow.steps.base import StepIO
+
+    class Context:
+        selected_shorts = [
+            ShortClip(
+                title="plain clip",
+                start_sample=0,
+                end_sample=100,
+                sentence_ids=(0,),
+                pieces=((0, 100),),
+                score_breakdown=(("completeness", 1.0),),
+            )
+        ]
+        shorts = []
+        output = tmp_path
+        media = None
+        metadata = {"analytics_weights": {"completeness": 5.0}}
+        artifacts: dict[str, str] = {}
+
+    context = Context()
+    ShortsScoreStep().run(context, ScoreParams(), StepIO(stage="score"))
+    assert context.selected_shorts[0].score == 5.0

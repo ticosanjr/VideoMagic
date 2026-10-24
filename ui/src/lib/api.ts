@@ -1,4 +1,10 @@
-export type JobStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
+export type JobStatus =
+  | "queued"
+  | "running"
+  | "waiting_approval"
+  | "succeeded"
+  | "failed"
+  | "cancelled";
 export type StageStatus = "pending" | "running" | "succeeded" | "failed" | "cancelled";
 
 export interface SystemInfo {
@@ -363,6 +369,11 @@ export interface Job {
     cache_hits?: string[];
     cache_misses?: string[];
     step_runs?: StepRun[];
+    variants?: Array<{
+      name: string;
+      output: string;
+      summary: Record<string, unknown>;
+    }>;
     shorts?: ShortClip[];
     broll_plan?: Record<string, Record<string, unknown>[]>;
     speaker_count?: number;
@@ -372,7 +383,14 @@ export interface Job {
     elapsed_seconds?: number;
     step_progress?: Record<string, number>;
   } | null;
-  error: { ok: boolean; code: string; message: string } | null;
+  error: {
+    ok: boolean;
+    code: string;
+    message: string;
+    gate_id?: string;
+    title?: string;
+    step_id?: string;
+  } | null;
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
@@ -1646,6 +1664,17 @@ export async function cancelBatch(batchId: string): Promise<Batch> {
     { method: "POST" }
   );
   return response.batch;
+}
+
+export async function resumeJob(
+  jobId: string,
+  payload: { approved: boolean; comment?: string }
+): Promise<Job> {
+  const response = await request<{ ok: boolean; job: Job; gate: string }>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/resume`,
+    { method: "POST", body: JSON.stringify(payload) }
+  );
+  return response.job;
 }
 
 export async function runRecipeStep(
