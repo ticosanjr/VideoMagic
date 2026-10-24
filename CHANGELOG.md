@@ -34,10 +34,13 @@ follow semantic versioning once the project reaches 1.0.
 
 ### Notes
 
-- Local-only development build. No release artifact was produced for 2.4.0.
+- Local release: Linux binary + AppImage + SBOM + checksums. No GitHub Actions,
+  no publishing, no multiuser.
 - Manual import validation in Resolve, Premiere, and Kdenlive remains pending:
   the three NLEs are not installed on this host. The checklist and the
   automated structural checks are in `docs/nle-qa.md`.
+- Kept releases: v2.4.0, v2.0.0, v1.0.0. v0.95.0 was pruned by the three-release
+  retention rule.
 
 ## [2.3.0] - 2026-10-24
 
