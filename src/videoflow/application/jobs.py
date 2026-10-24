@@ -244,7 +244,9 @@ class JobManager:
     ) -> Job:
         with self._lock:
             self._prune()
-            active = sum(1 for job in self._jobs.values() if job.status == "running")
+            active = sum(
+                1 for job in self._jobs.values() if job.status in {"running", "queued"}
+            )
             if active >= self._max_active and not queue:
                 raise JobQueueFullError(
                     f"{self._max_active} jobs are already active. Wait or cancel one."

@@ -49,6 +49,7 @@ from videoflow.application.capabilities import (
 from videoflow.application.caption_ai import apply_llm_emoji
 from videoflow.application.database import backup as backup_database
 from videoflow.application.database import metrics as database_metrics
+from videoflow.application.database import restore as restore_database
 from videoflow.application.deliverables import (
     add_review_comment,
     approve_review,
@@ -3306,6 +3307,26 @@ def register_routes(
                 "Content-Disposition": "attachment; filename=videoflow-support.zip"
             },
         )
+
+    @app.post("/api/v1/system/restore")
+    async def system_restore(request: Request) -> dict[str, object]:
+        body = await request.body()
+        if not body:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "empty_backup", "message": "ZIP body is empty"},
+            )
+        temp = portable_home() / "backups" / "restore-upload.zip"
+        temp.parent.mkdir(parents=True, exist_ok=True)
+        temp.write_bytes(body)
+        try:
+            result = restore_database(temp)
+        except (OSError, ValueError, zipfile.BadZipFile) as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "invalid_backup", "message": str(exc)},
+            ) from exc
+        return result
 
     @app.get("/api/v1/plugins")
     def plugins_list() -> dict[str, object]:

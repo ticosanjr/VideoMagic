@@ -3,6 +3,44 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [1.0.0] - 2026-10-24
+
+### Added
+
+- **0.97 — render and media closure.** Real onset/beat detection, music/SFX
+  mixing in Shorts, bounded parallel map, thumbnail winner selection, and
+  per-Short selection reports.
+- **0.98 — Shorts intelligence.** Analytics weights applied to scoring,
+  explicit score breakdowns/reports, diversity filtering, and A/B winner
+  selection.
+- **0.99 — finishing.** NLE structural QA, chapter planning, sidecars for
+  titles/color/audio/B-roll, and a finishing recipe.
+- **1.0 — local stable.** Persistent priority queue with restart requeue,
+  scheduler job reconciliation, human-gate UI, variant comparison, backup
+  restore, operational metrics, plugin steps, accessibility skip link, and
+  SQLite WAL indices.
+- 34 built-in recipes.
+- 8 media tests including real beat detection.
+
+### Validation
+
+- 484 Python tests passed.
+- 8 media tests passed, 1 skipped.
+- 13 Vitest tests passed.
+- 19 Playwright tests passed.
+
+### Notes
+
+- Local release only: Linux binary + AppImage + SBOM. No GitHub Actions.
+- Distribution, signing, macOS, Windows local builds, and collaboration remain
+  out of scope.
+- Native NLE titles/color/B-roll remain sidecar-based; manual NLE QA is still
+  required.
+- Plugin SDK v1 covers steps, not providers/exporters/UI panels.
+- SQLite is an operational index; JSON remains canonical for jobs/assets.
+- `flow.map` parallel is bounded for file collections.
+- Full UI i18n and per-clip waveforms remain future work.
+
 ## [0.96.0] - 2026-10-24
 
 ### Added

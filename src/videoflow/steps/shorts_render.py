@@ -123,6 +123,17 @@ class RenderShortsStep(BaseStep):
                             ),
                         )
             broll_clips: list[tuple[Path, float, float]] = []
+            sfx_clips: list[tuple[Path, float, float]] = []
+            sfx_plan = context.metadata.get("sfx_plan")
+            if isinstance(sfx_plan, dict):
+                for cue in sfx_plan.get(clip.title, []):
+                    if not isinstance(cue, dict) or not cue.get("path"):
+                        continue
+                    path = Path(str(cue["path"])).expanduser()
+                    if path.is_file():
+                        sfx_clips.append(
+                            (path, float(cue.get("start_sec") or 0.0), 0.9)
+                        )
             plan = context.metadata.get("broll_plan")
             if options.broll_enabled and isinstance(plan, dict):
                 broll_entries = plan.get(clip.title)
@@ -181,6 +192,7 @@ class RenderShortsStep(BaseStep):
                 ),
                 mix_second_audio=options.mix_second_audio,
                 broll_clips=broll_clips or None,
+                sfx_clips=sfx_clips or None,
                 music_path=Path(options.music_path) if options.music_path else None,
                 music_volume=options.music_volume,
                 music_ducking=options.music_ducking,

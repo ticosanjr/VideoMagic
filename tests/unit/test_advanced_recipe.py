@@ -89,6 +89,7 @@ def test_flow_map_and_reduce(tmp_path: Path) -> None:
                         "glob": "*.mp4",
                         "collect": "mapped",
                         "on_error": "continue",
+                        "parallel": 2,
                         "steps": [
                             {
                                 "type": "assets.index",
@@ -349,3 +350,64 @@ def test_analytics_weights_affect_scoring(tmp_path: Path) -> None:
     context = Context()
     ShortsScoreStep().run(context, ScoreParams(), StepIO(stage="score"))
     assert context.selected_shorts[0].score == 5.0
+
+
+def test_thumbnail_experiment_selects_winner(tmp_path: Path) -> None:
+    from videoflow.application.deliverables import record_thumbnail_metric
+    from videoflow.steps.base import StepIO
+    from videoflow.steps.delivery import ExperimentEvaluateStep, ExperimentParams
+
+    thumbs = tmp_path / "thumbnails"
+    thumbs.mkdir()
+    (thumbs / "variant-1.png").write_bytes(b"png")
+    (thumbs / "variant-2.png").write_bytes(b"png")
+    record_thumbnail_metric(tmp_path, "variant-1.png", impressions=10, clicks=1)
+    record_thumbnail_metric(tmp_path, "variant-2.png", impressions=10, clicks=4)
+
+    class Context:
+        output = tmp_path
+        warnings: list[str] = []
+        artifacts: dict[str, str] = {}
+        metadata: dict[str, object] = {}
+
+    ExperimentEvaluateStep().run(Context(), ExperimentParams(), StepIO(stage="experiment"))
+    import json
+
+    payload = json.loads((tmp_path / "delivery" / "experiment.json").read_text())
+    assert payload["winner"]["name"] == "variant-2.png"
+
+
+def test_shorts_selection_report(tmp_path: Path) -> None:
+    from videoflow.steps.base import StepIO
+
+    class Context:
+        selected_shorts = [
+            ShortClip(
+                title="strong hook",
+                start_sample=0,
+                end_sample=100,
+                sentence_ids=(0,),
+                pieces=((0, 100),),
+                score_breakdown=(("hook_strength", 3.0),),
+            )
+        ]
+        shorts = []
+        output = tmp_path
+        media = None
+        metadata: dict[str, object] = {}
+        artifacts: dict[str, str] = {}
+
+    ShortsScoreStep().run(Context(), ScoreParams(), StepIO(stage="score"))
+    assert (tmp_path / "shorts-selection-report.json").is_file()
+
+
+def test_database_backup_restore_roundtrip(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
+    database.upsert_job("job-1", {"job_id": "job-1", "status": "succeeded"})
+    archive = tmp_path / "backup.zip"
+    database.backup(archive)
+    database.upsert_job("job-2", {"job_id": "job-2", "status": "failed"})
+    assert database.metrics()["total_jobs"] == 2
+    restored = database.restore(archive)
+    assert restored["ok"] is True
+    assert database.metrics()["total_jobs"] == 1

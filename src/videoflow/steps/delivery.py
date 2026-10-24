@@ -9,7 +9,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from videoflow.application.deliverables import list_thumbnails, thumbnail_metrics
+from videoflow.application.deliverables import (
+    list_thumbnails,
+    select_thumbnail,
+    thumbnail_metrics,
+)
 from videoflow.application.nle_validation import validate_nle_exports
 from videoflow.application.publishing import enqueue_publish
 from videoflow.application.short_metadata import generate_short_metadata
@@ -232,6 +236,11 @@ class ExperimentEvaluateStep(BaseStep):
         ExperimentParams.model_validate(params)
         metrics = thumbnail_metrics(context.output)
         winner = metrics[0] if metrics else None
+        if winner and winner.get("name"):
+            try:
+                select_thumbnail(context.output, str(winner["name"]))
+            except Exception as exc:
+                context.warnings.append(f"Thumbnail winner selection failed: {exc}")
         payload = {"metrics": metrics, "winner": winner}
         target = context.output / "delivery" / "experiment.json"
         target.parent.mkdir(parents=True, exist_ok=True)

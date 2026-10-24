@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import shutil
 import sqlite3
@@ -43,6 +44,7 @@ def connect() -> sqlite3.Connection:
     connection.execute(
         "INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', '1')"
     )
+    connection.commit()
     return connection
 
 
@@ -52,7 +54,7 @@ def _now() -> str:
 
 def upsert_job(job_id: str, payload: dict[str, Any]) -> None:
     try:
-        with connect() as connection:
+        with contextlib.closing(connect()) as connection:
             connection.execute(
                 "INSERT OR REPLACE INTO jobs (job_id, payload, updated_at) VALUES (?, ?, ?)",
                 (job_id, json.dumps(payload, sort_keys=True), _now()),
@@ -64,7 +66,7 @@ def upsert_job(job_id: str, payload: dict[str, Any]) -> None:
 
 def list_jobs() -> list[dict[str, Any]]:
     try:
-        with connect() as connection:
+        with contextlib.closing(connect()) as connection:
             rows = connection.execute(
                 "SELECT payload FROM jobs ORDER BY updated_at"
             ).fetchall()
@@ -81,7 +83,7 @@ def list_jobs() -> list[dict[str, Any]]:
 
 def upsert_asset(asset_id: str, payload: dict[str, Any]) -> None:
     try:
-        with connect() as connection:
+        with contextlib.closing(connect()) as connection:
             connection.execute(
                 "INSERT OR REPLACE INTO assets (asset_id, payload, updated_at) VALUES (?, ?, ?)",
                 (asset_id, json.dumps(payload, sort_keys=True), _now()),
@@ -93,7 +95,7 @@ def upsert_asset(asset_id: str, payload: dict[str, Any]) -> None:
 
 def list_assets_db() -> list[dict[str, Any]]:
     try:
-        with connect() as connection:
+        with contextlib.closing(connect()) as connection:
             rows = connection.execute(
                 "SELECT payload FROM assets ORDER BY updated_at"
             ).fetchall()
@@ -110,7 +112,7 @@ def list_assets_db() -> list[dict[str, Any]]:
 
 def upsert_batch(batch_id: str, payload: dict[str, Any]) -> None:
     try:
-        with connect() as connection:
+        with contextlib.closing(connect()) as connection:
             connection.execute(
                 "INSERT OR REPLACE INTO batches (batch_id, payload, updated_at) VALUES (?, ?, ?)",
                 (batch_id, json.dumps(payload, sort_keys=True), _now()),
@@ -122,7 +124,7 @@ def upsert_batch(batch_id: str, payload: dict[str, Any]) -> None:
 
 def integrity() -> dict[str, object]:
     try:
-        with connect() as connection:
+        with contextlib.closing(connect()) as connection:
             value = connection.execute("PRAGMA integrity_check").fetchone()[0]
             jobs = connection.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
             assets = connection.execute("SELECT COUNT(*) FROM assets").fetchone()[0]
@@ -180,3 +182,42 @@ def metrics() -> dict[str, object]:
         ),
         "disk_free": shutil.disk_usage(portable_home()).free,
     }
+
+
+def restore(source: Path) -> dict[str, object]:
+    """Restore a backup ZIP produced by ``backup`` after validating it."""
+
+    source = Path(source).expanduser()
+    if not source.is_file():
+        raise ValueError(f"Backup not found: {source}")
+    allowed = {"videoflow.db", "settings.json", "providers.json", "models-local.json"}
+    restored: list[str] = []
+    with zipfile.ZipFile(source) as bundle:
+        names = {item.filename for item in bundle.infolist()}
+        unknown = names - allowed
+        if unknown:
+            raise ValueError(f"Unexpected backup entries: {', '.join(sorted(unknown))}")
+        if "videoflow.db" in names:
+            temp_db = portable_home() / "restore.tmp.db"
+            temp_db.write_bytes(bundle.read("videoflow.db"))
+            check = sqlite3.connect(temp_db)
+            integrity = check.execute("PRAGMA integrity_check").fetchone()[0]
+            check.close()
+            if integrity != "ok":
+                temp_db.unlink(missing_ok=True)
+                raise ValueError(f"Backup database integrity failed: {integrity}")
+            for suffix in ("-wal", "-shm"):
+                Path(str(db_path()) + suffix).unlink(missing_ok=True)
+            shutil.copy2(temp_db, db_path())
+            temp_db.unlink(missing_ok=True)
+            restored.append("videoflow.db")
+        for name in allowed - {"videoflow.db"}:
+            if name not in names:
+                continue
+            payload = bundle.read(name)
+            target = portable_home() / name
+            if name.endswith(".json"):
+                json.loads(payload.decode("utf-8"))
+            target.write_text(payload.decode("utf-8"), encoding="utf-8")
+            restored.append(name)
+    return {"ok": True, "restored": restored}

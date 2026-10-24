@@ -513,6 +513,7 @@ class FFmpegAdapter:
         broll_start_sec: float = 0.0,
         broll_duration_sec: float = 2.0,
         broll_clips: Sequence[tuple[Path, float, float]] | None = None,
+        sfx_clips: Sequence[tuple[Path, float, float]] | None = None,
     ) -> Path:
         """Render concatenated source pieces as a vertical H.264 short."""
 
@@ -741,6 +742,61 @@ class FFmpegAdapter:
                 self._capture(command)
                 final = with_broll
                 combined = with_broll
+            if sfx_clips:
+                cues = []
+                for path, start, volume in sfx_clips:
+                    cue = Path(path).expanduser()
+                    if cue.is_file():
+                        cues.append((cue, max(0.0, float(start)), max(0.0, float(volume))))
+                if cues:
+                    with_sfx = work / "sfx.mp4"
+                    command = [
+                        "ffmpeg",
+                        "-hide_banner",
+                        "-loglevel",
+                        "error",
+                        "-y",
+                        "-i",
+                        str(combined),
+                    ]
+                    for cue, _, _ in cues:
+                        command.extend(["-i", str(cue)])
+                    chains = []
+                    labels = ["[0:a]"]
+                    for index, (_, start, volume) in enumerate(cues, start=1):
+                        delay = round(start * 1000)
+                        chains.append(
+                            f"[{index}:a]volume={volume:.3f},"
+                            f"adelay={delay}|{delay}[s{index}]"
+                        )
+                        labels.append(f"[s{index}]")
+                    chains.append(
+                        f"{''.join(labels)}amix=inputs={len(labels)}:"
+                        "duration=first:dropout_transition=0[a]"
+                    )
+                    command.extend(
+                        [
+                            "-filter_complex",
+                            ";".join(chains),
+                            "-map",
+                            "0:v",
+                            "-map",
+                            "[a]",
+                            "-c:v",
+                            "copy",
+                            "-c:a",
+                            "aac",
+                            "-b:a",
+                            "192k",
+                            "-shortest",
+                            "-movflags",
+                            "+faststart",
+                            str(with_sfx),
+                        ]
+                    )
+                    self._capture(command)
+                    combined = with_sfx
+                    final = with_sfx
             if ass_path is not None:
                 final = work / "final.mp4"
                 ass_filter = f"ass='{_filter_path(ass_path)}'"

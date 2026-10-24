@@ -90,6 +90,7 @@ class FakeAdapter:
         broll_start_sec: float = 0.0,
         broll_duration_sec: float = 2.0,
         broll_clips: object = None,
+        sfx_clips: object = None,
     ) -> Path:
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(b"mp4")

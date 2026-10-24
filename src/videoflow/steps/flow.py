@@ -296,33 +296,95 @@ class MapStep(_FlowStep):
             io.report(100, "Map has no items")
             return
         results: list[dict[str, object]] = []
-        for index, item in enumerate(items, start=1):
-            context.metadata["map_item"] = item
-            context.metadata["map_index"] = index
-            try:
+        if options.over == "files" and options.parallel > 1 and len(items) > 1:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
+            def run_item(index: int, item: dict[str, object]) -> dict[str, object]:
+                path = Path(str(item["path"]))
+                slug = "".join(
+                    char if char.isalnum() or char in {"-", "_"} else "-"
+                    for char in path.stem
+                ).strip("-") or "item"
+                child = context.model_copy(deep=True)
+                child.source = path
+                child.output = context.output / "map" / f"{index:03d}-{slug}"
+                child.work = child.output / "work"
+                child.exports = child.output / "exports"
+                child.output.mkdir(parents=True, exist_ok=True)
+                child.work.mkdir(parents=True, exist_ok=True)
+                child.exports.mkdir(parents=True, exist_ok=True)
+                nested_io = replace(io, stage=f"{io.stage}/map-{index}")
                 _run_steps(
-                    context,
+                    child,
                     specs,
-                    io,
+                    nested_io,
                     depth=int(context.metadata.get("_flow_depth", 0)) + 1,
                 )
-                results.append(
-                    {
-                        "index": index,
-                        "item": item,
-                        "ok": True,
-                        "shorts": list(context.shorts),
-                        "artifacts": dict(context.artifacts),
-                    }
-                )
-            except Exception as exc:
-                if options.on_error == "fail":
-                    raise
-                context.warnings.append(f"Map item {index} failed: {exc}")
-                results.append({"index": index, "item": item, "ok": False, "error": str(exc)})
-                if options.on_error == "skip":
-                    continue
-            io.report(int(index / len(items) * 100), f"Map {index}/{len(items)}")
+                return {
+                    "index": index,
+                    "item": item,
+                    "ok": True,
+                    "output": str(child.output),
+                    "summary": child.summary(),
+                    "artifacts": dict(child.artifacts),
+                    "shorts": list(child.shorts),
+                    "warnings": list(child.warnings),
+                }
+
+            with ThreadPoolExecutor(max_workers=min(options.parallel, len(items))) as pool:
+                futures = {
+                    pool.submit(run_item, index, item): (index, item)
+                    for index, item in enumerate(items, start=1)
+                }
+                for future in as_completed(futures):
+                    index, item = futures[future]
+                    try:
+                        result = future.result()
+                        results.append(result)
+                        for key, value in result.get("artifacts", {}).items():
+                            context.artifacts[f"map-{index}-{key}"] = value
+                        context.shorts.extend(result.get("shorts", []))
+                        context.warnings.extend(result.get("warnings", []))
+                    except Exception as exc:
+                        if options.on_error == "fail":
+                            raise
+                        context.warnings.append(f"Map item {index} failed: {exc}")
+                        results.append(
+                            {"index": index, "item": item, "ok": False, "error": str(exc)}
+                        )
+                    io.report(
+                        int(len(results) / len(items) * 100),
+                        f"Map {len(results)}/{len(items)}",
+                    )
+            results.sort(key=lambda item: int(item.get("index", 0)))
+        else:
+            for index, item in enumerate(items, start=1):
+                context.metadata["map_item"] = item
+                context.metadata["map_index"] = index
+                try:
+                    _run_steps(
+                        context,
+                        specs,
+                        io,
+                        depth=int(context.metadata.get("_flow_depth", 0)) + 1,
+                    )
+                    results.append(
+                        {
+                            "index": index,
+                            "item": item,
+                            "ok": True,
+                            "shorts": list(context.shorts),
+                            "artifacts": dict(context.artifacts),
+                        }
+                    )
+                except Exception as exc:
+                    if options.on_error == "fail":
+                        raise
+                    context.warnings.append(f"Map item {index} failed: {exc}")
+                    results.append({"index": index, "item": item, "ok": False, "error": str(exc)})
+                    if options.on_error == "skip":
+                        continue
+                io.report(int(index / len(items) * 100), f"Map {index}/{len(items)}")
         context.metadata[options.collect] = results
         io.report(100, f"Map finished ({len(results)} item(s))")
 

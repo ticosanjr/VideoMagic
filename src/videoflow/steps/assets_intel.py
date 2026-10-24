@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.assets import list_assets
+from videoflow.application.audio_analysis import detect_beats
 from videoflow.application.video_analysis import detect_scene_changes, scene_intervals
 from videoflow.core.context import PipelineContext
 from videoflow.steps.base import BaseStep, StepIO
@@ -163,6 +164,7 @@ class AssetMatchStep(BaseStep):
 class BeatParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    path: str = ""
     tempo_bpm: float = Field(default=120.0, ge=40.0, le=220.0)
 
 
@@ -181,16 +183,32 @@ class MusicBeatStep(BaseStep):
         duration = context.duration_samples() / (
             context.media.audio_sample_rate if context.media is not None else 48000
         )
-        interval = 60.0 / options.tempo_bpm
-        beats = []
-        current = 0.0
-        while current < duration:
-            beats.append(round(current, 3))
-            current += interval
+        beats: list[float] = []
+        source = "tempo"
+        if options.path:
+            try:
+                beats = detect_beats(Path(options.path).expanduser())
+                source = "audio"
+            except Exception as exc:
+                context.warnings.append(f"Beat detection fell back to tempo: {exc}")
+        bpm = options.tempo_bpm
+        if len(beats) > 1:
+            intervals = [b - a for a, b in zip(beats, beats[1:], strict=False) if b > a]
+            if intervals:
+                bpm = round(60.0 / (sum(intervals) / len(intervals)), 2)
+        if not beats:
+            interval = 60.0 / options.tempo_bpm
+            current = 0.0
+            while current < duration:
+                beats.append(round(current, 3))
+                current += interval
         target = context.output / "music" / "beats.json"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(
-            json.dumps({"tempo_bpm": options.tempo_bpm, "beats": beats}, indent=2) + "\n",
+            json.dumps(
+                {"tempo_bpm": bpm, "source": source, "beats": beats}, indent=2
+            )
+            + "\n",
             encoding="utf-8",
         )
         context.artifacts["beats"] = str(target)

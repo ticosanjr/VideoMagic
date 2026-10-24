@@ -148,6 +148,7 @@
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-950">
+  <a href="#workspace-content" class="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[80] focus:rounded-lg focus:bg-sky-500 focus:px-3 focus:py-2 focus:text-sm focus:text-neutral-950">Skip to content</a>
   <div class={`mx-auto flex min-h-screen flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8 ${activeTab === "recipes" || activeTab === "timeline" ? "max-w-[1800px]" : "max-w-[1600px]"}`}>
     <header class="flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-center gap-3">

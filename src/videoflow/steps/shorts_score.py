@@ -134,6 +134,29 @@ class ShortsScoreStep(BaseStep):
             encoding="utf-8",
         )
         context.artifacts["shorts_scores"] = str(target)
+        report = context.output / "shorts-selection-report.json"
+        report.write_text(
+            json.dumps(
+                {
+                    "profile": options.profile,
+                    "weights": weights,
+                    "analytics_weights": analytics if isinstance(analytics, dict) else {},
+                    "selected": [
+                        {
+                            "title": clip.title,
+                            "score": clip.score,
+                            "virality_score": clip.virality_score,
+                            "breakdown": dict(clip.score_breakdown),
+                        }
+                        for clip in selected
+                    ],
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        context.artifacts["shorts_selection_report"] = str(report)
         io.report(100, f"Scored {len(selected)}/{len(clips)} Short(s)")
 
     def _llm_rerank(self, clips: list[Any], io: StepIO) -> list[Any]:

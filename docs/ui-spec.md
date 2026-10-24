@@ -3,7 +3,7 @@
 Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript, Konva, and
 wavesurfer.js. English strings only.
 
-0.96.0 removes the legacy rack. The product is a recipe studio with a
+1.0.0 removes the legacy rack. The product is a recipe studio with a
 professional canvas timeline, automation schedules, and provider settings.
 Errors are persistent, sticky banners at the top of the page or panel; inline
 field validation remains next to the field.

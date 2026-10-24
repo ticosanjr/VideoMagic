@@ -4,7 +4,7 @@ This is the editor's guide. Installation belongs to the
 [operator manual](operator.md).
 
 > Status: the portable CLI, REST API, recipe studio, canvas timeline, and MCP
-> surface run real jobs in 0.96.0. Local Faster-Whisper quality transcription is
+> surface run real jobs in 1.0.0. Local Faster-Whisper quality transcription is
 > available with a whisper.cpp fallback. The UI browses local files and folders
 > through the server allowlist; it does not upload media.
 
