@@ -1,6 +1,7 @@
 import json
 import subprocess
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -257,3 +258,19 @@ def test_probe_requires_a_duration(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(adapter, "_run", lambda _args: json.dumps(payload))
     with pytest.raises(IngestError, match="duration"):
         adapter.probe(source)
+
+
+def test_cancel_kills_a_real_process_group(monkeypatch: pytest.MonkeyPatch) -> None:
+    """End-to-end: a real child process stops well inside the one-second budget."""
+
+    monkeypatch.setattr(
+        "videoflow.adapters.ffmpeg.find_binary", lambda _name: "/bin/sleep"
+    )
+    cancel_event = threading.Event()
+    threading.Timer(0.2, cancel_event.set).start()
+    started = time.monotonic()
+
+    with pytest.raises(JobCancelledError):
+        FFmpegAdapter(cancel_event=cancel_event)._run(["sleep", "10"])
+
+    assert time.monotonic() - started < 1.0

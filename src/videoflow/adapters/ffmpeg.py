@@ -985,7 +985,7 @@ class FFmpegAdapter:
             with contextlib.suppress(OSError):
                 process.terminate()
         try:
-            process.wait(timeout=1.0)
+            process.wait(timeout=0.5)
         except subprocess.TimeoutExpired:
             try:
                 os.killpg(os.getpgid(process.pid), signal.SIGKILL)
@@ -1013,7 +1013,7 @@ class FFmpegAdapter:
         deadline = time.monotonic() + max(1, timeout)
         while True:
             try:
-                stdout, stderr = process.communicate(timeout=0.2)
+                stdout, stderr = process.communicate(timeout=0.15)
                 break
             except subprocess.TimeoutExpired:
                 if self.cancel_event is not None and self.cancel_event.is_set():
