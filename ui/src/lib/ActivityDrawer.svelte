@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { focusTrap } from "$lib/a11y";
   import type { Job } from "$lib/api";
   import { formatDateTime } from "$lib/format";
   import { jobDisplayName, jobNextAction } from "$lib/jobsView";
@@ -37,6 +38,7 @@
     <button type="button" class="absolute inset-0 bg-black/40" aria-label="Close activity" onclick={onclose}></button>
     <aside
       class="absolute right-0 top-0 flex h-full w-[min(24rem,100vw)] flex-col overflow-hidden border-l border-neutral-800 bg-neutral-950 shadow-2xl shadow-black/50"
+      use:focusTrap
       aria-label="Activity drawer"
       data-testid="activity-drawer"
     >

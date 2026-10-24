@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
 
+from videoflow import plugin_api
 from videoflow.domain.errors import ExportError
 from videoflow.domain.state import ProjectState
 from videoflow.exporters.extras import EMPTY, NleExtras
@@ -39,7 +40,11 @@ def export_timeline(
     artifacts: dict[str, Path] = {}
     for target in targets:
         if target not in FILENAMES:
-            raise ExportError(f"Unknown export target: {target}")
+            handler = plugin_api.exporter(target)
+            if handler is None:
+                raise ExportError(f"Unknown export target: {target}")
+            artifacts[target] = Path(handler(state, directory))
+            continue
         destination = directory / FILENAMES[target]
         if target == "resolve":
             artifacts[target] = export_fcpxml(

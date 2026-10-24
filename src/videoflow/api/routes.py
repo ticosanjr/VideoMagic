@@ -934,6 +934,19 @@ def register_routes(
             raise
         return {"ok": True, "batch": batch.to_dict()}
 
+    @app.post("/api/v1/maintenance/backup")
+    def maintenance_backup() -> dict[str, object]:
+        from videoflow.application.backups import scheduled_backup
+
+        try:
+            target = scheduled_backup()
+        except Exception as exc:
+            raise HTTPException(
+                status_code=500,
+                detail={"ok": False, "code": "backup_failed", "message": str(exc)},
+            ) from exc
+        return {"ok": True, "backup": str(target)}
+
     @app.post("/api/v1/maintenance/prune")
     def maintenance_prune(request: MaintenancePruneRequest) -> dict[str, object]:
         try:

@@ -11,7 +11,10 @@ const STRINGS: Record<string, Record<string, string>> = {
     providers: "Providers",
     settings: "Settings",
     subtitle: "Editable rough cuts and repeatable content recipes",
-    workspace: "Workspace areas"
+    workspace: "Workspace areas",
+    activity: "Activity",
+    notifications: "Notifications",
+    shortcuts: "Keyboard shortcuts"
   },
   "pt-BR": {
     recipes: "Receitas",
@@ -25,7 +28,10 @@ const STRINGS: Record<string, Record<string, string>> = {
     providers: "Provedores",
     settings: "Configurações",
     subtitle: "Cortes editáveis e receitas de conteúdo repetíveis",
-    workspace: "Áreas de trabalho"
+    workspace: "Áreas de trabalho",
+    activity: "Atividade",
+    notifications: "Notificações",
+    shortcuts: "Atalhos de teclado"
   }
 };
 

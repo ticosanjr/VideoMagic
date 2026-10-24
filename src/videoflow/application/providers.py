@@ -169,7 +169,12 @@ def resolve_chain(capability: Capability) -> list[dict[str, object]]:
 
 def first_provider(capability: Capability) -> dict[str, object] | None:
     chain = resolve_chain(capability)
-    return chain[0] if chain else None
+    if chain:
+        return chain[0]
+    from videoflow import plugin_api
+
+    fallback = plugin_api.provider(capability)
+    return fallback if fallback else None
 
 
 def fallback_manifest() -> dict[str, list[dict[str, object]]]:

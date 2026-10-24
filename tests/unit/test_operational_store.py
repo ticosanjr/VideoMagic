@@ -151,3 +151,24 @@ def test_migration_never_overwrites_newer_database_rows(
     assert result["imported"]["jobs"] == 0
     [row] = [job for job in database.list_jobs() if job["job_id"] == payload["job_id"]]
     assert row["status"] == "succeeded"
+
+
+def test_schema_1x_home_migrates_to_2x(home: Path, tmp_path: Path) -> None:
+    payload = started_job(home, tmp_path)
+    with database.connect() as connection:
+        connection.execute(
+            "UPDATE meta SET value = '1' WHERE key = 'schema_version'"
+        )
+        connection.commit()
+
+    result = database.migrate_home()
+
+    assert result["schema_version"] == 2
+    with database.connect() as connection:
+        version = connection.execute(
+            "SELECT value FROM meta WHERE key = 'schema_version'"
+        ).fetchone()[0]
+    assert version == "2"
+    [row] = [job for job in database.list_jobs() if job["job_id"] == payload["job_id"]]
+    assert row["status"] == "succeeded"
+    assert row["idempotency_key"] == ""

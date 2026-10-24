@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { focusTrap } from "$lib/a11y";
   let { open = false, onclose }: { open?: boolean; onclose: () => void } = $props();
 
   const SHORTCUTS: { keys: string; action: string }[] = [
@@ -20,6 +21,7 @@
     <button type="button" class="absolute inset-0 bg-black/50" aria-label="Close shortcuts" onclick={onclose}></button>
     <div
       class="relative w-full max-w-lg overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl shadow-black/60"
+      use:focusTrap
       role="dialog"
       aria-modal="true"
       aria-label="Keyboard shortcuts"

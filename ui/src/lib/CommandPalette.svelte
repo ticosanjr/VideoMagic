@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { focusTrap } from "$lib/a11y";
   import { filterCommands, moveActiveIndex, type Command } from "$lib/commandPalette";
+  import { restoreFocus } from "$lib/a11y";
 
   let {
     open = false,
@@ -16,14 +18,19 @@
   let query = $state("");
   let active = $state(0);
   let input = $state<HTMLInputElement | null>(null);
+  let previousFocus: HTMLElement | null = null;
 
   const results = $derived(filterCommands(commands, query));
 
   $effect(() => {
     if (open) {
+      previousFocus = document.activeElement as HTMLElement | null;
       query = "";
       active = 0;
       requestAnimationFrame(() => input?.focus());
+    } else if (previousFocus) {
+      restoreFocus(previousFocus);
+      previousFocus = null;
     }
   });
 
@@ -58,6 +65,7 @@
     <button type="button" class="absolute inset-0 bg-black/50 backdrop-blur-sm" aria-label="Close command palette" onclick={onclose}></button>
     <div
       class="relative w-full max-w-xl overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl shadow-black/60"
+      use:focusTrap
       role="dialog"
       aria-modal="true"
       aria-label="Command palette"

@@ -334,7 +334,7 @@
           class="relative rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300"
           title="Activity drawer (U)"
         >
-          Activity
+          {t(locale, "activity")}
           {#if jobs.filter((job) => ["running", "queued"].includes(job.status)).length}
             <span class="ml-1 rounded-full bg-sky-500/20 px-1.5 py-0.5 font-mono text-[10px] text-sky-200">{jobs.filter((job) => ["running", "queued"].includes(job.status)).length}</span>
           {/if}
@@ -345,7 +345,7 @@
           class="relative rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300"
           title="Notification center (N)"
         >
-          Notifications
+          {t(locale, "notifications")}
           {#if counts.errors + counts.warnings + attentionJobs.length}
             <span class={`ml-1 rounded-full px-1.5 py-0.5 font-mono text-[10px] ${counts.errors ? "bg-rose-500/20 text-rose-200" : "bg-amber-400/20 text-amber-200"}`}>{counts.errors + counts.warnings + attentionJobs.length}</span>
           {/if}
@@ -360,7 +360,7 @@
           type="button"
           onclick={() => (shortcutsOpen = true)}
           class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300"
-          aria-label="Keyboard shortcuts"
+          aria-label={t(locale, "shortcuts")}
           title="Keyboard shortcuts (?)"
         >?</button>
         {#if serviceStopped}

@@ -3,6 +3,45 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.5.0] - 2026-10-24
+
+### Added
+
+- **Plugin SDK for exporters and providers.** `videoflow/plugin_api.py` exposes
+  `register_exporter`, `register_provider`, and `register_panel`.
+  `export_timeline` dispatches unknown targets to a plugin exporter and
+  `first_provider` falls back to a plugin provider.
+- **Static plugin sandbox.** `application/plugin_sandbox.py` parses the entry
+  module before import and blocks shell/network imports and exec-style calls
+  unless the manifest grants `shell` or `network`. Blocked plugins report the
+  violations instead of loading.
+- **Fault-injection suite.** Corrupt database, corrupt migration input,
+  non-writable output, and corrupt project state all fail with typed errors and
+  never produce a success record.
+- **Log rotation and scheduled backups.** `rotate_log` retains two generations;
+  `scheduled_backup` writes timestamped ZIPs and prunes to `keep`. Opt in with
+  `VIDEOWFLOW_BACKUP_ON_START=1` or `POST /api/v1/maintenance/backup`.
+- **Accessibility pass.** `:focus-visible`, focus traps in every dialog, focus
+  restoration in the palette, `prefers-reduced-motion`, and keyboard-only
+  Playwright flows.
+- **Large-timeline stress test.** 1,000 clips exported through all three NLE
+  writers under a ten-second budget.
+- **Schema 1.x migration test.** A version-1 database migrates to version 2 with
+  rows and defaults preserved.
+- `docs/plugins.md` and `docs/hardening.md`.
+
+### Changed
+
+- Version bumped to 2.5.0 for the server and UI bundle.
+
+### Notes
+
+- Local-only development build. No release artifact was produced for 2.5.0.
+- The plugin sandbox is a static allowlist, not an OS sandbox: a plugin with the
+  `shell` permission runs as the service user.
+- Manual screen-reader and 200% zoom checks remain on the accessibility
+  checklist.
+
 ## [2.4.0] - 2026-10-24
 
 ### Added

@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (2.4.0)
+## Implementation status (2.5.0)
 
 | Area | State |
 | --- | --- |
@@ -31,6 +31,8 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Timeline editing | group trim, slip, ripple trim, real waveforms, virtualization, preview scheduler, and tracked lock/mute/solo ([timeline.md](timeline.md)) |
 | Content quality | golden set and channel profiles, shot-aware B-roll with licenses, SFX library, delivery package with the winning thumbnail, and a localized recipe ([quality.md](quality.md)) |
 | NLE finishing | native titles, markers, colour filters, B-roll lane, and audio master in FCPXML/XMEML/Kdenlive, with `scripts/qa_nle.py` ([nle-qa.md](nle-qa.md)) |
+| Plugins | exporter and provider registration, manifest permissions, static sandbox allowlist ([plugins.md](plugins.md)) |
+| Hardening | fault injection, log rotation, scheduled backups, AA keyboard/focus/reduced-motion, 1,000-clip writer stress ([hardening.md](hardening.md)) |
 | Cancellation | FFmpeg runs in its own process group; render and preview cancel within one poll and delete partial output |
 | Batch resume | resume failed/cancelled batches and skip completed items |
 | Preview | synced MP4 preview plus waveform; background 540p proxy with titles, color, and audio-master filters |

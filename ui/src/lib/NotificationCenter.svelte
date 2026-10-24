@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { focusTrap } from "$lib/a11y";
   import { noticeCounts, sortNotices, type Notice } from "$lib/notifications";
   import { notifications } from "$lib/notifications.svelte";
   import { formatDateTime } from "$lib/format";
@@ -36,6 +37,7 @@
     ></button>
     <aside
       class="absolute right-3 top-16 flex max-h-[75vh] w-[min(26rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl shadow-black/50"
+      use:focusTrap
       aria-label="Notification center"
       data-testid="notification-center"
     >

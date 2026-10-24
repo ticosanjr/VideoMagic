@@ -10,6 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.plugin_sandbox import check_plugin
 from videoflow.runtime import portable_home
 
 
@@ -23,6 +24,7 @@ class PluginManifest(BaseModel):
     description: str = ""
     enabled: bool = True
     permissions: list[str] = Field(default_factory=list)
+    provides: list[str] = Field(default_factory=list)
 
 
 def plugins_dir() -> Path:
@@ -59,6 +61,17 @@ def load_plugins() -> list[dict[str, object]]:
         if not manifest.get("enabled") or not manifest.get("entry_exists"):
             continue
         entry = Path(str(manifest["path"])) / str(manifest["entry"])
+        violations = check_plugin(entry, list(manifest.get("permissions") or []))
+        if violations:
+            loaded.append(
+                {
+                    **manifest,
+                    "loaded": False,
+                    "sandbox": violations,
+                    "error": "plugin blocked by the sandbox policy",
+                }
+            )
+            continue
         module_name = f"videoflow_plugin_{manifest['id']}".replace("-", "_").replace(".", "_")
         try:
             spec = importlib.util.spec_from_file_location(module_name, entry)

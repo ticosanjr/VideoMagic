@@ -68,12 +68,27 @@ def server_log_path() -> Path:
     return portable_home() / "logs" / "server.log"
 
 
+def rotate_log(path: Path, *, max_bytes: int = 4_000_000, keep: int = 3) -> bool:
+    """Rotate ``path`` to ``.log.1..keep`` when it exceeds ``max_bytes``."""
+
+    try:
+        if not path.exists() or path.stat().st_size <= max_bytes:
+            return False
+    except OSError:
+        return False
+    for index in range(keep - 1, 0, -1):
+        source = path.with_suffix(f".log.{index}")
+        if source.exists():
+            source.replace(path.with_suffix(f".log.{index + 1}"))
+    path.replace(path.with_suffix(".log.1"))
+    return True
+
+
 def append_server_log(message: str) -> None:
     path = server_log_path()
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        if path.exists() and path.stat().st_size > 4_000_000:
-            path.replace(path.with_suffix(".log.1"))
+        rotate_log(path)
         stamp = datetime.now(UTC).isoformat(timespec="seconds")
         with path.open("a", encoding="utf-8") as handle:
             handle.write(f"{stamp} {message.rstrip()}\n")

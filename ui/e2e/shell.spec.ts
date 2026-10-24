@@ -99,3 +99,34 @@ test("asks for confirmation before cancelling a job", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Confirm cancel" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Keep" })).toBeVisible();
 });
+
+test("keeps focus inside the palette and closes with escape", async ({ page }) => {
+  await page.keyboard.press("Control+k");
+  const palette = page.getByTestId("command-palette");
+  await expect(palette).toBeVisible();
+
+  for (let step = 0; step < 12; step += 1) {
+    await page.keyboard.press("Tab");
+    const inside = await page.evaluate(() => {
+      const dialog = document.querySelector('[data-testid="command-palette"]');
+      return dialog?.contains(document.activeElement) ?? false;
+    });
+    expect(inside).toBe(true);
+  }
+
+  await page.keyboard.press("Escape");
+  await expect(palette).toHaveCount(0);
+});
+
+test("supports a keyboard-only job dashboard visit", async ({ page }) => {
+  await page.keyboard.press("g");
+  await page.keyboard.press("j");
+  await expect(page.getByRole("tab", { name: "Jobs" })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  );
+  await page.keyboard.press("?");
+  await expect(page.getByTestId("shortcuts-modal")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("shortcuts-modal")).toHaveCount(0);
+});
