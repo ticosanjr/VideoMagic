@@ -2400,6 +2400,10 @@ export async function cancelPreview(jobId: string): Promise<void> {
   });
 }
 
+export function jobFrameUrl(jobId: string, timeSec: number): string {
+  return `/api/v1/jobs/${encodeURIComponent(jobId)}/frame?time=${Math.max(0, timeSec).toFixed(2)}&t=${Date.now()}`;
+}
+
 export function jobArtifactUrl(jobId: string, artifactName: string): string {
   return `/api/v1/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(artifactName)}`;
 }

@@ -341,7 +341,15 @@ class MapStep(_FlowStep):
                     "warnings": list(child.warnings),
                 }
 
-            with ThreadPoolExecutor(max_workers=min(options.parallel, len(items))) as pool:
+            import os
+
+            cpu_cap = max(1, min(8, os.cpu_count() or 1))
+            workers = min(options.parallel, len(items), cpu_cap)
+            if workers < options.parallel:
+                context.warnings.append(
+                    f"flow.map parallel capped at {workers} by available CPUs"
+                )
+            with ThreadPoolExecutor(max_workers=workers) as pool:
                 futures = {
                     pool.submit(run_item, index, item): (index, item)
                     for index, item in enumerate(items, start=1)

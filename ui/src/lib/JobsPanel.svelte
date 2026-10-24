@@ -107,10 +107,19 @@
     }
   }
 
+  function patchJob(jobId: string, patch: Partial<Job>) {
+    jobs = jobs.map((item) => (item.job_id === jobId ? { ...item, ...patch } : item));
+  }
+
   async function togglePause(job: Job) {
     busy = job.job_id;
+    const previous = job.status;
+    patchJob(job.job_id, {
+      status: previous === "paused" ? "queued" : "paused",
+      message: previous === "paused" ? "Resuming" : "Paused"
+    });
     try {
-      if (job.status === "paused") {
+      if (previous === "paused") {
         await unpauseJob(job.job_id);
         notifications.push({ kind: "info", title: "Job resumed" });
       } else {
@@ -119,6 +128,7 @@
       }
       await refresh();
     } catch (reason) {
+      patchJob(job.job_id, { status: previous });
       error = errorMessage(reason);
     } finally {
       busy = "";
@@ -126,10 +136,13 @@
   }
 
   async function changePriority(job: Job, value: number) {
+    const previous = job.priority ?? 0;
+    patchJob(job.job_id, { priority: value });
     try {
       await setJobPriority(job.job_id, value);
       await refresh();
     } catch (reason) {
+      patchJob(job.job_id, { priority: previous });
       error = errorMessage(reason);
     }
   }

@@ -289,3 +289,30 @@ def test_priority_is_stored_and_validated(tmp_path: Path) -> None:
     assert updated.priority == 7
     release.set()
     wait_for(first, manager)
+
+
+def test_failed_job_retries_with_backoff(tmp_path: Path) -> None:
+    calls = {"count": 0}
+
+    def runner(source: Path, output: Path, *, progress, should_cancel, **kwargs):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise VideoFlowError("transient")
+        return {"ok": True}
+
+    manager = JobManager(runner)
+    job = manager.start(
+        tmp_path / "a.mp4",
+        tmp_path / "out",
+        {"max_attempts": 2, "retry_backoff_seconds": 0.1},
+    )
+    deadline = time.time() + 5
+    while time.time() < deadline:
+        current = manager.get(str(job.job_id))
+        if current.status == "succeeded":
+            break
+        time.sleep(0.05)
+
+    assert calls["count"] == 2
+    assert manager.get(str(job.job_id)).status == "succeeded"
+    assert manager.get(str(job.job_id)).attempts == 1

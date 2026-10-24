@@ -3,6 +3,31 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.8.0] - 2026-10-24
+
+### Added
+
+- **Typed job rows and retries.** The `jobs` table gains status, priority,
+  attempts, next_run, lease, progress, source/output/recipe/variables, and
+  timestamps. Jobs can opt into retry with `max_attempts` and
+  `retry_backoff_seconds`; a retry loop re-drains when due. Scheduled runs use
+  an automatic idempotency key from schedule, source, size, and mtime.
+- **Frame preview.** `GET /jobs/{id}/frame?time=` extracts a cached JPEG at the
+  playhead; the timeline debounces a frame image while scrubbing.
+- **Resource-aware map.** `flow.map` caps workers by available CPUs and warns
+  when the requested parallelism is clamped.
+- **Per-service log rotation.** Service logs rotate to two generations before a
+  new process appends.
+- **Optimistic rollback.** Pause/resume and priority update the card, then
+  revert on error.
+- **More PT-BR glossary.** Additional panel labels and headings.
+
+### Notes
+
+- Local release: Linux binary + AppImage + SBOM + checksums.
+- Remaining: long help-text i18n, voice cloning, per-clip incremental render,
+  full-tree coverage, and manual NLE/assistive-technology QA.
+
 ## [2.7.0] - 2026-10-24
 
 ### Added

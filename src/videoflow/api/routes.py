@@ -1990,6 +1990,46 @@ def register_routes(
             )
         return {"ok": True, "status": state.to_dict()}
 
+    @app.get("/api/v1/jobs/{job_id}/frame")
+    def job_frame(job_id: str, time: float = 0.0) -> FileResponse:
+        try:
+            job = jobs.get(job_id)
+            state_path = _timeline_state_path(job)
+            if not state_path.is_file():
+                raise StateNotReadyError("The job has no project_state.json timeline.")
+            state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+            media = state.media_info
+            if media is None:
+                raise StateNotReadyError("The project has no media info.")
+            source = Path(media.source_path).expanduser()
+            if not source.is_file():
+                raise StateNotReadyError("The source media is not available.")
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "frame_invalid", "message": str(exc)},
+            ) from exc
+        stamp = int(max(0.0, min(time, 24 * 3600)) * 10)
+        target = job.output / "preview" / "frames" / f"{stamp:08d}.jpg"
+        if not target.is_file():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                FFmpegAdapter().render_thumbnail(
+                    source, target, time_sec=stamp / 10
+                )
+            except VideoFlowError as exc:
+                fail(exc)
+                raise
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail={"ok": False, "code": "frame_failed", "message": str(exc)},
+                ) from exc
+        return FileResponse(target, media_type="image/jpeg", filename=target.name)
+
     @app.get("/api/v1/jobs/{job_id}/preview/file")
     def download_preview(job_id: str) -> FileResponse:
         try:

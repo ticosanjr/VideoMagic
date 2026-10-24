@@ -203,3 +203,16 @@ def test_missing_whisper_model_is_a_typed_error(tmp_path: Path) -> None:
         assert "does not exist" in str(exc).lower() or "not found" in str(exc).lower()
     else:  # pragma: no cover - the call must fail
         raise AssertionError("missing model must raise")
+
+
+def test_service_log_rotation_keeps_two_generations(tmp_path: Path) -> None:
+    from videoflow.application.service_definitions import rotate_service_log
+
+    log = tmp_path / "service.log"
+    for _ in range(3):
+        log.write_bytes(b"x" * 200)
+        assert rotate_service_log(log, max_bytes=100, keep=2)
+
+    assert (tmp_path / "service.log.1").is_file()
+    assert (tmp_path / "service.log.2").is_file()
+    assert not (tmp_path / "service.log.3").exists()

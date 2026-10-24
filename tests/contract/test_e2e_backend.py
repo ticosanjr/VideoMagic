@@ -164,6 +164,11 @@ def test_full_flow_with_a_real_backend(
     assert status["status"] == "ready", status
     assert time.perf_counter() - started < 3.0
 
+    frame = client.get(f"/api/v1/jobs/{job_id}/frame", params={"time": 1.0})
+    assert frame.status_code == 200, frame.text
+    assert frame.headers["content-type"] == "image/jpeg"
+    assert len(frame.content) > 100
+
     validation = client.post(
         "/api/v1/exports/validate", json={"output": str(tmp_path / "out")}
     )

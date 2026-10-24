@@ -25,6 +25,7 @@
     getPreviewStatus,
     getRenderStatus,
     getTimeline,
+    jobFrameUrl,
     getClipWaveform,
     jobArtifactUrl,
     jobThumbnailUrl,
@@ -85,6 +86,8 @@
   let markerLabel = $state("");
   let comments = $state<TimelineComment[]>([]);
   let overlays = $state<TimelineOverlay[]>([]);
+  let frameUrl = $state("");
+  let frameTimer: ReturnType<typeof setTimeout> | undefined;
   let assets = $state<AssetRecord[]>([]);
   let commentText = $state("");
   let commentBusy = $state(false);
@@ -174,6 +177,7 @@
         : null;
       selectClip(keep);
       previewUrl = "";
+      frameUrl = "";
       const artifacts = previewJob?.result?.artifacts ?? {};
       const mp4 = Object.entries(artifacts).find(([name]) => name === "mp4" || name.endsWith("mp4"));
       previewUrl = mp4 ? jobArtifactUrl(selected, mp4[0]) : "";
@@ -525,6 +529,10 @@
   function seek(value: number) {
     const target = Math.max(0, Math.min(duration, value));
     playhead = target;
+    clearTimeout(frameTimer);
+    frameTimer = setTimeout(() => {
+      if (selected) frameUrl = jobFrameUrl(selected, target);
+    }, 120);
     if (videoEl && Number.isFinite(videoEl.duration)) {
       videoEl.currentTime = Math.min(target, Math.max(0, videoEl.duration - 0.01));
     }
@@ -992,6 +1000,12 @@
                 <track kind="captions" src="data:text/vtt;charset=utf-8,WEBVTT%0A%0A" />
               </video>
               <WaveformStrip url={previewUrl} {playhead} {duration} onSeek={seek} />
+              {#if frameUrl}
+                <figure class="mt-2">
+                  <img src={frameUrl} alt="Frame at the playhead" class="max-h-[240px] w-full rounded-xl border border-neutral-800 bg-black object-contain" />
+                  <figcaption class="mt-1 text-[10px] text-neutral-500">Frame at {playhead.toFixed(2)}s · frame {Math.round(playhead * fps)}</figcaption>
+                </figure>
+              {/if}
             {:else}
               <div class="flex min-h-[180px] flex-col items-center justify-center rounded-xl border border-dashed border-neutral-800 bg-black/40 p-4 text-center">
                 <p class="text-xs text-neutral-400">No browser preview yet.</p>

@@ -183,10 +183,14 @@ def _submit(jobs: Any, schedule: RecipeSchedule, source: Path, output: Path) -> 
         raise StateNotReadyError(f"Source does not exist: {source}")
     recipe = get_recipe(schedule.recipe_id)
     recipe = resolve_recipe_paths(recipe, roots)
+    stat = source.stat()
+    key = f"schedule:{schedule.id}:{source.resolve()}:{stat.st_size}:{stat.st_mtime_ns}"
     job = jobs.start(
         source,
         output,
         {"mode": "recipe", "recipe": recipe.model_dump(mode="json"), "resume": True},
+        queue=True,
+        idempotency_key=key,
     )
     return str(job.job_id)
 

@@ -109,6 +109,17 @@ def _logs_dir() -> Path:
 _RUNNING: dict[str, RunningService] = {}
 
 
+def rotate_service_log(path: Path, *, max_bytes: int = 4_000_000, keep: int = 2) -> bool:
+    if not path.is_file() or path.stat().st_size <= max_bytes:
+        return False
+    for index in range(keep - 1, 0, -1):
+        source = path.with_suffix(f".log.{index}")
+        if source.exists():
+            source.replace(path.with_suffix(f".log.{index + 1}"))
+    path.replace(path.with_suffix(".log.1"))
+    return True
+
+
 def _resolve_command(command: str) -> str:
     path = Path(command).expanduser()
     if path.is_file():

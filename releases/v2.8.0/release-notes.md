@@ -1,12 +1,12 @@
-# VideoFlow 2.5.0
+# VideoFlow 2.8.0
 
 Portable video pre-edit pipeline with offline whisper.cpp transcription.
 
 ## Artifacts
 
-- `videoflow-2.5.0-linux-x86_64` — SHA-256 `d1ffeaf232e29314ff8f21f3e0c8d7dee948436b939a78d68d517c2af24cd02e`
-- `VideoFlow-2.5.0-x86_64.AppImage` — SHA-256 `049deb28c5bbd95ebfe2833625a544a4858fcb4ce3c08e17d2c19fd31c0239c1`
-- `sbom.json` — SHA-256 `229a2aed3a5781e6b69b617456c96ed59df8ba20ec2bd1d649294fc3a651254e`
+- `videoflow-2.8.0-linux-x86_64` — SHA-256 `e41d3413f3c16556dc3d30e4cbf5aef1683367d183ea180c8637d30a193fd687`
+- `VideoFlow-2.8.0-x86_64.AppImage` — SHA-256 `161bbfad64a714e4ccbfa248662a67267676d32d535b7abffca56daa9d4e604a`
+- `sbom.json` — SHA-256 `dafc54a8ea13e87427dd490882b2f82a7e01e29914fa623ac0ed6fcc1ceddf16`
 
 ## Run
 

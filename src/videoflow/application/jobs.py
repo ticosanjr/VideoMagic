@@ -10,10 +10,11 @@ import contextlib
 import json
 import os
 import threading
+import time
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID, uuid4
@@ -76,6 +77,9 @@ class Job:
     cancel_requested: bool = False
     pause_requested: bool = False
     priority: int = 0
+    attempts: int = 0
+    next_run: str = ""
+    lease_expires_at: str = ""
     created_at: str = field(default_factory=_now)
     started_at: str | None = None
     finished_at: str | None = None
@@ -89,6 +93,9 @@ class Job:
             "job_id": str(self.job_id),
             "status": self.status,
             "priority": self.priority,
+            "attempts": self.attempts,
+            "next_run": self.next_run,
+            "lease_expires_at": self.lease_expires_at,
             "progress": self.progress,
             "stage": self.stage,
             "message": self.message,
@@ -234,6 +241,7 @@ class JobManager:
         self._jobs: dict[str, Job] = {}
         self._pending: list[str] = []
         self._lock = threading.Lock()
+        self._retry_thread: threading.Thread | None = None
         if self._store_dir is not None:
             self._load_jobs()
 
@@ -281,6 +289,40 @@ class JobManager:
                 self._launch(job)
         return job
 
+    def _ensure_retry_thread(self) -> None:
+        if self._retry_thread is not None and self._retry_thread.is_alive():
+            return
+        self._retry_thread = threading.Thread(
+            target=self._retry_loop, name="videoflow-retry", daemon=True
+        )
+        self._retry_thread.start()
+
+    def _retry_loop(self) -> None:
+        while True:
+            time.sleep(1.0)
+            with contextlib.suppress(Exception):
+                self._drain_queue()
+
+    def _schedule_retry_locked(self, job: Job) -> bool:
+        max_attempts = int(job.options.get("max_attempts", 1) or 1)
+        if max_attempts <= 1 or job.cancel_requested:
+            return False
+        if job.attempts + 1 >= max_attempts:
+            return False
+        job.attempts += 1
+        delay = max(0.0, float(job.options.get("retry_backoff_seconds", 5) or 0))
+        job.next_run = (
+            datetime.now(UTC) + timedelta(seconds=delay)
+        ).isoformat(timespec="seconds")
+        job.status = "queued"
+        job.stage = "queued"
+        job.message = f"Retry {job.attempts + 1}/{max_attempts} in {delay:g}s"
+        job.lease_expires_at = ""
+        self._pending.append(str(job.job_id))
+        self._persist_job(job)
+        self._ensure_retry_thread()
+        return True
+
     def _launch(self, job: Job) -> None:
         thread = threading.Thread(
             target=self._work,
@@ -300,12 +342,23 @@ class JobManager:
                     self._jobs[job_id].created_at,
                 )
             )
-            while self._pending and running < self._max_active:
-                job_id = self._pending.pop(0)
+            now = datetime.now(UTC).isoformat(timespec="seconds")
+            eligible: list[str] = []
+            for job_id in list(self._pending):
                 job = self._jobs.get(job_id)
                 if job is None or job.status != "queued":
+                    self._pending.remove(job_id)
                     continue
+                if job.next_run and job.next_run > now:
+                    continue
+                eligible.append(job_id)
+            for job_id in eligible:
+                if running >= self._max_active:
+                    break
+                self._pending.remove(job_id)
+                job = self._jobs[job_id]
                 job.message = "Starting"
+                job.next_run = ""
                 launch.append(job)
                 running += 1
         for job in launch:
@@ -424,6 +477,9 @@ class JobManager:
             job.status = "running"
             job.started_at = _now()
             job.message = "Starting"
+            job.lease_expires_at = (
+                datetime.now(UTC) + timedelta(seconds=300)
+            ).isoformat(timespec="seconds")
         options = job.options
         jl = JlCutsConfig(
             enable_j_cuts=bool(options.get("jcut", True)),
@@ -696,6 +752,8 @@ class JobManager:
         except VideoFlowError as exc:
             telemetry.fail_running(exc.message)
             with self._lock:
+                if self._schedule_retry_locked(job):
+                    return
                 job.status = "failed"
                 job.stage = job.stage or "failed"
                 job.message = exc.message
@@ -704,6 +762,8 @@ class JobManager:
             traceback.print_exc()
             telemetry.fail_running(str(exc))
             with self._lock:
+                if self._schedule_retry_locked(job):
+                    return
                 job.status = "failed"
                 job.stage = job.stage or "failed"
                 job.message = str(exc)
@@ -716,6 +776,8 @@ class JobManager:
             with self._lock:
                 if job.status not in {"paused", "queued", "running"}:
                     job.finished_at = _now()
+                if job.status in TERMINAL:
+                    job.lease_expires_at = ""
             _write_log(job)
             self._persist_job(job)
             self._drain_queue()
@@ -728,6 +790,9 @@ class JobManager:
             job.status = "running"
             job.started_at = _now()
             job.message = "Starting recipe"
+            job.lease_expires_at = (
+                datetime.now(UTC) + timedelta(seconds=300)
+            ).isoformat(timespec="seconds")
 
         def progress(stage: str, percent: int, message: str) -> None:
             with self._lock:
@@ -849,6 +914,8 @@ class JobManager:
         except VideoFlowError as exc:
             job.telemetry.fail_running(exc.message)
             with self._lock:
+                if self._schedule_retry_locked(job):
+                    return
                 job.status = "failed"
                 job.stage = job.stage or "failed"
                 job.message = exc.message
@@ -858,6 +925,8 @@ class JobManager:
             traceback.print_exc()
             job.telemetry.fail_running(str(exc))
             with self._lock:
+                if self._schedule_retry_locked(job):
+                    return
                 job.status = "failed"
                 job.stage = job.stage or "failed"
                 job.message = str(exc)
@@ -867,6 +936,8 @@ class JobManager:
             with self._lock:
                 if job.status not in {"paused", "queued", "running"}:
                     job.finished_at = _now()
+                if job.status in TERMINAL:
+                    job.lease_expires_at = ""
             _write_log(job)
             _record_recipe_history(job)
             self._persist_job(job)
@@ -967,6 +1038,9 @@ def _job_from_dict(payload: dict[str, Any]) -> Job:
     job.idempotency_key = str(payload.get("idempotency_key") or "")
     job.pause_requested = bool(payload.get("pause_requested", False))
     job.priority = int(payload.get("priority", 0))
+    job.attempts = int(payload.get("attempts", 0) or 0)
+    job.next_run = str(payload.get("next_run") or "")
+    job.lease_expires_at = str(payload.get("lease_expires_at") or "")
     return job
 
 

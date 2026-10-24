@@ -28,8 +28,32 @@ def connect() -> sqlite3.Connection:
     connection.execute("PRAGMA synchronous=NORMAL")
     connection.execute(
         "CREATE TABLE IF NOT EXISTS jobs ("
-        "job_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)"
+        "job_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL, "
+        "status TEXT, priority INTEGER DEFAULT 0, attempts INTEGER DEFAULT 0, "
+        "next_run TEXT, lease_expires TEXT, progress INTEGER DEFAULT 0, "
+        "source TEXT, output TEXT, recipe TEXT, variables TEXT, "
+        "created_at TEXT, started_at TEXT, finished_at TEXT)"
     )
+    existing = {
+        row[1] for row in connection.execute("PRAGMA table_info(jobs)").fetchall()
+    }
+    for column, definition in (
+        ("status", "TEXT"),
+        ("priority", "INTEGER DEFAULT 0"),
+        ("attempts", "INTEGER DEFAULT 0"),
+        ("next_run", "TEXT"),
+        ("lease_expires", "TEXT"),
+        ("progress", "INTEGER DEFAULT 0"),
+        ("source", "TEXT"),
+        ("output", "TEXT"),
+        ("recipe", "TEXT"),
+        ("variables", "TEXT"),
+        ("created_at", "TEXT"),
+        ("started_at", "TEXT"),
+        ("finished_at", "TEXT"),
+    ):
+        if column not in existing:
+            connection.execute(f"ALTER TABLE jobs ADD COLUMN {column} {definition}")
     connection.execute(
         "CREATE TABLE IF NOT EXISTS assets ("
         "asset_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)"
@@ -56,8 +80,29 @@ def upsert_job(job_id: str, payload: dict[str, Any]) -> None:
     try:
         with contextlib.closing(connect()) as connection:
             connection.execute(
-                "INSERT OR REPLACE INTO jobs (job_id, payload, updated_at) VALUES (?, ?, ?)",
-                (job_id, json.dumps(payload, sort_keys=True), _now()),
+                "INSERT OR REPLACE INTO jobs ("
+                "job_id, payload, updated_at, status, priority, attempts, next_run, "
+                "lease_expires, progress, source, output, recipe, variables, "
+                "created_at, started_at, finished_at"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    job_id,
+                    json.dumps(payload, sort_keys=True),
+                    _now(),
+                    str(payload.get("status") or ""),
+                    int(payload.get("priority") or 0),
+                    int(payload.get("attempts") or 0),
+                    str(payload.get("next_run") or ""),
+                    str(payload.get("lease_expires_at") or ""),
+                    int(payload.get("progress") or 0),
+                    str(payload.get("source") or ""),
+                    str(payload.get("output") or ""),
+                    str((payload.get("options") or {}).get("recipe_id") or ""),
+                    json.dumps(payload.get("options") or {}, sort_keys=True),
+                    str(payload.get("created_at") or ""),
+                    str(payload.get("started_at") or ""),
+                    str(payload.get("finished_at") or ""),
+                ),
             )
             connection.commit()
     except sqlite3.Error:
