@@ -119,7 +119,9 @@ def test_kdenlive_export_is_a_native_mlt_project(tmp_path: Path) -> None:
     assert chain is not None
     resource = chain.find("property[@name='resource']")
     assert resource is not None and resource.text
-    assert len(root.findall("./playlist[@id='playlist0']/entry")) == 2
+    assert len(root.findall("./playlist[@id='playlist_v1']/entry")) + len(
+        root.findall("./playlist[@id='playlist_v2']/entry")
+    ) == 2
     assert len(root.findall("./playlist[@id='playlist2']/entry")) == 2
     volume = root.find("./playlist[@id='playlist2']/entry/filter/property[@name='level']")
     assert volume is not None and "-60" in (volume.text or "")
@@ -358,13 +360,18 @@ def test_kdenlive_applies_transform_and_transition_filters(tmp_path: Path) -> No
     state = transition_state(tmp_path, transition_type="crossfade")
     output = export_kdenlive(state, tmp_path / "timeline.kdenlive")
     root = ET.parse(output).getroot()
-    video_entries = root.findall("./playlist[@id='playlist0']/entry")
+    video_entries = root.findall("./playlist[@id='playlist_v1']/entry") + root.findall(
+        "./playlist[@id='playlist_v2']/entry"
+    )
     assert len(video_entries) == 2
-    affine = video_entries[0].find("filter/property[@name='mlt_service']")
-    assert affine is not None and affine.text == "affine"
-    geometry = video_entries[0].find("filter/property[@name='transition.rect']")
-    assert geometry is not None and geometry.text
-    assert ";" in (geometry.text or "")
+    geometries = [
+        entry.find("filter/property[@name='transition.rect']")
+        for entry in video_entries
+    ]
+    assert any(
+        geometry is not None and ";" in (geometry.text or "")
+        for geometry in geometries
+    )
     audio = root.find("./playlist[@id='playlist2']/entry/filter/property[@name='level']")
     assert audio is not None and "-60" in (audio.text or "")
 
@@ -398,3 +405,27 @@ def test_nle_validation_accepts_exported_timelines(tmp_path: Path) -> None:
     assert report["exports"]["fcpxml"]["transitions"] == 1
     assert report["exports"]["xmeml"]["transitions"] == 1
     assert report["exports"]["kdenlive"]["affine_filters"] >= 1
+
+
+def test_kdenlive_crossfade_uses_two_tracks_and_opacity_ramp(tmp_path: Path) -> None:
+    state = transition_state(tmp_path, transition_type="crossfade")
+    output = export_kdenlive(state, tmp_path / "timeline.kdenlive")
+    root = ET.parse(output).getroot()
+
+    first = root.findall("./playlist[@id='playlist_v1']/entry")
+    second = root.findall("./playlist[@id='playlist_v2']/entry")
+    assert first and second
+    incoming = second[0]
+    geometry = incoming.find("filter/property[@name='transition.rect']")
+    assert geometry is not None and ";" in (geometry.text or "")
+    assert "=0 " in (geometry.text or "") or (geometry.text or "").startswith("0=")
+    sequence = next(
+        tractor
+        for tractor in root.findall("tractor")
+        if tractor.find("property[@name='kdenlive:clipname']") is not None
+    )
+    services = [
+        item.text
+        for item in sequence.findall("transition/property[@name='mlt_service']")
+    ]
+    assert services.count("qtblend") >= 2

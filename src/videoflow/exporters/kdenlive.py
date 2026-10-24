@@ -52,16 +52,16 @@ def export_kdenlive(
     _append_black_track(root, duration, duration_frames)
     _append_source_chain(root, media)
 
-    _append_playlist(
-        root,
-        "playlist0",
-        state.video_segments,
-        media,
-        video=True,
-        color=bool(extras and extras.color_filters),
-    )
-    ET.SubElement(root, "playlist", {"id": "playlist1"})
-    _append_track_tractor(root, "tractor0", "playlist0", "playlist1", audio=False)
+    entries = _build_video_entries(state, media)
+    for track in (1, 2):
+        _append_video_playlist(
+            root,
+            f"playlist_v{track}",
+            [entry for entry in entries if entry["track"] == track],
+            media,
+            duration_frames,
+            color=bool(extras and extras.color_filters),
+        )
 
     _append_playlist(
         root,
@@ -90,6 +90,8 @@ def export_kdenlive(
         duration=duration,
         duration_frames=duration_frames,
         media=media,
+        video_tracks=("playlist_v1", "playlist_v2"),
+        audio_track="tractor1",
         overlay=overlay,
         overlay_audio=stem,
     )
@@ -154,6 +156,95 @@ def _append_source_chain(parent: ET.Element, media) -> None:
     _property(chain, "kdenlive:clipname", Path(media.source_path).name)
     _property(chain, "kdenlive:id", "1")
 
+
+
+
+def _build_video_entries(state, media) -> list[dict[str, object]]:
+    """Alternate clips across two video tracks and size crossfade handles."""
+
+    video = sorted(state.video_segments, key=lambda clip: clip.timeline_in_frame)
+    entries: list[dict[str, object]] = []
+    for index, clip in enumerate(video):
+        entries.append(
+            {
+                "clip": clip,
+                "track": 1 if index % 2 == 0 else 2,
+                "start": clip.timeline_in_frame,
+                "source_in": clip.source_in_frame,
+                "source_out": clip.source_out_frame,
+                "fade_in": 0,
+                "fade_out": 0,
+            }
+        )
+    for index, clip in enumerate(video):
+        transition = clip.transition_out
+        if transition is None or index + 1 >= len(entries):
+            continue
+        current = entries[index]
+        following = entries[index + 1]
+        duration = max(0, transition.duration_frames)
+        if duration == 0:
+            continue
+        if transition.type == "crossfade":
+            if int(current["source_out"]) + duration > media.duration_frames:
+                continue
+            current["source_out"] = int(current["source_out"]) + duration
+            if current["track"] == 2 and following["track"] == 1:
+                current["fade_out"] = duration
+            else:
+                following["fade_in"] = duration
+        elif transition.type == "fade_to_black":
+            current["fade_out"] = duration
+            following["fade_in"] = duration
+    return entries
+
+
+def _append_video_playlist(
+    parent: ET.Element,
+    playlist_id: str,
+    entries: list[dict[str, object]],
+    media,
+    duration_frames: int,
+    *,
+    color: bool,
+) -> None:
+    playlist = ET.SubElement(parent, "playlist", {"id": playlist_id})
+    cursor = 0
+    for index, entry in enumerate(sorted(entries, key=lambda item: int(item["start"]))):
+        start = int(entry["start"])
+        source_in = int(entry["source_in"])
+        source_out = int(entry["source_out"])
+        if start < cursor:
+            shift = cursor - start
+            start = cursor
+            source_in += shift
+        length = source_out - source_in
+        if length <= 0:
+            continue
+        if start > cursor:
+            ET.SubElement(playlist, "blank", {"length": str(start - cursor)})
+        item = ET.SubElement(
+            playlist,
+            "entry",
+            {
+                "producer": "chain0",
+                "in": _timecode(source_in, media.fps_num, media.fps_den),
+                "out": _timecode(source_out - 1, media.fps_num, media.fps_den),
+            },
+        )
+        _append_video_filter(
+            item,
+            entry["clip"],
+            media,
+            length,
+            index=index,
+            color=color,
+            fade_in=int(entry["fade_in"]),
+            fade_out=int(entry["fade_out"]),
+        )
+        cursor = start + length
+    if cursor < duration_frames:
+        ET.SubElement(playlist, "blank", {"length": str(duration_frames - cursor)})
 
 def _append_playlist(
     parent: ET.Element,
@@ -237,10 +328,12 @@ def _append_sequence_tractor(
     duration: str,
     duration_frames: int,
     media,
+    video_tracks: tuple[str, str],
+    audio_track: str,
     overlay: str = "",
     overlay_audio: str = "",
 ) -> None:
-    tracks = 2 + (1 if overlay else 0) + (1 if overlay_audio else 0)
+    tracks = 3 + (1 if overlay else 0) + (1 if overlay_audio else 0)
     tractor = ET.SubElement(
         parent,
         "tractor",
@@ -257,23 +350,25 @@ def _append_sequence_tractor(
     _property(tractor, "kdenlive:id", "3")
     _property(tractor, "kdenlive:clip_type", "0")
     _property(tractor, "kdenlive:folderid", "2")
-    _property(tractor, "kdenlive:sequenceproperties.audioTarget", "2")
+    _property(tractor, "kdenlive:sequenceproperties.audioTarget", "3")
     _property(tractor, "kdenlive:sequenceproperties.videoTarget", "1")
     _property(tractor, "kdenlive:sequenceproperties.tracks", str(tracks))
     _property(tractor, "kdenlive:sequenceproperties.zonein", "0")
     _property(tractor, "kdenlive:sequenceproperties.zoneout", str(duration_frames))
 
     ET.SubElement(tractor, "track", {"producer": "black_track"})
-    _append_transition(tractor, "transition0", 1, "qtblend")
-    _append_transition(tractor, "transition1", 2, "mix")
-    ET.SubElement(tractor, "track", {"producer": "tractor0"})
-    ET.SubElement(tractor, "track", {"producer": "tractor1"})
+    _append_transition(tractor, "transition-v1", 1, "qtblend")
+    _append_transition(tractor, "transition-v2", 2, "qtblend")
+    ET.SubElement(tractor, "track", {"producer": video_tracks[0]})
+    ET.SubElement(tractor, "track", {"producer": video_tracks[1]})
+    ET.SubElement(tractor, "track", {"producer": audio_track})
+    _append_transition(tractor, "transition-audio", 3, "mix")
     if overlay:
         ET.SubElement(tractor, "track", {"producer": overlay})
-        _append_transition(tractor, "transition-overlay", 3, "qtblend")
+        _append_transition(tractor, "transition-overlay", 4, "qtblend")
     if overlay_audio:
         ET.SubElement(tractor, "track", {"producer": overlay_audio})
-        _append_transition(tractor, "transition-stem", 4, "mix")
+        _append_transition(tractor, "transition-stem", 5, "mix")
 
 
 def _append_transition(
@@ -401,20 +496,24 @@ def _append_video_filter(
     previous_transition=None,
     index: int = 0,
     color: bool = False,
+    fade_in: int | None = None,
+    fade_out: int | None = None,
 ) -> None:
     if color:
         _append_color_filters(entry)
     transform = clip.transform
-    fade_in = (
-        previous_transition.duration_frames
-        if previous_transition is not None
-        else 0
-    )
-    fade_out = (
-        clip.transition_out.duration_frames
-        if clip.transition_out is not None
-        else 0
-    )
+    if fade_in is None:
+        fade_in = (
+            previous_transition.duration_frames
+            if previous_transition is not None
+            else 0
+        )
+    if fade_out is None:
+        fade_out = (
+            clip.transition_out.duration_frames
+            if clip.transition_out is not None
+            else 0
+        )
     fade_in = min(fade_in, max(0, duration_frames - 1))
     fade_out = min(fade_out, max(0, duration_frames - 1))
     keyframes: dict[int, tuple[int, int, int, int, float]] = {}

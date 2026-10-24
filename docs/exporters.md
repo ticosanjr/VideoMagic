@@ -205,6 +205,12 @@ Rules:
 
 ## 5. Kdenlive — native MLT XML
 
+Video is split across two alternating tracks. Crossfades extend the outgoing
+clip's source tail by the transition length and animate opacity on the incoming
+top-track clip; the sequence tractor composes both with `qtblend`. Fade-to-black
+uses opacity ramps without the second track.
+
+
 Kdenlive's own `.kdenlive` project is MLT XML. The exporter writes that native
 format instead of asking Kdenlive to import OTIO.
 

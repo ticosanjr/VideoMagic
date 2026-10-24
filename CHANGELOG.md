@@ -3,6 +3,24 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.7.0] - 2026-10-24
+
+### Added
+
+- **True Kdenlive cross-dissolve.** Video is written to two alternating tracks;
+  a crossfade extends the outgoing clip's source tail by the transition length
+  and animates affine opacity on the incoming (or outgoing) top track, with two
+  `qtblend` composites in the sequence tractor. Fade-to-black keeps the
+  single-clip opacity ramps.
+- The Kdenlive validator and tests now read both video playlists and assert the
+  two-track structure and opacity keyframes.
+
+### Notes
+
+- Local release: Linux binary + AppImage + SBOM + checksums.
+- Long help-text i18n, voice cloning, full-tree coverage, and the manual
+  NLE/assistive-technology gates remain open.
+
 ## [2.6.0] - 2026-10-24
 
 ### Added

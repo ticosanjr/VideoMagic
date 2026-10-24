@@ -136,15 +136,24 @@ def _validate_kdenlive(path: Path) -> dict[str, Any]:
         errors.append("root is not mlt")
     if root.find("profile") is None:
         errors.append("missing profile")
-    playlist = root.find("./playlist[@id='playlist0']")
-    if playlist is None or not playlist.findall("entry"):
+    playlists = [
+        root.find("./playlist[@id='playlist_v1']"),
+        root.find("./playlist[@id='playlist_v2']"),
+    ]
+    video_entries = [
+        entry
+        for playlist in playlists
+        if playlist is not None
+        for entry in playlist.findall("entry")
+    ]
+    if not video_entries:
         errors.append("no video playlist entries")
     if not root.findall("./chain"):
         errors.append("no media chain")
     affine = root.findall(".//property[@name='mlt_service'][.='affine']")
     if not affine:
         warnings.append("no affine transform filters")
-    clips = len(playlist.findall("entry")) if playlist is not None else 0
+    clips = len(video_entries)
     transitions = root.findall(".//transition")
     if clips > 1 and not any(
         item.findtext("property[@name='mlt_service']") in {"qtblend", "mix"}
