@@ -3,6 +3,42 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.4.0] - 2026-10-24
+
+### Added
+
+- **Native NLE finishing.** FCPXML, XMEML, and Kdenlive exports now carry
+  titles, sequence markers, colour filters, B-roll, and the audio master,
+  driven by `exporters/extras.py` and `application/nle_extras.py`.
+- **FCPXML** writes native `title` elements, `marker` elements,
+  `filter-video` colour filters, B-roll on lane 2, and the master stem on
+  lane 4.
+- **XMEML** writes `generatoritem` titles, sequence markers, colour filters, a
+  second video track for B-roll, and a second audio track for the master.
+- **Kdenlive** writes `kdenlivetitle` producers, guides in the document
+  properties, an overlay playlist with `qtblend`, a stem playlist with `mix`,
+  and `lift_gamma_gain` colour filters.
+- **`scripts/qa_nle.py`** compares an export directory with the job output and
+  fails on missing native elements; the validator also reports titles, markers,
+  colour filters, B-roll, stems, and join warnings.
+- Tests cover all three documents and the QA comparison.
+
+### Changed
+
+- `export_timeline` accepts `extras`; `export.nle` builds them from the job
+  output (markers, ASS titles, B-roll plan, colour and audio filter files,
+  `master.wav`).
+- The sidecar manifest now says the native timeline is the primary finishing
+  path and the sidecars are the interchange copy.
+- Version bumped to 2.4.0 for the server and UI bundle.
+
+### Notes
+
+- Local-only development build. No release artifact was produced for 2.4.0.
+- Manual import validation in Resolve, Premiere, and Kdenlive remains pending:
+  the three NLEs are not installed on this host. The checklist and the
+  automated structural checks are in `docs/nle-qa.md`.
+
 ## [2.3.0] - 2026-10-24
 
 ### Added

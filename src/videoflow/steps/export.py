@@ -10,6 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.application.export_service import export_timeline
+from videoflow.application.nle_extras import nle_extras_from_output
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import StateNotReadyError
 from videoflow.exporters.fcpxml import Dialect
@@ -49,6 +50,7 @@ class ExportStep(BaseStep):
             destination,
             targets=options.targets,
             dialect=options.dialect,
+            extras=nle_extras_from_output(context.output),
         )
         context.artifacts.update({name: str(path) for name, path in artifacts.items()})
         sidecars = destination / "sidecars"
@@ -81,9 +83,9 @@ class ExportStep(BaseStep):
         manifest = {
             "ok": True,
             "note": (
-                "Titles, color, and audio-master sidecars are packaged for the NLE. "
-                "Apply titles.ass as a subtitle/graphics layer, the LUT/eq chain as a "
-                "color effect, and master.wav as the dialogue stem."
+                "Native titles, markers, colour filters, B-roll, and the audio "
+                "master are in the timeline files. The sidecars remain the "
+                "interchange copy for manual review."
             ),
             "files": copied,
             "broll_plan": context.metadata.get("broll_plan", {}),

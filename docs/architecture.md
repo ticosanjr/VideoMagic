@@ -83,6 +83,8 @@ Rules:
 | `application/waveforms.py` | Cached RMS peaks for timeline clips |
 | `application/scoring.py` | Channel profiles, re-ranking, and golden-set metrics |
 | `application/sfx.py` | Sound-effect asset store |
+| `application/nle_extras.py` | Native markers, titles, B-roll, colour, and stem for exporters |
+| `exporters/extras.py` | Typed finishing inputs shared by the three NLE writers |
 | `application/telemetry.py` | Per-stage timestamps, progress, and bounded logs |
 | `modules/` | The eight rack modules (fingerprints live, engines stubbed) |
 | `adapters/ffmpeg.py` | FFprobe ingest, PCM extraction, digest, silencedetect VAD |

@@ -23,11 +23,18 @@ from videoflow.exporters.common import (
     write_text,
     xml_document,
 )
+from videoflow.exporters.extras import EMPTY, NleExtras
 
 Dialect = Literal["1.9", "1.10"]
 
 
-def export_fcpxml(state: ProjectState, output_path: Path, *, dialect: Dialect = "1.9") -> Path:
+def export_fcpxml(
+    state: ProjectState,
+    output_path: Path,
+    *,
+    dialect: Dialect = "1.9",
+    extras: NleExtras = EMPTY,
+) -> Path:
     """Write an FCPXML timeline for Resolve and return the artifact path."""
 
     if dialect not in ("1.9", "1.10"):
@@ -77,6 +84,74 @@ def export_fcpxml(state: ProjectState, output_path: Path, *, dialect: Dialect = 
         {"kind": "original-media", "src": file_uri(media.source_path)},
     )
 
+    if extras.titles:
+        ET.SubElement(
+            resources,
+            "effect",
+            {
+                "id": "r2",
+                "name": "Basic Title",
+                "uid": (
+                    ".../Titles.localized/Bumper:Opener.localized/"
+                    "Basic Title.localized/Basic Title.moti"
+                ),
+            },
+        )
+    if extras.color_filters:
+        ET.SubElement(
+            resources,
+            "effect",
+            {"id": "r3", "name": "Color Correction", "uid": ".../Color Correction"},
+        )
+    broll_assets: dict[str, str] = {}
+    for entry in extras.broll:
+        if entry.path in broll_assets:
+            continue
+        asset_id = f"b{len(broll_assets) + 1}"
+        broll_assets[entry.path] = asset_id
+        bro = ET.SubElement(
+            resources,
+            "asset",
+            {
+                "id": asset_id,
+                "name": Path(entry.path).name,
+                "start": "0s",
+                "duration": format_rational_time(timebase.frames_to_seconds(media.duration_frames)),
+                "hasVideo": "1",
+                "videoSources": "1",
+                "format": "r1",
+            },
+        )
+        ET.SubElement(
+            bro,
+            "media-rep",
+            {"kind": "original-media", "src": file_uri(entry.path)},
+        )
+
+    if extras.audio_stem:
+        stem = ET.SubElement(
+            resources,
+            "asset",
+            {
+                "id": "stem1",
+                "name": Path(extras.audio_stem).name,
+                "start": "0s",
+                "duration": format_rational_time(
+                    timebase.frames_to_seconds(duration_frames)
+                ),
+                "hasAudio": "1",
+                "format": "r1",
+                "audioSources": "1",
+                "audioChannels": "1",
+                "audioRate": str(media.audio_sample_rate),
+            },
+        )
+        ET.SubElement(
+            stem,
+            "media-rep",
+            {"kind": "original-media", "src": file_uri(extras.audio_stem)},
+        )
+
     library = ET.SubElement(root, "library")
     event = ET.SubElement(library, "event", {"name": "VideoFlow"})
     project = ET.SubElement(event, "project", {"name": "VideoFlow"})
@@ -120,6 +195,10 @@ def export_fcpxml(state: ProjectState, output_path: Path, *, dialect: Dialect = 
         )
         _append_transform(element, clip, media)
         _append_audio_fade(element, audio_clip, media)
+        if extras.color_filters:
+            ET.SubElement(
+                element, "filter-video", {"ref": "r3", "name": "Color Correction"}
+            )
         if clip.transition_out is not None:
             ET.SubElement(
                 spine,
@@ -135,6 +214,82 @@ def export_fcpxml(state: ProjectState, output_path: Path, *, dialect: Dialect = 
                     ),
                 },
             )
+
+    for entry in extras.broll:
+        asset_id = broll_assets.get(entry.path)
+        if asset_id is None:
+            continue
+        ET.SubElement(
+            spine,
+            "asset-clip",
+            {
+                "ref": asset_id,
+                "lane": "2",
+                "name": entry.name or Path(entry.path).stem,
+                "offset": format_rational_time(entry.start_sec),
+                "start": "0s",
+                "duration": format_rational_time(entry.duration_sec),
+                "srcEnable": "video",
+                "videoRole": "B-roll",
+            },
+        )
+
+    for index, title in enumerate(extras.titles, start=1):
+        element = ET.SubElement(
+            spine,
+            "title",
+            {
+                "ref": "r2",
+                "lane": "3",
+                "name": title.kind.replace("_", " ").title(),
+                "offset": format_rational_time(title.start_sec),
+                "duration": format_rational_time(max(0.1, title.end_sec - title.start_sec)),
+            },
+        )
+        style_id = f"ts{index}"
+        text = ET.SubElement(element, "text")
+        ET.SubElement(text, "text-style", {"ref": style_id}).text = title.text
+        definition = ET.SubElement(element, "text-style-def", {"id": style_id})
+        ET.SubElement(
+            definition,
+            "text-style",
+            {
+                "font": "Helvetica",
+                "fontSize": "48",
+                "fontColor": "1 1 1 1",
+                "alignment": "center",
+            },
+        )
+
+    if extras.audio_stem:
+        ET.SubElement(
+            spine,
+            "asset-clip",
+            {
+                "ref": "stem1",
+                "lane": "4",
+                "name": "Audio master",
+                "offset": "0s",
+                "start": "0s",
+                "duration": format_rational_time(
+                    timebase.frames_to_seconds(duration_frames)
+                ),
+                "srcEnable": "audio",
+                "audioRole": "effects",
+            },
+        )
+
+    for marker in extras.markers:
+        ET.SubElement(
+            sequence,
+            "marker",
+            {
+                "start": format_rational_time(marker.start_sec),
+                "duration": format_rational_time(max(0.0, marker.end_sec - marker.start_sec)),
+                "value": marker.name,
+                "note": marker.note,
+            },
+        )
 
     return write_text(output_path, xml_document(root, "fcpxml"))
 

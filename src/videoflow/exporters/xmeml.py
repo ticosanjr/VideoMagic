@@ -20,9 +20,15 @@ from videoflow.exporters.common import (
     write_text,
     xml_document,
 )
+from videoflow.exporters.extras import EMPTY, NleExtras
 
 
-def export_xmeml(state: ProjectState, output_path: Path) -> Path:
+def export_xmeml(
+    state: ProjectState,
+    output_path: Path,
+    *,
+    extras: NleExtras = EMPTY,
+) -> Path:
     """Write an FCP 7 XML timeline for Premiere Pro and return the artifact path."""
 
     media, _, _ = require_timeline(state)
@@ -60,6 +66,8 @@ def export_xmeml(state: ProjectState, output_path: Path) -> Path:
         ET.SubElement(item, "out").text = str(clip.source_out_frame)
         _append_file(item, media, file_id=f"file-video-{index + 1}")
         _append_motion(item, clip)
+        if extras.color_filters:
+            _append_color_filter(item)
         if clip.transition_out is not None:
             _append_video_transition(
                 video_track,
@@ -117,6 +125,15 @@ def export_xmeml(state: ProjectState, output_path: Path) -> Path:
                 alignment="end-black",
                 number=index + 1,
             )
+
+    for index, title in enumerate(extras.titles, start=1):
+        _append_title(video_track, title, media, number=index)
+    if extras.broll:
+        _append_broll_track(video_element, extras, media)
+    if extras.audio_stem:
+        _append_audio_stem(audio_element, extras, media, duration)
+    for marker in extras.markers:
+        _append_marker(sequence, marker, media.fps_num / media.fps_den)
 
     for index, (video_item, audio_item) in enumerate(
         zip(video_items, audio_items, strict=True), start=1
@@ -275,3 +292,95 @@ def _premiere_path_url(path: str) -> str:
     if len(rest) >= 2 and rest[1] == ":" and rest[0].isalpha():
         rest = f"{rest[0]}%3a{rest[2:]}"
     return f"file://localhost/{rest}"
+
+
+def _append_color_filter(item: ET.Element) -> None:
+    filter_element = ET.SubElement(item, "filter")
+    effect = ET.SubElement(filter_element, "effect")
+    ET.SubElement(effect, "name").text = "Color Correction"
+    ET.SubElement(effect, "effectid").text = "colorCorrect"
+    ET.SubElement(effect, "effectcategory").text = "video"
+    ET.SubElement(effect, "effecttype").text = "filter"
+    ET.SubElement(effect, "mediatype").text = "video"
+
+
+def _append_marker(sequence: ET.Element, marker, fps: float) -> None:
+    element = ET.SubElement(sequence, "marker")
+    ET.SubElement(element, "name").text = marker.name
+    ET.SubElement(element, "comment").text = marker.note
+    start = round(marker.start_sec * fps)
+    out = marker.end_sec if marker.end_sec > marker.start_sec else marker.start_sec
+    ET.SubElement(element, "in").text = str(start)
+    ET.SubElement(element, "out").text = str(round(out * fps))
+
+
+def _append_title(video_track: ET.Element, title, media: MediaInfo, *, number: int) -> None:
+    duration = max(1, round((title.end_sec - title.start_sec) * (media.fps_num / media.fps_den)))
+    item = ET.SubElement(
+        video_track, "generatoritem", {"id": f"title-{number}"}
+    )
+    ET.SubElement(item, "name").text = title.kind.replace("_", " ").title()
+    ET.SubElement(item, "duration").text = str(duration)
+    _append_rate(item, media)
+    ET.SubElement(item, "start").text = str(round(title.start_sec * media.fps_num / media.fps_den))
+    ET.SubElement(item, "end").text = str(
+        round(title.end_sec * media.fps_num / media.fps_den)
+    )
+    ET.SubElement(item, "in").text = "0"
+    ET.SubElement(item, "out").text = str(duration)
+    effect = ET.SubElement(item, "effect")
+    ET.SubElement(effect, "name").text = "Text"
+    ET.SubElement(effect, "effectid").text = "Text"
+    ET.SubElement(effect, "effectcategory").text = "Text"
+    ET.SubElement(effect, "effecttype").text = "generator"
+    ET.SubElement(effect, "mediatype").text = "video"
+    parameter = ET.SubElement(effect, "parameter")
+    ET.SubElement(parameter, "parameterid").text = "str"
+    ET.SubElement(parameter, "name").text = "Text"
+    ET.SubElement(parameter, "value").text = title.text
+
+
+def _append_broll_track(
+    video_element: ET.Element,
+    extras: NleExtras,
+    media: MediaInfo,
+) -> None:
+    track = ET.SubElement(video_element, "track")
+    for index, entry in enumerate(extras.broll, start=1):
+        start = round(entry.start_sec * media.fps_num / media.fps_den)
+        end = round((entry.start_sec + entry.duration_sec) * media.fps_num / media.fps_den)
+        item = ET.SubElement(track, "clipitem", {"id": f"broll-{index}"})
+        ET.SubElement(item, "name").text = entry.name or Path(entry.path).stem
+        ET.SubElement(item, "duration").text = str(max(1, end - start))
+        _append_rate(item, media)
+        ET.SubElement(item, "start").text = str(start)
+        ET.SubElement(item, "end").text = str(end)
+        ET.SubElement(item, "in").text = "0"
+        ET.SubElement(item, "out").text = str(max(1, end - start))
+        file_element = ET.SubElement(item, "file", {"id": f"file-broll-{index}"})
+        ET.SubElement(file_element, "name").text = Path(entry.path).name
+        ET.SubElement(file_element, "pathurl").text = _premiere_path_url(entry.path)
+        _append_rate(file_element, media)
+        ET.SubElement(file_element, "duration").text = str(max(1, end - start))
+
+
+def _append_audio_stem(
+    audio_element: ET.Element, extras: NleExtras, media: MediaInfo, duration: int
+) -> None:
+    track = ET.SubElement(audio_element, "track")
+    item = ET.SubElement(track, "clipitem", {"id": "audio-stem"})
+    ET.SubElement(item, "name").text = "Audio master"
+    ET.SubElement(item, "duration").text = str(duration)
+    _append_rate(item, media)
+    ET.SubElement(item, "start").text = "0"
+    ET.SubElement(item, "end").text = str(duration)
+    ET.SubElement(item, "in").text = "0"
+    ET.SubElement(item, "out").text = str(duration)
+    source_track = ET.SubElement(item, "sourcetrack")
+    ET.SubElement(source_track, "mediatype").text = "audio"
+    ET.SubElement(source_track, "trackindex").text = "1"
+    file_element = ET.SubElement(item, "file", {"id": "file-audio-stem"})
+    ET.SubElement(file_element, "name").text = Path(extras.audio_stem).name
+    ET.SubElement(file_element, "pathurl").text = _premiere_path_url(extras.audio_stem)
+    _append_rate(file_element, media)
+    ET.SubElement(file_element, "duration").text = str(duration)

@@ -12,6 +12,16 @@ One timeline model, three NLE dialects, one optional render.
 All exporters live in `src/videoflow/exporters/`. `export_timeline` writes the
 three timeline artifacts from one validated state.
 
+## 0. Native finishing inputs
+
+`exporters/extras.py` defines the finishing inputs shared by the three writers:
+markers, titles, B-roll clips, colour filters, audio filters, and the audio
+master stem. `application/nle_extras.py` builds them from a job output
+(`timeline_meta.json`, `titles.ass`, `broll.json`, `color/filters.json`,
+`audio/master-filters.json`, `audio/master.wav`). `export_timeline(...,
+extras=...)` forwards the same object to every writer, so one job output
+produces equivalent finishing in FCPXML, XMEML, and Kdenlive.
+
 ## 1. Shared preflight
 
 Every exporter runs the same checks before writing:

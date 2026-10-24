@@ -22,7 +22,12 @@ from videoflow.exporters.common import (
 )
 
 
-def export_kdenlive(state: ProjectState, output_path: Path) -> Path:
+def export_kdenlive(
+    state: ProjectState,
+    output_path: Path,
+    *,
+    extras=None,
+) -> Path:
     """Write a native ``.kdenlive`` MLT XML project."""
 
     media, _, _ = require_timeline(state)
@@ -47,7 +52,14 @@ def export_kdenlive(state: ProjectState, output_path: Path) -> Path:
     _append_black_track(root, duration, duration_frames)
     _append_source_chain(root, media)
 
-    _append_playlist(root, "playlist0", state.video_segments, media, video=True)
+    _append_playlist(
+        root,
+        "playlist0",
+        state.video_segments,
+        media,
+        video=True,
+        color=bool(extras and extras.color_filters),
+    )
     ET.SubElement(root, "playlist", {"id": "playlist1"})
     _append_track_tractor(root, "tractor0", "playlist0", "playlist1", audio=False)
 
@@ -62,12 +74,24 @@ def export_kdenlive(state: ProjectState, output_path: Path) -> Path:
     ET.SubElement(root, "playlist", {"id": "playlist3"})
     _append_track_tractor(root, "tractor1", "playlist2", "playlist3", audio=True)
 
+    overlay = (
+        _append_overlay_playlist(root, extras, media, duration_frames)
+        if extras is not None
+        else ""
+    )
+    stem = (
+        _append_stem_playlist(root, extras, media, duration_frames)
+        if extras is not None and extras.audio_stem
+        else ""
+    )
     _append_sequence_tractor(
         root,
         sequence_id=sequence_id,
         duration=duration,
         duration_frames=duration_frames,
         media=media,
+        overlay=overlay,
+        overlay_audio=stem,
     )
     _append_main_bin(
         root,
@@ -75,6 +99,7 @@ def export_kdenlive(state: ProjectState, output_path: Path) -> Path:
         document_id=document_id,
         sequence_uuid=str(sequence_uuid),
         media=media,
+        extras=extras,
     )
     _append_final_tractor(root, sequence_id=sequence_id, duration=duration)
 
@@ -138,6 +163,7 @@ def _append_playlist(
     *,
     video: bool,
     transitions: list | None = None,
+    color: bool = False,
 ) -> None:
     playlist = ET.SubElement(parent, "playlist", {"id": playlist_id})
     previous_transition = None
@@ -172,6 +198,7 @@ def _append_playlist(
                 duration_frames,
                 previous_transition=previous_transition,
                 index=index,
+                color=color,
             )
         else:
             _append_volume_fade(
@@ -210,7 +237,10 @@ def _append_sequence_tractor(
     duration: str,
     duration_frames: int,
     media,
+    overlay: str = "",
+    overlay_audio: str = "",
 ) -> None:
+    tracks = 2 + (1 if overlay else 0) + (1 if overlay_audio else 0)
     tractor = ET.SubElement(
         parent,
         "tractor",
@@ -221,7 +251,7 @@ def _append_sequence_tractor(
     _property(tractor, "kdenlive:sequenceproperties.hasAudio", "1")
     _property(tractor, "kdenlive:sequenceproperties.hasVideo", "1")
     _property(tractor, "kdenlive:sequenceproperties.activeTrack", "1")
-    _property(tractor, "kdenlive:sequenceproperties.tracksCount", "2")
+    _property(tractor, "kdenlive:sequenceproperties.tracksCount", str(tracks))
     _property(tractor, "kdenlive:sequenceproperties.documentuuid", sequence_id)
     _property(tractor, "kdenlive:producer_type", "17")
     _property(tractor, "kdenlive:id", "3")
@@ -229,7 +259,7 @@ def _append_sequence_tractor(
     _property(tractor, "kdenlive:folderid", "2")
     _property(tractor, "kdenlive:sequenceproperties.audioTarget", "2")
     _property(tractor, "kdenlive:sequenceproperties.videoTarget", "1")
-    _property(tractor, "kdenlive:sequenceproperties.tracks", "2")
+    _property(tractor, "kdenlive:sequenceproperties.tracks", str(tracks))
     _property(tractor, "kdenlive:sequenceproperties.zonein", "0")
     _property(tractor, "kdenlive:sequenceproperties.zoneout", str(duration_frames))
 
@@ -238,6 +268,12 @@ def _append_sequence_tractor(
     _append_transition(tractor, "transition1", 2, "mix")
     ET.SubElement(tractor, "track", {"producer": "tractor0"})
     ET.SubElement(tractor, "track", {"producer": "tractor1"})
+    if overlay:
+        ET.SubElement(tractor, "track", {"producer": overlay})
+        _append_transition(tractor, "transition-overlay", 3, "qtblend")
+    if overlay_audio:
+        ET.SubElement(tractor, "track", {"producer": overlay_audio})
+        _append_transition(tractor, "transition-stem", 4, "mix")
 
 
 def _append_transition(
@@ -264,8 +300,11 @@ def _append_main_bin(
     document_id: str,
     sequence_uuid: str,
     media,
+    extras=None,
 ) -> None:
     main_bin = ET.SubElement(parent, "playlist", {"id": "main_bin"})
+    if extras is not None:
+        _append_guides(main_bin, extras, media)
     _property(main_bin, "kdenlive:folder.-1.2", "Sequences")
     _property(main_bin, "kdenlive:sequenceFolder", "2")
     _property(main_bin, "kdenlive:docproperties.audioChannels", "1")
@@ -361,7 +400,10 @@ def _append_video_filter(
     *,
     previous_transition=None,
     index: int = 0,
+    color: bool = False,
 ) -> None:
+    if color:
+        _append_color_filters(entry)
     transform = clip.transform
     fade_in = (
         previous_transition.duration_frames
@@ -484,3 +526,116 @@ def _timecode(frame: int, fps_num: int, fps_den: int) -> str:
     minutes, remainder = divmod(remainder, 60_000)
     seconds, milliseconds = divmod(remainder, 1000)
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}.{milliseconds:03d}"
+
+
+def _append_color_filters(entry: ET.Element) -> None:
+    filter_element = ET.SubElement(entry, "filter")
+    _property(filter_element, "mlt_service", "lift_gamma_gain")
+    _property(filter_element, "lift_r", "0")
+    _property(filter_element, "lift_g", "0")
+    _property(filter_element, "lift_b", "0")
+    _property(filter_element, "gamma_r", "1")
+    _property(filter_element, "gamma_g", "1")
+    _property(filter_element, "gamma_b", "1")
+    _property(filter_element, "gain_r", "1")
+    _property(filter_element, "gain_g", "1")
+    _property(filter_element, "gain_b", "1")
+
+
+def _append_guides(main_bin: ET.Element, extras, media) -> None:
+    if extras is None or not extras.markers:
+        return
+    fps = media.fps_num / media.fps_den
+    guides = [
+        {
+            "comment": marker.name if not marker.note else f"{marker.name}: {marker.note}",
+            "pos": round(marker.start_sec * fps),
+            "type": 0,
+            "color": marker.color or "#38bdf8",
+        }
+        for marker in extras.markers
+    ]
+    import json
+
+    _property(main_bin, "kdenlive:docproperties.guides", json.dumps(guides))
+
+
+def _title_xml(title, width: int, height: int) -> str:
+    text = title.text.replace("&", "&amp;").replace("<", "&lt;")
+    size = 64 if title.kind == "title" else 40
+    return (
+        f'<kdenlivetitle duration="9999" LC_NUMERIC="C" width="{width}" '
+        f'height="{height}" out="9998"><item type="QGraphicsTextItem" z-index="0">'
+        '<position x="120" y="960"><transform>1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1'
+        f'</transform></position><content font="Arial" font-size="{size}" '
+        'font-weight="63" font-outline="3" font-pixel-size="'
+        f'{size}" font-color="255,255,255,255" alignment="1">{text}</content>'
+        "</item></kdenlivetitle>"
+    )
+
+
+def _append_stem_playlist(parent: ET.Element, extras, media, duration_frames: int) -> str:
+    producer = ET.SubElement(parent, "producer", {"id": "audio_stem"})
+    _property(producer, "resource", extras.audio_stem)
+    _property(producer, "mlt_service", "avformat")
+    _property(producer, "kdenlive:duration", str(duration_frames))
+    _property(producer, "kdenlive:clipname", "Audio master")
+    _property(producer, "hide", "video")
+    playlist = ET.SubElement(parent, "playlist", {"id": "playlist5"})
+    ET.SubElement(
+        playlist,
+        "entry",
+        {
+            "producer": "audio_stem",
+            "in": "00:00:00.000",
+            "out": _timecode(duration_frames - 1, media.fps_num, media.fps_den),
+        },
+    )
+    return "playlist5"
+
+
+def _append_overlay_playlist(
+    parent: ET.Element, extras, media, duration_frames: int
+) -> str:
+    entries: list[tuple[str, int, int]] = []
+    for index, title in enumerate(extras.titles):
+        producer_id = f"title{index}"
+        start = round(title.start_sec * media.fps_num / media.fps_den)
+        length = max(1, round((title.end_sec - title.start_sec) * media.fps_num / media.fps_den))
+        producer = ET.SubElement(parent, "producer", {"id": producer_id})
+        _property(producer, "mlt_service", "kdenlivetitle")
+        _property(producer, "kdenlive:duration", str(length))
+        _property(producer, "kdenlive:clipname", title.kind.replace("_", " ").title())
+        _property(producer, "xml", _title_xml(title, media.width, media.height))
+        entries.append((producer_id, start, length))
+    for index, entry in enumerate(extras.broll):
+        producer_id = f"broll{index}"
+        start = round(entry.start_sec * media.fps_num / media.fps_den)
+        length = max(1, round(entry.duration_sec * media.fps_num / media.fps_den))
+        producer = ET.SubElement(parent, "producer", {"id": producer_id})
+        _property(producer, "resource", entry.path)
+        _property(producer, "mlt_service", "avformat")
+        _property(producer, "kdenlive:duration", str(length))
+        _property(producer, "kdenlive:clipname", entry.name or "B-roll")
+        entries.append((producer_id, start, length))
+    if not entries:
+        return ""
+    playlist = ET.SubElement(parent, "playlist", {"id": "playlist4"})
+    cursor = 0
+    for producer_id, start, length in sorted(entries, key=lambda item: item[1]):
+        if start > cursor:
+            ET.SubElement(playlist, "blank", {"length": str(start - cursor)})
+            cursor = start
+        ET.SubElement(
+            playlist,
+            "entry",
+            {
+                "producer": producer_id,
+                "in": "00:00:00.000",
+                "out": _timecode(length - 1, media.fps_num, media.fps_den),
+            },
+        )
+        cursor += length
+    if cursor < duration_frames:
+        ET.SubElement(playlist, "blank", {"length": str(duration_frames - cursor)})
+    return "playlist4"

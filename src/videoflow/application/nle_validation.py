@@ -61,6 +61,13 @@ def _validate_fcpxml(path: Path) -> dict[str, Any]:
         warnings.append("no transition elements")
     if not keyframes:
         warnings.append("no transform keyframes")
+    if len(clips) > 1 and len(transitions) < len(clips) - 1:
+        warnings.append("some joins have no transition")
+    titles = root.findall("./library/event/project/sequence/spine/title")
+    markers = root.findall("./library/event/project/sequence/marker")
+    filters = root.findall("./library/event/project/sequence/spine/asset-clip/filter-video")
+    broll = root.findall("./library/event/project/sequence/spine/asset-clip[@lane='2']")
+    stems = root.findall("./library/event/project/sequence/spine/asset-clip[@lane='4']")
     return _result(
         path,
         errors,
@@ -68,6 +75,11 @@ def _validate_fcpxml(path: Path) -> dict[str, Any]:
         clips=len(clips),
         transitions=len(transitions),
         keyframes=len(keyframes),
+        titles=len(titles),
+        markers=len(markers),
+        color_filters=len(filters),
+        broll_clips=len(broll),
+        audio_stems=len(stems),
     )
 
 
@@ -91,6 +103,12 @@ def _validate_xmeml(path: Path) -> dict[str, Any]:
         warnings.append("no video transitionitem")
     if not root.findall("./sequence/media/audio/track/clipitem"):
         errors.append("no audio clipitem")
+    if len(clips) > 1 and len(transitions) < len(clips) - 1:
+        warnings.append("some joins have no transition")
+    titles = root.findall("./sequence/media/video/track/generatoritem")
+    markers = root.findall("./sequence/marker")
+    color = root.findall("./sequence/media/video/track/clipitem/filter")
+    tracks = root.findall("./sequence/media/video/track")
     return _result(
         path,
         errors,
@@ -98,6 +116,10 @@ def _validate_xmeml(path: Path) -> dict[str, Any]:
         clips=len(clips),
         transitions=len(transitions),
         effects=len(keyframes),
+        titles=len(titles),
+        markers=len(markers),
+        color_filters=len(color),
+        video_tracks=len(tracks),
     )
 
 
@@ -122,13 +144,34 @@ def _validate_kdenlive(path: Path) -> dict[str, Any]:
     affine = root.findall(".//property[@name='mlt_service'][.='affine']")
     if not affine:
         warnings.append("no affine transform filters")
+    clips = len(playlist.findall("entry")) if playlist is not None else 0
+    transitions = root.findall(".//transition")
+    if clips > 1 and not any(
+        item.findtext("property[@name='mlt_service']") in {"qtblend", "mix"}
+        for item in transitions
+    ):
+        warnings.append("some joins have no transition")
+    titles = root.findall("./producer/property[.='kdenlivetitle']")
+    guides = root.findall(
+        "./playlist[@id='main_bin']/property[@name='kdenlive:docproperties.guides']"
+    )
+    overlay = root.findall("./playlist[@id='playlist4']")
+    stem = root.findall("./playlist[@id='playlist5']")
+    color = root.findall(
+        ".//playlist/entry/filter/property[@name='mlt_service'][.='lift_gamma_gain']"
+    )
     return _result(
         path,
         errors,
         warnings=warnings,
-        clips=len(playlist.findall("entry")) if playlist is not None else 0,
+        clips=clips,
         affine_filters=len(affine),
         tractors=len(root.findall("tractor")),
+        titles=len(titles),
+        guides=len(guides),
+        overlay_track=len(overlay),
+        audio_stem=len(stem),
+        color_filters=len(color),
     )
 
 

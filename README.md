@@ -6,7 +6,7 @@ recording into an editable timeline: it removes silence and retakes, adds
 J-cuts and punch-ins, proposes vertical Shorts, masters the dialogue bed, and
 exports timelines for DaVinci Resolve, Adobe Premiere Pro, and Kdenlive.
 
-> Status: 2.3.0 local development. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
+> Status: 2.4.0 local development. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical Shorts,
 > audio mastering and loudness QA, burned titles, color/LUT grading, analytics
@@ -52,7 +52,7 @@ The same contract is available at `POST /api/v1/recipes/run` and through
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 540 passing, 1 strict xfail, 11 deselected
+uv run pytest                       # 544 passing, 1 strict xfail, 11 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model
@@ -130,6 +130,9 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   precision@1 1.00 vs 0.75 baseline), shot-aware B-roll with a licence report,
   an SFX library, a delivery package that applies the winning thumbnail, and
   the `localized_shorts` recipe with dubbing after the render.
+- Native NLE finishing: titles, markers, colour filters, a B-roll lane, and the
+  audio master in FCPXML, XMEML, and Kdenlive, plus `scripts/qa_nle.py` to fail
+  an export that loses them.
 - Silero VAD v5.1.2 through ONNX Runtime, with 16 kHz inference, exact
   sample-rate rescaling, configurable threshold, and pads. FFmpeg
   `silencedetect` is the automatic fallback.

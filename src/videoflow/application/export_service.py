@@ -8,6 +8,7 @@ from typing import Literal
 
 from videoflow.domain.errors import ExportError
 from videoflow.domain.state import ProjectState
+from videoflow.exporters.extras import EMPTY, NleExtras
 from videoflow.exporters.fcpxml import Dialect, export_fcpxml
 from videoflow.exporters.kdenlive import export_kdenlive
 from videoflow.exporters.mp4 import export_mp4
@@ -30,6 +31,7 @@ def export_timeline(
     *,
     targets: Sequence[str] = DEFAULT_TARGETS,
     dialect: Dialect = "1.9",
+    extras: NleExtras = EMPTY,
 ) -> dict[str, Path]:
     """Write every requested artifact from the same validated timeline."""
 
@@ -40,11 +42,13 @@ def export_timeline(
             raise ExportError(f"Unknown export target: {target}")
         destination = directory / FILENAMES[target]
         if target == "resolve":
-            artifacts[target] = export_fcpxml(state, destination, dialect=dialect)
+            artifacts[target] = export_fcpxml(
+                state, destination, dialect=dialect, extras=extras
+            )
         elif target == "premiere":
-            artifacts[target] = export_xmeml(state, destination)
+            artifacts[target] = export_xmeml(state, destination, extras=extras)
         elif target == "kdenlive":
-            artifacts[target] = export_kdenlive(state, destination)
+            artifacts[target] = export_kdenlive(state, destination, extras=extras)
         else:
             artifacts[target] = export_mp4(state, destination)
     return artifacts
