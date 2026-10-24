@@ -433,3 +433,41 @@ def test_human_gate_resume_route(monkeypatch, tmp_path: Path) -> None:
             break
         time.sleep(0.01)
     assert resumed.status == "succeeded", resumed.error
+
+
+def test_locked_track_blocks_clip_edits(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    job = _job(manager, tmp_path)
+    locked = client.put(
+        f"/api/v1/jobs/{job.job_id}/timeline/tracks/video",
+        json={"muted": False, "solo": False, "locked": True},
+    )
+    assert locked.status_code == 200, locked.text
+
+    response = client.patch(
+        f"/api/v1/jobs/{job.job_id}/timeline",
+        json={"clip_id": "v1", "action": "move", "delta_sec": 0.5},
+    )
+
+    assert response.status_code == 409
+    assert "locked" in response.json()["detail"]["message"].lower()
+
+
+def test_unlocked_track_allows_the_edit_again(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    job = _job(manager, tmp_path)
+    client.put(
+        f"/api/v1/jobs/{job.job_id}/timeline/tracks/video",
+        json={"muted": False, "solo": False, "locked": True},
+    )
+    client.put(
+        f"/api/v1/jobs/{job.job_id}/timeline/tracks/video",
+        json={"muted": False, "solo": False, "locked": False},
+    )
+
+    response = client.patch(
+        f"/api/v1/jobs/{job.job_id}/timeline",
+        json={"clip_id": "v1", "action": "move", "delta_sec": 0.5},
+    )
+
+    assert response.status_code == 200, response.text

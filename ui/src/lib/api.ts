@@ -1819,12 +1819,22 @@ export async function getJob(jobId: string): Promise<Job> {
   return response.job;
 }
 
+export interface WaveformPeaks {
+  ok: boolean;
+  peaks: number[];
+  bucket_sec: number;
+  start_sec: number;
+  end_sec: number;
+}
+
 export interface TimelineClip {
   id: string;
   start_sec: number;
   end_sec: number;
   source_in_frame?: number;
   source_out_frame?: number;
+  source_in_sec?: number;
+  source_out_sec?: number;
   zoom?: number;
   pos_x?: number;
   pos_y?: number;
@@ -1858,6 +1868,7 @@ export interface TimelineData {
   markers: TimelineMarker[];
   tracks: Record<string, TrackState>;
   preview_url: string;
+  media?: { source_path: string; audio_sample_rate: number };
 }
 
 export interface TimelineMarker {
@@ -1925,7 +1936,7 @@ export async function editTimeline(
   jobId: string,
   payload: {
     clip_id: string;
-    action: "trim" | "move" | "delete" | "split" | "ripple" | "ripple_trim";
+    action: "trim" | "move" | "delete" | "split" | "ripple" | "ripple_trim" | "slip";
     start_sec?: number;
     end_sec?: number;
     delta_sec?: number;
@@ -1948,7 +1959,7 @@ export async function editTimelineBatch(
   jobId: string,
   edits: Array<{
     clip_id: string;
-    action: "trim" | "move" | "delete" | "split" | "ripple" | "ripple_trim";
+    action: "trim" | "move" | "delete" | "split" | "ripple" | "ripple_trim" | "slip";
     start_sec?: number;
     end_sec?: number;
     delta_sec?: number;
@@ -2056,6 +2067,23 @@ export async function updateJobCaption(
     method: "PATCH",
     body: JSON.stringify({ text })
   });
+}
+
+export async function getClipWaveform(
+  jobId: string,
+  startSec: number,
+  endSec: number,
+  buckets: number
+): Promise<number[]> {
+  const params = new URLSearchParams({
+    start: String(startSec),
+    end: String(endSec),
+    buckets: String(buckets)
+  });
+  const response = await request<WaveformPeaks>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/timeline/waveform?${params.toString()}`
+  );
+  return response.peaks;
 }
 
 export async function getTimeline(jobId: string): Promise<TimelineData> {

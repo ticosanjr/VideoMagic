@@ -79,6 +79,8 @@ Rules:
 | `application/database.py` | SQLite WAL operational store for jobs, assets, batches, schedules, and services, with migration, backup, and restore |
 | `application/render_queue.py` | Cancellable MP4 render queue with partial-output cleanup |
 | `application/previews.py` | Cancellable 540p preview/proxy queue |
+| `application/timeline_edit.py` | Validated trim, move, delete, split, ripple, ripple-trim, and slip edits |
+| `application/waveforms.py` | Cached RMS peaks for timeline clips |
 | `application/telemetry.py` | Per-stage timestamps, progress, and bounded logs |
 | `modules/` | The eight rack modules (fingerprints live, engines stubbed) |
 | `adapters/ffmpeg.py` | FFprobe ingest, PCM extraction, digest, silencedetect VAD |

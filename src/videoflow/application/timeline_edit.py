@@ -10,7 +10,9 @@ from videoflow.domain.errors import InvalidTimeError
 from videoflow.domain.state import ProjectState
 from videoflow.domain.timebase import Rounding
 
-TimelineAction = Literal["trim", "move", "delete", "split", "ripple", "ripple_trim"]
+TimelineAction = Literal[
+    "trim", "move", "delete", "split", "ripple", "ripple_trim", "slip"
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -234,6 +236,31 @@ def apply_timeline_edit(state: ProjectState, edit: TimelineEdit) -> ProjectState
         if edit.split_sec is None:
             raise InvalidTimeError("Split requires split_sec.")
         _split_video(state, edit.clip_id, max(0.0, edit.split_sec))
+        return state
+
+    if edit.action == "slip":
+        delta_frames = round(edit.delta_sec * fps)
+        length = video.source_out_frame - video.source_in_frame
+        new_in = video.source_in_frame + delta_frames
+        new_out = video.source_out_frame + delta_frames
+        if new_in < 0 or new_out > media.duration_frames:
+            raise InvalidTimeError("Slip exceeds source media.")
+        if new_out - new_in != length:
+            raise InvalidTimeError("Slip would change the clip length.")
+        video.source_in_frame, video.source_out_frame = new_in, new_out
+        if audio is not None:
+            delta_samples = round(edit.delta_sec * media.audio_sample_rate)
+            audio_length = audio.source_out_sample - audio.source_in_sample
+            media_samples = round(
+                media.duration_frames * media.audio_sample_rate / max(0.001, fps)
+            )
+            audio_in = audio.source_in_sample + delta_samples
+            audio_out = audio.source_out_sample + delta_samples
+            if audio_in < 0 or audio_out > media_samples:
+                raise InvalidTimeError("Slip exceeds source audio.")
+            if audio_out - audio_in != audio_length:
+                raise InvalidTimeError("Slip would change the audio length.")
+            audio.source_in_sample, audio.source_out_sample = audio_in, audio_out
         return state
 
     if edit.action == "move":

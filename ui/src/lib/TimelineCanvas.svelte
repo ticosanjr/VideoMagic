@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
   import type { TimelineData } from "$lib/api";
+  import { clipVisible, visibleRange } from "$lib/timelineView";
 
   let {
     timeline,
@@ -13,11 +14,15 @@
     brollApproved = {},
     markers = [],
     tracks = {},
+    waveforms = {},
     onSeek,
     onSelectClip,
     onMoveClip,
     onMoveClips,
     onTrimClip,
+    onGroupTrim,
+    onRippleTrimClip,
+    onSlipClip,
     onZoom
   }: {
     timeline: TimelineData;
@@ -30,11 +35,15 @@
     brollApproved?: Record<string, number[]>;
     markers?: Array<{ id: string; time_sec: number; label: string; color: string }>;
     tracks?: Record<string, { muted: boolean; solo: boolean; locked: boolean }>;
+    waveforms?: Record<string, number[]>;
     onSeek: (time: number) => void;
     onSelectClip: (clip: TimelineData["video"][number] | null, additive?: boolean) => void;
     onMoveClip: (clipId: string, deltaSec: number) => void;
     onMoveClips: (clipIds: string[], deltaSec: number) => void;
     onTrimClip: (clipId: string, startSec: number, endSec: number) => void;
+    onGroupTrim?: (clipIds: string[], edge: "left" | "right", deltaSec: number) => void;
+    onRippleTrimClip?: (clipId: string, startSec: number, endSec: number) => void;
+    onSlipClip?: (clipId: string, deltaSec: number) => void;
     onZoom?: (zoom: number) => void;
   } = $props();
 
@@ -61,6 +70,22 @@
   let scrubbing = false;
   let trim: { id: string; edge: "left" | "right"; originX: number; start: number; end: number } | null = null;
   let trimGhost: { id: string; start: number; end: number } | null = null;
+  let slip: { id: string; originX: number; delta: number } | null = null;
+  let trimMode: "trim" | "ripple" | "group" = "trim";
+  let scrollLeft = $state(0);
+  let viewportWidth = $state(1200);
+  let scroller = $state<HTMLDivElement | null>(null);
+  function onScroll(event: Event) {
+    const element = event.currentTarget as HTMLDivElement;
+    scrollLeft = element.scrollLeft;
+    viewportWidth = element.clientWidth || viewportWidth;
+  }
+
+  const view = $derived(visibleRange(scrollLeft, viewportWidth, zoom));
+
+  function isVisible(start: number, end: number): boolean {
+    return clipVisible(start, end, view);
+  }
 
   const width = $derived(Math.max(1000, timeline.duration_sec * zoom + HEADER + 48));
 
@@ -263,12 +288,13 @@
 
   function drawVideoClips(layer: any) {
     for (const clip of timeline.video) {
+      if (!isVisible(clip.start_sec, clip.end_sec)) continue;
       const selected = clip.id === selectedClipId || selectedIds.includes(clip.id);
       const clipWidth = Math.max(6, (clip.end_sec - clip.start_sec) * zoom);
       const group = new konva.Group({
         x: x(clip.start_sec),
         y: TRACKS[0].y + 4,
-        draggable: true,
+        draggable: !tracks.video?.locked,
         name: "clip"
       });
       group.add(
@@ -367,10 +393,24 @@
       group.on("mouseleave", () => {
         if (stage) stage.container().style.cursor = "default";
       });
-      group.on("dragstart", () => {
+      group.on("dragstart", (event: any) => {
         if (stage) stage.container().style.cursor = "grabbing";
+        if (event.evt?.altKey && onSlipClip) {
+          slip = { id: clip.id, originX: group.x(), delta: 0 };
+        }
       });
       group.on("dragmove", () => {
+        if (slip?.id === clip.id) {
+          const delta = (group.x() - slip.originX) / zoom;
+          slip.delta = delta;
+          group.x(slip.originX);
+          showTrim(
+            clip.start_sec,
+            clip.end_sec,
+            TRACKS[0]
+          );
+          return;
+        }
         const proposed = (group.x() - HEADER) / zoom;
         const snapped = nearestSnap(proposed, clip.id);
         if (snapped !== null) {
@@ -383,7 +423,15 @@
       });
       group.on("dragend", () => {
         hideSnap();
+        hideTrim();
         if (stage) stage.container().style.cursor = "grab";
+        if (slip?.id === clip.id) {
+          const delta = slip.delta;
+          slip = null;
+          group.x(x(clip.start_sec));
+          if (Math.abs(delta) > 0.001) onSlipClip?.(clip.id, delta);
+          return;
+        }
         const snapped = (group.x() - HEADER) / zoom;
         group.x(x(clip.start_sec));
         const delta = snapped - clip.start_sec;
@@ -401,6 +449,7 @@
 
   function drawAudioClips(layer: any) {
     for (const clip of timeline.audio) {
+      if (!isVisible(clip.start_sec, clip.end_sec)) continue;
       const clipWidth = Math.max(4, (clip.end_sec - clip.start_sec) * zoom);
       layer.add(
         new konva.Rect({
@@ -414,24 +463,47 @@
           listening: false
         })
       );
-      const bars = Math.max(1, Math.floor(clipWidth / 5));
-      for (let index = 0; index < bars; index += 1) {
-        const amplitude = 0.25 + 0.7 * Math.abs(Math.sin((index + 1) * 1.7 + clip.start_sec));
-        const barHeight = (TRACKS[1].h - 20) * amplitude;
-        layer.add(
-          new konva.Line({
-            points: [
-              x(clip.start_sec) + index * 5 + 2,
-              TRACKS[1].y + TRACKS[1].h / 2 - barHeight / 2,
-              x(clip.start_sec) + index * 5 + 2,
-              TRACKS[1].y + TRACKS[1].h / 2 + barHeight / 2
-            ],
-            stroke: "#34d399",
-            strokeWidth: 1.5,
-            opacity: 0.7,
-            listening: false
-          })
-        );
+      const peaks = waveforms[clip.id] ?? [];
+      if (peaks.length) {
+        const step = clipWidth / peaks.length;
+        for (let index = 0; index < peaks.length; index += 1) {
+          const amplitude = Math.max(0.02, Math.min(1, peaks[index]));
+          const barHeight = (TRACKS[1].h - 20) * amplitude;
+          layer.add(
+            new konva.Line({
+              points: [
+                x(clip.start_sec) + index * step + step / 2,
+                TRACKS[1].y + TRACKS[1].h / 2 - barHeight / 2,
+                x(clip.start_sec) + index * step + step / 2,
+                TRACKS[1].y + TRACKS[1].h / 2 + barHeight / 2
+              ],
+              stroke: "#34d399",
+              strokeWidth: Math.max(1, Math.min(2, step * 0.7)),
+              opacity: 0.75,
+              listening: false
+            })
+          );
+        }
+      } else {
+        const bars = Math.max(1, Math.floor(clipWidth / 5));
+        for (let index = 0; index < bars; index += 1) {
+          const amplitude = 0.25 + 0.7 * Math.abs(Math.sin((index + 1) * 1.7 + clip.start_sec));
+          const barHeight = (TRACKS[1].h - 20) * amplitude;
+          layer.add(
+            new konva.Line({
+              points: [
+                x(clip.start_sec) + index * 5 + 2,
+                TRACKS[1].y + TRACKS[1].h / 2 - barHeight / 2,
+                x(clip.start_sec) + index * 5 + 2,
+                TRACKS[1].y + TRACKS[1].h / 2 + barHeight / 2
+              ],
+              stroke: "#34d399",
+              strokeWidth: 1.5,
+              opacity: 0.55,
+              listening: false
+            })
+          );
+        }
       }
       layer.add(
         new konva.Text({
@@ -447,7 +519,8 @@
   }
 
   function drawCaptions(layer: any) {
-    for (const caption of timeline.captions.slice(0, 500)) {
+    for (const caption of timeline.captions) {
+      if (!isVisible(caption.start_sec, caption.end_sec)) continue;
       const clipWidth = Math.max(3, (caption.end_sec - caption.start_sec) * zoom);
       const current = caption.start_sec <= playhead && playhead <= caption.end_sec;
       layer.add(
@@ -609,7 +682,7 @@
     guideRect = null;
 
     const clip = timeline.video.find((item) => item.id === selectedClipId);
-    if (clip) {
+    if (clip && !tracks.video?.locked) {
       for (const edge of ["left", "right"] as const) {
         const handleX = edge === "left" ? x(clip.start_sec) - 4 : x(clip.end_sec) - 4;
         const handle = new konva.Rect({
@@ -629,6 +702,12 @@
         });
         handle.on("dragstart", (event: any) => {
           event.cancelBubble = true;
+          trimMode =
+            event.evt?.shiftKey && onRippleTrimClip
+              ? "ripple"
+              : selectedIds.length > 1 && selectedIds.includes(clip.id) && onGroupTrim
+                ? "group"
+                : "trim";
           trim = {
             id: clip.id,
             edge,
@@ -666,7 +745,16 @@
           if (!ghost) return;
           const start = Math.round(ghost.start * 1000) / 1000;
           const end = Math.round(ghost.end * 1000) / 1000;
-          if (Math.abs(start - clip.start_sec) > 0.001 || Math.abs(end - clip.end_sec) > 0.001) {
+          const changed =
+            Math.abs(start - clip.start_sec) > 0.001 ||
+            Math.abs(end - clip.end_sec) > 0.001;
+          if (!changed) return;
+          if (trimMode === "group" && onGroupTrim) {
+            const delta = edge === "left" ? start - clip.start_sec : end - clip.end_sec;
+            onGroupTrim(selectedIds, edge, delta);
+          } else if (trimMode === "ripple" && onRippleTrimClip) {
+            onRippleTrimClip(clip.id, start, end);
+          } else {
             onTrimClip(clip.id, start, end);
           }
         });
@@ -731,6 +819,9 @@
     brollApproved;
     markers;
     tracks;
+    waveforms;
+    scrollLeft;
+    viewportWidth;
     if (stage) {
       drawBackground();
       drawOverlay();
@@ -744,7 +835,7 @@
 </script>
 
 <div class="relative overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950" data-testid="timeline-canvas">
-  <div class="overflow-x-auto">
+  <div bind:this={scroller} class="overflow-x-auto" onscroll={onScroll} data-testid="timeline-scroller">
     <div bind:this={container} style={`width:${width}px;height:${HEIGHT}px`}></div>
   </div>
 </div>

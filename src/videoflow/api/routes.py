@@ -179,6 +179,7 @@ from videoflow.application.timeline_meta import (
 )
 from videoflow.application.url_import import import_url
 from videoflow.application.voiceover import generate_short_voiceover
+from videoflow.application.waveforms import peaks_for_range
 from videoflow.core.recipe import parse_recipe, recipe_to_dict
 from videoflow.domain.config import (
     DubbingConfig,
@@ -188,6 +189,7 @@ from videoflow.domain.config import (
 from videoflow.domain.errors import (
     CapabilityUnavailableError,
     FilesystemError,
+    IngestError,
     MediaNotFoundError,
     RecipeError,
     StateNotReadyError,
@@ -489,7 +491,9 @@ class ProviderTestRequest(BaseModel):
 
 class TimelineEditRequest(BaseModel):
     clip_id: str = Field(min_length=1)
-    action: Literal["trim", "move", "delete", "split", "ripple", "ripple_trim"]
+    action: Literal[
+        "trim", "move", "delete", "split", "ripple", "ripple_trim", "slip"
+    ]
     start_sec: float | None = Field(default=None, ge=0.0)
     end_sec: float | None = Field(default=None, ge=0.0)
     delta_sec: float = 0.0
@@ -1930,10 +1934,24 @@ def register_routes(
         state_path.write_text(state.model_dump_json(indent=2) + "\n", encoding="utf-8")
         return state
 
+    def _assert_tracks_unlocked(job: Job, tracks: set[str]) -> None:
+        meta = load_meta(job.output)
+        locked = {
+            name
+            for name, state in meta.tracks.items()
+            if state.locked and (not tracks or name in tracks)
+        }
+        if locked:
+            raise StateNotReadyError(
+                "The timeline track is locked. Unlock it before editing: "
+                + ", ".join(sorted(locked))
+            )
+
     @app.patch("/api/v1/jobs/{job_id}/timeline")
     def edit_job_timeline(job_id: str, request: TimelineEditRequest) -> dict[str, object]:
         try:
             job = jobs.get(job_id)
+            _assert_tracks_unlocked(job, set())
             state_path = _timeline_state_path(job)
             history = _timeline_history(job)
             state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
@@ -1975,6 +1993,17 @@ def register_routes(
     ) -> dict[str, object]:
         try:
             job = jobs.get(job_id)
+            locked_scopes: set[str] = set()
+            if (
+                request.transition_type is not None
+                or request.scale is not None
+                or request.pos_x is not None
+                or request.pos_y is not None
+            ):
+                locked_scopes.add("video")
+            if request.fade_in_sec is not None or request.fade_out_sec is not None:
+                locked_scopes.add("audio")
+            _assert_tracks_unlocked(job, locked_scopes)
             state_path = _timeline_state_path(job)
             history = _timeline_history(job)
             state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
@@ -2044,6 +2073,7 @@ def register_routes(
     ) -> dict[str, object]:
         try:
             job = jobs.get(job_id)
+            _assert_tracks_unlocked(job, set())
             state_path = _timeline_state_path(job)
             history = _timeline_history(job)
             current = ProjectState.model_validate_json(
@@ -2508,6 +2538,12 @@ def register_routes(
                     "fade_out_sec": round(
                         clip.fade_out_samples / max(1, media.audio_sample_rate), 3
                     ),
+                    "source_in_sec": round(
+                        clip.source_in_sample / max(1, media.audio_sample_rate), 3
+                    ),
+                    "source_out_sec": round(
+                        clip.source_out_sample / max(1, media.audio_sample_rate), 3
+                    ),
                 }
                 for clip in state.audio_segments
             ]
@@ -2535,7 +2571,55 @@ def register_routes(
             "markers": [item.model_dump(mode="json") for item in meta.markers],
             "tracks": {key: value.model_dump() for key, value in meta.tracks.items()},
             "preview_url": f"/api/v1/jobs/{job_id}/preview/file",
+            "media": {
+                "source_path": media.source_path if media is not None else "",
+                "audio_sample_rate": media.audio_sample_rate if media is not None else 0,
+            },
         }
+
+    @app.get("/api/v1/jobs/{job_id}/timeline/waveform")
+    def job_waveform(
+        job_id: str,
+        start: float = 0.0,
+        end: float | None = None,
+        buckets: int = 240,
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            state_path = Path(
+                str((job.result or {}).get("state_path") or job.output / "project_state.json")
+            )
+            if not state_path.is_file():
+                raise StateNotReadyError("The job has no project_state.json timeline.")
+            state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+            media = state.media_info
+            if media is None:
+                raise StateNotReadyError("The project has no media info.")
+            source = Path(media.source_path).expanduser()
+            if not source.is_file():
+                raise StateNotReadyError("The source media is not available.")
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "waveform_invalid", "message": str(exc)},
+            ) from exc
+        stop = end if end is not None else start + max(0.1, buckets * 0.05)
+        stop = max(start + 0.01, min(stop, start + 3600.0))
+        try:
+            return peaks_for_range(
+                source,
+                start_sec=max(0.0, start),
+                end_sec=stop,
+                buckets=max(1, min(4096, buckets)),
+            )
+        except (OSError, ValueError, IngestError) as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "waveform_failed", "message": str(exc)},
+            ) from exc
 
     @app.get("/api/v1/jobs/{job_id}/artifacts/{artifact_name}")
     def download_job_artifact(job_id: str, artifact_name: str) -> FileResponse:

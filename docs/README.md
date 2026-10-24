@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (2.1.0)
+## Implementation status (2.2.0)
 
 | Area | State |
 | --- | --- |
@@ -22,12 +22,13 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Step logs | per-node log viewer backed by `GET /api/v1/jobs/{id}/logs?module=...` |
 | Content cycle | idea/research/script/storyboard/assets, real audio master/titles/analytics/review, color/LUT, thumbnail variants, and publish bypass |
 | Assets | local library scan, search, tags, license, delete, and file serving |
-| Timeline | canvas editing with multi-select, batch edits, markers, track mute/solo/lock, clip thumbnails, drag/trim/split/ripple, undo/redo, snapping, waveform, preview/render queues, per-clip transition/fade/scale, and B-roll approval |
+| Timeline | canvas editing with multi-select, batch edits, markers, track mute/solo/lock enforcement, clip thumbnails, drag/trim/split/ripple/group trim/slip, undo/redo, snapping, real per-clip waveforms, virtualization, preview scheduler, render queues, per-clip transition/fade/scale, and B-roll approval |
 | Operational store | SQLite WAL with `schema_version=2`, migration from JSON, backup/restore, and idempotent job requeue |
 | Release | tag-triggered Linux/AppImage/Windows/SBOM release workflow |
 | Batch persistence | SQLite is read first, JSON stays as an interchange mirror; paginated API/UI |
 | Job persistence | SQLite is read first and JSON fills gaps; interrupted jobs are requeued on startup |
 | Professional shell | command palette, shortcut reference, activity drawer, notification center, and job dashboard ([shell.md](shell.md)) |
+| Timeline editing | group trim, slip, ripple trim, real waveforms, virtualization, preview scheduler, and tracked lock/mute/solo ([timeline.md](timeline.md)) |
 | Cancellation | FFmpeg runs in its own process group; render and preview cancel within one poll and delete partial output |
 | Batch resume | resume failed/cancelled batches and skip completed items |
 | Preview | synced MP4 preview plus waveform; background 540p proxy with titles, color, and audio-master filters |

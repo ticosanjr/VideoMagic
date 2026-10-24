@@ -64,6 +64,20 @@ async function mockApi(page: Page) {
       }
       return route.fulfill({ json: timeline });
     }
+    if (path === "/api/v1/jobs/job-1/timeline/waveform") {
+      const buckets = Number(url.searchParams.get("buckets") ?? "60");
+      return route.fulfill({
+        json: {
+          ok: true,
+          bucket_sec: 0.05,
+          start_sec: 0,
+          end_sec: 3,
+          peaks: Array.from({ length: buckets }, (_value, index) =>
+            Math.abs(Math.sin(index / 3))
+          )
+        }
+      });
+    }
     if (path === "/api/v1/jobs/job-1/timeline/undo") {
       return route.fulfill({ json: { ok: true, revision: 3, can_undo: true, can_redo: true } });
     }
@@ -111,4 +125,27 @@ test("puts failures in a top banner", async ({ page }) => {
   const banner = page.getByTestId("timeline-error");
   await expect(banner).toBeVisible();
   await expect(banner).toContainText("timeline_invalid");
+});
+
+test("requests real waveform peaks for every audio clip", async ({ page }) => {
+  const requests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/timeline/waveform")) requests.push(request.url());
+  });
+
+  await page.reload();
+  await expect(page.getByTestId("timeline-canvas")).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "Auto preview" })).toBeVisible();
+
+  await expect.poll(() => requests.length).toBeGreaterThan(0);
+  expect(requests[0]).toContain("buckets=");
+});
+
+test("marks the preview as outdated after an edit", async ({ page }) => {
+  const canvas = page.getByTestId("timeline-canvas");
+  await expect(canvas).toBeVisible();
+  await canvas.click({ position: { x: 150, y: 80 } });
+  await page.getByRole("button", { name: "Move", exact: true }).click();
+
+  await expect(page.getByText("preview outdated")).toBeVisible();
 });

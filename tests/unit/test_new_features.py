@@ -21,6 +21,7 @@ from videoflow.application.providers import (
 )
 from videoflow.application.timeline_edit import TimelineEdit, apply_timeline_edit
 from videoflow.application.timeline_history import TimelineHistory
+from videoflow.domain.errors import InvalidTimeError
 from videoflow.domain.state import AudioSegment, MediaInfo, ProjectState, VideoSegment
 
 
@@ -560,3 +561,25 @@ def test_llm_fallback_tries_the_next_provider() -> None:
             return {"ok": True}
 
     assert FallbackLlm([Failing(), Working()]).complete_json("x", "y") == {"ok": True}
+
+
+def test_slip_shifts_source_without_moving_the_timeline() -> None:
+    state = state_with_two_clips()
+    before = state.video_segments[0]
+    timeline = (before.timeline_in_frame, before.timeline_out_frame)
+
+    result = apply_timeline_edit(
+        state, TimelineEdit(clip_id="v1", action="slip", delta_sec=0.2)
+    )
+
+    clip = result.video_segments[0]
+    assert (clip.timeline_in_frame, clip.timeline_out_frame) == timeline
+    assert (clip.source_in_frame, clip.source_out_frame) == (5, 30)
+
+
+def test_slip_rejects_a_range_outside_the_source_media() -> None:
+    state = state_with_two_clips()
+    with pytest.raises(InvalidTimeError):
+        apply_timeline_edit(
+            state, TimelineEdit(clip_id="v1", action="slip", delta_sec=10.0)
+        )

@@ -53,6 +53,19 @@ def _video_filters(job: Any) -> list[str]:
     return [str(item) for item in payload.get("filters", []) if str(item)]
 
 
+def _track_filters(job: Any) -> list[str]:
+    from videoflow.application.timeline_meta import load_meta
+
+    try:
+        meta = load_meta(job.output)
+    except Exception:
+        return []
+    state = meta.tracks.get("audio")
+    if state is None or state.solo or not state.muted:
+        return []
+    return ["volume=0"]
+
+
 def _audio_filters(job: Any) -> list[str]:
     path = job.output / "audio" / "master-filters.json"
     if not path.is_file():
@@ -97,7 +110,7 @@ def build_preview(
             state,
             full,
             adapter=adapter,
-            audio_filters=_audio_filters(job),
+            audio_filters=_audio_filters(job) + _track_filters(job),
             video_filters=_video_filters(job),
             ass_path=ass_path if ass_path.is_file() else None,
         )

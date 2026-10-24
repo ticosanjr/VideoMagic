@@ -761,6 +761,7 @@ Project state is created by recipe runs and edited through the job timeline API.
 - `GET /api/v1/jobs/{job_id}/timeline`, `PATCH /api/v1/jobs/{job_id}/timeline`
 - `POST /api/v1/jobs/{job_id}/timeline/undo`,
   `POST /api/v1/jobs/{job_id}/timeline/redo`
+- `GET /api/v1/jobs/{job_id}/timeline/waveform` for normalised peaks
 - `PATCH /api/v1/jobs/{job_id}/timeline/batch` for atomic multi-clip edits
 - `PATCH /api/v1/jobs/{job_id}/timeline/clip/{clip_id}` for transitions,
   scale, position, and audio fades
@@ -805,9 +806,36 @@ Project state is created by recipe runs and edited through the job timeline API.
   `PUT /api/v1/presets/{name}`
 
 `PATCH /api/v1/jobs/{job_id}/timeline` accepts `trim`, `move`, `delete`,
-`split`, and `ripple`. Every edit validates against the source media, records
-one undo entry in `timeline_history.json`, increments `revision`, and returns a
-warning that rendered artifacts must be refreshed.
+`split`, `ripple`, `ripple_trim`, and `slip`. Every edit validates against the
+source media, records one undo entry in `timeline_history.json`, increments
+`revision`, and returns a warning that rendered artifacts must be refreshed.
+
+`slip` shifts the source range without moving the clip on the timeline:
+
+```json
+{ "clip_id": "c1", "action": "slip", "delta_sec": 0.4 }
+```
+
+`ripple_trim` trims the clip and moves every following clip by the same delta.
+`PATCH .../timeline/batch` accepts the same actions for atomic multi-clip edits,
+which is how the UI applies a group trim.
+
+When `timeline_meta.json` marks the video or audio track as `locked`, clip edits
+return `409 state_not_ready`. The `muted` audio track makes render and preview
+append `volume=0`; `solo` overrides mute.
+
+### Waveform peaks
+
+```http
+GET /api/v1/jobs/{job_id}/timeline/waveform?start=0&end=12.5&buckets=600
+```
+
+Returns normalised RMS peaks for a timeline range. The source is decoded once
+at 4 kHz mono, sampled into 50 ms buckets, and cached under
+`<home>/waveforms/<digest>.json`; later calls only slice and resample the cache.
+The response includes `peaks`, `bucket_sec`, `start_sec`, and `end_sec`.
+Missing source media returns `409 state_not_ready`; a decode failure returns
+`422 waveform_failed`.
 
 ```json
 {

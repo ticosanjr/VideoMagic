@@ -3,6 +3,42 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.2.0] - 2026-10-24
+
+### Added
+
+- **Real clip waveforms.** `GET /api/v1/jobs/{id}/timeline/waveform` decodes
+  the source once, computes normalised RMS peaks at 50 ms resolution, caches
+  them under `<home>/waveforms`, and slices any timeline range. The canvas draws
+  the real peaks and falls back to synthetic bars when the source is missing.
+- **Slip edit.** `action: "slip"` shifts the source in/out of a clip without
+  moving it on the timeline, for video and audio, bounded by the media length.
+- **Group trim and ripple trim in the canvas.** Dragging an edge with several
+  clips selected trims them together; `Shift` + edge drag ripples the trim.
+  `Alt` + drag slips the clip.
+- **Timeline virtualization.** Only clips, captions, and audio bars inside the
+  visible window (plus a three-second margin) are drawn, and the canvas redraws
+  on scroll. A synthetic 1,000-clip timeline stays responsive.
+- **Preview scheduler.** The preview is marked `outdated` after every edit and
+  rebuilt automatically after a 1.2 s debounce when `Auto preview` is on.
+- **Track enforcement.** Locked video/audio tracks reject clip edits with
+  `409 state_not_ready`; muted audio tracks render and preview with
+  `volume=0`, and `solo` overrides mute.
+
+### Changed
+
+- Timeline DTO exposes `audio[].source_in_sec`, `audio[].source_out_sec`, and
+  `media {source_path, audio_sample_rate}` for waveform requests.
+- Caption drawing no longer caps at 500 entries; visibility decides what is
+  drawn.
+- Version bumped to 2.2.0 for the server and UI bundle.
+
+### Notes
+
+- Local-only development build. No release artifact was produced for 2.2.0.
+- Dragging library assets onto the timeline needs a clip/overlay state model
+  and is scheduled with the NLE work, not this phase.
+
 ## [2.1.0] - 2026-10-24
 
 ### Added

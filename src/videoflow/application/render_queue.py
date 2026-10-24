@@ -19,6 +19,23 @@ def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
+def _track_filters(job: Any) -> list[str]:
+    """Translate track mute state into render filters."""
+
+    from videoflow.application.timeline_meta import load_meta
+
+    try:
+        meta = load_meta(job.output)
+    except Exception:
+        return []
+    state = meta.tracks.get("audio")
+    if state is None:
+        return []
+    if state.solo or not state.muted:
+        return []
+    return ["volume=0"]
+
+
 def _filters(path: Path) -> list[str]:
     if not path.is_file():
         return []
@@ -119,7 +136,8 @@ class RenderQueue:
                     state,
                     destination,
                     adapter=adapter,
-                    audio_filters=_filters(job.output / "audio" / "master-filters.json"),
+                    audio_filters=_filters(job.output / "audio" / "master-filters.json")
+                    + _track_filters(job),
                     video_filters=_filters(job.output / "color" / "filters.json"),
                     ass_path=ass_path if ass_path.is_file() else None,
                 )

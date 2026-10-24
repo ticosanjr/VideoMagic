@@ -96,3 +96,55 @@ def test_preview_cancel_removes_the_partial(
     wait_until(lambda: item.status == "cancelled")
 
     assert not preview.exists()
+
+
+def test_muted_audio_track_silences_the_render(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from videoflow.application.timeline_meta import TimelineMeta, TrackState, save_meta
+
+    job = build_job(tmp_path)
+    save_meta(job.output, TimelineMeta(tracks={"audio": TrackState(muted=True)}))
+    captured: dict[str, Any] = {}
+
+    def fake_export(state, target, *, adapter, **kwargs):
+        captured.update(kwargs)
+        target = Path(target)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"ok")
+
+    monkeypatch.setattr(render_queue, "export_mp4", fake_export)
+    queue = RenderQueue()
+
+    item = queue.start(job)
+    wait_until(lambda: item.status in {"ready", "failed"})
+
+    assert item.status == "ready", item.error
+    assert "volume=0" in captured["audio_filters"]
+
+
+def test_solo_overrides_a_muted_audio_track(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from videoflow.application.timeline_meta import TimelineMeta, TrackState, save_meta
+
+    job = build_job(tmp_path)
+    save_meta(
+        job.output, TimelineMeta(tracks={"audio": TrackState(muted=True, solo=True)})
+    )
+    captured: dict[str, Any] = {}
+
+    def fake_export(state, target, *, adapter, **kwargs):
+        captured.update(kwargs)
+        target = Path(target)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"ok")
+
+    monkeypatch.setattr(render_queue, "export_mp4", fake_export)
+    queue = RenderQueue()
+
+    item = queue.start(job)
+    wait_until(lambda: item.status in {"ready", "failed"})
+
+    assert item.status == "ready", item.error
+    assert "volume=0" not in captured["audio_filters"]

@@ -2,6 +2,7 @@
   import { onDestroy, onMount } from "svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
   import TimelineCanvas from "$lib/TimelineCanvas.svelte";
+  import { groupTrimEdits } from "$lib/timelineView";
   import ShortEditor from "$lib/ShortEditor.svelte";
   import WaveformStrip from "$lib/WaveformStrip.svelte";
   import {
@@ -18,6 +19,7 @@
     getPreviewStatus,
     getRenderStatus,
     getTimeline,
+    getClipWaveform,
     jobArtifactUrl,
     jobThumbnailUrl,
     listJobs,
@@ -91,6 +93,11 @@
   let brollBusy = $state("");
   let raf = 0;
   let shortEditor = $state<{ index: number; short: TimelineData["shorts"][number] } | null>(null);
+  let waveforms = $state<Record<string, number[]>>({});
+  let autoPreview = $state(true);
+  let previewDirty = $state(false);
+  let previewScheduled: ReturnType<typeof setTimeout> | undefined;
+  const waveformCache = new Map<string, number[]>();
 
   const duration = $derived(Math.max(0.001, timeline?.duration_sec ?? 1));
   const fps = $derived(timeline?.fps ?? 30);
@@ -110,6 +117,7 @@
   onDestroy(() => {
     window.removeEventListener("keydown", onKeydown);
     cancelAnimationFrame(raf);
+    clearTimeout(previewScheduled);
   });
 
   function timecode(value: number): string {
@@ -152,6 +160,7 @@
       const mp4 = Object.entries(artifacts).find(([name]) => name === "mp4" || name.endsWith("mp4"));
       previewUrl = mp4 ? jobArtifactUrl(selected, mp4[0]) : "";
       syncBroll(timeline);
+      void loadWaveforms(timeline);
       await loadDeliverables();
     } catch (reason) {
       error = errorMessage(reason);
@@ -159,6 +168,40 @@
     } finally {
       loading = false;
     }
+  }
+
+  async function loadWaveforms(data: TimelineData) {
+    if (!selected) return;
+    const jobId = selected;
+    const entries = await Promise.all(
+      data.audio.map(async (clip) => {
+        const buckets = Math.max(40, Math.min(720, Math.round((clip.end_sec - clip.start_sec) * 60)));
+        const key = `${jobId}:${clip.start_sec}:${clip.end_sec}:${buckets}`;
+        const cached = waveformCache.get(key);
+        if (cached) return [clip.id, cached] as const;
+        try {
+          const peaks = await getClipWaveform(jobId, clip.start_sec, clip.end_sec, buckets);
+          waveformCache.set(key, peaks);
+          return [clip.id, peaks] as const;
+        } catch {
+          return null;
+        }
+      })
+    );
+    const next: Record<string, number[]> = {};
+    for (const entry of entries) {
+      if (entry) next[entry[0]] = entry[1];
+    }
+    if (selected === jobId) waveforms = next;
+  }
+
+  function schedulePreview() {
+    previewDirty = true;
+    if (!autoPreview || !selected || !previewUrl) return;
+    clearTimeout(previewScheduled);
+    previewScheduled = setTimeout(() => {
+      if (!previewBusy && previewDirty) void buildPreview();
+    }, 1200);
   }
 
   async function loadDeliverables() {
@@ -444,6 +487,7 @@
         previewMessage = current.message ?? current.status;
         if (current.status === "ready") {
           previewUrl = `${payload.url}?t=${Date.now()}`;
+          previewDirty = false;
           status = "Browser preview rendered from the current timeline.";
           return;
         }
@@ -470,7 +514,7 @@
   }
 
   async function applyEdit(
-    action: "trim" | "move" | "delete" | "split" | "ripple",
+    action: "trim" | "move" | "delete" | "split" | "ripple" | "ripple_trim" | "slip",
     values: { start_sec?: number; end_sec?: number; delta_sec?: number; split_sec?: number } = {}
   ) {
     if (!selectedClip) return;
@@ -485,6 +529,7 @@
       });
       status = `Timeline revision ${response.revision} saved. ${response.warning}`;
       await loadTimeline(selectedClip.id);
+      schedulePreview();
     } catch (reason) {
       error = errorMessage(reason);
     } finally {
@@ -499,6 +544,7 @@
       const response = await editTimelineBatch(selected, edits as never);
       status = `Batch applied to ${response.applied} clip(s) at revision ${response.revision}.`;
       await loadTimeline(selectedClip?.id ?? "");
+      schedulePreview();
     } catch (reason) {
       error = errorMessage(reason);
     } finally {
@@ -551,6 +597,7 @@
     try {
       await undoTimeline(selected);
       await loadTimeline();
+      schedulePreview();
       status = "Undid the last timeline edit.";
     } catch (reason) {
       error = errorMessage(reason);
@@ -564,6 +611,7 @@
     try {
       await redoTimeline(selected);
       await loadTimeline();
+      schedulePreview();
       status = "Redid the last timeline edit.";
     } catch (reason) {
       error = errorMessage(reason);
@@ -763,6 +811,7 @@
         {selectedIds}
         {snap}
         {brollApproved}
+        {waveforms}
         onSeek={seek}
         onSelectClip={selectClip}
         onMoveClips={(ids, delta) => {
@@ -780,6 +829,21 @@
           if (clip) {
             selectClip(clip);
             void applyEdit("trim", { start_sec: start, end_sec: end });
+          }
+        }}
+        onGroupTrim={(ids, edge, delta) => {
+          const clips = (timeline?.video ?? []).filter((clip) => ids.includes(clip.id));
+          const edits = groupTrimEdits(clips, edge, delta, timeline?.duration_sec ?? 0);
+          if (edits.length) void applyBatch(edits as unknown as Array<Record<string, unknown>>);
+        }}
+        onRippleTrimClip={(id, start, end) => {
+          void applyEdit("ripple_trim", { start_sec: start, end_sec: end });
+        }}
+        onSlipClip={(id, delta) => {
+          const clip = timeline?.video.find((item) => item.id === id) ?? null;
+          if (clip) {
+            selectClip(clip);
+            void applyEdit("slip", { delta_sec: delta });
           }
         }}
         onZoom={(value) => (zoom = value)}
@@ -957,7 +1021,16 @@
           <h3 class="text-xs font-semibold text-neutral-100">B-roll approval</h3>
           <p class="mt-1 text-[10px] text-neutral-500">Approve, reject, and reorder planned B-roll before the Shorts render consumes it.</p>
         </div>
-        <button type="button" onclick={() => void buildPreview()} disabled={previewBusy || !selected} class="rounded-lg border border-neutral-700 px-2.5 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Rebuild preview</button>
+        <div class="flex items-center gap-2">
+          {#if previewDirty}
+            <span class="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 text-[9px] uppercase tracking-wide text-amber-200">preview outdated</span>
+          {/if}
+          <label class="flex items-center gap-1.5 text-[10px] text-neutral-400">
+            <input type="checkbox" bind:checked={autoPreview} class="h-3 w-3 accent-sky-500" />
+            Auto preview
+          </label>
+          <button type="button" onclick={() => void buildPreview()} disabled={previewBusy || !selected} class="rounded-lg border border-neutral-700 px-2.5 py-1 text-[10px] text-neutral-300 disabled:opacity-40">{previewBusy ? "Rendering…" : "Rebuild preview"}</button>
+        </div>
       </div>
       {#if Object.keys(timeline.broll ?? {}).length}
         <div class="mt-3 grid gap-3 lg:grid-cols-2">
