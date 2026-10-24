@@ -22,6 +22,8 @@ Implemented today:
 - `POST /api/v1/media/import`
 - `GET/PUT/DELETE /api/v1/publish/targets`, `GET /api/v1/publish/queue`,
   `POST /api/v1/publish/dispatch`, `POST /api/v1/jobs/{id}/shorts/{index}/publish`
+- `GET /api/v1/assets/sfx`, `POST /api/v1/assets/sfx?name=`,
+  `DELETE /api/v1/assets/sfx/{name}`
 - `GET /api/v1/assets/fonts`, `POST /api/v1/assets/fonts`
 - `GET /api/v1/assets/images`, `POST /api/v1/assets/images`
 - `GET /api/v1/assets/music`, `POST /api/v1/assets/music`

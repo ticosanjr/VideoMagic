@@ -138,6 +138,7 @@ def _shorts_config(options: dict[str, object]) -> ShortsConfig:
     requested_min = options.get("shorts_min_count")
     minimum = min(3, count) if requested_min is None else max(1, min(int(requested_min), count))
     return ShortsConfig(
+        profile=str(options.get("shorts_profile", "default")),  # type: ignore[arg-type]
         target_duration_min_sec=int(options.get("shorts_min_sec", 30)),
         target_duration_max_sec=int(options.get("shorts_max_sec", 60)),
         min_clips=minimum,

@@ -290,6 +290,10 @@ The job stops as `waiting_approval`. `POST /api/v1/jobs/{id}/resume` writes
 
 ## Built-in recipes
 
+`localized_shorts` extends `viral_shorts_batch` with a `localization.dub` step
+after the Shorts render. It is skipped with a warning when no TTS provider is
+configured.
+
 The catalog includes 34 recipes: rough cut, captions, NLE export, clean audio,
 chapters, Shorts select/render, best moments, hook first, trailer, review gate,
 reframe/caption/A-B variants, podcast, interview, webinar, lecture, product

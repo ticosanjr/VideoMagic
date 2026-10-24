@@ -800,6 +800,19 @@
           "title": "Min Clips",
           "type": "integer"
         },
+        "profile": {
+          "default": "default",
+          "enum": [
+            "default",
+            "hook",
+            "education",
+            "podcast",
+            "tiktok",
+            "youtube"
+          ],
+          "title": "Profile",
+          "type": "string"
+        },
         "prompt": {
           "default": "",
           "maxLength": 2000,

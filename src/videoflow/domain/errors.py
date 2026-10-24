@@ -129,6 +129,12 @@ class FilesystemError(VideoFlowError):
     code = "filesystem_error"
 
 
+class AssetNotFoundError(VideoFlowError):
+    """A stored library asset does not exist."""
+
+    code = "asset_not_found"
+
+
 class InvalidRetakeIdsError(VideoFlowError):
     """The model returned sentence ids that were not in the prompt window."""
 

@@ -198,6 +198,7 @@ def select_shorts(
     filler_words: Sequence[str] = (),
     energy_intervals: Sequence[tuple[int, int]] = (),
     scene_intervals: Sequence[tuple[int, int]] = (),
+    weights: dict[str, float] | None = None,
 ) -> list[ShortClip]:
     notes = warnings if warnings is not None else []
     if prompt_mode not in {"replace", "refine"}:
@@ -253,6 +254,7 @@ def select_shorts(
         previous_ids=previous_ids if prompt_mode == "refine" else set(),
         energy_intervals=energy_intervals,
         scene_intervals=scene_intervals,
+        weights=weights,
     )
     selected = _merge_clips(llm_clips, heuristic, count) if llm_clips else heuristic
     selected = _apply_hooks(selected, sentences, hook_mode, min_samples, max_samples)
@@ -465,6 +467,7 @@ def _heuristic(
     previous_ids: set[int] | None = None,
     energy_intervals: Sequence[tuple[int, int]] = (),
     scene_intervals: Sequence[tuple[int, int]] = (),
+    weights: dict[str, float] | None = None,
 ) -> list[ShortClip]:
     candidates: list[ShortClip] = []
     for start_index, sentence in enumerate(sentences):
@@ -511,6 +514,14 @@ def _heuristic(
             score += bonus
             breakdown.append((name, bonus))
         hook = _best_hook(chosen_sentences, min_samples, max_samples, focus)
+        ranking_score = (
+            sum(
+                value * float(weights.get(name, 1.0))
+                for name, value in breakdown
+            )
+            if weights
+            else score
+        )
         candidates.append(
             ShortClip(
                 title=text[:60].strip() or f"Short {len(candidates) + 1}",
@@ -518,7 +529,7 @@ def _heuristic(
                 end_sample=end,
                 sentence_ids=tuple(item.id for item in chosen_sentences),
                 pieces=pieces,
-                score=score,
+                score=ranking_score,
                 hook_text=hook.text if hook else None,
                 hook_sentence_id=hook.id if hook else None,
                 hook_start_sample=hook.start_sample if hook else None,
@@ -562,7 +573,10 @@ def _quality_bonus(
         result.append(("completeness", 1.5))
     if any(marker in end for marker in ("resultado", "result", "então", "so", "therefore", "por isso")):
         result.append(("payoff", 2.0))
-    if any(marker in start for marker in ("como", "why", "por que", "você", "you", "imagina")):
+    if any(
+        marker in start
+        for marker in ("como", "why", "por que", "você", "voce", "you", "imagina")
+    ):
         result.append(("hook_strength", 1.5))
     if any(marker in end for marker in ("comenta", "salva", "segue", "subscribe", "comment", "save")):
         result.append(("cta", 1.0))
@@ -840,6 +854,7 @@ def _from_llm(
     filler_words: Sequence[str] = (),
     energy_intervals: Sequence[tuple[int, int]] = (),
     scene_intervals: Sequence[tuple[int, int]] = (),
+    weights: dict[str, float] | None = None,
 ) -> list[ShortClip]:
     by_id = {item.id: item for item in sentences}
     payload = [{"id": item.id, "text": item.text} for item in sentences]

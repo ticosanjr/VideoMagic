@@ -3,23 +3,23 @@
 from __future__ import annotations
 
 import json
-from dataclasses import replace
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.scoring import (
+    PROFILES,
+    profile_weights,
+    rerank,
+    similar,
+)
 from videoflow.core.context import PipelineContext
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.registry import register_step
 
-Profile = Literal["default", "hook", "education", "podcast"]
+Profile = Literal["default", "hook", "education", "podcast", "tiktok", "youtube"]
 
-WEIGHTS: dict[str, dict[str, float]] = {
-    "default": {},
-    "hook": {"hook_strength": 2.0, "question": 1.5, "markers": 1.2},
-    "education": {"completeness": 2.0, "payoff": 1.5, "speaker_balance": 1.2},
-    "podcast": {"speaker_balance": 2.5, "completeness": 1.2, "duration_fit": 1.2},
-}
+WEIGHTS = PROFILES
 
 
 class ScoreParams(BaseModel):
@@ -31,21 +31,7 @@ class ScoreParams(BaseModel):
     use_llm: bool = False
 
 
-def _terms(text: str) -> set[str]:
-    return {
-        item
-        for item in "".join(char.lower() if char.isalnum() else " " for char in text).split()
-        if len(item) > 3
-    }
-
-
-def _similar(left: str, right: str) -> float:
-    a = _terms(left)
-    b = _terms(right)
-    shared = a & b
-    if len(shared) < 2:
-        return 0.0
-    return len(shared) / len(a | b)
+_similar = similar
 
 
 @register_step
@@ -66,7 +52,6 @@ class ShortsScoreStep(BaseStep):
         if not clips:
             io.report(100, "No Shorts to score")
             return
-        weights = dict(WEIGHTS.get(options.profile, {}))
         analytics = context.metadata.get("analytics_weights")
         if not isinstance(analytics, dict):
             review = context.output / "delivery" / "analytics-review.json"
@@ -75,39 +60,24 @@ class ShortsScoreStep(BaseStep):
                     analytics = json.loads(review.read_text(encoding="utf-8")).get("weights")
                 except (OSError, ValueError):
                     analytics = None
+        weights = profile_weights(
+            options.profile,
+            {
+                str(key): float(value)
+                for key, value in (analytics or {}).items()
+                if isinstance(value, (int, float))
+            }
+            if isinstance(analytics, dict)
+            else None,
+        )
         if isinstance(analytics, dict):
-            for key, value in analytics.items():
-                if isinstance(value, (int, float)):
-                    weights[str(key)] = float(value)
             weights["analytics"] = 1.0
-        scored = []
-        for clip in clips:
-            total = 0.0
-            breakdown = []
-            for name, value in getattr(clip, "score_breakdown", ()):
-                weight = weights.get(name, 1.0)
-                contribution = float(value) * weight
-                total += contribution
-                breakdown.append((name, round(contribution, 3)))
-            scored.append(
-                replace(
-                    clip,
-                    score=round(total, 3),
-                    virality_score=min(100.0, round(total * 4.0, 1)),
-                    score_breakdown=tuple(breakdown),
-                )
-            )
-        scored.sort(key=lambda item: item.score, reverse=True)
-        selected = []
-        for clip in scored:
-            if any(
-                _similar(clip.title, item.title) >= options.diversity_threshold
-                for item in selected
-            ):
-                continue
-            selected.append(clip)
-            if options.top_k and len(selected) >= options.top_k:
-                break
+        selected = rerank(
+            clips,
+            weights,
+            diversity_threshold=options.diversity_threshold,
+            top_k=options.top_k,
+        )
         if options.use_llm and io.llm_client is not None:
             selected = self._llm_rerank(selected, io)
         context.selected_shorts = selected

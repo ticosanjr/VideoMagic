@@ -138,43 +138,98 @@ class AssetMatchStep(BaseStep):
             if item.get("kind") in {"video", "image"}
         ]
         plan: dict[str, list[dict[str, Any]]] = {}
+        licenses: dict[str, dict[str, Any]] = {}
         documents = [
             f"{asset.get('name', '')} {' '.join(asset.get('tags', []))}"
             for asset in assets
         ]
-        sentence_map = {sentence.id: sentence.text for sentence in context.transcript}
+        sentence_map = {sentence.id: sentence for sentence in context.transcript}
+        sample_rate = (
+            context.media.audio_sample_rate if context.media is not None else 48000
+        )
+        scenes = [
+            (
+                int(item.get("start_sample", 0)),
+                int(item.get("end_sample", 0)),
+                str(item.get("id", "")),
+            )
+            for item in context.metadata.get("scenes", [])
+            if isinstance(item, dict)
+        ]
+        used: set[str] = set()
         for clip in context.selected_shorts:
-            transcript_text = " ".join(
-                sentence_map.get(sentence_id, "") for sentence_id in clip.sentence_ids
-            )
-            text = f"{clip.title} {transcript_text} {options.query}".strip()
-            scores = _tfidf_scores(text, documents)
-            ranked = sorted(
-                zip(scores, assets, strict=False),
-                key=lambda item: item[0],
-                reverse=True,
-            )
+            windows = self._windows(clip, scenes)
             entries = []
-            for score, asset in ranked[: options.max_per_short]:
-                if score < options.min_score:
-                    continue
-                entries.append(
-                    {
-                        "path": asset.get("path"),
-                        "start_sec": 0.0,
-                        "duration_sec": 2.0,
-                        "provider": "local",
-                        "license": asset.get("license", ""),
-                        "source_url": "",
-                        "score": round(score, 4),
-                    }
+            for start, end, shot_id in windows:
+                scene_text = " ".join(
+                    sentence.text
+                    for sentence in sentence_map.values()
+                    if sentence.end_sample > start and sentence.start_sample < end
                 )
+                text = f"{clip.title} {scene_text} {options.query}".strip()
+                scores = _tfidf_scores(text, documents)
+                ranked = sorted(
+                    zip(scores, assets, strict=False),
+                    key=lambda item: item[0],
+                    reverse=True,
+                )
+                for score, asset in ranked:
+                    key = str(asset.get("id") or asset.get("path"))
+                    if score < options.min_score or key in used:
+                        continue
+                    used.add(key)
+                    relative_start = max(0.0, (start - clip.start_sample) / max(1, sample_rate))
+                    entries.append(
+                        {
+                            "path": asset.get("path"),
+                            "start_sec": round(relative_start, 3),
+                            "duration_sec": round(min(5.0, (end - start) / max(1, sample_rate)), 3),
+                            "provider": "local",
+                            "license": asset.get("license", ""),
+                            "attribution": str(asset.get("name") or ""),
+                            "source_url": "",
+                            "score": round(score, 4),
+                            "shot_id": shot_id,
+                        }
+                    )
+                    licenses[key] = {
+                        "name": asset.get("name"),
+                        "path": asset.get("path"),
+                        "license": asset.get("license", ""),
+                        "attribution": asset.get("name"),
+                    }
+                    break
+                if len(entries) >= options.max_per_short:
+                    break
             plan[clip.title] = entries
         context.metadata["broll_plan"] = plan
+        context.metadata["broll_licenses"] = licenses
+        context.output.mkdir(parents=True, exist_ok=True)
         target = context.output / "broll-matches.json"
         target.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
         context.artifacts["broll_matches"] = str(target)
+        license_target = context.output / "broll-licenses.json"
+        license_target.write_text(
+            json.dumps({"assets": licenses}, indent=2) + "\n", encoding="utf-8"
+        )
+        context.artifacts["broll_licenses"] = str(license_target)
         io.report(100, f"Matched B-roll for {len(plan)} Short(s)")
+
+    @staticmethod
+    def _windows(clip: Any, scenes: list[tuple[int, int, str]]) -> list[tuple[int, int, str]]:
+        """Return the shot windows covered by a clip, or one whole-clip window."""
+
+        inside = [
+            (start, end, shot_id)
+            for start, end, shot_id in scenes
+            if end > clip.start_sample and start < clip.end_sample
+        ]
+        if not inside:
+            return [(clip.start_sample, clip.end_sample, "")]
+        return [
+            (max(start, clip.start_sample), min(end, clip.end_sample), shot_id)
+            for start, end, shot_id in sorted(inside)
+        ]
 
     def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
         path = context.artifacts.get("broll_matches")

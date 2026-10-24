@@ -8,12 +8,14 @@
     deleteFontAsset,
     deleteImageAsset,
     deleteMusicAsset,
+    deleteSfxAsset,
     deleteProjectTemplate,
     errorMessage,
     getBrandTemplates,
     getFonts,
     getImages,
     getMusic,
+    getSfx,
     getPresets,
     getProjectTemplates,
     saveBrandTemplate,
@@ -22,6 +24,7 @@
     uploadFont,
     uploadImage,
     uploadMusic,
+    uploadSfx,
     type BrandTemplate,
     type FontAsset,
     type ImageAsset,
@@ -33,6 +36,7 @@
   let projects = $state<ProjectTemplate[]>([]);
   let presets = $state<Array<{ name: string; preset: Record<string, unknown> }>>([]);
   let music = $state<MusicAsset[]>([]);
+  let sfx = $state<MusicAsset[]>([]);
   let images = $state<ImageAsset[]>([]);
   let fonts = $state<FontAsset[]>([]);
   let error = $state("");
@@ -48,11 +52,12 @@
 
   async function load() {
     try {
-      [brands, projects, presets, music, images, fonts] = await Promise.all([
+      [brands, projects, presets, music, sfx, images, fonts] = await Promise.all([
         getBrandTemplates(),
         getProjectTemplates(),
         getPresets(),
         getMusic(),
+        getSfx(),
         getImages(),
         getFonts()
       ]);
@@ -123,10 +128,11 @@
     }
   }
 
-  async function removeMedia(name: string, kind: "music" | "image" | "font") {
+  async function removeMedia(name: string, kind: "music" | "sfx" | "image" | "font") {
     if (!confirm(`Delete ${name}?`)) return;
     try {
       if (kind === "music") await deleteMusicAsset(name);
+      else if (kind === "sfx") await deleteSfxAsset(name);
       else if (kind === "image") await deleteImageAsset(name);
       else await deleteFontAsset(name);
       await load();
@@ -135,10 +141,11 @@
     }
   }
 
-  async function upload(file: File | undefined, kind: "music" | "image" | "font") {
+  async function upload(file: File | undefined, kind: "music" | "sfx" | "image" | "font") {
     if (!file) return;
     try {
       if (kind === "music") await uploadMusic(file);
+      else if (kind === "sfx") await uploadSfx(file);
       else if (kind === "image") await uploadImage(file);
       else await uploadFont(file);
       status = `${file.name} uploaded.`;
@@ -229,6 +236,11 @@
           <p class="text-[10px] uppercase tracking-wide text-neutral-500">Music ({music.length})</p>
           <input type="file" accept="audio/*" onchange={(event) => void upload(event.currentTarget.files?.[0], "music")} class="mt-1 block text-[10px] text-neutral-400" />
           <div class="mt-1 space-y-0.5">{#each music as item}<div class="flex items-center gap-1"><p class="min-w-0 flex-1 truncate font-mono text-[9px] text-neutral-500">{item.name}</p><button type="button" onclick={() => void removeMedia(item.name, "music")} class="text-[9px] text-rose-300">×</button></div>{/each}</div>
+        </div>
+        <div>
+          <p class="text-[10px] uppercase tracking-wide text-neutral-500">SFX ({sfx.length})</p>
+          <input type="file" accept="audio/*" onchange={(event) => void upload(event.currentTarget.files?.[0], "sfx")} class="mt-1 block text-[10px] text-neutral-400" />
+          <div class="mt-1 space-y-0.5">{#each sfx as item}<div class="flex items-center gap-1"><p class="min-w-0 flex-1 truncate font-mono text-[9px] text-neutral-500">{item.name}</p><button type="button" onclick={() => void removeMedia(item.name, "sfx")} class="text-[9px] text-rose-300">×</button></div>{/each}</div>
         </div>
         <div>
           <p class="text-[10px] uppercase tracking-wide text-neutral-500">Images ({images.length})</p>

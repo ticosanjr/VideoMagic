@@ -429,3 +429,13 @@ def test_dubbing_step_skips_without_provider(monkeypatch, tmp_path: Path) -> Non
     context = Context()
     DubbingStep().run(context, DubbingParams(), StepIO(stage="dub"))
     assert "dubbed_shorts" not in context.metadata
+
+
+def test_localized_recipe_runs_dubbing_after_the_short_render() -> None:
+    from videoflow.engine.recipes import get_recipe
+
+    recipe = get_recipe("localized_shorts")
+    types = {step.type for step in recipe.enabled_steps()}
+    assert "localization.dub" in types
+    dub = next(step for step in recipe.steps if step.type == "localization.dub")
+    assert "render_shorts" in dub.needs

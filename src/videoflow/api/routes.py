@@ -162,6 +162,7 @@ from videoflow.application.settings import (
     load_settings,
     save_settings,
 )
+from videoflow.application.sfx import delete_sfx, list_sfx, save_sfx
 from videoflow.application.short_editor import ShortEditOptions
 from videoflow.application.short_editor import edit_short as edit_short_service
 from videoflow.application.short_metadata import generate_short_metadata
@@ -715,6 +716,30 @@ def register_routes(
                 detail={"ok": False, "code": "music_invalid", "message": str(exc)},
             ) from exc
         return {"ok": True, "music": asset}
+
+    @app.get("/api/v1/assets/sfx")
+    def sfx() -> dict[str, object]:
+        return {"ok": True, "sfx": list_sfx()}
+
+    @app.post("/api/v1/assets/sfx", status_code=201)
+    async def upload_sfx(name: str, request: Request) -> dict[str, object]:
+        try:
+            asset = save_sfx(name, await request.body())
+        except FilesystemError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "sfx_invalid", "message": str(exc)},
+            ) from exc
+        return {"ok": True, "sfx": asset}
+
+    @app.delete("/api/v1/assets/sfx/{name}")
+    def remove_sfx(name: str) -> dict[str, object]:
+        try:
+            delete_sfx(name)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "deleted": name}
 
     @app.get("/api/v1/assets/images")
     def images() -> dict[str, object]:
@@ -3584,6 +3609,7 @@ def status_for(code: str) -> int:
         "invalid_directory_name": 422,
         "permission_denied": 403,
         "filesystem_error": 500,
+        "asset_not_found": 404,
         "job_queue_full": 429,
         "job_not_found": 404,
         "job_already_running": 409,

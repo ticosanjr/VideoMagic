@@ -81,6 +81,8 @@ Rules:
 | `application/previews.py` | Cancellable 540p preview/proxy queue |
 | `application/timeline_edit.py` | Validated trim, move, delete, split, ripple, ripple-trim, and slip edits |
 | `application/waveforms.py` | Cached RMS peaks for timeline clips |
+| `application/scoring.py` | Channel profiles, re-ranking, and golden-set metrics |
+| `application/sfx.py` | Sound-effect asset store |
 | `application/telemetry.py` | Per-stage timestamps, progress, and bounded logs |
 | `modules/` | The eight rack modules (fingerprints live, engines stubbed) |
 | `adapters/ffmpeg.py` | FFprobe ingest, PCM extraction, digest, silencedetect VAD |

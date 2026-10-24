@@ -318,3 +318,90 @@ class NleQaStep(BaseStep):
         target.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         context.artifacts["nle_qa"] = str(target)
         io.report(100, "NLE QA complete")
+
+
+class PackageParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    copy_thumbnail: bool = True
+    include_music: bool = True
+    include_sfx: bool = True
+
+
+@register_step
+class DeliveryPackageStep(BaseStep):
+    type = "delivery.package"
+    title = "Delivery package"
+    description = (
+        "Bundle the rendered Shorts, the winning thumbnail, metadata, music, SFX, "
+        "and B-roll licenses into one manifest."
+    )
+    status = "available"
+    icon = "▣"
+    color = "#22c55e"
+    requires = ("shorts.render",)
+    produces = ("delivery_package",)
+    params_model = PackageParams
+
+    def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
+        options = PackageParams.model_validate(params)
+        directory = context.output / "delivery"
+        directory.mkdir(parents=True, exist_ok=True)
+        listing = list_thumbnails(context.output)
+        variants = [str(item) for item in listing.get("variants", [])]
+        winner = str(listing.get("selected") or "")
+        thumbnail_path = ""
+        if options.copy_thumbnail and winner:
+            source = context.output / "thumbnails" / winner
+            if source.is_file():
+                target = directory / "thumbnail.png"
+                shutil.copy2(source, target)
+                thumbnail_path = str(target)
+        shorts = []
+        for index, entry in enumerate(context.shorts):
+            if not isinstance(entry, dict):
+                continue
+            path = str(entry.get("path") or "")
+            shorts.append(
+                {
+                    "index": index,
+                    "title": entry.get("title", ""),
+                    "path": path,
+                    "thumbnail": thumbnail_path if options.copy_thumbnail else "",
+                }
+            )
+        music = []
+        if options.include_music:
+            music_dir = context.output.parent / "music"
+            if music_dir.is_dir():
+                music = [str(path) for path in sorted(music_dir.iterdir()) if path.is_file()]
+        sfx = []
+        if options.include_sfx:
+            sfx_plan = context.metadata.get("sfx_plan")
+            if isinstance(sfx_plan, dict):
+                seen: set[str] = set()
+                for cues in sfx_plan.values():
+                    for cue in cues:
+                        if not isinstance(cue, dict) or not cue.get("path"):
+                            continue
+                        path = str(cue["path"])
+                        if path not in seen:
+                            seen.add(path)
+                            sfx.append(path)
+        manifest = {
+            "ok": True,
+            "thumbnail_variants": variants,
+            "thumbnail_winner": winner,
+            "thumbnail": thumbnail_path,
+            "shorts": shorts,
+            "metadata": context.artifacts.get("metadata_pack", ""),
+            "music": music,
+            "sfx": sfx,
+            "licenses": context.artifacts.get("broll_licenses", ""),
+            "broll": context.artifacts.get("broll_matches", ""),
+        }
+        target = directory / "package.json"
+        target.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        context.artifacts["delivery_package"] = str(target)
+        context.metadata["delivery_package"] = manifest
+        io.report(100, f"Package with {len(shorts)} Short(s)")

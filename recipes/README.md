@@ -8,6 +8,7 @@ Built-in recipes are mirrored here for reading and editing:
 - `youtube_talking_head.json` — main cut and NLE exports.
 - `viral_shorts_batch.json` — main cut plus three vertical Shorts.
 - `full_podcast_curation.json` — main cut plus five Shorts with audio/scene boosts.
+- `localized_shorts.json` — Viral Shorts plus an optional translated dub per Short.
 
 Run one with:
 

@@ -141,3 +141,63 @@ def test_cli_renders_vertical_shorts(fixture: tuple[Path, Path], tmp_path: Path)
         stream = json.loads(probe.stdout)["streams"][0]
         assert stream["width"] == 1080
         assert stream["height"] == 1920
+
+
+def test_short_render_mixes_music_and_sfx(
+    fixture: tuple[Path, Path], tmp_path: Path
+) -> None:
+    import wave
+    from array import array
+
+    from videoflow.adapters.ffmpeg import FFmpegAdapter
+
+    def write_tone(path: Path, *, frequency: int, seconds: float) -> Path:
+        sample_rate = 48000
+        samples = array("h")
+        total = int(sample_rate * seconds)
+        for index in range(total):
+            value = int(8000 * ((index * frequency * 2) % sample_rate) / sample_rate - 4000)
+            samples.append(value)
+        with wave.open(str(path), "wb") as handle:
+            handle.setnchannels(1)
+            handle.setsampwidth(2)
+            handle.setframerate(sample_rate)
+            handle.writeframes(samples.tobytes())
+        return path
+
+    source, _ = fixture
+    music = write_tone(tmp_path / "music.wav", frequency=220, seconds=2)
+    sfx = write_tone(tmp_path / "whoosh.wav", frequency=880, seconds=1)
+    output = tmp_path / "mixed.mp4"
+
+    FFmpegAdapter().render_short(
+        source,
+        [(0, 2 * 48000)],
+        output,
+        sample_rate=48000,
+        music_path=music,
+        music_volume=0.2,
+        music_ducking=True,
+        sfx_clips=[(sfx, 0.5, 0.8)],
+    )
+
+    assert output.is_file()
+    probe = subprocess.run(
+        [
+            shutil.which("ffprobe") or "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-show_entries",
+            "stream=codec_type,channels",
+            "-of",
+            "json",
+            str(output),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    stream = json.loads(probe.stdout)["streams"][0]
+    assert stream["codec_type"] == "audio"

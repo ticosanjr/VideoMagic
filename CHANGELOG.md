@@ -3,6 +3,46 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.3.0] - 2026-10-24
+
+### Added
+
+- **Golden set and calibration.** `tests/golden/shorts.json`, a pure
+  `application/scoring.py` module, six channel profiles (`default`, `hook`,
+  `education`, `podcast`, `tiktok`, `youtube`), and
+  `scripts/shorts_golden.py`. The calibrated profiles reach precision@1 1.00
+  against a 0.75 baseline, with zero duplicates and 100% coverage.
+- **Profile before selection.** `shorts.select` accepts `profile` (also
+  `shorts_profile` in job options), so weights influence which windows are
+  selected, not only how they are re-ranked afterwards.
+- **Shot-aware B-roll.** `assets.match` scores assets per detected shot, sets
+  the cutaway `start_sec` inside the Short, records `shot_id`, and writes
+  `broll-licenses.json` with attribution and license for every used asset.
+- **SFX library.** `GET/POST/DELETE /api/v1/assets/sfx`, storage under
+  `assets/sfx`, and an upload/delete section in the Library tab.
+- **Delivery package.** `delivery.package` copies the winning thumbnail to
+  `delivery/thumbnail.png` and writes a manifest with Shorts, metadata, music,
+  SFX, B-roll, and licenses.
+- **Localized recipe.** `localized_shorts` runs `localization.dub` after the
+  Short render, with a mirrored `recipes/localized_shorts.json`.
+- Media test renders a Short with music and SFX in the same pass.
+
+### Changed
+
+- `shorts.score` now shares `rerank`, `profile_weights`, and duplicate
+  similarity with the golden evaluator instead of keeping a second copy.
+- Portuguese hook detection accepts unaccented `voce`, fixing a real miss in
+  the quality bonus.
+- Recipe, preset, and project-state schemas are regenerated for the additive
+  `profile` field.
+- Version bumped to 2.3.0 for the server and UI bundle.
+
+### Notes
+
+- Local-only development build. No release artifact was produced for 2.3.0.
+- Embedding-based B-roll and local clone dubbing remain provider work; TF-IDF,
+  shot matching, and the configured TTS path are what 2.3.0 ships.
+
 ## [2.2.0] - 2026-10-24
 
 ### Added

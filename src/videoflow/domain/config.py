@@ -189,6 +189,7 @@ class CaptionStyle(StrictModel):
 
 
 class ShortsConfig(StrictModel):
+    profile: Literal["default", "hook", "education", "podcast", "tiktok", "youtube"] = "default"
     target_duration_min_sec: int = Field(default=30, ge=1)
     target_duration_max_sec: int = Field(default=60, ge=1)
     min_clips: int = Field(default=3, ge=1, le=20)

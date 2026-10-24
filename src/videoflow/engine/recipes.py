@@ -827,6 +827,38 @@ _add_recipe(
     description="Color, titles, audio master, exports, and NLE QA.",
 )
 
+def _localized_steps() -> list[dict[str, Any]]:
+    """Viral Shorts followed by one dubbing step before the NLE export."""
+
+    steps = [dict(step) for step in BUILTIN_RECIPES["viral_shorts_batch"]["steps"]]
+    insert_at = next(
+        (index for index, step in enumerate(steps) if step.get("type") == "export.nle"),
+        len(steps),
+    )
+    steps.insert(
+        insert_at,
+        {
+            "id": "dub",
+            "type": "localization.dub",
+            "needs": ["render_shorts"],
+            "params": {"target_language": "en", "original_volume": 0.15},
+        },
+    )
+    return steps
+
+
+BUILTIN_RECIPES["localized_shorts"] = {
+    "schema_version": 1,
+    "id": "localized_shorts",
+    "name": "Localized Shorts",
+    "description": (
+        "Viral Shorts plus an optional translated dub per Short when a TTS provider is configured."
+    ),
+    "llm": {"provider": "none"},
+    "steps": _localized_steps(),
+}
+
+
 def builtin_recipe(recipe_id: str) -> Recipe:
     try:
         payload = BUILTIN_RECIPES[recipe_id]

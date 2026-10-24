@@ -1259,6 +1259,34 @@ export async function uploadMusic(file: File): Promise<MusicAsset> {
   return payload.music as MusicAsset;
 }
 
+export async function getSfx(): Promise<MusicAsset[]> {
+  const response = await request<{ ok: boolean; sfx: MusicAsset[] }>("/api/v1/assets/sfx");
+  return response.sfx;
+}
+
+export async function uploadSfx(file: File): Promise<MusicAsset> {
+  const response = await fetch(`/api/v1/assets/sfx?name=${encodeURIComponent(file.name)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/octet-stream" },
+    body: file
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    const detail = payload?.detail;
+    throw new ApiError(
+      detail?.code ?? "sfx_upload_failed",
+      detail?.message ?? "SFX upload failed"
+    );
+  }
+  return payload.sfx as MusicAsset;
+}
+
+export async function deleteSfxAsset(name: string): Promise<void> {
+  await request(`/api/v1/assets/sfx/${encodeURIComponent(name)}`, {
+    method: "DELETE"
+  });
+}
+
 export async function getImages(): Promise<ImageAsset[]> {
   const response = await request<{ ok: boolean; images: ImageAsset[] }>("/api/v1/assets/images");
   return response.images;

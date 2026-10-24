@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from videoflow.application.audio_analysis import detect_audio_energy
 from videoflow.application.retakes import cull_intervals
+from videoflow.application.scoring import profile_weights
 from videoflow.application.shorts import (
     previous_shorts_from_report,
     select_shorts,
@@ -115,6 +116,7 @@ class ShortsSelectStep(BaseStep):
             filler_words=options.filler_words,
             energy_intervals=energy,
             scene_intervals=scenes,
+            weights=profile_weights(options.profile),
         )
         if options.reframe_mode != "center_crop_9_16":
             warnings.append(
