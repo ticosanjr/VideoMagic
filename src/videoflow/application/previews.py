@@ -101,8 +101,14 @@ def build_preview(
     else:
         report(20, "Using the last MP4 artifact")
         FFmpegAdapter().transcode_preview(_fallback_source(job), full)
-    report(80, "Building 540p proxy")
-    FFmpegAdapter().transcode_preview(full, preview)
+    try:
+        from videoflow.application.settings import load_settings
+
+        height = load_settings().quality.proxy_height
+    except Exception:
+        height = 540
+    report(80, f"Building {height}p proxy")
+    FFmpegAdapter().transcode_preview(full, preview, width=height)
     report(100, "Preview ready")
     return preview
 

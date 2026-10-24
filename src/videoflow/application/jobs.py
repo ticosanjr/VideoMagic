@@ -40,6 +40,7 @@ from videoflow.domain.config import (
     ZoomsConfig,
 )
 from videoflow.domain.errors import (
+    ApprovalRequiredError,
     JobCancelledError,
     JobNotFoundError,
     JobQueueFullError,
@@ -49,7 +50,9 @@ from videoflow.domain.errors import (
 from videoflow.domain.state import ManualOverride, ProjectState, Sentence
 from videoflow.exporters.fcpxml import Dialect
 
-JobStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
+JobStatus = Literal[
+    "queued", "running", "waiting_approval", "succeeded", "failed", "cancelled"
+]
 TERMINAL: frozenset[str] = frozenset({"succeeded", "failed", "cancelled"})
 Runner = Callable[..., Any]
 
@@ -631,17 +634,54 @@ class JobManager:
                 for item in job.options.get("transcript_sentences", [])
             ]
             runner = RecipeRunner(recipe)
-            result = runner.run(
-                job.source,
-                job.output,
-                progress=progress,
-                should_cancel=should_cancel,
-                log=log,
-                telemetry=job.telemetry,
-                transcript_sentences=transcript_sentences,
-                through=job.options.get("through"),
-                resume=bool(job.options.get("resume", True)),
-            )
+            base_variables = dict(job.options.get("variables") or {})
+            variants = recipe.variants or []
+            variant_summaries: list[dict[str, object]] = []
+            result = None
+            if variants:
+                for index, variant in enumerate(variants, start=1):
+                    name = str(variant.get("name") or f"variant-{index}")
+                    overrides = variant.get("variables")
+                    variables = {
+                        **base_variables,
+                        **(overrides if isinstance(overrides, dict) else {}),
+                    }
+                    target = job.output / name
+                    variant_result = runner.run(
+                        job.source,
+                        target,
+                        progress=progress,
+                        should_cancel=should_cancel,
+                        log=log,
+                        telemetry=job.telemetry,
+                        transcript_sentences=transcript_sentences,
+                        through=job.options.get("through"),
+                        resume=bool(job.options.get("resume", True)),
+                        variables=variables,
+                        profile=job.options.get("profile"),
+                    )
+                    variant_summaries.append(
+                        {
+                            "name": name,
+                            "output": str(target),
+                            "summary": variant_result.to_dict(),
+                        }
+                    )
+                    result = variant_result
+            else:
+                result = runner.run(
+                    job.source,
+                    job.output,
+                    progress=progress,
+                    should_cancel=should_cancel,
+                    log=log,
+                    telemetry=job.telemetry,
+                    transcript_sentences=transcript_sentences,
+                    through=job.options.get("through"),
+                    resume=bool(job.options.get("resume", True)),
+                    variables=base_variables,
+                    profile=job.options.get("profile"),
+                )
             if job.finalizer is not None and not job.cancel_requested:
                 job.finalizer(job)
             with self._lock:
@@ -650,12 +690,24 @@ class JobManager:
                     job.stage = "cancelled"
                     job.message = "Cancelled"
                 else:
+                    assert result is not None
                     job.status = "succeeded"
                     job.progress = 100
                     job.stage = "done"
                     job.message = "Finished"
                     payload = result.to_dict()
+                    if variant_summaries:
+                        payload["variants"] = variant_summaries
                     job.result = payload
+        except ApprovalRequiredError as exc:
+            with self._lock:
+                job.status = "waiting_approval"
+                job.stage = "waiting_approval"
+                job.message = exc.message
+                job.error = exc.to_dict()
+                job.progress = max(1, min(99, job.progress))
+            self._persist_job(job)
+            return
         except JobCancelledError as exc:
             job.telemetry.fail_running(exc.message)
             with self._lock:
@@ -706,6 +758,12 @@ class JobManager:
             temporary.replace(path)
         except OSError:
             pass
+        try:
+            from videoflow.application.database import upsert_job
+
+            upsert_job(str(job.job_id), job.to_dict())
+        except Exception:
+            pass
 
     def _load_jobs(self) -> None:
         if self._store_dir is None or not self._store_dir.is_dir():
@@ -727,6 +785,16 @@ class JobManager:
                 }
                 self._persist_job(job)
             self._jobs[str(job.job_id)] = job
+        try:
+            from videoflow.application.database import list_jobs
+
+            for payload in list_jobs():
+                job_id = str(payload.get("job_id") or "")
+                if job_id and job_id not in self._jobs:
+                    job = _job_from_dict(payload)
+                    self._jobs[job_id] = job
+        except Exception:
+            pass
 
     def _prune(self) -> None:
         finished = [job for job in self._jobs.values() if job.status in TERMINAL]

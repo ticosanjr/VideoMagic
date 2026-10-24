@@ -35,6 +35,20 @@ class TranslationStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = TranslationParams.model_validate(params)
+        try:
+            from videoflow.application.settings import load_settings
+
+            translation = load_settings().translation
+            if options.target_language in {"", "en"}:
+                options = options.model_copy(
+                    update={"target_language": translation.target_language}
+                )
+            if options.source_language == "auto":
+                options = options.model_copy(
+                    update={"source_language": translation.source_language}
+                )
+        except Exception:
+            pass
         sentences = context.transcript or (context.state.transcript if context.state else [])
         if not sentences:
             io.report(100, "No transcript to translate")

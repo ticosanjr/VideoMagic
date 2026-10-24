@@ -505,6 +505,11 @@ def _heuristic(
             bonus = min(4.0, 1.0 * scene_count)
             score += bonus
             breakdown.append(("scene_change", bonus))
+        for name, bonus in _quality_bonus(
+            chosen_sentences, duration, min_samples, max_samples
+        ):
+            score += bonus
+            breakdown.append((name, bonus))
         hook = _best_hook(chosen_sentences, min_samples, max_samples, focus)
         candidates.append(
             ShortClip(
@@ -529,10 +534,52 @@ def _heuristic(
     for candidate in candidates:
         if any(_overlap(candidate, item) for item in selected):
             continue
+        if any(_text_similarity(candidate.title, item.title) >= 0.75 for item in selected):
+            continue
         selected.append(candidate)
         if len(selected) >= count:
             break
     return selected
+
+
+def _quality_bonus(
+    sentences: Sequence[Sentence],
+    duration: int,
+    minimum: int,
+    maximum: int,
+) -> list[tuple[str, float]]:
+    if not sentences:
+        return []
+    text = " ".join(item.text for item in sentences).strip()
+    lowered = text.casefold()
+    end = sentences[-1].text.strip().casefold()
+    start = sentences[0].text.strip().casefold()
+    speaker_count = len({item.speaker for item in sentences})
+    target = (minimum + maximum) / 2
+    fit = 1.0 - min(1.0, abs(duration - target) / max(1, target))
+    result: list[tuple[str, float]] = [("duration_fit", max(0.0, fit * 2.0))]
+    if text.endswith((".", "!", "?")):
+        result.append(("completeness", 1.5))
+    if any(marker in end for marker in ("resultado", "result", "então", "so", "therefore", "por isso")):
+        result.append(("payoff", 2.0))
+    if any(marker in start for marker in ("como", "why", "por que", "você", "you", "imagina")):
+        result.append(("hook_strength", 1.5))
+    if any(marker in end for marker in ("comenta", "salva", "segue", "subscribe", "comment", "save")):
+        result.append(("cta", 1.0))
+    if speaker_count > 1:
+        result.append(("speaker_balance", 1.0))
+    if len(lowered.split()) < 18:
+        result.append(("thin_context", -1.0))
+    return result
+
+
+def _text_similarity(left: str, right: str) -> float:
+    left_terms = set(_query_terms(left))
+    right_terms = set(_query_terms(right))
+    shared = left_terms & right_terms
+    if len(shared) < 2:
+        return 0.0
+    return len(shared) / len(left_terms | right_terms)
 
 
 def _score_payload(

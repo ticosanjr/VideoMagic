@@ -366,6 +366,12 @@ class BatchManager:
             temporary.replace(path)
         except OSError:
             pass
+        try:
+            from videoflow.application.database import upsert_batch
+
+            upsert_batch(str(batch.batch_id), batch.to_dict())
+        except Exception:
+            pass
 
     def _load(self) -> None:
         if self._store_dir is None or not self._store_dir.is_dir():

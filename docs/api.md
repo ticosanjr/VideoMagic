@@ -72,7 +72,7 @@ GET /health
 ```
 
 ```json
-{ "status": "ok", "service": "videoflow", "version": "0.86.0" }
+{ "status": "ok", "service": "videoflow", "version": "0.95.0" }
 ```
 
 ```http
@@ -82,7 +82,7 @@ GET /api/v1/system
 ```json
 {
   "ok": true,
-  "version": "0.86.0",
+  "version": "0.95.0",
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
@@ -706,7 +706,7 @@ On success, `job.result` is the `run_portable` report:
 ```json
 {
   "ok": true,
-  "version": "0.86.0",
+  "version": "0.95.0",
   "vad_engine": "silero",
   "speech_interval_count": 3,
   "video_segment_count": 3,
@@ -729,7 +729,12 @@ On failure, `job.error` is the typed error payload and `status` is `failed`.
 The legacy project store, module rack routes, and per-module reruns are gone.
 Project state is created by recipe runs and edited through the job timeline API.
 
-- `POST /api/v1/recipes/run`, `POST /api/v1/recipes/run/{step_id}`
+- `POST /api/v1/recipes/run`, `POST /api/v1/recipes/run/{step_id}`,
+  `POST /api/v1/recipes/dry-run`
+- `POST /api/v1/jobs/{job_id}/resume`
+- `GET /api/v1/plugins`, `POST /api/v1/plugins/reload`,
+  `POST /api/v1/plugins/{id}/enable`
+- `GET /api/v1/system/metrics`, `GET /api/v1/system/backup`
 - `GET /api/v1/jobs/{job_id}/timeline`, `PATCH /api/v1/jobs/{job_id}/timeline`
 - `POST /api/v1/jobs/{job_id}/timeline/undo`,
   `POST /api/v1/jobs/{job_id}/timeline/redo`

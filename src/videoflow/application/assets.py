@@ -62,6 +62,13 @@ def _write(assets: list[dict[str, Any]]) -> None:
         encoding="utf-8",
     )
     os.replace(temporary, path)
+    try:
+        from videoflow.application.database import upsert_asset
+
+        for asset in assets:
+            upsert_asset(str(asset.get("id", "")), asset)
+    except Exception:
+        pass
 
 
 def _record(path: Path, tags: list[str] | None = None) -> dict[str, Any]:

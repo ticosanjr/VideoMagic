@@ -370,3 +370,33 @@ class TranscriptionError(VideoFlowError):
     """Speech-to-text failed or returned unusable timestamps."""
 
     code = "transcription_failed"
+
+
+class ApprovalRequiredError(VideoFlowError):
+    """A recipe gate is waiting for a human decision."""
+
+    code = "approval_required"
+
+    def __init__(
+        self,
+        gate_id: str,
+        title: str = "",
+        message: str = "",
+        *,
+        step_id: str = "",
+    ) -> None:
+        self.gate_id = gate_id
+        self.title = title or gate_id
+        self.step_id = step_id
+        super().__init__(message or f"Approval required: {self.title}")
+
+    def to_dict(self) -> dict[str, object]:
+        payload = super().to_dict()
+        payload.update(
+            {
+                "gate_id": self.gate_id,
+                "title": self.title,
+                "step_id": self.step_id,
+            }
+        )
+        return payload

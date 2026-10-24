@@ -818,7 +818,7 @@ def test_preview_proxy_routes(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         routes.FFmpegAdapter,
         "transcode_preview",
-        lambda self, source, target: target.write_bytes(b"proxy") or target,
+        lambda self, source, target, **kwargs: target.write_bytes(b"proxy") or target,
     )
     manager = JobManager(runner=runner)
     job = manager.start(tmp_path / "source.mp4", tmp_path / "out", {})

@@ -141,6 +141,43 @@
       "title": "RecipeUi",
       "type": "object"
     },
+    "RecipeVariable": {
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "default": null,
+          "title": "Default"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "options": {
+          "items": {},
+          "title": "Options",
+          "type": "array"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "type": {
+          "default": "string",
+          "enum": [
+            "string",
+            "number",
+            "boolean",
+            "enum"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "RecipeVariable",
+      "type": "object"
+    },
     "RecipeViewport": {
       "additionalProperties": false,
       "properties": {
@@ -186,6 +223,14 @@
       "title": "Name",
       "type": "string"
     },
+    "profiles": {
+      "additionalProperties": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Profiles",
+      "type": "object"
+    },
     "schema_version": {
       "const": 1,
       "default": 1,
@@ -202,6 +247,26 @@
     },
     "ui": {
       "$ref": "#/$defs/RecipeUi"
+    },
+    "variables": {
+      "additionalProperties": {
+        "$ref": "#/$defs/RecipeVariable"
+      },
+      "title": "Variables",
+      "type": "object"
+    },
+    "variables_resolved": {
+      "additionalProperties": true,
+      "title": "Variables Resolved",
+      "type": "object"
+    },
+    "variants": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Variants",
+      "type": "array"
     }
   },
   "required": [

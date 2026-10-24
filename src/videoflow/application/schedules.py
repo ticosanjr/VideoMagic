@@ -137,6 +137,16 @@ def save_schedules(items: list[RecipeSchedule]) -> list[RecipeSchedule]:
 
 
 def upsert_schedule(schedule: RecipeSchedule) -> RecipeSchedule:
+    try:
+        from videoflow.application.settings import load_settings
+
+        automation = load_settings().automation
+        if schedule.max_retries == 5:
+            schedule = schedule.model_copy(
+                update={"max_retries": automation.max_retries}
+            )
+    except Exception:
+        pass
     if schedule.kind in {"once", "interval"}:
         if not schedule.source:
             raise StateNotReadyError("A schedule needs a source file.")
@@ -259,7 +269,13 @@ def run_schedule(jobs: Any, schedule: RecipeSchedule) -> RecipeSchedule:
             schedule.status = "failed"
             schedule.next_run = ""
         else:
-            backoff = min(3600, 30 * (2 ** max(0, schedule.attempts - 1)))
+            try:
+                from videoflow.application.settings import load_settings
+
+                base = load_settings().automation.retry_backoff_seconds
+            except Exception:
+                base = 30
+            backoff = min(3600, base * (2 ** max(0, schedule.attempts - 1)))
             schedule.status = f"retry in {backoff}s"
             schedule.next_run = (
                 datetime.now(UTC) + timedelta(seconds=backoff)

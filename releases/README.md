@@ -5,8 +5,11 @@ the manifest, checksums, and notes are tracked. GitHub Actions is not used.
 
 ## Current
 
-- `v0.86.0`: local-first beta with Settings Hub, expanded models, managed
-  services, library, diagnostics, and support bundle.
+- `v0.95.0`: local-first release candidate with recipe variables, variants,
+  map/reduce, human gates, Shorts scoring, assets, delivery, SQLite index,
+  plugins, and diagnostics.
+- `v0.86.0`: Settings Hub, expanded models, managed services, library,
+  diagnostics, and support bundle.
 - `v0.80.0`: multi-select timeline, render queue, markers, SQLite schedules,
   secrets, failover, translation, and delivery metrics.
 - `v0.70.0`: incremental timeline, background preview, burned titles, color
@@ -23,7 +26,7 @@ sha256sum -c SHA256SUMS
 The Linux AppImage can be checked without installing:
 
 ```bash
-chmod +x VideoFlow-0.86.0-x86_64.AppImage
-./VideoFlow-0.86.0-x86_64.AppImage version
-./VideoFlow-0.86.0-x86_64.AppImage serve --open
+chmod +x VideoFlow-0.95.0-x86_64.AppImage
+./VideoFlow-0.95.0-x86_64.AppImage version
+./VideoFlow-0.95.0-x86_64.AppImage serve --open
 ```

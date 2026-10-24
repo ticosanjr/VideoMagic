@@ -417,6 +417,18 @@ export interface Recipe {
     timeout_seconds: number;
   };
   ui?: RecipeUi;
+  variables?: Record<
+    string,
+    {
+      type: "string" | "number" | "boolean" | "enum";
+      default?: unknown;
+      description?: string;
+      options?: unknown[];
+      required?: boolean;
+    }
+  >;
+  profiles?: Record<string, Record<string, unknown>>;
+  variants?: Array<Record<string, unknown>>;
   steps: RecipeStep[];
 }
 
@@ -1533,12 +1545,34 @@ export async function runRecipe(payload: {
   save_recipe?: boolean;
   resume?: boolean;
   through?: string | null;
+  variables?: Record<string, unknown>;
+  profile?: string | null;
 }): Promise<Job> {
   const response = await request<{ ok: boolean; job: Job }>("/api/v1/recipes/run", {
     method: "POST",
     body: JSON.stringify(payload)
   });
   return response.job;
+}
+
+export async function dryRunRecipe(payload: {
+  source: string;
+  output: string;
+  recipe: Recipe;
+  variables?: Record<string, unknown>;
+  profile?: string | null;
+  through?: string | null;
+}): Promise<{
+  ok: boolean;
+  recipe_id: string;
+  profile: string;
+  variables: Record<string, unknown>;
+  steps: Array<{ id: string; type: string; needs: string[]; params: Record<string, unknown> }>;
+}> {
+  return request("/api/v1/recipes/dry-run", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
 }
 
 export async function runBatch(payload: {
@@ -1622,6 +1656,8 @@ export async function runRecipeStep(
     recipe: Recipe;
     save_recipe?: boolean;
     resume?: boolean;
+    variables?: Record<string, unknown>;
+    profile?: string | null;
   }
 ): Promise<Job> {
   const response = await request<{ ok: boolean; job: Job }>(

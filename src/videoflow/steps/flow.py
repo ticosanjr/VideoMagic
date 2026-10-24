@@ -35,9 +35,16 @@ class FlowParams(BaseModel):
     steps: list[FlowStepSpec] = Field(default_factory=list)
     when_true: list[FlowStepSpec] = Field(default_factory=list)
     when_false: list[FlowStepSpec] = Field(default_factory=list)
-    over: Literal["none", "shorts", "files"] = "none"
+    over: Literal["none", "shorts", "files", "sentences", "scenes", "assets"] = "none"
     glob: str = ""
     max_items: int = Field(default=20, ge=1, le=500)
+    parallel: int = Field(default=1, ge=1, le=8)
+    on_error: Literal["fail", "skip", "continue"] = "fail"
+    collect: str = "mapped"
+    source: str = "mapped"
+    mode: Literal["best_of", "top_k", "all"] = "all"
+    top_k: int = Field(default=1, ge=1, le=100)
+    score_field: str = "score"
 
 
 def _recipe_steps(recipe_id: str) -> list[FlowStepSpec]:
@@ -78,6 +85,38 @@ def _condition_holds(params: FlowParams, context: PipelineContext) -> bool:
     if condition.startswith("file:"):
         return Path(condition.split(":", 1)[1]).expanduser().is_file()
     raise ValueError(f"Unknown flow condition: {params.condition}")
+
+
+def _collection(context: PipelineContext, options: FlowParams) -> list[Any]:
+    if options.over == "shorts":
+        return list(context.selected_shorts)
+    if options.over == "sentences":
+        return list(context.transcript)
+    if options.over == "scenes":
+        scenes = context.metadata.get("scenes")
+        if isinstance(scenes, list):
+            return scenes
+        return list(context.state.video_segments) if context.state else []
+    if options.over == "assets":
+        assets = context.metadata.get("assets_index")
+        return assets if isinstance(assets, list) else []
+    if options.over == "files":
+        pattern = options.glob or "*"
+        base = context.source.parent
+        items: list[Any] = []
+        for path in sorted(base.glob(pattern)):
+            if len(items) >= options.max_items:
+                break
+            if not path.is_file() or path == context.source:
+                continue
+            try:
+                if path.is_relative_to(context.output):
+                    continue
+            except ValueError:
+                pass
+            items.append({"path": str(path)})
+        return items
+    return []
 
 
 def _run_steps(
@@ -239,3 +278,78 @@ class SubflowStep(_FlowStep):
         options = FlowParams.model_validate(params)
         specs = _steps_from(options)
         self._execute_branch(context, specs, io, label="Subflow")
+
+
+@register_step
+class MapStep(_FlowStep):
+    type = "flow.map"
+    title = "Map"
+    description = "Run a group of steps for every selected item and collect the results."
+    icon = "⇉"
+
+    def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
+        options = FlowParams.model_validate(params)
+        specs = _steps_from(options)
+        items = _collection(context, options)
+        if not items:
+            context.metadata[options.collect] = []
+            io.report(100, "Map has no items")
+            return
+        results: list[dict[str, object]] = []
+        for index, item in enumerate(items, start=1):
+            context.metadata["map_item"] = item
+            context.metadata["map_index"] = index
+            try:
+                _run_steps(
+                    context,
+                    specs,
+                    io,
+                    depth=int(context.metadata.get("_flow_depth", 0)) + 1,
+                )
+                results.append(
+                    {
+                        "index": index,
+                        "item": item,
+                        "ok": True,
+                        "shorts": list(context.shorts),
+                        "artifacts": dict(context.artifacts),
+                    }
+                )
+            except Exception as exc:
+                if options.on_error == "fail":
+                    raise
+                context.warnings.append(f"Map item {index} failed: {exc}")
+                results.append({"index": index, "item": item, "ok": False, "error": str(exc)})
+                if options.on_error == "skip":
+                    continue
+            io.report(int(index / len(items) * 100), f"Map {index}/{len(items)}")
+        context.metadata[options.collect] = results
+        io.report(100, f"Map finished ({len(results)} item(s))")
+
+
+@register_step
+class ReduceStep(_FlowStep):
+    type = "flow.reduce"
+    title = "Reduce"
+    description = "Select the best or top K collected map results."
+    icon = "Σ"
+
+    def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
+        options = FlowParams.model_validate(params)
+        source = context.metadata.get(options.source)
+        items = list(source) if isinstance(source, list) else []
+        if options.mode == "all":
+            selected = items
+        else:
+            def score(item: Any) -> float:
+                if isinstance(item, dict):
+                    value = item.get(options.score_field)
+                    if isinstance(value, (int, float)):
+                        return float(value)
+                return 0.0
+
+            ordered = sorted(items, key=score, reverse=True)
+            selected = ordered[: (1 if options.mode == "best_of" else options.top_k)]
+        target = options.collect if options.collect != "mapped" else "reduced"
+        context.metadata[target] = selected
+        io.report(100, f"Reduce selected {len(selected)}/{len(items)}")

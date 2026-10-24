@@ -3,7 +3,7 @@
 Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript, Konva, and
 wavesurfer.js. English strings only.
 
-0.86.0 removes the legacy rack. The product is a recipe studio with a
+0.95.0 removes the legacy rack. The product is a recipe studio with a
 professional canvas timeline, automation schedules, and provider settings.
 Errors are persistent, sticky banners at the top of the page or panel; inline
 field validation remains next to the field.
@@ -92,7 +92,8 @@ The canvas is Konva; the audio waveform is wavesurfer.js.
 ## 6. Automation
 
 - Persistent schedules: once, interval, and watch folder.
-- SQLite storage with a one-time JSON migration.
+- SQLite storage with a one-time JSON migration. Jobs, assets, batches, and
+  service definitions are mirrored in SQLite with WAL.
 - Retry/backoff, bounded run history, per-file size/mtime signatures, and a
   local 20-second scheduler.
 - Run-now, status, last-run, and errors.
@@ -111,7 +112,14 @@ The canvas is Konva; the audio waveform is wavesurfer.js.
 Scan folders into the local index, search, filter by kind, edit tags and
 license, download, and remove. Assets are served by the local API.
 
-## 9. Settings
+## 9. Recipes
+
+Recipes support typed variables, expressions, profiles, variants, map/reduce,
+subflows, error policies, and human gates. The run panel renders variable
+inputs, a profile selector, and a Dry run action. Jobs waiting for approval are
+resumed from the job panel.
+
+## 10. Settings
 
 The Settings tab writes `settings.json` and covers runtime (host, port, log
 level, max jobs, history, locale), paths (roots, FFmpeg/FFprobe, cache, models,
@@ -119,7 +127,7 @@ output, temp), model defaults/device/compute, automation, quality, UI, LLM,
 speech, TTS, stock, and translation. Export/import/reset are available;
 environment overrides and restart-required fields are shown.
 
-## 10. Models
+## 11. Models
 
 Models are grouped by capability. The catalog includes Faster-Whisper
 tiny/base/small/medium/large-v3, whisper.cpp base/small/medium, and pyannote.
@@ -128,7 +136,7 @@ progress, cancellation, checksum verification, installed path, disk usage, and
 "used by" provenance. Local folders/files can be registered without
 downloading, and Verify checks files/checksums.
 
-## 11. Services
+## 12. Services
 
 Health polling, service discovery, current-service restart/shutdown, stop other
 VideoFlow processes, doctor output, support bundle, and managed local services.
@@ -136,7 +144,7 @@ Managed services are SQLite-backed definitions with command, args, cwd, env,
 port, health URL, autostart, start/stop, and logs. They are intended for Ollama,
 LM Studio, whisper.cpp server, Piper, ComfyUI, and similar local tools.
 
-## 12. Providers
+## 13. Providers
 
 Providers are persisted in `$VIDEOWFLOW_HOME/providers.json`. Secrets use the
 environment, OS keyring, or a 0600 local fallback; only presence is exposed.
@@ -150,7 +158,7 @@ environment, OS keyring, or a 0600 local fallback; only presence is exposed.
 - `GET /api/v1/providers/resolve?capability=...` returns the default followed by
   its fallback chain.
 
-## 13. Persistence and invalidation
+## 14. Persistence and invalidation
 
 - `project_state.json` is the single source of truth for the timeline.
 - Every timeline edit increments `revision` and writes one undo entry in
@@ -160,7 +168,7 @@ environment, OS keyring, or a 0600 local fallback; only presence is exposed.
 - B-roll approvals, provider configuration, model downloads, and publish queue
   state are JSON files under the VideoFlow home or job output.
 
-## 14. Accessibility and responsiveness
+## 15. Accessibility and responsiveness
 
 - Navigation uses `role="tab"` buttons with `aria-selected`.
 - Error banners use `role="alert"`.

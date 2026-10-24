@@ -236,6 +236,20 @@ class AudioQaStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = AudioQaParams.model_validate(params)
+        try:
+            from videoflow.application.settings import load_settings
+
+            quality = load_settings().quality
+            if options.target_lufs == -16.0:
+                options = options.model_copy(
+                    update={"target_lufs": quality.target_lufs}
+                )
+            if options.max_true_peak_db == -1.0:
+                options = options.model_copy(
+                    update={"max_true_peak_db": quality.true_peak_db}
+                )
+        except Exception:
+            pass
         master = context.artifacts.get("audio_master")
         source = Path(master) if master else Path(context.source)
         measurement = FFmpegAdapter().measure_loudness(source)

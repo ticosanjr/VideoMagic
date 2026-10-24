@@ -14,6 +14,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from videoflow.core.expressions import resolve_value
 from videoflow.domain.errors import RecipeError
 from videoflow.domain.migrations import migrate_recipe
 
@@ -73,6 +74,14 @@ class RecipeStep(StrictModel):
         return value
 
 
+class RecipeVariable(StrictModel):
+    type: Literal["string", "number", "boolean", "enum"] = "string"
+    default: Any = None
+    description: str = ""
+    options: list[Any] = Field(default_factory=list)
+    required: bool = False
+
+
 class Recipe(StrictModel):
     schema_version: Literal[1] = 1
     id: str
@@ -80,6 +89,10 @@ class Recipe(StrictModel):
     description: str = ""
     llm: LlmRecipeConfig = Field(default_factory=LlmRecipeConfig)
     ui: RecipeUi = Field(default_factory=RecipeUi)
+    variables: dict[str, RecipeVariable] = Field(default_factory=dict)
+    profiles: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    variants: list[dict[str, Any]] = Field(default_factory=list)
+    variables_resolved: dict[str, Any] = Field(default_factory=dict, exclude=True)
     steps: list[RecipeStep] = Field(min_length=1)
 
     @field_validator("id")
@@ -165,6 +178,68 @@ class Recipe(StrictModel):
             cycle = sorted(step_id for step_id, degree in indegree.items() if degree > 0)
             raise RecipeError(f"Recipe contains a dependency cycle: {', '.join(cycle)}")
         return ordered
+
+    def resolved_variables(self, values: dict[str, Any] | None = None) -> dict[str, Any]:
+        provided = dict(values or {})
+        result: dict[str, Any] = {}
+        for name, spec in self.variables.items():
+            value = provided.pop(name, spec.default)
+            if value is None and spec.required:
+                raise RecipeError(f"Variable {name!r} is required")
+            if spec.type == "number" and value is not None:
+                try:
+                    value = float(value)
+                    if value.is_integer():
+                        value = int(value)
+                except (TypeError, ValueError) as exc:
+                    raise RecipeError(f"Variable {name!r} must be a number") from exc
+            elif spec.type == "boolean" and value is not None:
+                if isinstance(value, str):
+                    value = value.strip().lower() in {"1", "true", "yes", "on"}
+                else:
+                    value = bool(value)
+            elif spec.type == "string" and value is not None:
+                value = str(value)
+            elif (
+                spec.type == "enum"
+                and value is not None
+                and spec.options
+                and value not in spec.options
+            ):
+                raise RecipeError(f"Variable {name!r} must be one of {spec.options}")
+            result[name] = value
+        result.update(provided)
+        return result
+
+    def with_variables(
+        self,
+        values: dict[str, Any] | None = None,
+        *,
+        profile: str | None = None,
+    ) -> Recipe:
+        payload = self.model_dump(mode="json")
+        if profile:
+            selected = self.profiles.get(profile)
+            if selected is None:
+                raise RecipeError(f"Unknown recipe profile: {profile}")
+            for key, spec in (selected.get("variables") or {}).items():
+                if isinstance(spec, dict):
+                    payload["variables"].setdefault(key, {}).update(spec)
+                else:
+                    payload.setdefault("variables", {}).setdefault(key, {})[
+                        "default"
+                    ] = spec
+            for step_id, overrides in (selected.get("steps") or {}).items():
+                for step in payload.get("steps", []):
+                    if step.get("id") == step_id and isinstance(overrides, dict):
+                        step.setdefault("params", {}).update(overrides)
+        merged = Recipe.model_validate(payload)
+        resolved = merged.resolved_variables(values)
+        for step in payload.get("steps", []):
+            step["params"] = resolve_value(step.get("params", {}), resolved)
+        result = Recipe.model_validate(payload)
+        result.variables_resolved = resolved
+        return result
 
     def uses_llm(self) -> bool:
         return any(

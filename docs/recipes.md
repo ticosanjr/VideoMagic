@@ -48,6 +48,21 @@ and enabled steps that depend on disabled steps.
 | `broll.plan` | `shorts.select` | local or Pexels B-roll overlay plan |
 | `edit.timeline` | `audio.vad` | validated `ProjectState` |
 | `shorts.select` | `transcribe` | selected Short clips |
+| `shorts.score` | `shorts.select` | re-scored, deduplicated Shorts |
+| `assets.shots` | `ingest` | scene cuts + thumbnails |
+| `assets.match` | `shorts.select` | semantic B-roll matches |
+| `music.beat` | — | deterministic beat grid |
+| `sfx.plan` | — | SFX cue plan |
+| `metadata.pack` | `shorts.select` | per-Short metadata |
+| `thumbnail.pack` | `shorts.render` | thumbnail variants |
+| `publish.queue` | `shorts.render` | queued publishing items |
+| `analytics.review` | — | selection weights/recommendations |
+| `experiment.evaluate` | — | A/B winner |
+| `chapters.plan` | `transcribe` | chapter markers |
+| `nle.qa` | `export.nle` | NLE validation report |
+| `human.gate` | — | pause/resume approval |
+| `flow.map` | — | per-item results |
+| `flow.reduce` | — | best/top-K selection |
 | `shorts.reframe` | `shorts.select` | crop focus via static crop, motion, or face tracking |
 | `shorts.captions` | `shorts.select` | ASS caption files per Short |
 | `shorts.render` | `shorts.select` (+ optional reframe/captions) | MP4 + `shorts.json`; uses caption files when present |
@@ -204,3 +219,87 @@ Every run writes:
 
 The legacy pipeline remains available at `POST /api/v1/jobs` and is covered by
 a parity test against the recipe path.
+
+
+## Variables
+
+```json
+{
+  "variables": {
+    "aspect": {"type": "enum", "default": "9:16", "options": ["9:16", "1:1", "16:9"]},
+    "caption_size": {"type": "number", "default": 72},
+    "platform": {"type": "string", "default": "youtube"}
+  },
+  "steps": [
+    {"id": "shorts", "type": "shorts.select", "params": {"aspect_ratio": "$aspect"}},
+    {"id": "captions", "type": "shorts.captions", "params": {"caption_style": {"font_size": "{{ caption_size }}"}}}
+  ]
+}
+```
+
+`$name` substitutes the typed value; `{{ expression }}` evaluates a safe
+expression with `min`, `max`, `clamp`, `if`, `coalesce`, `round`, `len`, and
+arithmetic/comparison operators.
+
+## Profiles
+
+```json
+{
+  "profiles": {
+    "fast": {"variables": {"caption_size": {"default": 64}}, "steps": {"timeline": {"transition_frames": 0}}}
+  }
+}
+```
+
+The CLI uses `--profile fast`; the API uses `"profile": "fast"`.
+
+## Variants
+
+```json
+{
+  "variants": [
+    {"name": "9x16", "variables": {"aspect": "9:16"}},
+    {"name": "1x1", "variables": {"aspect": "1:1"}}
+  ]
+}
+```
+
+Each variant runs into `output/<name>` and the job result lists each summary.
+
+## Flow control
+
+- `flow.conditional`: true/false branches.
+- `flow.loop`: repeat inline steps over Shorts or files.
+- `flow.map`: per-item execution with `collect` and `on_error`.
+- `flow.reduce`: `best_of`, `top_k`, or `all`.
+- `flow.subflow`: reusable inline/referenced steps.
+
+## Human gates
+
+```json
+{
+  "id": "review",
+  "type": "human.gate",
+  "needs": ["shorts"],
+  "params": {"gate_id": "shorts", "title": "Approve Shorts"}
+}
+```
+
+The job stops as `waiting_approval`. `POST /api/v1/jobs/{id}/resume` writes
+`approvals/<gate>.json` and restarts from checkpoints.
+
+## Built-in recipes
+
+The catalog includes 34 recipes: rough cut, captions, NLE export, clean audio,
+chapters, Shorts select/render, best moments, hook first, trailer, review gate,
+reframe/caption/A-B variants, podcast, interview, webinar, lecture, product
+demo, testimonial, livestream, B-roll, music, SFX, metadata, thumbnails,
+publishing, analytics, localization, and finishing.
+
+## CLI
+
+```bash
+videoflow recipe run youtube_talking_head source.mp4 -o out
+videoflow recipe run viral_shorts_batch source.mp4 -o out --var aspect=1:1
+videoflow recipe run content_cycle source.mp4 -o out --profile fast --dry-run
+```

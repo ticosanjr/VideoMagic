@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict
 from videoflow.adapters.asr import WhisperHttpAdapter
 from videoflow.adapters.faster_whisper import FasterWhisperAdapter
 from videoflow.adapters.whisper import WhisperCliAdapter
+from videoflow.application.secrets import get_secret
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import IngestError, TranscriptionError
 from videoflow.domain.state import Sentence
@@ -59,6 +60,34 @@ class TranscribeStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = TranscribeParams.model_validate(params)
+        try:
+            from videoflow.application.settings import load_settings
+
+            settings = load_settings()
+        except Exception:
+            settings = None
+        if settings is not None:
+            default_model = settings.models.defaults.get("asr", "")
+            model_size = default_model.split("-")[-1] if default_model else ""
+            if (
+                model_size in {"tiny", "base", "small", "medium", "large-v2", "large-v3"}
+                and options.model_size == "small"
+            ):
+                options = options.model_copy(update={"model_size": model_size})
+            if options.device == "cpu":
+                options = options.model_copy(update={"device": settings.speech.device})
+            if options.compute_type == "int8":
+                options = options.model_copy(
+                    update={"compute_type": settings.speech.compute_type}
+                )
+            if options.language == "pt":
+                options = options.model_copy(
+                    update={"language": settings.speech.language}
+                )
+            if not options.vad_filter:
+                options = options.model_copy(
+                    update={"vad_filter": settings.speech.vad_filter}
+                )
         media = require_media(context)
         mode = options.mode
         if mode == "auto":
@@ -133,7 +162,7 @@ class TranscribeStep(BaseStep):
                 client = WhisperHttpAdapter(
                     base_url=base_url,
                     model=options.model,
-                    api_key=os.environ.get(options.api_key_env),
+                    api_key=get_secret(options.api_key_env),
                     language=options.language,
                 )
             elif mode == "whisper_cpp":

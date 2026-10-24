@@ -381,6 +381,19 @@ def _parser() -> argparse.ArgumentParser:
         help="Ignore existing step checkpoints and execute every step.",
     )
     recipe_run.add_argument(
+        "--var",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="Set a recipe variable. Repeat for multiple variables.",
+    )
+    recipe_run.add_argument("--profile", default=None, help="Recipe profile name.")
+    recipe_run.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate and print the resolved step plan without executing.",
+    )
+    recipe_run.add_argument(
         "--json",
         action="store_true",
         help="Print only the final JSON report.",
@@ -937,18 +950,41 @@ def _recipe(args: argparse.Namespace) -> int:
     if command == "run":
         path = Path(args.recipe).expanduser()
         recipe = load_recipe(path) if path.is_file() else get_recipe(args.recipe)
-        recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+        variables: dict[str, object] = {}
+        for item in getattr(args, "var", []):
+            key, separator, raw = item.partition("=")
+            if not separator or not key.strip():
+                print(f"Invalid --var {item!r}; expected KEY=VALUE", file=sys.stderr)
+                return 2
+            try:
+                variables[key.strip()] = json.loads(raw)
+            except json.JSONDecodeError:
+                variables[key.strip()] = raw
+        runner = RecipeRunner(recipe)
+        if getattr(args, "dry_run", False):
+            print(
+                json.dumps(
+                    runner.plan(
+                        variables=variables,
+                        profile=getattr(args, "profile", None),
+                    ),
+                    indent=2,
+                )
+            )
+            return 0
         output = args.out or args.source.with_name(f"{args.source.stem}-videoflow")
 
         def progress(stage: str, percent: int, message: str) -> None:
             if not getattr(args, "json", False):
                 print(f"[{percent:3d}%] {stage}: {message}", file=sys.stderr)
 
-        result = RecipeRunner(recipe).run(
+        result = runner.run(
             args.source,
             output,
             progress=progress,
             resume=not getattr(args, "force", False),
+            variables=variables,
+            profile=getattr(args, "profile", None),
         )
         print(json.dumps(result.to_dict(), indent=2))
         return 0
@@ -968,6 +1004,13 @@ def _recipe(args: argparse.Namespace) -> int:
             progress=step_progress,
             through=args.step_id,
             resume=not getattr(args, "force", False),
+            variables={
+                key.strip(): value
+                for item in getattr(args, "var", [])
+                for key, _, value in [item.partition("=")]
+                if key.strip()
+            },
+            profile=getattr(args, "profile", None),
         )
         print(json.dumps(result.to_dict(), indent=2))
         return 0
@@ -979,8 +1022,18 @@ def _serve(args: argparse.Namespace) -> int:
     import uvicorn
 
     from videoflow.api.app import create_http_app
+    from videoflow.application.settings import load_settings
 
     os.environ.setdefault("VIDEOWFLOW_HOME", str(ensure_home()))
+    settings = load_settings()
+    if args.host == "127.0.0.1":
+        args.host = settings.runtime.host
+    if args.port == 8765:
+        args.port = settings.runtime.port
+    if settings.runtime.open_browser:
+        args.open = True
+    if settings.paths.temp_dir:
+        os.environ["TMPDIR"] = settings.paths.temp_dir
     append_server_log(f"serve requested host={args.host} port={args.port} pid={os.getpid()}")
     url = _ui_url(args.host, args.port)
     lock = _InstanceLock(args.port)
@@ -1008,6 +1061,9 @@ def _serve(args: argparse.Namespace) -> int:
 
 
 def _serve_locked(args: argparse.Namespace, uvicorn, create_http_app) -> int:
+    from videoflow.application.settings import load_settings
+
+    log_level = load_settings().runtime.log_level
     append_server_log(f"start lock acquired port={args.port} pid={os.getpid()}")
     url = _ui_url(args.host, args.port)
     health = probe_service(args.host, args.port)
@@ -1062,7 +1118,12 @@ def _serve_locked(args: argparse.Namespace, uvicorn, create_http_app) -> int:
     opened = False
     try:
         while True:
-            config = uvicorn.Config(app, host=args.host, port=args.port, log_level="info")
+            config = uvicorn.Config(
+                app,
+                host=args.host,
+                port=args.port,
+                log_level=log_level,
+            )
             server = uvicorn.Server(config)
             app.state.uvicorn_server = server
             app.state.restart_requested = False

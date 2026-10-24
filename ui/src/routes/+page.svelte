@@ -10,7 +10,8 @@
   import ServicesPanel from "$lib/ServicesPanel.svelte";
   import SettingsPanel from "$lib/SettingsPanel.svelte";
   import TimelinePanel from "$lib/TimelinePanel.svelte";
-  import { errorMessage, getSystem, restartService, stopService, type SystemInfo } from "$lib/api";
+  import { errorMessage, getSettings, getSystem, restartService, stopService, type SystemInfo } from "$lib/api";
+  import { t } from "$lib/i18n";
   import { UI_VERSION } from "$lib/version";
   import "../app.css";
 
@@ -38,6 +39,7 @@
   let toast = $state<{ kind: "success" | "error"; message: string } | null>(null);
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
   let allowExternal = $state(false);
+  let locale = $state("en");
   let allowedHosts = $state("");
 
   async function connectToService() {
@@ -126,6 +128,13 @@
     syncHash();
     window.addEventListener("hashchange", syncHash);
     void connectToService();
+    void getSettings()
+      .then(({ settings }) => {
+        locale = settings.runtime.locale || "en";
+        document.documentElement.dataset.theme = settings.ui.theme;
+        document.documentElement.dataset.density = settings.ui.density;
+      })
+      .catch(() => {});
     return () => {
       window.removeEventListener("hashchange", syncHash);
       clearTimeout(toastTimer);
@@ -153,7 +162,7 @@
             <h1 class="text-xl font-semibold tracking-tight text-white">VideoFlow</h1>
             <span class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-neutral-500">recipe studio</span>
           </div>
-          <p class="mt-0.5 text-xs text-neutral-500">Editable rough cuts and repeatable content recipes</p>
+          <p class="mt-0.5 text-xs text-neutral-500">{t(locale, "subtitle")}</p>
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-2 text-xs">
@@ -173,8 +182,8 @@
       </div>
     </header>
 
-    <nav class="sticky top-0 z-30 -mx-1 overflow-x-auto rounded-2xl border border-neutral-800 bg-neutral-950/95 p-1 shadow-lg shadow-black/30 backdrop-blur" aria-label="Workspace areas">
-      <div class="flex min-w-max gap-1" role="tablist" aria-label="Workspace areas">
+    <nav class="sticky top-0 z-30 -mx-1 overflow-x-auto rounded-2xl border border-neutral-800 bg-neutral-950/95 p-1 shadow-lg shadow-black/30 backdrop-blur" aria-label={t(locale, "workspace")}>
+      <div class="flex min-w-max gap-1" role="tablist" aria-label={t(locale, "workspace")}>
         {#each TABS as tab}
           <button
             type="button"
@@ -184,7 +193,7 @@
             onclick={() => selectTab(tab.id)}
             class={`rounded-xl px-3 py-2 text-xs font-medium transition ${activeTab === tab.id ? "bg-sky-500/15 text-sky-200 ring-1 ring-inset ring-sky-400/20" : "text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-200"}`}
           >
-            {tab.label}
+            {t(locale, tab.id)}
           </button>
         {/each}
       </div>

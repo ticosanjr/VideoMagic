@@ -106,10 +106,14 @@ class RecipeRunner:
         transcript_sentences: list[Any] | None = None,
         through: str | None = None,
         resume: bool = True,
+        variables: dict[str, Any] | None = None,
+        profile: str | None = None,
     ) -> RecipeRunResult:
         from uuid import uuid4
 
         started = time.perf_counter()
+        recipe = self.recipe.with_variables(variables, profile=profile)
+        recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
         source_path = Path(source).expanduser().resolve()
         source_stamp = source_fingerprint(source_path)
         output_path = Path(output).expanduser().resolve()
@@ -123,9 +127,13 @@ class RecipeRunner:
             work=work,
             exports=exports,
             transcript=list(transcript_sentences or []),
-            metadata={"run_id": str(uuid4())},
+            metadata={
+                "run_id": str(uuid4()),
+                "variables": dict(recipe.variables_resolved),
+                "profile": profile or "",
+            },
         )
-        order = self._order_through(self.recipe.topological_order(), through)
+        order = self._order_through(recipe.topological_order(), through)
         llm = self.llm_client or self._build_llm(log)
         total = len(order)
         step_runs: list[StepRun] = []
@@ -141,6 +149,7 @@ class RecipeRunner:
                     "version": step.version,
                     "params": params.model_dump(mode="json"),
                     "source": context.pcm_digest or source_stamp,
+                    "variables": dict(recipe.variables_resolved),
                     "upstream": {
                         dependency: context.hashes.get(dependency, "")
                         for dependency in recipe_step.needs
@@ -330,6 +339,32 @@ class RecipeRunner:
         if any(not Path(path).is_file() for path in outputs):
             return None
         return outputs
+
+    def plan(
+        self,
+        *,
+        variables: dict[str, Any] | None = None,
+        profile: str | None = None,
+        through: str | None = None,
+    ) -> dict[str, Any]:
+        recipe = self.recipe.with_variables(variables, profile=profile)
+        recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+        order = self._order_through(recipe.topological_order(), through)
+        return {
+            "ok": True,
+            "recipe_id": recipe.id,
+            "profile": profile or "",
+            "variables": dict(recipe.variables_resolved),
+            "steps": [
+                {
+                    "id": step.id,
+                    "type": step.type,
+                    "needs": list(step.needs),
+                    "params": dict(step.params),
+                }
+                for step in order
+            ],
+        }
 
     def _order_through(
         self, order: list[RecipeStep], through: str | None

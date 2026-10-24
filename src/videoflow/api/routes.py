@@ -47,6 +47,8 @@ from videoflow.application.capabilities import (
     external_services_allowed,
 )
 from videoflow.application.caption_ai import apply_llm_emoji
+from videoflow.application.database import backup as backup_database
+from videoflow.application.database import metrics as database_metrics
 from videoflow.application.deliverables import (
     add_review_comment,
     approve_review,
@@ -74,6 +76,11 @@ from videoflow.application.multimodal import analyze_short_entry
 from videoflow.application.multimodal_llm import analyze_short_llm_entry
 from videoflow.application.music import list_music, save_music
 from videoflow.application.nle_validation import validate_nle_exports
+from videoflow.application.plugins import (
+    list_plugins,
+    load_plugins,
+    set_plugin_enabled,
+)
 from videoflow.application.presets import get_preset, load_presets, save_preset
 from videoflow.application.previews import build_preview, previews
 from videoflow.application.project_templates import (
@@ -199,6 +206,7 @@ from videoflow.engine.recipes import (
     restore_recipe_version,
     save_user_recipe,
 )
+from videoflow.engine.runner import RecipeRunner
 from videoflow.runtime import allowed_roots, find_binary, portable_home
 from videoflow.steps import get_step, requirements_by_type, step_types
 from videoflow.steps import manifest as step_manifest
@@ -378,6 +386,8 @@ class RecipeRunRequest(BaseModel):
     save_recipe: bool = False
     through: str | None = None
     resume: bool = True
+    variables: dict[str, Any] = Field(default_factory=dict)
+    profile: str | None = None
 
     @model_validator(mode="after")
     def exactly_one_recipe(self) -> RecipeRunRequest:
@@ -501,6 +511,11 @@ class MarkerRequest(BaseModel):
 
 class TimelineBatchRequest(BaseModel):
     edits: list[TimelineEditRequest] = Field(min_length=1, max_length=200)
+
+
+class ResumeRequest(BaseModel):
+    approved: bool = True
+    comment: str = Field(default="", max_length=4000)
 
 
 class ReviewDecisionRequest(BaseModel):
@@ -671,6 +686,8 @@ def register_routes(
                 "transcript_sentences": request.transcript_sentences,
                 "through": through,
                 "resume": request.resume,
+                "variables": request.variables,
+                "profile": request.profile,
             },
         )
         return {"ok": True, "job": job.to_dict()}
@@ -793,6 +810,25 @@ def register_routes(
             "recipe": recipe_to_dict(recipe),
             "order": [step.id for step in order],
         }
+
+    @app.post("/api/v1/recipes/dry-run")
+    def recipe_dry_run(request: RecipeRunRequest) -> dict[str, object]:
+        try:
+            recipe = (
+                parse_recipe(request.recipe)
+                if request.recipe is not None
+                else get_recipe(str(request.recipe_id))
+            )
+            recipe = resolve_recipe_paths(recipe, allowed_roots())
+            plan = RecipeRunner(recipe).plan(
+                variables=request.variables,
+                profile=request.profile,
+                through=request.through,
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return plan
 
     @app.post("/api/v1/recipes/run", status_code=202)
     def run_recipe(request: RecipeRunRequest) -> dict[str, object]:
@@ -1492,6 +1528,36 @@ def register_routes(
             return {"ok": True, "job": jobs.cancel(job_id).to_dict()}
         except VideoFlowError as exc:
             raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
+
+    @app.post("/api/v1/jobs/{job_id}/resume", status_code=202)
+    def resume_job(job_id: str, request: ResumeRequest) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            if job.status != "waiting_approval":
+                raise StateNotReadyError("The job is not waiting for approval.")
+            gate = str((job.error or {}).get("gate_id") or "review")
+            approvals = job.output / "approvals"
+            approvals.mkdir(parents=True, exist_ok=True)
+            (approvals / f"{gate}.json").write_text(
+                json.dumps(
+                    {
+                        "approved": request.approved,
+                        "comment": request.comment,
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            resumed = jobs.start(
+                job.source,
+                job.output,
+                {**job.options, "resume": True},
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "job": resumed.to_dict(), "gate": gate}
 
     @app.get("/api/v1/jobs/{job_id}/events")
     def job_events(job_id: str) -> StreamingResponse:
@@ -3237,6 +3303,39 @@ def register_routes(
             headers={
                 "Content-Disposition": "attachment; filename=videoflow-support.zip"
             },
+        )
+
+    @app.get("/api/v1/plugins")
+    def plugins_list() -> dict[str, object]:
+        return {"ok": True, "plugins": list_plugins()}
+
+    @app.post("/api/v1/plugins/reload")
+    def plugins_reload() -> dict[str, object]:
+        return {"ok": True, "plugins": load_plugins()}
+
+    @app.post("/api/v1/plugins/{plugin_id}/enable")
+    def plugins_enable(plugin_id: str, request: dict[str, bool]) -> dict[str, object]:
+        try:
+            payload = set_plugin_enabled(plugin_id, bool(request.get("enabled", True)))
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "plugin_not_found", "message": str(exc)},
+            ) from exc
+        return {"ok": True, "plugin": payload}
+
+    @app.get("/api/v1/system/metrics")
+    def system_metrics() -> dict[str, object]:
+        return database_metrics()
+
+    @app.get("/api/v1/system/backup")
+    def system_backup() -> FileResponse:
+        target = portable_home() / "backups" / "videoflow-backup.zip"
+        backup_database(target)
+        return FileResponse(
+            target,
+            media_type="application/zip",
+            filename="videoflow-backup.zip",
         )
 
     @app.get("/api/v1/settings")

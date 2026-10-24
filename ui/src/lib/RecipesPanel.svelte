@@ -14,6 +14,7 @@
   import { setPath, validateParams } from "$lib/recipeFields";
   import PathPicker from "$lib/PathPicker.svelte";
   import {
+    dryRunRecipe,
     errorMessage,
     getJob,
     getLogs,
@@ -134,6 +135,22 @@
   let configOpen = $state(false);
   let jsonModal = $state<"step" | "recipe" | null>(null);
   let recipeJsonText = $state("");
+  let recipeVariables = $state<
+    Record<
+      string,
+      {
+        type: "string" | "number" | "boolean" | "enum";
+        default?: unknown;
+        description?: string;
+        options?: unknown[];
+        required?: boolean;
+      }
+    >
+  >({});
+  let recipeProfiles = $state<Record<string, Record<string, unknown>>>({});
+  let recipeVariants = $state<Array<Record<string, unknown>>>([]);
+  let variableValues = $state<Record<string, unknown>>({});
+  let recipeProfile = $state("");
   let jsonError = $state("");
   let stepQuery = $state("");
   let lastSelected = "";
@@ -308,6 +325,13 @@
     recipeName = recipe.name;
     recipeDescription = recipe.description;
     llm = recipe.llm;
+    recipeVariables = recipe.variables ?? {};
+    recipeProfiles = recipe.profiles ?? {};
+    recipeVariants = recipe.variants ?? [];
+    variableValues = Object.fromEntries(
+      Object.entries(recipeVariables).map(([key, spec]) => [key, spec.default ?? ""])
+    );
+    recipeProfile = "";
     recipeUi = recipe.ui ?? {
       version: 1,
       viewport: { x: 0, y: 0, zoom: 1 },
@@ -397,6 +421,9 @@
       name: recipeName.trim() || "Untitled recipe",
       description: recipeDescription,
       llm,
+      variables: recipeVariables,
+      profiles: recipeProfiles,
+      variants: recipeVariants,
       ui: {
         version: 1,
         viewport,
@@ -1202,6 +1229,27 @@
     }
   }
 
+  async function dryRun() {
+    error = "";
+    status = "";
+    if (!inputSource.trim() || !inputOutput.trim()) {
+      error = "Choose a source file and an output directory first.";
+      return;
+    }
+    try {
+      const plan = await dryRunRecipe({
+        source: inputSource.trim(),
+        output: inputOutput.trim(),
+        recipe: recipeFromGraph(),
+        variables: variableValues,
+        profile: recipeProfile || null
+      });
+      status = `Dry run: ${plan.steps.length} step(s), variables ${JSON.stringify(plan.variables)}.`;
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
   async function execute() {
     error = "";
     status = "";
@@ -1229,7 +1277,9 @@
         output: inputOutput.trim(),
         recipe,
         save_recipe: true,
-        resume
+        resume,
+        variables: variableValues,
+        profile: recipeProfile || null
       });
       watch(job.job_id);
       status = `Job ${job.job_id} started.`;
@@ -1265,7 +1315,9 @@
         output: inputOutput.trim(),
         recipe,
         save_recipe: true,
-        resume
+        resume,
+        variables: variableValues,
+        profile: recipeProfile || null
       });
       watch(job.job_id);
       status = `Job ${job.job_id} started through ${stepId}.`;
@@ -1622,6 +1674,7 @@
         <button type="button" onclick={() => void validate()} class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500">
           Validate
         </button>
+        <button type="button" onclick={() => void dryRun()} disabled={busy} class="rounded-lg border border-neutral-700 px-3 py-1.5 text-neutral-300 disabled:opacity-40">Dry run</button>
         <button
           type="button"
           onclick={() => void execute()}
@@ -1650,6 +1703,38 @@
           </span>
         </label>
       </div>
+
+      {#if Object.keys(recipeVariables).length || Object.keys(recipeProfiles).length}
+        <div class="mb-3 rounded-xl border border-neutral-800 bg-neutral-950/50 p-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="text-[10px] uppercase tracking-wide text-neutral-500">Recipe inputs</p>
+            {#if Object.keys(recipeProfiles).length}
+              <select bind:value={recipeProfile} class="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-200">
+                <option value="">no profile</option>
+                {#each Object.keys(recipeProfiles) as profile}<option value={profile}>{profile}</option>{/each}
+              </select>
+            {/if}
+          </div>
+          <div class="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {#each Object.entries(recipeVariables) as [name, spec]}
+              <label class="text-[10px] text-neutral-400" title={spec.description ?? ""}>
+                {name}{#if spec.required} *{/if}
+                {#if spec.type === "boolean"}
+                  <input type="checkbox" checked={Boolean(variableValues[name])} onchange={(event) => (variableValues[name] = event.currentTarget.checked)} class="mt-1 block h-4 w-4 rounded border-neutral-700 bg-neutral-950" />
+                {:else if spec.type === "number"}
+                  <input type="number" value={variableValues[name] as number} oninput={(event) => (variableValues[name] = Number(event.currentTarget.value))} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" />
+                {:else if spec.type === "enum" && spec.options?.length}
+                  <select bind:value={variableValues[name]} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100">
+                    {#each spec.options as option}<option value={String(option)}>{String(option)}</option>{/each}
+                  </select>
+                {:else}
+                  <input bind:value={variableValues[name]} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" />
+                {/if}
+              </label>
+            {/each}
+          </div>
+        </div>
+      {/if}
 
       <div class="relative">
         <div class="h-[clamp(560px,72vh,920px)] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950">

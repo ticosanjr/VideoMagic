@@ -1,0 +1,250 @@
+"""Asset intelligence: shots, semantic matching, beats, and SFX planning."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application.assets import list_assets
+from videoflow.application.video_analysis import detect_scene_changes, scene_intervals
+from videoflow.core.context import PipelineContext
+from videoflow.steps.base import BaseStep, StepIO
+from videoflow.steps.common import require_media
+from videoflow.steps.registry import register_step
+
+
+def _terms(text: str) -> set[str]:
+    cleaned = "".join(char.lower() if char.isalnum() else " " for char in text)
+    return {item for item in cleaned.split() if len(item) > 3}
+
+
+def _overlap(left: str, right: str) -> float:
+    a = _terms(left)
+    b = _terms(right)
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
+
+
+class ShotsParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    threshold: float = Field(default=0.35, ge=0.05, le=0.95)
+    thumbnails: bool = True
+
+
+@register_step
+class ShotsStep(BaseStep):
+    type = "assets.shots"
+    title = "Detect shots"
+    description = "Detect scene cuts and extract one thumbnail per shot."
+    status = "available"
+    icon = "▦"
+    color = "#22c55e"
+    requires = ("ingest",)
+    produces = ("shots",)
+    params_model = ShotsParams
+
+    def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
+        options = ShotsParams.model_validate(params)
+        media = require_media(context)
+        spans = scene_intervals(
+            detect_scene_changes(Path(context.source), threshold=options.threshold),
+            sample_rate=media.audio_sample_rate,
+        )
+        directory = context.output / "shots"
+        directory.mkdir(parents=True, exist_ok=True)
+        shots: list[dict[str, Any]] = []
+        for index, (start, end) in enumerate(spans or [(0, context.duration_samples())]):
+            entry: dict[str, Any] = {
+                "id": f"shot-{index + 1}",
+                "start_sample": start,
+                "end_sample": end,
+            }
+            if options.thumbnails:
+                target = directory / f"{entry['id']}.png"
+                try:
+                    FFmpegAdapter().render_thumbnail(
+                        Path(context.source),
+                        target,
+                        time_sec=((start + end) / 2) / max(1, media.audio_sample_rate),
+                    )
+                    entry["thumbnail"] = str(target)
+                except Exception as exc:
+                    context.warnings.append(f"Shot thumbnail failed: {exc}")
+            shots.append(entry)
+        target = context.output / "shots" / "shots.json"
+        target.write_text(json.dumps({"shots": shots}, indent=2) + "\n", encoding="utf-8")
+        context.artifacts["shots"] = str(target)
+        context.metadata["scenes"] = shots
+        io.report(100, f"{len(shots)} shot(s) detected")
+
+    def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
+        path = context.artifacts.get("shots")
+        return (Path(path),) if path else ()
+
+
+class MatchParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = ""
+    max_per_short: int = Field(default=2, ge=1, le=5)
+    min_score: float = Field(default=0.05, ge=0.0, le=1.0)
+
+
+@register_step
+class AssetMatchStep(BaseStep):
+    type = "assets.match"
+    title = "Match B-roll"
+    description = "Match local assets to Shorts by semantic keyword overlap."
+    status = "available"
+    icon = "↔"
+    color = "#f59e0b"
+    requires = ("shorts.select",)
+    produces = ("broll_matches",)
+    params_model = MatchParams
+
+    def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
+        options = MatchParams.model_validate(params)
+        assets = [
+            item
+            for item in list_assets(limit=2000)
+            if item.get("kind") in {"video", "image"}
+        ]
+        plan: dict[str, list[dict[str, Any]]] = {}
+        for clip in context.selected_shorts:
+            text = f"{clip.title} {options.query}".strip()
+            ranked = sorted(
+                (
+                    (
+                        _overlap(
+                            text,
+                            f"{asset.get('name', '')} "
+                            f"{' '.join(asset.get('tags', []))}",
+                        ),
+                        asset,
+                    )
+                    for asset in assets
+                ),
+                key=lambda item: item[0],
+                reverse=True,
+            )
+            entries = []
+            for score, asset in ranked[: options.max_per_short]:
+                if score < options.min_score:
+                    continue
+                entries.append(
+                    {
+                        "path": asset.get("path"),
+                        "start_sec": 0.0,
+                        "duration_sec": 2.0,
+                        "provider": "local",
+                        "license": asset.get("license", ""),
+                        "source_url": "",
+                        "score": round(score, 4),
+                    }
+                )
+            plan[clip.title] = entries
+        context.metadata["broll_plan"] = plan
+        target = context.output / "broll-matches.json"
+        target.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
+        context.artifacts["broll_matches"] = str(target)
+        io.report(100, f"Matched B-roll for {len(plan)} Short(s)")
+
+    def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
+        path = context.artifacts.get("broll_matches")
+        return (Path(path),) if path else ()
+
+
+class BeatParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tempo_bpm: float = Field(default=120.0, ge=40.0, le=220.0)
+
+
+@register_step
+class MusicBeatStep(BaseStep):
+    type = "music.beat"
+    title = "Music beats"
+    description = "Write a deterministic beat grid for music/SFX placement."
+    status = "available"
+    icon = "♫"
+    color = "#a78bfa"
+    params_model = BeatParams
+
+    def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
+        options = BeatParams.model_validate(params)
+        duration = context.duration_samples() / (
+            context.media.audio_sample_rate if context.media is not None else 48000
+        )
+        interval = 60.0 / options.tempo_bpm
+        beats = []
+        current = 0.0
+        while current < duration:
+            beats.append(round(current, 3))
+            current += interval
+        target = context.output / "music" / "beats.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            json.dumps({"tempo_bpm": options.tempo_bpm, "beats": beats}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        context.artifacts["beats"] = str(target)
+        context.metadata["beats"] = beats
+        io.report(100, f"{len(beats)} beat(s)")
+
+    def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
+        path = context.artifacts.get("beats")
+        return (Path(path),) if path else ()
+
+
+class SfxParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    directory: str = ""
+    max_per_short: int = Field(default=1, ge=1, le=5)
+
+
+@register_step
+class SfxPlanStep(BaseStep):
+    type = "sfx.plan"
+    title = "SFX plan"
+    description = "Assign local sound effects to Short starts or beats."
+    status = "available"
+    icon = "♪"
+    color = "#f59e0b"
+    params_model = SfxParams
+
+    def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
+        options = SfxParams.model_validate(params)
+        directory = (
+            Path(options.directory).expanduser()
+            if options.directory
+            else context.output.parent / "sfx"
+        )
+        files = (
+            sorted(directory.glob("*.wav")) + sorted(directory.glob("*.mp3"))
+            if directory.is_dir()
+            else []
+        )
+        plan: dict[str, list[dict[str, Any]]] = {}
+        for index, clip in enumerate(context.selected_shorts):
+            entries = []
+            for offset in range(min(options.max_per_short, len(files))):
+                path = files[(index + offset) % len(files)]
+                entries.append({"path": str(path), "start_sec": 0.0, "kind": "sfx"})
+            plan[clip.title] = entries
+        target = context.output / "sfx" / "plan.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
+        context.artifacts["sfx_plan"] = str(target)
+        context.metadata["sfx_plan"] = plan
+        io.report(100, f"{sum(len(v) for v in plan.values())} SFX cue(s)")
+
+    def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
+        path = context.artifacts.get("sfx_plan")
+        return (Path(path),) if path else ()

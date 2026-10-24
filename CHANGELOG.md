@@ -3,6 +3,58 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [0.95.0] - 2026-10-24
+
+### Added
+
+- **Recipe variables and expressions.** Typed variables, defaults, enum
+  validation, `{{ expression }}` and `$name` substitution, and safe functions
+  (`min`, `max`, `clamp`, `if`, `coalesce`).
+- **Profiles and dry-run.** Recipe profiles override variables/step params;
+  `recipe dry-run` and `POST /recipes/dry-run` return the resolved plan.
+- **Variants.** A recipe can run the same DAG into named output folders with
+  per-variant variables.
+- **Map/reduce/subflows.** `flow.map` and `flow.reduce` operate over files,
+  Shorts, sentences, scenes, and assets, with error policy and collected
+  results.
+- **Human gates.** `human.gate` pauses the job as `waiting_approval`; the resume
+  endpoint records the decision and restarts from checkpoints.
+- **Short quality scoring.** Multifactor bonuses (completeness, payoff, hook,
+  CTA, speaker balance, duration fit), diversity filtering, profiles, and
+  optional LLM re-rank.
+- **Asset intelligence.** Shot detection, semantic B-roll matching, beat grid,
+  and SFX planning.
+- **Delivery.** Metadata pack, thumbnail pack, publish queue, analytics review,
+  experiment evaluation, chapters, and NLE QA.
+- **34 built-in recipes**, including rough cut, captions, NLE export, clean
+  audio, chapters, Shorts select/render, best moments, trailer, review gate,
+  variants, podcast/interview/webinar/lecture/product/testimonial/livestream,
+  B-roll/music/SFX, metadata, thumbnails, publishing, analytics, localization,
+  and finishing.
+- **SQLite index** for jobs, assets, and batches with WAL and a backup bundle.
+- **Plugin SDK v1.** Load `plugins/<id>/plugin.json` and register custom steps.
+- **Diagnostics 2.0.** FFmpeg capabilities, CUDA/ONNX, SQLite integrity,
+  providers, services, models, metrics, backup, and support bundle.
+- **Settings wiring.** Model defaults/device/compute, speech, quality,
+  translation, proxy height, runtime host/port/log/open-browser, retry/backoff,
+  and locale/theme/density are consumed by the runtime.
+- **Library and i18n.** Brand/project templates, presets, fonts, images, music,
+  and EN/PT-BR navigation strings.
+
+### Validation
+
+- 477 Python tests passed.
+- 7 media tests passed, 1 skipped.
+- 13 Vitest tests passed.
+- 19 Playwright tests passed.
+
+### Notes
+
+- Local release only (Linux + AppImage + SBOM). No GitHub Actions.
+- Native NLE titles/color/B-roll remain sidecar-based; manual NLE QA is still
+  required.
+- Windows, distribution, signing, macOS, and collaboration remain out of scope.
+
 ## [0.86.0] - 2026-10-23
 
 ### Added
