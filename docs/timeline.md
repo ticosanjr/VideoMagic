@@ -83,6 +83,33 @@ style, captions, B-roll, SFX, music, cards, crop, and split-screen settings.
 An unchanged Short is reused instead of re-encoded. The MP4 render queue does
 the same for the whole timeline through `render/manifest.json`.
 
+## Assets on the timeline
+
+The timeline rail lists image and video assets from the local library. Drag one
+onto the canvas and the panel posts:
+
+```json
+{
+  "asset_id": "…",
+  "path": "/media/logo.png",
+  "start_sec": 4.2,
+  "duration_sec": 3,
+  "position_x": 0.5,
+  "position_y": 0.5,
+  "width_ratio": 0.25,
+  "opacity": 1.0,
+  "kind": "image"
+}
+```
+
+`POST /api/v1/jobs/{id}/timeline/overlays` stores an `OverlayClip` in
+`ProjectState.overlays` with frame-based timing and records one undo entry;
+`DELETE .../overlays/{id}` removes it. The MP4 exporter adds each overlay as an
+extra FFmpeg input and composites it with `overlay=...:enable='between(t,…)'`.
+Images loop for the window; videos are stream-looped and trimmed. Missing files
+are skipped. Overlays are not yet mapped into the NLE documents, which keep the
+existing B-roll lane.
+
 ## Preview scheduler
 
 After a successful edit, undo, or redo, the panel sets `previewDirty` and shows

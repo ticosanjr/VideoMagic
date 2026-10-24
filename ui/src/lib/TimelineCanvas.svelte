@@ -24,6 +24,7 @@
     onRippleTrimClip,
     onSlipClip,
     onContextMenu,
+    onDropAsset,
     onZoom
   }: {
     timeline: TimelineData;
@@ -46,6 +47,7 @@
     onRippleTrimClip?: (clipId: string, startSec: number, endSec: number) => void;
     onSlipClip?: (clipId: string, deltaSec: number) => void;
     onContextMenu?: (clip: TimelineData["video"][number], x: number, y: number) => void;
+    onDropAsset?: (asset: Record<string, unknown>, timeSec: number) => void;
     onZoom?: (zoom: number) => void;
   } = $props();
 
@@ -861,7 +863,29 @@
 </script>
 
 <div class="relative overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950" data-testid="timeline-canvas">
-  <div bind:this={scroller} class="overflow-x-auto" onscroll={onScroll} data-testid="timeline-scroller">
+  <div
+    bind:this={scroller}
+    class="overflow-x-auto"
+    onscroll={onScroll}
+    data-testid="timeline-scroller"
+    role="presentation"
+    ondragover={(event) => {
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+    }}
+    ondrop={(event) => {
+      event.preventDefault();
+      const raw = event.dataTransfer?.getData("application/x-videoflow-asset");
+      if (!raw || !container) return;
+      try {
+        const asset = JSON.parse(raw) as Record<string, unknown>;
+        const rect = container.getBoundingClientRect();
+        onDropAsset?.(asset, timeAt(event.clientX - rect.left));
+      } catch {
+        // Ignore a foreign drag payload.
+      }
+    }}
+  >
     <div bind:this={container} style={`width:${width}px;height:${HEIGHT}px`}></div>
   </div>
 </div>

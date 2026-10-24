@@ -165,6 +165,19 @@ class VerticalClip(StrictModel):
         return self
 
 
+class OverlayClip(StrictModel):
+    overlay_id: str = Field(min_length=1)
+    asset_id: str = ""
+    path: str = Field(min_length=1)
+    start_frame: int = Field(ge=0)
+    duration_frames: int = Field(gt=0)
+    position_x: float = Field(default=0.5, ge=0.0, le=1.0)
+    position_y: float = Field(default=0.5, ge=0.0, le=1.0)
+    width_ratio: float = Field(default=0.25, gt=0.0, le=1.0)
+    opacity: float = Field(default=1.0, ge=0.0, le=1.0)
+    kind: Literal["image", "video"] = "image"
+
+
 class ProjectState(StrictModel):
     """The single JSON document under ``.videoflow/project_state.json``."""
 
@@ -183,6 +196,7 @@ class ProjectState(StrictModel):
     video_segments: list[VideoSegment] = Field(default_factory=list)
     audio_segments: list[AudioSegment] = Field(default_factory=list)
     vertical_clips: list[VerticalClip] = Field(default_factory=list)
+    overlays: list[OverlayClip] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def unique_sentence_ids(self) -> Self:

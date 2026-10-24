@@ -226,6 +226,19 @@ class OverrideRequest(BaseModel):
     action: Literal["keep", "discard"]
 
 
+class OverlayRequest(BaseModel):
+    overlay_id: str = Field(default="", max_length=60)
+    asset_id: str = Field(default="", max_length=120)
+    path: str = Field(min_length=1)
+    start_sec: float = Field(ge=0.0)
+    duration_sec: float = Field(gt=0.0, le=3600.0)
+    position_x: float = Field(default=0.5, ge=0.0, le=1.0)
+    position_y: float = Field(default=0.5, ge=0.0, le=1.0)
+    width_ratio: float = Field(default=0.25, gt=0.0, le=1.0)
+    opacity: float = Field(default=1.0, ge=0.0, le=1.0)
+    kind: Literal["image", "video"] = "image"
+
+
 class ClipCommentRequest(BaseModel):
     clip_id: str = Field(min_length=1, max_length=120)
     text: str = Field(min_length=1, max_length=2000)
@@ -2530,6 +2543,73 @@ def register_routes(
             raise
         return {"ok": True, "markers": [item.model_dump(mode="json") for item in meta.markers]}
 
+    @app.post("/api/v1/jobs/{job_id}/timeline/overlays", status_code=201)
+    def create_timeline_overlay(job_id: str, request: OverlayRequest) -> dict[str, object]:
+        from videoflow.domain.state import OverlayClip
+
+        try:
+            job = jobs.get(job_id)
+            _assert_tracks_unlocked(job, {"video"})
+            resolved = resolve_allowed(Path(request.path), allowed_roots())
+            state_path = _timeline_state_path(job)
+            history = _timeline_history(job)
+            state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+            previous = state.model_copy(deep=True)
+            fps = (
+                state.media_info.fps_num / state.media_info.fps_den
+                if state.media_info is not None
+                else 30.0
+            )
+            overlay = OverlayClip(
+                overlay_id=request.overlay_id or f"overlay-{int(time.time() * 1000)}",
+                asset_id=request.asset_id,
+                path=str(resolved),
+                start_frame=round(request.start_sec * fps),
+                duration_frames=max(1, round(request.duration_sec * fps)),
+                position_x=request.position_x,
+                position_y=request.position_y,
+                width_ratio=request.width_ratio,
+                opacity=request.opacity,
+                kind=request.kind,
+            )
+            state.overlays = [
+                item for item in state.overlays if item.overlay_id != overlay.overlay_id
+            ] + [overlay]
+            history.record(previous)
+            state = _apply_and_store(job, state, state_path, history, previous.revision + 1)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {
+            "ok": True,
+            "revision": state.revision,
+            "overlays": [item.model_dump(mode="json") for item in state.overlays],
+        }
+
+    @app.delete("/api/v1/jobs/{job_id}/timeline/overlays/{overlay_id}")
+    def delete_timeline_overlay(job_id: str, overlay_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            _assert_tracks_unlocked(job, {"video"})
+            state_path = _timeline_state_path(job)
+            history = _timeline_history(job)
+            state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+            previous = state.model_copy(deep=True)
+            kept = [item for item in state.overlays if item.overlay_id != overlay_id]
+            if len(kept) == len(state.overlays):
+                raise StateNotReadyError(f"Unknown overlay: {overlay_id}")
+            state.overlays = kept
+            history.record(previous)
+            state = _apply_and_store(job, state, state_path, history, previous.revision + 1)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {
+            "ok": True,
+            "revision": state.revision,
+            "overlays": [item.model_dump(mode="json") for item in state.overlays],
+        }
+
     @app.get("/api/v1/jobs/{job_id}/timeline/comments")
     def list_clip_comments(job_id: str, clip_id: str = "") -> dict[str, object]:
         try:
@@ -2683,6 +2763,7 @@ def register_routes(
             "markers": [item.model_dump(mode="json") for item in meta.markers],
             "tracks": {key: value.model_dump() for key, value in meta.tracks.items()},
             "comments": [item.model_dump(mode="json") for item in meta.comments],
+            "overlays": [item.model_dump(mode="json") for item in state.overlays],
             "preview_url": f"/api/v1/jobs/{job_id}/preview/file",
             "media": {
                 "source_path": media.source_path if media is not None else "",

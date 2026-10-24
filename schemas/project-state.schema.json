@@ -749,6 +749,81 @@
       "title": "MusicConfig",
       "type": "object"
     },
+    "OverlayClip": {
+      "additionalProperties": false,
+      "properties": {
+        "asset_id": {
+          "default": "",
+          "title": "Asset Id",
+          "type": "string"
+        },
+        "duration_frames": {
+          "exclusiveMinimum": 0,
+          "title": "Duration Frames",
+          "type": "integer"
+        },
+        "kind": {
+          "default": "image",
+          "enum": [
+            "image",
+            "video"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "opacity": {
+          "default": 1.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Opacity",
+          "type": "number"
+        },
+        "overlay_id": {
+          "minLength": 1,
+          "title": "Overlay Id",
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "position_x": {
+          "default": 0.5,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Position X",
+          "type": "number"
+        },
+        "position_y": {
+          "default": 0.5,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Position Y",
+          "type": "number"
+        },
+        "start_frame": {
+          "minimum": 0,
+          "title": "Start Frame",
+          "type": "integer"
+        },
+        "width_ratio": {
+          "default": 0.25,
+          "exclusiveMinimum": 0.0,
+          "maximum": 1.0,
+          "title": "Width Ratio",
+          "type": "number"
+        }
+      },
+      "required": [
+        "overlay_id",
+        "path",
+        "start_frame",
+        "duration_frames"
+      ],
+      "title": "OverlayClip",
+      "type": "object"
+    },
     "OverlayConfig": {
       "additionalProperties": false,
       "properties": {
@@ -1721,6 +1796,13 @@
     },
     "modules_config": {
       "$ref": "#/$defs/ModulesConfig"
+    },
+    "overlays": {
+      "items": {
+        "$ref": "#/$defs/OverlayClip"
+      },
+      "title": "Overlays",
+      "type": "array"
     },
     "project_id": {
       "format": "uuid",

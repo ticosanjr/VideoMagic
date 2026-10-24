@@ -201,3 +201,71 @@ def test_short_render_mixes_music_and_sfx(
     )
     stream = json.loads(probe.stdout)["streams"][0]
     assert stream["codec_type"] == "audio"
+
+
+def test_mp4_render_burns_a_timeline_overlay(
+    fixture: tuple[Path, Path], tmp_path: Path
+) -> None:
+    from videoflow.domain.state import (
+        AudioSegment,
+        MediaInfo,
+        OverlayClip,
+        ProjectState,
+        VideoSegment,
+    )
+    from videoflow.exporters.mp4 import export_mp4
+
+    source, _ = fixture
+    logo = tmp_path / "logo.png"
+    subprocess.run(
+        [
+            ffmpeg(), "-hide_banner", "-loglevel", "error", "-y",
+            "-f", "lavfi", "-i", "color=c=red:s=64x64", "-frames:v", "1",
+            str(logo),
+        ],
+        check=True,
+    )
+    state = ProjectState(
+        media_info=MediaInfo(
+            source_path=str(source),
+            duration_frames=60,
+            fps_num=30,
+            fps_den=1,
+            width=640,
+            height=360,
+            audio_sample_rate=48000,
+        ),
+        video_segments=[
+            VideoSegment(
+                clip_id="v1",
+                source_in_frame=0,
+                source_out_frame=60,
+                timeline_in_frame=0,
+                timeline_out_frame=60,
+            )
+        ],
+        audio_segments=[
+            AudioSegment(
+                clip_id="v1",
+                source_in_sample=0,
+                source_out_sample=96000,
+                timeline_in_sample=0,
+                timeline_out_sample=96000,
+            )
+        ],
+        overlays=[
+            OverlayClip(
+                overlay_id="o1",
+                path=str(logo),
+                start_frame=15,
+                duration_frames=30,
+                width_ratio=0.25,
+            )
+        ],
+    )
+    output = tmp_path / "overlay.mp4"
+
+    export_mp4(state, output)
+
+    assert output.is_file()
+    assert output.stat().st_size > 1000

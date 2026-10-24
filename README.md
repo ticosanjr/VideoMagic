@@ -134,8 +134,9 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   lane, and the audio master in FCPXML, XMEML, and Kdenlive, plus
   `scripts/qa_nle.py` to fail an export that loses them.
 - Professional finishing: pause/resume and priority, slide, duplicate, per-clip
-  comments, context menu, incremental Shorts reuse, light/high-contrast themes,
-  compact density, crash reports, and token metrics.
+  comments, context menu, drag-and-drop timeline overlays, incremental Shorts
+  reuse, light/high-contrast themes, compact density, crash reports, and token
+  metrics.
 - Silero VAD v5.1.2 through ONNX Runtime, with 16 kHz inference, exact
   sample-rate rescaling, configurable threshold, and pads. FFmpeg
   `silencedetect` is the automatic fallback.

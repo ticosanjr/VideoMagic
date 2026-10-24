@@ -508,3 +508,33 @@ def test_duplicate_route_inserts_a_clip(monkeypatch, tmp_path: Path) -> None:
     assert response.status_code == 200, response.text
     timeline = client.get(f"/api/v1/jobs/{job.job_id}/timeline").json()
     assert len(timeline["video"]) == 3
+
+
+def test_overlay_add_and_delete(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    job = _job(manager, tmp_path)
+    image = tmp_path / "logo.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    created = client.post(
+        f"/api/v1/jobs/{job.job_id}/timeline/overlays",
+        json={
+            "asset_id": "asset-1",
+            "path": str(image),
+            "start_sec": 0.5,
+            "duration_sec": 2.0,
+            "width_ratio": 0.3,
+        },
+    )
+    assert created.status_code == 201, created.text
+    [overlay] = created.json()["overlays"]
+    assert overlay["asset_id"] == "asset-1"
+
+    timeline = client.get(f"/api/v1/jobs/{job.job_id}/timeline").json()
+    assert timeline["overlays"][0]["overlay_id"] == overlay["overlay_id"]
+
+    removed = client.delete(
+        f"/api/v1/jobs/{job.job_id}/timeline/overlays/{overlay['overlay_id']}"
+    )
+    assert removed.status_code == 200
+    assert removed.json()["overlays"] == []

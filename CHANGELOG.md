@@ -45,6 +45,10 @@ follow semantic versioning once the project reaches 1.0.
   JSON report; LLM usage is accumulated at `GET /api/v1/metrics/cost`.
 - **Plugin panels.** The Plugins tab lists sandbox status and links registered
   panels.
+- **Assets on the timeline.** Drag an image or video from the timeline asset
+  rail; the overlay is stored in `ProjectState.overlays` with `asset_id`,
+  frame timing, position, size, and opacity, and is composited by the MP4
+  exporter.
 
 ### Changed
 

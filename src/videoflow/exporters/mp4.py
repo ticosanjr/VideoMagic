@@ -201,6 +201,37 @@ def export_mp4(
     if ass_path is not None:
         graph += f";{video_label}ass='{_filter_path(Path(ass_path))}'[vtitle]"
         video_label = "[vtitle]"
+    fps = media.fps_num / media.fps_den
+    overlay_inputs: list[str] = []
+    overlay_chains: list[str] = []
+    input_index = 1
+    for index, overlay in enumerate(state.overlays):
+        path = Path(overlay.path).expanduser()
+        if not path.is_file():
+            continue
+        duration = overlay.duration_frames / fps
+        if overlay.kind == "image":
+            overlay_inputs.extend(["-loop", "1", "-t", f"{duration:.6f}", "-i", str(path)])
+        else:
+            overlay_inputs.extend(
+                ["-stream_loop", "-1", "-t", f"{duration:.6f}", "-i", str(path)]
+            )
+        overlay_chains.append(
+            f"[{input_index}:v]scale=trunc(iw*{overlay.width_ratio:.4f}/2)*2:-2,"
+            f"format=rgba,colorchannelmixer=aa={overlay.opacity:.3f},"
+            f"setpts=PTS-STARTPTS[ov{index}]"
+        )
+        start = overlay.start_frame / fps
+        end = start + duration
+        overlay_chains.append(
+            f"{video_label}[ov{index}]overlay="
+            f"x=(W-w)*{overlay.position_x:.4f}:y=(H-h)*{overlay.position_y:.4f}:"
+            f"enable='between(t,{start:.6f},{end:.6f})'[vov{index}]"
+        )
+        video_label = f"[vov{index}]"
+        input_index += 1
+    if overlay_chains:
+        graph += ";" + ";".join(overlay_chains)
     destination = Path(output_path).expanduser()
     destination.parent.mkdir(parents=True, exist_ok=True)
     renderer = adapter or FFmpegAdapter()
@@ -208,6 +239,7 @@ def export_mp4(
         [
             "-i",
             str(Path(media.source_path).expanduser()),
+            *overlay_inputs,
             "-filter_complex",
             graph,
             "-map",

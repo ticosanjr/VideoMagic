@@ -1897,9 +1897,23 @@ export interface TimelineData {
   broll_approval: Record<string, { approved: number[]; order: number[] }>;
   markers: TimelineMarker[];
   comments?: TimelineComment[];
+  overlays?: TimelineOverlay[];
   tracks: Record<string, TrackState>;
   preview_url: string;
   media?: { source_path: string; audio_sample_rate: number };
+}
+
+export interface TimelineOverlay {
+  overlay_id: string;
+  asset_id: string;
+  path: string;
+  start_frame: number;
+  duration_frames: number;
+  position_x: number;
+  position_y: number;
+  width_ratio: number;
+  opacity: number;
+  kind: "image" | "video";
 }
 
 export interface TimelineComment {
@@ -2027,6 +2041,38 @@ export async function editTimelineBatch(
     method: "PATCH",
     body: JSON.stringify({ edits })
   });
+}
+
+export async function addTimelineOverlay(
+  jobId: string,
+  payload: {
+    asset_id?: string;
+    path: string;
+    start_sec: number;
+    duration_sec: number;
+    position_x?: number;
+    position_y?: number;
+    width_ratio?: number;
+    opacity?: number;
+    kind?: "image" | "video";
+  }
+): Promise<TimelineOverlay[]> {
+  const response = await request<{ ok: boolean; overlays: TimelineOverlay[] }>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/timeline/overlays`,
+    { method: "POST", body: JSON.stringify(payload) }
+  );
+  return response.overlays;
+}
+
+export async function removeTimelineOverlay(
+  jobId: string,
+  overlayId: string
+): Promise<TimelineOverlay[]> {
+  const response = await request<{ ok: boolean; overlays: TimelineOverlay[] }>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/timeline/overlays/${encodeURIComponent(overlayId)}`,
+    { method: "DELETE" }
+  );
+  return response.overlays;
 }
 
 export async function getTimelineComments(
