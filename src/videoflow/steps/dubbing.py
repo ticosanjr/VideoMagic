@@ -8,7 +8,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.application.dubbing import generate_short_dubbing
-from videoflow.application.providers import first_provider
+from videoflow.application.providers import first_provider, resolve_chain
 from videoflow.application.secrets import get_secret
 from videoflow.application.settings import load_settings
 from videoflow.core.context import PipelineContext
@@ -48,55 +48,84 @@ class DubbingStep(BaseStep):
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = DubbingParams.model_validate(params)
         settings = load_settings()
-        provider = first_provider("tts") or {}
-        base_url = options.base_url or str(provider.get("base_url") or "")
-        if not base_url:
+        providers = [
+            item for item in resolve_chain("tts") if str(item.get("base_url") or "")
+        ]
+        if options.base_url:
+            providers.insert(
+                0,
+                {
+                    "base_url": options.base_url,
+                    "model": options.model,
+                    "voice": options.voice,
+                    "api_key_env": "VIDEOWFLOW_TTS_API_KEY",
+                },
+            )
+        if not providers:
             io.report(100, "Dubbing skipped: no TTS provider configured")
             return
-        tts = TtsConfig(
-            provider="openai_compatible",
-            base_url=base_url,
-            model=options.model or settings.tts.model or str(provider.get("model") or "tts-1"),
-            voice=options.voice or settings.tts.voice or "alloy",
-            secret_name=str(provider.get("api_key_env") or "VIDEOWFLOW_TTS_API_KEY"),
-            speed=options.speed,
-            volume=options.volume,
-            original_volume=options.original_volume,
-        )
         llm_provider = first_provider("llm") or {}
         result = {"ok": True, "shorts": list(context.shorts)}
         dubbed = []
         for index, _ in enumerate(context.shorts):
-            try:
-                payload = generate_short_dubbing(
-                    output=context.output,
-                    index=index,
-                    result=result,
-                    source_text=None,
-                    target_language=options.target_language,
-                    tts=tts,
-                    dubbing=DubbingConfig(
-                        target_language=options.target_language,
-                        original_volume=options.original_volume,
+            errors: list[str] = []
+            for provider in providers:
+                tts = TtsConfig(
+                    provider="openai_compatible",
+                    base_url=str(provider.get("base_url") or ""),
+                    model=(
+                        options.model
+                        or settings.tts.model
+                        or str(provider.get("model") or "tts-1")
                     ),
-                    llm_base_url=(
-                        options.llm_base_url
-                        or str(llm_provider.get("base_url") or "")
-                        or "http://localhost:11434/v1"
+                    voice=(
+                        options.voice
+                        or settings.tts.voice
+                        or str(provider.get("voice") or "alloy")
                     ),
-                    llm_model=(
-                        options.llm_model
-                        or str(llm_provider.get("model") or "")
-                        or "qwen2.5:7b-instruct"
+                    secret_name=str(
+                        provider.get("api_key_env") or "VIDEOWFLOW_TTS_API_KEY"
                     ),
-                    llm_api_key=get_secret("VIDEOWFLOW_LLM_API_KEY"),
-                    tts_api_key=get_secret(tts.secret_name),
-                    allow_external_services=options.allow_external_services,
-                    allowed_external_hosts=tuple(options.allowed_external_hosts),
+                    speed=options.speed,
+                    volume=options.volume,
+                    original_volume=options.original_volume,
                 )
-                dubbed.append(payload)
-            except Exception as exc:
-                context.warnings.append(f"Dubbing failed for Short {index}: {exc}")
+                try:
+                    payload = generate_short_dubbing(
+                        output=context.output,
+                        index=index,
+                        result=result,
+                        source_text=None,
+                        target_language=options.target_language,
+                        tts=tts,
+                        dubbing=DubbingConfig(
+                            target_language=options.target_language,
+                            original_volume=options.original_volume,
+                        ),
+                        llm_base_url=(
+                            options.llm_base_url
+                            or str(llm_provider.get("base_url") or "")
+                            or "http://localhost:11434/v1"
+                        ),
+                        llm_model=(
+                            options.llm_model
+                            or str(llm_provider.get("model") or "")
+                            or "qwen2.5:7b-instruct"
+                        ),
+                        llm_api_key=get_secret("VIDEOWFLOW_LLM_API_KEY"),
+                        tts_api_key=get_secret(tts.secret_name),
+                        allow_external_services=options.allow_external_services,
+                        allowed_external_hosts=tuple(options.allowed_external_hosts),
+                    )
+                    dubbed.append(payload)
+                    break
+                except Exception as exc:
+                    errors.append(f"{tts.base_url}: {exc}")
+            else:
+                context.warnings.append(
+                    f"Dubbing failed for Short {index} on every TTS provider: "
+                    + " | ".join(errors)
+                )
             io.report(int((index + 1) / max(1, len(context.shorts)) * 100), f"Dubbed {index + 1}")
         context.metadata["dubbed_shorts"] = dubbed
         context.artifacts["dubbed_shorts"] = str(

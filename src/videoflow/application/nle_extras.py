@@ -82,6 +82,36 @@ def _broll(output: Path) -> tuple[NleBroll, ...]:
     return ()
 
 
+def _project_overlays(directory: Path) -> tuple[NleBroll, ...]:
+    path = directory / "project_state.json"
+    if not path.is_file():
+        return ()
+    try:
+        import json as _json
+
+        payload = _json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ()
+    media = payload.get("media_info") or {}
+    fps_num = float(media.get("fps_num") or 30)
+    fps_den = float(media.get("fps_den") or 1)
+    fps = fps_num / max(0.001, fps_den)
+    entries: list[NleBroll] = []
+    for overlay in payload.get("overlays", []):
+        if not isinstance(overlay, dict) or not overlay.get("path"):
+            continue
+        entries.append(
+            NleBroll(
+                path=str(overlay["path"]),
+                start_sec=float(overlay.get("start_frame") or 0) / fps,
+                duration_sec=max(0.1, float(overlay.get("duration_frames") or 1) / fps),
+                name=Path(str(overlay["path"])).stem,
+                kind=str(overlay.get("kind") or "image"),
+            )
+        )
+    return tuple(entries)
+
+
 def nle_extras_from_output(output: Path) -> NleExtras:
     """Read markers, titles, B-roll, colour, and the audio master if present."""
 
@@ -120,7 +150,7 @@ def nle_extras_from_output(output: Path) -> NleExtras:
     return NleExtras(
         markers=markers,
         titles=_titles(directory / "titles.ass"),
-        broll=_broll(directory),
+        broll=_broll(directory) + _project_overlays(directory),
         color_filters=colors,
         audio_filters=audio,
         audio_stem=str(stems) if stems.is_file() else "",

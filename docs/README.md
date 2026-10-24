@@ -29,7 +29,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Job persistence | SQLite is read first and JSON fills gaps; interrupted jobs are requeued on startup |
 | Professional shell | command palette, shortcut reference, activity drawer, notification center, job dashboard, pause/resume, and priority ([shell.md](shell.md)) |
 | Timeline editing | group trim, slip, slide, ripple trim, duplicate, comments, context menu, real waveforms, virtualization, preview scheduler, incremental Shorts, and tracked lock/mute/solo ([timeline.md](timeline.md)) |
-| Content quality | golden set and channel profiles, shot-aware B-roll with licenses, SFX library, delivery package with the winning thumbnail, and a localized recipe ([quality.md](quality.md)) |
+| Content quality | golden set and channel profiles, TF-IDF/optional embedding B-roll with licenses, SFX library, delivery package, hook/duration A/B, dubbing alignment and review, and a localized recipe ([quality.md](quality.md)) |
 | NLE finishing | native titles, markers, colour filters, B-roll lane, and audio master in FCPXML/XMEML/Kdenlive, with `scripts/qa_nle.py` ([nle-qa.md](nle-qa.md)) |
 | Plugins | exporter and provider registration, manifest permissions, static sandbox allowlist ([plugins.md](plugins.md)) |
 | Hardening | fault injection, log rotation, scheduled backups, AA keyboard/focus/reduced-motion, 1,000-clip writer stress ([hardening.md](hardening.md)) |

@@ -614,8 +614,16 @@ def _append_overlay_playlist(
         length = max(1, round(entry.duration_sec * media.fps_num / media.fps_den))
         producer = ET.SubElement(parent, "producer", {"id": producer_id})
         _property(producer, "resource", entry.path)
-        _property(producer, "mlt_service", "avformat")
+        _property(
+            producer,
+            "mlt_service",
+            "qimage" if getattr(entry, "kind", "video") == "image" else "avformat",
+        )
         _property(producer, "kdenlive:duration", str(length))
+        if getattr(entry, "kind", "video") == "image":
+            _property(producer, "ttl", str(max(1, length)))
+            _property(producer, "length", str(max(1, length)))
+            _property(producer, "eof", "continue")
         _property(producer, "kdenlive:clipname", entry.name or "B-roll")
         entries.append((producer_id, start, length))
     if not entries:

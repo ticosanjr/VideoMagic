@@ -37,6 +37,12 @@ Profiles can be chosen before selection through `shorts.select.profile` or with
 the `shorts_profile` job option, so the weights change which windows are
 selected rather than only re-ordering the survivors.
 
+## Semantic option
+
+`application/embeddings.py` uses a local sentence-transformers directory when
+`VIDEOWFLOW_EMBEDDING_MODEL` points at one and the extra is installed. TF-IDF is
+used otherwise; the match entry records `match: "embeddings"` or `"tfidf"`.
+
 ## B-roll by shot and licences
 
 `assets.match` reads the shots produced by `assets.shots` and, for each Short,
@@ -59,6 +65,22 @@ the automatic order.
 MP3, WAV, M4A, AAC, OGG, and FLAC up to 50 MB. The Library tab lists, uploads,
 and deletes SFX next to music, images, and fonts. `sfx.plan` places cues and
 `shorts.render` mixes them with the voice track.
+
+## Dubbing alignment and review
+
+After synthesis, the dub probes the audio duration. A drift beyond ±15% triggers
+one retry with a corrected speed (clamped to 0.75–1.3). Every dub writes a
+`translation.json` review file next to the audio with source, translated text,
+language, and `approved: false`. The recipe step tries every configured TTS
+provider in order and only warns when all of them fail. Voice cloning remains a
+provider capability; the OpenAI-compatible adapter has no clone endpoint.
+
+## Hook and duration A/B
+
+`shorts.ab` turns each selected Short into hook (`original`/`repeat`) and
+duration (100%/80%) variants, capped by `max_variants`. The
+`hook_duration_ab` recipe inserts it between scoring and reframe, so the normal
+renderer produces real candidates.
 
 ## Dubbing in a recipe
 

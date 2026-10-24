@@ -99,6 +99,25 @@ def test_qa_script_accepts_a_finished_export(tmp_path: Path) -> None:
         '{"filters": ["eq=contrast=1.1"]}', encoding="utf-8"
     )
     (job / "audio" / "master.wav").write_bytes(b"RIFF")
+    overlay = tmp_path / "logo.png"
+    overlay.write_bytes(b"png")
+    (job / "project_state.json").write_text(
+        json.dumps(
+            {
+                "media_info": {"fps_num": 30, "fps_den": 1},
+                "overlays": [
+                    {
+                        "overlay_id": "o1",
+                        "path": str(overlay),
+                        "start_frame": 30,
+                        "duration_frames": 60,
+                        "kind": "image",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
     (job / "chapters.json").write_text(
         json.dumps({"chapters": [{"title": "Intro", "start_sec": 2.0}]}),
         encoding="utf-8",
@@ -128,3 +147,7 @@ def test_qa_script_accepts_a_finished_export(tmp_path: Path) -> None:
 
     root = ET.parse(output / "timeline.fcpxml").getroot()
     assert len(root.findall(".//sequence/marker")) == 2
+    kdenlive = ET.parse(output / "timeline.kdenlive").getroot()
+    assert kdenlive.findall("./producer/property[.='qimage']")
+    xmeml = ET.parse(output / "timeline.xml").getroot()
+    assert xmeml.findall(".//video/track/clipitem/stillframe")

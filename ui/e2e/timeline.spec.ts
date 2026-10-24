@@ -52,10 +52,49 @@ const timeline = {
   preview_url: "/api/v1/jobs/job-1/preview/file"
 };
 
-async function mockApi(page: Page) {
+async function mockApi(page: Page, overlayPosts: Array<Record<string, unknown>> = []) {
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
+    if (path === "/api/v1/assets") {
+      return route.fulfill({
+        json: {
+          ok: true,
+          assets: [
+            {
+              id: "asset-1",
+              name: "logo.png",
+              kind: "image",
+              path: "/tmp/logo.png",
+              tags: [],
+              added_at: "2026-10-24T00:00:00Z"
+            }
+          ]
+        }
+      });
+    }
+    if (path === "/api/v1/jobs/job-1/timeline/overlays") {
+      overlayPosts.push(JSON.parse(route.request().postData() ?? "{}"));
+      return route.fulfill({
+        json: {
+          ok: true,
+          overlays: [
+            {
+              overlay_id: "o1",
+              asset_id: "asset-1",
+              path: "/tmp/logo.png",
+              start_frame: 0,
+              duration_frames: 90,
+              position_x: 0.5,
+              position_y: 0.5,
+              width_ratio: 0.25,
+              opacity: 1,
+              kind: "image"
+            }
+          ]
+        }
+      });
+    }
     if (path === "/api/v1/system") return route.fulfill({ json: system });
     if (path === "/api/v1/jobs") return route.fulfill({ json: { ok: true, jobs: [job] } });
     if (path === "/api/v1/jobs/job-1/timeline") {
@@ -148,4 +187,37 @@ test("marks the preview as outdated after an edit", async ({ page }) => {
   await page.getByRole("button", { name: "Move", exact: true }).click();
 
   await expect(page.getByText("preview outdated")).toBeVisible();
+});
+
+
+test("drags a library asset onto the timeline as an overlay", async ({ page }) => {
+  const posts: Array<Record<string, unknown>> = [];
+  await page.unroute("**/api/v1/**");
+  await mockApi(page, posts);
+  await page.goto("/#timeline");
+  const rail = page.getByTestId("asset-rail");
+  await expect(rail.getByText("logo.png")).toBeVisible();
+  await page.waitForTimeout(800);
+
+  await page.evaluate(() => {
+    const chip = document.querySelector('[data-testid="asset-rail"] [draggable="true"]');
+    const target = document.querySelector('[data-testid="timeline-scroller"]');
+    if (!chip || !target) throw new Error("drag endpoints missing");
+    const data = new DataTransfer();
+    chip.dispatchEvent(new DragEvent("dragstart", { dataTransfer: data, bubbles: true }));
+    const rect = target.getBoundingClientRect();
+    const options = {
+      dataTransfer: data,
+      bubbles: true,
+      clientX: rect.left + 320,
+      clientY: rect.top + 60
+    };
+    target.dispatchEvent(new DragEvent("dragover", options));
+    target.dispatchEvent(new DragEvent("drop", options));
+  });
+
+  await expect.poll(() => posts.length).toBeGreaterThan(0);
+  expect(posts[0]["asset_id"]).toBe("asset-1");
+  expect(posts[0]["path"]).toBe("/tmp/logo.png");
+  expect(Number(posts[0]["start_sec"])).toBeGreaterThanOrEqual(0);
 });

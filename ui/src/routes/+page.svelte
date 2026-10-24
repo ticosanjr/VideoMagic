@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import AssetsPanel from "$lib/AssetsPanel.svelte";
   import ActivityDrawer from "$lib/ActivityDrawer.svelte";
   import AutomationPanel from "$lib/AutomationPanel.svelte";
@@ -20,6 +20,7 @@
   import type { Command } from "$lib/commandPalette";
   import { t } from "$lib/i18n";
   import { i18n } from "$lib/i18n.svelte";
+  import { translateTree } from "$lib/domI18n";
   import { noticeCounts } from "$lib/notifications";
   import { notifications } from "$lib/notifications.svelte";
   import { UI_VERSION } from "$lib/version";
@@ -275,6 +276,13 @@
     activeTab = tab;
     history.replaceState(null, "", `#${tab}`);
   }
+
+  $effect(() => {
+    activeTab;
+    locale;
+    if (typeof document === "undefined") return;
+    void tick().then(() => translateTree(document.body, locale));
+  });
 
   function syncHash() {
     const hash = window.location.hash.replace("#", "") as Tab;

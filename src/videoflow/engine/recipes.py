@@ -506,6 +506,24 @@ _add_recipe(
     description="Pause for human approval before rendering Shorts.",
 )
 
+_hook_ab_steps = _shorts(minimum=20, maximum=60, count=3)
+_score_index = next(
+    index for index, step in enumerate(_hook_ab_steps) if step.get("type") == "shorts.score"
+)
+_hook_ab_steps.insert(
+    _score_index + 1,
+    {"id": "ab", "type": "shorts.ab", "needs": ["score"], "params": {}},
+)
+for _step in _hook_ab_steps:
+    if _step.get("id") in {"reframe", "captions"} and "score" in _step.get("needs", []):
+        _step["needs"] = ["ab" if item == "score" else item for item in _step["needs"]]
+_add_recipe(
+    "hook_duration_ab",
+    "Hook and duration A/B",
+    _hook_ab_steps,
+    description="Real hook and duration variants per Short, rendered for comparison.",
+)
+
 _variant_base = _shorts()[:5]
 _variant_base[-1] = {
     "id": "shorts",

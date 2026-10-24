@@ -10,6 +10,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application import embeddings
 from videoflow.application.assets import list_assets
 from videoflow.application.audio_analysis import detect_beats
 from videoflow.application.video_analysis import detect_scene_changes, scene_intervals
@@ -167,7 +168,8 @@ class AssetMatchStep(BaseStep):
                     if sentence.end_sample > start and sentence.start_sample < end
                 )
                 text = f"{clip.title} {scene_text} {options.query}".strip()
-                scores = _tfidf_scores(text, documents)
+                semantic = embeddings.scores(text, documents) if embeddings.available() else None
+                scores = semantic if semantic is not None else _tfidf_scores(text, documents)
                 ranked = sorted(
                     zip(scores, assets, strict=False),
                     key=lambda item: item[0],

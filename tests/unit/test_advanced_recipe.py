@@ -439,3 +439,12 @@ def test_localized_recipe_runs_dubbing_after_the_short_render() -> None:
     assert "localization.dub" in types
     dub = next(step for step in recipe.steps if step.type == "localization.dub")
     assert "render_shorts" in dub.needs
+
+
+def test_hook_duration_recipe_has_ab_step() -> None:
+    from videoflow.engine.recipes import get_recipe
+
+    recipe = get_recipe("hook_duration_ab")
+    types = [step.type for step in recipe.enabled_steps()]
+    assert "shorts.ab" in types
+    assert types.index("shorts.ab") < types.index("shorts.render")

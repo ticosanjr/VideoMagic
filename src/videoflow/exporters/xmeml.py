@@ -357,6 +357,8 @@ def _append_broll_track(
         ET.SubElement(item, "end").text = str(end)
         ET.SubElement(item, "in").text = "0"
         ET.SubElement(item, "out").text = str(max(1, end - start))
+        if entry.kind == "image":
+            ET.SubElement(item, "stillframe").text = "TRUE"
         file_element = ET.SubElement(item, "file", {"id": f"file-broll-{index}"})
         ET.SubElement(file_element, "name").text = Path(entry.path).name
         ET.SubElement(file_element, "pathurl").text = _premiere_path_url(entry.path)

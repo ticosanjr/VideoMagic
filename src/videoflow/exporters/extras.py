@@ -28,6 +28,7 @@ class NleBroll:
     start_sec: float
     duration_sec: float
     name: str = ""
+    kind: str = "video"
 
 
 @dataclass(frozen=True, slots=True)

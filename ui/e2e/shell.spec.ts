@@ -163,6 +163,8 @@ test("applies pt-BR, the light theme, and compact density", async ({ page }) => 
   );
   await page.reload();
   await expect(page.getByRole("button", { name: /Atividade/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Construtor de receitas" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Adicionar etapa/ })).toBeVisible();
 
   const background = await page.evaluate(
     () => getComputedStyle(document.body).backgroundColor

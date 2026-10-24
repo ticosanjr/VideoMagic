@@ -119,12 +119,34 @@ def generate_short_dubbing(
     stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S-%f")
     slug = slugify(str(entry.get("title") or "short"), index + 1)
     audio_path = work_dir / f"{slug}-{stamp}.mp3"
-    OpenAITtsAdapter(
+    adapter = OpenAITtsAdapter(
         base_url=tts.base_url,
         model=tts.model,
         voice=tts.voice,
         api_key=tts_api_key,
-    ).synthesize(translated, audio_path, speed=tts.speed)
+    )
+    adapter.synthesize(translated, audio_path, speed=tts.speed)
+    alignment = {"requested_speed": tts.speed, "retried": False}
+    if duration > 0:
+        try:
+            probe = FFmpegAdapter().probe(audio_path)
+            synth_duration = probe.duration_frames / max(
+                1.0, probe.fps_num / max(1, probe.fps_den)
+            )
+        except Exception:
+            synth_duration = 0.0
+        if synth_duration > 0:
+            drift = synth_duration / duration
+            alignment.update({"synthesis_sec": round(synth_duration, 3), "drift": round(drift, 3)})
+            if drift > 1.15 or drift < 0.85:
+                adjusted = max(0.75, min(1.3, tts.speed * drift))
+                if abs(adjusted - tts.speed) > 0.01:
+                    retry_path = work_dir / f"{slug}-{stamp}-aligned.mp3"
+                    adapter.synthesize(translated, retry_path, speed=adjusted)
+                    audio_path = retry_path
+                    alignment.update(
+                        {"retried": True, "applied_speed": round(adjusted, 3)}
+                    )
     mixed_path = work_dir / f"{slug}-{stamp}.mp4"
     FFmpegAdapter().mix_voiceover(
         Path(raw_source),
@@ -133,6 +155,21 @@ def generate_short_dubbing(
         duration_sec=duration,
         voice_volume=tts.volume,
         original_volume=dubbing.original_volume,
+    )
+    review_path = work_dir / f"{slug}-{stamp}-translation.json"
+    review_path.write_text(
+        json.dumps(
+            {
+                "index": index,
+                "target_language": target_language,
+                "source": source_text,
+                "translated": translated,
+                "approved": False,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
     )
     previous = entry.get("path")
     payload = {
@@ -145,6 +182,8 @@ def generate_short_dubbing(
         "model": tts.model,
         "voice": tts.voice,
         "original_volume": dubbing.original_volume,
+        "alignment": alignment,
+        "translation_review": str(review_path),
     }
     entry["dubbing"] = payload
     entry["path"] = str(mixed_path)

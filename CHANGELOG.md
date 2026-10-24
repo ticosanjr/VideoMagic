@@ -50,6 +50,18 @@ follow semantic versioning once the project reaches 1.0.
   frame timing, position, size, and opacity, and is composited by the MP4
   exporter.
 
+- **Optional semantic B-roll.** A local sentence-transformers directory enables
+  embedding matching; TF-IDF remains the automatic fallback.
+- **Dubbing hardening.** Duration drift triggers one speed-corrected retry,
+  each dub writes a translation-review file, and the step tries every configured
+  TTS provider before warning.
+- **Hook and duration A/B.** `shorts.ab` clones selected Shorts into hook and
+  duration variants, and the `hook_duration_ab` recipe renders them.
+- **Overlays in the NLEs.** Timeline overlays join the B-roll lane; XMEML marks
+  still frames and Kdenlive uses `qimage` producers.
+- **Panel glossary.** A runtime PT-BR glossary translates the dense panels'
+  headings, actions, and common labels without rewriting every template.
+
 ### Changed
 
 - `RecipeSchedule`, `PluginManifest`, settings, providers, and schedules gain
@@ -58,11 +70,14 @@ follow semantic versioning once the project reaches 1.0.
 
 ### Notes
 
-- Local-only development build. No release artifact was produced for 2.5.0.
+- Local release: Linux binary + AppImage + SBOM + checksums. No GitHub Actions,
+  no publishing, no multiuser.
 - The plugin sandbox is a static allowlist, not an OS sandbox: a plugin with the
   `shell` permission runs as the service user.
-- Manual screen-reader and 200% zoom checks remain on the accessibility
-  checklist.
+- Manual NLE import checks and manual screen-reader/200% zoom checks remain on
+  the checklist; the host lacks the NLEs.
+- Kept releases: v2.5.0, v2.4.0, v2.0.0. v1.0.0 is pruned by the three-release
+  retention rule.
 
 ## [2.4.0] - 2026-10-24
 
