@@ -35,3 +35,116 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+:root {
+  --vf-bg: #09090b;
+  --vf-surface: #111114;
+  --vf-surface-2: #18181b;
+  --vf-border: #27272a;
+  --vf-text: #f4f4f5;
+  --vf-muted: #a1a1aa;
+  --vf-input: #09090b;
+}
+
+[data-theme="light"] {
+  --vf-bg: #f8fafc;
+  --vf-surface: #ffffff;
+  --vf-surface-2: #f1f5f9;
+  --vf-border: #cbd5e1;
+  --vf-text: #0f172a;
+  --vf-muted: #475569;
+  --vf-input: #ffffff;
+}
+
+[data-theme="high-contrast"] {
+  --vf-bg: #000000;
+  --vf-surface: #000000;
+  --vf-surface-2: #111111;
+  --vf-border: #ffffff;
+  --vf-text: #ffffff;
+  --vf-muted: #e5e5e5;
+  --vf-input: #000000;
+}
+
+body {
+  background: var(--vf-bg);
+  color: var(--vf-text);
+}
+
+[data-theme="light"] .bg-neutral-950,
+[data-theme="light"] .bg-neutral-950\/50,
+[data-theme="light"] .bg-neutral-950\/60,
+[data-theme="light"] .bg-neutral-900,
+[data-theme="light"] .bg-neutral-900\/40,
+[data-theme="light"] .bg-neutral-900\/50,
+[data-theme="light"] .bg-neutral-900\/70,
+[data-theme="light"] .bg-neutral-900\/95 {
+  background-color: var(--vf-surface);
+}
+
+[data-theme="light"] .border-neutral-800,
+[data-theme="light"] .border-neutral-700,
+[data-theme="light"] .border-neutral-600 {
+  border-color: var(--vf-border);
+}
+
+[data-theme="light"] .text-white,
+[data-theme="light"] .text-neutral-100,
+[data-theme="light"] .text-neutral-200,
+[data-theme="light"] .text-neutral-300 {
+  color: var(--vf-text);
+}
+
+[data-theme="light"] .text-neutral-400,
+[data-theme="light"] .text-neutral-500,
+[data-theme="light"] .text-neutral-600 {
+  color: var(--vf-muted);
+}
+
+[data-theme="light"] input,
+[data-theme="light"] textarea,
+[data-theme="light"] select {
+  background-color: var(--vf-input);
+  color: var(--vf-text);
+}
+
+[data-theme="high-contrast"] .border-neutral-800,
+[data-theme="high-contrast"] .border-neutral-700 {
+  border-color: #ffffff;
+}
+
+[data-theme="high-contrast"] :focus-visible {
+  outline: 3px solid #ffff00;
+}
+
+[data-density="compact"] .p-4 {
+  padding: 0.75rem;
+}
+
+[data-density="compact"] .py-6 {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+[data-density="compact"] .gap-5 {
+  gap: 0.75rem;
+}
+
+[data-density="compact"] .px-4 {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+[data-density="comfortable"] {
+  --vf-density-scale: 1;
+}
+
+html[data-theme="light"] body.bg-neutral-950 {
+  background-color: var(--vf-bg);
+  color: var(--vf-text);
+}
+
+html[data-theme="high-contrast"] body.bg-neutral-950 {
+  background-color: var(--vf-bg);
+  color: var(--vf-text);
+}

@@ -30,8 +30,26 @@ follow semantic versioning once the project reaches 1.0.
   rows and defaults preserved.
 - `docs/plugins.md` and `docs/hardening.md`.
 
+- **Execution control.** Jobs can be paused and resumed; priority is editable
+  and reorders the queue.
+- **Timeline editing.** Slide, duplicate, per-clip comments, and a right-click
+  context menu for split, duplicate, delete, ripple delete, slide, markers, and
+  comments.
+- **Incremental Shorts.** `shorts.render` writes `render-manifest.json` and
+  reuses an unchanged Short; the MP4 render queue reuses an unchanged timeline.
+- **Native chapters.** `chapters.json` becomes NLE markers in all three
+  documents.
+- **Theme and density.** Light, dark, and high-contrast themes through tokens;
+  compact density; AA focus, focus traps, reduced motion.
+- **Crash reports and token metrics.** Unhandled API errors write a minimal
+  JSON report; LLM usage is accumulated at `GET /api/v1/metrics/cost`.
+- **Plugin panels.** The Plugins tab lists sandbox status and links registered
+  panels.
+
 ### Changed
 
+- `RecipeSchedule`, `PluginManifest`, settings, providers, and schedules gain
+  versioned migration helpers with default filling.
 - Version bumped to 2.5.0 for the server and UI bundle.
 
 ### Notes

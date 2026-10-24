@@ -11,7 +11,8 @@ from videoflow.domain.state import ProjectState
 from videoflow.domain.timebase import Rounding
 
 TimelineAction = Literal[
-    "trim", "move", "delete", "split", "ripple", "ripple_trim", "slip"
+    "trim", "move", "delete", "split", "ripple", "ripple_trim", "slip",
+    "slide", "duplicate",
 ]
 
 
@@ -261,6 +262,97 @@ def apply_timeline_edit(state: ProjectState, edit: TimelineEdit) -> ProjectState
             if audio_out - audio_in != audio_length:
                 raise InvalidTimeError("Slip would change the audio length.")
             audio.source_in_sample, audio.source_out_sample = audio_in, audio_out
+        return state
+
+    if edit.action == "slide":
+        delta_frames = round(edit.delta_sec * fps)
+        if delta_frames == 0:
+            return state
+        index = state.video_segments.index(video)
+        previous = state.video_segments[index - 1] if index > 0 else None
+        following = (
+            state.video_segments[index + 1]
+            if index + 1 < len(state.video_segments)
+            else None
+        )
+        if (
+            previous is None
+            or previous.timeline_out_frame != video.timeline_in_frame
+            or following is None
+            or following.timeline_in_frame != video.timeline_out_frame
+        ):
+            raise InvalidTimeError("Slide needs a contiguous clip on both sides.")
+        old_video = video.model_copy(deep=True)
+        old_previous = previous.model_copy(deep=True)
+        old_following = following.model_copy(deep=True)
+        ratio_prev = (previous.source_out_frame - previous.source_in_frame) / max(
+            1, previous.timeline_out_frame - previous.timeline_in_frame
+        )
+        ratio_next = (following.source_out_frame - following.source_in_frame) / max(
+            1, following.timeline_out_frame - following.timeline_in_frame
+        )
+        previous.timeline_out_frame += delta_frames
+        previous.source_out_frame += round(delta_frames * ratio_prev)
+        following.timeline_in_frame += delta_frames
+        following.source_in_frame += round(delta_frames * ratio_next)
+        video.timeline_in_frame += delta_frames
+        video.timeline_out_frame += delta_frames
+        if (
+            previous.timeline_out_frame <= previous.timeline_in_frame
+            or following.timeline_out_frame <= following.timeline_in_frame
+            or previous.source_out_frame > media.duration_frames
+            or following.source_in_frame < 0
+            or video.timeline_in_frame < 0
+        ):
+            state.video_segments[index] = old_video
+            state.video_segments[index - 1] = old_previous
+            state.video_segments[index + 1] = old_following
+            raise InvalidTimeError("Slide exceeds the neighboring clips.")
+        if audio is not None:
+            delta_samples = round(edit.delta_sec * media.audio_sample_rate)
+            audio.timeline_in_sample += delta_samples
+            audio.timeline_out_sample += delta_samples
+        return state
+
+    if edit.action == "duplicate":
+        length = video.source_out_frame - video.source_in_frame
+        existing = {clip.clip_id for clip in state.video_segments}
+        new_id = _new_clip_id(existing, video.clip_id)
+        start = video.timeline_out_frame
+        frame_shift = video.timeline_out_frame - video.timeline_in_frame
+        for clip in state.video_segments:
+            if clip.timeline_in_frame >= start:
+                clip.timeline_in_frame += frame_shift
+                clip.timeline_out_frame += frame_shift
+        copy = video.model_copy(
+            update={
+                "clip_id": new_id,
+                "timeline_in_frame": start,
+                "timeline_out_frame": start + frame_shift,
+                "source_out_frame": video.source_in_frame + length,
+                "transition_out": None,
+            }
+        )
+        state.video_segments.append(copy)
+        state.video_segments.sort(key=lambda item: item.timeline_in_frame)
+        if audio is not None:
+            audio_shift = audio.timeline_out_sample - audio.timeline_in_sample
+            audio_start = audio.timeline_out_sample
+            for clip in state.audio_segments:
+                if clip.timeline_in_sample >= audio_start:
+                    clip.timeline_in_sample += audio_shift
+                    clip.timeline_out_sample += audio_shift
+            audio_copy = audio.model_copy(
+                update={
+                    "clip_id": new_id,
+                    "timeline_in_sample": audio_start,
+                    "timeline_out_sample": audio_start + audio_shift,
+                    "fade_in_samples": 0,
+                    "fade_out_samples": 0,
+                }
+            )
+            state.audio_segments.append(audio_copy)
+            state.audio_segments.sort(key=lambda item: item.timeline_in_sample)
         return state
 
     if edit.action == "move":

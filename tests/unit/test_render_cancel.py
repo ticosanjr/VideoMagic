@@ -148,3 +148,30 @@ def test_solo_overrides_a_muted_audio_track(
 
     assert item.status == "ready", item.error
     assert "volume=0" not in captured["audio_filters"]
+
+
+def test_unchanged_timeline_reuses_the_render(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    job = build_job(tmp_path)
+    calls: list[Path] = []
+
+    def fake_export(state, target, *, adapter, **kwargs):
+        calls.append(Path(target))
+        target = Path(target)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"render")
+
+    monkeypatch.setattr(render_queue, "export_mp4", fake_export)
+    first = RenderQueue()
+    item = first.start(job)
+    wait_until(lambda: item.status in {"ready", "failed"})
+    assert item.status == "ready", item.error
+
+    second = RenderQueue()
+    cached = second.start(job)
+    wait_until(lambda: cached.status in {"ready", "failed"})
+
+    assert cached.status == "ready"
+    assert cached.message.endswith("(cached)")
+    assert len(calls) == 1

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import threading
 from dataclasses import dataclass, field
@@ -131,13 +132,40 @@ class RenderQueue:
                 progress(15, "Rendering timeline")
                 destination = self.output_path(job)
                 ass_path = job.output / "titles.ass"
+                filters = _filters(
+                    job.output / "audio" / "master-filters.json"
+                ) + _track_filters(job)
+                key = hashlib.sha256(
+                    state_path.read_bytes()
+                    + json.dumps(filters).encode("utf-8")
+                    + str(ass_path.stat().st_mtime_ns if ass_path.is_file() else 0).encode()
+                ).hexdigest()
+                manifest_path = destination.parent / "manifest.json"
+                try:
+                    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    manifest = {}
+                if (
+                    isinstance(manifest, dict)
+                    and manifest.get("key") == key
+                    and destination.is_file()
+                ):
+                    with self._lock:
+                        item.status = "ready"
+                        item.percent = 100
+                        item.message = "Render ready (cached)"
+                        item.finished_at = _now()
+                    return
+                manifest_path.parent.mkdir(parents=True, exist_ok=True)
+                manifest_path.write_text(
+                    json.dumps({"key": key, "source": str(state_path)}), encoding="utf-8"
+                )
                 adapter = FFmpegAdapter(cancel_event=item.cancel_event)
                 export_mp4(
                     state,
                     destination,
                     adapter=adapter,
-                    audio_filters=_filters(job.output / "audio" / "master-filters.json")
-                    + _track_filters(job),
+                    audio_filters=filters,
                     video_filters=_filters(job.output / "color" / "filters.json"),
                     ass_path=ass_path if ass_path.is_file() else None,
                 )

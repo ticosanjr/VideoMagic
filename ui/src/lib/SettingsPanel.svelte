@@ -263,7 +263,7 @@
           <label class="text-[10px] text-neutral-500">Translation source<input bind:value={settings.translation.source_language} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
           <label class="text-[10px] text-neutral-500">Theme
             <select bind:value={settings.ui.theme} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100">
-              {#each ["dark", "light", "system"] as theme}<option value={theme}>{theme}</option>{/each}
+              {#each ["dark", "light", "system", "high-contrast"] as theme}<option value={theme}>{theme}</option>{/each}
             </select>
           </label>
           <label class="text-[10px] text-neutral-500">Density

@@ -13,6 +13,7 @@ edits. Seconds are only the wire format; frames and samples are authoritative.
 | Drag an edge with several clips selected | Group trim: the same edge delta is applied to every selected clip |
 | `Shift` + drag an edge | Ripple trim: following clips move by the same delta |
 | `Alt` + drag a clip | Slip: shift the source in/out without moving the clip |
+| Right-click a clip | Context menu: split, duplicate, delete, ripple delete, slide, marker, comments |
 | Wheel with `Ctrl/Cmd` | Zoom around the current scale |
 | Drag the playhead knob | Scrub |
 
@@ -25,6 +26,23 @@ Group trim is a batch of ordinary `trim` edits computed client-side by
 `groupTrimEdits` in `ui/src/lib/timelineView.ts`. Each clip is clamped to
 `[0, duration]` and must keep at least 50 ms; clips that would not change are
 dropped, so a locked or already-clamped selection produces no request.
+
+## Slide and duplicate
+
+`action: "slide"` moves a clip between two contiguous neighbors: the previous
+clip grows, the following clip shrinks, and the clip itself moves. Both source
+ranges are adjusted by the same ratio, and the edit is rejected when a source
+range leaves the media.
+
+`action: "duplicate"` inserts a copy after the clip, shifts everything that
+starts at or after the cut, and gives the copy a fresh clip id for video and
+audio.
+
+## Comments
+
+`timeline_meta.json` stores per-clip comments. `GET/POST
+/api/v1/jobs/{id}/timeline/comments` and `DELETE .../comments/{id}` back the
+Comments panel and the context menu.
 
 ## Slip
 
@@ -57,6 +75,13 @@ visible time window plus a three-second margin. The window comes from
 `visibleRange(scrollLeft, viewportWidth, zoom)` and is covered by Vitest. A
 scroll schedules one animation-frame redraw, so the number of Konva nodes stays
 proportional to what the operator can see rather than to the document length.
+
+## Incremental render
+
+`shorts.render` writes `shorts/render-manifest.json` with a digest of the pieces,
+style, captions, B-roll, SFX, music, cards, crop, and split-screen settings.
+An unchanged Short is reused instead of re-encoded. The MP4 render queue does
+the same for the whole timeline through `render/manifest.json`.
 
 ## Preview scheduler
 

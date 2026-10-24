@@ -28,11 +28,22 @@ class TrackState(BaseModel):
     locked: bool = False
 
 
+class ClipComment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1, max_length=60)
+    clip_id: str = Field(min_length=1, max_length=120)
+    text: str = Field(min_length=1, max_length=2000)
+    author: str = Field(default="", max_length=120)
+    created_at: str = ""
+
+
 class TimelineMeta(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     markers: list[Marker] = Field(default_factory=list)
     tracks: dict[str, TrackState] = Field(default_factory=dict)
+    comments: list[ClipComment] = Field(default_factory=list)
 
 
 def meta_path(output: Path) -> Path:
@@ -82,3 +93,42 @@ def set_track(output: Path, track: str, state: TrackState) -> TimelineMeta:
     meta = load_meta(output)
     meta.tracks[track] = state
     return save_meta(output, meta)
+
+
+def add_comment(
+    output: Path,
+    *,
+    comment_id: str,
+    clip_id: str,
+    text: str,
+    author: str = "",
+) -> TimelineMeta:
+    from datetime import UTC, datetime
+
+    meta = load_meta(output)
+    meta.comments = [item for item in meta.comments if item.id != comment_id]
+    meta.comments.append(
+        ClipComment(
+            id=comment_id,
+            clip_id=clip_id,
+            text=text,
+            author=author,
+            created_at=datetime.now(UTC).isoformat(timespec="seconds"),
+        )
+    )
+    return save_meta(output, meta)
+
+
+def remove_comment(output: Path, comment_id: str) -> TimelineMeta:
+    meta = load_meta(output)
+    meta.comments = [item for item in meta.comments if item.id != comment_id]
+    return save_meta(output, meta)
+
+
+def comments_for(output: Path, clip_id: str = "") -> list[dict[str, object]]:
+    meta = load_meta(output)
+    return [
+        item.model_dump(mode="json")
+        for item in meta.comments
+        if not clip_id or item.clip_id == clip_id
+    ]

@@ -1,5 +1,7 @@
 <script lang="ts">
   import { focusTrap } from "$lib/a11y";
+  import { i18n } from "$lib/i18n.svelte";
+
   let { open = false, onclose }: { open?: boolean; onclose: () => void } = $props();
 
   const SHORTCUTS: { keys: string; action: string }[] = [
@@ -29,10 +31,10 @@
     >
       <header class="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
         <div>
-          <h2 class="text-sm font-medium text-white">Keyboard shortcuts</h2>
+          <h2 class="text-sm font-medium text-white">{i18n.t("shortcuts")}</h2>
           <p class="mt-0.5 text-[11px] text-neutral-500">Every critical action is reachable without the mouse.</p>
         </div>
-        <button type="button" class="rounded-lg border border-white/10 px-2 py-1 text-[11px] text-neutral-400 hover:text-neutral-100" onclick={onclose}>Close</button>
+        <button type="button" class="rounded-lg border border-white/10 px-2 py-1 text-[11px] text-neutral-400 hover:text-neutral-100" onclick={onclose}>{i18n.t("close")}</button>
       </header>
       <dl class="divide-y divide-neutral-900 px-4 py-2">
         {#each SHORTCUTS as shortcut}

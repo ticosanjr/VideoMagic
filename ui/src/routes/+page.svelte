@@ -10,6 +10,7 @@
   import LibraryPanel from "$lib/LibraryPanel.svelte";
   import ModelsPanel from "$lib/ModelsPanel.svelte";
   import NotificationCenter from "$lib/NotificationCenter.svelte";
+  import PluginsPanel from "$lib/PluginsPanel.svelte";
   import RecipesPanel from "$lib/RecipesPanel.svelte";
   import ServicesPanel from "$lib/ServicesPanel.svelte";
   import SettingsPanel from "$lib/SettingsPanel.svelte";
@@ -18,12 +19,13 @@
   import { errorMessage, getSettings, getSystem, listJobs, restartService, retryJob, stopService, type Job, type SystemInfo } from "$lib/api";
   import type { Command } from "$lib/commandPalette";
   import { t } from "$lib/i18n";
+  import { i18n } from "$lib/i18n.svelte";
   import { noticeCounts } from "$lib/notifications";
   import { notifications } from "$lib/notifications.svelte";
   import { UI_VERSION } from "$lib/version";
   import "../app.css";
 
-  type Tab = "recipes" | "assets" | "timeline" | "jobs" | "automation" | "library" | "models" | "services" | "providers" | "settings";
+  type Tab = "recipes" | "assets" | "timeline" | "jobs" | "automation" | "library" | "models" | "services" | "providers" | "plugins" | "settings";
 
   const TABS: { id: Tab; label: string; hint: string }[] = [
     { id: "recipes", label: "Recipes", hint: "Visual recipe builder and runner" },
@@ -35,6 +37,7 @@
     { id: "models", label: "Models", hint: "Optional on-demand speech and vision models" },
     { id: "services", label: "Services", hint: "Inspect, stop, and restart local VideoFlow processes" },
     { id: "providers", label: "Providers", hint: "Persistent provider configuration and fallbacks" },
+    { id: "plugins", label: "Plugins", hint: "Local plugin packages, sandbox status, and panels" },
     { id: "settings", label: "Settings", hint: "Local runtime, paths, models, speech, TTS, and quality" }
   ];
 
@@ -288,6 +291,7 @@
     void getSettings()
       .then(({ settings }) => {
         locale = settings.runtime.locale || "en";
+        i18n.set(locale);
         document.documentElement.dataset.theme = settings.ui.theme;
         document.documentElement.dataset.density = settings.ui.density;
       })
@@ -462,6 +466,8 @@
           onToggle={(value) => (allowExternal = value)}
           onHosts={(value) => (allowedHosts = value)}
         />
+      {:else if activeTab === "plugins"}
+        <PluginsPanel />
       {:else if activeTab === "settings"}
         <SettingsPanel />
       {/if}

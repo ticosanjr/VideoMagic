@@ -583,3 +583,64 @@ def test_slip_rejects_a_range_outside_the_source_media() -> None:
         apply_timeline_edit(
             state, TimelineEdit(clip_id="v1", action="slip", delta_sec=10.0)
         )
+
+
+def _three_clips() -> ProjectState:
+    return ProjectState(
+        media_info=media(),
+        video_segments=[
+            VideoSegment(
+                clip_id=f"v{index}",
+                source_in_frame=index * 25,
+                source_out_frame=(index + 1) * 25,
+                timeline_in_frame=index * 25,
+                timeline_out_frame=(index + 1) * 25,
+            )
+            for index in range(3)
+        ],
+        audio_segments=[
+            AudioSegment(
+                clip_id=f"v{index}",
+                source_in_sample=index * 48000,
+                source_out_sample=(index + 1) * 48000,
+                timeline_in_sample=index * 48000,
+                timeline_out_sample=(index + 1) * 48000,
+            )
+            for index in range(3)
+        ],
+    )
+
+
+def test_slide_moves_the_clip_between_trimmed_neighbors() -> None:
+    state = _three_clips()
+
+    result = apply_timeline_edit(
+        state, TimelineEdit(clip_id="v1", action="slide", delta_sec=0.2)
+    )
+
+    by_id = {clip.clip_id: clip for clip in result.video_segments}
+    assert (by_id["v0"].timeline_out_frame, by_id["v0"].source_out_frame) == (30, 30)
+    assert (by_id["v1"].timeline_in_frame, by_id["v1"].timeline_out_frame) == (30, 55)
+    assert (by_id["v2"].timeline_in_frame, by_id["v2"].source_in_frame) == (55, 55)
+
+
+def test_slide_requires_contiguous_neighbors() -> None:
+    state = state_with_two_clips()
+    with pytest.raises(InvalidTimeError):
+        apply_timeline_edit(
+            state, TimelineEdit(clip_id="v1", action="slide", delta_sec=0.2)
+        )
+
+
+def test_duplicate_inserts_a_copy_and_shifts_the_rest() -> None:
+    state = _three_clips()
+
+    result = apply_timeline_edit(
+        state, TimelineEdit(clip_id="v0", action="duplicate")
+    )
+
+    assert len(result.video_segments) == 4
+    copied = result.video_segments[1]
+    assert copied.timeline_in_frame == 25
+    assert copied.source_in_frame == 0
+    assert result.video_segments[-1].timeline_in_frame == 75

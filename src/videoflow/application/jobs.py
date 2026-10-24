@@ -74,6 +74,7 @@ class Job:
     result: dict[str, Any] | None = None
     error: dict[str, Any] | None = None
     cancel_requested: bool = False
+    pause_requested: bool = False
     priority: int = 0
     created_at: str = field(default_factory=_now)
     started_at: str | None = None
@@ -87,6 +88,7 @@ class Job:
         return {
             "job_id": str(self.job_id),
             "status": self.status,
+            "priority": self.priority,
             "progress": self.progress,
             "stage": self.stage,
             "message": self.message,
@@ -308,6 +310,60 @@ class JobManager:
                 running += 1
         for job in launch:
             self._launch(job)
+
+    def pause(self, job_id: str) -> Job:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                raise JobNotFoundError(f"Unknown job: {job_id}")
+            if job.status in TERMINAL:
+                return job
+            if job.status == "queued":
+                with contextlib.suppress(ValueError):
+                    self._pending.remove(str(job.job_id))
+                job.status = "paused"
+                job.stage = "paused"
+                job.message = "Paused"
+                self._persist_job(job)
+                return job
+            job.pause_requested = True
+            job.cancel_requested = True
+            job.message = "Pausing"
+            self._persist_job(job)
+            return job
+
+    def unpause(self, job_id: str) -> Job:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                raise JobNotFoundError(f"Unknown job: {job_id}")
+            if job.status != "paused":
+                return job
+            job.status = "queued"
+            job.stage = "queued"
+            job.message = "Resuming"
+            job.cancel_requested = False
+            job.pause_requested = False
+            job.error = None
+            self._pending.append(str(job.job_id))
+            self._persist_job(job)
+        self._drain_queue()
+        return job
+
+    def set_priority(self, job_id: str, priority: int) -> Job:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                raise JobNotFoundError(f"Unknown job: {job_id}")
+            job.priority = int(priority)
+            self._persist_job(job)
+            self._pending.sort(
+                key=lambda item: (
+                    -self._jobs[item].priority,
+                    self._jobs[item].created_at,
+                )
+            )
+            return job
 
     def get(self, job_id: str) -> Job:
         with self._lock:
@@ -628,9 +684,15 @@ class JobManager:
                     job.result = _result_dict(result)
         except JobCancelledError as exc:
             with self._lock:
-                job.status = "cancelled"
-                job.stage = "cancelled"
-                job.message = str(exc)
+                if job.pause_requested:
+                    job.status = "paused"
+                    job.stage = "paused"
+                    job.message = "Paused"
+                    job.error = None
+                else:
+                    job.status = "cancelled"
+                    job.stage = "cancelled"
+                    job.message = str(exc)
         except VideoFlowError as exc:
             telemetry.fail_running(exc.message)
             with self._lock:
@@ -652,7 +714,8 @@ class JobManager:
                 }
         finally:
             with self._lock:
-                job.finished_at = _now()
+                if job.status not in {"paused", "queued", "running"}:
+                    job.finished_at = _now()
             _write_log(job)
             self._persist_job(job)
             self._drain_queue()
@@ -768,14 +831,20 @@ class JobManager:
         except JobCancelledError as exc:
             job.telemetry.fail_running(exc.message)
             with self._lock:
-                job.status = "cancelled"
-                job.stage = "cancelled"
-                job.message = str(exc)
-                job.error = {
-                    "ok": False,
-                    "code": "job_cancelled",
-                    "message": str(exc),
-                }
+                if job.pause_requested:
+                    job.status = "paused"
+                    job.stage = "paused"
+                    job.message = "Paused"
+                    job.error = None
+                else:
+                    job.status = "cancelled"
+                    job.stage = "cancelled"
+                    job.message = str(exc)
+                    job.error = {
+                        "ok": False,
+                        "code": "job_cancelled",
+                        "message": str(exc),
+                    }
             _write_failure(job)
         except VideoFlowError as exc:
             job.telemetry.fail_running(exc.message)
@@ -796,7 +865,8 @@ class JobManager:
             _write_failure(job)
         finally:
             with self._lock:
-                job.finished_at = _now()
+                if job.status not in {"paused", "queued", "running"}:
+                    job.finished_at = _now()
             _write_log(job)
             _record_recipe_history(job)
             self._persist_job(job)
@@ -895,6 +965,8 @@ def _job_from_dict(payload: dict[str, Any]) -> Job:
         if isinstance(value, (int, float))
     }
     job.idempotency_key = str(payload.get("idempotency_key") or "")
+    job.pause_requested = bool(payload.get("pause_requested", False))
+    job.priority = int(payload.get("priority", 0))
     return job
 
 

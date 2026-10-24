@@ -4,7 +4,10 @@
     cancelJob,
     errorMessage,
     listJobs,
+    pauseJob,
     retryJob,
+    setJobPriority,
+    unpauseJob,
     type Job
   } from "$lib/api";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
@@ -17,6 +20,7 @@
     type JobFilter
   } from "$lib/jobsView";
   import { notifications } from "$lib/notifications.svelte";
+  import { i18n } from "$lib/i18n.svelte";
 
   let {
     onreview,
@@ -37,12 +41,13 @@
   const counts = $derived(jobCounts(jobs));
   const visible = $derived(filterJobs(jobs, { filter, query }));
   const filters: { id: JobFilter; label: string; count: number }[] = $derived([
-    { id: "all", label: "All", count: counts.total },
-    { id: "active", label: "Running", count: counts.active },
-    { id: "queued", label: "Queued", count: counts.queued },
-    { id: "attention", label: "Needs attention", count: counts.waiting + counts.failed },
-    { id: "failed", label: "Failed", count: counts.failed },
-    { id: "succeeded", label: "Succeeded", count: counts.succeeded }
+    { id: "all", label: i18n.t("all"), count: counts.total },
+    { id: "active", label: i18n.t("running"), count: counts.active },
+    { id: "queued", label: i18n.t("queued"), count: counts.queued },
+    { id: "paused", label: i18n.t("paused"), count: counts.paused },
+    { id: "attention", label: i18n.t("attention"), count: counts.waiting + counts.failed },
+    { id: "failed", label: i18n.t("failed"), count: counts.failed },
+    { id: "succeeded", label: i18n.t("succeeded"), count: counts.succeeded }
   ]);
 
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -102,6 +107,33 @@
     }
   }
 
+  async function togglePause(job: Job) {
+    busy = job.job_id;
+    try {
+      if (job.status === "paused") {
+        await unpauseJob(job.job_id);
+        notifications.push({ kind: "info", title: "Job resumed" });
+      } else {
+        await pauseJob(job.job_id);
+        notifications.push({ kind: "info", title: "Job paused" });
+      }
+      await refresh();
+    } catch (reason) {
+      error = errorMessage(reason);
+    } finally {
+      busy = "";
+    }
+  }
+
+  async function changePriority(job: Job, value: number) {
+    try {
+      await setJobPriority(job.job_id, value);
+      await refresh();
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
   async function retry(job: Job) {
     busy = job.job_id;
     try {
@@ -125,14 +157,14 @@
 <section class="space-y-4">
   <header class="flex flex-wrap items-end justify-between gap-3">
     <div>
-      <h2 class="text-lg font-semibold text-white">Jobs</h2>
-      <p class="mt-1 text-xs text-neutral-500">Every queued, running, waiting, and finished job with the next action to take.</p>
+      <h2 class="text-lg font-semibold text-white">{i18n.t("jobs_title")}</h2>
+      <p class="mt-1 text-xs text-neutral-500">{i18n.t("jobs_subtitle")}</p>
     </div>
     <div class="flex items-center gap-2">
       <input
         bind:value={query}
         type="search"
-        placeholder="Search id, recipe, stage, source…"
+        placeholder={i18n.t("search_jobs")}
         aria-label="Search jobs"
         class="w-56 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-xs text-neutral-200 placeholder:text-neutral-600 focus:border-sky-500/50 focus:outline-none"
       />
@@ -140,7 +172,7 @@
         type="button"
         onclick={() => void refresh()}
         class="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-neutral-300 hover:border-sky-500/40 hover:text-sky-200"
-      >Refresh</button>
+      >{i18n.t("refresh")}</button>
     </div>
   </header>
 
@@ -166,7 +198,7 @@
     </div>
   {:else if visible.length === 0}
     <p class="rounded-2xl border border-dashed border-neutral-800 px-4 py-10 text-center text-xs text-neutral-500">
-      No job matches this filter. Run a recipe or clear the search.
+      {i18n.t("no_jobs")}
     </p>
   {:else}
     <ul class="space-y-2" data-testid="job-list">
@@ -209,25 +241,42 @@
           {/if}
 
           <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
-            <p class="text-[11px] text-neutral-500">Next: <span class="text-neutral-300">{jobNextAction(job)}</span></p>
+            <p class="text-[11px] text-neutral-500">{i18n.t("next")}: <span class="text-neutral-300">{jobNextAction(job)}</span></p>
             <div class="flex flex-wrap gap-1.5">
               {#if job.status === "waiting_approval"}
-                <button type="button" class="rounded-lg bg-amber-400/15 px-2.5 py-1 text-[11px] font-medium text-amber-200 ring-1 ring-inset ring-amber-400/25 hover:bg-amber-400/20" onclick={() => onreview?.(job)}>Review</button>
+                <button type="button" class="rounded-lg bg-amber-400/15 px-2.5 py-1 text-[11px] font-medium text-amber-200 ring-1 ring-inset ring-amber-400/25 hover:bg-amber-400/20" onclick={() => onreview?.(job)}>{i18n.t("review")}</button>
               {:else if job.status === "failed" || job.status === "cancelled"}
                 <button type="button" disabled={busy === job.job_id} class="rounded-lg bg-sky-500/15 px-2.5 py-1 text-[11px] font-medium text-sky-200 ring-1 ring-inset ring-sky-400/25 hover:bg-sky-500/20 disabled:opacity-40" onclick={() => void retry(job)}>
-                  {busy === job.job_id ? "Retrying…" : "Retry"}
+                  {busy === job.job_id ? "…" : i18n.t("retry")}
                 </button>
               {:else if job.status === "succeeded"}
                 {#if job.result?.artifacts && Object.keys(job.result.artifacts).length}
                   <button type="button" class="rounded-lg border border-white/10 px-2.5 py-1 text-[11px] text-neutral-300 hover:text-sky-200" onclick={() => onopentimeline?.(job)}>Open in Timeline</button>
                 {/if}
               {/if}
+              <label class="flex items-center gap-1 text-[10px] text-neutral-500">
+                {i18n.t("priority")}
+                <input
+                  type="number"
+                  min="-100"
+                  max="100"
+                  value={job.priority ?? 0}
+                  onchange={(event) => void changePriority(job, Number(event.currentTarget.value))}
+                  class="w-14 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-[10px] text-neutral-200"
+                  aria-label={`Priority for ${jobDisplayName(job)}`}
+                />
+              </label>
+              {#if ["running", "queued"].includes(job.status)}
+                <button type="button" disabled={busy === job.job_id} class="rounded-lg border border-white/10 px-2.5 py-1 text-[11px] text-neutral-300 disabled:opacity-40" onclick={() => void togglePause(job)}>{i18n.t("pause")}</button>
+              {:else if job.status === "paused"}
+                <button type="button" disabled={busy === job.job_id} class="rounded-lg border border-sky-500/30 px-2.5 py-1 text-[11px] text-sky-200 disabled:opacity-40" onclick={() => void togglePause(job)}>{i18n.t("resume")}</button>
+              {/if}
               {#if ["running", "queued"].includes(job.status)}
                 {#if confirmCancel === job.job_id}
-                  <button type="button" class="rounded-lg border border-rose-400/30 bg-rose-500/10 px-2.5 py-1 text-[11px] text-rose-200" onclick={() => void cancel(job)}>Confirm cancel</button>
-                  <button type="button" class="rounded-lg border border-white/10 px-2.5 py-1 text-[11px] text-neutral-400" onclick={() => (confirmCancel = "")}>Keep</button>
+                  <button type="button" class="rounded-lg border border-rose-400/30 bg-rose-500/10 px-2.5 py-1 text-[11px] text-rose-200" onclick={() => void cancel(job)}>{i18n.t("confirm_cancel")}</button>
+                  <button type="button" class="rounded-lg border border-white/10 px-2.5 py-1 text-[11px] text-neutral-400" onclick={() => (confirmCancel = "")}>{i18n.t("keep")}</button>
                 {:else}
-                  <button type="button" class="rounded-lg border border-rose-500/20 px-2.5 py-1 text-[11px] text-rose-300 hover:border-rose-400/40" onclick={() => (confirmCancel = job.job_id)}>Cancel</button>
+                  <button type="button" class="rounded-lg border border-rose-500/20 px-2.5 py-1 text-[11px] text-rose-300 hover:border-rose-400/40" onclick={() => (confirmCancel = job.job_id)}>{i18n.t("cancel")}</button>
                 {/if}
               {/if}
             </div>

@@ -87,7 +87,7 @@ def nle_extras_from_output(output: Path) -> NleExtras:
 
     directory = Path(output)
     meta = load_meta(directory)
-    markers = tuple(
+    markers = [
         NleMarker(
             name=item.label or item.id,
             start_sec=item.time_sec,
@@ -95,7 +95,25 @@ def nle_extras_from_output(output: Path) -> NleExtras:
             color=item.color,
         )
         for item in meta.markers
-    )
+    ]
+    chapters = directory / "chapters.json"
+    if chapters.is_file():
+        try:
+            payload = json.loads(chapters.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            payload = {}
+        for chapter in payload.get("chapters", []):
+            if not isinstance(chapter, dict) or chapter.get("start_sec") is None:
+                continue
+            markers.append(
+                NleMarker(
+                    name=str(chapter.get("title") or "Chapter"),
+                    start_sec=float(chapter["start_sec"]),
+                    note="chapter",
+                    color="#22c55e",
+                )
+            )
+    markers.sort(key=lambda item: item.start_sec)
     stems = directory / "audio" / "master.wav"
     colors = _filters(directory / "color" / "filters.json")
     audio = _filters(directory / "audio" / "master-filters.json")

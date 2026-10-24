@@ -6,7 +6,10 @@
   import ShortEditor from "$lib/ShortEditor.svelte";
   import WaveformStrip from "$lib/WaveformStrip.svelte";
   import {
+    addTimelineComment,
     addTimelineMarker,
+    getTimelineComments,
+    removeTimelineComment,
     approveBroll,
     cancelPreview,
     cancelRender,
@@ -38,6 +41,7 @@
     updateJobCaption,
     updateTimelineClip,
     type Job,
+    type TimelineComment,
     type TimelineData
   } from "$lib/api";
 
@@ -74,6 +78,10 @@
   let reviewComments = $state<Array<{ author: string; text: string; time_sec: number | null; at: string }>>([]);
   let commentDraft = $state("");
   let markerLabel = $state("");
+  let comments = $state<TimelineComment[]>([]);
+  let commentText = $state("");
+  let commentBusy = $state(false);
+  let clipMenu = $state<{ x: number; y: number; clipId: string } | null>(null);
   let renderBusy = $state(false);
   let renderPercent = $state(0);
   let renderMessage = $state("");
@@ -151,6 +159,7 @@
       if (!keepClipId) playhead = 0;
       selectedCaption = null;
       if (!keepClipId) selectedIds = [];
+      comments = loaded.comments ?? [];
       const keep = keepClipId
         ? timeline.video.find((clip) => clip.id === keepClipId) ?? null
         : null;
@@ -436,6 +445,39 @@
     }
   }
 
+  async function refreshComments() {
+    if (!selected) return;
+    try {
+      comments = await getTimelineComments(selected, selectedClip?.id ?? "");
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
+  async function addClipComment() {
+    if (!selectedClip || !commentText.trim()) return;
+    commentBusy = true;
+    try {
+      comments = await addTimelineComment(selected, {
+        clip_id: selectedClip.id,
+        text: commentText.trim()
+      });
+      commentText = "";
+    } catch (reason) {
+      error = errorMessage(reason);
+    } finally {
+      commentBusy = false;
+    }
+  }
+
+  async function removeClipComment(commentId: string) {
+    try {
+      comments = await removeTimelineComment(selected, commentId);
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
   function seek(value: number) {
     const target = Math.max(0, Math.min(duration, value));
     playhead = target;
@@ -514,7 +556,16 @@
   }
 
   async function applyEdit(
-    action: "trim" | "move" | "delete" | "split" | "ripple" | "ripple_trim" | "slip",
+    action:
+      | "trim"
+      | "move"
+      | "delete"
+      | "split"
+      | "ripple"
+      | "ripple_trim"
+      | "slip"
+      | "slide"
+      | "duplicate",
     values: { start_sec?: number; end_sec?: number; delta_sec?: number; split_sec?: number } = {}
   ) {
     if (!selectedClip) return;
@@ -846,6 +897,10 @@
             void applyEdit("slip", { delta_sec: delta });
           }
         }}
+        onContextMenu={(clip, x, y) => {
+          selectClip(clip);
+          clipMenu = { x, y, clipId: clip.id };
+        }}
         onZoom={(value) => (zoom = value)}
       />
 
@@ -987,10 +1042,44 @@
                 {#if !timeline.markers.length}<p class="text-[10px] text-neutral-600">No markers.</p>{/if}
               </div>
             </div>
+
+            <div class="rounded-xl border border-neutral-800 bg-neutral-900/40 p-3">
+              <div class="flex items-center justify-between">
+                <p class="text-[10px] uppercase tracking-wide text-neutral-500">Clip comments</p>
+                <span class="text-[9px] text-neutral-600">{comments.length}</span>
+              </div>
+              <p class="mt-1 text-[10px] text-neutral-600">{selectedClip ? selectedClip.id : "Select a clip to comment."}</p>
+              <div class="mt-2 max-h-32 space-y-1 overflow-auto">
+                {#each comments as comment}
+                  <div class="flex items-start gap-1 rounded bg-neutral-950/60 px-1.5 py-1">
+                    <p class="min-w-0 flex-1 text-[10px] text-neutral-300">{comment.text}</p>
+                    <button type="button" onclick={() => void removeClipComment(comment.id)} class="rounded px-1 text-[10px] text-neutral-500 hover:text-rose-300" aria-label="Remove comment">×</button>
+                  </div>
+                {/each}
+                {#if !comments.length}<p class="text-[10px] text-neutral-600">No comments for this clip.</p>{/if}
+              </div>
+              <form class="mt-2 flex gap-1" onsubmit={(event) => { event.preventDefault(); void addClipComment(); }}>
+                <input bind:value={commentText} disabled={!selectedClip} placeholder="Add a note…" class="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 text-[10px] text-neutral-200" />
+                <button type="submit" disabled={!selectedClip || commentBusy} class="rounded border border-sky-500/40 px-2 py-0.5 text-[10px] text-sky-200 disabled:opacity-40">Add</button>
+              </form>
+            </div>
           </div>
         </div>
       </div>
     </section>
+
+    {#if clipMenu}
+      <div class="fixed z-[70] w-44 overflow-hidden rounded-xl border border-neutral-700 bg-neutral-950 text-[11px] shadow-2xl" style={`left:${clipMenu.x}px;top:${clipMenu.y}px`} role="menu">
+        <button type="button" class="block w-full px-3 py-1.5 text-left text-neutral-300 hover:bg-white/5" onclick={() => { clipMenu = null; splitSelected(); }}>Split at playhead</button>
+        <button type="button" class="block w-full px-3 py-1.5 text-left text-neutral-300 hover:bg-white/5" onclick={() => { clipMenu = null; void applyEdit("duplicate"); }}>Duplicate</button>
+        <button type="button" class="block w-full px-3 py-1.5 text-left text-neutral-300 hover:bg-white/5" onclick={() => { clipMenu = null; deleteSelected(false); }}>Delete</button>
+        <button type="button" class="block w-full px-3 py-1.5 text-left text-neutral-300 hover:bg-white/5" onclick={() => { clipMenu = null; deleteSelected(true); }}>Ripple delete</button>
+        <button type="button" class="block w-full px-3 py-1.5 text-left text-neutral-300 hover:bg-white/5" onclick={() => { clipMenu = null; void applyEdit("slide", { delta_sec: clipDelta }); }}>Slide {clipDelta}s</button>
+        <button type="button" class="block w-full px-3 py-1.5 text-left text-neutral-300 hover:bg-white/5" onclick={() => { clipMenu = null; void addMarker(); }}>Add marker here</button>
+        <button type="button" class="block w-full px-3 py-1.5 text-left text-neutral-500 hover:bg-white/5" onclick={() => { clipMenu = null; void refreshComments(); }}>Properties / comments</button>
+      </div>
+      <button type="button" class="fixed inset-0 z-[60] cursor-default" aria-label="Close clip menu" onclick={() => (clipMenu = null)}></button>
+    {/if}
 
     <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
       <div class="flex flex-wrap items-center justify-between gap-2">

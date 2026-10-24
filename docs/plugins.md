@@ -20,7 +20,8 @@ and an entry module. The core loads it at startup when
 
 `id` must match `^[a-z0-9][a-z0-9._-]*$`. `permissions` accepts `shell` and
 `network`. `provides` is documentation for the UI; the real capability comes
-from the registrations the module performs.
+from the registrations the module performs. `api_version` defaults to `1` and a
+manifest requiring a newer API is rejected.
 
 ## Registration API
 
@@ -40,8 +41,8 @@ register_provider("llm", {"name": "acme-llm", "model": "local"})
 Then `export_timeline(state, directory, targets=["acme"])` calls the plugin
 writer, and `first_provider("llm")` returns the plugin provider when no
 configured provider is available. Panels can be declared with
-`register_panel(id, title=..., url=...)`; the shell does not embed remote panels
-in 2.5.0.
+`register_panel(id, title=..., url=...)`; the Plugins tab lists the panel and
+opens it in a new tab. The shell does not embed remote panels.
 
 ## Sandbox
 

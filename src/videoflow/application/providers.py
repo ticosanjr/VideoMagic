@@ -8,6 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.schema_migrations import migrate_providers
 from videoflow.domain.errors import StateNotReadyError
 from videoflow.runtime import portable_home
 
@@ -52,6 +53,7 @@ def load_providers() -> list[ProviderConfig]:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
+    payload = migrate_providers(payload) if isinstance(payload, dict) else payload
     items = payload.get("providers", []) if isinstance(payload, dict) else payload
     result: list[ProviderConfig] = []
     for item in items if isinstance(items, list) else []:

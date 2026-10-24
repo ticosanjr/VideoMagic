@@ -38,6 +38,7 @@ describe("jobCounts", () => {
       total: 5,
       active: 1,
       queued: 1,
+      paused: 0,
       waiting: 1,
       failed: 1,
       succeeded: 1

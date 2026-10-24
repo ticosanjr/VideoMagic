@@ -18,6 +18,25 @@ async function mockShell(page: Page) {
     if (path === "/api/v1/batches") return route.fulfill({ json: fixture("batches.json") });
     if (path === "/api/v1/assets") return route.fulfill({ json: fixture("assets.json") });
     if (path === "/api/v1/schedules") return route.fulfill({ json: { ok: true, schedules: [] } });
+    if (path === "/api/v1/plugins") {
+      return route.fulfill({
+        json: {
+          ok: true,
+          plugins: [
+            {
+              id: "demo",
+              name: "Demo plugin",
+              version: "1.0.0",
+              enabled: true,
+              loaded: true,
+              provides: ["exporter"],
+              permissions: []
+            }
+          ],
+          panels: [{ id: "demo", title: "Demo panel", url: "http://127.0.0.1:9999/" }]
+        }
+      });
+    }
     return route.fulfill({ json: { ok: true } });
   });
 }
@@ -129,4 +148,48 @@ test("supports a keyboard-only job dashboard visit", async ({ page }) => {
   await expect(page.getByTestId("shortcuts-modal")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("shortcuts-modal")).toHaveCount(0);
+});
+
+test("applies pt-BR, the light theme, and compact density", async ({ page }) => {
+  await page.route("**/api/v1/settings", (route) =>
+    route.fulfill({
+      json: {
+        settings: {
+          runtime: { locale: "pt-BR" },
+          ui: { theme: "light", density: "compact" }
+        }
+      }
+    })
+  );
+  await page.reload();
+  await expect(page.getByRole("button", { name: /Atividade/ })).toBeVisible();
+
+  const background = await page.evaluate(
+    () => getComputedStyle(document.body).backgroundColor
+  );
+  expect(background).toBe("rgb(248, 250, 252)");
+  const padding = await page.evaluate(() => {
+    const element = document.createElement("div");
+    element.className = "p-4";
+    document.body.appendChild(element);
+    const value = getComputedStyle(element).paddingTop;
+    element.remove();
+    return value;
+  });
+  expect(padding).toBe("12px");
+});
+
+
+test("lists plugins with sandbox status and panels", async ({ page }) => {
+  await page.keyboard.press("g");
+  await page.keyboard.press("p");
+  await page.keyboard.press("g");
+  await page.keyboard.press("p");
+  await page.getByRole("tab", { name: "Plugins" }).click();
+  await expect(page.getByTestId("plugins-panel")).toBeVisible();
+  await expect(page.getByText("Demo plugin")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Demo panel" })).toHaveAttribute(
+    "href",
+    "http://127.0.0.1:9999/"
+  );
 });

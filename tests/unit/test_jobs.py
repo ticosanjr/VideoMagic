@@ -242,3 +242,50 @@ def test_idempotency_key_reuses_an_active_job(tmp_path: Path) -> None:
     assert second.job_id == first.job_id
     assert third.job_id != first.job_id
     release.set()
+
+
+def test_pause_and_unpause_a_queued_job(tmp_path: Path) -> None:
+    release = threading.Event()
+
+    def runner(source: Path, output: Path, *, progress, should_cancel, **kwargs):
+        release.wait(timeout=5.0)
+        return {"ok": True}
+
+    manager = JobManager(runner, max_active=1)
+    first = manager.start(tmp_path / "a.mp4", tmp_path / "out-a", {})
+    second = manager.start(tmp_path / "b.mp4", tmp_path / "out-b", {}, queue=True)
+    for _ in range(100):
+        if second.status == "queued":
+            break
+        time.sleep(0.01)
+
+    paused = manager.pause(str(second.job_id))
+    assert paused.status == "paused"
+    assert paused.message == "Paused"
+    release.set()
+    wait_for(first, manager)
+    time.sleep(0.05)
+    assert manager.get(str(second.job_id)).status == "paused"
+
+    resumed = manager.unpause(str(second.job_id))
+    assert resumed.status in {"queued", "running", "succeeded"}
+    wait_for(resumed, manager)
+    assert manager.get(str(second.job_id)).status == "succeeded"
+
+
+def test_priority_is_stored_and_validated(tmp_path: Path) -> None:
+    release = threading.Event()
+
+    def runner(source: Path, output: Path, *, progress, should_cancel, **kwargs):
+        release.wait(timeout=5.0)
+        return {"ok": True}
+
+    manager = JobManager(runner, max_active=1)
+    first = manager.start(tmp_path / "a.mp4", tmp_path / "out-a", {})
+    queued = manager.start(tmp_path / "b.mp4", tmp_path / "out-b", {}, queue=True)
+
+    updated = manager.set_priority(str(queued.job_id), 7)
+
+    assert updated.priority == 7
+    release.set()
+    wait_for(first, manager)

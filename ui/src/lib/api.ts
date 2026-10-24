@@ -1,5 +1,6 @@
 export type JobStatus =
   | "queued"
+  | "paused"
   | "running"
   | "waiting_approval"
   | "succeeded"
@@ -348,6 +349,7 @@ export interface ShortEditPayload {
 export interface Job {
   job_id: string;
   status: JobStatus;
+  priority?: number;
   progress: number;
   stage: string;
   message: string;
@@ -1894,9 +1896,18 @@ export interface TimelineData {
   broll: Record<string, Array<Record<string, unknown>>>;
   broll_approval: Record<string, { approved: number[]; order: number[] }>;
   markers: TimelineMarker[];
+  comments?: TimelineComment[];
   tracks: Record<string, TrackState>;
   preview_url: string;
   media?: { source_path: string; audio_sample_rate: number };
+}
+
+export interface TimelineComment {
+  id: string;
+  clip_id: string;
+  text: string;
+  author: string;
+  created_at: string;
 }
 
 export interface TimelineMarker {
@@ -1964,7 +1975,16 @@ export async function editTimeline(
   jobId: string,
   payload: {
     clip_id: string;
-    action: "trim" | "move" | "delete" | "split" | "ripple" | "ripple_trim" | "slip";
+    action:
+      | "trim"
+      | "move"
+      | "delete"
+      | "split"
+      | "ripple"
+      | "ripple_trim"
+      | "slip"
+      | "slide"
+      | "duplicate";
     start_sec?: number;
     end_sec?: number;
     delta_sec?: number;
@@ -1987,7 +2007,16 @@ export async function editTimelineBatch(
   jobId: string,
   edits: Array<{
     clip_id: string;
-    action: "trim" | "move" | "delete" | "split" | "ripple" | "ripple_trim" | "slip";
+    action:
+      | "trim"
+      | "move"
+      | "delete"
+      | "split"
+      | "ripple"
+      | "ripple_trim"
+      | "slip"
+      | "slide"
+      | "duplicate";
     start_sec?: number;
     end_sec?: number;
     delta_sec?: number;
@@ -1998,6 +2027,39 @@ export async function editTimelineBatch(
     method: "PATCH",
     body: JSON.stringify({ edits })
   });
+}
+
+export async function getTimelineComments(
+  jobId: string,
+  clipId = ""
+): Promise<TimelineComment[]> {
+  const params = clipId ? `?clip_id=${encodeURIComponent(clipId)}` : "";
+  const response = await request<{ ok: boolean; comments: TimelineComment[] }>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/timeline/comments${params}`
+  );
+  return response.comments;
+}
+
+export async function addTimelineComment(
+  jobId: string,
+  payload: { clip_id: string; text: string; author?: string }
+): Promise<TimelineComment[]> {
+  const response = await request<{ ok: boolean; comments: TimelineComment[] }>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/timeline/comments`,
+    { method: "POST", body: JSON.stringify(payload) }
+  );
+  return response.comments;
+}
+
+export async function removeTimelineComment(
+  jobId: string,
+  commentId: string
+): Promise<TimelineComment[]> {
+  const response = await request<{ ok: boolean; comments: TimelineComment[] }>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/timeline/comments/${encodeURIComponent(commentId)}`,
+    { method: "DELETE" }
+  );
+  return response.comments;
 }
 
 export async function addTimelineMarker(
@@ -2165,6 +2227,30 @@ export function assetFileUrl(assetId: string): string {
 export async function listJobs(): Promise<Job[]> {
   const response = await request<{ ok: boolean; jobs: Job[] }>("/api/v1/jobs");
   return response.jobs;
+}
+
+export async function pauseJob(jobId: string): Promise<Job> {
+  const response = await request<{ ok: boolean; job: Job }>(
+    `/api/v1/jobs/${jobId}/pause`,
+    { method: "POST" }
+  );
+  return response.job;
+}
+
+export async function unpauseJob(jobId: string): Promise<Job> {
+  const response = await request<{ ok: boolean; job: Job }>(
+    `/api/v1/jobs/${jobId}/unpause`,
+    { method: "POST" }
+  );
+  return response.job;
+}
+
+export async function setJobPriority(jobId: string, priority: number): Promise<Job> {
+  const response = await request<{ ok: boolean; job: Job }>(
+    `/api/v1/jobs/${jobId}/priority`,
+    { method: "PATCH", body: JSON.stringify({ priority }) }
+  );
+  return response.job;
 }
 
 export async function retryJob(jobId: string): Promise<Job> {

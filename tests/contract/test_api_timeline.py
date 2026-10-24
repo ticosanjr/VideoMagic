@@ -471,3 +471,40 @@ def test_unlocked_track_allows_the_edit_again(monkeypatch, tmp_path: Path) -> No
     )
 
     assert response.status_code == 200, response.text
+
+
+def test_clip_comments_crud(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    job = _job(manager, tmp_path)
+
+    created = client.post(
+        f"/api/v1/jobs/{job.job_id}/timeline/comments",
+        json={"clip_id": "v1", "text": "tighten this cut", "author": "tester"},
+    )
+    assert created.status_code == 201, created.text
+    [comment] = client.get(
+        f"/api/v1/jobs/{job.job_id}/timeline/comments?clip_id=v1"
+    ).json()["comments"]
+    assert comment["text"] == "tighten this cut"
+
+    removed = client.delete(
+        f"/api/v1/jobs/{job.job_id}/timeline/comments/{comment['id']}"
+    )
+    assert removed.status_code == 200
+    assert client.get(
+        f"/api/v1/jobs/{job.job_id}/timeline/comments"
+    ).json()["comments"] == []
+
+
+def test_duplicate_route_inserts_a_clip(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    job = _job(manager, tmp_path)
+
+    response = client.patch(
+        f"/api/v1/jobs/{job.job_id}/timeline",
+        json={"clip_id": "v1", "action": "duplicate"},
+    )
+
+    assert response.status_code == 200, response.text
+    timeline = client.get(f"/api/v1/jobs/{job.job_id}/timeline").json()
+    assert len(timeline["video"]) == 3

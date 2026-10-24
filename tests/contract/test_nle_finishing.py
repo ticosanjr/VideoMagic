@@ -99,6 +99,10 @@ def test_qa_script_accepts_a_finished_export(tmp_path: Path) -> None:
         '{"filters": ["eq=contrast=1.1"]}', encoding="utf-8"
     )
     (job / "audio" / "master.wav").write_bytes(b"RIFF")
+    (job / "chapters.json").write_text(
+        json.dumps({"chapters": [{"title": "Intro", "start_sec": 2.0}]}),
+        encoding="utf-8",
+    )
     broll = tmp_path / "broll.mp4"
     broll.write_bytes(b"x")
     (job / "broll.json").write_text(
@@ -118,4 +122,9 @@ def test_qa_script_accepts_a_finished_export(tmp_path: Path) -> None:
     export_xmeml(state, output / "timeline.xml", extras=used)
     export_kdenlive(state, output / "timeline.kdenlive", extras=used)
 
-    assert main([str(output), "--job-output", str(job), "--json"]) == 0
+    report = main([str(output), "--job-output", str(job), "--json"])
+    assert report == 0
+    import xml.etree.ElementTree as ET
+
+    root = ET.parse(output / "timeline.fcpxml").getroot()
+    assert len(root.findall(".//sequence/marker")) == 2

@@ -23,6 +23,7 @@
     onGroupTrim,
     onRippleTrimClip,
     onSlipClip,
+    onContextMenu,
     onZoom
   }: {
     timeline: TimelineData;
@@ -44,6 +45,7 @@
     onGroupTrim?: (clipIds: string[], edge: "left" | "right", deltaSec: number) => void;
     onRippleTrimClip?: (clipId: string, startSec: number, endSec: number) => void;
     onSlipClip?: (clipId: string, deltaSec: number) => void;
+    onContextMenu?: (clip: TimelineData["video"][number], x: number, y: number) => void;
     onZoom?: (zoom: number) => void;
   } = $props();
 
@@ -81,13 +83,32 @@
     viewportWidth = element.clientWidth || viewportWidth;
   }
 
-  const view = $derived(visibleRange(scrollLeft, viewportWidth, zoom));
+  const fullDraw = $derived(timeline.video.length <= 300);
+  const view = $derived(
+    fullDraw
+      ? { start: 0, end: timeline.duration_sec + 1 }
+      : visibleRange(
+          scrollLeft,
+          viewportWidth,
+          zoom,
+          Math.max(3, viewportWidth / Math.max(1, zoom))
+        )
+  );
+  let drawnRange = { start: -1, end: -1 };
+
+  function maybeRedraw() {
+    if (fullDraw) return;
+    const current = visibleRange(scrollLeft, viewportWidth, zoom, 0);
+    if (current.start >= drawnRange.start && current.end <= drawnRange.end) return;
+    drawBackground();
+  }
 
   function isVisible(start: number, end: number): boolean {
     return clipVisible(start, end, view);
   }
 
   const width = $derived(Math.max(1000, timeline.duration_sec * zoom + HEADER + 48));
+  const thumbCache = new Map<string, HTMLImageElement>();
 
   function x(time: number): number {
     return HEADER + time * zoom;
@@ -309,9 +330,15 @@
         })
       );
       if (jobId) {
-        const img = new window.Image();
-        img.onload = () => {
-          if (!group.getStage()) return;
+        const src = `/api/v1/jobs/${encodeURIComponent(jobId)}/clips/${encodeURIComponent(clip.id)}/thumbnail`;
+        let img = thumbCache.get(src);
+        if (!img) {
+          img = new window.Image();
+          img.onload = () => drawBackground();
+          img.src = src;
+          thumbCache.set(src, img);
+        }
+        if (img.complete && img.naturalWidth > 0) {
           const thumbnail = new konva.Image({
             image: img,
             width: clipWidth,
@@ -321,68 +348,49 @@
           });
           group.add(thumbnail);
           thumbnail.moveToBottom();
-          group.getLayer()?.batchDraw();
-        };
-        img.src = `/api/v1/jobs/${encodeURIComponent(jobId)}/clips/${encodeURIComponent(clip.id)}/thumbnail`;
-      }
-      const tickCount = Math.max(1, Math.floor(clipWidth / 14));
-      for (let index = 1; index < tickCount; index += 1) {
-        group.add(
-          new konva.Line({
-            points: [index * 14, 20, index * 14, TRACKS[0].h - 12],
-            stroke: selected ? "#0ea5e9" : "#0c4a6e",
-            strokeWidth: 1,
-            opacity: 0.8,
-            listening: false
-          })
-        );
+        }
       }
       group.add(
-        new konva.Text({
-          x: 5,
-          y: 5,
-          width: Math.max(0, clipWidth - 10),
-          text: clip.id,
-          fontSize: 9,
-          fill: "#e0f2fe",
-          ellipsis: true,
-          listening: false
+        new konva.Shape({
+          width: clipWidth,
+          height: TRACKS[0].h - 8,
+          listening: false,
+          sceneFunc: (context: any) => {
+            const tickCount = Math.max(1, Math.floor(clipWidth / 14));
+            context.strokeStyle = selected ? "#0ea5e9" : "#0c4a6e";
+            context.lineWidth = 1;
+            for (let tick = 1; tick < tickCount; tick += 1) {
+              context.beginPath();
+              context.moveTo(tick * 14, 20);
+              context.lineTo(tick * 14, TRACKS[0].h - 12);
+              context.stroke();
+            }
+            context.fillStyle = "#e0f2fe";
+            context.font = "9px sans-serif";
+            context.fillText(clip.id, 5, 14, Math.max(0, clipWidth - 10));
+            context.fillStyle = "#7dd3fc";
+            context.font = "8px sans-serif";
+            context.fillText(
+              `${(clip.end_sec - clip.start_sec).toFixed(2)}s`,
+              5,
+              27
+            );
+            if (clip.keyframes) {
+              context.fillText(`${clip.keyframes} keyframes`, 5, 39);
+            }
+            if (clip.transition) {
+              context.fillStyle = "#fcd34d";
+              context.fillText(clip.transition, 5, 51);
+            }
+          }
         })
       );
-      group.add(
-        new konva.Text({
-          x: 5,
-          y: 19,
-          text: `${(clip.end_sec - clip.start_sec).toFixed(2)}s`,
-          fontSize: 8,
-          fill: "#7dd3fc",
-          listening: false
-        })
-      );
-      if (clip.keyframes) {
-        group.add(
-          new konva.Text({
-            x: 5,
-            y: 33,
-            text: `${clip.keyframes} keyframes`,
-            fontSize: 8,
-            fill: "#bae6fd",
-            listening: false
-          })
-        );
-      }
-      if (clip.transition) {
-        group.add(
-          new konva.Text({
-            x: 5,
-            y: 45,
-            text: clip.transition,
-            fontSize: 8,
-            fill: "#fcd34d",
-            listening: false
-          })
-        );
-      }
+      group.on("contextmenu", (event: any) => {
+        event.evt?.preventDefault?.();
+        event.cancelBubble = true;
+        const pointer = stage?.getPointerPosition();
+        onContextMenu?.(clip, pointer?.x ?? 0, pointer?.y ?? 0);
+      });
       group.on("click tap", (event: any) => {
         event.cancelBubble = true;
         onSelectClip(clip, Boolean(event.evt?.shiftKey));
@@ -464,9 +472,19 @@
         })
       );
       const peaks = waveforms[clip.id] ?? [];
+      const clipViewStart = Math.max(clip.start_sec, view.start);
+      const clipViewEnd = Math.min(clip.end_sec, view.end);
       if (peaks.length) {
         const step = clipWidth / peaks.length;
-        for (let index = 0; index < peaks.length; index += 1) {
+        const firstBar = Math.max(
+          0,
+          Math.floor(((clipViewStart - clip.start_sec) * zoom) / Math.max(0.01, step))
+        );
+        const lastBar = Math.min(
+          peaks.length,
+          Math.ceil(((clipViewEnd - clip.start_sec) * zoom) / Math.max(0.01, step)) + 1
+        );
+        for (let index = firstBar; index < lastBar; index += 1) {
           const amplitude = Math.max(0.02, Math.min(1, peaks[index]));
           const barHeight = (TRACKS[1].h - 20) * amplitude;
           layer.add(
@@ -486,7 +504,12 @@
         }
       } else {
         const bars = Math.max(1, Math.floor(clipWidth / 5));
-        for (let index = 0; index < bars; index += 1) {
+        const firstBar = Math.max(0, Math.floor((clipViewStart - clip.start_sec) * zoom / 5));
+        const lastBar = Math.min(
+          bars,
+          Math.ceil((clipViewEnd - clip.start_sec) * zoom / 5) + 1
+        );
+        for (let index = firstBar; index < lastBar; index += 1) {
           const amplitude = 0.25 + 0.7 * Math.abs(Math.sin((index + 1) * 1.7 + clip.start_sec));
           const barHeight = (TRACKS[1].h - 20) * amplitude;
           layer.add(
@@ -519,38 +542,34 @@
   }
 
   function drawCaptions(layer: any) {
-    for (const caption of timeline.captions) {
-      if (!isVisible(caption.start_sec, caption.end_sec)) continue;
-      const clipWidth = Math.max(3, (caption.end_sec - caption.start_sec) * zoom);
-      const current = caption.start_sec <= playhead && playhead <= caption.end_sec;
-      layer.add(
-        new konva.Rect({
-          x: x(caption.start_sec),
-          y: TRACKS[2].y + 5,
-          width: clipWidth,
-          height: TRACKS[2].h - 10,
-          fill: current ? "#6d28d9" : TRACKS[2].fill,
-          stroke: "#8b5cf6",
-          cornerRadius: 3,
-          listening: false
-        })
-      );
-      if (clipWidth > 40) {
-        layer.add(
-          new konva.Text({
-            x: x(caption.start_sec) + 4,
-            y: TRACKS[2].y + 10,
-            width: clipWidth - 8,
-            text: caption.text,
-            fontSize: 8,
-            fill: "#ede9fe",
-            ellipsis: true,
-            wrap: "none",
-            listening: false
-          })
-        );
-      }
-    }
+    const visible = timeline.captions.filter((caption) =>
+      isVisible(caption.start_sec, caption.end_sec)
+    );
+    if (!visible.length) return;
+    layer.add(
+      new konva.Shape({
+        listening: false,
+        sceneFunc: (context: any) => {
+          const top = TRACKS[2].y + 5;
+          const height = TRACKS[2].h - 10;
+          context.font = "8px sans-serif";
+          for (const caption of visible) {
+            const left = x(caption.start_sec);
+            const clipWidth = Math.max(3, (caption.end_sec - caption.start_sec) * zoom);
+            const current = caption.start_sec <= playhead && playhead <= caption.end_sec;
+            context.fillStyle = current ? "#6d28d9" : TRACKS[2].fill;
+            context.fillRect(left, top, clipWidth, height);
+            context.strokeStyle = "#8b5cf6";
+            context.lineWidth = 1;
+            context.strokeRect(left, top, clipWidth, height);
+            if (clipWidth > 40) {
+              context.fillStyle = "#ede9fe";
+              context.fillText(caption.text, left + 4, top + 12, clipWidth - 8);
+            }
+          }
+        }
+      })
+    );
   }
 
   function drawBroll(layer: any) {
@@ -671,6 +690,7 @@
     drawBroll(scene);
     drawMarkers(scene);
     scene.draw();
+    drawnRange = { start: view.start, end: view.end };
   }
 
   function drawOverlay() {
@@ -820,11 +840,17 @@
     markers;
     tracks;
     waveforms;
-    scrollLeft;
-    viewportWidth;
     if (stage) {
       drawBackground();
       drawOverlay();
+    }
+  });
+
+  $effect(() => {
+    scrollLeft;
+    viewportWidth;
+    if (stage) {
+      maybeRedraw();
     }
   });
 

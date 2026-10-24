@@ -130,9 +130,12 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   precision@1 1.00 vs 0.75 baseline), shot-aware B-roll with a licence report,
   an SFX library, a delivery package that applies the winning thumbnail, and
   the `localized_shorts` recipe with dubbing after the render.
-- Native NLE finishing: titles, markers, colour filters, a B-roll lane, and the
-  audio master in FCPXML, XMEML, and Kdenlive, plus `scripts/qa_nle.py` to fail
-  an export that loses them.
+- Native NLE finishing: titles, markers, chapters, colour filters, a B-roll
+  lane, and the audio master in FCPXML, XMEML, and Kdenlive, plus
+  `scripts/qa_nle.py` to fail an export that loses them.
+- Professional finishing: pause/resume and priority, slide, duplicate, per-clip
+  comments, context menu, incremental Shorts reuse, light/high-contrast themes,
+  compact density, crash reports, and token metrics.
 - Silero VAD v5.1.2 through ONNX Runtime, with 16 kHz inference, exact
   sample-rate rescaling, configurable threshold, and pads. FFmpeg
   `silencedetect` is the automatic fallback.

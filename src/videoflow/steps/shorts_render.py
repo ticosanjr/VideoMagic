@@ -74,6 +74,15 @@ class RenderShortsStep(BaseStep):
         discard = set(context.discard_sentence_ids)
         kept = [item for item in context.transcript if item.id not in discard]
         short_entries = {entry.get("title"): dict(entry) for entry in context.shorts}
+        manifest_path = shorts_dir / "render-manifest.json"
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest = payload.get("shorts", {}) if isinstance(payload, dict) else {}
+        except (OSError, ValueError):
+            manifest = {}
+        if not isinstance(manifest, dict):
+            manifest = {}
+        reused = 0
         rendered: list[dict[str, object]] = []
         total = max(1, len(context.selected_shorts))
         for index, clip in enumerate(context.selected_shorts, start=1):
@@ -162,7 +171,52 @@ class RenderShortsStep(BaseStep):
                             )
                         )
             destination = shorts_dir / f"{slug}.mp4"
-            adapter.render_short(
+            music_path = Path(options.music_path) if options.music_path else None
+            second_source_path = (
+                Path(options.second_source_path) if options.second_source_path else None
+            )
+            key = digest_payload(
+                {
+                    "pieces": [list(piece) for piece in clip.pieces],
+                    "width": width,
+                    "height": height,
+                    "ass": (
+                        Path(ass_path).stat().st_mtime_ns
+                        if ass_path is not None and Path(ass_path).is_file()
+                        else 0
+                    ),
+                    "style": options.caption_style.model_dump(mode="json"),
+                    "burn_subtitles": options.burn_subtitles,
+                    "overlay": options.overlay_path,
+                    "overlay_position": options.overlay_position,
+                    "overlay_width_ratio": options.overlay_width_ratio,
+                    "filters": list(options.audio_filters),
+                    "broll": [
+                        [str(path), start, duration]
+                        for path, start, duration in broll_clips
+                    ],
+                    "sfx": [[str(path), start, volume] for path, start, volume in sfx_clips],
+                    "music": [
+                        str(music_path) if music_path else "",
+                        options.music_volume,
+                        options.music_ducking,
+                    ],
+                    "cards": [options.intro_path, options.outro_path],
+                    "split": [options.split_screen, options.split_screen_zoom],
+                    "second": str(second_source_path) if second_source_path else "",
+                    "crop": [clip.crop_focus_x, clip.crop_focus_y],
+                }
+            )
+            cached = manifest.get(slug)
+            skip = bool(
+                isinstance(cached, dict)
+                and cached.get("key") == key
+                and destination.is_file()
+            )
+            if skip:
+                reused += 1
+            else:
+                adapter.render_short(
                 Path(context.source),
                 clip.pieces,
                 destination,
@@ -203,12 +257,21 @@ class RenderShortsStep(BaseStep):
                 intro_duration_sec=options.intro_duration_sec,
                 outro_duration_sec=options.outro_duration_sec,
             )
+            manifest[slug] = {
+                "key": key,
+                "path": str(destination),
+                "reused": skip,
+            }
             entry["path"] = str(destination)
             if ass_path is not None:
                 entry["subtitles"] = str(ass_path)
             entry["aspect_ratio"] = entry.get("aspect_ratio", "9:16")
             rendered.append(entry)
 
+        write_text(
+            manifest_path,
+            json.dumps({"shorts": manifest}, indent=2) + "\n",
+        )
         context.shorts = rendered
         if rendered:
             write_text(
@@ -218,7 +281,7 @@ class RenderShortsStep(BaseStep):
         context.hashes["shorts_render"] = digest_payload(
             [entry.get("path") for entry in rendered]
         )
-        message = f"{len(rendered)} shorts rendered"
+        message = f"{len(rendered)} shorts rendered ({reused} reused)"
         io.emit("info", message, module="shorts")
         io.report(100, message)
 

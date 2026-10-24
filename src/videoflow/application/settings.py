@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.schema_migrations import migrate_settings
 from videoflow.runtime import portable_home
 
 SETTINGS_FILE = "settings.json"
@@ -68,7 +70,7 @@ class QualitySettings(BaseModel):
 class UiSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    theme: Literal["dark", "light", "system"] = "dark"
+    theme: Literal["dark", "light", "system", "high-contrast"] = "dark"
     density: Literal["comfortable", "compact"] = "comfortable"
     timeline_snap: bool = True
 
@@ -145,8 +147,9 @@ def load_settings() -> AppSettings:
     if not path.is_file():
         return AppSettings()
     try:
-        return AppSettings.model_validate_json(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return AppSettings.model_validate(migrate_settings(payload))
+    except (OSError, ValueError, TypeError):
         return AppSettings()
 
 

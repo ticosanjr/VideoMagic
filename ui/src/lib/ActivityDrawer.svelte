@@ -3,6 +3,7 @@
   import type { Job } from "$lib/api";
   import { formatDateTime } from "$lib/format";
   import { jobDisplayName, jobNextAction } from "$lib/jobsView";
+  import { i18n } from "$lib/i18n.svelte";
 
   let {
     open = false,
@@ -47,7 +48,7 @@
           <p class="text-sm font-medium text-white">Activity</p>
           <p class="mt-0.5 text-[11px] text-neutral-500">{running.length} running · {queued.length} queued · {attention.length} need attention</p>
         </div>
-        <button type="button" class="rounded-lg border border-white/10 px-2 py-1 text-[11px] text-neutral-400 hover:text-neutral-100" onclick={onclose}>Close</button>
+        <button type="button" class="rounded-lg border border-white/10 px-2 py-1 text-[11px] text-neutral-400 hover:text-neutral-100" onclick={onclose}>{i18n.t("close")}</button>
       </header>
       <div class="flex-1 space-y-4 overflow-auto p-3" aria-live="polite">
         {#each sections as section}
@@ -77,7 +78,7 @@
       </div>
       <footer class="border-t border-neutral-800 p-3">
         <button type="button" class="w-full rounded-xl bg-sky-500/15 px-3 py-2 text-xs font-medium text-sky-200 ring-1 ring-inset ring-sky-400/20 hover:bg-sky-500/20" onclick={onopenjobs}>
-          Open the job dashboard
+          {i18n.t("open_jobs")}
         </button>
       </footer>
     </aside>

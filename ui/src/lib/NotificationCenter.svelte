@@ -3,6 +3,7 @@
   import { noticeCounts, sortNotices, type Notice } from "$lib/notifications";
   import { notifications } from "$lib/notifications.svelte";
   import { formatDateTime } from "$lib/format";
+  import { i18n } from "$lib/i18n.svelte";
 
   let {
     open = false,
@@ -57,18 +58,18 @@
               notifications.clear();
               onclear?.();
             }}
-          >Clear all</button>
+          >{i18n.t("clear_all")}</button>
           <button
             type="button"
             class="rounded-lg border border-white/10 px-2 py-1 text-[11px] text-neutral-400 hover:text-neutral-100"
             onclick={onclose}
-          >Close</button>
+          >{i18n.t("close")}</button>
         </div>
       </header>
       <div class="flex-1 space-y-2 overflow-auto p-3" aria-live="polite">
         {#if ordered.length === 0}
           <p class="rounded-xl border border-dashed border-neutral-800 px-3 py-6 text-center text-xs text-neutral-500">
-            Nothing needs your attention.
+            {i18n.t("notification_empty")}
           </p>
         {/if}
         {#each ordered as notice (notice.id)}

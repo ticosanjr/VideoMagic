@@ -491,6 +491,13 @@ process group. On cancel or timeout the adapter sends `SIGTERM`, waits one
 second, then sends `SIGKILL`, and the queue removes the partial file. A
 `kill -9` of the service leaves no orphaned FFmpeg process.
 
+### Pause, resume, priority
+
+`POST /api/v1/jobs/{id}/pause` pauses a queued job immediately or requests a
+cooperative pause for a running one. `POST .../unpause` requeues it.
+`PATCH .../priority` with `{"priority": -10..10}` stores the value and reorders
+the pending queue.
+
 ### Retry
 
 ```http
@@ -757,7 +764,8 @@ Project state is created by recipe runs and edited through the job timeline API.
 - `POST /api/v1/recipes/run`, `POST /api/v1/recipes/run/{step_id}`,
   `POST /api/v1/recipes/dry-run`
 - `POST /api/v1/jobs/{job_id}/resume`
-- `GET /api/v1/plugins`, `POST /api/v1/plugins/reload`,
+- `GET /api/v1/plugins` (plugins plus registered panels),
+  `POST /api/v1/plugins/reload`,
   `POST /api/v1/plugins/{id}/enable`
 - `GET /api/v1/system/metrics`, `GET /api/v1/system/backup`
 - `GET /api/v1/jobs/{job_id}/timeline`, `PATCH /api/v1/jobs/{job_id}/timeline`
@@ -808,7 +816,7 @@ Project state is created by recipe runs and edited through the job timeline API.
   `PUT /api/v1/presets/{name}`
 
 `PATCH /api/v1/jobs/{job_id}/timeline` accepts `trim`, `move`, `delete`,
-`split`, `ripple`, `ripple_trim`, and `slip`. Every edit validates against the
+`split`, `ripple`, `ripple_trim`, `slip`, `slide`, and `duplicate`. Every edit validates against the
 source media, records one undo entry in `timeline_history.json`, increments
 `revision`, and returns a warning that rendered artifacts must be refreshed.
 
@@ -825,6 +833,26 @@ which is how the UI applies a group trim.
 When `timeline_meta.json` marks the video or audio track as `locked`, clip edits
 return `409 state_not_ready`. The `muted` audio track makes render and preview
 append `volume=0`; `solo` overrides mute.
+
+### Clip comments
+
+```http
+GET    /api/v1/jobs/{job_id}/timeline/comments?clip_id=v1
+POST   /api/v1/jobs/{job_id}/timeline/comments
+DELETE /api/v1/jobs/{job_id}/timeline/comments/{comment_id}
+```
+
+Comments live in `timeline_meta.json` with `id`, `clip_id`, `text`, `author`,
+and `created_at`.
+
+### Cost metrics
+
+```http
+GET /api/v1/metrics/cost
+```
+
+Returns call and prompt/completion token totals, globally and per model, from
+the OpenAI-compatible LLM client.
 
 ### Waveform peaks
 

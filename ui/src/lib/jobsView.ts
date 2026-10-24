@@ -1,11 +1,19 @@
 import type { Job } from "./api";
 
-export type JobFilter = "all" | "active" | "queued" | "attention" | "failed" | "succeeded";
+export type JobFilter =
+  | "all"
+  | "active"
+  | "queued"
+  | "paused"
+  | "attention"
+  | "failed"
+  | "succeeded";
 
 export interface JobCounts {
   total: number;
   active: number;
   queued: number;
+  paused: number;
   waiting: number;
   failed: number;
   succeeded: number;
@@ -25,12 +33,13 @@ export function jobCounts(jobs: Job[]): JobCounts {
       counts.total += 1;
       if (ACTIVE_STATUSES.has(job.status)) counts.active += 1;
       if (job.status === "queued") counts.queued += 1;
+      if (job.status === "paused") counts.paused += 1;
       if (job.status === "waiting_approval") counts.waiting += 1;
       if (job.status === "failed") counts.failed += 1;
       if (job.status === "succeeded") counts.succeeded += 1;
       return counts;
     },
-    { total: 0, active: 0, queued: 0, waiting: 0, failed: 0, succeeded: 0 }
+    { total: 0, active: 0, queued: 0, paused: 0, waiting: 0, failed: 0, succeeded: 0 }
   );
 }
 
@@ -40,6 +49,8 @@ export function matchesJobFilter(job: Job, filter: JobFilter): boolean {
       return ACTIVE_STATUSES.has(job.status);
     case "queued":
       return job.status === "queued";
+    case "paused":
+      return job.status === "paused";
     case "attention":
       return ATTENTION_STATUSES.has(job.status);
     case "failed":
@@ -78,6 +89,8 @@ export function jobNextAction(job: Job): string {
   switch (job.status) {
     case "queued":
       return "Waiting for a free slot";
+    case "paused":
+      return "Resume when ready";
     case "running":
       return "Wait or cancel";
     case "waiting_approval":

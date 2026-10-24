@@ -2,6 +2,7 @@
   import { focusTrap } from "$lib/a11y";
   import { filterCommands, moveActiveIndex, type Command } from "$lib/commandPalette";
   import { restoreFocus } from "$lib/a11y";
+  import { i18n } from "$lib/i18n.svelte";
 
   let {
     open = false,
@@ -78,7 +79,7 @@
           onkeydown={onKeydown}
           type="text"
           class="w-full bg-transparent text-sm text-white placeholder:text-neutral-500 focus:outline-none"
-          placeholder="Type a command…"
+          placeholder={i18n.t("command_placeholder")}
           aria-label="Search commands"
           autocomplete="off"
           spellcheck="false"
@@ -115,7 +116,7 @@
         {/each}
       </ul>
       <footer class="flex items-center justify-between border-t border-neutral-800 px-4 py-2 text-[10px] text-neutral-500">
-        <span>↑ ↓ to move · Enter to run · Esc to close</span>
+        <span>{i18n.t("command_hint")}</span>
         <span>Ctrl/Cmd + K</span>
       </footer>
     </div>

@@ -11,6 +11,7 @@ from typing import Any
 
 import httpx
 
+from videoflow.application.cost import record_usage
 from videoflow.domain.errors import LlmError
 
 SYSTEM_PROMPT = (
@@ -64,6 +65,7 @@ class OpenAICompatibleLlm:
             )
         try:
             body = response.json()
+            record_usage(self.model, body.get("usage"))
             content = body["choices"][0]["message"]["content"]
             return _parse_json(content)
         except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:

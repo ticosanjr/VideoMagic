@@ -142,3 +142,64 @@ def test_api_timeline_rejects_a_corrupt_state(
     response = client.get(f"/api/v1/jobs/{job.job_id}/timeline")
 
     assert response.status_code in {422, 500}
+
+
+def test_disk_full_fails_an_export_without_a_success_marker(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import errno
+    import time
+
+    from videoflow.application.jobs import JobManager
+
+    def runner(source: Path, output: Path, *, progress, should_cancel, **kwargs):
+        output.mkdir(parents=True, exist_ok=True)
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    manager = JobManager(runner)
+    job = manager.start(source, tmp_path / "out", {})
+    for _ in range(300):
+        if job.status in {"failed", "succeeded", "cancelled"}:
+            break
+        time.sleep(0.01)
+
+    assert job.status == "failed"
+    assert job.error is not None
+    assert "No space" in str(job.error)
+
+
+def test_offline_provider_falls_back_to_the_next(monkeypatch: pytest.MonkeyPatch) -> None:
+    import httpx
+
+    from videoflow.adapters.llm import FallbackLlm, OpenAICompatibleLlm
+
+    def offline(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("offline", request=request)
+
+    failing = OpenAICompatibleLlm(
+        base_url="http://offline.invalid/v1",
+        model="x",
+        retries=0,
+        transport=httpx.MockTransport(offline),
+    )
+
+    class Working:
+        def complete_json(self, prompt: str, schema_name: str) -> dict[str, object]:
+            return {"ok": True}
+
+    assert FallbackLlm([failing, Working()]).complete_json("p", "s") == {"ok": True}
+
+
+def test_missing_whisper_model_is_a_typed_error(tmp_path: Path) -> None:
+    from videoflow.adapters.whisper import WhisperCliAdapter
+    from videoflow.domain.errors import VideoFlowError
+
+    adapter = WhisperCliAdapter(binary=tmp_path / "missing", model=tmp_path / "missing.bin")
+    try:
+        adapter.transcribe(tmp_path / "audio.wav", 16000)
+    except VideoFlowError as exc:
+        assert "does not exist" in str(exc).lower() or "not found" in str(exc).lower()
+    else:  # pragma: no cover - the call must fail
+        raise AssertionError("missing model must raise")

@@ -11,15 +11,18 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.application.plugin_sandbox import check_plugin
+from videoflow.application.schema_migrations import migrate_plugin_manifest
 from videoflow.runtime import portable_home
 
 
 class PluginManifest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    schema_version: int = 1
     id: str = Field(min_length=1, max_length=60, pattern=r"^[a-z0-9][a-z0-9._-]*$")
     name: str = Field(min_length=1, max_length=120)
     version: str = "0.1.0"
+    api_version: int = 1
     entry: str = "plugin.py"
     description: str = ""
     enabled: bool = True
@@ -39,9 +42,15 @@ def list_plugins() -> list[dict[str, object]]:
         if not directory.is_dir() or not manifest_path.is_file():
             continue
         try:
-            manifest = PluginManifest.model_validate_json(
-                manifest_path.read_text(encoding="utf-8")
+            manifest = PluginManifest.model_validate(
+                migrate_plugin_manifest(
+                    json.loads(manifest_path.read_text(encoding="utf-8"))
+                )
             )
+            if manifest.api_version > 1:
+                raise ValueError(
+                    f"plugin API {manifest.api_version} is newer than 1"
+                )
             entry = directory / manifest.entry
             result.append(
                 {

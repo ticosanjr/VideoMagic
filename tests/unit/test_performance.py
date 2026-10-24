@@ -5,6 +5,8 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
+import pytest
+
 from videoflow.domain.state import AudioSegment, MediaInfo, ProjectState, VideoSegment
 from videoflow.exporters.fcpxml import export_fcpxml
 from videoflow.exporters.kdenlive import export_kdenlive
@@ -78,3 +80,58 @@ def test_large_timeline_duration(tmp_path: Path) -> None:
 
     state = large_state(tmp_path)
     assert timeline_duration_frames(state) == CLIPS * 30
+
+
+def test_startup_stays_under_two_seconds(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import time
+
+    from videoflow.api.app import create_app
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
+    started = time.perf_counter()
+    create_app()
+    elapsed = time.perf_counter() - started
+    assert elapsed < 2.0, f"startup took {elapsed:.2f}s"
+
+
+def test_four_k_thousand_clips_ten_jobs_and_twenty_variants(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import threading
+    import time
+
+    from videoflow.application.jobs import JobManager
+
+    state = large_state(tmp_path)
+    state.media_info = state.media_info.model_copy(
+        update={"width": 3840, "height": 2160}
+    ) if state.media_info is not None else None
+    started = time.perf_counter()
+    export_fcpxml(state, tmp_path / "4k.fcpxml")
+    export_xmeml(state, tmp_path / "4k.xml")
+    export_kdenlive(state, tmp_path / "4k.kdenlive")
+    assert time.perf_counter() - started < 10.0
+
+    release = threading.Event()
+
+    def runner(source: Path, output: Path, *, progress, should_cancel, **kwargs):
+        release.wait(timeout=5)
+        return {"ok": True}
+
+    manager = JobManager(runner, max_active=10)
+    jobs = [
+        manager.start(
+            tmp_path / f"source-{index}.mp4",
+            tmp_path / f"out-{index}",
+            {"variants": [{"name": f"v{variant}"} for variant in range(20)]},
+            queue=True,
+        )
+        for index in range(10)
+    ]
+    time.sleep(0.1)
+    assert len({job.job_id for job in jobs}) == 10
+    assert all(job.status in {"queued", "running"} for job in jobs)
+    release.set()

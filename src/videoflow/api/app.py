@@ -155,6 +155,23 @@ def create_app(
                 "hint": "Run the CLI with `videoflow run` or build the UI.",
             }
 
+    from fastapi.responses import JSONResponse
+
+    from videoflow.application.crash import write_crash_report
+
+    @app.exception_handler(Exception)
+    async def _unhandled(_request: Request, exc: Exception) -> JSONResponse:
+        path = write_crash_report(exc, where="http")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "code": "internal_error",
+                "message": "Unexpected error. A crash report was written.",
+                "details": {"report": str(path)},
+            },
+        )
+
     return app
 
 

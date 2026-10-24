@@ -17,6 +17,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.schema_migrations import migrate_schedule
 from videoflow.domain.errors import StateNotReadyError
 from videoflow.domain.paths import resolve_allowed
 from videoflow.engine.recipes import get_recipe, resolve_recipe_paths
@@ -39,6 +40,7 @@ def _parse(value: str) -> datetime:
 class RecipeSchedule(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    schema_version: int = 1
     id: str = Field(default_factory=lambda: uuid4().hex[:10], min_length=1, max_length=40)
     kind: Literal["once", "interval", "watch"] = "interval"
     recipe_id: str = Field(min_length=1)
@@ -119,7 +121,7 @@ def load_schedules() -> list[RecipeSchedule]:
     result: list[RecipeSchedule] = []
     for (payload,) in rows:
         try:
-            result.append(RecipeSchedule.model_validate_json(payload))
+            result.append(RecipeSchedule.model_validate(migrate_schedule(json.loads(payload))))
         except ValueError:
             continue
     return result

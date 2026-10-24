@@ -10,6 +10,7 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:perf": "VF_PERF=1 playwright test e2e/perf.spec.ts --workers=1",
     "test:all": "npm run test && npm run test:e2e"
   },
   "devDependencies": {

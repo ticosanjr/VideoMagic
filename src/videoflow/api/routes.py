@@ -172,8 +172,11 @@ from videoflow.application.timeline_history import TimelineHistory
 from videoflow.application.timeline_meta import (
     TimelineMeta,
     TrackState,
+    add_comment,
     add_marker,
+    comments_for,
     load_meta,
+    remove_comment,
     remove_marker,
     save_meta,
     set_track,
@@ -221,6 +224,17 @@ logger = logging.getLogger(__name__)
 class OverrideRequest(BaseModel):
     sentence_id: int = Field(ge=0)
     action: Literal["keep", "discard"]
+
+
+class ClipCommentRequest(BaseModel):
+    clip_id: str = Field(min_length=1, max_length=120)
+    text: str = Field(min_length=1, max_length=2000)
+    author: str = Field(default="", max_length=120)
+    id: str = Field(default="", max_length=60)
+
+
+class PriorityRequest(BaseModel):
+    priority: int = Field(ge=-100, le=100)
 
 
 class NewJobRequest(BaseModel):
@@ -493,7 +507,8 @@ class ProviderTestRequest(BaseModel):
 class TimelineEditRequest(BaseModel):
     clip_id: str = Field(min_length=1)
     action: Literal[
-        "trim", "move", "delete", "split", "ripple", "ripple_trim", "slip"
+        "trim", "move", "delete", "split", "ripple", "ripple_trim", "slip",
+        "slide", "duplicate",
     ]
     start_sec: float | None = Field(default=None, ge=0.0)
     end_sec: float | None = Field(default=None, ge=0.0)
@@ -1609,6 +1624,30 @@ def register_routes(
         except VideoFlowError as exc:
             raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
 
+    @app.post("/api/v1/jobs/{job_id}/pause")
+    def pause_job(job_id: str) -> dict[str, object]:
+        try:
+            return {"ok": True, "job": jobs.pause(job_id).to_dict()}
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+
+    @app.post("/api/v1/jobs/{job_id}/unpause")
+    def unpause_job(job_id: str) -> dict[str, object]:
+        try:
+            return {"ok": True, "job": jobs.unpause(job_id).to_dict()}
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+
+    @app.patch("/api/v1/jobs/{job_id}/priority")
+    def set_job_priority(job_id: str, request: PriorityRequest) -> dict[str, object]:
+        try:
+            return {"ok": True, "job": jobs.set_priority(job_id, request.priority).to_dict()}
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+
     @app.post("/api/v1/jobs/{job_id}/retry", status_code=202)
     def retry_job(job_id: str) -> dict[str, object]:
         try:
@@ -2491,6 +2530,41 @@ def register_routes(
             raise
         return {"ok": True, "markers": [item.model_dump(mode="json") for item in meta.markers]}
 
+    @app.get("/api/v1/jobs/{job_id}/timeline/comments")
+    def list_clip_comments(job_id: str, clip_id: str = "") -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "comments": comments_for(job.output, clip_id)}
+
+    @app.post("/api/v1/jobs/{job_id}/timeline/comments", status_code=201)
+    def create_clip_comment(job_id: str, request: ClipCommentRequest) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            meta = add_comment(
+                job.output,
+                comment_id=request.id or f"comment-{int(time.time() * 1000)}",
+                clip_id=request.clip_id,
+                text=request.text,
+                author=request.author,
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "comments": [item.model_dump() for item in meta.comments]}
+
+    @app.delete("/api/v1/jobs/{job_id}/timeline/comments/{comment_id}")
+    def delete_clip_comment(job_id: str, comment_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            meta = remove_comment(job.output, comment_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "comments": [item.model_dump() for item in meta.comments]}
+
     @app.put("/api/v1/jobs/{job_id}/timeline/tracks/{track}")
     def update_job_track(
         job_id: str, track: str, request: TrackState
@@ -2608,6 +2682,7 @@ def register_routes(
             "broll_approval": load_approvals(job.output),
             "markers": [item.model_dump(mode="json") for item in meta.markers],
             "tracks": {key: value.model_dump() for key, value in meta.tracks.items()},
+            "comments": [item.model_dump(mode="json") for item in meta.comments],
             "preview_url": f"/api/v1/jobs/{job_id}/preview/file",
             "media": {
                 "source_path": media.source_path if media is not None else "",
@@ -3441,6 +3516,12 @@ def register_routes(
         checks["service_definitions"] = len(list_definitions())
         return {"ok": ok, "checks": checks}
 
+    @app.get("/api/v1/metrics/cost")
+    def cost_metrics() -> dict[str, object]:
+        from videoflow.application.cost import snapshot
+
+        return {"ok": True, "usage": snapshot()}
+
     @app.get("/api/v1/system/support-bundle")
     def system_support_bundle() -> StreamingResponse:
         buffer = io.BytesIO()
@@ -3503,13 +3584,24 @@ def register_routes(
             ) from exc
         return result
 
+    def _plugins_payload(items: list[dict[str, object]]) -> dict[str, object]:
+        from videoflow import plugin_api
+
+        return {
+            "ok": True,
+            "plugins": items,
+            "panels": [
+                {"id": key, **value} for key, value in plugin_api.PANELS.items()
+            ],
+        }
+
     @app.get("/api/v1/plugins")
     def plugins_list() -> dict[str, object]:
-        return {"ok": True, "plugins": list_plugins()}
+        return _plugins_payload(list_plugins())
 
     @app.post("/api/v1/plugins/reload")
     def plugins_reload() -> dict[str, object]:
-        return {"ok": True, "plugins": load_plugins()}
+        return _plugins_payload(load_plugins())
 
     @app.post("/api/v1/plugins/{plugin_id}/enable")
     def plugins_enable(plugin_id: str, request: dict[str, bool]) -> dict[str, object]:
