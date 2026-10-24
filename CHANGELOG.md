@@ -3,6 +3,37 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.6.0] - 2026-10-24
+
+### Added
+
+- **NLE overlays and drag e2e.** Timeline overlays join the B-roll lane in all
+  three documents (XMEML still frames, Kdenlive `qimage`), with a Playwright
+  drag test.
+- **Semantic B-roll option.** Local sentence-transformers model via
+  `VIDEOWFLOW_EMBEDDING_MODEL`; TF-IDF remains the fallback.
+- **Dubbing hardening.** Duration alignment retry, translation review files, and
+  ordered TTS provider fallback.
+- **Hook and duration A/B.** `shorts.ab` plus the `hook_duration_ab` recipe.
+- **Video-track mute.** Render and preview draw black frames when V1 is muted.
+- **Parallel map everywhere.** `flow.map` runs any collection in parallel, with
+  isolated child contexts.
+- **Assets pagination.** SQL `LIMIT/OFFSET` and filtered asset queries.
+- **Plugin write policy.** `filesystem` permission and rejection of absolute
+  paths outside the plugin folder.
+- **Job DAG and confirmations.** Stage pills in the dashboard; confirmation for
+  plugin enable and managed service start/stop.
+- **Embedded plugin panels.** Panels open inside the shell in a sandboxed iframe.
+- **Cost estimate and expanded golden set.** Token prices for known models,
+  approval-rate metric, and seven golden cases including multi-speaker, gaps,
+  and scene changes.
+
+### Notes
+
+- Local release: Linux binary + AppImage + SBOM + checksums.
+- True Kdenlive cross-dissolve, full long-text i18n, voice cloning, full-tree
+  coverage, and the manual NLE/assistive-technology gates remain open.
+
 ## [2.5.0] - 2026-10-24
 
 ### Added

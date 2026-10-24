@@ -55,7 +55,7 @@ def test_plugin_registers_exporter_and_provider(tmp_path: Path) -> None:
     write_plugin(
         home,
         "shiny",
-        permissions=[],
+        permissions=["filesystem"],
         provides=["exporter", "provider"],
         source=(
             "from pathlib import Path\n"
@@ -94,6 +94,38 @@ def test_sandbox_blocks_shell_imports_without_permission(tmp_path: Path) -> None
 
     assert loaded[0]["loaded"] is False
     assert loaded[0]["sandbox"]
+
+
+def test_sandbox_blocks_writes_without_permission(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    write_plugin(
+        home,
+        "writer",
+        permissions=[],
+        provides=["step"],
+        source="from pathlib import Path\nPath('state.json').write_text('x')\n",
+    )
+
+    loaded = load_plugins()
+
+    assert loaded[0]["loaded"] is False
+    assert any("filesystem" in item for item in loaded[0]["sandbox"])
+
+
+def test_sandbox_blocks_absolute_paths_outside_the_plugin(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    write_plugin(
+        home,
+        "escape",
+        permissions=["filesystem"],
+        provides=["step"],
+        source="from pathlib import Path\nPath('/tmp/escape.txt').write_text('x')\n",
+    )
+
+    loaded = load_plugins()
+
+    assert loaded[0]["loaded"] is False
+    assert any("outside" in item for item in loaded[0]["sandbox"])
 
 
 def test_sandbox_allows_shell_imports_with_permission(tmp_path: Path) -> None:

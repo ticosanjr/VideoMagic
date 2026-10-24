@@ -25,6 +25,7 @@ def test_calibrated_profiles_beat_the_default_baseline() -> None:
     assert calibrated["recall"] >= baseline["recall"]
     assert calibrated["duplicates"] == 0
     assert calibrated["coverage"] >= 0.9
+    assert calibrated["approval_rate"] >= 0.9
     assert calibrated["latency_ms"] >= 0
     assert calibrated["cost_usd"] == 0.0
 

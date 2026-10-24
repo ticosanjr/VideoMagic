@@ -5,6 +5,15 @@ from __future__ import annotations
 import threading
 from typing import Any
 
+# USD per one million tokens. Unknown models report 0 instead of guessing.
+PRICES: dict[str, tuple[float, float]] = {
+    "gpt-4o": (2.5, 10.0),
+    "gpt-4o-mini": (0.15, 0.6),
+    "gpt-4.1": (2.0, 8.0),
+    "gpt-4.1-mini": (0.4, 1.6),
+    "o4-mini": (1.1, 4.4),
+}
+
 _LOCK = threading.Lock()
 _TOTALS: dict[str, Any] = {
     "calls": 0,
@@ -31,13 +40,34 @@ def record_usage(model: str, usage: dict[str, Any] | None) -> None:
         entry["completion_tokens"] += completion
 
 
+def estimate_cost(model: str, prompt: int, completion: int) -> float:
+    price = PRICES.get(model)
+    if price is None:
+        return 0.0
+    input_price, output_price = price
+    return round(
+        (prompt / 1_000_000) * input_price + (completion / 1_000_000) * output_price,
+        6,
+    )
+
+
 def snapshot() -> dict[str, Any]:
     with _LOCK:
+        by_model = {}
+        total_cost = 0.0
+        for key, value in _TOTALS["by_model"].items():
+            entry = dict(value)
+            entry["estimated_cost_usd"] = estimate_cost(
+                key, entry["prompt_tokens"], entry["completion_tokens"]
+            )
+            total_cost += entry["estimated_cost_usd"]
+            by_model[key] = entry
         return {
             "calls": _TOTALS["calls"],
             "prompt_tokens": _TOTALS["prompt_tokens"],
             "completion_tokens": _TOTALS["completion_tokens"],
-            "by_model": {key: dict(value) for key, value in _TOTALS["by_model"].items()},
+            "estimated_cost_usd": round(total_cost, 6),
+            "by_model": by_model,
         }
 
 

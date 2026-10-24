@@ -134,6 +134,8 @@ def evaluate_cases(
     duplicate_pairs = 0
     sentence_union: set[int] = set()
     ideal_union: set[int] = set()
+    approved_total = 0
+    approved_hit = 0
     per_case: list[dict[str, Any]] = []
 
     for case in cases:
@@ -184,6 +186,13 @@ def evaluate_cases(
                     >= DIVERSITY_THRESHOLD
                 ):
                     duplicate_pairs += 1
+        approved = case.get("approved") or []
+        for index, group in enumerate(ideal_groups):
+            if not (isinstance(approved, list) and index < len(approved) and approved[index]):
+                continue
+            approved_total += 1
+            if any(group <= _group_key(clip.sentence_ids) for clip in ranked):
+                approved_hit += 1
         for group in ideal_groups:
             ideal_union |= group
         hits += case_hits
@@ -209,6 +218,9 @@ def evaluate_cases(
         "recall": round(ideal_hit / max(1, ideal_total), 4),
         "duplicates": duplicate_pairs,
         "coverage": round(len(sentence_union & ideal_union) / max(1, len(ideal_union)), 4),
+        "approval_rate": (
+            round(approved_hit / approved_total, 4) if approved_total else None
+        ),
         "latency_ms": elapsed_ms,
         "cost_usd": 0.0,
         "per_case": per_case,

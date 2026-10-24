@@ -53,6 +53,19 @@ def _video_filters(job: Any) -> list[str]:
     return [str(item) for item in payload.get("filters", []) if str(item)]
 
 
+def _video_track_filters(job: Any) -> list[str]:
+    from videoflow.application.timeline_meta import load_meta
+
+    try:
+        meta = load_meta(job.output)
+    except Exception:
+        return []
+    state = meta.tracks.get("video")
+    if state is None or state.solo or not state.muted:
+        return []
+    return ["drawbox=x=0:y=0:w=iw:h=ih:color=black:t=fill"]
+
+
 def _track_filters(job: Any) -> list[str]:
     from videoflow.application.timeline_meta import load_meta
 
@@ -111,7 +124,7 @@ def build_preview(
             full,
             adapter=adapter,
             audio_filters=_audio_filters(job) + _track_filters(job),
-            video_filters=_video_filters(job),
+            video_filters=_video_filters(job) + _video_track_filters(job),
             ass_path=ass_path if ass_path.is_file() else None,
         )
     else:

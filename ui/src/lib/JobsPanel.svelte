@@ -234,6 +234,17 @@
             </div>
           </div>
 
+          {#if job.stages?.length}
+            <div class="mt-2 flex flex-wrap gap-1" data-testid="job-stages">
+              {#each job.stages as stage (stage.id)}
+                <span
+                  class={`rounded-full border px-1.5 py-0.5 text-[9px] ${stage.status === "succeeded" ? "border-emerald-400/30 text-emerald-200" : stage.status === "failed" ? "border-rose-400/30 text-rose-200" : stage.status === "running" ? "border-sky-400/30 text-sky-200" : "border-neutral-700 text-neutral-500"}`}
+                  title={`${stage.label}: ${stage.message || stage.status}`}
+                >{stage.label} · {stage.status}</span>
+              {/each}
+            </div>
+          {/if}
+
           {#if job.error}
             <p class="mt-2 rounded-lg border border-rose-500/20 bg-rose-950/30 px-2.5 py-1.5 text-[11px] text-rose-200">
               {job.error.title || job.error.code}: {job.error.message}

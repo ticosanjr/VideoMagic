@@ -13,6 +13,19 @@ from pathlib import Path
 
 SHELL_MODULES = {"subprocess", "pty", "multiprocessing"}
 NETWORK_MODULES = {"socket", "ssl", "http", "urllib", "ftplib", "telnetlib"}
+WRITE_CALLS = {
+    "write_text",
+    "write_bytes",
+    "mkdir",
+    "unlink",
+    "rename",
+    "replace",
+    "rmdir",
+    "shutil.copy",
+    "shutil.copy2",
+    "shutil.move",
+    "shutil.rmtree",
+}
 DENIED_CALLS = {
     "os.system",
     "os.popen",
@@ -78,4 +91,37 @@ def check_plugin(entry: Path, permissions: list[str]) -> list[str]:
             problems.append(f"call {call} needs the 'shell' permission")
         if call.split(".")[0] in {"subprocess", "socket"} and "shell" not in granted:
             problems.append(f"call {call} needs the 'shell' permission")
+        if call.split(".")[-1] in WRITE_CALLS and "filesystem" not in granted:
+            problems.append(f"call {call} needs the 'filesystem' permission")
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "open"
+            and len(node.args) >= 2
+        ):
+            mode = node.args[1]
+            if (
+                isinstance(mode, ast.Constant)
+                and isinstance(mode.value, str)
+                and any(flag in mode.value for flag in "wax+")
+                and "filesystem" not in granted
+            ):
+                problems.append("call open needs the 'filesystem' permission")
+    plugin_dir = Path(source_path).parent.resolve()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        for argument in node.args:
+            if not isinstance(argument, ast.Constant) or not isinstance(argument.value, str):
+                continue
+            candidate = Path(argument.value)
+            if not candidate.is_absolute():
+                continue
+            try:
+                candidate.resolve().relative_to(plugin_dir)
+            except ValueError:
+                problems.append(
+                    f"absolute path outside the plugin folder: {argument.value}"
+                )
     return sorted(set(problems))

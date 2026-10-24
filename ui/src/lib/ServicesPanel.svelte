@@ -78,6 +78,7 @@
   }
 
   async function startManaged(id: string) {
+    if (!confirm(`Start service ${id}?`)) return;
     try {
       await startManagedService(id);
       message = `Service ${id} started.`;
@@ -88,6 +89,7 @@
   }
 
   async function stopManaged(id: string) {
+    if (!confirm(`Stop service ${id}?`)) return;
     try {
       await stopManagedService(id);
       message = `Service ${id} stopped.`;

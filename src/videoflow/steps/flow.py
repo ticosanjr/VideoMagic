@@ -296,17 +296,27 @@ class MapStep(_FlowStep):
             io.report(100, "Map has no items")
             return
         results: list[dict[str, object]] = []
-        if options.over == "files" and options.parallel > 1 and len(items) > 1:
+        if options.parallel > 1 and len(items) > 1:
             from concurrent.futures import ThreadPoolExecutor, as_completed
 
             def run_item(index: int, item: dict[str, object]) -> dict[str, object]:
-                path = Path(str(item["path"]))
+                raw_name = str(
+                    item.get("title")
+                    or item.get("name")
+                    or item.get("id")
+                    or item.get("path")
+                    or index
+                )
+                stem = Path(raw_name).stem if item.get("path") else raw_name
                 slug = "".join(
                     char if char.isalnum() or char in {"-", "_"} else "-"
-                    for char in path.stem
+                    for char in stem
                 ).strip("-") or "item"
                 child = context.model_copy(deep=True)
-                child.source = path
+                if item.get("path") and options.over == "files":
+                    child.source = Path(str(item["path"]))
+                child.metadata["map_item"] = item
+                child.metadata["map_index"] = index
                 child.output = context.output / "map" / f"{index:03d}-{slug}"
                 child.work = child.output / "work"
                 child.exports = child.output / "exports"

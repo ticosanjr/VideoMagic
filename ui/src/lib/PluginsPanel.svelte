@@ -20,6 +20,7 @@
   let panels = $state<Panel[]>([]);
   let error = $state("");
   let busy = $state("");
+  let activePanel = $state("");
 
   async function load(reload = false) {
     try {
@@ -36,6 +37,7 @@
   }
 
   async function toggle(plugin: Plugin) {
+    if (!confirm(`${plugin.enabled ? "Disable" : "Enable"} plugin ${plugin.id}?`)) return;
     busy = plugin.id;
     try {
       await fetch(`/api/v1/plugins/${encodeURIComponent(plugin.id)}/enable`, {
@@ -116,9 +118,22 @@
       <p class="text-xs font-semibold text-neutral-100">Plugin panels</p>
       <ul class="mt-2 space-y-1">
         {#each panels as panel (panel.id)}
-          <li><a class="text-[11px] text-sky-300 underline" href={panel.url} target="_blank" rel="noreferrer">{panel.title}</a></li>
+          <li class="flex items-center gap-2">
+            <a class="text-[11px] text-sky-300 underline" href={panel.url} target="_blank" rel="noreferrer">{panel.title}</a>
+            <button type="button" class="rounded border border-white/10 px-2 py-0.5 text-[10px] text-neutral-300" onclick={() => (activePanel = activePanel === panel.id ? "" : panel.id)}>
+              {activePanel === panel.id ? "Close" : "Open here"}
+            </button>
+          </li>
         {/each}
       </ul>
+      {#each panels.filter((panel) => panel.id === activePanel) as panel (panel.id)}
+        <iframe
+          title={panel.title}
+          src={panel.url}
+          sandbox="allow-scripts allow-same-origin allow-forms"
+          class="mt-3 h-[480px] w-full rounded-xl border border-neutral-800 bg-black"
+        ></iframe>
+      {/each}
     </section>
   {/if}
 </section>

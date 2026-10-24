@@ -125,8 +125,22 @@ def scan_directory(
     return records
 
 
-def list_assets(query: str = "", kind: str = "", limit: int = 500) -> list[dict[str, Any]]:
+def list_assets(
+    query: str = "", kind: str = "", limit: int = 500, offset: int = 0
+) -> list[dict[str, Any]]:
     needle = query.strip().casefold()
+    try:
+        from videoflow.application.database import list_assets_db
+
+        if list_assets_db(limit=1):
+            return list_assets_db(
+                limit=max(1, min(int(limit), 2000)),
+                offset=max(0, int(offset)),
+                query=needle,
+                kind=kind,
+            )
+    except Exception:
+        pass
     assets = _read()
     if kind:
         assets = [item for item in assets if item.get("kind") == kind]
@@ -139,7 +153,9 @@ def list_assets(query: str = "", kind: str = "", limit: int = 500) -> list[dict[
             or any(needle in str(tag).casefold() for tag in item.get("tags", []))
         ]
     assets.sort(key=lambda item: str(item.get("added_at", "")), reverse=True)
-    return assets[: max(1, min(int(limit), 2000))]
+    start = max(0, int(offset))
+    end = start + max(1, min(int(limit), 2000))
+    return assets[start:end]
 
 
 def get_asset(asset_id: str) -> dict[str, Any] | None:

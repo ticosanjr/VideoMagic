@@ -95,14 +95,29 @@ def upsert_asset(asset_id: str, payload: dict[str, Any]) -> None:
         pass
 
 
-def list_assets_db() -> list[dict[str, Any]]:
+def list_assets_db(
+    *, limit: int | None = None, offset: int = 0, query: str = "", kind: str = ""
+) -> list[dict[str, Any]]:
     if not db_path().is_file():
         return []
     try:
         with contextlib.closing(connect()) as connection:
-            rows = connection.execute(
-                "SELECT payload FROM assets ORDER BY updated_at"
-            ).fetchall()
+            clauses = []
+            params: list[Any] = []
+            if kind:
+                clauses.append("json_extract(payload, '$.kind') = ?")
+                params.append(kind)
+            if query:
+                clauses.append(
+                    "(lower(json_extract(payload, '$.name')) LIKE ? OR lower(payload) LIKE ?)"
+                )
+                params.extend([f"%{query.lower()}%", f"%{query.lower()}%"])
+            where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+            sql = f"SELECT payload FROM assets{where} ORDER BY updated_at DESC"
+            if limit is not None:
+                sql += " LIMIT ? OFFSET ?"
+                params.extend([max(1, int(limit)), max(0, int(offset))])
+            rows = connection.execute(sql, params).fetchall()
     except sqlite3.Error:
         return []
     result: list[dict[str, Any]] = []

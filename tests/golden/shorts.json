@@ -9,14 +9,53 @@
       "max_sec": 45,
       "count": 4,
       "sentences": [
-        {"id": 0, "start_sec": 0, "end_sec": 8, "text": "Eu descobri um segredo que ninguem conta sobre produtividade."},
-        {"id": 1, "start_sec": 8, "end_sec": 15, "text": "O maior erro e achar que trabalhar mais resolve tudo."},
-        {"id": 2, "start_sec": 15, "end_sec": 22, "text": "Porque o resultado vem da prioridade, nao do volume."},
-        {"id": 3, "start_sec": 22, "end_sec": 31, "text": "Nos testamos 42 tarefas e medimos 7 indicadores diferentes."},
-        {"id": 4, "start_sec": 31, "end_sec": 40, "text": "O processo durou 30 dias e envolveu 12 pessoas."},
-        {"id": 5, "start_sec": 40, "end_sec": 49, "text": "No final, o tempo medio caiu de 90 para 45 minutos."}
+        {
+          "id": 0,
+          "start_sec": 0,
+          "end_sec": 8,
+          "text": "Eu descobri um segredo que ninguem conta sobre produtividade."
+        },
+        {
+          "id": 1,
+          "start_sec": 8,
+          "end_sec": 15,
+          "text": "O maior erro e achar que trabalhar mais resolve tudo."
+        },
+        {
+          "id": 2,
+          "start_sec": 15,
+          "end_sec": 22,
+          "text": "Porque o resultado vem da prioridade, nao do volume."
+        },
+        {
+          "id": 3,
+          "start_sec": 22,
+          "end_sec": 31,
+          "text": "Nos testamos 42 tarefas e medimos 7 indicadores diferentes."
+        },
+        {
+          "id": 4,
+          "start_sec": 31,
+          "end_sec": 40,
+          "text": "O processo durou 30 dias e envolveu 12 pessoas."
+        },
+        {
+          "id": 5,
+          "start_sec": 40,
+          "end_sec": 49,
+          "text": "No final, o tempo medio caiu de 90 para 45 minutos."
+        }
       ],
-      "ideal": [[0, 1, 2]]
+      "ideal": [
+        [
+          0,
+          1,
+          2
+        ]
+      ],
+      "approved": [
+        true
+      ]
     },
     {
       "id": "education-numbers",
@@ -25,14 +64,52 @@
       "max_sec": 45,
       "count": 4,
       "sentences": [
-        {"id": 0, "start_sec": 0, "end_sec": 7, "text": "Nunca faca isso se voce quer crescer rapido."},
-        {"id": 1, "start_sec": 7, "end_sec": 15, "text": "Incroyavel como essa ideia parece chocante."},
-        {"id": 2, "start_sec": 15, "end_sec": 24, "text": "Quanto custa? Nos medimos 3 cenarios com 18% de margem."},
-        {"id": 3, "start_sec": 24, "end_sec": 33, "text": "O primeiro cenario rendeu 5 mil reais em 21 dias."},
-        {"id": 4, "start_sec": 33, "end_sec": 41, "text": "O segundo cenario rendeu apenas 800 reais."},
-        {"id": 5, "start_sec": 41, "end_sec": 50, "text": "O terceiro cenario quebrou a empresa em 6 meses."}
+        {
+          "id": 0,
+          "start_sec": 0,
+          "end_sec": 7,
+          "text": "Nunca faca isso se voce quer crescer rapido."
+        },
+        {
+          "id": 1,
+          "start_sec": 7,
+          "end_sec": 15,
+          "text": "Incroyavel como essa ideia parece chocante."
+        },
+        {
+          "id": 2,
+          "start_sec": 15,
+          "end_sec": 24,
+          "text": "Quanto custa? Nos medimos 3 cenarios com 18% de margem."
+        },
+        {
+          "id": 3,
+          "start_sec": 24,
+          "end_sec": 33,
+          "text": "O primeiro cenario rendeu 5 mil reais em 21 dias."
+        },
+        {
+          "id": 4,
+          "start_sec": 33,
+          "end_sec": 41,
+          "text": "O segundo cenario rendeu apenas 800 reais."
+        },
+        {
+          "id": 5,
+          "start_sec": 41,
+          "end_sec": 50,
+          "text": "O terceiro cenario quebrou a empresa em 6 meses."
+        }
       ],
-      "ideal": [[2, 3]]
+      "ideal": [
+        [
+          2,
+          3
+        ]
+      ],
+      "approved": [
+        true
+      ]
     },
     {
       "id": "podcast-long-form",
@@ -41,14 +118,54 @@
       "max_sec": 45,
       "count": 4,
       "sentences": [
-        {"id": 0, "start_sec": 0, "end_sec": 9, "text": "Hoje eu quero explicar como a atencao funciona no cerebro."},
-        {"id": 1, "start_sec": 9, "end_sec": 19, "text": "A primeira camada tem a ver com o que voce escolhe ignorar."},
-        {"id": 2, "start_sec": 19, "end_sec": 29, "text": "A segunda camada combina memoria, contexto e expectativa."},
-        {"id": 3, "start_sec": 29, "end_sec": 38, "text": "A terceira camada e o que chamamos de foco sustentado."},
-        {"id": 4, "start_sec": 38, "end_sec": 45, "text": "Segredo! Nunca ignore isso."},
-        {"id": 5, "start_sec": 45, "end_sec": 53, "text": "Incroyavel, chocante e absurdo ao mesmo tempo."}
+        {
+          "id": 0,
+          "start_sec": 0,
+          "end_sec": 9,
+          "text": "Hoje eu quero explicar como a atencao funciona no cerebro."
+        },
+        {
+          "id": 1,
+          "start_sec": 9,
+          "end_sec": 19,
+          "text": "A primeira camada tem a ver com o que voce escolhe ignorar."
+        },
+        {
+          "id": 2,
+          "start_sec": 19,
+          "end_sec": 29,
+          "text": "A segunda camada combina memoria, contexto e expectativa."
+        },
+        {
+          "id": 3,
+          "start_sec": 29,
+          "end_sec": 38,
+          "text": "A terceira camada e o que chamamos de foco sustentado."
+        },
+        {
+          "id": 4,
+          "start_sec": 38,
+          "end_sec": 45,
+          "text": "Segredo! Nunca ignore isso."
+        },
+        {
+          "id": 5,
+          "start_sec": 45,
+          "end_sec": 53,
+          "text": "Incroyavel, chocante e absurdo ao mesmo tempo."
+        }
       ],
-      "ideal": [[0, 1, 2, 3]]
+      "ideal": [
+        [
+          0,
+          1,
+          2,
+          3
+        ]
+      ],
+      "approved": [
+        true
+      ]
     },
     {
       "id": "tiktok-punch",
@@ -57,14 +174,190 @@
       "max_sec": 40,
       "count": 4,
       "sentences": [
-        {"id": 0, "start_sec": 0, "end_sec": 6, "text": "Voce esta fazendo isso errado agora!"},
-        {"id": 1, "start_sec": 6, "end_sec": 13, "text": "Nunca poste sem testar o gancho primeiro!"},
-        {"id": 2, "start_sec": 13, "end_sec": 21, "text": "O segredo e chocante e simples!"},
-        {"id": 3, "start_sec": 21, "end_sec": 34, "text": "Nos acompanhamos 120 videos durante 45 dias e registramos cada resultado."},
-        {"id": 4, "start_sec": 34, "end_sec": 47, "text": "A media de retencao subiu de 22 para 61 por cento."},
-        {"id": 5, "start_sec": 47, "end_sec": 60, "text": "O processo completo esta descrito no relatorio final."}
+        {
+          "id": 0,
+          "start_sec": 0,
+          "end_sec": 6,
+          "text": "Voce esta fazendo isso errado agora!"
+        },
+        {
+          "id": 1,
+          "start_sec": 6,
+          "end_sec": 13,
+          "text": "Nunca poste sem testar o gancho primeiro!"
+        },
+        {
+          "id": 2,
+          "start_sec": 13,
+          "end_sec": 21,
+          "text": "O segredo e chocante e simples!"
+        },
+        {
+          "id": 3,
+          "start_sec": 21,
+          "end_sec": 34,
+          "text": "Nos acompanhamos 120 videos durante 45 dias e registramos cada resultado."
+        },
+        {
+          "id": 4,
+          "start_sec": 34,
+          "end_sec": 47,
+          "text": "A media de retencao subiu de 22 para 61 por cento."
+        },
+        {
+          "id": 5,
+          "start_sec": 47,
+          "end_sec": 60,
+          "text": "O processo completo esta descrito no relatorio final."
+        }
       ],
-      "ideal": [[0, 1, 2]]
+      "ideal": [
+        [
+          0,
+          1,
+          2
+        ]
+      ],
+      "approved": [
+        true
+      ]
+    },
+    {
+      "id": "multi-speaker",
+      "profile": "podcast",
+      "min_sec": 20,
+      "max_sec": 45,
+      "count": 4,
+      "approved": [
+        true
+      ],
+      "sentences": [
+        {
+          "id": 0,
+          "speaker": 0,
+          "start_sec": 0,
+          "end_sec": 14,
+          "text": "Entrevistador pergunta como comecar um projeto do zero."
+        },
+        {
+          "id": 1,
+          "speaker": 1,
+          "start_sec": 14,
+          "end_sec": 30,
+          "text": "Convidado explica o primeiro passo com clareza e contexto."
+        },
+        {
+          "id": 2,
+          "speaker": 1,
+          "start_sec": 30,
+          "end_sec": 44,
+          "text": "Convidado conclui com o resultado pratico da abordagem."
+        },
+        {
+          "id": 3,
+          "speaker": 0,
+          "start_sec": 44,
+          "end_sec": 58,
+          "text": "Entrevistador agradece e encerra o episodio."
+        }
+      ],
+      "ideal": [
+        [
+          1,
+          2
+        ]
+      ]
+    },
+    {
+      "id": "silence-and-gaps",
+      "profile": "education",
+      "min_sec": 20,
+      "max_sec": 40,
+      "count": 4,
+      "approved": [
+        true
+      ],
+      "sentences": [
+        {
+          "id": 0,
+          "start_sec": 0,
+          "end_sec": 6,
+          "text": "Pausa longa antes de comecar."
+        },
+        {
+          "id": 1,
+          "start_sec": 18,
+          "end_sec": 27,
+          "text": "O metodo tem 3 etapas e 21 dias de duracao."
+        },
+        {
+          "id": 2,
+          "start_sec": 27,
+          "end_sec": 36,
+          "text": "A primeira etapa mede 12 indicadores."
+        },
+        {
+          "id": 3,
+          "start_sec": 50,
+          "end_sec": 58,
+          "text": "Encerramento sem relacao com o metodo."
+        }
+      ],
+      "ideal": [
+        [
+          1,
+          2
+        ]
+      ]
+    },
+    {
+      "id": "scene-change",
+      "profile": "tiktok",
+      "min_sec": 20,
+      "max_sec": 40,
+      "count": 4,
+      "approved": [
+        true
+      ],
+      "sentences": [
+        {
+          "id": 0,
+          "start_sec": 0,
+          "end_sec": 7,
+          "text": "Voce esta perdendo tempo com isso agora!"
+        },
+        {
+          "id": 1,
+          "start_sec": 7,
+          "end_sec": 14,
+          "text": "O segredo e chocante e simples!"
+        },
+        {
+          "id": 2,
+          "start_sec": 14,
+          "end_sec": 22,
+          "text": "Nunca faca isso de novo!"
+        },
+        {
+          "id": 3,
+          "start_sec": 22,
+          "end_sec": 37,
+          "text": "Nos medimos 200 videos e o resultado foi 3 vezes melhor."
+        },
+        {
+          "id": 4,
+          "start_sec": 37,
+          "end_sec": 50,
+          "text": "O relatorio completo esta disponivel."
+        }
+      ],
+      "ideal": [
+        [
+          0,
+          1,
+          2
+        ]
+      ]
     }
   ]
 }
