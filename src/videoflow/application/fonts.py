@@ -115,3 +115,10 @@ def font_family(data: bytes) -> str:
         return best_text
     except (struct.error, UnicodeError) as exc:
         raise FilesystemError(f"Cannot read the font family: {exc}") from exc
+
+
+def delete_fonts(name: str) -> None:
+    target = fonts_dir() / Path(name).name
+    if target.parent != fonts_dir() or not target.is_file():
+        raise FilesystemError(f"Unknown fonts asset: {name}")
+    target.unlink()

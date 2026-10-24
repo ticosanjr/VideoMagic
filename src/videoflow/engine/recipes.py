@@ -776,8 +776,17 @@ _add_recipe(
 _add_recipe(
     "localization_dub",
     "Localization / dub",
-    [_INGEST, _VAD, _TRANSCRIBE, _RETAKES, _TRANSLATE, _TIMELINE],
-    description="Translate the transcript and build the timeline for dubbing.",
+    _shorts(minimum=20, maximum=60, count=3, top_k=3)
+    + [
+        _TRANSLATE,
+        {
+            "id": "dub",
+            "type": "localization.dub",
+            "needs": ["render", "translation"],
+            "params": {"target_language": "en"},
+        },
+    ],
+    description="Translate, render, and dub Shorts into another language.",
 )
 _add_recipe(
     "finishing_pass",

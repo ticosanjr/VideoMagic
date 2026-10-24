@@ -2224,3 +2224,24 @@ export function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);
 }
+
+
+export async function deleteMusicAsset(name: string): Promise<void> {
+  await request(`/api/v1/assets/music/${encodeURIComponent(name)}`, {
+    method: "DELETE"
+  });
+}
+
+
+export async function deleteImageAsset(name: string): Promise<void> {
+  await request(`/api/v1/assets/images/${encodeURIComponent(name)}`, {
+    method: "DELETE"
+  });
+}
+
+
+export async function deleteFontAsset(name: string): Promise<void> {
+  await request(`/api/v1/assets/fonts/${encodeURIComponent(name)}`, {
+    method: "DELETE"
+  });
+}

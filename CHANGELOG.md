@@ -3,6 +3,37 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.0.0] - 2026-10-24
+
+### Added
+
+- **Local automation closure.** Human gate UI, variant comparison, analytics
+  weights in scoring, scheduler job reconciliation, persistent priority queue,
+  restart requeue, and real thumbnail variants.
+- **Media quality.** Real audio onset/beat detection, music and SFX mixing in
+  Shorts, per-Short selection reports, and thumbnail winner selection.
+- **Dubbing in recipes.** `localization.dub` runs translation + TTS dubbing
+  after Short rendering when a TTS provider is configured.
+- **Semantic B-roll matching.** TF-IDF cosine matching over asset names/tags and
+  the clip transcript, replacing keyword overlap.
+- **Library CRUD.** Delete music, image, and font assets from the UI.
+- **SQLite migration.** Existing JSON jobs/assets/batches import into SQLite;
+  schema version 2; WAL; backup and restore.
+- **Plugin step loading.** Local `plugins/<id>` packages with manifests.
+- **Accessibility.** Skip-to-content link and improved labels.
+- 34 built-in recipes.
+- 485 Python tests, 8 media tests, 13 Vitest tests, 19 Playwright tests.
+
+### Notes
+
+- Local-only release: Linux binary + AppImage + SBOM. No GitHub Actions, no
+  distribution, no publishing, no multiuser.
+- Native NLE titles/color/B-roll remain sidecar-based; manual NLE QA still
+  pending.
+- Plugin SDK covers steps; providers/exporters/UI panels are not part of this
+  local release.
+- Full UI i18n and per-clip waveforms remain future work.
+
 ## [1.0.0] - 2026-10-24
 
 ### Added

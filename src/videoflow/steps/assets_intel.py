@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,26 @@ def _overlap(left: str, right: str) -> float:
     if not a or not b:
         return 0.0
     return len(a & b) / len(a | b)
+
+
+def _tfidf_scores(query: str, documents: list[str]) -> list[float]:
+    query_terms = _terms(query)
+    tokenized = [_terms(document) for document in documents]
+    count = len(tokenized)
+    df: dict[str, int] = {}
+    for tokens in tokenized:
+        for token in tokens:
+            df[token] = df.get(token, 0) + 1
+    idf = {token: math.log((count + 1) / (freq + 1)) + 1.0 for token, freq in df.items()}
+    query_vector = {token: idf.get(token, 1.0) for token in query_terms}
+    query_norm = math.sqrt(sum(value * value for value in query_vector.values())) or 1.0
+    scores: list[float] = []
+    for tokens in tokenized:
+        doc_vector = {token: idf.get(token, 1.0) for token in tokens}
+        doc_norm = math.sqrt(sum(value * value for value in doc_vector.values())) or 1.0
+        dot = sum(query_vector.get(token, 0.0) * value for token, value in doc_vector.items())
+        scores.append(dot / (query_norm * doc_norm))
+    return scores
 
 
 class ShotsParams(BaseModel):
@@ -117,20 +138,19 @@ class AssetMatchStep(BaseStep):
             if item.get("kind") in {"video", "image"}
         ]
         plan: dict[str, list[dict[str, Any]]] = {}
+        documents = [
+            f"{asset.get('name', '')} {' '.join(asset.get('tags', []))}"
+            for asset in assets
+        ]
+        sentence_map = {sentence.id: sentence.text for sentence in context.transcript}
         for clip in context.selected_shorts:
-            text = f"{clip.title} {options.query}".strip()
+            transcript_text = " ".join(
+                sentence_map.get(sentence_id, "") for sentence_id in clip.sentence_ids
+            )
+            text = f"{clip.title} {transcript_text} {options.query}".strip()
+            scores = _tfidf_scores(text, documents)
             ranked = sorted(
-                (
-                    (
-                        _overlap(
-                            text,
-                            f"{asset.get('name', '')} "
-                            f"{' '.join(asset.get('tags', []))}",
-                        ),
-                        asset,
-                    )
-                    for asset in assets
-                ),
+                zip(scores, assets, strict=False),
                 key=lambda item: item[0],
                 reverse=True,
             )

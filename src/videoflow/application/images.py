@@ -51,3 +51,10 @@ def save_image(filename: str, data: bytes) -> dict[str, object]:
         "size_bytes": len(data),
         "sha256": digest,
     }
+
+
+def delete_images(name: str) -> None:
+    target = images_dir() / Path(name).name
+    if target.parent != images_dir() or not target.is_file():
+        raise FilesystemError(f"Unknown images asset: {name}")
+    target.unlink()

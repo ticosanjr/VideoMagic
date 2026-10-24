@@ -77,3 +77,10 @@ def music_filter(
         music
         + ";[0:a][music]amix=inputs=2:duration=first:dropout_transition=2[a]"
     )
+
+
+def delete_music(name: str) -> None:
+    target = music_dir() / Path(name).name
+    if target.parent != music_dir() or not target.is_file():
+        raise FilesystemError(f"Unknown music asset: {name}")
+    target.unlink()

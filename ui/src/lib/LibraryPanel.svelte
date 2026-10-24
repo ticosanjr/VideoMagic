@@ -5,6 +5,9 @@
     applyBrandTemplate,
     applyProjectTemplate,
     deleteBrandTemplate,
+    deleteFontAsset,
+    deleteImageAsset,
+    deleteMusicAsset,
     deleteProjectTemplate,
     errorMessage,
     getBrandTemplates,
@@ -120,6 +123,18 @@
     }
   }
 
+  async function removeMedia(name: string, kind: "music" | "image" | "font") {
+    if (!confirm(`Delete ${name}?`)) return;
+    try {
+      if (kind === "music") await deleteMusicAsset(name);
+      else if (kind === "image") await deleteImageAsset(name);
+      else await deleteFontAsset(name);
+      await load();
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
   async function upload(file: File | undefined, kind: "music" | "image" | "font") {
     if (!file) return;
     try {
@@ -213,17 +228,17 @@
         <div>
           <p class="text-[10px] uppercase tracking-wide text-neutral-500">Music ({music.length})</p>
           <input type="file" accept="audio/*" onchange={(event) => void upload(event.currentTarget.files?.[0], "music")} class="mt-1 block text-[10px] text-neutral-400" />
-          <div class="mt-1 space-y-0.5">{#each music as item}<p class="truncate font-mono text-[9px] text-neutral-500">{item.name}</p>{/each}</div>
+          <div class="mt-1 space-y-0.5">{#each music as item}<div class="flex items-center gap-1"><p class="min-w-0 flex-1 truncate font-mono text-[9px] text-neutral-500">{item.name}</p><button type="button" onclick={() => void removeMedia(item.name, "music")} class="text-[9px] text-rose-300">×</button></div>{/each}</div>
         </div>
         <div>
           <p class="text-[10px] uppercase tracking-wide text-neutral-500">Images ({images.length})</p>
           <input type="file" accept="image/*" onchange={(event) => void upload(event.currentTarget.files?.[0], "image")} class="mt-1 block text-[10px] text-neutral-400" />
-          <div class="mt-1 space-y-0.5">{#each images as item}<p class="truncate font-mono text-[9px] text-neutral-500">{item.name}</p>{/each}</div>
+          <div class="mt-1 space-y-0.5">{#each images as item}<div class="flex items-center gap-1"><p class="min-w-0 flex-1 truncate font-mono text-[9px] text-neutral-500">{item.name}</p><button type="button" onclick={() => void removeMedia(item.name, "image")} class="text-[9px] text-rose-300">×</button></div>{/each}</div>
         </div>
         <div>
           <p class="text-[10px] uppercase tracking-wide text-neutral-500">Fonts ({fonts.length})</p>
           <input type="file" accept=".ttf,.otf" onchange={(event) => void upload(event.currentTarget.files?.[0], "font")} class="mt-1 block text-[10px] text-neutral-400" />
-          <div class="mt-1 space-y-0.5">{#each fonts as item}<p class="truncate font-mono text-[9px] text-neutral-500">{item.family} · {item.file}</p>{/each}</div>
+          <div class="mt-1 space-y-0.5">{#each fonts as item}<div class="flex items-center gap-1"><p class="min-w-0 flex-1 truncate font-mono text-[9px] text-neutral-500">{item.family} · {item.file}</p><button type="button" onclick={() => void removeMedia(item.name, "font")} class="text-[9px] text-rose-300">×</button></div>{/each}</div>
         </div>
       </div>
     </section>

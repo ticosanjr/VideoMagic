@@ -47,6 +47,14 @@ def _kind(suffix: str) -> str:
 
 def _read() -> list[dict[str, Any]]:
     try:
+        from videoflow.application.database import list_assets_db
+
+        stored = list_assets_db()
+        if stored:
+            return stored
+    except Exception:
+        pass
+    try:
         payload = json.loads(index_path().read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return []

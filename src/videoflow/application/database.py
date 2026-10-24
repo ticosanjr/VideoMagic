@@ -221,3 +221,44 @@ def restore(source: Path) -> dict[str, object]:
             target.write_text(payload.decode("utf-8"), encoding="utf-8")
             restored.append(name)
     return {"ok": True, "restored": restored}
+
+
+def migrate_home() -> dict[str, object]:
+    """Import existing JSON stores into SQLite and stamp the schema version."""
+
+    imported = {"jobs": 0, "assets": 0, "batches": 0}
+    jobs_dir = portable_home() / "jobs"
+    if jobs_dir.is_dir():
+        for path in jobs_dir.glob("*.json"):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                upsert_job(str(payload.get("job_id") or path.stem), payload)
+                imported["jobs"] += 1
+            except (OSError, ValueError):
+                continue
+    asset_file = portable_home() / "assets.json"
+    if asset_file.is_file() and not list_assets_db():
+        try:
+            payload = json.loads(asset_file.read_text(encoding="utf-8"))
+            for asset in payload.get("assets", []):
+                if isinstance(asset, dict) and asset.get("id"):
+                    upsert_asset(str(asset["id"]), asset)
+                    imported["assets"] += 1
+        except (OSError, ValueError):
+            pass
+    batches_dir = portable_home() / "batches"
+    if batches_dir.is_dir():
+        for path in batches_dir.glob("*.json"):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                upsert_batch(str(payload.get("batch_id") or path.stem), payload)
+                imported["batches"] += 1
+            except (OSError, ValueError):
+                continue
+    if db_path().is_file() or any(imported.values()):
+        with contextlib.closing(connect()) as connection:
+            connection.execute(
+                "INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', '2')"
+            )
+            connection.commit()
+    return {"ok": True, "imported": imported, "schema_version": 2}

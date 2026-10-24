@@ -411,3 +411,21 @@ def test_database_backup_restore_roundtrip(monkeypatch, tmp_path: Path) -> None:
     restored = database.restore(archive)
     assert restored["ok"] is True
     assert database.metrics()["total_jobs"] == 1
+
+
+def test_dubbing_step_skips_without_provider(monkeypatch, tmp_path: Path) -> None:
+    from videoflow.steps.base import StepIO
+    from videoflow.steps.dubbing import DubbingParams, DubbingStep
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
+
+    class Context:
+        output = tmp_path
+        shorts = [{"title": "One"}]
+        warnings: list[str] = []
+        artifacts: dict[str, str] = {}
+        metadata: dict[str, object] = {}
+
+    context = Context()
+    DubbingStep().run(context, DubbingParams(), StepIO(stage="dub"))
+    assert "dubbed_shorts" not in context.metadata

@@ -5,12 +5,11 @@ the manifest, checksums, and notes are tracked. GitHub Actions is not used.
 
 ## Current
 
-- `v1.0.0`: local-first stable release with recipe variables, variants,
-  map/reduce, human gates, Shorts scoring, assets, delivery, SQLite index,
-  plugins, diagnostics, and backup/restore.
+- `v2.0.0`: local-only feature-complete edition with gates, queue, variants,
+  analytics-weighted scoring, dubbing, TF-IDF B-roll, library CRUD, SQLite
+  migration, backup/restore, and plugins.
+- `v1.0.0`: local-first stable release.
 - `v0.95.0`: local-first release candidate.
-- `v0.86.0`: Settings Hub, expanded models, managed services, library,
-  diagnostics, and support bundle.
 
 ## Verification
 
@@ -23,7 +22,7 @@ sha256sum -c SHA256SUMS
 The Linux AppImage can be checked without installing:
 
 ```bash
-chmod +x VideoFlow-1.0.0-x86_64.AppImage
-./VideoFlow-1.0.0-x86_64.AppImage version
-./VideoFlow-1.0.0-x86_64.AppImage serve --open
+chmod +x VideoFlow-2.0.0-x86_64.AppImage
+./VideoFlow-2.0.0-x86_64.AppImage version
+./VideoFlow-2.0.0-x86_64.AppImage serve --open
 ```

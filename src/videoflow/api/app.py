@@ -14,6 +14,7 @@ from starlette.responses import RedirectResponse, Response
 
 from videoflow import __version__
 from videoflow.api.routes import register_routes
+from videoflow.application.database import migrate_home
 from videoflow.application.jobs import JobManager
 from videoflow.application.plugins import load_plugins
 from videoflow.application.publishing import start_scheduler, stop_scheduler
@@ -45,6 +46,7 @@ def create_app(
     """
 
     settings = load_settings()
+    migrate_home()
     if os.environ.get("VIDEOWFLOW_PLUGINS", "1") != "0":
         load_plugins()
     manager = jobs or JobManager(

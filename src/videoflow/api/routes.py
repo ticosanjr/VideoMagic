@@ -62,8 +62,8 @@ from videoflow.application.deliverables import (
 )
 from videoflow.application.dubbing import generate_short_dubbing
 from videoflow.application.filesystem import create_directory, list_directory, roots_payload
-from videoflow.application.fonts import list_fonts, save_font
-from videoflow.application.images import list_images, save_image
+from videoflow.application.fonts import delete_fonts, list_fonts, save_font
+from videoflow.application.images import delete_images, list_images, save_image
 from videoflow.application.jobs import TERMINAL, Job, JobManager
 from videoflow.application.model_downloads import downloads as model_downloads
 from videoflow.application.models import (
@@ -75,7 +75,7 @@ from videoflow.application.models import (
 )
 from videoflow.application.multimodal import analyze_short_entry
 from videoflow.application.multimodal_llm import analyze_short_llm_entry
-from videoflow.application.music import list_music, save_music
+from videoflow.application.music import delete_music, list_music, save_music
 from videoflow.application.nle_validation import validate_nle_exports
 from videoflow.application.plugins import (
     list_plugins,
@@ -723,6 +723,33 @@ def register_routes(
                 detail={"ok": False, "code": "image_invalid", "message": str(exc)},
             ) from exc
         return {"ok": True, "image": asset}
+
+    @app.delete("/api/v1/assets/music/{name}")
+    def remove_music(name: str) -> dict[str, object]:
+        try:
+            delete_music(name)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "deleted": name}
+
+    @app.delete("/api/v1/assets/images/{name}")
+    def remove_image(name: str) -> dict[str, object]:
+        try:
+            delete_images(name)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "deleted": name}
+
+    @app.delete("/api/v1/assets/fonts/{name}")
+    def remove_font(name: str) -> dict[str, object]:
+        try:
+            delete_fonts(name)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "deleted": name}
 
     @app.get("/api/v1/assets/fonts")
     def fonts() -> dict[str, object]:

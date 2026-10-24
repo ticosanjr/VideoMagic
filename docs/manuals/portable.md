@@ -408,7 +408,7 @@ typed install hint.
 
 ```bash
 uv run python scripts/build_appimage.py
-./dist/VideoFlow-1.0.0-x86_64.AppImage version
+./dist/VideoFlow-2.0.0-x86_64.AppImage version
 ```
 
 The AppImage wraps the same onefile binary. Opening it with no arguments starts

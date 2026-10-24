@@ -119,7 +119,7 @@ uv run videoflow-api
 curl -s http://127.0.0.1:8765/health
 ```
 
-Expect `{"status":"ok","service":"videoflow","version":"1.0.0"}`.
+Expect `{"status":"ok","service":"videoflow","version":"2.0.0"}`.
 
 ## 9. AppImage contract
 
