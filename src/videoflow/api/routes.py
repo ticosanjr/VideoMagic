@@ -223,6 +223,7 @@ class OverrideRequest(BaseModel):
 class NewJobRequest(BaseModel):
     source: str = Field(min_length=1)
     output: str = Field(min_length=1)
+    idempotency_key: str | None = None
     noise_db: float = Field(default=-30.0, ge=-80.0, le=-5.0)
     min_silence_ms: int = Field(default=400, ge=0, le=10000)
     min_speech_ms: int = Field(default=100, ge=0, le=2000)
@@ -389,6 +390,7 @@ class RecipeRunRequest(BaseModel):
     resume: bool = True
     variables: dict[str, Any] = Field(default_factory=dict)
     profile: str | None = None
+    idempotency_key: str | None = None
 
     @model_validator(mode="after")
     def exactly_one_recipe(self) -> RecipeRunRequest:
@@ -691,6 +693,7 @@ def register_routes(
                 "profile": request.profile,
             },
             queue=True,
+            idempotency_key=request.idempotency_key,
         )
         return {"ok": True, "job": job.to_dict()}
 
@@ -1368,7 +1371,13 @@ def register_routes(
                 options.update(get_project_template(request.project_template).options)
             if request.brand_template:
                 options = apply_brand_options(options, request.brand_template)
-            job = jobs.start(source, output, options=options, queue=True)
+            job = jobs.start(
+                source,
+                output,
+                options=options,
+                queue=True,
+                idempotency_key=request.idempotency_key,
+            )
         except VideoFlowError as exc:
             raise HTTPException(status_code=status_for(exc.code), detail=exc.to_dict()) from exc
         return {"ok": True, "job": job.to_dict()}
@@ -1557,6 +1566,23 @@ def register_routes(
             return {"ok": True, "job": jobs.cancel(job_id).to_dict()}
         except VideoFlowError as exc:
             raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
+
+    @app.post("/api/v1/jobs/{job_id}/retry", status_code=202)
+    def retry_job(job_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            if job.status not in {"failed", "cancelled"}:
+                raise StateNotReadyError("Only failed or cancelled jobs can be retried.")
+            retried = jobs.start(
+                job.source,
+                job.output,
+                {**job.options, "resume": True},
+                queue=True,
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "job": retried.to_dict()}
 
     @app.post("/api/v1/jobs/{job_id}/resume", status_code=202)
     def resume_job(job_id: str, request: ResumeRequest) -> dict[str, object]:

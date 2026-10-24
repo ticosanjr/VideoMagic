@@ -3,6 +3,38 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.1.0] - 2026-10-24
+
+### Added
+
+- **Professional shell.** Command palette (`Ctrl/Cmd+K`), keyboard shortcut
+  reference (`?`), activity drawer (`U`), notification center (`N`), and
+  `g`-prefixed tab jumps.
+- **Job dashboard.** New Jobs tab with status buckets, text search, progress,
+  next-action guidance, inline errors, guarded cancel, and retry.
+- **Retry endpoint.** `POST /api/v1/jobs/{job_id}/retry` re-enqueues failed or
+  cancelled jobs with the original source, output, and options.
+- **Operational feedback.** Persistent errors and warnings, action buttons on
+  notices, and shell-level error/success reporting.
+- 12 Vitest tests and 8 Playwright tests for the new shell.
+
+### Changed
+
+- **Real cancellation.** `FFmpegAdapter` runs FFmpeg with `Popen`, polls for
+  cancellation, and terminates the whole process group on cancel or timeout.
+  Render and preview queues now pass a cancel event, remove partial output, and
+  report `cancelled` without leaking processes or files.
+- **SQLite is the operational store.** Jobs, assets, and batches load from
+  SQLite first and JSON second; interrupted jobs are requeued on startup; reads
+  no longer create the home folder as a side effect.
+- Version bumped to 2.1.0 for the server and UI bundle.
+
+### Notes
+
+- Local-only development build. No release artifact was produced for 2.1.0.
+- `ProjectState` remains the timeline source of truth; SQLite holds operational
+  state for jobs, assets, and batches, with JSON kept for interchange.
+
 ## [2.0.0] - 2026-10-24
 
 ### Added

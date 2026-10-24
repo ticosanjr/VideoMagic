@@ -30,7 +30,8 @@ Implemented today:
 - `POST /api/v1/config/export`, `POST /api/v1/config/import`
 - Short thumbnail generation and download
 - `POST /api/v1/jobs`, `GET /api/v1/jobs`, `GET /api/v1/jobs/{id}`,
-  `POST /api/v1/jobs/{id}/cancel`, `GET /api/v1/jobs/{id}/events`
+  `POST /api/v1/jobs/{id}/cancel`, `POST /api/v1/jobs/{id}/retry`,
+  `GET /api/v1/jobs/{id}/events`
 - `GET /api/v1/presets`, `GET /api/v1/presets/{name}`,
   `PUT /api/v1/presets/{name}`
 - `GET /mcp/` (MCP Streamable HTTP) and `GET /` (recipe studio UI when built)
@@ -461,6 +462,12 @@ Response `202`:
 The default concurrency is two active jobs per process. A third start returns
 `429 job_queue_full`.
 
+Both `POST /api/v1/jobs` and `POST /api/v1/recipes/run` accept an optional
+`idempotency_key`. While a job with that key is queued, running, or waiting for
+approval, a second request returns the same job instead of creating another
+one. Once the job reaches a terminal status the key is free again. Use it for
+automation and watch folders so a retried request cannot duplicate work.
+
 ### List and read
 
 ```http
@@ -476,9 +483,25 @@ GET /api/v1/jobs/{job_id}
 POST /api/v1/jobs/{job_id}/cancel
 ```
 
-Cancellation is cooperative. The worker stops between probe, extraction, VAD,
-timeline, export, and state stages. A running FFmpeg process is not killed
-mid-stage.
+Cancellation is cooperative between stages and immediate inside a stage: the
+render and preview adapters pass a cancel event to FFmpeg, which runs in its own
+process group. On cancel or timeout the adapter sends `SIGTERM`, waits one
+second, then sends `SIGKILL`, and the queue removes the partial file. A
+`kill -9` of the service leaves no orphaned FFmpeg process.
+
+### Retry
+
+```http
+POST /api/v1/jobs/{job_id}/retry
+```
+
+Accepts `failed` and `cancelled` jobs. It re-enqueues the original source,
+output, and options with `resume: true` and returns `202` with the new job.
+Any other status returns `409 state_not_ready`; an unknown id returns `404`.
+
+```json
+{ "ok": true, "job": { "job_id": "…", "status": "queued", "options": { "resume": true } } }
+```
 
 ### Logs
 

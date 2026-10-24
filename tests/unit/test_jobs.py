@@ -223,3 +223,22 @@ def test_job_forwards_detailed_zoom_shorts_and_caption_config(tmp_path: Path) ->
     assert config.caption_style.background_opacity == 0.4
     assert config.caption_style.position_y == 0.7
     assert config.caption_style.word_timing == "proportional"
+
+
+def test_idempotency_key_reuses_an_active_job(tmp_path: Path) -> None:
+    release = threading.Event()
+
+    def runner(source: Path, output: Path, *, progress, should_cancel, **kwargs):
+        release.wait(timeout=3.0)
+        return {"ok": True}
+
+    manager = JobManager(runner)
+    source = tmp_path / "source.mp4"
+    output = tmp_path / "out"
+    first = manager.start(source, output, idempotency_key="run-1", queue=True)
+    second = manager.start(source, output, idempotency_key="run-1", queue=True)
+    third = manager.start(source, output, idempotency_key="run-2", queue=True)
+
+    assert second.job_id == first.job_id
+    assert third.job_id != first.job_id
+    release.set()

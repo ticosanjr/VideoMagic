@@ -75,7 +75,10 @@ Rules:
 | `runtime.py` | Portable home, bundled binary discovery, UI discovery |
 | `cli.py` | Unified `videoflow` command surface |
 | `application/runner.py` | Executes a `RunPlan` (stub) |
-| `application/jobs.py` | In-process jobs with progress, cancel, and bounded concurrency |
+| `application/jobs.py` | In-process jobs with progress, cancel, bounded concurrency, SQLite-first persistence, and restart requeue |
+| `application/database.py` | SQLite WAL operational store for jobs, assets, batches, schedules, and services, with migration, backup, and restore |
+| `application/render_queue.py` | Cancellable MP4 render queue with partial-output cleanup |
+| `application/previews.py` | Cancellable 540p preview/proxy queue |
 | `application/telemetry.py` | Per-stage timestamps, progress, and bounded logs |
 | `modules/` | The eight rack modules (fingerprints live, engines stubbed) |
 | `adapters/ffmpeg.py` | FFprobe ingest, PCM extraction, digest, silencedetect VAD |
@@ -130,6 +133,9 @@ hashes change, which is correct: the pipeline is now different.
 ```
 
 - The JSON document is the contract; the Pydantic model mirrors it.
+- Operational records (jobs, assets, batches, schedules, services) live in
+  `videoflow.db` under the VideoFlow home. SQLite is read first; JSON files are
+  an interchange mirror and a migration source.
 - Writes are atomic: write a sibling temp file, fsync, replace.
 - Revisions are append-only snapshots. There is no silent undo.
 - The lock is an OS advisory lock. It serialises jobs, not readers.

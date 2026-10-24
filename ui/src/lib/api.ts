@@ -2111,6 +2111,13 @@ export async function listJobs(): Promise<Job[]> {
   return response.jobs;
 }
 
+export async function retryJob(jobId: string): Promise<Job> {
+  const response = await request<{ ok: boolean; job: Job }>(`/api/v1/jobs/${jobId}/retry`, {
+    method: "POST"
+  });
+  return response.job;
+}
+
 export async function cancelJob(jobId: string): Promise<Job> {
   const response = await request<{ ok: boolean; job: Job }>(`/api/v1/jobs/${jobId}/cancel`, {
     method: "POST"

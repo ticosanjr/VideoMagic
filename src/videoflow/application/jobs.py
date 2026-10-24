@@ -80,6 +80,7 @@ class Job:
     finished_at: str | None = None
     telemetry: JobTelemetry = field(default_factory=JobTelemetry)
     step_progress: dict[str, int] = field(default_factory=dict)
+    idempotency_key: str = ""
     finalizer: Callable[[Job], None] | None = field(default=None, repr=False)
 
     def to_dict(self) -> dict[str, Any]:
@@ -99,6 +100,7 @@ class Job:
             "finished_at": self.finished_at,
             "duration_ms": _duration_ms(self.started_at, self.finished_at),
             "step_progress": dict(self.step_progress),
+            "idempotency_key": self.idempotency_key,
             "log_count": self.telemetry.log_count(),
             "stages": self.telemetry.stages(),
         }
@@ -241,9 +243,15 @@ class JobManager:
         finalizer: Callable[[Job], None] | None = None,
         queue: bool = False,
         priority: int = 0,
+        idempotency_key: str | None = None,
     ) -> Job:
+        key = (idempotency_key or "").strip()
         with self._lock:
             self._prune()
+            if key:
+                for existing in self._jobs.values():
+                    if existing.idempotency_key == key and existing.status not in TERMINAL:
+                        return existing
             active = sum(
                 1 for job in self._jobs.values() if job.status in {"running", "queued"}
             )
@@ -257,6 +265,7 @@ class JobManager:
                 options=dict(options or {}),
                 finalizer=finalizer,
                 priority=priority,
+                idempotency_key=key,
             )
             self._jobs[str(job.job_id)] = job
             if active >= self._max_active:
@@ -884,6 +893,7 @@ def _job_from_dict(payload: dict[str, Any]) -> Job:
         for key, value in (payload.get("step_progress") or {}).items()
         if isinstance(value, (int, float))
     }
+    job.idempotency_key = str(payload.get("idempotency_key") or "")
     return job
 
 

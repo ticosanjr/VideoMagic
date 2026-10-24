@@ -6,7 +6,7 @@ recording into an editable timeline: it removes silence and retakes, adds
 J-cuts and punch-ins, proposes vertical Shorts, masters the dialogue bed, and
 exports timelines for DaVinci Resolve, Adobe Premiere Pro, and Kdenlive.
 
-> Status: 2.0.0 local stable. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
+> Status: 2.1.0 local development. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical Shorts,
 > audio mastering and loudness QA, burned titles, color/LUT grading, analytics
@@ -19,8 +19,8 @@ exports timelines for DaVinci Resolve, Adobe Premiere Pro, and Kdenlive.
 > snapping, waveform, background preview and render queues, and per-clip
 > transitions, fades, and scale. Projects persist atomic, revisioned JSON state
 > under `.videoflow/`; schedules, service definitions, and job/asset indices use
-> SQLite; settings, providers, secrets, models, plugins, and diagnostics are
-> configurable locally.
+> SQLite as the operational store for jobs, assets, and batches; settings,
+> providers, secrets, models, plugins, and diagnostics are configurable locally.
 
 ## Requirements
 
@@ -52,7 +52,7 @@ The same contract is available at `POST /api/v1/recipes/run` and through
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 485 passing, 1 strict xfail, 9 deselected
+uv run pytest                       # 500 passing, 1 strict xfail, 10 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model
@@ -117,6 +117,12 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - FFprobe ingest: rational frame rate, duration in frames, dimensions, sample
   rate; missing audio or unreadable files fail with a typed error.
 - Mono PCM extraction and SHA-256 media fingerprint.
+- Professional shell: command palette (`Ctrl/Cmd+K`), shortcut reference,
+  activity drawer, notification center, and g-prefixed tab jumps.
+- Job dashboard with status buckets, search, progress, next-action guidance,
+  guarded cancel, and retry.
+- Real cancellation: FFmpeg runs in its own process group and is terminated on
+  cancel or timeout, with partial output removed.
 - Silero VAD v5.1.2 through ONNX Runtime, with 16 kHz inference, exact
   sample-rate rescaling, configurable threshold, and pads. FFmpeg
   `silencedetect` is the automatic fallback.

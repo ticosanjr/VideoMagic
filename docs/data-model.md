@@ -210,3 +210,35 @@ agents.
 Any breaking state change increments `schema_version` and adds a migration. The
 runner refuses to open a document with a newer version than it knows. Additive
 changes with defaults do not require a version bump.
+
+## 8. Operational store
+
+`videoflow.db` (SQLite, WAL) is the operational store under the VideoFlow home:
+
+| Table | Key | Payload |
+| --- | --- | --- |
+| `jobs` | `job_id` | Full job record, including status, stage, progress, options, result, and error |
+| `assets` | `asset_id` | Asset record used by the library and timeline |
+| `batches` | `batch_id` | Batch record with items and status |
+| `meta` | `key` | `schema_version` and bookkeeping values |
+
+`services` and `schedules` are created on demand by their own modules.
+
+Rules:
+
+1. Writes go to SQLite before the JSON mirror. A write failure never corrupts
+   the mirror.
+2. Reads prefer SQLite; JSON fills ids that are missing from the database, so an
+   older home keeps working during migration.
+3. On startup, jobs found in `queued` or `running` are re-queued as `queued`
+   with `Requeued after service restart`. No partial result is reported as
+   success.
+4. Read helpers return an empty list when the database file does not exist and
+   never create the home folder as a side effect.
+5. `migrate_home()` imports `jobs/*.json`, `assets.json`, and `batches/*.json`
+   and stamps `schema_version=2`.
+6. `backup()` writes a consistent archive; `restore()` validates it before
+   replacing the database.
+
+The timeline document (`ProjectState`) is still the canonical edit state. SQLite
+does not store the timeline.

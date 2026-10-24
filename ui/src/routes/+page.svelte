@@ -1,26 +1,35 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import AssetsPanel from "$lib/AssetsPanel.svelte";
+  import ActivityDrawer from "$lib/ActivityDrawer.svelte";
   import AutomationPanel from "$lib/AutomationPanel.svelte";
   import CapabilitiesPanel from "$lib/CapabilitiesPanel.svelte";
+  import CommandPalette from "$lib/CommandPalette.svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
+  import JobsPanel from "$lib/JobsPanel.svelte";
   import LibraryPanel from "$lib/LibraryPanel.svelte";
   import ModelsPanel from "$lib/ModelsPanel.svelte";
+  import NotificationCenter from "$lib/NotificationCenter.svelte";
   import RecipesPanel from "$lib/RecipesPanel.svelte";
   import ServicesPanel from "$lib/ServicesPanel.svelte";
   import SettingsPanel from "$lib/SettingsPanel.svelte";
+  import ShortcutsModal from "$lib/ShortcutsModal.svelte";
   import TimelinePanel from "$lib/TimelinePanel.svelte";
-  import { errorMessage, getSettings, getSystem, restartService, stopService, type SystemInfo } from "$lib/api";
+  import { errorMessage, getSettings, getSystem, listJobs, restartService, retryJob, stopService, type Job, type SystemInfo } from "$lib/api";
+  import type { Command } from "$lib/commandPalette";
   import { t } from "$lib/i18n";
+  import { noticeCounts } from "$lib/notifications";
+  import { notifications } from "$lib/notifications.svelte";
   import { UI_VERSION } from "$lib/version";
   import "../app.css";
 
-  type Tab = "recipes" | "assets" | "timeline" | "automation" | "library" | "models" | "services" | "providers" | "settings";
+  type Tab = "recipes" | "assets" | "timeline" | "jobs" | "automation" | "library" | "models" | "services" | "providers" | "settings";
 
   const TABS: { id: Tab; label: string; hint: string }[] = [
     { id: "recipes", label: "Recipes", hint: "Visual recipe builder and runner" },
     { id: "assets", label: "Assets", hint: "Local media, audio, images, fonts, tags, and licenses" },
     { id: "timeline", label: "Timeline", hint: "Canvas timeline with preview, trim, split, and undo" },
+    { id: "jobs", label: "Jobs", hint: "Queue, progress, approvals, and failures" },
     { id: "automation", label: "Automation", hint: "Schedules and watch folders for recipes" },
     { id: "library", label: "Library", hint: "Brand templates, presets, fonts, images, and music" },
     { id: "models", label: "Models", hint: "Optional on-demand speech and vision models" },
@@ -29,6 +38,19 @@
     { id: "settings", label: "Settings", hint: "Local runtime, paths, models, speech, TTS, and quality" }
   ];
 
+  const TAB_KEYS: Record<string, Tab> = {
+    r: "recipes",
+    a: "assets",
+    t: "timeline",
+    j: "jobs",
+    u: "automation",
+    l: "library",
+    m: "models",
+    v: "services",
+    p: "providers",
+    s: "settings"
+  };
+
   let system = $state<SystemInfo | null>(null);
   let activeTab = $state<Tab>("recipes");
   let connecting = $state(true);
@@ -36,11 +58,149 @@
   let serviceStopped = $state(false);
   let serviceBusy = $state<"" | "restart" | "stop">("");
   let serviceError = $state("");
-  let toast = $state<{ kind: "success" | "error"; message: string } | null>(null);
-  let toastTimer: ReturnType<typeof setTimeout> | undefined;
   let allowExternal = $state(false);
   let locale = $state("en");
   let allowedHosts = $state("");
+  let paletteOpen = $state(false);
+  let shortcutsOpen = $state(false);
+  let activityOpen = $state(false);
+  let noticesOpen = $state(false);
+  let jobs = $state<Job[]>([]);
+  let gPending = 0;
+  let jobsTimer: ReturnType<typeof setInterval> | undefined;
+
+  const counts = $derived(noticeCounts(notifications.items));
+  const attentionJobs = $derived(
+    jobs.filter((job) => ["waiting_approval", "failed"].includes(job.status))
+  );
+
+  const commands = $derived<Command[]>([
+    ...TABS.map((tab) => ({
+      id: `tab:${tab.id}`,
+      title: `Open ${tab.label}`,
+      group: "Navigate",
+      hint: tab.hint,
+      keywords: `go ${tab.id}`
+    })),
+    { id: "action:notices", title: "Open notifications", group: "View", keywords: "alerts errors", shortcut: "N" },
+    { id: "action:activity", title: "Open activity drawer", group: "View", keywords: "running queue", shortcut: "U" },
+    { id: "action:shortcuts", title: "Show keyboard shortcuts", group: "Help", keywords: "keys help", shortcut: "?" },
+    { id: "action:refresh", title: "Refresh jobs", group: "Jobs", keywords: "reload queue" },
+    {
+      id: "action:support",
+      title: "Download the support bundle",
+      group: "Maintain",
+      keywords: "diagnostics logs export",
+      hint: "Redacted diagnostics for local debugging"
+    },
+    ...jobs
+      .filter((job) => ["running", "queued"].includes(job.status))
+      .map((job) => ({
+        id: `cancel:${job.job_id}`,
+        title: `Cancel job ${job.job_id.slice(0, 8)}`,
+        group: "Jobs",
+        hint: job.message || job.stage,
+        keywords: "stop abort"
+      })),
+    ...jobs
+      .filter((job) => ["failed", "cancelled"].includes(job.status))
+      .map((job) => ({
+        id: `retry:${job.job_id}`,
+        title: `Retry job ${job.job_id.slice(0, 8)}`,
+        group: "Jobs",
+        hint: job.message || job.stage,
+        keywords: "again reenqueue"
+      }))
+  ]);
+
+  function notify(kind: "info" | "success" | "warning" | "error", message: string, title = message) {
+    notifications.push({ kind, title, message: title === message ? "" : message });
+  }
+
+  function onNoticeAction(actionId: string) {
+    if (actionId.startsWith("tab:")) {
+      selectTab(actionId.slice(4) as Tab);
+      noticesOpen = false;
+    } else if (actionId.startsWith("job:")) {
+      selectTab("jobs");
+      noticesOpen = false;
+    }
+  }
+
+  async function refreshJobs() {
+    try {
+      jobs = await listJobs();
+    } catch {
+      // The activity drawer and palette keep the last known snapshot.
+    }
+  }
+
+  function runCommand(command: Command) {
+    paletteOpen = false;
+    if (command.id.startsWith("tab:")) {
+      selectTab(command.id.slice(4) as Tab);
+      return;
+    }
+    if (command.id === "action:notices") noticesOpen = true;
+    else if (command.id === "action:activity") activityOpen = true;
+    else if (command.id === "action:shortcuts") shortcutsOpen = true;
+    else if (command.id === "action:refresh") void refreshJobs();
+    else if (command.id === "action:support") window.open("/api/v1/system/support-bundle", "_blank");
+    else if (command.id.startsWith("retry:")) {
+      const jobId = command.id.slice(6);
+      void retryJob(jobId)
+        .then(() => {
+          notify("success", "Job retried.", "Job retried");
+          return refreshJobs();
+        })
+        .catch((reason) => notify("error", errorMessage(reason), "Could not retry the job"));
+    }
+  }
+
+  function onGlobalKey(event: KeyboardEvent) {
+    const target = event.target as HTMLElement | null;
+    const typing = target
+      ? ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable
+      : false;
+    const modifier = event.ctrlKey || event.metaKey;
+
+    if (modifier && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      paletteOpen = !paletteOpen;
+      return;
+    }
+    if (event.key === "Escape") {
+      paletteOpen = false;
+      shortcutsOpen = false;
+      activityOpen = false;
+      noticesOpen = false;
+      return;
+    }
+    if (typing || modifier || event.altKey) return;
+
+    if (event.key === "?") {
+      event.preventDefault();
+      shortcutsOpen = true;
+      return;
+    }
+    if (event.key.toLowerCase() === "n") {
+      noticesOpen = !noticesOpen;
+      return;
+    }
+    if (event.key.toLowerCase() === "u") {
+      activityOpen = !activityOpen;
+      return;
+    }
+    if (event.key.toLowerCase() === "g") {
+      gPending = Date.now();
+      return;
+    }
+    const tab = TAB_KEYS[event.key.toLowerCase()];
+    if (tab && Date.now() - gPending < 1200) {
+      gPending = 0;
+      selectTab(tab);
+    }
+  }
 
   async function connectToService() {
     connecting = true;
@@ -59,12 +219,6 @@
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
     }
-  }
-
-  function notify(kind: "success" | "error", message: string) {
-    clearTimeout(toastTimer);
-    toast = { kind, message };
-    toastTimer = setTimeout(() => (toast = null), 3200);
   }
 
   async function restartLocalService() {
@@ -127,7 +281,10 @@
   onMount(() => {
     syncHash();
     window.addEventListener("hashchange", syncHash);
+    window.addEventListener("keydown", onGlobalKey);
     void connectToService();
+    void refreshJobs();
+    jobsTimer = setInterval(() => void refreshJobs(), 8000);
     void getSettings()
       .then(({ settings }) => {
         locale = settings.runtime.locale || "en";
@@ -137,7 +294,8 @@
       .catch(() => {});
     return () => {
       window.removeEventListener("hashchange", syncHash);
-      clearTimeout(toastTimer);
+      window.removeEventListener("keydown", onGlobalKey);
+      clearInterval(jobsTimer);
     };
   });
 </script>
@@ -170,6 +328,41 @@
         <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-mono text-[11px] text-neutral-400" title="Server version">server {system?.version ?? (connecting ? "connecting…" : "offline")}</span>
         <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-mono text-[11px] text-neutral-500" title="UI bundle version">ui {UI_VERSION}</span>
         <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-500">FFmpeg {system?.ffmpeg ? "ready" : connecting ? "checking…" : "missing"}</span>
+        <button
+          type="button"
+          onclick={() => (activityOpen = true)}
+          class="relative rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300"
+          title="Activity drawer (U)"
+        >
+          Activity
+          {#if jobs.filter((job) => ["running", "queued"].includes(job.status)).length}
+            <span class="ml-1 rounded-full bg-sky-500/20 px-1.5 py-0.5 font-mono text-[10px] text-sky-200">{jobs.filter((job) => ["running", "queued"].includes(job.status)).length}</span>
+          {/if}
+        </button>
+        <button
+          type="button"
+          onclick={() => (noticesOpen = true)}
+          class="relative rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300"
+          title="Notification center (N)"
+        >
+          Notifications
+          {#if counts.errors + counts.warnings + attentionJobs.length}
+            <span class={`ml-1 rounded-full px-1.5 py-0.5 font-mono text-[10px] ${counts.errors ? "bg-rose-500/20 text-rose-200" : "bg-amber-400/20 text-amber-200"}`}>{counts.errors + counts.warnings + attentionJobs.length}</span>
+          {/if}
+        </button>
+        <button
+          type="button"
+          onclick={() => (paletteOpen = true)}
+          class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-mono text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300"
+          title="Command palette (Ctrl/Cmd + K)"
+        >⌘K</button>
+        <button
+          type="button"
+          onclick={() => (shortcutsOpen = true)}
+          class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300"
+          aria-label="Keyboard shortcuts"
+          title="Keyboard shortcuts (?)"
+        >?</button>
         {#if serviceStopped}
           <span class="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-[11px] text-amber-200">Service stopped · close this tab</span>
         {:else}
@@ -242,13 +435,6 @@
       </div>
     {/if}
 
-    {#if toast}
-      <div class={`fixed right-4 top-4 z-[60] flex max-w-sm items-start gap-2 rounded-2xl border px-4 py-3 text-sm shadow-2xl ${toast.kind === "error" ? "border-rose-500/30 bg-rose-950 text-rose-200" : "border-emerald-500/30 bg-emerald-950 text-emerald-200"}`} role="status" aria-live="polite">
-        <span class={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${toast.kind === "error" ? "bg-rose-400" : "bg-emerald-400"}`}></span>
-        <span>{toast.message}</span>
-      </div>
-    {/if}
-
     <div id="workspace-content" class="scroll-mt-24">
       {#if activeTab === "recipes"}
         <RecipesPanel />
@@ -256,6 +442,11 @@
         <AssetsPanel />
       {:else if activeTab === "timeline"}
         <TimelinePanel />
+      {:else if activeTab === "jobs"}
+        <JobsPanel
+          onreview={() => selectTab("recipes")}
+          onopentimeline={() => selectTab("timeline")}
+        />
       {:else if activeTab === "automation"}
         <AutomationPanel />
       {:else if activeTab === "library"}
@@ -277,7 +468,29 @@
     </div>
 
     <footer class="pb-4 text-xs text-neutral-500">
-      <p>Local only. The server binds to 127.0.0.1. JSON project state is the single source of truth.</p>
+      <p>Local only. The server binds to 127.0.0.1. Project state stays the timeline source of truth; SQLite is the operational store for jobs, assets, and batches.</p>
     </footer>
   </div>
 </div>
+
+<ActivityDrawer
+  open={activityOpen}
+  {jobs}
+  onclose={() => (activityOpen = false)}
+  onopenjobs={() => {
+    activityOpen = false;
+    selectTab("jobs");
+  }}
+/>
+<CommandPalette
+  open={paletteOpen}
+  {commands}
+  onrun={runCommand}
+  onclose={() => (paletteOpen = false)}
+/>
+<ShortcutsModal open={shortcutsOpen} onclose={() => (shortcutsOpen = false)} />
+<NotificationCenter
+  open={noticesOpen}
+  onclose={() => (noticesOpen = false)}
+  onaction={onNoticeAction}
+/>
