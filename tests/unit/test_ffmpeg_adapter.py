@@ -1,13 +1,66 @@
 import json
 import subprocess
+import threading
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
+from videoflow.adapters import ffmpeg as ffmpeg_module
 from videoflow.adapters.ffmpeg import FFmpegAdapter
-from videoflow.domain.errors import IngestError
+from videoflow.domain.errors import IngestError, JobCancelledError
+
+
+class FakeProcess:
+    """Minimal stand-in for subprocess.Popen used by FFmpegAdapter._capture."""
+
+    def __init__(
+        self,
+        *,
+        returncode: int | None = 0,
+        stdout: str = "",
+        stderr: str = "",
+        finish_after: int | None = None,
+    ) -> None:
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+        self.pid = 424242
+        self.terminated = False
+        self.killed = False
+        self._polls = 0
+        self._finish_after = finish_after
+
+    def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+        self._polls += 1
+        if self.returncode is None or (
+            self._finish_after is not None and self._polls <= self._finish_after
+        ):
+            raise subprocess.TimeoutExpired(cmd="ffprobe", timeout=timeout or 0)
+        return self.stdout, self.stderr
+
+    def wait(self, timeout: float | None = None) -> int:
+        return self.returncode or 0
+
+    def terminate(self) -> None:
+        self.terminated = True
+
+    def kill(self) -> None:
+        self.killed = True
+
+
+def _noop_signals(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, int]]:
+    seen: list[tuple[str, int]] = []
+
+    def fake_getpgid(_pid: int) -> int:
+        return 999
+
+    def fake_killpg(_pgid: int, signal_number: int) -> None:
+        seen.append(("killpg", signal_number))
+
+    monkeypatch.setattr(ffmpeg_module.os, "getpgid", fake_getpgid)
+    monkeypatch.setattr(ffmpeg_module.os, "killpg", fake_killpg)
+    return seen
 
 
 def probe_payload(
@@ -121,14 +174,68 @@ def test_run_reports_a_missing_binary(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_run_reports_a_nonzero_exit(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("shutil.which", lambda _name: "/usr/bin/ffprobe")
+    monkeypatch.setattr("videoflow.adapters.ffmpeg.find_binary", lambda _name: "/usr/bin/ffprobe")
     monkeypatch.setattr(
-        subprocess,
-        "run",
-        lambda *args, **kwargs: SimpleNamespace(returncode=1, stdout="", stderr="bad input\n"),
+        subprocess, "Popen", lambda args, **kwargs: FakeProcess(returncode=1, stderr="bad input\n")
     )
     with pytest.raises(IngestError, match="bad input"):
         FFmpegAdapter()._run(["ffprobe", "-version"])
+
+
+def test_run_times_out_and_terminates_the_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("videoflow.adapters.ffmpeg.find_binary", lambda _name: "/usr/bin/ffprobe")
+    process = FakeProcess(returncode=None)
+    monkeypatch.setattr(subprocess, "Popen", lambda args, **kwargs: process)
+    signals = _noop_signals(monkeypatch)
+    monkeypatch.setattr(ffmpeg_module.time, "monotonic", iter([0.0, 10_000.0]).__next__)
+
+    with pytest.raises(IngestError, match="timed out"):
+        FFmpegAdapter()._run(["ffprobe", "-version"])
+
+    assert signals == [("killpg", ffmpeg_module.signal.SIGTERM)]
+
+
+def test_cancel_event_stops_the_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("videoflow.adapters.ffmpeg.find_binary", lambda _name: "/usr/bin/ffprobe")
+    process = FakeProcess(returncode=None)
+    monkeypatch.setattr(subprocess, "Popen", lambda args, **kwargs: process)
+    signals = _noop_signals(monkeypatch)
+    cancel_event = threading.Event()
+
+    def fake_communicate(timeout: float | None = None) -> tuple[str, str]:
+        cancel_event.set()
+        raise subprocess.TimeoutExpired(cmd="ffprobe", timeout=timeout or 0)
+
+    monkeypatch.setattr(process, "communicate", fake_communicate)
+
+    with pytest.raises(JobCancelledError):
+        FFmpegAdapter(cancel_event=cancel_event)._run(["ffprobe", "-version"])
+
+    assert signals == [("killpg", ffmpeg_module.signal.SIGTERM)]
+
+
+def test_cancel_event_short_circuits_before_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_popen(args, **kwargs):
+        calls.append(args)
+        return FakeProcess()
+
+    monkeypatch.setattr("videoflow.adapters.ffmpeg.find_binary", lambda _name: "/usr/bin/ffprobe")
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+    cancel_event = threading.Event()
+    cancel_event.set()
+
+    with pytest.raises(JobCancelledError):
+        FFmpegAdapter(cancel_event=cancel_event)._run(["ffprobe", "-version"])
+
+    assert calls == []
 
 
 def test_run_rejects_invalid_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -796,6 +796,12 @@ class JobManager:
         if self._store_dir is None:
             return
         try:
+            from videoflow.application.database import upsert_job
+
+            upsert_job(str(job.job_id), job.to_dict())
+        except Exception:
+            pass
+        try:
             self._store_dir.mkdir(parents=True, exist_ok=True)
             path = self._store_dir / f"{job.job_id}.json"
             temporary = path.with_suffix(".json.tmp")
@@ -806,20 +812,34 @@ class JobManager:
             temporary.replace(path)
         except OSError:
             pass
-        try:
-            from videoflow.application.database import upsert_job
-
-            upsert_job(str(job.job_id), job.to_dict())
-        except Exception:
-            pass
 
     def _load_jobs(self) -> None:
-        if self._store_dir is None or not self._store_dir.is_dir():
+        if self._store_dir is None:
+            return
+        try:
+            from videoflow.application.database import list_jobs
+
+            for payload in list_jobs():
+                job = _job_from_dict(payload)
+                self._jobs[str(job.job_id)] = job
+                if job.status in {"queued", "running"}:
+                    job.status = "queued"
+                    job.stage = "queued"
+                    job.message = "Requeued after service restart"
+                    job.error = None
+                    self._pending.append(str(job.job_id))
+                    self._persist_job(job)
+        except Exception:
+            pass
+        if not self._store_dir.is_dir():
+            self._drain_queue()
             return
         for path in sorted(self._store_dir.glob("*.json")):
             try:
                 job = _job_from_dict(json.loads(path.read_text(encoding="utf-8")))
             except (OSError, ValueError, KeyError, TypeError):
+                continue
+            if str(job.job_id) in self._jobs:
                 continue
             if job.status in {"queued", "running"}:
                 job.status = "queued"
@@ -829,16 +849,6 @@ class JobManager:
                 self._pending.append(str(job.job_id))
                 self._persist_job(job)
             self._jobs[str(job.job_id)] = job
-        try:
-            from videoflow.application.database import list_jobs
-
-            for payload in list_jobs():
-                job_id = str(payload.get("job_id") or "")
-                if job_id and job_id not in self._jobs:
-                    job = _job_from_dict(payload)
-                    self._jobs[job_id] = job
-        except Exception:
-            pass
         self._drain_queue()
 
     def _prune(self) -> None:

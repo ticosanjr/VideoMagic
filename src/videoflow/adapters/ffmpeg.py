@@ -6,11 +6,16 @@ extract the analysis WAV. Rendering lands with the shorts pass.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
+import os
 import re
 import shutil
+import signal
 import subprocess
+import threading
+import time
 from collections.abc import Callable, Sequence
 from fractions import Fraction
 from pathlib import Path
@@ -18,7 +23,7 @@ from typing import Any
 from uuid import uuid4
 
 from videoflow.application.music import music_filter
-from videoflow.domain.errors import IngestError
+from videoflow.domain.errors import IngestError, JobCancelledError
 from videoflow.domain.state import MediaInfo
 from videoflow.domain.timebase import Rounding, Timebase
 from videoflow.runtime import find_binary
@@ -31,8 +36,14 @@ _SILENCE_END = re.compile(r"silence_end:\s*([0-9.]+)")
 
 
 class FFmpegAdapter:
-    def __init__(self, log: Callable[[str, str], None] | None = None) -> None:
+    def __init__(
+        self,
+        log: Callable[[str, str], None] | None = None,
+        *,
+        cancel_event: threading.Event | None = None,
+    ) -> None:
         self._log = log
+        self.cancel_event = cancel_event
 
     def _emit(self, level: str, message: str) -> None:
         if self._log is not None:
@@ -967,34 +978,61 @@ class FFmpegAdapter:
         stdout, _ = self._capture(args)
         return stdout
 
+    def _terminate(self, process: subprocess.Popen[str]) -> None:
+        try:
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+        except (OSError, ProcessLookupError):
+            with contextlib.suppress(OSError):
+                process.terminate()
+        try:
+            process.wait(timeout=1.0)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+            except (OSError, ProcessLookupError):
+                with contextlib.suppress(OSError):
+                    process.kill()
+            process.wait(timeout=2.0)
+
     def _capture(
         self, args: list[str], *, timeout: int = DEFAULT_TIMEOUT_SECONDS
     ) -> tuple[str, str]:
         binary = find_binary(args[0])
         if binary is None:
             raise IngestError(f"{args[0]} is not available. Place it next to the executable.")
+        if self.cancel_event is not None and self.cancel_event.is_set():
+            raise JobCancelledError("Cancelled")
         self._emit("debug", "$ " + " ".join([Path(binary).name, *args[1:]]))
-        try:
-            completed = subprocess.run(
-                [binary, *args[1:]],
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                check=False,
-            )
-        except subprocess.TimeoutExpired as exc:
-            raise IngestError(f"{args[0]} timed out after {timeout}s") from exc
-        if completed.returncode != 0:
-            tail = completed.stderr.strip().splitlines()[-50:]
+        process = subprocess.Popen(
+            [binary, *args[1:]],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            start_new_session=True,
+        )
+        deadline = time.monotonic() + max(1, timeout)
+        while True:
+            try:
+                stdout, stderr = process.communicate(timeout=0.2)
+                break
+            except subprocess.TimeoutExpired:
+                if self.cancel_event is not None and self.cancel_event.is_set():
+                    self._terminate(process)
+                    raise JobCancelledError("Cancelled") from None
+                if time.monotonic() >= deadline:
+                    self._terminate(process)
+                    raise IngestError(f"{args[0]} timed out after {timeout}s") from None
+        if process.returncode != 0:
+            tail = stderr.strip().splitlines()[-50:]
             self._emit("error", "\n".join(tail) or f"{args[0]} failed")
-            stderr = " ".join(tail[-3:])
+            summary = " ".join(tail[-3:])
             command = " ".join([Path(binary).name, *args[1:]])
             raise IngestError(
-                f"{args[0]} failed: {stderr or 'unknown error'}",
+                f"{args[0]} failed: {summary or 'unknown error'}",
                 command=command,
-                stderr=completed.stderr,
+                stderr=stderr,
             )
-        return completed.stdout, completed.stderr
+        return stdout, stderr
 
 
 def _filter_path(path: Path) -> str:

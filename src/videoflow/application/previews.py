@@ -71,6 +71,7 @@ def build_preview(
     *,
     progress: Callable[[int, str], None] | None = None,
     should_cancel: Callable[[], bool] | None = None,
+    cancel_event: Any | None = None,
 ) -> Path:
     full, preview = preview_paths(job)
     preview.parent.mkdir(parents=True, exist_ok=True)
@@ -91,16 +92,20 @@ def build_preview(
         state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
         ass_path = job.output / "titles.ass"
         report(20, "Rendering timeline")
+        adapter = FFmpegAdapter(cancel_event=cancel_event)
         export_mp4(
             state,
             full,
+            adapter=adapter,
             audio_filters=_audio_filters(job),
             video_filters=_video_filters(job),
             ass_path=ass_path if ass_path.is_file() else None,
         )
     else:
         report(20, "Using the last MP4 artifact")
-        FFmpegAdapter().transcode_preview(_fallback_source(job), full)
+        FFmpegAdapter(cancel_event=cancel_event).transcode_preview(
+            _fallback_source(job), full
+        )
     try:
         from videoflow.application.settings import load_settings
 
@@ -108,7 +113,9 @@ def build_preview(
     except Exception:
         height = 540
     report(80, f"Building {height}p proxy")
-    FFmpegAdapter().transcode_preview(full, preview, width=height)
+    FFmpegAdapter(cancel_event=cancel_event).transcode_preview(
+        full, preview, width=height
+    )
     report(100, "Preview ready")
     return preview
 
@@ -123,6 +130,7 @@ class PreviewState:
     started_at: str = field(default_factory=_now)
     finished_at: str = ""
     cancel_requested: bool = False
+    cancel_event: Any = field(default_factory=threading.Event, repr=False)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -173,7 +181,12 @@ class PreviewManager:
                 return item.cancel_requested
 
         try:
-            build_preview(job, progress=progress, should_cancel=cancelled)
+            build_preview(
+                job,
+                progress=progress,
+                should_cancel=cancelled,
+                cancel_event=item.cancel_event,
+            )
         except Exception as exc:
             with self._lock:
                 if item.cancel_requested:
@@ -184,6 +197,8 @@ class PreviewManager:
                     item.error = str(exc)
                     item.message = "Preview failed"
                 item.finished_at = _now()
+            if item.cancel_requested:
+                preview_paths(job)[1].unlink(missing_ok=True)
             return
         with self._lock:
             item.status = "ready"
@@ -198,6 +213,7 @@ class PreviewManager:
                 return None
             if item.status in {"queued", "rendering"}:
                 item.cancel_requested = True
+                item.cancel_event.set()
             return item
 
     def get(self, job_id: str) -> PreviewState | None:

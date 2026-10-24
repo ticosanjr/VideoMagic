@@ -356,6 +356,12 @@ class BatchManager:
         if self._store_dir is None:
             return
         try:
+            from videoflow.application.database import upsert_batch
+
+            upsert_batch(str(batch.batch_id), batch.to_dict())
+        except Exception:
+            pass
+        try:
             self._store_dir.mkdir(parents=True, exist_ok=True)
             path = self._store_dir / f"{batch.batch_id}.json"
             temporary = path.with_suffix(".json.tmp")
@@ -366,20 +372,26 @@ class BatchManager:
             temporary.replace(path)
         except OSError:
             pass
-        try:
-            from videoflow.application.database import upsert_batch
-
-            upsert_batch(str(batch.batch_id), batch.to_dict())
-        except Exception:
-            pass
 
     def _load(self) -> None:
-        if self._store_dir is None or not self._store_dir.is_dir():
+        if self._store_dir is None:
+            return
+        try:
+            from videoflow.application.database import list_batches
+
+            for payload in list_batches():
+                batch = Batch.from_dict(payload)
+                self._batches[str(batch.batch_id)] = batch
+        except Exception:
+            pass
+        if not self._store_dir.is_dir():
             return
         for path in sorted(self._store_dir.glob("*.json")):
             try:
                 batch = Batch.from_dict(json.loads(path.read_text(encoding="utf-8")))
             except (OSError, ValueError, KeyError):
+                continue
+            if str(batch.batch_id) in self._batches:
                 continue
             if batch.status in {"queued", "running"}:
                 batch.status = "failed"

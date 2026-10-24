@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.domain.errors import JobCancelledError, StateNotReadyError
 from videoflow.domain.state import ProjectState
 from videoflow.exporters.mp4 import export_mp4
@@ -38,6 +39,7 @@ class RenderState:
     started_at: str = field(default_factory=_now)
     finished_at: str = ""
     cancel_requested: bool = False
+    cancel_event: threading.Event = field(default_factory=threading.Event, repr=False)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -112,9 +114,11 @@ class RenderQueue:
                 progress(15, "Rendering timeline")
                 destination = self.output_path(job)
                 ass_path = job.output / "titles.ass"
+                adapter = FFmpegAdapter(cancel_event=item.cancel_event)
                 export_mp4(
                     state,
                     destination,
+                    adapter=adapter,
                     audio_filters=_filters(job.output / "audio" / "master-filters.json"),
                     video_filters=_filters(job.output / "color" / "filters.json"),
                     ass_path=ass_path if ass_path.is_file() else None,
@@ -133,6 +137,8 @@ class RenderQueue:
                         item.error = str(exc)
                         item.message = "Render failed"
                     item.finished_at = _now()
+                if item.cancel_requested:
+                    self.output_path(job).unlink(missing_ok=True)
                 return
         with self._lock:
             item.status = "ready"
@@ -147,6 +153,7 @@ class RenderQueue:
                 return None
             if item.status in {"queued", "rendering"}:
                 item.cancel_requested = True
+                item.cancel_event.set()
             return item
 
     def get(self, job_id: str) -> RenderState | None:

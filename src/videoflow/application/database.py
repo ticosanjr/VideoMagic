@@ -65,6 +65,8 @@ def upsert_job(job_id: str, payload: dict[str, Any]) -> None:
 
 
 def list_jobs() -> list[dict[str, Any]]:
+    if not db_path().is_file():
+        return []
     try:
         with contextlib.closing(connect()) as connection:
             rows = connection.execute(
@@ -94,10 +96,31 @@ def upsert_asset(asset_id: str, payload: dict[str, Any]) -> None:
 
 
 def list_assets_db() -> list[dict[str, Any]]:
+    if not db_path().is_file():
+        return []
     try:
         with contextlib.closing(connect()) as connection:
             rows = connection.execute(
                 "SELECT payload FROM assets ORDER BY updated_at"
+            ).fetchall()
+    except sqlite3.Error:
+        return []
+    result: list[dict[str, Any]] = []
+    for (payload,) in rows:
+        try:
+            result.append(json.loads(payload))
+        except ValueError:
+            continue
+    return result
+
+
+def list_batches() -> list[dict[str, Any]]:
+    if not db_path().is_file():
+        return []
+    try:
+        with contextlib.closing(connect()) as connection:
+            rows = connection.execute(
+                "SELECT payload FROM batches ORDER BY updated_at"
             ).fetchall()
     except sqlite3.Error:
         return []
