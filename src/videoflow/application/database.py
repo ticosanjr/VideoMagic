@@ -251,11 +251,18 @@ def migrate_home() -> dict[str, object]:
 
     imported = {"jobs": 0, "assets": 0, "batches": 0}
     jobs_dir = portable_home() / "jobs"
+    known_jobs = {
+        str(payload.get("job_id") or "") for payload in list_jobs()
+    }
     if jobs_dir.is_dir():
         for path in jobs_dir.glob("*.json"):
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
-                upsert_job(str(payload.get("job_id") or path.stem), payload)
+                job_id = str(payload.get("job_id") or path.stem)
+                if job_id in known_jobs:
+                    continue
+                upsert_job(job_id, payload)
+                known_jobs.add(job_id)
                 imported["jobs"] += 1
             except (OSError, ValueError):
                 continue
@@ -270,11 +277,18 @@ def migrate_home() -> dict[str, object]:
         except (OSError, ValueError):
             pass
     batches_dir = portable_home() / "batches"
+    known_batches = {
+        str(payload.get("batch_id") or "") for payload in list_batches()
+    }
     if batches_dir.is_dir():
         for path in batches_dir.glob("*.json"):
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
-                upsert_batch(str(payload.get("batch_id") or path.stem), payload)
+                batch_id = str(payload.get("batch_id") or path.stem)
+                if batch_id in known_batches:
+                    continue
+                upsert_batch(batch_id, payload)
+                known_batches.add(batch_id)
                 imported["batches"] += 1
             except (OSError, ValueError):
                 continue

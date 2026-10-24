@@ -119,6 +119,10 @@ def test_migration_imports_json_and_stamps_the_schema(
     home: Path, tmp_path: Path
 ) -> None:
     payload = started_job(home, tmp_path)
+    # Simulate a home whose job exists only as JSON (the pre-2.1 layout).
+    with database.connect() as connection:
+        connection.execute("DELETE FROM jobs")
+        connection.commit()
     (tmp_path / "assets.json").write_text(
         json.dumps({"assets": [{"id": "asset-1", "name": "clip"}]}),
         encoding="utf-8",
@@ -131,3 +135,19 @@ def test_migration_imports_json_and_stamps_the_schema(
     assert result["imported"]["assets"] == 1
     assert [job["job_id"] for job in database.list_jobs()] == [payload["job_id"]]
     assert [asset["id"] for asset in database.list_assets_db()] == ["asset-1"]
+
+
+def test_migration_never_overwrites_newer_database_rows(
+    home: Path, tmp_path: Path
+) -> None:
+    payload = started_job(home, tmp_path)
+    stale = dict(payload, status="queued", message="stale json")
+    (tmp_path / "jobs" / f"{payload['job_id']}.json").write_text(
+        json.dumps(stale), encoding="utf-8"
+    )
+
+    result = database.migrate_home()
+
+    assert result["imported"]["jobs"] == 0
+    [row] = [job for job in database.list_jobs() if job["job_id"] == payload["job_id"]]
+    assert row["status"] == "succeeded"
