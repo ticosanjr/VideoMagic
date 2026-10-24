@@ -6,7 +6,7 @@ recording into an editable timeline: it removes silence and retakes, adds
 J-cuts and punch-ins, proposes vertical Shorts, masters the dialogue bed, and
 exports timelines for DaVinci Resolve, Adobe Premiere Pro, and Kdenlive.
 
-> Status: 2.5.0 local development. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
+> Status: 2.5.0 local stable. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical Shorts,
 > audio mastering and loudness QA, burned titles, color/LUT grading, analytics
