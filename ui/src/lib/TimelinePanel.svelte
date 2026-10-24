@@ -88,6 +88,7 @@
   let overlays = $state<TimelineOverlay[]>([]);
   let frameUrl = $state("");
   let frameTimer: ReturnType<typeof setTimeout> | undefined;
+  let seekTimer: ReturnType<typeof setTimeout> | undefined;
   let assets = $state<AssetRecord[]>([]);
   let commentText = $state("");
   let commentBusy = $state(false);
@@ -533,9 +534,12 @@
     frameTimer = setTimeout(() => {
       if (selected) frameUrl = jobFrameUrl(selected, target);
     }, 120);
-    if (videoEl && Number.isFinite(videoEl.duration)) {
-      videoEl.currentTime = Math.min(target, Math.max(0, videoEl.duration - 0.01));
-    }
+    clearTimeout(seekTimer);
+    seekTimer = setTimeout(() => {
+      if (videoEl && Number.isFinite(videoEl.duration)) {
+        videoEl.currentTime = Math.min(target, Math.max(0, videoEl.duration - 0.01));
+      }
+    }, 80);
   }
 
   function togglePlay() {

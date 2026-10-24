@@ -226,6 +226,15 @@ class OverrideRequest(BaseModel):
     action: Literal["keep", "discard"]
 
 
+class CopilotRecipeRequest(BaseModel):
+    prompt: str = Field(min_length=1, max_length=4000)
+
+
+class CopilotTimelineRequest(BaseModel):
+    prompt: str = Field(min_length=1, max_length=4000)
+    apply: bool = True
+
+
 class OverlayRequest(BaseModel):
     overlay_id: str = Field(default="", max_length=60)
     asset_id: str = Field(default="", max_length=120)
@@ -3636,6 +3645,76 @@ def register_routes(
         checks["providers"] = len(list_providers())
         checks["service_definitions"] = len(list_definitions())
         return {"ok": ok, "checks": checks}
+
+    @app.post("/api/v1/copilot/recipe")
+    def copilot_recipe(request: CopilotRecipeRequest) -> dict[str, object]:
+        from videoflow.application.copilot import propose_recipe
+        from videoflow.application.llm_factory import build_llm
+
+        try:
+            recipe = propose_recipe(build_llm(), request.prompt)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "recipe": recipe.model_dump(mode="json")}
+
+    @app.post("/api/v1/jobs/{job_id}/copilot/timeline")
+    def copilot_timeline(
+        job_id: str, request: CopilotTimelineRequest
+    ) -> dict[str, object]:
+        from videoflow.application.copilot import propose_timeline_edits
+        from videoflow.application.llm_factory import build_llm
+
+        try:
+            job = jobs.get(job_id)
+            _assert_tracks_unlocked(job, {"video", "audio"})
+            state_path = _timeline_state_path(job)
+            history = _timeline_history(job)
+            state = ProjectState.model_validate_json(
+                state_path.read_text(encoding="utf-8")
+            )
+            edits = propose_timeline_edits(
+                build_llm(),
+                request.prompt,
+                [
+                    {
+                        "id": clip.clip_id,
+                        "start_sec": clip.timeline_in_frame
+                        / max(0.001, (state.media_info.fps_num / state.media_info.fps_den)),
+                        "end_sec": clip.timeline_out_frame
+                        / max(0.001, (state.media_info.fps_num / state.media_info.fps_den)),
+                    }
+                    for clip in state.video_segments
+                ],
+            )
+            if request.apply:
+                previous = state.model_copy(deep=True)
+                working = state.model_copy(deep=True)
+                for item in edits:
+                    working = apply_timeline_edit(
+                        working,
+                        TimelineEdit(
+                            clip_id=str(item.get("clip_id")),
+                            action=str(item.get("action")),  # type: ignore[arg-type]
+                            start_sec=item.get("start_sec"),
+                            end_sec=item.get("end_sec"),
+                            delta_sec=float(item.get("delta_sec") or 0.0),
+                            split_sec=item.get("split_sec"),
+                        ),
+                    )
+                history.record(previous)
+                state = _apply_and_store(
+                    job, working, state_path, history, previous.revision + 1
+                )
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {
+            "ok": True,
+            "edits": edits,
+            "applied": request.apply,
+            "revision": state.revision,
+        }
 
     @app.get("/api/v1/metrics/cost")
     def cost_metrics() -> dict[str, object]:

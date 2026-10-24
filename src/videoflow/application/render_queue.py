@@ -11,8 +11,9 @@ from pathlib import Path
 from typing import Any
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
-from videoflow.domain.errors import JobCancelledError, StateNotReadyError
+from videoflow.domain.errors import ExportError, JobCancelledError, StateNotReadyError
 from videoflow.domain.state import ProjectState
+from videoflow.exporters.incremental import NotEligible, export_mp4_incremental
 from videoflow.exporters.mp4 import export_mp4
 
 
@@ -174,14 +175,39 @@ class RenderQueue:
                     json.dumps({"key": key, "source": str(state_path)}), encoding="utf-8"
                 )
                 adapter = FFmpegAdapter(cancel_event=item.cancel_event)
+
+                def frame_progress(percent: int) -> None:
+                    progress(15 + int(max(0, min(100, percent)) * 0.8), f"Rendering {percent}%")
+
+                video_filters = _filters(
+                    job.output / "color" / "filters.json"
+                ) + _video_track_filters(job)
+                if not filters and not video_filters and not ass_path.is_file():
+                    try:
+                        export_mp4_incremental(
+                            state,
+                            destination,
+                            adapter=adapter,
+                            progress=frame_progress,
+                        )
+                        progress(100, "Render ready")
+                        with self._lock:
+                            item.status = "ready"
+                            item.percent = 100
+                            item.message = "Render ready"
+                            item.finished_at = _now()
+                        return
+                    except (NotEligible, ExportError):
+                        pass
+
                 export_mp4(
                     state,
                     destination,
                     adapter=adapter,
                     audio_filters=filters,
-                    video_filters=_filters(job.output / "color" / "filters.json")
-                    + _video_track_filters(job),
+                    video_filters=video_filters,
                     ass_path=ass_path if ass_path.is_file() else None,
+                    progress=frame_progress,
                 )
                 if cancelled():
                     destination.unlink(missing_ok=True)

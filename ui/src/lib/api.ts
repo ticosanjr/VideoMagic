@@ -2075,6 +2075,25 @@ export async function removeTimelineOverlay(
   return response.overlays;
 }
 
+export async function copilotRecipe(prompt: string): Promise<Record<string, unknown>> {
+  const response = await request<{ ok: boolean; recipe: Record<string, unknown> }>(
+    "/api/v1/copilot/recipe",
+    { method: "POST", body: JSON.stringify({ prompt }) }
+  );
+  return response.recipe;
+}
+
+export async function copilotTimeline(
+  jobId: string,
+  prompt: string,
+  apply: boolean
+): Promise<{ edits: Array<Record<string, unknown>>; revision: number }> {
+  return request(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/copilot/timeline`,
+    { method: "POST", body: JSON.stringify({ prompt, apply }) }
+  );
+}
+
 export async function getTimelineComments(
   jobId: string,
   clipId = ""

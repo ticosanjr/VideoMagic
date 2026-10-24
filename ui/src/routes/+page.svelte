@@ -5,6 +5,7 @@
   import AutomationPanel from "$lib/AutomationPanel.svelte";
   import CapabilitiesPanel from "$lib/CapabilitiesPanel.svelte";
   import CommandPalette from "$lib/CommandPalette.svelte";
+  import CopilotPanel from "$lib/CopilotPanel.svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
   import JobsPanel from "$lib/JobsPanel.svelte";
   import LibraryPanel from "$lib/LibraryPanel.svelte";
@@ -26,13 +27,14 @@
   import { UI_VERSION } from "$lib/version";
   import "../app.css";
 
-  type Tab = "recipes" | "assets" | "timeline" | "jobs" | "automation" | "library" | "models" | "services" | "providers" | "plugins" | "settings";
+  type Tab = "recipes" | "assets" | "timeline" | "jobs" | "copilot" | "automation" | "library" | "models" | "services" | "providers" | "plugins" | "settings";
 
   const TABS: { id: Tab; label: string; hint: string }[] = [
     { id: "recipes", label: "Recipes", hint: "Visual recipe builder and runner" },
     { id: "assets", label: "Assets", hint: "Local media, audio, images, fonts, tags, and licenses" },
     { id: "timeline", label: "Timeline", hint: "Canvas timeline with preview, trim, split, and undo" },
     { id: "jobs", label: "Jobs", hint: "Queue, progress, approvals, and failures" },
+    { id: "copilot", label: "Copilot", hint: "LLM recipe drafts and timeline edit plans" },
     { id: "automation", label: "Automation", hint: "Schedules and watch folders for recipes" },
     { id: "library", label: "Library", hint: "Brand templates, presets, fonts, images, and music" },
     { id: "models", label: "Models", hint: "Optional on-demand speech and vision models" },
@@ -459,6 +461,8 @@
           onreview={() => selectTab("recipes")}
           onopentimeline={() => selectTab("timeline")}
         />
+      {:else if activeTab === "copilot"}
+        <CopilotPanel />
       {:else if activeTab === "automation"}
         <AutomationPanel />
       {:else if activeTab === "library"}

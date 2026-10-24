@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.domain.errors import ExportError
 from videoflow.domain.state import AudioSegment, MediaInfo, ProjectState, VideoSegment
-from videoflow.exporters.common import require_timeline
+from videoflow.exporters.common import require_timeline, timeline_duration_frames
 
 
 def _transform_filters(clip: VideoSegment, media: MediaInfo) -> list[str]:
@@ -183,6 +183,7 @@ def export_mp4(
     audio_filters: Sequence[str] | None = None,
     video_filters: Sequence[str] | None = None,
     ass_path: Path | None = None,
+    progress: Callable[[int], None] | None = None,
 ) -> Path:
     """Render the validated main timeline to an H.264/AAC MP4."""
 
@@ -235,8 +236,13 @@ def export_mp4(
     destination = Path(output_path).expanduser()
     destination.parent.mkdir(parents=True, exist_ok=True)
     renderer = adapter or FFmpegAdapter()
-    renderer.render(
-        [
+    total_frames = max(1, timeline_duration_frames(state))
+
+    def frame_progress(frame: int) -> None:
+        if progress is not None:
+            progress(min(99, max(1, int(frame / total_frames * 100))))
+
+    command = [
             "-i",
             str(Path(media.source_path).expanduser()),
             *overlay_inputs,
@@ -263,7 +269,10 @@ def export_mp4(
             "-shortest",
             str(destination),
         ]
-    )
+    if progress is not None:
+        renderer.render(command, progress=frame_progress)
+    else:
+        renderer.render(command)
     if not destination.is_file():
         raise ExportError(f"FFmpeg did not write {destination.name}")
     return destination

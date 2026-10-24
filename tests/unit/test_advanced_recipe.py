@@ -448,3 +448,13 @@ def test_hook_duration_recipe_has_ab_step() -> None:
     types = [step.type for step in recipe.enabled_steps()]
     assert "shorts.ab" in types
     assert types.index("shorts.ab") < types.index("shorts.render")
+
+
+def test_resource_workers_respects_provider_and_cpu(monkeypatch) -> None:
+    from videoflow.steps.flow import _resource_workers
+
+    monkeypatch.setenv("VIDEOWFLOW_PROVIDER_CONCURRENCY", "2")
+    monkeypatch.setattr("os.cpu_count", lambda: 16)
+    assert _resource_workers(8) == 2
+    monkeypatch.setenv("VIDEOWFLOW_PROVIDER_CONCURRENCY", "8")
+    assert _resource_workers(3) == 3

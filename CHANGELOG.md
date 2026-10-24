@@ -3,6 +3,31 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.9.0] - 2026-10-24
+
+### Added
+
+- **Segment-cached timeline render.** Simple cut timelines render each clip to a
+  cached segment, reuse unchanged segments, and concatenate without re-encoding
+  everything. Timelines with transitions, overlays, titles, filters, or
+  non-aligned audio fall back to the full exporter.
+- **Frame progress.** `FFmpegAdapter.render` parses `-progress` and the render
+  queue maps frame counts to the job percentage.
+- **Frame preview.** Scrubbing debounces a cached JPEG and an async video seek;
+  the playhead shows the exact frame.
+- **Resource-aware parallelism.** `flow.map` caps workers by CPU, available
+  memory, and `VIDEOWFLOW_PROVIDER_CONCURRENCY`.
+- **Copilot.** `POST /api/v1/copilot/recipe` drafts and validates recipes;
+  `POST /api/v1/jobs/{id}/copilot/timeline` proposes or applies validated
+  timeline edits. Provider/service setup is documented in `docs/copilot.md`.
+- Copilot tab with recipe draft/save and timeline apply.
+
+### Notes
+
+- Local release: Linux binary + AppImage + SBOM + checksums.
+- Remaining: long help-text i18n, voice cloning, full-tree coverage, and manual
+  NLE/assistive-technology QA.
+
 ## [2.8.0] - 2026-10-24
 
 ### Added

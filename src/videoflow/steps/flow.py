@@ -57,6 +57,28 @@ def _recipe_steps(recipe_id: str) -> list[FlowStepSpec]:
     ]
 
 
+def _memory_workers() -> int:
+    try:
+        with open("/proc/meminfo", encoding="utf-8") as handle:
+            for line in handle:
+                if line.startswith("MemAvailable:"):
+                    available_mb = int(line.split()[1]) // 1024
+                    return max(1, available_mb // 512)
+    except (OSError, ValueError):
+        pass
+    return 8
+
+
+def _resource_workers(requested: int) -> int:
+    import os
+
+    cpu_cap = max(1, min(8, os.cpu_count() or 1))
+    provider_cap = max(
+        1, int(os.environ.get("VIDEOWFLOW_PROVIDER_CONCURRENCY", "8") or 8)
+    )
+    return max(1, min(requested, cpu_cap, _memory_workers(), provider_cap))
+
+
 def _steps_from(params: FlowParams, *, branch: str = "") -> list[FlowStepSpec]:
     if branch == "true":
         return params.when_true or params.steps
@@ -341,13 +363,10 @@ class MapStep(_FlowStep):
                     "warnings": list(child.warnings),
                 }
 
-            import os
-
-            cpu_cap = max(1, min(8, os.cpu_count() or 1))
-            workers = min(options.parallel, len(items), cpu_cap)
+            workers = min(len(items), _resource_workers(options.parallel))
             if workers < options.parallel:
                 context.warnings.append(
-                    f"flow.map parallel capped at {workers} by available CPUs"
+                    f"flow.map parallel capped at {workers} by CPU/memory/provider limits"
                 )
             with ThreadPoolExecutor(max_workers=workers) as pool:
                 futures = {
