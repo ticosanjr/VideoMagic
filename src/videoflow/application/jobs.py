@@ -278,6 +278,7 @@ class JobManager:
                 priority=priority,
                 idempotency_key=key,
             )
+            job.telemetry.job_id = str(job.job_id)
             self._jobs[str(job.job_id)] = job
             if active >= self._max_active:
                 job.status = "queued"
@@ -972,6 +973,7 @@ class JobManager:
 
             for payload in list_jobs():
                 job = _job_from_dict(payload)
+                job.telemetry.job_id = str(job.job_id)
                 self._jobs[str(job.job_id)] = job
                 if job.status in {"queued", "running"}:
                     job.status = "queued"
@@ -999,6 +1001,7 @@ class JobManager:
                 job.error = None
                 self._pending.append(str(job.job_id))
                 self._persist_job(job)
+            job.telemetry.job_id = str(job.job_id)
             self._jobs[str(job.job_id)] = job
         self._drain_queue()
 

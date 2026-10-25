@@ -2507,3 +2507,131 @@ export async function deleteFontAsset(name: string): Promise<void> {
     method: "DELETE"
   });
 }
+
+
+export interface AssistantAction {
+  id: string;
+  tool: string;
+  arguments: Record<string, unknown>;
+}
+
+export interface AssistantTurn {
+  ok: boolean;
+  message: string;
+  actions: AssistantAction[];
+  observations: Array<Record<string, unknown>>;
+  diff: Array<Record<string, unknown>>;
+  requires_approval: boolean;
+  approval_id: string;
+  tokens: number;
+  cost_usd: number;
+  budget_usd: number;
+  remaining_usd: number | null;
+}
+
+export interface AssistantHistoryEntry {
+  at: string;
+  prompt: string;
+  message: string;
+  actions: AssistantAction[];
+  applied: boolean;
+  approval_id: string;
+  tokens: number;
+  cost_usd: number;
+}
+
+export async function assistantTurn(
+  jobId: string,
+  prompt: string
+): Promise<AssistantTurn> {
+  return request<AssistantTurn>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/assistant`,
+    { method: "POST", body: JSON.stringify({ prompt }) }
+  );
+}
+
+export async function approveAssistant(
+  jobId: string,
+  approvalId: string
+): Promise<Array<Record<string, unknown>>> {
+  const response = await request<{ ok: boolean; results: Array<Record<string, unknown>> }>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/assistant/approve`,
+    { method: "POST", body: JSON.stringify({ approval_id: approvalId }) }
+  );
+  return response.results;
+}
+
+export async function getAssistantHistory(
+  jobId: string
+): Promise<AssistantHistoryEntry[]> {
+  const response = await request<{
+    ok: boolean;
+    history: AssistantHistoryEntry[];
+  }>(`/api/v1/jobs/${encodeURIComponent(jobId)}/assistant/history`);
+  return response.history;
+}
+
+
+export interface RunDagNode {
+  id: string;
+  label: string;
+  type: string;
+  needs: string[];
+  status: string;
+  progress: number;
+  duration_ms: number | null;
+  message: string;
+  error: string | null;
+}
+
+export interface RunDag {
+  ok: boolean;
+  job_id: string;
+  recipe_id: string;
+  attempts: number;
+  nodes: RunDagNode[];
+  edges: Array<{ from: string; to: string }>;
+  timing: { duration_ms: number | null; p50_ms: number; p95_ms: number; samples: number };
+  retry: { max_attempts: number; backoff_seconds: number };
+  previous: { job_id: string; duration_ms: number | null } | null;
+}
+
+export async function getJobDag(jobId: string): Promise<RunDag> {
+  return request<RunDag>(`/api/v1/jobs/${encodeURIComponent(jobId)}/dag`);
+}
+
+
+export interface VariantItem {
+  id: string;
+  kind: string;
+  name: string;
+  path?: string;
+  score?: number;
+  duration_sec?: number;
+  metrics: Record<string, number | null>;
+}
+
+export interface VariantComparison {
+  ok: boolean;
+  items: VariantItem[];
+  thumbnails: Array<{ name: string; metrics: Record<string, number> }>;
+  winner: string;
+  count: number;
+}
+
+export async function getJobVariants(jobId: string): Promise<VariantComparison> {
+  return request<VariantComparison>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/variants`
+  );
+}
+
+export async function selectJobVariant(
+  jobId: string,
+  name: string
+): Promise<string> {
+  const response = await request<{ ok: boolean; winner: string }>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/variants/select`,
+    { method: "POST", body: JSON.stringify({ name }) }
+  );
+  return response.winner;
+}

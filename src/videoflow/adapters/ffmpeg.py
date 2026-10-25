@@ -459,8 +459,9 @@ class FFmpegAdapter:
         time_sec: float,
         ass_path: Path | None = None,
         fontsdir: str | None = None,
+        height: int | None = None,
     ) -> Path:
-        """Extract one frame and optionally burn the thumbnail ASS title."""
+        """Extract one frame, optionally burn the ASS title and scale to height."""
 
         if time_sec < 0:
             raise IngestError("Thumbnail time must be non-negative")
@@ -478,11 +479,16 @@ class FFmpegAdapter:
             "-i",
             str(source_path),
         ]
+        filters: list[str] = []
         if ass_path is not None:
             ass_filter = f"ass='{_filter_path(ass_path)}'"
             if fontsdir:
                 ass_filter += f":fontsdir='{_filter_path(Path(fontsdir))}'"
-            command.extend(["-vf", ass_filter])
+            filters.append(ass_filter)
+        if height is not None:
+            filters.append(f"scale=-2:{max(64, min(2160, int(height)))}")
+        if filters:
+            command.extend(["-vf", ",".join(filters)])
         command.extend(["-frames:v", "1", str(target)])
         self._capture(command)
         return target

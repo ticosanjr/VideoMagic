@@ -90,3 +90,37 @@ def test_changed_clip_renders_only_that_segment(tmp_path: Path) -> None:
     export_mp4_incremental(state(tmp_path, second_out=55), tmp_path / "out.mp4", adapter=adapter)
 
     assert adapter.segments == 3
+
+
+def test_overlays_and_fade_to_black_stay_incremental(tmp_path: Path) -> None:
+    from videoflow.domain.state import OverlayClip, Transition
+
+    overlay = tmp_path / "logo.png"
+    overlay.write_bytes(b"png")
+    payload = state(tmp_path)
+    payload.video_segments[0].transition_out = Transition(type="fade_to_black")
+    payload.overlays = [
+        OverlayClip(
+            overlay_id="logo",
+            path=str(overlay),
+            start_frame=5,
+            duration_frames=20,
+        )
+    ]
+    adapter = FakeAdapter()
+    result = export_mp4_incremental(payload, tmp_path / "out.mp4", adapter=adapter)
+    assert result.is_file()
+    assert adapter.segments == 3  # two source segments plus the overlay pass
+    assert adapter.concats == 1
+
+
+def test_crossfade_still_falls_back(tmp_path: Path) -> None:
+    import pytest
+
+    from videoflow.domain.state import Transition
+    from videoflow.exporters.incremental import NotEligible
+
+    payload = state(tmp_path)
+    payload.video_segments[0].transition_out = Transition(type="crossfade")
+    with pytest.raises(NotEligible, match="crossfade"):
+        export_mp4_incremental(payload, tmp_path / "out.mp4", adapter=FakeAdapter())

@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
@@ -241,6 +241,19 @@ class CopilotRecipeRequest(BaseModel):
 class CopilotTimelineRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=4000)
     apply: bool = True
+
+
+class AssistantRequest(BaseModel):
+    prompt: str = Field(min_length=1, max_length=4000)
+    approve: bool = False
+
+
+class AssistantApprovalRequest(BaseModel):
+    approval_id: str = Field(min_length=1, max_length=120)
+
+
+class VariantSelectRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
 
 
 class OverlayRequest(BaseModel):
@@ -715,6 +728,31 @@ def register_routes(
 ) -> None:
     batch_manager = batches or BatchManager(jobs)
     app.state.batches = batch_manager
+
+    def _timeline_etag(revision: int) -> str:
+        return f'"timeline-{revision}"'
+
+    def _require_if_match(request: Request | None, revision: int) -> None:
+        if request is None:
+            return
+        header = (request.headers.get("if-match") or "").strip()
+        if not header or header == "*":
+            return
+        candidates = [item.strip() for item in header.split(",")]
+        if _timeline_etag(revision) in candidates:
+            return
+        raise HTTPException(
+            status_code=412,
+            detail={
+                "ok": False,
+                "code": "precondition_failed",
+                "message": (
+                    "The timeline changed since it was loaded. Refresh the timeline "
+                    "and reapply the edit."
+                ),
+                "details": {"etag": _timeline_etag(revision)},
+            },
+        )
 
     def start_recipe_job(request: RecipeRunRequest, through: str | None) -> dict[str, object]:
         roots = allowed_roots()
@@ -1739,6 +1777,42 @@ def register_routes(
             headers={"Cache-Control": "no-cache"},
         )
 
+    @app.get("/api/v1/jobs/{job_id}/variants")
+    def job_variants(job_id: str) -> dict[str, object]:
+        from videoflow.application.variants import compare_variants
+
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return compare_variants(job.output, job.result)
+
+    @app.post("/api/v1/jobs/{job_id}/variants/select")
+    def job_variant_winner(
+        job_id: str, request: VariantSelectRequest
+    ) -> dict[str, object]:
+        from videoflow.application.variants import select_variant
+
+        try:
+            job = jobs.get(job_id)
+            payload = select_variant(job.output, request.name)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "winner": payload["selected"]}
+
+    @app.get("/api/v1/jobs/{job_id}/dag")
+    def job_dag(job_id: str) -> dict[str, object]:
+        from videoflow.application.run_dag import build_run_dag
+
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return build_run_dag(job, jobs.list(limit=60))
+
     @app.get("/api/v1/jobs/{job_id}/logs")
     def job_logs(
         job_id: str,
@@ -2008,7 +2082,7 @@ def register_routes(
         return {"ok": True, "status": state.to_dict()}
 
     @app.get("/api/v1/jobs/{job_id}/frame")
-    def job_frame(job_id: str, time: float = 0.0) -> FileResponse:
+    def job_frame(job_id: str, time: float = 0.0, height: int | None = None) -> FileResponse:
         try:
             job = jobs.get(job_id)
             state_path = _timeline_state_path(job)
@@ -2030,12 +2104,28 @@ def register_routes(
                 detail={"ok": False, "code": "frame_invalid", "message": str(exc)},
             ) from exc
         stamp = int(max(0.0, min(time, 24 * 3600)) * 10)
-        target = job.output / "preview" / "frames" / f"{stamp:08d}.jpg"
+        if height is None:
+            height = int(load_settings().quality.proxy_height)
+        height = max(64, min(2160, int(height)))
+        revision = 0
+        try:
+            revision = ProjectState.model_validate_json(
+                state_path.read_text(encoding="utf-8")
+            ).revision
+        except (OSError, ValueError):
+            revision = 0
+        target = (
+            job.output
+            / "preview"
+            / "frames"
+            / str(revision)
+            / f"{stamp:08d}-{height}.jpg"
+        )
         if not target.is_file():
             target.parent.mkdir(parents=True, exist_ok=True)
             try:
                 FFmpegAdapter().render_thumbnail(
-                    source, target, time_sec=stamp / 10
+                    source, target, time_sec=stamp / 10, height=height
                 )
             except VideoFlowError as exc:
                 fail(exc)
@@ -2095,13 +2185,16 @@ def register_routes(
             )
 
     @app.patch("/api/v1/jobs/{job_id}/timeline")
-    def edit_job_timeline(job_id: str, request: TimelineEditRequest) -> dict[str, object]:
+    def edit_job_timeline(
+        job_id: str, request: TimelineEditRequest, http_request: Request
+    ) -> dict[str, object]:
         try:
             job = jobs.get(job_id)
             _assert_tracks_unlocked(job, set())
             state_path = _timeline_state_path(job)
             history = _timeline_history(job)
             state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+            _require_if_match(http_request, state.revision)
             previous = state.model_copy(deep=True)
             state = apply_timeline_edit(
                 state,
@@ -2129,6 +2222,7 @@ def register_routes(
         return {
             "ok": True,
             "revision": state.revision,
+            "etag": _timeline_etag(state.revision),
             "can_undo": history.can_undo,
             "can_redo": history.can_redo,
             "warning": "Re-run export/render to refresh artifacts.",
@@ -2136,7 +2230,7 @@ def register_routes(
 
     @app.patch("/api/v1/jobs/{job_id}/timeline/clip/{clip_id}")
     def update_timeline_clip(
-        job_id: str, clip_id: str, request: ClipUpdateRequest
+        job_id: str, clip_id: str, request: ClipUpdateRequest, http_request: Request
     ) -> dict[str, object]:
         try:
             job = jobs.get(job_id)
@@ -2154,6 +2248,7 @@ def register_routes(
             state_path = _timeline_state_path(job)
             history = _timeline_history(job)
             state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+            _require_if_match(http_request, state.revision)
             previous = state.model_copy(deep=True)
             video = next(
                 (clip for clip in state.video_segments if clip.clip_id == clip_id), None
@@ -2209,6 +2304,7 @@ def register_routes(
         return {
             "ok": True,
             "revision": state.revision,
+            "etag": _timeline_etag(state.revision),
             "can_undo": history.can_undo,
             "can_redo": history.can_redo,
             "warning": "Re-run export/render to refresh artifacts.",
@@ -2255,6 +2351,7 @@ def register_routes(
         return {
             "ok": True,
             "revision": state.revision,
+            "etag": _timeline_etag(state.revision),
             "applied": len(request.edits),
             "can_undo": history.can_undo,
             "can_redo": history.can_redo,
@@ -2720,7 +2817,9 @@ def register_routes(
         }
 
     @app.get("/api/v1/jobs/{job_id}/timeline")
-    def job_timeline(job_id: str) -> dict[str, object]:
+    def job_timeline(
+        job_id: str, request: Request, response: Response
+    ) -> object:
         try:
             job = jobs.get(job_id)
             state_path = Path(
@@ -2746,6 +2845,10 @@ def register_routes(
         history = _timeline_history(job)
         meta = load_meta(job.output)
         broll_plan = (job.result or {}).get("broll_plan", {})
+        etag = _timeline_etag(state.revision)
+        if (request.headers.get("if-none-match") or "").strip() in {etag, "*"}:
+            return Response(status_code=304, headers={"ETag": etag})
+        response.headers["ETag"] = etag
         return {
             "ok": True,
             "job_id": job_id,
@@ -3722,7 +3825,279 @@ def register_routes(
             "edits": edits,
             "applied": request.apply,
             "revision": state.revision,
+            "etag": _timeline_etag(state.revision),
         }
+
+    def _assistant_timeline(state: ProjectState) -> dict[str, object]:
+        media = state.media_info
+        fps = (media.fps_num / media.fps_den) if media is not None else 30.0
+        return {
+            "revision": state.revision,
+            "fps": fps,
+            "video": [
+                {
+                    "id": clip.clip_id,
+                    "start_sec": round(clip.timeline_in_frame / fps, 3),
+                    "end_sec": round(clip.timeline_out_frame / fps, 3),
+                    "source_in_frame": clip.source_in_frame,
+                    "source_out_frame": clip.source_out_frame,
+                }
+                for clip in state.video_segments
+            ],
+        }
+
+    def _assistant_context(job: Any) -> dict[str, object]:
+        context: dict[str, object] = {
+            "job": {
+                "job_id": str(job.job_id),
+                "status": job.status,
+                "stage": job.stage,
+                "source": str(job.source),
+                "output": str(job.output),
+            },
+            "recipes": [
+                {"id": item.get("id"), "name": item.get("name")}
+                for item in list_recipes()[:40]
+            ],
+            "projects": [
+                {"id": item.id, "name": item.name, "source": item.source}
+                for item in list_projects()[:20]
+            ],
+        }
+        try:
+            state = ProjectState.model_validate_json(
+                _timeline_state_path(job).read_text(encoding="utf-8")
+            )
+            context["timeline"] = _assistant_timeline(state)
+        except (OSError, ValueError, StateNotReadyError):
+            context["timeline"] = None
+        return context
+
+    def _assistant_read(job: Any, action: Any) -> dict[str, object]:
+        if action.tool == "list_recipes":
+            return {"tool": action.id, "recipes": list_recipes()[:80]}
+        if action.tool == "get_job":
+            payload = job.to_dict()
+            payload.pop("result", None)
+            payload.pop("options", None)
+            return {"tool": action.id, "job": payload}
+        if action.tool == "get_timeline":
+            state = ProjectState.model_validate_json(
+                _timeline_state_path(job).read_text(encoding="utf-8")
+            )
+            return {"tool": action.id, "timeline": _assistant_timeline(state)}
+        if action.tool == "list_projects":
+            return {
+                "tool": action.id,
+                "projects": [item.model_dump(mode="json") for item in list_projects()],
+            }
+        if action.tool == "validate_exports":
+            return {
+                "tool": action.id,
+                "validation": validate_nle_exports(job.output / "nle"),
+            }
+        return {"tool": action.id, "skipped": "not read-only"}
+
+    @app.post("/api/v1/jobs/{job_id}/assistant")
+    def assistant_turn(
+        job_id: str, request: AssistantRequest
+    ) -> dict[str, object]:
+        from videoflow.application import assistant
+        from videoflow.application.cost import snapshot as cost_snapshot
+        from videoflow.application.llm_factory import build_llm
+
+        try:
+            job = jobs.get(job_id)
+            context = _assistant_context(job)
+            before = cost_snapshot()
+            client = build_llm()
+            turn = assistant.plan(client, prompt=request.prompt, context=context)
+            observations: list[dict[str, object]] = []
+            if turn.actions and all(not item.writes for item in turn.actions):
+                observations = [_assistant_read(job, item) for item in turn.actions]
+                turn = assistant.plan(
+                    client,
+                    prompt=request.prompt,
+                    context=context,
+                    observations=observations,
+                )
+            writes = [item for item in turn.actions if item.writes]
+            diff: list[dict[str, Any]] = []
+            if writes:
+                state = ProjectState.model_validate_json(
+                    _timeline_state_path(job).read_text(encoding="utf-8")
+                )
+                before_timeline = _assistant_timeline(state)
+                working = state.model_copy(deep=True)
+                for action in writes:
+                    if action.tool != "apply_timeline_edits":
+                        continue
+                    for item in action.arguments.get("edits", []):
+                        working = apply_timeline_edit(
+                            working,
+                            TimelineEdit(
+                                clip_id=str(item.get("clip_id")),
+                                action=str(item.get("action")),  # type: ignore[arg-type]
+                                start_sec=item.get("start_sec"),
+                                end_sec=item.get("end_sec"),
+                                delta_sec=float(item.get("delta_sec") or 0.0),
+                                split_sec=item.get("split_sec"),
+                            ),
+                        )
+                diff = assistant.diff_timeline(
+                    before_timeline, _assistant_timeline(working)
+                )
+            after = cost_snapshot()
+            approval_id = ""
+            if writes:
+                import uuid
+
+                approval_id = f"approval-{uuid.uuid4().hex[:10]}"
+                assistant.save_pending(
+                    job.output,
+                    assistant.PendingPlan(
+                        approval_id=approval_id,
+                        job_id=str(job.job_id),
+                        prompt=request.prompt,
+                        message=turn.message,
+                        actions=writes,
+                        diff=diff,
+                        created_at=assistant.now(),
+                    ),
+                )
+                assistant.record_history(
+                    job.output,
+                    assistant.HistoryEntry(
+                        at=assistant.now(),
+                        job_id=str(job.job_id),
+                        prompt=request.prompt,
+                        message=turn.message,
+                        actions=[item.model_dump(mode="json") for item in writes],
+                        applied=False,
+                        approval_id=approval_id,
+                        tokens=int(after.get("prompt_tokens", 0))
+                        + int(after.get("completion_tokens", 0))
+                        - int(before.get("prompt_tokens", 0))
+                        - int(before.get("completion_tokens", 0)),
+                        cost_usd=round(
+                            float(after.get("estimated_cost_usd", 0.0))
+                            - float(before.get("estimated_cost_usd", 0.0)),
+                            6,
+                        ),
+                    ),
+                )
+            token_delta = (
+                int(after.get("prompt_tokens", 0))
+                + int(after.get("completion_tokens", 0))
+                - int(before.get("prompt_tokens", 0))
+                - int(before.get("completion_tokens", 0))
+            )
+            cost_delta = round(
+                float(after.get("estimated_cost_usd", 0.0))
+                - float(before.get("estimated_cost_usd", 0.0)),
+                6,
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {
+            "ok": True,
+            "message": turn.message,
+            "actions": [item.model_dump(mode="json") for item in turn.actions],
+            "observations": observations,
+            "diff": diff,
+            "requires_approval": bool(writes),
+            "approval_id": approval_id,
+            "tokens": token_delta,
+            "cost_usd": cost_delta,
+            "budget_usd": after.get("budget_usd", 0.0),
+            "remaining_usd": after.get("remaining_usd"),
+        }
+
+    def _assistant_apply(job: Any, action: Any) -> dict[str, object]:
+        if action.tool == "apply_timeline_edits":
+            _assert_tracks_unlocked(job, {"video", "audio"})
+            state_path = _timeline_state_path(job)
+            history = _timeline_history(job)
+            previous = ProjectState.model_validate_json(
+                state_path.read_text(encoding="utf-8")
+            )
+            working = previous.model_copy(deep=True)
+            for item in action.arguments.get("edits", []):
+                working = apply_timeline_edit(
+                    working,
+                    TimelineEdit(
+                        clip_id=str(item.get("clip_id")),
+                        action=str(item.get("action")),  # type: ignore[arg-type]
+                        start_sec=item.get("start_sec"),
+                        end_sec=item.get("end_sec"),
+                        delta_sec=float(item.get("delta_sec") or 0.0),
+                        split_sec=item.get("split_sec"),
+                    ),
+                )
+            history.record(previous)
+            applied = _apply_and_store(
+                job, working, state_path, history, previous.revision + 1
+            )
+            return {
+                "tool": action.id,
+                "applied": True,
+                "revision": applied.revision,
+                "etag": _timeline_etag(applied.revision),
+            }
+        if action.tool == "render_preview":
+            preview = previews.start(job)
+            return {"tool": action.id, "preview": preview.to_dict()}
+        if action.tool == "run_recipe":
+            payload = RecipeRunRequest(
+                recipe_id=str(action.arguments.get("recipe_id")),
+                source=str(action.arguments.get("source")),
+                output=str(action.arguments.get("output")),
+                variables=dict(action.arguments.get("variables") or {}),
+            )
+            return {"tool": action.id, **start_recipe_job(payload, None)}
+        raise StateNotReadyError(f"Unsupported write tool: {action.tool}")
+
+    @app.post("/api/v1/jobs/{job_id}/assistant/approve")
+    def assistant_approve(
+        job_id: str, request: AssistantApprovalRequest
+    ) -> dict[str, object]:
+        from videoflow.application import assistant
+
+        try:
+            job = jobs.get(job_id)
+            pending = assistant.load_pending(job.output, request.approval_id)
+            if pending.job_id != str(job.job_id):
+                raise StateNotReadyError("The approval belongs to another job.")
+            results = [_assistant_apply(job, action) for action in pending.actions]
+            assistant.delete_pending(job.output, request.approval_id)
+            assistant.record_history(
+                job.output,
+                assistant.HistoryEntry(
+                    at=assistant.now(),
+                    job_id=str(job.job_id),
+                    prompt=pending.prompt,
+                    message=pending.message,
+                    actions=[item.model_dump(mode="json") for item in pending.actions],
+                    applied=True,
+                    approval_id=pending.approval_id,
+                ),
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "approval_id": request.approval_id, "results": results}
+
+    @app.get("/api/v1/jobs/{job_id}/assistant/history")
+    def assistant_history(job_id: str) -> dict[str, object]:
+        from videoflow.application import assistant
+
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "history": assistant.read_history(job.output)}
 
     @app.get("/api/v1/projects")
     def projects_list() -> dict[str, object]:

@@ -270,7 +270,36 @@ appears to instruct the agent, the agent should report it and continue.
 
 See [security.md](security.md).
 
-## 8. Testing
+## 8. Behavior annotations, prompts, and pagination
+
+Every tool carries MCP annotations:
+
+| Annotation | Meaning | Examples |
+| --- | --- | --- |
+| `readOnlyHint` | No state change | `videoflow_get_timeline`, `videoflow_list_recipes` |
+| `destructiveHint` | Removes or cancels work | `videoflow_cancel_job`, `videoflow_delete_*` |
+| `idempotentHint` | Safe to repeat | `videoflow_save_recipe`, `videoflow_pause_job` |
+| `openWorldHint` | May reach the network | `videoflow_import_url`, `videoflow_transcribe_*` |
+
+Agents should require confirmation before a tool with `destructiveHint`, and may
+cache results from `readOnlyHint` tools.
+
+List tools accept `limit` and `offset` and return `total`:
+
+- `videoflow_list_recipes`
+- `videoflow_list_steps`
+- `videoflow_list_models`
+- `videoflow_list_plugins`
+
+Three prompts encode common workflows:
+
+| Prompt | Arguments | Outcome |
+| --- | --- | --- |
+| `videoflow_produce` | `source`, `output`, `recipe_id` | Run, poll, summarize artifacts |
+| `videoflow_review` | `job_id`, `instruction` | Propose, validate, and apply edits |
+| `videoflow_deliver` | `job_id` | Validate NLE exports and report gaps |
+
+## 9. Testing
 
 `tests/contract/test_mcp.py` asserts the registry and the live SDK tool list
 agree, all names are prefixed, tools without media return typed errors, and the

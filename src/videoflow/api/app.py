@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import RedirectResponse, Response
 
 from videoflow import __version__
+from videoflow.api.openapi import install_openapi
 from videoflow.api.routes import register_routes
 from videoflow.application.backups import scheduled_backup
 from videoflow.application.database import migrate_home
@@ -81,6 +82,7 @@ def create_app(
         lifespan=lifespan,
     )
     _install_common(app)
+    install_openapi(app)
     app.state.jobs = manager
     app.state.batches = batches
 

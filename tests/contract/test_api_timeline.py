@@ -538,3 +538,33 @@ def test_overlay_add_and_delete(monkeypatch, tmp_path: Path) -> None:
     )
     assert removed.status_code == 200
     assert removed.json()["overlays"] == []
+
+
+def test_timeline_etag_and_if_match(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    job = _job(manager, tmp_path)
+    first = client.get(f"/api/v1/jobs/{job.job_id}/timeline")
+    assert first.status_code == 200
+    etag = first.headers["etag"]
+    assert etag == f'"timeline-{first.json()["revision"]}"'
+
+    cached = client.get(
+        f"/api/v1/jobs/{job.job_id}/timeline", headers={"If-None-Match": etag}
+    )
+    assert cached.status_code == 304
+
+    stale = client.patch(
+        f"/api/v1/jobs/{job.job_id}/timeline",
+        headers={"If-Match": '"timeline-999"'},
+        json={"clip_id": "v1", "action": "split", "split_sec": 0.5},
+    )
+    assert stale.status_code == 412
+    assert stale.json()["detail"]["code"] == "precondition_failed"
+
+    applied = client.patch(
+        f"/api/v1/jobs/{job.job_id}/timeline",
+        headers={"If-Match": etag},
+        json={"clip_id": "v1", "action": "split", "split_sec": 0.5},
+    )
+    assert applied.status_code == 200, applied.text
+    assert applied.json()["etag"] != etag

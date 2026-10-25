@@ -47,3 +47,9 @@ def test_empty_log_does_not_add_a_line() -> None:
     telemetry = JobTelemetry()
     telemetry.log("ingest", "info", "")
     assert telemetry.log_count() == 0
+
+
+def test_logs_include_the_job_correlation_id() -> None:
+    telemetry = JobTelemetry(job_id="job-42")
+    telemetry.log("ingest", "info", "probed")
+    assert telemetry.logs()[0]["job_id"] == "job-42"

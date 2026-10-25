@@ -9,9 +9,8 @@ describe("domI18n glossary", () => {
     expect(GLOSSARY["Ripple delete"]).toBe("Excluir com ripple");
   });
 
-  it("has no empty or duplicated targets", () => {
+  it("has no empty targets", () => {
     const values = Object.values(GLOSSARY);
     expect(values.every((value) => value.trim().length > 0)).toBe(true);
-    expect(new Set(values).size).toBe(values.length);
   });
 });

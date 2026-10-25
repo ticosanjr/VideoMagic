@@ -3,6 +3,50 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.14.0] - 2026-10-25
+
+### Added
+
+- **Incremental render expansion.** Segment cache now keeps per-clip
+  `fade_to_black` and overlays incremental; crossfades still use the full graph
+  with a safe fallback.
+- **Frame proxy cache.** `GET /jobs/{id}/frame?height=` caches per revision and
+  height, so scrubbing invalidates automatically after an edit.
+- **Multi-process queue claim.** Atomic SQLite claim with worker leases,
+  heartbeat ownership checks, and expired-lease recovery (`queue_claim.py`).
+- **Observability.** Every log line carries `job_id` for correlation.
+- **Property tests.** Recipe parsing and timeline edits are fuzzed for invalid
+  ranges and clean rejection.
+- **Circuit breaker and cost budget** for LLM providers, with actionable errors.
+
+## [2.13.0] - 2026-10-25
+
+### Added
+
+- **Projects.** `GET/POST/PATCH/DELETE /api/v1/projects` with local JSON records,
+  Produce → Projects, and a "Use in Recipes" handoff.
+- **Assistant tool-calling.** Allowlisted read/write tools, two-step approval,
+  clip-level diff, per-turn tokens/cost, conversation history, and a single-use
+  approval id.
+- **Run graph.** Step nodes, edges, per-step duration, p50/p95 by recipe, retry
+  policy, and previous-run comparison.
+- **Variant comparison.** Recipe variants, Shorts, and thumbnail metrics in one
+  list with a persisted winner.
+
+## [2.12.0] - 2026-10-25
+
+### Added
+
+- **Complete EN/PT catalog.** Every visible static string in the Svelte panels has
+  a PT-BR entry, enforced by a coverage test.
+- **Onboarding.** Three-step first-run card with persisted dismissal.
+- **MCP contract.** Behavior annotations on every tool, three prompts
+  (`produce`, `review`, `deliver`), and paginated list tools.
+- **OpenAPI contract.** Error envelope, examples for timeline/run/logs/projects,
+  ETag/If-Match on timeline writes, and explicit API version.
+- **Accessibility and responsiveness.** Arrow/Home/End tab navigation, narrow
+  viewport and PT-BR locale E2E coverage, `docs/errors.md`.
+
 ## [2.11.0] - 2026-10-25
 
 ### Added

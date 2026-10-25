@@ -51,6 +51,7 @@ class LogLine:
     level: LogLevel
     module: str
     message: str
+    job_id: str = ""
 
     def to_dict(self) -> dict[str, str]:
         return {
@@ -58,11 +59,13 @@ class LogLine:
             "level": self.level,
             "module": self.module,
             "message": self.message,
+            "job_id": self.job_id,
         }
 
 
 @dataclass
 class JobTelemetry:
+    job_id: str = ""
     max_logs: int = 1000
     _stages: dict[str, StageState] = field(default_factory=dict)
     _logs: deque[LogLine] = field(default_factory=deque)
@@ -145,6 +148,7 @@ class JobTelemetry:
                     level=level,  # type: ignore[arg-type]
                     module=module,
                     message=message,
+                    job_id=self.job_id,
                 )
             )
 

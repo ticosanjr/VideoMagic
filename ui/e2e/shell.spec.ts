@@ -280,3 +280,68 @@ test("keeps the shell usable on a narrow viewport", async ({ page }) => {
   await page.getByRole("tab", { name: "Setup" }).click();
   await expect(page.getByRole("tab", { name: "Settings" })).toBeVisible();
 });
+
+test("keeps five areas translated in pt-BR", async ({ page }) => {
+  await page.route("**/api/v1/settings", (route) =>
+    route.fulfill({
+      json: { settings: { runtime: { locale: "pt-BR" }, ui: {} } }
+    })
+  );
+  await page.reload();
+  await expect(page.getByRole("tab", { name: "Produzir" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Construtor de receitas" })).toBeVisible();
+
+  await page.getByRole("tab", { name: "Editar" }).click();
+  await expect(page.getByRole("heading", { name: "Timeline" })).toBeVisible();
+
+  await page.getByRole("tab", { name: "Execuções" }).click();
+  await expect(page.getByRole("heading", { name: "Execuções" })).toBeVisible();
+
+  await page.getByRole("tab", { name: "Biblioteca" }).click();
+  await page.getByRole("tab", { name: "Biblioteca da marca" }).click();
+  await expect(page.getByRole("heading", { name: "Biblioteca da marca" })).toBeVisible();
+
+  await page.getByRole("tab", { name: "Configurar" }).click();
+  await page.getByRole("tab", { name: "Configurações" }).click();
+  await expect(page.getByRole("heading", { name: "Configurações locais" })).toBeVisible();
+});
+
+test("assistant shows a diff and applies only after approval", async ({ page }) => {
+  await page.route("**/api/v1/jobs/*/assistant**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/assistant/history")) {
+      return route.fulfill({ json: { ok: true, history: [] } });
+    }
+    if (url.pathname.endsWith("/assistant/approve")) {
+      return route.fulfill({ json: { ok: true, results: [{ applied: true }] } });
+    }
+    return route.fulfill({
+      json: {
+        ok: true,
+        message: "I will shorten the first clip.",
+        actions: [
+          {
+            id: "a1",
+            tool: "apply_timeline_edits",
+            arguments: { edits: [{ clip_id: "v1", action: "trim", end_sec: 1 }] }
+          }
+        ],
+        observations: [],
+        diff: [{ clip_id: "v1", change: "modified" }],
+        requires_approval: true,
+        approval_id: "approval-demo",
+        tokens: 120,
+        cost_usd: 0.001,
+        budget_usd: 0,
+        remaining_usd: null
+      }
+    });
+  });
+  await page.goto("/#copilot");
+  await page.getByRole("button", { name: "Agent tools" }).click();
+  await page.getByRole("textbox", { name: "Instruction" }).fill("shorten it");
+  await page.getByRole("button", { name: "Ask the agent" }).click();
+  await expect(page.getByTestId("assistant-diff")).toContainText("v1");
+  await page.getByRole("button", { name: "Approve and apply" }).click();
+  await expect(page.getByText(/Approved and applied/)).toBeVisible();
+});

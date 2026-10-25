@@ -3,12 +3,14 @@
   import {
     cancelJob,
     errorMessage,
+    getJobDag,
     listJobs,
     pauseJob,
     retryJob,
     setJobPriority,
     unpauseJob,
-    type Job
+    type Job,
+    type RunDag
   } from "$lib/api";
   import EmptyState from "$lib/EmptyState.svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
@@ -40,6 +42,21 @@
   let loading = $state(true);
   let busy = $state("");
   let confirmCancel = $state("");
+  let dags = $state<Record<string, RunDag>>({});
+
+  async function toggleDag(job: Job) {
+    if (dags[job.job_id]) {
+      const next = { ...dags };
+      delete next[job.job_id];
+      dags = next;
+      return;
+    }
+    try {
+      dags = { ...dags, [job.job_id]: await getJobDag(job.job_id) };
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
 
   const counts = $derived(jobCounts(jobs));
   const visible = $derived(filterJobs(jobs, { filter, query }));
@@ -256,6 +273,28 @@
                   title={`${stage.label}: ${stage.message || stage.status}`}
                 >{stage.label} · {stage.status}</span>
               {/each}
+            </div>
+          {/if}
+
+          <button type="button" class="mt-2 text-[10px] text-sky-300 hover:text-sky-200" onclick={() => void toggleDag(job)}>
+            {dags[job.job_id] ? "Hide run graph" : "Run graph"}
+          </button>
+          {#if dags[job.job_id]}
+            {@const dag = dags[job.job_id]}
+            <div class="mt-2 rounded-xl border border-neutral-800 bg-black/20 p-2" data-testid="job-dag">
+              <div class="flex flex-wrap items-center gap-1">
+                {#each dag.nodes as node, index (node.id)}
+                  {#if index > 0}<span class="text-neutral-600">→</span>{/if}
+                  <span
+                    class={`rounded-full border px-1.5 py-0.5 text-[9px] ${node.status === "succeeded" ? "border-emerald-400/30 text-emerald-200" : node.status === "failed" ? "border-rose-400/30 text-rose-200" : node.status === "running" ? "border-sky-400/30 text-sky-200" : node.status === "disabled" ? "border-neutral-800 text-neutral-600" : "border-neutral-700 text-neutral-400"}`}
+                    title={`${node.label}: ${node.message || node.status}`}
+                  >{node.label}{node.duration_ms != null ? ` · ${(node.duration_ms / 1000).toFixed(1)}s` : ""}</span>
+                {/each}
+              </div>
+              <p class="mt-1 text-[10px] text-neutral-500">
+                attempts {dag.attempts} · p50 {Math.round(dag.timing.p50_ms / 1000)}s · p95 {Math.round(dag.timing.p95_ms / 1000)}s · {dag.timing.samples} sample(s) · retry {dag.retry.max_attempts}× / {dag.retry.backoff_seconds}s
+                {dag.previous ? ` · previous ${dag.previous.job_id.slice(0, 8)} (${Math.round((dag.previous.duration_ms ?? 0) / 1000)}s)` : ""}
+              </p>
             </div>
           {/if}
 

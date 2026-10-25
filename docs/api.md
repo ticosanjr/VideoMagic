@@ -924,3 +924,53 @@ the enabled default followed by its fallback chain.
 - Every HTTP path is resolved and checked before the worker starts.
 - The UI origin allowlist is the local dev server.
 - Do not expose the port. v1 has no authentication.
+
+## 8. Timeline concurrency (ETag)
+
+`GET /api/v1/jobs/{id}/timeline` returns `ETag: "timeline-<revision>"`.
+
+- Send `If-None-Match` to get `304` when nothing changed.
+- Send `If-Match` with the last ETag on `PATCH /timeline`,
+  `PATCH /timeline/clip/{clip_id}`, and `PATCH /timeline/batch`.
+- A stale value returns `412` with `code: "precondition_failed"` and a fresh
+  ETag in `details.etag`; nothing is written.
+
+## 9. Projects
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/api/v1/projects` | List local projects, newest first |
+| POST | `/api/v1/projects` | Create `{name, source, output}` |
+| GET | `/api/v1/projects/{id}` | Read one project |
+| PATCH | `/api/v1/projects/{id}` | Rename or change source/output |
+| DELETE | `/api/v1/projects/{id}` | Delete the record; media is untouched |
+
+## 10. Assistant
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| POST | `/api/v1/jobs/{id}/assistant` | Plan with `{prompt}`; read-only tools run automatically |
+| POST | `/api/v1/jobs/{id}/assistant/approve` | Apply `{approval_id}` exactly once |
+| GET | `/api/v1/jobs/{id}/assistant/history` | Last 50 turns |
+
+Response fields: `message`, `actions`, `observations`, `diff`,
+`requires_approval`, `approval_id`, `tokens`, `cost_usd`, `budget_usd`,
+`remaining_usd`. A turn with writes never mutates the timeline; approvals do.
+
+## 11. Runs and variants
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/api/v1/jobs/{id}/dag` | Nodes, edges, status, durations, p50/p95, retry policy |
+| GET | `/api/v1/jobs/{id}/variants` | Recipe variants, Shorts, thumbnails, winner |
+| POST | `/api/v1/jobs/{id}/variants/select` | Persist `{name}` as winner |
+| GET | `/api/v1/jobs/{id}/logs?module=&level=&limit=` | Filtered logs; `download=true` |
+| GET | `/api/v1/jobs/{id}/frame?time=&height=` | Cached JPEG frame per revision |
+
+## 12. Contracts and errors
+
+- OpenAPI: `/openapi.json`, `/docs`.
+- Error catalog: [errors.md](errors.md).
+- Every mutation documents `403/404/409/412/422/429/500` with the
+  `ErrorEnvelope` schema.
+- MCP behavior annotations are documented in [mcp.md](mcp.md).
