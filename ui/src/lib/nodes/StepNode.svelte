@@ -1,6 +1,12 @@
 <script lang="ts">
   import { Handle, Position } from "@xyflow/svelte";
-  import { fieldGroups, validateField, type RecipeField } from "$lib/recipeFields";
+  import {
+    fieldGroups,
+    nodePresets,
+    validateField,
+    type RecipeField
+  } from "$lib/recipeFields";
+  import type { StepPort } from "$lib/api";
 
   let {
     data,
@@ -19,12 +25,17 @@
       expanded?: boolean;
       pinned?: boolean;
       width?: number;
+      inputs?: Record<string, string>;
+      inputPorts?: StepPort[];
+      outputPorts?: StepPort[];
       errors?: Record<string, string>;
+      onSelect?: () => void;
       onToggle?: () => void;
       onPin?: () => void;
       onWidth?: () => void;
       onResize?: (width: number) => void;
       onPatch?: (path: string[], value: unknown) => void;
+      onPatchMany?: (patch: Record<string, unknown>) => void;
       onPickPath?: (path: string[]) => void;
       onRun?: () => void;
       onDuplicate?: () => void;
@@ -35,7 +46,10 @@
     selected?: boolean;
   } = $props();
 
-  const groups = $derived(fieldGroups(data.schema ?? {}, data.params ?? {}));
+  const groups = $derived(
+    fieldGroups(data.schema ?? {}, data.params ?? {}, data.type)
+  );
+  const presets = $derived(nodePresets(data.type));
   let jsonDrafts = $state<Record<string, string>>({});
   let jsonErrors = $state<Record<string, string>>({});
   const status = $derived(data.status ?? "idle");
@@ -48,7 +62,7 @@
     return data.errors?.[field.id] ?? validateField(field);
   }
 
-  function change(field: RecipeField, raw: string | boolean) {
+  function change(field: RecipeField, raw: string | boolean | string[]) {
     let value: unknown = raw;
     if (field.kind === "number") {
       value = raw === "" ? undefined : Number(raw);
@@ -57,9 +71,33 @@
   }
 
   function displayValue(field: RecipeField): string {
-    if (field.value === undefined || field.value === null) return field.kind === "json" ? "[]" : "";
-    if (field.kind === "json") return jsonDrafts[field.id] ?? JSON.stringify(field.value);
+    if (field.value === undefined || field.value === null) {
+      return field.control === "json" || field.control === "chips" ? "[]" : "";
+    }
+    if (field.control === "json" || field.control === "chips") {
+      return jsonDrafts[field.id] ?? JSON.stringify(field.value);
+    }
     return String(field.value);
+  }
+
+  function values(field: RecipeField): string[] {
+    return Array.isArray(field.value) ? field.value.map((item) => String(item)) : [];
+  }
+
+  function toggleChip(field: RecipeField, option: string) {
+    const current = values(field);
+    const next = current.includes(option)
+      ? current.filter((item) => item !== option)
+      : [...current, option];
+    data.onPatch?.(field.path, next);
+  }
+
+  function resetField(field: RecipeField) {
+    data.onPatch?.(field.path, field.defaultValue);
+  }
+
+  function changed(field: RecipeField): boolean {
+    return JSON.stringify(field.value) !== JSON.stringify(field.defaultValue);
   }
 
   function changeJson(field: RecipeField, raw: string) {
@@ -132,6 +170,40 @@
         {#if implementation === "planned"}
           <p class="rounded border border-dashed border-neutral-700 bg-neutral-950/60 p-2 text-[10px] text-neutral-400">Not implemented in this build. The recipe runner will bypass this node.</p>
         {/if}
+        {#if data.inputPorts?.length || data.outputPorts?.length}
+          <div class="rounded-lg border border-sky-500/15 bg-sky-950/10 p-2" data-testid={`ports-${data.type}`}>
+            <p class="text-[9px] uppercase tracking-wide text-sky-300/80">Data ports</p>
+            {#if data.inputPorts?.length}
+              <div class="mt-1 flex flex-wrap gap-1">
+                {#each data.inputPorts as port}
+                  {@const wired = Object.entries(data.inputs ?? {}).find(([key]) => key === port.id)?.[1]}
+                  <span class={`rounded border px-1.5 py-0.5 text-[9px] ${wired ? "border-emerald-400/30 text-emerald-200" : "border-neutral-700 text-neutral-500"}`} title={wired ? `from ${wired}` : "Not wired"}>
+                    in · {port.label}{port.required ? " *" : ""}
+                  </span>
+                {/each}
+              </div>
+            {/if}
+            {#if data.outputPorts?.length}
+              <div class="mt-1 flex flex-wrap gap-1">
+                {#each data.outputPorts as port}
+                  <span class="rounded border border-sky-400/25 px-1.5 py-0.5 text-[9px] text-sky-200" title={port.type}>out · {port.label}</span>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/if}
+        {#if presets.length}
+          <div class="flex flex-wrap items-center gap-1">
+            <span class="text-[9px] uppercase tracking-wide text-neutral-500">Presets</span>
+            {#each presets as preset}
+              <button
+                type="button"
+                onclick={(event) => { event.stopPropagation(); data.onPatchMany?.(preset.patch); }}
+                class="rounded border border-neutral-700 px-1.5 py-0.5 text-[9px] text-neutral-300 hover:border-sky-500 hover:text-sky-200"
+              >{preset.label}</button>
+            {/each}
+          </div>
+        {/if}
         {#if groups.length === 0}
           <p class="text-[10px] text-neutral-500">No simple fields. Use JSON.</p>
         {/if}
@@ -148,15 +220,29 @@
                     {field.label}
                     {#if field.required}<span class="text-rose-300">*</span>{/if}
                   </span>
-                  {#if field.kind === "boolean"}
-                    <input
+                  {#if field.control === "switch"}
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={field.value === true}
+                      aria-label={field.label}
                       data-testid={`field-${field.id}`}
-                      type="checkbox"
-                      checked={field.value === true}
-                      onchange={(event) => change(field, event.currentTarget.checked)}
-                      class="mt-1 block"
-                    />
-                  {:else if field.kind === "enum"}
+                      onclick={(event) => { event.preventDefault(); change(field, !(field.value === true)); }}
+                      class={`mt-1 inline-flex h-5 w-9 items-center rounded-full border transition ${field.value === true ? "border-sky-400 bg-sky-500/40" : "border-neutral-700 bg-neutral-900"}`}
+                    >
+                      <span class={`h-3.5 w-3.5 rounded-full bg-white transition ${field.value === true ? "translate-x-4" : "translate-x-0.5"}`}></span>
+                    </button>
+                  {:else if field.control === "segmented"}
+                    <span class="mt-1 flex flex-wrap gap-1" data-testid={`field-${field.id}`}>
+                      {#each field.options as option}
+                        <button
+                          type="button"
+                          onclick={(event) => { event.preventDefault(); change(field, option); }}
+                          class={String(field.value) === option ? "rounded-md bg-sky-500/20 px-2 py-1 text-[10px] text-sky-200 ring-1 ring-inset ring-sky-400/30" : "rounded-md border border-neutral-700 px-2 py-1 text-[10px] text-neutral-400 hover:text-neutral-200"}
+                        >{option}</button>
+                      {/each}
+                    </span>
+                  {:else if field.control === "select"}
                     <select
                       data-testid={`field-${field.id}`}
                       value={displayValue(field)}
@@ -166,7 +252,50 @@
                       {#if !field.required}<option value="">—</option>{/if}
                       {#each field.options as option}<option value={option}>{option}</option>{/each}
                     </select>
-                  {:else if field.kind === "number"}
+                  {:else if field.control === "slider"}
+                    <span class="mt-1 flex items-center gap-2">
+                      <input
+                        data-testid={`field-${field.id}`}
+                        type="range"
+                        min={field.minimum}
+                        max={field.maximum}
+                        step={field.step ?? 1}
+                        value={displayValue(field)}
+                        oninput={(event) => change(field, event.currentTarget.value)}
+                        class="min-w-0 flex-1 accent-sky-500"
+                      />
+                      <input
+                        type="number"
+                        min={field.minimum}
+                        max={field.maximum}
+                        step={field.step ?? 1}
+                        value={displayValue(field)}
+                        oninput={(event) => change(field, event.currentTarget.value)}
+                        class="w-16 rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-right font-mono text-[10px] text-neutral-100"
+                      />
+                      {#if field.unit}<span class="text-[9px] text-neutral-500">{field.unit}</span>{/if}
+                    </span>
+                  {:else if field.control === "chips"}
+                    <span class="mt-1 flex flex-wrap gap-1" data-testid={`field-${field.id}`}>
+                      {#if field.itemOptions.length}
+                        {#each field.itemOptions as option}
+                          <button
+                            type="button"
+                            onclick={(event) => { event.preventDefault(); toggleChip(field, option); }}
+                            class={values(field).includes(option) ? "rounded-full bg-emerald-500/15 px-2 py-1 text-[10px] text-emerald-200 ring-1 ring-inset ring-emerald-400/30" : "rounded-full border border-neutral-700 px-2 py-1 text-[10px] text-neutral-400 hover:text-neutral-200"}
+                          >{option}</button>
+                        {/each}
+                      {:else}
+                        <input
+                          type="text"
+                          value={values(field).join(", ")}
+                          placeholder={field.placeholder}
+                          oninput={(event) => change(field, event.currentTarget.value.split(",").map((item) => item.trim()).filter(Boolean))}
+                          class="w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100"
+                        />
+                      {/if}
+                    </span>
+                  {:else if field.control === "number"}
                     <input
                       data-testid={`field-${field.id}`}
                       type="number"
@@ -177,7 +306,7 @@
                       oninput={(event) => change(field, event.currentTarget.value)}
                       class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100"
                     />
-                  {:else if field.kind === "json"}
+                  {:else if field.control === "json"}
                     <textarea
                       data-testid={`field-${field.id}`}
                       rows="3"
@@ -185,7 +314,7 @@
                       oninput={(event) => changeJson(field, event.currentTarget.value)}
                       class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 p-2 font-mono text-[10px] text-neutral-100"
                     ></textarea>
-                  {:else if field.kind === "path"}
+                  {:else if field.control === "path"}
                     <span class="mt-1 flex gap-1">
                       <input
                         data-testid={`field-${field.id}`}
@@ -197,7 +326,7 @@
                       />
                       <button type="button" onclick={(event) => { event.preventDefault(); data.onPickPath?.(field.path); }} class="rounded border border-neutral-700 px-1.5 text-[10px] text-neutral-300 hover:border-sky-500">…</button>
                     </span>
-                  {:else if field.kind === "color"}
+                  {:else if field.control === "color"}
                     <span class="mt-1 flex gap-1">
                       <input
                         data-testid={`field-${field.id}`}
@@ -222,6 +351,9 @@
                       oninput={(event) => change(field, event.currentTarget.value)}
                       class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100"
                     />
+                  {/if}
+                  {#if changed(field)}
+                    <button type="button" onclick={(event) => { event.preventDefault(); resetField(field); }} class="mt-0.5 text-[9px] text-neutral-500 hover:text-sky-300">Reset to default</button>
                   {/if}
                   {#if error}<span class="mt-0.5 block text-[9px] text-rose-300">{error}</span>{/if}
                 </label>

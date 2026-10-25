@@ -23,15 +23,31 @@
         }
       },
       {
-        "id": "timeline",
-        "type": "edit.timeline",
+        "id": "vad",
+        "type": "audio.vad",
         "needs": [
           "ingest"
         ],
         "enabled": true,
         "params": {
+          "min_silence_ms": 350,
+          "spike_suppression_ms": 180,
+          "engine": "auto"
+        }
+      },
+      {
+        "id": "timeline",
+        "type": "edit.timeline",
+        "needs": [
+          "vad"
+        ],
+        "enabled": true,
+        "params": {
           "transition_frames": 0,
           "transition_type": "crossfade"
+        },
+        "inputs": {
+          "speech": "vad.speech"
         }
       }
     ],
@@ -51,10 +67,17 @@
           "width": 420
         },
         "timeline": {
-          "x": 340,
+          "x": 800,
           "y": 60,
           "expanded": true,
           "pinned": true,
+          "width": 420
+        },
+        "vad": {
+          "x": 340,
+          "y": 60,
+          "expanded": false,
+          "pinned": false,
           "width": 420
         }
       }

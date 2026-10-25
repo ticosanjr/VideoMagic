@@ -36,6 +36,56 @@ and MCP tools. The engine validates the graph before executing any step.
 v1 engine rejects cycles, duplicate ids, unknown types, missing dependencies,
 and enabled steps that depend on disabled steps.
 
+## Ports and wiring
+
+`needs` ordering is not the same thing as data flow. Steps also declare typed
+inputs and outputs, and a recipe can bind a specific output to a specific input:
+
+```json
+{
+  "id": "timeline_tight",
+  "type": "edit.timeline",
+  "needs": ["vad_tight", "transcribe"],
+  "inputs": {
+    "speech": "vad_tight.speech",
+    "transcript": "transcribe.transcript"
+  },
+  "params": { "cut_mode": "j_cut", "offset_ms": 180 }
+}
+```
+
+Core port types are `media`, `pcm`, `sample_spans`, `transcript`, `timeline`,
+`short_list`, `artifact_map`, and `any`. The runner rejects unknown ports, type
+mismatches, missing required inputs, and sources that are not in the dependency
+ancestry. Existing recipes without `inputs` keep the legacy implicit context
+behaviour.
+
+In the UI, each node shows its ports; clicking an edge opens the **Wire ports**
+dialog, where only compatible types are listed. The edge label shows the mapping,
+for example `speech → speech`.
+
+Wiring enables branches: two VADs with different thresholds, two timelines with
+different cut modes, and a comparison between them. The cache fingerprint
+includes the wired input hashes, so changing one branch does not invalidate the
+other.
+
+## Node controls
+
+The inspector is generated from each step's JSON schema:
+
+- bounded numbers render as sliders with a numeric companion;
+- short enums render as segmented buttons and longer enums as dropdowns;
+- booleans render as switches;
+- string arrays and export targets render as chips;
+- paths use the path picker, colours use a picker plus hex;
+- complex objects/arrays keep a JSON editor;
+- each field shows its default and offers **Reset to default**;
+- nodes expose presets (Gentle/Balanced/Aggressive/Tight for VAD,
+  Hard/J/L/Custom for cuts, Conservative/Balanced/Aggressive for retakes).
+
+All Recut defaults live inside the nodes. Recipe variables remain reserved for
+values genuinely shared by multiple nodes or profiles.
+
 ## Steps
 
 | Type | Requires | Produces |

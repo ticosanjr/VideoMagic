@@ -406,8 +406,16 @@ export interface RecipeStep {
   id: string;
   type: string;
   needs: string[];
+  inputs?: Record<string, string>;
   enabled: boolean;
   params: Record<string, unknown>;
+}
+
+export interface StepPort {
+  id: string;
+  label: string;
+  type: string;
+  required?: boolean;
 }
 
 export interface RecipeNodeUi {
@@ -459,6 +467,8 @@ export interface StepManifest {
   requires: string[];
   produces: string[];
   params_schema: Record<string, unknown>;
+  inputs?: StepPort[];
+  outputs?: StepPort[];
   status?: "available" | "partial" | "planned";
   icon?: string;
   color?: string;

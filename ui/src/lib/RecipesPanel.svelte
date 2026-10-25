@@ -49,7 +49,8 @@
     type RecipeHistoryEntry,
     type RecipeSummary,
     type RunRecord,
-    type StepManifest
+    type StepManifest,
+    type StepPort
   } from "$lib/api";
 
   let {
@@ -78,6 +79,9 @@
     color?: string;
     status?: NodeStatus;
     progress?: number;
+    inputs?: Record<string, string>;
+    inputPorts?: StepPort[];
+    outputPorts?: StepPort[];
     expanded?: boolean;
     pinned?: boolean;
     width?: number;
@@ -187,6 +191,12 @@
   let templatesOpen = $state(false);
   let templateQuery = $state("");
   let recipeFilter = $state<RecipeFilter>("all");
+  let wiring = $state<{
+    source: string;
+    target: string;
+    sourcePort: string;
+    targetPort: string;
+  } | null>(null);
   let nleOpen = $state(false);
   let nleReport = $state<NleValidationReport | null>(null);
   let nleBusy = $state(false);
@@ -364,7 +374,7 @@
       const manifest = manifestFor(step.type);
       const saved = recipeUi.nodes[step.id];
       recipeUi.nodes[step.id] = {
-        x: saved?.x ?? 60 + column * 280,
+        x: saved?.x ?? 60 + column * 460,
         y: saved?.y ?? 60 + row * 150,
         expanded: saved?.expanded ?? false,
         pinned: saved?.pinned ?? false,
@@ -379,6 +389,9 @@
           type: step.type,
           params: step.params,
           schema: manifest?.params_schema ?? {},
+          inputs: step.inputs ?? {},
+          inputPorts: manifest?.inputs ?? [],
+          outputPorts: manifest?.outputs ?? [],
           implementation: manifest?.status ?? "available",
           icon: manifest?.icon ?? "●",
           color: manifest?.color ?? "#38bdf8",
@@ -387,11 +400,13 @@
           expanded: recipeUi.nodes[step.id].expanded,
           pinned: recipeUi.nodes[step.id].pinned,
           width: recipeUi.nodes[step.id].width,
+          onSelect: () => selectNode(step.id),
           onToggle: () => toggleNodeExpanded(step.id),
           onPin: () => toggleNodePinned(step.id),
           onWidth: () => cycleNodeWidth(step.id),
           onResize: (width: number) => resizeNode(step.id, width),
           onPatch: (path: string[], value: unknown) => patchNodeParams(step.id, path, value),
+          onPatchMany: (patch: Record<string, unknown>) => patchNodeParamsMany(step.id, patch),
           onPickPath: (path: string[]) => openNodePathPicker(step.id, path),
           onRun: () => void runToHere(step.id),
           onDuplicate: () => duplicateNode(step.id),
@@ -406,12 +421,18 @@
     });
     nodes = next;
     edges = recipe.steps.flatMap((step) =>
-      step.needs.map((need) => ({
-        id: `${need}->${step.id}`,
-        source: need,
-        target: step.id,
-        animated: true
-      }))
+      step.needs.map((need) => {
+        const mappings = Object.entries(step.inputs ?? {})
+          .filter(([, reference]) => String(reference).split(".")[0] === need)
+          .map(([inputPort, reference]) => `${String(reference).split(".").slice(1).join(".")} → ${inputPort}`);
+        return {
+          id: `${need}->${step.id}`,
+          source: need,
+          target: step.id,
+          animated: true,
+          label: mappings.join(" · ")
+        };
+      })
     );
     selectedId = null;
     lastSelected = "";
@@ -458,10 +479,19 @@
       },
       steps: nodes.map((node) => {
         const data = nodeData(node);
+        const sources = new Set(
+          edges.filter((edge) => edge.target === node.id).map((edge) => edge.source)
+        );
+        const inputs = Object.fromEntries(
+          Object.entries(data.inputs ?? {}).filter(([, reference]) =>
+            sources.has(String(reference).split(".")[0])
+          )
+        );
         return {
           id: node.id,
           type: data.type,
-          needs: edges.filter((edge) => edge.target === node.id).map((edge) => edge.source),
+          needs: [...sources],
+          inputs,
           enabled: true,
           params: data.params ?? {}
         };
@@ -484,12 +514,15 @@
       {
         id,
         type: "step",
-        position: { x: 80 + (nodes.length % 4) * 240, y: 100 + Math.floor(nodes.length / 4) * 140 },
+        position: { x: 80 + (nodes.length % 4) * 460, y: 100 + Math.floor(nodes.length / 4) * 180 },
         data: {
           title: manifest.title,
           type,
           params: defaultsFor(manifest),
           schema: manifest.params_schema,
+          inputs: {},
+          inputPorts: manifest.inputs ?? [],
+          outputPorts: manifest.outputs ?? [],
           implementation: manifest.status ?? "available",
           icon: manifest.icon ?? "●",
           color: manifest.color ?? "#38bdf8",
@@ -498,11 +531,13 @@
           expanded: true,
           pinned: false,
           width: 420,
+          onSelect: () => selectNode(id),
           onToggle: () => toggleNodeExpanded(id),
           onPin: () => toggleNodePinned(id),
           onWidth: () => cycleNodeWidth(id),
           onResize: (width: number) => resizeNode(id, width),
           onPatch: (path: string[], value: unknown) => patchNodeParams(id, path, value),
+          onPatchMany: (patch: Record<string, unknown>) => patchNodeParamsMany(id, patch),
           onPickPath: (path: string[]) => openNodePathPicker(id, path),
           onRun: () => void runToHere(id),
           onDuplicate: () => duplicateNode(id),
@@ -516,8 +551,8 @@
       } satisfies Node
     ];
     recipeUi.nodes[id] = {
-      x: 80 + (nodes.length % 4) * 240,
-      y: 100 + Math.floor(nodes.length / 4) * 140,
+      x: 80 + (nodes.length % 4) * 460,
+      y: 100 + Math.floor(nodes.length / 4) * 180,
       expanded: true,
       pinned: false,
       width: 420
@@ -533,16 +568,112 @@
     if (selectedId) removeNode(selectedId);
   }
 
+  function portTypeCompatible(source: string, target: string): boolean {
+    return source === target || source === "any" || target === "any";
+  }
+
+  function wiringChoices(source: string, target: string) {
+    const sourceNode = nodes.find((node) => node.id === source);
+    const targetNode = nodes.find((node) => node.id === target);
+    if (!sourceNode || !targetNode) return [];
+    const outputs = nodeData(sourceNode).outputPorts ?? [];
+    const inputs = nodeData(targetNode).inputPorts ?? [];
+    return outputs.flatMap((output) =>
+      inputs
+        .filter((input) => portTypeCompatible(output.type, input.type))
+        .map((input) => ({ output, input }))
+    );
+  }
+
+  function edgeLabel(source: string, target: string): string {
+    const targetNode = nodes.find((node) => node.id === target);
+    if (!targetNode) return "";
+    const entries = Object.entries(nodeData(targetNode).inputs ?? {}).filter(
+      ([, reference]) => String(reference).split(".")[0] === source
+    );
+    return entries
+      .map(([inputPort, reference]) => `${String(reference).split(".").slice(1).join(".")} → ${inputPort}`)
+      .join(" · ");
+  }
+
+  function openWiring(source: string, target: string) {
+    const choices = wiringChoices(source, target);
+    if (!choices.length) {
+      error = `No compatible port between ${source} and ${target}.`;
+      return;
+    }
+    const first = choices[0];
+    wiring = {
+      source,
+      target,
+      sourcePort: first.output.id,
+      targetPort: first.input.id
+    };
+  }
+
+  function openEdgeWiring(edge: Edge) {
+    const targetNode = nodes.find((node) => node.id === edge.target);
+    if (!targetNode) return;
+    const entries = Object.entries(nodeData(targetNode).inputs ?? {}).filter(
+      ([, reference]) => String(reference).split(".")[0] === edge.source
+    );
+    const [inputPort, reference] = entries[0] ?? [];
+    if (inputPort && reference) {
+      wiring = {
+        source: edge.source,
+        target: edge.target,
+        sourcePort: String(reference).split(".").slice(1).join("."),
+        targetPort: inputPort
+      };
+      return;
+    }
+    openWiring(edge.source, edge.target);
+  }
+
+  function confirmWiring() {
+    if (!wiring) return;
+    const { source, target, sourcePort, targetPort } = wiring;
+    const targetNode = nodes.find((node) => node.id === target);
+    if (!targetNode) return;
+    const reference = `${source}.${sourcePort}`;
+    const exists = edges.some((edge) => edge.source === source && edge.target === target);
+    pushUndo();
+    const label = `${sourcePort} → ${targetPort}`;
+    nodes = nodes.map((node) =>
+      node.id === target
+        ? {
+            ...node,
+            data: {
+              ...nodeData(node),
+              inputs: { ...(nodeData(node).inputs ?? {}), [targetPort]: reference }
+            }
+          }
+        : node
+    );
+    if (!exists) {
+      edges = [
+        ...edges,
+        {
+          id: `${source}->${target}`,
+          source,
+          target,
+          animated: true,
+          label
+        }
+      ];
+    } else {
+      edges = edges.map((edge) =>
+        edge.source === source && edge.target === target
+          ? { ...edge, label }
+          : edge
+      );
+    }
+    wiring = null;
+  }
+
   function onConnect(connection: Connection) {
     if (!connection.source || !connection.target) return;
     if (connection.source === connection.target) return;
-    if (
-      edges.some(
-        (edge) => edge.source === connection.source && edge.target === connection.target
-      )
-    ) {
-      return;
-    }
     const adjacency = new Map<string, string[]>();
     for (const edge of edges) {
       const list = adjacency.get(edge.source) ?? [];
@@ -566,16 +697,7 @@
       error = "This connection would create a cycle.";
       return;
     }
-    pushUndo();
-    edges = [
-      ...edges,
-      {
-        id: `${connection.source}->${connection.target}`,
-        source: connection.source,
-        target: connection.target,
-        animated: true
-      }
-    ];
+    openWiring(connection.source, connection.target);
   }
 
   function selectedParams(): Record<string, unknown> {
@@ -949,6 +1071,20 @@
     }
   }
 
+  function patchNodeParamsMany(id: string, patch: Record<string, unknown>) {
+    const node = nodes.find((item) => item.id === id);
+    if (!node) return;
+    const params = { ...(nodeData(node).params ?? {}), ...patch };
+    nodes = nodes.map((item) =>
+      item.id === id
+        ? { ...item, data: { ...nodeData(item), params } }
+        : item
+    );
+    if (selectedId === id) {
+      paramText = JSON.stringify(params, null, 2);
+    }
+  }
+
   function openNodePathPicker(nodeId: string, path: string[]) {
     nodePathTarget = { nodeId, path };
     nodePathMode = /dir|directory|asset_dir/i.test(path[path.length - 1] ?? "") ? "directory" : "file";
@@ -973,11 +1109,13 @@
       selected: false,
       data: {
         ...data,
+        onSelect: () => selectNode(nextId),
         onToggle: () => toggleNodeExpanded(nextId),
         onPin: () => toggleNodePinned(nextId),
         onWidth: () => cycleNodeWidth(nextId),
         onResize: (width: number) => resizeNode(nextId, width),
         onPatch: (path: string[], value: unknown) => patchNodeParams(nextId, path, value),
+        onPatchMany: (patch: Record<string, unknown>) => patchNodeParamsMany(nextId, patch),
         onPickPath: (path: string[]) => openNodePathPicker(nextId, path),
         onRun: () => void runToHere(nextId),
         onDuplicate: () => duplicateNode(nextId),
@@ -1069,7 +1207,7 @@
     const errors: Record<string, string> = {};
     for (const node of nodes) {
       const data = nodeData(node);
-      for (const [key, message] of Object.entries(validateParams(data.schema ?? {}, data.params ?? {}))) {
+      for (const [key, message] of Object.entries(validateParams(data.schema ?? {}, data.params ?? {}, data.type))) {
         errors[`${node.id}.${key}`] = message;
       }
     }
@@ -1817,6 +1955,7 @@
             onnodedragstop={handleNodeDragStop}
             onmoveend={() => scheduleUiSave()}
             onnodeclick={({ node }) => selectNode(node.id)}
+            onedgeclick={({ edge }) => openEdgeWiring(edge)}
           >
             <Background gap={20} size={1} />
             <Controls />
@@ -2256,6 +2395,64 @@
         </ul>
       {/if}
     </section>
+  {/if}
+
+  {#if wiring}
+    {@const sourceNode = nodes.find((node) => node.id === wiring?.source)}
+    {@const targetNode = nodes.find((node) => node.id === wiring?.target)}
+    {@const outputPorts = sourceNode ? nodeData(sourceNode).outputPorts ?? [] : []}
+    {@const inputPorts = (targetNode ? nodeData(targetNode).inputPorts ?? [] : []).filter((input) => {
+      const output = outputPorts.find((item) => item.id === wiring?.sourcePort);
+      return output ? portTypeCompatible(output.type, input.type) : false;
+    })}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="presentation"
+      onclick={(event) => { if (event.currentTarget === event.target) wiring = null; }}>
+      <div class="w-full max-w-lg rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="Wire ports">
+        <div class="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
+          <div><h3 class="text-sm font-semibold text-white">Wire ports</h3><p class="text-[10px] text-neutral-500">{wiring.source} → {wiring.target}</p></div>
+          <button type="button" onclick={() => (wiring = null)} class="rounded px-2 text-neutral-500 hover:text-neutral-200" aria-label="Close port wiring">×</button>
+        </div>
+        <div class="grid gap-3 p-4 sm:grid-cols-2">
+          <label class="text-[10px] uppercase tracking-wide text-neutral-500">
+            Output
+            <select
+              value={wiring.sourcePort}
+              onchange={(event) => {
+                if (!wiring) return;
+                wiring = { ...wiring, sourcePort: event.currentTarget.value };
+                const port = outputPorts.find((item) => item.id === event.currentTarget.value);
+                const first = (targetNode ? nodeData(targetNode).inputPorts ?? [] : []).find((input) => port && portTypeCompatible(port.type, input.type));
+                if (first) wiring = { ...wiring, targetPort: first.id };
+              }}
+              class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100"
+            >
+              {#each outputPorts as port}
+                <option value={port.id}>{port.label} · {port.type}</option>
+              {/each}
+            </select>
+          </label>
+          <label class="text-[10px] uppercase tracking-wide text-neutral-500">
+            Input
+            <select
+              value={wiring.targetPort}
+              onchange={(event) => { if (wiring) wiring = { ...wiring, targetPort: event.currentTarget.value }; }}
+              class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100"
+            >
+              {#each inputPorts as port}
+                <option value={port.id}>{port.label} · {port.type}{port.required ? " *" : ""}</option>
+              {/each}
+            </select>
+          </label>
+        </div>
+        <div class="flex items-center justify-between gap-2 border-t border-neutral-800 px-4 py-3">
+          <p class="text-[10px] text-neutral-600">Only compatible port types are listed.</p>
+          <div class="flex gap-1.5">
+            <button type="button" onclick={() => (wiring = null)} class="rounded-lg border border-neutral-700 px-2.5 py-1 text-[11px] text-neutral-300">Cancel</button>
+            <button type="button" data-testid="wire-confirm" onclick={confirmWiring} disabled={!inputPorts.length} class="rounded-lg bg-sky-500 px-3 py-1 text-[11px] font-medium text-neutral-950 disabled:opacity-40">Connect</button>
+          </div>
+        </div>
+      </div>
+    </div>
   {/if}
 
   {#if templatesOpen}

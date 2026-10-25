@@ -227,6 +227,7 @@ from videoflow.engine.runner import RecipeRunner
 from videoflow.runtime import allowed_roots, find_binary, portable_home
 from videoflow.steps import get_step, requirements_by_type, step_types
 from videoflow.steps import manifest as step_manifest
+from videoflow.steps.ports import validate_recipe_ports
 
 logger = logging.getLogger(__name__)
 
@@ -773,6 +774,7 @@ def register_routes(
         else:
             recipe = get_recipe(str(request.recipe_id))
         recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+        validate_recipe_ports(recipe)
         if through is not None and through not in {step.id for step in recipe.enabled_steps()}:
             raise RecipeError(f"Unknown or disabled step: {through}")
         recipe = resolve_recipe_paths(recipe, roots)
@@ -962,6 +964,7 @@ def register_routes(
             if recipe.id != recipe_id:
                 raise RecipeError("recipe id does not match the URL")
             recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+            validate_recipe_ports(recipe)
             path = save_user_recipe(recipe)
         except VideoFlowError as exc:
             fail(exc)
@@ -986,7 +989,9 @@ def register_routes(
         try:
             recipe = parse_recipe(payload)
             recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
-            for step in recipe.steps:
+            validate_recipe_ports(recipe)
+            resolved = recipe.with_variables({})
+            for step in resolved.steps:
                 try:
                     get_step(step.type).validate_params(step.params)
                 except ValidationError as exc:
@@ -1001,6 +1006,7 @@ def register_routes(
         return {
             "ok": True,
             "recipe": recipe_to_dict(recipe),
+            "resolved": recipe_to_dict(resolved),
             "order": [step.id for step in order],
         }
 

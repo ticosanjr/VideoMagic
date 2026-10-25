@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -25,8 +25,8 @@ class RetakesParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool = True
-    strategy: str = "keep_last"
-    strictness: str = "balanced"
+    strategy: Literal["keep_last", "keep_best"] = "keep_last"
+    strictness: Literal["conservative", "balanced", "aggressive"] = "balanced"
     context_window: int = Field(default=15, ge=1, le=200)
     manual_overrides: list[dict[str, Any]] = Field(default_factory=list)
 

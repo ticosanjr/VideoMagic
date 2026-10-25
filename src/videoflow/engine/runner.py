@@ -26,6 +26,12 @@ from videoflow.exporters.common import write_text
 from videoflow.steps import get_step, requirements_by_type, step_types
 from videoflow.steps.base import StepIO
 from videoflow.steps.cache import cache_key
+from videoflow.steps.ports import (
+    apply_inputs,
+    capture_outputs,
+    input_fingerprint,
+    validate_recipe_ports,
+)
 
 StepStatus = Literal["cached", "executed", "skipped"]
 
@@ -88,6 +94,7 @@ class RecipeRunner:
         asr_client: Any | None = None,
     ) -> None:
         recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+        validate_recipe_ports(recipe)
         self.recipe = recipe
         self.adapter = adapter
         self.llm_client = llm_client
@@ -114,6 +121,7 @@ class RecipeRunner:
         started = time.perf_counter()
         recipe = self.recipe.with_variables(variables, profile=profile)
         recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+        validate_recipe_ports(recipe)
         source_path = Path(source).expanduser().resolve()
         source_stamp = source_fingerprint(source_path)
         output_path = Path(output).expanduser().resolve()
@@ -154,6 +162,7 @@ class RecipeRunner:
                         dependency: context.hashes.get(dependency, "")
                         for dependency in recipe_step.needs
                     },
+                    "inputs": input_fingerprint(context, recipe_step.inputs),
                 }
             )
             io = StepIO(
@@ -186,6 +195,7 @@ class RecipeRunner:
                         progress=100,
                     )
                 )
+                capture_outputs(context, step, recipe_step.id)
                 if step_progress is not None:
                     step_progress(recipe_step.id, 100, f"{step.title} bypassed")
                 io.report(100, f"{step.title} bypassed")
@@ -220,6 +230,7 @@ class RecipeRunner:
                             f"Reusing {step.title}",
                         )
                         telemetry.finish(recipe_step.id, "Checkpoint reused")
+                    capture_outputs(context, step, recipe_step.id)
                     io.report(100, "Cached checkpoint reused")
                     continue
 
@@ -234,6 +245,8 @@ class RecipeRunner:
             io.check_cancel()
             step_started = time.perf_counter()
             context.metadata.setdefault("step_progress", {})[recipe_step.id] = 0
+            if recipe_step.inputs:
+                apply_inputs(context, step, recipe_step.inputs)
             try:
                 step.run(context, params, io)
             except Exception as exc:
@@ -244,6 +257,7 @@ class RecipeRunner:
                     raise
                 raise StepExecutionError(recipe_step.id, str(exc)) from exc
             elapsed_ms = int((time.perf_counter() - step_started) * 1000)
+            capture_outputs(context, step, recipe_step.id)
             context.metadata.setdefault("step_progress", {})[recipe_step.id] = 100
             if step_progress is not None:
                 step_progress(recipe_step.id, 100, f"{step.title} ready")
@@ -349,6 +363,7 @@ class RecipeRunner:
     ) -> dict[str, Any]:
         recipe = self.recipe.with_variables(variables, profile=profile)
         recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+        validate_recipe_ports(recipe)
         order = self._order_through(recipe.topological_order(), through)
         return {
             "ok": True,
@@ -360,6 +375,7 @@ class RecipeRunner:
                     "id": step.id,
                     "type": step.type,
                     "needs": list(step.needs),
+                    "inputs": dict(step.inputs),
                     "params": dict(step.params),
                 }
                 for step in order

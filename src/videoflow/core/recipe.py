@@ -63,6 +63,7 @@ class RecipeStep(StrictModel):
     id: str
     type: str = Field(min_length=1)
     needs: list[str] = Field(default_factory=list)
+    inputs: dict[str, str] = Field(default_factory=dict)
     enabled: bool = True
     params: dict[str, Any] = Field(default_factory=dict)
 

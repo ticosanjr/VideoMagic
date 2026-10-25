@@ -11,8 +11,11 @@ def test_recut_replacement_is_a_valid_silence_only_recipe() -> None:
     assert [step.id for step in enabled] == ["ingest", "vad", "timeline", "export"]
     assert "transcribe" not in {step.id for step in enabled}
     timeline = next(step for step in enabled if step.id == "timeline")
-    assert timeline.params["cut_mode"] == "$cut_mode"
-    export = next(step for step in enabled if step.id == "export")
+    assert timeline.params["cut_mode"] == "hard"
+    assert timeline.inputs == {"speech": "vad.speech"}
+    export = next(step for step in recipe.enabled_steps() if step.id == "export")
+    assert export.inputs == {"timeline": "timeline.timeline"}
+    export = next(step for step in recipe.enabled_steps() if step.id == "export")
     assert export.params["targets"] == ["mp4", "resolve", "premiere", "kdenlive"]
 
 
@@ -31,24 +34,57 @@ def test_recut_retakes_variant_adds_transcription_and_culling() -> None:
     assert "retakes" in timeline.needs
 
 
-def test_recut_variables_apply_and_default_to_hard_cuts() -> None:
+def test_recut_defaults_live_inside_the_nodes() -> None:
+    from videoflow.steps import get_step
+
     recipe = get_recipe("recut_replacement")
-    resolved = recipe.with_variables(
-        {
-            "cut_mode": "j_cut",
-            "min_silence_ms": 500,
-            "spike_suppression_ms": 240,
-            "merge_gap_ms": 80,
-            "pad_before_ms": 40,
-            "pad_after_ms": 90,
-        }
-    )
-    vad = next(step for step in resolved.enabled_steps() if step.id == "vad")
-    timeline = next(step for step in resolved.enabled_steps() if step.id == "timeline")
+    assert recipe.variables == {}
+    for step in recipe.enabled_steps():
+        get_step(step.type).validate_params(step.params)
+    vad = next(step for step in recipe.enabled_steps() if step.id == "vad")
+    timeline = next(step for step in recipe.enabled_steps() if step.id == "timeline")
     assert vad.params["apply_pads"] is False
-    assert vad.params["min_silence_ms"] == 500
-    assert vad.params["spike_suppression_ms"] == 240
-    assert vad.params["merge_gap_ms"] == 80
-    assert vad.params["pad_before_ms"] == 40
-    assert vad.params["pad_after_ms"] == 90
-    assert timeline.params["cut_mode"] == "j_cut"
+    assert vad.params["min_silence_ms"] == 350
+    assert vad.params["spike_suppression_ms"] == 180
+    assert vad.params["merge_gap_ms"] == 120
+    assert timeline.params["cut_mode"] == "hard"
+    assert timeline.inputs == {"speech": "vad.speech"}
+    export = next(step for step in recipe.enabled_steps() if step.id == "export")
+    assert export.inputs == {"timeline": "timeline.timeline"}
+    assert timeline.params["offset_ms"] == 200
+    assert timeline.params["audio_crossfade_ms"] == 20
+
+
+def test_api_validate_resolves_variables_before_step_validation(monkeypatch) -> None:
+    from tests.contract.test_api_timeline import _client
+
+    recipe = {
+        "schema_version": 1,
+        "id": "variable_recipe",
+        "name": "Variable recipe",
+        "variables": {
+            "min_silence_ms": {"type": "number", "default": 280},
+            "pad_ms": {"type": "number", "default": 40},
+        },
+        "steps": [
+            {"id": "ingest", "type": "ingest", "params": {"extract_pcm": True}},
+            {
+                "id": "vad",
+                "type": "audio.vad",
+                "needs": ["ingest"],
+                "params": {
+                    "min_silence_ms": "$min_silence_ms",
+                    "pad_before_ms": "$pad_ms",
+                    "pad_after_ms": "$pad_ms",
+                },
+            },
+        ],
+    }
+    client, _manager = _client(monkeypatch, __import__("pathlib").Path("/tmp/videoflow-vars"))
+    response = client.post("/api/v1/recipes/validate", json=recipe)
+    assert response.status_code == 200, response.text
+    resolved = next(
+        step for step in response.json()["resolved"]["steps"] if step["id"] == "vad"
+    )
+    assert resolved["params"]["min_silence_ms"] == 280
+    assert resolved["params"]["pad_before_ms"] == 40

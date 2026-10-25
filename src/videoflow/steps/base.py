@@ -19,6 +19,25 @@ class EmptyParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+@dataclass(frozen=True, slots=True)
+class PortSpec:
+    """One typed input or output exposed by a step."""
+
+    id: str
+    label: str
+    type: str
+    context_key: str
+    required: bool = False
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "id": self.id,
+            "label": self.label,
+            "type": self.type,
+            "required": self.required,
+        }
+
+
 @dataclass
 class StepIO:
     stage: str = "step"
@@ -83,6 +102,18 @@ class BaseStep(ABC):
 
         return ()
 
+    @property
+    def input_ports(self) -> tuple[PortSpec, ...]:
+        from videoflow.steps.ports import ports_for_type
+
+        return ports_for_type(self.type)[0]
+
+    @property
+    def output_ports(self) -> tuple[PortSpec, ...]:
+        from videoflow.steps.ports import ports_for_type
+
+        return ports_for_type(self.type)[1]
+
     def manifest(self) -> dict[str, Any]:
         schema = self.params_model.model_json_schema()
         return {
@@ -92,6 +123,8 @@ class BaseStep(ABC):
             "requires": list(self.requires),
             "produces": list(self.produces),
             "params_schema": schema,
+            "inputs": [port.to_dict() for port in self.input_ports],
+            "outputs": [port.to_dict() for port in self.output_ports],
             "status": self.status,
             "icon": self.icon,
             "color": self.color,

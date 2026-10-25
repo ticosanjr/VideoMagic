@@ -21,12 +21,12 @@ class VadParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     engine: Literal["auto", "silero", "ffmpeg"] = "auto"
-    noise_db: float = -30.0
-    min_silence_ms: int = Field(default=400, ge=0)
-    min_speech_ms: int = Field(default=100, ge=0)
+    noise_db: float = Field(default=-30.0, ge=-80.0, le=-5.0)
+    min_silence_ms: int = Field(default=400, ge=0, le=10_000)
+    min_speech_ms: int = Field(default=100, ge=0, le=5_000)
     speech_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
-    pad_before_ms: int = Field(default=120, ge=0)
-    pad_after_ms: int = Field(default=150, ge=0)
+    pad_before_ms: int = Field(default=120, ge=0, le=5_000)
+    pad_after_ms: int = Field(default=150, ge=0, le=5_000)
     spike_suppression_ms: int = Field(default=0, ge=0, le=5000)
     merge_gap_ms: int = Field(default=0, ge=0, le=5000)
     apply_pads: bool = False

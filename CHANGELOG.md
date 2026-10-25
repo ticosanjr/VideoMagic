@@ -3,6 +3,36 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.17.0] - 2026-10-25
+
+### Added
+
+- **Typed data ports.** Every registered step declares typed inputs and outputs;
+  recipes can bind `node.port` to `node.port` via `inputs`.
+- **Port wiring in the UI.** Nodes show their ports, edge labels show the
+  mapping, and the Wire ports dialog filters compatible types.
+- **Branching recipes.** Two VADs or two timelines can run independently; cache
+  fingerprints include wired input hashes.
+- **Legacy compatibility.** Recipes without explicit `inputs` keep the existing
+  implicit context behaviour.
+- **Schema-driven controls.** Sliders with numeric companions, segmented
+  controls/dropdowns, switches, chips, path/colour pickers, defaults, resets,
+  field groups, and node presets.
+- **Validation fix.** Recipe validation resolves variables before validating
+  step parameters.
+
+## [2.16.0] - 2026-10-25
+
+### Changed
+
+- **Recut configuration moved into the nodes.** `recut_replacement` and
+  `recut_replacement_retakes` no longer expose node-local settings as recipe
+  inputs; VAD, retake, timeline, and export defaults live in each step.
+- **Recut wiring.** The built-in Recut recipes now use explicit ports for
+  ingest→VAD→timeline→export and the retakes branch.
+- **UI version and tooltips.** The UI version comes from the package at build
+  time, and help tooltips are fixed-position portals with viewport collision.
+
 ## [2.15.1] - 2026-10-25
 
 ### Fixed

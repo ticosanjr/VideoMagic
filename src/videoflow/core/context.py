@@ -45,6 +45,12 @@ class PipelineContext(BaseModel):
     cache_misses: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
     selected_shorts: list[Any] = Field(default_factory=list, exclude=True, repr=False)
+    port_outputs: dict[str, dict[str, Any]] = Field(
+        default_factory=dict, exclude=True, repr=False
+    )
+    port_hashes: dict[str, dict[str, str]] = Field(
+        default_factory=dict, exclude=True, repr=False
+    )
 
     def duration_samples(self) -> int:
         if self.media is None:

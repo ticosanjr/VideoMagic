@@ -28,7 +28,80 @@
       "status": "available",
       "icon": "\u25cf",
       "color": "#38bdf8",
-      "bypass": false
+      "bypass": false,
+      "inputs": [],
+      "outputs": [
+        {
+          "id": "media",
+          "label": "Media info",
+          "type": "media"
+        },
+        {
+          "id": "pcm",
+          "label": "PCM audio",
+          "type": "pcm"
+        }
+      ]
+    },
+    {
+      "type": "audio.vad",
+      "title": "Voice detection",
+      "description": "Detect speech",
+      "requires": [
+        "ingest"
+      ],
+      "produces": [
+        "speech_intervals"
+      ],
+      "params_schema": {
+        "properties": {
+          "min_silence_ms": {
+            "default": 400,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "spike_suppression_ms": {
+            "default": 0,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5000
+          },
+          "engine": {
+            "default": "auto",
+            "type": "string",
+            "enum": [
+              "auto",
+              "silero",
+              "ffmpeg"
+            ]
+          }
+        }
+      },
+      "status": "available",
+      "icon": "\u25cf",
+      "color": "#38bdf8",
+      "bypass": false,
+      "inputs": [
+        {
+          "id": "media",
+          "label": "Media info",
+          "type": "media",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "id": "speech",
+          "label": "Speech spans",
+          "type": "sample_spans"
+        },
+        {
+          "id": "engine",
+          "label": "VAD engine",
+          "type": "string"
+        }
+      ]
     },
     {
       "type": "edit.timeline",
@@ -59,7 +132,27 @@
       "status": "available",
       "icon": "\u25cf",
       "color": "#38bdf8",
-      "bypass": false
+      "bypass": false,
+      "inputs": [
+        {
+          "id": "speech",
+          "label": "Speech spans",
+          "type": "sample_spans",
+          "required": true
+        },
+        {
+          "id": "transcript",
+          "label": "Transcript",
+          "type": "transcript"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "timeline",
+          "label": "Timeline state",
+          "type": "timeline"
+        }
+      ]
     },
     {
       "type": "shorts.render",
@@ -86,7 +179,22 @@
       "status": "available",
       "icon": "\u25cf",
       "color": "#38bdf8",
-      "bypass": false
+      "bypass": false,
+      "inputs": [
+        {
+          "id": "shorts",
+          "label": "Shorts",
+          "type": "short_list",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "id": "artifacts",
+          "label": "Short files",
+          "type": "artifact_map"
+        }
+      ]
     }
   ]
 }

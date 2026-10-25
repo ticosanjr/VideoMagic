@@ -877,77 +877,6 @@ BUILTIN_RECIPES["localized_shorts"] = {
 }
 
 
-def _recut_variables() -> dict[str, dict[str, object]]:
-    return {
-        "engine": {
-            "type": "enum",
-            "default": "auto",
-            "options": ["auto", "silero", "ffmpeg"],
-            "description": "VAD engine. auto uses Silero when installed.",
-        },
-        "noise_db": {
-            "type": "number",
-            "default": -30,
-            "description": "FFmpeg fallback noise threshold in dB (-80 to -5).",
-        },
-        "speech_threshold": {
-            "type": "number",
-            "default": 0.5,
-            "description": "Silero speech probability threshold (0.1 to 0.9).",
-        },
-        "min_silence_ms": {
-            "type": "number",
-            "default": 350,
-            "description": "Minimum silence duration to remove.",
-        },
-        "min_speech_ms": {
-            "type": "number",
-            "default": 120,
-            "description": "Shortest speech span kept.",
-        },
-        "spike_suppression_ms": {
-            "type": "number",
-            "default": 180,
-            "description": "Discard isolated sounds shorter than this.",
-        },
-        "merge_gap_ms": {
-            "type": "number",
-            "default": 120,
-            "description": "Bridge speech separated by gaps shorter than this.",
-        },
-        "pad_before_ms": {"type": "number", "default": 80},
-        "pad_after_ms": {"type": "number", "default": 120},
-        "cut_mode": {
-            "type": "enum",
-            "default": "hard",
-            "options": ["hard", "j_cut", "l_cut", "custom"],
-        },
-        "enable_j_cuts": {"type": "boolean", "default": False},
-        "enable_l_cuts": {"type": "boolean", "default": False},
-        "offset_ms": {"type": "number", "default": 200},
-        "audio_crossfade_ms": {"type": "number", "default": 20},
-        "fade_in_ms": {"type": "number", "default": 20},
-        "fade_out_ms": {"type": "number", "default": 20},
-        "handle_check": {"type": "boolean", "default": True},
-        "transition_frames": {"type": "number", "default": 0},
-        "transition_type": {
-            "type": "enum",
-            "default": "crossfade",
-            "options": ["crossfade", "fade_to_black"],
-        },
-        "retake_strategy": {
-            "type": "enum",
-            "default": "keep_last",
-            "options": ["keep_last", "keep_best"],
-        },
-        "retake_strictness": {
-            "type": "enum",
-            "default": "balanced",
-            "options": ["conservative", "balanced", "aggressive"],
-        },
-    }
-
-
 def _recut_steps(*, with_retakes: bool) -> list[dict[str, object]]:
     steps: list[dict[str, object]] = [
         {"id": "ingest", "type": "ingest", "params": {"extract_pcm": True}},
@@ -955,16 +884,17 @@ def _recut_steps(*, with_retakes: bool) -> list[dict[str, object]]:
             "id": "vad",
             "type": "audio.vad",
             "needs": ["ingest"],
+            "inputs": {"media": "ingest.media"},
             "params": {
-                "engine": "$engine",
-                "noise_db": "$noise_db",
-                "speech_threshold": "$speech_threshold",
-                "min_silence_ms": "$min_silence_ms",
-                "min_speech_ms": "$min_speech_ms",
-                "spike_suppression_ms": "$spike_suppression_ms",
-                "merge_gap_ms": "$merge_gap_ms",
-                "pad_before_ms": "$pad_before_ms",
-                "pad_after_ms": "$pad_after_ms",
+                "engine": "auto",
+                "noise_db": -30.0,
+                "speech_threshold": 0.5,
+                "min_silence_ms": 350,
+                "min_speech_ms": 120,
+                "spike_suppression_ms": 180,
+                "merge_gap_ms": 120,
+                "pad_before_ms": 80,
+                "pad_after_ms": 120,
                 "apply_pads": False,
             },
         },
@@ -976,6 +906,7 @@ def _recut_steps(*, with_retakes: bool) -> list[dict[str, object]]:
                 "id": "transcribe",
                 "type": "transcribe",
                 "needs": ["ingest"],
+                "inputs": {"media": "ingest.media"},
                 "params": {"mode": "auto", "language": "pt", "model_size": "small"},
             }
         )
@@ -984,10 +915,14 @@ def _recut_steps(*, with_retakes: bool) -> list[dict[str, object]]:
                 "id": "retakes",
                 "type": "retakes.cull",
                 "needs": ["vad", "transcribe"],
+                "inputs": {
+                    "speech": "vad.speech",
+                    "transcript": "transcribe.transcript",
+                },
                 "params": {
                     "enabled": True,
-                    "strategy": "$retake_strategy",
-                    "strictness": "$retake_strictness",
+                    "strategy": "keep_last",
+                    "strictness": "balanced",
                 },
             }
         )
@@ -997,17 +932,25 @@ def _recut_steps(*, with_retakes: bool) -> list[dict[str, object]]:
             "id": "timeline",
             "type": "edit.timeline",
             "needs": timeline_needs,
+            "inputs": (
+                {
+                    "speech": "retakes.speech",
+                    "transcript": "transcribe.transcript",
+                }
+                if with_retakes
+                else {"speech": "vad.speech"}
+            ),
             "params": {
-                "cut_mode": "$cut_mode",
-                "enable_j_cuts": "$enable_j_cuts",
-                "enable_l_cuts": "$enable_l_cuts",
-                "offset_ms": "$offset_ms",
-                "audio_crossfade_ms": "$audio_crossfade_ms",
-                "fade_in_ms": "$fade_in_ms",
-                "fade_out_ms": "$fade_out_ms",
-                "handle_check": "$handle_check",
-                "transition_frames": "$transition_frames",
-                "transition_type": "$transition_type",
+                "cut_mode": "hard",
+                "enable_j_cuts": False,
+                "enable_l_cuts": False,
+                "offset_ms": 200,
+                "audio_crossfade_ms": 20,
+                "fade_in_ms": 20,
+                "fade_out_ms": 20,
+                "handle_check": True,
+                "transition_frames": 0,
+                "transition_type": "crossfade",
                 "zoom_mode": "manual_rules",
             },
         }
@@ -1017,9 +960,8 @@ def _recut_steps(*, with_retakes: bool) -> list[dict[str, object]]:
             "id": "export",
             "type": "export.nle",
             "needs": ["timeline"],
-            "params": {
-                "targets": ["mp4", "resolve", "premiere", "kdenlive"],
-            },
+            "inputs": {"timeline": "timeline.timeline"},
+            "params": {"targets": ["mp4", "resolve", "premiere", "kdenlive"]},
         }
     )
     return steps
@@ -1033,7 +975,6 @@ _add_recipe(
         "Remove silence with detailed VAD controls, choose a hard/J/L cut, and "
         "export MP4 plus Resolve, Premiere, and Kdenlive timelines."
     ),
-    variables=_recut_variables(),
 )
 _add_recipe(
     "recut_replacement_retakes",
@@ -1043,7 +984,6 @@ _add_recipe(
         "The Recut Replacement flow plus transcription and retake culling before "
         "the timeline, with the same detailed silence and cut controls."
     ),
-    variables=_recut_variables(),
 )
 
 

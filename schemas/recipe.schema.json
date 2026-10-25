@@ -4,9 +4,14 @@
       "additionalProperties": false,
       "description": "Provider selection for optional LLM steps.\n\nSecrets are referenced by environment variable name, never stored inline.",
       "properties": {
-        "api_key_env": {
-          "default": "VIDEOWFLOW_LLM_API_KEY",
-          "title": "Api Key Env",
+        "provider": {
+          "default": "none",
+          "enum": [
+            "openai_compatible",
+            "opencode",
+            "none"
+          ],
+          "title": "Provider",
           "type": "string"
         },
         "base_url": {
@@ -26,14 +31,9 @@
           "title": "Model",
           "type": "string"
         },
-        "provider": {
-          "default": "none",
-          "enum": [
-            "openai_compatible",
-            "opencode",
-            "none"
-          ],
-          "title": "Provider",
+        "api_key_env": {
+          "default": "VIDEOWFLOW_LLM_API_KEY",
+          "title": "Api Key Env",
           "type": "string"
         },
         "timeout_seconds": {
@@ -50,6 +50,16 @@
     "RecipeNodeUi": {
       "additionalProperties": false,
       "properties": {
+        "x": {
+          "default": 0.0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "default": 0.0,
+          "title": "Y",
+          "type": "number"
+        },
         "expanded": {
           "default": false,
           "title": "Expanded",
@@ -66,16 +76,6 @@
           "minimum": 280,
           "title": "Width",
           "type": "integer"
-        },
-        "x": {
-          "default": 0.0,
-          "title": "X",
-          "type": "number"
-        },
-        "y": {
-          "default": 0.0,
-          "title": "Y",
-          "type": "number"
         }
       },
       "title": "RecipeNodeUi",
@@ -84,13 +84,13 @@
     "RecipeStep": {
       "additionalProperties": false,
       "properties": {
-        "enabled": {
-          "default": true,
-          "title": "Enabled",
-          "type": "boolean"
-        },
         "id": {
           "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "minLength": 1,
+          "title": "Type",
           "type": "string"
         },
         "needs": {
@@ -100,15 +100,22 @@
           "title": "Needs",
           "type": "array"
         },
+        "inputs": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Inputs",
+          "type": "object"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
         "params": {
           "additionalProperties": true,
           "title": "Params",
           "type": "object"
-        },
-        "type": {
-          "minLength": 1,
-          "title": "Type",
-          "type": "string"
         }
       },
       "required": [
@@ -121,13 +128,6 @@
     "RecipeUi": {
       "additionalProperties": false,
       "properties": {
-        "nodes": {
-          "additionalProperties": {
-            "$ref": "#/$defs/RecipeNodeUi"
-          },
-          "title": "Nodes",
-          "type": "object"
-        },
         "version": {
           "default": 1,
           "minimum": 1,
@@ -136,6 +136,13 @@
         },
         "viewport": {
           "$ref": "#/$defs/RecipeViewport"
+        },
+        "nodes": {
+          "additionalProperties": {
+            "$ref": "#/$defs/RecipeNodeUi"
+          },
+          "title": "Nodes",
+          "type": "object"
         }
       },
       "title": "RecipeUi",
@@ -144,6 +151,17 @@
     "RecipeVariable": {
       "additionalProperties": false,
       "properties": {
+        "type": {
+          "default": "string",
+          "enum": [
+            "string",
+            "number",
+            "boolean",
+            "enum"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
         "default": {
           "default": null,
           "title": "Default"
@@ -162,17 +180,6 @@
           "default": false,
           "title": "Required",
           "type": "boolean"
-        },
-        "type": {
-          "default": "string",
-          "enum": [
-            "string",
-            "number",
-            "boolean",
-            "enum"
-          ],
-          "title": "Type",
-          "type": "string"
         }
       },
       "title": "RecipeVariable",
@@ -205,17 +212,15 @@
   },
   "additionalProperties": false,
   "properties": {
-    "description": {
-      "default": "",
-      "title": "Description",
-      "type": "string"
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
     },
     "id": {
       "title": "Id",
       "type": "string"
-    },
-    "llm": {
-      "$ref": "#/$defs/LlmRecipeConfig"
     },
     "name": {
       "maxLength": 200,
@@ -223,27 +228,13 @@
       "title": "Name",
       "type": "string"
     },
-    "profiles": {
-      "additionalProperties": {
-        "additionalProperties": true,
-        "type": "object"
-      },
-      "title": "Profiles",
-      "type": "object"
+    "description": {
+      "default": "",
+      "title": "Description",
+      "type": "string"
     },
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
-    },
-    "steps": {
-      "items": {
-        "$ref": "#/$defs/RecipeStep"
-      },
-      "minItems": 1,
-      "title": "Steps",
-      "type": "array"
+    "llm": {
+      "$ref": "#/$defs/LlmRecipeConfig"
     },
     "ui": {
       "$ref": "#/$defs/RecipeUi"
@@ -255,9 +246,12 @@
       "title": "Variables",
       "type": "object"
     },
-    "variables_resolved": {
-      "additionalProperties": true,
-      "title": "Variables Resolved",
+    "profiles": {
+      "additionalProperties": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Profiles",
       "type": "object"
     },
     "variants": {
@@ -266,6 +260,19 @@
         "type": "object"
       },
       "title": "Variants",
+      "type": "array"
+    },
+    "variables_resolved": {
+      "additionalProperties": true,
+      "title": "Variables Resolved",
+      "type": "object"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/RecipeStep"
+      },
+      "minItems": 1,
+      "title": "Steps",
       "type": "array"
     }
   },

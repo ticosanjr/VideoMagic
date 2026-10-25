@@ -60,7 +60,10 @@ test("undoes a structural edit", async ({ page }) => {
 test("loads the recipe graph and edits transition parameters", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Recipe builder" })).toBeVisible();
   await expect(page.getByTestId("step-edit.timeline")).toBeVisible();
-  await page.getByTestId("step-edit.timeline").click();
+  await page
+    .getByTestId("step-edit.timeline")
+    .getByText("Build timeline")
+    .click();
   await expect(page.getByTestId("transition-frames")).toBeVisible();
   await page.getByTestId("transition-frames").fill("12");
   await page.getByTestId("transition-type").selectOption("fade_to_black");
@@ -79,7 +82,6 @@ test("adds a step from the JSON-backed palette", async ({ page }) => {
 test("exposes the second split-screen source control", async ({ page }) => {
   await page.getByTestId("recipe-add-step").click();
   await page.getByTestId("add-shorts.render").click();
-  await page.getByTestId("step-shorts.render").click();
   await expect(page.getByPlaceholder("/path/to/second-angle.mp4")).toBeVisible();
 });
 
@@ -148,4 +150,45 @@ test("opens persisted run history and shows failures", async ({ page }) => {
   await expect(page.getByText("failed")).toBeVisible();
   await expect(page.getByText("succeeded")).toBeVisible();
   await expect(page.getByText("ingest_failed")).toHaveCount(0);
+});
+
+test("shows typed ports and the wired edge label", async ({ page }) => {
+  await expect(page.getByText("speech → speech")).toBeVisible();
+  await page
+    .getByTestId("step-edit.timeline")
+    .getByText("Build timeline")
+    .click();
+  await expect(page.getByTestId("ports-edit.timeline")).toContainText("Speech spans");
+  await expect(page.getByTestId("ports-edit.timeline")).toContainText("Timeline state");
+});
+
+test("uses sliders, presets, and cut-mode controls inside the node", async ({ page }) => {
+  await page
+    .getByTestId("step-audio.vad")
+    .getByText("Voice detection")
+    .click();
+  const slider = page.getByTestId("field-min_silence_ms");
+  await expect(slider).toHaveJSProperty("type", "range");
+  await page
+    .getByTestId("step-audio.vad")
+    .getByRole("button", { name: "Aggressive" })
+    .click();
+  const params = await page.getByTestId("step-params-json").inputValue();
+  expect(params).toContain('"min_silence_ms": 240');
+  await page.getByLabel("Close inspector").click();
+  await page
+    .getByTestId("step-edit.timeline")
+    .getByText("Build timeline")
+    .click();
+  await page.getByLabel("Close inspector").click();
+  await page
+    .getByTestId("step-edit.timeline")
+    .getByRole("button", { name: "J-cut" })
+    .click();
+  await page
+    .getByTestId("step-edit.timeline")
+    .getByText("Build timeline")
+    .click();
+  const timeline = await page.getByTestId("step-params-json").inputValue();
+  expect(timeline).toContain('"cut_mode": "j_cut"');
 });

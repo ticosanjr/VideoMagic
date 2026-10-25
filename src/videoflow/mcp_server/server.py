@@ -129,8 +129,9 @@ from videoflow.runtime import (
     find_faster_whisper_model,
     find_whisper_model,
 )
+from videoflow.steps import get_step, requirements_by_type, step_types
 from videoflow.steps import manifest as step_manifest
-from videoflow.steps import requirements_by_type, step_types
+from videoflow.steps.ports import validate_recipe_ports
 
 SERVER_NAME = "VideoFlow"
 
@@ -2275,12 +2276,21 @@ def build_server(
         try:
             parsed = parse_recipe(recipe)  # type: ignore[arg-type]
             parsed.validate_graph(step_types(), requires_by_type=requirements_by_type())
+            validate_recipe_ports(parsed)
+            resolved = parsed.with_variables({})
+            for step in resolved.steps:
+                get_step(step.type).validate_params(step.params)
             order = [step.id for step in parsed.topological_order()]
         except VideoFlowError as exc:
             return exc.to_dict()
         except ValueError as exc:
             return _error("recipe_invalid", str(exc))
-        return {"ok": True, "recipe": recipe_to_dict(parsed), "order": order}
+        return {
+            "ok": True,
+            "recipe": recipe_to_dict(parsed),
+            "resolved": recipe_to_dict(resolved),
+            "order": order,
+        }
 
     @mcp.tool()
     def videoflow_save_recipe(recipe: dict[str, object]) -> dict[str, object]:
@@ -2289,6 +2299,7 @@ def build_server(
         try:
             parsed = parse_recipe(recipe)  # type: ignore[arg-type]
             parsed.validate_graph(step_types(), requires_by_type=requirements_by_type())
+            validate_recipe_ports(parsed)
             path = save_user_recipe(parsed)
         except VideoFlowError as exc:
             return exc.to_dict()
@@ -2318,6 +2329,7 @@ def build_server(
             recipe = get_recipe(recipe_id)
             recipe = resolve_recipe_paths(recipe, roots)
             recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+            validate_recipe_ports(recipe)
             job = manager.start(
                 resolved_source,
                 resolved_output,
@@ -2360,6 +2372,7 @@ def build_server(
             parsed = parse_recipe(recipe)  # type: ignore[arg-type]
             parsed = resolve_recipe_paths(parsed, roots)
             parsed.validate_graph(step_types(), requires_by_type=requirements_by_type())
+            validate_recipe_ports(parsed)
             job = manager.start(
                 resolved_source,
                 resolved_output,
