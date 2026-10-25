@@ -99,7 +99,7 @@ def test_interrupted_recipe_job_is_requeued(tmp_path: Path) -> None:
         "message": "working",
         "source": str(tmp_path / "source.mp4"),
         "output": str(tmp_path / "out"),
-        "options": {"mode": "recipe"},
+        "options": {},
         "progress": 40,
         "result": None,
         "error": None,

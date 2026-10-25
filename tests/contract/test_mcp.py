@@ -9,7 +9,7 @@ def test_registry_names_are_unique_and_prefixed() -> None:
     names = [tool.name for tool in TOOL_SPECS]
     assert len(names) == len(set(names))
     assert all(name.startswith("videoflow_") for name in names)
-    assert len(RESOURCE_SPECS) == 4
+    assert len(RESOURCE_SPECS) == 5
 
 
 def test_server_registers_every_public_tool() -> None:
@@ -66,3 +66,27 @@ def test_capabilities_tool_reports_policy_and_short_aspects() -> None:
     ids = {item["id"] for item in structured["capabilities"]}
     assert "shorts_aspects" in ids
     assert "external_llm" in ids
+
+
+def test_new_job_and_cost_tools_are_callable() -> None:
+    async def call(name: str, arguments: dict[str, object]) -> dict[str, object]:
+        result = await build_server().call_tool(name, arguments)
+        return result.structured_content  # type: ignore[attr-defined]
+
+    jobs = asyncio.run(call("videoflow_list_jobs", {}))
+    cost = asyncio.run(call("videoflow_cost_metrics", {}))
+    timeline = asyncio.run(call("videoflow_get_timeline", {}))
+    assert jobs["ok"] is True
+    assert cost["ok"] is True
+    assert timeline["ok"] is False
+    assert timeline["code"] == "state_not_ready"
+
+
+def test_integrations_resource_lists_opencode_and_paperclip() -> None:
+    async def read() -> str:
+        contents = await build_server().read_resource("videoflow://docs/integrations")
+        return next(iter(contents)).content  # type: ignore[attr-defined]
+
+    payload = json.loads(asyncio.run(read()))
+    assert payload["opencode"]["model"] == "deepseek/deepseek-flash"
+    assert payload["paperclip"]["mcp_url"].endswith("/mcp/")

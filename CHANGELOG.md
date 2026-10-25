@@ -3,6 +3,27 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.10.0] - 2026-10-25
+
+### Added
+
+- **MCP surface finished.** 78 tools and 5 resources covering jobs, pause/
+  priority, timeline read, overlays, clip comments, Copilot, cost, export
+  validation, plugins, backup, and frame extraction. New resource
+  `videoflow://docs/integrations`.
+- **Integration area.** New Integrations tab and `docs/integrations.md` with
+  copy-ready OpenCode stdio/HTTP setup, `opencode.jsonc` examples, DeepSeek
+  model/provider setup, Paperclip DeepSeek agent + MCP/REST workflow, prompts,
+  security notes, and troubleshooting.
+- **API docs.** Copilot endpoints, frame/overlays/comments, pause/priority,
+  cost metrics, and MCP tool counts documented.
+
+### Notes
+
+- Local release: Linux binary + AppImage + SBOM + checksums.
+- Remaining: long help-text i18n, voice cloning, full-tree coverage, and manual
+  NLE/assistive-technology QA.
+
 ## [2.9.0] - 2026-10-24
 
 ### Added

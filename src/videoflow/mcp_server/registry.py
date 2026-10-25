@@ -314,6 +314,77 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "Approve or reject the review checklist for a job.",
         "review",
     ),
+    ToolSpec("videoflow_list_jobs", "List jobs with status and progress.", "jobs"),
+    ToolSpec("videoflow_pause_job", "Pause a queued or running job.", "jobs"),
+    ToolSpec("videoflow_unpause_job", "Requeue a paused job.", "jobs"),
+    ToolSpec("videoflow_set_job_priority", "Set job priority.", "jobs"),
+    ToolSpec(
+        "videoflow_get_timeline",
+        "Read clips, audio, overlays, markers, tracks, and comments.",
+        "timeline",
+    ),
+    ToolSpec(
+        "videoflow_add_timeline_overlay",
+        "Add an image or video overlay to the timeline.",
+        "timeline",
+    ),
+    ToolSpec(
+        "videoflow_remove_timeline_overlay",
+        "Remove a timeline overlay.",
+        "timeline",
+    ),
+    ToolSpec(
+        "videoflow_list_clip_comments",
+        "List clip comments.",
+        "timeline",
+    ),
+    ToolSpec(
+        "videoflow_add_clip_comment",
+        "Add a clip comment.",
+        "timeline",
+    ),
+    ToolSpec(
+        "videoflow_remove_clip_comment",
+        "Remove a clip comment.",
+        "timeline",
+    ),
+    ToolSpec(
+        "videoflow_copilot_recipe",
+        "Draft and validate a recipe with the configured LLM.",
+        "copilot",
+    ),
+    ToolSpec(
+        "videoflow_copilot_timeline",
+        "Propose or apply validated timeline edits with the LLM.",
+        "copilot",
+    ),
+    ToolSpec(
+        "videoflow_cost_metrics",
+        "Read LLM token usage and estimated cost.",
+        "copilot",
+    ),
+    ToolSpec(
+        "videoflow_validate_exports",
+        "Validate FCPXML, XMEML, and Kdenlive exports.",
+        "export",
+    ),
+    ToolSpec("videoflow_list_plugins", "List local plugins.", "plugins"),
+    ToolSpec("videoflow_reload_plugins", "Reload local plugins.", "plugins"),
+    ToolSpec(
+        "videoflow_set_plugin_enabled",
+        "Enable or disable a plugin.",
+        "plugins",
+    ),
+    ToolSpec(
+        "videoflow_create_backup",
+        "Create a timestamped SQLite backup.",
+        "maintenance",
+    ),
+    ToolSpec(
+        "videoflow_render_frame",
+        "Extract a JPEG frame at a timestamp.",
+        "timeline",
+    ),
 )
 
 RESOURCE_SPECS: tuple[ResourceSpec, ...] = (
@@ -321,4 +392,8 @@ RESOURCE_SPECS: tuple[ResourceSpec, ...] = (
     ResourceSpec("videoflow://project/transcript", "Plain transcript text or SRT."),
     ResourceSpec("videoflow://presets/list", "Shipped and operator presets."),
     ResourceSpec("videoflow://project/exports", "Paths of the latest export artifacts."),
+    ResourceSpec(
+        "videoflow://docs/integrations",
+        "How to connect VideoFlow MCP to OpenCode or Paperclip with DeepSeek.",
+    ),
 )

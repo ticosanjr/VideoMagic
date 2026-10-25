@@ -195,3 +195,11 @@ test("lists plugins with sandbox status and panels", async ({ page }) => {
     "http://127.0.0.1:9999/"
   );
 });
+
+
+test("shows the integration area for OpenCode, Paperclip, and DeepSeek", async ({ page }) => {
+  await page.getByRole("tab", { name: "Integrations" }).click();
+  await expect(page.getByTestId("integrations-panel")).toBeVisible();
+  await expect(page.getByText("deepseek/deepseek-flash").first()).toBeVisible();
+  await expect(page.getByText("Paperclip").first()).toBeVisible();
+});

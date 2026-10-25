@@ -6,6 +6,7 @@
   import CapabilitiesPanel from "$lib/CapabilitiesPanel.svelte";
   import CommandPalette from "$lib/CommandPalette.svelte";
   import CopilotPanel from "$lib/CopilotPanel.svelte";
+  import IntegrationsPanel from "$lib/IntegrationsPanel.svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
   import JobsPanel from "$lib/JobsPanel.svelte";
   import LibraryPanel from "$lib/LibraryPanel.svelte";
@@ -27,7 +28,7 @@
   import { UI_VERSION } from "$lib/version";
   import "../app.css";
 
-  type Tab = "recipes" | "assets" | "timeline" | "jobs" | "copilot" | "automation" | "library" | "models" | "services" | "providers" | "plugins" | "settings";
+  type Tab = "recipes" | "assets" | "timeline" | "jobs" | "copilot" | "automation" | "library" | "models" | "services" | "providers" | "plugins" | "integrations" | "settings";
 
   const TABS: { id: Tab; label: string; hint: string }[] = [
     { id: "recipes", label: "Recipes", hint: "Visual recipe builder and runner" },
@@ -41,6 +42,7 @@
     { id: "services", label: "Services", hint: "Inspect, stop, and restart local VideoFlow processes" },
     { id: "providers", label: "Providers", hint: "Persistent provider configuration and fallbacks" },
     { id: "plugins", label: "Plugins", hint: "Local plugin packages, sandbox status, and panels" },
+    { id: "integrations", label: "Integrations", hint: "MCP and REST setup for OpenCode, Paperclip, and DeepSeek" },
     { id: "settings", label: "Settings", hint: "Local runtime, paths, models, speech, TTS, and quality" }
   ];
 
@@ -480,6 +482,8 @@
         />
       {:else if activeTab === "plugins"}
         <PluginsPanel />
+      {:else if activeTab === "integrations"}
+        <IntegrationsPanel />
       {:else if activeTab === "settings"}
         <SettingsPanel />
       {/if}

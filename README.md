@@ -6,7 +6,7 @@ recording into an editable timeline: it removes silence and retakes, adds
 J-cuts and punch-ins, proposes vertical Shorts, masters the dialogue bed, and
 exports timelines for DaVinci Resolve, Adobe Premiere Pro, and Kdenlive.
 
-> Status: 2.9.0 local stable. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
+> Status: 2.10.0 local stable. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical Shorts,
 > audio mastering and loudness QA, burned titles, color/LUT grading, analytics
@@ -140,6 +140,8 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - Copilot: LLM-backed recipe drafts and timeline edit plans through a
   configured provider or managed local service, with domain validation before
   anything is written.
+- Integrations: MCP (stdio and HTTP) plus REST for OpenCode and Paperclip,
+  with DeepSeek provider/service setup and copy-ready prompts.
 - Silero VAD v5.1.2 through ONNX Runtime, with 16 kHz inference, exact
   sample-rate rescaling, configurable threshold, and pads. FFmpeg
   `silencedetect` is the automatic fallback.

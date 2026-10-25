@@ -845,6 +845,18 @@ DELETE /api/v1/jobs/{job_id}/timeline/comments/{comment_id}
 Comments live in `timeline_meta.json` with `id`, `clip_id`, `text`, `author`,
 and `created_at`.
 
+### Copilot
+
+```http
+POST /api/v1/copilot/recipe
+POST /api/v1/jobs/{job_id}/copilot/timeline
+```
+
+The recipe endpoint returns a validated recipe draft. The timeline endpoint
+returns proposed edits and, with `"apply": true`, applies them with one undo
+entry. Unknown clip ids or actions are rejected before writing. See
+[integrations.md](integrations.md) for OpenCode/Paperclip and DeepSeek setup.
+
 ### Cost metrics
 
 ```http
