@@ -1,4 +1,5 @@
 <script lang="ts">
+  import HelpTip from "$lib/HelpTip.svelte";
   import { onMount } from "svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
   import { errorMessage } from "$lib/api";
@@ -59,7 +60,7 @@
 <section class="space-y-4" data-testid="plugins-panel">
   <header class="flex flex-wrap items-end justify-between gap-3">
     <div>
-      <h2 class="text-lg font-semibold text-white">Plugins</h2>
+      <div class="flex items-center gap-1.5"><h2 class="text-lg font-semibold text-white">Plugins</h2> <HelpTip label="Extensions" body="Local packages that add steps, exporters, providers, or panels. The sandbox blocks shell/network without permission." doc="docs/plugins.md" /></div>
       <p class="mt-1 text-xs text-neutral-500">
         Local packages that add steps, exporters, providers, or panels. Only trusted code is allowed.
       </p>

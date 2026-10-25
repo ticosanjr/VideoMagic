@@ -55,11 +55,15 @@ test("opens the command palette with the keyboard and navigates", async ({ page 
   await expect(palette).toBeVisible();
 
   await page.getByRole("textbox", { name: "Search commands" }).fill("timeline");
-  await expect(page.getByRole("option", { name: /Open Timeline/ })).toBeVisible();
+  await expect(page.getByRole("option", { name: /Timeline/ })).toBeVisible();
   await page.keyboard.press("Enter");
 
   await expect(palette).toHaveCount(0);
-  await expect(page.getByRole("tab", { name: "Timeline" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "Edit" })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  );
+  await expect(page.getByText("Edit / Timeline").or(page.getByText("Timeline")).first()).toBeVisible();
 });
 
 test("closes the command palette with escape", async ({ page }) => {
@@ -183,11 +187,8 @@ test("applies pt-BR, the light theme, and compact density", async ({ page }) => 
 
 
 test("lists plugins with sandbox status and panels", async ({ page }) => {
-  await page.keyboard.press("g");
-  await page.keyboard.press("p");
-  await page.keyboard.press("g");
-  await page.keyboard.press("p");
-  await page.getByRole("tab", { name: "Plugins" }).click();
+  await page.getByRole("tab", { name: "Setup" }).click();
+  await page.getByRole("tab", { name: "Extensions" }).click();
   await expect(page.getByTestId("plugins-panel")).toBeVisible();
   await expect(page.getByText("Demo plugin")).toBeVisible();
   await expect(page.getByRole("link", { name: "Demo panel" })).toHaveAttribute(
@@ -198,8 +199,53 @@ test("lists plugins with sandbox status and panels", async ({ page }) => {
 
 
 test("shows the integration area for OpenCode, Paperclip, and DeepSeek", async ({ page }) => {
-  await page.getByRole("tab", { name: "Integrations" }).click();
+  await page.getByRole("tab", { name: "Setup" }).click();
+  await page.getByRole("tab", { name: "Connect" }).click();
   await expect(page.getByTestId("integrations-panel")).toBeVisible();
   await expect(page.getByText("deepseek/deepseek-flash").first()).toBeVisible();
   await expect(page.getByText("Paperclip").first()).toBeVisible();
+});
+
+
+test("navigates the five areas and redirects legacy hashes", async ({ page }) => {
+  const areas = page
+    .getByRole("navigation")
+    .getByRole("tablist")
+    .first()
+    .getByRole("tab");
+  await expect(areas).toHaveCount(5);
+
+  await page.getByRole("tab", { name: "Setup" }).click();
+  await expect(page.getByRole("tab", { name: "AI models" })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  );
+
+  await page.goto("/#assets");
+  await expect(page.getByRole("tab", { name: "Media" })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  );
+  await page.goto("/#copilot");
+  await expect(page.getByRole("tab", { name: "Assistant" })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  );
+});
+
+test("opens a help tooltip from the keyboard", async ({ page }) => {
+  await page.getByRole("tab", { name: "Setup" }).click();
+  const help = page.getByRole("button", { name: /Help: AI models/ });
+  await help.focus();
+  await expect(page.getByRole("tooltip")).toContainText("speech and vision");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+});
+
+test("filters settings by text", async ({ page }) => {
+  await page.goto("/#settings");
+  const search = page.getByLabel("Search settings");
+  await expect(search).toBeVisible();
+  await search.fill("true peak");
+  await expect(search).toHaveValue("true peak");
 });

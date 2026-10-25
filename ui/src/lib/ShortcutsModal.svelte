@@ -8,13 +8,20 @@
     { keys: "Ctrl/Cmd + K", action: "Open the command palette" },
     { keys: "?", action: "Show this shortcut reference" },
     { keys: "Esc", action: "Close the palette, drawer, or dialog" },
-    { keys: "G then R", action: "Go to Recipes" },
-    { keys: "G then J", action: "Go to Jobs" },
-    { keys: "G then T", action: "Go to Timeline" },
-    { keys: "G then A", action: "Go to Assets" },
-    { keys: "G then S", action: "Go to Settings" },
-    { keys: "N", action: "Open the notification center" },
-    { keys: "U", action: "Open the activity drawer" }
+    { keys: "g then r", action: "Produce · Recipes" },
+    { keys: "g then c", action: "Produce · Assistant" },
+    { keys: "g then t", action: "Edit · Timeline" },
+    { keys: "g then j", action: "Runs · Jobs" },
+    { keys: "g then u", action: "Runs · Schedules" },
+    { keys: "g then a", action: "Library · Media" },
+    { keys: "g then l", action: "Library · Brand" },
+    { keys: "g then m", action: "Setup · AI models" },
+    { keys: "g then p", action: "Setup · AI providers" },
+    { keys: "g then e", action: "Setup · Extensions" },
+    { keys: "g then i", action: "Setup · Connect" },
+    { keys: "g then s", action: "Setup · Settings" },
+    { keys: "n", action: "Open the notification center" },
+    { keys: "u", action: "Open the activity drawer" }
   ];
 </script>
 

@@ -116,7 +116,7 @@
   <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div>
-        <h2 class="text-sm font-semibold text-white">Automation</h2>
+        <h2 class="text-sm font-semibold text-white">Schedules</h2>
         <p class="mt-1 text-xs text-neutral-500">
           Persistent recipe schedules and watch folders. The local scheduler polls every 20 seconds.
         </p>

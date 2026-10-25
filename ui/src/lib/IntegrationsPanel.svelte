@@ -1,4 +1,5 @@
 <script lang="ts">
+  import HelpTip from "$lib/HelpTip.svelte";
   import { onMount } from "svelte";
 
   let origin = $state("http://127.0.0.1:8765");
@@ -77,7 +78,7 @@ curl -s -X POST ${origin}/api/v1/jobs/JOB/copilot/timeline \\
 
 <section class="space-y-4" data-testid="integrations-panel">
   <header>
-    <h2 class="text-lg font-semibold text-white">Integrations</h2>
+    <div class="flex items-center gap-1.5"><h2 class="text-lg font-semibold text-white">Integrations</h2> <HelpTip label="Connect" body="MCP and REST entry points for OpenCode and Paperclip, with DeepSeek as the model. Everything is loopback." doc="docs/integrations.md" /></div>
     <p class="mt-1 text-xs text-neutral-500">
       Drive VideoFlow from OpenCode or Paperclip through MCP or REST, with DeepSeek as the agent or Copilot model. Everything stays on loopback.
     </p>

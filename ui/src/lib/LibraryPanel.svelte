@@ -1,4 +1,5 @@
 <script lang="ts">
+  import HelpTip from "$lib/HelpTip.svelte";
   import { onMount } from "svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
   import {
@@ -165,7 +166,7 @@
   <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div>
-        <h2 class="text-sm font-semibold text-white">Library</h2>
+        <div class="flex items-center gap-1.5"><h2 class="text-sm font-semibold text-white">Brand library</h2> <HelpTip label="Brand library" body="Reusable templates, presets, fonts, images, music, and SFX. Separate from source media." doc="docs/api.md" /></div>
         <p class="mt-1 text-xs text-neutral-500">Brand templates, project templates, presets, fonts, images, and music.</p>
       </div>
       <button type="button" onclick={() => void load()} class="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300">Refresh</button>

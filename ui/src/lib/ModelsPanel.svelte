@@ -1,4 +1,5 @@
 <script lang="ts">
+  import HelpTip from "$lib/HelpTip.svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
   import {
     cancelModelDownload,
@@ -157,7 +158,7 @@
   <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 class="text-sm font-semibold text-neutral-100">Local models</h2>
+        <div class="flex items-center gap-1.5"><h2 class="text-sm font-semibold text-neutral-100">Local models</h2> <HelpTip label="AI models" body="Optional speech and vision models. Sizes and licenses are shown before install; models are stored locally." doc="docs/models.md" /></div>
         <p class="mt-1 max-w-2xl text-xs leading-5 text-neutral-400">
           Explicit, optional downloads grouped by capability. Model downloads are independent
           from the external-provider policy; weights are stored under the VideoFlow home.

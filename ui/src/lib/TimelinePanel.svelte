@@ -1,4 +1,5 @@
 <script lang="ts">
+  import HelpTip from "$lib/HelpTip.svelte";
   import { onDestroy, onMount } from "svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
   import TimelineCanvas from "$lib/TimelineCanvas.svelte";
@@ -829,7 +830,7 @@
   <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h2 class="text-sm font-semibold text-white">Timeline</h2>
+        <div class="flex items-center gap-1.5"><h2 class="text-sm font-semibold text-white">Timeline</h2> <HelpTip label="Edit" body="Edit the canonical project state: trim, move, split, slip, slide, overlays, comments, preview, and exports." doc="docs/timeline.md" /></div>
         <p class="mt-1 text-xs text-neutral-500">
           Frame-accurate canvas editing over project_state.json. Drag clips, trim selected edges, split at the playhead, and undo safely.
         </p>

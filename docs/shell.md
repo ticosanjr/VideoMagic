@@ -28,16 +28,19 @@ Vitest.
 | `Ctrl/Cmd+K` | Command palette |
 | `?` | Shortcut reference |
 | `Esc` | Close the palette, drawer, modal, or notification center |
-| `g` then `r` | Recipes |
-| `g` then `a` | Assets |
-| `g` then `t` | Timeline |
-| `g` then `j` | Jobs |
-| `g` then `u` | Automation |
-| `g` then `l` | Library |
-| `g` then `m` | Models |
-| `g` then `v` | Services |
-| `g` then `p` | Providers |
-| `g` then `s` | Settings |
+| `g` then `r` | Produce · Recipes |
+| `g` then `c` | Produce · Assistant |
+| `g` then `t` | Edit · Timeline |
+| `g` then `j` | Runs · Jobs |
+| `g` then `u` | Runs · Schedules |
+| `g` then `a` | Library · Media |
+| `g` then `l` | Library · Brand |
+| `g` then `m` | Setup · AI models |
+| `g` then `v` | Setup · Local services |
+| `g` then `p` | Setup · AI providers |
+| `g` then `e` | Setup · Extensions |
+| `g` then `i` | Setup · Connect |
+| `g` then `s` | Setup · Settings |
 | `n` | Notification center |
 | `u` | Activity drawer |
 
@@ -68,9 +71,17 @@ The drawer shows four buckets from the current jobs snapshot:
 Each entry shows the source name, the current message, the next action, and the
 creation time. The footer jumps to the job dashboard.
 
-## Job dashboard
+## Areas
 
-The Jobs tab polls `GET /api/v1/jobs` every four seconds while mounted. It shows:
+The shell has five primary areas: **Produce** (Recipes, Assistant), **Edit**
+(Timeline), **Runs** (Jobs, Schedules), **Library** (Media, Brand library), and
+**Setup** (AI models, AI providers, Local services, Extensions, Connect,
+Settings). Flat hashes (`#recipes`, `#timeline`, …) are canonical; legacy
+hashes redirect. The breadcrumb shows the area and the current tab.
+
+## Runs dashboard
+
+The Runs · Jobs tab polls `GET /api/v1/jobs` every four seconds while mounted. It shows:
 
 - bucket counts and a text search over id, status, stage, message, source, and
   recipe;

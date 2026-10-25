@@ -28,39 +28,54 @@
   import { UI_VERSION } from "$lib/version";
   import "../app.css";
 
-  type Tab = "recipes" | "assets" | "timeline" | "jobs" | "copilot" | "automation" | "library" | "models" | "services" | "providers" | "plugins" | "integrations" | "settings";
+  import {
+    AREAS,
+    areaForTab,
+    areaTabs,
+    defaultTabForArea,
+    hashFor,
+    isTabId,
+    resolveRoute,
+    type AreaId,
+    type TabId
+  } from "$lib/navigation";
 
-  const TABS: { id: Tab; label: string; hint: string }[] = [
-    { id: "recipes", label: "Recipes", hint: "Visual recipe builder and runner" },
-    { id: "assets", label: "Assets", hint: "Local media, audio, images, fonts, tags, and licenses" },
-    { id: "timeline", label: "Timeline", hint: "Canvas timeline with preview, trim, split, and undo" },
-    { id: "jobs", label: "Jobs", hint: "Queue, progress, approvals, and failures" },
-    { id: "copilot", label: "Copilot", hint: "LLM recipe drafts and timeline edit plans" },
-    { id: "automation", label: "Automation", hint: "Schedules and watch folders for recipes" },
-    { id: "library", label: "Library", hint: "Brand templates, presets, fonts, images, and music" },
-    { id: "models", label: "Models", hint: "Optional on-demand speech and vision models" },
-    { id: "services", label: "Services", hint: "Inspect, stop, and restart local VideoFlow processes" },
-    { id: "providers", label: "Providers", hint: "Persistent provider configuration and fallbacks" },
-    { id: "plugins", label: "Plugins", hint: "Local plugin packages, sandbox status, and panels" },
-    { id: "integrations", label: "Integrations", hint: "MCP and REST setup for OpenCode, Paperclip, and DeepSeek" },
-    { id: "settings", label: "Settings", hint: "Local runtime, paths, models, speech, TTS, and quality" }
-  ];
+  const TAB_HINTS: Record<TabId, string> = {
+    recipes: "Visual recipe builder and runner",
+    assistant: "LLM recipe drafts and timeline edit plans",
+    timeline: "Canvas timeline with preview, trim, split, and undo",
+    jobs: "Queue, progress, approvals, pauses, and failures",
+    schedules: "Schedules and watch folders for recipes",
+    media: "Local media, audio, images, fonts, tags, and licenses",
+    brand: "Brand templates, presets, fonts, images, music, and SFX",
+    models: "Optional on-demand speech and vision models",
+    providers: "AI provider configuration, tests, and fallbacks",
+    services: "Inspect, stop, and restart local VideoFlow processes",
+    extensions: "Local plugin packages, sandbox status, and panels",
+    connect: "MCP and REST setup for OpenCode, Paperclip, and DeepSeek",
+    settings: "Local runtime, paths, models, speech, TTS, and quality"
+  };
 
-  const TAB_KEYS: Record<string, Tab> = {
+  const TAB_KEYS: Record<string, TabId> = {
     r: "recipes",
-    a: "assets",
+    c: "assistant",
     t: "timeline",
     j: "jobs",
-    u: "automation",
-    l: "library",
+    u: "schedules",
+    a: "media",
+    l: "brand",
     m: "models",
     v: "services",
     p: "providers",
+    e: "extensions",
+    i: "connect",
     s: "settings"
   };
 
   let system = $state<SystemInfo | null>(null);
-  let activeTab = $state<Tab>("recipes");
+  let activeTab = $state<TabId>("recipes");
+  const activeArea = $derived(areaForTab(activeTab));
+  const subTabs = $derived(areaTabs(activeArea));
   let connecting = $state(true);
   let systemError = $state("");
   let serviceStopped = $state(false);
@@ -83,13 +98,22 @@
   );
 
   const commands = $derived<Command[]>([
-    ...TABS.map((tab) => ({
-      id: `tab:${tab.id}`,
-      title: `Open ${tab.label}`,
+    ...AREAS.map((area) => ({
+      id: `area:${area.id}`,
+      title: `Go to ${t(locale, area.id)}`,
       group: "Navigate",
-      hint: tab.hint,
-      keywords: `go ${tab.id}`
+      hint: t(locale, `${area.id}_hint`),
+      keywords: `area ${area.id}`
     })),
+    ...AREAS.flatMap((area) =>
+      area.tabs.map((tab) => ({
+        id: `tab:${tab}`,
+        title: `${t(locale, area.id)} · ${t(locale, tab)}`,
+        group: "Navigate",
+        hint: TAB_HINTS[tab],
+        keywords: `go ${tab} ${area.id}`
+      }))
+    ),
     { id: "action:notices", title: "Open notifications", group: "View", keywords: "alerts errors", shortcut: "N" },
     { id: "action:activity", title: "Open activity drawer", group: "View", keywords: "running queue", shortcut: "U" },
     { id: "action:shortcuts", title: "Show keyboard shortcuts", group: "Help", keywords: "keys help", shortcut: "?" },
@@ -127,7 +151,7 @@
 
   function onNoticeAction(actionId: string) {
     if (actionId.startsWith("tab:")) {
-      selectTab(actionId.slice(4) as Tab);
+      selectTab(actionId.slice(4) as TabId);
       noticesOpen = false;
     } else if (actionId.startsWith("job:")) {
       selectTab("jobs");
@@ -145,8 +169,13 @@
 
   function runCommand(command: Command) {
     paletteOpen = false;
+    if (command.id.startsWith("area:")) {
+      const area = command.id.slice(5) as AreaId;
+      selectTab(defaultTabForArea(area));
+      return;
+    }
     if (command.id.startsWith("tab:")) {
-      selectTab(command.id.slice(4) as Tab);
+      selectTab(command.id.slice(4) as TabId);
       return;
     }
     if (command.id === "action:notices") noticesOpen = true;
@@ -276,9 +305,35 @@
     window.location.href = `/?v=${encodeURIComponent(UI_VERSION)}`;
   }
 
-  function selectTab(tab: Tab) {
+  function onTabKey(
+    event: KeyboardEvent,
+    ids: string[],
+    current: string,
+    select: (id: string) => void
+  ) {
+    if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const index = ids.indexOf(current);
+    const next =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? ids.length - 1
+          : event.key === "ArrowRight"
+            ? (index + 1) % ids.length
+            : (index - 1 + ids.length) % ids.length;
+    select(ids[next]);
+    const parent = (event.currentTarget as HTMLElement).parentElement;
+    requestAnimationFrame(() => {
+      const tabs = parent?.querySelectorAll<HTMLElement>('[role="tab"]');
+      tabs?.[next]?.focus();
+    });
+  }
+
+  function selectTab(tab: TabId) {
     activeTab = tab;
-    history.replaceState(null, "", `#${tab}`);
+    history.replaceState(null, "", hashFor(tab));
+    localStorage.setItem("videoflow.tab", tab);
   }
 
   $effect(() => {
@@ -289,11 +344,16 @@
   });
 
   function syncHash() {
-    const hash = window.location.hash.replace("#", "") as Tab;
-    if (TABS.some((tab) => tab.id === hash)) activeTab = hash;
+    activeTab = resolveRoute(window.location.hash).tab;
   }
 
   onMount(() => {
+    if (!window.location.hash) {
+      const saved = localStorage.getItem("videoflow.tab");
+      if (saved && isTabId(saved)) {
+        history.replaceState(null, "", hashFor(saved));
+      }
+    }
     syncHash();
     window.addEventListener("hashchange", syncHash);
     window.addEventListener("keydown", onGlobalKey);
@@ -392,22 +452,49 @@
       </div>
     </header>
 
-    <nav class="sticky top-0 z-30 -mx-1 overflow-x-auto rounded-2xl border border-neutral-800 bg-neutral-950/95 p-1 shadow-lg shadow-black/30 backdrop-blur" aria-label={t(locale, "workspace")}>
-      <div class="flex min-w-max gap-1" role="tablist" aria-label={t(locale, "workspace")}>
-        {#each TABS as tab}
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            title={tab.hint}
-            onclick={() => selectTab(tab.id)}
-            class={`rounded-xl px-3 py-2 text-xs font-medium transition ${activeTab === tab.id ? "bg-sky-500/15 text-sky-200 ring-1 ring-inset ring-sky-400/20" : "text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-200"}`}
-          >
-            {t(locale, tab.id)}
-          </button>
-        {/each}
+    <nav class="sticky top-0 z-30 -mx-1 rounded-2xl border border-neutral-800 bg-neutral-950/95 p-1 shadow-lg shadow-black/30 backdrop-blur" aria-label={t(locale, "workspace")}>
+      <div class="overflow-x-auto">
+        <div class="flex min-w-max gap-1" role="tablist" aria-label={t(locale, "workspace")}>
+          {#each AREAS as area}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeArea === area.id}
+              title={t(locale, `${area.id}_hint`)}
+              onclick={() => selectTab(defaultTabForArea(area.id))}
+              onkeydown={(event) => onTabKey(event, AREAS.map((item) => item.id), area.id, (id) => selectTab(defaultTabForArea(id as AreaId)))}
+              class={`rounded-xl px-3.5 py-2 text-xs font-medium transition ${activeArea === area.id ? "bg-sky-500/15 text-sky-200 ring-1 ring-inset ring-sky-400/20" : "text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-200"}`}
+            >
+              {t(locale, area.id)}
+            </button>
+          {/each}
+        </div>
       </div>
+      {#if subTabs.length > 1}
+        <div class="mt-1 flex min-w-max gap-1 overflow-x-auto border-t border-neutral-800/70 px-1 pt-1" role="tablist" aria-label={t(locale, activeArea)}>
+          {#each subTabs as tabId}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tabId}
+              title={TAB_HINTS[tabId]}
+              onclick={() => selectTab(tabId)}
+              onkeydown={(event) => onTabKey(event, subTabs, tabId, (id) => selectTab(id as TabId))}
+              class={`rounded-lg px-2.5 py-1 text-[11px] transition ${activeTab === tabId ? "bg-white/[0.06] text-neutral-100" : "text-neutral-500 hover:text-neutral-200"}`}
+            >
+              {t(locale, tabId)}
+            </button>
+          {/each}
+        </div>
+      {/if}
     </nav>
+
+    <div class="flex items-center gap-1.5 text-[11px] text-neutral-500" aria-label="Breadcrumb">
+      <span class="text-neutral-400">{t(locale, activeArea)}</span>
+      <span aria-hidden="true">/</span>
+      <span class="text-neutral-200">{t(locale, activeTab)}</span>
+      <span class="ml-2 hidden text-neutral-600 sm:inline">{TAB_HINTS[activeTab]}</span>
+    </div>
 
     <ErrorBanner
       message={[serviceError, systemError].filter(Boolean).join(" · ")}
@@ -454,7 +541,7 @@
     <div id="workspace-content" class="scroll-mt-24">
       {#if activeTab === "recipes"}
         <RecipesPanel />
-      {:else if activeTab === "assets"}
+      {:else if activeTab === "media"}
         <AssetsPanel />
       {:else if activeTab === "timeline"}
         <TimelinePanel />
@@ -463,11 +550,11 @@
           onreview={() => selectTab("recipes")}
           onopentimeline={() => selectTab("timeline")}
         />
-      {:else if activeTab === "copilot"}
+      {:else if activeTab === "assistant"}
         <CopilotPanel />
-      {:else if activeTab === "automation"}
+      {:else if activeTab === "schedules"}
         <AutomationPanel />
-      {:else if activeTab === "library"}
+      {:else if activeTab === "brand"}
         <LibraryPanel />
       {:else if activeTab === "models"}
         <ModelsPanel />
@@ -480,9 +567,9 @@
           onToggle={(value) => (allowExternal = value)}
           onHosts={(value) => (allowedHosts = value)}
         />
-      {:else if activeTab === "plugins"}
+      {:else if activeTab === "extensions"}
         <PluginsPanel />
-      {:else if activeTab === "integrations"}
+      {:else if activeTab === "connect"}
         <IntegrationsPanel />
       {:else if activeTab === "settings"}
         <SettingsPanel />

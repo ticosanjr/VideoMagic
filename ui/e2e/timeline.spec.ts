@@ -192,8 +192,29 @@ test("marks the preview as outdated after an edit", async ({ page }) => {
 
 test("drags a library asset onto the timeline as an overlay", async ({ page }) => {
   const posts: Array<Record<string, unknown>> = [];
-  await page.unroute("**/api/v1/**");
-  await mockApi(page, posts);
+  await page.route("**/api/v1/assets", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        assets: [
+          {
+            id: "asset-1",
+            name: "logo.png",
+            kind: "image",
+            path: "/tmp/logo.png",
+            tags: [],
+            added_at: "2026-10-24T00:00:00Z"
+          }
+        ]
+      }
+    })
+  );
+  await page.route("**/api/v1/jobs/job-1/timeline/overlays", (route) => {
+    posts.push(JSON.parse(route.request().postData() ?? "{}"));
+    return route.fulfill({
+      json: { ok: true, overlays: [] }
+    });
+  });
   await page.goto("/#timeline");
   const rail = page.getByTestId("asset-rail");
   await expect(rail.getByText("logo.png")).toBeVisible();

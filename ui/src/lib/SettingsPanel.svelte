@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
+  import FieldHint from "$lib/FieldHint.svelte";
+  import HelpTip from "$lib/HelpTip.svelte";
   import {
     errorMessage,
     getSettings,
@@ -16,6 +18,14 @@
   let error = $state("");
   let status = $state("");
   let busy = $state(false);
+  let query = $state("");
+
+  function filterSections(value: string) {
+    const needle = value.trim().toLowerCase();
+    document.querySelectorAll<HTMLElement>("[data-settings-section]").forEach((section) => {
+      section.hidden = Boolean(needle) && !(section.textContent ?? "").toLowerCase().includes(needle);
+    });
+  }
 
   async function load() {
     try {
@@ -113,7 +123,16 @@
           Persisted in <span class="font-mono">settings.json</span>. Environment variables marked below win over the file where applicable.
         </p>
       </div>
-      <div class="flex flex-wrap gap-2">
+      <div class="flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          bind:value={query}
+          oninput={(event) => filterSections(event.currentTarget.value)}
+          placeholder="Search settings…"
+          aria-label="Search settings"
+          class="w-44 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-200"
+        />
+        <button type="button" onclick={() => void load()} disabled={busy} class="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 disabled:opacity-40">Discard changes</button>
         <button type="button" onclick={exportSettings} class="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300">Export</button>
         <label class="cursor-pointer rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300">
           Import
@@ -204,10 +223,10 @@
           <label class="text-[10px] text-neutral-500">Max retries<input type="number" min="0" max="20" bind:value={settings.automation.max_retries} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
           <label class="text-[10px] text-neutral-500">Backoff (s)<input type="number" min="5" bind:value={settings.automation.retry_backoff_seconds} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
           <label class="flex items-end gap-2 pb-1 text-[10px] text-neutral-400"><input type="checkbox" bind:checked={settings.automation.enabled} class="h-3.5 w-3.5" />scheduler enabled</label>
-          <label class="text-[10px] text-neutral-500">Target LUFS<input type="number" step="0.5" bind:value={settings.quality.target_lufs} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
-          <label class="text-[10px] text-neutral-500">True peak<input type="number" step="0.5" bind:value={settings.quality.true_peak_db} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
-          <label class="text-[10px] text-neutral-500">VMAF threshold<input type="number" min="0" max="100" bind:value={settings.quality.vmaf_threshold} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
-          <label class="text-[10px] text-neutral-500">Proxy height<input type="number" min="144" max="1080" bind:value={settings.quality.proxy_height} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">Target LUFS (integrated)<input type="number" step="0.5" bind:value={settings.quality.target_lufs} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">True peak (dBTP)<input type="number" step="0.5" bind:value={settings.quality.true_peak_db} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">VMAF threshold (0–100)<input type="number" min="0" max="100" bind:value={settings.quality.vmaf_threshold} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">Proxy height (px)<input type="number" min="144" max="1080" bind:value={settings.quality.proxy_height} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
         </div>
       </section>
 

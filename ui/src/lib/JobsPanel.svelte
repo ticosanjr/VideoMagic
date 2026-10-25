@@ -10,7 +10,10 @@
     unpauseJob,
     type Job
   } from "$lib/api";
+  import EmptyState from "$lib/EmptyState.svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
+  import HelpTip from "$lib/HelpTip.svelte";
+  import StatusBadge from "$lib/StatusBadge.svelte";
   import { elapsedMs, formatDateTime, formatDuration, statusText } from "$lib/format";
   import {
     filterJobs,
@@ -170,7 +173,7 @@
 <section class="space-y-4">
   <header class="flex flex-wrap items-end justify-between gap-3">
     <div>
-      <h2 class="text-lg font-semibold text-white">{i18n.t("jobs_title")}</h2>
+      <div class="flex items-center gap-1.5"><h2 class="text-lg font-semibold text-white">{i18n.t("jobs_title")}</h2> <HelpTip label="Runs" body="Every recipe or pipeline run. Filters narrow by state; Next tells you what to do." doc="docs/shell.md" /></div>
       <p class="mt-1 text-xs text-neutral-500">{i18n.t("jobs_subtitle")}</p>
     </div>
     <div class="flex items-center gap-2">
@@ -210,9 +213,7 @@
       {/each}
     </div>
   {:else if visible.length === 0}
-    <p class="rounded-2xl border border-dashed border-neutral-800 px-4 py-10 text-center text-xs text-neutral-500">
-      {i18n.t("no_jobs")}
-    </p>
+    <EmptyState title={i18n.t("no_jobs")} description="Run a recipe from Produce, or clear the filters." action="Open Produce" onaction={() => (window.location.hash = "#recipes")} />
   {:else}
     <ul class="space-y-2" data-testid="job-list">
       {#each visible as job (job.job_id)}
@@ -221,7 +222,7 @@
             <div class="min-w-0">
               <div class="flex flex-wrap items-center gap-2">
                 <p class="truncate text-sm font-medium text-neutral-100">{jobDisplayName(job)}</p>
-                <span class={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide ${tone(job.status)}`}>{statusText(job.status)}</span>
+                <StatusBadge status={job.status} />
                 {#if job.result?.recipe_id}
                   <span class="rounded-full border border-white/10 px-2 py-0.5 font-mono text-[10px] text-neutral-400">{job.result.recipe_id}</span>
                 {/if}
@@ -280,6 +281,7 @@
               {/if}
               <label class="flex items-center gap-1 text-[10px] text-neutral-500">
                 {i18n.t("priority")}
+                <HelpTip label="Priority" body="Higher numbers run first when a worker slot frees. Range -100 to 100." />
                 <input
                   type="number"
                   min="-100"

@@ -121,20 +121,22 @@ test("opens the recipe template gallery", async ({ page }) => {
   await expect(dialog.getByText("Example recipe")).toBeVisible();
 });
 
-test("opens the asset library tab", async ({ page }) => {
-  await page.getByRole("tab", { name: "Assets" }).click();
-  await expect(page.getByRole("heading", { name: "Asset library" })).toBeVisible();
+test("opens the media library tab", async ({ page }) => {
+  await page.getByRole("tab", { name: "Library" }).click();
+  await page.getByRole("tab", { name: "Media" }).click();
+  await expect(page.getByRole("heading", { name: "Media" })).toBeVisible();
   await expect(page.getByText("No assets yet")).toBeVisible();
 });
 
-test("opens the automation tab", async ({ page }) => {
-  await page.getByRole("tab", { name: "Automation" }).click();
-  await expect(page.getByRole("heading", { name: "Automation" })).toBeVisible();
+test("opens the schedules tab", async ({ page }) => {
+  await page.getByRole("tab", { name: "Runs" }).click();
+  await page.getByRole("tab", { name: "Schedules" }).click();
+  await expect(page.getByRole("heading", { name: "Schedules" })).toBeVisible();
   await expect(page.getByText("No schedules yet.")).toBeVisible();
 });
 
 test("opens the timeline tab", async ({ page }) => {
-  await page.getByRole("tab", { name: "Timeline" }).click();
+  await page.getByRole("tab", { name: "Edit" }).click();
   await expect(page.getByRole("heading", { name: "Timeline" })).toBeVisible();
   await expect(page.getByText("Run a recipe to populate the timeline.")).toBeVisible();
 });

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import HelpTip from "$lib/HelpTip.svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
   import { onMount } from "svelte";
   import PathPicker from "$lib/PathPicker.svelte";
@@ -100,7 +101,7 @@
   <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
     <div class="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h2 class="text-sm font-semibold text-white">Asset library</h2>
+        <div class="flex items-center gap-1.5"><h2 class="text-sm font-semibold text-white">Media</h2> <HelpTip label="Media" body="Source media, audio, images, and fonts. Allowed roots gate every path." doc="docs/api.md" /></div>
         <p class="mt-1 text-xs text-neutral-500">Local media, audio, images, and fonts with tags and license metadata.</p>
       </div>
       <div class="flex flex-wrap gap-2">

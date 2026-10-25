@@ -1,4 +1,5 @@
 <script lang="ts">
+  import HelpTip from "$lib/HelpTip.svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
   import { onDestroy, onMount } from "svelte";
   import {
@@ -1588,7 +1589,7 @@
   <section class="relative overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900/50">
     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800 px-3 py-3 sm:px-4">
       <div class="min-w-0">
-        <h2 class="text-sm font-semibold text-white">Recipe builder</h2>
+        <div class="flex items-center gap-1.5"><h2 class="text-sm font-semibold text-white">Recipe builder</h2> <HelpTip label="Produce" body="Build a DAG of steps, validate it, dry-run it, and execute it. Recipes are the execution contract." doc="docs/recipes.md" /></div>
         <p class="mt-0.5 hidden text-[11px] text-neutral-500 sm:block">
           Connect steps into a DAG. The engine executes dependencies in order; nothing is uploaded.
         </p>

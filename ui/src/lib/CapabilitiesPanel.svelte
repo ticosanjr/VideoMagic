@@ -1,4 +1,5 @@
 <script lang="ts">
+  import HelpTip from "$lib/HelpTip.svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
   import { onMount } from "svelte";
   import {
@@ -257,7 +258,7 @@
   <div class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div>
-        <h2 class="text-sm font-semibold">Providers and capabilities</h2>
+        <h2 class="text-sm font-semibold">AI providers</h2>
         <p class="mt-1 max-w-2xl text-xs leading-5 text-neutral-400">
           Local features work offline. External services are opt-in per run and can be
           blocked globally with <code class="rounded bg-neutral-800 px-1 py-0.5 text-[10px]">VIDEOWFLOW_ALLOW_EXTERNAL=0</code>.

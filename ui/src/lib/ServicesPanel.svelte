@@ -1,4 +1,5 @@
 <script lang="ts">
+  import HelpTip from "$lib/HelpTip.svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
   import {
     cleanupServices,
@@ -240,7 +241,7 @@
   <div class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 class="text-sm font-semibold text-neutral-100">Local services</h2>
+        <div class="flex items-center gap-1.5"><h2 class="text-sm font-semibold text-neutral-100">Local services</h2> <HelpTip label="Local services" body="Processes VideoFlow starts and monitors on loopback. Start/stop asks for confirmation." doc="docs/api.md" /></div>
         <p class="mt-1 text-xs text-neutral-400">
           Inspect every VideoFlow service on this machine, stop an old version, or
           restart the service that is serving this UI.

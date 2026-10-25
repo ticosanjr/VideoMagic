@@ -3,6 +3,29 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.11.0] - 2026-10-25
+
+### Added
+
+- **Five-area navigation.** Produce, Edit, Runs, Library, and Setup replace the
+  flat 13-tab bar, with sub-tabs, breadcrumbs, persisted last tab, and legacy
+  hash redirects (`#assets`, `#automation`, `#copilot`, `#library`, `#plugins`,
+  `#integrations`).
+- **Naming pass.** Runs, Schedules, Media, Brand library, Assistant, AI models,
+  AI providers, Local services, Extensions, Connect.
+- **Help system.** `HelpTip`, `FieldHint`, `EmptyState`, `StatusBadge`, units in
+  labels, help tips on every Setup panel and the main editors.
+- **Searchable settings** with section filtering, units, help tips, and
+  discard-changes.
+- **Keyboard navigation** for area and sub-tab tablists (arrows, Home, End).
+- **Copy standards.** `docs/ui-copy.md` and `docs/settings.md`.
+
+### Notes
+
+- Local release: Linux binary + AppImage + SBOM + checksums.
+- Remaining for 3.0: long help-text i18n, voice cloning, full-tree coverage,
+  and manual NLE/assistive-technology QA.
+
 ## [2.10.0] - 2026-10-25
 
 ### Added

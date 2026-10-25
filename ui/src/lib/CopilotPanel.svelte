@@ -70,7 +70,7 @@
 
 <section class="space-y-4" data-testid="copilot-panel">
   <header>
-    <h2 class="text-lg font-semibold text-white">Copilot</h2>
+    <h2 class="text-lg font-semibold text-white">Assistant</h2>
     <p class="mt-1 text-xs text-neutral-500">
       Use the configured LLM provider to draft a recipe or propose timeline edits. Every proposal is validated before it touches the project.
     </p>
