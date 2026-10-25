@@ -98,3 +98,24 @@ checklist on a machine with the NLE installed:
 Record the NLE version, OS, import result, and any relinking needed next to the
 release notes. Manual import status is still **pending** for this host because
 Resolve, Premiere, and Kdenlive are not installed.
+
+## Manual sign-off (3.0 gate)
+
+Status: **pending**. Resolve, Premiere, and Kdenlive are not installed on the
+release machine, and `melt` is absent. Automated structure validation is green,
+but the plan requires a human import pass.
+
+For each NLE, record:
+
+| NLE | Version | Job id | Export folder | Titles | Colour | Audio | B-roll | Chapters | Transitions | Clicks | Result |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| DaVinci Resolve | | | | | | | | | | | pending |
+| Adobe Premiere | | | | | | | | | | | pending |
+| Kdenlive | | | | | | | | | | | pending |
+
+Sign-off block:
+
+- Reviewer:
+- Date:
+- Build: `releases/v2.14.0/videoflow-2.14.0-linux-x86_64`
+- P0/P1 found: none / list
