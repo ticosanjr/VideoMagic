@@ -20,6 +20,7 @@ from videoflow.adapters.faster_whisper import FasterWhisperAdapter
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.adapters.llm import OpenAICompatibleLlm
 from videoflow.adapters.whisper import WhisperCliAdapter
+from videoflow.application import recipe_meta
 from videoflow.application.backups import scheduled_backup
 from videoflow.application.brand_templates import (
     BrandTemplate,
@@ -569,6 +570,8 @@ def build_server(
         speech_threshold: float = 0.5,
         speech_pad_before_ms: int = 120,
         speech_pad_after_ms: int = 150,
+        spike_suppression_ms: int = 0,
+        merge_gap_ms: int = 0,
     ) -> dict[str, object]:
         """Run speech detection on the loaded media and report removable silence."""
 
@@ -608,6 +611,8 @@ def build_server(
                     speech_threshold=speech_threshold,
                     speech_pad_before_ms=speech_pad_before_ms,
                     speech_pad_after_ms=speech_pad_after_ms,
+                    spike_suppression_ms=spike_suppression_ms,
+                    merge_gap_ms=merge_gap_ms,
                     duration_samples=_duration_samples(media),
                 )
                 speech = detection.spans
@@ -2248,7 +2253,7 @@ def build_server(
     ) -> dict[str, object]:
         """List built-in and operator recipes."""
 
-        items = list_recipes()
+        items = recipe_meta.decorate(list_recipes())
         start = max(0, offset)
         page = items[start : start + max(1, min(limit, 1000))]
         return {"ok": True, "recipes": page, "total": len(items)}
@@ -2325,6 +2330,7 @@ def build_server(
             )
         except VideoFlowError as exc:
             return exc.to_dict()
+        recipe_meta.touch(recipe.id)
         last["source"] = resolved_source
         last["output"] = resolved_output
         last["job_id"] = str(job.job_id)
@@ -2365,6 +2371,7 @@ def build_server(
             )
         except VideoFlowError as exc:
             return exc.to_dict()
+        recipe_meta.touch(parsed.id)
         last["source"] = resolved_source
         last["output"] = resolved_output
         last["job_id"] = str(job.job_id)

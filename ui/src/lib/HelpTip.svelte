@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { tick } from "svelte";
+
   let {
     label,
     body,
@@ -13,17 +15,61 @@
 
   let open = $state(false);
   let trigger = $state<HTMLButtonElement | null>(null);
+  let tooltip = $state<HTMLElement | null>(null);
+  let position = $state("position: fixed; left: 0; top: 0;");
   const id = `help-${Math.random().toString(36).slice(2, 9)}`;
 
-  function show() {
-    open = true;
+  function place() {
+    if (!trigger || !tooltip) return;
+    const rect = trigger.getBoundingClientRect();
+    const margin = 8;
+    const width = Math.min(256, window.innerWidth - margin * 2);
+    const height = tooltip.offsetHeight;
+    let top =
+      placement === "bottom" ? rect.bottom + margin : rect.top - height - margin;
+    if (top < margin) top = rect.bottom + margin;
+    if (top + height > window.innerHeight - margin) {
+      top = Math.max(margin, window.innerHeight - height - margin);
+    }
+    const left = Math.max(
+      margin,
+      Math.min(rect.left, window.innerWidth - width - margin)
+    );
+    position = `position: fixed; left: ${left}px; top: ${top}px; width: ${width}px;`;
   }
+
+  async function show() {
+    open = true;
+    await tick();
+    place();
+  }
+
   function hide() {
     open = false;
   }
+
+  function portal(node: HTMLElement) {
+    document.body.appendChild(node);
+    return {
+      destroy() {
+        node.remove();
+      }
+    };
+  }
+
+  $effect(() => {
+    if (!open) return;
+    const reposition = () => place();
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+    return () => {
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+    };
+  });
 </script>
 
-<span class="relative inline-flex align-middle">
+<span class="inline-flex align-middle">
   <button
     bind:this={trigger}
     type="button"
@@ -31,9 +77,9 @@
     aria-label={`Help: ${label}`}
     aria-describedby={open ? id : undefined}
     aria-expanded={open}
-    onmouseenter={show}
+    onmouseenter={() => void show()}
     onmouseleave={hide}
-    onfocus={show}
+    onfocus={() => void show()}
     onblur={hide}
     onkeydown={(event) => {
       if (event.key === "Escape") {
@@ -42,17 +88,22 @@
       }
     }}
   >?</button>
-  {#if open}
-    <span
-      {id}
-      role="tooltip"
-      class={`absolute z-[80] w-64 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-left text-[11px] leading-relaxed text-neutral-300 shadow-2xl shadow-black/60 ${placement === "bottom" ? "left-0 top-6" : "bottom-6 left-0"}`}
-    >
-      <span class="block font-medium text-neutral-100">{label}</span>
-      <span class="mt-1 block">{body}</span>
-      {#if doc}
-        <span class="mt-1 block font-mono text-[10px] text-sky-300">{doc}</span>
-      {/if}
-    </span>
-  {/if}
 </span>
+
+{#if open}
+  <span
+    use:portal
+    bind:this={tooltip}
+    {id}
+    role="tooltip"
+    data-testid="help-tooltip"
+    style={position}
+    class="z-[9999] rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-left text-[11px] leading-relaxed text-neutral-300 shadow-2xl shadow-black/60"
+  >
+    <span class="block font-medium text-neutral-100">{label}</span>
+    <span class="mt-1 block">{body}</span>
+    {#if doc}
+      <span class="mt-1 block font-mono text-[10px] text-sky-300">{doc}</span>
+    {/if}
+  </span>
+{/if}

@@ -42,6 +42,8 @@ def detect_speech(
     speech_pad_after_ms: int = 150,
     duration_samples: int | None = None,
     apply_pads: bool = True,
+    spike_suppression_ms: int = 0,
+    merge_gap_ms: int = 0,
     log: Callable[[str, str], None] | None = None,
 ) -> VadDetection:
     """Detect speech with Silero when available, otherwise FFmpeg.
@@ -84,6 +86,13 @@ def detect_speech(
                     speech_pad_after_ms,
                     duration,
                 )
+            spans = postprocess_spans(
+                spans,
+                media.audio_sample_rate,
+                spike_suppression_ms=spike_suppression_ms,
+                merge_gap_ms=merge_gap_ms,
+                duration_samples=duration,
+            )
             return VadDetection(spans=spans, engine="silero")
         if vad_engine == "silero":
             raise IngestError(_silero_missing_message())
@@ -104,6 +113,13 @@ def detect_speech(
             speech_pad_after_ms,
             duration,
         )
+    spans = postprocess_spans(
+        spans,
+        media.audio_sample_rate,
+        spike_suppression_ms=spike_suppression_ms,
+        merge_gap_ms=merge_gap_ms,
+        duration_samples=duration,
+    )
     return VadDetection(spans=spans, engine="ffmpeg")
 
 
@@ -154,6 +170,44 @@ def pad_spans(
         if item[1] > item[0]:
             padded.append(item)
     return merge_spans(padded)
+
+
+def postprocess_spans(
+    spans: Sequence[tuple[int, int]],
+    sample_rate: int,
+    *,
+    spike_suppression_ms: int = 0,
+    merge_gap_ms: int = 0,
+    duration_samples: int | None = None,
+) -> list[tuple[int, int]]:
+    """Drop isolated short sounds and bridge tiny gaps between kept speech."""
+
+    if sample_rate <= 0:
+        raise IngestError("sample rate must be positive")
+    if spike_suppression_ms < 0 or merge_gap_ms < 0:
+        raise IngestError("spike and merge durations must not be negative")
+    minimum = (spike_suppression_ms * sample_rate + 500) // 1000
+    filtered = [
+        (max(0, start), end)
+        for start, end in spans
+        if end > start and (minimum == 0 or end - start >= minimum)
+    ]
+    if duration_samples is not None:
+        filtered = [
+            (min(start, duration_samples), min(end, duration_samples))
+            for start, end in filtered
+        ]
+        filtered = [(start, end) for start, end in filtered if end > start]
+    gap = (merge_gap_ms * sample_rate + 500) // 1000
+    if gap <= 0:
+        return merge_spans(filtered)
+    merged: list[tuple[int, int]] = []
+    for start, end in sorted(filtered):
+        if merged and start - merged[-1][1] <= gap:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
 
 
 def merge_spans(spans: Sequence[tuple[int, int]]) -> list[tuple[int, int]]:

@@ -1,1 +1,4 @@
-{"ok":true,"recipes":[{"id":"example_recipe","name":"Example recipe","description":"E2E recipe","source":"user"}]}
+{"ok":true,"recipes":[
+{"id":"example_recipe","name":"Example recipe","description":"E2E recipe","source":"user","favorite":false,"last_used_at":"","use_count":0,"tags":[]},
+{"id":"recut_replacement","name":"Recut Replacement","description":"Silence removal with detailed VAD controls","source":"builtin","favorite":true,"last_used_at":"","use_count":0,"tags":["silence","recut"]}
+]}

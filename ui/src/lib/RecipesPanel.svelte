@@ -14,6 +14,7 @@
   import StepNode from "$lib/nodes/StepNode.svelte";
   import { setPath, validateParams } from "$lib/recipeFields";
   import PathPicker from "$lib/PathPicker.svelte";
+  import { recipesFor, type RecipeFilter } from "$lib/recipeLibrary";
   import {
     dryRunRecipe,
     errorMessage,
@@ -38,6 +39,7 @@
     runRecipeStep,
     restoreRecipeVersion,
     saveRecipe,
+    setRecipeFavorite,
     validateExports,
     validateRecipe,
     type Batch,
@@ -184,6 +186,7 @@
   let recipeHistoryError = $state("");
   let templatesOpen = $state(false);
   let templateQuery = $state("");
+  let recipeFilter = $state<RecipeFilter>("all");
   let nleOpen = $state(false);
   let nleReport = $state<NleValidationReport | null>(null);
   let nleBusy = $state(false);
@@ -224,15 +227,13 @@
     "export.nle"
   ];
 
-  const filteredTemplates = $derived(
-    recipes.filter((recipe) => {
-      const query = templateQuery.trim().toLocaleLowerCase();
-      return !query ||
-        recipe.name.toLocaleLowerCase().includes(query) ||
-        recipe.description.toLocaleLowerCase().includes(query) ||
-        recipe.id.toLocaleLowerCase().includes(query);
-    })
+  const visibleRecipes = $derived(
+    recipesFor(recipes, recipeFilter, templateQuery)
   );
+  const currentRecipe = $derived(
+    recipes.find((recipe) => recipe.id === recipeId)
+  );
+  const favoriteCount = $derived(recipes.filter((recipe) => recipe.favorite).length);
 
   const filteredSteps = $derived(
     steps
@@ -1285,6 +1286,26 @@
     }
   }
 
+  async function refreshRecipes() {
+    try {
+      recipes = await listRecipes();
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
+  async function toggleFavorite(recipe: RecipeSummary) {
+    try {
+      await setRecipeFavorite(recipe.id, !recipe.favorite);
+      await refreshRecipes();
+      status = recipe.favorite
+        ? `${recipe.name} removed from favorites.`
+        : `${recipe.name} added to favorites.`;
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
   async function execute() {
     error = "";
     status = "";
@@ -1317,6 +1338,7 @@
         profile: recipeProfile || null
       });
       watch(job.job_id);
+      await refreshRecipes();
       status = `Job ${job.job_id} started.`;
     } catch (reason) {
       error = errorMessage(reason);
@@ -1355,6 +1377,7 @@
         profile: recipeProfile || null
       });
       watch(job.job_id);
+      await refreshRecipes();
       status = `Job ${job.job_id} started through ${stepId}.`;
     } catch (reason) {
       error = errorMessage(reason);
@@ -1681,19 +1704,26 @@
         >
           JSON
         </button>
-        <select
-          value={recipeId}
-          onchange={(event) => void loadRecipe(event.currentTarget.value)}
-          class="max-w-[190px] rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-200"
-          aria-label="Load recipe"
+        <button
+          type="button"
+          data-testid="recipe-library"
+          onclick={() => (templatesOpen = true)}
+          class="flex max-w-[240px] items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-950 px-2.5 py-1.5 text-xs text-neutral-200 hover:border-sky-500"
+          title="Open recipe library"
         >
-          {#each recipes as recipe}
-            <option value={recipe.id}>{recipe.name}</option>
-          {/each}
-        </select>
-        <button type="button" onclick={() => (templatesOpen = true)} class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500">
-          Templates
+          <span class="truncate">{currentRecipe?.name ?? recipeName}</span>
+          <span class="text-neutral-500">▾</span>
         </button>
+        {#if currentRecipe}
+          <button
+            type="button"
+            data-testid="recipe-favorite"
+            onclick={() => void toggleFavorite(currentRecipe)}
+            class={currentRecipe.favorite ? "rounded-lg border border-amber-400/40 px-2 py-1.5 text-amber-300" : "rounded-lg border border-neutral-700 px-2 py-1.5 text-neutral-400 hover:border-amber-400/50 hover:text-amber-300"}
+            aria-label={currentRecipe.favorite ? "Remove from favorites" : "Add to favorites"}
+            title={currentRecipe.favorite ? "Remove from favorites" : "Add to favorites"}
+          >{currentRecipe.favorite ? "★" : "☆"}</button>
+        {/if}
         <button type="button" onclick={downloadRecipe} class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500">
           Download
         </button>
@@ -2231,24 +2261,53 @@
   {#if templatesOpen}
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="presentation"
       onclick={(event) => { if (event.currentTarget === event.target) templatesOpen = false; }}>
-      <div class="flex max-h-[82vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="Recipe templates">
+      <div class="flex max-h-[82vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="Recipe library">
         <div class="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
-          <div><h3 class="text-sm font-semibold text-white">Recipe templates</h3><p class="text-[10px] text-neutral-500">Built-in workflows and your saved recipes.</p></div>
+          <div><h3 class="text-sm font-semibold text-white">Recipe library</h3><p class="text-[10px] text-neutral-500">Favorites, recent runs, and every saved workflow.</p></div>
           <button type="button" onclick={() => (templatesOpen = false)} class="rounded px-2 text-neutral-500 hover:text-neutral-200" aria-label="Close templates">×</button>
         </div>
         <div class="border-b border-neutral-800 p-3">
-          <input bind:value={templateQuery} placeholder="Search templates…" class="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-xs text-neutral-200" />
-        </div>
-        <div class="min-h-0 flex-1 overflow-y-auto p-3">
-          <div class="grid gap-2 sm:grid-cols-2">
-            {#each filteredTemplates as recipe}
-              <button type="button" onclick={() => { templatesOpen = false; void loadRecipe(recipe.id); }} class="rounded-xl border border-neutral-800 bg-neutral-900/60 p-3 text-left hover:border-sky-500">
-                <p class="text-xs font-medium text-neutral-100">{recipe.name}</p>
-                <p class="mt-1 line-clamp-2 text-[10px] leading-4 text-neutral-500">{recipe.description || "No description"}</p>
-                <p class="mt-2 font-mono text-[9px] text-neutral-600">{recipe.id} · {recipe.source}</p>
-              </button>
+          <input bind:value={templateQuery} placeholder="Search recipes…" class="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-xs text-neutral-200" />
+          <div class="mt-2 flex flex-wrap gap-1" role="tablist" aria-label="Recipe filters">
+            {#each [["favorites", `Favorites (${favoriteCount})`], ["recent", "Recent"], ["all", "All recipes"]] as [id, label]}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={recipeFilter === id}
+                class={recipeFilter === id ? "rounded-lg bg-sky-500/15 px-2.5 py-1 text-[10px] text-sky-200 ring-1 ring-inset ring-sky-400/25" : "rounded-lg border border-neutral-800 px-2.5 py-1 text-[10px] text-neutral-400 hover:text-neutral-200"}
+                onclick={() => (recipeFilter = id as RecipeFilter)}
+              >{label}</button>
             {/each}
           </div>
+        </div>
+        <div class="min-h-0 flex-1 overflow-y-auto p-3">
+          {#if !visibleRecipes.length}
+            <p class="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 text-xs text-neutral-500">
+              {recipeFilter === "recent" ? "Run a recipe to populate Recent." : "No recipe matches this filter."}
+            </p>
+          {:else}
+            <div class="grid gap-2 sm:grid-cols-2">
+              {#each visibleRecipes as recipe}
+                <div class="flex items-start gap-2 rounded-xl border border-neutral-800 bg-neutral-900/60 p-2 hover:border-sky-500">
+                  <button type="button" onclick={() => { templatesOpen = false; void loadRecipe(recipe.id); }} class="min-w-0 flex-1 p-1 text-left">
+                    <p class="truncate text-xs font-medium text-neutral-100">{recipe.name}</p>
+                    <p class="mt-1 line-clamp-2 text-[10px] leading-4 text-neutral-500">{recipe.description || "No description"}</p>
+                    <p class="mt-2 truncate font-mono text-[9px] text-neutral-600">{recipe.id} · {recipe.source}{recipe.last_used_at ? ` · used ${recipe.use_count}×` : ""}</p>
+                    {#if recipe.tags?.length}
+                      <p class="mt-1 flex flex-wrap gap-1">{#each recipe.tags as tag}<span class="rounded bg-white/5 px-1.5 py-0.5 text-[9px] text-neutral-400">{tag}</span>{/each}</p>
+                    {/if}
+                  </button>
+                  <button
+                    type="button"
+                    onclick={() => void toggleFavorite(recipe)}
+                    class={recipe.favorite ? "rounded p-1 text-lg leading-none text-amber-300" : "rounded p-1 text-lg leading-none text-neutral-600 hover:text-amber-300"}
+                    aria-label={recipe.favorite ? `Remove ${recipe.name} from favorites` : `Add ${recipe.name} to favorites`}
+                    title={recipe.favorite ? "Remove from favorites" : "Add to favorites"}
+                  >{recipe.favorite ? "★" : "☆"}</button>
+                </div>
+              {/each}
+            </div>
+          {/if}
         </div>
       </div>
     </div>

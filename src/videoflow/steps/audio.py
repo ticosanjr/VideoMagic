@@ -27,6 +27,8 @@ class VadParams(BaseModel):
     speech_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
     pad_before_ms: int = Field(default=120, ge=0)
     pad_after_ms: int = Field(default=150, ge=0)
+    spike_suppression_ms: int = Field(default=0, ge=0, le=5000)
+    merge_gap_ms: int = Field(default=0, ge=0, le=5000)
     apply_pads: bool = False
 
 
@@ -60,6 +62,8 @@ class VadStep(BaseStep):
                 context.metadata["speech_pad_before_ms"] = options.pad_before_ms
                 context.metadata["speech_pad_after_ms"] = options.pad_after_ms
                 context.metadata["min_speech_ms"] = options.min_speech_ms
+                context.metadata["spike_suppression_ms"] = options.spike_suppression_ms
+                context.metadata["merge_gap_ms"] = options.merge_gap_ms
                 context.hashes["vad"] = key
                 context.cache_hits.append("audio.vad")
                 io.emit("info", f"{len(spans)} speech intervals (cached)")
@@ -81,6 +85,8 @@ class VadStep(BaseStep):
             speech_pad_after_ms=options.pad_after_ms,
             duration_samples=context.duration_samples(),
             apply_pads=options.apply_pads,
+            spike_suppression_ms=options.spike_suppression_ms,
+            merge_gap_ms=options.merge_gap_ms,
             log=lambda level, message: io.emit(level, message, module="vad"),
         )
         if not detection.spans:
@@ -92,6 +98,8 @@ class VadStep(BaseStep):
         context.metadata["speech_pad_before_ms"] = options.pad_before_ms
         context.metadata["speech_pad_after_ms"] = options.pad_after_ms
         context.metadata["min_speech_ms"] = options.min_speech_ms
+        context.metadata["spike_suppression_ms"] = options.spike_suppression_ms
+        context.metadata["merge_gap_ms"] = options.merge_gap_ms
         context.hashes["vad"] = digest_payload(
             {"spans": detection.spans, "engine": detection.engine}
         )

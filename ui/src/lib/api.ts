@@ -470,6 +470,10 @@ export interface RecipeSummary {
   name: string;
   description: string;
   source: string;
+  favorite: boolean;
+  last_used_at: string;
+  use_count: number;
+  tags: string[];
 }
 
 export interface AppSettings {
@@ -2116,6 +2120,26 @@ export async function updateProject(
 export async function deleteProject(projectId: string): Promise<void> {
   await request(`/api/v1/projects/${encodeURIComponent(projectId)}`, {
     method: "DELETE"
+  });
+}
+
+export async function setRecipeFavorite(
+  recipeId: string,
+  favorite: boolean
+): Promise<void> {
+  await request(`/api/v1/recipes/${encodeURIComponent(recipeId)}/favorite`, {
+    method: "POST",
+    body: JSON.stringify({ favorite })
+  });
+}
+
+export async function updateRecipeTags(
+  recipeId: string,
+  tags: string[]
+): Promise<void> {
+  await request(`/api/v1/recipes/${encodeURIComponent(recipeId)}/meta`, {
+    method: "PATCH",
+    body: JSON.stringify({ tags })
   });
 }
 

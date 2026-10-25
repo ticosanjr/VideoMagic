@@ -1,9 +1,13 @@
 import { sveltekit } from "@sveltejs/kit/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vitest/config";
+import packageJson from "./package.json";
 
 export default defineConfig({
   plugins: [tailwindcss(), sveltekit()],
+  define: {
+    __APP_VERSION__: JSON.stringify(packageJson.version)
+  },
   test: {
     exclude: ["e2e/**", "node_modules/**", ".svelte-kit/**"]
   },

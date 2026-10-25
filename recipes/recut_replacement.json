@@ -1,0 +1,260 @@
+{
+  "schema_version": 1,
+  "id": "recut_replacement",
+  "name": "Recut Replacement",
+  "description": "Remove silence with detailed VAD controls, choose a hard/J/L cut, and export MP4 plus Resolve, Premiere, and Kdenlive timelines.",
+  "llm": {
+    "provider": "none",
+    "base_url": null,
+    "model": "",
+    "api_key_env": "VIDEOWFLOW_LLM_API_KEY",
+    "timeout_seconds": 90.0
+  },
+  "ui": {
+    "version": 1,
+    "viewport": {
+      "x": 0.0,
+      "y": 0.0,
+      "zoom": 1.0
+    },
+    "nodes": {}
+  },
+  "variables": {
+    "engine": {
+      "type": "enum",
+      "default": "auto",
+      "description": "VAD engine. auto uses Silero when installed.",
+      "options": [
+        "auto",
+        "silero",
+        "ffmpeg"
+      ],
+      "required": false
+    },
+    "noise_db": {
+      "type": "number",
+      "default": -30,
+      "description": "FFmpeg fallback noise threshold in dB (-80 to -5).",
+      "options": [],
+      "required": false
+    },
+    "speech_threshold": {
+      "type": "number",
+      "default": 0.5,
+      "description": "Silero speech probability threshold (0.1 to 0.9).",
+      "options": [],
+      "required": false
+    },
+    "min_silence_ms": {
+      "type": "number",
+      "default": 350,
+      "description": "Minimum silence duration to remove.",
+      "options": [],
+      "required": false
+    },
+    "min_speech_ms": {
+      "type": "number",
+      "default": 120,
+      "description": "Shortest speech span kept.",
+      "options": [],
+      "required": false
+    },
+    "spike_suppression_ms": {
+      "type": "number",
+      "default": 180,
+      "description": "Discard isolated sounds shorter than this.",
+      "options": [],
+      "required": false
+    },
+    "merge_gap_ms": {
+      "type": "number",
+      "default": 120,
+      "description": "Bridge speech separated by gaps shorter than this.",
+      "options": [],
+      "required": false
+    },
+    "pad_before_ms": {
+      "type": "number",
+      "default": 80,
+      "description": "",
+      "options": [],
+      "required": false
+    },
+    "pad_after_ms": {
+      "type": "number",
+      "default": 120,
+      "description": "",
+      "options": [],
+      "required": false
+    },
+    "cut_mode": {
+      "type": "enum",
+      "default": "hard",
+      "description": "",
+      "options": [
+        "hard",
+        "j_cut",
+        "l_cut",
+        "custom"
+      ],
+      "required": false
+    },
+    "enable_j_cuts": {
+      "type": "boolean",
+      "default": false,
+      "description": "",
+      "options": [],
+      "required": false
+    },
+    "enable_l_cuts": {
+      "type": "boolean",
+      "default": false,
+      "description": "",
+      "options": [],
+      "required": false
+    },
+    "offset_ms": {
+      "type": "number",
+      "default": 200,
+      "description": "",
+      "options": [],
+      "required": false
+    },
+    "audio_crossfade_ms": {
+      "type": "number",
+      "default": 20,
+      "description": "",
+      "options": [],
+      "required": false
+    },
+    "fade_in_ms": {
+      "type": "number",
+      "default": 20,
+      "description": "",
+      "options": [],
+      "required": false
+    },
+    "fade_out_ms": {
+      "type": "number",
+      "default": 20,
+      "description": "",
+      "options": [],
+      "required": false
+    },
+    "handle_check": {
+      "type": "boolean",
+      "default": true,
+      "description": "",
+      "options": [],
+      "required": false
+    },
+    "transition_frames": {
+      "type": "number",
+      "default": 0,
+      "description": "",
+      "options": [],
+      "required": false
+    },
+    "transition_type": {
+      "type": "enum",
+      "default": "crossfade",
+      "description": "",
+      "options": [
+        "crossfade",
+        "fade_to_black"
+      ],
+      "required": false
+    },
+    "retake_strategy": {
+      "type": "enum",
+      "default": "keep_last",
+      "description": "",
+      "options": [
+        "keep_last",
+        "keep_best"
+      ],
+      "required": false
+    },
+    "retake_strictness": {
+      "type": "enum",
+      "default": "balanced",
+      "description": "",
+      "options": [
+        "conservative",
+        "balanced",
+        "aggressive"
+      ],
+      "required": false
+    }
+  },
+  "profiles": {},
+  "variants": [],
+  "steps": [
+    {
+      "id": "ingest",
+      "type": "ingest",
+      "needs": [],
+      "enabled": true,
+      "params": {
+        "extract_pcm": true
+      }
+    },
+    {
+      "id": "vad",
+      "type": "audio.vad",
+      "needs": [
+        "ingest"
+      ],
+      "enabled": true,
+      "params": {
+        "engine": "$engine",
+        "noise_db": "$noise_db",
+        "speech_threshold": "$speech_threshold",
+        "min_silence_ms": "$min_silence_ms",
+        "min_speech_ms": "$min_speech_ms",
+        "spike_suppression_ms": "$spike_suppression_ms",
+        "merge_gap_ms": "$merge_gap_ms",
+        "pad_before_ms": "$pad_before_ms",
+        "pad_after_ms": "$pad_after_ms",
+        "apply_pads": true
+      }
+    },
+    {
+      "id": "timeline",
+      "type": "edit.timeline",
+      "needs": [
+        "vad"
+      ],
+      "enabled": true,
+      "params": {
+        "cut_mode": "$cut_mode",
+        "enable_j_cuts": "$enable_j_cuts",
+        "enable_l_cuts": "$enable_l_cuts",
+        "offset_ms": "$offset_ms",
+        "audio_crossfade_ms": "$audio_crossfade_ms",
+        "fade_in_ms": "$fade_in_ms",
+        "fade_out_ms": "$fade_out_ms",
+        "handle_check": "$handle_check",
+        "transition_frames": "$transition_frames",
+        "transition_type": "$transition_type",
+        "zoom_mode": "manual_rules"
+      }
+    },
+    {
+      "id": "export",
+      "type": "export.nle",
+      "needs": [
+        "timeline"
+      ],
+      "enabled": true,
+      "params": {
+        "targets": [
+          "mp4",
+          "resolve",
+          "premiere",
+          "kdenlive"
+        ]
+      }
+    }
+  ]
+}

@@ -4,11 +4,20 @@ import { readFileSync } from "node:fs";
 const fixture = (name: string) =>
   JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8"));
 
+const pyprojectVersion =
+  /^version = "([^"]+)"/m
+    .exec(readFileSync(new URL("../../pyproject.toml", import.meta.url), "utf8"))
+    ?.[1] ?? "0.0.0";
+
 async function mockShell(page: Page) {
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
-    if (path === "/api/v1/system") return route.fulfill({ json: fixture("system.json") });
+    if (path === "/api/v1/system") {
+      return route.fulfill({
+        json: { ...fixture("system.json"), version: pyprojectVersion }
+      });
+    }
     if (path === "/api/v1/jobs") return route.fulfill({ json: fixture("jobs_dashboard.json") });
     if (path === "/api/v1/steps") return route.fulfill({ json: fixture("steps.json") });
     if (path === "/api/v1/recipes") return route.fulfill({ json: fixture("recipes.json") });
@@ -344,4 +353,54 @@ test("assistant shows a diff and applies only after approval", async ({ page }) 
   await expect(page.getByTestId("assistant-diff")).toContainText("v1");
   await page.getByRole("button", { name: "Approve and apply" }).click();
   await expect(page.getByText(/Approved and applied/)).toBeVisible();
+});
+
+test("keeps the recipe builder help tooltip inside the viewport", async ({ page }) => {
+  await page.goto("/#recipes");
+  const help = page.getByRole("button", { name: "Help: Produce" }).first();
+  await help.focus();
+  const tooltip = page.getByTestId("help-tooltip");
+  await expect(tooltip).toBeVisible();
+  const box = await tooltip.boundingBox();
+  const viewport = page.viewportSize();
+  expect(box).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  if (box && viewport) {
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+    expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+    const onTop = await page.evaluate(
+      ({ x, y }) => {
+        const node = document.elementFromPoint(x, y);
+        return node?.closest('[data-testid="help-tooltip"]') !== null;
+      },
+      { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+    );
+    expect(onTop).toBe(true);
+  }
+});
+
+
+test("shows the same server and UI version", async ({ page }) => {
+  await expect(page.getByTitle("Server version")).toContainText(pyprojectVersion);
+  await expect(page.getByTitle("UI bundle version")).toContainText(pyprojectVersion);
+  await expect(page.getByText(/are different/)).toHaveCount(0);
+});
+
+test("organizes recipes with favorites and recent filters", async ({ page }) => {
+  await page.goto("/#recipes");
+  await page.getByTestId("recipe-library").click();
+  await expect(page.getByRole("tab", { name: /Favorites/ })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Recent" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "All recipes" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /^Recut Replacement Silence/ })
+  ).toBeVisible();
+  await page.getByRole("tab", { name: "All recipes" }).click();
+  await expect(
+    page.getByRole("button", { name: /Example recipe E2E recipe/ })
+  ).toBeVisible();
+  await page.getByRole("button", { name: /Add Example recipe to favorites/ }).click();
+  await expect(page.getByText(/added to favorites/)).toBeVisible();
 });

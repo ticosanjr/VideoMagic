@@ -3,6 +3,31 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.15.0] - 2026-10-25
+
+### Added
+
+- **Recut Replacement** built-in recipe with detailed VAD controls:
+  noise/speech thresholds, minimum silence, minimum speech, left/right pads,
+  short-spike suppression, and tiny-gap merging.
+- **Recut Replacement + retakes** variant that adds transcription and retake
+  culling before the cut.
+- **Cut mode** `hard | j_cut | l_cut | custom` on the timeline step, with
+  configurable offset, crossfade, fades, and handle checks.
+- **Four outputs from one recut:** MP4, FCPXML (Resolve), XMEML (Premiere),
+  and Kdenlive.
+- **Recipe organization on the server:** favorites, recent runs, use counts,
+  and tags in `<home>/recipe_meta.json`, exposed through the API and MCP.
+- **Recipe library UI:** Favorites, Recent, All, search, and star toggles.
+- **Tooltip portal:** help tooltips are fixed-position and no longer clipped by
+  the recipe canvas container.
+- **UI version injection:** the UI reads the package version at build time, so
+  the version badge no longer drifts from the server.
+
+### Changed
+
+- `audio.vad` accepts `spike_suppression_ms` and `merge_gap_ms`.
+- Recut recipes default to hard cuts and export all four targets.
 ## [2.14.1] - 2026-10-25
 
 ### Added

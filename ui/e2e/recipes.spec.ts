@@ -115,8 +115,8 @@ test("cycles node width from the node header", async ({ page }) => {
 });
 
 test("opens the recipe template gallery", async ({ page }) => {
-  await page.getByRole("button", { name: "Templates" }).click();
-  const dialog = page.getByRole("dialog", { name: "Recipe templates" });
+  await page.getByTestId("recipe-library").click();
+  const dialog = page.getByRole("dialog", { name: "Recipe library" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText("Example recipe")).toBeVisible();
 });

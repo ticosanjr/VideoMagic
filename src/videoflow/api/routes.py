@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from videoflow import __version__
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application import recipe_meta
 from videoflow.application.assets import (
     get_asset,
     list_assets,
@@ -255,6 +256,14 @@ class AssistantApprovalRequest(BaseModel):
 
 class VariantSelectRequest(BaseModel):
     name: str = Field(min_length=1, max_length=200)
+
+
+class RecipeFavoriteRequest(BaseModel):
+    favorite: bool = True
+
+
+class RecipeMetaRequest(BaseModel):
+    tags: list[str] = Field(default_factory=list, max_length=30)
 
 
 class OverlayRequest(BaseModel):
@@ -784,6 +793,7 @@ def register_routes(
             queue=True,
             idempotency_key=request.idempotency_key,
         )
+        recipe_meta.touch(recipe.id)
         return {"ok": True, "job": job.to_dict()}
 
     @app.get("/api/v1/assets/music")
@@ -896,7 +906,41 @@ def register_routes(
 
     @app.get("/api/v1/recipes")
     def recipes() -> dict[str, object]:
-        return {"ok": True, "recipes": list_recipes()}
+        return {"ok": True, "recipes": recipe_meta.decorate(list_recipes())}
+
+    @app.post("/api/v1/recipes/{recipe_id}/favorite")
+    def favorite_recipe(
+        recipe_id: str, request: RecipeFavoriteRequest
+    ) -> dict[str, object]:
+        try:
+            get_recipe(recipe_id)
+            entry = recipe_meta.set_favorite(recipe_id, request.favorite)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "meta": entry.model_dump(mode="json")}
+
+    @app.post("/api/v1/recipes/{recipe_id}/touch")
+    def touch_recipe(recipe_id: str) -> dict[str, object]:
+        try:
+            get_recipe(recipe_id)
+            entry = recipe_meta.touch(recipe_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "meta": entry.model_dump(mode="json")}
+
+    @app.patch("/api/v1/recipes/{recipe_id}/meta")
+    def update_recipe_meta(
+        recipe_id: str, request: RecipeMetaRequest
+    ) -> dict[str, object]:
+        try:
+            get_recipe(recipe_id)
+            entry = recipe_meta.set_tags(recipe_id, request.tags)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "meta": entry.model_dump(mode="json")}
 
     @app.get("/api/v1/recipes/{recipe_id}")
     def recipe_detail(recipe_id: str) -> dict[str, object]:
@@ -905,7 +949,11 @@ def register_routes(
         except VideoFlowError as exc:
             fail(exc)
             raise
-        return {"ok": True, "recipe": recipe_to_dict(recipe)}
+        return {
+            "ok": True,
+            "recipe": recipe_to_dict(recipe),
+            "meta": recipe_meta.get_meta(recipe.id).model_dump(mode="json"),
+        }
 
     @app.put("/api/v1/recipes/{recipe_id}")
     def save_recipe(recipe_id: str, payload: dict[str, Any]) -> dict[str, object]:

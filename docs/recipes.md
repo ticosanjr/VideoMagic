@@ -307,3 +307,59 @@ videoflow recipe run youtube_talking_head source.mp4 -o out
 videoflow recipe run viral_shorts_batch source.mp4 -o out --var aspect=1:1
 videoflow recipe run content_cycle source.mp4 -o out --profile fast --dry-run
 ```
+
+## Recut Replacement
+
+Two built-in recipes focus on removing silence before any creative edit:
+
+| Recipe | Steps | Use |
+| --- | --- | --- |
+| `recut_replacement` | ingest → vad → timeline → export | Fast, deterministic silence recut |
+| `recut_replacement_retakes` | ingest → vad → transcribe → retakes → timeline → export | Silence recut plus retake culling |
+
+Both export **MP4, FCPXML (Resolve), XMEML (Premiere), and Kdenlive** from the
+same timeline.
+
+### Silence controls
+
+| Variable | Default | Meaning |
+| --- | ---: | --- |
+| `engine` | `auto` | `auto`, `silero`, or `ffmpeg` |
+| `noise_db` | -30 | FFmpeg fallback threshold (-80 to -5 dB) |
+| `speech_threshold` | 0.5 | Silero speech probability (0.1–0.9) |
+| `min_silence_ms` | 350 | Pause length that counts as removable silence |
+| `min_speech_ms` | 120 | Shortest speech span kept |
+| `spike_suppression_ms` | 180 | Drop isolated sounds shorter than this |
+| `merge_gap_ms` | 120 | Bridge speech separated by tiny gaps |
+| `pad_before_ms` | 80 | Left handle kept around speech |
+| `pad_after_ms` | 120 | Right handle kept around speech |
+
+### Cut controls
+
+| Variable | Default | Meaning |
+| --- | ---: | --- |
+| `cut_mode` | `hard` | `hard`, `j_cut`, `l_cut`, or `custom` |
+| `enable_j_cuts` | false | Used only when `cut_mode=custom` |
+| `enable_l_cuts` | false | Used only when `cut_mode=custom` |
+| `offset_ms` | 200 | J/L audio offset (100–500 ms) |
+| `audio_crossfade_ms` | 20 | Micro-fade at cut boundaries |
+| `fade_in_ms` / `fade_out_ms` | 20 | Clip fades |
+| `handle_check` | true | Verify source handles before shifting audio |
+| `transition_frames` | 0 | Optional crossfade/fade-to-black between cuts |
+| `transition_type` | `crossfade` | `crossfade` or `fade_to_black` |
+
+In `hard` mode both legacy J/L booleans are forced off; `j_cut` and `l_cut`
+force exactly one direction. `custom` keeps the booleans for advanced graphs.
+
+## Favorites and recents
+
+Favorites and recent runs are stored locally on the server in
+`<home>/recipe_meta.json`, so the REST API, MCP tools, and every UI session see
+the same organization.
+
+- `GET /api/v1/recipes` includes `favorite`, `last_used_at`, `use_count`, `tags`.
+- `POST /api/v1/recipes/{id}/favorite` with `{"favorite": true|false}`.
+- `POST /api/v1/recipes/{id}/touch` records a run.
+- `PATCH /api/v1/recipes/{id}/meta` with `{"tags": [...]}`.
+
+`recut_replacement` and `recut_replacement_retakes` are favorites by default.

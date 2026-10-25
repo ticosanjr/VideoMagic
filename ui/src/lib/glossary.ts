@@ -11,6 +11,8 @@ export const GLOSSARY: Record<string, string> = {
   "Agent tools": "Ferramentas do agente",
   "No variants or Shorts in this run.": "Sem variantes ou Shorts nesta execução.",
   "Variant comparison": "Comparação de variantes",
+  "Favorites, recent runs, and every saved workflow.": "Favoritas, execuções recentes e todos os fluxos salvos.",
+  "Recipe library": "Biblioteca de receitas",
   "Winner": "Vencedor",
   "Approve and apply": "Aprovar e aplicar",
   "Conversation history": "Histórico da conversa",

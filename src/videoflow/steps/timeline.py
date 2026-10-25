@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Literal
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from videoflow.application.timeline_builder import build_timeline
 from videoflow.application.vad import pad_spans
@@ -20,6 +20,7 @@ from videoflow.steps.registry import register_step
 class TimelineParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    cut_mode: Literal["custom", "hard", "j_cut", "l_cut"] = "custom"
     enable_j_cuts: bool = True
     enable_l_cuts: bool = False
     offset_ms: int = Field(default=200, ge=100, le=500)
@@ -43,6 +44,19 @@ class TimelineParams(BaseModel):
     transition_type: Literal["crossfade", "fade_to_black"] = "crossfade"
     project_id: str | None = None
     revision: int = Field(default=1, ge=1)
+
+    @model_validator(mode="after")
+    def resolve_cut_mode(self) -> TimelineParams:
+        if self.cut_mode == "hard":
+            self.enable_j_cuts = False
+            self.enable_l_cuts = False
+        elif self.cut_mode == "j_cut":
+            self.enable_j_cuts = True
+            self.enable_l_cuts = False
+        elif self.cut_mode == "l_cut":
+            self.enable_j_cuts = False
+            self.enable_l_cuts = True
+        return self
 
 
 @register_step
