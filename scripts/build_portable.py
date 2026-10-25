@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -22,15 +22,15 @@ def ensure_ui_build() -> bool:
     """Rebuild the Svelte UI and reject a bundle with the wrong version."""
 
     ui = ROOT / "ui"
-    version_file = ui / "src" / "lib" / "version.ts"
-    if not version_file.is_file():
-        print("UI version file is missing", file=sys.stderr)
+    package_file = ui / "package.json"
+    if not package_file.is_file():
+        print("UI package.json is missing", file=sys.stderr)
         return False
-    match = re.search(r'UI_VERSION\s*=\s*"([^"]+)"', version_file.read_text(encoding="utf-8"))
-    if match is None:
-        print("UI version could not be read", file=sys.stderr)
+    try:
+        version = str(json.loads(package_file.read_text(encoding="utf-8"))["version"])
+    except (KeyError, ValueError) as exc:
+        print(f"UI version could not be read: {exc}", file=sys.stderr)
         return False
-    version = match.group(1)
     if not (ui / "node_modules").is_dir():
         print("ui/node_modules is missing; run npm ci before building", file=sys.stderr)
         return False
@@ -43,10 +43,13 @@ def ensure_ui_build() -> bool:
     if completed.returncode != 0:
         print("UI build failed", file=sys.stderr)
         return False
-    index = ui / "build" / "index.html"
-    if not index.is_file() or f"ui {version}" not in index.read_text(encoding="utf-8"):
+    build = ui / "build"
+    if not build.is_dir() or not any(
+        version in path.read_text(encoding="utf-8", errors="ignore")
+        for path in build.rglob("*.js")
+    ):
         print(
-            f"UI build is stale: expected ui {version} in ui/build/index.html",
+            f"UI build is stale: expected version {version} in the built JS",
             file=sys.stderr,
         )
         return False
