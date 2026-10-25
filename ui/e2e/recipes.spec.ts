@@ -192,3 +192,16 @@ test("uses sliders, presets, and cut-mode controls inside the node", async ({ pa
   const timeline = await page.getByTestId("step-params-json").inputValue();
   expect(timeline).toContain('"cut_mode": "j_cut"');
 });
+
+test("rewires an input from the inspector without dragging", async ({ page }) => {
+  await page
+    .getByTestId("step-edit.timeline")
+    .getByText("Build timeline")
+    .click();
+  const input = page.getByTestId("inspector-inputs").locator("select").first();
+  await expect(input).toHaveValue("vad.speech");
+  await input.selectOption("");
+  await expect(page.getByText("speech → speech")).toHaveCount(0);
+  await input.selectOption("vad.speech");
+  await expect(page.getByText("speech → speech")).toBeVisible();
+});

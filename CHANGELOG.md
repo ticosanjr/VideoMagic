@@ -3,6 +3,19 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.17.1] - 2026-10-25
+
+### Added
+
+- **Inspector port rewiring.** Every selected node lists its inputs with a
+  compatible-output dropdown, including a "Not wired" option. Rewiring updates
+  the dependency edge, label, undo stack, and serialized recipe.
+
+### Fixed
+
+- Port validation now requires the source node to be in the target's dependency
+  ancestry, not merely earlier in the topological order.
+
 ## [2.17.0] - 2026-10-25
 
 ### Added

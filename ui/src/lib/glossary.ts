@@ -18,6 +18,8 @@ export const GLOSSARY: Record<string, string> = {
   "Input": "Entrada",
   "Only compatible port types are listed.": "Somente tipos de porta compatíveis são listados.",
   "Wire ports": "Conectar portas",
+  "Inputs": "Entradas",
+  "Not wired": "Não conectado",
   "Winner": "Vencedor",
   "Approve and apply": "Aprovar e aplicar",
   "Conversation history": "Histórico da conversa",

@@ -60,9 +60,10 @@ mismatches, missing required inputs, and sources that are not in the dependency
 ancestry. Existing recipes without `inputs` keep the legacy implicit context
 behaviour.
 
-In the UI, each node shows its ports; clicking an edge opens the **Wire ports**
-dialog, where only compatible types are listed. The edge label shows the mapping,
-for example `speech → speech`.
+In the UI, each node shows its ports. The inspector lists every input with a
+compatible-output dropdown, so wiring never requires dragging; clicking an edge
+or dragging a connection opens the **Wire ports** dialog as well. The edge label
+shows the mapping, for example `speech → speech`.
 
 Wiring enables branches: two VADs with different thresholds, two timelines with
 different cut modes, and a comparison between them. The cache fingerprint

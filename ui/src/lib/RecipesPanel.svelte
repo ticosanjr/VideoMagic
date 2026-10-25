@@ -671,6 +671,73 @@
     wiring = null;
   }
 
+  function availableWiringOptions(targetId: string, inputId: string) {
+    const targetNode = nodes.find((node) => node.id === targetId);
+    if (!targetNode) return [];
+    const inputPort = (nodeData(targetNode).inputPorts ?? []).find(
+      (port) => port.id === inputId
+    );
+    if (!inputPort) return [];
+    return nodes
+      .filter((node) => node.id !== targetId)
+      .flatMap((node) =>
+        (nodeData(node).outputPorts ?? [])
+          .filter((output) => portTypeCompatible(output.type, inputPort.type))
+          .map((output) => ({
+            value: `${node.id}.${output.id}`,
+            label: `${node.id} · ${output.label}`
+          }))
+      );
+  }
+
+  function setNodeInput(targetId: string, inputId: string, reference: string) {
+    const targetNode = nodes.find((node) => node.id === targetId);
+    if (!targetNode) return;
+    pushUndo();
+    const previous = String(nodeData(targetNode).inputs?.[inputId] ?? "");
+    const inputs = { ...(nodeData(targetNode).inputs ?? {}) };
+    if (reference) inputs[inputId] = reference;
+    else delete inputs[inputId];
+    nodes = nodes.map((node) =>
+      node.id === targetId
+        ? { ...node, data: { ...nodeData(node), inputs } }
+        : node
+    );
+    const oldSource = previous.split(".")[0];
+    const stillUsesOld =
+      oldSource &&
+      Object.values(inputs).some((value) => String(value).split(".")[0] === oldSource);
+    if (oldSource && !stillUsesOld) {
+      edges = edges.filter(
+        (edge) => !(edge.source === oldSource && edge.target === targetId)
+      );
+    }
+    if (!reference) return;
+    const source = reference.split(".")[0];
+    const sourcePort = reference.split(".").slice(1).join(".");
+    const exists = edges.some(
+      (edge) => edge.source === source && edge.target === targetId
+    );
+    if (!exists) {
+      edges = [
+        ...edges,
+        {
+          id: `${source}->${targetId}`,
+          source,
+          target: targetId,
+          animated: true,
+          label: `${sourcePort} → ${inputId}`
+        }
+      ];
+    } else {
+      edges = edges.map((edge) =>
+        edge.source === source && edge.target === targetId
+          ? { ...edge, label: `${sourcePort} → ${inputId}` }
+          : edge
+      );
+    }
+  }
+
   function onConnect(connection: Connection) {
     if (!connection.source || !connection.target) return;
     if (connection.source === connection.target) return;
@@ -2024,6 +2091,28 @@
                     <div class="flex items-center gap-2">
                       <button type="button" onclick={() => void runToHere(selectedId ?? "")} disabled={busy} class="rounded border border-sky-500/40 px-2 py-0.5 text-[10px] text-sky-300 disabled:opacity-40">Run to here</button>
                       <button type="button" onclick={removeSelected} class="text-[10px] text-rose-300 hover:text-rose-200">Remove</button>
+                    </div>
+                  </div>
+                {/if}
+                {#if selectedNode && (nodeData(selectedNode).inputPorts?.length ?? 0) > 0}
+                  <div class="mt-3 rounded-lg border border-neutral-800 bg-neutral-900/60 p-2" data-testid="inspector-inputs">
+                    <p class="text-[10px] uppercase tracking-wide text-neutral-500">Inputs</p>
+                    <div class="mt-2 space-y-2">
+                      {#each nodeData(selectedNode).inputPorts ?? [] as port}
+                        <label class="block text-[10px] text-neutral-400">
+                          {port.label}{#if port.required}<span class="text-rose-300"> *</span>{/if}
+                          <select
+                            value={nodeData(selectedNode).inputs?.[port.id] ?? ""}
+                            onchange={(event) => setNodeInput(selectedNode.id, port.id, event.currentTarget.value)}
+                            class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100"
+                          >
+                            <option value="">Not wired</option>
+                            {#each availableWiringOptions(selectedNode.id, port.id) as option}
+                              <option value={option.value}>{option.label}</option>
+                            {/each}
+                          </select>
+                        </label>
+                      {/each}
                     </div>
                   </div>
                 {/if}
