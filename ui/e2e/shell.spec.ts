@@ -249,3 +249,34 @@ test("filters settings by text", async ({ page }) => {
   await search.fill("true peak");
   await expect(search).toHaveValue("true peak");
 });
+
+test("dismisses and remembers onboarding", async ({ page }) => {
+  const card = page.getByTestId("onboarding-card");
+  await expect(card).toBeVisible();
+  await card.getByRole("button", { name: "Dismiss" }).click();
+  await expect(card).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId("onboarding-card")).toHaveCount(0);
+});
+
+test("moves the area selection with arrow keys", async ({ page }) => {
+  const first = page
+    .getByRole("navigation")
+    .getByRole("tablist")
+    .first()
+    .getByRole("tab")
+    .first();
+  await first.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("tab", { name: "Edit" })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  );
+});
+
+test("keeps the shell usable on a narrow viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 480, height: 900 });
+  await expect(page.getByRole("tab", { name: "Produce" })).toBeVisible();
+  await page.getByRole("tab", { name: "Setup" }).click();
+  await expect(page.getByRole("tab", { name: "Settings" })).toBeVisible();
+});

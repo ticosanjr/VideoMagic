@@ -12,6 +12,7 @@
   import LibraryPanel from "$lib/LibraryPanel.svelte";
   import ModelsPanel from "$lib/ModelsPanel.svelte";
   import NotificationCenter from "$lib/NotificationCenter.svelte";
+  import OnboardingCard from "$lib/OnboardingCard.svelte";
   import PluginsPanel from "$lib/PluginsPanel.svelte";
   import RecipesPanel from "$lib/RecipesPanel.svelte";
   import ServicesPanel from "$lib/ServicesPanel.svelte";
@@ -495,6 +496,8 @@
       <span class="text-neutral-200">{t(locale, activeTab)}</span>
       <span class="ml-2 hidden text-neutral-600 sm:inline">{TAB_HINTS[activeTab]}</span>
     </div>
+
+    <OnboardingCard onnavigate={(tab) => selectTab(isTabId(tab) ? tab : "recipes")} />
 
     <ErrorBanner
       message={[serviceError, systemError].filter(Boolean).join(" · ")}

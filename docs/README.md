@@ -33,6 +33,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | NLE finishing | native titles, markers, colour filters, B-roll lane, and audio master in FCPXML/XMEML/Kdenlive, with `scripts/qa_nle.py` ([nle-qa.md](nle-qa.md)) |
 | Plugins | exporter and provider registration, manifest permissions, static sandbox allowlist ([plugins.md](plugins.md)) |
 | UI guidance | naming, tooltips, microcopy, empty states, units ([ui-copy.md](ui-copy.md)) |
+| Error catalog | codes, HTTP status, meaning, next action ([errors.md](errors.md)) |
 | Settings | searchable settings with units, help tips, discard/reset ([settings.md](settings.md)) |
 | Copilot | LLM recipe drafts and timeline edit plans, provider/service setup, validation rules ([copilot.md](copilot.md)) |
 | Integrations | OpenCode and Paperclip over MCP/REST with DeepSeek, prompts, config, and troubleshooting ([integrations.md](integrations.md)) |

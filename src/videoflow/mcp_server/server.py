@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from mcp.server import MCPServer
+from mcp.types import ToolAnnotations
 
 from videoflow.adapters.faster_whisper import FasterWhisperAdapter
 from videoflow.adapters.ffmpeg import FFmpegAdapter
@@ -278,6 +279,23 @@ OVERRIDE_KEYS = {
     "whisper_model",
     "faster_whisper_model",
 }
+
+
+def _annotate_tools(mcp: MCPServer) -> None:
+    """Attach read/destructive/idempotent hints to every registered tool."""
+
+    destructive = ("delete", "remove", "cancel", "stop", "reset", "prune", "clear")
+    read_only = ("list", "get", "validate", "metrics", "cost", "capabilities", "doctor")
+    for tool in mcp._tool_manager._tools.values():  # noqa: SLF001 - SDK registry
+        name = tool.name.removeprefix("videoflow_")
+        action = name.split("_")[0]
+        annotations = ToolAnnotations(
+            read_only_hint=action in read_only,
+            destructive_hint=action in destructive,
+            idempotent_hint=action in read_only or action in {"save", "set", "pause", "unpause"},
+            open_world_hint=action in {"import", "upload", "transcribe", "generate", "analyze"},
+        )
+        tool.annotations = annotations
 
 
 def build_server(
@@ -1523,10 +1541,15 @@ def build_server(
             return exc.to_dict()
 
     @mcp.tool()
-    def videoflow_list_models() -> dict[str, object]:
+    def videoflow_list_models(
+        limit: int = 100, offset: int = 0
+    ) -> dict[str, object]:
         """List optional local models and whether they are installed."""
 
-        return {"ok": True, "models": list_models()}
+        items = list_models()
+        start = max(0, offset)
+        page = items[start : start + max(1, min(limit, 1000))]
+        return {"ok": True, "models": page, "total": len(items)}
 
     @mcp.tool()
     def videoflow_install_model(
@@ -2008,10 +2031,15 @@ def build_server(
         return report
 
     @mcp.tool()
-    def videoflow_list_plugins() -> dict[str, object]:
+    def videoflow_list_plugins(
+        limit: int = 100, offset: int = 0
+    ) -> dict[str, object]:
         """List local plugin manifests and sandbox status."""
 
-        return {"ok": True, "plugins": list_plugins()}
+        items = list_plugins()
+        start = max(0, offset)
+        page = items[start : start + max(1, min(limit, 1000))]
+        return {"ok": True, "plugins": page, "total": len(items)}
 
     @mcp.tool()
     def videoflow_reload_plugins() -> dict[str, object]:
@@ -2064,6 +2092,44 @@ def build_server(
         except VideoFlowError as exc:
             return exc.to_dict()
         return {"ok": True, "path": str(target), "time_sec": stamp / 10}
+
+    @mcp.prompt(
+        name="videoflow_produce",
+        description="Run a recipe end to end and report artifacts.",
+    )
+    def produce_prompt(source: str, output: str, recipe_id: str = "youtube_talking_head") -> str:
+        """ Produce a project from source media. """
+
+        return (
+            "Use the VideoFlow MCP tools. Run recipe "
+            f"{recipe_id} for {source} with output {output}; poll the job, then "
+            "summarize status, artifacts, warnings, and the next action."
+        )
+
+    @mcp.prompt(
+        name="videoflow_review",
+        description="Review the latest run and apply validated Copilot edits.",
+    )
+    def review_prompt(job_id: str, instruction: str) -> str:
+        """ Review and improve a finished run. """
+
+        return (
+            f"Read job {job_id} and its timeline. Propose timeline edits for: "
+            f"{instruction}. Show the diff, apply only validated edits, then "
+            "validate the NLE exports."
+        )
+
+    @mcp.prompt(
+        name="videoflow_deliver",
+        description="Build and verify the delivery package.",
+    )
+    def deliver_prompt(job_id: str) -> str:
+        """ Verify delivery artifacts for a job. """
+
+        return (
+            f"For job {job_id}, validate FCPXML/XMEML/Kdenlive, list artifacts and "
+            "licenses, and report anything missing before hand-off."
+        )
 
     @mcp.resource("videoflow://project/state")
     def project_state() -> str:
@@ -2166,16 +2232,26 @@ def build_server(
         )
 
     @mcp.tool()
-    def videoflow_list_steps() -> dict[str, object]:
+    def videoflow_list_steps(
+        limit: int = 200, offset: int = 0
+    ) -> dict[str, object]:
         """List every recipe step and its JSON parameter schema."""
 
-        return {"ok": True, "steps": step_manifest()}
+        items = step_manifest()
+        start = max(0, offset)
+        page = items[start : start + max(1, min(limit, 1000))]
+        return {"ok": True, "steps": page, "total": len(items)}
 
     @mcp.tool()
-    def videoflow_list_recipes() -> dict[str, object]:
+    def videoflow_list_recipes(
+        limit: int = 200, offset: int = 0
+    ) -> dict[str, object]:
         """List built-in and operator recipes."""
 
-        return {"ok": True, "recipes": list_recipes()}
+        items = list_recipes()
+        start = max(0, offset)
+        page = items[start : start + max(1, min(limit, 1000))]
+        return {"ok": True, "recipes": page, "total": len(items)}
 
     @mcp.tool()
     def videoflow_get_recipe(recipe_id: str) -> dict[str, object]:
@@ -2402,6 +2478,7 @@ def build_server(
             return exc.to_dict()
 
     _ = (TOOL_SPECS, RESOURCE_SPECS)
+    _annotate_tools(mcp)
     return mcp
 
 

@@ -90,3 +90,40 @@ def test_integrations_resource_lists_opencode_and_paperclip() -> None:
     payload = json.loads(asyncio.run(read()))
     assert payload["opencode"]["model"] == "deepseek/deepseek-flash"
     assert payload["paperclip"]["mcp_url"].endswith("/mcp/")
+
+
+def test_tools_carry_behavior_annotations() -> None:
+    async def inspect() -> dict[str, object]:
+        tools = await build_server().list_tools()
+        return {tool.name: tool.annotations for tool in tools}
+
+    annotations = asyncio.run(inspect())
+    assert annotations["videoflow_get_timeline"].read_only_hint is True
+    assert annotations["videoflow_cancel_job"].destructive_hint is True
+    assert annotations["videoflow_save_recipe"].idempotent_hint is True
+    assert annotations["videoflow_import_url"].open_world_hint is True
+
+
+def test_mcp_exposes_production_prompts() -> None:
+    async def inspect() -> list[str]:
+        prompts = await build_server().list_prompts()
+        return [prompt.name for prompt in prompts]
+
+    assert asyncio.run(inspect()) == [
+        "videoflow_produce",
+        "videoflow_review",
+        "videoflow_deliver",
+    ]
+
+
+def test_list_tools_paginate() -> None:
+    async def call(name: str, arguments: dict[str, object]) -> dict[str, object]:
+        result = await build_server().call_tool(name, arguments)
+        return result.structured_content  # type: ignore[attr-defined]
+
+    recipes = asyncio.run(call("videoflow_list_recipes", {"limit": 2, "offset": 0}))
+    assert recipes["ok"] is True
+    assert len(recipes["recipes"]) == 2
+    assert recipes["total"] >= 2
+    steps = asyncio.run(call("videoflow_list_steps", {"limit": 3}))
+    assert len(steps["steps"]) == 3
