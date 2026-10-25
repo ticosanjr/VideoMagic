@@ -269,6 +269,17 @@
   });
 
   onMount(() => {
+    const rawProject = localStorage.getItem("videoflow.project");
+    if (rawProject) {
+      try {
+        const project = JSON.parse(rawProject) as { source?: string; output?: string };
+        if (project.source) inputSource = project.source;
+        if (project.output) inputOutput = project.output;
+        localStorage.removeItem("videoflow.project");
+      } catch {
+        localStorage.removeItem("videoflow.project");
+      }
+    }
     void (async () => {
       try {
         steps = await listRecipeSteps();

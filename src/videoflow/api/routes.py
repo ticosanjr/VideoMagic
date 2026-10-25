@@ -102,6 +102,14 @@ from videoflow.application.project_templates import (
 from videoflow.application.project_templates import (
     save_template as save_project_template,
 )
+from videoflow.application.projects import (
+    ProjectRequest,
+    create_project,
+    delete_project,
+    get_project,
+    list_projects,
+    update_project,
+)
 from videoflow.application.providers import (
     ProviderConfig,
     delete_provider,
@@ -3715,6 +3723,49 @@ def register_routes(
             "applied": request.apply,
             "revision": state.revision,
         }
+
+    @app.get("/api/v1/projects")
+    def projects_list() -> dict[str, object]:
+        return {
+            "ok": True,
+            "projects": [item.model_dump(mode="json") for item in list_projects()],
+        }
+
+    @app.post("/api/v1/projects", status_code=201)
+    def projects_create(request: ProjectRequest) -> dict[str, object]:
+        try:
+            project = create_project(request)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "project": project.model_dump(mode="json")}
+
+    @app.get("/api/v1/projects/{project_id}")
+    def projects_get(project_id: str) -> dict[str, object]:
+        try:
+            project = get_project(project_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "project": project.model_dump(mode="json")}
+
+    @app.patch("/api/v1/projects/{project_id}")
+    def projects_update(project_id: str, request: ProjectRequest) -> dict[str, object]:
+        try:
+            project = update_project(project_id, request)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "project": project.model_dump(mode="json")}
+
+    @app.delete("/api/v1/projects/{project_id}")
+    def projects_delete(project_id: str) -> dict[str, object]:
+        try:
+            delete_project(project_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "deleted": project_id}
 
     @app.get("/api/v1/metrics/cost")
     def cost_metrics() -> dict[str, object]:

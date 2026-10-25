@@ -6,6 +6,7 @@ import os
 from typing import Any
 
 from videoflow.adapters.llm import FallbackLlm, OpenAICompatibleLlm
+from videoflow.application.circuit import CircuitBreakerLlm
 from videoflow.application.providers import resolve_chain
 from videoflow.application.secrets import get_secret
 from videoflow.application.settings import load_settings
@@ -26,7 +27,8 @@ def build_llm() -> Any:
         if not provider_url or not provider_model:
             continue
         clients.append(
-            OpenAICompatibleLlm(
+            CircuitBreakerLlm(
+                OpenAICompatibleLlm(
                 base_url=provider_url,
                 model=provider_model,
                 api_key=get_secret(
@@ -35,7 +37,9 @@ def build_llm() -> Any:
                 timeout=float(settings.timeout_seconds or 90),
                 temperature=settings.temperature,
                 max_tokens=settings.max_tokens,
-                retries=settings.retries,
+                    retries=settings.retries,
+                ),
+                provider_url,
             )
         )
     if not clients:

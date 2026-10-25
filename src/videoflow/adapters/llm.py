@@ -11,7 +11,7 @@ from typing import Any
 
 import httpx
 
-from videoflow.application.cost import record_usage
+from videoflow.application.cost import ensure_within_budget, record_usage
 from videoflow.domain.errors import LlmError
 
 SYSTEM_PROMPT = (
@@ -43,6 +43,7 @@ class OpenAICompatibleLlm:
         self.retries = max(0, int(retries))
 
     def complete_json(self, prompt: str, schema_name: str) -> dict[str, Any]:
+        ensure_within_budget()
         payload: dict[str, Any] = {
             "model": self.model,
             "temperature": self.temperature,

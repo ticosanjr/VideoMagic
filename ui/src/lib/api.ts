@@ -1903,6 +1903,16 @@ export interface TimelineData {
   media?: { source_path: string; audio_sample_rate: number };
 }
 
+export interface Project {
+  id: string;
+  name: string;
+  source: string;
+  output: string;
+  created_at: string;
+  updated_at: string;
+  last_job_id: string;
+}
+
 export interface TimelineOverlay {
   overlay_id: string;
   asset_id: string;
@@ -2073,6 +2083,40 @@ export async function removeTimelineOverlay(
     { method: "DELETE" }
   );
   return response.overlays;
+}
+
+export async function getProjects(): Promise<Project[]> {
+  const response = await request<{ ok: boolean; projects: Project[] }>("/api/v1/projects");
+  return response.projects;
+}
+
+export async function createProject(payload: {
+  name: string;
+  source: string;
+  output: string;
+}): Promise<Project> {
+  const response = await request<{ ok: boolean; project: Project }>("/api/v1/projects", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+  return response.project;
+}
+
+export async function updateProject(
+  projectId: string,
+  payload: { name: string; source: string; output: string }
+): Promise<Project> {
+  const response = await request<{ ok: boolean; project: Project }>(
+    `/api/v1/projects/${encodeURIComponent(projectId)}`,
+    { method: "PATCH", body: JSON.stringify(payload) }
+  );
+  return response.project;
+}
+
+export async function deleteProject(projectId: string): Promise<void> {
+  await request(`/api/v1/projects/${encodeURIComponent(projectId)}`, {
+    method: "DELETE"
+  });
 }
 
 export async function copilotRecipe(prompt: string): Promise<Record<string, unknown>> {

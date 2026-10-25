@@ -40,6 +40,29 @@ def record_usage(model: str, usage: dict[str, Any] | None) -> None:
         entry["completion_tokens"] += completion
 
 
+def budget_usd() -> float:
+    import os
+
+    try:
+        return max(0.0, float(os.environ.get("VIDEOWFLOW_COST_BUDGET_USD", "0") or 0))
+    except ValueError:
+        return 0.0
+
+
+def ensure_within_budget() -> None:
+    from videoflow.domain.errors import LlmError
+
+    budget = budget_usd()
+    if budget <= 0:
+        return
+    used = snapshot()["estimated_cost_usd"]
+    if used >= budget:
+        raise LlmError(
+            f"LLM budget exceeded: ${used:.4f} of ${budget:.2f}. "
+            "Raise VIDEOWFLOW_COST_BUDGET_USD or reset usage."
+        )
+
+
 def estimate_cost(model: str, prompt: int, completion: int) -> float:
     price = PRICES.get(model)
     if price is None:
@@ -62,11 +85,14 @@ def snapshot() -> dict[str, Any]:
             )
             total_cost += entry["estimated_cost_usd"]
             by_model[key] = entry
+        budget = budget_usd()
         return {
             "calls": _TOTALS["calls"],
             "prompt_tokens": _TOTALS["prompt_tokens"],
             "completion_tokens": _TOTALS["completion_tokens"],
             "estimated_cost_usd": round(total_cost, 6),
+            "budget_usd": budget,
+            "remaining_usd": round(max(0.0, budget - total_cost), 6) if budget else None,
             "by_model": by_model,
         }
 

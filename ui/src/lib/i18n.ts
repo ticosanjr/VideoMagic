@@ -5,6 +5,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     runs: "Runs",
     setup: "Setup",
     recipes: "Recipes",
+    projects: "Projects",
     assistant: "Assistant",
     timeline: "Timeline",
     jobs: "Jobs",
