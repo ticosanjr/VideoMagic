@@ -45,6 +45,7 @@ def test_recut_variables_apply_and_default_to_hard_cuts() -> None:
     )
     vad = next(step for step in resolved.enabled_steps() if step.id == "vad")
     timeline = next(step for step in resolved.enabled_steps() if step.id == "timeline")
+    assert vad.params["apply_pads"] is False
     assert vad.params["min_silence_ms"] == 500
     assert vad.params["spike_suppression_ms"] == 240
     assert vad.params["merge_gap_ms"] == 80

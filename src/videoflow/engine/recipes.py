@@ -965,7 +965,7 @@ def _recut_steps(*, with_retakes: bool) -> list[dict[str, object]]:
                 "merge_gap_ms": "$merge_gap_ms",
                 "pad_before_ms": "$pad_before_ms",
                 "pad_after_ms": "$pad_after_ms",
-                "apply_pads": True,
+                "apply_pads": False,
             },
         },
     ]

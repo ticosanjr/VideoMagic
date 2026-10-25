@@ -216,7 +216,7 @@
         "merge_gap_ms": "$merge_gap_ms",
         "pad_before_ms": "$pad_before_ms",
         "pad_after_ms": "$pad_after_ms",
-        "apply_pads": true
+        "apply_pads": false
       }
     },
     {

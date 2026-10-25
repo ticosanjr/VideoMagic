@@ -3,6 +3,14 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.15.1] - 2026-10-25
+
+### Fixed
+
+- **Recut padding is applied once.** The VAD step no longer pads spans before the
+  timeline when the recipe exposes `pad_before_ms`/`pad_after_ms`; the timeline
+  remains the single owner of handles, so cuts are not lengthened twice.
+
 ## [2.15.0] - 2026-10-25
 
 ### Added
