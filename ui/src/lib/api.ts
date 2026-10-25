@@ -2635,3 +2635,29 @@ export async function selectJobVariant(
   );
   return response.winner;
 }
+
+
+export interface FrameBatch {
+  ok: boolean;
+  revision: number;
+  height: number;
+  frames: Array<{ time: number; url: string; cached: boolean }>;
+}
+
+export async function prefetchJobFrames(
+  jobId: string,
+  start: number,
+  count = 6,
+  fps = 4,
+  height = 180
+): Promise<FrameBatch> {
+  const params = new URLSearchParams({
+    start: String(Math.max(0, start)),
+    count: String(count),
+    fps: String(fps),
+    height: String(height)
+  });
+  return request<FrameBatch>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/frames?${params.toString()}`
+  );
+}

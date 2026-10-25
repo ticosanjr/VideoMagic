@@ -10,26 +10,26 @@ uv run python scripts/coverage_layers.py
 The `.coveragerc` used for this report disables the release gate's omit list so
 adapters, exporters, API, jobs, and MCP are visible.
 
-## 2.14.0 baseline
+## 2.14.1 baseline
 
 | Layer | Hit | Total | Cover | 2.12 target | 2.13 target |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| api | 1,722 | 2,541 | 67.8% | 75% | 85% |
-| jobs | 499 | 608 | 82.1% | 85% | 90% |
-| exporters | 1,067 | 1,149 | 92.9% | 90% | 95% |
-| mcp | 578 | 1,150 | 50.3% | 80% | 80% |
-| steps | 2,068 | 2,643 | 78.2% | — | — |
-| application | 5,986 | 7,583 | 78.9% | — | — |
+| api | 2,191 | 2,572 | 85.2% | 75% | 85% |
+| jobs | 554 | 610 | 90.8% | 85% | 90% |
+| exporters | 1,130 | 1,189 | 95.0% | 90% | 95% |
+| mcp | 923 | 1,150 | 80.3% | 80% | 80% |
+| steps | 2,070 | 2,643 | 78.3% | — | — |
+| application | 6,229 | 7,628 | 81.7% | — | — |
 | domain | 1,019 | 1,028 | 99.1% | — | — |
-| **full tree** | **~9,300** | **12,552** | **~74.5%** | — | — |
+| **full tree** | **15,752** | **19,292** | **81.7%** | — | — |
 
-The enforced release gate (`videoflow.domain`, cache, timeline builder) is at
-**98.5%**, above 95%.
+All four per-layer targets (API 85%, jobs 90%, exporters 95%, MCP 80%)
+now pass. The enforced release gate (`videoflow.domain`, cache, timeline
+builder) is at **98.7%**, above 95%.
 
-## Gap
+## Remaining gap
 
-The per-layer targets and the 3.0 full-tree 95% gate need roughly 2,100 more
-covered statements. Most are adapter/step/route branches that require media,
-external providers, or a full job. They need behaviour tests, not assertions on
-line counts. This is the remaining coverage work tracked in
-[3.0-blockers.md](3.0-blockers.md).
+The full-tree 3.0 gate is still **81.7%**, below 95%. Closing it needs roughly
+2,600 more covered statements, concentrated in adapters, step runners, CLI,
+services, and external integrations. These need behaviour tests with media,
+fakes, or real providers; they are not line-count padding.

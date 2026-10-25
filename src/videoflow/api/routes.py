@@ -203,6 +203,7 @@ from videoflow.domain.errors import (
     FilesystemError,
     IngestError,
     MediaNotFoundError,
+    PathNotFoundError,
     RecipeError,
     StateNotReadyError,
     TranscriptNotFoundError,
@@ -1035,7 +1036,9 @@ def register_routes(
         try:
             resolved = resolve_allowed(Path(request.output), allowed_roots())
             if not resolved.is_dir():
-                raise FilesystemError(f"Output directory does not exist: {resolved}")
+                raise PathNotFoundError(
+                    f"Output directory does not exist: {resolved}"
+                )
         except VideoFlowError as exc:
             fail(exc)
             raise
@@ -1301,7 +1304,9 @@ def register_routes(
                 else resolved / "exports"
             )
             if not directory.is_dir():
-                raise FilesystemError(f"Export directory does not exist: {directory}")
+                raise PathNotFoundError(
+                    f"Export directory does not exist: {directory}"
+                )
         except VideoFlowError as exc:
             fail(exc)
             raise
@@ -2081,6 +2086,109 @@ def register_routes(
             )
         return {"ok": True, "status": state.to_dict()}
 
+    def _frame_target(
+        job: Any, state_path: Path, time_sec: float, height: int
+    ) -> tuple[Path, int]:
+        stamp = int(max(0.0, min(time_sec, 24 * 3600)) * 10)
+        height = max(64, min(2160, int(height)))
+        try:
+            revision = ProjectState.model_validate_json(
+                state_path.read_text(encoding="utf-8")
+            ).revision
+        except (OSError, ValueError):
+            revision = 0
+        target = (
+            job.output
+            / "preview"
+            / "frames"
+            / str(revision)
+            / f"{stamp:08d}-{height}.jpg"
+        )
+        return target, revision
+
+    @app.get("/api/v1/jobs/{job_id}/frames")
+    def job_frames(
+        job_id: str,
+        response: Response,
+        start: float = 0.0,
+        count: int = 3,
+        fps: float = 2.0,
+        height: int | None = None,
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            state_path = _timeline_state_path(job)
+            if not state_path.is_file():
+                raise StateNotReadyError("The job has no project_state.json timeline.")
+            state = ProjectState.model_validate_json(
+                state_path.read_text(encoding="utf-8")
+            )
+            media = state.media_info
+            if media is None:
+                raise StateNotReadyError("The project has no media info.")
+            source = Path(media.source_path).expanduser()
+            if not source.is_file():
+                raise StateNotReadyError("The source media is not available.")
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "frame_invalid", "message": str(exc)},
+            ) from exc
+        if height is None:
+            height = int(load_settings().quality.proxy_height)
+        count = max(1, min(12, int(count)))
+        step = 1.0 / max(1.0, min(30.0, float(fps)))
+        frames: list[dict[str, object]] = []
+        hits = 0
+        revision = 0
+        for index in range(count):
+            moment = max(0.0, start + index * step)
+            target, revision = _frame_target(job, state_path, moment, height)
+            cached = target.is_file()
+            if cached:
+                hits += 1
+            else:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    FFmpegAdapter().render_thumbnail(
+                        source,
+                        target,
+                        time_sec=int(moment * 10) / 10,
+                        height=height,
+                    )
+                except VideoFlowError as exc:
+                    fail(exc)
+                    raise
+                except Exception as exc:
+                    raise HTTPException(
+                        status_code=422,
+                        detail={
+                            "ok": False,
+                            "code": "frame_failed",
+                            "message": str(exc),
+                        },
+                    ) from exc
+            frames.append(
+                {
+                    "time": round(moment, 3),
+                    "url": (
+                        f"/api/v1/jobs/{job_id}/frame?time={moment:.3f}"
+                        f"&height={height}"
+                    ),
+                    "cached": cached,
+                }
+            )
+        response.headers["X-Frame-Cache"] = f"{hits}/{count}"
+        return {
+            "ok": True,
+            "revision": revision,
+            "height": height,
+            "frames": frames,
+        }
+
     @app.get("/api/v1/jobs/{job_id}/frame")
     def job_frame(job_id: str, time: float = 0.0, height: int | None = None) -> FileResponse:
         try:
@@ -2103,29 +2211,16 @@ def register_routes(
                 status_code=422,
                 detail={"ok": False, "code": "frame_invalid", "message": str(exc)},
             ) from exc
-        stamp = int(max(0.0, min(time, 24 * 3600)) * 10)
         if height is None:
             height = int(load_settings().quality.proxy_height)
         height = max(64, min(2160, int(height)))
-        revision = 0
-        try:
-            revision = ProjectState.model_validate_json(
-                state_path.read_text(encoding="utf-8")
-            ).revision
-        except (OSError, ValueError):
-            revision = 0
-        target = (
-            job.output
-            / "preview"
-            / "frames"
-            / str(revision)
-            / f"{stamp:08d}-{height}.jpg"
-        )
+        target, _revision = _frame_target(job, state_path, time, height)
         if not target.is_file():
             target.parent.mkdir(parents=True, exist_ok=True)
             try:
+                moment = int(max(0.0, min(time, 24 * 3600)) * 10) / 10
                 FFmpegAdapter().render_thumbnail(
-                    source, target, time_sec=stamp / 10, height=height
+                    source, target, time_sec=moment, height=height
                 )
             except VideoFlowError as exc:
                 fail(exc)
@@ -4311,24 +4406,6 @@ def register_routes(
 
 def probe_media(path: Path) -> MediaInfo:
     return FFmpegAdapter().probe(path)
-
-
-def _job_preview_source(job) -> Path:
-    result = job.result or {}
-    artifacts = result.get("artifacts") or {}
-    if isinstance(artifacts, dict):
-        for value in artifacts.values():
-            path = Path(str(value)).expanduser()
-            if path.suffix.lower() == ".mp4" and path.is_file():
-                return path
-    shorts = result.get("shorts") or []
-    if isinstance(shorts, list):
-        for entry in shorts:
-            if isinstance(entry, dict) and entry.get("path"):
-                path = Path(str(entry["path"])).expanduser()
-                if path.is_file():
-                    return path
-    raise StateNotReadyError("The job has no MP4 artifact to preview.")
 
 
 def status_for(code: str) -> int:

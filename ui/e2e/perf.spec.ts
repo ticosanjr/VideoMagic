@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 const system = JSON.parse(readFileSync(new URL("./fixtures/system.json", import.meta.url), "utf8"));
 
-const clips = Array.from({ length: 200 }, (_value, index) => ({
+const clips = Array.from({ length: 1000 }, (_value, index) => ({
   id: `v${index}`,
   start_sec: index * 0.25,
   end_sec: index * 0.25 + 0.25,
@@ -83,7 +83,7 @@ async function mockApi(page: Page) {
 // Performance runs in isolation: `npm run test:perf`.
 test.skip(process.env.VF_PERF !== "1", "set VF_PERF=1 to run the performance guard");
 
-test("scrolls a 200-clip, 1000-caption timeline without long frames", async ({ page }) => {
+test("scrolls a 1,000-clip, 1,000-caption timeline without long frames", async ({ page }) => {
   await mockApi(page);
   await page.goto("/#timeline");
   const scroller = page.getByTestId("timeline-scroller");

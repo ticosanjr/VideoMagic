@@ -80,6 +80,7 @@ class Job:
     attempts: int = 0
     next_run: str = ""
     lease_expires_at: str = ""
+    lease_owner: str = ""
     created_at: str = field(default_factory=_now)
     started_at: str | None = None
     finished_at: str | None = None
@@ -96,6 +97,7 @@ class Job:
             "attempts": self.attempts,
             "next_run": self.next_run,
             "lease_expires_at": self.lease_expires_at,
+            "lease_owner": self.lease_owner,
             "progress": self.progress,
             "stage": self.stage,
             "message": self.message,
@@ -233,6 +235,7 @@ class JobManager:
         max_active: int = 2,
         history: int = 50,
         store_dir: Path | None = None,
+        load_store: bool = True,
     ) -> None:
         self._runner = runner
         self._max_active = max_active
@@ -242,7 +245,7 @@ class JobManager:
         self._pending: list[str] = []
         self._lock = threading.Lock()
         self._retry_thread: threading.Thread | None = None
-        if self._store_dir is not None:
+        if self._store_dir is not None and load_store:
             self._load_jobs()
 
     def start(
@@ -1044,6 +1047,7 @@ def _job_from_dict(payload: dict[str, Any]) -> Job:
     job.attempts = int(payload.get("attempts", 0) or 0)
     job.next_run = str(payload.get("next_run") or "")
     job.lease_expires_at = str(payload.get("lease_expires_at") or "")
+    job.lease_owner = str(payload.get("lease_owner") or "")
     return job
 
 

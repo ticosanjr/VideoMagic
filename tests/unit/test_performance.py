@@ -135,3 +135,49 @@ def test_four_k_thousand_clips_ten_jobs_and_twenty_variants(
     assert len({job.job_id for job in jobs}) == 10
     assert all(job.status in {"queued", "running"} for job in jobs)
     release.set()
+
+
+def test_job_start_latency_percentiles_and_memory(tmp_path: Path) -> None:
+    import resource
+    import threading
+    import time
+
+    from videoflow.application.jobs import JobManager
+
+    release = threading.Event()
+
+    def runner(source: Path, output: Path, *, progress, should_cancel, **kwargs):
+        release.wait(timeout=10)
+        return {"ok": True}
+
+    manager = JobManager(runner, max_active=12)
+    before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    timings: list[float] = []
+    jobs = []
+    for index in range(24):
+        started = time.perf_counter()
+        jobs.append(
+            manager.start(
+                tmp_path / f"load-{index}.mp4",
+                tmp_path / f"load-out-{index}",
+                {},
+                queue=True,
+            )
+        )
+        timings.append((time.perf_counter() - started) * 1000)
+    release.set()
+    for job in jobs:
+        for _ in range(500):
+            if job.status in {"succeeded", "failed", "cancelled"}:
+                break
+            time.sleep(0.01)
+    after = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+
+    ordered = sorted(timings)
+    p95 = ordered[int(len(ordered) * 0.95) - 1]
+    p99 = ordered[-1]
+    print(f"job start p95={p95:.1f}ms p99={p99:.1f}ms rss_delta={after - before}KB")
+    assert all(job.status == "succeeded" for job in jobs)
+    assert p95 < 2000
+    assert p99 < 3000
+    assert (after - before) < 512 * 1024

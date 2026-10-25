@@ -24,6 +24,7 @@
     getJobReview,
     getJobThumbnails,
     getJobVariants,
+    prefetchJobFrames,
     selectJobVariant,
     getPreviewStatus,
     getRenderStatus,
@@ -559,9 +560,22 @@
     }
   }
 
+  function prefetchFrames(target: number) {
+    if (!selected) return;
+    void prefetchJobFrames(selected, Math.max(0, target - 0.5), 6, 4, 180)
+      .then((payload) => {
+        for (const frame of payload.frames) {
+          const image = new Image();
+          image.src = frame.url;
+        }
+      })
+      .catch(() => undefined);
+  }
+
   function seek(value: number) {
     const target = Math.max(0, Math.min(duration, value));
     playhead = target;
+    prefetchFrames(target);
     clearTimeout(frameTimer);
     frameTimer = setTimeout(() => {
       if (selected) frameUrl = jobFrameUrl(selected, target);

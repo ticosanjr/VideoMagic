@@ -114,13 +114,18 @@ def test_overlays_and_fade_to_black_stay_incremental(tmp_path: Path) -> None:
     assert adapter.concats == 1
 
 
-def test_crossfade_still_falls_back(tmp_path: Path) -> None:
-    import pytest
-
+def test_crossfade_renders_only_the_transition_group(tmp_path: Path) -> None:
     from videoflow.domain.state import Transition
-    from videoflow.exporters.incremental import NotEligible
 
     payload = state(tmp_path)
     payload.video_segments[0].transition_out = Transition(type="crossfade")
-    with pytest.raises(NotEligible, match="crossfade"):
-        export_mp4_incremental(payload, tmp_path / "out.mp4", adapter=FakeAdapter())
+    adapter = FakeAdapter()
+    result = export_mp4_incremental(payload, tmp_path / "out.mp4", adapter=adapter)
+    assert result.is_file()
+    assert adapter.segments == 3  # two cached clips plus one xfade group
+    assert adapter.concats == 1
+
+    adapter = FakeAdapter()
+    export_mp4_incremental(payload, tmp_path / "out.mp4", adapter=adapter)
+    assert adapter.segments == 0  # group and clip segments are reused
+    assert adapter.concats == 1

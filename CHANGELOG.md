@@ -3,6 +3,27 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.14.1] - 2026-10-25
+
+### Added
+
+- **Incremental crossfade.** Adjacent clips joined by a crossfade render as a
+  cached xfade group; unchanged groups are reused and the full graph remains the
+  fallback for ineligible timelines.
+- **Multi-process queue worker.** `queue_worker.run_once/serve` claims with a
+  lease, keeps a heartbeat, and can start a manager with `load_store=False` so
+  another process does not steal queued jobs.
+- **Frame prefetch.** `GET /jobs/{id}/frames` serves a bounded batch with cache
+  hit reporting; the timeline preloads the next frames while scrubbing.
+- **Quality gates.** axe WCAG A/AA test, shell visual baseline, 1,000-clip UI
+  performance guard, p95/p99/memory load metrics, and `scripts/gate_local.sh`.
+
+### Changed
+
+- Missing export/prune directories now return `404` instead of a generic `500`.
+- Layer coverage: API 85.2%, jobs 90.8%, exporters 95.0%, MCP 80.3%; full tree
+  81.7% (3.0 still blocked at 95%).
+
 ## [2.14.0] - 2026-10-25
 
 ### Added

@@ -4,6 +4,7 @@ import multiprocessing
 import os
 from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 
 from videoflow.application import database, queue_claim
 
@@ -50,9 +51,7 @@ def test_two_processes_claim_different_jobs(monkeypatch, tmp_path: Path) -> None
     assert queue_claim.claim_next("late") is None
 
 
-def test_expired_lease_is_recovered_and_heartbeat_checks_owner(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_expired_lease_is_recovered_and_heartbeat_checks_owner(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
     database.migrate_home()
     database.upsert_job("job-a", _payload("job-a"))
@@ -70,3 +69,26 @@ def test_expired_lease_is_recovered_and_heartbeat_checks_owner(
     again = queue_claim.claim_next("worker-b", now=later)
     assert again is not None
     assert again.job_id == "job-a"
+
+
+def test_worker_runs_a_claimed_job_and_updates_the_store(monkeypatch, tmp_path: Path) -> None:
+    from videoflow.application.jobs import JobManager
+    from videoflow.application.queue_worker import run_once
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
+    database.migrate_home()
+    job_id = str(uuid4())
+
+    def runner(source, output, **kwargs):
+        Path(output).mkdir(parents=True, exist_ok=True)
+        kwargs["progress"]("done", 100, "done")
+        return {"ok": True, "artifacts": {}}
+
+    manager = JobManager(runner=runner, store_dir=tmp_path / "jobs", load_store=False)
+    database.upsert_job(job_id, _payload(job_id))
+    job = run_once(manager, "worker-1", timeout=10)
+    assert job is not None
+    assert job.status == "succeeded", job.error
+    stored = {item["job_id"]: item for item in database.list_jobs()}
+    assert stored[job_id]["status"] == "succeeded"
+    assert run_once(manager, "worker-2", timeout=1) is None

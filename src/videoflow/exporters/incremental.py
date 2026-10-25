@@ -62,6 +62,37 @@ def _cache_key(path: Path, clip, crf: int, preset: str) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()[:24]
 
 
+def _crossfade_groups(video: list[Any]) -> list[list[int]]:
+    groups: list[list[int]] = [[0]]
+    for index in range(1, len(video)):
+        previous = video[index - 1].transition_out
+        if previous is not None and previous.type == "crossfade":
+            groups[-1].append(index)
+        else:
+            groups.append([index])
+    return groups
+
+
+def _group_cache_key(segments: list[Path], transitions: list[Any], preset: str, crf: int) -> str:
+    payload = json.dumps(
+        {
+            "segments": [segment.name for segment in segments],
+            "transitions": [
+                {
+                    "type": item.type,
+                    "duration": item.duration_frames,
+                    "audio": item.audio,
+                }
+                for item in transitions
+            ],
+            "preset": preset,
+            "crf": crf,
+        },
+        sort_keys=True,
+    )
+    return hashlib.sha256(payload.encode()).hexdigest()[:24]
+
+
 def export_mp4_incremental(
     state: ProjectState,
     output_path: Path,
@@ -73,11 +104,6 @@ def export_mp4_incremental(
 ) -> Path:
     media, video_map, audio_map = require_timeline(state)
     video = sorted(state.video_segments, key=lambda clip: clip.timeline_in_frame)
-    if any(
-        clip.transition_out is not None and clip.transition_out.type == "crossfade"
-        for clip in state.video_segments
-    ):
-        raise NotEligible("crossfade")
     if len(video) != len(audio_map) or len(video_map) != len(video):
         raise NotEligible("audio mismatch")
     fps = media.fps_num / media.fps_den
@@ -161,9 +187,80 @@ def export_mp4_incremental(
                 ),
             )
         segments.append(segment)
+    group_files: list[Path] = []
+    for group in _crossfade_groups(video):
+        if len(group) == 1:
+            group_files.append(segments[group[0]])
+            continue
+        group_segments = [segments[index] for index in group]
+        transitions = [video[index].transition_out for index in group[:-1]]
+        key = _group_cache_key(group_segments, transitions, preset, crf)
+        group_file = cache_dir / f"group-{key}.mp4"
+        if not group_file.is_file():
+            inputs: list[str] = []
+            for segment in group_segments:
+                inputs.extend(["-i", str(segment)])
+            chains: list[str] = []
+            video_label = "[0:v]"
+            audio_label = "[0:a]"
+            cumulative = (
+                video[group[0]].timeline_out_frame - video[group[0]].timeline_in_frame
+            ) / fps
+            for offset_index in range(1, len(group)):
+                transition = transitions[offset_index - 1]
+                seconds = transition.duration_frames / fps
+                offset = max(0.0, cumulative - seconds)
+                chains.append(
+                    f"{video_label}[{offset_index}:v]"
+                    f"xfade=transition=fade:duration={seconds:.6f}:"
+                    f"offset={offset:.6f}[vx{offset_index}]"
+                )
+                video_label = f"[vx{offset_index}]"
+                if transition.audio:
+                    chains.append(
+                        f"{audio_label}[{offset_index}:a]"
+                        f"acrossfade=d={seconds:.6f}[ax{offset_index}]"
+                    )
+                else:
+                    chains.append(
+                        f"{audio_label}[{offset_index}:a]"
+                        f"concat=n=2:v=0:a=1[ax{offset_index}]"
+                    )
+                audio_label = f"[ax{offset_index}]"
+                clip = video[group[offset_index]]
+                cumulative += (
+                    clip.timeline_out_frame - clip.timeline_in_frame
+                ) / fps - seconds
+            adapter.render(
+                [
+                    *inputs,
+                    "-filter_complex",
+                    ";".join(chains),
+                    "-map",
+                    video_label,
+                    "-map",
+                    audio_label,
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    preset,
+                    "-crf",
+                    str(crf),
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-c:a",
+                    "aac",
+                    "-b:a",
+                    "192k",
+                    "-movflags",
+                    "+faststart",
+                    str(group_file),
+                ]
+            )
+        group_files.append(group_file)
     listing = cache_dir / "concat.txt"
     listing.write_text(
-        "\n".join(f"file '{segment.as_posix()}'" for segment in segments) + "\n",
+        "\n".join(f"file '{segment.as_posix()}'" for segment in group_files) + "\n",
         encoding="utf-8",
     )
     temporary = destination.with_name(f".{destination.stem}.concat.mp4")

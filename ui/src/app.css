@@ -148,3 +148,12 @@ html[data-theme="high-contrast"] body.bg-neutral-950 {
   background-color: var(--vf-bg);
   color: var(--vf-text);
 }
+
+/* Dark theme AA floor: neutral-500/600 were below 4.5:1 on near-black. */
+html:not([data-theme="light"]):not([data-theme="high-contrast"]) .text-neutral-500 {
+  color: #a1a1aa;
+}
+
+html:not([data-theme="light"]):not([data-theme="high-contrast"]) .text-neutral-600 {
+  color: #a1a1aa;
+}

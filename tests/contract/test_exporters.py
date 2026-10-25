@@ -429,3 +429,17 @@ def test_kdenlive_crossfade_uses_two_tracks_and_opacity_ramp(tmp_path: Path) -> 
         for item in sequence.findall("transition/property[@name='mlt_service']")
     ]
     assert services.count("qtblend") >= 2
+
+
+def test_kdenlive_handles_progressive_keyframes_and_panning(tmp_path: Path) -> None:
+    state = progressive_state(tmp_path)
+    state.video_segments[0].transform.pan_direction = "left_to_right"
+    state.video_segments[1].transform.pan_direction = "right_to_left"
+    state.video_segments[0].transform.anchor = "upper_third"
+    output = export_kdenlive(state, tmp_path / "timeline.kdenlive")
+    root = ET.parse(output).getroot()
+    geometries = root.findall(
+        ".//filter/property[@name='transition.rect']"
+    )
+    assert len(geometries) >= 2
+    assert any(";" in (item.text or "") for item in geometries)
