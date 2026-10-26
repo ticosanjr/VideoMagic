@@ -8,6 +8,7 @@
     type FsListing
   } from "$lib/api";
   import { formatBytes, formatDateTime } from "$lib/format";
+  import Icon from "$lib/ui/Icon.svelte";
 
   type PickerMode = "file" | "directory";
 
@@ -42,6 +43,39 @@
   let dialog = $state<HTMLDivElement | null>(null);
   let loadedKey = $state("");
   let failedPath = $state("");
+  let recents = $state<string[]>([]);
+  let favorites = $state<string[]>([]);
+
+  function readStored(key: string): string[] {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) ?? "[]");
+      return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function store(key: string, values: string[]) {
+    try {
+      localStorage.setItem(key, JSON.stringify(values.slice(0, 8)));
+    } catch {
+      /* private mode */
+    }
+  }
+
+  function remember(path: string) {
+    if (!path) return;
+    recents = [path, ...recents.filter((item) => item !== path)].slice(0, 8);
+    store("videoflow.pathRecents", recents);
+  }
+
+  function toggleFavorite(path: string | undefined) {
+    if (!path) return;
+    favorites = favorites.includes(path)
+      ? favorites.filter((item) => item !== path)
+      : [path, ...favorites].slice(0, 8);
+    store("videoflow.pathFavorites", favorites);
+  }
 
   const filtered = $derived(
     listing?.entries.filter((entry) => {
@@ -60,6 +94,8 @@
     }
     if (loadedKey === key) return;
     loadedKey = key;
+    recents = readStored("videoflow.pathRecents");
+    favorites = readStored("videoflow.pathFavorites");
     newFolder = suggestedName;
     void load(initialPath || undefined);
     void tick().then(() => dialog?.focus());
@@ -78,6 +114,7 @@
         showHidden,
         limit: 500
       });
+      remember(listing.path);
     } catch (reason) {
       failedPath = path ?? "";
       error = errorMessage(reason);
@@ -210,6 +247,30 @@
             </span>
           {/if}
         </div>
+
+        {#if recents.length || favorites.length}
+          <div class="mt-3 flex flex-wrap items-center gap-1.5 text-[10px] text-neutral-500">
+            {#if favorites.length}
+              <span class="flex items-center gap-1 text-amber-300/80"><Icon name="star" size={11} />Favorites</span>
+              {#each favorites as path (path)}
+                <button type="button" onclick={() => void load(path)} title={path} class="max-w-40 truncate rounded-full border border-amber-400/20 px-2 py-0.5 text-amber-200/80 hover:border-amber-300/50">{path.split("/").filter(Boolean).at(-1) ?? path}</button>
+              {/each}
+            {/if}
+            {#if recents.length}
+              <span class="ml-1 flex items-center gap-1"><Icon name="clock" size={11} />Recent</span>
+              {#each recents.slice(0, 5) as path (path)}
+                <button type="button" onclick={() => void load(path)} title={path} class="max-w-40 truncate rounded-full border border-white/10 px-2 py-0.5 text-neutral-400 hover:border-sky-400/40 hover:text-sky-200">{path.split("/").filter(Boolean).at(-1) ?? path}</button>
+              {/each}
+            {/if}
+            <button
+              type="button"
+              onclick={() => toggleFavorite(listing?.path)}
+              title={listing && favorites.includes(listing.path) ? "Remove this folder from favorites" : "Add this folder to favorites"}
+              aria-label={listing && favorites.includes(listing.path) ? "Remove from favorites" : "Add to favorites"}
+              class={`ml-auto inline-flex items-center gap-1 rounded-full border px-2 py-0.5 ${listing && favorites.includes(listing.path) ? "border-amber-400/30 text-amber-300" : "border-white/10 text-neutral-500 hover:text-amber-300"}`}
+            ><Icon name="star" size={11} />{listing && favorites.includes(listing.path) ? "Saved" : "Save folder"}</button>
+          </div>
+        {/if}
 
         <div class="mt-3 flex items-center gap-2 overflow-x-auto pb-1 text-xs text-neutral-500">
           <button

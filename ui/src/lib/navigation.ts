@@ -1,3 +1,5 @@
+import type { IconName } from "$lib/ui/icons";
+
 export type AreaId = "produce" | "edit" | "runs" | "library" | "setup";
 
 export type TabId =
@@ -115,27 +117,27 @@ export function areaHintKey(area: AreaId): string {
 }
 
 
-export const AREA_ICONS: Record<AreaId, string> = {
-  produce: "▶",
-  edit: "✂",
-  runs: "◉",
-  library: "▤",
-  setup: "⚙"
+export const AREA_ICONS: Record<AreaId, IconName> = {
+  produce: "play",
+  edit: "scissors",
+  runs: "activity",
+  library: "library",
+  setup: "settings"
 };
 
-export const TAB_ICONS: Record<TabId, string> = {
-  recipes: "≡",
-  projects: "▣",
-  assistant: "✦",
-  timeline: "▬",
-  jobs: "◉",
-  schedules: "◷",
-  media: "▦",
-  brand: "❖",
-  models: "◈",
-  providers: "⚡",
-  services: "⚙",
-  extensions: "❑",
-  connect: "⇄",
-  settings: "⚙"
+export const TAB_ICONS: Record<TabId, IconName> = {
+  recipes: "list",
+  projects: "folder",
+  assistant: "sparkles",
+  timeline: "film",
+  jobs: "activity",
+  schedules: "calendar",
+  media: "image",
+  brand: "palette",
+  models: "cpu",
+  providers: "plug",
+  services: "server",
+  extensions: "puzzle",
+  connect: "link",
+  settings: "settings"
 };

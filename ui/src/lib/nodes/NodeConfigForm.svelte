@@ -13,13 +13,16 @@
     errors = {},
     prefix = "",
     showpresets = true,
+    query = "",
     onpatch,
     onpickpath,
     onapplypreset,
     onsavepreset,
     onupdatepreset,
     ondeletepreset,
-    onfavoritepreset
+    onfavoritepreset,
+    onrenamepreset,
+    onduplicatepreset
   }: {
     type: string;
     params: Record<string, unknown>;
@@ -29,6 +32,7 @@
     errors?: Record<string, string>;
     prefix?: string;
     showpresets?: boolean;
+    query?: string;
     onpatch?: (path: string[], value: unknown) => void;
     onpickpath?: (path: string[]) => void;
     onapplypreset?: (preset: NodePreset) => void;
@@ -36,14 +40,31 @@
     onupdatepreset?: (presetId: string) => void;
     ondeletepreset?: (presetId: string) => void;
     onfavoritepreset?: (presetId: string, favorite: boolean) => void;
+    onrenamepreset?: (presetId: string, name: string) => void;
+    onduplicatepreset?: (presetId: string, name: string) => void;
   } = $props();
 
-  const groups = $derived(fieldGroups(schema, params, type));
+  const groups = $derived.by(() => {
+    const needle = query.trim().toLowerCase();
+    return fieldGroups(schema, params, type)
+      .map((group) => ({
+        ...group,
+        fields: needle
+          ? group.fields.filter((field) =>
+              `${field.id} ${field.label} ${field.help} ${field.unit}`
+                .toLowerCase()
+                .includes(needle)
+            )
+          : group.fields
+      }))
+      .filter((group) => group.fields.length > 0);
+  });
 </script>
 
 {#if showpresets}
   <NodePresetBar
     {type}
+    presetParams={params}
     {presets}
     {prefix}
     onapply={onapplypreset}
@@ -51,6 +72,8 @@
     onupdate={onupdatepreset}
     ondelete={ondeletepreset}
     onfavorite={onfavoritepreset}
+    onrename={onrenamepreset}
+    onduplicate={onduplicatepreset}
   />
 {/if}
 

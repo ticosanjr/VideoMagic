@@ -3,6 +3,42 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.22.0] - 2026-10-26
+
+### Added
+
+- **Help metadata for every parameter.** Labels, descriptions, units, groups,
+  and placeholders now ship in each step manifest, so every field has a tooltip
+  in the node and inspector.
+- **Local SVG icon system.** Areas, tabs, steps, toolbar actions, and inspector
+  sections use representative icons instead of Unicode glyphs.
+- **Hierarchical builder toolbar.** Primary Add/Run, secondary Save/Validate/
+  Inspector, icon undo/redo, and a More menu for batch, NLE validation, config,
+  layout, history, and export actions.
+- **Builder command palette and shortcuts.** Recipe actions are searchable in
+  the palette; Ctrl/Cmd+S, Ctrl/Cmd+Enter, Ctrl/Cmd+C/V, and Delete work in the
+  graph.
+- **Resizable inspector.** Drag the left edge to resize; width is remembered,
+  sections collapse, and fields can be filtered.
+- **Path picker recents and favorites.** Recent folders and starred folders are
+  stored locally per machine.
+- **Preset management.** Rename, duplicate, and see how many values differ from
+  the current node.
+- **Graph productivity.** Node search dims non-matches; multi-select can align,
+  duplicate, or delete; copied nodes can be pasted; wiring can be disconnected.
+- **Recipe version comparison.** Compare a saved version with the current graph
+  without restoring it first.
+- **Design primitives.** Shared Button, IconButton, and Section components.
+- **Contextual onboarding.** A fourth onboarding step explains the inspector,
+  autosave, and undo.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate at 96.4%.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+- No new planned step became available; `content.*`, `publish.webhook`, and the
+  partial steps remain documented limitations.
+
 ## [2.21.0] - 2026-10-26
 
 ### Added

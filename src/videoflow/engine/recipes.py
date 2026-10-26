@@ -1195,6 +1195,15 @@ def list_recipe_history(recipe_id: str) -> list[dict[str, object]]:
     return entries
 
 
+def get_recipe_version(recipe_id: str, version: str) -> Recipe:
+    if not version.isdigit():
+        raise RecipeError(f"Unknown recipe version: {version}")
+    path = recipe_history_dir(recipe_id) / f"{version}.json"
+    if not path.is_file():
+        raise RecipeError(f"Unknown recipe version: {version}")
+    return load_recipe(path)
+
+
 def restore_recipe_version(recipe_id: str, version: str) -> Recipe:
     path = recipe_history_dir(recipe_id) / f"{version}.json"
     if not path.is_file():

@@ -4,6 +4,11 @@ import { readFileSync } from "node:fs";
 const fixture = (name: string) =>
   JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8"));
 
+async function openMore(page: Page) {
+  await page.getByTestId("recipe-more").click();
+  await expect(page.getByTestId("recipe-more-menu")).toBeVisible();
+}
+
 async function mockApi(page: Page) {
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
@@ -13,6 +18,22 @@ async function mockApi(page: Page) {
     if (path === "/api/v1/steps") return route.fulfill({ json: fixture("steps.json") });
     if (path === "/api/v1/recipes") return route.fulfill({ json: fixture("recipes.json") });
     if (path === "/api/v1/recipes/example_recipe") return route.fulfill({ json: fixture("recipe.json") });
+    if (path === "/api/v1/recipes/example_recipe/history") {
+      return route.fulfill({
+        json: {
+          ok: true,
+          history: [
+            { version: "123", name: "Old recipe", description: "", step_count: 1 }
+          ]
+        }
+      });
+    }
+    if (path === "/api/v1/recipes/example_recipe/history/123") {
+      const recipe = structuredClone(fixture("recipe.json"));
+      recipe.recipe.name = "Old recipe";
+      recipe.recipe.steps = [recipe.recipe.steps[0]];
+      return route.fulfill({ json: { ok: true, recipe: recipe.recipe } });
+    }
     if (path === "/api/v1/node-presets") {
       return route.fulfill({
         json: {
@@ -138,6 +159,34 @@ test("edits a schema-derived field", async ({ page }) => {
   expect(json).toContain('"extract_pcm": false');
 });
 
+test("shows field help, resizes the inspector, and dims non-matching nodes", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("videoflow.inspectorWidth", "560"));
+  await page.reload();
+  await page.getByTestId("step-audio.vad").getByText("Voice detection").click();
+  const help = page
+    .getByTestId("inspector-config")
+    .getByRole("button", { name: "Help: Minimum silence" });
+  await help.hover();
+  await expect(
+    page.getByText("Minimum silence before the timeline starts a new cut.").first()
+  ).toBeVisible();
+
+  const search = page.getByLabel("Find node");
+  await search.fill("timeline");
+  await expect(page.getByTestId("step-audio.vad")).toHaveClass(/opacity-25/);
+  await expect(page.getByTestId("step-edit.timeline")).not.toHaveClass(/opacity-25/);
+});
+
+test("compares a recipe version with the current graph", async ({ page }) => {
+  await openMore(page);
+  await page.getByRole("menuitem", { name: /Version history/ }).click();
+  await expect(page.getByRole("dialog", { name: "Recipe history" })).toBeVisible();
+  await page.getByRole("button", { name: "Compare" }).click();
+  await expect(page.getByRole("dialog", { name: "Version comparison" })).toBeVisible();
+  await expect(page.getByText(/Name: "Old recipe"/)).toBeVisible();
+  await expect(page.getByText(/Added step:/).first()).toBeVisible();
+});
+
 test("shows full parity fields, outputs, and presets in the inspector", async ({ page }) => {
   await page.getByTestId("step-audio.vad").getByText("Voice detection").click();
   const slider = page.getByTestId("inspector-field-min_silence_ms");
@@ -208,6 +257,7 @@ test("blocks Run on inline validation errors", async ({ page }) => {
 
 test("validates NLE exports from the UI", async ({ page }) => {
   await page.getByTestId("run-workspace").fill("/tmp/out");
+  await openMore(page);
   await page.getByTestId("nle-validate").click();
   await expect(page.getByTestId("nle-report")).toBeVisible();
   await expect(page.getByText("NLE export validation")).toBeVisible();
@@ -215,7 +265,8 @@ test("validates NLE exports from the UI", async ({ page }) => {
 });
 
 test("opens persisted batch history", async ({ page }) => {
-  await page.getByRole("button", { name: "Batch" }).click();
+  await openMore(page);
+  await page.getByRole("menuitem", { name: /Batch history/ }).click();
   await expect(page.getByText("Persisted batches")).toBeVisible();
   await expect(page.getByText(/11111111/)).toBeVisible();
 });

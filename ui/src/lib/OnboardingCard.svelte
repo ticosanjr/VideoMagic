@@ -31,6 +31,12 @@
       body: "Pick a template, point at a source file, dry-run, then run. Shorts and exports are optional steps.",
       tab: "recipes",
       action: "Open Recipes"
+    },
+    {
+      title: "4. Build with the inspector",
+      body: "Select a node to edit every field, wire ports, and apply presets. Edits autosave; Ctrl/Cmd+Z undoes.",
+      tab: "recipes",
+      action: "Open the builder"
     }
   ];
 </script>
@@ -44,7 +50,7 @@
       </div>
       <button type="button" onclick={dismiss} class="rounded-lg border border-white/10 px-2 py-1 text-[10px] text-sky-200">Dismiss</button>
     </div>
-    <div class="mt-3 grid gap-2 md:grid-cols-3">
+    <div class="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
       {#each steps as step}
         <article class="rounded-xl border border-sky-400/15 bg-black/20 p-3">
           <p class="text-[11px] font-medium text-sky-100">{step.title}</p>

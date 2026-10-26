@@ -33,7 +33,7 @@ pass before 3.0.
 
 - Reviewer:
 - Date:
-- Build: `releases/v2.21.0/videoflow-2.21.0-linux-x86_64`
+- Build: `releases/v2.22.0/videoflow-2.22.0-linux-x86_64`
 - Result: pending
 
 A signed copy is required before 3.0. Fixes for P0/P1 block the release.

@@ -115,7 +115,13 @@ class BaseStep(ABC):
         return ports_for_type(self.type)[1]
 
     def manifest(self) -> dict[str, Any]:
-        schema = self.params_model.model_json_schema()
+        from videoflow.steps.field_metadata import apply_field_metadata
+
+        schema = apply_field_metadata(
+            self.type,
+            self.title,
+            self.params_model.model_json_schema(),
+        )
         return {
             "type": self.type,
             "title": self.title,

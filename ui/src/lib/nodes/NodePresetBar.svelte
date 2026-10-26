@@ -3,15 +3,19 @@
 
   let {
     type,
+    presetParams = {},
     presets = [],
     prefix = "",
     onapply,
     onsave,
     onupdate,
     ondelete,
-    onfavorite
+    onfavorite,
+    onrename,
+    onduplicate
   }: {
     type: string;
+    presetParams?: Record<string, unknown>;
     presets?: NodePreset[];
     prefix?: string;
     onapply?: (preset: NodePreset) => void;
@@ -19,11 +23,24 @@
     onupdate?: (presetId: string) => void;
     ondelete?: (presetId: string) => void;
     onfavorite?: (presetId: string, favorite: boolean) => void;
+    onrename?: (presetId: string, name: string) => void;
+    onduplicate?: (presetId: string, name: string) => void;
   } = $props();
 
   let activePreset = $state<NodePreset | null>(null);
   let presetName = $state("");
   let saveOpen = $state(false);
+  let renaming = $state(false);
+  let renameValue = $state("");
+
+  const diffKeys = $derived.by(() => {
+    const preset = activePreset;
+    if (!preset) return [];
+    return Object.keys(preset.params).filter(
+      (key) =>
+        JSON.stringify(presetParams[key]) !== JSON.stringify(preset.params[key])
+    );
+  });
 
   const testId = $derived(`${prefix}presets-${type}`);
 
@@ -72,13 +89,48 @@
         </span>
       {/each}
     </div>
-    {#if activePreset && !activePreset.builtin}
-      <button
-        type="button"
-        title="Overwrite the preset with the current values"
-        onclick={(event) => { event.stopPropagation(); onupdate?.(activePreset!.id); }}
-        class="mt-1 text-[9px] text-emerald-300"
-      >Update “{activePreset.name}” from current values</button>
+    {#if activePreset}
+      <div class="mt-1 flex flex-wrap items-center gap-2 text-[9px]">
+        {#if !activePreset.builtin}
+          <button
+            type="button"
+            title="Overwrite the preset with the current values"
+            onclick={(event) => { event.stopPropagation(); onupdate?.(activePreset!.id); }}
+            class="text-emerald-300"
+          >Update</button>
+          <button
+            type="button"
+            title="Rename this preset"
+            onclick={(event) => { event.stopPropagation(); renaming = !renaming; renameValue = activePreset!.name; }}
+            class="text-sky-300"
+          >Rename</button>
+        {/if}
+        <button
+          type="button"
+          title="Create a copy of this preset"
+          onclick={(event) => { event.stopPropagation(); onduplicate?.(activePreset!.id, `${activePreset!.name} copy`); }}
+          class="text-neutral-300"
+        >Duplicate</button>
+        {#if diffKeys.length}
+          <span class="text-amber-300" title={diffKeys.join(", ")}>{diffKeys.length} value{diffKeys.length === 1 ? "" : "s"} differ</span>
+        {:else}
+          <span class="text-neutral-600">matches current values</span>
+        {/if}
+      </div>
+      {#if renaming && !activePreset.builtin}
+        <span class="mt-1 flex gap-1">
+          <input
+            bind:value={renameValue}
+            aria-label="Preset name"
+            class="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 text-[9px] text-neutral-200"
+          />
+          <button
+            type="button"
+            onclick={(event) => { event.stopPropagation(); onrename?.(activePreset!.id, renameValue); renaming = false; }}
+            class="rounded border border-sky-500/40 px-1.5 text-[9px] text-sky-200"
+          >Save</button>
+        </span>
+      {/if}
     {/if}
   {:else}
     <p class="mt-1 text-[9px] text-neutral-600">No presets for this step yet.</p>

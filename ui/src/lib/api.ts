@@ -1583,6 +1583,16 @@ export async function getRecipeHistory(recipeId: string): Promise<RecipeHistoryE
   return response.history;
 }
 
+export async function getRecipeVersion(
+  recipeId: string,
+  version: string
+): Promise<Recipe> {
+  const response = await request<{ ok: boolean; recipe: Recipe }>(
+    `/api/v1/recipes/${encodeURIComponent(recipeId)}/history/${encodeURIComponent(version)}`
+  );
+  return response.recipe;
+}
+
 export async function restoreRecipeVersion(
   recipeId: string,
   version: string

@@ -12,6 +12,10 @@
     type Node
   } from "@xyflow/svelte";
   import NodeInspector from "$lib/nodes/NodeInspector.svelte";
+  import Button from "$lib/ui/Button.svelte";
+  import Icon from "$lib/ui/Icon.svelte";
+  import IconButton from "$lib/ui/IconButton.svelte";
+  import { stepIcon } from "$lib/ui/icons";
   import StepNode from "$lib/nodes/StepNode.svelte";
   import { setPath, validateParams } from "$lib/recipeFields";
   import PathPicker from "$lib/PathPicker.svelte";
@@ -24,6 +28,7 @@
     getNodeOptions,
     getRecipe,
     getRecipeHistory,
+    getRecipeVersion,
     jobArtifactUrl,
     shortFileUrl,
     getRunHistory,
@@ -86,6 +91,7 @@
     params: Record<string, unknown>;
     schema?: Record<string, unknown>;
     implementation?: "available" | "partial" | "planned";
+    dimmed?: boolean;
     icon?: string;
     color?: string;
     status?: NodeStatus;
@@ -103,6 +109,8 @@
     onUpdatePreset?: (presetId: string) => void;
     onDeletePreset?: (presetId: string) => void;
     onFavoritePreset?: (presetId: string, favorite: boolean) => void;
+    onRenamePreset?: (presetId: string, name: string) => void;
+    onDuplicatePreset?: (presetId: string, name: string) => void;
     expanded?: boolean;
     pinned?: boolean;
     width?: number;
@@ -127,6 +135,9 @@
   let nodes = $state<Node[]>([]);
   let edges = $state<Edge[]>([]);
   let selectedId = $state<string | null>(null);
+  let selectedNodeIds = $state<string[]>([]);
+  let copiedNodeIds = $state<string[]>([]);
+  let nodeQuery = $state("");
   let recipeId = $state("my_recipe");
   let recipeName = $state("My recipe");
   let recipeDescription = $state("");
@@ -173,6 +184,7 @@
   let paramError = $state("");
   let inspectorOpen = $state(false);
   let addOpen = $state(false);
+  let moreOpen = $state(false);
   let configOpen = $state(false);
   let jsonModal = $state<"step" | "recipe" | null>(null);
   let recipeJsonText = $state("");
@@ -221,6 +233,10 @@
   let recipeHistoryOpen = $state(false);
   let recipeHistory = $state<RecipeHistoryEntry[]>([]);
   let recipeHistoryError = $state("");
+  let versionDiffOpen = $state(false);
+  let versionDiffLines = $state<string[]>([]);
+  let versionDiffBusy = $state(false);
+  let versionDiffError = $state("");
   let templatesOpen = $state(false);
   let templateQuery = $state("");
   let recipeFilter = $state<RecipeFilter>("all");
@@ -334,6 +350,62 @@
         localStorage.removeItem("videoflow.project");
       }
     }
+    const onBuilderAction = (event: Event) => {
+      const action = String((event as CustomEvent<string>).detail ?? "");
+      if (action === "add-step") {
+        addOpen = true;
+        inspectorOpen = false;
+      } else if (action === "run") {
+        void execute();
+      } else if (action === "dry-run") {
+        void dryRun();
+      } else if (action === "save") {
+        void save();
+      } else if (action === "validate") {
+        void validate();
+      } else if (action === "inspector") {
+        toggleInspector();
+      } else if (action === "auto-layout") {
+        resetLayout();
+      } else if (action === "json") {
+        openRecipeJson();
+      } else if (action === "runs") {
+        void openHistory();
+      }
+    };
+    window.addEventListener("videoflow:builder-action", onBuilderAction);
+    const onBuilderKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const typing = target
+        ? ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable
+        : false;
+      const modifier = event.ctrlKey || event.metaKey;
+      if (modifier && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        void save();
+        return;
+      }
+      if (modifier && event.key === "Enter") {
+        event.preventDefault();
+        void execute();
+        return;
+      }
+      if (!typing && modifier && event.key.toLowerCase() === "c") {
+        event.preventDefault();
+        copySelectedNodes();
+        return;
+      }
+      if (!typing && modifier && event.key.toLowerCase() === "v") {
+        event.preventDefault();
+        pasteNodes();
+        return;
+      }
+      if (!typing && !modifier && event.key === "Delete" && (selectedId || selectedNodeIds.length)) {
+        event.preventDefault();
+        removeSelectedNodes();
+      }
+    };
+    window.addEventListener("keydown", onBuilderKey);
     void (async () => {
       try {
         steps = await listRecipeSteps();
@@ -346,6 +418,10 @@
         error = errorMessage(reason);
       }
     })();
+    return () => {
+      window.removeEventListener("videoflow:builder-action", onBuilderAction);
+      window.removeEventListener("keydown", onBuilderKey);
+    };
   });
 
   onDestroy(() => {
@@ -449,6 +525,8 @@
           onDeletePreset: (id: string) => void removeNodePreset(id),
           onFavoritePreset: (id: string, favorite: boolean) =>
             void favoritePreset(id, favorite),
+          onRenamePreset: (id: string, name: string) => void renameNodePreset(id, name),
+          onDuplicatePreset: (id: string, name: string) => void duplicateNodePreset(id, name),
           mediaOverride: step.media_override ?? "",
           outputMode: step.output_mode ?? "pipeline",
           outputDir: step.output_dir ?? "",
@@ -597,6 +675,8 @@
           onDeletePreset: (presetId: string) => void removeNodePreset(presetId),
           onFavoritePreset: (presetId: string, favorite: boolean) =>
             void favoritePreset(presetId, favorite),
+          onRenamePreset: (presetId: string, name: string) => void renameNodePreset(presetId, name),
+          onDuplicatePreset: (presetId: string, name: string) => void duplicateNodePreset(presetId, name),
           mediaOverride: "",
           outputMode: "pipeline",
           outputDir: "",
@@ -645,6 +725,112 @@
 
   function removeSelected() {
     if (selectedId) removeNode(selectedId);
+  }
+
+  function alignSelected(axis: "x" | "y") {
+    const chosen = nodes.filter((node) => selectedNodeIds.includes(node.id));
+    if (chosen.length < 2) return;
+    pushUndo();
+    const target = Math.min(
+      ...chosen.map((node) => (axis === "x" ? node.position.x : node.position.y))
+    );
+    nodes = nodes.map((node) =>
+      selectedNodeIds.includes(node.id)
+        ? { ...node, position: { ...node.position, [axis]: target } }
+        : node
+    );
+    for (const node of nodes) {
+      if (!selectedNodeIds.includes(node.id)) continue;
+      recipeUi.nodes[node.id] = {
+        ...(recipeUi.nodes[node.id] ?? {
+          expanded: true,
+          pinned: false,
+          width: 420
+        }),
+        x: node.position.x,
+        y: node.position.y
+      };
+    }
+    scheduleUiSave();
+  }
+
+  function removeSelectedNodes() {
+    const ids = selectedNodeIds.length
+      ? selectedNodeIds
+      : selectedId
+        ? [selectedId]
+        : [];
+    if (!ids.length) return;
+    pushUndo();
+    nodes = nodes.filter((node) => !ids.includes(node.id));
+    edges = edges.filter(
+      (edge) => !ids.includes(edge.source) && !ids.includes(edge.target)
+    );
+    for (const id of ids) delete recipeUi.nodes[id];
+    if (selectedId && ids.includes(selectedId)) {
+      selectedId = null;
+      paramText = "{}";
+    }
+    selectedNodeIds = [];
+    scheduleUiSave();
+  }
+
+  function copySelectedNodes() {
+    const ids = selectedNodeIds.length
+      ? selectedNodeIds
+      : selectedId
+        ? [selectedId]
+        : [];
+    copiedNodeIds = ids.filter((id) => nodes.some((node) => node.id === id));
+    if (copiedNodeIds.length) layoutStatus = `${copiedNodeIds.length} copied`;
+  }
+
+  function pasteNodes() {
+    if (!copiedNodeIds.length) return;
+    const ids = copiedNodeIds.filter((id) => nodes.some((node) => node.id === id));
+    for (const id of ids) duplicateNode(id);
+  }
+
+  function filterNodes(value: string) {
+    nodeQuery = value;
+    const needle = value.trim().toLowerCase();
+    const dimmed = new Set<string>();
+    nodes = nodes.map((node) => {
+      const data = nodeData(node);
+      const hit =
+        !needle ||
+        `${node.id} ${data.title} ${data.type}`.toLowerCase().includes(needle);
+      if (!hit) dimmed.add(node.id);
+      return { ...node, data: { ...data, dimmed: !hit } };
+    });
+    edges = edges.map((edge) => ({
+      ...edge,
+      style:
+        needle && (dimmed.has(edge.source) || dimmed.has(edge.target))
+          ? "opacity:0.12"
+          : undefined
+    }));
+  }
+
+  function removeConnection(source: string, target: string) {
+    pushUndo();
+    const targetNode = nodes.find((node) => node.id === target);
+    if (!targetNode) return;
+    const inputs = Object.fromEntries(
+      Object.entries(nodeData(targetNode).inputs ?? {}).filter(
+        ([, reference]) => String(reference).split(".")[0] !== source
+      )
+    );
+    nodes = nodes.map((node) =>
+      node.id === target
+        ? { ...node, data: { ...nodeData(node), inputs } }
+        : node
+    );
+    edges = edges.filter(
+      (edge) => !(edge.source === source && edge.target === target)
+    );
+    wiring = null;
+    scheduleUiSave();
   }
 
   function portTypeCompatible(source: string, target: string): boolean {
@@ -1420,6 +1606,65 @@
     scheduleUiSave();
   }
 
+  async function compareVersion(version: string) {
+    versionDiffBusy = true;
+    versionDiffError = "";
+    try {
+      const current = recipeFromGraph();
+      const older = await getRecipeVersion(recipeId, version);
+      versionDiffLines = describeRecipeDiff(current, older);
+      versionDiffOpen = true;
+    } catch (reason) {
+      versionDiffError = errorMessage(reason);
+    } finally {
+      versionDiffBusy = false;
+    }
+  }
+
+  function describeRecipeDiff(current: Recipe, older: Recipe): string[] {
+    const lines: string[] = [];
+    if (current.name !== older.name) {
+      lines.push(`Name: "${older.name}" → "${current.name}"`);
+    }
+    const currentSteps = new Map(current.steps.map((step) => [step.id, step]));
+    const olderSteps = new Map(older.steps.map((step) => [step.id, step]));
+    for (const id of olderSteps.keys()) {
+      if (!currentSteps.has(id)) lines.push(`Removed step: ${id}`);
+    }
+    for (const id of currentSteps.keys()) {
+      if (!olderSteps.has(id)) lines.push(`Added step: ${id}`);
+    }
+    for (const [id, currentStep] of currentSteps) {
+      const olderStep = olderSteps.get(id);
+      if (!olderStep) continue;
+      if (currentStep.type !== olderStep.type) {
+        lines.push(`${id}: type ${olderStep.type} → ${currentStep.type}`);
+      }
+      if (JSON.stringify(currentStep.needs) !== JSON.stringify(olderStep.needs)) {
+        lines.push(`${id}: needs [${olderStep.needs.join(", ")}] → [${currentStep.needs.join(", ")}]`);
+      }
+      if (JSON.stringify(currentStep.inputs) !== JSON.stringify(olderStep.inputs)) {
+        lines.push(`${id}: wiring changed`);
+      }
+      const keys = new Set([
+        ...Object.keys(olderStep.params),
+        ...Object.keys(currentStep.params)
+      ]);
+      for (const key of keys) {
+        if (
+          JSON.stringify(currentStep.params[key]) !==
+          JSON.stringify(olderStep.params[key])
+        ) {
+          lines.push(`${id}.${key}: ${JSON.stringify(olderStep.params[key])} → ${JSON.stringify(currentStep.params[key])}`);
+        }
+      }
+    }
+    if (current.steps.length !== older.steps.length) {
+      lines.unshift(`Steps: ${older.steps.length} → ${current.steps.length}`);
+    }
+    return lines.length ? lines : ["No recipe changes."];
+  }
+
   function nodeValidationErrors(): Record<string, string> {
     const errors: Record<string, string> = {};
     for (const node of nodes) {
@@ -1697,6 +1942,33 @@
       await deleteNodePreset(presetId);
       await refreshNodePresets();
       status = "Preset deleted.";
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
+  async function renameNodePreset(presetId: string, name: string) {
+    if (!name.trim()) return;
+    try {
+      await updateNodePreset(presetId, { name: name.trim() });
+      await refreshNodePresets();
+      status = "Preset renamed.";
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
+  async function duplicateNodePreset(presetId: string, name: string) {
+    const preset = nodePresets.find((item) => item.id === presetId);
+    if (!preset) return;
+    try {
+      await createNodePreset({
+        step_type: preset.step_type,
+        name: name.trim() || `${preset.name} copy`,
+        params: { ...preset.params }
+      });
+      await refreshNodePresets();
+      status = "Preset duplicated.";
     } catch (reason) {
       error = errorMessage(reason);
     }
@@ -2076,82 +2348,51 @@
         </p>
       </div>
       <div class="flex flex-wrap items-center justify-end gap-1.5 text-xs">
-        <button
-          type="button"
-          data-testid="recipe-add-step"
-          onclick={() => {
-            addOpen = !addOpen;
-            inspectorOpen = false;
-          }}
-          class="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1.5 font-medium text-sky-200 hover:bg-sky-500/20"
-        >
-          + Add step
-        </button>
-        <button
-          type="button"
-          onclick={() => void openBatchHistory()}
-          class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500"
-        >
-          Batch
-        </button>
-        <button
-          type="button"
-          data-testid="nle-validate"
-          onclick={() => void openNleValidation()}
-          disabled={nleBusy}
-          class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500 disabled:opacity-40"
-        >
-          {nleBusy ? "Validating…" : "Validate"}
-        </button>
-        <button
-          type="button"
-          data-testid="recipe-runs"
-          onclick={() => void openHistory()}
-          disabled={historyBusy}
-          class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500 disabled:opacity-40"
-        >
-          {historyBusy ? "Runs…" : "Runs"}
-        </button>
-        <button
-          type="button"
-          onclick={() => {
-            configOpen = true;
-            addOpen = false;
-          }}
-          class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500"
-        >
-          Config
-        </button>
-        <button
-          type="button"
+        <Button
+          icon="plus"
+          variant="primary"
+          size="md"
+          testid="recipe-add-step"
+          onclick={() => { addOpen = !addOpen; inspectorOpen = false; }}
+        >Add step</Button>
+        <Button
+          icon="play"
+          variant="primary"
+          size="md"
+          testid="recipe-run"
+          disabled={busy}
+          onclick={() => void execute()}
+        >{busy ? "Starting…" : "Run"}</Button>
+        <Button icon="save" variant="secondary" size="md" onclick={() => void save()} title="Save the recipe">Save</Button>
+        <Button icon="check" variant="secondary" size="md" onclick={() => void validate()} title="Validate the recipe graph">Validate</Button>
+        <Button
+          icon="panel"
+          variant={inspectorOpen ? "primary" : "secondary"}
+          size="md"
           onclick={toggleInspector}
-          aria-pressed={inspectorOpen}
-          class={`rounded-lg border px-2.5 py-1.5 ${
-            inspectorOpen
-              ? "border-sky-500/50 bg-sky-500/10 text-sky-200"
-              : "border-neutral-700 text-neutral-300 hover:border-sky-500"
-          }`}
-        >
-          Inspector
-        </button>
-        <button type="button" onclick={undo} disabled={!undoStack.length} class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500 disabled:opacity-40">Undo</button>
-        <button type="button" onclick={redo} disabled={!redoStack.length} class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500 disabled:opacity-40">Redo</button>
-        <button
-          type="button"
-          data-testid="recipe-reset-layout"
-          onclick={resetLayout}
-          class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500"
-        >
-          Auto layout
-        </button>
-        <button
-          type="button"
-          data-testid="recipe-json"
-          onclick={openRecipeJson}
-          class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500"
-        >
-          JSON
-        </button>
+          title={inspectorOpen ? "Close the inspector" : "Open the inspector"}
+        >Inspector</Button>
+        <IconButton icon="undo" label="Undo" disabled={!undoStack.length} onclick={undo} />
+        <IconButton icon="redo" label="Redo" disabled={!redoStack.length} onclick={redo} />
+        <Button icon="activity" variant="secondary" size="md" testid="recipe-runs" disabled={historyBusy} onclick={() => void openHistory()}>{historyBusy ? "Runs…" : "Runs"}</Button>
+        <IconButton icon="code" label="Recipe JSON" testid="recipe-json" onclick={openRecipeJson} />
+        <div class="relative">
+          <Button icon="more" variant="secondary" size="md" testid="recipe-more" onclick={() => (moreOpen = !moreOpen)}>More</Button>
+          {#if moreOpen}
+            <button type="button" class="fixed inset-0 z-40 cursor-default" aria-label="Close menu" onclick={() => (moreOpen = false)}></button>
+            <div class="absolute right-0 z-50 mt-1 w-56 overflow-hidden rounded-xl border border-neutral-700 bg-neutral-950 p-1 shadow-2xl" role="menu" data-testid="recipe-more-menu">
+              <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; void dryRun(); }}><Icon name="flask" size={13} />Dry run</button>
+              <button type="button" role="menuitem" data-testid="nle-validate" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" disabled={nleBusy} onclick={() => { moreOpen = false; void openNleValidation(); }}><Icon name="check" size={13} />{nleBusy ? "Validating…" : "Validate NLE exports"}</button>
+              <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; void openBatchHistory(); }}><Icon name="layers" size={13} />Batch history</button>
+              <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; configOpen = true; addOpen = false; }}><Icon name="settings" size={13} />Recipe config</button>
+              <div class="my-1 border-t border-neutral-800"></div>
+              <button type="button" role="menuitem" data-testid="recipe-reset-layout" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; resetLayout(); }}><Icon name="layout" size={13} />Auto layout</button>
+              <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; void saveAs(); }}><Icon name="duplicate" size={13} />Save as</button>
+              <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; downloadRecipe(); }}><Icon name="file" size={13} />Download</button>
+              <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; void openRecipeHistory(); }}><Icon name="clock" size={13} />Version history</button>
+            </div>
+          {/if}
+        </div>
         <button
           type="button"
           data-testid="recipe-library"
@@ -2159,44 +2400,19 @@
           class="flex max-w-[240px] items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-950 px-2.5 py-1.5 text-xs text-neutral-200 hover:border-sky-500"
           title="Open recipe library"
         >
+          <Icon name="folder" size={13} />
           <span class="truncate">{currentRecipe?.name ?? recipeName}</span>
-          <span class="text-neutral-500">▾</span>
+          <Icon name="chevron" size={11} class="text-neutral-500" />
         </button>
         {#if currentRecipe}
-          <button
-            type="button"
-            data-testid="recipe-favorite"
+          <IconButton
+            icon="star"
+            label={currentRecipe.favorite ? "Remove from favorites" : "Add to favorites"}
+            testid="recipe-favorite"
+            class={currentRecipe.favorite ? "text-amber-300" : "text-neutral-400"}
             onclick={() => void toggleFavorite(currentRecipe)}
-            class={currentRecipe.favorite ? "rounded-lg border border-amber-400/40 px-2 py-1.5 text-amber-300" : "rounded-lg border border-neutral-700 px-2 py-1.5 text-neutral-400 hover:border-amber-400/50 hover:text-amber-300"}
-            aria-label={currentRecipe.favorite ? "Remove from favorites" : "Add to favorites"}
-            title={currentRecipe.favorite ? "Remove from favorites" : "Add to favorites"}
-          >{currentRecipe.favorite ? "★" : "☆"}</button>
+          />
         {/if}
-        <button type="button" onclick={downloadRecipe} class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500">
-          Download
-        </button>
-        <button type="button" onclick={() => void save()} class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500">
-          Save
-        </button>
-        <button type="button" onclick={() => void saveAs()} class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500">
-          Save as
-        </button>
-        <button type="button" onclick={() => void openRecipeHistory()} class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500">
-          History
-        </button>
-        <button type="button" onclick={() => void validate()} class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500">
-          Validate
-        </button>
-        <button type="button" onclick={() => void dryRun()} disabled={busy} class="rounded-lg border border-neutral-700 px-3 py-1.5 text-neutral-300 disabled:opacity-40">Dry run</button>
-        <button
-          type="button"
-          data-testid="recipe-run"
-          onclick={() => void execute()}
-          disabled={busy}
-          class="rounded-lg bg-sky-500 px-3 py-1.5 font-medium text-neutral-950 hover:bg-sky-400 disabled:opacity-50"
-        >
-          {busy ? "Starting…" : "Run"}
-        </button>
       </div>
     </div>
 
@@ -2271,11 +2487,33 @@
             onmoveend={() => scheduleUiSave()}
             onnodeclick={({ node }) => selectNode(node.id)}
             onedgeclick={({ edge }) => openEdgeWiring(edge)}
+            onselectionchange={({ nodes: selectedNodes }) => {
+              selectedNodeIds = selectedNodes.map((node) => node.id);
+            }}
           >
             <Background gap={20} size={1} />
             <Controls />
             <MiniMap pannable zoomable />
           </SvelteFlow>
+          <div class="pointer-events-none absolute right-2 top-2 z-20 flex max-w-[calc(100%-1rem)] flex-wrap items-center justify-end gap-1 rounded-xl border border-neutral-800 bg-neutral-950/90 p-1 shadow-lg backdrop-blur">
+            <input
+              value={nodeQuery}
+              oninput={(event) => filterNodes(event.currentTarget.value)}
+              placeholder="Find node"
+              aria-label="Find node"
+              class="pointer-events-auto w-32 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-200 placeholder:text-neutral-600"
+            />
+            {#if selectedNodeIds.length > 1}
+              <span class="pointer-events-none px-1 text-[9px] text-sky-300">{selectedNodeIds.length} selected</span>
+              <IconButton icon="layout" label="Align horizontally" title="Align selected nodes to the left" onclick={() => alignSelected("x")} />
+              <IconButton icon="layout" label="Align vertically" title="Align selected nodes to the top" onclick={() => alignSelected("y")} />
+              <IconButton icon="duplicate" label="Duplicate selected" onclick={() => { for (const id of selectedNodeIds) duplicateNode(id); }} />
+              <IconButton icon="trash" label="Delete selected" variant="danger" onclick={removeSelectedNodes} />
+            {/if}
+            {#if copiedNodeIds.length}
+              <IconButton icon="duplicate" label="Paste copied nodes" title="Paste copied nodes" onclick={pasteNodes} />
+            {/if}
+          </div>
         </div>
 
         {#if addOpen}
@@ -2304,7 +2542,7 @@
                   title={step.description}
                 >
                   <span class="flex items-center gap-1.5">
-                    <span style={`color:${step.color ?? "#38bdf8"}`}>{step.icon ?? "●"}</span>
+                    <span style={`color:${step.color ?? "#38bdf8"}`}><Icon name={stepIcon(step.type)} size={13} /></span>
                     <span class="block">{step.title}</span>
                     {#if (step.status ?? "available") !== "available"}
                       <span class={`ml-auto rounded px-1 py-0.5 text-[8px] uppercase ${(step.status ?? "available") === "partial" ? "bg-amber-500/10 text-amber-300" : "bg-neutral-700/60 text-neutral-400"}`}>{step.status}</span>
@@ -2340,6 +2578,8 @@
               onupdatepreset={(presetId) => void updateNodePresetFromNode(inspected.id, presetId)}
               ondeletepreset={(presetId) => void removeNodePreset(presetId)}
               onfavoritepreset={(presetId, favorite) => void favoritePreset(presetId, favorite)}
+              onrenamepreset={(presetId, name) => void renameNodePreset(presetId, name)}
+              onduplicatepreset={(presetId, name) => void duplicateNodePreset(presetId, name)}
               onparaminput={(value) => updateParams(value)}
               onexpandjson={openStepJson}
               onrun={() => void runToHere(inspected.id)}
@@ -2547,6 +2787,9 @@
         <div class="flex items-center justify-between gap-2 border-t border-neutral-800 px-4 py-3">
           <p class="text-[10px] text-neutral-600">Only compatible port types are listed.</p>
           <div class="flex gap-1.5">
+            {#if nodes.some((node) => node.id === wiring?.source) && nodes.some((node) => node.id === wiring?.target)}
+              <button type="button" onclick={() => wiring && removeConnection(wiring.source, wiring.target)} class="rounded-lg border border-rose-500/30 px-2.5 py-1 text-[11px] text-rose-300 hover:bg-rose-500/10">Disconnect</button>
+            {/if}
             <button type="button" onclick={() => (wiring = null)} class="rounded-lg border border-neutral-700 px-2.5 py-1 text-[11px] text-neutral-300">Cancel</button>
             <button type="button" data-testid="wire-confirm" onclick={confirmWiring} disabled={!inputPorts.length || !chosenOutput || !inputPorts.some((port) => port.id === wiring?.targetPort && chosenOutput && portTypeCompatible(chosenOutput.type, port.type))} class="rounded-lg bg-sky-500 px-3 py-1 text-[11px] font-medium text-neutral-950 disabled:opacity-40">Connect</button>
           </div>
@@ -2617,6 +2860,24 @@
     </div>
   {/if}
 
+  {#if versionDiffOpen}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="presentation"
+      onclick={(event) => { if (event.currentTarget === event.target) versionDiffOpen = false; }}>
+      <div class="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="Version comparison">
+        <div class="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
+          <div><h3 class="text-sm font-semibold text-white">Version comparison</h3><p class="text-[10px] text-neutral-500">Selected version → current recipe</p></div>
+          <button type="button" onclick={() => (versionDiffOpen = false)} class="rounded px-2 text-neutral-500 hover:text-neutral-200" aria-label="Close comparison">×</button>
+        </div>
+        <div class="min-h-0 flex-1 overflow-y-auto p-3">
+          {#if versionDiffError}<p class="text-[10px] text-rose-300">{versionDiffError}</p>{/if}
+          <ul class="space-y-1 font-mono text-[10px] text-neutral-300">
+            {#each versionDiffLines as line}<li class="rounded bg-neutral-900/60 px-2 py-1">{line}</li>{/each}
+          </ul>
+        </div>
+      </div>
+    </div>
+  {/if}
+
   {#if recipeHistoryOpen}
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="presentation"
       onclick={(event) => { if (event.currentTarget === event.target) recipeHistoryOpen = false; }}>
@@ -2631,7 +2892,10 @@
           {#each recipeHistory as entry}
             <div class="mb-2 flex items-center justify-between gap-2 rounded-lg border border-neutral-800 bg-neutral-900/60 p-2">
               <div class="min-w-0"><p class="truncate text-xs text-neutral-200">{entry.name}</p><p class="text-[9px] text-neutral-500">{entry.version} · {entry.step_count} steps</p></div>
-              <button type="button" onclick={() => void restoreHistory(entry.version)} class="rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-300">Restore</button>
+              <div class="flex gap-1">
+                <button type="button" disabled={versionDiffBusy} onclick={() => void compareVersion(entry.version)} class="rounded border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300">Compare</button>
+                <button type="button" onclick={() => void restoreHistory(entry.version)} class="rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-300">Restore</button>
+              </div>
             </div>
           {/each}
         </div>

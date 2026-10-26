@@ -279,6 +279,8 @@ function controlFor(
 ): RecipeControl {
   if (meta.optionsSource) return "select";
   if (meta.control) return meta.control;
+  const schemaControl = resolved["x-control"];
+  if (typeof schemaControl === "string") return schemaControl as RecipeControl;
   if (kind === "boolean") return "switch";
   if (kind === "enum") {
     const count = Array.isArray(resolved.enum) ? resolved.enum.length : 0;
@@ -329,8 +331,8 @@ function buildField(
     label: meta.label ?? (typeof resolved.title === "string" ? resolved.title : humanize(key)),
     kind,
     control: controlFor(kind, resolved, minimum, maximum, itemOptions, meta),
-    group: meta.group ?? "Parameters",
-    unit: meta.unit ?? "",
+    group: meta.group ?? String(resolved["x-group"] ?? "Parameters"),
+    unit: meta.unit ?? String(resolved["x-unit"] ?? ""),
     options: enumValues,
     optionsSource: meta.optionsSource ?? "",
     itemOptions,
@@ -341,7 +343,11 @@ function buildField(
     required,
     format: typeof resolved.format === "string" ? resolved.format : "",
     pattern: typeof resolved.pattern === "string" ? resolved.pattern : "",
-    placeholder: meta.placeholder ?? (description || (kind === "path" ? "/path/to/file" : "")),
+    placeholder:
+      meta.placeholder ??
+      (typeof resolved["x-placeholder"] === "string"
+        ? resolved["x-placeholder"]
+        : description || (kind === "path" ? "/path/to/file" : "")),
     help: description,
     value: getPath(params, path) ?? defaultValue,
     defaultValue

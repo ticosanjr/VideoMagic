@@ -5,6 +5,8 @@
   import NodeConfigForm from "$lib/nodes/NodeConfigForm.svelte";
   import NodeMediaField from "$lib/nodes/NodeMediaField.svelte";
   import NodeOutputs from "$lib/nodes/NodeOutputs.svelte";
+  import Icon from "$lib/ui/Icon.svelte";
+  import { stepIcon } from "$lib/ui/icons";
   import { validateParams } from "$lib/recipeFields";
   import type { NodeOptions, NodePreset, StepPort } from "$lib/api";
 
@@ -26,6 +28,7 @@
       expanded?: boolean;
       pinned?: boolean;
       width?: number;
+      dimmed?: boolean;
       inputs?: Record<string, string>;
       inputPorts?: StepPort[];
       outputPorts?: StepPort[];
@@ -44,6 +47,8 @@
       onUpdatePreset?: (presetId: string) => void;
       onDeletePreset?: (presetId: string) => void;
       onFavoritePreset?: (presetId: string, favorite: boolean) => void;
+      onRenamePreset?: (presetId: string, name: string) => void;
+      onDuplicatePreset?: (presetId: string, name: string) => void;
       errors?: Record<string, string>;
       onSelect?: () => void;
       onToggle?: () => void;
@@ -96,7 +101,7 @@
 
 <div
   data-testid={`step-${data.type}`}
-  class={`relative rounded-2xl border text-left shadow-xl transition ${implementation === "planned" ? "border-dashed" : ""} ${
+  class={`relative rounded-2xl border text-left shadow-xl transition ${data.dimmed ? "opacity-25" : ""} ${implementation === "planned" ? "border-dashed" : ""} ${
     selected
       ? "border-sky-400/70 bg-sky-950/80 ring-2 ring-sky-400/20"
       : status === "failed"
@@ -116,7 +121,7 @@
     <div class="flex items-start justify-between gap-2">
       <div class="min-w-0">
         <div class="flex items-center gap-1.5">
-          <span class="text-sm" style={`color:${iconColor}`}>{data.icon ?? "●"}</span>
+          <span style={`color:${iconColor}`}><Icon name={stepIcon(data.type)} size={15} /></span>
           <p class="truncate text-xs font-semibold text-neutral-100">{data.title}</p>
           {#if data.description}<HelpTip label={data.title} body={data.description} />{/if}
           {#if implementation !== "available"}
@@ -205,6 +210,8 @@
           onupdatepreset={data.onUpdatePreset}
           ondeletepreset={data.onDeletePreset}
           onfavoritepreset={data.onFavoritePreset}
+          onrenamepreset={data.onRenamePreset}
+          onduplicatepreset={data.onDuplicatePreset}
         />
 
         <NodeOutputs

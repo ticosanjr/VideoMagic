@@ -231,6 +231,7 @@ from videoflow.engine.history import read_runs
 from videoflow.engine.maintenance import prune_output
 from videoflow.engine.recipes import (
     get_recipe,
+    get_recipe_version,
     list_recipe_history,
     list_recipes,
     resolve_recipe_paths,
@@ -1050,6 +1051,14 @@ def register_routes(
     @app.get("/api/v1/recipes/{recipe_id}/history")
     def recipe_history(recipe_id: str) -> dict[str, object]:
         return {"ok": True, "history": list_recipe_history(recipe_id)}
+
+    @app.get("/api/v1/recipes/{recipe_id}/history/{version}")
+    def recipe_history_version(recipe_id: str, version: str) -> dict[str, object]:
+        try:
+            recipe = get_recipe_version(recipe_id, version)
+        except VideoFlowError as exc:
+            fail(exc)
+        return {"ok": True, "recipe": recipe.model_dump(mode="json")}
 
     @app.post("/api/v1/recipes/{recipe_id}/history/{version}/restore")
     def restore_history(recipe_id: str, version: str) -> dict[str, object]:
