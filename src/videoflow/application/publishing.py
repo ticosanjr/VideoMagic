@@ -149,6 +149,7 @@ def dispatch_due(
         if target is None or not target.enabled:
             item.status = "failed"
             item.last_error = "target missing or disabled"
+            sent.append(item.model_dump(mode="json"))
             continue
         try:
             ensure_external_allowed(
@@ -247,10 +248,20 @@ def _read_list(path: Path, model: type[PublishTarget] | type[PublishQueueItem]) 
         return []
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-        items = payload.get("items", [])
-        return [model.model_validate(item) for item in items]
     except (OSError, ValueError):
         return []
+    if not isinstance(payload, dict):
+        return []
+    raw = payload.get("items", [])
+    if not isinstance(raw, list):
+        return []
+    items: list[Any] = []
+    for item in raw:
+        try:
+            items.append(model.model_validate(item))
+        except ValueError:
+            continue
+    return items
 
 
 def _write_targets(items: list[PublishTarget]) -> None:
