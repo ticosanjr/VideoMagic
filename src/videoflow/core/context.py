@@ -51,6 +51,12 @@ class PipelineContext(BaseModel):
     port_hashes: dict[str, dict[str, str]] = Field(
         default_factory=dict, exclude=True, repr=False
     )
+    node_output: Path | None = Field(default=None, exclude=True, repr=False)
+
+    def artifact_root(self) -> Path:
+        """Folder for artifacts from the current node."""
+
+        return self.node_output or self.output
 
     def duration_samples(self) -> int:
         if self.media is None:

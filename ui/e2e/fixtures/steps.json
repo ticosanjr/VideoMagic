@@ -195,6 +195,59 @@
           "type": "artifact_map"
         }
       ]
+    },
+    {
+      "type": "export.nle",
+      "title": "Export timelines",
+      "description": "Write NLE timelines",
+      "requires": [
+        "edit.timeline"
+      ],
+      "produces": [
+        "nle_artifacts"
+      ],
+      "params_schema": {
+        "properties": {
+          "targets": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "mp4",
+                "resolve",
+                "premiere",
+                "kdenlive"
+              ]
+            },
+            "default": [
+              "mp4"
+            ]
+          },
+          "subdir": {
+            "type": "string",
+            "default": "exports"
+          }
+        }
+      },
+      "status": "available",
+      "icon": "\u2197",
+      "color": "#38bdf8",
+      "bypass": false,
+      "inputs": [
+        {
+          "id": "timeline",
+          "label": "Timeline state",
+          "type": "timeline",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "id": "artifacts",
+          "label": "NLE artifacts",
+          "type": "artifact_map"
+        }
+      ]
     }
   ]
 }

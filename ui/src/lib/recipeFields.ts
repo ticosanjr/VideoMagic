@@ -319,6 +319,7 @@ export function fieldGroups(
   const groups: RecipeFieldGroup[] = [];
   const rootGroups = new Map<string, RecipeFieldGroup>();
   for (const [key, raw] of Object.entries(properties)) {
+    if (stepType === "ingest" && key === "source") continue;
     const resolved = resolve(raw, root);
     if (resolved.type === "object") {
       const nestedProperties = (resolved.properties ?? {}) as Record<string, Schema>;

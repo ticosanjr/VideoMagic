@@ -158,8 +158,8 @@ test("shows typed ports and the wired edge label", async ({ page }) => {
     .getByTestId("step-edit.timeline")
     .getByText("Build timeline")
     .click();
-  await expect(page.getByTestId("ports-edit.timeline")).toContainText("Speech spans");
-  await expect(page.getByTestId("ports-edit.timeline")).toContainText("Timeline state");
+  await expect(page.getByTestId("inputs-edit.timeline")).toContainText("Speech spans");
+  await expect(page.getByTestId("outputs-edit.timeline")).toContainText("Timeline state");
 });
 
 test("uses sliders, presets, and cut-mode controls inside the node", async ({ page }) => {
@@ -204,4 +204,28 @@ test("rewires an input from the inspector without dragging", async ({ page }) =>
   await expect(page.getByText("speech → speech")).toHaveCount(0);
   await input.selectOption("vad.speech");
   await expect(page.getByText("speech → speech")).toBeVisible();
+});
+
+test("chooses media and a file output folder inside nodes", async ({ page }) => {
+  await page.getByTestId("step-ingest").getByText("Ingest media").click();
+  const media = page
+    .getByTestId("step-ingest")
+    .getByPlaceholder("/media/source.mp4");
+  await media.fill("/tmp/source.mp4");
+  await page.getByTestId("recipe-json").click();
+  const recipe = await page.getByTestId("recipe-json-text").inputValue();
+  expect(recipe).toContain('"source": "/tmp/source.mp4"');
+  await page.getByLabel("Close JSON editor").click();
+
+  await page.getByTestId("recipe-add-step").click();
+  await page.getByTestId("add-export.nle").click();
+  await page.getByLabel("Close inspector").click();
+  const output = page.getByTestId("step-export.nle");
+  await output.getByTestId("output-mode").selectOption("folder");
+  await expect(output.getByTestId("output-mode")).toHaveValue("folder");
+  await output.getByTestId("output-dir").fill("/tmp/final-cut");
+  await page.getByTestId("recipe-json").click();
+  const full = await page.getByTestId("recipe-json-text").inputValue();
+  expect(full).toContain('"output_mode": "folder"');
+  expect(full).toContain('"output_dir": "/tmp/final-cut"');
 });

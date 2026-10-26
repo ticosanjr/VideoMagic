@@ -28,6 +28,14 @@
       inputs?: Record<string, string>;
       inputPorts?: StepPort[];
       outputPorts?: StepPort[];
+      mediaOverride?: string;
+      outputMode?: "pipeline" | "folder";
+      outputDir?: string;
+      onStepPatch?: (
+        key: "media_override" | "output_mode" | "output_dir",
+        value: unknown
+      ) => void;
+      onPickStepPath?: (key: "media_override" | "output_dir") => void;
       errors?: Record<string, string>;
       onSelect?: () => void;
       onToggle?: () => void;
@@ -50,6 +58,31 @@
     fieldGroups(data.schema ?? {}, data.params ?? {}, data.type)
   );
   const presets = $derived(nodePresets(data.type));
+  const isMediaNode = $derived(
+    data.type === "ingest" ||
+      (data.inputPorts ?? []).some((port) => port.id === "media")
+  );
+  const hasFileOutputs = $derived(
+    (data.outputPorts ?? []).some(
+      (port) => port.type === "artifact_map" || port.type === "nle_artifacts"
+    )
+  );
+  const mediaValue = $derived(
+    data.type === "ingest"
+      ? String((data.params ?? {}).source ?? "")
+      : data.mediaOverride ?? ""
+  );
+  const wiredMedia = $derived(Object.keys(data.inputs ?? {}).includes("media"));
+
+  function patchMedia(value: string) {
+    if (data.type === "ingest") data.onPatch?.(["source"], value);
+    else data.onStepPatch?.("media_override", value);
+  }
+
+  function pickMedia() {
+    if (data.type === "ingest") data.onPickPath?.(["source"]);
+    else data.onPickStepPath?.("media_override");
+  }
   let jsonDrafts = $state<Record<string, string>>({});
   let jsonErrors = $state<Record<string, string>>({});
   const status = $derived(data.status ?? "idle");
@@ -170,27 +203,40 @@
         {#if implementation === "planned"}
           <p class="rounded border border-dashed border-neutral-700 bg-neutral-950/60 p-2 text-[10px] text-neutral-400">Not implemented in this build. The recipe runner will bypass this node.</p>
         {/if}
-        {#if data.inputPorts?.length || data.outputPorts?.length}
-          <div class="rounded-lg border border-sky-500/15 bg-sky-950/10 p-2" data-testid={`ports-${data.type}`}>
-            <p class="text-[9px] uppercase tracking-wide text-sky-300/80">Data ports</p>
+        {#if (data.inputPorts?.length || isMediaNode)}
+          <div class="rounded-lg border border-sky-500/15 bg-sky-950/10 p-2" data-testid={`inputs-${data.type}`}>
+            <p class="text-[9px] uppercase tracking-wide text-sky-300/80">Inputs</p>
             {#if data.inputPorts?.length}
               <div class="mt-1 flex flex-wrap gap-1">
                 {#each data.inputPorts as port}
                   {@const wired = Object.entries(data.inputs ?? {}).find(([key]) => key === port.id)?.[1]}
                   <span class={`rounded border px-1.5 py-0.5 text-[9px] ${wired ? "border-emerald-400/30 text-emerald-200" : "border-neutral-700 text-neutral-500"}`} title={wired ? `from ${wired}` : "Not wired"}>
-                    in · {port.label}{port.required ? " *" : ""}
+                    {port.label}{port.required ? " *" : ""}
                   </span>
                 {/each}
               </div>
             {/if}
-            {#if data.outputPorts?.length}
-              <div class="mt-1 flex flex-wrap gap-1">
-                {#each data.outputPorts as port}
-                  <span class="rounded border border-sky-400/25 px-1.5 py-0.5 text-[9px] text-sky-200" title={port.type}>out · {port.label}</span>
-                {/each}
+            {#if isMediaNode}
+              <div class="mt-2">
+                <p class="text-[9px] text-neutral-500">
+                  {wiredMedia ? "Media comes from the wired input" : "Choose the media for this node"}
+                </p>
+                <span class="mt-1 flex gap-1">
+                  <input
+                    type="text"
+                    value={mediaValue}
+                    placeholder="/media/source.mp4"
+                    oninput={(event) => patchMedia(event.currentTarget.value)}
+                    class="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100"
+                  />
+                  <button type="button" onclick={(event) => { event.preventDefault(); pickMedia(); }} class="rounded border border-neutral-700 px-1.5 text-[10px] text-neutral-300 hover:border-sky-500">…</button>
+                </span>
               </div>
             {/if}
           </div>
+        {/if}
+        {#if presets.length || groups.length}
+          <p class="text-[9px] uppercase tracking-wide text-neutral-500">Config</p>
         {/if}
         {#if presets.length}
           <div class="flex flex-wrap items-center gap-1">
@@ -362,6 +408,46 @@
           </div>
         {/each}
 
+        {#if data.outputPorts?.length || hasFileOutputs}
+          <div class="rounded-lg border border-emerald-500/15 bg-emerald-950/10 p-2" data-testid={`outputs-${data.type}`}>
+            <p class="text-[9px] uppercase tracking-wide text-emerald-300/80">Outputs</p>
+            {#if data.outputPorts?.length}
+              <div class="mt-1 flex flex-wrap gap-1">
+                {#each data.outputPorts as port}
+                  <span class="rounded border border-emerald-400/25 px-1.5 py-0.5 text-[9px] text-emerald-200" title={port.type}>{port.label}</span>
+                {/each}
+              </div>
+            {/if}
+            {#if hasFileOutputs}
+              <div class="mt-2">
+                <p class="text-[9px] text-neutral-500">Destination</p>
+                <select
+                  aria-label="Destination"
+                  data-testid="output-mode"
+                  value={data.outputMode ?? "pipeline"}
+                  onchange={(event) => data.onStepPatch?.("output_mode", event.currentTarget.value)}
+                  class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100"
+                >
+                  <option value="pipeline">Pass to the next node</option>
+                  <option value="folder">Save a copy to a folder</option>
+                </select>
+                {#if data.outputMode === "folder"}
+                  <span class="mt-1 flex gap-1">
+                    <input
+                      type="text"
+                      data-testid="output-dir"
+                      value={data.outputDir ?? ""}
+                      placeholder="/media/final"
+                      oninput={(event) => data.onStepPatch?.("output_dir", event.currentTarget.value)}
+                      class="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100"
+                    />
+                    <button type="button" onclick={(event) => { event.preventDefault(); data.onPickStepPath?.("output_dir"); }} class="rounded border border-neutral-700 px-1.5 text-[10px] text-neutral-300 hover:border-emerald-500">…</button>
+                  </span>
+                {/if}
+              </div>
+            {/if}
+          </div>
+        {/if}
         <div class="flex flex-wrap gap-1 pt-1">
           <button type="button" onclick={(event) => { event.stopPropagation(); data.onRun?.(); }} class="rounded border border-sky-500/40 px-1.5 py-0.5 text-[9px] text-sky-300 hover:bg-sky-500/10">Run to here</button>
           <button type="button" onclick={(event) => { event.stopPropagation(); data.onOpenJson?.(); }} class="rounded border border-neutral-700 px-1.5 py-0.5 text-[9px] text-neutral-300 hover:border-sky-500">JSON</button>

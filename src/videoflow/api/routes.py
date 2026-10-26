@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from videoflow import __version__
 from videoflow.adapters.ffmpeg import FFmpegAdapter
-from videoflow.application import recipe_meta
+from videoflow.application import recipe_meta, voice_clone
 from videoflow.application.assets import (
     get_asset,
     list_assets,
@@ -1229,6 +1229,51 @@ def register_routes(
             fail(exc)
             raise
         return {"ok": True, "provider": payload, "fallbacks": fallback_manifest()}
+
+    @app.get("/api/v1/voice-clone/status")
+    def voice_clone_status() -> dict[str, object]:
+        return voice_clone.status()
+
+    @app.get("/api/v1/voice-clone/profiles")
+    def voice_clone_profiles() -> dict[str, object]:
+        return {
+            "ok": True,
+            "profiles": [
+                profile.model_dump(mode="json")
+                for profile in voice_clone.list_profiles()
+            ],
+        }
+
+    @app.post("/api/v1/voice-clone/profiles", status_code=201)
+    def voice_clone_create(
+        request: voice_clone.VoiceProfileRequest,
+    ) -> dict[str, object]:
+        try:
+            profile = voice_clone.create_profile(request)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "profile": profile.model_dump(mode="json")}
+
+    @app.delete("/api/v1/voice-clone/profiles/{profile_id}")
+    def voice_clone_delete(profile_id: str) -> dict[str, object]:
+        try:
+            voice_clone.delete_profile(profile_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "deleted": profile_id}
+
+    @app.post("/api/v1/voice-clone/synthesize")
+    def voice_clone_synthesize(
+        request: voice_clone.VoiceSynthesizeRequest,
+    ) -> dict[str, object]:
+        try:
+            voice_clone.synthesize(request)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True}
 
     @app.get("/api/v1/providers/resolve")
     def providers_resolve(capability: str = "llm") -> dict[str, object]:

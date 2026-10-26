@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.adapters.llm import OpenAICompatibleLlm
 from videoflow.core.context import PipelineContext
 from videoflow.core.recipe import Recipe, RecipeStep
 from videoflow.domain.errors import RecipeError, StepExecutionError, VideoFlowError
+from videoflow.domain.paths import resolve_allowed
 from videoflow.engine.checkpoint import (
     CHECKPOINT_VERSION,
     read_json,
@@ -23,6 +26,7 @@ from videoflow.engine.checkpoint import (
     write_json,
 )
 from videoflow.exporters.common import write_text
+from videoflow.runtime import allowed_roots
 from videoflow.steps import get_step, requirements_by_type, step_types
 from videoflow.steps.base import StepIO
 from videoflow.steps.cache import cache_key
@@ -100,6 +104,77 @@ class RecipeRunner:
         self.llm_client = llm_client
         self.asr_client = asr_client
 
+    def _ensure_media_override(self, context: PipelineContext, recipe_step: RecipeStep) -> None:
+        value = recipe_step.media_override.strip()
+        if recipe_step.type == "ingest" or not value or recipe_step.inputs.get("media"):
+            return
+        path = resolve_allowed(Path(value), allowed_roots())
+        if not path.is_file():
+            raise RecipeError(f"{recipe_step.id}: media override is not a file: {path}")
+        if context.media is not None and Path(context.media.source_path) == path:
+            return
+        adapter = self.adapter or FFmpegAdapter()
+        media = adapter.probe(path)
+        context.source = path
+        context.media = media
+        context.metadata["media_override"] = str(path)
+        if context.pcm_path is None:
+            context.work.mkdir(parents=True, exist_ok=True)
+            wav = adapter.extract_pcm(
+                path,
+                context.work / "source.wav",
+                sample_rate=media.audio_sample_rate,
+            )
+            context.pcm_path = Path(wav)
+            context.pcm_digest = adapter.pcm_digest(wav)
+
+    def _copy_node_outputs(
+        self,
+        context: PipelineContext,
+        recipe_step: RecipeStep,
+        step: Any,
+        before: dict[str, str],
+    ) -> None:
+        if recipe_step.output_mode != "folder":
+            return
+        if not recipe_step.output_dir.strip():
+            raise RecipeError(f"{recipe_step.id}: output folder is required")
+        directory = resolve_allowed(Path(recipe_step.output_dir), allowed_roots())
+        directory.mkdir(parents=True, exist_ok=True)
+        if not directory.is_dir():
+            raise RecipeError(f"{recipe_step.id}: output folder is not a directory")
+        candidates: list[Path] = []
+        seen: set[Path] = set()
+        for key, value in context.artifacts.items():
+            if before.get(key) == value:
+                continue
+            path = Path(value).expanduser()
+            if path.is_file() and path.resolve() not in seen:
+                seen.add(path.resolve())
+                candidates.append(path)
+        for value in step.cache_outputs(context):
+            path = Path(value)
+            if path.is_file() and path.resolve() not in seen:
+                seen.add(path.resolve())
+                candidates.append(path)
+        copied: list[str] = []
+        for path in candidates:
+            if not path.is_file():
+                continue
+            try:
+                relative = path.resolve().relative_to(context.output.resolve())
+            except ValueError:
+                relative = Path(recipe_step.id) / path.name
+            target = directory / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, target)
+            context.artifacts[f"{recipe_step.id}:{relative.as_posix()}"] = str(target)
+            copied.append(str(target))
+        if copied:
+            context.metadata.setdefault("node_outputs", {})[
+                recipe_step.id
+            ] = copied
+
     def run(
         self,
         source: Path,
@@ -163,6 +238,11 @@ class RecipeRunner:
                         for dependency in recipe_step.needs
                     },
                     "inputs": input_fingerprint(context, recipe_step.inputs),
+                    "media_override": recipe_step.media_override,
+                    "output": {
+                        "mode": recipe_step.output_mode,
+                        "dir": recipe_step.output_dir,
+                    },
                 }
             )
             io = StepIO(
@@ -230,6 +310,7 @@ class RecipeRunner:
                             f"Reusing {step.title}",
                         )
                         telemetry.finish(recipe_step.id, "Checkpoint reused")
+                    self._copy_node_outputs(context, recipe_step, step, {})
                     capture_outputs(context, step, recipe_step.id)
                     io.report(100, "Cached checkpoint reused")
                     continue
@@ -245,8 +326,10 @@ class RecipeRunner:
             io.check_cancel()
             step_started = time.perf_counter()
             context.metadata.setdefault("step_progress", {})[recipe_step.id] = 0
+            self._ensure_media_override(context, recipe_step)
             if recipe_step.inputs:
                 apply_inputs(context, step, recipe_step.inputs)
+            before_artifacts = dict(context.artifacts)
             try:
                 step.run(context, params, io)
             except Exception as exc:
@@ -257,6 +340,7 @@ class RecipeRunner:
                     raise
                 raise StepExecutionError(recipe_step.id, str(exc)) from exc
             elapsed_ms = int((time.perf_counter() - step_started) * 1000)
+            self._copy_node_outputs(context, recipe_step, step, before_artifacts)
             capture_outputs(context, step, recipe_step.id)
             context.metadata.setdefault("step_progress", {})[recipe_step.id] = 100
             if step_progress is not None:

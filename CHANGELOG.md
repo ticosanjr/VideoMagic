@@ -3,6 +3,28 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.18.0] - 2026-10-26
+
+### Added
+
+- **Node-native media input.** `ingest` owns a media picker; any node with a
+  `media` input can choose a file when the port is unwired.
+- **Node output destinations.** File-producing nodes can pass artifacts to the
+  next node or save a copy to a chosen folder, validated against allowed roots.
+- **Inputs / Config / Outputs node layout.** Ports, presets/schema fields, and
+  destination policy are visually separated and color-coded.
+- **Voice clone shell.** Provider contract, consent metadata, status/profiles
+  API, and an AI providers UI card; synthesis returns `not_implemented`.
+- **Recipe tags UI.** Tags are editable in the recipe library.
+- **Kdenlive-only NLE plan.** Resolve and Premiere removed from installation/QA;
+  Kdenlive Flatpak 26.08.2 is the manual target.
+
+### Changed
+
+- `RecipeStep` gained `media_override`, `output_mode`, and `output_dir`.
+- Recipe validation and the runner enforce node-level media/output paths.
+- Output folders copy the node's artifacts while preserving pipeline refs.
+
 ## [2.17.1] - 2026-10-25
 
 ### Added

@@ -168,3 +168,30 @@ def test_runner_feeds_two_branches_from_two_vads(monkeypatch, tmp_path: Path) ->
     assert result.context.metadata["seen_timeline_b"] == [(300, 1300)]
     assert result.context.port_outputs["vad_a"]["speech"] == [(100, 1100)]
     assert result.context.port_outputs["vad_b"]["speech"] == [(300, 1300)]
+
+
+def test_node_paths_are_validated_against_allowed_roots(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
+    good = {
+        "schema_version": 1,
+        "id": "paths",
+        "name": "Paths",
+        "steps": [
+            {
+                "id": "ingest",
+                "type": "ingest",
+                "params": {},
+                "media_override": str(tmp_path / "source.mp4"),
+                "output_mode": "folder",
+                "output_dir": str(tmp_path / "out"),
+            }
+        ],
+    }
+    (tmp_path / "source.mp4").write_bytes(b"x")
+    _validate(good)
+    bad = {
+        **good,
+        "steps": [{**good["steps"][0], "media_override": "/etc/passwd"}],
+    }
+    with pytest.raises(RecipeError):
+        _validate(bad)

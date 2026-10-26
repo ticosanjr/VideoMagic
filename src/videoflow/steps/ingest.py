@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import MediaNotFoundError
+from videoflow.domain.paths import resolve_allowed
+from videoflow.runtime import allowed_roots
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import adapter_for
 from videoflow.steps.registry import register_step
@@ -16,6 +18,7 @@ from videoflow.steps.registry import register_step
 class IngestParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    source: str = Field(default="", max_length=2000)
     extract_pcm: bool = True
 
 
@@ -30,7 +33,12 @@ class IngestStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = IngestParams.model_validate(params)
-        source = Path(context.source).expanduser()
+        source = (
+            resolve_allowed(Path(options.source), allowed_roots())
+            if options.source.strip()
+            else Path(context.source).expanduser()
+        )
+        context.source = source
         if not source.is_file():
             raise MediaNotFoundError(str(source))
         context.work.mkdir(parents=True, exist_ok=True)

@@ -101,21 +101,20 @@ Resolve, Premiere, and Kdenlive are not installed.
 
 ## Manual sign-off (3.0 gate)
 
-Status: **pending**. Resolve, Premiere, and Kdenlive are not installed on the
-release machine, and `melt` is absent. Automated structure validation is green,
-but the plan requires a human import pass.
+Status: **pending**. Kdenlive 26.08.2 is installed via Flatpak
+(`org.kde.kdenlive`); Resolve and Premiere are not part of the QA plan. `melt`
+is absent, so the optional MLT CLI smoke is skipped. Automated structure
+validation is green, but a human Kdenlive import pass is still required.
 
-For each NLE, record:
+Record:
 
 | NLE | Version | Job id | Export folder | Titles | Colour | Audio | B-roll | Chapters | Transitions | Clicks | Result |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DaVinci Resolve | | | | | | | | | | | pending |
-| Adobe Premiere | | | | | | | | | | | pending |
-| Kdenlive | | | | | | | | | | | pending |
+| Kdenlive | 26.08.2 | | | | | | | | | | pending |
 
 Sign-off block:
 
 - Reviewer:
 - Date:
-- Build: `releases/v2.17.1/videoflow-2.17.1-linux-x86_64`
+- Build: `releases/v2.18.0/videoflow-2.18.0-linux-x86_64`
 - P0/P1 found: none / list

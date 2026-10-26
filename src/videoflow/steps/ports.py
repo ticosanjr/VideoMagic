@@ -5,9 +5,10 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+from pathlib import Path
 from typing import Any
 
-from videoflow.domain.errors import RecipeError
+from videoflow.domain.errors import RecipeError, VideoFlowError
 from videoflow.steps.base import PortSpec
 
 _ARTIFACTS = "artifacts"
@@ -256,6 +257,24 @@ def validate_recipe_ports(recipe: Any) -> None:
                     f"{step.id}.{input_id}: type mismatch "
                     f"{output_port.type} -> {port.type}"
                 )
+    from videoflow.domain.paths import resolve_allowed
+    from videoflow.runtime import allowed_roots
+
+    for step in recipe.steps:
+        try:
+            if step.media_override.strip():
+                media = resolve_allowed(Path(step.media_override), allowed_roots())
+                if not media.is_file():
+                    raise RecipeError(
+                        f"{step.id}: media override is not a file: {media}"
+                    )
+            if step.output_mode == "folder":
+                if not step.output_dir.strip():
+                    raise RecipeError(f"{step.id}: output folder is required")
+                resolve_allowed(Path(step.output_dir), allowed_roots())
+        except VideoFlowError as exc:
+            raise RecipeError(f"{step.id}: {exc}") from exc
+
     # Required ports may remain implicit for legacy recipes. Explicit wiring must
     # supply every required input it declares.
     for step in recipe.steps:

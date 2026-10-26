@@ -40,6 +40,7 @@
     restoreRecipeVersion,
     saveRecipe,
     setRecipeFavorite,
+    updateRecipeTags,
     validateExports,
     validateRecipe,
     type Batch,
@@ -82,6 +83,9 @@
     inputs?: Record<string, string>;
     inputPorts?: StepPort[];
     outputPorts?: StepPort[];
+    mediaOverride?: string;
+    outputMode?: "pipeline" | "folder";
+    outputDir?: string;
     expanded?: boolean;
     pinned?: boolean;
     width?: number;
@@ -115,7 +119,11 @@
   let undoStack = $state<Recipe[]>([]);
   let redoStack = $state<Recipe[]>([]);
   let uiSaveTimer: ReturnType<typeof setTimeout> | undefined;
-  let nodePathTarget = $state<{ nodeId: string; path: string[] } | null>(null);
+  let nodePathTarget = $state<{
+    nodeId: string;
+    path: string[];
+    scope?: "params" | "step";
+  } | null>(null);
   let nodePathMode = $state<"file" | "directory">("file");
   let llm = $state<Recipe["llm"]>({
     provider: "none",
@@ -392,6 +400,11 @@
           inputs: step.inputs ?? {},
           inputPorts: manifest?.inputs ?? [],
           outputPorts: manifest?.outputs ?? [],
+          mediaOverride: step.media_override ?? "",
+          outputMode: step.output_mode ?? "pipeline",
+          outputDir: step.output_dir ?? "",
+          onStepPatch: (key: "media_override" | "output_mode" | "output_dir", value: unknown) => patchStepField(step.id, key, value),
+          onPickStepPath: (key: "media_override" | "output_dir") => openStepPathPicker(step.id, key),
           implementation: manifest?.status ?? "available",
           icon: manifest?.icon ?? "●",
           color: manifest?.color ?? "#38bdf8",
@@ -492,6 +505,9 @@
           type: data.type,
           needs: [...sources],
           inputs,
+          media_override: data.mediaOverride ?? "",
+          output_mode: data.outputMode ?? "pipeline",
+          output_dir: data.outputDir ?? "",
           enabled: true,
           params: data.params ?? {}
         };
@@ -523,6 +539,11 @@
           inputs: {},
           inputPorts: manifest.inputs ?? [],
           outputPorts: manifest.outputs ?? [],
+          mediaOverride: "",
+          outputMode: "pipeline",
+          outputDir: "",
+          onStepPatch: (key: "media_override" | "output_mode" | "output_dir", value: unknown) => patchStepField(id, key, value),
+          onPickStepPath: (key: "media_override" | "output_dir") => openStepPathPicker(id, key),
           implementation: manifest.status ?? "available",
           icon: manifest.icon ?? "●",
           color: manifest.color ?? "#38bdf8",
@@ -1152,7 +1173,35 @@
     }
   }
 
+  function patchStepField(
+    id: string,
+    key: "media_override" | "output_mode" | "output_dir",
+    value: unknown
+  ) {
+    const field =
+      key === "media_override"
+        ? "mediaOverride"
+        : key === "output_mode"
+          ? "outputMode"
+          : "outputDir";
+    nodes = nodes.map((node) =>
+      node.id === id
+        ? { ...node, data: { ...nodeData(node), [field]: value } }
+        : node
+    );
+  }
+
+  function openStepPathPicker(
+    nodeId: string,
+    key: "media_override" | "output_dir"
+  ) {
+    nodePathTarget = { nodeId, path: [key], scope: "step" };
+    nodePathMode = key === "output_dir" ? "directory" : "file";
+    picker = "node-path";
+  }
+
   function openNodePathPicker(nodeId: string, path: string[]) {
+    nodePathTarget = { nodeId, path, scope: "params" };
     nodePathTarget = { nodeId, path };
     nodePathMode = /dir|directory|asset_dir/i.test(path[path.length - 1] ?? "") ? "directory" : "file";
     picker = "node-path";
@@ -1499,6 +1548,20 @@
     }
   }
 
+  async function saveTags(recipe: RecipeSummary, value: string) {
+    const tags = value
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+    try {
+      await updateRecipeTags(recipe.id, tags);
+      await refreshRecipes();
+      status = `${recipe.name} tags updated.`;
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
   async function toggleFavorite(recipe: RecipeSummary) {
     try {
       await setRecipeFavorite(recipe.id, !recipe.favorite);
@@ -1715,7 +1778,15 @@
     if (picker === "broll") patchParams({ asset_dir: path });
     if (picker === "second-source") patchParams({ second_source_path: path });
     if (picker === "node-path" && nodePathTarget) {
-      patchNodeParams(nodePathTarget.nodeId, nodePathTarget.path, path);
+      if (nodePathTarget.scope === "step") {
+        patchStepField(
+          nodePathTarget.nodeId,
+          nodePathTarget.path[0] as "media_override" | "output_dir",
+          path
+        );
+      } else {
+        patchNodeParams(nodePathTarget.nodeId, nodePathTarget.path, path);
+      }
       nodePathTarget = null;
     }
     picker = null;
@@ -1904,6 +1975,7 @@
         </button>
         <button
           type="button"
+          data-testid="recipe-json"
           onclick={openRecipeJson}
           class="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-neutral-300 hover:border-sky-500"
         >
@@ -2579,6 +2651,13 @@
                     <p class="truncate text-xs font-medium text-neutral-100">{recipe.name}</p>
                     <p class="mt-1 line-clamp-2 text-[10px] leading-4 text-neutral-500">{recipe.description || "No description"}</p>
                     <p class="mt-2 truncate font-mono text-[9px] text-neutral-600">{recipe.id} · {recipe.source}{recipe.last_used_at ? ` · used ${recipe.use_count}×` : ""}</p>
+                    <input
+                      value={recipe.tags?.join(", ") ?? ""}
+                      placeholder="tags"
+                      onclick={(event) => event.stopPropagation()}
+                      onchange={(event) => void saveTags(recipe, event.currentTarget.value)}
+                      class="mt-1 w-full rounded border border-neutral-800 bg-neutral-950 px-1.5 py-0.5 text-[9px] text-neutral-300"
+                    />
                     {#if recipe.tags?.length}
                       <p class="mt-1 flex flex-wrap gap-1">{#each recipe.tags as tag}<span class="rounded bg-white/5 px-1.5 py-0.5 text-[9px] text-neutral-400">{tag}</span>{/each}</p>
                     {/if}
@@ -2969,6 +3048,7 @@
         <div class="flex min-h-0 flex-1 flex-col p-3">
           {#if jsonModal === "recipe"}
             <textarea
+              data-testid="recipe-json-text"
               bind:value={recipeJsonText}
               spellcheck="false"
               class="min-h-0 flex-1 resize-none rounded-xl border border-neutral-700 bg-neutral-950 p-3 font-mono text-xs leading-5 text-neutral-200"

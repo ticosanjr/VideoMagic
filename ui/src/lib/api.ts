@@ -407,6 +407,9 @@ export interface RecipeStep {
   type: string;
   needs: string[];
   inputs?: Record<string, string>;
+  media_override?: string;
+  output_mode?: "pipeline" | "folder";
+  output_dir?: string;
   enabled: boolean;
   params: Record<string, unknown>;
 }
@@ -2694,4 +2697,54 @@ export async function prefetchJobFrames(
   return request<FrameBatch>(
     `/api/v1/jobs/${encodeURIComponent(jobId)}/frames?${params.toString()}`
   );
+}
+
+
+export interface VoiceCloneStatus {
+  ok: boolean;
+  available: boolean;
+  provider: string;
+  providers: string[];
+  consent_required: boolean;
+  reason: string;
+  profiles: number;
+}
+
+export interface VoiceProfile {
+  id: string;
+  name: string;
+  provider: string;
+  consent_ref: string;
+  sample_count: number;
+  created_at: string;
+  metadata: Record<string, string>;
+}
+
+export async function getVoiceCloneStatus(): Promise<VoiceCloneStatus> {
+  return request<VoiceCloneStatus>("/api/v1/voice-clone/status");
+}
+
+export async function listVoiceProfiles(): Promise<VoiceProfile[]> {
+  const response = await request<{ ok: boolean; profiles: VoiceProfile[] }>(
+    "/api/v1/voice-clone/profiles"
+  );
+  return response.profiles;
+}
+
+export async function createVoiceProfile(payload: {
+  name: string;
+  consent_ref: string;
+  sample_count: number;
+}): Promise<VoiceProfile> {
+  const response = await request<{ ok: boolean; profile: VoiceProfile }>(
+    "/api/v1/voice-clone/profiles",
+    { method: "POST", body: JSON.stringify(payload) }
+  );
+  return response.profile;
+}
+
+export async function deleteVoiceProfile(profileId: string): Promise<void> {
+  await request(`/api/v1/voice-clone/profiles/${encodeURIComponent(profileId)}`, {
+    method: "DELETE"
+  });
 }

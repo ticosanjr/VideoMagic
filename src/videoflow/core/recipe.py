@@ -64,6 +64,9 @@ class RecipeStep(StrictModel):
     type: str = Field(min_length=1)
     needs: list[str] = Field(default_factory=list)
     inputs: dict[str, str] = Field(default_factory=dict)
+    media_override: str = ""
+    output_mode: Literal["pipeline", "folder"] = "pipeline"
+    output_dir: str = ""
     enabled: bool = True
     params: dict[str, Any] = Field(default_factory=dict)
 
