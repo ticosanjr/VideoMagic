@@ -11,6 +11,7 @@
     type Edge,
     type Node
   } from "@xyflow/svelte";
+  import NodeInspector from "$lib/nodes/NodeInspector.svelte";
   import StepNode from "$lib/nodes/StepNode.svelte";
   import { setPath, validateParams } from "$lib/recipeFields";
   import PathPicker from "$lib/PathPicker.svelte";
@@ -81,6 +82,7 @@
   type NodeData = {
     title: string;
     type: string;
+    description?: string;
     params: Record<string, unknown>;
     schema?: Record<string, unknown>;
     implementation?: "available" | "partial" | "planned";
@@ -108,6 +110,9 @@
     onPin?: () => void;
     onPatch?: (path: string[], value: unknown) => void;
     onPickPath?: (path: string[]) => void;
+    onStepPatch?: (key: "media_override" | "output_mode" | "output_dir", value: unknown) => void;
+    onPickStepPath?: (key: "media_override" | "output_dir") => void;
+    errors?: Record<string, string>;
     onRun?: () => void;
     onDuplicate?: () => void;
     onRemove?: () => void;
@@ -135,6 +140,9 @@
   let hasSavedViewport = $state(false);
   let undoStack = $state<Recipe[]>([]);
   let redoStack = $state<Recipe[]>([]);
+  let dirty = $state(false);
+  let lastUndoKey = "";
+  let lastUndoAt = 0;
   let uiSaveTimer: ReturnType<typeof setTimeout> | undefined;
   let nodePathTarget = $state<{
     nodeId: string;
@@ -302,6 +310,16 @@
       paramText = JSON.stringify(data.params ?? {}, null, 2);
       paramError = "";
     }
+  });
+
+  $effect(() => {
+    const handler = (event: BeforeUnloadEvent) => {
+      if (!dirty) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
   });
 
   onMount(() => {
@@ -745,6 +763,7 @@
       );
     }
     wiring = null;
+    scheduleUiSave();
   }
 
   function availableWiringOptions(targetId: string, inputId: string) {
@@ -787,7 +806,10 @@
         (edge) => !(edge.source === oldSource && edge.target === targetId)
       );
     }
-    if (!reference) return;
+    if (!reference) {
+      scheduleUiSave();
+      return;
+    }
     const source = reference.split(".")[0];
     const sourcePort = reference.split(".").slice(1).join(".");
     const exists = edges.some(
@@ -811,6 +833,7 @@
           : edge
       );
     }
+    scheduleUiSave();
   }
 
   function onConnect(connection: Connection) {
@@ -1060,12 +1083,14 @@
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         throw new Error("Parameters must be a JSON object");
       }
+      pushCoalescedUndo(`${selectedId}:json`);
       nodes = nodes.map((node) =>
         node.id === selectedId
           ? { ...node, data: { ...nodeData(node), params: parsed } }
           : node
       );
       paramError = "";
+      scheduleUiSave();
       return true;
     } catch (reason) {
       paramError = reason instanceof Error ? reason.message : String(reason);
@@ -1082,8 +1107,21 @@
     redoStack = [];
   }
 
+  function pushCoalescedUndo(key: string) {
+    const now = Date.now();
+    if (key !== lastUndoKey || now - lastUndoAt > 1000) {
+      pushUndo();
+      lastUndoKey = key;
+      lastUndoAt = now;
+    }
+  }
+
   function restoreRecipe(recipe: Recipe) {
+    const keep = selectedId;
     graphFromRecipe(recipe);
+    if (keep && recipe.steps.some((step) => step.id === keep)) {
+      selectNode(keep);
+    }
     scheduleUiSave();
   }
 
@@ -1115,14 +1153,17 @@
 
   function scheduleUiSave() {
     clearTimeout(uiSaveTimer);
+    dirty = true;
     layoutStatus = "saving…";
     uiSaveTimer = setTimeout(async () => {
       try {
         await saveRecipe(recipeFromGraph());
         recipes = await listRecipes();
-        layoutStatus = "layout saved";
+        layoutStatus = "saved";
+        dirty = false;
       } catch (reason) {
         layoutStatus = errorMessage(reason);
+        dirty = true;
       }
     }, 700);
   }
@@ -1202,6 +1243,7 @@
   function patchNodeParams(id: string, path: string[], value: unknown) {
     const node = nodes.find((item) => item.id === id);
     if (!node) return;
+    pushCoalescedUndo(`${id}:${path.join(".")}`);
     const params = setPath({ ...(nodeData(node).params ?? {}) }, path, value);
     nodes = nodes.map((item) =>
       item.id === id
@@ -1211,11 +1253,13 @@
     if (selectedId === id) {
       paramText = JSON.stringify(params, null, 2);
     }
+    scheduleUiSave();
   }
 
   function patchNodeParamsMany(id: string, patch: Record<string, unknown>) {
     const node = nodes.find((item) => item.id === id);
     if (!node) return;
+    pushUndo();
     const params = { ...(nodeData(node).params ?? {}), ...patch };
     nodes = nodes.map((item) =>
       item.id === id
@@ -1225,6 +1269,7 @@
     if (selectedId === id) {
       paramText = JSON.stringify(params, null, 2);
     }
+    scheduleUiSave();
   }
 
   function patchStepField(
@@ -1232,6 +1277,7 @@
     key: "media_override" | "output_mode" | "output_dir",
     value: unknown
   ) {
+    pushCoalescedUndo(`${id}:${key}`);
     const field =
       key === "media_override"
         ? "mediaOverride"
@@ -1243,6 +1289,7 @@
         ? { ...node, data: { ...nodeData(node), [field]: value } }
         : node
     );
+    scheduleUiSave();
   }
 
   function openStepPathPicker(
@@ -2007,7 +2054,13 @@
   <section class="relative overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900/50">
     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800 px-3 py-3 sm:px-4">
       <div class="min-w-0">
-        <div class="flex items-center gap-1.5"><h2 class="text-sm font-semibold text-white">Recipe builder</h2> <HelpTip label="Produce" body="Build a DAG of steps, validate it, dry-run it, and execute it. Recipes are the execution contract." doc="docs/recipes.md" /></div>
+        <div class="flex items-center gap-1.5">
+          <h2 class="text-sm font-semibold text-white">Recipe builder</h2>
+          <HelpTip label="Produce" body="Build a DAG of steps, validate it, dry-run it, and execute it. Recipes are the execution contract." doc="docs/recipes.md" />
+          <span class="text-[10px] text-neutral-500" aria-live="polite">
+            {#if dirty}<span class="text-amber-300">unsaved</span>{:else}{layoutStatus}{/if}
+          </span>
+        </div>
         <p class="mt-0.5 hidden text-[11px] text-neutral-500 sm:block">
           Connect steps into a DAG. The engine executes dependencies in order; nothing is uploaded.
         </p>
@@ -2127,6 +2180,7 @@
         <button type="button" onclick={() => void dryRun()} disabled={busy} class="rounded-lg border border-neutral-700 px-3 py-1.5 text-neutral-300 disabled:opacity-40">Dry run</button>
         <button
           type="button"
+          data-testid="recipe-run"
           onclick={() => void execute()}
           disabled={busy}
           class="rounded-lg bg-sky-500 px-3 py-1.5 font-medium text-neutral-950 hover:bg-sky-400 disabled:opacity-50"
@@ -2258,280 +2312,44 @@
 
         </div>
         {#if inspectorOpen}
-          <aside class="flex h-[clamp(560px,72vh,920px)] w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950/98 shadow-2xl backdrop-blur xl:w-[380px]">
-            <div class="flex items-center justify-between border-b border-neutral-800 px-3 py-2">
-              <div class="min-w-0">
+          {@const inspected = selectedId ? nodes.find((node) => node.id === selectedId) : undefined}
+          {#if inspected}
+            <NodeInspector
+              node={{ id: inspected.id, ...nodeData(inspected) }}
+              busy={busy}
+              paramText={paramText}
+              paramError={paramError}
+              wiringOptions={(portId) => availableWiringOptions(inspected.id, portId)}
+              oninput={(portId, reference) => setNodeInput(inspected.id, portId, reference)}
+              onpatch={(path, value) => patchNodeParams(inspected.id, path, value)}
+              onpickpath={(path) => openNodePathPicker(inspected.id, path)}
+              onsteppatch={(key, value) => patchStepField(inspected.id, key, value)}
+              onpicksteppath={(key) => openStepPathPicker(inspected.id, key)}
+              onapplypreset={(preset) => patchNodeParamsMany(inspected.id, preset.params)}
+              onsavepreset={(name) => void saveNodePreset(inspected.id, nodeData(inspected).type, name)}
+              onupdatepreset={(presetId) => void updateNodePresetFromNode(inspected.id, presetId)}
+              ondeletepreset={(presetId) => void removeNodePreset(presetId)}
+              onfavoritepreset={(presetId, favorite) => void favoritePreset(presetId, favorite)}
+              onparaminput={(value) => updateParams(value)}
+              onexpandjson={openStepJson}
+              onrun={() => void runToHere(inspected.id)}
+              onduplicate={() => duplicateNode(inspected.id)}
+              onremove={() => removeNode(inspected.id)}
+              onlogs={() => void openStepLogs(inspected.id)}
+              onclose={() => (inspectorOpen = false)}
+            />
+          {:else}
+            <aside class="flex h-[clamp(560px,72vh,920px)] w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950/98 shadow-2xl backdrop-blur xl:w-[420px]">
+              <div class="flex items-center justify-between border-b border-neutral-800 px-3 py-2">
                 <p class="text-[10px] uppercase tracking-wide text-neutral-500">Step inspector</p>
-                <p class="truncate font-mono text-[11px] text-sky-300">{selectedId ?? "No node selected"}</p>
+                <button type="button" onclick={() => (inspectorOpen = false)} class="rounded px-1.5 text-neutral-500 hover:text-neutral-200" aria-label="Close inspector">×</button>
               </div>
-              <button type="button" onclick={() => (inspectorOpen = false)} class="rounded px-1.5 text-neutral-500 hover:text-neutral-200" aria-label="Close inspector">×</button>
-            </div>
-            <div class="min-h-0 flex-1 overflow-y-auto p-3">
-              {#if selectedId}
-                {@const selectedNode = nodes.find((node) => node.id === selectedId)}
-                {@const selectedType = selectedNode ? nodeData(selectedNode).type : ""}
-                {#if selectedNode}
-                  <div class="flex items-center justify-between gap-2">
-                    <p class="text-[10px] text-neutral-500">{nodeData(selectedNode).type}</p>
-                    <div class="flex items-center gap-2">
-                      <button type="button" onclick={() => void runToHere(selectedId ?? "")} disabled={busy} class="rounded border border-sky-500/40 px-2 py-0.5 text-[10px] text-sky-300 disabled:opacity-40">Run to here</button>
-                      <button type="button" onclick={removeSelected} class="text-[10px] text-rose-300 hover:text-rose-200">Remove</button>
-                    </div>
-                  </div>
-                {/if}
-                {#if selectedNode && (nodeData(selectedNode).inputPorts?.length ?? 0) > 0}
-                  <div class="mt-3 rounded-lg border border-neutral-800 bg-neutral-900/60 p-2" data-testid="inspector-inputs">
-                    <p class="text-[10px] uppercase tracking-wide text-neutral-500">Inputs</p>
-                    <div class="mt-2 space-y-2">
-                      {#each nodeData(selectedNode).inputPorts ?? [] as port}
-                        <label class="block text-[10px] text-neutral-400">
-                          {port.label}{#if port.required}<span class="text-rose-300"> *</span>{/if}
-                          <select
-                            value={nodeData(selectedNode).inputs?.[port.id] ?? ""}
-                            onchange={(event) => setNodeInput(selectedNode.id, port.id, event.currentTarget.value)}
-                            class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100"
-                          >
-                            <option value="">Not wired</option>
-                            {#each availableWiringOptions(selectedNode.id, port.id) as option}
-                              <option value={option.value} disabled={!option.compatible}>{option.label}{option.compatible ? "" : " (incompatible)"}</option>
-                            {/each}
-                          </select>
-                        </label>
-                      {/each}
-                    </div>
-                  </div>
-                {/if}
-                {#if selectedType === "edit.timeline"}
-                  <div class="mt-3 rounded-lg border border-neutral-800 bg-neutral-900/60 p-2">
-                    <p class="text-[10px] uppercase tracking-wide text-neutral-500">Transitions</p>
-                    <div class="mt-2 grid grid-cols-2 gap-2">
-                      <label class="text-[10px] text-neutral-400">Frames
-                        <input data-testid="transition-frames" type="number" min="0" max="120" value={paramNumber("transition_frames", 0)}
-                          oninput={(event) => patchParams({ transition_frames: Number(event.currentTarget.value) })}
-                          class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
-                      </label>
-                      <label class="text-[10px] text-neutral-400">Type
-                        <select data-testid="transition-type" value={paramString("transition_type", "crossfade")}
-                          onchange={(event) => patchParams({ transition_type: event.currentTarget.value })}
-                          class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100">
-                          <option value="crossfade">Crossfade</option>
-                          <option value="fade_to_black">Fade to black</option>
-                        </select>
-                      </label>
-                    </div>
-                    <label class="mt-2 flex items-center gap-2 text-[10px] text-neutral-400">
-                      <input type="checkbox" checked={paramBoolean("progressive_zoom")} onchange={(event) => patchParams({ progressive_zoom: event.currentTarget.checked })} />
-                      Progressive zoom keyframes
-                    </label>
-                  </div>
-                {/if}
-                {#if selectedType === "audio.diarize"}
-                  <div class="mt-3 rounded-lg border border-neutral-800 bg-neutral-900/60 p-2">
-                    <p class="text-[10px] uppercase tracking-wide text-neutral-500">Speaker turns</p>
-                    <div class="mt-2 grid grid-cols-2 gap-2">
-                      <label class="text-[10px] text-neutral-400">Method
-                        <select value={paramString("method", "heuristic")} onchange={(event) => patchParams({ method: event.currentTarget.value })}
-                          class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100">
-                          <option value="heuristic">Heuristic</option>
-                          <option value="pyannote">pyannote model</option>
-                          <option value="none">Disabled</option>
-                        </select>
-                      </label>
-                      <label class="text-[10px] text-neutral-400">Pause (ms)
-                        <input type="number" min="50" max="5000" value={paramNumber("pause_ms", 400)}
-                          oninput={(event) => patchParams({ pause_ms: Number(event.currentTarget.value) })}
-                          class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
-                      </label>
-                    </div>
-                    {#if paramString("method", "heuristic") === "pyannote"}
-                      <label class="mt-2 block text-[10px] text-neutral-400">Model
-                        <input type="text" value={paramString("model_path", "pyannote/speaker-diarization-3.1")}
-                          oninput={(event) => patchParams({ model_path: event.currentTarget.value })}
-                          class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" />
-                      </label>
-                      <label class="mt-1 flex items-center gap-2 text-[10px] text-neutral-400">
-                        <input type="checkbox" checked={paramBoolean("fallback_to_heuristic", true)} onchange={(event) => patchParams({ fallback_to_heuristic: event.currentTarget.checked })} />
-                        Fall back to heuristic if the model is unavailable
-                      </label>
-                    {/if}
-                  </div>
-                {/if}
-                {#if selectedType === "broll.plan"}
-                  <div class="mt-3 rounded-lg border border-neutral-800 bg-neutral-900/60 p-2">
-                    <p class="text-[10px] uppercase tracking-wide text-neutral-500">B-roll source</p>
-                    <label class="mt-2 block text-[10px] text-neutral-400">Provider
-                      <select value={paramString("provider", "local")} onchange={(event) => patchParams({ provider: event.currentTarget.value })}
-                        class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100">
-                        <option value="local">Local assets</option>
-                        <option value="pexels">Pexels stock</option>
-                      </select>
-                    </label>
-                    <label class="mt-2 block text-[10px] text-neutral-400">Search hint
-                      <input type="text" value={paramString("query")} oninput={(event) => patchParams({ query: event.currentTarget.value })}
-                        placeholder="optional keywords"
-                        class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
-                    </label>
-                    {#if paramString("provider", "local") === "pexels"}
-                      <label class="mt-2 block text-[10px] text-neutral-400">API key environment variable
-                        <input type="text" value={paramString("api_key_env", "PEXELS_API_KEY")} oninput={(event) => patchParams({ api_key_env: event.currentTarget.value })}
-                          class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" />
-                      </label>
-                    {:else}
-                    <label class="mt-2 block text-[10px] text-neutral-400">Asset directory
-                      <div class="mt-1 flex gap-1">
-                        <input type="text" value={paramString("asset_dir")}
-                          oninput={(event) => patchParams({ asset_dir: event.currentTarget.value })}
-                          placeholder="/path/to/broll"
-                          class="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" />
-                        <button type="button" onclick={() => (picker = "broll")} class="rounded border border-neutral-700 px-2 text-[10px] text-neutral-300 hover:border-sky-500">Browse</button>
-                      </div>
-                    </label>
-                    {/if}
-                    <div class="mt-2 grid grid-cols-2 gap-2">
-                      <label class="text-[10px] text-neutral-400">Max per Short
-                        <input type="number" min="1" max="5" value={paramNumber("max_per_short", 1)}
-                          oninput={(event) => patchParams({ max_per_short: Number(event.currentTarget.value) })}
-                          class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
-                      </label>
-                      <label class="text-[10px] text-neutral-400">Cutaway sec
-                        <input type="number" min="0.2" max="30" step="0.1" value={paramNumber("duration_sec", 2)}
-                          oninput={(event) => patchParams({ duration_sec: Number(event.currentTarget.value) })}
-                          class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
-                      </label>
-                    </div>
-                  </div>
-                {/if}
-                {#if selectedType === "shorts.reframe"}
-                  <div class="mt-3 rounded-lg border border-neutral-800 bg-neutral-900/60 p-2">
-                    <p class="text-[10px] uppercase tracking-wide text-neutral-500">Dialogue layout</p>
-                    <label class="mt-2 flex items-center gap-2 text-[10px] text-neutral-400">
-                      <input type="checkbox" checked={paramBoolean("split_screen_on_dialogue")} onchange={(event) => patchParams({ split_screen_on_dialogue: event.currentTarget.checked })} />
-                      Use split-screen when a clip has multiple speakers
-                    </label>
-                  </div>
-                {/if}
-                {#if selectedType === "shorts.render" || selectedType === "shorts.captions"}
-                  <div class="mt-3 rounded-lg border border-neutral-800 bg-neutral-900/60 p-2">
-                    <p class="text-[10px] uppercase tracking-wide text-neutral-500">Captions and layout</p>
-                    <label class="mt-2 block text-[10px] text-neutral-400">Speaker colors (comma-separated)
-                      <input type="text" value={speakerColorsText()}
-                        oninput={(event) => setSpeakerColors(event.currentTarget.value)}
-                        placeholder="#FFFFFF, #00E5FF, #FFD400"
-                        class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" />
-                    </label>
-                    {#if selectedType === "shorts.render"}
-                      <label class="mt-2 flex items-center gap-2 text-[10px] text-neutral-400">
-                        <input type="checkbox" checked={paramBoolean("split_screen")} onchange={(event) => patchParams({ split_screen: event.currentTarget.checked })} />
-                        Split-screen vertical frame
-                      </label>
-                      <label class="mt-2 block text-[10px] text-neutral-400">Second source (optional)
-                        <div class="mt-1 flex gap-1">
-                          <input type="text" value={paramString("second_source_path")}
-                            oninput={(event) => patchParams({ second_source_path: event.currentTarget.value })}
-                            placeholder="/path/to/second-angle.mp4"
-                            class="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" />
-                          <button type="button" onclick={() => (picker = "second-source")} class="rounded border border-neutral-700 px-2 text-[10px] text-neutral-300 hover:border-sky-500">Browse</button>
-                        </div>
-                      </label>
-                      <div class="mt-2 grid grid-cols-3 gap-2">
-                        <label class="text-[10px] text-neutral-400">Zoom
-                          <input type="number" min="1" max="2" step="0.05" value={paramNumber("split_screen_zoom", 1)}
-                            oninput={(event) => patchParams({ split_screen_zoom: Number(event.currentTarget.value) })}
-                            class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
-                        </label>
-                        <label class="text-[10px] text-neutral-400">Left focus
-                          <input type="number" min="0" max="1" step="0.05" value={paramNumber("split_screen_focus_left", 0.5)}
-                            oninput={(event) => patchParams({ split_screen_focus_left: Number(event.currentTarget.value) })}
-                            class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
-                        </label>
-                        <label class="text-[10px] text-neutral-400">Right focus
-                          <input type="number" min="0" max="1" step="0.05" value={paramNumber("split_screen_focus_right", 0.5)}
-                            oninput={(event) => patchParams({ split_screen_focus_right: Number(event.currentTarget.value) })}
-                            class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
-                        </label>
-                      </div>
-                      <label class="mt-1 flex items-center gap-2 text-[10px] text-neutral-400">
-                        <input type="checkbox" checked={paramBoolean("mix_second_audio")} onchange={(event) => patchParams({ mix_second_audio: event.currentTarget.checked })} />
-                        Mix second-source audio
-                      </label>
-                      <label class="mt-1 flex items-center gap-2 text-[10px] text-neutral-400">
-                        <input type="checkbox" checked={paramBoolean("broll_enabled", true)} onchange={(event) => patchParams({ broll_enabled: event.currentTarget.checked })} />
-                        Apply planned B-roll
-                      </label>
-                    {/if}
-                  </div>
-                {/if}
-                {#if selectedType && schemaFields(selectedType).length}
-                  <div class="mt-3 rounded-lg border border-neutral-800 bg-neutral-900/60 p-2">
-                    <p class="text-[10px] uppercase tracking-wide text-neutral-500">Schema fields</p>
-                    <div class="mt-2 space-y-2">
-                      {#each schemaFields(selectedType) as field (field.key)}
-                        <label class="block text-[10px] text-neutral-400">
-                          {field.label}
-                          {#if field.kind === "boolean"}
-                            <input
-                              data-testid={`schema-${field.key}`}
-                              type="checkbox"
-                              checked={field.value === true}
-                              onchange={(event) => setSchemaField(field, event.currentTarget.checked)}
-                              class="mt-1 block"
-                            />
-                          {:else if field.kind === "enum"}
-                            <select
-                              data-testid={`schema-${field.key}`}
-                              value={field.value === undefined || field.value === null ? "" : String(field.value)}
-                              onchange={(event) => setSchemaField(field, event.currentTarget.value)}
-                              class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100"
-                            >
-                              {#each field.options as option}<option value={option}>{option}</option>{/each}
-                            </select>
-                          {:else if field.kind === "number"}
-                            <input
-                              data-testid={`schema-${field.key}`}
-                              type="number"
-                              min={field.minimum}
-                              max={field.maximum}
-                              step={field.step}
-                              value={typeof field.value === "number" ? field.value : ""}
-                              oninput={(event) => setSchemaField(field, event.currentTarget.value)}
-                              class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100"
-                            />
-                          {:else}
-                            <input
-                              data-testid={`schema-${field.key}`}
-                              type="text"
-                              value={field.value === undefined || field.value === null ? "" : String(field.value)}
-                              oninput={(event) => setSchemaField(field, event.currentTarget.value)}
-                              class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100"
-                            />
-                          {/if}
-                        </label>
-                      {/each}
-                    </div>
-                  </div>
-                {/if}
-                <div class="mt-2 flex items-center justify-between gap-2">
-                  <p class="text-[10px] text-neutral-500">Parameters (JSON)</p>
-                  <button type="button" onclick={openStepJson} class="rounded border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-300 hover:border-sky-500">Expand</button>
-                </div>
-                <textarea
-                  data-testid="step-params-json"
-                  value={paramText}
-                  oninput={(event) => updateParams(event.currentTarget.value)}
-                  rows="12"
-                  spellcheck="false"
-                  class="mt-1 w-full resize-y rounded-lg border border-neutral-700 bg-neutral-950 p-2 font-mono text-[10px] text-neutral-200"
-                ></textarea>
-                {#if paramError}<p class="mt-1 text-[10px] text-rose-300">{paramError}</p>{/if}
-                <p class="mt-2 text-[9px] leading-4 text-neutral-600">
-                  JSON is applied to the node while it is valid. Use Expand for a large editor.
-                </p>
-              {:else}
+              <div class="flex flex-1 flex-col justify-center p-3">
                 <p class="text-[11px] text-neutral-500">Click a node to edit it. Use <span class="text-sky-300">+ Add step</span> to place a new one.</p>
                 <button type="button" onclick={() => { inspectorOpen = false; addOpen = true; }} class="mt-3 w-full rounded-lg border border-neutral-700 px-2 py-1.5 text-[11px] text-neutral-300 hover:border-sky-500">Open step palette</button>
-              {/if}
-            </div>
-          </aside>
+              </div>
+            </aside>
+          {/if}
         {/if}
       </div>
     </div>

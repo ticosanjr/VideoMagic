@@ -28,6 +28,63 @@ describe("recipeFields controls", () => {
     expect(fields.huge.control).toBe("number");
   });
 
+  it("resolves nullable and referenced object fields", () => {
+    const rich = {
+      type: "object",
+      $defs: {
+        CaptionStyle: {
+          type: "object",
+          properties: {
+            font_size: { type: "integer", minimum: 8, maximum: 300, default: 72 }
+          }
+        }
+      },
+      properties: {
+        srt_path: {
+          anyOf: [{ type: "string" }, { type: "null" }],
+          default: null
+        },
+        caption_style: { $ref: "#/$defs/CaptionStyle" }
+      }
+    };
+    const fields = fieldGroups(rich, {}, "shorts.render").flatMap((group) => group.fields);
+    const byId = Object.fromEntries(fields.map((field) => [field.id, field]));
+
+    expect(byId.srt_path).toBeDefined();
+    expect(byId.srt_path.control).toBe("path");
+    expect(byId["caption_style.font_size"]).toBeDefined();
+    expect(byId["caption_style.font_size"].control).toBe("slider");
+  });
+
+  it("uses schema metadata for select options and path placeholders", () => {
+    const fields = fieldGroups(
+      {
+        type: "object",
+        properties: {
+          transition_type: { type: "string", default: "crossfade" },
+          second_source_path: { type: "string", default: "" }
+        }
+      },
+      {},
+      "edit.timeline"
+    ).flatMap((group) => group.fields);
+    const transition = fields.find((field) => field.id === "transition_type");
+    expect(transition?.control).toBe("select");
+    expect(transition?.options).toEqual(["crossfade", "fade_to_black"]);
+
+    const second = fieldGroups(
+      {
+        type: "object",
+        properties: { second_source_path: { type: "string", default: "" } }
+      },
+      {},
+      "shorts.render"
+    )
+      .flatMap((group) => group.fields)
+      .find((field) => field.id === "second_source_path");
+    expect(second?.placeholder).toBe("/path/to/second-angle.mp4");
+  });
+
   it("groups VAD fields and exposes node presets", () => {
     const groups = fieldGroups(schema, {}, "audio.vad");
     expect(groups[0].label).toBe("Detection");

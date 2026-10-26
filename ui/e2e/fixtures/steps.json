@@ -116,8 +116,10 @@
       "params_schema": {
         "properties": {
           "transition_frames": {
+            "type": "integer",
             "default": 0,
-            "type": "string"
+            "minimum": 0,
+            "maximum": 120
           },
           "transition_type": {
             "default": "crossfade",
@@ -173,6 +175,11 @@
           "broll_enabled": {
             "default": true,
             "type": "boolean"
+          },
+          "second_source_path": {
+            "type": "string",
+            "default": "",
+            "title": "Second source"
           }
         }
       },

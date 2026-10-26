@@ -8,6 +8,10 @@
 
 export const GLOSSARY: Record<string, string> = {
   "+ Add step": "+ Adicionar etapa",
+  "No presets for this step yet.": "Ainda não há presets para esta etapa.",
+  "unsaved": "não salvo",
+  "saving…": "salvando…",
+  "saved": "salvo",
   "Agent tools": "Ferramentas do agente",
   "No variants or Shorts in this run.": "Sem variantes ou Shorts nesta execução.",
   "Variant comparison": "Comparação de variantes",

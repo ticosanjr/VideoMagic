@@ -105,9 +105,9 @@ test("loads the recipe graph and edits transition parameters", async ({ page }) 
     .getByTestId("step-edit.timeline")
     .getByText("Build timeline")
     .click();
-  await expect(page.getByTestId("transition-frames")).toBeVisible();
-  await page.getByTestId("transition-frames").fill("12");
-  await page.getByTestId("transition-type").selectOption("fade_to_black");
+  await expect(page.getByTestId("inspector-field-transition_frames")).toBeVisible();
+  await page.getByTestId("inspector-field-transition_frames").fill("12");
+  await page.getByTestId("inspector-field-transition_type").selectOption("fade_to_black");
   const json = await page.getByTestId("step-params-json").inputValue();
   expect(json).toContain('"transition_frames": 12');
   expect(json).toContain('"transition_type": "fade_to_black"');
@@ -123,15 +123,76 @@ test("adds a step from the JSON-backed palette", async ({ page }) => {
 test("exposes the second split-screen source control", async ({ page }) => {
   await page.getByTestId("recipe-add-step").click();
   await page.getByTestId("add-shorts.render").click();
-  await expect(page.getByPlaceholder("/path/to/second-angle.mp4")).toBeVisible();
+  await expect(page.getByTestId("inspector-field-second_source_path")).toBeVisible();
+  await expect(page.getByTestId("inspector-field-second_source_path")).toHaveAttribute(
+    "placeholder",
+    "/path/to/second-angle.mp4"
+  );
 });
 
 test("edits a schema-derived field", async ({ page }) => {
   await page.getByTestId("step-ingest").click();
-  await expect(page.getByTestId("schema-extract_pcm")).toBeVisible();
-  await page.getByTestId("schema-extract_pcm").uncheck();
+  await expect(page.getByTestId("inspector-field-extract_pcm")).toBeVisible();
+  await page.getByTestId("inspector-field-extract_pcm").uncheck();
   const json = await page.getByTestId("step-params-json").inputValue();
   expect(json).toContain('"extract_pcm": false');
+});
+
+test("shows full parity fields, outputs, and presets in the inspector", async ({ page }) => {
+  await page.getByTestId("step-audio.vad").getByText("Voice detection").click();
+  const slider = page.getByTestId("inspector-field-min_silence_ms");
+  await expect(slider).toHaveJSProperty("type", "range");
+  await expect(page.getByTestId("inspector-presets-audio.vad")).toContainText("Aggressive");
+  await page
+    .getByTestId("inspector-presets-audio.vad")
+    .getByRole("button", { name: "Aggressive", exact: true })
+    .click();
+  await expect(page.getByTestId("step-params-json")).toHaveValue(/"min_silence_ms": 240/);
+
+  await page.getByLabel("Close inspector").click();
+  await page.getByTestId("step-edit.timeline").getByText("Build timeline").click();
+  await expect(page.getByTestId("inspector-outputs-edit.timeline")).toContainText(
+    "Timeline state"
+  );
+  await expect(page.getByTestId("inspector-field-transition_frames")).toBeVisible();
+});
+
+test("autosaves inspector edits", async ({ page }) => {
+  const saves: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "PUT" && request.url().includes("/api/v1/recipes/")) {
+      saves.push(request.url());
+    }
+  });
+  await page.getByTestId("step-audio.vad").getByText("Voice detection").click();
+  await page.getByTestId("inspector-field-min_silence_ms").evaluate((element) => {
+    const input = element as HTMLInputElement;
+    input.value = "550";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await expect.poll(() => saves.length).toBeGreaterThan(0);
+});
+
+test("undoes an inspector field edit", async ({ page }) => {
+  await page.getByTestId("step-audio.vad").getByText("Voice detection").click();
+  await page.getByTestId("inspector-field-min_silence_ms").evaluate((element) => {
+    const input = element as HTMLInputElement;
+    input.value = "550";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await expect(page.getByTestId("step-params-json")).toHaveValue(/"min_silence_ms": 550/);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByTestId("step-params-json")).toHaveValue(/"min_silence_ms": 350/);
+});
+
+test("blocks Run on inline validation errors", async ({ page }) => {
+  await page.getByTestId("step-audio.vad").getByText("Voice detection").click();
+  await page
+    .getByTestId("step-params-json")
+    .fill('{"min_silence_ms": -1, "engine": "auto"}');
+  await expect(page.getByTestId("step-audio.vad")).toContainText("⚠ 1");
+  await page.getByTestId("recipe-run").click();
+  await expect(page.getByText(/Fix 1 field error/)).toBeVisible();
 });
 
 test("validates NLE exports from the UI", async ({ page }) => {

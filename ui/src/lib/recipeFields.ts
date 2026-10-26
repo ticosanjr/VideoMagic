@@ -49,6 +49,8 @@ type FieldMeta = {
   control?: RecipeControl;
   step?: number;
   optionsSource?: string;
+  placeholder?: string;
+  options?: string[];
 };
 
 const FIELD_META: Record<string, Record<string, FieldMeta>> = {
@@ -83,11 +85,35 @@ const FIELD_META: Record<string, Record<string, FieldMeta>> = {
     pan_direction: { group: "Zoom", label: "Pan direction" },
     pad_before_ms: { group: "Handles", unit: "ms", label: "Pad before override" },
     pad_after_ms: { group: "Handles", unit: "ms", label: "Pad after override" },
-    transition_frames: { group: "Transitions", unit: "frames", label: "Transition length" },
-    transition_type: { group: "Transitions", label: "Transition type" }
+    transition_frames: {
+      group: "Transitions",
+      unit: "frames",
+      label: "Transition length",
+      control: "number"
+    },
+    transition_type: {
+      group: "Transitions",
+      label: "Transition type",
+      control: "select",
+      options: ["crossfade", "fade_to_black"]
+    }
   },
   "localization.dub": {
     provider_id: { group: "Provider", label: "TTS provider", optionsSource: "providers:tts" },
+  },
+  "shorts.render": {
+    second_source_path: {
+      group: "Layout",
+      label: "Second source",
+      placeholder: "/path/to/second-angle.mp4"
+    }
+  },
+  "broll.plan": {
+    asset_dir: {
+      group: "B-roll",
+      label: "Asset directory",
+      placeholder: "/path/to/broll"
+    }
   },
   "retakes.cull": {
     enabled: { group: "Retakes", label: "Remove retakes" },
@@ -287,7 +313,7 @@ function buildField(
   const meta = FIELD_META[stepType]?.[key] ?? {};
   const enumValues = Array.isArray(resolved.enum)
     ? resolved.enum.map((value) => String(value))
-    : [];
+    : (meta.options ?? []);
   const itemSchema = resolved.items as Schema | undefined;
   const itemOptions = Array.isArray(itemSchema?.enum)
     ? itemSchema.enum.map((value) => String(value))
@@ -315,7 +341,7 @@ function buildField(
     required,
     format: typeof resolved.format === "string" ? resolved.format : "",
     pattern: typeof resolved.pattern === "string" ? resolved.pattern : "",
-    placeholder: description || (kind === "path" ? "/path/to/file" : ""),
+    placeholder: meta.placeholder ?? (description || (kind === "path" ? "/path/to/file" : "")),
     help: description,
     value: getPath(params, path) ?? defaultValue,
     defaultValue
