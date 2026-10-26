@@ -7,7 +7,7 @@ import re
 import struct
 from pathlib import Path
 
-from videoflow.domain.errors import FilesystemError
+from videoflow.domain.errors import AssetNotFoundError, FilesystemError
 from videoflow.runtime import portable_home
 
 MAX_FONT_BYTES = 20 * 1024 * 1024
@@ -120,5 +120,5 @@ def font_family(data: bytes) -> str:
 def delete_fonts(name: str) -> None:
     target = fonts_dir() / Path(name).name
     if target.parent != fonts_dir() or not target.is_file():
-        raise FilesystemError(f"Unknown fonts asset: {name}")
+        raise AssetNotFoundError(f"Unknown fonts asset: {name}")
     target.unlink()

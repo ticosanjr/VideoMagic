@@ -6,7 +6,7 @@ import hashlib
 import re
 from pathlib import Path
 
-from videoflow.domain.errors import FilesystemError
+from videoflow.domain.errors import AssetNotFoundError, FilesystemError
 from videoflow.runtime import portable_home
 
 MAX_IMAGE_BYTES = 15 * 1024 * 1024
@@ -56,5 +56,5 @@ def save_image(filename: str, data: bytes) -> dict[str, object]:
 def delete_images(name: str) -> None:
     target = images_dir() / Path(name).name
     if target.parent != images_dir() or not target.is_file():
-        raise FilesystemError(f"Unknown images asset: {name}")
+        raise AssetNotFoundError(f"Unknown images asset: {name}")
     target.unlink()

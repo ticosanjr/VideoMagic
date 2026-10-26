@@ -6,7 +6,7 @@ import hashlib
 import re
 from pathlib import Path
 
-from videoflow.domain.errors import FilesystemError
+from videoflow.domain.errors import AssetNotFoundError, FilesystemError
 from videoflow.runtime import portable_home
 
 MAX_MUSIC_BYTES = 100 * 1024 * 1024
@@ -82,5 +82,5 @@ def music_filter(
 def delete_music(name: str) -> None:
     target = music_dir() / Path(name).name
     if target.parent != music_dir() or not target.is_file():
-        raise FilesystemError(f"Unknown music asset: {name}")
+        raise AssetNotFoundError(f"Unknown music asset: {name}")
     target.unlink()

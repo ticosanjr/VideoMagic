@@ -135,6 +135,12 @@ class AssetNotFoundError(VideoFlowError):
     code = "asset_not_found"
 
 
+class InvalidConfigError(VideoFlowError):
+    """An imported configuration envelope is invalid."""
+
+    code = "invalid_config"
+
+
 class InvalidRetakeIdsError(VideoFlowError):
     """The model returned sentence ids that were not in the prompt window."""
 

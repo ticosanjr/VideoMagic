@@ -11,7 +11,7 @@ from typing import Any
 from pydantic import Field
 
 from videoflow.domain.config import StrictModel
-from videoflow.domain.errors import FilesystemError, StateNotReadyError
+from videoflow.domain.errors import FilesystemError, InvalidConfigError, StateNotReadyError
 from videoflow.runtime import portable_home
 
 _DISALLOWED = {
@@ -92,10 +92,10 @@ def export_config(options: dict[str, Any]) -> dict[str, object]:
 
 def import_config(payload: dict[str, Any]) -> dict[str, Any]:
     if payload.get("schema_version") != 1:
-        raise FilesystemError("Unsupported config schema version.")
+        raise InvalidConfigError("Unsupported config schema version.")
     options = payload.get("options")
     if not isinstance(options, dict):
-        raise FilesystemError("Config options must be an object.")
+        raise InvalidConfigError("Config options must be an object.")
     return sanitize_options(options)
 
 

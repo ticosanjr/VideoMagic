@@ -7,7 +7,7 @@ import struct
 import pytest
 
 from videoflow.application import fonts
-from videoflow.domain.errors import FilesystemError
+from videoflow.domain.errors import AssetNotFoundError, FilesystemError
 
 
 def sfnt(family: str = "VideoFlow Sans", *, include_name: bool = True) -> bytes:
@@ -90,5 +90,5 @@ def test_delete_fonts_removes_known_assets_only() -> None:
     fonts.delete_fonts(str(payload["name"]))
 
     assert not (fonts.fonts_dir() / str(payload["name"])).exists()
-    with pytest.raises(FilesystemError, match="Unknown fonts asset"):
+    with pytest.raises(AssetNotFoundError, match="Unknown fonts asset"):
         fonts.delete_fonts("missing.ttf")

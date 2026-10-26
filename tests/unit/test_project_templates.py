@@ -10,7 +10,7 @@ from videoflow.application.project_templates import (
     list_templates,
     save_template,
 )
-from videoflow.domain.errors import FilesystemError
+from videoflow.domain.errors import InvalidConfigError
 
 
 def test_project_template_filters_paths_and_roundtrips(monkeypatch, tmp_path: Path) -> None:
@@ -37,5 +37,5 @@ def test_project_template_filters_paths_and_roundtrips(monkeypatch, tmp_path: Pa
 
 
 def test_config_import_rejects_unknown_schema() -> None:
-    with pytest.raises(FilesystemError):
+    with pytest.raises(InvalidConfigError):
         import_config({"schema_version": 99, "options": {}})

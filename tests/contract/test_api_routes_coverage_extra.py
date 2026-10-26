@@ -365,7 +365,7 @@ def test_project_settings_template_and_config_errors(monkeypatch, tmp_path: Path
         "/api/v1/config/import", json={"schema_version": 99, "options": {}}
     )
     assert bad_config.status_code in {422, 500}
-    assert _error(bad_config)["code"] == "filesystem_error"
+    assert _error(bad_config)["code"] == "invalid_config"
 
     bad_project_name = client.put(
         "/api/v1/project-templates/!!!", json={"name": "x", "options": {}}

@@ -277,7 +277,7 @@ def test_asset_upload_import_and_config_errors(
     assert bad_template["code"] == "invalid_template"
     assert call(
         server, "videoflow_import_config", {"schema_version": 2, "options": {}}
-    )["code"] == ("filesystem_error")
+    )["code"] == ("invalid_config")
     assert call(
         server,
         "videoflow_save_brand_template",
