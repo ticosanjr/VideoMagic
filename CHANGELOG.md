@@ -3,6 +3,20 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.19.0] - 2026-10-26
+
+### Added
+
+- **Global recut presets:** Recut Podcast (J-cuts + retakes), Recut Lecture
+  (hard cuts, wide handles), and Recut Social (L-cuts + retakes).
+- Recipe presets are regular recipes, so they appear in Favorites/Recent/All,
+  support branch wiring, and export MP4 + Resolve/Premiere/Kdenlive.
+
+### Fixed
+
+- Node output-folder copies deduplicate artifacts and preserve pipeline refs.
+- Node media/output paths are validated against allowed roots during recipe
+  validation, not only at execution.
 ## [2.18.0] - 2026-10-26
 
 ### Added

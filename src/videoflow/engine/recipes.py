@@ -987,6 +987,89 @@ _add_recipe(
 )
 
 
+def _recut_preset(
+    recipe_id: str,
+    name: str,
+    description: str,
+    *,
+    with_retakes: bool,
+    vad: dict[str, object],
+    timeline: dict[str, object],
+) -> None:
+    steps = _recut_steps(with_retakes=with_retakes)
+    for step in steps:
+        if step["id"] == "vad":
+            step["params"] = {**step["params"], **vad}
+        if step["id"] == "timeline":
+            step["params"] = {**step["params"], **timeline}
+    _add_recipe(recipe_id, name, steps, description=description)
+
+
+_recut_preset(
+    "recut_podcast",
+    "Recut Podcast",
+    "Two-speaker podcast recut with retakes, J-cuts, and generous handles.",
+    with_retakes=True,
+    vad={
+        "noise_db": -34.0,
+        "speech_threshold": 0.45,
+        "min_silence_ms": 500,
+        "min_speech_ms": 140,
+        "spike_suppression_ms": 260,
+        "merge_gap_ms": 180,
+        "pad_before_ms": 120,
+        "pad_after_ms": 180,
+    },
+    timeline={
+        "cut_mode": "j_cut",
+        "enable_j_cuts": True,
+        "enable_l_cuts": False,
+        "offset_ms": 220,
+        "audio_crossfade_ms": 30,
+    },
+)
+_recut_preset(
+    "recut_lecture",
+    "Recut Lecture",
+    "Deterministic class or webinar recut with hard cuts and wide handles.",
+    with_retakes=False,
+    vad={
+        "noise_db": -38.0,
+        "speech_threshold": 0.4,
+        "min_silence_ms": 650,
+        "min_speech_ms": 160,
+        "spike_suppression_ms": 300,
+        "merge_gap_ms": 220,
+        "pad_before_ms": 150,
+        "pad_after_ms": 220,
+    },
+    timeline={"cut_mode": "hard", "offset_ms": 200, "audio_crossfade_ms": 20},
+)
+_recut_preset(
+    "recut_social",
+    "Recut Social",
+    "Tight social recut with retakes, short handles, and L-cuts.",
+    with_retakes=True,
+    vad={
+        "noise_db": -24.0,
+        "speech_threshold": 0.62,
+        "min_silence_ms": 240,
+        "min_speech_ms": 90,
+        "spike_suppression_ms": 120,
+        "merge_gap_ms": 70,
+        "pad_before_ms": 40,
+        "pad_after_ms": 60,
+    },
+    timeline={
+        "cut_mode": "l_cut",
+        "enable_j_cuts": False,
+        "enable_l_cuts": True,
+        "offset_ms": 180,
+        "audio_crossfade_ms": 15,
+    },
+)
+
+
 def builtin_recipe(recipe_id: str) -> Recipe:
     try:
         payload = BUILTIN_RECIPES[recipe_id]

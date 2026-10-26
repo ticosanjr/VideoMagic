@@ -88,3 +88,26 @@ def test_api_validate_resolves_variables_before_step_validation(monkeypatch) -> 
     )
     assert resolved["params"]["min_silence_ms"] == 280
     assert resolved["params"]["pad_before_ms"] == 40
+
+
+def test_recut_global_presets_are_valid_and_tuned() -> None:
+    from videoflow.steps import get_step
+
+    expected = {
+        "recut_podcast": "j_cut",
+        "recut_lecture": "hard",
+        "recut_social": "l_cut",
+    }
+    for recipe_id, cut_mode in expected.items():
+        recipe = get_recipe(recipe_id)
+        recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+        for step in recipe.enabled_steps():
+            get_step(step.type).validate_params(step.params)
+        timeline = next(
+            step for step in recipe.enabled_steps() if step.id == "timeline"
+        )
+        assert timeline.params["cut_mode"] == cut_mode
+        assert recipe.variables == {}
+        assert next(
+            step for step in recipe.enabled_steps() if step.id == "export"
+        ).params["targets"] == ["mp4", "resolve", "premiere", "kdenlive"]
