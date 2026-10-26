@@ -283,9 +283,15 @@ def restore(source: Path) -> dict[str, object]:
         if "videoflow.db" in names:
             temp_db = portable_home() / "restore.tmp.db"
             temp_db.write_bytes(bundle.read("videoflow.db"))
-            check = sqlite3.connect(temp_db)
-            integrity = check.execute("PRAGMA integrity_check").fetchone()[0]
-            check.close()
+            try:
+                check = sqlite3.connect(temp_db)
+                try:
+                    integrity = check.execute("PRAGMA integrity_check").fetchone()[0]
+                finally:
+                    check.close()
+            except sqlite3.DatabaseError as exc:
+                temp_db.unlink(missing_ok=True)
+                raise ValueError(f"Backup database is unreadable: {exc}") from exc
             if integrity != "ok":
                 temp_db.unlink(missing_ok=True)
                 raise ValueError(f"Backup database integrity failed: {integrity}")

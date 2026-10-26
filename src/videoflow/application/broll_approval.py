@@ -44,6 +44,8 @@ def _history(output: Path) -> dict[str, list[str]]:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {"undo": [], "redo": []}
+    if not isinstance(payload, dict):
+        return {"undo": [], "redo": []}
     return {
         "undo": [str(item) for item in payload.get("undo", [])][-MAX_HISTORY:],
         "redo": [str(item) for item in payload.get("redo", [])][-MAX_HISTORY:],
