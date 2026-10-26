@@ -148,6 +148,7 @@
   });
   let layoutStatus = $state("");
   let viewport = $state({ x: 0, y: 0, zoom: 1 });
+  let canvasEl: HTMLDivElement | null = $state(null);
   let hasSavedViewport = $state(false);
   let undoStack = $state<Recipe[]>([]);
   let redoStack = $state<Recipe[]>([]);
@@ -772,6 +773,39 @@
       paramText = "{}";
     }
     selectedNodeIds = [];
+    scheduleUiSave();
+  }
+
+  function fitSelectedNodes() {
+    const chosen = nodes.filter((node) => selectedNodeIds.includes(node.id));
+    if (!chosen.length || !canvasEl) return;
+    const pad = 70;
+    const minX = Math.min(...chosen.map((node) => node.position.x));
+    const minY = Math.min(...chosen.map((node) => node.position.y));
+    const maxX = Math.max(
+      ...chosen.map((node) => node.position.x + (nodeData(node).width ?? 420))
+    );
+    const maxY = Math.max(
+      ...chosen.map(
+        (node) => node.position.y + (nodeData(node).expanded ? 640 : 170)
+      )
+    );
+    const rect = canvasEl.getBoundingClientRect();
+    const zoom = Math.min(
+      1.6,
+      Math.max(
+        0.2,
+        Math.min(
+          (rect.width - pad * 2) / Math.max(1, maxX - minX),
+          (rect.height - pad * 2) / Math.max(1, maxY - minY)
+        )
+      )
+    );
+    viewport = {
+      x: pad - minX * zoom,
+      y: pad - minY * zoom,
+      zoom
+    };
     scheduleUiSave();
   }
 
@@ -2471,7 +2505,7 @@
 
       <div class="flex flex-col gap-2 xl:flex-row">
         <div class="relative min-w-0 flex-1">
-        <div class="h-[clamp(560px,72vh,920px)] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950">
+        <div bind:this={canvasEl} class="h-[clamp(560px,72vh,920px)] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950">
           <SvelteFlow
             bind:nodes
             bind:edges
@@ -2507,6 +2541,7 @@
               <span class="pointer-events-none px-1 text-[9px] text-sky-300">{selectedNodeIds.length} selected</span>
               <IconButton icon="layout" label="Align horizontally" title="Align selected nodes to the left" onclick={() => alignSelected("x")} />
               <IconButton icon="layout" label="Align vertically" title="Align selected nodes to the top" onclick={() => alignSelected("y")} />
+              <IconButton icon="search" label="Fit selected" title="Fit the selected nodes in the viewport" onclick={fitSelectedNodes} />
               <IconButton icon="duplicate" label="Duplicate selected" onclick={() => { for (const id of selectedNodeIds) duplicateNode(id); }} />
               <IconButton icon="trash" label="Delete selected" variant="danger" onclick={removeSelectedNodes} />
             {/if}
