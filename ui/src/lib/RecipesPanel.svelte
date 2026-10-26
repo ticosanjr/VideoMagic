@@ -2189,7 +2189,8 @@
         </div>
       {/if}
 
-      <div class="relative">
+      <div class="flex flex-col gap-2 xl:flex-row">
+        <div class="relative min-w-0 flex-1">
         <div class="h-[clamp(560px,72vh,920px)] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950">
           <SvelteFlow
             bind:nodes
@@ -2255,8 +2256,9 @@
           </div>
         {/if}
 
+        </div>
         {#if inspectorOpen}
-          <aside class="absolute bottom-2 right-2 top-2 z-30 flex w-[min(380px,calc(100%-1rem))] flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950/98 shadow-2xl backdrop-blur">
+          <aside class="flex h-[clamp(560px,72vh,920px)] w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950/98 shadow-2xl backdrop-blur xl:w-[380px]">
             <div class="flex items-center justify-between border-b border-neutral-800 px-3 py-2">
               <div class="min-w-0">
                 <p class="text-[10px] uppercase tracking-wide text-neutral-500">Step inspector</p>

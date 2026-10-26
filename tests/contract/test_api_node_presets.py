@@ -61,3 +61,23 @@ def test_node_preset_errors_and_options(monkeypatch, tmp_path) -> None:
     assert client.get(
         "/api/v1/node-presets", params={"step_type": "edit.timeline"}
     ).json()["presets"]
+
+
+def test_node_options_expose_configured_providers(monkeypatch, tmp_path) -> None:
+    client, _manager = _client(monkeypatch, tmp_path)
+    client.put(
+        "/api/v1/providers/tts-demo",
+        json={
+            "id": "tts-demo",
+            "name": "TTS demo",
+            "capability": "tts",
+            "base_url": "http://127.0.0.1:9/v1",
+            "model": "tts-1",
+            "api_key_env": "VIDEOWFLOW_TTS_API_KEY",
+            "enabled": True,
+        },
+    )
+    payload = client.get("/api/v1/node-options").json()
+    assert payload["providers"]["tts"][0]["id"] == "tts-demo"
+    assert isinstance(payload["services"], list)
+    assert isinstance(payload["models"], list)
