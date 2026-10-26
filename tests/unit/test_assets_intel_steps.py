@@ -157,7 +157,10 @@ def test_asset_match_uses_embeddings_and_limits_windows(
 def test_asset_match_deduplicates_assets(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    clips = [make_clip("One", start=0, end=2 * RATE), make_clip("Two", start=2 * RATE, end=4 * RATE)]
+    clips = [
+        make_clip("One", start=0, end=2 * RATE),
+        make_clip("Two", start=2 * RATE, end=4 * RATE),
+    ]
     context = make_context(
         tmp_path,
         media_info=make_media(tmp_path),
