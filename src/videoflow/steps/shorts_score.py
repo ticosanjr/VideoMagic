@@ -146,8 +146,10 @@ class ShortsScoreStep(BaseStep):
         if not isinstance(ranking, list):
             return clips
         ordered = []
+        seen: set[int] = set()
         for index in ranking:
-            if isinstance(index, int) and 0 <= index < len(clips):
+            if isinstance(index, int) and 0 <= index < len(clips) and index not in seen:
+                seen.add(index)
                 ordered.append(clips[index])
         for clip in clips:
             if clip not in ordered:
