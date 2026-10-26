@@ -1741,8 +1741,13 @@
     error = "";
     status = "";
     const fieldErrors = nodeValidationErrors();
-    if (Object.keys(fieldErrors).length) {
-      error = `Fix ${Object.keys(fieldErrors).length} field error(s) before running.`;
+    const errorKeys = Object.keys(fieldErrors);
+    if (errorKeys.length) {
+      const firstNode = errorKeys[0].split(".")[0];
+      if (nodes.some((node) => node.id === firstNode)) {
+        selectNode(firstNode);
+      }
+      error = `Fix ${errorKeys.length} field error(s) before running.`;
       return;
     }
     busy = true;
@@ -1778,8 +1783,13 @@
     error = "";
     status = "";
     const fieldErrors = nodeValidationErrors();
-    if (Object.keys(fieldErrors).length) {
-      error = `Fix ${Object.keys(fieldErrors).length} field error(s) before running.`;
+    const errorKeys = Object.keys(fieldErrors);
+    if (errorKeys.length) {
+      const firstNode = errorKeys[0].split(".")[0];
+      if (nodes.some((node) => node.id === firstNode)) {
+        selectNode(firstNode);
+      }
+      error = `Fix ${errorKeys.length} field error(s) before running.`;
       return;
     }
     busy = true;

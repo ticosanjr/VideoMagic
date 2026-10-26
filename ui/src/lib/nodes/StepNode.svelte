@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import { Handle, Position } from "@xyflow/svelte";
   import HelpTip from "$lib/HelpTip.svelte";
   import NodeConfigForm from "$lib/nodes/NodeConfigForm.svelte";
@@ -60,6 +61,22 @@
     };
     selected?: boolean;
   } = $props();
+
+  let removeArmed = $state(false);
+  let removeTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function requestRemove() {
+    if (removeArmed) {
+      removeArmed = false;
+      data.onRemove?.();
+      return;
+    }
+    removeArmed = true;
+    clearTimeout(removeTimer);
+    removeTimer = setTimeout(() => (removeArmed = false), 3000);
+  }
+
+  onDestroy(() => clearTimeout(removeTimer));
 
   const isMediaNode = $derived(
     data.type === "ingest" ||
@@ -204,7 +221,7 @@
           <button type="button" title="Open the node JSON" onclick={(event) => { event.stopPropagation(); data.onOpenJson?.(); }} class="rounded border border-neutral-700 px-1.5 py-0.5 text-[9px] text-neutral-300 hover:border-sky-500">JSON</button>
           <button type="button" title="Show node logs" onclick={(event) => { event.stopPropagation(); data.onLogs?.(); }} class="rounded border border-neutral-700 px-1.5 py-0.5 text-[9px] text-neutral-300 hover:border-sky-500">Logs</button>
           <button type="button" title="Duplicate this node" onclick={(event) => { event.stopPropagation(); data.onDuplicate?.(); }} class="rounded border border-neutral-700 px-1.5 py-0.5 text-[9px] text-neutral-300 hover:border-sky-500">Duplicate</button>
-          <button type="button" title="Remove this node" onclick={(event) => { event.stopPropagation(); data.onRemove?.(); }} class="rounded border border-rose-500/30 px-1.5 py-0.5 text-[9px] text-rose-300 hover:bg-rose-500/10">Remove</button>
+          <button type="button" title={removeArmed ? "Click again to remove this node" : "Remove this node"} onclick={(event) => { event.stopPropagation(); requestRemove(); }} class={`rounded border px-1.5 py-0.5 text-[9px] ${removeArmed ? "border-rose-400 bg-rose-500/15 text-rose-100" : "border-rose-500/30 text-rose-300 hover:bg-rose-500/10"}`}>{removeArmed ? "Confirm remove" : "Remove"}</button>
         </div>
       </div>
     {/if}

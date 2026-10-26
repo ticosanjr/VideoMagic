@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import HelpTip from "$lib/HelpTip.svelte";
   import NodeConfigForm from "$lib/nodes/NodeConfigForm.svelte";
   import NodeMediaField from "$lib/nodes/NodeMediaField.svelte";
@@ -74,6 +75,22 @@
     onclose?: () => void;
   } = $props();
 
+  let removeArmed = $state(false);
+  let removeTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function requestRemove() {
+    if (removeArmed) {
+      removeArmed = false;
+      onremove?.();
+      return;
+    }
+    removeArmed = true;
+    clearTimeout(removeTimer);
+    removeTimer = setTimeout(() => (removeArmed = false), 3000);
+  }
+
+  onDestroy(() => clearTimeout(removeTimer));
+
   const isMediaNode = $derived(
     node.type === "ingest" ||
       (node.inputPorts ?? []).some((port) => port.id === "media")
@@ -132,10 +149,11 @@
     >Logs</button>
     <button
       type="button"
-      onclick={onremove}
-      title="Remove this node"
-      class="rounded border border-rose-500/30 px-2 py-0.5 text-[10px] text-rose-300 hover:bg-rose-500/10"
-    >Remove</button>
+      data-testid="inspector-remove"
+      onclick={requestRemove}
+      title={removeArmed ? "Click again to remove this node" : "Remove this node"}
+      class={`rounded border px-2 py-0.5 text-[10px] ${removeArmed ? "border-rose-400 bg-rose-500/15 text-rose-100" : "border-rose-500/30 text-rose-300 hover:bg-rose-500/10"}`}
+    >{removeArmed ? "Confirm remove" : "Remove"}</button>
   </div>
 
   <div class="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">

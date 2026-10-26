@@ -173,6 +173,17 @@ test("autosaves inspector edits", async ({ page }) => {
   await expect.poll(() => saves.length).toBeGreaterThan(0);
 });
 
+test("confirms inspector removal and can undo it", async ({ page }) => {
+  await page.getByTestId("step-audio.vad").getByText("Voice detection").click();
+  const remove = page.getByTestId("inspector-remove");
+  await remove.click();
+  await expect(remove).toHaveText("Confirm remove");
+  await remove.click();
+  await expect(page.getByTestId("step-audio.vad")).toHaveCount(0);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByTestId("step-audio.vad")).toBeVisible();
+});
+
 test("undoes an inspector field edit", async ({ page }) => {
   await page.getByTestId("step-audio.vad").getByText("Voice detection").click();
   await page.getByTestId("inspector-field-min_silence_ms").evaluate((element) => {

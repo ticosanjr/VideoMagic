@@ -10,6 +10,7 @@ export const GLOSSARY: Record<string, string> = {
   "+ Add step": "+ Adicionar etapa",
   "No presets for this step yet.": "Ainda não há presets para esta etapa.",
   "unsaved": "não salvo",
+  "Confirm remove": "Confirmar remoção",
   "saving…": "salvando…",
   "saved": "salvo",
   "Agent tools": "Ferramentas do agente",
