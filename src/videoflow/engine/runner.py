@@ -35,6 +35,7 @@ from videoflow.steps.ports import (
     capture_outputs,
     input_fingerprint,
     validate_recipe_ports,
+    write_context,
 )
 
 StepStatus = Literal["cached", "executed", "skipped"]
@@ -128,9 +129,49 @@ class RecipeRunner:
             context.pcm_path = Path(wav)
             context.pcm_digest = adapter.pcm_digest(wav)
 
+    def _merge_step_outputs(
+        self,
+        context: PipelineContext,
+        step_context: PipelineContext,
+        step: Any,
+        recipe_step: RecipeStep,
+    ) -> None:
+        capture_outputs(step_context, step, recipe_step.id)
+        for port in step.output_ports:
+            write_context(
+                context,
+                port.context_key,
+                step_context.port_outputs[recipe_step.id][port.id],
+            )
+        context.port_outputs[recipe_step.id] = step_context.port_outputs[
+            recipe_step.id
+        ]
+        context.port_hashes[recipe_step.id] = step_context.port_hashes[
+            recipe_step.id
+        ]
+        # Ambient runtime state remains shared until every legacy field has a
+        # granular port. Declared ports still define typed data flow.
+        context.artifacts.update(step_context.artifacts)
+        context.metadata.update(step_context.metadata)
+        context.selected_shorts = list(step_context.selected_shorts)
+        context.short_captions.update(step_context.short_captions)
+        context.shorts = list(step_context.shorts)
+        context.hashes.update(step_context.hashes)
+        context.cache_hits.extend(
+            item for item in step_context.cache_hits if item not in context.cache_hits
+        )
+        context.cache_misses.extend(
+            item
+            for item in step_context.cache_misses
+            if item not in context.cache_misses
+        )
+        if len(step_context.warnings) > len(context.warnings):
+            context.warnings.extend(step_context.warnings[len(context.warnings) :])
+
     def _copy_node_outputs(
         self,
         context: PipelineContext,
+        step_context: PipelineContext,
         recipe_step: RecipeStep,
         step: Any,
         before: dict[str, str],
@@ -145,14 +186,14 @@ class RecipeRunner:
             raise RecipeError(f"{recipe_step.id}: output folder is not a directory")
         candidates: list[Path] = []
         seen: set[Path] = set()
-        for key, value in context.artifacts.items():
+        for key, value in step_context.artifacts.items():
             if before.get(key) == value:
                 continue
             path = Path(value).expanduser()
             if path.is_file() and path.resolve() not in seen:
                 seen.add(path.resolve())
                 candidates.append(path)
-        for value in step.cache_outputs(context):
+        for value in step.cache_outputs(step_context):
             path = Path(value)
             if path.is_file() and path.resolve() not in seen:
                 seen.add(path.resolve())
@@ -162,7 +203,7 @@ class RecipeRunner:
             if not path.is_file():
                 continue
             try:
-                relative = path.resolve().relative_to(context.output.resolve())
+                relative = path.resolve().relative_to(step_context.output.resolve())
             except ValueError:
                 relative = Path(recipe_step.id) / path.name
             target = directory / relative
@@ -310,7 +351,7 @@ class RecipeRunner:
                             f"Reusing {step.title}",
                         )
                         telemetry.finish(recipe_step.id, "Checkpoint reused")
-                    self._copy_node_outputs(context, recipe_step, step, {})
+                    self._copy_node_outputs(context, context, recipe_step, step, {})
                     capture_outputs(context, step, recipe_step.id)
                     io.report(100, "Cached checkpoint reused")
                     continue
@@ -327,11 +368,12 @@ class RecipeRunner:
             step_started = time.perf_counter()
             context.metadata.setdefault("step_progress", {})[recipe_step.id] = 0
             self._ensure_media_override(context, recipe_step)
+            step_context = context.model_copy(deep=True)
             if recipe_step.inputs:
-                apply_inputs(context, step, recipe_step.inputs)
-            before_artifacts = dict(context.artifacts)
+                apply_inputs(step_context, step, recipe_step.inputs)
+            before_artifacts = dict(step_context.artifacts)
             try:
-                step.run(context, params, io)
+                step.run(step_context, params, io)
             except Exception as exc:
                 if telemetry is not None:
                     telemetry.fail(recipe_step.id, str(exc))
@@ -340,8 +382,10 @@ class RecipeRunner:
                     raise
                 raise StepExecutionError(recipe_step.id, str(exc)) from exc
             elapsed_ms = int((time.perf_counter() - step_started) * 1000)
-            self._copy_node_outputs(context, recipe_step, step, before_artifacts)
-            capture_outputs(context, step, recipe_step.id)
+            self._copy_node_outputs(
+                context, step_context, recipe_step, step, before_artifacts
+            )
+            self._merge_step_outputs(context, step_context, step, recipe_step)
             context.metadata.setdefault("step_progress", {})[recipe_step.id] = 100
             if step_progress is not None:
                 step_progress(recipe_step.id, 100, f"{step.title} ready")

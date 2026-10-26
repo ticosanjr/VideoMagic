@@ -116,8 +116,14 @@ def test_runner_feeds_two_branches_from_two_vads(monkeypatch, tmp_path: Path) ->
         params_model = TimelineParams
 
         def run(self, context, params, io: StepIO) -> None:
-            context.metadata[f"seen_{io.stage}"] = list(context.speech_intervals)
-            context.state = None
+            from videoflow.domain.state import ProjectState, SampleSpan
+
+            context.state = ProjectState(
+                vad_intervals=[
+                    SampleSpan(start_sample=start, end_sample=end)
+                    for start, end in context.speech_intervals
+                ]
+            )
 
     fake = {
         "ingest": FakeIngest(),
@@ -164,8 +170,10 @@ def test_runner_feeds_two_branches_from_two_vads(monkeypatch, tmp_path: Path) ->
     result = RecipeRunner(recipe).run(
         tmp_path / "source.mp4", tmp_path / "out", resume=False
     )
-    assert result.context.metadata["seen_timeline_a"] == [(100, 1100)]
-    assert result.context.metadata["seen_timeline_b"] == [(300, 1300)]
+    timeline_a = result.context.port_outputs["timeline_a"]["timeline"]
+    timeline_b = result.context.port_outputs["timeline_b"]["timeline"]
+    assert timeline_a.vad_intervals[0].start_sample == 100
+    assert timeline_b.vad_intervals[0].start_sample == 300
     assert result.context.port_outputs["vad_a"]["speech"] == [(100, 1100)]
     assert result.context.port_outputs["vad_b"]["speech"] == [(300, 1300)]
 
