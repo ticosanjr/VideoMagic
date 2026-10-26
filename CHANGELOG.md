@@ -3,6 +3,32 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.21.0] - 2026-10-26
+
+### Added
+
+- **Full-tree coverage gate met.** 96.4% (19,347/20,069 statements) with 1,405
+  unit/contract tests, including new coverage for adapters, CLI, MCP tools, API
+  routes, step runners, services, and exporters.
+- **Docked recipe inspector.** The inspector now sits beside the canvas on wide
+  screens instead of covering the graph.
+
+### Fixed
+
+- Missing music/image/font assets return `404 asset_not_found` instead of a 500.
+- Invalid config imports return `422 invalid_config`.
+- A shadowed duplicate artifacts route was removed.
+- Missing local models raise a domain error instead of `KeyError`.
+- Duplicate entries in LLM Short rankings are ignored.
+- Disabling Short captions no longer leaves a stale subtitle reference.
+- Publishing and B-roll history tolerate non-object JSON stores.
+
+### Notes
+
+- Pure step I/O and the two manual QA sign-offs remain open for 3.0.
+- Voice cloning stays shell-only by decision; synthesis reports
+  `capability_unavailable`.
+
 ## [2.20.0] - 2026-10-26
 
 ### Added
@@ -24,6 +50,7 @@ follow semantic versioning once the project reaches 1.0.
 
 - Full-tree coverage is 81.9%; the 95% gate remains open.
 - Pure step I/O and Kdenlive/a11y manual QA remain open.
+
 ## [2.19.0] - 2026-10-26
 
 ### Added

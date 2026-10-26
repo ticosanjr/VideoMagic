@@ -10,22 +10,22 @@ uv run python scripts/coverage_layers.py
 The `.coveragerc` used for this report disables the release gate's omit list so
 adapters, exporters, API, jobs, and MCP are visible.
 
-## Current working tree (after 2.20.0)
+## Current working tree (2.21.0)
 
 | Layer | Hit | Total | Cover | 2.12 target | 2.13 target |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| api | 2,282 | 2,681 | 85.1% | 75% | 85% |
-| jobs | 546 | 610 | 89.5% | 85% | 90% |
-| exporters | 1,130 | 1,189 | 95.0% | 90% | 95% |
-| mcp | 932 | 1,161 | 80.3% | 80% | 80% |
-| steps | 2,586 | 2,809 | 92.1% | — | — |
-| application | 7,477 | 7,997 | 93.5% | — | — |
-| domain | 1,026 | 1,028 | 99.8% | — | — |
-| **full tree** | **17,885** | **20,081** | **89.1%** | — | — |
+| api | 2,543 | 2,666 | 95.4% | 75% | 85% |
+| jobs | 563 | 610 | 92.3% | 85% | 90% |
+| exporters | 1,146 | 1,189 | 96.4% | 90% | 95% |
+| mcp | 1,155 | 1,161 | 99.5% | 80% | 80% |
+| steps | 2,729 | 2,810 | 97.1% | — | — |
+| application | 7,609 | 7,997 | 95.1% | — | — |
+| domain | 1,028 | 1,030 | 99.8% | — | — |
+| **full tree** | **19,347** | **20,069** | **96.4%** | — | — |
 
-The full-tree 95% gate remains open. The remaining 2,196 missed statements are
-concentrated in `api/routes.py` (375), `cli.py` (337),
-`mcp_server/server.py` (223), and `adapters/ffmpeg.py` (180).
+The full-tree 95% gate is **met**. The release gate (`uv run pytest`) is at
+99.4%. Remaining misses are mostly unreachable defensive branches and the
+shadow-free `api/routes.py` error tails.
 
 ## 2.20.0 baseline (historical)
 
