@@ -265,6 +265,8 @@ class RenderShortsStep(BaseStep):
             entry["path"] = str(destination)
             if ass_path is not None:
                 entry["subtitles"] = str(ass_path)
+            else:
+                entry.pop("subtitles", None)
             entry["aspect_ratio"] = entry.get("aspect_ratio", "9:16")
             rendered.append(entry)
 
