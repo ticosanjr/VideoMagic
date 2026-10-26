@@ -111,3 +111,31 @@ def test_recut_global_presets_are_valid_and_tuned() -> None:
         assert next(
             step for step in recipe.enabled_steps() if step.id == "export"
         ).params["targets"] == ["mp4", "resolve", "premiere", "kdenlive"]
+
+
+def test_run_route_resolves_source_and_output_from_the_recipe(monkeypatch, tmp_path) -> None:
+    from tests.contract.test_api_timeline import _client
+
+    client, manager = _client(monkeypatch, tmp_path)
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    recipe = {
+        "schema_version": 1,
+        "id": "auto_roots",
+        "name": "Auto roots",
+        "steps": [
+            {
+                "id": "ingest",
+                "type": "ingest",
+                "params": {"source": str(source)},
+            }
+        ],
+    }
+    response = client.post(
+        "/api/v1/recipes/run",
+        json={"recipe": recipe, "source": "", "output": ""},
+    )
+    assert response.status_code == 202, response.text
+    job = manager.get(response.json()["job"]["job_id"])
+    assert str(job.source) == str(source.resolve())
+    assert job.output.name == "source-videoflow"

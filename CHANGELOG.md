@@ -3,6 +3,27 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.20.0] - 2026-10-26
+
+### Added
+
+- **Node presets library.** Built-in and operator-created presets per step type,
+  with create, edit, delete, favorite, and update-from-current-values.
+- **Node option catalogs.** `GET /api/v1/node-options` and provider pickers for
+  ASR/TTS steps, populated from the configured providers.
+- **Optional run roots.** Source and workspace are derived from the ingest node
+  and source folder when the run form is left empty.
+- **Port wiring shows every port.** Incompatible inputs remain visible but
+  disabled, with type labels and reasons.
+- **Navigation icons and field help.** Icons for areas/tabs and tooltips for
+  node descriptions and every documented field.
+- **Per-step context isolation.** Steps run against a scoped context copy; only
+  declared ports and ambient compatibility state are merged back.
+
+### Notes
+
+- Full-tree coverage is 81.9%; the 95% gate remains open.
+- Pure step I/O and Kdenlive/a11y manual QA remain open.
 ## [2.19.0] - 2026-10-26
 
 ### Added

@@ -113,3 +113,29 @@ export function tabHintKey(tab: TabId): string {
 export function areaHintKey(area: AreaId): string {
   return `${area}_hint`;
 }
+
+
+export const AREA_ICONS: Record<AreaId, string> = {
+  produce: "▶",
+  edit: "✂",
+  runs: "◉",
+  library: "▤",
+  setup: "⚙"
+};
+
+export const TAB_ICONS: Record<TabId, string> = {
+  recipes: "≡",
+  projects: "▣",
+  assistant: "✦",
+  timeline: "▬",
+  jobs: "◉",
+  schedules: "◷",
+  media: "▦",
+  brand: "❖",
+  models: "◈",
+  providers: "⚡",
+  services: "⚙",
+  extensions: "❑",
+  connect: "⇄",
+  settings: "⚙"
+};

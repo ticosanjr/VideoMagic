@@ -24,6 +24,8 @@ export const GLOSSARY: Record<string, string> = {
   "Outputs": "Saídas",
   "Pass to the next node": "Passar para o próximo nó",
   "Save a copy to a folder": "Salvar uma cópia em uma pasta",
+  "Run source — optional": "Origem da execução — opcional",
+  "Workspace — optional": "Workspace — opcional",
   "Store consent": "Registrar consentimento",
   "Voice clone (shell)": "Clone de voz (casca)",
   "Winner": "Vencedor",

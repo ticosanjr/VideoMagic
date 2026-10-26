@@ -20,6 +20,7 @@ export interface RecipeField {
   group: string;
   unit: string;
   options: string[];
+  optionsSource: string;
   itemOptions: string[];
   minimum?: number;
   maximum?: number;
@@ -41,7 +42,14 @@ export interface RecipeFieldGroup {
 }
 
 type Schema = Record<string, unknown>;
-type FieldMeta = { group?: string; unit?: string; label?: string; control?: RecipeControl; step?: number };
+type FieldMeta = {
+  group?: string;
+  unit?: string;
+  label?: string;
+  control?: RecipeControl;
+  step?: number;
+  optionsSource?: string;
+};
 
 const FIELD_META: Record<string, Record<string, FieldMeta>> = {
   "audio.vad": {
@@ -78,6 +86,9 @@ const FIELD_META: Record<string, Record<string, FieldMeta>> = {
     transition_frames: { group: "Transitions", unit: "frames", label: "Transition length" },
     transition_type: { group: "Transitions", label: "Transition type" }
   },
+  "localization.dub": {
+    provider_id: { group: "Provider", label: "TTS provider", optionsSource: "providers:tts" },
+  },
   "retakes.cull": {
     enabled: { group: "Retakes", label: "Remove retakes" },
     strategy: { group: "Retakes", label: "Strategy" },
@@ -94,6 +105,7 @@ const FIELD_META: Record<string, Record<string, FieldMeta>> = {
     mode: { group: "Transcription", label: "Mode" },
     language: { group: "Transcription", label: "Language" },
     model_size: { group: "Transcription", label: "Model" },
+    provider_id: { group: "Provider", label: "Configured provider", optionsSource: "providers:asr" },
     engine: { group: "Transcription", label: "Engine" },
     device: { group: "Transcription", label: "Device" },
     compute_type: { group: "Transcription", label: "Compute" },
@@ -239,6 +251,7 @@ function controlFor(
   itemOptions: string[],
   meta: FieldMeta
 ): RecipeControl {
+  if (meta.optionsSource) return "select";
   if (meta.control) return meta.control;
   if (kind === "boolean") return "switch";
   if (kind === "enum") {
@@ -293,6 +306,7 @@ function buildField(
     group: meta.group ?? "Parameters",
     unit: meta.unit ?? "",
     options: enumValues,
+    optionsSource: meta.optionsSource ?? "",
     itemOptions,
     minimum,
     maximum,

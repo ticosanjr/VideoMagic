@@ -265,6 +265,45 @@ class RecipeRunner:
         for index, recipe_step in enumerate(order, start=1):
             step = get_step(recipe_step.type)
             params = step.validate_params(recipe_step.params)
+            provider_id = str(getattr(params, "provider_id", "") or "")
+            if provider_id:
+                from videoflow.application.providers import list_providers
+
+                capability = {
+                    "transcribe": "asr",
+                    "localization.dub": "tts",
+                }.get(step.type, "")
+                provider = next(
+                    (
+                        item
+                        for item in list_providers()
+                        if str(item.get("id")) == provider_id
+                    ),
+                    None,
+                )
+                if provider is None:
+                    raise RecipeError(
+                        f"{recipe_step.id}: unknown provider {provider_id}"
+                    )
+                if capability and str(provider.get("capability")) != capability:
+                    raise RecipeError(
+                        f"{recipe_step.id}: provider {provider_id} is not a {capability} provider"
+                    )
+                values = {
+                    "base_url": provider.get("base_url")
+                    or getattr(params, "base_url", None),
+                    "model": provider.get("model")
+                    or getattr(params, "model", ""),
+                    "api_key_env": provider.get("api_key_env")
+                    or getattr(params, "api_key_env", ""),
+                }
+                params = params.model_copy(
+                    update={
+                        key: value
+                        for key, value in values.items()
+                        if hasattr(params, key)
+                    }
+                )
             fingerprint = cache_key(
                 {
                     "checkpoint": CHECKPOINT_VERSION,

@@ -78,6 +78,19 @@ from videoflow.application.multimodal import analyze_short_entry
 from videoflow.application.multimodal_llm import analyze_short_llm_entry
 from videoflow.application.music import delete_music, list_music, save_music
 from videoflow.application.nle_validation import validate_nle_exports
+from videoflow.application.node_presets import (
+    NodePresetRequest,
+    NodePresetUpdate,
+    create_preset,
+    delete_preset,
+    update_preset,
+)
+from videoflow.application.node_presets import (
+    list_presets as list_node_presets,
+)
+from videoflow.application.node_presets import (
+    set_favorite as set_preset_favorite,
+)
 from videoflow.application.plugins import (
     list_plugins,
     load_plugins,
@@ -132,6 +145,7 @@ from videoflow.application.publishing import (
     save_target,
 )
 from videoflow.application.render_queue import renders
+from videoflow.application.run_defaults import resolve_run_roots
 from videoflow.application.schedules import (
     RecipeSchedule,
     delete_schedule,
@@ -451,8 +465,8 @@ class NewJobRequest(BaseModel):
 
 
 class RecipeRunRequest(BaseModel):
-    source: str = Field(min_length=1)
-    output: str = Field(min_length=1)
+    source: str = ""
+    output: str = ""
     recipe: dict[str, Any] | None = None
     recipe_id: str | None = None
     transcript_sentences: list[dict[str, Any]] = Field(default_factory=list)
@@ -767,14 +781,15 @@ def register_routes(
 
     def start_recipe_job(request: RecipeRunRequest, through: str | None) -> dict[str, object]:
         roots = allowed_roots()
-        source = resolve_allowed(Path(request.source), roots)
-        output = resolve_allowed(Path(request.output), roots)
         if request.recipe is not None:
             recipe = parse_recipe(request.recipe)
         else:
             recipe = get_recipe(str(request.recipe_id))
         recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
         validate_recipe_ports(recipe)
+        source, output = resolve_run_roots(
+            recipe, request.source, request.output, roots
+        )
         if through is not None and through not in {step.id for step in recipe.enabled_steps()}:
             raise RecipeError(f"Unknown or disabled step: {through}")
         recipe = resolve_recipe_paths(recipe, roots)
@@ -894,6 +909,21 @@ def register_routes(
             ) from exc
         return {"ok": True, "font": asset}
 
+    @app.get("/api/v1/node-options")
+    def node_options() -> dict[str, object]:
+        providers: dict[str, list[dict[str, object]]] = {}
+        for item in list_providers():
+            capability = str(item.get("capability") or "")
+            providers.setdefault(capability, []).append(item)
+        return {
+            "ok": True,
+            "providers": providers,
+            "services": [
+                item.model_dump(mode="json") for item in list_definitions()
+            ],
+            "models": list_models(),
+        }
+
     @app.get("/api/v1/capabilities")
     def capabilities(allow_external: bool = False) -> dict[str, object]:
         return {
@@ -909,6 +939,52 @@ def register_routes(
     @app.get("/api/v1/recipes")
     def recipes() -> dict[str, object]:
         return {"ok": True, "recipes": recipe_meta.decorate(list_recipes())}
+
+    @app.get("/api/v1/node-presets")
+    def node_presets(step_type: str = "") -> dict[str, object]:
+        return {
+            "ok": True,
+            "presets": [
+                preset.model_dump(mode="json")
+                for preset in list_node_presets(step_type.strip())
+            ],
+        }
+
+    @app.post("/api/v1/node-presets", status_code=201)
+    def node_preset_create(request: NodePresetRequest) -> dict[str, object]:
+        preset = create_preset(request)
+        return {"ok": True, "preset": preset.model_dump(mode="json")}
+
+    @app.patch("/api/v1/node-presets/{preset_id}")
+    def node_preset_update(
+        preset_id: str, request: NodePresetUpdate
+    ) -> dict[str, object]:
+        try:
+            preset = update_preset(preset_id, request)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "preset": preset.model_dump(mode="json")}
+
+    @app.delete("/api/v1/node-presets/{preset_id}")
+    def node_preset_delete(preset_id: str) -> dict[str, object]:
+        try:
+            delete_preset(preset_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "deleted": preset_id}
+
+    @app.post("/api/v1/node-presets/{preset_id}/favorite")
+    def node_preset_favorite(
+        preset_id: str, request: RecipeFavoriteRequest
+    ) -> dict[str, object]:
+        try:
+            preset = set_preset_favorite(preset_id, request.favorite)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {"ok": True, "preset": preset.model_dump(mode="json")}
 
     @app.post("/api/v1/recipes/{recipe_id}/favorite")
     def favorite_recipe(

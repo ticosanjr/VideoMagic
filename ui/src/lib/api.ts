@@ -2748,3 +2748,91 @@ export async function deleteVoiceProfile(profileId: string): Promise<void> {
     method: "DELETE"
   });
 }
+
+
+export interface NodePreset {
+  id: string;
+  step_type: string;
+  name: string;
+  params: Record<string, unknown>;
+  favorite: boolean;
+  builtin: boolean;
+  created_at: string;
+}
+
+export async function listNodePresets(stepType = ""): Promise<NodePreset[]> {
+  const params = stepType ? `?step_type=${encodeURIComponent(stepType)}` : "";
+  const response = await request<{ ok: boolean; presets: NodePreset[] }>(
+    `/api/v1/node-presets${params}`
+  );
+  return response.presets ?? [];
+}
+
+export async function createNodePreset(payload: {
+  step_type: string;
+  name: string;
+  params: Record<string, unknown>;
+}): Promise<NodePreset> {
+  const response = await request<{ ok: boolean; preset: NodePreset }>(
+    "/api/v1/node-presets",
+    { method: "POST", body: JSON.stringify(payload) }
+  );
+  return response.preset;
+}
+
+export async function updateNodePreset(
+  presetId: string,
+  payload: { name?: string; params?: Record<string, unknown> }
+): Promise<NodePreset> {
+  const response = await request<{ ok: boolean; preset: NodePreset }>(
+    `/api/v1/node-presets/${encodeURIComponent(presetId)}`,
+    { method: "PATCH", body: JSON.stringify(payload) }
+  );
+  return response.preset;
+}
+
+export async function deleteNodePreset(presetId: string): Promise<void> {
+  await request(`/api/v1/node-presets/${encodeURIComponent(presetId)}`, {
+    method: "DELETE"
+  });
+}
+
+export async function favoriteNodePreset(
+  presetId: string,
+  favorite: boolean
+): Promise<NodePreset> {
+  const response = await request<{ ok: boolean; preset: NodePreset }>(
+    `/api/v1/node-presets/${encodeURIComponent(presetId)}/favorite`,
+    { method: "POST", body: JSON.stringify({ favorite }) }
+  );
+  return response.preset;
+}
+
+
+export interface ProviderOption {
+  id: string;
+  name: string;
+  capability: string;
+  base_url: string;
+  model: string;
+  api_key_env: string;
+  enabled: boolean;
+  is_default: boolean;
+}
+
+export interface NodeOptions {
+  ok: boolean;
+  providers: Record<string, ProviderOption[]>;
+  services: ServiceDefinition[];
+  models: Array<Record<string, unknown>>;
+}
+
+export async function getNodeOptions(): Promise<NodeOptions> {
+  const response = await request<NodeOptions>("/api/v1/node-options");
+  return {
+    ok: Boolean(response.ok),
+    providers: response.providers ?? {},
+    services: response.services ?? [],
+    models: response.models ?? []
+  };
+}

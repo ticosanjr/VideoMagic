@@ -32,6 +32,8 @@
 
   import {
     AREAS,
+    AREA_ICONS,
+    TAB_ICONS,
     areaForTab,
     areaTabs,
     defaultTabForArea,
@@ -468,7 +470,7 @@
               onkeydown={(event) => onTabKey(event, AREAS.map((item) => item.id), area.id, (id) => selectTab(defaultTabForArea(id as AreaId)))}
               class={`rounded-xl px-3.5 py-2 text-xs font-medium transition ${activeArea === area.id ? "bg-sky-500/15 text-sky-200 ring-1 ring-inset ring-sky-400/20" : "text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-200"}`}
             >
-              {t(locale, area.id)}
+              <span aria-hidden="true" class="mr-1 text-[11px]">{AREA_ICONS[area.id]}</span>{t(locale, area.id)}
             </button>
           {/each}
         </div>
@@ -485,7 +487,7 @@
               onkeydown={(event) => onTabKey(event, subTabs, tabId, (id) => selectTab(id as TabId))}
               class={`rounded-lg px-2.5 py-1 text-[11px] transition ${activeTab === tabId ? "bg-white/[0.06] text-neutral-100" : "text-neutral-500 hover:text-neutral-200"}`}
             >
-              {t(locale, tabId)}
+              <span aria-hidden="true" class="mr-1 text-[10px]">{TAB_ICONS[tabId]}</span>{t(locale, tabId)}
             </button>
           {/each}
         </div>

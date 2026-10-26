@@ -20,16 +20,21 @@
     errorMessage,
     getJob,
     getLogs,
+    getNodeOptions,
     getRecipe,
     getRecipeHistory,
     jobArtifactUrl,
     shortFileUrl,
     getRunHistory,
     listJobs,
+    listNodePresets,
     listRecipes,
     listRecipeSteps,
     cancelBatch,
     createJobPreview,
+    createNodePreset,
+    deleteNodePreset,
+    favoriteNodePreset,
     getBatch,
     listBatches,
     resumeBatch,
@@ -40,6 +45,7 @@
     restoreRecipeVersion,
     saveRecipe,
     setRecipeFavorite,
+    updateNodePreset,
     updateRecipeTags,
     validateExports,
     validateRecipe,
@@ -50,6 +56,8 @@
     type RecipeHistoryEntry,
     type RecipeSummary,
     type RunRecord,
+    type NodeOptions,
+    type NodePreset,
     type StepManifest,
     type StepPort
   } from "$lib/api";
@@ -86,6 +94,13 @@
     mediaOverride?: string;
     outputMode?: "pipeline" | "folder";
     outputDir?: string;
+    presets?: NodePreset[];
+    options?: NodeOptions | null;
+    onApplyPreset?: (preset: NodePreset) => void;
+    onSavePreset?: (name: string) => void;
+    onUpdatePreset?: (presetId: string) => void;
+    onDeletePreset?: (presetId: string) => void;
+    onFavoritePreset?: (presetId: string, favorite: boolean) => void;
     expanded?: boolean;
     pinned?: boolean;
     width?: number;
@@ -102,6 +117,8 @@
   const nodeTypes = { step: StepNode };
   let steps = $state<StepManifest[]>([]);
   let recipes = $state<RecipeSummary[]>([]);
+  let nodePresets = $state<NodePreset[]>([]);
+  let nodeOptions = $state<NodeOptions | null>(null);
   let nodes = $state<Node[]>([]);
   let edges = $state<Edge[]>([]);
   let selectedId = $state<string | null>(null);
@@ -303,6 +320,8 @@
       try {
         steps = await listRecipeSteps();
         recipes = await listRecipes();
+        nodePresets = await listNodePresets();
+        nodeOptions = await getNodeOptions();
         const first = recipes[0];
         if (first) await loadRecipe(first.id);
       } catch (reason) {
@@ -395,11 +414,23 @@
         data: {
           title: manifest?.title ?? step.type,
           type: step.type,
+          description: manifest?.description ?? "",
           params: step.params,
           schema: manifest?.params_schema ?? {},
           inputs: step.inputs ?? {},
           inputPorts: manifest?.inputs ?? [],
           outputPorts: manifest?.outputs ?? [],
+          presets: nodePresets.filter((preset) => preset.step_type === step.type),
+          options: nodeOptions,
+          onApplyPreset: (preset: NodePreset) => {
+            const node = nodes.find((item) => item.id === step.id);
+            if (node) patchNodeParamsMany(step.id, preset.params);
+          },
+          onSavePreset: (name: string) => void saveNodePreset(step.id, step.type, name),
+          onUpdatePreset: (id: string) => void updateNodePresetFromNode(step.id, id),
+          onDeletePreset: (id: string) => void removeNodePreset(id),
+          onFavoritePreset: (id: string, favorite: boolean) =>
+            void favoritePreset(id, favorite),
           mediaOverride: step.media_override ?? "",
           outputMode: step.output_mode ?? "pipeline",
           outputDir: step.output_dir ?? "",
@@ -534,11 +565,20 @@
         data: {
           title: manifest.title,
           type,
+          description: manifest.description,
           params: defaultsFor(manifest),
           schema: manifest.params_schema,
           inputs: {},
           inputPorts: manifest.inputs ?? [],
           outputPorts: manifest.outputs ?? [],
+          presets: nodePresets.filter((preset) => preset.step_type === type),
+          options: nodeOptions,
+          onApplyPreset: (preset: NodePreset) => void patchNodeParamsMany(id, preset.params),
+          onSavePreset: (name: string) => void saveNodePreset(id, type, name),
+          onUpdatePreset: (presetId: string) => void updateNodePresetFromNode(id, presetId),
+          onDeletePreset: (presetId: string) => void removeNodePreset(presetId),
+          onFavoritePreset: (presetId: string, favorite: boolean) =>
+            void favoritePreset(presetId, favorite),
           mediaOverride: "",
           outputMode: "pipeline",
           outputDir: "",
@@ -618,17 +658,21 @@
   }
 
   function openWiring(source: string, target: string) {
-    const choices = wiringChoices(source, target);
-    if (!choices.length) {
-      error = `No compatible port between ${source} and ${target}.`;
+    const sourceNode = nodes.find((node) => node.id === source);
+    const targetNode = nodes.find((node) => node.id === target);
+    if (!sourceNode || !targetNode) return;
+    const outputs = nodeData(sourceNode).outputPorts ?? [];
+    const inputs = nodeData(targetNode).inputPorts ?? [];
+    if (!outputs.length || !inputs.length) {
+      error = `No ports available between ${source} and ${target}.`;
       return;
     }
-    const first = choices[0];
+    const firstCompatible = wiringChoices(source, target)[0];
     wiring = {
       source,
       target,
-      sourcePort: first.output.id,
-      targetPort: first.input.id
+      sourcePort: firstCompatible?.output.id ?? outputs[0].id,
+      targetPort: firstCompatible?.input.id ?? inputs[0].id
     };
   }
 
@@ -654,8 +698,19 @@
   function confirmWiring() {
     if (!wiring) return;
     const { source, target, sourcePort, targetPort } = wiring;
+    const sourceNode = nodes.find((node) => node.id === source);
     const targetNode = nodes.find((node) => node.id === target);
-    if (!targetNode) return;
+    if (!sourceNode || !targetNode) return;
+    const output = (nodeData(sourceNode).outputPorts ?? []).find(
+      (port) => port.id === sourcePort
+    );
+    const input = (nodeData(targetNode).inputPorts ?? []).find(
+      (port) => port.id === targetPort
+    );
+    if (!output || !input || !portTypeCompatible(output.type, input.type)) {
+      error = "Choose compatible port types before connecting.";
+      return;
+    }
     const reference = `${source}.${sourcePort}`;
     const exists = edges.some((edge) => edge.source === source && edge.target === target);
     pushUndo();
@@ -702,12 +757,11 @@
     return nodes
       .filter((node) => node.id !== targetId)
       .flatMap((node) =>
-        (nodeData(node).outputPorts ?? [])
-          .filter((output) => portTypeCompatible(output.type, inputPort.type))
-          .map((output) => ({
-            value: `${node.id}.${output.id}`,
-            label: `${node.id} · ${output.label}`
-          }))
+        (nodeData(node).outputPorts ?? []).map((output) => ({
+          value: `${node.id}.${output.id}`,
+          label: `${node.id} · ${output.label} · ${output.type}`,
+          compatible: portTypeCompatible(output.type, inputPort.type)
+        }))
       );
   }
 
@@ -1522,10 +1576,6 @@
   async function dryRun() {
     error = "";
     status = "";
-    if (!inputSource.trim() || !inputOutput.trim()) {
-      error = "Choose a source file and an output directory first.";
-      return;
-    }
     try {
       const plan = await dryRunRecipe({
         source: inputSource.trim(),
@@ -1543,6 +1593,72 @@
   async function refreshRecipes() {
     try {
       recipes = await listRecipes();
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
+  async function refreshNodePresets() {
+    nodePresets = await listNodePresets();
+    nodes = nodes.map((node) => ({
+      ...node,
+      data: {
+        ...nodeData(node),
+        presets: nodePresets.filter(
+          (preset) => preset.step_type === nodeData(node).type
+        )
+      }
+    }));
+  }
+
+  async function saveNodePreset(
+    nodeId: string,
+    stepType: string,
+    name: string
+  ) {
+    const node = nodes.find((item) => item.id === nodeId);
+    if (!node || !name.trim()) return;
+    try {
+      await createNodePreset({
+        step_type: stepType,
+        name: name.trim(),
+        params: { ...(nodeData(node).params ?? {}) }
+      });
+      await refreshNodePresets();
+      status = `Preset "${name.trim()}" saved.`;
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
+  async function updateNodePresetFromNode(nodeId: string, presetId: string) {
+    const node = nodes.find((item) => item.id === nodeId);
+    if (!node) return;
+    try {
+      await updateNodePreset(presetId, {
+        params: { ...(nodeData(node).params ?? {}) }
+      });
+      await refreshNodePresets();
+      status = "Preset updated.";
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
+  async function removeNodePreset(presetId: string) {
+    try {
+      await deleteNodePreset(presetId);
+      await refreshNodePresets();
+      status = "Preset deleted.";
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
+  async function favoritePreset(presetId: string, favorite: boolean) {
+    try {
+      await favoriteNodePreset(presetId, favorite);
+      await refreshNodePresets();
     } catch (reason) {
       error = errorMessage(reason);
     }
@@ -1577,10 +1693,6 @@
   async function execute() {
     error = "";
     status = "";
-    if (!inputSource.trim() || !inputOutput.trim()) {
-      error = "Choose a source file and an output directory first.";
-      return;
-    }
     const fieldErrors = nodeValidationErrors();
     if (Object.keys(fieldErrors).length) {
       error = `Fix ${Object.keys(fieldErrors).length} field error(s) before running.`;
@@ -1618,10 +1730,6 @@
   async function runToHere(stepId: string) {
     error = "";
     status = "";
-    if (!inputSource.trim() || !inputOutput.trim()) {
-      error = "Choose a source file and an output directory first.";
-      return;
-    }
     const fieldErrors = nodeValidationErrors();
     if (Object.keys(fieldErrors).length) {
       error = `Fix ${Object.keys(fieldErrors).length} field error(s) before running.`;
@@ -2031,20 +2139,23 @@
     <div class="p-3 sm:p-4">
       <div class="mb-3 grid gap-2 sm:grid-cols-2">
         <label class="block text-[10px] uppercase tracking-wide text-neutral-500">
-          Input file
+          Run source — optional
           <span class="mt-1 flex gap-1">
-            <input bind:value={inputSource} placeholder="/media/source.mp4" class="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[11px] text-neutral-200" />
+            <input bind:value={inputSource} data-testid="run-source" placeholder="auto from the ingest node" class="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[11px] text-neutral-200" />
             <button type="button" onclick={() => (picker = "source")} class="rounded-lg border border-neutral-700 px-2 text-[11px] text-neutral-300">…</button>
           </span>
         </label>
         <label class="block text-[10px] uppercase tracking-wide text-neutral-500">
-          Output directory
+          Workspace — optional
           <span class="mt-1 flex gap-1">
-            <input bind:value={inputOutput} placeholder="/media/output" class="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[11px] text-neutral-200" />
+            <input bind:value={inputOutput} data-testid="run-workspace" placeholder="auto from the source folder" class="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[11px] text-neutral-200" />
             <button type="button" onclick={() => (picker = "output")} class="rounded-lg border border-neutral-700 px-2 text-[11px] text-neutral-300">…</button>
           </span>
         </label>
       </div>
+      <p class="-mt-1 mb-3 text-[10px] text-neutral-500">
+        Leave these empty when the ingest node already has a source and the output nodes define their destinations. The runner derives a workspace automatically.
+      </p>
 
       {#if Object.keys(recipeVariables).length || Object.keys(recipeProfiles).length}
         <div class="mb-3 rounded-xl border border-neutral-800 bg-neutral-950/50 p-3">
@@ -2180,7 +2291,7 @@
                           >
                             <option value="">Not wired</option>
                             {#each availableWiringOptions(selectedNode.id, port.id) as option}
-                              <option value={option.value}>{option.label}</option>
+                              <option value={option.value} disabled={!option.compatible}>{option.label}{option.compatible ? "" : " (incompatible)"}</option>
                             {/each}
                           </select>
                         </label>
@@ -2562,10 +2673,8 @@
     {@const sourceNode = nodes.find((node) => node.id === wiring?.source)}
     {@const targetNode = nodes.find((node) => node.id === wiring?.target)}
     {@const outputPorts = sourceNode ? nodeData(sourceNode).outputPorts ?? [] : []}
-    {@const inputPorts = (targetNode ? nodeData(targetNode).inputPorts ?? [] : []).filter((input) => {
-      const output = outputPorts.find((item) => item.id === wiring?.sourcePort);
-      return output ? portTypeCompatible(output.type, input.type) : false;
-    })}
+    {@const inputPorts = targetNode ? nodeData(targetNode).inputPorts ?? [] : []}
+    {@const chosenOutput = outputPorts.find((item) => item.id === wiring?.sourcePort)}
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="presentation"
       onclick={(event) => { if (event.currentTarget === event.target) wiring = null; }}>
       <div class="w-full max-w-lg rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="Wire ports">
@@ -2600,7 +2709,7 @@
               class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100"
             >
               {#each inputPorts as port}
-                <option value={port.id}>{port.label} · {port.type}{port.required ? " *" : ""}</option>
+                <option value={port.id} disabled={chosenOutput ? !portTypeCompatible(chosenOutput.type, port.type) : false}>{port.label} · {port.type}{port.required ? " *" : ""}{chosenOutput && !portTypeCompatible(chosenOutput.type, port.type) ? " (incompatible)" : ""}</option>
               {/each}
             </select>
           </label>
@@ -2609,7 +2718,7 @@
           <p class="text-[10px] text-neutral-600">Only compatible port types are listed.</p>
           <div class="flex gap-1.5">
             <button type="button" onclick={() => (wiring = null)} class="rounded-lg border border-neutral-700 px-2.5 py-1 text-[11px] text-neutral-300">Cancel</button>
-            <button type="button" data-testid="wire-confirm" onclick={confirmWiring} disabled={!inputPorts.length} class="rounded-lg bg-sky-500 px-3 py-1 text-[11px] font-medium text-neutral-950 disabled:opacity-40">Connect</button>
+            <button type="button" data-testid="wire-confirm" onclick={confirmWiring} disabled={!inputPorts.length || !chosenOutput || !inputPorts.some((port) => port.id === wiring?.targetPort && chosenOutput && portTypeCompatible(chosenOutput.type, port.type))} class="rounded-lg bg-sky-500 px-3 py-1 text-[11px] font-medium text-neutral-950 disabled:opacity-40">Connect</button>
           </div>
         </div>
       </div>

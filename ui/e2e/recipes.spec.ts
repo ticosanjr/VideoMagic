@@ -13,6 +13,47 @@ async function mockApi(page: Page) {
     if (path === "/api/v1/steps") return route.fulfill({ json: fixture("steps.json") });
     if (path === "/api/v1/recipes") return route.fulfill({ json: fixture("recipes.json") });
     if (path === "/api/v1/recipes/example_recipe") return route.fulfill({ json: fixture("recipe.json") });
+    if (path === "/api/v1/node-presets") {
+      return route.fulfill({
+        json: {
+          ok: true,
+          presets: [
+            {
+              id: "builtin:audio.vad:gentle",
+              step_type: "audio.vad",
+              name: "Gentle",
+              params: { min_silence_ms: 550 },
+              favorite: false,
+              builtin: true,
+              created_at: ""
+            },
+            {
+              id: "builtin:audio.vad:aggressive",
+              step_type: "audio.vad",
+              name: "Aggressive",
+              params: { min_silence_ms: 240 },
+              favorite: true,
+              builtin: true,
+              created_at: ""
+            },
+            {
+              id: "builtin:edit.timeline:j-cut",
+              step_type: "edit.timeline",
+              name: "J-cut",
+              params: { cut_mode: "j_cut" },
+              favorite: false,
+              builtin: true,
+              created_at: ""
+            }
+          ]
+        }
+      });
+    }
+    if (path === "/api/v1/node-options") {
+      return route.fulfill({
+        json: { ok: true, providers: { asr: [], tts: [] }, services: [], models: [] }
+      });
+    }
     if (path === "/api/v1/runs") return route.fulfill({ json: fixture("runs.json") });
     if (path === "/api/v1/exports/validate") return route.fulfill({ json: fixture("nle.json") });
     if (path === "/api/v1/batches") return route.fulfill({ json: fixture("batches.json") });
@@ -94,7 +135,7 @@ test("edits a schema-derived field", async ({ page }) => {
 });
 
 test("validates NLE exports from the UI", async ({ page }) => {
-  await page.getByPlaceholder("/media/output").fill("/tmp/out");
+  await page.getByTestId("run-workspace").fill("/tmp/out");
   await page.getByTestId("nle-validate").click();
   await expect(page.getByTestId("nle-report")).toBeVisible();
   await expect(page.getByText("NLE export validation")).toBeVisible();
@@ -144,7 +185,7 @@ test("opens the timeline tab", async ({ page }) => {
 });
 
 test("opens persisted run history and shows failures", async ({ page }) => {
-  await page.getByPlaceholder("/media/output").fill("/tmp/out");
+  await page.getByTestId("run-workspace").fill("/tmp/out");
   await page.getByTestId("recipe-runs").click();
   await expect(page.getByTestId("run-history")).toBeVisible();
   await expect(page.getByText("failed")).toBeVisible();
@@ -172,6 +213,7 @@ test("uses sliders, presets, and cut-mode controls inside the node", async ({ pa
   await page
     .getByTestId("step-audio.vad")
     .getByRole("button", { name: "Aggressive" })
+    .first()
     .click();
   const params = await page.getByTestId("step-params-json").inputValue();
   expect(params).toContain('"min_silence_ms": 240');
@@ -183,7 +225,7 @@ test("uses sliders, presets, and cut-mode controls inside the node", async ({ pa
   await page.getByLabel("Close inspector").click();
   await page
     .getByTestId("step-edit.timeline")
-    .getByRole("button", { name: "J-cut" })
+    .getByRole("button", { name: "J-cut", exact: true })
     .click();
   await page
     .getByTestId("step-edit.timeline")

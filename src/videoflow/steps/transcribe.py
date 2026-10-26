@@ -35,6 +35,7 @@ Mode = Literal[
 class TranscribeParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    provider_id: str = ""
     mode: Mode = "auto"
     srt_path: str | None = None
     model_size: Literal["tiny", "base", "small", "medium", "large-v2", "large-v3"] = "small"

@@ -20,6 +20,7 @@ from videoflow.steps.registry import register_step
 class DubbingParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    provider_id: str = ""
     target_language: str = Field(default="en", min_length=2, max_length=20)
     base_url: str | None = None
     model: str = ""

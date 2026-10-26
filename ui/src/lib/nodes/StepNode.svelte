@@ -2,11 +2,11 @@
   import { Handle, Position } from "@xyflow/svelte";
   import {
     fieldGroups,
-    nodePresets,
     validateField,
     type RecipeField
   } from "$lib/recipeFields";
-  import type { StepPort } from "$lib/api";
+  import HelpTip from "$lib/HelpTip.svelte";
+  import type { NodeOptions, NodePreset, StepPort } from "$lib/api";
 
   let {
     data,
@@ -15,6 +15,7 @@
     data: {
       title: string;
       type: string;
+      description?: string;
       params: Record<string, unknown>;
       schema?: Record<string, unknown>;
       status?: "idle" | "queued" | "running" | "cached" | "executed" | "failed" | "skipped";
@@ -36,6 +37,13 @@
         value: unknown
       ) => void;
       onPickStepPath?: (key: "media_override" | "output_dir") => void;
+      presets?: NodePreset[];
+      options?: NodeOptions | null;
+      onApplyPreset?: (preset: NodePreset) => void;
+      onSavePreset?: (name: string) => void;
+      onUpdatePreset?: (presetId: string) => void;
+      onDeletePreset?: (presetId: string) => void;
+      onFavoritePreset?: (presetId: string, favorite: boolean) => void;
       errors?: Record<string, string>;
       onSelect?: () => void;
       onToggle?: () => void;
@@ -57,7 +65,15 @@
   const groups = $derived(
     fieldGroups(data.schema ?? {}, data.params ?? {}, data.type)
   );
-  const presets = $derived(nodePresets(data.type));
+  const presets = $derived<NodePreset[]>(data.presets ?? []);
+  let activePreset = $state<NodePreset | null>(null);
+  let presetName = $state("");
+  let savePreset = $state(false);
+
+  function applyPreset(preset: NodePreset) {
+    activePreset = preset;
+    data.onApplyPreset?.(preset);
+  }
   const isMediaNode = $derived(
     data.type === "ingest" ||
       (data.inputPorts ?? []).some((port) => port.id === "media")
@@ -101,6 +117,24 @@
       value = raw === "" ? undefined : Number(raw);
     }
     data.onPatch?.(field.path, value);
+  }
+
+  function dynamicOptions(field: RecipeField): Array<{ value: string; label: string }> {
+    if (!field.optionsSource || !data.options) return [];
+    const [kind, capability] = field.optionsSource.split(":");
+    if (kind === "providers") {
+      return (data.options.providers[capability] ?? []).map((provider) => ({
+        value: provider.id,
+        label: `${provider.name}${provider.is_default ? " · default" : ""}`
+      }));
+    }
+    if (kind === "services") {
+      return data.options.services.map((service) => ({
+        value: service.id,
+        label: service.name
+      }));
+    }
+    return [];
   }
 
   function displayValue(field: RecipeField): string {
@@ -170,6 +204,7 @@
         <div class="flex items-center gap-1.5">
           <span class="text-sm" style={`color:${iconColor}`}>{data.icon ?? "●"}</span>
           <p class="truncate text-xs font-semibold text-neutral-100">{data.title}</p>
+          {#if data.description}<HelpTip label={data.title} body={data.description} />{/if}
           {#if implementation !== "available"}
             <span class={`rounded px-1 py-0.5 text-[8px] uppercase ${implementation === "partial" ? "bg-amber-500/10 text-amber-300" : "bg-neutral-700/60 text-neutral-400"}`}>{implementation}</span>
           {/if}
@@ -238,18 +273,32 @@
         {#if presets.length || groups.length}
           <p class="text-[9px] uppercase tracking-wide text-neutral-500">Config</p>
         {/if}
-        {#if presets.length}
-          <div class="flex flex-wrap items-center gap-1">
+        <div class="rounded-lg border border-neutral-800 bg-neutral-950/40 p-2" data-testid={`presets-${data.type}`}>
+          <div class="flex items-center justify-between gap-1">
             <span class="text-[9px] uppercase tracking-wide text-neutral-500">Presets</span>
-            {#each presets as preset}
-              <button
-                type="button"
-                onclick={(event) => { event.stopPropagation(); data.onPatchMany?.(preset.patch); }}
-                class="rounded border border-neutral-700 px-1.5 py-0.5 text-[9px] text-neutral-300 hover:border-sky-500 hover:text-sky-200"
-              >{preset.label}</button>
+            <button type="button" onclick={(event) => { event.stopPropagation(); savePreset = !savePreset; }} class="text-[9px] text-sky-300">+ Save</button>
+          </div>
+          <div class="mt-1 flex flex-wrap gap-1">
+            {#each presets as preset (preset.id)}
+              <span class={`inline-flex items-center rounded border ${activePreset?.id === preset.id ? "border-sky-400/50 bg-sky-500/10" : "border-neutral-700"}`}>
+                <button type="button" onclick={(event) => { event.stopPropagation(); applyPreset(preset); }} class="px-1.5 py-0.5 text-[9px] text-neutral-300 hover:text-sky-200">{preset.name}</button>
+                <button type="button" aria-label={`Favorite ${preset.name}`} onclick={(event) => { event.stopPropagation(); data.onFavoritePreset?.(preset.id, !preset.favorite); }} class={`px-0.5 text-[9px] ${preset.favorite ? "text-amber-300" : "text-neutral-600"}`}>★</button>
+                {#if !preset.builtin}
+                  <button type="button" aria-label={`Delete ${preset.name}`} onclick={(event) => { event.stopPropagation(); data.onDeletePreset?.(preset.id); }} class="px-0.5 text-[9px] text-rose-300">×</button>
+                {/if}
+              </span>
             {/each}
           </div>
-        {/if}
+          {#if activePreset && !activePreset.builtin}
+            <button type="button" onclick={(event) => { event.stopPropagation(); data.onUpdatePreset?.(activePreset!.id); }} class="mt-1 text-[9px] text-emerald-300">Update “{activePreset.name}” from current values</button>
+          {/if}
+          {#if savePreset}
+            <span class="mt-1 flex gap-1">
+              <input bind:value={presetName} placeholder="Preset name" onclick={(event) => event.stopPropagation()} class="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 text-[9px] text-neutral-200" />
+              <button type="button" onclick={(event) => { event.stopPropagation(); data.onSavePreset?.(presetName); presetName = ""; savePreset = false; }} class="rounded border border-sky-500/40 px-1.5 text-[9px] text-sky-200">Save</button>
+            </span>
+          {/if}
+        </div>
         {#if groups.length === 0}
           <p class="text-[10px] text-neutral-500">No simple fields. Use JSON.</p>
         {/if}
@@ -264,7 +313,9 @@
                 <label class="block text-[10px] text-neutral-400">
                   <span class="flex items-center gap-1">
                     {field.label}
+                    {#if field.unit}<span class="text-neutral-600">({field.unit})</span>{/if}
                     {#if field.required}<span class="text-rose-300">*</span>{/if}
+                    {#if field.help}<HelpTip label={field.label} body={field.help} />{/if}
                   </span>
                   {#if field.control === "switch"}
                     <button
@@ -296,7 +347,13 @@
                       class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100"
                     >
                       {#if !field.required}<option value="">—</option>{/if}
-                      {#each field.options as option}<option value={option}>{option}</option>{/each}
+                      {#if field.optionsSource}
+                        {#each dynamicOptions(field) as option}
+                          <option value={option.value}>{option.label}</option>
+                        {/each}
+                      {:else}
+                        {#each field.options as option}<option value={option}>{option}</option>{/each}
+                      {/if}
                     </select>
                   {:else if field.control === "slider"}
                     <span class="mt-1 flex items-center gap-2">
