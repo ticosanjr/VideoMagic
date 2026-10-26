@@ -39,8 +39,8 @@ POST /api/v1/exports/validate
 
 The route accepts either the output directory or its `exports` directory.
 
-The 0.32.0 AppImage report validated a two-cut timeline with crossfade and
-progressive zoom:
+The automated report validates a two-cut timeline with crossfade and progressive
+zoom:
 
 - FCPXML: 2 clips, 1 transition, 2 keyframes.
 - XMEML: 2 clips, 1 transition, 1 motion effect.
@@ -66,25 +66,6 @@ when `melt` is available. MLT may warn about missing optional plugins such as
 Automated XML checks do not prove that an NLE accepts the project. Run this
 checklist on a machine with the NLE installed:
 
-### DaVinci Resolve
-
-1. Import `timeline.fcpxml` into a new timeline.
-2. Confirm both clips, audio offsets, zoom keyframes, and the crossfade.
-3. Confirm native titles, sequence markers, the colour filter, the B-roll lane,
-   and the audio master stem.
-4. Confirm media paths resolve without relinking.
-5. Render a short range and check for black frames or audio drift.
-
-### Adobe Premiere Pro
-
-1. Import `timeline.xml`.
-2. Confirm clip order, J/L-cut offsets, Basic Motion keyframes, and the video
-   transition.
-3. Check audio fades at the head and tail.
-4. Confirm the Text generators, markers, colour filter, B-roll track, and audio
-   master track.
-5. Render a short range.
-
 ### Kdenlive
 
 1. Open `timeline.kdenlive`.
@@ -96,14 +77,14 @@ checklist on a machine with the NLE installed:
 6. Render a short range.
 
 Record the NLE version, OS, import result, and any relinking needed next to the
-release notes. Manual import status is still **pending** for this host because
-Resolve, Premiere, and Kdenlive are not installed.
+release notes. Manual import status is still **pending** for this host.
+Kdenlive 26.08.2 is installed via Flatpak (`org.kde.kdenlive`).
 
 ## Manual sign-off (3.0 gate)
 
 Status: **pending**. Kdenlive 26.08.2 is installed via Flatpak
-(`org.kde.kdenlive`); Resolve and Premiere are not part of the QA plan. `melt`
-is absent, so the optional MLT CLI smoke is skipped. Automated structure
+(`org.kde.kdenlive`) and is the only NLE in the QA plan. `melt` is absent, so
+the optional MLT CLI smoke is skipped. Automated structure
 validation is green, but a human Kdenlive import pass is still required.
 
 Record:
