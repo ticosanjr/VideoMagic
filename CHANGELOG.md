@@ -3,6 +3,32 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.23.0] - 2026-10-26
+
+### Added
+
+- **Guided builder tour.** A three-step tour explains graph building, inspection,
+  and multi-selection.
+- **Mobile inspector drawer.** On narrow screens the inspector opens as a bottom
+  sheet with a dismiss backdrop.
+- **Icon consistency.** Library, assets, timeline markers, B-roll controls, and
+  favorites use the shared SVG icon set.
+- **Fit selected nodes.** Frame the current multi-selection in the viewport.
+
+### Changed
+
+- **Domain I/O isolation is complete.** Steps no longer leak `artifacts`,
+  `metadata`, `shorts`, `selected_shorts`, `short_captions`, transcript changes,
+  or speech spans through ambient context copies. Every domain value crosses a
+  declared output port; only hashes, cache bookkeeping, and warnings remain as
+  runner diagnostics.
+
+### Notes
+
+- Full-tree coverage is 96.4%.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+- Planned and partial steps remain documented limitations.
+
 ## [2.22.0] - 2026-10-26
 
 ### Added

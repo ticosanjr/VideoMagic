@@ -70,6 +70,8 @@ export const ICONS = {
   refresh: `${path("M20 11a8 8 0 1 0-2.3 5.7")}${path("M20 4v7h-7")}`,
   external: `${path("M14 4h6v6")}${path("M20 4l-9 9")}${path("M18 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5")}`,
   chevron: path("M6 9l6 6 6-6"),
+  "arrow-up": path("M12 19V5M5 12l7-7 7 7"),
+  "arrow-down": path("M12 5v14M5 12l7 7 7-7"),
   home: `${path("M3 11l9-8 9 8")}${path("M5 10v11h14V10")}${path("M10 21v-6h4v6")}`,
   clock: `${circle(12, 12, 9)}${path("M12 7v5l3 2")}`,
   database: `${path("M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z")}${path("M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6")}${path("M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6")}`,

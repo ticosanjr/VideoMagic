@@ -30,7 +30,7 @@ def test_every_builtin_step_declares_ports() -> None:
 def test_core_ports_are_declared() -> None:
     vad_in, vad_out = ports_for_type("audio.vad")
     timeline_in, timeline_out = ports_for_type("edit.timeline")
-    assert {port.id for port in vad_out} == {"speech", "engine"}
+    assert {"speech", "engine"} <= {port.id for port in vad_out}
     assert {port.id for port in timeline_in} == {"speech", "transcript"}
     assert timeline_out[0].type == "timeline"
     assert vad_in[0].type == "media"

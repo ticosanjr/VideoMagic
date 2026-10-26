@@ -149,13 +149,9 @@ class RecipeRunner:
         context.port_hashes[recipe_step.id] = step_context.port_hashes[
             recipe_step.id
         ]
-        # Ambient runtime state remains shared until every legacy field has a
-        # granular port. Declared ports still define typed data flow.
-        context.artifacts.update(step_context.artifacts)
-        context.metadata.update(step_context.metadata)
-        context.selected_shorts = list(step_context.selected_shorts)
-        context.short_captions.update(step_context.short_captions)
-        context.shorts = list(step_context.shorts)
+        # Non-data bookkeeping stays visible to the runner: step hashes feed
+        # checkpoint fingerprints and warnings feed the UI. Every domain value
+        # crosses steps through a declared port above.
         context.hashes.update(step_context.hashes)
         context.cache_hits.extend(
             item for item in step_context.cache_hits if item not in context.cache_hits
@@ -165,8 +161,9 @@ class RecipeRunner:
             for item in step_context.cache_misses
             if item not in context.cache_misses
         )
-        if len(step_context.warnings) > len(context.warnings):
-            context.warnings.extend(step_context.warnings[len(context.warnings) :])
+        for warning in step_context.warnings:
+            if warning not in context.warnings:
+                context.warnings.append(warning)
 
     def _copy_node_outputs(
         self,

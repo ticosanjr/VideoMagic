@@ -97,5 +97,5 @@ Sign-off block:
 
 - Reviewer:
 - Date:
-- Build: `releases/v2.22.0/videoflow-2.22.0-linux-x86_64`
+- Build: `releases/v2.23.0/videoflow-2.23.0-linux-x86_64`
 - P0/P1 found: none / list

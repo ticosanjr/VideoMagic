@@ -186,6 +186,8 @@
   let inspectorOpen = $state(false);
   let addOpen = $state(false);
   let moreOpen = $state(false);
+  let tourOpen = $state(false);
+  let tourStep = $state(0);
   let configOpen = $state(false);
   let jsonModal = $state<"step" | "recipe" | null>(null);
   let recipeJsonText = $state("");
@@ -2424,6 +2426,7 @@
               <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; void saveAs(); }}><Icon name="duplicate" size={13} />Save as</button>
               <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; downloadRecipe(); }}><Icon name="file" size={13} />Download</button>
               <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; void openRecipeHistory(); }}><Icon name="clock" size={13} />Version history</button>
+              <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; tourStep = 0; tourOpen = true; }}><Icon name="bulb" size={13} />Quick tour</button>
             </div>
           {/if}
         </div>
@@ -2774,6 +2777,39 @@
     </section>
   {/if}
 
+  {#if tourOpen}
+    <div class="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4" role="presentation"
+      onclick={(event) => { if (event.currentTarget === event.target) tourOpen = false; }}>
+      <div class="w-full max-w-md rounded-2xl border border-sky-500/30 bg-neutral-950 p-5 shadow-2xl" role="dialog" aria-modal="true" aria-label="Builder tour" data-testid="builder-tour">
+        <div class="flex items-center justify-between">
+          <p class="text-[10px] uppercase tracking-wide text-sky-300">Step {tourStep + 1} of 3</p>
+          <button type="button" onclick={() => (tourOpen = false)} class="rounded px-2 text-neutral-500 hover:text-neutral-200" aria-label="Close tour">×</button>
+        </div>
+        {#if tourStep === 0}
+          <h3 class="mt-3 text-base font-semibold text-white">Build the graph</h3>
+          <p class="mt-2 text-xs leading-relaxed text-neutral-400">Use <span class="text-sky-300">Add step</span> to place nodes, then drag from a node's right handle to the next node's input. The More menu holds validation, history, batch, and export actions.</p>
+        {:else if tourStep === 1}
+          <h3 class="mt-3 text-base font-semibold text-white">Inspect and edit</h3>
+          <p class="mt-2 text-xs leading-relaxed text-neutral-400">Click a node to open the inspector. It shows every input, output, preset, and field with help text. Edits autosave; Ctrl/Cmd+Z undoes them.</p>
+        {:else}
+          <h3 class="mt-3 text-base font-semibold text-white">Stay oriented</h3>
+          <p class="mt-2 text-xs leading-relaxed text-neutral-400">Use Find node to dim the rest of the graph, shift-drag to select several nodes, and the selection bar to align, duplicate, delete, or fit them. Ctrl/Cmd+K searches every builder action.</p>
+        {/if}
+        <div class="mt-5 flex items-center justify-between">
+          <button type="button" onclick={() => (tourOpen = false)} class="text-[10px] text-neutral-500 hover:text-neutral-200">Skip</button>
+          <div class="flex gap-1.5">
+            {#if tourStep > 0}<button type="button" onclick={() => (tourStep -= 1)} class="rounded-lg border border-neutral-700 px-2.5 py-1 text-[11px] text-neutral-300">Back</button>{/if}
+            {#if tourStep < 2}
+              <button type="button" onclick={() => (tourStep += 1)} class="rounded-lg bg-sky-500 px-3 py-1 text-[11px] font-medium text-neutral-950">Next</button>
+            {:else}
+              <button type="button" onclick={() => (tourOpen = false)} class="rounded-lg bg-sky-500 px-3 py-1 text-[11px] font-medium text-neutral-950">Done</button>
+            {/if}
+          </div>
+        </div>
+      </div>
+    </div>
+  {/if}
+
   {#if wiring}
     {@const sourceNode = nodes.find((node) => node.id === wiring?.source)}
     {@const targetNode = nodes.find((node) => node.id === wiring?.target)}
@@ -2885,7 +2921,7 @@
                     class={recipe.favorite ? "rounded p-1 text-lg leading-none text-amber-300" : "rounded p-1 text-lg leading-none text-neutral-600 hover:text-amber-300"}
                     aria-label={recipe.favorite ? `Remove ${recipe.name} from favorites` : `Add ${recipe.name} to favorites`}
                     title={recipe.favorite ? "Remove from favorites" : "Add to favorites"}
-                  >{recipe.favorite ? "★" : "☆"}</button>
+                  ><Icon name="star" size={16} class={recipe.favorite ? "text-amber-300" : "text-neutral-500"} /></button>
                 </div>
               {/each}
             </div>

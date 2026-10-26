@@ -155,8 +155,14 @@
   const errorCount = $derived(Object.keys(fieldErrors).length);
 </script>
 
+<button
+  type="button"
+  class="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm xl:hidden"
+  aria-label="Dismiss inspector"
+  onclick={() => onclose?.()}
+></button>
 <aside
-  class={`relative flex h-[clamp(560px,72vh,920px)] w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950/98 shadow-2xl backdrop-blur xl:w-[var(--inspector-width)] ${resizing ? "select-none" : ""}`}
+  class={`relative flex h-[clamp(560px,72vh,920px)] w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950/98 shadow-2xl backdrop-blur max-xl:fixed max-xl:inset-x-0 max-xl:bottom-0 max-xl:z-50 max-xl:h-[85vh] max-xl:rounded-b-none max-xl:border-x-0 max-xl:border-b-0 xl:w-[var(--inspector-width)] ${resizing ? "select-none" : ""}`}
   style={`--inspector-width:${width}px`}
 >
   <button

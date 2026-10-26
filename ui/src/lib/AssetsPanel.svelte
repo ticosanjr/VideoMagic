@@ -1,5 +1,6 @@
 <script lang="ts">
   import HelpTip from "$lib/HelpTip.svelte";
+  import Icon from "$lib/ui/Icon.svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
   import { onMount } from "svelte";
   import PathPicker from "$lib/PathPicker.svelte";
@@ -131,7 +132,7 @@
           {#if asset.kind === "image"}
             <img src={assetFileUrl(asset.id)} alt={asset.name} class="h-full w-full object-cover" />
           {:else}
-            <span class="text-4xl text-neutral-600">{asset.kind === "video" ? "▶" : asset.kind === "audio" ? "♫" : asset.kind === "font" ? "T" : "▦"}</span>
+            <span class="text-neutral-600"><Icon name={asset.kind === "video" ? "film" : asset.kind === "audio" ? "music" : asset.kind === "font" ? "type" : "image"} size={34} /></span>
           {/if}
         </div>
         <div class="p-3">

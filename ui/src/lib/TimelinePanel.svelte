@@ -5,6 +5,7 @@
   import TimelineCanvas from "$lib/TimelineCanvas.svelte";
   import { groupTrimEdits } from "$lib/timelineView";
   import ShortEditor from "$lib/ShortEditor.svelte";
+  import Icon from "$lib/ui/Icon.svelte";
   import WaveformStrip from "$lib/WaveformStrip.svelte";
   import {
     addTimelineComment,
@@ -1166,7 +1167,7 @@
                 {#each timeline.markers as marker}
                   <div class="flex items-center gap-1 rounded bg-neutral-950/60 px-1.5 py-1">
                     <button type="button" onclick={() => seek(marker.time_sec)} class="min-w-0 flex-1 truncate text-left text-[10px] text-sky-200">{marker.time_sec.toFixed(2)}s · {marker.label || "Marker"}</button>
-                    <button type="button" onclick={() => void removeMarker(marker.id)} class="rounded px-1 text-[10px] text-neutral-500 hover:text-rose-300" aria-label="Remove marker">×</button>
+                    <button type="button" onclick={() => void removeMarker(marker.id)} class="rounded px-1 text-[10px] text-neutral-500 hover:text-rose-300" aria-label="Remove marker"><Icon name="close" size={11} /></button>
                   </div>
                 {/each}
                 {#if !timeline.markers.length}<p class="text-[10px] text-neutral-600">No markers.</p>{/if}
@@ -1183,7 +1184,7 @@
                 {#each comments as comment}
                   <div class="flex items-start gap-1 rounded bg-neutral-950/60 px-1.5 py-1">
                     <p class="min-w-0 flex-1 text-[10px] text-neutral-300">{comment.text}</p>
-                    <button type="button" onclick={() => void removeClipComment(comment.id)} class="rounded px-1 text-[10px] text-neutral-500 hover:text-rose-300" aria-label="Remove comment">×</button>
+                    <button type="button" onclick={() => void removeClipComment(comment.id)} class="rounded px-1 text-[10px] text-neutral-500 hover:text-rose-300" aria-label="Remove comment"><Icon name="close" size={11} /></button>
                   </div>
                 {/each}
                 {#if !comments.length}<p class="text-[10px] text-neutral-600">No comments for this clip.</p>{/if}
@@ -1198,7 +1199,7 @@
                   {#each overlays as overlay (overlay.overlay_id)}
                     <div class="flex items-center gap-1 rounded bg-neutral-950/60 px-1.5 py-1">
                       <p class="min-w-0 flex-1 truncate text-[10px] text-neutral-300">{overlay.path.split("/").pop()} · {(overlay.start_frame / Math.max(1, timeline.fps)).toFixed(2)}s</p>
-                      <button type="button" onclick={() => void removeOverlay(overlay.overlay_id)} class="rounded px-1 text-[10px] text-neutral-500 hover:text-rose-300" aria-label="Remove overlay">×</button>
+                      <button type="button" onclick={() => void removeOverlay(overlay.overlay_id)} class="rounded px-1 text-[10px] text-neutral-500 hover:text-rose-300" aria-label="Remove overlay"><Icon name="close" size={11} /></button>
                     </div>
                   {/each}
                   {#if !overlays.length}<p class="text-[10px] text-neutral-600">Drag an asset from the rail onto the timeline.</p>{/if}
@@ -1281,8 +1282,8 @@
                       class="h-3.5 w-3.5 rounded border-neutral-700 bg-neutral-800"
                     />
                     <span class="min-w-0 flex-1 truncate text-[10px] text-neutral-300" title={entryLabel(entries[index], index)}>{entryLabel(entries[index], index)}</span>
-                    <button type="button" onclick={() => moveBroll(title, index, -1)} class="rounded px-1 text-[10px] text-neutral-500 hover:text-white" aria-label="Move B-roll up">↑</button>
-                    <button type="button" onclick={() => moveBroll(title, index, 1)} class="rounded px-1 text-[10px] text-neutral-500 hover:text-white" aria-label="Move B-roll down">↓</button>
+                    <button type="button" onclick={() => moveBroll(title, index, -1)} class="rounded px-1 text-[10px] text-neutral-500 hover:text-white" aria-label="Move B-roll up"><Icon name="arrow-up" size={11} /></button>
+                    <button type="button" onclick={() => moveBroll(title, index, 1)} class="rounded px-1 text-[10px] text-neutral-500 hover:text-white" aria-label="Move B-roll down"><Icon name="arrow-down" size={11} /></button>
                   </li>
                 {/each}
               </ul>

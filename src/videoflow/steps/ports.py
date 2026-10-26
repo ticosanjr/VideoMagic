@@ -194,10 +194,130 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
 }
 
 
+EXTRA_OUTPUTS: dict[str, tuple[PortSpec, ...]] = {
+    "analytics.import": (PortSpec("analytics", "Analytics", "dict", "metadata:analytics"),),
+    "analytics.review": (
+        PortSpec("weights", "Analytics weights", "dict", "metadata:analytics_weights"),
+    ),
+    "assets.index": (
+        PortSpec("index", "Asset index", "dict", "metadata:assets_index"),
+    ),
+    "assets.match": (
+        PortSpec("plan", "B-roll plan", "dict", "metadata:broll_plan"),
+        PortSpec("licenses", "B-roll licenses", "dict", "metadata:broll_licenses"),
+        PortSpec("artifacts", "Match files", "artifact_map", "artifacts"),
+    ),
+    "assets.shots": (
+        PortSpec("scenes", "Shot list", "dict", "metadata:scenes"),
+        PortSpec("artifacts", "Shot files", "artifact_map", "artifacts"),
+    ),
+    "audio.diarize": (
+        PortSpec("transcript", "Speaker-labelled transcript", "transcript", "transcript"),
+        PortSpec("method", "Diarization method", "string", "metadata:diarization_method"),
+        PortSpec("turns", "Turn count", "integer", "metadata:diarization_turns"),
+        PortSpec("speaker_count", "Speaker count", "integer", "metadata:speaker_count"),
+    ),
+    "audio.master": (
+        PortSpec("filters", "Master filters", "dict", "metadata:audio_master_filters"),
+    ),
+    "audio.qa": (
+        PortSpec("qa", "Audio QA", "dict", "metadata:audio_qa"),
+    ),
+    "audio.vad": (
+        PortSpec("pad_before_ms", "Pad before", "integer", "metadata:speech_pad_before_ms"),
+        PortSpec("pad_after_ms", "Pad after", "integer", "metadata:speech_pad_after_ms"),
+        PortSpec("min_speech_ms", "Minimum speech", "integer", "metadata:min_speech_ms"),
+        PortSpec(
+            "spike_suppression_ms",
+            "Spike suppression",
+            "integer",
+            "metadata:spike_suppression_ms",
+        ),
+        PortSpec("merge_gap_ms", "Merge gap", "integer", "metadata:merge_gap_ms"),
+    ),
+    "broll.plan": (
+        PortSpec("artifacts", "B-roll artifacts", "artifact_map", "artifacts"),
+    ),
+    "color.grade": (
+        PortSpec("filters", "Colour filters", "dict", "metadata:color_filters"),
+    ),
+    "delivery.package": (
+        PortSpec("package", "Delivery manifest", "dict", "metadata:delivery_package"),
+    ),
+    "edit.timeline": (
+        PortSpec("speech", "Adjusted speech", "sample_spans", "speech_intervals"),
+    ),
+    "flow.conditional": (
+        PortSpec("metadata", "Flow metadata", "dict", "metadata"),
+    ),
+    "flow.loop": (
+        PortSpec("metadata", "Loop metadata", "dict", "metadata"),
+    ),
+    "flow.map": (
+        PortSpec("metadata", "Map metadata", "dict", "metadata"),
+    ),
+    "flow.reduce": (
+        PortSpec("metadata", "Reduce metadata", "dict", "metadata"),
+    ),
+    "human.gate": (
+        PortSpec("metadata", "Gate result", "dict", "metadata"),
+    ),
+    "localization.dub": (
+        PortSpec("dubbed", "Dubbed Shorts", "list", "metadata:dubbed_shorts"),
+    ),
+    "music.beat": (
+        PortSpec("artifacts", "Beat files", "artifact_map", "artifacts"),
+        PortSpec("beats", "Beat list", "list", "metadata:beats"),
+    ),
+    "review.queue": (
+        PortSpec("review", "Review queue", "dict", "metadata:review"),
+    ),
+    "sfx.plan": (
+        PortSpec("artifacts", "SFX files", "artifact_map", "artifacts"),
+    ),
+    "shorts.ab": (
+        PortSpec("selected", "A/B Shorts", "short_list", "selected_shorts"),
+        PortSpec("variants", "A/B variants", "list", "metadata:ab_variants"),
+    ),
+    "shorts.captions": (
+        PortSpec("shorts", "Shorts", "short_list", "shorts"),
+        PortSpec("disabled", "Captions disabled", "boolean", "metadata:captions_disabled"),
+    ),
+    "shorts.reframe": (
+        PortSpec("selected", "Reframed Shorts", "short_list", "selected_shorts"),
+    ),
+    "shorts.render": (
+        PortSpec("shorts", "Rendered Shorts", "short_list", "shorts"),
+    ),
+    "shorts.score": (
+        PortSpec("selected", "Scored Shorts", "short_list", "selected_shorts"),
+    ),
+    "shorts.select": (
+        PortSpec("selected", "Selected Shorts", "short_list", "selected_shorts"),
+    ),
+    "thumbnail.generate": (
+        PortSpec("thumbs", "Thumbnails", "list", "metadata:thumbnails"),
+        PortSpec("title", "Thumbnail title", "string", "metadata:thumbnail_title"),
+    ),
+    "thumbnail.pack": (
+        PortSpec("pack", "Thumbnail pack", "list", "metadata:thumbnail_pack"),
+    ),
+    "titles.plan": (
+        PortSpec("titles", "Title plan", "dict", "metadata:titles"),
+    ),
+    "transcript.translate": (
+        PortSpec("artifacts", "Translated files", "artifact_map", "artifacts"),
+        PortSpec("translation", "Translation report", "dict", "metadata:translation"),
+    ),
+}
+
+
 def ports_for_type(
     step_type: str,
 ) -> tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]:
-    return PORTS.get(step_type, ((), ()))
+    inputs, outputs = PORTS.get(step_type, ((), ()))
+    extra = EXTRA_OUTPUTS.get(step_type, ())
+    return inputs, outputs + extra
 
 
 def type_compatible(source: str, target: str) -> bool:
