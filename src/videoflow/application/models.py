@@ -303,6 +303,10 @@ def install_model(
     entry = CATALOG.get(model_id) or _local_models().get(model_id)
     if entry is None:
         raise StateNotReadyError(f"Unknown model: {model_id}")
+    if entry.get("kind") == "local":
+        raise StateNotReadyError(
+            f"Local model is missing at {_target(model_id)}: {model_id}"
+        )
     target = _target(model_id)
     if entry["kind"] == "pyannote":
         if not allow_network:
