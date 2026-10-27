@@ -1099,13 +1099,29 @@ class FFmpegAdapter:
                     raise IngestError(f"{args[0]} timed out after {timeout}s") from None
         if process.returncode != 0:
             tail = stderr.strip().splitlines()[-50:]
-            self._emit("error", "\n".join(tail) or f"{args[0]} failed")
-            summary = " ".join(tail[-3:])
             command = " ".join([Path(binary).name, *args[1:]])
+            if tail:
+                summary = " ".join(tail[-3:])
+                message = f"{args[0]} failed: {summary}"
+            elif process.returncode < 0:
+                signum = -process.returncode
+                try:
+                    name = signal.Signals(signum).name
+                except ValueError:
+                    name = f"signal {signum}"
+                message = (
+                    f"{args[0]} was killed by {name}; "
+                    "this usually means the render ran out of memory or was "
+                    "terminated by the system"
+                )
+            else:
+                message = f"{args[0]} failed with exit code {process.returncode}"
+            self._emit("error", "\n".join(tail) or message)
             raise IngestError(
-                f"{args[0]} failed: {summary or 'unknown error'}",
+                message,
                 command=command,
                 stderr=stderr,
+                returncode=process.returncode,
             )
         return stdout, stderr
 

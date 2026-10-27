@@ -2,7 +2,11 @@
   import HelpTip from "$lib/HelpTip.svelte";
   import { onMount } from "svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
-  import { errorMessage } from "$lib/api";
+  import {
+    errorMessage,
+    loadPluginCatalog,
+    setPluginEnabled
+  } from "$lib/api";
 
   type Plugin = {
     id: string;
@@ -25,13 +29,9 @@
 
   async function load(reload = false) {
     try {
-      const response = await fetch(reload ? "/api/v1/plugins/reload" : "/api/v1/plugins", {
-        method: reload ? "POST" : "GET"
-      });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload?.detail?.message ?? "Plugin request failed");
-      plugins = payload.plugins ?? [];
-      panels = payload.panels ?? [];
+      const payload = await loadPluginCatalog(reload);
+      plugins = (payload.plugins ?? []) as Plugin[];
+      panels = (payload.panels ?? []) as Panel[];
     } catch (reason) {
       error = errorMessage(reason);
     }
@@ -41,11 +41,7 @@
     if (!confirm(`${plugin.enabled ? "Disable" : "Enable"} plugin ${plugin.id}?`)) return;
     busy = plugin.id;
     try {
-      await fetch(`/api/v1/plugins/${encodeURIComponent(plugin.id)}/enable`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: !plugin.enabled })
-      });
+      await setPluginEnabled(plugin.id, !plugin.enabled);
       await load(true);
     } catch (reason) {
       error = errorMessage(reason);

@@ -17,6 +17,7 @@
   import HelpTip from "$lib/HelpTip.svelte";
   import StatusBadge from "$lib/StatusBadge.svelte";
   import { elapsedMs, formatDateTime, formatDuration, statusText } from "$lib/format";
+  import { formatBackendDetail } from "$lib/api";
   import {
     filterJobs,
     jobCounts,
@@ -203,6 +204,7 @@
       />
       <button
         type="button"
+        data-testid="jobs-refresh"
         onclick={() => void refresh()}
         class="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-neutral-300 hover:border-sky-500/40 hover:text-sky-200"
       >{i18n.t("refresh")}</button>
@@ -265,6 +267,12 @@
             </div>
           </div>
 
+          {#if job.status === "failed" && job.error}
+            <details class="mt-2 rounded-lg border border-rose-500/20 bg-rose-950/20 p-2 text-[10px] text-rose-200">
+              <summary class="cursor-pointer font-medium">Error details</summary>
+              <pre class="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[9px] leading-4 text-rose-100/80">{formatBackendDetail(job.error)}</pre>
+            </details>
+          {/if}
           {#if job.stages?.length}
             <div class="mt-2 flex flex-wrap gap-1" data-testid="job-stages">
               {#each job.stages as stage (stage.id)}

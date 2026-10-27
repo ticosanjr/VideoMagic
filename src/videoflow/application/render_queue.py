@@ -11,7 +11,12 @@ from pathlib import Path
 from typing import Any
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
-from videoflow.domain.errors import ExportError, JobCancelledError, StateNotReadyError
+from videoflow.domain.errors import (
+    ExportError,
+    JobCancelledError,
+    StateNotReadyError,
+    VideoFlowError,
+)
 from videoflow.domain.state import ProjectState
 from videoflow.exporters.incremental import NotEligible, export_mp4_incremental
 from videoflow.exporters.mp4 import export_mp4
@@ -68,6 +73,7 @@ class RenderState:
     percent: int = 0
     message: str = "Queued"
     error: str = ""
+    error_details: dict[str, object] = field(default_factory=dict)
     started_at: str = field(default_factory=_now)
     finished_at: str = ""
     cancel_requested: bool = False
@@ -80,6 +86,7 @@ class RenderState:
             "percent": self.percent,
             "message": self.message,
             "error": self.error,
+            "error_details": dict(self.error_details),
             "started_at": self.started_at,
             "finished_at": self.finished_at,
             "cancel_requested": self.cancel_requested,
@@ -221,6 +228,11 @@ class RenderQueue:
                     else:
                         item.status = "failed"
                         item.error = str(exc)
+                        item.error_details = (
+                            exc.to_dict()
+                            if isinstance(exc, VideoFlowError)
+                            else {"ok": False, "code": "render_failed", "message": str(exc)}
+                        )
                         item.message = "Render failed"
                     item.finished_at = _now()
                 if item.cancel_requested:

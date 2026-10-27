@@ -131,6 +131,41 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Timeline", exact: true })).toBeVisible();
 });
 
+test("shows full backend render error details", async ({ page }) => {
+  await page.route("**/api/v1/jobs/job-1/render", (route) =>
+    route.fulfill({
+      status: 202,
+      json: { ok: true, render: { job_id: "job-1", status: "queued", percent: 0 } }
+    })
+  );
+  await page.route("**/api/v1/jobs/job-1/render/status", (route) =>
+    route.fulfill({
+      json: {
+        job_id: "job-1",
+        status: "failed",
+        percent: 100,
+        message: "Render failed",
+        error: "ffmpeg was killed by SIGKILL",
+        error_details: {
+          code: "ingest_failed",
+          message: "ffmpeg was killed by SIGKILL",
+          command: "ffmpeg -i source.mp4",
+          returncode: -9,
+          signal: 9
+        }
+      }
+    })
+  );
+
+  await page.getByRole("button", { name: "Render MP4" }).click();
+
+  const banner = page.getByTestId("timeline-error");
+  await expect(banner).toContainText("ffmpeg was killed by SIGKILL");
+  await expect(banner).toContainText("returncode: -9");
+  await expect(banner).toContainText("signal: 9");
+  await expect(banner).toContainText("ffmpeg -i source.mp4");
+});
+
 test("renders the canvas timeline and edit controls", async ({ page }) => {
   await expect(page.getByTestId("timeline-canvas")).toBeVisible();
   await expect(page.getByTestId("timeline-timecode")).toContainText("00:00:00");

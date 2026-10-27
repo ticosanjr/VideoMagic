@@ -222,6 +222,8 @@ def test_work_reports_export_failures(
 
     assert item.status == "failed"
     assert item.error == "encoder crashed"
+    assert item.error_details["code"] == "export_failed"
+    assert item.error_details["message"] == "encoder crashed"
 
 
 def test_filter_files_are_read_and_bad_json_ignored(tmp_path: Path) -> None:

@@ -174,10 +174,12 @@ class IngestError(VideoFlowError):
         *,
         command: str | None = None,
         stderr: str = "",
+        returncode: int | None = None,
     ) -> None:
         super().__init__(message)
         self.command = command
         self.stderr = stderr
+        self.returncode = returncode
 
     def to_dict(self) -> dict[str, object]:
         payload = super().to_dict()
@@ -185,6 +187,10 @@ class IngestError(VideoFlowError):
             payload["command"] = self.command
         if self.stderr:
             payload["stderr"] = self.stderr[-8000:]
+        if self.returncode is not None:
+            payload["returncode"] = self.returncode
+            if self.returncode < 0:
+                payload["signal"] = -self.returncode
         return payload
 
 

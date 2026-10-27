@@ -58,6 +58,28 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole("button", { name: /Activity 1/ })).toBeVisible();
 });
 
+test("shows backend errors globally with details", async ({ page }) => {
+  await page.route("**/api/v1/jobs", (route) =>
+    route.fulfill({
+      status: 500,
+      json: {
+        detail: {
+          code: "db_down",
+          message: "database exploded",
+          stderr: "trace line"
+        }
+      }
+    })
+  );
+  await page.goto("/#jobs");
+  await page.getByTestId("jobs-refresh").click();
+  await page.getByTitle("Notification center (N)").click();
+  const center = page.getByTestId("notification-center");
+  await expect(center).toContainText("database exploded");
+  await expect(center).toContainText("db_down");
+  await expect(center).toContainText("trace line");
+});
+
 test("opens the command palette with the keyboard and navigates", async ({ page }) => {
   await page.keyboard.press("Control+k");
   const palette = page.getByTestId("command-palette");

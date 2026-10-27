@@ -160,8 +160,20 @@
       }))
   ]);
 
-  function notify(kind: "info" | "success" | "warning" | "error", message: string, title = message) {
-    notifications.push({ kind, title, message: title === message ? "" : message });
+  function notify(
+    kind: "info" | "success" | "warning" | "error",
+    message: string,
+    title = message,
+    code = "",
+    detail = ""
+  ) {
+    notifications.push({
+      kind,
+      title,
+      message: title === message ? "" : message,
+      code,
+      detail
+    });
   }
 
   function onNoticeAction(actionId: string) {
@@ -380,6 +392,22 @@
     syncHash();
     window.addEventListener("hashchange", syncHash);
     window.addEventListener("keydown", onGlobalKey);
+    const onApiError = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        title?: string;
+        code?: string;
+        message?: string;
+        detail?: string;
+      }>).detail;
+      notify(
+        "error",
+        detail.message ?? "Backend request failed",
+        detail.title ?? "Backend error",
+        detail.code ?? "",
+        detail.detail ?? ""
+      );
+    };
+    window.addEventListener("videoflow:api-error", onApiError);
     void connectToService();
     void refreshJobs();
     jobsTimer = setInterval(() => void refreshJobs(), 8000);
@@ -394,6 +422,7 @@
     return () => {
       window.removeEventListener("hashchange", syncHash);
       window.removeEventListener("keydown", onGlobalKey);
+      window.removeEventListener("videoflow:api-error", onApiError);
       clearInterval(jobsTimer);
     };
   });

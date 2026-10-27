@@ -3,6 +3,32 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.24.0] - 2026-10-27
+
+### Fixed
+
+- **Long MP4 exports no longer run out of memory.** Timelines above 16 hard-cut
+  segments render each video segment separately, concatenate the video, render
+  the audio timeline, and apply finishing filters in one bounded final pass.
+- **SIGKILL is explained instead of reported as "unknown error".** FFmpeg errors
+  now carry the exit code, signal, command, and stderr; a kill without stderr
+  says it was likely an out-of-memory termination.
+- **Backend error details reach the UI.** API errors preserve status, code,
+  command, stderr, and validation errors; a global notification shows every
+  failed request with expandable details.
+- Job cards, render status, and preview status now show structured error
+  details, not just a one-line message.
+
+### Added
+
+- Real FFmpeg media tests for long MP4 timelines, J/L-cut-safe audio, global
+  colour/audio filters, ASS titles, overlays, duration, and stream validation.
+
+### Notes
+
+- Full-tree coverage is 96.4%.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.23.0] - 2026-10-26
 
 ### Added

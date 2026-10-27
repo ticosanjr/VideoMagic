@@ -80,6 +80,12 @@
                 {#if notice.message}
                   <p class="mt-1 whitespace-pre-wrap break-words text-[11px] opacity-80">{notice.message}</p>
                 {/if}
+                {#if notice.detail}
+                  <details class="mt-1">
+                    <summary class="cursor-pointer text-[10px] uppercase tracking-wide opacity-70">Details</summary>
+                    <pre class="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-black/30 p-2 font-mono text-[10px] leading-4 opacity-80">{notice.detail}</pre>
+                  </details>
+                {/if}
                 <p class="mt-1 text-[10px] uppercase tracking-wide opacity-60">
                   {notice.kind}{notice.code ? ` · ${notice.code}` : ""} · {formatDateTime(notice.createdAt)}
                 </p>

@@ -5,6 +5,7 @@ export interface Notice {
   kind: NoticeKind;
   title: string;
   message: string;
+  detail: string;
   code: string;
   actionLabel: string;
   actionId: string;
@@ -16,6 +17,7 @@ export interface NoticeInput {
   kind: NoticeKind;
   title: string;
   message?: string;
+  detail?: string;
   code?: string;
   actionLabel?: string;
   actionId?: string;
@@ -39,6 +41,7 @@ export function createNotice(input: NoticeInput): Notice {
     kind,
     title: input.title,
     message: input.message ?? "",
+    detail: input.detail ?? "",
     code: input.code ?? "",
     actionLabel: input.actionLabel ?? "",
     actionId: input.actionId ?? "",

@@ -12,6 +12,8 @@ export const GLOSSARY: Record<string, string> = {
   "unsaved": "não salvo",
   "Confirm remove": "Confirmar remoção",
   "Version comparison": "Comparação de versões",
+  "Details": "Detalhes",
+  "Error details": "Detalhes do erro",
   "Quick tour": "Tour rápido",
   "Builder tour": "Tour do builder",
   "Step {tourStep + 1} of 3": "Passo {tourStep + 1} de 3",

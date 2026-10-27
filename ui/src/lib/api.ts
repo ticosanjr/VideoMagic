@@ -392,6 +392,10 @@ export interface Job {
     gate_id?: string;
     title?: string;
     step_id?: string;
+    command?: string;
+    stderr?: string;
+    returncode?: number;
+    signal?: number;
   } | null;
   created_at: string;
   started_at: string | null;
@@ -879,13 +883,74 @@ export interface LogLine {
   message: string;
 }
 
-class ApiError extends Error {
+export class ApiError extends Error {
   code: string;
+  status: number;
+  detail: Record<string, unknown>;
 
-  constructor(code: string, message: string) {
+  constructor(
+    code: string,
+    message: string,
+    status = 0,
+    detail: Record<string, unknown> = {}
+  ) {
     super(message);
     this.code = code;
+    this.status = status;
+    this.detail = detail;
   }
+}
+
+function apiDetail(payload: unknown): Record<string, unknown> {
+  if (!payload || typeof payload !== "object") return {};
+  const detail = (payload as { detail?: unknown }).detail;
+  if (Array.isArray(detail)) {
+    return {
+      code: "request_invalid",
+      message: detail
+        .map((item) =>
+          item && typeof item === "object"
+            ? String((item as { msg?: unknown }).msg ?? "Invalid request")
+            : String(item)
+        )
+        .join("; "),
+      errors: detail
+    };
+  }
+  if (detail && typeof detail === "object") {
+    return detail as Record<string, unknown>;
+  }
+  if (typeof detail === "string") return { message: detail };
+  return {};
+}
+
+function raiseApiError(
+  response: Response,
+  payload: unknown,
+  path: string,
+  fallbackCode = "http_error"
+): never {
+  const detail = apiDetail(payload);
+  const error = new ApiError(
+    String(detail.code ?? fallbackCode),
+    String(detail.message ?? response.statusText ?? "Request failed"),
+    response.status,
+    detail
+  );
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("videoflow:api-error", {
+        detail: {
+          title: `Backend error ${response.status}`,
+          code: error.code,
+          message: error.message,
+          detail: describeError(error),
+          path
+        }
+      })
+    );
+  }
+  throw error;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -894,14 +959,44 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const detail = payload?.detail;
-    if (detail && typeof detail === "object") {
-      throw new ApiError(detail.code ?? "http_error", detail.message ?? response.statusText);
-    }
-    throw new ApiError("http_error", payload?.detail ?? response.statusText);
-  }
+  if (!response.ok) raiseApiError(response, payload, path);
   return payload as T;
+}
+
+export function formatBackendDetail(detail: Record<string, unknown> | null | undefined): string {
+  if (!detail) return "";
+  const lines: string[] = [];
+  if (detail.code) lines.push(`code: ${String(detail.code)}`);
+  if (detail.message) lines.push(`message: ${String(detail.message)}`);
+  if (detail.command) lines.push(`command: ${String(detail.command)}`);
+  if (detail.returncode !== undefined) {
+    lines.push(`returncode: ${String(detail.returncode)}`);
+  }
+  if (detail.signal !== undefined) lines.push(`signal: ${String(detail.signal)}`);
+  if (detail.stderr) lines.push(`stderr:\n${String(detail.stderr)}`);
+  if (detail.errors) lines.push(`errors: ${JSON.stringify(detail.errors)}`);
+  return lines.join("\n");
+}
+
+export function describeError(error: unknown): string {
+  if (error instanceof ApiError) {
+    const lines = [
+      `HTTP ${error.status}`,
+      `code: ${error.code}`,
+      `message: ${error.message}`
+    ];
+    const detail = error.detail;
+    if (detail.command) lines.push(`command: ${String(detail.command)}`);
+    if (detail.returncode !== undefined) {
+      lines.push(`returncode: ${String(detail.returncode)}`);
+    }
+    if (detail.signal !== undefined) lines.push(`signal: ${String(detail.signal)}`);
+    if (detail.stderr) lines.push(`stderr:\n${String(detail.stderr)}`);
+    if (detail.errors) lines.push(`errors: ${JSON.stringify(detail.errors)}`);
+    return lines.join("\n");
+  }
+  if (error instanceof Error) return error.message;
+  return String(error);
 }
 
 export async function listServices(): Promise<ServicesResponse> {
@@ -1262,19 +1357,14 @@ export async function getMusic(): Promise<MusicAsset[]> {
 }
 
 export async function uploadMusic(file: File): Promise<MusicAsset> {
-  const response = await fetch(`/api/v1/assets/music?name=${encodeURIComponent(file.name)}`, {
+  const path = `/api/v1/assets/music?name=${encodeURIComponent(file.name)}`;
+  const response = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/octet-stream" },
     body: file
   });
-  const payload = await response.json();
-  if (!response.ok) {
-    const detail = payload?.detail;
-    throw new ApiError(
-      detail?.code ?? "music_upload_failed",
-      detail?.message ?? "Music upload failed"
-    );
-  }
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) raiseApiError(response, payload, path, "music_upload_failed");
   return payload.music as MusicAsset;
 }
 
@@ -1284,19 +1374,14 @@ export async function getSfx(): Promise<MusicAsset[]> {
 }
 
 export async function uploadSfx(file: File): Promise<MusicAsset> {
-  const response = await fetch(`/api/v1/assets/sfx?name=${encodeURIComponent(file.name)}`, {
+  const path = `/api/v1/assets/sfx?name=${encodeURIComponent(file.name)}`;
+  const response = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/octet-stream" },
     body: file
   });
-  const payload = await response.json();
-  if (!response.ok) {
-    const detail = payload?.detail;
-    throw new ApiError(
-      detail?.code ?? "sfx_upload_failed",
-      detail?.message ?? "SFX upload failed"
-    );
-  }
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) raiseApiError(response, payload, path, "sfx_upload_failed");
   return payload.sfx as MusicAsset;
 }
 
@@ -1312,19 +1397,14 @@ export async function getImages(): Promise<ImageAsset[]> {
 }
 
 export async function uploadImage(file: File): Promise<ImageAsset> {
-  const response = await fetch(`/api/v1/assets/images?name=${encodeURIComponent(file.name)}`, {
+  const path = `/api/v1/assets/images?name=${encodeURIComponent(file.name)}`;
+  const response = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/octet-stream" },
     body: file
   });
-  const payload = await response.json();
-  if (!response.ok) {
-    const detail = payload?.detail;
-    throw new ApiError(
-      detail?.code ?? "image_upload_failed",
-      detail?.message ?? "Image upload failed"
-    );
-  }
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) raiseApiError(response, payload, path, "image_upload_failed");
   return payload.image as ImageAsset;
 }
 
@@ -1334,20 +1414,34 @@ export async function getFonts(): Promise<FontAsset[]> {
 }
 
 export async function uploadFont(file: File): Promise<FontAsset> {
-  const response = await fetch(`/api/v1/assets/fonts?name=${encodeURIComponent(file.name)}`, {
+  const path = `/api/v1/assets/fonts?name=${encodeURIComponent(file.name)}`;
+  const response = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/octet-stream" },
     body: file
   });
-  const payload = await response.json();
-  if (!response.ok) {
-    const detail = payload?.detail;
-    throw new ApiError(
-      detail?.code ?? "font_upload_failed",
-      detail?.message ?? "Font upload failed"
-    );
-  }
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) raiseApiError(response, payload, path, "font_upload_failed");
   return payload.font as FontAsset;
+}
+
+export interface PluginPayload {
+  ok: boolean;
+  plugins: Array<Record<string, unknown>>;
+  panels: Array<Record<string, unknown>>;
+}
+
+export async function loadPluginCatalog(reload = false): Promise<PluginPayload> {
+  return request<PluginPayload>(reload ? "/api/v1/plugins/reload" : "/api/v1/plugins", {
+    method: reload ? "POST" : "GET"
+  });
+}
+
+export async function setPluginEnabled(pluginId: string, enabled: boolean): Promise<void> {
+  await request(`/api/v1/plugins/${encodeURIComponent(pluginId)}/enable`, {
+    method: "POST",
+    body: JSON.stringify({ enabled })
+  });
 }
 
 export async function getCapabilities(allowExternal = false): Promise<CapabilitiesResponse> {
@@ -2464,6 +2558,7 @@ export interface PreviewStatus {
   percent: number;
   message?: string;
   error?: string;
+  error_details?: Record<string, unknown>;
 }
 
 export interface RenderStatus {
@@ -2472,6 +2567,7 @@ export interface RenderStatus {
   percent: number;
   message?: string;
   error?: string;
+  error_details?: Record<string, unknown>;
 }
 
 export async function startRender(jobId: string): Promise<RenderStatus> {

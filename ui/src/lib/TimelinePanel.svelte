@@ -44,6 +44,8 @@
     redoTimeline,
     removeTimelineMarker,
     renderFileUrl,
+    describeError,
+    formatBackendDetail,
     startRender,
     undoTimeline,
     updateTimelineTrack,
@@ -62,6 +64,7 @@
   let timeline = $state<TimelineData | null>(null);
   let loading = $state(false);
   let error = $state("");
+  let errorDetail = $state("");
   let status = $state("");
   let playhead = $state(0);
   let variants = $state<VariantComparison | null>(null);
@@ -346,6 +349,7 @@
     renderPercent = 0;
     renderMessage = "Queued";
     error = "";
+    errorDetail = "";
     try {
       await startRender(selected);
       for (let attempt = 0; attempt < 1200; attempt += 1) {
@@ -360,12 +364,15 @@
         }
         if (current.status === "failed" || current.status === "cancelled") {
           error = current.error || `Render ${current.status}.`;
+          errorDetail =
+            formatBackendDetail(current.error_details) || current.error || "";
           return;
         }
       }
       error = "Render timed out. Check the server log.";
     } catch (reason) {
       error = errorMessage(reason);
+      errorDetail = describeError(reason);
     } finally {
       renderBusy = false;
     }
@@ -618,6 +625,7 @@
     previewPercent = 0;
     previewMessage = "Queued";
     error = "";
+    errorDetail = "";
     try {
       const payload = await createJobPreview(selected, true, true);
       const initial = typeof payload.status === "object" ? payload.status : null;
@@ -638,12 +646,15 @@
         }
         if (current.status === "failed" || current.status === "cancelled") {
           error = current.error || `Preview ${current.status}.`;
+          errorDetail =
+            formatBackendDetail(current.error_details) || current.error || "";
           return;
         }
       }
       error = "Preview render timed out. Check the server log.";
     } catch (reason) {
       error = errorMessage(reason);
+      errorDetail = describeError(reason);
     } finally {
       previewBusy = false;
     }
@@ -871,7 +882,7 @@
 </script>
 
 <div class="space-y-4" data-testid="timeline-panel">
-  <ErrorBanner message={error} onDismiss={() => (error = "")} testId="timeline-error" />
+  <ErrorBanner message={error} detail={errorDetail} onDismiss={() => { error = ""; errorDetail = ""; }} testId="timeline-error" />
 
   <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
     <div class="flex flex-wrap items-center justify-between gap-3">

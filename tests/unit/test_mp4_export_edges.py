@@ -9,6 +9,7 @@ import pytest
 from tests.contract.test_exporters import sample_state
 from videoflow.domain.errors import ExportError
 from videoflow.domain.state import OverlayClip, ProjectState, Transition
+from videoflow.exporters import mp4 as mp4_module
 from videoflow.exporters.mp4 import build_filter_graph, export_mp4
 
 
@@ -38,6 +39,39 @@ def test_crossfade_graph_handles_missing_audio_transitions(tmp_path: Path) -> No
     assert "concat=n=2:v=0:a=1" in graph
     assert video_label.startswith("[")
     assert audio_label.startswith("[")
+
+
+def test_large_hard_cut_timeline_uses_segmented_export(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state = sample_state(tmp_path)
+    state.video_segments = [
+        state.video_segments[0].model_copy(
+            update={
+                "clip_id": f"v{index}",
+                "source_in_frame": 0,
+                "source_out_frame": 10,
+                "timeline_in_frame": index * 10,
+                "timeline_out_frame": index * 10 + 10,
+            }
+        )
+        for index in range(17)
+    ]
+    state.audio_segments = []
+    called: list[bool] = []
+    expected = tmp_path / "segmented.mp4"
+
+    def fake_segmented(*_args: object, **_kwargs: object) -> Path:
+        called.append(True)
+        expected.write_bytes(b"mp4")
+        return expected
+
+    monkeypatch.setattr(mp4_module, "_export_mp4_segmented", fake_segmented)
+
+    result = export_mp4(state, expected)
+
+    assert called == [True]
+    assert result == expected
 
 
 def test_export_mp4_requires_media(tmp_path: Path) -> None:
