@@ -130,6 +130,39 @@ def main() -> int:
     notes = target_dir / "release-notes.md"
     if not notes.exists():
         listing = "\n".join(f"- `{item['name']}` — SHA-256 `{item['sha256']}`" for item in staged)
+        names = {str(item["name"]) for item in staged}
+        linux = next((name for name in names if name.endswith("linux-x86_64")), None)
+        appimage = next((name for name in names if name.endswith(".AppImage")), None)
+        windows = next((name for name in names if name.endswith(".exe")), None)
+        sections: list[str] = []
+        if linux:
+            sections.append(
+                "Linux plain binary:\n\n"
+                "```bash\n"
+                f"./{linux} doctor\n"
+                f"./{linux} demo -o demo\n"
+                f"./{linux} run input.mp4 -o project\n"
+                "```"
+            )
+        if appimage:
+            sections.append(
+                "Linux AppImage (no FUSE required with extract-and-run):\n\n"
+                "```bash\n"
+                f"chmod +x {appimage}\n"
+                f"./{appimage} version\n"
+                f"./{appimage} demo -o demo\n"
+                "```"
+            )
+        if windows:
+            sections.append(
+                "Windows:\n\n"
+                "```powershell\n"
+                f".\\{windows} version\n"
+                f".\\{windows} doctor\n"
+                f".\\{windows} demo -o demo\n"
+                "```\n\n"
+                "The Windows artifact is PE32+ x86-64 and was smoke-tested under Wine."
+            )
         notes.write_text(
             f"""# VideoFlow {args.version}
 
@@ -141,34 +174,11 @@ Portable video pre-edit pipeline with offline whisper.cpp transcription.
 
 ## Run
 
-Linux plain binary:
-
-```bash
-./videoflow-linux-x86_64 doctor
-./videoflow-linux-x86_64 demo -o demo
-./videoflow-linux-x86_64 run input.mp4 -o project
-```
-
-Linux AppImage (no FUSE required with extract-and-run):
-
-```bash
-chmod +x VideoFlow-x86_64.AppImage
-./VideoFlow-x86_64.AppImage version
-./VideoFlow-x86_64.AppImage demo -o demo
-```
-
-Windows:
-
-```powershell
-.\\videoflow-windows-x86_64.exe version
-.\\videoflow-windows-x86_64.exe doctor
-.\\videoflow-windows-x86_64.exe demo -o demo
-```
+{(chr(10) * 2).join(sections)}
 
 ## Notes
 
-See `CHANGELOG.md`. Windows artifacts are PE32+ x86-64 and were built and
-smoke-tested under Wine in this release.
+See `CHANGELOG.md`.
 """,
             encoding="utf-8",
         )
