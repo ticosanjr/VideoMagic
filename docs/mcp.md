@@ -103,10 +103,11 @@ still required.
 | `videoflow_get_job` | `job_id` | **live**: status, progress, report |
 | `videoflow_cancel_job` | `job_id` | **live**: cooperative cancel |
 
-`run_pipeline` returns immediately with a job. `source` may be omitted after
-`load_media`; `output` defaults to `<source-stem>-videoflow` next to the source.
-Poll `videoflow_get_job` at a human pace until `succeeded`, `failed`, or
-`cancelled`.
+`videoflow_run_recipe` is the preferred entry point. `run_pipeline` remains as
+a preset-based compatibility path for clients that do not use recipes. Both
+return immediately with a job. `source` may be omitted after `load_media`;
+`output` defaults to `<source-stem>-videoflow` next to the source. Poll
+`videoflow_get_job` at a human pace until `succeeded`, `failed`, or `cancelled`.
 
 Presets accepted by `run_pipeline`:
 
@@ -230,16 +231,16 @@ two jobs run per process; a third returns `job_queue_full`.
 
 | Code | Agent action |
 | --- | --- |
-| `source_required` | Call `videoflow_load_media` or pass `source` to `videoflow_run_pipeline` |
-| `transcript_not_found` | Transcribe first, or run the pipeline with transcription enabled |
-| `state_not_found` | Run a pipeline and wait for success before exporting or reading state |
+| `source_required` | Call `videoflow_load_media` or pass `source` to `videoflow_run_recipe` |
+| `transcript_not_found` | Transcribe first, or run a recipe that includes transcription |
+| `state_not_found` | Run a recipe and wait for success before exporting or reading state |
 | `exports_not_found` | Wait for the job report, then read exports again |
 | `invalid_arguments` | Correct the value; do not guess |
 | `word_overrides_not_supported` | Use sentence ids |
 | `upstream_dirty` | Run the named ancestors, or retry with upstream execution enabled |
 | `module_bypassed` | Enable the module or choose another path |
 | `job_queue_full` | Wait for a job to finish, then retry |
-| `job_not_found` | Use the job id returned by `run_pipeline` |
+| `job_not_found` | Use the job id returned by `videoflow_run_recipe` or `run_pipeline` |
 | `job_cancelled` | The job stopped; start again if needed |
 | `path_not_allowed` | Ask the human to register an allowed root |
 | `invalid_retake_ids` | Re-read the transcript and send only valid ids |

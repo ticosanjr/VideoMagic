@@ -35,7 +35,7 @@
 </script>
 
 {#if open}
-  <div class="fixed inset-0 z-[65]" role="presentation">
+  <div class="fixed inset-0 z-[110]" role="presentation">
     <button type="button" class="absolute inset-0 bg-black/40" aria-label="Close activity" onclick={onclose}></button>
     <aside
       class="absolute right-0 top-0 flex h-full w-[min(24rem,100vw)] flex-col overflow-hidden border-l border-neutral-800 bg-neutral-950 shadow-2xl shadow-black/50"

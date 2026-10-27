@@ -256,9 +256,10 @@ test("blocks Run on inline validation errors", async ({ page }) => {
 });
 
 test("validates NLE exports from the UI", async ({ page }) => {
-  await page.getByTestId("run-workspace").fill("/tmp/out");
   await openMore(page);
   await page.getByTestId("nle-validate").click();
+  await page.getByTestId("workspace-output").fill("/tmp/out");
+  await page.getByTestId("workspace-continue").click();
   await expect(page.getByTestId("nle-report")).toBeVisible();
   await expect(page.getByText("NLE export validation")).toBeVisible();
   await expect(page.getByText("affine_filters: 2")).toBeVisible();
@@ -308,12 +309,53 @@ test("opens the timeline tab", async ({ page }) => {
 });
 
 test("opens persisted run history and shows failures", async ({ page }) => {
-  await page.getByTestId("run-workspace").fill("/tmp/out");
   await page.getByTestId("recipe-runs").click();
+  await page.getByTestId("workspace-output").fill("/tmp/out");
+  await page.getByTestId("workspace-continue").click();
   await expect(page.getByTestId("run-history")).toBeVisible();
   await expect(page.getByText("failed")).toBeVisible();
   await expect(page.getByText("succeeded")).toBeVisible();
   await expect(page.getByText("ingest_failed")).toHaveCount(0);
+});
+
+async function navIsCovered(page: Page) {
+  const nav = page.getByRole("navigation", { name: "Workspace areas" });
+  const box = await nav.boundingBox();
+  if (!box) return false;
+  return page.evaluate(
+    ({ x, y }) => {
+      const node = document.elementFromPoint(x, y);
+      return node !== null && node.closest('[role="dialog"], [role="presentation"]') !== null;
+    },
+    { x: box.x + 24, y: box.y + 20 }
+  );
+}
+
+test("keeps the JSON editor above the area navigation", async ({ page }) => {
+  await page.getByTestId("recipe-json").click();
+  await expect(page.getByRole("dialog", { name: "JSON editor" })).toBeVisible();
+  expect(await navIsCovered(page)).toBe(true);
+});
+
+test("keeps the wire dialog above the area navigation", async ({ page }) => {
+  await page.getByTestId("step-edit.timeline").getByText("Build timeline").click();
+  await page.getByRole("button", { name: "Wiring" }).click();
+  await expect(page.getByRole("dialog", { name: "Wire ports" })).toBeVisible();
+  expect(await navIsCovered(page)).toBe(true);
+});
+
+test("shows every wire port and disables incompatible ones", async ({ page }) => {
+  await page.getByTestId("step-edit.timeline").getByText("Build timeline").click();
+  await page.getByRole("button", { name: "Wiring" }).click();
+  const dialog = page.getByRole("dialog", { name: "Wire ports" });
+  await expect(dialog).toBeVisible();
+  await expect(page.getByTestId("wire-output-speech")).toBeVisible();
+  await expect(page.getByTestId("wire-input-speech")).toBeVisible();
+
+  await page.getByText(/Incompatible outputs/).click();
+  await expect(page.getByTestId("wire-output-incompatible-engine")).toBeDisabled();
+  await page.getByText(/Incompatible inputs/).click();
+  await expect(page.getByTestId("wire-input-incompatible-transcript")).toBeDisabled();
 });
 
 test("shows typed ports and the wired edge label", async ({ page }) => {

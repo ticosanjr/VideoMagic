@@ -281,13 +281,29 @@ test("filters settings by text", async ({ page }) => {
   await expect(search).toHaveValue("true peak");
 });
 
-test("dismisses and remembers onboarding", async ({ page }) => {
+test("opens the guide from the header and remembers dismissal", async ({ page }) => {
   const card = page.getByTestId("onboarding-card");
-  await expect(card).toBeVisible();
+  const guide = page.getByRole("button", { name: "Guide" });
+  const hydrated = async () => {
+    await expect(page.getByTitle("Server version")).not.toContainText("connecting");
+  };
+  const openGuide = async () => {
+    await expect(async () => {
+      await guide.click();
+      await expect(card).toBeVisible({ timeout: 1000 });
+    }).toPass();
+  };
+
+  await hydrated();
+  await expect(card).toHaveCount(0);
+  await openGuide();
   await card.getByRole("button", { name: "Dismiss" }).click();
   await expect(card).toHaveCount(0);
+
   await page.reload();
-  await expect(page.getByTestId("onboarding-card")).toHaveCount(0);
+  await hydrated();
+  await expect(card).toHaveCount(0);
+  await openGuide();
 });
 
 test("moves the area selection with arrow keys", async ({ page }) => {

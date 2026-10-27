@@ -107,6 +107,7 @@ from videoflow.domain.config import DubbingConfig, TtsConfig
 from videoflow.domain.errors import (
     CapabilityUnavailableError,
     InvalidRetakeIdsError,
+    RecipeError,
     StateNotReadyError,
     VideoFlowError,
 )
@@ -356,7 +357,7 @@ def build_server(
 
         job_id = last.get("job_id")
         if not isinstance(job_id, str):
-            return _error("job_required", "Run videoflow_run_pipeline first.")
+            return _error("job_required", "Run a recipe with videoflow_run_recipe first.")
         try:
             job = manager.get(job_id)
             if job.status != "succeeded" or job.result is None:
@@ -741,7 +742,7 @@ def build_server(
         if transcript is None:
             return _error(
                 "transcript_not_found",
-                "Run videoflow_transcribe or videoflow_run_pipeline first.",
+                "Run videoflow_transcribe or a recipe first.",
             )
         state = _project_state(last)
         rate = _sample_rate(last, state)
@@ -768,7 +769,7 @@ def build_server(
         if transcript is None:
             return _error(
                 "transcript_not_found",
-                "Run videoflow_transcribe or videoflow_run_pipeline first.",
+                "Run videoflow_transcribe or a recipe first.",
             )
         requested = sorted(set(discard_sentence_ids or []))
         valid = {item.id for item in transcript}
@@ -917,7 +918,7 @@ def build_server(
         if transcript is None:
             return _error(
                 "transcript_not_found",
-                "Run videoflow_transcribe or videoflow_run_pipeline first.",
+                "Run videoflow_transcribe or a recipe first.",
             )
         state = _project_state(last)
         rate = _sample_rate(last, state)
@@ -1088,7 +1089,7 @@ def build_server(
             return _error("invalid_arguments", "end_sec must be greater than start_sec")
         job_id = last.get("job_id")
         if not isinstance(job_id, str):
-            return _error("job_required", "Run videoflow_run_pipeline first.")
+            return _error("job_required", "Run a recipe with videoflow_run_recipe first.")
         try:
             job = manager.get(job_id)
             if job.status != "succeeded" or job.result is None:
@@ -1129,7 +1130,7 @@ def build_server(
 
         job_id = last.get("job_id")
         if not isinstance(job_id, str):
-            return _error("job_required", "Run videoflow_run_pipeline first.")
+            return _error("job_required", "Run a recipe with videoflow_run_recipe first.")
         try:
             job = manager.get(job_id)
             if job.status != "succeeded" or job.result is None:
@@ -1172,7 +1173,7 @@ def build_server(
             return _error("invalid_arguments", "Unsupported tone")
         job_id = last.get("job_id")
         if not isinstance(job_id, str):
-            return _error("job_required", "Run videoflow_run_pipeline first.")
+            return _error("job_required", "Run a recipe with videoflow_run_recipe first.")
         try:
             job = manager.get(job_id)
             if job.status != "succeeded" or job.result is None:
@@ -1206,7 +1207,7 @@ def build_server(
 
         job_id = last.get("job_id")
         if not isinstance(job_id, str):
-            return _error("job_required", "Run videoflow_run_pipeline first.")
+            return _error("job_required", "Run a recipe with videoflow_run_recipe first.")
         try:
             job = manager.get(job_id)
             if job.status != "succeeded" or job.result is None:
@@ -1246,7 +1247,7 @@ def build_server(
 
         job_id = last.get("job_id")
         if not isinstance(job_id, str):
-            return _error("job_required", "Run videoflow_run_pipeline first.")
+            return _error("job_required", "Run a recipe with videoflow_run_recipe first.")
         try:
             job = manager.get(job_id)
             if job.status != "succeeded" or job.result is None:
@@ -1305,7 +1306,7 @@ def build_server(
 
         job_id = last.get("job_id")
         if not isinstance(job_id, str):
-            return _error("job_required", "Run videoflow_run_pipeline first.")
+            return _error("job_required", "Run a recipe with videoflow_run_recipe first.")
         try:
             job = manager.get(job_id)
             if job.status != "succeeded" or job.result is None:
@@ -1363,7 +1364,7 @@ def build_server(
 
         job_id = last.get("job_id")
         if not isinstance(job_id, str):
-            return _error("job_required", "Run videoflow_run_pipeline first.")
+            return _error("job_required", "Run a recipe with videoflow_run_recipe first.")
         try:
             job = manager.get(job_id)
             if job.status != "succeeded" or job.result is None:
@@ -1394,7 +1395,7 @@ def build_server(
 
         job_id = last.get("job_id")
         if not isinstance(job_id, str):
-            return _error("job_required", "Run videoflow_run_pipeline first.")
+            return _error("job_required", "Run a recipe with videoflow_run_recipe first.")
         try:
             job = manager.get(job_id)
             if job.status != "succeeded" or job.result is None:
@@ -1447,7 +1448,7 @@ def build_server(
         if state is None:
             return _error(
                 "state_not_found",
-                "Run videoflow_run_pipeline and wait for it to succeed first.",
+                "Run a recipe and wait for the job to succeed first.",
             )
         try:
             requested = resolve_allowed(Path(output_path), allowed_roots())
@@ -1471,8 +1472,8 @@ def build_server(
         }
         if last.get("pending_options"):
             payload["warning"] = (
-                "Pending zoom, J-cut, or retake settings apply only after another "
-                "videoflow_run_pipeline; this export uses the completed state."
+                "Pending zoom, J-cut, or retake settings apply only to the next "
+                "pipeline run; this export uses the completed state."
             )
         return payload
 
@@ -2146,7 +2147,7 @@ def build_server(
             return json.dumps(
                 _error(
                     "state_not_found",
-                    "Run videoflow_run_pipeline and wait for it to succeed first.",
+                    "Run a recipe and wait for the job to succeed first.",
                 )
             )
         return state.model_dump_json(indent=2)
@@ -2160,7 +2161,7 @@ def build_server(
             return json.dumps(
                 _error(
                     "transcript_not_found",
-                    "Run videoflow_transcribe or videoflow_run_pipeline first.",
+                    "Run videoflow_transcribe or a recipe first.",
                 )
             )
         state = _project_state(last)
@@ -2214,7 +2215,9 @@ def build_server(
 
         output = last.get("output")
         if not isinstance(output, Path):
-            return json.dumps(_error("exports_not_found", "Run videoflow_run_pipeline first."))
+            return json.dumps(
+                _error("exports_not_found", "Run a recipe with videoflow_run_recipe first.")
+            )
         run_path = output / "run.json"
         if not run_path.is_file():
             return json.dumps(
@@ -2279,7 +2282,12 @@ def build_server(
             validate_recipe_ports(parsed)
             resolved = parsed.with_variables({})
             for step in resolved.steps:
-                get_step(step.type).validate_params(step.params)
+                try:
+                    get_step(step.type).validate_params(step.params)
+                except ValueError as exc:
+                    errors = exc.errors() if hasattr(exc, "errors") else []
+                    detail = errors[0].get("msg", "invalid parameters") if errors else str(exc)
+                    raise RecipeError(f"{step.id}: {detail}") from exc
             order = [step.id for step in parsed.topological_order()]
         except VideoFlowError as exc:
             return exc.to_dict()
@@ -2523,7 +2531,7 @@ def _error(code: str, message: str) -> dict[str, object]:
 def _source_required() -> dict[str, object]:
     return _error(
         "source_required",
-        "Call videoflow_load_media first or pass source to videoflow_run_pipeline.",
+        "Call videoflow_load_media first or pass source to a recipe run.",
     )
 
 

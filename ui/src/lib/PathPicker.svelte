@@ -189,7 +189,7 @@
 
 {#if open}
   <div
-    class="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center"
+    class="fixed inset-0 z-[100] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center"
     role="presentation"
     onclick={(event) => {
       if (event.target === event.currentTarget) onclose();

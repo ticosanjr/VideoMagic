@@ -153,9 +153,13 @@ POST /api/v1/batches/{id}/cancel
 ```
 
 `POST /api/v1/recipes/run` accepts either a complete `recipe` object or a
-`recipe_id`, plus `source`, `output`, optional `through`, `resume`, and
-`transcript_sentences`. It returns the normal job record, so existing job
-status, logs, SSE, cancellation, and artifact routes apply.
+`recipe_id`, plus optional `source`, `output`, `through`, `resume`, and
+`transcript_sentences`. When `source` is omitted it comes from the ingest node
+in the recipe; when `output` is omitted it defaults to
+`<source>-videoflow`. The UI runs with both omitted and reads the resolved
+output from the returned job record. The endpoint returns the normal job
+record, so existing job status, logs, SSE, cancellation, and artifact routes
+apply.
 
 `POST /api/v1/steps/{step_id}/run` runs only that step and its dependency
 closure, using the same request body. It is the step-scoped form of the same

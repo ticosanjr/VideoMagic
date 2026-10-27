@@ -12,6 +12,7 @@
     type Node
   } from "@xyflow/svelte";
   import NodeInspector from "$lib/nodes/NodeInspector.svelte";
+  import Modal from "$lib/ui/Modal.svelte";
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import IconButton from "$lib/ui/IconButton.svelte";
@@ -67,14 +68,6 @@
     type StepManifest,
     type StepPort
   } from "$lib/api";
-
-  let {
-    source = "",
-    output = ""
-  }: {
-    source?: string;
-    output?: string;
-  } = $props();
 
   type NodeStatus =
     | "idle"
@@ -169,11 +162,12 @@
     api_key_env: "VIDEOWFLOW_LLM_API_KEY",
     timeout_seconds: 90
   });
-  let inputSource = $state("");
   let inputOutput = $state("");
+  let workspaceOpen = $state(false);
+  let workspaceDraft = $state("");
+  let workspaceAction = $state<"nle" | "history" | null>(null);
   let picker = $state<
-    | "source"
-    | "output"
+    | "workspace"
     | "batch-source"
     | "batch-output"
     | "broll"
@@ -315,11 +309,6 @@
   );
 
   $effect(() => {
-    inputSource = source;
-    inputOutput = output;
-  });
-
-  $effect(() => {
     const id = selectedId;
     if (!id || id === lastSelected) return;
     lastSelected = id;
@@ -342,17 +331,6 @@
   });
 
   onMount(() => {
-    const rawProject = localStorage.getItem("videoflow.project");
-    if (rawProject) {
-      try {
-        const project = JSON.parse(rawProject) as { source?: string; output?: string };
-        if (project.source) inputSource = project.source;
-        if (project.output) inputOutput = project.output;
-        localStorage.removeItem("videoflow.project");
-      } catch {
-        localStorage.removeItem("videoflow.project");
-      }
-    }
     const onBuilderAction = (event: Event) => {
       const action = String((event as CustomEvent<string>).detail ?? "");
       if (action === "add-step") {
@@ -916,6 +894,27 @@
     };
   }
 
+  function openInspectorWiring(nodeId: string) {
+    const node = nodes.find((item) => item.id === nodeId);
+    if (!node) return;
+    const input = (nodeData(node).inputPorts ?? [])[0];
+    if (!input) return;
+    const reference = String(nodeData(node).inputs?.[input.id] ?? "");
+    const sourceId = reference.split(".")[0];
+    if (sourceId) {
+      openWiring(sourceId, nodeId);
+      return;
+    }
+    const source = nodes.find(
+      (candidate) =>
+        candidate.id !== nodeId &&
+        (nodeData(candidate).outputPorts ?? []).some((port) =>
+          portTypeCompatible(port.type, input.type)
+        )
+    );
+    if (source) openWiring(source.id, nodeId);
+  }
+
   function openEdgeWiring(edge: Edge) {
     const targetNode = nodes.find((node) => node.id === edge.target);
     if (!targetNode) return;
@@ -1225,7 +1224,9 @@
 
   async function openNleValidation() {
     if (!inputOutput.trim()) {
-      error = "Choose an output directory to validate exports.";
+      workspaceAction = "nle";
+      workspaceDraft = job?.output ?? "";
+      workspaceOpen = true;
       return;
     }
     nleBusy = true;
@@ -1242,7 +1243,9 @@
 
   async function openHistory() {
     if (!inputOutput.trim()) {
-      error = "Choose an output directory to load run history.";
+      workspaceAction = "history";
+      workspaceDraft = job?.output ?? "";
+      workspaceOpen = true;
       return;
     }
     historyBusy = true;
@@ -1906,8 +1909,8 @@
     status = "";
     try {
       const plan = await dryRunRecipe({
-        source: inputSource.trim(),
-        output: inputOutput.trim(),
+        source: "",
+        output: "",
         recipe: recipeFromGraph(),
         variables: variableValues,
         profile: recipeProfile || null
@@ -2069,14 +2072,15 @@
       const recipe = recipeFromGraph();
       await validateRecipe(recipe);
       job = await runRecipe({
-        source: inputSource.trim(),
-        output: inputOutput.trim(),
+        source: "",
+        output: "",
         recipe,
         save_recipe: true,
         resume,
         variables: variableValues,
         profile: recipeProfile || null
       });
+      inputOutput = job.output;
       watch(job.job_id);
       await refreshRecipes();
       status = `Job ${job.job_id} started.`;
@@ -2109,14 +2113,15 @@
       const recipe = recipeFromGraph();
       await validateRecipe(recipe);
       job = await runRecipeStep(stepId, {
-        source: inputSource.trim(),
-        output: inputOutput.trim(),
+        source: "",
+        output: "",
         recipe,
         save_recipe: true,
         resume,
         variables: variableValues,
         profile: recipeProfile || null
       });
+      inputOutput = job.output;
       watch(job.job_id);
       await refreshRecipes();
       status = `Job ${job.job_id} started through ${stepId}.`;
@@ -2231,7 +2236,10 @@
     poll = setInterval(async () => {
       try {
         job = await getJob(jobId);
-        if (job) applyJobStatuses(job);
+        if (job) {
+          inputOutput = job.output;
+          applyJobStatuses(job);
+        }
         if (["succeeded", "failed", "cancelled", "waiting_approval"].includes(job.status)) {
           clearInterval(poll);
           if (job.status !== "waiting_approval") void loadPrevious(job);
@@ -2244,8 +2252,7 @@
   }
 
   function choose(path: string) {
-    if (picker === "source") inputSource = path;
-    if (picker === "output") inputOutput = path;
+    if (picker === "workspace") workspaceDraft = path;
     if (picker === "batch-source") batchSourceDir = path;
     if (picker === "batch-output") batchOutputRoot = path;
     if (picker === "broll") patchParams({ asset_dir: path });
@@ -2454,26 +2461,6 @@
     </div>
 
     <div class="p-3 sm:p-4">
-      <div class="mb-3 grid gap-2 sm:grid-cols-2">
-        <label class="block text-[10px] uppercase tracking-wide text-neutral-500">
-          Run source — optional
-          <span class="mt-1 flex gap-1">
-            <input bind:value={inputSource} data-testid="run-source" placeholder="auto from the ingest node" class="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[11px] text-neutral-200" />
-            <button type="button" onclick={() => (picker = "source")} class="rounded-lg border border-neutral-700 px-2 text-[11px] text-neutral-300">…</button>
-          </span>
-        </label>
-        <label class="block text-[10px] uppercase tracking-wide text-neutral-500">
-          Workspace — optional
-          <span class="mt-1 flex gap-1">
-            <input bind:value={inputOutput} data-testid="run-workspace" placeholder="auto from the source folder" class="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[11px] text-neutral-200" />
-            <button type="button" onclick={() => (picker = "output")} class="rounded-lg border border-neutral-700 px-2 text-[11px] text-neutral-300">…</button>
-          </span>
-        </label>
-      </div>
-      <p class="-mt-1 mb-3 text-[10px] text-neutral-500">
-        Leave these empty when the ingest node already has a source and the output nodes define their destinations. The runner derives a workspace automatically.
-      </p>
-
       {#if Object.keys(recipeVariables).length || Object.keys(recipeProfiles).length}
         <div class="mb-3 rounded-xl border border-neutral-800 bg-neutral-950/50 p-3">
           <div class="flex flex-wrap items-center justify-between gap-2">
@@ -2621,6 +2608,7 @@
               onparaminput={(value) => updateParams(value)}
               onexpandjson={openStepJson}
               onrun={() => void runToHere(inspected.id)}
+              onwiring={() => openInspectorWiring(inspected.id)}
               onduplicate={() => duplicateNode(inspected.id)}
               onremove={() => removeNode(inspected.id)}
               onlogs={() => void openStepLogs(inspected.id)}
@@ -2778,7 +2766,7 @@
   {/if}
 
   {#if tourOpen}
-    <div class="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4" role="presentation"
+    <div class="fixed inset-0 z-[110] flex items-center justify-center bg-black/75 p-4" role="presentation"
       onclick={(event) => { if (event.currentTarget === event.target) tourOpen = false; }}>
       <div class="w-full max-w-md rounded-2xl border border-sky-500/30 bg-neutral-950 p-5 shadow-2xl" role="dialog" aria-modal="true" aria-label="Builder tour" data-testid="builder-tour">
         <div class="flex items-center justify-between">
@@ -2816,7 +2804,20 @@
     {@const outputPorts = sourceNode ? nodeData(sourceNode).outputPorts ?? [] : []}
     {@const inputPorts = targetNode ? nodeData(targetNode).inputPorts ?? [] : []}
     {@const chosenOutput = outputPorts.find((item) => item.id === wiring?.sourcePort)}
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="presentation"
+    {@const chosenInput = inputPorts.find((item) => item.id === wiring?.targetPort)}
+    {@const compatibleOutputs = outputPorts.filter((port) =>
+      chosenInput ? portTypeCompatible(port.type, chosenInput.type) : true
+    )}
+    {@const incompatibleOutputs = outputPorts.filter(
+      (port) => !compatibleOutputs.includes(port)
+    )}
+    {@const compatibleInputs = inputPorts.filter((port) =>
+      chosenOutput ? portTypeCompatible(chosenOutput.type, port.type) : true
+    )}
+    {@const incompatibleInputs = inputPorts.filter(
+      (port) => !compatibleInputs.includes(port)
+    )}
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-3" role="presentation"
       onclick={(event) => { if (event.currentTarget === event.target) wiring = null; }}>
       <div class="w-full max-w-lg rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="Wire ports">
         <div class="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
@@ -2824,39 +2825,80 @@
           <button type="button" onclick={() => (wiring = null)} class="rounded px-2 text-neutral-500 hover:text-neutral-200" aria-label="Close port wiring">×</button>
         </div>
         <div class="grid gap-3 p-4 sm:grid-cols-2">
-          <label class="text-[10px] uppercase tracking-wide text-neutral-500">
-            Output
-            <select
-              value={wiring.sourcePort}
-              onchange={(event) => {
-                if (!wiring) return;
-                wiring = { ...wiring, sourcePort: event.currentTarget.value };
-                const port = outputPorts.find((item) => item.id === event.currentTarget.value);
-                const first = (targetNode ? nodeData(targetNode).inputPorts ?? [] : []).find((input) => port && portTypeCompatible(port.type, input.type));
-                if (first) wiring = { ...wiring, targetPort: first.id };
-              }}
-              class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100"
-            >
-              {#each outputPorts as port}
-                <option value={port.id}>{port.label} · {port.type}</option>
+          <div>
+            <p class="text-[10px] uppercase tracking-wide text-neutral-500">Outputs from {wiring.source}</p>
+            <p class="mt-1 text-[9px] text-neutral-600">{outputPorts.length} port(s), all visible</p>
+            <div class="mt-2 space-y-1">
+              {#each compatibleOutputs as port}
+                <button
+                  type="button"
+                  data-testid={`wire-output-${port.id}`}
+                  aria-pressed={wiring.sourcePort === port.id}
+                  onclick={() => {
+                    if (!wiring) return;
+                    const first = inputPorts.find((input) => portTypeCompatible(port.type, input.type));
+                    wiring = { ...wiring, sourcePort: port.id, targetPort: first?.id ?? wiring.targetPort };
+                  }}
+                  class={`w-full rounded-lg border px-2 py-1.5 text-left text-[10px] ${wiring.sourcePort === port.id ? "border-sky-400/60 bg-sky-500/10 text-sky-100" : "border-neutral-700 text-neutral-300 hover:border-sky-500/50"}`}
+                >
+                  <span class="block">{port.label}</span>
+                  <span class="font-mono text-[9px] text-neutral-500">{port.type}</span>
+                </button>
               {/each}
-            </select>
-          </label>
-          <label class="text-[10px] uppercase tracking-wide text-neutral-500">
-            Input
-            <select
-              value={wiring.targetPort}
-              onchange={(event) => { if (wiring) wiring = { ...wiring, targetPort: event.currentTarget.value }; }}
-              class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100"
-            >
-              {#each inputPorts as port}
-                <option value={port.id} disabled={chosenOutput ? !portTypeCompatible(chosenOutput.type, port.type) : false}>{port.label} · {port.type}{port.required ? " *" : ""}{chosenOutput && !portTypeCompatible(chosenOutput.type, port.type) ? " (incompatible)" : ""}</option>
+            </div>
+            {#if incompatibleOutputs.length}
+              <details class="mt-2 rounded-lg border border-neutral-800 bg-neutral-950/60 p-2" data-testid="wire-outputs-incompatible">
+                <summary class="cursor-pointer text-[10px] text-neutral-500">Incompatible outputs ({incompatibleOutputs.length})</summary>
+                <div class="mt-1 space-y-1">
+                  {#each incompatibleOutputs as port}
+                    <button type="button" disabled data-testid={`wire-output-incompatible-${port.id}`} class="w-full cursor-not-allowed rounded border border-neutral-800 px-2 py-1 text-left text-[10px] text-neutral-600">
+                      <span class="block">{port.label} <span class="text-[9px]">(incompatible)</span></span>
+                      <span class="font-mono text-[9px]">{port.type} → {chosenInput?.type ?? "select an input first"}</span>
+                    </button>
+                  {/each}
+                </div>
+              </details>
+            {/if}
+          </div>
+
+          <div>
+            <p class="text-[10px] uppercase tracking-wide text-neutral-500">Inputs into {wiring.target}</p>
+            <p class="mt-1 text-[9px] text-neutral-600">{inputPorts.length} port(s), all visible</p>
+            <div class="mt-2 space-y-1">
+              {#each compatibleInputs as port}
+                <button
+                  type="button"
+                  data-testid={`wire-input-${port.id}`}
+                  aria-pressed={wiring.targetPort === port.id}
+                  onclick={() => {
+                    if (!wiring) return;
+                    const first = outputPorts.find((output) => portTypeCompatible(output.type, port.type));
+                    wiring = { ...wiring, targetPort: port.id, sourcePort: first?.id ?? wiring.sourcePort };
+                  }}
+                  class={`w-full rounded-lg border px-2 py-1.5 text-left text-[10px] ${wiring.targetPort === port.id ? "border-sky-400/60 bg-sky-500/10 text-sky-100" : "border-neutral-700 text-neutral-300 hover:border-sky-500/50"}`}
+                >
+                  <span class="block">{port.label}{port.required ? " *" : ""}</span>
+                  <span class="font-mono text-[9px] text-neutral-500">{port.type}</span>
+                </button>
               {/each}
-            </select>
-          </label>
+            </div>
+            {#if incompatibleInputs.length}
+              <details class="mt-2 rounded-lg border border-neutral-800 bg-neutral-950/60 p-2" data-testid="wire-inputs-incompatible">
+                <summary class="cursor-pointer text-[10px] text-neutral-500">Incompatible inputs ({incompatibleInputs.length})</summary>
+                <div class="mt-1 space-y-1">
+                  {#each incompatibleInputs as port}
+                    <button type="button" disabled data-testid={`wire-input-incompatible-${port.id}`} class="w-full cursor-not-allowed rounded border border-neutral-800 px-2 py-1 text-left text-[10px] text-neutral-600">
+                      <span class="block">{port.label}{port.required ? " *" : ""} <span class="text-[9px]">(incompatible)</span></span>
+                      <span class="font-mono text-[9px]">{chosenOutput?.type ?? "select an output first"} → {port.type}</span>
+                    </button>
+                  {/each}
+                </div>
+              </details>
+            {/if}
+          </div>
         </div>
         <div class="flex items-center justify-between gap-2 border-t border-neutral-800 px-4 py-3">
-          <p class="text-[10px] text-neutral-600">Only compatible port types are listed.</p>
+          <p class="text-[10px] text-neutral-600">All ports are listed; incompatible ones are disabled inside the accordions.</p>
           <div class="flex gap-1.5">
             {#if nodes.some((node) => node.id === wiring?.source) && nodes.some((node) => node.id === wiring?.target)}
               <button type="button" onclick={() => wiring && removeConnection(wiring.source, wiring.target)} class="rounded-lg border border-rose-500/30 px-2.5 py-1 text-[11px] text-rose-300 hover:bg-rose-500/10">Disconnect</button>
@@ -2870,7 +2912,7 @@
   {/if}
 
   {#if templatesOpen}
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="presentation"
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-3" role="presentation"
       onclick={(event) => { if (event.currentTarget === event.target) templatesOpen = false; }}>
       <div class="flex max-h-[82vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="Recipe library">
         <div class="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
@@ -2932,7 +2974,7 @@
   {/if}
 
   {#if versionDiffOpen}
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="presentation"
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-3" role="presentation"
       onclick={(event) => { if (event.currentTarget === event.target) versionDiffOpen = false; }}>
       <div class="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="Version comparison">
         <div class="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
@@ -2950,7 +2992,7 @@
   {/if}
 
   {#if recipeHistoryOpen}
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="presentation"
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-3" role="presentation"
       onclick={(event) => { if (event.currentTarget === event.target) recipeHistoryOpen = false; }}>
       <div class="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="Recipe history">
         <div class="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
@@ -2975,7 +3017,7 @@
   {/if}
 
   {#if logOpen}
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="presentation"
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-3" role="presentation"
       onclick={(event) => { if (event.currentTarget === event.target) logOpen = false; }}>
       <div class="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="Step logs">
         <div class="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
@@ -2995,7 +3037,7 @@
   {/if}
 
   {#if nleOpen && nleReport}
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="presentation"
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-3" role="presentation"
       onclick={(event) => { if (event.currentTarget === event.target) nleOpen = false; }}>
       <div class="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="NLE validation">
         <div class="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
@@ -3034,7 +3076,7 @@
   {#if nleError}<p class="text-[10px] text-rose-300">{nleError}</p>{/if}
 
   {#if historyOpen}
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="presentation"
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-3" role="presentation"
       onclick={(event) => { if (event.currentTarget === event.target) historyOpen = false; }}>
       <div class="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="Run history">
         <div class="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
@@ -3070,7 +3112,7 @@
 
   {#if compareOpen && comparison}
     <div
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
+      class="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4"
       role="presentation"
       onclick={(event) => {
         if (event.currentTarget === event.target) compareOpen = false;
@@ -3135,7 +3177,7 @@
 
   {#if batchOpen}
     <div
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
+      class="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4"
       role="presentation"
       onclick={(event) => {
         if (event.currentTarget === event.target) batchOpen = false;
@@ -3236,7 +3278,7 @@
 
   {#if configOpen}
     <div
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
+      class="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4"
       role="presentation"
       onclick={(event) => {
         if (event.currentTarget === event.target) configOpen = false;
@@ -3301,66 +3343,97 @@
     </div>
   {/if}
 
-  {#if jsonModal}
-    <div
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 sm:p-4"
-      role="presentation"
-      onclick={(event) => {
-        if (event.currentTarget === event.target) jsonModal = null;
-      }}
-    >
-      <div class="flex h-[88vh] w-[min(1100px,96vw)] flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="JSON editor">
-        <div class="flex items-center justify-between gap-3 border-b border-neutral-800 px-4 py-3">
-          <div>
-            <h3 class="text-sm font-semibold text-white">{jsonModal === "recipe" ? "Recipe JSON" : "Step parameters"}</h3>
-            <p class="mt-0.5 text-[10px] text-neutral-500">
-              {jsonModal === "recipe" ? "Edit the full DAG, then apply it to the canvas." : `Editing ${selectedId ?? "selected step"}.`}
-            </p>
-          </div>
-          <button type="button" onclick={() => (jsonModal = null)} class="rounded px-2 text-neutral-500 hover:text-neutral-200" aria-label="Close JSON editor">×</button>
-        </div>
-        <div class="flex min-h-0 flex-1 flex-col p-3">
-          {#if jsonModal === "recipe"}
-            <textarea
-              data-testid="recipe-json-text"
-              bind:value={recipeJsonText}
-              spellcheck="false"
-              class="min-h-0 flex-1 resize-none rounded-xl border border-neutral-700 bg-neutral-950 p-3 font-mono text-xs leading-5 text-neutral-200"
-            ></textarea>
-          {:else}
-            <textarea
-              value={paramText}
-              oninput={(event) => updateParams(event.currentTarget.value)}
-              spellcheck="false"
-              class="min-h-0 flex-1 resize-none rounded-xl border border-neutral-700 bg-neutral-950 p-3 font-mono text-xs leading-5 text-neutral-200"
-            ></textarea>
-          {/if}
-          {#if jsonError}<p class="mt-2 text-[11px] text-rose-300">{jsonError}</p>{/if}
-        </div>
-        <div class="flex items-center justify-between gap-2 border-t border-neutral-800 px-4 py-3">
-          <p class="text-[10px] text-neutral-500">Apply updates the canvas locally. Run Validate to check the DAG on the server.</p>
-          <div class="flex gap-2">
-            <button type="button" onclick={() => (jsonModal = null)} class="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300">Cancel</button>
-            <button type="button" onclick={applyJson} class="rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-medium text-neutral-950 hover:bg-sky-400">Apply</button>
-          </div>
+  <Modal
+    open={workspaceOpen}
+    title="Choose the job output"
+    description="Validation and run history read the folder produced by a recipe job."
+    width="w-[min(560px,96vw)]"
+    onclose={() => (workspaceOpen = false)}
+  >
+    {#snippet footer()}
+      <div class="flex justify-end gap-2">
+        <button type="button" onclick={() => (workspaceOpen = false)} class="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300">Cancel</button>
+        <button
+          type="button"
+          data-testid="workspace-continue"
+          onclick={() => {
+            inputOutput = workspaceDraft.trim();
+            workspaceOpen = false;
+            const action = workspaceAction;
+            workspaceAction = null;
+            if (!inputOutput) {
+              error = "Choose a job output folder first.";
+              return;
+            }
+            if (action === "nle") void openNleValidation();
+            if (action === "history") void openHistory();
+          }}
+          class="rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-medium text-neutral-950"
+        >Continue</button>
+      </div>
+    {/snippet}
+    <label class="block text-[10px] text-neutral-400">
+      Output folder
+      <span class="mt-1 flex gap-1">
+        <input
+          bind:value={workspaceDraft}
+          data-testid="workspace-output"
+          placeholder="/path/to/job-output"
+          class="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[11px] text-neutral-100"
+        />
+        <button type="button" onclick={() => (picker = "workspace")} class="rounded-lg border border-neutral-700 px-2 text-[11px] text-neutral-300">…</button>
+      </span>
+    </label>
+  </Modal>
+
+  <Modal
+    open={Boolean(jsonModal)}
+    title={jsonModal === "recipe" ? "Recipe JSON" : "Step parameters"}
+    label="JSON editor"
+    description={jsonModal === "recipe" ? "Edit the full DAG, then apply it to the canvas." : `Editing ${selectedId ?? "selected step"}.`}
+    width="w-[min(1100px,96vw)]"
+    height="h-[88vh]"
+    bodyClass="flex min-h-0 flex-1 flex-col p-3"
+    onclose={() => (jsonModal = null)}
+  >
+    {#snippet footer()}
+      <div class="flex items-center justify-between gap-2">
+        <p class="text-[10px] text-neutral-500">Apply updates the canvas locally. Run Validate to check the DAG on the server.</p>
+        <div class="flex gap-2">
+          <button type="button" onclick={() => (jsonModal = null)} class="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300">Cancel</button>
+          <button type="button" onclick={applyJson} class="rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-medium text-neutral-950 hover:bg-sky-400">Apply</button>
         </div>
       </div>
-    </div>
-  {/if}
+    {/snippet}
+    {#if jsonModal === "recipe"}
+      <textarea
+        data-testid="recipe-json-text"
+        bind:value={recipeJsonText}
+        spellcheck="false"
+        class="min-h-0 flex-1 resize-none rounded-xl border border-neutral-700 bg-neutral-950 p-3 font-mono text-xs leading-5 text-neutral-200"
+      ></textarea>
+    {:else}
+      <textarea
+        value={paramText}
+        oninput={(event) => updateParams(event.currentTarget.value)}
+        spellcheck="false"
+        class="min-h-0 flex-1 resize-none rounded-xl border border-neutral-700 bg-neutral-950 p-3 font-mono text-xs leading-5 text-neutral-200"
+      ></textarea>
+    {/if}
+    {#if jsonError}<p class="mt-2 text-[11px] text-rose-300">{jsonError}</p>{/if}
+  </Modal>
 
   {#if picker}
     <PathPicker
       open={true}
-      mode={picker === "node-path" ? nodePathMode : picker === "source" || picker === "second-source" ? "file" : "directory"}
+      mode={picker === "node-path" ? nodePathMode : picker === "second-source" ? "file" : "directory"}
       title={
-        picker === "source"
-          ? "Choose source video"
-          : picker === "second-source"
+        picker === "second-source"
             ? "Choose second split-screen source"
           : picker === "node-path"
             ? "Choose step field path"
-          : picker === "output"
-            ? "Choose output directory"
+            : picker === "workspace"
+              ? "Choose job output folder"
             : picker === "batch-source"
               ? "Choose batch input folder"
               : picker === "broll"
@@ -3368,14 +3441,12 @@
                 : "Choose batch output root"
       }
       initialPath={
-        picker === "source"
-          ? inputSource
-          : picker === "second-source"
+        picker === "second-source"
             ? paramString("second_source_path")
           : picker === "node-path"
             ? ""
-          : picker === "output"
-            ? inputOutput
+            : picker === "workspace"
+              ? workspaceDraft
             : picker === "batch-source"
               ? batchSourceDir
               : picker === "broll"

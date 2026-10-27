@@ -26,7 +26,7 @@ def resolve_run_roots(
                 break
     if not source_value:
         raise RecipeError(
-            "No input media. Set a source on the ingest node or choose a run source."
+            "No input media. Set a source on the ingest node in the recipe."
         )
     resolved_source = resolve_allowed(Path(source_value), roots)
     output_value = (output or "").strip()

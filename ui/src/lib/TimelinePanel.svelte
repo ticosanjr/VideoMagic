@@ -907,140 +907,7 @@
   </section>
 
   {#if timeline}
-    <section class="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950">
-      <div class="flex flex-wrap items-center gap-2 border-b border-neutral-800 px-3 py-2">
-        <button type="button" onclick={togglePlay} disabled={!canPreview} class="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-[11px] text-sky-200 disabled:opacity-40">
-          {playing ? "Pause" : "Play"}
-        </button>
-        <span class="rounded bg-neutral-900 px-2 py-1 font-mono text-[10px] text-neutral-300" data-testid="timeline-timecode">{timecode(playhead)}</span>
-        <label class="flex items-center gap-1 font-mono text-[10px] text-neutral-600">
-          <input
-            type="number"
-            min="0"
-            max={duration}
-            step="0.01"
-            value={Math.round(playhead * 1000) / 1000}
-            onchange={(event) => seek(Number(event.currentTarget.value))}
-            class="w-20 rounded border border-neutral-800 bg-neutral-900 px-1.5 py-1 text-[10px] text-neutral-300"
-            aria-label="Playhead seconds"
-          />
-          s · frame {Math.round(playhead * fps)}
-        </label>
-        <span class="mx-1 h-4 w-px bg-neutral-800"></span>
-        <button type="button" onclick={() => void undo()} disabled={!timeline.can_undo || editBusy} class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Undo</button>
-        <button type="button" onclick={() => void redo()} disabled={!timeline.can_redo || editBusy} class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Redo</button>
-        {#if selectedIds.length > 1}<span class="rounded bg-sky-500/10 px-2 py-1 text-[10px] text-sky-200">{selectedIds.length} selected</span>{/if}
-        <button type="button" onclick={splitSelected} disabled={!selectedClip || editBusy} class="rounded-lg border border-violet-500/40 px-2 py-1 text-[10px] text-violet-200 disabled:opacity-40" title="Split selected clip at playhead (S)">Split</button>
-        <button type="button" onclick={() => deleteSelected(false)} disabled={!selectedIds.length && !selectedClip || editBusy} class="rounded-lg border border-rose-500/40 px-2 py-1 text-[10px] text-rose-200 disabled:opacity-40" title="Delete selected clip (Delete)">Delete</button>
-        <button type="button" onclick={() => deleteSelected(true)} disabled={!selectedIds.length && !selectedClip || editBusy} class="rounded-lg border border-rose-500/30 px-2 py-1 text-[10px] text-rose-300 disabled:opacity-40" title="Delete and close the gap (Shift+Delete)">Ripple</button>
-        <label class="ml-auto flex items-center gap-1.5 text-[10px] text-neutral-500">
-          <input type="checkbox" bind:checked={snap} class="h-3.5 w-3.5 rounded border-neutral-700 bg-neutral-800" />
-          Snap
-        </label>
-        <button type="button" onclick={fitTimeline} class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300">Fit</button>
-        <label class="flex items-center gap-2 text-[10px] text-neutral-500">
-          Zoom
-          <input type="range" min="16" max="400" step="1" bind:value={zoom} class="w-24 accent-sky-400" />
-          <span class="w-9 text-right font-mono text-neutral-400">{Math.round(zoom)}</span>
-        </label>
-      </div>
-
-      <div class="flex flex-wrap gap-2 border-b border-neutral-800 px-3 py-1.5">
-        {#each [["video", "V1"], ["audio", "A1"], ["captions", "S1"], ["broll", "B1"]] as [trackId, label]}
-          {@const state = timeline.tracks?.[trackId] ?? { muted: false, solo: false, locked: false }}
-          <div class="flex items-center gap-1 rounded border border-neutral-800 bg-neutral-950/60 px-1.5 py-0.5 text-[9px] text-neutral-400">
-            <span class="font-mono text-neutral-500">{label}</span>
-            <button type="button" onclick={() => void toggleTrack(trackId, "muted")} class={`rounded px-1 ${state.muted ? "bg-rose-500/20 text-rose-300" : "text-neutral-500 hover:text-neutral-200"}`} aria-label={`Mute ${label}`}>M</button>
-            <button type="button" onclick={() => void toggleTrack(trackId, "solo")} class={`rounded px-1 ${state.solo ? "bg-amber-500/20 text-amber-300" : "text-neutral-500 hover:text-neutral-200"}`} aria-label={`Solo ${label}`}>S</button>
-            <button type="button" onclick={() => void toggleTrack(trackId, "locked")} class={`rounded px-1 ${state.locked ? "bg-sky-500/20 text-sky-300" : "text-neutral-500 hover:text-neutral-200"}`} aria-label={`Lock ${label}`}>L</button>
-          </div>
-        {/each}
-        <div class="ml-auto flex flex-wrap items-center gap-1">
-          <button type="button" onclick={() => void renderTimeline()} disabled={renderBusy || !selected} class="rounded border border-emerald-500/40 px-2 py-0.5 text-[10px] text-emerald-200 disabled:opacity-40">{renderBusy ? `Rendering ${renderPercent}%` : "Render MP4"}</button>
-          {#if renderBusy}<button type="button" onclick={() => void stopRender()} class="rounded border border-rose-500/30 px-1.5 py-0.5 text-[10px] text-rose-300">Cancel</button>{/if}
-          {#if renderReady}<a href={renderFileUrl(selected)} download class="rounded border border-emerald-500/40 px-1.5 py-0.5 text-[10px] text-emerald-200">Download</a>{/if}
-          <input bind:value={markerLabel} placeholder="Marker label" class="w-28 rounded border border-neutral-800 bg-neutral-950 px-1.5 py-0.5 text-[10px] text-neutral-200" />
-          <button type="button" onclick={() => void addMarker()} class="rounded border border-sky-500/40 px-2 py-0.5 text-[10px] text-sky-200">+ Marker</button>
-          {#if renderBusy}<span class="text-[9px] text-neutral-500">{renderMessage}</span>{/if}
-        </div>
-      </div>
-
-      <div class="flex flex-wrap items-center gap-1.5 rounded-xl border border-neutral-800 bg-neutral-900/40 px-2 py-1.5" data-testid="asset-rail">
-        <span class="text-[10px] uppercase tracking-wide text-neutral-500">Assets</span>
-        {#each assets.slice(0, 12) as asset (asset.id)}
-          <span
-            draggable="true"
-            role="button"
-            tabindex="0"
-            title={`Drag ${asset.name} onto the timeline`}
-            class="cursor-grab rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-0.5 text-[10px] text-neutral-300"
-            ondragstart={(event) => {
-              event.dataTransfer?.setData(
-                "application/x-videoflow-asset",
-                JSON.stringify({ id: asset.id, name: asset.name, path: asset.path, kind: asset.kind })
-              );
-              if (event.dataTransfer) event.dataTransfer.effectAllowed = "copy";
-            }}
-          >{asset.name}</span>
-        {/each}
-        {#if !assets.length}<span class="text-[10px] text-neutral-600">Scan assets in the Assets tab to drag them here.</span>{/if}
-      </div>
-
-      <TimelineCanvas
-        {timeline}
-        jobId={selected}
-        markers={timeline.markers ?? []}
-        tracks={timeline.tracks ?? {}}
-        {playhead}
-        {zoom}
-        selectedClipId={selectedClip?.id ?? ""}
-        {selectedIds}
-        {snap}
-        {brollApproved}
-        {waveforms}
-        onSeek={seek}
-        onSelectClip={selectClip}
-        onMoveClips={(ids, delta) => {
-          void applyBatch(ids.map((id) => ({ clip_id: id, action: "move", delta_sec: delta })));
-        }}
-        onMoveClip={(id, delta) => {
-          const clip = timeline?.video.find((item) => item.id === id) ?? null;
-          if (clip) {
-            selectClip(clip);
-            void applyEdit("move", { delta_sec: delta });
-          }
-        }}
-        onTrimClip={(id, start, end) => {
-          const clip = timeline?.video.find((item) => item.id === id) ?? null;
-          if (clip) {
-            selectClip(clip);
-            void applyEdit("trim", { start_sec: start, end_sec: end });
-          }
-        }}
-        onGroupTrim={(ids, edge, delta) => {
-          const clips = (timeline?.video ?? []).filter((clip) => ids.includes(clip.id));
-          const edits = groupTrimEdits(clips, edge, delta, timeline?.duration_sec ?? 0);
-          if (edits.length) void applyBatch(edits as unknown as Array<Record<string, unknown>>);
-        }}
-        onRippleTrimClip={(id, start, end) => {
-          void applyEdit("ripple_trim", { start_sec: start, end_sec: end });
-        }}
-        onSlipClip={(id, delta) => {
-          const clip = timeline?.video.find((item) => item.id === id) ?? null;
-          if (clip) {
-            selectClip(clip);
-            void applyEdit("slip", { delta_sec: delta });
-          }
-        }}
-        onContextMenu={(clip, x, y) => {
-          selectClip(clip);
-          clipMenu = { x, y, clipId: clip.id };
-        }}
-        onDropAsset={(asset, time) => void dropAsset(asset, time)}
-        onZoom={(value) => (zoom = value)}
-      />
-
-      <div class="border-t border-neutral-800 p-3">
+      <div class="mb-2 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-3" data-testid="timeline-preview">
         <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div class="space-y-3">
             {#if previewUrl}
@@ -1220,6 +1087,139 @@
           </div>
         </div>
       </div>
+    <section class="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950">
+      <div class="flex flex-wrap items-center gap-2 border-b border-neutral-800 px-3 py-2">
+        <button type="button" onclick={togglePlay} disabled={!canPreview} class="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-[11px] text-sky-200 disabled:opacity-40">
+          {playing ? "Pause" : "Play"}
+        </button>
+        <span class="rounded bg-neutral-900 px-2 py-1 font-mono text-[10px] text-neutral-300" data-testid="timeline-timecode">{timecode(playhead)}</span>
+        <label class="flex items-center gap-1 font-mono text-[10px] text-neutral-600">
+          <input
+            type="number"
+            min="0"
+            max={duration}
+            step="0.01"
+            value={Math.round(playhead * 1000) / 1000}
+            onchange={(event) => seek(Number(event.currentTarget.value))}
+            class="w-20 rounded border border-neutral-800 bg-neutral-900 px-1.5 py-1 text-[10px] text-neutral-300"
+            aria-label="Playhead seconds"
+          />
+          s · frame {Math.round(playhead * fps)}
+        </label>
+        <span class="mx-1 h-4 w-px bg-neutral-800"></span>
+        <button type="button" onclick={() => void undo()} disabled={!timeline.can_undo || editBusy} class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Undo</button>
+        <button type="button" onclick={() => void redo()} disabled={!timeline.can_redo || editBusy} class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Redo</button>
+        {#if selectedIds.length > 1}<span class="rounded bg-sky-500/10 px-2 py-1 text-[10px] text-sky-200">{selectedIds.length} selected</span>{/if}
+        <button type="button" onclick={splitSelected} disabled={!selectedClip || editBusy} class="rounded-lg border border-violet-500/40 px-2 py-1 text-[10px] text-violet-200 disabled:opacity-40" title="Split selected clip at playhead (S)">Split</button>
+        <button type="button" onclick={() => deleteSelected(false)} disabled={!selectedIds.length && !selectedClip || editBusy} class="rounded-lg border border-rose-500/40 px-2 py-1 text-[10px] text-rose-200 disabled:opacity-40" title="Delete selected clip (Delete)">Delete</button>
+        <button type="button" onclick={() => deleteSelected(true)} disabled={!selectedIds.length && !selectedClip || editBusy} class="rounded-lg border border-rose-500/30 px-2 py-1 text-[10px] text-rose-300 disabled:opacity-40" title="Delete and close the gap (Shift+Delete)">Ripple</button>
+        <label class="ml-auto flex items-center gap-1.5 text-[10px] text-neutral-500">
+          <input type="checkbox" bind:checked={snap} class="h-3.5 w-3.5 rounded border-neutral-700 bg-neutral-800" />
+          Snap
+        </label>
+        <button type="button" onclick={fitTimeline} class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300">Fit</button>
+        <label class="flex items-center gap-2 text-[10px] text-neutral-500">
+          Zoom
+          <input type="range" min="16" max="400" step="1" bind:value={zoom} class="w-24 accent-sky-400" />
+          <span class="w-9 text-right font-mono text-neutral-400">{Math.round(zoom)}</span>
+        </label>
+      </div>
+
+      <div class="flex flex-wrap gap-2 border-b border-neutral-800 px-3 py-1.5">
+        {#each [["video", "V1"], ["audio", "A1"], ["captions", "S1"], ["broll", "B1"]] as [trackId, label]}
+          {@const state = timeline.tracks?.[trackId] ?? { muted: false, solo: false, locked: false }}
+          <div class="flex items-center gap-1 rounded border border-neutral-800 bg-neutral-950/60 px-1.5 py-0.5 text-[9px] text-neutral-400">
+            <span class="font-mono text-neutral-500">{label}</span>
+            <button type="button" onclick={() => void toggleTrack(trackId, "muted")} class={`rounded px-1 ${state.muted ? "bg-rose-500/20 text-rose-300" : "text-neutral-500 hover:text-neutral-200"}`} aria-label={`Mute ${label}`}>M</button>
+            <button type="button" onclick={() => void toggleTrack(trackId, "solo")} class={`rounded px-1 ${state.solo ? "bg-amber-500/20 text-amber-300" : "text-neutral-500 hover:text-neutral-200"}`} aria-label={`Solo ${label}`}>S</button>
+            <button type="button" onclick={() => void toggleTrack(trackId, "locked")} class={`rounded px-1 ${state.locked ? "bg-sky-500/20 text-sky-300" : "text-neutral-500 hover:text-neutral-200"}`} aria-label={`Lock ${label}`}>L</button>
+          </div>
+        {/each}
+        <div class="ml-auto flex flex-wrap items-center gap-1">
+          <button type="button" onclick={() => void renderTimeline()} disabled={renderBusy || !selected} class="rounded border border-emerald-500/40 px-2 py-0.5 text-[10px] text-emerald-200 disabled:opacity-40">{renderBusy ? `Rendering ${renderPercent}%` : "Render MP4"}</button>
+          {#if renderBusy}<button type="button" onclick={() => void stopRender()} class="rounded border border-rose-500/30 px-1.5 py-0.5 text-[10px] text-rose-300">Cancel</button>{/if}
+          {#if renderReady}<a href={renderFileUrl(selected)} download class="rounded border border-emerald-500/40 px-1.5 py-0.5 text-[10px] text-emerald-200">Download</a>{/if}
+          <input bind:value={markerLabel} placeholder="Marker label" class="w-28 rounded border border-neutral-800 bg-neutral-950 px-1.5 py-0.5 text-[10px] text-neutral-200" />
+          <button type="button" onclick={() => void addMarker()} class="rounded border border-sky-500/40 px-2 py-0.5 text-[10px] text-sky-200">+ Marker</button>
+          {#if renderBusy}<span class="text-[9px] text-neutral-500">{renderMessage}</span>{/if}
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-1.5 rounded-xl border border-neutral-800 bg-neutral-900/40 px-2 py-1.5" data-testid="asset-rail">
+        <span class="text-[10px] uppercase tracking-wide text-neutral-500">Assets</span>
+        {#each assets.slice(0, 12) as asset (asset.id)}
+          <span
+            draggable="true"
+            role="button"
+            tabindex="0"
+            title={`Drag ${asset.name} onto the timeline`}
+            class="cursor-grab rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-0.5 text-[10px] text-neutral-300"
+            ondragstart={(event) => {
+              event.dataTransfer?.setData(
+                "application/x-videoflow-asset",
+                JSON.stringify({ id: asset.id, name: asset.name, path: asset.path, kind: asset.kind })
+              );
+              if (event.dataTransfer) event.dataTransfer.effectAllowed = "copy";
+            }}
+          >{asset.name}</span>
+        {/each}
+        {#if !assets.length}<span class="text-[10px] text-neutral-600">Scan assets in the Assets tab to drag them here.</span>{/if}
+      </div>
+
+      <TimelineCanvas
+        {timeline}
+        jobId={selected}
+        markers={timeline.markers ?? []}
+        tracks={timeline.tracks ?? {}}
+        {playhead}
+        {zoom}
+        selectedClipId={selectedClip?.id ?? ""}
+        {selectedIds}
+        {snap}
+        {brollApproved}
+        {waveforms}
+        onSeek={seek}
+        onSelectClip={selectClip}
+        onMoveClips={(ids, delta) => {
+          void applyBatch(ids.map((id) => ({ clip_id: id, action: "move", delta_sec: delta })));
+        }}
+        onMoveClip={(id, delta) => {
+          const clip = timeline?.video.find((item) => item.id === id) ?? null;
+          if (clip) {
+            selectClip(clip);
+            void applyEdit("move", { delta_sec: delta });
+          }
+        }}
+        onTrimClip={(id, start, end) => {
+          const clip = timeline?.video.find((item) => item.id === id) ?? null;
+          if (clip) {
+            selectClip(clip);
+            void applyEdit("trim", { start_sec: start, end_sec: end });
+          }
+        }}
+        onGroupTrim={(ids, edge, delta) => {
+          const clips = (timeline?.video ?? []).filter((clip) => ids.includes(clip.id));
+          const edits = groupTrimEdits(clips, edge, delta, timeline?.duration_sec ?? 0);
+          if (edits.length) void applyBatch(edits as unknown as Array<Record<string, unknown>>);
+        }}
+        onRippleTrimClip={(id, start, end) => {
+          void applyEdit("ripple_trim", { start_sec: start, end_sec: end });
+        }}
+        onSlipClip={(id, delta) => {
+          const clip = timeline?.video.find((item) => item.id === id) ?? null;
+          if (clip) {
+            selectClip(clip);
+            void applyEdit("slip", { delta_sec: delta });
+          }
+        }}
+        onContextMenu={(clip, x, y) => {
+          selectClip(clip);
+          clipMenu = { x, y, clipId: clip.id };
+        }}
+        onDropAsset={(asset, time) => void dropAsset(asset, time)}
+        onZoom={(value) => (zoom = value)}
+      />
+
     </section>
 
     {#if clipMenu}

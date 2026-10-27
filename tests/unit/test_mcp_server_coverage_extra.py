@@ -1449,6 +1449,26 @@ def test_recipe_pipeline_and_batch_success(
     ] == ("source_required")
 
 
+def test_mcp_validate_recipe_names_the_failing_step(harness: Harness) -> None:
+    recipe = {
+        "schema_version": 1,
+        "id": "mcp_bad_params",
+        "name": "MCP bad params",
+        "steps": [
+            {"id": "ingest", "type": "ingest", "params": {}},
+            {
+                "id": "vad",
+                "type": "audio.vad",
+                "needs": ["ingest"],
+                "params": {"min_silence_ms": -5},
+            },
+        ],
+    }
+    result = call(harness.server, "videoflow_validate_recipe", {"recipe": recipe})
+    assert result["code"] == "recipe_invalid"
+    assert result["message"].startswith("vad:")
+
+
 def test_resources_prompts_and_whisper_sibling(
     harness: Harness, monkeypatch: pytest.MonkeyPatch
 ) -> None:

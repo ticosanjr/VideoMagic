@@ -29,7 +29,7 @@
 </script>
 
 {#if open}
-  <div class="fixed inset-0 z-[70]" role="presentation">
+  <div class="fixed inset-0 z-[120]" role="presentation">
     <button
       type="button"
       class="absolute inset-0 bg-black/40"

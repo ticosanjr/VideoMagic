@@ -35,6 +35,7 @@
     onparaminput,
     onexpandjson,
     onrun,
+    onwiring,
     onduplicate,
     onremove,
     onlogs,
@@ -78,6 +79,7 @@
     onparaminput?: (value: string) => void;
     onexpandjson?: () => void;
     onrun?: () => void;
+    onwiring?: () => void;
     onduplicate?: () => void;
     onremove?: () => void;
     onlogs?: () => void;
@@ -192,6 +194,9 @@
   </div>
 
   <div class="flex flex-wrap items-center gap-1 border-b border-neutral-800 px-3 py-1.5">
+    {#if (node.inputPorts?.length ?? 0) > 0}
+      <Button icon="link" variant="secondary" size="xs" onclick={() => onwiring?.()} title="Open the full port wiring dialog">Wiring</Button>
+    {/if}
     <Button icon="play" variant="secondary" size="xs" disabled={busy} onclick={() => onrun?.()} title="Run every step up to and including this node">Run to here</Button>
     <Button icon="duplicate" variant="secondary" size="xs" onclick={() => onduplicate?.()} title="Duplicate this node">Duplicate</Button>
     <Button icon="logs" variant="secondary" size="xs" onclick={() => onlogs?.()} title="Show this node's logs">Logs</Button>

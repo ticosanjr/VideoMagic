@@ -166,6 +166,16 @@ test("shows full backend render error details", async ({ page }) => {
   await expect(banner).toContainText("ffmpeg -i source.mp4");
 });
 
+test("puts the preview above the timeline canvas", async ({ page }) => {
+  const preview = page.getByTestId("timeline-preview");
+  const canvas = page.getByTestId("timeline-canvas");
+  await expect(preview).toBeVisible();
+  await expect(canvas).toBeVisible();
+  const previewBox = await preview.boundingBox();
+  const canvasBox = await canvas.boundingBox();
+  expect(previewBox?.y ?? 0).toBeLessThan(canvasBox?.y ?? 0);
+});
+
 test("renders the canvas timeline and edit controls", async ({ page }) => {
   await expect(page.getByTestId("timeline-canvas")).toBeVisible();
   await expect(page.getByTestId("timeline-timecode")).toContainText("00:00:00");

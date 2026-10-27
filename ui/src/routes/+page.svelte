@@ -13,6 +13,7 @@
   import ModelsPanel from "$lib/ModelsPanel.svelte";
   import NotificationCenter from "$lib/NotificationCenter.svelte";
   import OnboardingCard from "$lib/OnboardingCard.svelte";
+  import Modal from "$lib/ui/Modal.svelte";
   import PluginsPanel from "$lib/PluginsPanel.svelte";
   import ProjectsPanel from "$lib/ProjectsPanel.svelte";
   import RecipesPanel from "$lib/RecipesPanel.svelte";
@@ -94,6 +95,7 @@
   let shortcutsOpen = $state(false);
   let activityOpen = $state(false);
   let noticesOpen = $state(false);
+  let onboardingOpen = $state(false);
   let jobs = $state<Job[]>([]);
   let gPending = 0;
   let jobsTimer: ReturnType<typeof setInterval> | undefined;
@@ -458,6 +460,12 @@
         <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-500">FFmpeg {system?.ffmpeg ? "ready" : connecting ? "checking…" : "missing"}</span>
         <button
           type="button"
+          onclick={() => (onboardingOpen = true)}
+          class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300"
+          title="Open the getting-started guide"
+        ><Icon name="bulb" size={12} class="mr-1" />Guide</button>
+        <button
+          type="button"
           onclick={() => (activityOpen = true)}
           class="relative rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300"
           title="Activity drawer (U)"
@@ -504,7 +512,7 @@
       </div>
     </header>
 
-    <nav class="sticky top-0 z-30 -mx-1 rounded-2xl border border-neutral-800 bg-neutral-950/95 p-1 shadow-lg shadow-black/30 backdrop-blur" aria-label={t(locale, "workspace")}>
+    <nav class="sticky top-0 z-20 -mx-1 rounded-2xl border border-neutral-800 bg-neutral-950/95 p-1 shadow-lg shadow-black/30 backdrop-blur" aria-label={t(locale, "workspace")}>
       <div class="overflow-x-auto">
         <div class="flex min-w-max gap-1" role="tablist" aria-label={t(locale, "workspace")}>
           {#each AREAS as area}
@@ -547,8 +555,6 @@
       <span class="text-neutral-200">{t(locale, activeTab)}</span>
       <span class="ml-2 hidden text-neutral-600 sm:inline">{TAB_HINTS[activeTab]}</span>
     </div>
-
-    <OnboardingCard onnavigate={(tab) => selectTab(isTabId(tab) ? tab : "recipes")} />
 
     <ErrorBanner
       message={[serviceError, systemError].filter(Boolean).join(" · ")}
@@ -654,6 +660,23 @@
   onclose={() => (paletteOpen = false)}
 />
 <ShortcutsModal open={shortcutsOpen} onclose={() => (shortcutsOpen = false)} />
+<Modal
+  open={onboardingOpen}
+  title="Getting started"
+  description="Four steps to a first cut. Everything stays on this machine."
+  width="w-[min(1080px,96vw)]"
+  onclose={() => (onboardingOpen = false)}
+>
+  <OnboardingCard
+    force
+    onnavigate={(tab) => {
+      selectTab(isTabId(tab) ? tab : "recipes");
+      onboardingOpen = false;
+    }}
+    ondismiss={() => (onboardingOpen = false)}
+  />
+</Modal>
+
 <NotificationCenter
   open={noticesOpen}
   onclose={() => (noticesOpen = false)}

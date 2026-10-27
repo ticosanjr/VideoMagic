@@ -56,14 +56,6 @@
     }
   }
 
-  function useInRecipes(project: Project) {
-    localStorage.setItem(
-      "videoflow.project",
-      JSON.stringify({ source: project.source, output: project.output, name: project.name })
-    );
-    window.location.hash = "#recipes";
-  }
-
   onMount(() => void load());
 </script>
 
@@ -93,7 +85,6 @@
           <p class="truncate font-mono text-[10px] text-neutral-500" title={project.output}>{project.output || "no output"}</p>
           <p class="mt-1 text-[10px] text-neutral-600">updated {project.updated_at}{project.last_job_id ? ` · run ${project.last_job_id.slice(0, 8)}` : ""}</p>
           <div class="mt-3 flex flex-wrap gap-1.5">
-            <button type="button" onclick={() => useInRecipes(project)} class="rounded-lg bg-sky-500/15 px-2.5 py-1 text-[11px] text-sky-200 ring-1 ring-inset ring-sky-400/25">Use in Recipes</button>
             {#if project.last_job_id}
               <button type="button" onclick={() => (window.location.hash = "#jobs")} class="rounded-lg border border-white/10 px-2.5 py-1 text-[11px] text-neutral-300">Open run</button>
             {/if}

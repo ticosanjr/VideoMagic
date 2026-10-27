@@ -3,6 +3,40 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.25.0] - 2026-10-27
+
+### Changed
+
+- **Wiring lists every port.** The wire dialog shows all outputs and inputs;
+  incompatible ports stay visible but disabled inside an accordion. The node
+  inspector has a **Wiring** button that opens the same dialog.
+- **The recipe owns its paths.** The optional run source and workspace fields
+  are gone from the builder. The ingest node supplies the source, the job
+  supplies the output, and NLE validation and run history open a workspace
+  dialog seeded from the last job output.
+- **Timeline preview sits above the canvas** so the player and waveform lead
+  the edit surface instead of trailing the timeline.
+- **The welcome guide moved to the header.** An inline onboarding card is
+  replaced by a **Guide** button that opens the same four steps in a modal, and
+  dismissal is remembered.
+- **Modals render in a portal above the area navigation.** JSON editor, wire,
+  library, config, history, and tour dialogs share one z-index ladder; the
+  area navigation can no longer paint over the JSON editor.
+
+### Fixed
+
+- Stacking order is covered by tests: the JSON editor and wire dialog stay
+  above the area navigation.
+- Removed the dead job-first client helper and the stale project-to-recipes
+  hand-off that wrote an unused `videoflow.project` localStorage key.
+- A recipe run without a source now says to set the ingest node source instead
+  of suggesting a run-source field that no longer exists.
+
+### Notes
+
+- Full-tree coverage is 96.4%.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.24.0] - 2026-10-27
 
 ### Fixed

@@ -1,16 +1,25 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
-  let { onnavigate }: { onnavigate: (tab: string) => void } = $props();
+  let {
+    onnavigate,
+    force = false,
+    ondismiss
+  }: {
+    onnavigate: (tab: string) => void;
+    force?: boolean;
+    ondismiss?: () => void;
+  } = $props();
   let visible = $state(false);
 
   onMount(() => {
-    visible = localStorage.getItem("videoflow.onboarded") !== "1";
+    visible = force || localStorage.getItem("videoflow.onboarded") !== "1";
   });
 
   function dismiss() {
     localStorage.setItem("videoflow.onboarded", "1");
     visible = false;
+    ondismiss?.();
   }
 
   const steps = [

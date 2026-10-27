@@ -62,7 +62,7 @@
 </script>
 
 {#if open}
-  <div class="fixed inset-0 z-[75] flex items-start justify-center px-4 pt-[12vh]" role="presentation">
+  <div class="fixed inset-0 z-[110] flex items-start justify-center px-4 pt-[12vh]" role="presentation">
     <button type="button" class="absolute inset-0 bg-black/50 backdrop-blur-sm" aria-label="Close command palette" onclick={onclose}></button>
     <div
       class="relative w-full max-w-xl overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl shadow-black/60"
