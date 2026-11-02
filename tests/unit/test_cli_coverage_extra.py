@@ -330,74 +330,6 @@ def test_version_and_unknown_commands(monkeypatch, capsys) -> None:
     assert "usage" in capsys.readouterr().out.lower()
 
 
-def test_run_rejects_invalid_option_combinations(monkeypatch, tmp_path, capsys) -> None:
-    source = tmp_path / "source.mp4"
-    source.write_bytes(b"x")
-
-    def never(*args, **kwargs):
-        raise AssertionError("run_portable must not run")
-
-    monkeypatch.setattr(cli, "run_portable", never)
-    assert (
-        cli.main(
-            ["run", str(source), "--shorts-count", "1", "--shorts-min-count", "3"]
-        )
-        == 2
-    )
-    assert "--shorts-count must be at least" in capsys.readouterr().err
-    assert cli.main(["run", str(source), "--shorts-start-sec", "10", "--shorts-end-sec", "5"]) == 2
-    assert "--shorts-end-sec must be greater" in capsys.readouterr().err
-    assert cli.main(["run", str(source), "--speech-threshold", "0.95"]) == 2
-    assert "--speech-threshold must be between" in capsys.readouterr().err
-    assert cli.main(["run", str(source), "--speech-pad-before-ms", "-1"]) == 2
-    assert "Speech pads must not be negative." in capsys.readouterr().err
-    assert cli.main(["run", str(source), "--cull-retakes"]) == 2
-    assert "--cull-retakes requires --transcript." in capsys.readouterr().err
-
-
-def test_run_builds_an_llm_client(monkeypatch, tmp_path, capsys) -> None:
-    captured: dict[str, object] = {}
-
-    class FakeLlm:
-        def __init__(self, **kwargs) -> None:
-            self.kwargs = kwargs
-            captured["llm"] = self
-
-    def fake_run(*args, **kwargs):
-        captured.update(kwargs)
-        return FakeResult({"ok": True})
-
-    monkeypatch.setattr(cli, "run_portable", fake_run)
-    monkeypatch.setattr(llm_module, "OpenAICompatibleLlm", FakeLlm)
-    monkeypatch.setenv("VIDEOWFLOW_LLM_API_KEY", "key")
-    source = tmp_path / "source.mp4"
-    source.write_bytes(b"x")
-    transcript = tmp_path / "t.srt"
-    transcript.write_text("", encoding="utf-8")
-    assert (
-        cli.main(
-            [
-                "run",
-                str(source),
-                "--transcript",
-                str(transcript),
-                "--llm-base-url",
-                "http://llm.local/v1",
-                "--llm-model",
-                "tiny",
-            ]
-        )
-        == 0
-    )
-    assert json.loads(capsys.readouterr().out) == {"ok": True}
-    assert captured["llm_client"] is captured["llm"]
-    assert captured["llm"].kwargs == {
-        "base_url": "http://llm.local/v1",
-        "model": "tiny",
-        "api_key": "key",
-    }
-
-
 def test_shorts_reports_when_no_clips_survive(monkeypatch, tmp_path, capsys) -> None:
     media = _media(tmp_path / "source.mp4")
 
@@ -1733,30 +1665,6 @@ def test_mcp_runs_the_stdio_server(monkeypatch) -> None:
     assert modes == ["stdio"]
 
 
-def test_main_maps_videoflow_errors(monkeypatch, tmp_path, capsys) -> None:
-    source = tmp_path / "source.mp4"
-    source.write_bytes(b"x")
-
-    def fail(*args, **kwargs):
-        raise VideoFlowError("boom")
-
-    monkeypatch.setattr(cli, "run_portable", fail)
-    assert cli.main(["run", str(source)]) == 1
-    payload = json.loads(capsys.readouterr().err)
-    assert payload == {"ok": False, "code": "videoflow_error", "message": "boom"}
-
-
-def test_main_maps_keyboard_interrupt(monkeypatch, tmp_path) -> None:
-    source = tmp_path / "source.mp4"
-    source.write_bytes(b"x")
-
-    def interrupt(*args, **kwargs):
-        raise KeyboardInterrupt
-
-    monkeypatch.setattr(cli, "run_portable", interrupt)
-    assert cli.main(["run", str(source)]) == 130
-
-
 def test_pid_and_browser_helpers(monkeypatch, tmp_path) -> None:
     pid_path = tmp_path / "server.pid"
     recorded: dict[str, object] = {}
@@ -1781,3 +1689,35 @@ def test_pid_and_browser_helpers(monkeypatch, tmp_path) -> None:
     assert cli._browser_url("http://127.0.0.1:8765/?x=1") == (
         f"http://127.0.0.1:8765/?x=1&v={__version__}"
     )
+
+
+def test_main_maps_videoflow_errors(monkeypatch, tmp_path, capsys) -> None:
+    class Completed:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fail(*args, **kwargs):
+        raise VideoFlowError("boom")
+
+    monkeypatch.setattr(cli, "find_binary", lambda _name: "/usr/bin/ffmpeg")
+    monkeypatch.setattr(cli.subprocess, "run", lambda *args, **kwargs: Completed())
+    monkeypatch.setattr(cli, "run_portable", fail)
+    assert cli.main(["demo", "-o", str(tmp_path / "demo")]) == 1
+    payload = json.loads(capsys.readouterr().err)
+    assert payload == {"ok": False, "code": "videoflow_error", "message": "boom"}
+
+
+def test_main_maps_keyboard_interrupt(monkeypatch, tmp_path) -> None:
+    class Completed:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def interrupt(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli, "find_binary", lambda _name: "/usr/bin/ffmpeg")
+    monkeypatch.setattr(cli.subprocess, "run", lambda *args, **kwargs: Completed())
+    monkeypatch.setattr(cli, "run_portable", interrupt)
+    assert cli.main(["demo", "-o", str(tmp_path / "demo")]) == 130

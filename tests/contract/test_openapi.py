@@ -18,4 +18,3 @@ def test_openapi_documents_errors_and_preconditions() -> None:
     run = schema["paths"]["/api/v1/recipes/run"]["post"]
     assert "202" in run["responses"]
     assert run["responses"]["429"]["description"].startswith("Queue or budget")
-    assert schema["paths"]["/api/v1/projects"]["post"]["responses"]["201"]

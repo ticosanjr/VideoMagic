@@ -262,40 +262,6 @@ def test_crossfade_timeline_keeps_finishing_filters(tmp_path: Path) -> None:
     assert any("ass=" in graph for graph in graphs)
 
 
-def test_incremental_export_seeks_and_reuses_segments(tmp_path: Path) -> None:
-    from videoflow.exporters.incremental import export_mp4_incremental
-
-    media = FFmpegAdapter().probe(source(tmp_path))
-    state = state_for(media, clips=20)
-    for index, clip in enumerate(state.video_segments):
-        clip.source_in_frame = index * 3
-        clip.source_out_frame = index * 3 + 6
-    for index, clip in enumerate(state.audio_segments):
-        clip.source_in_sample = index * 4800
-        clip.source_out_sample = index * 4800 + 9600
-    adapter = RecordingAdapter()
-
-    first = export_mp4_incremental(
-        state, tmp_path / "incremental.mp4", adapter=adapter
-    )
-
-    assert first.is_file()
-    segment_commands = [command for command in adapter.commands if "-ss" in command]
-    assert len(segment_commands) == 20
-    for command in segment_commands:
-        assert command.index("-ss") < command.index("-i")
-    rendered = FFmpegAdapter().probe(first)
-    assert abs(rendered.duration_frames - 120) <= 2
-
-    cached_adapter = RecordingAdapter()
-    second = export_mp4_incremental(
-        state, tmp_path / "incremental.mp4", adapter=cached_adapter
-    )
-
-    assert second.is_file()
-    assert not [command for command in cached_adapter.commands if "-ss" in command]
-
-
 def test_preview_renders_once_at_proxy_height(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

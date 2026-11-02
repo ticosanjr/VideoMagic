@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import shutil
 import tempfile
 from collections.abc import Callable, Sequence
@@ -100,7 +102,6 @@ def build_filter_graph(state: ProjectState) -> tuple[str, str, str]:
         (clip.timeline_out_frame - clip.timeline_in_frame) / fps for clip in video
     ]
     transitions = [clip.transition_out for clip in video[:-1]]
-    crossfade = any(item is not None and item.type == "crossfade" for item in transitions)
     chains: list[str] = []
     for index, clip in enumerate(video):
         filters = _video_filters(clip, media)
@@ -136,46 +137,6 @@ def build_filter_graph(state: ProjectState) -> tuple[str, str, str]:
             )
         chains.append(f"[0:a]{','.join(filters)}[a{index}]")
 
-    if crossfade:
-        current_video = "[v0]"
-        current_audio = "[a0]"
-        cumulative = video_durations[0]
-        for index, transition in enumerate(transitions, start=1):
-            if transition is None or transition.type != "crossfade":
-                chains.append(
-                    f"{current_video}[v{index}]concat=n=2:v=1:a=0[vx{index}]"
-                )
-                current_video = f"[vx{index}]"
-                if transition is None or transition.audio:
-                    chains.append(
-                        f"{current_audio}[a{index}]acrossfade=d=0.001[ax{index}]"
-                    )
-                else:
-                    chains.append(
-                        f"{current_audio}[a{index}]concat=n=2:v=0:a=1[ax{index}]"
-                    )
-                current_audio = f"[ax{index}]"
-                cumulative += video_durations[index]
-                continue
-            duration = transition.duration_frames / fps
-            offset = max(0.0, cumulative - duration)
-            chains.append(
-                f"{current_video}[v{index}]xfade=transition=fade:duration={duration:.6f}:"
-                f"offset={offset:.6f}[vx{index}]"
-            )
-            current_video = f"[vx{index}]"
-            if transition.audio:
-                chains.append(
-                    f"{current_audio}[a{index}]acrossfade=d={duration:.6f}[ax{index}]"
-                )
-            else:
-                chains.append(
-                    f"{current_audio}[a{index}]concat=n=2:v=0:a=1[ax{index}]"
-                )
-            current_audio = f"[ax{index}]"
-            cumulative += video_durations[index] - duration
-        return ";".join(chains), current_video, current_audio
-
     video_inputs = "".join(f"[v{index}]" for index in range(len(video)))
     audio_inputs = "".join(f"[a{index}]" for index in range(len(audio)))
     chains.append(f"{video_inputs}concat=n={len(video)}:v=1:a=0[vout]")
@@ -185,6 +146,7 @@ def build_filter_graph(state: ProjectState) -> tuple[str, str, str]:
 
 SEGMENT_THRESHOLD = 16
 PRE_ROLL_SECONDS = 1.0
+GROUP_CACHE_VERSION = 2
 
 
 def _has_crossfade(state: ProjectState) -> bool:
@@ -312,6 +274,32 @@ def _video_segment_filters(
     return filters
 
 
+def _group_key(
+    state: ProjectState,
+    media: MediaInfo,
+    group: Sequence[int],
+    *,
+    source: Path,
+    crf: int,
+    preset: str,
+    scale_height: int | None,
+) -> str:
+    video = sorted(state.video_segments, key=lambda item: item.timeline_in_frame)
+    stat = source.stat()
+    payload = {
+        "version": GROUP_CACHE_VERSION,
+        "source": [str(source.resolve()), stat.st_size, stat.st_mtime_ns],
+        "fps": [media.fps_num, media.fps_den],
+        "crf": crf,
+        "preset": preset,
+        "scale_height": scale_height,
+        "clips": [video[index].model_dump(mode="json") for index in group],
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True).encode("utf-8")
+    ).hexdigest()[:24]
+
+
 def _render_video_group(
     state: ProjectState,
     media: MediaInfo,
@@ -319,12 +307,24 @@ def _render_video_group(
     *,
     renderer: Any,
     source: Path,
-    directory: Path,
-    group_index: int,
+    cache_dir: Path,
     crf: int,
     preset: str,
     scale_height: int | None = None,
 ) -> Path:
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    key = _group_key(
+        state,
+        media,
+        group,
+        source=source,
+        crf=crf,
+        preset=preset,
+        scale_height=scale_height,
+    )
+    cached = cache_dir / f"group-{key}.mp4"
+    if cached.is_file() and cached.stat().st_size > 0:
+        return cached
     video = sorted(state.video_segments, key=lambda item: item.timeline_in_frame)
     transitions = [item.transition_out for item in video[:-1]]
     fps = media.fps_num / media.fps_den
@@ -372,30 +372,36 @@ def _render_video_group(
         chains.append(f"{label}scale=-2:{height}:flags=lanczos[vout]")
         label = "[vout]"
 
-    target = directory / f"group-{group_index:04d}.mp4"
-    renderer.render(
-        [
-            *inputs,
-            "-filter_complex",
-            ";".join(chains),
-            "-map",
-            label,
-            "-an",
-            "-c:v",
-            "libx264",
-            "-preset",
-            preset,
-            "-crf",
-            str(crf),
-            "-pix_fmt",
-            "yuv420p",
-            "-r",
-            f"{media.fps_num}/{media.fps_den}",
-            "-movflags",
-            "+faststart",
-            str(target),
-        ]
-    )
+    target = cache_dir / f"group-{key}.mp4"
+    temporary = target.with_name(f".{target.stem}.{uuid4().hex}.part.mp4")
+    try:
+        renderer.render(
+            [
+                *inputs,
+                "-filter_complex",
+                ";".join(chains),
+                "-map",
+                label,
+                "-an",
+                "-c:v",
+                "libx264",
+                "-preset",
+                preset,
+                "-crf",
+                str(crf),
+                "-pix_fmt",
+                "yuv420p",
+                "-r",
+                f"{media.fps_num}/{media.fps_den}",
+                "-movflags",
+                "+faststart",
+                str(temporary),
+            ]
+        )
+        temporary.replace(target)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
     return target
 
 
@@ -411,6 +417,7 @@ def _export_mp4_segmented(
     ass_path: Path | None,
     progress: Callable[[int], None] | None,
     scale_height: int | None = None,
+    cache_dir: Path | None = None,
 ) -> Path:
     media, video_map, audio_map = require_timeline(state)
     video = sorted(state.video_segments, key=lambda item: item.timeline_in_frame)
@@ -420,6 +427,11 @@ def _export_mp4_segmented(
     destination.parent.mkdir(parents=True, exist_ok=True)
     renderer = adapter or FFmpegAdapter()
     source = Path(media.source_path).expanduser()
+    segments_dir = (
+        Path(cache_dir).expanduser()
+        if cache_dir is not None
+        else destination.parent / "segments"
+    )
     groups = _video_groups(video)
     total_groups = max(1, len(groups))
     with tempfile.TemporaryDirectory(
@@ -435,8 +447,7 @@ def _export_mp4_segmented(
                     group,
                     renderer=renderer,
                     source=source,
-                    directory=directory,
-                    group_index=group_index,
+                    cache_dir=segments_dir,
                     crf=crf,
                     preset=preset,
                     scale_height=scale_height,
@@ -587,6 +598,7 @@ def export_mp4(
     ass_path: Path | None = None,
     progress: Callable[[int], None] | None = None,
     scale_height: int | None = None,
+    cache_dir: Path | None = None,
 ) -> Path:
     """Render the validated main timeline to an H.264/AAC MP4 atomically."""
 
@@ -606,6 +618,7 @@ def export_mp4(
             ass_path=ass_path,
             progress=progress,
             scale_height=scale_height,
+            cache_dir=cache_dir,
         )
     temporary = destination.with_name(
         f".{destination.stem}.{uuid4().hex}.part.mp4"

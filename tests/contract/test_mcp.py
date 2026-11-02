@@ -38,8 +38,7 @@ def test_presets_resource_returns_builtin_and_shipped_presets() -> None:
 
     payload = json.loads(asyncio.run(read()))
     assert payload["ok"] is True
-    assert "youtube-talking-head" in payload["presets"]
-    assert "lecture-clean" in payload["presets"]
+    assert "shorts-aggressive.json" in payload["presets"]
 
 
 def test_state_and_transcript_resources_report_missing_state() -> None:

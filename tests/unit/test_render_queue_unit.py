@@ -8,10 +8,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from videoflow.application import render_queue
+from videoflow.application import render_inputs, render_queue
 from videoflow.domain.errors import ExportError
 from videoflow.domain.state import ProjectState
-from videoflow.exporters.incremental import NotEligible
 
 
 def fake_job(tmp_path: Path, *, result: dict[str, object] | None = None) -> SimpleNamespace:
@@ -70,7 +69,7 @@ def test_work_fails_without_project_state(tmp_path: Path) -> None:
     assert item.finished_at
 
 
-def test_work_renders_incrementally_when_eligible(
+def test_work_renders_with_the_job_cache_directory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     job = fake_job(tmp_path)
@@ -79,53 +78,26 @@ def test_work_renders_incrementally_when_eligible(
     monkeypatch.setattr(render_queue, "FFmpegAdapter", FakeAdapter)
     seen: dict[str, object] = {}
 
-    def fake_incremental(state: object, target: Path, **kwargs: object) -> Path:
+    def fake_export(state: object, target: Path, **kwargs: object) -> Path:
         seen["state"] = state
+        seen["cache_dir"] = kwargs.get("cache_dir")
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(b"mp4")
         kwargs["progress"](50)
         return target
 
-    monkeypatch.setattr(render_queue, "export_mp4_incremental", fake_incremental)
-    monkeypatch.setattr(render_queue, "export_mp4", lambda *a, **k: None)
+    monkeypatch.setattr(render_queue, "export_mp4", fake_export)
 
     render_queue.RenderQueue()._work(job, item)
 
     assert item.status == "ready"
     assert item.percent == 100
     assert seen["state"] is not None
+    assert seen["cache_dir"] == job.output / "render" / "segments"
     manifest = json.loads(
         (job.output / "render" / "manifest.json").read_text(encoding="utf-8")
     )
     assert manifest["source"].endswith("project_state.json")
-
-
-def test_work_falls_back_when_incremental_is_not_eligible(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    job = fake_job(tmp_path)
-    write_state(job)
-    item = render_queue.RenderState(job_id="job-1")
-    monkeypatch.setattr(render_queue, "FFmpegAdapter", FakeAdapter)
-    calls: list[str] = []
-
-    def not_eligible(*_args: object, **_kwargs: object) -> Path:
-        raise NotEligible("different encoder settings")
-
-    def fake_export(_state: object, target: Path, **kwargs: object) -> Path:
-        calls.append("full")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(b"mp4")
-        kwargs["progress"](75)
-        return target
-
-    monkeypatch.setattr(render_queue, "export_mp4_incremental", not_eligible)
-    monkeypatch.setattr(render_queue, "export_mp4", fake_export)
-
-    render_queue.RenderQueue()._work(job, item)
-
-    assert calls == ["full"]
-    assert item.status == "ready"
 
 
 def test_work_reuses_a_matching_manifest(
@@ -142,11 +114,6 @@ def test_work_reuses_a_matching_manifest(
     )
     item = render_queue.RenderState(job_id="job-1")
     monkeypatch.setattr(render_queue, "FFmpegAdapter", FakeAdapter)
-    monkeypatch.setattr(
-        render_queue,
-        "export_mp4_incremental",
-        lambda *a, **k: pytest.fail("should not render"),
-    )
 
     render_queue.RenderQueue()._work(job, item)
 
@@ -182,11 +149,6 @@ def test_work_removes_output_when_cancelled_during_export(
         item.cancel_requested = True
         return target
 
-    monkeypatch.setattr(
-        render_queue,
-        "export_mp4_incremental",
-        lambda *a, **k: (_ for _ in ()).throw(NotEligible("no")),
-    )
     monkeypatch.setattr(render_queue, "export_mp4", cancel_after_export)
 
     render_queue.RenderQueue()._work(job, item)
@@ -202,11 +164,6 @@ def test_work_reports_export_failures(
     write_state(job)
     item = render_queue.RenderState(job_id="job-1")
     monkeypatch.setattr(render_queue, "FFmpegAdapter", FakeAdapter)
-    monkeypatch.setattr(
-        render_queue,
-        "export_mp4_incremental",
-        lambda *a, **k: (_ for _ in ()).throw(NotEligible("no")),
-    )
 
     def fail(*_args: object, **_kwargs: object) -> Path:
         raise ExportError("encoder crashed")
@@ -222,14 +179,14 @@ def test_work_reports_export_failures(
 
 
 def test_filter_files_are_read_and_bad_json_ignored(tmp_path: Path) -> None:
-    assert render_queue._filters(tmp_path / "missing.json") == []
+    assert render_inputs.read_filters(tmp_path / "missing.json") == []
 
     path = tmp_path / "filters.json"
     path.write_text('{"filters": ["eq=contrast=1.1", ""]}', encoding="utf-8")
-    assert render_queue._filters(path) == ["eq=contrast=1.1"]
+    assert render_inputs.read_filters(path) == ["eq=contrast=1.1"]
 
     path.write_text("not json", encoding="utf-8")
-    assert render_queue._filters(path) == []
+    assert render_inputs.read_filters(path) == []
 
 
 def test_track_filters_translate_mute_state(
@@ -250,8 +207,8 @@ def test_track_filters_translate_mute_state(
         "videoflow.application.timeline_meta.load_meta",
         lambda _output: Meta({"video": Track(True, False), "audio": Track(True, False)}),
     )
-    assert render_queue._track_filters(job) == ["volume=0"]
-    assert render_queue._video_track_filters(job) == [
+    assert render_inputs.track_filters(job) == ["volume=0"]
+    assert render_inputs.video_track_filters(job) == [
         "drawbox=x=0:y=0:w=iw:h=ih:color=black:t=fill"
     ]
 
@@ -259,15 +216,15 @@ def test_track_filters_translate_mute_state(
         "videoflow.application.timeline_meta.load_meta",
         lambda _output: Meta({"video": Track(False, False), "audio": Track(True, True)}),
     )
-    assert render_queue._track_filters(job) == []
-    assert render_queue._video_track_filters(job) == []
+    assert render_inputs.track_filters(job) == []
+    assert render_inputs.video_track_filters(job) == []
 
     def fail(_output: Path) -> None:
         raise OSError("missing")
 
     monkeypatch.setattr("videoflow.application.timeline_meta.load_meta", fail)
-    assert render_queue._track_filters(job) == []
-    assert render_queue._video_track_filters(job) == []
+    assert render_inputs.track_filters(job) == []
+    assert render_inputs.video_track_filters(job) == []
 
 
 def test_cancel_only_marks_active_renders() -> None:
@@ -296,11 +253,6 @@ def test_render_manifest_is_not_current_after_a_timeline_change(
         target.write_bytes(b"render")
         return target
 
-    monkeypatch.setattr(
-        render_queue,
-        "export_mp4_incremental",
-        lambda *a, **k: (_ for _ in ()).throw(NotEligible("no")),
-    )
     monkeypatch.setattr(render_queue, "export_mp4", fake_export)
     queue = render_queue.RenderQueue()
     queue._work(job, item)

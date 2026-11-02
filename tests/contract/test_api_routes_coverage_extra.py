@@ -323,23 +323,6 @@ def test_provider_secret_voice_clone_and_plugin_errors(monkeypatch, tmp_path: Pa
 def test_project_settings_template_and_config_errors(monkeypatch, tmp_path: Path) -> None:
     client, _manager = _client(monkeypatch, tmp_path)
 
-    created = client.post(
-        "/api/v1/projects",
-        json={"name": "Project", "source": str(tmp_path / "s.mp4"), "output": str(tmp_path)},
-    )
-    assert created.status_code == 201
-    project_id = created.json()["project"]["id"]
-    assert client.get(f"/api/v1/projects/{project_id}").status_code == 200
-    updated = client.patch(f"/api/v1/projects/{project_id}", json={"name": "Renamed"})
-    assert updated.status_code == 200
-    assert updated.json()["project"]["name"] == "Renamed"
-    missing_get = client.get("/api/v1/projects/missing")
-    assert missing_get.status_code == 409
-    assert _error(missing_get)["code"] == "state_not_ready"
-    assert client.patch("/api/v1/projects/missing", json={"name": "x"}).status_code == 409
-    assert client.delete("/api/v1/projects/missing").status_code == 409
-    assert client.delete(f"/api/v1/projects/{project_id}").status_code == 200
-
     settings = client.get("/api/v1/settings")
     assert settings.status_code == 200
     payload = settings.json()["settings"]
@@ -1065,7 +1048,6 @@ def test_read_only_inventory_endpoints(monkeypatch, tmp_path: Path) -> None:
         "/api/v1/publish/queue",
         "/api/v1/project-templates",
         "/api/v1/brand-templates",
-        "/api/v1/projects",
         "/api/v1/assets",
         "/api/v1/assets/music",
         "/api/v1/assets/sfx",
@@ -1280,7 +1262,3 @@ def test_route_error_boundaries_with_service_failures(monkeypatch, tmp_path: Pat
     assert failed_service.status_code == 409
     assert _error(failed_service)["code"] == "state_not_ready"
 
-    monkeypatch.setattr(routes_module, "create_project", explode)
-    failed_project = client.post("/api/v1/projects", json={"name": "Boundary"})
-    assert failed_project.status_code == 409
-    assert _error(failed_project)["code"] == "state_not_ready"

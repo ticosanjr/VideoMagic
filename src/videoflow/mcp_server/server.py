@@ -2512,6 +2512,7 @@ def build_server(
         except VideoFlowError as exc:
             return exc.to_dict()
 
+    mcp.videoflow_last = last  # type: ignore[attr-defined]
     _ = (TOOL_SPECS, RESOURCE_SPECS)
     _annotate_tools(mcp)
     return mcp

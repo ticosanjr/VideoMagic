@@ -37,7 +37,6 @@ describe("i18n coverage", () => {
   });
 
   it("keeps the shared navigation table aligned with the glossary", () => {
-    expect(GLOSSARY["Projects"]).toBe("Projetos");
     expect(GLOSSARY["Assistant"]).toBe("Assistente");
     expect(GLOSSARY["Doctor / diagnostics"]).toBe("Diagnóstico / doctor");
   });

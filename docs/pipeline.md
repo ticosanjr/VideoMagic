@@ -158,7 +158,7 @@ FFprobe → PCM at media rate → Silero (16 kHz) or FFmpeg VAD → optional SRT
         → three exports
 ```
 
-`videoflow run` and `videoflow demo` call it. `auto` uses Silero when the pinned
+`videoflow recipe run` and `videoflow demo` call it. `auto` uses Silero when the pinned
 model and ONNX Runtime are present and falls back to FFmpeg `silencedetect`
 otherwise. Pads are applied after retake culling so a discarded take cannot
 survive as pad-only audio. The path supports local Faster-Whisper, whisper.cpp

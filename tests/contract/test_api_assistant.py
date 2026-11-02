@@ -106,7 +106,7 @@ def test_assistant_read_tools_and_preview_approval(monkeypatch, tmp_path: Path) 
                 "actions": [
                     {"tool": "get_job", "arguments": {}},
                     {"tool": "list_recipes", "arguments": {}},
-                    {"tool": "list_projects", "arguments": {}},
+                    {"tool": "get_timeline", "arguments": {}},
                     {"tool": "validate_exports", "arguments": {}},
                 ],
                 "requires_approval": False,
@@ -178,7 +178,7 @@ def test_assistant_run_recipe_and_corrupt_context(monkeypatch, tmp_path: Path) -
         [
             {
                 "message": "Listing.",
-                "actions": [{"tool": "list_projects", "arguments": {}}],
+                "actions": [{"tool": "get_job", "arguments": {}}],
                 "requires_approval": False,
             },
             {"message": "Done.", "actions": [], "requires_approval": False},

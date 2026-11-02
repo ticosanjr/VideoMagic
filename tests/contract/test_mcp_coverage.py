@@ -29,13 +29,10 @@ def _setup(monkeypatch, tmp_path: Path):
     server = build_server(manager)
     loaded = call(server, "videoflow_load_media", {"file_path": str(source)})
     assert loaded["ok"] is True, loaded
-    started = call(
-        server,
-        "videoflow_run_pipeline",
-        {"output": str(tmp_path / "out"), "preset_name": "youtube-talking-head"},
+    job = manager.start(source, tmp_path / "out", options={}, queue=True)
+    server.videoflow_last.update(  # type: ignore[attr-defined]
+        source=source, output=job.output, job_id=str(job.job_id)
     )
-    assert started["ok"] is True, started
-    job = manager.get(started["job"]["job_id"])
     for _ in range(200):
         if job.status in {"succeeded", "failed", "cancelled"}:
             break

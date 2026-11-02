@@ -10,7 +10,7 @@ from tests.contract.test_exporters import sample_state
 from videoflow.domain.errors import ExportError
 from videoflow.domain.state import OverlayClip, ProjectState, Transition
 from videoflow.exporters import mp4 as mp4_module
-from videoflow.exporters.mp4 import build_filter_graph, export_mp4
+from videoflow.exporters.mp4 import export_mp4
 
 
 class FakeRenderer:
@@ -26,19 +26,6 @@ class FakeRenderer:
             self.progress_calls += 1
         if self.write:
             Path(command[-1]).write_bytes(b"mp4")
-
-
-def test_crossfade_graph_handles_missing_audio_transitions(tmp_path: Path) -> None:
-    state = sample_state(tmp_path)
-    state.video_segments[0].transition_out = Transition(audio=False)
-    state.video_segments[1].transition_out = None
-
-    graph, video_label, audio_label = build_filter_graph(state)
-
-    assert "xfade=transition=fade" in graph
-    assert "concat=n=2:v=0:a=1" in graph
-    assert video_label.startswith("[")
-    assert audio_label.startswith("[")
 
 
 def test_large_hard_cut_timeline_uses_segmented_export(

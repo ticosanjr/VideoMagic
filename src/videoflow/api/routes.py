@@ -122,14 +122,6 @@ from videoflow.application.project_templates import (
 from videoflow.application.project_templates import (
     save_template as save_project_template,
 )
-from videoflow.application.projects import (
-    ProjectRequest,
-    create_project,
-    delete_project,
-    get_project,
-    list_projects,
-    update_project,
-)
 from videoflow.application.providers import (
     ProviderConfig,
     delete_provider,
@@ -3261,7 +3253,6 @@ def register_routes(
             "tracks": {key: value.model_dump() for key, value in meta.tracks.items()},
             "comments": [item.model_dump(mode="json") for item in meta.comments],
             "overlays": [item.model_dump(mode="json") for item in state.overlays],
-            "preview_url": f"/api/v1/jobs/{job_id}/preview/file",
             "media": {
                 "source_path": media.source_path if media is not None else "",
                 "audio_sample_rate": media.audio_sample_rate if media is not None else 0,
@@ -4177,10 +4168,6 @@ def register_routes(
                 {"id": item.get("id"), "name": item.get("name")}
                 for item in list_recipes()[:40]
             ],
-            "projects": [
-                {"id": item.id, "name": item.name, "source": item.source}
-                for item in list_projects()[:20]
-            ],
         }
         try:
             state = ProjectState.model_validate_json(
@@ -4204,11 +4191,6 @@ def register_routes(
                 _timeline_state_path(job).read_text(encoding="utf-8")
             )
             return {"tool": action.id, "timeline": _assistant_timeline(state)}
-        if action.tool == "list_projects":
-            return {
-                "tool": action.id,
-                "projects": [item.model_dump(mode="json") for item in list_projects()],
-            }
         if action.tool == "validate_exports":
             return {
                 "tool": action.id,
@@ -4416,49 +4398,6 @@ def register_routes(
             fail(exc)
             raise
         return {"ok": True, "history": assistant.read_history(job.output)}
-
-    @app.get("/api/v1/projects")
-    def projects_list() -> dict[str, object]:
-        return {
-            "ok": True,
-            "projects": [item.model_dump(mode="json") for item in list_projects()],
-        }
-
-    @app.post("/api/v1/projects", status_code=201)
-    def projects_create(request: ProjectRequest) -> dict[str, object]:
-        try:
-            project = create_project(request)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
-        return {"ok": True, "project": project.model_dump(mode="json")}
-
-    @app.get("/api/v1/projects/{project_id}")
-    def projects_get(project_id: str) -> dict[str, object]:
-        try:
-            project = get_project(project_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
-        return {"ok": True, "project": project.model_dump(mode="json")}
-
-    @app.patch("/api/v1/projects/{project_id}")
-    def projects_update(project_id: str, request: ProjectRequest) -> dict[str, object]:
-        try:
-            project = update_project(project_id, request)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
-        return {"ok": True, "project": project.model_dump(mode="json")}
-
-    @app.delete("/api/v1/projects/{project_id}")
-    def projects_delete(project_id: str) -> dict[str, object]:
-        try:
-            delete_project(project_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
-        return {"ok": True, "deleted": project_id}
 
     @app.get("/api/v1/metrics/cost")
     def cost_metrics() -> dict[str, object]:

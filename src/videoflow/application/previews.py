@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application.render_inputs import audio_filters, video_filters
 from videoflow.domain.errors import StateNotReadyError, VideoFlowError
 from videoflow.domain.state import ProjectState
 from videoflow.exporters.mp4 import export_mp4
@@ -56,8 +57,8 @@ def preview_key(job: Any) -> str:
     ass_path = job.output / "titles.ass"
     payload = {
         "version": PREVIEW_CACHE_VERSION,
-        "audio_filters": _audio_filters(job) + _track_filters(job),
-        "video_filters": _video_filters(job) + _video_track_filters(job),
+        "audio_filters": audio_filters(job),
+        "video_filters": video_filters(job),
         "ass_mtime": str(ass_path.stat().st_mtime_ns if ass_path.is_file() else 0),
         "height": proxy_height(),
         "fallback": fallback,
@@ -82,58 +83,6 @@ def _fallback_source(job: Any) -> Path:
                 if path.is_file():
                     return path
     raise StateNotReadyError("The job has no MP4 artifact to preview.")
-
-
-def _video_filters(job: Any) -> list[str]:
-    path = job.output / "color" / "filters.json"
-    if not path.is_file():
-        return []
-    import json
-
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
-    return [str(item) for item in payload.get("filters", []) if str(item)]
-
-
-def _video_track_filters(job: Any) -> list[str]:
-    from videoflow.application.timeline_meta import load_meta
-
-    try:
-        meta = load_meta(job.output)
-    except Exception:
-        return []
-    state = meta.tracks.get("video")
-    if state is None or state.solo or not state.muted:
-        return []
-    return ["drawbox=x=0:y=0:w=iw:h=ih:color=black:t=fill"]
-
-
-def _track_filters(job: Any) -> list[str]:
-    from videoflow.application.timeline_meta import load_meta
-
-    try:
-        meta = load_meta(job.output)
-    except Exception:
-        return []
-    state = meta.tracks.get("audio")
-    if state is None or state.solo or not state.muted:
-        return []
-    return ["volume=0"]
-
-
-def _audio_filters(job: Any) -> list[str]:
-    path = job.output / "audio" / "master-filters.json"
-    if not path.is_file():
-        return []
-    import json
-
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
-    return [str(item) for item in payload.get("filters", []) if str(item)]
 
 
 def build_preview(
@@ -173,10 +122,11 @@ def build_preview(
                 loaded,
                 temporary,
                 adapter=adapter,
-                audio_filters=_audio_filters(job) + _track_filters(job),
-                video_filters=_video_filters(job) + _video_track_filters(job),
+                audio_filters=audio_filters(job),
+                video_filters=video_filters(job),
                 ass_path=ass_path if ass_path.is_file() else None,
                 scale_height=height,
+                cache_dir=job.output / "render" / "segments",
             )
         else:
             report(20, "Using the last MP4 artifact")

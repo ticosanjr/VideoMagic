@@ -11,49 +11,18 @@ from pathlib import Path
 from typing import Any
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application.render_inputs import render_inputs as _render_inputs
 from videoflow.domain.errors import (
-    ExportError,
     JobCancelledError,
     StateNotReadyError,
     VideoFlowError,
 )
 from videoflow.domain.state import ProjectState
-from videoflow.exporters.incremental import NotEligible, export_mp4_incremental
 from videoflow.exporters.mp4 import export_mp4
 
 
 def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
-
-
-def _video_track_filters(job: Any) -> list[str]:
-    from videoflow.application.timeline_meta import load_meta
-
-    try:
-        meta = load_meta(job.output)
-    except Exception:
-        return []
-    state = meta.tracks.get("video")
-    if state is None or state.solo or not state.muted:
-        return []
-    return ["drawbox=x=0:y=0:w=iw:h=ih:color=black:t=fill"]
-
-
-def _track_filters(job: Any) -> list[str]:
-    """Translate track mute state into render filters."""
-
-    from videoflow.application.timeline_meta import load_meta
-
-    try:
-        meta = load_meta(job.output)
-    except Exception:
-        return []
-    state = meta.tracks.get("audio")
-    if state is None:
-        return []
-    if state.solo or not state.muted:
-        return []
-    return ["volume=0"]
 
 
 RENDER_CACHE_VERSION = 1
@@ -63,23 +32,6 @@ def _state_path(job: Any) -> Path:
     return Path(
         str((job.result or {}).get("state_path") or job.output / "project_state.json")
     )
-
-
-def _filters(path: Path) -> list[str]:
-    if not path.is_file():
-        return []
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
-    return [str(item) for item in payload.get("filters", []) if str(item)]
-
-
-def _render_inputs(job: Any) -> tuple[list[str], list[str], Path]:
-    audio_filters = _filters(job.output / "audio" / "master-filters.json") + _track_filters(job)
-    video_filters = _filters(job.output / "color" / "filters.json") + _video_track_filters(job)
-    ass_path = job.output / "titles.ass"
-    return audio_filters, video_filters, ass_path
 
 
 def render_key(job: Any) -> str:
@@ -256,30 +208,6 @@ class RenderQueue:
                 def frame_progress(percent: int) -> None:
                     progress(15 + int(max(0, min(100, percent)) * 0.8), f"Rendering {percent}%")
 
-                if not audio_filters and not video_filters and not ass_path.is_file():
-                    try:
-                        export_mp4_incremental(
-                            state,
-                            destination,
-                            adapter=adapter,
-                            progress=frame_progress,
-                        )
-                        _write_manifest(
-                            _manifest_path(destination),
-                            key,
-                            state_path,
-                            _inputs_signature(job),
-                        )
-                        progress(100, "Render ready")
-                        with self._lock:
-                            item.status = "ready"
-                            item.percent = 100
-                            item.message = "Render ready"
-                            item.finished_at = _now()
-                        return
-                    except (NotEligible, ExportError):
-                        pass
-
                 export_mp4(
                     state,
                     destination,
@@ -288,6 +216,7 @@ class RenderQueue:
                     video_filters=video_filters,
                     ass_path=ass_path if ass_path.is_file() else None,
                     progress=frame_progress,
+                    cache_dir=job.output / "render" / "segments",
                 )
                 if cancelled():
                     destination.unlink(missing_ok=True)

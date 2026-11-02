@@ -3,7 +3,7 @@
 ## Implementation status
 
 Silero VAD v5.1.2 runs through ONNX Runtime on the CPU and is the quality path.
-The portable build bundles the 2.3 MB model; `videoflow run`, jobs, the project
+The portable build bundles the 2.3 MB model; `videoflow recipe run`, jobs, the project
 API, and MCP `videoflow_run_vad` select it by default when it is available.
 FFmpeg `silencedetect` remains the fallback for development checkouts and
 unsupported platforms.

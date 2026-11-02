@@ -92,7 +92,7 @@ uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper \
   --with-silero --with-faster-whisper
 ./dist/videoflow doctor
 ./dist/videoflow demo -o ./demo
-./dist/videoflow run ~/Videos/interview.mp4 -o ./interview-edit --transcribe
+./dist/videoflow recipe run youtube_talking_head ~/Videos/interview.mp4 -o ./interview-edit
 ./dist/videoflow serve --open       # API + MCP HTTP + studio UI, stays running
 ./dist/videoflow status             # PID, URL, and all discovered services
 ./dist/videoflow restart            # stop, then start again

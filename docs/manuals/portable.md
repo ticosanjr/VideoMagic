@@ -1,3 +1,7 @@
+> **2.26 note:** the legacy `videoflow run` command was removed. Use
+> `videoflow recipe run <recipe-id> <source> -o <output>`; the recipe names the
+> VAD, transcript, retake, timeline, and export steps explicitly.
+
 # Portable executable manual
 
 VideoFlow ships as one console executable per operating system. It contains the

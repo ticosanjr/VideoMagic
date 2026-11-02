@@ -175,29 +175,6 @@ EXAMPLES: dict[tuple[str, str], dict[str, Any]] = {
             },
         ],
     },
-    ("post", "/api/v1/projects"): {
-        "description": "Create a local project. Deleting it never deletes media.",
-        "responses": {
-            "201": {
-                "content": {
-                    "application/json": {
-                        "example": {
-                            "ok": True,
-                            "project": {
-                                "id": "project-8f21c0d4a1",
-                                "name": "Interview",
-                                "source": "/media/source.mp4",
-                                "output": "/media/output",
-                                "created_at": "2026-01-01T10:00:00+00:00",
-                                "updated_at": "2026-01-01T10:00:00+00:00",
-                                "last_job_id": "",
-                            },
-                        }
-                    }
-                }
-            }
-        },
-    },
 }
 
 COMMON_ERRORS = {

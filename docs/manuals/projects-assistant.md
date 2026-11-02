@@ -1,19 +1,7 @@
-# Projects, assistant, and review
+# Assistant and review
 
-This is the operator guide for the 2.13 workspace. Everything runs on the local
+This is the operator guide for the assistant workspace. Everything runs on the local
 machine and stays inside the allowed roots.
-
-## Projects
-
-A project groups one source file, one output folder, and its recent runs.
-
-1. Open **Produce → Projects**.
-2. Enter a name, source file, and output folder.
-3. Select **Use in Recipes** to copy the source/output into the recipe form.
-4. Select **Delete** to remove the project record. Media is never deleted.
-
-The record is a JSON file under `<home>/projects`. Jobs and artifacts stay in
-their own output folders, so deleting a project never breaks a finished run.
 
 ## Assistant with tools
 
@@ -21,7 +9,7 @@ The assistant is not a free-form writer. It can only call these tools:
 
 | Tool | Writes | Approval |
 | --- | --- | --- |
-| `list_recipes`, `get_job`, `get_timeline`, `list_projects`, `validate_exports` | no | not needed |
+| `list_recipes`, `get_job`, `get_timeline`, `validate_exports` | no | not needed |
 | `apply_timeline_edits` | yes | required |
 | `render_preview` | yes | required |
 | `run_recipe` | yes | required |

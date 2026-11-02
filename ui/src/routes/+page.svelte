@@ -15,7 +15,6 @@
   import OnboardingCard from "$lib/OnboardingCard.svelte";
   import Modal from "$lib/ui/Modal.svelte";
   import PluginsPanel from "$lib/PluginsPanel.svelte";
-  import ProjectsPanel from "$lib/ProjectsPanel.svelte";
   import RecipesPanel from "$lib/RecipesPanel.svelte";
   import ServicesPanel from "$lib/ServicesPanel.svelte";
   import SettingsPanel from "$lib/SettingsPanel.svelte";
@@ -48,7 +47,6 @@
 
   const TAB_HINTS: Record<TabId, string> = {
     recipes: "Visual recipe builder and runner",
-    projects: "Reusable workspaces with a source and output folder",
     assistant: "LLM recipe drafts and timeline edit plans",
     timeline: "Canvas timeline with preview, trim, split, and undo",
     jobs: "Queue, progress, approvals, pauses, and failures",
@@ -626,8 +624,6 @@
           onreview={() => selectTab("recipes")}
           onopentimeline={() => selectTab("timeline")}
         />
-      {:else if activeTab === "projects"}
-        <ProjectsPanel />
       {:else if activeTab === "assistant"}
         <CopilotPanel />
       {:else if activeTab === "schedules"}

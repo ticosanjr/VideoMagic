@@ -22,7 +22,6 @@ ToolName = Literal[
     "list_recipes",
     "get_job",
     "get_timeline",
-    "list_projects",
     "validate_exports",
     "apply_timeline_edits",
     "render_preview",
@@ -30,7 +29,7 @@ ToolName = Literal[
 ]
 
 READ_ONLY: frozenset[str] = frozenset(
-    {"list_recipes", "get_job", "get_timeline", "list_projects", "validate_exports"}
+    {"list_recipes", "get_job", "get_timeline", "validate_exports"}
 )
 WRITE: frozenset[str] = frozenset({"apply_timeline_edits", "render_preview", "run_recipe"})
 
@@ -44,7 +43,7 @@ Return JSON:
   "requires_approval":true}}
 
 Rules:
-- Read-only tools: list_recipes, get_job, get_timeline, list_projects, validate_exports.
+- Read-only tools: list_recipes, get_job, get_timeline, validate_exports.
 - Write tools need approval: apply_timeline_edits, render_preview, run_recipe.
 - apply_timeline_edits arguments: {{"edits":[{{"clip_id":"v1","action":"trim",
   "start_sec":0.0,"end_sec":2.0}}]}}. Allowed actions: {actions}.

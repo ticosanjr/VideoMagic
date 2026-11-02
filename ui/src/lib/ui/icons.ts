@@ -92,7 +92,6 @@ export const AREA_ICON_NAMES = {
 
 export const TAB_ICON_NAMES = {
   recipes: "list",
-  projects: "folder",
   assistant: "sparkles",
   timeline: "film",
   jobs: "activity",

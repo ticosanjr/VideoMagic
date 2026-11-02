@@ -3,6 +3,33 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.26.0] - 2026-11-02
+
+### Changed
+
+- **One segmented MP4 renderer with a persistent cache.** The separate
+  incremental renderer was removed. Long and crossfade timelines render video
+  groups once, cache them atomically under `render/segments`, and reuse
+  unchanged groups from both preview and final render.
+- Preview and render now share the same audio/video filter and path inputs.
+- Segment cache keys include the source file, clip ranges/transforms, encoder
+  settings, scale, and cache version.
+
+### Removed
+
+- **Legacy CLI `videoflow run`.** Use `videoflow recipe run`.
+- **Projects.** The unused project CRUD records, panel, client types, routes,
+  assistant read tool, tests, and documentation were deleted; recipe jobs are
+  the only project-producing path.
+- The dead crossfade branch in the classic filter-graph builder; any crossfade
+  timeline is routed through the segmented renderer.
+- The unused timeline `preview_url` field.
+
+### Notes
+
+- Full-tree coverage is 96.2%.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.25.3] - 2026-11-02
 
 ### Fixed

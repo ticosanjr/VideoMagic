@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from videoflow.application import previews
+from videoflow.application import previews, render_inputs
 from videoflow.domain.errors import JobCancelledError, StateNotReadyError
 from videoflow.domain.state import ProjectState
 
@@ -72,8 +72,8 @@ def test_artifact_filters_are_loaded_and_bad_json_is_ignored(tmp_path: Path) -> 
         "not json", encoding="utf-8"
     )
 
-    assert previews._video_filters(job) == ["eq=contrast=1.2"]
-    assert previews._audio_filters(job) == []
+    assert render_inputs.video_filters(job) == ["eq=contrast=1.2"]
+    assert render_inputs.audio_filters(job) == []
 
 
 def test_track_filters_follow_muted_and_solo_state(
@@ -95,8 +95,8 @@ def test_track_filters_follow_muted_and_solo_state(
         lambda _output: Meta({"video": Track(True, False), "audio": Track(True, False)}),
     )
 
-    assert previews._track_filters(job) == ["volume=0"]
-    assert previews._video_track_filters(job) == [
+    assert render_inputs.track_filters(job) == ["volume=0"]
+    assert render_inputs.video_track_filters(job) == [
         "drawbox=x=0:y=0:w=iw:h=ih:color=black:t=fill"
     ]
 
@@ -104,15 +104,15 @@ def test_track_filters_follow_muted_and_solo_state(
         "videoflow.application.timeline_meta.load_meta",
         lambda _output: Meta({"video": Track(True, True), "audio": Track(False, False)}),
     )
-    assert previews._track_filters(job) == []
-    assert previews._video_track_filters(job) == []
+    assert render_inputs.track_filters(job) == []
+    assert render_inputs.video_track_filters(job) == []
 
     def fail(_output: Path) -> None:
         raise OSError("missing")
 
     monkeypatch.setattr("videoflow.application.timeline_meta.load_meta", fail)
-    assert previews._track_filters(job) == []
-    assert previews._video_track_filters(job) == []
+    assert render_inputs.track_filters(job) == []
+    assert render_inputs.video_track_filters(job) == []
 
 
 def test_build_preview_renders_from_project_state(

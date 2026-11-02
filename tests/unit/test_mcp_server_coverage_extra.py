@@ -219,14 +219,13 @@ class Harness:
         return job
 
     def pipeline(self, **overrides: Any) -> dict[str, Any]:
-        arguments: dict[str, Any] = {
-            "source": str(self.source),
-            "output": str(self.output),
-        }
-        arguments.update(overrides)
-        payload = call(self.server, "videoflow_run_pipeline", arguments)
-        assert payload["ok"] is True, payload
-        return payload
+        source = Path(overrides.get("source", self.source))
+        output = Path(overrides.get("output", self.output))
+        job = self.manager.start(source, output, options=overrides, queue=True)
+        self.server.videoflow_last.update(  # type: ignore[attr-defined]
+            source=source, output=output, job_id=str(job.job_id)
+        )
+        return {"ok": True, "job": job.to_dict()}
 
 
 @pytest.fixture()
@@ -948,7 +947,6 @@ def test_pipeline_recipe_batch_and_schedule_paths(
 ) -> None:
     server = harness.server
 
-    assert call(server, "videoflow_run_pipeline", {})["code"] == "source_required"
     assert call(server, "videoflow_run_recipe", {"recipe_id": "youtube_talking_head"})[
         "code"
     ] == ("source_required")
@@ -1013,17 +1011,6 @@ def test_pipeline_recipe_batch_and_schedule_paths(
         },
     )["code"] == ("batch_invalid")
 
-    assert call(
-        server,
-        "videoflow_run_pipeline",
-        {"source": str(harness.source), "overrides": {"bogus": 1}},
-    )["code"] == ("invalid_overrides")
-    assert call(
-        server,
-        "videoflow_run_pipeline",
-        {"source": str(harness.source), "overrides": {"transcript": "/etc/passwd"}},
-    )["code"] == ("path_not_allowed")
-
     project_template = call(
         server,
         "videoflow_save_project_template",
@@ -1036,31 +1023,6 @@ def test_pipeline_recipe_batch_and_schedule_paths(
         {"name": "demo", "template": {"name": "demo"}},
     )
     assert brand_template["ok"] is True
-
-    assert call(server, "videoflow_configure_zooms", {"mode": "manual_rules"})["ok"] is True
-    transcript_path = harness.output / "transcript.srt"
-    transcript_path.write_text("1\n", encoding="utf-8")
-    started = call(
-        server,
-        "videoflow_run_pipeline",
-        {
-            "source": str(harness.source),
-            "output": str(harness.output),
-            "overrides": {
-                "zoom_mode": "manual_rules",
-                "project_template": "demo",
-                "brand_template": "demo",
-                "transcript": str(transcript_path),
-            },
-        },
-    )
-    assert started["ok"] is True, started
-    options = harness.manager.job.options
-    assert options["zoom_mode"] == "manual_rules"
-    assert options["zooms"] is True
-    assert options["crf"] == 18
-    assert options["transcript"] == str(transcript_path)
-    assert "caption_font_family" in options
 
     schedule = call(
         server,
@@ -1340,11 +1302,7 @@ def test_timeline_editing_and_export_success(
     assert exported["ok"] is True
     assert exported["size_bytes"] > 0
     assert "warning" in exported
-    assert call(
-        server,
-        "videoflow_run_pipeline",
-        {"source": str(harness.source), "output": str(harness.output)},
-    )["ok"] is True
+    server.videoflow_last["pending_options"] = {}  # type: ignore[attr-defined]
     clean = call(
         server,
         "videoflow_export_fcpxml",
@@ -1426,16 +1384,7 @@ def test_recipe_pipeline_and_batch_success(
         },
     )["ok"] is True
 
-    assert call(
-        server,
-        "videoflow_run_pipeline",
-        {"source": str(harness.source), "preset_name": "nope"},
-    )["code"] == ("invalid_overrides")
-    started = call(
-        server,
-        "videoflow_run_pipeline",
-        {"source": str(harness.source), "output": str(harness.output)},
-    )
+    started = harness.pipeline()
     job = call(server, "videoflow_get_job", {"job_id": started["job"]["job_id"]})
     assert job["ok"] is True
     assert call(server, "videoflow_get_batch", {"batch_id": "batch-1"})["ok"] is True

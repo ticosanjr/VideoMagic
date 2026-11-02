@@ -950,19 +950,6 @@ the enabled default followed by its fallback chain.
 - A stale value returns `412` with `code: "precondition_failed"` and a fresh
   ETag in `details.etag`; nothing is written.
 
-## 9. Projects
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/api/v1/projects` | List local projects, newest first |
-| POST | `/api/v1/projects` | Create `{name, source, output}` |
-| GET | `/api/v1/projects/{id}` | Read one project |
-| PATCH | `/api/v1/projects/{id}` | Rename or change source/output |
-| DELETE | `/api/v1/projects/{id}` | Delete the record; media is untouched |
-
-Projects are local bookmarks for a source and output pair. They do not start
-runs on their own; recipe runs derive paths from the recipe and the job output.
-
 ## 10. Assistant
 
 | Method | Path | Purpose |
