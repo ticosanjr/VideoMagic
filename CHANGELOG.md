@@ -3,6 +3,22 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.36.0] - 2026-11-02
+
+### Added
+
+- In/out marks with `I`/`O`, a visible range overlay, and Clear marks.
+- Fit selection (`Shift+F`) alongside Fit all.
+- Copy/paste clip style for transition, scale, position, fades, and transition
+  length, including multi-selection.
+- The shortcuts reference now lists timeline in/out, activation, and fit
+  selection commands.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.35.0] - 2026-11-02
 
 ### Added

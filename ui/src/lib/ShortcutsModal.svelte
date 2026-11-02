@@ -32,8 +32,10 @@
     { keys: "S", action: "Timeline: split at the playhead" },
     { keys: "Delete / Shift+Delete", action: "Timeline: delete or ripple delete" },
     { keys: "M", action: "Timeline: add marker" },
+    { keys: "I / O", action: "Timeline: set in or out mark" },
+    { keys: "X", action: "Timeline: activate or deactivate the selected segment" },
     { keys: "+ / -", action: "Timeline: zoom" },
-    { keys: "F", action: "Timeline: fit" },
+    { keys: "F / Shift+F", action: "Timeline: fit all or fit selection" },
     { keys: "[ / ]", action: "Timeline: speed down or up 0.5x" },
     { keys: "Ctrl/Cmd + S", action: "Timeline: save a version" },
     { keys: "Ctrl/Cmd + O", action: "Timeline: open saved versions" }

@@ -81,6 +81,9 @@
   let status = $state("");
   let playhead = $state(0);
   let playbackRate = $state(1);
+  let inPoint = $state<number | null>(null);
+  let outPoint = $state<number | null>(null);
+  let copiedStyle = $state<Record<string, unknown> | null>(null);
   let livePlayer = $state<{
     seekSource: (time: number) => void;
     seekOutput: (time: number) => void;
@@ -1160,8 +1163,75 @@
     }
   }
 
+  function markIn() {
+    inPoint = playhead;
+    if (outPoint !== null && outPoint <= inPoint) outPoint = null;
+    status = `In mark at ${playhead.toFixed(2)}s.`;
+  }
+
+  function markOut() {
+    outPoint = playhead;
+    if (inPoint !== null && inPoint >= outPoint) inPoint = null;
+    status = `Out mark at ${playhead.toFixed(2)}s.`;
+  }
+
+  function clearMarks() {
+    inPoint = null;
+    outPoint = null;
+    status = "In/out marks cleared.";
+  }
+
   function fitTimeline() {
     zoom = Math.max(2, Math.min(400, (1200 - 96) / Math.max(0.1, duration)));
+  }
+
+  function fitSelection() {
+    const clips = (timeline?.video ?? []).filter(
+      (clip) => selectedIds.includes(clip.id) || clip.id === selectedClip?.id
+    );
+    const target = clips.length ? clips : (timeline?.video ?? []);
+    if (!target.length) return;
+    const start = Math.min(...target.map((clip) => clip.start_sec));
+    const end = Math.max(...target.map((clip) => clip.end_sec));
+    const span = Math.max(0.1, end - start);
+    zoom = Math.max(2, Math.min(400, (1200 - 96) / span));
+    setTimeout(() => {
+      const scroller = document.querySelector<HTMLElement>('[data-testid="timeline-scroller"]');
+      if (scroller) scroller.scrollLeft = Math.max(0, (start - 1) * zoom);
+    }, 0);
+  }
+
+  function copyClipStyle() {
+    if (!selectedClip) return;
+    copiedStyle = {
+      transition_type: selectedClip.transition ?? "none",
+      transition_duration_frames: selectedClip.transition_frames || 6,
+      scale: selectedClip.zoom ?? 1,
+      pos_x: selectedClip.pos_x ?? 0,
+      pos_y: selectedClip.pos_y ?? 0,
+      fade_in_sec: selectedClip.fade_in_sec ?? 0,
+      fade_out_sec: selectedClip.fade_out_sec ?? 0
+    };
+    status = `Copied style from ${selectedClip.id}.`;
+  }
+
+  async function pasteClipStyle() {
+    if (!copiedStyle || !selected) return;
+    const ids = selectedIds.length ? selectedIds : selectedClip ? [selectedClip.id] : [];
+    if (!ids.length) return;
+    styleBusy = true;
+    error = "";
+    try {
+      for (const id of ids) {
+        await updateTimelineClip(selected, id, copiedStyle as Parameters<typeof updateTimelineClip>[2]);
+      }
+      status = `Pasted style to ${ids.length} clip(s).`;
+      await loadTimeline(selectedClip?.id ?? "", { assets: false, deliverables: false });
+    } catch (reason) {
+      error = errorMessage(reason);
+    } finally {
+      styleBusy = false;
+    }
   }
 
   function editCaption(caption: TimelineData["captions"][number]) {
@@ -1286,7 +1356,18 @@
     }
     if (key === "f") {
       event.preventDefault();
-      fitTimeline();
+      if (event.shiftKey) fitSelection();
+      else fitTimeline();
+      return;
+    }
+    if (key === "i") {
+      event.preventDefault();
+      markIn();
+      return;
+    }
+    if (key === "o") {
+      event.preventDefault();
+      markOut();
       return;
     }
     if (key === "+" || key === "=") {
@@ -1460,6 +1541,10 @@
               </div>
               {#if selectedClip}
                 <p class="mt-1 break-all font-mono text-[11px] text-sky-200">{selectedClip.id}</p>
+                <div class="mt-2 flex gap-1">
+                  <button type="button" onclick={copyClipStyle} class="rounded border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300" title="Copy transition, scale, position, and fades">Copy style</button>
+                  <button type="button" onclick={() => void pasteClipStyle()} disabled={!copiedStyle || styleBusy} class="rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-200 disabled:opacity-40" title="Paste style to the selected clip(s)">Paste style</button>
+                </div>
                 <div class="mt-2 grid grid-cols-2 gap-2">
                   <label class="text-[10px] text-neutral-400">Timeline in
                     <input type="number" min="0" step="0.01" bind:value={clipStart} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
@@ -1640,7 +1725,11 @@
           <input type="checkbox" bind:checked={snap} class="h-3.5 w-3.5 rounded border-neutral-700 bg-neutral-800" />
           Snap
         </label>
-        <button type="button" onclick={fitTimeline} class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300">Fit</button>
+        <button type="button" onclick={markIn} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300" title="Mark in (I)" aria-label="Mark in"><Icon name="mark-in" size={14} /></button>
+        <button type="button" onclick={markOut} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300" title="Mark out (O)" aria-label="Mark out"><Icon name="mark-out" size={14} /></button>
+        <button type="button" onclick={clearMarks} disabled={inPoint === null && outPoint === null} class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40" title="Clear in/out marks" aria-label="Clear marks">Clear marks</button>
+        <button type="button" onclick={fitTimeline} class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300" title="Fit whole timeline (F)">Fit</button>
+        <button type="button" onclick={fitSelection} class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300" title="Fit selection (Shift+F)">Fit selection</button>
         <label class="flex items-center gap-2 text-[10px] text-neutral-500">
           Zoom
           <input type="range" min="2" max="400" step="1" bind:value={zoom} data-testid="timeline-zoom" class="w-24 accent-sky-400" />
@@ -1707,6 +1796,8 @@
           markers={timeline.markers ?? []}
           tracks={timeline.tracks ?? {}}
           {playhead}
+          {inPoint}
+          {outPoint}
           {zoom}
           selectedClipId={selectedClip?.id ?? ""}
           {selectedIds}

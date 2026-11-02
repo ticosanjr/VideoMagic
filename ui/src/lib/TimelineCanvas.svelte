@@ -7,6 +7,8 @@
     timeline,
     jobId = "",
     playhead = 0,
+    inPoint = null,
+    outPoint = null,
     zoom = 70,
     selectedClipId = "",
     selectedIds = [],
@@ -30,6 +32,8 @@
     timeline: TimelineData;
     jobId?: string;
     playhead?: number;
+    inPoint?: number | null;
+    outPoint?: number | null;
     zoom?: number;
     selectedClipId?: string;
     selectedIds?: string[];
@@ -789,6 +793,24 @@
       }
     }
 
+    if (inPoint !== null || outPoint !== null) {
+      const start = Math.min(inPoint ?? 0, outPoint ?? timeline.duration_sec);
+      const end = Math.max(inPoint ?? 0, outPoint ?? timeline.duration_sec);
+      overlay.add(
+        new konva.Rect({
+          x: x(start),
+          y: RULER,
+          width: Math.max(2, x(end) - x(start)),
+          height: HEIGHT - RULER,
+          fill: "rgba(56,189,248,0.10)",
+          stroke: "#38bdf8",
+          strokeWidth: 1,
+          dash: [4, 3],
+          listening: false
+        })
+      );
+    }
+
     playheadLine = new konva.Line({
       points: [x(playhead), RULER, x(playhead), HEIGHT],
       stroke: "#fb7185",
@@ -847,6 +869,8 @@
     markers;
     tracks;
     waveforms;
+    inPoint;
+    outPoint;
     if (stage) {
       drawBackground();
       drawOverlay();

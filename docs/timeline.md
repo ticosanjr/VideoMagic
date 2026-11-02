@@ -138,6 +138,8 @@ peaks are unavailable.
 | `Delete` / `Shift+Delete` | Delete or ripple delete |
 | `M` | Add marker |
 | `X` | Deactivate the selected clip or activate the selected inactive segment |
+| `I` / `O` | Set in/out marks |
+| `Shift+F` | Fit the selection |
 | `+` / `-` | Zoom |
 | `F` | Fit |
 | `[` / `]` | Speed down or up 0.5x |
@@ -151,7 +153,9 @@ named immutable snapshot in `VIDEOWFLOW_HOME/timelines/`; **Timeline versions**
 opens the list and can load or delete a snapshot. Loading replaces the current
 state, increments revision, and records one undo entry. Snapshot metadata
 includes name, creation time, duration, revision, source path, and fingerprint.
-The snapshot dialog also has **Use in recipe**, which opens the recipe builder
+The timeline supports in/out marks (I/O), fit selection (Shift+F), and
+copy/paste of clip style (transition, scale, position, fades). The snapshot
+dialog also has **Use in recipe**, which opens the recipe builder
 with a configured `timeline.load` node and its path already filled.
 
 `timeline.load` is a recipe step that reads a snapshot and exposes the `timeline`

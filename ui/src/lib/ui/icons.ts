@@ -16,6 +16,8 @@ export const ICONS = {
   "skip-back": `<path d="M6 5v14M18 5v14L7 12z" fill="currentColor" stroke="none"/>`,
   "skip-forward": `<path d="M18 5v14M6 5v14l11-7z" fill="currentColor" stroke="none"/>`,
   "chevron-left": path("M15 6l-6 6 6 6"),
+  "mark-in": `${line(8, 5, 8, 19)}${line(8, 11, 18, 11)}${line(8, 15, 14, 15)}`,
+  "mark-out": `${line(16, 5, 16, 19)}${line(6, 11, 16, 11)}${line(10, 15, 16, 15)}`,
   "chevron-right": path("M9 6l6 6-6 6"),
   scissors: `${circle(6, 6, 2.5)}${circle(6, 18, 2.5)}${line(8.2, 7.5, 20, 18)}${line(8.2, 16.5, 20, 6)}`,
   activity: path("M3 12h4l2.5-7 4 14 2.5-7H21"),
