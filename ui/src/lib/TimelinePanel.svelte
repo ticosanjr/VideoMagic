@@ -8,6 +8,7 @@
   import Icon from "$lib/ui/Icon.svelte";
   import WaveformStrip from "$lib/WaveformStrip.svelte";
   import {
+    ApiError,
     addTimelineComment,
     addTimelineOverlay,
     listAssets,
@@ -34,6 +35,7 @@
     getClipWaveform,
     jobArtifactUrl,
     jobThumbnailUrl,
+    previewFileUrl,
     listJobs,
     addReviewComment,
     decideJobReview,
@@ -153,7 +155,10 @@
   let autoPreview = $state(true);
   let previewDirty = $state(false);
   let previewScheduled: ReturnType<typeof setTimeout> | undefined;
+  let disposed = false;
   const waveformCache = new Map<string, number[]>();
+  const POLL_MS = 1000;
+  const POLL_DEADLINE_MS = 2 * 60 * 60 * 1000;
 
   const duration = $derived(Math.max(0.001, timeline?.duration_sec ?? 1));
   const fps = $derived(timeline?.fps ?? 30);
@@ -171,9 +176,12 @@
   });
 
   onDestroy(() => {
+    disposed = true;
     window.removeEventListener("keydown", onKeydown);
     cancelAnimationFrame(raf);
     clearTimeout(previewScheduled);
+    clearTimeout(frameTimer);
+    clearTimeout(seekTimer);
   });
 
   function timecode(value: number): string {
@@ -216,11 +224,18 @@
       selectClip(keep);
       previewUrl = "";
       frameUrl = "";
+      const jobId = selected;
       const artifacts = previewJob?.result?.artifacts ?? {};
       const mp4 = Object.entries(artifacts).find(([name]) => name === "mp4" || name.endsWith("mp4"));
-      previewUrl = mp4 ? jobArtifactUrl(selected, mp4[0]) : "";
+      previewUrl = mp4 ? jobArtifactUrl(jobId, mp4[0]) : "";
+      if (!keepClipId) previewDirty = false;
+      if (keepClipId) renderReady = false;
       syncBroll(timeline);
       void loadWaveforms(timeline);
+      if (!keepClipId) {
+        void hydratePreview(jobId, timeline.revision);
+        void hydrateRender(jobId);
+      }
       await loadDeliverables();
     } catch (reason) {
       error = errorMessage(reason);
@@ -230,17 +245,43 @@
     }
   }
 
+  async function hydratePreview(jobId: string, revision: number) {
+    try {
+      const status = await getPreviewStatus(jobId);
+      if (selected !== jobId) return;
+      if (status.status === "ready") {
+        previewUrl = `${previewFileUrl(jobId)}?t=${Date.now()}`;
+        previewDirty = (status.revision ?? -1) !== revision;
+      } else if (status.status === "failed" || status.status === "stale") {
+        previewDirty = true;
+      }
+    } catch {
+      // A missing preview is not an error; the render button remains available.
+    }
+  }
+
+  async function hydrateRender(jobId: string) {
+    try {
+      const status = await getRenderStatus(jobId);
+      if (selected === jobId) renderReady = status.status === "ready";
+    } catch {
+      // A missing render is not an error.
+    }
+  }
+
   async function loadWaveforms(data: TimelineData) {
     if (!selected) return;
     const jobId = selected;
     const entries = await Promise.all(
       data.audio.map(async (clip) => {
-        const buckets = Math.max(40, Math.min(720, Math.round((clip.end_sec - clip.start_sec) * 60)));
-        const key = `${jobId}:${clip.start_sec}:${clip.end_sec}:${buckets}`;
+        const start = clip.source_in_sec ?? clip.start_sec;
+        const end = clip.source_out_sec ?? clip.end_sec;
+        const buckets = Math.max(40, Math.min(720, Math.round((end - start) * 60)));
+        const key = `${jobId}:${start}:${end}:${buckets}`;
         const cached = waveformCache.get(key);
         if (cached) return [clip.id, cached] as const;
         try {
-          const peaks = await getClipWaveform(jobId, clip.start_sec, clip.end_sec, buckets);
+          const peaks = await getClipWaveform(jobId, start, end, buckets);
           waveformCache.set(key, peaks);
           return [clip.id, peaks] as const;
         } catch {
@@ -352,8 +393,10 @@
     errorDetail = "";
     try {
       await startRender(selected);
-      for (let attempt = 0; attempt < 1200; attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 700));
+      const deadline = Date.now() + POLL_DEADLINE_MS;
+      while (!disposed && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+        if (disposed) return;
         const current = await getRenderStatus(selected);
         renderPercent = current.percent;
         renderMessage = current.message ?? current.status;
@@ -369,7 +412,9 @@
           return;
         }
       }
-      error = "Render timed out. Check the server log.";
+      if (!disposed) {
+        error = "The render is still running on the server. Check again later.";
+      }
     } catch (reason) {
       error = errorMessage(reason);
       errorDetail = describeError(reason);
@@ -633,15 +678,26 @@
         previewPercent = initial.percent;
         previewMessage = initial.message ?? initial.status;
       }
-      for (let attempt = 0; attempt < 600; attempt += 1) {
-        if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 700));
+      const deadline = Date.now() + POLL_DEADLINE_MS;
+      while (!disposed && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+        if (disposed) return;
         const current = await getPreviewStatus(selected);
         previewPercent = current.percent;
         previewMessage = current.message ?? current.status;
+        if (current.status === "stale") {
+          previewDirty = true;
+          if (autoPreview) schedulePreview();
+          return;
+        }
         if (current.status === "ready") {
           previewUrl = `${payload.url}?t=${Date.now()}`;
-          previewDirty = false;
-          status = "Browser preview rendered from the current timeline.";
+          const currentRevision = current.revision ?? -1;
+          previewDirty = currentRevision !== (timeline?.revision ?? -1);
+          status = previewDirty
+            ? "Preview rendered, but newer edits are pending."
+            : "Browser preview rendered from the current timeline.";
+          if (previewDirty && autoPreview) schedulePreview();
           return;
         }
         if (current.status === "failed" || current.status === "cancelled") {
@@ -651,7 +707,9 @@
           return;
         }
       }
-      error = "Preview render timed out. Check the server log.";
+      if (!disposed) {
+        error = "The preview is still rendering on the server. Check again later.";
+      }
     } catch (reason) {
       error = errorMessage(reason);
       errorDetail = describeError(reason);
@@ -687,7 +745,7 @@
     editStatus = "";
     error = "";
     try {
-      const response = await editTimeline(selected, {
+      const response = await editTimeline(selected, timeline?.revision, {
         clip_id: selectedClip.id,
         action,
         ...values
@@ -696,7 +754,12 @@
       await loadTimeline(selectedClip.id);
       schedulePreview();
     } catch (reason) {
-      error = errorMessage(reason);
+      if (reason instanceof ApiError && reason.code === "precondition_failed") {
+        await loadTimeline(selectedClip?.id ?? "");
+        error = "The timeline changed in another window. Reloaded the latest revision.";
+      } else {
+        error = errorMessage(reason);
+      }
     } finally {
       editBusy = false;
     }
@@ -706,12 +769,17 @@
     editBusy = true;
     error = "";
     try {
-      const response = await editTimelineBatch(selected, edits as never);
+      const response = await editTimelineBatch(selected, timeline?.revision, edits as never);
       status = `Batch applied to ${response.applied} clip(s) at revision ${response.revision}.`;
       await loadTimeline(selectedClip?.id ?? "");
       schedulePreview();
     } catch (reason) {
-      error = errorMessage(reason);
+      if (reason instanceof ApiError && reason.code === "precondition_failed") {
+        await loadTimeline(selectedClip?.id ?? "");
+        error = "The timeline changed in another window. Reloaded the latest revision.";
+      } else {
+        error = errorMessage(reason);
+      }
     } finally {
       editBusy = false;
     }

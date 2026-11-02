@@ -1,10 +1,10 @@
 """Segment-cached MP4 export for cut timelines.
 
 Segments are cached per source range. Per-clip fades and overlays are applied
-incrementally; crossfades still fall back to the full graph because they need
-frames from both neighbours in one render. Any ineligible timeline is reported
-to the caller, which then runs the full exporter, so output never changes
-silently.
+incrementally. Contiguous crossfades are rendered as one bounded group and the
+result is cached, so long timelines never need a single graph for every clip.
+Any ineligible timeline is reported to the caller, which then runs the full
+exporter, so output never changes silently.
 """
 
 from __future__ import annotations
@@ -15,14 +15,29 @@ import shutil
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from videoflow.domain.errors import ExportError
 from videoflow.domain.state import ProjectState
 from videoflow.exporters.common import require_timeline
 
+CACHE_VERSION = 2
+
 
 class NotEligible(Exception):
     """The timeline needs the full exporter."""
+
+
+def _render_atomic(adapter: Any, command: list[str], target: Path) -> None:
+    """Write a cached segment only after FFmpeg succeeds."""
+
+    temporary = target.with_name(f".{target.stem}.{uuid4().hex}.part.mp4")
+    try:
+        adapter.render([*command, str(temporary)])
+        temporary.replace(target)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
 
 
 def _aligned(state: ProjectState, media, fps: float) -> bool:
@@ -49,6 +64,7 @@ def _cache_key(path: Path, clip, crf: int, preset: str) -> str:
     stat = path.stat()
     payload = json.dumps(
         {
+            "version": CACHE_VERSION,
             "path": str(path.resolve()),
             "size": stat.st_size,
             "mtime": stat.st_mtime_ns,
@@ -76,6 +92,7 @@ def _crossfade_groups(video: list[Any]) -> list[list[int]]:
 def _group_cache_key(segments: list[Path], transitions: list[Any], preset: str, crf: int) -> str:
     payload = json.dumps(
         {
+            "version": CACHE_VERSION,
             "segments": [segment.name for segment in segments],
             "transitions": [
                 {
@@ -148,10 +165,10 @@ def export_mp4_incremental(
                         f"afade=t=out:st={max(0.0, duration - seconds):.6f}:d={seconds:.6f}"
                     )
             command = [
-                "-i",
-                str(source),
                 "-ss",
                 f"{start:.6f}",
+                "-i",
+                str(source),
                 "-t",
                 f"{duration:.6f}",
             ]
@@ -175,17 +192,11 @@ def export_mp4_incremental(
                     "192k",
                     "-movflags",
                     "+faststart",
-                    str(segment),
                 ]
             )
-            adapter.render(
-                command,
-                **(
-                    {"progress": (lambda frame, i=index: _report(progress, i, total, frame))}
-                    if progress is not None
-                    else {}
-                ),
-            )
+            _render_atomic(adapter, command, segment)
+            if progress is not None:
+                _report(progress, index, total, 1000)
         segments.append(segment)
     group_files: list[Path] = []
     for group in _crossfade_groups(video):
@@ -231,7 +242,8 @@ def export_mp4_incremental(
                 cumulative += (
                     clip.timeline_out_frame - clip.timeline_in_frame
                 ) / fps - seconds
-            adapter.render(
+            _render_atomic(
+                adapter,
                 [
                     *inputs,
                     "-filter_complex",
@@ -254,32 +266,39 @@ def export_mp4_incremental(
                     "192k",
                     "-movflags",
                     "+faststart",
-                    str(group_file),
-                ]
+                ],
+                group_file,
             )
         group_files.append(group_file)
     listing = cache_dir / "concat.txt"
     listing.write_text(
-        "\n".join(f"file '{segment.as_posix()}'" for segment in group_files) + "\n",
+        "\n".join(
+            "file '" + segment.as_posix().replace("'", "'\\''") + "'"
+            for segment in group_files
+        )
+        + "\n",
         encoding="utf-8",
     )
     temporary = destination.with_name(f".{destination.stem}.concat.mp4")
-    adapter.render(
-        [
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            str(listing),
-            "-c",
-            "copy",
-            "-movflags",
-            "+faststart",
-            str(temporary),
-        ]
-    )
-    shutil.move(str(temporary), str(destination))
+    try:
+        adapter.render(
+            [
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(listing),
+                "-c",
+                "copy",
+                "-movflags",
+                "+faststart",
+                str(temporary),
+            ]
+        )
+        shutil.move(str(temporary), str(destination))
+    finally:
+        temporary.unlink(missing_ok=True)
     if state.overlays:
         _apply_overlays(state, destination, adapter=adapter, fps=fps)
     if destination.stat().st_size == 0:

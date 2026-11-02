@@ -146,3 +146,58 @@ def test_export_mp4_without_progress_and_missing_output(
         export_mp4(state, tmp_path / "out.mp4", adapter=renderer)  # type: ignore[arg-type]
 
     assert renderer.progress_calls == 0
+
+
+def test_large_crossfade_timeline_uses_bounded_groups(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from videoflow.domain.state import VideoSegment
+
+    state = sample_state(tmp_path)
+    state.video_segments = [
+        VideoSegment(
+            clip_id=f"v{index}",
+            source_in_frame=0,
+            source_out_frame=10,
+            timeline_in_frame=index * 10,
+            timeline_out_frame=index * 10 + 10,
+            transition_out=Transition(type="crossfade", duration_frames=3)
+            if index in {0, 2}
+            else None,
+        )
+        for index in range(17)
+    ]
+    state.audio_segments = []
+    renderer = FakeRenderer()
+
+    # The segmented renderer needs a matching audio/video count; reuse the
+    # source ranges with equally short audio clips.
+    from videoflow.domain.state import AudioSegment
+
+    state.audio_segments = [
+        AudioSegment(
+            clip_id=f"v{index}",
+            source_in_sample=0,
+            source_out_sample=1600,
+            timeline_in_sample=index * 1600,
+            timeline_out_sample=index * 1600 + 1600,
+        )
+        for index in range(17)
+    ]
+
+    result = export_mp4(state, tmp_path / "crossfade.mp4", adapter=renderer)
+
+    assert result.is_file()
+    group_commands = [
+        command
+        for command in renderer.commands
+        if "-filter_complex" in command and "[c0]" in " ".join(command)
+    ]
+    assert len(group_commands) == 15  # two pair groups plus 15 singles
+    assert any("xfade=transition=fade" in " ".join(command) for command in group_commands)
+    assert any("-ss" in command for command in group_commands)
+    # Audio crossfades follow the video groups.
+    audio_command = next(
+        command for command in renderer.commands if "[aout]" in " ".join(command)
+    )
+    assert "acrossfade=d=" in " ".join(audio_command)

@@ -650,6 +650,11 @@ def test_preview_render_frame_and_waveform_paths(monkeypatch, tmp_path: Path) ->
     preview = job.output / "preview" / "preview.mp4"
     preview.parent.mkdir(parents=True, exist_ok=True)
     preview.write_bytes(b"preview")
+    from videoflow.application.previews import preview_key, preview_manifest_path
+
+    preview_manifest_path(job).write_text(
+        '{"key": "' + preview_key(job) + '", "revision": 1}', encoding="utf-8"
+    )
     cached = client.post(f"{base}/preview")
     assert cached.status_code == 200
     assert cached.json()["status"] == "ready"

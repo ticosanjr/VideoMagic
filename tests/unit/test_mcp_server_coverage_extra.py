@@ -1610,3 +1610,46 @@ def test_granular_validation_and_adapter_branches(
     )
     assert empty_model["ok"] is True
     assert empty_model["model"] == str(default_model)
+
+
+def test_mcp_step_and_batch_reject_invalid_port_wiring(harness: Harness) -> None:
+    server = harness.server
+    bad_recipe = {
+        "schema_version": 1,
+        "id": "bad_ports",
+        "name": "Bad ports",
+        "steps": [
+            {"id": "ingest", "type": "ingest", "params": {}},
+            {"id": "vad", "type": "audio.vad", "needs": ["ingest"], "params": {}},
+            {
+                "id": "edit",
+                "type": "edit.timeline",
+                "needs": ["vad"],
+                "inputs": {"nope": "ingest.media"},
+            },
+        ],
+    }
+
+    step = call(
+        server,
+        "videoflow_run_step",
+        {
+            "step_id": "edit",
+            "recipe": bad_recipe,
+            "source": str(harness.source),
+        },
+    )
+    assert step["code"] == "recipe_invalid"
+    assert "unknown input port" in step["message"]
+
+    batch = call(
+        server,
+        "videoflow_run_batch",
+        {
+            "recipe": bad_recipe,
+            "source_dir": str(harness.tmp),
+            "output_root": str(harness.tmp / "batch-out"),
+        },
+    )
+    assert batch["code"] == "recipe_invalid"
+    assert "unknown input port" in batch["message"]

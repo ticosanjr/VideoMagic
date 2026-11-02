@@ -894,6 +894,12 @@ Shorts renderer consumes every approved entry, in the saved order.
 `/preview/status` for progress and call `/preview/cancel` to stop. Previews apply
 `titles.ass`, `color/filters.json`, and `audio/master-filters.json` when present.
 
+Render and preview outputs carry a manifest keyed by the project state, filter
+files, titles, and proxy height. `/render/status` and `/preview/status` only
+return `ready` while that manifest matches; otherwise they report `idle` or
+`stale`, and the file endpoints refuse a non-current file. A render or preview
+that finishes after the timeline changed is never reported as current.
+
 Settings are stored in `$VIDEOWFLOW_HOME/settings.json`. Runtime/path changes are
 marked restart-required. Service definitions are stored in `videoflow.db`.
 Local models are registered in `models-local.json`. The support bundle is a ZIP
@@ -931,7 +937,8 @@ the enabled default followed by its fallback chain.
 
 - Send `If-None-Match` to get `304` when nothing changed.
 - Send `If-Match` with the last ETag on `PATCH /timeline`,
-  `PATCH /timeline/clip/{clip_id}`, and `PATCH /timeline/batch`.
+  `PATCH /timeline/clip/{clip_id}`, and `PATCH /timeline/batch`. The UI does
+  this and reloads on `412` instead of overwriting another window.
 - A stale value returns `412` with `code: "precondition_failed"` and a fresh
   ETag in `details.etag`; nothing is written.
 
@@ -944,6 +951,9 @@ the enabled default followed by its fallback chain.
 | GET | `/api/v1/projects/{id}` | Read one project |
 | PATCH | `/api/v1/projects/{id}` | Rename or change source/output |
 | DELETE | `/api/v1/projects/{id}` | Delete the record; media is untouched |
+
+Projects are local bookmarks for a source and output pair. They do not start
+runs on their own; recipe runs derive paths from the recipe and the job output.
 
 ## 10. Assistant
 

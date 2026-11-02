@@ -3,8 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from tests.contract.test_api_timeline import _client, _job
-from videoflow.application.previews import PreviewState
-from videoflow.application.render_queue import RenderState
+from videoflow.application.previews import (
+    PreviewState,
+    preview_key,
+    preview_manifest_path,
+)
+from videoflow.application.render_queue import RenderState, render_key
 
 
 def test_render_status_files_and_start(monkeypatch, tmp_path: Path) -> None:
@@ -21,6 +25,9 @@ def test_render_status_files_and_start(monkeypatch, tmp_path: Path) -> None:
     render = job.output / "render" / "timeline.mp4"
     render.parent.mkdir(parents=True, exist_ok=True)
     render.write_bytes(b"render")
+    (render.parent / "manifest.json").write_text(
+        '{"key": "' + render_key(job) + '"}', encoding="utf-8"
+    )
     assert client.get(f"{base}/status").json()["status"] == "ready"
     assert client.get(f"{base}/file").status_code == 200
 
@@ -53,6 +60,9 @@ def test_preview_status_download_and_creation(monkeypatch, tmp_path: Path) -> No
     preview = job.output / "preview" / "preview.mp4"
     preview.parent.mkdir(parents=True, exist_ok=True)
     preview.write_bytes(b"preview")
+    preview_manifest_path(job).write_text(
+        '{"key": "' + preview_key(job) + '", "revision": 1}', encoding="utf-8"
+    )
     assert client.get(f"{base}/status").json()["status"] == "ready"
     assert client.get(f"{base}/file").status_code == 200
     assert client.post(base).json()["status"] == "ready"
@@ -73,3 +83,47 @@ def test_preview_status_download_and_creation(monkeypatch, tmp_path: Path) -> No
     monkeypatch.setattr(routes_module, "build_preview", fake_build)
     assert client.post(f"{base}?force=true").status_code == 200
     assert forced.is_file()
+
+
+def test_render_status_requires_a_current_manifest(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    job = _job(manager, tmp_path)
+    base = f"/api/v1/jobs/{job.job_id}/render"
+    render = job.output / "render" / "timeline.mp4"
+    render.parent.mkdir(parents=True, exist_ok=True)
+    render.write_bytes(b"partial")
+
+    assert client.get(f"{base}/status").json()["status"] == "idle"
+    assert client.get(f"{base}/file").status_code == 404
+
+    (render.parent / "manifest.json").write_text('{"key": "old"}', encoding="utf-8")
+    assert client.get(f"{base}/status").json()["status"] == "idle"
+    assert client.get(f"{base}/file").status_code == 404
+
+    (render.parent / "manifest.json").write_text(
+        '{"key": "' + render_key(job) + '"}', encoding="utf-8"
+    )
+    assert client.get(f"{base}/status").json()["status"] == "ready"
+    assert client.get(f"{base}/file").status_code == 200
+
+
+def test_preview_status_requires_a_current_manifest(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    job = _job(manager, tmp_path)
+    base = f"/api/v1/jobs/{job.job_id}/preview"
+    preview = job.output / "preview" / "preview.mp4"
+    preview.parent.mkdir(parents=True, exist_ok=True)
+    preview.write_bytes(b"partial")
+
+    assert client.get(f"{base}/status").json()["status"] == "idle"
+    assert client.get(f"{base}/file").status_code == 404
+
+    preview_manifest_path(job).write_text('{"key": "old", "revision": 1}', encoding="utf-8")
+    assert client.get(f"{base}/status").json()["status"] == "idle"
+    assert client.get(f"{base}/file").status_code == 404
+
+    preview_manifest_path(job).write_text(
+        '{"key": "' + preview_key(job) + '", "revision": 1}', encoding="utf-8"
+    )
+    assert client.get(f"{base}/status").json()["status"] == "ready"
+    assert client.get(f"{base}/file").status_code == 200

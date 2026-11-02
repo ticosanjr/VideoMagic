@@ -561,6 +561,14 @@ def test_timeline_etag_and_if_match(monkeypatch, tmp_path: Path) -> None:
     assert stale.status_code == 412
     assert stale.json()["detail"]["code"] == "precondition_failed"
 
+    stale_batch = client.patch(
+        f"/api/v1/jobs/{job.job_id}/timeline/batch",
+        headers={"If-Match": '"timeline-999"'},
+        json={"edits": [{"clip_id": "v1", "action": "move", "delta_sec": 0.1}]},
+    )
+    assert stale_batch.status_code == 412
+    assert stale_batch.json()["detail"]["code"] == "precondition_failed"
+
     applied = client.patch(
         f"/api/v1/jobs/{job.job_id}/timeline",
         headers={"If-Match": etag},

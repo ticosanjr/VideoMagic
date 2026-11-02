@@ -11,6 +11,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
+import threading
 import wave
 from array import array
 from pathlib import Path
@@ -76,41 +77,71 @@ def compute_peaks(wav_path: Path, *, bucket_samples: int = 200) -> list[float]:
     return _normalise(peaks)
 
 
+_locks_guard = threading.Lock()
+_locks: dict[str, threading.Lock] = {}
+
+
+def _source_lock(path: Path) -> threading.Lock:
+    key = str(path.resolve())
+    with _locks_guard:
+        lock = _locks.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _locks[key] = lock
+        return lock
+
+
+def _read_cache(path: Path) -> dict[str, Any] | None:
+    cached = cache_path(path)
+    if not cached.is_file():
+        return None
+    try:
+        payload = json.loads(cached.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if payload.get("bucket_sec") == BUCKET_SEC and payload.get("peaks"):
+        return payload
+    return None
+
+
 def analyse_source(source: Path, *, refresh: bool = False) -> dict[str, Any]:
     """Return ``{bucket_sec, duration_sec, peaks}`` for one media file."""
 
     path = Path(source).expanduser()
     if not path.is_file():
         raise FileNotFoundError(str(path))
-    cached = cache_path(path)
-    if cached.is_file() and not refresh:
-        try:
-            payload = json.loads(cached.read_text(encoding="utf-8"))
-            if payload.get("bucket_sec") == BUCKET_SEC and payload.get("peaks"):
-                return payload
-        except (OSError, ValueError):
-            pass
-    import tempfile
+    if not refresh:
+        cached = _read_cache(path)
+        if cached is not None:
+            return cached
+    lock = _source_lock(path)
+    with lock:
+        if not refresh:
+            cached = _read_cache(path)
+            if cached is not None:
+                return cached
+        import tempfile
 
-    with tempfile.TemporaryDirectory() as scratch:
-        wav_path = Path(scratch) / "audio.wav"
-        adapter = FFmpegAdapter()
-        adapter.extract_pcm(path, wav_path, sample_rate=SAMPLE_RATE)
-        peaks = compute_peaks(wav_path, bucket_samples=int(SAMPLE_RATE * BUCKET_SEC))
-    cache = {
-        "source": str(path),
-        "bucket_sec": BUCKET_SEC,
-        "duration_sec": round(len(peaks) * BUCKET_SEC, 3),
-        "peaks": peaks[:MAX_BUCKETS],
-    }
-    try:
-        cached.parent.mkdir(parents=True, exist_ok=True)
-        temporary = cached.with_suffix(".json.tmp")
-        temporary.write_text(json.dumps(cache), encoding="utf-8")
-        temporary.replace(cached)
-    except OSError:
-        pass
-    return cache
+        with tempfile.TemporaryDirectory() as scratch:
+            wav_path = Path(scratch) / "audio.wav"
+            adapter = FFmpegAdapter()
+            adapter.extract_pcm(path, wav_path, sample_rate=SAMPLE_RATE)
+            peaks = compute_peaks(wav_path, bucket_samples=int(SAMPLE_RATE * BUCKET_SEC))
+        cache = {
+            "source": str(path),
+            "bucket_sec": BUCKET_SEC,
+            "duration_sec": round(len(peaks) * BUCKET_SEC, 3),
+            "peaks": peaks[:MAX_BUCKETS],
+        }
+        try:
+            target = cache_path(path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            temporary = target.with_suffix(".json.tmp")
+            temporary.write_text(json.dumps(cache), encoding="utf-8")
+            temporary.replace(target)
+        except OSError:
+            pass
+        return cache
 
 
 def peaks_for_range(

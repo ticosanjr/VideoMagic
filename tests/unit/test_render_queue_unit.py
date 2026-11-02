@@ -132,16 +132,11 @@ def test_work_reuses_a_matching_manifest(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     job = fake_job(tmp_path)
-    state_path = write_state(job)
+    write_state(job)
     destination = job.output / "render" / "timeline.mp4"
     destination.parent.mkdir(parents=True)
     destination.write_bytes(b"cached")
-    filters: list[str] = []
-    key = render_queue.hashlib.sha256(
-        state_path.read_bytes()
-        + json.dumps(filters).encode("utf-8")
-        + b"0"
-    ).hexdigest()
+    key = render_queue.render_key(job)
     (destination.parent / "manifest.json").write_text(
         json.dumps({"key": key}), encoding="utf-8"
     )
@@ -287,3 +282,37 @@ def test_cancel_only_marks_active_renders() -> None:
     item.status = "ready"
     assert queue.cancel("job-1") is item
     assert queue.cancel("missing") is None
+
+
+def test_render_manifest_is_not_current_after_a_timeline_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    job = fake_job(tmp_path)
+    write_state(job)
+    item = render_queue.RenderState(job_id="job-1")
+
+    def fake_export(_state: object, target: Path, **_kwargs: object) -> Path:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"render")
+        return target
+
+    monkeypatch.setattr(
+        render_queue,
+        "export_mp4_incremental",
+        lambda *a, **k: (_ for _ in ()).throw(NotEligible("no")),
+    )
+    monkeypatch.setattr(render_queue, "export_mp4", fake_export)
+    queue = render_queue.RenderQueue()
+    queue._work(job, item)
+
+    assert item.status == "ready"
+    assert queue.is_ready(job) is True
+
+    state_path = job.output / "project_state.json"
+    state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+    state_path.write_text(
+        state.model_copy(update={"revision": state.revision + 1}).model_dump_json(),
+        encoding="utf-8",
+    )
+
+    assert queue.is_ready(job) is False

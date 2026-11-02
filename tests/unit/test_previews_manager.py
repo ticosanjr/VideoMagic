@@ -277,3 +277,33 @@ def test_preview_cancel_sets_the_event_only_while_active() -> None:
     assert finished is item
     assert item.cancel_event.is_set()
     assert manager.cancel("missing") is None
+
+
+def test_preview_manifest_tracks_the_current_revision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    job = fake_job(tmp_path)
+    job.output.mkdir(parents=True)
+    state = ProjectState()
+    state_path = job.output / "project_state.json"
+    state_path.write_text(state.model_dump_json(), encoding="utf-8")
+    preview = job.output / "preview" / "preview.mp4"
+
+    def fake_build(job: object, **kwargs: object) -> Path:
+        preview.parent.mkdir(parents=True, exist_ok=True)
+        preview.write_bytes(b"preview")
+        return preview
+
+    monkeypatch.setattr(previews, "build_preview", fake_build)
+    manager = previews.PreviewManager()
+    item = previews.PreviewState(job_id="job-1")
+
+    manager._work(job, item)
+
+    assert item.status == "ready"
+    assert item.revision == state.revision
+    assert manager.is_ready(job) is True
+
+    newer = state.model_copy(update={"revision": state.revision + 1})
+    state_path.write_text(newer.model_dump_json(), encoding="utf-8")
+    assert manager.is_ready(job) is False

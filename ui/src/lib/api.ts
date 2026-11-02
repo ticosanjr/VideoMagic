@@ -1990,6 +1990,7 @@ export interface AssetRecord {
 
 export async function editTimeline(
   jobId: string,
+  revision: number | null | undefined,
   payload: {
     clip_id: string;
     action:
@@ -2016,12 +2017,14 @@ export async function editTimeline(
 }> {
   return request(`/api/v1/jobs/${encodeURIComponent(jobId)}/timeline`, {
     method: "PATCH",
+    headers: revision ? { "If-Match": `"timeline-${revision}"` } : undefined,
     body: JSON.stringify(payload)
   });
 }
 
 export async function editTimelineBatch(
   jobId: string,
+  revision: number | null | undefined,
   edits: Array<{
     clip_id: string;
     action:
@@ -2042,6 +2045,7 @@ export async function editTimelineBatch(
 ): Promise<{ ok: boolean; revision: number; applied: number }> {
   return request(`/api/v1/jobs/${encodeURIComponent(jobId)}/timeline/batch`, {
     method: "PATCH",
+    headers: revision ? { "If-Match": `"timeline-${revision}"` } : undefined,
     body: JSON.stringify({ edits })
   });
 }
@@ -2426,11 +2430,13 @@ export async function createJobPreview(
 
 export interface PreviewStatus {
   job_id: string;
-  status: "idle" | "queued" | "rendering" | "ready" | "failed" | "cancelled";
+  status: "idle" | "queued" | "rendering" | "ready" | "failed" | "cancelled" | "stale";
   percent: number;
   message?: string;
   error?: string;
   error_details?: Record<string, unknown>;
+  revision?: number;
+  ready?: boolean;
 }
 
 export interface RenderStatus {
@@ -2464,6 +2470,10 @@ export async function cancelRender(jobId: string): Promise<void> {
 
 export function renderFileUrl(jobId: string): string {
   return `/api/v1/jobs/${encodeURIComponent(jobId)}/render/file`;
+}
+
+export function previewFileUrl(jobId: string): string {
+  return `/api/v1/jobs/${encodeURIComponent(jobId)}/preview/file`;
 }
 
 export async function getPreviewStatus(jobId: string): Promise<PreviewStatus> {

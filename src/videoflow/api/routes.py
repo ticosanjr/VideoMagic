@@ -97,7 +97,12 @@ from videoflow.application.plugins import (
     set_plugin_enabled,
 )
 from videoflow.application.presets import get_preset, load_presets, save_preset
-from videoflow.application.previews import build_preview, previews
+from videoflow.application.previews import (
+    build_preview,
+    preview_paths,
+    previews,
+    write_preview_manifest,
+)
 from videoflow.application.project_templates import (
     ProjectTemplate,
     export_config,
@@ -189,6 +194,7 @@ from videoflow.application.sfx import delete_sfx, list_sfx, save_sfx
 from videoflow.application.short_editor import ShortEditOptions
 from videoflow.application.short_editor import edit_short as edit_short_service
 from videoflow.application.short_metadata import generate_short_metadata
+from videoflow.application.state_cache import load_state
 from videoflow.application.thumbnail import generate_short_thumbnail
 from videoflow.application.timeline_edit import TimelineEdit, apply_timeline_edit
 from videoflow.application.timeline_history import TimelineHistory
@@ -1141,6 +1147,7 @@ def register_routes(
             else:
                 recipe = get_recipe(str(request.recipe_id))
             recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+            validate_recipe_ports(recipe)
             recipe = resolve_recipe_paths(recipe, roots)
             batch = batch_manager.start(
                 source_dir,
@@ -2169,7 +2176,7 @@ def register_routes(
                     "status": state.to_dict(),
                     "url": f"/api/v1/jobs/{job_id}/preview/file",
                 }
-            if not force and preview.is_file():
+            if not force and previews.is_ready(job):
                 return {
                     "ok": True,
                     "status": "ready",
@@ -2177,6 +2184,7 @@ def register_routes(
                     "url": f"/api/v1/jobs/{job_id}/preview/file",
                 }
             build_preview(job)
+            write_preview_manifest(job)
         except VideoFlowError as exc:
             fail(exc)
         return {
@@ -2206,15 +2214,26 @@ def register_routes(
             fail(exc)
             raise
         state = renders.get(job_id)
-        output = renders.output_path(job)
+        ready = renders.is_ready(job)
         if state is None:
             return {
                 "ok": True,
-                "status": "ready" if output.is_file() else "idle",
-                "percent": 100 if output.is_file() else 0,
+                "status": "ready" if ready else "idle",
+                "percent": 100 if ready else 0,
             }
         payload = state.to_dict()
         payload["ok"] = True
+        payload["ready"] = ready
+        if state.status == "ready" and not ready:
+            payload["status"] = "failed"
+            payload["percent"] = 0
+            payload["message"] = "Render is stale"
+            payload["error"] = "The timeline changed during rendering. Render again."
+            payload["error_details"] = {
+                "ok": False,
+                "code": "render_stale",
+                "message": "The timeline changed during rendering. Render again.",
+            }
         return payload
 
     @app.post("/api/v1/jobs/{job_id}/render/cancel")
@@ -2234,7 +2253,7 @@ def register_routes(
         except VideoFlowError as exc:
             raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
         path = renders.output_path(job)
-        if not path.is_file():
+        if not renders.is_ready(job):
             raise HTTPException(
                 status_code=404,
                 detail={"ok": False, "code": "render_not_found", "message": job_id},
@@ -2249,15 +2268,20 @@ def register_routes(
             fail(exc)
             raise
         state = previews.get(job_id)
-        preview = job.output / "preview" / "preview.mp4"
+        ready = previews.is_ready(job)
         if state is None:
             return {
                 "ok": True,
-                "status": "ready" if preview.is_file() else "idle",
-                "percent": 100 if preview.is_file() else 0,
+                "status": "ready" if ready else "idle",
+                "percent": 100 if ready else 0,
             }
         payload = state.to_dict()
         payload["ok"] = True
+        payload["ready"] = ready
+        if state.status == "ready" and not ready:
+            payload["status"] = "stale"
+            payload["percent"] = 0
+            payload["message"] = "Preview is stale"
         return payload
 
     @app.post("/api/v1/jobs/{job_id}/preview/cancel")
@@ -2271,24 +2295,47 @@ def register_routes(
         return {"ok": True, "status": state.to_dict()}
 
     def _frame_target(
-        job: Any, state_path: Path, time_sec: float, height: int
-    ) -> tuple[Path, int]:
+        job: Any, revision: int, time_sec: float, height: int
+    ) -> Path:
         stamp = int(max(0.0, min(time_sec, 24 * 3600)) * 10)
         height = max(64, min(2160, int(height)))
-        try:
-            revision = ProjectState.model_validate_json(
-                state_path.read_text(encoding="utf-8")
-            ).revision
-        except (OSError, ValueError):
-            revision = 0
-        target = (
+        return (
             job.output
             / "preview"
             / "frames"
             / str(revision)
             / f"{stamp:08d}-{height}.jpg"
         )
-        return target, revision
+
+    def _frame_source(
+        state: ProjectState, moment: float, preview: Path | None
+    ) -> tuple[Path, float]:
+        """Map a timeline moment to the matching picture."""
+
+        if preview is not None:
+            return preview, moment
+        media = state.media_info
+        if media is None:
+            raise StateNotReadyError("The project has no media info.")
+        source = Path(media.source_path).expanduser()
+        if not source.is_file():
+            raise StateNotReadyError("The source media is not available.")
+        fps = media.fps_num / media.fps_den
+        frame = int(max(0.0, moment) * fps)
+        video = sorted(state.video_segments, key=lambda item: item.timeline_in_frame)
+        if not video:
+            return source, moment
+        chosen = video[-1]
+        for clip in video:
+            if clip.timeline_in_frame <= frame < clip.timeline_out_frame:
+                chosen = clip
+                break
+        offset = max(0, frame - chosen.timeline_in_frame)
+        source_frame = min(
+            chosen.source_out_frame - 1,
+            chosen.source_in_frame + offset,
+        )
+        return source, source_frame / fps
 
     @app.get("/api/v1/jobs/{job_id}/frames")
     def job_frames(
@@ -2304,15 +2351,9 @@ def register_routes(
             state_path = _timeline_state_path(job)
             if not state_path.is_file():
                 raise StateNotReadyError("The job has no project_state.json timeline.")
-            state = ProjectState.model_validate_json(
-                state_path.read_text(encoding="utf-8")
-            )
-            media = state.media_info
-            if media is None:
+            state = load_state(state_path)
+            if state.media_info is None:
                 raise StateNotReadyError("The project has no media info.")
-            source = Path(media.source_path).expanduser()
-            if not source.is_file():
-                raise StateNotReadyError("The source media is not available.")
         except VideoFlowError as exc:
             fail(exc)
             raise
@@ -2323,24 +2364,29 @@ def register_routes(
             ) from exc
         if height is None:
             height = int(load_settings().quality.proxy_height)
+        height = max(64, min(2160, int(height)))
+        preview = (
+            preview_paths(job)[1] if previews.is_ready(job) else None
+        )
         count = max(1, min(12, int(count)))
         step = 1.0 / max(1.0, min(30.0, float(fps)))
         frames: list[dict[str, object]] = []
         hits = 0
-        revision = 0
+        revision = state.revision
         for index in range(count):
             moment = max(0.0, start + index * step)
-            target, revision = _frame_target(job, state_path, moment, height)
+            target = _frame_target(job, revision, moment, height)
             cached = target.is_file()
             if cached:
                 hits += 1
             else:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 try:
+                    source, source_time = _frame_source(state, moment, preview)
                     FFmpegAdapter().render_thumbnail(
                         source,
                         target,
-                        time_sec=int(moment * 10) / 10,
+                        time_sec=int(source_time * 10) / 10,
                         height=height,
                     )
                 except VideoFlowError as exc:
@@ -2380,13 +2426,9 @@ def register_routes(
             state_path = _timeline_state_path(job)
             if not state_path.is_file():
                 raise StateNotReadyError("The job has no project_state.json timeline.")
-            state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
-            media = state.media_info
-            if media is None:
+            state = load_state(state_path)
+            if state.media_info is None:
                 raise StateNotReadyError("The project has no media info.")
-            source = Path(media.source_path).expanduser()
-            if not source.is_file():
-                raise StateNotReadyError("The source media is not available.")
         except VideoFlowError as exc:
             fail(exc)
             raise
@@ -2398,13 +2440,17 @@ def register_routes(
         if height is None:
             height = int(load_settings().quality.proxy_height)
         height = max(64, min(2160, int(height)))
-        target, _revision = _frame_target(job, state_path, time, height)
+        preview = (
+            preview_paths(job)[1] if previews.is_ready(job) else None
+        )
+        target = _frame_target(job, state.revision, time, height)
         if not target.is_file():
             target.parent.mkdir(parents=True, exist_ok=True)
             try:
                 moment = int(max(0.0, min(time, 24 * 3600)) * 10) / 10
+                source, source_time = _frame_source(state, moment, preview)
                 FFmpegAdapter().render_thumbnail(
-                    source, target, time_sec=moment, height=height
+                    source, target, time_sec=int(source_time * 10) / 10, height=height
                 )
             except VideoFlowError as exc:
                 fail(exc)
@@ -2423,7 +2469,7 @@ def register_routes(
         except VideoFlowError as exc:
             raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
         preview = job.output / "preview" / "preview.mp4"
-        if not preview.is_file():
+        if not previews.is_ready(job):
             raise HTTPException(
                 status_code=404,
                 detail={"ok": False, "code": "preview_not_found"},
@@ -2591,7 +2637,7 @@ def register_routes(
 
     @app.patch("/api/v1/jobs/{job_id}/timeline/batch")
     def edit_job_timeline_batch(
-        job_id: str, request: TimelineBatchRequest
+        job_id: str, request: TimelineBatchRequest, http_request: Request
     ) -> dict[str, object]:
         try:
             job = jobs.get(job_id)
@@ -2601,6 +2647,7 @@ def register_routes(
             current = ProjectState.model_validate_json(
                 state_path.read_text(encoding="utf-8")
             )
+            _require_if_match(http_request, current.revision)
             previous = current.model_copy(deep=True)
             working = current.model_copy(deep=True)
             for item in request.edits:
@@ -3224,7 +3271,7 @@ def register_routes(
             )
             if not state_path.is_file():
                 raise StateNotReadyError("The job has no project_state.json timeline.")
-            state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+            state = load_state(state_path)
             media = state.media_info
             if media is None:
                 raise StateNotReadyError("The project has no media info.")

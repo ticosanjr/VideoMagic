@@ -83,3 +83,39 @@ def test_cache_reuses_the_same_file(monkeypatch: pytest.MonkeyPatch, tmp_path: P
 
     assert first["peaks"] == second["peaks"]
     assert len(calls) == 1
+
+
+def test_concurrent_requests_decode_a_source_once(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import threading
+    import time
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
+    source = write_wav(tmp_path / "audio.wav", blocks=[(500, 400)])
+    calls: list[Path] = []
+    barrier = threading.Barrier(6)
+
+    def fake_extract(self, src, destination, *, sample_rate=16000):
+        calls.append(Path(src))
+        time.sleep(0.05)
+        destination = Path(destination)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        write_wav(destination, sample_rate=sample_rate, blocks=[(500, 400)])
+        return destination
+
+    monkeypatch.setattr(waveforms.FFmpegAdapter, "extract_pcm", fake_extract)
+    results: list[dict[str, object]] = []
+
+    def worker() -> None:
+        barrier.wait()
+        results.append(waveforms.analyse_source(source))
+
+    threads = [threading.Thread(target=worker) for _ in range(6)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert len(results) == 6
+    assert len(calls) == 1

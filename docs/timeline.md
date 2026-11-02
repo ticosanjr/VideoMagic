@@ -55,7 +55,10 @@ audio offset change.
 ## Waveforms
 
 `GET /api/v1/jobs/{id}/timeline/waveform?start=&end=&buckets=` returns normalised
-RMS peaks. `src/videoflow/application/waveforms.py`:
+RMS peaks for a **source-media** range. The UI maps each clip through
+`source_in_sec`/`source_out_sec`, so the drawing stays correct after cuts.
+Concurrent requests for the same source share one decode.
+`src/videoflow/application/waveforms.py`:
 
 1. decodes the source once to 4 kHz mono PCM;
 2. computes RMS over 50 ms buckets;
@@ -67,6 +70,8 @@ RMS peaks. `src/videoflow/application/waveforms.py`:
 
 The canvas requests roughly 60 bars per second, capped at 720 per clip, and
 falls back to a deterministic synthetic shape when the peaks are unavailable.
+`GET /frame?time=` takes a **timeline** moment, prefers the current preview file,
+and otherwise maps the moment to the clip's source frame.
 
 ## Virtualization
 

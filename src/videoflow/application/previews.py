@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -19,8 +21,50 @@ def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
+PREVIEW_CACHE_VERSION = 1
+
+
 def preview_paths(job: Any) -> tuple[Path, Path]:
     return job.output / "preview" / "timeline-preview.mp4", job.output / "preview" / "preview.mp4"
+
+
+def preview_manifest_path(job: Any) -> Path:
+    return job.output / "preview" / "manifest.json"
+
+
+def proxy_height() -> int:
+    try:
+        from videoflow.application.settings import load_settings
+
+        return int(load_settings().quality.proxy_height)
+    except Exception:
+        return 540
+
+
+def preview_key(job: Any) -> str:
+    state_path = Path(
+        str((job.result or {}).get("state_path") or job.output / "project_state.json")
+    )
+    if state_path.is_file():
+        state_bytes = state_path.read_bytes()
+        fallback = ""
+    else:
+        artifact = _fallback_source(job)
+        stat = artifact.stat()
+        state_bytes = b""
+        fallback = f"{artifact.resolve()}|{stat.st_size}|{stat.st_mtime_ns}"
+    ass_path = job.output / "titles.ass"
+    payload = {
+        "version": PREVIEW_CACHE_VERSION,
+        "audio_filters": _audio_filters(job) + _track_filters(job),
+        "video_filters": _video_filters(job) + _video_track_filters(job),
+        "ass_mtime": str(ass_path.stat().st_mtime_ns if ass_path.is_file() else 0),
+        "height": proxy_height(),
+        "fallback": fallback,
+    }
+    return hashlib.sha256(
+        state_bytes + json.dumps(payload, sort_keys=True).encode("utf-8")
+    ).hexdigest()
 
 
 def _fallback_source(job: Any) -> Path:
@@ -98,6 +142,7 @@ def build_preview(
     progress: Callable[[int, str], None] | None = None,
     should_cancel: Callable[[], bool] | None = None,
     cancel_event: Any | None = None,
+    state: ProjectState | None = None,
 ) -> Path:
     full, preview = preview_paths(job)
     preview.parent.mkdir(parents=True, exist_ok=True)
@@ -113,37 +158,106 @@ def build_preview(
 
             raise JobCancelledError("Preview cancelled")
 
-    if state_path.is_file():
-        report(5, "Reading project state")
-        state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
-        ass_path = job.output / "titles.ass"
-        report(20, "Rendering timeline")
-        adapter = FFmpegAdapter(cancel_event=cancel_event)
-        export_mp4(
-            state,
-            full,
-            adapter=adapter,
-            audio_filters=_audio_filters(job) + _track_filters(job),
-            video_filters=_video_filters(job) + _video_track_filters(job),
-            ass_path=ass_path if ass_path.is_file() else None,
-        )
-    else:
-        report(20, "Using the last MP4 artifact")
-        FFmpegAdapter(cancel_event=cancel_event).transcode_preview(
-            _fallback_source(job), full
-        )
+    height = proxy_height()
+    temporary = preview.with_name(f".{preview.stem}.{threading.get_ident()}.part.mp4")
     try:
-        from videoflow.application.settings import load_settings
+        if state_path.is_file():
+            report(5, "Reading project state")
+            loaded = state or ProjectState.model_validate_json(
+                state_path.read_text(encoding="utf-8")
+            )
+            ass_path = job.output / "titles.ass"
+            report(20, "Rendering timeline")
+            adapter = FFmpegAdapter(cancel_event=cancel_event)
+            export_mp4(
+                loaded,
+                full,
+                adapter=adapter,
+                audio_filters=_audio_filters(job) + _track_filters(job),
+                video_filters=_video_filters(job) + _video_track_filters(job),
+                ass_path=ass_path if ass_path.is_file() else None,
+            )
+        else:
+            report(20, "Using the last MP4 artifact")
+            FFmpegAdapter(cancel_event=cancel_event).transcode_preview(
+                _fallback_source(job), full
+            )
+        report(80, f"Building {height}p proxy")
+        FFmpegAdapter(cancel_event=cancel_event).transcode_preview(
+            full, temporary, width=height
+        )
+        temporary.replace(preview)
+        report(100, "Preview ready")
+        return preview
+    finally:
+        temporary.unlink(missing_ok=True)
+        full.unlink(missing_ok=True)
 
-        height = load_settings().quality.proxy_height
-    except Exception:
-        height = 540
-    report(80, f"Building {height}p proxy")
-    FFmpegAdapter(cancel_event=cancel_event).transcode_preview(
-        full, preview, width=height
+
+def _stat(path: Path) -> list[int] | None:
+    if not path.is_file():
+        return None
+    stat = path.stat()
+    return [stat.st_mtime_ns, stat.st_size]
+
+
+def preview_inputs(job: Any) -> dict[str, object]:
+    state_path = Path(
+        str((job.result or {}).get("state_path") or job.output / "project_state.json")
     )
-    report(100, "Preview ready")
-    return preview
+    ass_path = job.output / "titles.ass"
+    payload: dict[str, object] = {
+        "state": _stat(state_path),
+        "audio": _stat(job.output / "audio" / "master-filters.json"),
+        "video": _stat(job.output / "color" / "filters.json"),
+        "ass": _stat(ass_path),
+        "height": proxy_height(),
+    }
+    if not state_path.is_file():
+        try:
+            artifact = _fallback_source(job)
+            payload["fallback"] = _stat(artifact)
+        except StateNotReadyError:
+            payload["fallback"] = None
+    return payload
+
+
+def write_preview_manifest(
+    job: Any, *, key: str | None = None, revision: int | None = None
+) -> int:
+    """Record a finished preview so status and downloads can trust it."""
+
+    state_path = Path(
+        str((job.result or {}).get("state_path") or job.output / "project_state.json")
+    )
+    if revision is None:
+        revision = (
+            ProjectState.model_validate_json(
+                state_path.read_text(encoding="utf-8")
+            ).revision
+            if state_path.is_file()
+            else 0
+        )
+    if key is None:
+        key = preview_key(job)
+    manifest = preview_manifest_path(job)
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    temporary = manifest.with_name(f".{manifest.name}.{threading.get_ident()}.tmp")
+    temporary.write_text(
+        json.dumps(
+            {
+                "key": key,
+                "revision": revision,
+                "height": proxy_height(),
+                "inputs": preview_inputs(job),
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    temporary.replace(manifest)
+    return revision
 
 
 @dataclass
@@ -157,6 +271,8 @@ class PreviewState:
     started_at: str = field(default_factory=_now)
     finished_at: str = ""
     cancel_requested: bool = False
+    revision: int = 0
+    key: str = ""
     cancel_event: Any = field(default_factory=threading.Event, repr=False)
 
     def to_dict(self) -> dict[str, object]:
@@ -170,6 +286,7 @@ class PreviewState:
             "started_at": self.started_at,
             "finished_at": self.finished_at,
             "cancel_requested": self.cancel_requested,
+            "revision": self.revision,
         }
 
 
@@ -177,6 +294,29 @@ class PreviewManager:
     def __init__(self) -> None:
         self._items: dict[str, PreviewState] = {}
         self._lock = threading.Lock()
+
+    def is_ready(self, job: Any) -> bool:
+        preview = preview_paths(job)[1]
+        if not preview.is_file() or preview.stat().st_size == 0:
+            return False
+        try:
+            manifest = json.loads(
+                preview_manifest_path(job).read_text(encoding="utf-8")
+            )
+        except (OSError, ValueError):
+            return False
+        if not isinstance(manifest, dict):
+            return False
+        inputs = manifest.get("inputs")
+        if isinstance(inputs, dict):
+            try:
+                return inputs == preview_inputs(job)
+            except (OSError, VideoFlowError):
+                return False
+        try:
+            return manifest.get("key") == preview_key(job)
+        except (OSError, VideoFlowError):
+            return False
 
     def start(self, job: Any) -> PreviewState:
         with self._lock:
@@ -209,12 +349,46 @@ class PreviewManager:
                 return item.cancel_requested
 
         try:
+            state_path = Path(
+                str(
+                    (job.result or {}).get("state_path")
+                    or job.output / "project_state.json"
+                )
+            )
+            state = (
+                ProjectState.model_validate_json(
+                    state_path.read_text(encoding="utf-8")
+                )
+                if state_path.is_file()
+                else None
+            )
+            try:
+                key = preview_key(job)
+            except (OSError, VideoFlowError):
+                key = ""
+            revision = state.revision if state is not None else 0
+            with self._lock:
+                item.key = key
+                item.revision = revision
+            if self.is_ready(job):
+                with self._lock:
+                    item.status = "ready"
+                    item.percent = 100
+                    item.message = "Preview ready (cached)"
+                    item.finished_at = _now()
+                return
             build_preview(
                 job,
                 progress=progress,
                 should_cancel=cancelled,
                 cancel_event=item.cancel_event,
+                state=state,
             )
+            if cancelled():
+                preview_paths(job)[1].unlink(missing_ok=True)
+                raise RuntimeError("Preview cancelled")
+            if key:
+                write_preview_manifest(job, key=key, revision=revision)
         except Exception as exc:
             with self._lock:
                 if item.cancel_requested:

@@ -56,6 +56,15 @@ def _track_filters(job: Any) -> list[str]:
     return ["volume=0"]
 
 
+RENDER_CACHE_VERSION = 1
+
+
+def _state_path(job: Any) -> Path:
+    return Path(
+        str((job.result or {}).get("state_path") or job.output / "project_state.json")
+    )
+
+
 def _filters(path: Path) -> list[str]:
     if not path.is_file():
         return []
@@ -64,6 +73,76 @@ def _filters(path: Path) -> list[str]:
     except (OSError, ValueError):
         return []
     return [str(item) for item in payload.get("filters", []) if str(item)]
+
+
+def _render_inputs(job: Any) -> tuple[list[str], list[str], Path]:
+    audio_filters = _filters(job.output / "audio" / "master-filters.json") + _track_filters(job)
+    video_filters = _filters(job.output / "color" / "filters.json") + _video_track_filters(job)
+    ass_path = job.output / "titles.ass"
+    return audio_filters, video_filters, ass_path
+
+
+def render_key(job: Any) -> str:
+    """Hash everything that changes the rendered frames or audio."""
+
+    state_path = _state_path(job)
+    if not state_path.is_file():
+        raise StateNotReadyError("The job has no project_state.json to render.")
+    audio_filters, video_filters, ass_path = _render_inputs(job)
+    payload = {
+        "version": RENDER_CACHE_VERSION,
+        "audio_filters": audio_filters,
+        "video_filters": video_filters,
+        "ass_mtime": str(ass_path.stat().st_mtime_ns if ass_path.is_file() else 0),
+    }
+    return hashlib.sha256(
+        state_path.read_bytes() + json.dumps(payload, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+
+def _manifest_path(output: Path) -> Path:
+    return output.parent / "manifest.json"
+
+
+def _read_manifest(path: Path) -> dict[str, object]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _stat(path: Path) -> list[int] | None:
+    if not path.is_file():
+        return None
+    stat = path.stat()
+    return [stat.st_mtime_ns, stat.st_size]
+
+
+def _inputs_signature(job: Any) -> dict[str, object]:
+    state_path = _state_path(job)
+    audio_filters, video_filters, ass_path = _render_inputs(job)
+    return {
+        "state": _stat(state_path),
+        "audio": _stat(job.output / "audio" / "master-filters.json"),
+        "video": _stat(job.output / "color" / "filters.json"),
+        "ass": _stat(ass_path),
+        "audio_filters": audio_filters,
+        "video_filters": video_filters,
+    }
+
+
+def _write_manifest(path: Path, key: str, source: Path, inputs: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{threading.get_ident()}.tmp")
+    temporary.write_text(
+        json.dumps(
+            {"key": key, "source": str(source), "inputs": inputs}, indent=2
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    temporary.replace(path)
 
 
 @dataclass
@@ -102,6 +181,22 @@ class RenderQueue:
     def output_path(self, job: Any) -> Path:
         return job.output / "render" / "timeline.mp4"
 
+    def is_ready(self, job: Any) -> bool:
+        output = self.output_path(job)
+        if not output.is_file() or output.stat().st_size == 0:
+            return False
+        manifest = _read_manifest(_manifest_path(output))
+        inputs = manifest.get("inputs")
+        if isinstance(inputs, dict):
+            try:
+                return inputs == _inputs_signature(job)
+            except (OSError, VideoFlowError):
+                return False
+        try:
+            return manifest.get("key") == render_key(job)
+        except (OSError, VideoFlowError):
+            return False
+
     def start(self, job: Any) -> RenderState:
         with self._lock:
             active = self._items.get(str(job.job_id))
@@ -137,12 +232,7 @@ class RenderQueue:
                 item.status = "rendering"
                 item.message = "Starting render"
             try:
-                state_path = Path(
-                    str(
-                        (job.result or {}).get("state_path")
-                        or job.output / "project_state.json"
-                    )
-                )
+                state_path = _state_path(job)
                 if not state_path.is_file():
                     raise StateNotReadyError("The job has no project_state.json to render.")
                 state = ProjectState.model_validate_json(
@@ -152,50 +242,33 @@ class RenderQueue:
                     raise JobCancelledError("Render cancelled")
                 progress(15, "Rendering timeline")
                 destination = self.output_path(job)
-                ass_path = job.output / "titles.ass"
-                filters = _filters(
-                    job.output / "audio" / "master-filters.json"
-                ) + _track_filters(job)
-                key = hashlib.sha256(
-                    state_path.read_bytes()
-                    + json.dumps(filters).encode("utf-8")
-                    + str(ass_path.stat().st_mtime_ns if ass_path.is_file() else 0).encode()
-                ).hexdigest()
-                manifest_path = destination.parent / "manifest.json"
-                try:
-                    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-                except (OSError, ValueError):
-                    manifest = {}
-                if (
-                    isinstance(manifest, dict)
-                    and manifest.get("key") == key
-                    and destination.is_file()
-                ):
+                audio_filters, video_filters, ass_path = _render_inputs(job)
+                key = render_key(job)
+                if self.is_ready(job):
                     with self._lock:
                         item.status = "ready"
                         item.percent = 100
                         item.message = "Render ready (cached)"
                         item.finished_at = _now()
                     return
-                manifest_path.parent.mkdir(parents=True, exist_ok=True)
-                manifest_path.write_text(
-                    json.dumps({"key": key, "source": str(state_path)}), encoding="utf-8"
-                )
                 adapter = FFmpegAdapter(cancel_event=item.cancel_event)
 
                 def frame_progress(percent: int) -> None:
                     progress(15 + int(max(0, min(100, percent)) * 0.8), f"Rendering {percent}%")
 
-                video_filters = _filters(
-                    job.output / "color" / "filters.json"
-                ) + _video_track_filters(job)
-                if not filters and not video_filters and not ass_path.is_file():
+                if not audio_filters and not video_filters and not ass_path.is_file():
                     try:
                         export_mp4_incremental(
                             state,
                             destination,
                             adapter=adapter,
                             progress=frame_progress,
+                        )
+                        _write_manifest(
+                            _manifest_path(destination),
+                            key,
+                            state_path,
+                            _inputs_signature(job),
                         )
                         progress(100, "Render ready")
                         with self._lock:
@@ -211,7 +284,7 @@ class RenderQueue:
                     state,
                     destination,
                     adapter=adapter,
-                    audio_filters=filters,
+                    audio_filters=audio_filters,
                     video_filters=video_filters,
                     ass_path=ass_path if ass_path.is_file() else None,
                     progress=frame_progress,
@@ -219,7 +292,19 @@ class RenderQueue:
                 if cancelled():
                     destination.unlink(missing_ok=True)
                     raise JobCancelledError("Render cancelled")
+                _write_manifest(
+                    _manifest_path(destination),
+                    key,
+                    state_path,
+                    _inputs_signature(job),
+                )
                 progress(100, "Render ready")
+                with self._lock:
+                    item.status = "ready"
+                    item.percent = 100
+                    item.message = "Render ready"
+                    item.finished_at = _now()
+                return
             except Exception as exc:
                 with self._lock:
                     if item.cancel_requested:
@@ -238,11 +323,6 @@ class RenderQueue:
                 if item.cancel_requested:
                     self.output_path(job).unlink(missing_ok=True)
                 return
-        with self._lock:
-            item.status = "ready"
-            item.percent = 100
-            item.message = "Render ready"
-            item.finished_at = _now()
 
     def cancel(self, job_id: str) -> RenderState | None:
         with self._lock:

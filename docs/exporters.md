@@ -35,6 +35,11 @@ Every exporter runs the same checks before writing:
 6. The output directory exists or is created, and the write is atomic (temp file,
    then replace).
 
+Long timelines render video in groups: hard cuts are one clip per group and
+contiguous crossfades are one bounded `xfade` group. Audio is rendered from
+seeked per-clip inputs, then muxed and finished. Outputs are written to a
+temporary file and replaced only on success.
+
 Failure is an `export_failed` error, not a partially valid file.
 
 ## 2. Audio offsets

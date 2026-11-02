@@ -41,7 +41,10 @@ const timeline = {
     { id: "v1", start_sec: 0, end_sec: 3, source_in_frame: 0, source_out_frame: 75, zoom: 1, keyframes: 0, transition: "crossfade" },
     { id: "v2", start_sec: 3, end_sec: 8, source_in_frame: 75, source_out_frame: 200, zoom: 1.1, keyframes: 2, transition: null }
   ],
-  audio: [{ id: "v1", start_sec: 0, end_sec: 3 }, { id: "v2", start_sec: 3, end_sec: 8 }],
+  audio: [
+    { id: "v1", start_sec: 0, end_sec: 3, source_in_sec: 10.5, source_out_sec: 13.5 },
+    { id: "v2", start_sec: 3, end_sec: 8, source_in_sec: 40, source_out_sec: 45 }
+  ],
   captions: [
     { id: 0, start_sec: 0.2, end_sec: 1.4, text: "First caption", speaker: 0 },
     { id: 1, start_sec: 1.5, end_sec: 2.8, text: "Second caption", speaker: 0 }
@@ -223,6 +226,52 @@ test("requests real waveform peaks for every audio clip", async ({ page }) => {
 
   await expect.poll(() => requests.length).toBeGreaterThan(0);
   expect(requests[0]).toContain("buckets=");
+  await expect.poll(() => requests.some((url) => url.includes("start=10.5"))).toBe(true);
+  await expect.poll(() => requests.some((url) => url.includes("start=40"))).toBe(true);
+});
+
+test("sends If-Match with the loaded timeline revision", async ({ page }) => {
+  let ifMatch = "";
+  await page.route("**/api/v1/jobs/job-1/timeline", async (route) => {
+    if (route.request().method() === "PATCH") {
+      ifMatch = route.request().headers()["if-match"] ?? "";
+      return route.fulfill({
+        json: { ok: true, revision: 4, can_undo: true, can_redo: false, warning: "Re-run export." }
+      });
+    }
+    return route.fulfill({ json: timeline });
+  });
+
+  const canvas = page.getByTestId("timeline-canvas");
+  await canvas.click({ position: { x: 150, y: 80 } });
+  await page.getByRole("button", { name: "Move", exact: true }).click();
+
+  await expect.poll(() => ifMatch).toBe('"timeline-3"');
+});
+
+test("reuses a current preview and an existing render", async ({ page }) => {
+  await page.route("**/api/v1/jobs/job-1/preview/status", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        job_id: "job-1",
+        status: "ready",
+        percent: 100,
+        revision: 3,
+        ready: true
+      }
+    })
+  );
+  await page.route("**/api/v1/jobs/job-1/render/status", (route) =>
+    route.fulfill({
+      json: { ok: true, job_id: "job-1", status: "ready", percent: 100, ready: true }
+    })
+  );
+
+  await page.reload();
+  await expect(page.getByTestId("timeline-canvas")).toBeVisible();
+  await expect(page.locator("video")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Download" })).toBeVisible();
 });
 
 test("marks the preview as outdated after an edit", async ({ page }) => {

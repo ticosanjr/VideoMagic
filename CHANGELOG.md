@@ -3,6 +3,47 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.25.1] - 2026-11-02
+
+### Fixed
+
+- **Rendered files are current or absent.** MP4 and preview outputs are written
+  atomically and only become `ready` with a manifest matching the project
+  state, filter files, titles, and proxy height. A failed, cancelled, or stale
+  render can no longer be served as current after a restart.
+- **Previews never hide newer edits.** The preview manifest records the timeline
+  revision; the UI keeps the preview marked outdated and queues another pass
+  when the timeline changed during rendering. `WaveformStrip` reloads when the
+  preview URL changes.
+- **Waveforms align after cuts.** The timeline asks for the clip's source range
+  (`source_in_sec`/`source_out_sec`) instead of its timeline position.
+- **Frame previews use the edited picture.** `/frame` now maps a timeline
+  moment to the matching source frame, or reads the current preview, instead of
+  rendering the raw source at the same timestamp.
+- **Long renders no longer report a false timeout.** The UI follows render and
+  preview status for up to two hours, matching the server's FFmpeg budget.
+- **Concurrent tabs cannot overwrite each other.** Timeline edits send
+  `If-Match`; the UI reloads on `412`. Batch edits now enforce the same check.
+- **Batch and MCP step runs validate ports.** Invalid wiring is rejected before
+  a batch or step starts.
+- **Long crossfade timelines render in bounded groups.** Contiguous crossfades
+  are rendered as cached groups with a separate audio graph, followed by the
+  finishing pass. The monolithic graph is no longer used for long timelines.
+- **Segment and group caches are atomic** and keyed by a cache version, so a
+  crashed render cannot poison later renders.
+
+### Changed
+
+- Segment rendering seeks the source before decoding each clip, removing the
+  quadratic prefix decode. Repeated renders reuse unchanged segments.
+- Project pages are described as source/output bookmarks; the inert “Open run”
+  action was removed.
+
+### Notes
+
+- Full-tree coverage is 96.4%.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.25.0] - 2026-10-27
 
 ### Changed

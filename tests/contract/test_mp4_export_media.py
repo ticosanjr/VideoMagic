@@ -170,3 +170,124 @@ def test_segmented_export_keeps_filters_titles_and_overlays(tmp_path: Path) -> N
     ]
     assert any("overlay=" in graph for graph in graphs)
     assert any("ass=" in graph for graph in graphs)
+
+
+def test_long_crossfade_timeline_uses_segmented_groups(tmp_path: Path) -> None:
+    from videoflow.domain.state import Transition
+
+    media = FFmpegAdapter().probe(source(tmp_path))
+    state = state_for(media, clips=18)
+    for clip in state.video_segments[:-1]:
+        clip.transition_out = Transition(type="crossfade", duration_frames=2)
+    adapter = RecordingAdapter()
+
+    result = export_mp4(state, tmp_path / "crossfade.mp4", adapter=adapter)
+
+    assert result.is_file()
+    group_commands = [
+        command
+        for command in adapter.commands
+        if "-filter_complex" in command and "[c0]" in " ".join(command)
+    ]
+    assert group_commands
+    assert any("xfade=transition=fade" in " ".join(command) for command in group_commands)
+    assert any("-ss" in command for command in group_commands)
+    rendered = FFmpegAdapter().probe(result)
+    assert abs(rendered.duration_frames - 74) <= 3
+    assert rendered.audio_sample_rate == 48000
+
+
+def test_crossfade_timeline_keeps_finishing_filters(tmp_path: Path) -> None:
+    from videoflow.domain.state import Transition
+
+    media = FFmpegAdapter().probe(source(tmp_path))
+    state = state_for(media, clips=6)
+    for clip in state.video_segments[:-1]:
+        clip.transition_out = Transition(type="crossfade", duration_frames=2)
+    overlay = tmp_path / "overlay.png"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=red:size=32x32",
+            "-frames:v",
+            "1",
+            str(overlay),
+        ],
+        check=True,
+    )
+    state.overlays = [
+        OverlayClip(
+            overlay_id="o1",
+            path=str(overlay),
+            start_frame=0,
+            duration_frames=12,
+            opacity=0.7,
+        )
+    ]
+    ass = tmp_path / "titles.ass"
+    ass.write_text(
+        build_ass([(0.0, 1.0, "Crossfade")], style=CaptionStyle(), width=640, height=360),
+        encoding="utf-8",
+    )
+    adapter = RecordingAdapter()
+
+    result = export_mp4(
+        state,
+        tmp_path / "crossfade-finished.mp4",
+        adapter=adapter,
+        video_filters=["eq=contrast=1.1"],
+        audio_filters=["volume=0.9"],
+        ass_path=ass,
+    )
+
+    assert result.is_file()
+    rendered = FFmpegAdapter().probe(result)
+    assert abs(rendered.duration_frames - 26) <= 3
+    graphs = [
+        command[command.index("-filter_complex") + 1]
+        for command in adapter.commands
+        if "-filter_complex" in command
+    ]
+    assert any("overlay=" in graph for graph in graphs)
+    assert any("ass=" in graph for graph in graphs)
+
+
+def test_incremental_export_seeks_and_reuses_segments(tmp_path: Path) -> None:
+    from videoflow.exporters.incremental import export_mp4_incremental
+
+    media = FFmpegAdapter().probe(source(tmp_path))
+    state = state_for(media, clips=20)
+    for index, clip in enumerate(state.video_segments):
+        clip.source_in_frame = index * 3
+        clip.source_out_frame = index * 3 + 6
+    for index, clip in enumerate(state.audio_segments):
+        clip.source_in_sample = index * 4800
+        clip.source_out_sample = index * 4800 + 9600
+    adapter = RecordingAdapter()
+
+    first = export_mp4_incremental(
+        state, tmp_path / "incremental.mp4", adapter=adapter
+    )
+
+    assert first.is_file()
+    segment_commands = [command for command in adapter.commands if "-ss" in command]
+    assert len(segment_commands) == 20
+    for command in segment_commands:
+        assert command.index("-ss") < command.index("-i")
+    rendered = FFmpegAdapter().probe(first)
+    assert abs(rendered.duration_frames - 120) <= 2
+
+    cached_adapter = RecordingAdapter()
+    second = export_mp4_incremental(
+        state, tmp_path / "incremental.mp4", adapter=cached_adapter
+    )
+
+    assert second.is_file()
+    assert not [command for command in cached_adapter.commands if "-ss" in command]

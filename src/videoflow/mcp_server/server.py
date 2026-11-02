@@ -2430,6 +2430,7 @@ def build_server(
             resolved_output = resolve_allowed(output_path, roots)
             parsed = resolve_recipe_paths(parsed, roots)
             parsed.validate_graph(step_types(), requires_by_type=requirements_by_type())
+            validate_recipe_ports(parsed)
             if step_id not in {step.id for step in parsed.enabled_steps()}:
                 return _error("unknown_step", f"Unknown or disabled step: {step_id}")
             job = manager.start(
@@ -2474,6 +2475,7 @@ def build_server(
             resolved_output = resolve_allowed(Path(output_root), roots)
             parsed = resolve_recipe_paths(parsed, roots)
             parsed.validate_graph(step_types(), requires_by_type=requirements_by_type())
+            validate_recipe_ports(parsed)
             batch = batch_manager.start(
                 resolved_source,
                 resolved_output,

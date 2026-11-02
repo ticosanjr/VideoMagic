@@ -168,3 +168,38 @@ def test_publish_targets_queue_and_short_errors(monkeypatch, tmp_path: Path) -> 
         f"/api/v1/jobs/{job.job_id}/shorts/0/publish",
         json={"target": "demo"},
     ).status_code in {404, 409}
+
+
+def test_batch_rejects_invalid_port_wiring(monkeypatch, tmp_path: Path) -> None:
+    client, _manager = _client(monkeypatch, tmp_path)
+    source_dir = tmp_path / "batch-invalid"
+    source_dir.mkdir()
+    (source_dir / "a.mp4").write_bytes(b"x")
+    bad_recipe = {
+        "schema_version": 1,
+        "id": "bad_ports",
+        "name": "Bad ports",
+        "steps": [
+            {"id": "ingest", "type": "ingest", "params": {}},
+            {"id": "vad", "type": "audio.vad", "needs": ["ingest"], "params": {}},
+            {
+                "id": "edit",
+                "type": "edit.timeline",
+                "needs": ["vad"],
+                "inputs": {"nope": "ingest.media"},
+            },
+        ],
+    }
+
+    response = client.post(
+        "/api/v1/batches",
+        json={
+            "source_dir": str(source_dir),
+            "output_root": str(tmp_path / "batch-out"),
+            "recipe": bad_recipe,
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "recipe_invalid"
+    assert "unknown input port" in response.json()["detail"]["message"]

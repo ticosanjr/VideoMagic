@@ -61,8 +61,8 @@
 
 <section class="space-y-4" data-testid="projects-panel">
   <header>
-    <h2 class="flex items-center gap-1.5 text-lg font-semibold text-white">Projects <HelpTip label="Projects" body="A project groups a source file, an output folder, and recent runs. Deleting a project never deletes media." doc="docs/api.md" /></h2>
-    <p class="mt-1 text-xs text-neutral-500">Reusable workspaces for interviews, series, and batches.</p>
+    <h2 class="flex items-center gap-1.5 text-lg font-semibold text-white">Projects <HelpTip label="Projects" body="A project is a local bookmark for a source file and an output folder. Deleting a project never deletes media." doc="docs/api.md" /></h2>
+    <p class="mt-1 text-xs text-neutral-500">Saved source and output pairs for interviews, series, and batches.</p>
   </header>
 
   <ErrorBanner message={error} title="Project error" onDismiss={() => (error = "")} testId="projects-error" />
@@ -75,7 +75,7 @@
   </form>
 
   {#if !projects.length}
-    <EmptyState title="No projects yet" description="Create one to reuse a source and output folder across recipes and runs." />
+    <EmptyState title="No projects yet" description="Create one to keep a source and output folder together." />
   {:else}
     <ul class="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
       {#each projects as project (project.id)}
@@ -83,11 +83,8 @@
           <p class="truncate text-sm font-medium text-neutral-100">{project.name}</p>
           <p class="mt-1 truncate font-mono text-[10px] text-neutral-500" title={project.source}>{project.source || "no source"}</p>
           <p class="truncate font-mono text-[10px] text-neutral-500" title={project.output}>{project.output || "no output"}</p>
-          <p class="mt-1 text-[10px] text-neutral-600">updated {project.updated_at}{project.last_job_id ? ` · run ${project.last_job_id.slice(0, 8)}` : ""}</p>
+          <p class="mt-1 text-[10px] text-neutral-600">saved {project.updated_at}</p>
           <div class="mt-3 flex flex-wrap gap-1.5">
-            {#if project.last_job_id}
-              <button type="button" onclick={() => (window.location.hash = "#jobs")} class="rounded-lg border border-white/10 px-2.5 py-1 text-[11px] text-neutral-300">Open run</button>
-            {/if}
             <button type="button" onclick={() => void remove(project)} class="rounded-lg border border-rose-500/20 px-2.5 py-1 text-[11px] text-rose-300">Delete</button>
           </div>
         </li>

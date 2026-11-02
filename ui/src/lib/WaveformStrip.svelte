@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount } from "svelte";
+  import { onDestroy } from "svelte";
 
   let {
     url = "",
@@ -17,16 +17,22 @@
   let player: any = null;
   let loading = $state(false);
   let error = $state("");
+  let loadedUrl = "";
+  let disposed = false;
+  let loadToken = 0;
 
   const percent = $derived(Math.max(0, Math.min(100, (playhead / Math.max(0.001, duration)) * 100)));
 
   async function load(target: string) {
     if (!target || !container) return;
+    const token = ++loadToken;
     error = "";
     loading = true;
     try {
       const WaveSurfer = (await import("wavesurfer.js")).default;
+      if (disposed || token !== loadToken) return;
       player?.destroy();
+      player = null;
       player = WaveSurfer.create({
         container,
         url: target,
@@ -53,17 +59,24 @@
     }
   }
 
-  onMount(() => {
-    if (url) void load(url);
-  });
-
   onDestroy(() => {
+    disposed = true;
     player?.destroy();
     player = null;
   });
 
   $effect(() => {
-    if (url && player === null) void load(url);
+    const next = url;
+    if (next === loadedUrl) return;
+    loadedUrl = next;
+    if (!next) {
+      player?.destroy();
+      player = null;
+      error = "";
+      loading = false;
+      return;
+    }
+    void load(next);
   });
 </script>
 
