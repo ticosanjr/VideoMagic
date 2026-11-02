@@ -1875,6 +1875,18 @@ export interface TimelineInactive {
   audio_end_sec: number;
 }
 
+export interface TimelineSnapshot {
+  id: string;
+  name: string;
+  created_at: string;
+  revision: number;
+  duration_sec: number;
+  source_path: string;
+  source_fingerprint: string;
+  path: string;
+  job_id: string;
+}
+
 export interface TimelineOverlay {
   overlay_id: string;
   asset_id: string;
@@ -2238,6 +2250,42 @@ export async function getClipWaveform(
 
 export async function getTimeline(jobId: string): Promise<TimelineData> {
   return request<TimelineData>(`/api/v1/jobs/${encodeURIComponent(jobId)}/timeline`);
+}
+
+export async function listTimelineSnapshots(): Promise<TimelineSnapshot[]> {
+  const response = await request<{ ok: boolean; timelines: TimelineSnapshot[] }>(
+    "/api/v1/timelines"
+  );
+  return response.timelines;
+}
+
+export async function saveTimelineSnapshot(
+  jobId: string,
+  name: string
+): Promise<TimelineSnapshot> {
+  const response = await request<{ ok: boolean; timeline: TimelineSnapshot }>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/timeline/snapshots`,
+    { method: "POST", body: JSON.stringify({ name }) }
+  );
+  return response.timeline;
+}
+
+export async function loadTimelineSnapshot(
+  snapshotId: string,
+  jobId: string
+): Promise<number> {
+  const response = await request<{ ok: boolean; revision: number }>(
+    `/api/v1/timelines/${encodeURIComponent(snapshotId)}/load`,
+    { method: "POST", body: JSON.stringify({ job_id: jobId }) }
+  );
+  return response.revision;
+}
+
+export async function deleteTimelineSnapshot(snapshotId: string): Promise<void> {
+  await request<{ ok: boolean }>(
+    `/api/v1/timelines/${encodeURIComponent(snapshotId)}`,
+    { method: "DELETE" }
+  );
 }
 
 export async function listAssets(q = "", kind = ""): Promise<AssetRecord[]> {

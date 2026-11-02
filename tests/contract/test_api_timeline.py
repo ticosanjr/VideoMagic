@@ -642,6 +642,43 @@ def test_timeline_recut_moves_an_inactive_cut_boundary(monkeypatch, tmp_path: Pa
     assert payload["inactive"][0]["video_start_sec"] == 1.0
 
 
+def test_timeline_snapshots_save_load_and_delete(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
+    (tmp_path / "source.mp4").write_bytes(b"fixture")
+    client, manager = _client(monkeypatch, tmp_path)
+    job = _job(manager, tmp_path)
+    base = f"/api/v1/jobs/{job.job_id}/timeline"
+
+    saved = client.post(f"{base}/snapshots", json={"name": "Before edit"})
+    assert saved.status_code == 201, saved.text
+    snapshot = saved.json()["timeline"]
+    assert snapshot["name"] == "Before edit"
+    assert (tmp_path / "home" / "timelines" / f"{snapshot['id']}.json").is_file()
+
+    listed = client.get("/api/v1/timelines")
+    assert listed.status_code == 200
+    assert listed.json()["timelines"][0]["id"] == snapshot["id"]
+
+    deactivated = client.patch(base, json={"clip_id": "v2", "action": "deactivate"})
+    assert deactivated.status_code == 200, deactivated.text
+    assert client.get(base).json()["inactive"]
+
+    loaded = client.post(
+        f"/api/v1/timelines/{snapshot['id']}/load",
+        json={"job_id": str(job.job_id)},
+    )
+    assert loaded.status_code == 200, loaded.text
+    assert loaded.json()["revision"] == 3
+    payload = client.get(base).json()
+    assert payload["inactive"] == []
+    assert [clip["id"] for clip in payload["video"]] == ["v1", "v2"]
+    assert payload["can_undo"] is True
+
+    removed = client.delete(f"/api/v1/timelines/{snapshot['id']}")
+    assert removed.status_code == 200, removed.text
+    assert client.get("/api/v1/timelines").json()["timelines"] == []
+
+
 def test_timeline_reports_live_eligibility_and_source_stream(monkeypatch, tmp_path: Path) -> None:
     client, manager = _client(monkeypatch, tmp_path)
     (tmp_path / "source.mp4").write_bytes(b"fixture")

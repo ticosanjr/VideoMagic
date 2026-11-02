@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
+  import Icon from "$lib/ui/Icon.svelte";
   import {
     jobOverlayFileUrl,
     jobSourceFileUrl,
@@ -10,10 +11,12 @@
   let {
     jobId,
     timeline,
+    rate = $bindable(1),
     ontime
   }: {
     jobId: string;
     timeline: TimelineData;
+    rate?: number;
     ontime?: (sourceSec: number, outputSec: number) => void;
   } = $props();
 
@@ -97,6 +100,17 @@
     return audioMuted ? 0 : 1;
   }
 
+  function applyRate() {
+    [videoA, videoB, audioA, audioB].forEach((element) => {
+      if (element) element.playbackRate = rate;
+    });
+  }
+
+  function changeRate(value: number) {
+    rate = Math.max(1, Math.min(3, Math.round(value * 2) / 2));
+    applyRate();
+  }
+
   function syncAudio(
     element: HTMLAudioElement | null,
     sourcePosition: number,
@@ -153,11 +167,13 @@
       Math.min(transition.duration, transition.duration - Math.max(0, remaining))
     );
     back.currentTime = Math.min(next.end, next.start + elapsed);
+    applyRate();
     void back.play().catch(() => undefined);
     const incomingAudio = backAudio();
     if (incomingAudio) {
       seekAudio(incomingAudio, back.currentTime, next);
       incomingAudio.volume = 0;
+      incomingAudio.playbackRate = rate;
       void incomingAudio.play().catch(() => undefined);
     }
   }
@@ -187,10 +203,12 @@
     blackOpacity = 0;
     if (incomingVideo) {
       incomingVideo.volume = 1;
+      incomingVideo.playbackRate = rate;
       void incomingVideo.play().catch(() => undefined);
     }
     if (incomingAudio) {
       incomingAudio.volume = gain();
+      incomingAudio.playbackRate = rate;
       void incomingAudio.play().catch(() => undefined);
     }
     sourceTime = incomingVideo?.currentTime ?? next?.start ?? sourceTime;
@@ -233,6 +251,7 @@
     index = Math.min(index + 1, Math.max(0, segments.length - 1));
     if (video) video.currentTime = next.start;
     seekAudio(audio, next.start, next);
+    applyRate();
     if (playing) {
       void video?.play().catch(() => undefined);
       void audio?.play().catch(() => undefined);
@@ -345,6 +364,7 @@
     }
     videoB?.pause();
     audioB?.pause();
+    applyRate();
     report();
     if (playing) {
       stopLoop();
@@ -355,11 +375,10 @@
   }
 
   function togglePlay() {
-    const video = frontVideo();
-    if (!video || !segments.length) return;
+    if (!segments.length) return;
     error = "";
     if (playing) {
-      video.pause();
+      frontVideo()?.pause();
       backVideo()?.pause();
       frontAudio()?.pause();
       backAudio()?.pause();
@@ -370,31 +389,50 @@
     if (outputTime >= outputDuration - 0.01) {
       seek(segments[0].start);
     }
-    if (video.currentTime < current.start || video.currentTime >= current.end) {
-      video.currentTime = current.start;
+    const video = frontVideo();
+    const segment = segments[index];
+    if (!video || !segment) return;
+    if (video.currentTime < segment.start || video.currentTime >= segment.end) {
+      video.currentTime = segment.start;
     }
-    seekAudio(frontAudio(), video.currentTime, current);
+    seekAudio(frontAudio(), video.currentTime, segment);
     if (frontAudio()) frontAudio()!.volume = gain();
-    const audio = frontAudio();
-    const playback: Array<Promise<unknown>> = [
-      video.play(),
-      audio ? audio.play() : Promise.resolve()
-    ];
-    if (crossfading) {
-      const incomingVideo = backVideo();
-      const incomingAudio = backAudio();
-      if (incomingVideo) playback.push(incomingVideo.play());
-      if (incomingAudio) playback.push(incomingAudio.play());
-    }
-    void Promise.all(playback)
+    applyRate();
+    void video
+      .play()
       .then(() => {
         playing = true;
         stopLoop();
         raf = requestAnimationFrame(tick);
+        const audio = frontAudio();
+        if (audio) {
+          void audio.play().catch(() => {
+            error = "Audio could not start; video is playing without sound.";
+          });
+        }
+        if (crossfading) {
+          void backVideo()?.play().catch(() => undefined);
+          void backAudio()?.play().catch(() => undefined);
+        }
       })
       .catch((reason: unknown) => {
+        playing = false;
         error = reason instanceof Error ? reason.message : "Playback was blocked.";
       });
+  }
+
+  export function seekSource(time: number) {
+    seek(time);
+  }
+
+  function previousSegment() {
+    if (!segments.length) return;
+    const segment = segments[index];
+    const target =
+      segment && sourceTime - segment.start > 0.75
+        ? segment.start
+        : segments[Math.max(0, index - 1)].start;
+    seek(target);
   }
 
   function nextSegment() {
@@ -402,6 +440,11 @@
     const nextIndex = Math.min(segments.length - 1, index + 1);
     seek(segments[nextIndex].start);
   }
+
+  $effect(() => {
+    rate;
+    applyRate();
+  });
 
   $effect(() => {
     const job = jobId;
@@ -426,6 +469,7 @@
       seekAudio(audioA, sourceTime, segments[0]);
       audioA.volume = gain();
     }
+    applyRate();
   });
 
   onDestroy(() => {
@@ -444,16 +488,22 @@
       </p>
     </div>
     <div class="flex items-center gap-1.5">
-      <span class="font-mono text-[10px] text-neutral-400">{outputTime.toFixed(2)}s / {outputDuration.toFixed(2)}s</span>
-      <button type="button" onclick={nextSegment} disabled={index + 1 >= segments.length} class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Next active</button>
-      <button type="button" onclick={togglePlay} disabled={!segments.length} class="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1 text-[11px] text-sky-200 disabled:opacity-40">
-        {playing ? "Pause" : "Play"}
+      <span class="w-28 text-right font-mono text-[10px] text-neutral-400">{outputTime.toFixed(2)}s / {outputDuration.toFixed(2)}s</span>
+      <button type="button" onclick={previousSegment} disabled={index === 0} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300 disabled:opacity-40" title="Previous segment (Shift+J)" aria-label="Previous segment"><Icon name="chevron-left" size={14} /></button>
+      <button type="button" onclick={togglePlay} disabled={!segments.length} class="flex h-8 w-8 items-center justify-center rounded-lg border border-sky-500/40 bg-sky-500/10 text-sky-200 disabled:opacity-40" title={playing ? "Pause (Space)" : "Play (Space)"} aria-label={playing ? "Pause" : "Play"}>
+        <Icon name={playing ? "pause" : "play"} size={14} />
       </button>
+      <button type="button" onclick={nextSegment} disabled={index + 1 >= segments.length} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300 disabled:opacity-40" title="Next segment (Shift+L)" aria-label="Next segment"><Icon name="chevron-right" size={14} /></button>
+      <select value={String(rate)} onchange={(event) => changeRate(Number(event.currentTarget.value))} class="h-8 w-[68px] rounded-lg border border-neutral-700 bg-neutral-950 px-1 font-mono text-[10px] text-neutral-300" title="Playback speed" aria-label="Playback speed">
+        {#each [1, 1.5, 2, 2.5, 3] as value}
+          <option value={String(value)}>{value.toFixed(1)}x</option>
+        {/each}
+      </select>
     </div>
   </div>
 
-  <audio bind:this={audioA} src={sourceUrl} preload="auto"></audio>
-  <audio bind:this={audioB} src={sourceUrl} preload="auto"></audio>
+  <audio bind:this={audioA} src={sourceUrl} preload="auto" onloadedmetadata={applyRate}></audio>
+  <audio bind:this={audioB} src={sourceUrl} preload="auto" onloadedmetadata={applyRate}></audio>
 
   <div class="relative overflow-hidden rounded-xl border border-neutral-800 bg-black" data-testid="live-composite">
     <video
@@ -464,6 +514,7 @@
       playsinline
       class="block max-h-[360px] w-full"
       style={`opacity:${frontIsB ? backOpacity : frontOpacity}`}
+      onloadedmetadata={applyRate}
       onerror={() => (error = "The source media could not be loaded for live playback.")}
     >
       <track kind="captions" src="data:text/vtt;charset=utf-8,WEBVTT%0A%0A" />
@@ -476,6 +527,7 @@
       playsinline
       class="absolute inset-0 h-full w-full"
       style={`opacity:${frontIsB ? frontOpacity : backOpacity}`}
+      onloadedmetadata={applyRate}
       onerror={() => (error = "The source media could not be loaded for live playback.")}
     >
       <track kind="captions" src="data:text/vtt;charset=utf-8,WEBVTT%0A%0A" />

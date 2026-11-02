@@ -205,6 +205,12 @@ from videoflow.application.timeline_meta import (
     save_meta,
     set_track,
 )
+from videoflow.application.timeline_snapshots import (
+    delete_snapshot,
+    list_snapshots,
+    read_snapshot,
+    save_snapshot,
+)
 from videoflow.application.url_import import import_url
 from videoflow.application.voiceover import generate_short_voiceover
 from videoflow.application.waveforms import peaks_for_range
@@ -604,6 +610,14 @@ class MarkerRequest(BaseModel):
 
 class TimelineBatchRequest(BaseModel):
     edits: list[TimelineEditRequest] = Field(min_length=1, max_length=200)
+
+
+class TimelineSnapshotRequest(BaseModel):
+    name: str = Field(default="", max_length=120)
+
+
+class TimelineSnapshotLoadRequest(BaseModel):
+    job_id: str = Field(min_length=1)
 
 
 class ResumeRequest(BaseModel):
@@ -3234,6 +3248,91 @@ def register_routes(
             if clip.clip_id not in audio:
                 return False, "audio/video segments are not paired"
         return True, "transitions, overlays, and titles are live"
+
+    @app.get("/api/v1/timelines")
+    def timeline_snapshot_list() -> dict[str, object]:
+        return {"ok": True, "timelines": list_snapshots()}
+
+    @app.post("/api/v1/jobs/{job_id}/timeline/snapshots", status_code=201)
+    def save_timeline_snapshot(
+        job_id: str, request: TimelineSnapshotRequest
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            state_path = _timeline_state_path(job)
+            state = ProjectState.model_validate_json(
+                state_path.read_text(encoding="utf-8")
+            )
+            metadata = save_snapshot(state, name=request.name, job_id=job_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "snapshot_failed", "message": str(exc)},
+            ) from exc
+        return {"ok": True, "timeline": metadata}
+
+    @app.delete("/api/v1/timelines/{snapshot_id}")
+    def remove_timeline_snapshot(snapshot_id: str) -> dict[str, object]:
+        try:
+            removed = delete_snapshot(snapshot_id)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "snapshot_invalid", "message": str(exc)},
+            ) from exc
+        if not removed:
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "snapshot_not_found"},
+            )
+        return {"ok": True, "removed": snapshot_id}
+
+    @app.post("/api/v1/timelines/{snapshot_id}/load")
+    def load_timeline_snapshot(
+        snapshot_id: str, request: TimelineSnapshotLoadRequest
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(request.job_id)
+            _assert_tracks_unlocked(job, set())
+            metadata, saved = read_snapshot(snapshot_id)
+            if saved.media_info is None:
+                raise StateNotReadyError("The saved timeline has no media information.")
+            source = resolve_allowed(
+                Path(saved.media_info.source_path), allowed_roots()
+            )
+            if not source.is_file():
+                raise StateNotReadyError(
+                    f"The saved timeline source is offline: {source}"
+                )
+            saved.media_info = saved.media_info.model_copy(
+                update={"source_path": str(source)}
+            )
+            state_path = _timeline_state_path(job)
+            history = _timeline_history(job)
+            current = ProjectState.model_validate_json(
+                state_path.read_text(encoding="utf-8")
+            )
+            previous = current.model_copy(deep=True)
+            loaded = _apply_and_store(
+                job, saved, state_path, history, current.revision + 1
+            )
+            history.record(previous)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "snapshot_load_failed", "message": str(exc)},
+            ) from exc
+        return {
+            "ok": True,
+            "revision": loaded.revision,
+            "snapshot": metadata,
+        }
 
     @app.get("/api/v1/jobs/{job_id}/timeline")
     def job_timeline(

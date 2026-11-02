@@ -5,6 +5,7 @@
   import TimelineCanvas from "$lib/TimelineCanvas.svelte";
   import RecutCanvas from "$lib/RecutCanvas.svelte";
   import TimelinePlayer from "$lib/TimelinePlayer.svelte";
+  import Modal from "$lib/ui/Modal.svelte";
   import { groupTrimEdits } from "$lib/timelineView";
   import ShortEditor from "$lib/ShortEditor.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -24,11 +25,15 @@
     createJobPreview,
     editTimeline,
     editTimelineBatch,
+    deleteTimelineSnapshot,
     errorMessage,
     getJobReview,
     getJobThumbnails,
     getJobVariants,
+    listTimelineSnapshots,
+    loadTimelineSnapshot,
     prefetchJobFrames,
+    saveTimelineSnapshot,
     selectJobVariant,
     getPreviewStatus,
     getRenderStatus,
@@ -59,6 +64,7 @@
     type Job,
     type TimelineComment,
     type TimelineOverlay,
+    type TimelineSnapshot,
     type TimelineData,
     type VariantComparison
   } from "$lib/api";
@@ -71,6 +77,12 @@
   let errorDetail = $state("");
   let status = $state("");
   let playhead = $state(0);
+  let playbackRate = $state(1);
+  let livePlayer = $state<{ seekSource: (time: number) => void } | null>(null);
+  let snapshotOpen = $state(false);
+  let snapshotName = $state("");
+  let snapshots = $state<TimelineSnapshot[]>([]);
+  let snapshotBusy = $state(false);
   let variants = $state<VariantComparison | null>(null);
   let variantBusy = $state(false);
 
@@ -657,6 +669,88 @@
       .catch(() => undefined);
   }
 
+  function applyPlaybackRate() {
+    if (videoEl) videoEl.playbackRate = playbackRate;
+  }
+
+  function setPlaybackRate(value: number) {
+    playbackRate = Math.max(1, Math.min(3, Math.round(value * 2) / 2));
+    applyPlaybackRate();
+  }
+
+  function seekSegment(direction: -1 | 1) {
+    const clips = timeline?.video ?? [];
+    if (!clips.length) return;
+    let index = clips.findIndex(
+      (clip) => playhead >= clip.start_sec && playhead < clip.end_sec
+    );
+    if (index < 0) index = 0;
+    const current = clips[index];
+    const target =
+      direction > 0
+        ? clips[Math.min(clips.length - 1, index + 1)].start_sec
+        : playhead - current.start_sec > 0.75
+          ? current.start_sec
+          : clips[Math.max(0, index - 1)].start_sec;
+    seek(target);
+  }
+
+  async function openSnapshots() {
+    snapshotOpen = true;
+    snapshotBusy = true;
+    try {
+      snapshots = await listTimelineSnapshots();
+    } catch (reason) {
+      error = errorMessage(reason);
+    } finally {
+      snapshotBusy = false;
+    }
+  }
+
+  async function saveVersion() {
+    if (!selected) return;
+    snapshotBusy = true;
+    error = "";
+    try {
+      const saved = await saveTimelineSnapshot(selected, snapshotName.trim());
+      snapshotName = "";
+      snapshots = await listTimelineSnapshots();
+      status = `Saved timeline version ${saved.name}.`;
+    } catch (reason) {
+      error = errorMessage(reason);
+    } finally {
+      snapshotBusy = false;
+    }
+  }
+
+  async function loadVersion(snapshot: TimelineSnapshot) {
+    if (!selected) return;
+    snapshotBusy = true;
+    error = "";
+    try {
+      const revision = await loadTimelineSnapshot(snapshot.id, selected);
+      snapshotOpen = false;
+      await loadTimeline("", { assets: false, deliverables: false });
+      status = `Loaded ${snapshot.name} at revision ${revision}.`;
+    } catch (reason) {
+      error = errorMessage(reason);
+    } finally {
+      snapshotBusy = false;
+    }
+  }
+
+  async function removeVersion(snapshot: TimelineSnapshot) {
+    snapshotBusy = true;
+    try {
+      await deleteTimelineSnapshot(snapshot.id);
+      snapshots = await listTimelineSnapshots();
+    } catch (reason) {
+      error = errorMessage(reason);
+    } finally {
+      snapshotBusy = false;
+    }
+  }
+
   function seek(value: number) {
     const target = Math.max(0, Math.min(duration, value));
     playhead = target;
@@ -675,6 +769,7 @@
 
   function togglePlay() {
     if (!videoEl) return;
+    applyPlaybackRate();
     if (videoEl.paused) {
       void videoEl.play();
     } else {
@@ -684,6 +779,7 @@
 
   function onPlay() {
     playing = true;
+    applyPlaybackRate();
     cancelAnimationFrame(raf);
     const tick = () => {
       if (videoEl) playhead = videoEl.currentTime;
@@ -779,6 +875,11 @@
     selectedInactiveId = id;
     selectedClip = null;
     selectedIds = [];
+  }
+
+  function recutSeek(source: number) {
+    liveSourceTime = source;
+    livePlayer?.seekSource(source);
   }
 
   async function toggleSegment(id: string, makeActive: boolean) {
@@ -1039,21 +1140,101 @@
   function onKeydown(event: KeyboardEvent) {
     const target = event.target as HTMLElement | null;
     if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
-    if (event.code === "Space") {
-      event.preventDefault();
-      togglePlay();
-      return;
-    }
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
+    const key = event.key.toLowerCase();
+    if ((event.ctrlKey || event.metaKey) && key === "z") {
       event.preventDefault();
       void (event.shiftKey ? redo() : undo());
       return;
     }
-    if (!selectedClip) return;
+    if ((event.ctrlKey || event.metaKey) && key === "s") {
+      event.preventDefault();
+      void saveVersion();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && key === "o") {
+      event.preventDefault();
+      void openSnapshots();
+      return;
+    }
+    if (event.code === "Space" || key === "k") {
+      event.preventDefault();
+      togglePlay();
+      return;
+    }
+    if (key === "j" && event.shiftKey) {
+      event.preventDefault();
+      seekSegment(-1);
+      return;
+    }
+    if (key === "l" && event.shiftKey) {
+      event.preventDefault();
+      seekSegment(1);
+      return;
+    }
+    if (key === "j") {
+      event.preventDefault();
+      seek(playhead - (event.repeat ? 2 : 1));
+      return;
+    }
+    if (key === "l") {
+      event.preventDefault();
+      seek(playhead + (event.repeat ? 2 : 1));
+      return;
+    }
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      const delta = event.shiftKey ? 1 : 1 / Math.max(1, fps);
+      seek(playhead + (event.key === "ArrowRight" ? delta : -delta));
+      return;
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      seek(0);
+      return;
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      seek(duration);
+      return;
+    }
+    if (key === "f") {
+      event.preventDefault();
+      fitTimeline();
+      return;
+    }
+    if (key === "+" || key === "=") {
+      event.preventDefault();
+      zoom = Math.min(400, zoom * 1.18);
+      return;
+    }
+    if (key === "-") {
+      event.preventDefault();
+      zoom = Math.max(16, zoom / 1.18);
+      return;
+    }
+    if (key === "[") {
+      event.preventDefault();
+      setPlaybackRate(playbackRate - 0.5);
+      return;
+    }
+    if (key === "]") {
+      event.preventDefault();
+      setPlaybackRate(playbackRate + 0.5);
+      return;
+    }
+    if (key === "m") {
+      event.preventDefault();
+      void addMarker();
+      return;
+    }
     if (event.key === "Delete" || event.key === "Backspace") {
+      if (!selectedClip && !selectedIds.length) return;
       event.preventDefault();
       deleteSelected(event.shiftKey);
-    } else if (event.key.toLowerCase() === "s") {
+      return;
+    }
+    if (key === "s") {
+      if (!selectedClip) return;
       event.preventDefault();
       splitSelected();
     }
@@ -1068,7 +1249,7 @@
   }
 </script>
 
-<div class="space-y-4" data-testid="timeline-panel">
+<div class="flex flex-col gap-4" data-testid="timeline-panel">
   <ErrorBanner message={error} detail={errorDetail} onDismiss={() => { error = ""; errorDetail = ""; }} testId="timeline-error" />
 
   <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
@@ -1085,7 +1266,9 @@
             <option value={job.job_id}>{job.result?.recipe_id ?? "recipe"} · {job.job_id.slice(0, 8)}</option>
           {/each}
         </select>
-        <button type="button" onclick={() => void loadTimeline()} class="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:border-sky-500">Refresh</button>
+        <button type="button" onclick={() => void openSnapshots()} disabled={!selected} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300 disabled:opacity-40" title="Saved timeline versions (Ctrl+O)" aria-label="Saved timeline versions"><Icon name="folder" size={14} /></button>
+        <button type="button" onclick={() => void saveVersion()} disabled={!selected || snapshotBusy} class="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-500/40 text-emerald-200 disabled:opacity-40" title="Save timeline version (Ctrl+S)" aria-label="Save timeline version"><Icon name="save" size={14} /></button>
+        <button type="button" onclick={() => void loadTimeline()} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300" title="Refresh timeline" aria-label="Refresh timeline"><Icon name="refresh" size={14} /></button>
       </div>
     </div>
     {#if loading}<p class="mt-2 text-[11px] text-neutral-500">Loading timeline…</p>{/if}
@@ -1094,18 +1277,20 @@
   </section>
 
   {#if timeline}
-      <div class="mb-2 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-3" data-testid="timeline-preview">
-        <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div class="space-y-3">
+      <div class="flex flex-col gap-4">
+      <div class="order-2 mb-2 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-3" data-testid="timeline-preview">
+        <div class="grid gap-3 lg:h-[480px] lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div class="space-y-3 lg:h-full lg:min-h-0 lg:overflow-y-auto">
             {#if previewUrl}
               <video
                 bind:this={videoEl}
-                class="max-h-[420px] w-full rounded-xl border border-neutral-800 bg-black"
+                class="h-[340px] w-full rounded-xl border border-neutral-800 bg-black object-contain"
                 controls
                 preload="metadata"
                 src={previewUrl}
                 onplay={onPlay}
                 onpause={onPause}
+                onloadedmetadata={applyPlaybackRate}
                 onseeked={() => {
                   if (videoEl) playhead = videoEl.currentTime;
                 }}
@@ -1144,7 +1329,7 @@
             {/if}
           </div>
 
-          <div class="space-y-2">
+          <div class="space-y-2 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-1">
             <div class="rounded-xl border border-neutral-800 bg-neutral-900/40 p-3">
               <div class="flex items-center justify-between">
                 <p class="text-[10px] uppercase tracking-wide text-neutral-500">Selected clip</p>
@@ -1274,11 +1459,18 @@
           </div>
         </div>
       </div>
-    <section class="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950">
+    <section class="order-1 overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950">
       <div class="flex flex-wrap items-center gap-2 border-b border-neutral-800 px-3 py-2">
-        <button type="button" onclick={togglePlay} disabled={!canPreview} class="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-[11px] text-sky-200 disabled:opacity-40">
-          {playing ? "Pause" : "Play"}
-        </button>
+        <button type="button" onclick={() => seek(0)} disabled={!timeline} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300 disabled:opacity-40" title="Go to start (Home)" aria-label="Go to start"><Icon name="skip-back" size={14} /></button>
+        <button type="button" onclick={() => seekSegment(-1)} disabled={!timeline} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300 disabled:opacity-40" title="Previous segment (Shift+J)" aria-label="Previous segment"><Icon name="chevron-left" size={14} /></button>
+        <button type="button" onclick={togglePlay} disabled={!canPreview} class="flex h-8 w-8 items-center justify-center rounded-lg border border-sky-500/40 bg-sky-500/10 text-sky-200 disabled:opacity-40" title={playing ? "Pause (Space)" : "Play (Space)"} aria-label={playing ? "Pause" : "Play"}><Icon name={playing ? "pause" : "play"} size={14} /></button>
+        <button type="button" onclick={() => seekSegment(1)} disabled={!timeline} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300 disabled:opacity-40" title="Next segment (Shift+L)" aria-label="Next segment"><Icon name="chevron-right" size={14} /></button>
+        <button type="button" onclick={() => seek(duration)} disabled={!timeline} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300 disabled:opacity-40" title="Go to end (End)" aria-label="Go to end"><Icon name="skip-forward" size={14} /></button>
+        <select value={String(playbackRate)} onchange={(event) => setPlaybackRate(Number(event.currentTarget.value))} class="h-8 w-[68px] rounded-lg border border-neutral-700 bg-neutral-950 px-1 font-mono text-[10px] text-neutral-300" title="Playback speed" aria-label="Playback speed">
+          {#each [1, 1.5, 2, 2.5, 3] as value}
+            <option value={String(value)}>{value.toFixed(1)}x</option>
+          {/each}
+        </select>
         <span class="rounded bg-neutral-900 px-2 py-1 font-mono text-[10px] text-neutral-300" data-testid="timeline-timecode">{timecode(playhead)}</span>
         <label class="flex items-center gap-1 font-mono text-[10px] text-neutral-600">
           <input
@@ -1298,12 +1490,12 @@
           <button type="button" aria-pressed={viewMode === "normal"} onclick={() => setViewMode("normal")} class={`rounded px-2 py-1 text-[10px] ${viewMode === "normal" ? "bg-sky-500/20 text-sky-200" : "text-neutral-400 hover:text-neutral-200"}`}>Normal</button>
           <button type="button" aria-pressed={viewMode === "recut"} onclick={() => setViewMode("recut")} class={`rounded px-2 py-1 text-[10px] ${viewMode === "recut" ? "bg-rose-500/20 text-rose-200" : "text-neutral-400 hover:text-neutral-200"}`}>Recut</button>
         </div>
-        <button type="button" onclick={() => void undo()} disabled={!timeline.can_undo || editBusy} class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Undo</button>
-        <button type="button" onclick={() => void redo()} disabled={!timeline.can_redo || editBusy} class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Redo</button>
+        <button type="button" onclick={() => void undo()} disabled={!timeline.can_undo || editBusy} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300 disabled:opacity-40" title="Undo (Ctrl+Z)" aria-label="Undo"><Icon name="undo" size={14} /></button>
+        <button type="button" onclick={() => void redo()} disabled={!timeline.can_redo || editBusy} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300 disabled:opacity-40" title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><Icon name="redo" size={14} /></button>
         {#if selectedIds.length > 1}<span class="rounded bg-sky-500/10 px-2 py-1 text-[10px] text-sky-200">{selectedIds.length} selected</span>{/if}
-        <button type="button" onclick={splitSelected} disabled={!selectedClip || editBusy} class="rounded-lg border border-violet-500/40 px-2 py-1 text-[10px] text-violet-200 disabled:opacity-40" title="Split selected clip at playhead (S)">Split</button>
-        <button type="button" onclick={() => deleteSelected(false)} disabled={!selectedIds.length && !selectedClip || editBusy} class="rounded-lg border border-rose-500/40 px-2 py-1 text-[10px] text-rose-200 disabled:opacity-40" title="Delete selected clip (Delete)">Delete</button>
-        <button type="button" onclick={() => deleteSelected(true)} disabled={!selectedIds.length && !selectedClip || editBusy} class="rounded-lg border border-rose-500/30 px-2 py-1 text-[10px] text-rose-300 disabled:opacity-40" title="Delete and close the gap (Shift+Delete)">Ripple</button>
+        <button type="button" onclick={splitSelected} disabled={!selectedClip || editBusy} class="flex h-8 w-8 items-center justify-center rounded-lg border border-violet-500/40 text-violet-200 disabled:opacity-40" title="Split selected clip at playhead (S)" aria-label="Split"><Icon name="scissors" size={14} /></button>
+        <button type="button" onclick={() => deleteSelected(false)} disabled={!selectedIds.length && !selectedClip || editBusy} class="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-500/40 text-rose-200 disabled:opacity-40" title="Delete selected clip (Delete)" aria-label="Delete"><Icon name="trash" size={14} /></button>
+        <button type="button" onclick={() => deleteSelected(true)} disabled={!selectedIds.length && !selectedClip || editBusy} class="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-500/30 text-rose-300 disabled:opacity-40" title="Delete and close the gap (Shift+Delete)" aria-label="Ripple delete"><Icon name="arrow-up" size={14} /></button>
         <button type="button" onclick={() => selectedClip && void toggleSegment(selectedClip.id, false)} disabled={!selectedClip || editBusy} class="rounded-lg border border-rose-500/40 px-2 py-1 text-[10px] text-rose-200 disabled:opacity-40" title="Keep the clip but mark it inactive">Deactivate</button>
         <label class="ml-auto flex items-center gap-1.5 text-[10px] text-neutral-500">
           <input type="checkbox" bind:checked={snap} class="h-3.5 w-3.5 rounded border-neutral-700 bg-neutral-800" />
@@ -1312,7 +1504,7 @@
         <button type="button" onclick={fitTimeline} class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300">Fit</button>
         <label class="flex items-center gap-2 text-[10px] text-neutral-500">
           Zoom
-          <input type="range" min="16" max="400" step="1" bind:value={zoom} class="w-24 accent-sky-400" />
+          <input type="range" min="16" max="400" step="1" bind:value={zoom} data-testid="timeline-zoom" class="w-24 accent-sky-400" />
           <span class="w-9 text-right font-mono text-neutral-400">{Math.round(zoom)}</span>
         </label>
       </div>
@@ -1361,8 +1553,10 @@
       {#if viewMode === "recut"}
         {#if timeline.live_eligible}
           <TimelinePlayer
+            bind:this={livePlayer}
             jobId={selected}
             {timeline}
+            bind:rate={playbackRate}
             ontime={(source) => (liveSourceTime = source)}
           />
         {:else}
@@ -1378,6 +1572,7 @@
           onselect={selectRecut}
           ontoggle={toggleSegment}
           ontrim={(id, start, end) => void trimInactiveRange(id, start, end)}
+          onseek={recutSeek}
         />
       {:else}
       <TimelineCanvas
@@ -1470,6 +1665,7 @@
       {/if}
 
     </section>
+      </div>
 
     {#if clipMenu}
       <div class="fixed z-[70] w-44 overflow-hidden rounded-xl border border-neutral-700 bg-neutral-950 text-[11px] shadow-2xl" style={`left:${clipMenu.x}px;top:${clipMenu.y}px`} role="menu">
@@ -1483,6 +1679,41 @@
       </div>
       <button type="button" class="fixed inset-0 z-[60] cursor-default" aria-label="Close clip menu" onclick={() => (clipMenu = null)}></button>
     {/if}
+
+    <Modal
+      open={snapshotOpen}
+      title="Timeline versions"
+      description="Save the current timeline or load an earlier version. Files can also be selected in a timeline.load recipe node."
+      width="w-[min(760px,96vw)]"
+      onclose={() => (snapshotOpen = false)}
+    >
+      <div class="flex flex-wrap items-center gap-2 border-b border-neutral-800 pb-3">
+        <input
+          bind:value={snapshotName}
+          placeholder="Version name (optional)"
+          class="min-w-[220px] flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100"
+        />
+        <button type="button" onclick={() => void saveVersion()} disabled={snapshotBusy || !selected} class="flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-200 disabled:opacity-40">
+          <Icon name="save" size={14} /> Save version
+        </button>
+      </div>
+      <div class="mt-3 space-y-1.5">
+        {#each snapshots as snapshot (snapshot.id)}
+          <div class="flex flex-wrap items-center gap-2 rounded-xl border border-neutral-800 bg-white/[0.02] px-3 py-2">
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-xs font-medium text-neutral-200">{snapshot.name}</p>
+              <p class="mt-0.5 truncate font-mono text-[9px] text-neutral-500">
+                {snapshot.created_at} · rev {snapshot.revision} · {snapshot.duration_sec.toFixed(2)}s
+              </p>
+              <p class="mt-0.5 truncate font-mono text-[9px] text-neutral-600">{snapshot.path}</p>
+            </div>
+            <button type="button" onclick={() => void loadVersion(snapshot)} disabled={snapshotBusy} class="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1 text-[10px] text-sky-200 disabled:opacity-40">Load</button>
+            <button type="button" onclick={() => void removeVersion(snapshot)} disabled={snapshotBusy} class="flex h-7 w-7 items-center justify-center rounded-lg border border-rose-500/30 text-rose-300 disabled:opacity-40" title="Delete version" aria-label={`Delete ${snapshot.name}`}><Icon name="trash" size={12} /></button>
+          </div>
+        {/each}
+        {#if !snapshots.length}<p class="rounded-xl border border-dashed border-neutral-800 px-3 py-8 text-center text-xs text-neutral-500">No saved versions yet.</p>{/if}
+      </div>
+    </Modal>
 
     <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
       <div class="flex flex-wrap items-center justify-between gap-2">

@@ -173,14 +173,14 @@ test("shows full backend render error details", async ({ page }) => {
   await expect(banner).toContainText("ffmpeg -i source.mp4");
 });
 
-test("puts the preview above the timeline canvas", async ({ page }) => {
+test("puts the timeline above the preview", async ({ page }) => {
   const preview = page.getByTestId("timeline-preview");
   const canvas = page.getByTestId("timeline-canvas");
   await expect(preview).toBeVisible();
   await expect(canvas).toBeVisible();
   const previewBox = await preview.boundingBox();
   const canvasBox = await canvas.boundingBox();
-  expect(previewBox?.y ?? 0).toBeLessThan(canvasBox?.y ?? 0);
+  expect(canvasBox?.y ?? 0).toBeLessThan(previewBox?.y ?? 0);
 });
 
 test("renders the canvas timeline and edit controls", async ({ page }) => {
@@ -212,6 +212,28 @@ test("opens the timeline while a recipe is still exporting", async ({ page }) =>
   await page.reload();
   await expect(page.getByTestId("timeline-canvas")).toBeVisible();
   await expect(page.getByText(/rev 3/)).toBeVisible();
+});
+
+
+test("clicking the timeline moves the playhead and the timeline stays fixed", async ({ page }) => {
+  const canvas = page.getByTestId("timeline-canvas");
+  const before = await canvas.boundingBox();
+  await canvas.click({ position: { x: 96 + 80 * 2, y: 60 } });
+  await expect(page.getByTestId("timeline-timecode")).not.toContainText("00:00:00");
+  const after = await canvas.boundingBox();
+  expect(Math.abs((before?.y ?? 0) - (after?.y ?? 0))).toBeLessThan(2);
+});
+
+test("next segment and wheel zoom work from the timeline", async ({ page }) => {
+  await page.getByRole("button", { name: "Next segment" }).click();
+  await expect(page.getByTestId("timeline-timecode")).toContainText("00:03");
+  const zoom = page.getByTestId("timeline-zoom");
+  const before = Number(await zoom.inputValue());
+  const canvas = page.getByTestId("timeline-canvas");
+  const box = await canvas.boundingBox();
+  await page.mouse.move((box?.x ?? 0) + 200, (box?.y ?? 0) + 120);
+  await page.mouse.wheel(0, -120);
+  await expect.poll(async () => Number(await zoom.inputValue())).toBeGreaterThan(before);
 });
 
 test("exposes B-roll approval controls", async ({ page }) => {
@@ -529,7 +551,7 @@ test("shows live playback for hard-cut timelines and falls back otherwise", asyn
   }).toPass();
 
   await expect(page.getByTestId("live-player")).toContainText("skips 1 inactive");
-  await expect(page.getByTestId("live-player")).toContainText("Play");
+  await expect(page.getByTestId("live-player").getByRole("button", { name: "Play" })).toBeVisible();
 });
 
 

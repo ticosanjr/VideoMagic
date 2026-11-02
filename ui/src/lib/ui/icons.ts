@@ -12,6 +12,11 @@ const line = (x1: number, y1: number, x2: number, y2: number) =>
 
 export const ICONS = {
   play: `<path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none"/>`,
+  pause: `<path d="M8 5h3v14H8zM13 5h3v14h-3z" fill="currentColor" stroke="none"/>`,
+  "skip-back": `<path d="M6 5v14M18 5v14L7 12z" fill="currentColor" stroke="none"/>`,
+  "skip-forward": `<path d="M18 5v14M6 5v14l11-7z" fill="currentColor" stroke="none"/>`,
+  "chevron-left": path("M15 6l-6 6 6 6"),
+  "chevron-right": path("M9 6l6 6-6 6"),
   scissors: `${circle(6, 6, 2.5)}${circle(6, 18, 2.5)}${line(8.2, 7.5, 20, 18)}${line(8.2, 16.5, 20, 6)}`,
   activity: path("M3 12h4l2.5-7 4 14 2.5-7H21"),
   library: `${rect(4, 4, 4, 16)}${rect(10, 4, 4, 16)}${rect(16, 4, 4, 16)}`,
@@ -112,6 +117,7 @@ export const STEP_ICON_NAMES: Record<string, IconName> = {
   transcribe: "captions",
   "retakes.cull": "repeat",
   "edit.timeline": "scissors",
+  "timeline.load": "folder",
   "export.nle": "share",
   "shorts.select": "smartphone",
   "shorts.score": "chart",

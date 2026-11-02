@@ -102,6 +102,7 @@ values genuinely shared by multiple nodes or profiles.
 | `audio.diarize` | `transcribe` | heuristic or pyannote speaker ids for captions |
 | `broll.plan` | `shorts.select` | local or Pexels B-roll overlay plan |
 | `edit.timeline` | `audio.vad` (+ optional retakes) | validated `ProjectState`, inactive spans |
+| `timeline.load` | — | saved `ProjectState` and media info |
 | `shorts.select` | `transcribe` | selected Short clips |
 | `shorts.score` | `shorts.select` | re-scored, deduplicated Shorts |
 | `assets.shots` | `ingest` | scene cuts + thumbnails |

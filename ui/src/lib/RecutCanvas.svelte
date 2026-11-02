@@ -9,7 +9,8 @@
     playhead = 0,
     onselect,
     ontoggle,
-    ontrim
+    ontrim,
+    onseek
   }: {
     timeline: TimelineData;
     selectedId?: string;
@@ -18,6 +19,7 @@
     onselect: (kind: "active" | "inactive", id: string) => void;
     ontoggle: (id: string, active: boolean) => void;
     ontrim: (id: string, start: number, end: number) => void;
+    onseek?: (sourceSec: number) => void;
   } = $props();
 
   let zoom = $state(70);
@@ -181,6 +183,24 @@
     onselect(kind, id);
   }
 
+  function seekFromEvent(event: MouseEvent) {
+    if (!onseek) return;
+    const element = event.currentTarget as HTMLElement | null;
+    if (!element) return;
+    const rect = element.getBoundingClientRect();
+    const value = Math.max(
+      0,
+      Math.min(sourceDuration, (event.clientX - rect.left - 8) / zoom)
+    );
+    onseek(value);
+  }
+
+  function zoomFromWheel(event: WheelEvent) {
+    event.preventDefault();
+    const direction = event.deltaY > 0 ? -1 : 1;
+    zoom = Math.max(18, Math.min(220, zoom * (direction > 0 ? 1.16 : 0.86)));
+  }
+
   onDestroy(() => {
     window.removeEventListener("pointermove", moveTrim);
     window.removeEventListener("pointerup", finishTrim);
@@ -203,7 +223,30 @@
   </div>
 
   <div bind:this={scroller} class="overflow-x-auto">
-    <div class="relative h-[190px] min-w-full" style={`width:${width}px`}>
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <div
+      class="relative h-[190px] min-w-full"
+      style={`width:${width}px`}
+      role="application"
+      aria-label="Recut source timeline"
+      tabindex="0"
+      onclick={seekFromEvent}
+      onwheel={zoomFromWheel}
+      onkeydown={(event) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        event.preventDefault();
+        onseek?.(
+          Math.max(
+            0,
+            Math.min(
+              sourceDuration,
+              playhead + (event.key === "ArrowRight" ? 1 : -1)
+            )
+          )
+        );
+      }}
+    >
       <div class="absolute left-0 right-0 top-0 h-6 border-b border-neutral-800 bg-neutral-900/60">
         {#each Array.from({ length: Math.floor(sourceDuration / step) + 2 }, (_, index) => index * step) as second}
           <span class="absolute top-1 font-mono text-[8px] text-neutral-600" style={`left:${leftFor(second)}px`}>{second}s</span>

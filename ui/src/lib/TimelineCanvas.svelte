@@ -206,11 +206,10 @@
     stage.on("mousedown touchstart", (event: any) => {
       const pointer = stage.getPointerPosition();
       if (!pointer) return;
+      onSeek(timeAt(pointer.x));
       if (pointer.y <= RULER) {
         scrubbing = true;
-        onSeek(timeAt(pointer.x));
       } else if (event.target === stage) {
-        onSeek(timeAt(pointer.x));
         onSelectClip(null);
       }
     });
@@ -223,7 +222,6 @@
       scrubbing = false;
     });
     stage.on("wheel", (event: any) => {
-      if (!event.evt.ctrlKey && !event.evt.metaKey) return;
       event.evt.preventDefault();
       const direction = event.evt.deltaY > 0 ? -1 : 1;
       onZoom?.(Math.max(16, Math.min(400, zoom * (direction > 0 ? 1.18 : 0.85))));

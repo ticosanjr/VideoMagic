@@ -127,6 +127,10 @@ const FIELD_META: Record<string, Record<string, FieldMeta>> = {
     dialect: { group: "Export", label: "FCPXML dialect" },
     subdir: { group: "Export", label: "Subdirectory" }
   },
+  "timeline.load": {
+    path: { group: "Source", label: "Timeline file" },
+    snapshot_id: { group: "Source", label: "Snapshot id" }
+  },
   transcribe: {
     mode: { group: "Transcription", label: "Mode" },
     language: { group: "Transcription", label: "Language" },

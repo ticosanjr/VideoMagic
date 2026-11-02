@@ -3,6 +3,37 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.33.0] - 2026-11-02
+
+### Added
+
+- **Editor-first timeline layout.** The timeline is pinned above a fixed-height
+  preview and scrollable inspector, so selecting clips or showing messages no
+  longer moves it.
+- Icon transport with start/end, previous/next segment, play/pause, one-frame
+  and one-second seeks, and 1.0x–3.0x playback speed in 0.5x steps.
+- Click-to-seek on the ruler, empty tracks, clips, and Recut blocks. The playhead
+  can be scrubbed, and the mouse wheel over the timeline zooms instead of
+  scrolling the page.
+- Timeline shortcuts for playback, navigation, cutting, zoom, speed, save, and
+  open, documented in the shortcuts modal.
+- **Saved timeline versions.** Save, list, load, and delete named snapshots.
+  Loading increments revision and records undo.
+- **`timeline.load` recipe step** loads a saved timeline and exposes its state
+  and media ports for export or render without rerunning analysis.
+
+### Fixed
+
+- Live playback no longer captures the wrong video element after a seek, and an
+  audio failure no longer prevents the video clock from running.
+- Playback speed is applied to both crossfade layers and the separate audio
+  elements.
+
+### Notes
+
+- Full-tree coverage is 96.0%.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.32.2] - 2026-11-02
 
 ### Added

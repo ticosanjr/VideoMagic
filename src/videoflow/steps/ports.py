@@ -64,6 +64,13 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         (PortSpec("timeline", "Timeline state", "timeline", "state", True),),
         (PortSpec("artifacts", "NLE artifacts", "artifact_map", "artifacts"),),
     ),
+    "timeline.load": (
+        (),
+        (
+            PortSpec("timeline", "Loaded timeline", "timeline", "state"),
+            PortSpec("media", "Media info", "media", "media"),
+        ),
+    ),
     "shorts.select": (
         (PortSpec("transcript", "Transcript", "transcript", "transcript", True),),
         (PortSpec("shorts", "Selected Shorts", "short_list", "shorts"),),

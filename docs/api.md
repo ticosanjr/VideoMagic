@@ -952,6 +952,15 @@ the enabled default followed by its fallback chain.
 - The UI origin allowlist is the local dev server.
 - Do not expose the port. v1 has no authentication.
 
+## 7.1 Timeline versions
+
+- `GET /api/v1/timelines` lists saved timeline snapshots.
+- `POST /api/v1/jobs/{id}/timeline/snapshots` with `{"name": "..."}` saves the
+  current state.
+- `POST /api/v1/timelines/{snapshot_id}/load` with `{"job_id": "..."}` replaces
+  the job timeline, increments revision, and records undo.
+- `DELETE /api/v1/timelines/{snapshot_id}` removes a saved version.
+
 ## 8. Timeline concurrency (ETag)
 
 `GET /api/v1/jobs/{id}/timeline` returns `ETag: "timeline-<revision>"`, the

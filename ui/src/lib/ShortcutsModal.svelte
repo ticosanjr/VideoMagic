@@ -21,7 +21,21 @@
     { keys: "g then i", action: "Setup · Connect" },
     { keys: "g then s", action: "Setup · Settings" },
     { keys: "n", action: "Open the notification center" },
-    { keys: "u", action: "Open the activity drawer" }
+    { keys: "u", action: "Open the activity drawer" },
+    { keys: "Space / K", action: "Timeline: play or pause" },
+    { keys: "J / L", action: "Timeline: step back or forward 1 second" },
+    { keys: "Shift + J / L", action: "Timeline: previous or next segment" },
+    { keys: "← / →", action: "Timeline: one frame" },
+    { keys: "Shift + ← / →", action: "Timeline: one second" },
+    { keys: "Home / End", action: "Timeline: jump to start or end" },
+    { keys: "S", action: "Timeline: split at the playhead" },
+    { keys: "Delete / Shift+Delete", action: "Timeline: delete or ripple delete" },
+    { keys: "M", action: "Timeline: add marker" },
+    { keys: "+ / -", action: "Timeline: zoom" },
+    { keys: "F", action: "Timeline: fit" },
+    { keys: "[ / ]", action: "Timeline: speed down or up 0.5x" },
+    { keys: "Ctrl/Cmd + S", action: "Timeline: save a version" },
+    { keys: "Ctrl/Cmd + O", action: "Timeline: open saved versions" }
   ];
 </script>
 
