@@ -1821,8 +1821,16 @@ export interface TimelineClip {
   keyframes?: number;
   transition?: string | null;
   transition_frames?: number;
+  transition_audio?: boolean;
   fade_in_sec?: number;
   fade_out_sec?: number;
+}
+
+export interface TimelineTitleCue {
+  start_sec: number;
+  end_sec: number;
+  text: string;
+  style: "title" | "lower_third";
 }
 
 export interface TimelineData {
@@ -1852,6 +1860,7 @@ export interface TimelineData {
   comments?: TimelineComment[];
   inactive: TimelineInactive[];
   overlays?: TimelineOverlay[];
+  titles?: TimelineTitleCue[];
   tracks: Record<string, TrackState>;
   media?: { source_path: string; audio_sample_rate: number };
 }
@@ -2400,6 +2409,10 @@ export function previewFileUrl(jobId: string): string {
 
 export function jobSourceFileUrl(jobId: string): string {
   return `/api/v1/jobs/${encodeURIComponent(jobId)}/source/file`;
+}
+
+export function jobOverlayFileUrl(jobId: string, overlayId: string): string {
+  return `/api/v1/jobs/${encodeURIComponent(jobId)}/overlays/${encodeURIComponent(overlayId)}/file`;
 }
 
 export async function getPreviewStatus(jobId: string): Promise<PreviewStatus> {

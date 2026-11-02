@@ -508,3 +508,64 @@ test("shows live playback for hard-cut timelines and falls back otherwise", asyn
   await expect(page.getByTestId("live-player")).toContainText("skips 1 inactive");
   await expect(page.getByTestId("live-player")).toContainText("Play");
 });
+
+
+test("composes live titles and overlays over the source", async ({ page }) => {
+  const composed = {
+    ...timeline,
+    duration_sec: 3,
+    source_duration_sec: 8,
+    live_eligible: true,
+    live_reason: "transitions, overlays, and titles are live",
+    video: [
+      {
+        ...timeline.video[0],
+        transition: "crossfade",
+        transition_frames: 10,
+        transition_audio: true
+      }
+    ],
+    audio: [{ ...timeline.audio[0], source_in_sec: 0, source_out_sec: 3 }],
+    overlays: [
+      {
+        overlay_id: "o1",
+        asset_id: "asset-1",
+        path: "/tmp/logo.png",
+        start_frame: 0,
+        duration_frames: 75,
+        position_x: 0.2,
+        position_y: 0.8,
+        width_ratio: 0.3,
+        opacity: 0.8,
+        kind: "image"
+      }
+    ],
+    titles: [
+      {
+        start_sec: 0,
+        end_sec: 2,
+        text: "Intro title",
+        style: "title"
+      },
+      {
+        start_sec: 0,
+        end_sec: 2,
+        text: "Speaker 1",
+        style: "lower_third"
+      }
+    ]
+  };
+  await page.route("**/api/v1/jobs/job-1/timeline", (route) =>
+    route.fulfill({ json: composed })
+  );
+  await page.reload();
+  const recut = page.getByRole("button", { name: "Recut", exact: true });
+  await expect(async () => {
+    await recut.click();
+    await expect(page.getByTestId("live-composite")).toBeVisible({ timeout: 1000 });
+  }).toPass();
+
+  await expect(page.getByTestId("live-titles")).toContainText("Intro title");
+  await expect(page.getByTestId("live-titles")).toContainText("Speaker 1");
+  await expect(page.getByTestId("live-overlays").locator("img")).toHaveCount(1);
+});

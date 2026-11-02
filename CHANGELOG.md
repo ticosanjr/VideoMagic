@@ -3,6 +3,30 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.31.0] - 2026-11-02
+
+### Added
+
+- **Live compositor for Recut playback.** Crossfades and fade-to-black now
+  compose in the browser with paired video/audio layers, overlays render at
+  their timeline position with their opacity and size, and structured title
+  cards plus lower thirds appear in output time.
+- Track mute/solo is honoured live: the audio gain drops to zero and a muted
+  video track renders black.
+- `GET /jobs/{id}/overlays/{overlay_id}/file` serves overlay assets with the
+  same allowed-root validation as the rest of the API.
+- The timeline payload now carries `titles` cues and each clip reports whether
+  its transition includes audio.
+
+### Notes
+
+- FFmpeg colour/audio filters and clip transforms still fall back to the
+  rendered preview because approximating them in CSS/Web Audio would be
+  inaccurate.
+- ASS files without `titles.json` also fall back; structured titles are live.
+- Full-tree coverage is 96.0%.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.30.0] - 2026-11-02
 
 ### Added

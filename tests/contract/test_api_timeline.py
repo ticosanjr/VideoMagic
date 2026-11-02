@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
 
@@ -649,7 +650,7 @@ def test_timeline_reports_live_eligibility_and_source_stream(monkeypatch, tmp_pa
 
     payload = client.get(base).json()
     assert payload["live_eligible"] is True
-    assert payload["live_reason"] == "hard cuts only"
+    assert payload["live_reason"] == "transitions, overlays, and titles are live"
 
     response = client.get(
         f"/api/v1/jobs/{job.job_id}/source/file",
@@ -664,5 +665,84 @@ def test_timeline_reports_live_eligibility_and_source_stream(monkeypatch, tmp_pa
     )
     assert transition.status_code == 200, transition.text
     payload = client.get(base).json()
+    assert payload["live_eligible"] is True
+
+
+def test_timeline_live_compositor_exposes_titles_and_overlays(
+    monkeypatch, tmp_path: Path
+) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    (tmp_path / "source.mp4").write_bytes(b"fixture")
+    overlay_file = tmp_path / "overlay.png"
+    overlay_file.write_bytes(b"png")
+    job = _job(manager, tmp_path)
+    (job.output / "titles.json").write_text(
+        json.dumps(
+            {
+                "title_cards": [
+                    {
+                        "kind": "intro",
+                        "start_sec": 0.0,
+                        "duration_sec": 1.5,
+                        "text": "Intro",
+                    }
+                ],
+                "lower_thirds": [
+                    {
+                        "start_sec": 0.5,
+                        "end_sec": 2.0,
+                        "speaker": 0,
+                        "text": "Speaker 1",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (job.output / "titles.ass").write_text("[Events]\n", encoding="utf-8")
+    base = f"/api/v1/jobs/{job.job_id}/timeline"
+
+    overlay = client.post(
+        f"{base}/overlays",
+        json={
+            "overlay_id": "o1",
+            "path": str(overlay_file),
+            "start_sec": 0.5,
+            "duration_sec": 1.0,
+            "position_x": 0.2,
+            "position_y": 0.8,
+            "width_ratio": 0.3,
+            "opacity": 0.8,
+            "kind": "image",
+        },
+    )
+    assert overlay.status_code == 201, overlay.text
+
+    payload = client.get(base).json()
+    assert payload["live_eligible"] is True
+    assert payload["titles"] == [
+        {
+            "start_sec": 0.0,
+            "end_sec": 1.5,
+            "text": "Intro",
+            "style": "title",
+        },
+        {
+            "start_sec": 0.5,
+            "end_sec": 2.0,
+            "text": "Speaker 1",
+            "style": "lower_third",
+        },
+    ]
+    assert payload["overlays"][0]["overlay_id"] == "o1"
+
+    served = client.get(f"/api/v1/jobs/{job.job_id}/overlays/o1/file")
+    assert served.status_code == 200
+    assert served.content == b"png"
+
+    color = job.output / "color" / "filters.json"
+    color.parent.mkdir(parents=True, exist_ok=True)
+    color.write_text(json.dumps({"filters": ["eq=brightness=0.1"]}), encoding="utf-8")
+    payload = client.get(base).json()
     assert payload["live_eligible"] is False
-    assert "transitions" in payload["live_reason"]
+    assert "master filters" in payload["live_reason"]

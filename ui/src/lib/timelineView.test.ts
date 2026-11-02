@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { clipVisible, groupTrimEdits, liveSegments, visibleRange } from "./timelineView";
+import {
+  clipVisible,
+  groupTrimEdits,
+  liveOutputDuration,
+  liveSegments,
+  visibleRange
+} from "./timelineView";
 
 describe("visibleRange", () => {
   it("maps scroll and zoom to a padded time window", () => {
@@ -71,9 +77,60 @@ describe("liveSegments", () => {
     );
 
     expect(segments).toEqual([
-      { id: "a", start: 0, end: 2, outputStart: 0 },
-      { id: "b", start: 5, end: 7, outputStart: 2 }
+      { id: "a", start: 0, end: 2, outputStart: 0, outputEnd: 2 },
+      { id: "b", start: 5, end: 7, outputStart: 2, outputEnd: 4 }
     ]);
+  });
+
+  it("overlaps crossfade segments and shortens the output duration", () => {
+    const segments = liveSegments(
+      [
+        {
+          id: "a",
+          start_sec: 0,
+          end_sec: 2,
+          source_in_frame: 0,
+          source_out_frame: 30,
+          transition: "crossfade",
+          transition_frames: 5,
+          transition_audio: true
+        },
+        {
+          id: "b",
+          start_sec: 5,
+          end_sec: 7,
+          source_in_frame: 75,
+          source_out_frame: 105
+        }
+      ],
+      15
+    );
+
+    expect(segments[0]).toMatchObject({
+      transitionOut: { type: "crossfade", duration: 1 / 3, audio: true }
+    });
+    expect(segments[1].outputStart).toBeCloseTo(2 - 1 / 3);
+    expect(liveOutputDuration(segments)).toBeCloseTo(2 + 2 - 1 / 3);
+  });
+
+  it("does not overlap fade-to-black segments", () => {
+    const segments = liveSegments(
+      [
+        {
+          id: "a",
+          start_sec: 0,
+          end_sec: 2,
+          source_in_frame: 0,
+          source_out_frame: 30,
+          transition: "fade_to_black",
+          transition_frames: 5
+        },
+        { id: "b", start_sec: 2, end_sec: 4, source_in_frame: 30, source_out_frame: 60 }
+      ],
+      15
+    );
+    expect(segments[1].outputStart).toBe(2);
+    expect(liveOutputDuration(segments)).toBe(4);
   });
 
   it("uses explicit source seconds when provided", () => {

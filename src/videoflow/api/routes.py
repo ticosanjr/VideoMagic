@@ -3146,8 +3146,54 @@ def register_routes(
             },
         }
 
+    def _live_titles(output: Path) -> tuple[list[dict[str, object]], bool]:
+        """Read structured title cues; ASS alone cannot be composed in-browser."""
+
+        ass = output / "titles.ass"
+        source = output / "titles.json"
+        if not source.is_file():
+            return [], not ass.is_file()
+        try:
+            payload = json.loads(source.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return [], not ass.is_file()
+        cues: list[dict[str, object]] = []
+        for card in payload.get("title_cards", []) if isinstance(payload, dict) else []:
+            if not isinstance(card, dict) or card.get("kind") == "short":
+                continue
+            text = str(card.get("text") or "").strip()
+            if not text:
+                continue
+            start = max(0.0, float(card.get("start_sec") or 0.0))
+            duration = max(0.5, float(card.get("duration_sec") or 2.0))
+            cues.append(
+                {
+                    "start_sec": round(start, 3),
+                    "end_sec": round(start + duration, 3),
+                    "text": text,
+                    "style": "title",
+                }
+            )
+        for item in payload.get("lower_thirds", []) if isinstance(payload, dict) else []:
+            if not isinstance(item, dict):
+                continue
+            text = str(item.get("text") or "").strip()
+            if not text:
+                continue
+            start = max(0.0, float(item.get("start_sec") or 0.0))
+            end = max(start + 0.5, float(item.get("end_sec") or start + 3.0))
+            cues.append(
+                {
+                    "start_sec": round(start, 3),
+                    "end_sec": round(end, 3),
+                    "text": text,
+                    "style": "lower_third",
+                }
+            )
+        return sorted(cues, key=lambda cue: float(cue["start_sec"])), True
+
     def _live_playback(
-        state: ProjectState, meta: object
+        state: ProjectState, _meta: object
     ) -> tuple[bool, str]:
         media = state.media_info
         if media is None:
@@ -3155,12 +3201,8 @@ def register_routes(
         source = Path(media.source_path).expanduser()
         if not source.is_file():
             return False, "source media is offline"
-        if state.overlays:
-            return False, "overlays require the rendered preview"
         video = sorted(state.video_segments, key=lambda item: item.timeline_in_frame)
         audio = {clip.clip_id: clip for clip in state.audio_segments}
-        if any(clip.transition_out is not None for clip in video):
-            return False, "transitions require the rendered preview"
         for clip in video:
             transform = clip.transform
             if (
@@ -3173,11 +3215,7 @@ def register_routes(
                 return False, "clip transforms require the rendered preview"
             if clip.clip_id not in audio:
                 return False, "audio/video segments are not paired"
-        tracks = getattr(meta, "tracks", {}) or {}
-        for state_track in tracks.values():
-            if getattr(state_track, "muted", False) or getattr(state_track, "solo", False):
-                return False, "track mute/solo requires the rendered preview"
-        return True, "hard cuts only"
+        return True, "transitions, overlays, and titles are live"
 
     @app.get("/api/v1/jobs/{job_id}/timeline")
     def job_timeline(
@@ -3209,16 +3247,18 @@ def register_routes(
         meta = load_meta(job.output)
         broll_plan = (job.result or {}).get("broll_plan", {})
         live_eligible, live_reason = _live_playback(state, meta)
+        titles, titles_ready = _live_titles(job.output)
+        if live_eligible and not titles_ready:
+            live_eligible, live_reason = (
+                False,
+                "titles require the rendered preview",
+            )
         if live_eligible:
             for path in (
-                job.output / "titles.ass",
                 job.output / "color" / "filters.json",
                 job.output / "audio" / "master-filters.json",
             ):
-                if path.suffix == ".ass" and path.is_file():
-                    live_eligible, live_reason = False, "titles require the rendered preview"
-                    break
-                if path.suffix == ".json" and read_filters(path):
+                if read_filters(path):
                     live_eligible, live_reason = (
                         False,
                         "master filters require the rendered preview",
@@ -3257,6 +3297,9 @@ def register_routes(
                     "transition": clip.transition_out.type if clip.transition_out else None,
                     "transition_frames": (
                         clip.transition_out.duration_frames if clip.transition_out else 0
+                    ),
+                    "transition_audio": (
+                        clip.transition_out.audio if clip.transition_out else False
                     ),
                 }
                 for clip in state.video_segments
@@ -3327,11 +3370,31 @@ def register_routes(
             "tracks": {key: value.model_dump() for key, value in meta.tracks.items()},
             "comments": [item.model_dump(mode="json") for item in meta.comments],
             "overlays": [item.model_dump(mode="json") for item in state.overlays],
+            "titles": titles,
             "media": {
                 "source_path": media.source_path if media is not None else "",
                 "audio_sample_rate": media.audio_sample_rate if media is not None else 0,
             },
         }
+
+    @app.get("/api/v1/jobs/{job_id}/overlays/{overlay_id}/file")
+    def job_overlay_file(job_id: str, overlay_id: str) -> FileResponse:
+        try:
+            job = jobs.get(job_id)
+            state = load_state(_timeline_state_path(job))
+            overlay = next(
+                (item for item in state.overlays if item.overlay_id == overlay_id),
+                None,
+            )
+            if overlay is None:
+                raise StateNotReadyError(f"Unknown overlay: {overlay_id}")
+            path = resolve_allowed(Path(overlay.path), allowed_roots())
+            if not path.is_file():
+                raise StateNotReadyError("The overlay asset is not available.")
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return FileResponse(path, filename=path.name)
 
     @app.get("/api/v1/jobs/{job_id}/source/file")
     def job_source_file(job_id: str) -> FileResponse:

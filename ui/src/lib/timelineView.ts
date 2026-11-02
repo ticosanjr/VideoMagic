@@ -59,28 +59,60 @@ export function groupTrimEdits(
   return edits;
 }
 
+export interface LiveTransition {
+  type: "crossfade" | "fade_to_black";
+  duration: number;
+  audio: boolean;
+}
+
 export interface LiveSegment {
   id: string;
   start: number;
   end: number;
   outputStart: number;
+  outputEnd: number;
+  transitionOut?: LiveTransition;
 }
 
 /** Active source ranges in playback order; gaps are inactive and never played. */
 export function liveSegments(video: TimelineClip[], fps: number): LiveSegment[] {
+  const frame = 1 / Math.max(1, fps);
   const active = video
     .map((clip) => {
       const start =
         clip.source_start_sec ?? (clip.source_in_frame ?? 0) / Math.max(1, fps);
       const end = clip.source_end_sec ?? (clip.source_out_frame ?? 0) / Math.max(1, fps);
-      return { id: clip.id, start, end };
+      const duration = Math.max(0, (clip.transition_frames ?? 0) * frame);
+      const transitionOut =
+        clip.transition && duration > 0
+          ? {
+              type: clip.transition as LiveTransition["type"],
+              duration,
+              audio: Boolean(clip.transition_audio)
+            }
+          : undefined;
+      return { id: clip.id, start, end, transitionOut };
     })
     .filter((clip) => clip.end > clip.start)
     .sort((left, right) => left.start - right.start);
-  let cursor = 0;
-  return active.map((clip) => {
-    const segment = { ...clip, outputStart: cursor };
-    cursor += clip.end - clip.start;
-    return segment;
-  });
+  const segments: LiveSegment[] = [];
+  for (const clip of active) {
+    const length = clip.end - clip.start;
+    const previous = segments.at(-1);
+    const overlap =
+      previous?.transitionOut?.type === "crossfade"
+        ? Math.min(previous.transitionOut.duration, length, previous.end - previous.start)
+        : 0;
+    const outputStart = previous ? previous.outputEnd - overlap : 0;
+    segments.push({
+      ...clip,
+      outputStart,
+      outputEnd: outputStart + length
+    });
+  }
+  return segments;
+}
+
+export function liveOutputDuration(segments: LiveSegment[]): number {
+  return segments.at(-1)?.outputEnd ?? 0;
 }
