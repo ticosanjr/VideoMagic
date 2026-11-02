@@ -150,6 +150,15 @@ class AudioSegment(StrictModel):
         return self
 
 
+class InactiveSegment(StrictModel):
+    """A non-destructive removed clip kept for the Recut view."""
+
+    clip_id: str = Field(min_length=1)
+    video: VideoSegment
+    audio: AudioSegment
+    reason: Literal["silence", "retake", "manual"] = "manual"
+
+
 class VerticalClip(StrictModel):
     clip_id: str = Field(min_length=1)
     title: str = Field(min_length=1)
@@ -195,6 +204,7 @@ class ProjectState(StrictModel):
     manual_overrides: list[ManualOverride] = Field(default_factory=list)
     video_segments: list[VideoSegment] = Field(default_factory=list)
     audio_segments: list[AudioSegment] = Field(default_factory=list)
+    inactive_segments: list[InactiveSegment] = Field(default_factory=list)
     vertical_clips: list[VerticalClip] = Field(default_factory=list)
     overlays: list[OverlayClip] = Field(default_factory=list)
 

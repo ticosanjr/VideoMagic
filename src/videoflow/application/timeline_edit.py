@@ -7,12 +7,12 @@ from typing import Literal
 from uuid import uuid4
 
 from videoflow.domain.errors import InvalidTimeError
-from videoflow.domain.state import ProjectState
+from videoflow.domain.state import InactiveSegment, ProjectState
 from videoflow.domain.timebase import Rounding
 
 TimelineAction = Literal[
     "trim", "move", "delete", "split", "ripple", "ripple_trim", "slip",
-    "slide", "duplicate",
+    "slide", "duplicate", "deactivate", "activate",
 ]
 
 
@@ -210,10 +210,101 @@ def _ripple_trim(
                     )
 
 
+def _repack_timeline(state: ProjectState) -> None:
+    """Reassign packed timeline positions after a visibility toggle."""
+
+    video = sorted(state.video_segments, key=lambda clip: clip.timeline_in_frame)
+    cursor = 0
+    for clip in video:
+        duration = max(1, clip.timeline_out_frame - clip.timeline_in_frame)
+        clip.timeline_in_frame = cursor
+        clip.timeline_out_frame = cursor + duration
+        cursor += duration
+    state.video_segments = video
+
+    audio_by_id = {clip.clip_id: clip for clip in state.audio_segments}
+    ordered_audio: list = []
+    sample_cursor = 0
+    for clip in video:
+        audio = audio_by_id.get(clip.clip_id)
+        if audio is None:
+            continue
+        duration = max(1, audio.timeline_out_sample - audio.timeline_in_sample)
+        audio.timeline_in_sample = sample_cursor
+        audio.timeline_out_sample = sample_cursor + duration
+        sample_cursor += duration
+        ordered_audio.append(audio)
+    state.audio_segments = ordered_audio
+
+
+def _deactivate_clip(state: ProjectState, clip_id: str, *, reason: str = "manual") -> None:
+    video = next((clip for clip in state.video_segments if clip.clip_id == clip_id), None)
+    audio = next((clip for clip in state.audio_segments if clip.clip_id == clip_id), None)
+    if video is None or audio is None:
+        raise InvalidTimeError(f"Unknown active clip: {clip_id}")
+    state.video_segments = [clip for clip in state.video_segments if clip.clip_id != clip_id]
+    state.audio_segments = [clip for clip in state.audio_segments if clip.clip_id != clip_id]
+    state.inactive_segments = [
+        item for item in state.inactive_segments if item.clip_id != clip_id
+    ] + [
+        InactiveSegment(
+            clip_id=clip_id,
+            video=video.model_copy(deep=True),
+            audio=audio.model_copy(deep=True),
+            reason=reason,  # type: ignore[arg-type]
+        )
+    ]
+    for clip in state.video_segments:
+        clip.transition_out = None
+    _repack_timeline(state)
+
+
+def _activate_clip(state: ProjectState, clip_id: str) -> None:
+    inactive = next(
+        (item for item in state.inactive_segments if item.clip_id == clip_id), None
+    )
+    if inactive is None:
+        raise InvalidTimeError(f"Unknown inactive clip: {clip_id}")
+    if any(clip.clip_id == clip_id for clip in state.video_segments):
+        raise InvalidTimeError(f"Clip is already active: {clip_id}")
+    video = inactive.video.model_copy(deep=True)
+    audio = inactive.audio.model_copy(deep=True)
+    video.transition_out = None
+    video.timeline_in_frame = 0
+    video.timeline_out_frame = max(
+        1, inactive.video.timeline_out_frame - inactive.video.timeline_in_frame
+    )
+    audio.timeline_in_sample = 0
+    audio.timeline_out_sample = max(
+        1, inactive.audio.timeline_out_sample - inactive.audio.timeline_in_sample
+    )
+    active = list(state.video_segments)
+    position = len(active)
+    for index, clip in enumerate(active):
+        if clip.source_in_frame > video.source_in_frame:
+            position = index
+            break
+    active.insert(position, video)
+    state.video_segments = active
+    state.audio_segments = list(state.audio_segments) + [audio]
+    for clip in state.video_segments:
+        clip.transition_out = None
+    state.inactive_segments = [
+        item for item in state.inactive_segments if item.clip_id != clip_id
+    ]
+    _repack_timeline(state)
+
+
 def apply_timeline_edit(state: ProjectState, edit: TimelineEdit) -> ProjectState:
     fps = _fps(state)
     media = state.media_info
     assert media is not None
+    if edit.action == "deactivate":
+        _deactivate_clip(state, edit.clip_id)
+        return state
+    if edit.action == "activate":
+        _activate_clip(state, edit.clip_id)
+        return state
     video = next((clip for clip in state.video_segments if clip.clip_id == edit.clip_id), None)
     if video is None:
         raise InvalidTimeError(f"Unknown clip: {edit.clip_id}")

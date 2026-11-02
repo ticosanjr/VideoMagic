@@ -824,7 +824,9 @@ Project state is created by recipe runs and edited through the job timeline API.
   `PUT /api/v1/presets/{name}`
 
 `PATCH /api/v1/jobs/{job_id}/timeline` accepts `trim`, `move`, `delete`,
-`split`, `ripple`, `ripple_trim`, `slip`, `slide`, and `duplicate`. Every edit validates against the
+`split`, `ripple`, `ripple_trim`, `slip`, `slide`, `duplicate`, `deactivate`,
+and `activate`. Deactivation moves a clip into `inactive_segments` instead of
+destroying it. Every edit validates against the
 source media, records one undo entry in `timeline_history.json`, increments
 `revision`, and returns a warning that rendered artifacts must be refreshed.
 
@@ -941,7 +943,9 @@ the enabled default followed by its fallback chain.
 
 ## 8. Timeline concurrency (ETag)
 
-`GET /api/v1/jobs/{id}/timeline` returns `ETag: "timeline-<revision>"`.
+`GET /api/v1/jobs/{id}/timeline` returns `ETag: "timeline-<revision>"`, the
+active `video`/`audio` lanes, `source_duration_sec`, and `inactive` source
+ranges.
 
 - Send `If-None-Match` to get `304` when nothing changed.
 - Send `If-Match` with the last ETag on `PATCH /timeline`,

@@ -576,3 +576,29 @@ def test_timeline_etag_and_if_match(monkeypatch, tmp_path: Path) -> None:
     )
     assert applied.status_code == 200, applied.text
     assert applied.json()["etag"] != etag
+
+
+def test_timeline_deactivate_activate_and_reports_inactive(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    job = _job(manager, tmp_path)
+    base = f"/api/v1/jobs/{job.job_id}/timeline"
+
+    deactivated = client.patch(
+        base,
+        json={"clip_id": "v2", "action": "deactivate"},
+    )
+    assert deactivated.status_code == 200, deactivated.text
+    payload = client.get(base).json()
+    assert [clip["id"] for clip in payload["video"]] == ["v1"]
+    assert payload["inactive"][0]["id"] == "v2"
+    assert payload["inactive"][0]["reason"] == "manual"
+    assert payload["source_duration_sec"] > payload["duration_sec"]
+
+    activated = client.patch(
+        base,
+        json={"clip_id": "v2", "action": "activate"},
+    )
+    assert activated.status_code == 200, activated.text
+    payload = client.get(base).json()
+    assert [clip["id"] for clip in payload["video"]] == ["v1", "v2"]
+    assert payload["inactive"] == []

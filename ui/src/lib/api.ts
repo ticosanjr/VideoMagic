@@ -1811,6 +1811,8 @@ export interface TimelineClip {
   end_sec: number;
   source_in_frame?: number;
   source_out_frame?: number;
+  source_start_sec?: number;
+  source_end_sec?: number;
   source_in_sec?: number;
   source_out_sec?: number;
   zoom?: number;
@@ -1831,6 +1833,7 @@ export interface TimelineData {
   can_redo: boolean;
   fps: number;
   duration_sec: number;
+  source_duration_sec: number;
   video: TimelineClip[];
   audio: TimelineClip[];
   captions: Array<{
@@ -1845,9 +1848,19 @@ export interface TimelineData {
   broll_approval: Record<string, { approved: number[]; order: number[] }>;
   markers: TimelineMarker[];
   comments?: TimelineComment[];
+  inactive: TimelineInactive[];
   overlays?: TimelineOverlay[];
   tracks: Record<string, TrackState>;
   media?: { source_path: string; audio_sample_rate: number };
+}
+
+export interface TimelineInactive {
+  id: string;
+  reason: "silence" | "retake" | "manual";
+  video_start_sec: number;
+  video_end_sec: number;
+  audio_start_sec: number;
+  audio_end_sec: number;
 }
 
 export interface TimelineOverlay {
@@ -1946,7 +1959,9 @@ export async function editTimeline(
       | "ripple_trim"
       | "slip"
       | "slide"
-      | "duplicate";
+      | "duplicate"
+      | "deactivate"
+      | "activate";
     start_sec?: number;
     end_sec?: number;
     delta_sec?: number;
@@ -1980,7 +1995,9 @@ export async function editTimelineBatch(
       | "ripple_trim"
       | "slip"
       | "slide"
-      | "duplicate";
+      | "duplicate"
+      | "deactivate"
+      | "activate";
     start_sec?: number;
     end_sec?: number;
     delta_sec?: number;

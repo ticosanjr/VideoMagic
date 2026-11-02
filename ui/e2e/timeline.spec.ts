@@ -37,6 +37,8 @@ const timeline = {
   can_redo: false,
   fps: 25,
   duration_sec: 8,
+  source_duration_sec: 10,
+  inactive: [],
   video: [
     { id: "v1", start_sec: 0, end_sec: 3, source_in_frame: 0, source_out_frame: 75, zoom: 1, keyframes: 0, transition: "crossfade" },
     { id: "v2", start_sec: 3, end_sec: 8, source_in_frame: 75, source_out_frame: 200, zoom: 1.1, keyframes: 2, transition: null }
@@ -363,4 +365,58 @@ test("does not reload deliverables for a timeline edit", async ({ page }) => {
   await expect(page.getByText(/Timeline revision/)).toBeVisible();
 
   expect(deliverableRequests.length).toBe(before);
+});
+
+
+test("shows inactive segments in the Recut view", async ({ page }) => {
+  const inactiveTimeline = {
+    ...timeline,
+    duration_sec: 3,
+    source_duration_sec: 8,
+    video: [timeline.video[0]],
+    audio: [{ ...timeline.audio[0], source_in_sec: 0, source_out_sec: 3 }],
+    inactive: [
+      {
+        id: "v2",
+        reason: "retake",
+        video_start_sec: 3,
+        video_end_sec: 8,
+        audio_start_sec: 3,
+        audio_end_sec: 8
+      }
+    ]
+  };
+  const actions: string[] = [];
+  await page.route("**/api/v1/jobs/job-1/timeline", async (route) => {
+    if (route.request().method() === "PATCH") {
+      actions.push(JSON.parse(route.request().postData() ?? "{}").action);
+      return route.fulfill({
+        json: { ok: true, revision: 4, can_undo: true, can_redo: false, warning: "" }
+      });
+    }
+    return route.fulfill({ json: inactiveTimeline });
+  });
+
+  await page.reload();
+  const recut = page.getByRole("button", { name: "Recut", exact: true });
+  await expect(async () => {
+    await recut.click();
+    await expect(page.getByTestId("recut-canvas")).toBeVisible({ timeout: 1000 });
+  }).toPass();
+
+  await expect(page.getByTestId("recut-active-v1")).toHaveClass(/bg-sky-500/);
+  await expect(page.getByTestId("recut-inactive-v2")).toHaveClass(/bg-rose-500/);
+  await page.getByTestId("recut-inactive-v2").click();
+  await expect(page.getByTestId("recut-selection")).toContainText("retake");
+
+  await page.getByRole("button", { name: "Activate", exact: true }).click();
+  await expect.poll(() => actions).toContain("activate");
+});
+
+test("persists the Recut view choice", async ({ page }) => {
+  const recut = page.getByRole("button", { name: "Recut", exact: true });
+  await recut.click();
+  await expect(page.getByTestId("recut-canvas")).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId("recut-canvas")).toBeVisible();
 });

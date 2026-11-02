@@ -577,7 +577,7 @@ class TimelineEditRequest(BaseModel):
     clip_id: str = Field(min_length=1)
     action: Literal[
         "trim", "move", "delete", "split", "ripple", "ripple_trim", "slip",
-        "slide", "duplicate",
+        "slide", "duplicate", "deactivate", "activate",
     ]
     start_sec: float | None = Field(default=None, ge=0.0)
     end_sec: float | None = Field(default=None, ge=0.0)
@@ -3186,6 +3186,9 @@ def register_routes(
             "can_redo": history.can_redo,
             "fps": round(fps, 6),
             "duration_sec": round(duration, 3),
+            "source_duration_sec": round(
+                (media.duration_frames / fps) if media is not None else 0.0, 3
+            ),
             "video": [
                 {
                     "id": clip.clip_id,
@@ -3193,6 +3196,8 @@ def register_routes(
                     "end_sec": round(clip.timeline_out_frame / fps, 3),
                     "source_in_frame": clip.source_in_frame,
                     "source_out_frame": clip.source_out_frame,
+                    "source_start_sec": round(clip.source_in_frame / fps, 3),
+                    "source_end_sec": round(clip.source_out_frame / fps, 3),
                     "zoom": clip.transform.scale,
                     "pos_x": clip.transform.pos_x,
                     "pos_y": clip.transform.pos_y,
@@ -3227,6 +3232,23 @@ def register_routes(
                     ),
                 }
                 for clip in state.audio_segments
+            ]
+            if media is not None
+            else [],
+            "inactive": [
+                {
+                    "id": item.clip_id,
+                    "reason": item.reason,
+                    "video_start_sec": round(item.video.source_in_frame / fps, 3),
+                    "video_end_sec": round(item.video.source_out_frame / fps, 3),
+                    "audio_start_sec": round(
+                        item.audio.source_in_sample / max(1, media.audio_sample_rate), 3
+                    ),
+                    "audio_end_sec": round(
+                        item.audio.source_out_sample / max(1, media.audio_sample_rate), 3
+                    ),
+                }
+                for item in state.inactive_segments
             ]
             if media is not None
             else [],

@@ -30,6 +30,8 @@ const timeline = {
   can_redo: false,
   fps: 30,
   duration_sec: 50,
+  source_duration_sec: 50,
+  inactive: [],
   video: clips,
   audio: [{ id: "v0", start_sec: 0, end_sec: 50 }],
   captions,

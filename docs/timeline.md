@@ -52,6 +52,21 @@ Comments panel and the context menu.
 range leaves the media. `timeline=...` stays identical; only the picture and
 audio offset change.
 
+## Normal and Recut views
+
+The canonical state keeps active clips in `video_segments`/`audio_segments` and
+removed clips in `inactive_segments`. Inactive entries preserve paired source
+ranges, transform/transition data, and the reason (`manual`, `silence`,
+`retake`).
+
+- **Normal** hides inactive entries and shows the packed active timeline.
+- **Recut** draws both sets on the source-time axis: active clips blue,
+  inactive clips red. The view choice is stored in the browser.
+- `PATCH /timeline` accepts `deactivate` and `activate` actions. They repack the
+  active timeline, record history, and bump the revision.
+- Render and NLE export consume only active segments. Live playback that skips
+  inactive regions is the next phase.
+
 ## Waveforms
 
 `GET /api/v1/jobs/{id}/timeline/waveform?start=&end=&buckets=` returns normalised

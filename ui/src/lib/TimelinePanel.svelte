@@ -3,6 +3,7 @@
   import { onDestroy, onMount } from "svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
   import TimelineCanvas from "$lib/TimelineCanvas.svelte";
+  import RecutCanvas from "$lib/RecutCanvas.svelte";
   import { groupTrimEdits } from "$lib/timelineView";
   import ShortEditor from "$lib/ShortEditor.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -154,6 +155,8 @@
   let waveforms = $state<Record<string, number[]>>({});
   let autoPreview = $state(true);
   let previewDirty = $state(false);
+  let viewMode = $state<"normal" | "recut">("normal");
+  let selectedInactiveId = $state("");
   let previewScheduled: ReturnType<typeof setTimeout> | undefined;
   let disposed = false;
   const waveformCache = new Map<string, number[]>();
@@ -171,9 +174,24 @@
   const canPreview = $derived(Boolean(previewUrl || previewArtifact));
 
   onMount(() => {
+    try {
+      const saved = localStorage.getItem("videoflow.timelineView");
+      if (saved === "recut" || saved === "normal") viewMode = saved;
+    } catch {
+      /* private mode */
+    }
     void loadJobs();
     window.addEventListener("keydown", onKeydown);
   });
+
+  function setViewMode(mode: "normal" | "recut") {
+    viewMode = mode;
+    try {
+      localStorage.setItem("videoflow.timelineView", mode);
+    } catch {
+      /* private mode */
+    }
+  }
 
   onDestroy(() => {
     disposed = true;
@@ -218,6 +236,7 @@
       timeline = { ...loaded, markers: loaded.markers ?? [], tracks: loaded.tracks ?? {} };
       if (!keepClipId) playhead = 0;
       selectedCaption = null;
+      selectedInactiveId = "";
       if (!keepClipId) selectedIds = [];
       comments = loaded.comments ?? [];
       overlays = loaded.overlays ?? [];
@@ -728,6 +747,53 @@
     }
   }
 
+  const selectedInactive = $derived(
+    timeline?.inactive.find((item) => item.id === selectedInactiveId) ?? null
+  );
+
+  function selectRecut(kind: "active" | "inactive", id: string) {
+    if (kind === "active") {
+      selectedInactiveId = "";
+      selectClip(timeline?.video.find((clip) => clip.id === id) ?? null);
+      return;
+    }
+    selectedInactiveId = id;
+    selectedClip = null;
+    selectedIds = [];
+  }
+
+  async function toggleSegment(id: string, makeActive: boolean) {
+    if (!timeline || editBusy) return;
+    editBusy = true;
+    error = "";
+    errorDetail = "";
+    try {
+      const response = await editTimeline(selected, timeline.revision, {
+        clip_id: id,
+        action: makeActive ? "activate" : "deactivate"
+      });
+      status = makeActive
+        ? `Activated ${id} at revision ${response.revision}.`
+        : `Deactivated ${id} at revision ${response.revision}.`;
+      await loadTimeline(makeActive ? id : "", {
+        assets: false,
+        deliverables: false
+      });
+      selectedInactiveId = makeActive ? "" : id;
+      schedulePreview();
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.code === "precondition_failed") {
+        await loadTimeline("", { assets: false, deliverables: false });
+        error = "The timeline changed in another window. Reloaded the latest revision.";
+      } else {
+        error = errorMessage(reason);
+        errorDetail = describeError(reason);
+      }
+    } finally {
+      editBusy = false;
+    }
+  }
+
   async function applyEdit(
     action:
       | "trim"
@@ -1176,12 +1242,17 @@
           s · frame {Math.round(playhead * fps)}
         </label>
         <span class="mx-1 h-4 w-px bg-neutral-800"></span>
+        <div class="flex rounded-lg border border-neutral-700 bg-neutral-950 p-0.5" role="group" aria-label="Timeline view">
+          <button type="button" aria-pressed={viewMode === "normal"} onclick={() => setViewMode("normal")} class={`rounded px-2 py-1 text-[10px] ${viewMode === "normal" ? "bg-sky-500/20 text-sky-200" : "text-neutral-400 hover:text-neutral-200"}`}>Normal</button>
+          <button type="button" aria-pressed={viewMode === "recut"} onclick={() => setViewMode("recut")} class={`rounded px-2 py-1 text-[10px] ${viewMode === "recut" ? "bg-rose-500/20 text-rose-200" : "text-neutral-400 hover:text-neutral-200"}`}>Recut</button>
+        </div>
         <button type="button" onclick={() => void undo()} disabled={!timeline.can_undo || editBusy} class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Undo</button>
         <button type="button" onclick={() => void redo()} disabled={!timeline.can_redo || editBusy} class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Redo</button>
         {#if selectedIds.length > 1}<span class="rounded bg-sky-500/10 px-2 py-1 text-[10px] text-sky-200">{selectedIds.length} selected</span>{/if}
         <button type="button" onclick={splitSelected} disabled={!selectedClip || editBusy} class="rounded-lg border border-violet-500/40 px-2 py-1 text-[10px] text-violet-200 disabled:opacity-40" title="Split selected clip at playhead (S)">Split</button>
         <button type="button" onclick={() => deleteSelected(false)} disabled={!selectedIds.length && !selectedClip || editBusy} class="rounded-lg border border-rose-500/40 px-2 py-1 text-[10px] text-rose-200 disabled:opacity-40" title="Delete selected clip (Delete)">Delete</button>
         <button type="button" onclick={() => deleteSelected(true)} disabled={!selectedIds.length && !selectedClip || editBusy} class="rounded-lg border border-rose-500/30 px-2 py-1 text-[10px] text-rose-300 disabled:opacity-40" title="Delete and close the gap (Shift+Delete)">Ripple</button>
+        <button type="button" onclick={() => selectedClip && void toggleSegment(selectedClip.id, false)} disabled={!selectedClip || editBusy} class="rounded-lg border border-rose-500/40 px-2 py-1 text-[10px] text-rose-200 disabled:opacity-40" title="Keep the clip but mark it inactive">Deactivate</button>
         <label class="ml-auto flex items-center gap-1.5 text-[10px] text-neutral-500">
           <input type="checkbox" bind:checked={snap} class="h-3.5 w-3.5 rounded border-neutral-700 bg-neutral-800" />
           Snap
@@ -1235,59 +1306,76 @@
         {#if !assets.length}<span class="text-[10px] text-neutral-600">Scan assets in the Assets tab to drag them here.</span>{/if}
       </div>
 
+      {#if viewMode === "recut"}
+        <RecutCanvas
+          {timeline}
+          selectedId={selectedInactiveId || selectedClip?.id || ""}
+          busy={editBusy}
+          onselect={selectRecut}
+          ontoggle={toggleSegment}
+        />
+      {:else}
       <TimelineCanvas
-        {timeline}
-        jobId={selected}
-        markers={timeline.markers ?? []}
-        tracks={timeline.tracks ?? {}}
-        {playhead}
-        {zoom}
-        selectedClipId={selectedClip?.id ?? ""}
-        {selectedIds}
-        {snap}
-        {brollApproved}
-        {waveforms}
-        onSeek={seek}
-        onSelectClip={selectClip}
-        onMoveClips={(ids, delta) => {
-          void applyBatch(ids.map((id) => ({ clip_id: id, action: "move", delta_sec: delta })));
-        }}
-        onMoveClip={(id, delta) => {
-          const clip = timeline?.video.find((item) => item.id === id) ?? null;
-          if (clip) {
+          {timeline}
+          jobId={selected}
+          markers={timeline.markers ?? []}
+          tracks={timeline.tracks ?? {}}
+          {playhead}
+          {zoom}
+          selectedClipId={selectedClip?.id ?? ""}
+          {selectedIds}
+          {snap}
+          {brollApproved}
+          {waveforms}
+          onSeek={seek}
+          onSelectClip={selectClip}
+          onMoveClips={(ids, delta) => {
+            void applyBatch(ids.map((id) => ({ clip_id: id, action: "move", delta_sec: delta })));
+          }}
+          onMoveClip={(id, delta) => {
+            const clip = timeline?.video.find((item) => item.id === id) ?? null;
+            if (clip) {
+              selectClip(clip);
+              void applyEdit("move", { delta_sec: delta });
+            }
+          }}
+          onTrimClip={(id, start, end) => {
+            const clip = timeline?.video.find((item) => item.id === id) ?? null;
+            if (clip) {
+              selectClip(clip);
+              void applyEdit("trim", { start_sec: start, end_sec: end });
+            }
+          }}
+          onGroupTrim={(ids, edge, delta) => {
+            const clips = (timeline?.video ?? []).filter((clip) => ids.includes(clip.id));
+            const edits = groupTrimEdits(clips, edge, delta, timeline?.duration_sec ?? 0);
+            if (edits.length) void applyBatch(edits as unknown as Array<Record<string, unknown>>);
+          }}
+          onRippleTrimClip={(id, start, end) => {
+            void applyEdit("ripple_trim", { start_sec: start, end_sec: end });
+          }}
+          onSlipClip={(id, delta) => {
+            const clip = timeline?.video.find((item) => item.id === id) ?? null;
+            if (clip) {
+              selectClip(clip);
+              void applyEdit("slip", { delta_sec: delta });
+            }
+          }}
+          onContextMenu={(clip, x, y) => {
             selectClip(clip);
-            void applyEdit("move", { delta_sec: delta });
-          }
-        }}
-        onTrimClip={(id, start, end) => {
-          const clip = timeline?.video.find((item) => item.id === id) ?? null;
-          if (clip) {
-            selectClip(clip);
-            void applyEdit("trim", { start_sec: start, end_sec: end });
-          }
-        }}
-        onGroupTrim={(ids, edge, delta) => {
-          const clips = (timeline?.video ?? []).filter((clip) => ids.includes(clip.id));
-          const edits = groupTrimEdits(clips, edge, delta, timeline?.duration_sec ?? 0);
-          if (edits.length) void applyBatch(edits as unknown as Array<Record<string, unknown>>);
-        }}
-        onRippleTrimClip={(id, start, end) => {
-          void applyEdit("ripple_trim", { start_sec: start, end_sec: end });
-        }}
-        onSlipClip={(id, delta) => {
-          const clip = timeline?.video.find((item) => item.id === id) ?? null;
-          if (clip) {
-            selectClip(clip);
-            void applyEdit("slip", { delta_sec: delta });
-          }
-        }}
-        onContextMenu={(clip, x, y) => {
-          selectClip(clip);
-          clipMenu = { x, y, clipId: clip.id };
-        }}
-        onDropAsset={(asset, time) => void dropAsset(asset, time)}
-        onZoom={(value) => (zoom = value)}
-      />
+            clipMenu = { x, y, clipId: clip.id };
+          }}
+          onDropAsset={(asset, time) => void dropAsset(asset, time)}
+          onZoom={(value) => (zoom = value)}
+        />
+      {/if}
+
+      {#if viewMode === "recut" && selectedInactive}
+        <div data-testid="recut-selection" class="flex flex-wrap items-center justify-between gap-2 border-t border-neutral-800 px-3 py-2 text-[10px]">
+          <p class="text-rose-200">Inactive <span class="font-mono">{selectedInactive.id}</span> · {selectedInactive.reason}</p>
+          <button type="button" onclick={() => void toggleSegment(selectedInactive.id, true)} disabled={editBusy} class="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1 text-sky-200 disabled:opacity-40">Activate</button>
+        </div>
+      {/if}
 
     </section>
 

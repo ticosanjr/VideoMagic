@@ -274,3 +274,37 @@ def test_clip_id_allocation_gives_up(monkeypatch: pytest.MonkeyPatch) -> None:
 
     with pytest.raises(InvalidTimeError, match="Could not allocate"):
         timeline_edit._new_clip_id({"v1-abcdef"}, "v1")
+
+
+def test_deactivate_and_activate_round_trip_keeps_packed_timeline() -> None:
+    state = state_with_three_clips()
+
+    apply_timeline_edit(
+        state, TimelineEdit(clip_id="v2", action="deactivate")
+    )
+
+    assert [clip.clip_id for clip in state.video_segments] == ["v1", "v3"]
+    assert [clip.clip_id for clip in state.audio_segments] == ["v1", "v3"]
+    assert [(clip.timeline_in_frame, clip.timeline_out_frame) for clip in state.video_segments] == [
+        (0, 25),
+        (25, 50),
+    ]
+    assert [item.clip_id for item in state.inactive_segments] == ["v2"]
+    assert state.inactive_segments[0].reason == "manual"
+
+    apply_timeline_edit(state, TimelineEdit(clip_id="v2", action="activate"))
+
+    assert [clip.clip_id for clip in state.video_segments] == ["v1", "v2", "v3"]
+    assert [clip.clip_id for clip in state.audio_segments] == ["v1", "v2", "v3"]
+    assert state.inactive_segments == []
+    assert [(clip.timeline_in_frame, clip.timeline_out_frame) for clip in state.video_segments] == [
+        (0, 25),
+        (25, 50),
+        (50, 75),
+    ]
+
+
+def test_activate_unknown_clip_is_rejected() -> None:
+    state = state_with_three_clips()
+    with pytest.raises(InvalidTimeError, match="Unknown inactive"):
+        apply_timeline_edit(state, TimelineEdit(clip_id="missing", action="activate"))

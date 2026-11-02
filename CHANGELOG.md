@@ -3,6 +3,29 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.27.0] - 2026-11-02
+
+### Added
+
+- **Non-destructive inactive segments.** Clips can be deactivated without
+  losing their source ranges. `ProjectState.inactive_segments` keeps the paired
+  video/audio payloads and the reason (`manual`, `silence`, `retake`).
+- **Normal and Recut timeline views.** Normal keeps the compacted active
+  timeline. Recut shows the source-time timeline with active clips in blue and
+  inactive clips in red; the choice is remembered.
+- `deactivate` and `activate` timeline actions participate in undo/redo,
+  revision checks, and the ETag edit path.
+- The timeline payload now includes `source_duration_sec`, source positions for
+  video clips, and the inactive segment list.
+
+### Notes
+
+- The Recut view is visual and editable in this phase. Playback that skips
+  inactive regions live is the next phase.
+- MP4/NLE exports continue to use only active segments.
+- Full-tree coverage is 96.2%.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.26.0] - 2026-11-02
 
 ### Changed

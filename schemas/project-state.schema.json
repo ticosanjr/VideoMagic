@@ -390,6 +390,40 @@
       "title": "ExportConfig",
       "type": "object"
     },
+    "InactiveSegment": {
+      "additionalProperties": false,
+      "description": "A non-destructive removed clip kept for the Recut view.",
+      "properties": {
+        "audio": {
+          "$ref": "#/$defs/AudioSegment"
+        },
+        "clip_id": {
+          "minLength": 1,
+          "title": "Clip Id",
+          "type": "string"
+        },
+        "reason": {
+          "default": "manual",
+          "enum": [
+            "silence",
+            "retake",
+            "manual"
+          ],
+          "title": "Reason",
+          "type": "string"
+        },
+        "video": {
+          "$ref": "#/$defs/VideoSegment"
+        }
+      },
+      "required": [
+        "clip_id",
+        "video",
+        "audio"
+      ],
+      "title": "InactiveSegment",
+      "type": "object"
+    },
     "IngestConfig": {
       "additionalProperties": false,
       "properties": {
@@ -1772,6 +1806,13 @@
       },
       "title": "Cache Hashes",
       "type": "object"
+    },
+    "inactive_segments": {
+      "items": {
+        "$ref": "#/$defs/InactiveSegment"
+      },
+      "title": "Inactive Segments",
+      "type": "array"
     },
     "manual_overrides": {
       "items": {
