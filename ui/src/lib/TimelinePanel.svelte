@@ -30,9 +30,11 @@
     getJobReview,
     getJobThumbnails,
     getJobVariants,
+    getLiveSourceStatus,
     listTimelineSnapshots,
     loadTimelineSnapshot,
     prefetchJobFrames,
+    prepareLiveSource,
     saveTimelineSnapshot,
     selectJobVariant,
     getPreviewStatus,
@@ -64,6 +66,7 @@
     type Job,
     type TimelineComment,
     type TimelineOverlay,
+    type LiveSourceState,
     type TimelineSnapshot,
     type TimelineData,
     type VariantComparison
@@ -79,6 +82,8 @@
   let playhead = $state(0);
   let playbackRate = $state(1);
   let livePlayer = $state<{ seekSource: (time: number) => void } | null>(null);
+  let liveSource = $state<LiveSourceState | null>(null);
+  let liveSourceTimer: ReturnType<typeof setTimeout> | undefined;
   let snapshotOpen = $state(false);
   let snapshotName = $state("");
   let snapshots = $state<TimelineSnapshot[]>([]);
@@ -217,6 +222,7 @@
     disposed = true;
     window.removeEventListener("keydown", onKeydown);
     clearInterval(jobsTimer);
+    clearTimeout(liveSourceTimer);
     cancelAnimationFrame(raf);
     clearTimeout(previewScheduled);
     clearTimeout(frameTimer);
@@ -283,12 +289,52 @@
         void hydratePreview(jobId, timeline.revision);
         void hydrateRender(jobId);
       }
+      void ensureLiveSource(jobId);
       if (deliverables) await loadDeliverables();
     } catch (reason) {
       error = errorMessage(reason);
       timeline = null;
     } finally {
       loading = false;
+    }
+  }
+
+  async function ensureLiveSource(jobId: string) {
+    clearTimeout(liveSourceTimer);
+    if (!timeline?.live_eligible) {
+      liveSource = null;
+      return;
+    }
+    liveSource = timeline.live_source ?? null;
+    if (liveSource?.status === "ready") return;
+    if (liveSource?.status === "failed") return;
+    try {
+      if (liveSource?.status !== "preparing") {
+        const prepared = await prepareLiveSource(jobId);
+        if (!prepared?.status) {
+          liveSource = null;
+          return;
+        }
+        liveSource = prepared;
+      }
+      const poll = async () => {
+        if (selected !== jobId) return;
+        try {
+          const status = await getLiveSourceStatus(jobId);
+          if (!status?.status) {
+            liveSource = null;
+            return;
+          }
+          liveSource = status;
+          if (status.status === "ready" || status.status === "failed") return;
+        } catch {
+          return;
+        }
+        liveSourceTimer = setTimeout(() => void poll(), 1200);
+      };
+      liveSourceTimer = setTimeout(() => void poll(), 300);
+    } catch (reason) {
+      error = errorMessage(reason);
     }
   }
 
@@ -1552,13 +1598,25 @@
 
       {#if viewMode === "recut"}
         {#if timeline.live_eligible}
-          <TimelinePlayer
-            bind:this={livePlayer}
-            jobId={selected}
-            {timeline}
-            bind:rate={playbackRate}
-            ontime={(source) => (liveSourceTime = source)}
-          />
+          {#if !liveSource || liveSource.status === "ready"}
+            <TimelinePlayer
+              bind:this={livePlayer}
+              jobId={selected}
+              {timeline}
+              streamUrl={liveSource?.url ?? ""}
+              bind:rate={playbackRate}
+              ontime={(source) => (liveSourceTime = source)}
+            />
+          {:else if liveSource.status === "failed"}
+            <div data-testid="live-fallback" class="mb-2 rounded-xl border border-amber-400/20 bg-amber-950/20 px-3 py-2 text-[10px] text-amber-200">
+              Live playback unavailable: {liveSource.error || liveSource.reason}. Use the rendered preview.
+            </div>
+          {:else}
+            <div data-testid="live-preparing" class="mb-2 flex h-[84px] items-center gap-2 rounded-xl border border-sky-500/20 bg-sky-950/20 px-3 text-[10px] text-sky-200">
+              <span class="h-3 w-3 animate-spin rounded-full border-2 border-sky-300 border-r-transparent"></span>
+              Preparing browser-safe live playback…
+            </div>
+          {/if}
         {:else}
           <div data-testid="live-fallback" class="mb-2 rounded-xl border border-amber-400/20 bg-amber-950/20 px-3 py-2 text-[10px] text-amber-200">
             Live playback unavailable: {timeline.live_reason}. Use the rendered preview.

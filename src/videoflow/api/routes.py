@@ -67,6 +67,7 @@ from videoflow.application.filesystem import create_directory, list_directory, r
 from videoflow.application.fonts import delete_fonts, list_fonts, save_font
 from videoflow.application.images import delete_images, list_images, save_image
 from videoflow.application.jobs import TERMINAL, Job, JobManager
+from videoflow.application.live_source import live_sources
 from videoflow.application.model_downloads import downloads as model_downloads
 from videoflow.application.models import (
     install_model,
@@ -3398,6 +3399,9 @@ def register_routes(
             ),
             "live_eligible": live_eligible,
             "live_reason": live_reason,
+            "live_source": live_sources.status(
+                job, height=media.height if media is not None else 0
+            ).to_dict(),
             "video": [
                 {
                     "id": clip.clip_id,
@@ -3512,6 +3516,59 @@ def register_routes(
             fail(exc)
             raise
         return FileResponse(path, filename=path.name)
+
+    @app.get("/api/v1/jobs/{job_id}/live-source/status")
+    def live_source_status(job_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        height = 0
+        try:
+            state = load_state(_timeline_state_path(job))
+            if state.media_info is not None:
+                height = state.media_info.height
+        except (VideoFlowError, OSError, ValueError):
+            height = 0
+        return {"ok": True, "live_source": live_sources.status(job, height=height).to_dict()}
+
+    @app.post("/api/v1/jobs/{job_id}/live-source")
+    def prepare_live_source(job_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        height = 0
+        try:
+            state = load_state(_timeline_state_path(job))
+            if state.media_info is not None:
+                height = state.media_info.height
+        except (VideoFlowError, OSError, ValueError):
+            height = 0
+        return {"ok": True, "live_source": live_sources.start(job, height=height).to_dict()}
+
+    @app.get("/api/v1/jobs/{job_id}/live-source/file")
+    def live_source_file(job_id: str) -> FileResponse:
+        try:
+            job = jobs.get(job_id)
+            height = 0
+            state = load_state(_timeline_state_path(job))
+            if state.media_info is not None:
+                height = state.media_info.height
+            path = live_sources.file(job, height=height)
+            if path is None:
+                raise StateNotReadyError("The live source proxy is not ready.")
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "live_source_failed", "message": str(exc)},
+            ) from exc
+        return FileResponse(path, media_type="video/mp4", filename=path.name)
 
     @app.get("/api/v1/jobs/{job_id}/source/file")
     def job_source_file(job_id: str) -> FileResponse:

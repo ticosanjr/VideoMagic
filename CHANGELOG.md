@@ -3,6 +3,24 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.33.1] - 2026-11-02
+
+### Added
+
+- **Browser-safe live source proxy.** The timeline reports a `live_source`
+  status. Compatible H.264/AAC sources stream directly; other codecs or sources
+  above 1080p are transcoded once to a cached 1280px H.264/AAC proxy.
+- `POST /jobs/{id}/live-source`, `GET /jobs/{id}/live-source/status`, and
+  `GET /jobs/{id}/live-source/file` build, report, and serve the proxy with
+  Range support.
+- The Recut player shows a fixed-height preparation state, then switches to the
+  proxy URL when ready; failure falls back to the rendered preview.
+
+### Notes
+
+- Full-tree coverage is 96.0%.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.33.0] - 2026-11-02
 
 ### Added

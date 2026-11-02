@@ -1834,6 +1834,16 @@ export interface TimelineTitleCue {
   style: "title" | "lower_third";
 }
 
+export interface LiveSourceState {
+  status: "missing" | "preparing" | "ready" | "failed";
+  url: string;
+  reason: string;
+  path: string;
+  error: string;
+  started_at: string;
+  finished_at: string;
+}
+
 export interface TimelineData {
   ok: boolean;
   job_id: string;
@@ -1845,6 +1855,7 @@ export interface TimelineData {
   source_duration_sec: number;
   live_eligible: boolean;
   live_reason: string;
+  live_source?: LiveSourceState;
   video: TimelineClip[];
   audio: TimelineClip[];
   captions: Array<{
@@ -2477,6 +2488,21 @@ export function previewFileUrl(jobId: string): string {
 
 export function jobSourceFileUrl(jobId: string): string {
   return `/api/v1/jobs/${encodeURIComponent(jobId)}/source/file`;
+}
+
+export async function getLiveSourceStatus(jobId: string): Promise<LiveSourceState> {
+  const response = await request<{ ok: boolean; live_source: LiveSourceState }>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/live-source/status`
+  );
+  return response.live_source;
+}
+
+export async function prepareLiveSource(jobId: string): Promise<LiveSourceState> {
+  const response = await request<{ ok: boolean; live_source: LiveSourceState }>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/live-source`,
+    { method: "POST" }
+  );
+  return response.live_source;
 }
 
 export function jobOverlayFileUrl(jobId: string, overlayId: string): string {

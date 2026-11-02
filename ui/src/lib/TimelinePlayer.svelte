@@ -11,11 +11,13 @@
   let {
     jobId,
     timeline,
+    streamUrl = "",
     rate = $bindable(1),
     ontime
   }: {
     jobId: string;
     timeline: TimelineData;
+    streamUrl?: string;
     rate?: number;
     ontime?: (sourceSec: number, outputSec: number) => void;
   } = $props();
@@ -52,7 +54,7 @@
   let blackOpacity = $state(0);
   let blackFade: { start: number; duration: number } | null = null;
 
-  const sourceUrl = $derived(jobSourceFileUrl(jobId));
+  const sourceUrl = $derived(streamUrl || jobSourceFileUrl(jobId));
   const audioRanges = $derived(
     new Map(
       timeline.audio.map((clip) => [
@@ -448,8 +450,9 @@
 
   $effect(() => {
     const job = jobId;
+    const url = sourceUrl;
     const count = segments.length;
-    if (!job || count === 0) return;
+    if (!job || !url || count === 0) return;
     index = 0;
     playing = false;
     crossfading = false;

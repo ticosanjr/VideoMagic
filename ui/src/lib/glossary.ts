@@ -350,6 +350,7 @@ export const GLOSSARY: Record<string, string> = {
   "Presets": "Presets",
   "Prev ms": "Ant. ms",
   "Preview proxy": "Proxy de pr\u00e9via",
+  "Preparing browser-safe live playback\u2026": "Preparando reprodu\u00e7\u00e3o ao vivo compat\u00edvel com o navegador\u2026",
   "Previous": "Anterior",
   "Previous run:": "Execu\u00e7\u00e3o anterior:",
   "Produce": "Produzir",

@@ -965,13 +965,16 @@ the enabled default followed by its fallback chain.
 
 `GET /api/v1/jobs/{id}/timeline` returns `ETag: "timeline-<revision>"`, the
 active `video`/`audio` lanes, `source_duration_sec`, `inactive` source ranges,
-overlay records, structured `titles` cues, and `live_eligible`/`live_reason`.
-When eligible, `GET /api/v1/jobs/{id}/source/file` serves the source media with
-HTTP Range for the live Recut player, and
-`GET /api/v1/jobs/{id}/overlays/{overlay_id}/file` serves image/video overlay
-assets. Crossfades, fade-to-black, overlays, structured titles, and track
-mute/solo compose in-browser; FFmpeg filters and clip transforms fall back to
-the rendered preview.
+overlay records, structured `titles` cues, `live_eligible`/`live_reason`, and a
+`live_source` status. When the original codec is browser-safe,
+`GET /api/v1/jobs/{id}/source/file` serves it with HTTP Range. Otherwise
+`POST /api/v1/jobs/{id}/live-source` builds a cached H.264/AAC proxy;
+`GET /api/v1/jobs/{id}/live-source/status` reports `missing|preparing|ready|failed`
+and `GET /api/v1/jobs/{id}/live-source/file` serves the proxy with Range.
+`GET /api/v1/jobs/{id}/overlays/{overlay_id}/file` serves overlay assets.
+Crossfades, fade-to-black, overlays, structured titles, and track mute/solo
+compose in-browser; FFmpeg filters and clip transforms fall back to the
+rendered preview.
 
 - Send `If-None-Match` to get `304` when nothing changed.
 - Send `If-Match` with the last ETag on `PATCH /timeline`,
