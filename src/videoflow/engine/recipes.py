@@ -936,9 +936,11 @@ def _recut_steps(*, with_retakes: bool) -> list[dict[str, object]]:
                 {
                     "speech": "retakes.speech",
                     "transcript": "transcribe.transcript",
+                    "silence": "vad.silence",
+                    "retakes": "retakes.retakes",
                 }
                 if with_retakes
-                else {"speech": "vad.speech"}
+                else {"speech": "vad.speech", "silence": "vad.silence"}
             ),
             "params": {
                 "cut_mode": "hard",

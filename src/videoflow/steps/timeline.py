@@ -7,11 +7,14 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from videoflow.application.timeline_builder import build_timeline
+from videoflow.application.timeline_builder import (
+    build_inactive_segments,
+    build_timeline,
+)
 from videoflow.application.vad import pad_spans
 from videoflow.core.context import PipelineContext
 from videoflow.domain.config import JlCutsConfig, ZoomsConfig
-from videoflow.domain.state import ProjectState, SampleSpan
+from videoflow.domain.state import InactiveSpan, ProjectState, SampleSpan
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload, require_media
 from videoflow.steps.registry import register_step
@@ -67,7 +70,7 @@ class TimelineStep(BaseStep):
         "Turn kept speech spans into frame-quantised video and sample-aligned audio segments."
     )
     requires = ("audio.vad",)
-    produces = ("timeline",)
+    produces = ("timeline", "inactive_spans")
     params_model = TimelineParams
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
@@ -118,6 +121,12 @@ class TimelineStep(BaseStep):
             transition_frames=options.transition_frames,
             transition_type=options.transition_type,
         )
+        inactive = build_inactive_segments(
+            media,
+            built.video_segments,
+            silence_spans=context.silence_spans,
+            retake_spans=context.retake_spans,
+        )
         project_id = UUID(options.project_id) if options.project_id else uuid4()
         context.state = ProjectState(
             project_id=project_id,
@@ -132,7 +141,16 @@ class TimelineStep(BaseStep):
             manual_overrides=list(context.manual_overrides),
             video_segments=list(built.video_segments),
             audio_segments=list(built.audio_segments),
+            inactive_segments=list(inactive),
         )
+        context.inactive_spans = [
+            InactiveSpan(
+                start_sample=segment.audio.source_in_sample,
+                end_sample=segment.audio.source_out_sample,
+                reason=segment.reason,
+            )
+            for segment in inactive
+        ]
         context.speech_intervals = speech
         context.warnings.extend(built.warnings)
         context.hashes["timeline"] = digest_payload(
@@ -140,6 +158,7 @@ class TimelineStep(BaseStep):
                 "spans": speech,
                 "video": len(built.video_segments),
                 "audio": len(built.audio_segments),
+                "inactive": len(inactive),
                 "jl": jl.model_dump(),
                 "zooms": zooms.model_dump(),
             }

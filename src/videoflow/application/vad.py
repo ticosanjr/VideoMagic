@@ -220,6 +220,30 @@ def merge_spans(spans: Sequence[tuple[int, int]]) -> list[tuple[int, int]]:
     return merged
 
 
+def complement_spans(
+    spans: Sequence[tuple[int, int]],
+    duration_samples: int,
+) -> list[tuple[int, int]]:
+    """Return the gaps left by ``spans`` inside ``[0, duration_samples)``."""
+
+    if duration_samples <= 0:
+        return []
+    clipped = [
+        (max(0, start), min(duration_samples, end))
+        for start, end in spans
+        if end > start
+    ]
+    gaps: list[tuple[int, int]] = []
+    cursor = 0
+    for start, end in merge_spans(clipped):
+        if start > cursor:
+            gaps.append((cursor, start))
+        cursor = max(cursor, end)
+    if cursor < duration_samples:
+        gaps.append((cursor, duration_samples))
+    return gaps
+
+
 def _silero_missing_message() -> str:
     if find_silero_model() is None:
         return (

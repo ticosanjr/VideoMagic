@@ -12,6 +12,7 @@ from videoflow.domain.constants import SCHEMA_VERSION
 from videoflow.domain.timebase import Timebase
 
 OverrideAction = Literal["keep", "discard"]
+InactiveReason = Literal["silence", "retake", "manual"]
 TransformType = Literal["none", "punch_in", "slow_zoom_in", "slow_zoom_out", "pan"]
 FadeCurve = Literal["linear", "logarithmic"]
 ReframeMode = Literal[
@@ -150,13 +151,27 @@ class AudioSegment(StrictModel):
         return self
 
 
+class InactiveSpan(StrictModel):
+    """A source-time region that the Recut flow should not play."""
+
+    start_sample: int = Field(ge=0)
+    end_sample: int = Field(ge=0)
+    reason: InactiveReason = "silence"
+
+    @model_validator(mode="after")
+    def exclusive_end(self) -> Self:
+        if self.end_sample <= self.start_sample:
+            raise ValueError("inactive span must be non-empty")
+        return self
+
+
 class InactiveSegment(StrictModel):
     """A non-destructive removed clip kept for the Recut view."""
 
     clip_id: str = Field(min_length=1)
     video: VideoSegment
     audio: AudioSegment
-    reason: Literal["silence", "retake", "manual"] = "manual"
+    reason: InactiveReason = "manual"
 
 
 class VerticalClip(StrictModel):

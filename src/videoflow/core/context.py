@@ -11,7 +11,13 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from videoflow.domain.state import ManualOverride, MediaInfo, ProjectState, Sentence
+from videoflow.domain.state import (
+    InactiveSpan,
+    ManualOverride,
+    MediaInfo,
+    ProjectState,
+    Sentence,
+)
 from videoflow.domain.timebase import Rounding
 
 
@@ -29,6 +35,9 @@ class PipelineContext(BaseModel):
     pcm_path: Path | None = None
     pcm_digest: str = ""
     speech_intervals: list[tuple[int, int]] = Field(default_factory=list)
+    silence_spans: list[InactiveSpan] = Field(default_factory=list)
+    retake_spans: list[InactiveSpan] = Field(default_factory=list)
+    inactive_spans: list[InactiveSpan] = Field(default_factory=list)
     vad_engine: str = "none"
     transcript: list[Sentence] = Field(default_factory=list)
     transcript_source: str = "none"
@@ -76,6 +85,9 @@ class PipelineContext(BaseModel):
             "output": str(self.output),
             "media": media.model_dump(mode="json") if media is not None else None,
             "speech_interval_count": len(self.speech_intervals),
+            "silence_span_count": len(self.silence_spans),
+            "retake_span_count": len(self.retake_spans),
+            "inactive_span_count": len(self.inactive_spans),
             "vad_engine": self.vad_engine,
             "transcript_sentence_count": len(self.transcript),
             "transcript_source": self.transcript_source,

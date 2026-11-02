@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.application.retakes import (
     cull_intervals,
+    inactive_spans_for_discards,
     subtract_spans,
 )
 from videoflow.application.retakes import (
@@ -37,7 +38,7 @@ class RetakesStep(BaseStep):
     title = "Retakes"
     description = "Remove exact repeats and failed takes, then apply manual overrides."
     requires = ("audio.vad", "transcribe")
-    produces = ("retake_decisions",)
+    produces = ("retake_decisions", "retake_spans")
     params_model = RetakesParams
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
@@ -48,6 +49,7 @@ class RetakesStep(BaseStep):
             if manual:
                 raise IngestError("Manual transcript overrides require a transcript")
             context.manual_overrides = manual
+            context.retake_spans = []
             io.report(100, "No transcript; retakes skipped")
             return
 
@@ -82,6 +84,13 @@ class RetakesStep(BaseStep):
                 discarded.discard(item.sentence_id)
         discard = sorted(discarded)
 
+        manual_discard_ids = sorted(
+            {item.sentence_id for item in manual if item.action == "discard"}
+            & discarded
+        )
+        context.retake_spans = inactive_spans_for_discards(
+            context.transcript, discard, manual_ids=manual_discard_ids
+        )
         cuts = cull_intervals(context.transcript, discard)
         speech = subtract_spans(context.speech_intervals, cuts)
         minimum_ms = int(context.metadata.get("min_speech_ms", 100))

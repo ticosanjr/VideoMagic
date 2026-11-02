@@ -8,9 +8,10 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.adapters.silero import SileroVadAdapter
-from videoflow.application.vad import detect_speech
+from videoflow.application.vad import complement_spans, detect_speech
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import IngestError
+from videoflow.domain.state import InactiveSpan
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.cache import cache_get, cache_key, cache_put
 from videoflow.steps.common import adapter_for, digest_payload, require_media
@@ -32,13 +33,20 @@ class VadParams(BaseModel):
     apply_pads: bool = False
 
 
+def _silence_spans(spans: list[tuple[int, int]], duration_samples: int) -> list[InactiveSpan]:
+    return [
+        InactiveSpan(start_sample=start, end_sample=end, reason="silence")
+        for start, end in complement_spans(spans, duration_samples)
+    ]
+
+
 @register_step
 class VadStep(BaseStep):
     type = "audio.vad"
     title = "Voice detection"
     description = "Detect speech and silence with Silero VAD or the FFmpeg fallback."
     requires = ("ingest",)
-    produces = ("speech_intervals",)
+    produces = ("speech_intervals", "silence_spans")
     params_model = VadParams
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
@@ -58,6 +66,9 @@ class VadStep(BaseStep):
             spans = [(int(start), int(end)) for start, end in cached.get("spans", [])]
             if spans:
                 context.speech_intervals = spans
+                context.silence_spans = _silence_spans(
+                    spans, context.duration_samples()
+                )
                 context.vad_engine = str(cached.get("engine", "cache"))
                 context.metadata["speech_pad_before_ms"] = options.pad_before_ms
                 context.metadata["speech_pad_after_ms"] = options.pad_after_ms
@@ -94,6 +105,9 @@ class VadStep(BaseStep):
                 "No speech detected. Lower the noise threshold or the minimum silence duration."
             )
         context.speech_intervals = list(detection.spans)
+        context.silence_spans = _silence_spans(
+            context.speech_intervals, context.duration_samples()
+        )
         context.vad_engine = detection.engine
         context.metadata["speech_pad_before_ms"] = options.pad_before_ms
         context.metadata["speech_pad_after_ms"] = options.pad_after_ms

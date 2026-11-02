@@ -4,11 +4,12 @@ from videoflow.application.timeline_builder import (
     _Clip,
     _jcut_shift,
     _lcut_shift,
+    build_inactive_segments,
     build_timeline,
 )
 from videoflow.domain.config import JlCutsConfig, ZoomsConfig
 from videoflow.domain.errors import InvalidTimeError
-from videoflow.domain.state import MediaInfo
+from videoflow.domain.state import InactiveSpan, MediaInfo
 from videoflow.domain.timeline import is_packed
 
 
@@ -267,3 +268,54 @@ def test_topic_change_warns_about_its_approximation() -> None:
         zooms=ZoomsConfig(mode="topic_change"),
     )
     assert any("topic_change" in warning for warning in result.warnings)
+
+
+def test_inactive_segments_fill_the_source_gaps() -> None:
+    result = build_timeline(
+        media(),
+        [(48000, 96000)],
+        jl=JlCutsConfig(enable_j_cuts=False),
+        zooms=ZoomsConfig(mode="manual_rules"),
+    )
+    silence = [
+        InactiveSpan(start_sample=0, end_sample=48000, reason="silence"),
+        InactiveSpan(start_sample=96000, end_sample=144000, reason="silence"),
+    ]
+    inactive = build_inactive_segments(
+        media(), result.video_segments, silence_spans=silence
+    )
+
+    assert [
+        (
+            item.video.source_in_frame,
+            item.video.source_out_frame,
+            item.audio.source_in_sample,
+            item.audio.source_out_sample,
+            item.reason,
+        )
+        for item in inactive
+    ] == [
+        (0, 30, 0, 48000, "silence"),
+        (60, 90, 96000, 144000, "silence"),
+    ]
+
+
+def test_inactive_reason_prefers_manual_then_retake() -> None:
+    result = build_timeline(
+        media(),
+        [(0, 48000), (96000, 144000)],
+        jl=JlCutsConfig(enable_j_cuts=False),
+        zooms=ZoomsConfig(mode="manual_rules"),
+    )
+    silence = [InactiveSpan(start_sample=48000, end_sample=96000, reason="silence")]
+    retakes = [
+        InactiveSpan(start_sample=60000, end_sample=70000, reason="retake"),
+        InactiveSpan(start_sample=61000, end_sample=65000, reason="manual"),
+    ]
+    inactive = build_inactive_segments(
+        media(),
+        result.video_segments,
+        silence_spans=silence,
+        retake_spans=retakes,
+    )
+    assert [item.reason for item in inactive] == ["manual"]

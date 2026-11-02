@@ -3,6 +3,7 @@ import pytest
 from videoflow.application.retakes import (
     cull_intervals,
     cull_retakes,
+    inactive_spans_for_discards,
     subtract_spans,
 )
 from videoflow.domain.errors import InvalidRetakeIdsError
@@ -63,3 +64,11 @@ def test_interval_subtraction() -> None:
     assert subtract_spans([(0, 100), (200, 300)], [(50, 250)]) == [(0, 50), (250, 300)]
     assert subtract_spans([(0, 100)], [(0, 100)]) == []
     assert cull_intervals([sentence(0, "a", 10, 20), sentence(1, "b", 30, 40)], [0]) == [(10, 20)]
+
+
+def test_discards_map_to_typed_spans_with_manual_precedence() -> None:
+    sentences = [sentence(0, "a", 10, 20), sentence(1, "b", 30, 40), sentence(2, "c", 50, 60)]
+    spans = inactive_spans_for_discards(sentences, [2, 0], manual_ids=[0])
+    assert [
+        (span.start_sample, span.end_sample, span.reason) for span in spans
+    ] == [(10, 20, "manual"), (50, 60, "retake")]

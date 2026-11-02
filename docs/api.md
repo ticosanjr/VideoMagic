@@ -826,7 +826,9 @@ Project state is created by recipe runs and edited through the job timeline API.
 `PATCH /api/v1/jobs/{job_id}/timeline` accepts `trim`, `move`, `delete`,
 `split`, `ripple`, `ripple_trim`, `slip`, `slide`, `duplicate`, `deactivate`,
 and `activate`. Deactivation moves a clip into `inactive_segments` instead of
-destroying it. Every edit validates against the
+destroying it. Recut recipes also populate `inactive_segments` automatically
+from VAD silence and retake culling; timeline edits are only needed for manual
+corrections. Every edit validates against the
 source media, records one undo entry in `timeline_history.json`, increments
 `revision`, and returns a warning that rendered artifacts must be refreshed.
 

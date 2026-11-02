@@ -3,6 +3,31 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.29.0] - 2026-11-02
+
+### Added
+
+- **Recut recipes create inactive segments automatically.** The VAD node emits
+  silence spans, the retake node emits retake and manual spans, and the timeline
+  node turns the gaps around final padded speech into inactive segments with the
+  matching reason. No separate approval flow is required.
+- Typed `InactiveSpan` values and `inactive_spans` ports connect the nodes.
+- The timeline payload now carries auto-generated `inactive` source ranges for
+  the Recut view and the live player.
+
+### Changed
+
+- Portable runs use the same inactive-segment construction as recipes.
+- Recut recipes wire silence and retake spans explicitly instead of relying on
+  implicit context.
+
+### Notes
+
+- Inactive segments are derived from the complement of the final padded speech,
+  so manual deactivation remains available for corrections.
+- Full-tree coverage is 96.0%.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.28.0] - 2026-11-02
 
 ### Added

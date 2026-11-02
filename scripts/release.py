@@ -152,7 +152,7 @@ def _release_notes(version: str, staged: list[dict[str, object]]) -> str:
             "```bash\n"
             f"./{linux} doctor\n"
             f"./{linux} demo -o demo\n"
-            f"./{linux} run input.mp4 -o project\n"
+            f"./{linux} recipe run youtube_talking_head input.mp4 -o project\n"
             "```"
         )
     if appimage:

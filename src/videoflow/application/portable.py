@@ -30,6 +30,7 @@ from videoflow.application.export_service import export_timeline
 from videoflow.application.fonts import fonts_dir
 from videoflow.application.retakes import (
     cull_intervals,
+    inactive_spans_for_discards,
     subtract_spans,
 )
 from videoflow.application.retakes import (
@@ -47,10 +48,13 @@ from videoflow.application.shorts import (
     slugify,
 )
 from videoflow.application.telemetry import JobTelemetry
-from videoflow.application.timeline_builder import build_timeline
+from videoflow.application.timeline_builder import (
+    build_inactive_segments,
+    build_timeline,
+)
 from videoflow.application.tracking import track_focus_x
+from videoflow.application.vad import complement_spans, pad_spans
 from videoflow.application.vad import detect_speech as detect_vad
-from videoflow.application.vad import pad_spans
 from videoflow.application.video_analysis import detect_scene_changes, scene_intervals
 from videoflow.domain.config import (
     JlCutsConfig,
@@ -62,7 +66,13 @@ from videoflow.domain.config import (
     ZoomsConfig,
 )
 from videoflow.domain.errors import IngestError, InvalidRetakeIdsError, JobCancelledError
-from videoflow.domain.state import ManualOverride, ProjectState, SampleSpan, Sentence
+from videoflow.domain.state import (
+    InactiveSpan,
+    ManualOverride,
+    ProjectState,
+    SampleSpan,
+    Sentence,
+)
 from videoflow.domain.timebase import Rounding
 from videoflow.domain.transcript import parse_srt_file
 from videoflow.exporters.common import write_text
@@ -278,12 +288,17 @@ def run_portable(
             raise IngestError(
                 "No speech detected. Lower the noise threshold or the minimum silence duration."
             )
+        silence_spans = [
+            InactiveSpan(start_sample=start, end_sample=end, reason="silence")
+            for start, end in complement_spans(speech, duration_samples)
+        ]
         meta["message"] = f"{len(speech)} speech intervals ({detection.engine})"
         emit("vad", "info", str(meta["message"]))
 
     transcript: list[Sentence] = []
     discard: list[int] = []
     restored: list[int] = []
+    retake_spans: list[InactiveSpan] = []
     manual = list(overrides or [])
     transcript_source = "none"
     if transcript_path is not None:
@@ -403,6 +418,13 @@ def run_portable(
                 else:
                     discarded.discard(item.sentence_id)
             discard = sorted(discarded)
+            manual_discard_ids = sorted(
+                {item.sentence_id for item in manual if item.action == "discard"}
+                & discarded
+            )
+            retake_spans = inactive_spans_for_discards(
+                transcript, discard, manual_ids=manual_discard_ids
+            )
             speech = subtract_spans(speech, cull_intervals(transcript, discard))
             minimum = max(1, (min_speech_ms * media.audio_sample_rate + 500) // 1000)
             speech = [(start, end) for start, end in speech if end - start >= minimum]
@@ -444,6 +466,12 @@ def run_portable(
         raise
     if telemetry is not None:
         telemetry.finish("zooms", "Transforms ready")
+    inactive = build_inactive_segments(
+        media,
+        built.video_segments,
+        silence_spans=silence_spans,
+        retake_spans=retake_spans,
+    )
     state = ProjectState(
         project_id=project_id or uuid4(),
         revision=max(1, revision),
@@ -457,6 +485,7 @@ def run_portable(
         manual_overrides=manual,
         video_segments=list(built.video_segments),
         audio_segments=list(built.audio_segments),
+        inactive_segments=list(inactive),
     )
     gate()
     with stage("export", "export", "Export", "Writing timelines") as meta:

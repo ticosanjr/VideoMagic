@@ -62,6 +62,10 @@ ranges, transform/transition data, and the reason (`manual`, `silence`,
 - **Normal** hides inactive entries and shows the packed active timeline.
 - **Recut** draws both sets on the source-time axis: active clips blue,
   inactive clips red. The view choice is stored in the browser.
+- Recut recipes create inactive entries automatically. `audio.vad` emits
+  silence spans, `retakes.cull` emits retake and manual spans, and
+  `edit.timeline` turns the gaps around the final padded speech into inactive
+  segments with the matching reason. No approval step is involved.
 - `PATCH /timeline` accepts `deactivate` and `activate` actions. They repack the
   active timeline, record history, and bump the revision.
 - Render and NLE export consume only active segments.

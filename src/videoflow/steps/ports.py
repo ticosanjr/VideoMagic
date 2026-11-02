@@ -26,6 +26,7 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         (PortSpec("media", "Media info", "media", "media", True),),
         (
             PortSpec("speech", "Speech spans", "sample_spans", "speech_intervals"),
+            PortSpec("silence", "Silence spans", "inactive_spans", "silence_spans"),
             PortSpec("engine", "VAD engine", "string", "vad_engine"),
         ),
     ),
@@ -43,6 +44,7 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         ),
         (
             PortSpec("speech", "Kept speech", "sample_spans", "speech_intervals"),
+            PortSpec("retakes", "Retake spans", "inactive_spans", "retake_spans"),
             PortSpec("discarded", "Discarded sentence ids", "integer_list", "discard_sentence_ids"),
         ),
     ),
@@ -50,6 +52,8 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         (
             PortSpec("speech", "Speech spans", "sample_spans", "speech_intervals", True),
             PortSpec("transcript", "Transcript", "transcript", "transcript", False),
+            PortSpec("silence", "Silence spans", "inactive_spans", "silence_spans", False),
+            PortSpec("retakes", "Retake spans", "inactive_spans", "retake_spans", False),
         ),
         (
             PortSpec("timeline", "Timeline state", "timeline", "state"),
@@ -246,6 +250,9 @@ EXTRA_OUTPUTS: dict[str, tuple[PortSpec, ...]] = {
     ),
     "edit.timeline": (
         PortSpec("speech", "Adjusted speech", "sample_spans", "speech_intervals"),
+        PortSpec(
+            "inactive", "Inactive spans", "inactive_spans", "inactive_spans"
+        ),
     ),
     "flow.conditional": (
         PortSpec("metadata", "Flow metadata", "dict", "metadata"),

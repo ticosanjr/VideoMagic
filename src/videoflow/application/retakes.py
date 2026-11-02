@@ -18,7 +18,7 @@ from videoflow.domain.retakes import (
     apply_retake_guard,
     cluster_exact_repetitions,
 )
-from videoflow.domain.state import LlmRetakeResponse, Sentence
+from videoflow.domain.state import InactiveSpan, LlmRetakeResponse, Sentence
 
 PROMPT_HEADER = """\
 Remove failed takes from this transcript.
@@ -108,6 +108,28 @@ def cull_intervals(
         for item in sentences
         if item.id in discard and item.end_sample > item.start_sample
     )
+
+
+def inactive_spans_for_discards(
+    sentences: Sequence[Sentence],
+    discard_sentence_ids: Sequence[int],
+    *,
+    manual_ids: Sequence[int] = (),
+) -> list[InactiveSpan]:
+    """Map discarded sentences to typed source spans for the Recut timeline."""
+
+    discard = set(discard_sentence_ids)
+    manual = set(manual_ids)
+    spans = [
+        InactiveSpan(
+            start_sample=item.start_sample,
+            end_sample=item.end_sample,
+            reason="manual" if item.id in manual else "retake",
+        )
+        for item in sentences
+        if item.id in discard and item.end_sample > item.start_sample
+    ]
+    return sorted(spans, key=lambda span: (span.start_sample, span.end_sample))
 
 
 def subtract_spans(

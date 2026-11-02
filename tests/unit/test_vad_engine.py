@@ -53,6 +53,17 @@ def test_pad_spans_clamps_and_merges() -> None:
         vad.pad_spans([], 48000, -1, 0)
 
 
+def test_complement_spans_returns_the_unkept_regions() -> None:
+    assert vad.complement_spans([(48000, 96000)], 144000) == [
+        (0, 48000),
+        (96000, 144000),
+    ]
+    assert vad.complement_spans([], 144000) == [(0, 144000)]
+    assert vad.complement_spans([(0, 144000)], 144000) == []
+    assert vad.complement_spans([(0, 48000), (48000, 96000)], 96000) == []
+    assert vad.complement_spans([(0, 48000)], 0) == []
+
+
 def test_auto_falls_back_to_ffmpeg(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(vad.SileroVadAdapter, "available", staticmethod(lambda: False))
     engine = FakeEngine()

@@ -12,7 +12,7 @@ def test_recut_replacement_is_a_valid_silence_only_recipe() -> None:
     assert "transcribe" not in {step.id for step in enabled}
     timeline = next(step for step in enabled if step.id == "timeline")
     assert timeline.params["cut_mode"] == "hard"
-    assert timeline.inputs == {"speech": "vad.speech"}
+    assert timeline.inputs == {"speech": "vad.speech", "silence": "vad.silence"}
     export = next(step for step in recipe.enabled_steps() if step.id == "export")
     assert export.inputs == {"timeline": "timeline.timeline"}
     export = next(step for step in recipe.enabled_steps() if step.id == "export")
@@ -48,7 +48,7 @@ def test_recut_defaults_live_inside_the_nodes() -> None:
     assert vad.params["spike_suppression_ms"] == 180
     assert vad.params["merge_gap_ms"] == 120
     assert timeline.params["cut_mode"] == "hard"
-    assert timeline.inputs == {"speech": "vad.speech"}
+    assert timeline.inputs == {"speech": "vad.speech", "silence": "vad.silence"}
     export = next(step for step in recipe.enabled_steps() if step.id == "export")
     assert export.inputs == {"timeline": "timeline.timeline"}
     assert timeline.params["offset_ms"] == 200

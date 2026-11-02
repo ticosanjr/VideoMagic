@@ -54,11 +54,15 @@ inputs and outputs, and a recipe can bind a specific output to a specific input:
 }
 ```
 
-Core port types are `media`, `pcm`, `sample_spans`, `transcript`, `timeline`,
-`short_list`, `artifact_map`, and `any`. The runner rejects unknown ports, type
-mismatches, missing required inputs, and sources that are not in the dependency
-ancestry. Existing recipes without `inputs` keep the legacy implicit context
-behaviour.
+Core port types are `media`, `pcm`, `sample_spans`, `inactive_spans`,
+`transcript`, `timeline`, `short_list`, `artifact_map`, and `any`. The runner
+rejects unknown ports, type mismatches, missing required inputs, and sources
+that are not in the dependency ancestry. Existing recipes without `inputs` keep
+the legacy implicit context behaviour.
+
+`audio.vad` exposes `silence`, `retakes.cull` exposes `retakes`, and
+`edit.timeline` accepts both. The timeline step treats their union as the
+reason map for the automatic inactive segments.
 
 In the UI, each node shows its ports. The inspector lists every input with a
 compatible-output dropdown, so wiring never requires dragging; clicking an edge
@@ -92,12 +96,12 @@ values genuinely shared by multiple nodes or profiles.
 | Type | Requires | Produces |
 | --- | --- | --- |
 | `ingest` | — | media, PCM, digest |
-| `audio.vad` | `ingest` | speech intervals, VAD engine |
+| `audio.vad` | `ingest` | speech intervals, silence spans, VAD engine |
 | `transcribe` | `ingest` | transcript (SRT, project, Faster-Whisper, whisper.cpp, HTTP, or none) |
-| `retakes.cull` | `audio.vad`, `transcribe` | discard/restore decisions, updated speech |
+| `retakes.cull` | `audio.vad`, `transcribe` | discard/restore decisions, retake/manual spans, updated speech |
 | `audio.diarize` | `transcribe` | heuristic or pyannote speaker ids for captions |
 | `broll.plan` | `shorts.select` | local or Pexels B-roll overlay plan |
-| `edit.timeline` | `audio.vad` | validated `ProjectState` |
+| `edit.timeline` | `audio.vad` (+ optional retakes) | validated `ProjectState`, inactive spans |
 | `shorts.select` | `transcribe` | selected Short clips |
 | `shorts.score` | `shorts.select` | re-scored, deduplicated Shorts |
 | `assets.shots` | `ingest` | scene cuts + thumbnails |

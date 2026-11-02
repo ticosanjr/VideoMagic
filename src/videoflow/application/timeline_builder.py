@@ -15,6 +15,9 @@ from videoflow.domain.errors import InvalidTimeError
 from videoflow.domain.state import (
     AnchorPoint,
     AudioSegment,
+    InactiveReason,
+    InactiveSegment,
+    InactiveSpan,
     MediaInfo,
     Transform,
     TransformKeyframe,
@@ -140,6 +143,96 @@ def build_timeline(
         audio_segments=audio_segments,
         warnings=tuple(warnings),
     )
+
+
+def build_inactive_segments(
+    media: MediaInfo,
+    active_video: Sequence[VideoSegment],
+    *,
+    silence_spans: Sequence[InactiveSpan] = (),
+    retake_spans: Sequence[InactiveSpan] = (),
+) -> tuple[InactiveSegment, ...]:
+    """Turn the gaps between active source ranges into Recut segments.
+
+    Boundaries come from the quantised active video ranges, so the inactive
+    pieces never overlap the rendered timeline. Reasons are attributed by
+    source-time overlap, with manual decisions outranking silence and retakes.
+    """
+
+    timebase = media.timebase()
+    media_samples = timebase.seconds_to_samples(
+        timebase.frames_to_seconds(media.duration_frames), Rounding.NEAREST
+    )
+    active = _normalize_spans(
+        [(segment.source_in_frame, segment.source_out_frame) for segment in active_video],
+        media.duration_frames,
+    )
+    gaps: list[tuple[int, int]] = []
+    cursor = 0
+    for start, end in active:
+        if start > cursor:
+            gaps.append((cursor, start))
+        cursor = max(cursor, end)
+    if cursor < media.duration_frames:
+        gaps.append((cursor, media.duration_frames))
+
+    segments: list[InactiveSegment] = []
+    for index, (start_frame, end_frame) in enumerate(gaps, start=1):
+        start_sample = timebase.frame_start_sample(start_frame)
+        end_sample = min(timebase.frame_start_sample(end_frame), media_samples)
+        if end_sample <= start_sample:
+            continue
+        clip_id = f"i{index}"
+        length_frames = end_frame - start_frame
+        length_samples = end_sample - start_sample
+        reason = _inactive_reason(
+            start_sample,
+            end_sample,
+            silence_spans=silence_spans,
+            retake_spans=retake_spans,
+        )
+        segments.append(
+            InactiveSegment(
+                clip_id=clip_id,
+                video=VideoSegment(
+                    clip_id=clip_id,
+                    source_in_frame=start_frame,
+                    source_out_frame=end_frame,
+                    timeline_in_frame=0,
+                    timeline_out_frame=length_frames,
+                ),
+                audio=AudioSegment(
+                    clip_id=clip_id,
+                    source_in_sample=start_sample,
+                    source_out_sample=end_sample,
+                    timeline_in_sample=0,
+                    timeline_out_sample=length_samples,
+                ),
+                reason=reason,
+            )
+        )
+    return tuple(segments)
+
+
+def _inactive_reason(
+    start: int,
+    end: int,
+    *,
+    silence_spans: Sequence[InactiveSpan],
+    retake_spans: Sequence[InactiveSpan],
+) -> InactiveReason:
+    overlaps = {"manual": 0, "retake": 0, "silence": 0}
+    for span in (*retake_spans, *silence_spans):
+        overlap = min(end, span.end_sample) - max(start, span.start_sample)
+        if overlap > 0:
+            overlaps[span.reason] = max(overlaps[span.reason], overlap)
+    if overlaps["manual"]:
+        return "manual"
+    if overlaps["retake"]:
+        return "retake"
+    if overlaps["silence"]:
+        return "silence"
+    return "silence"
 
 
 def _normalize_spans(
