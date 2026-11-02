@@ -3,6 +3,21 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.32.1] - 2026-11-02
+
+### Fixed
+
+- Portable jobs now receive the same cancelable FFmpeg adapter as recipes, so
+  force stop also kills their running FFmpeg process.
+- Portable export reports per-target progress and honours cancellation.
+- MP4 is always written after the NLE targets, even in a custom recipe that
+  lists it first.
+
+### Notes
+
+- Full-tree coverage is 96.0%.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.32.0] - 2026-11-02
 
 ### Fixed

@@ -490,7 +490,31 @@ def run_portable(
     gate()
     with stage("export", "export", "Export", "Writing timelines") as meta:
         step("export", 80, "Writing FCPXML, xmeml, and OTIO")
-        artifacts = export_timeline(state, exports, dialect=dialect, targets=targets)
+        completed = 0
+        target_count = max(1, len(targets))
+
+        def export_progress(target: str, value: int) -> None:
+            nonlocal completed
+            gate()
+            local = max(0, min(100, int(value)))
+            step(
+                "export",
+                min(99, 80 + int(((completed + local / 100) / target_count) * 19)),
+                f"Exporting {target} ({local}%)",
+            )
+            if local >= 100:
+                completed += 1
+
+        artifacts = export_timeline(
+            state,
+            exports,
+            dialect=dialect,
+            targets=targets,
+            progress=export_progress,
+            should_cancel=should_cancel,
+            adapter=engine,
+            cache_dir=output_path / "render" / "segments",
+        )
         meta["message"] = f"{len(artifacts)} artifacts written"
         emit("export", "info", str(meta["message"]))
 

@@ -164,6 +164,21 @@ def test_removing_a_queued_job_drains_the_next_worker(tmp_path: Path) -> None:
     assert manager.get(str(third.job_id)).status == "succeeded"
 
 
+def test_runner_receives_a_cancelable_adapter(tmp_path: Path) -> None:
+    seen = {}
+
+    def runner(source: Path, output: Path, *, progress, should_cancel, adapter=None, **kwargs):
+        seen["adapter"] = adapter
+        return {"ok": True}
+
+    manager = JobManager(runner)
+    job = manager.start(tmp_path / "in.mp4", tmp_path / "out")
+    wait_for(job, manager)
+    adapter = seen["adapter"]
+    assert adapter is not None
+    assert adapter.cancel_event is job.cancel_event
+
+
 def test_history_is_pruned(tmp_path: Path) -> None:
     manager = JobManager(fake_runner, history=0)
     first = manager.start(tmp_path / "a.mp4", tmp_path / "a")

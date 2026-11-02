@@ -701,9 +701,13 @@ class JobManager:
             project_id = options.get("project_id")
             modules_config = options.get("modules_config")
             module_enabled = options.get("module_enabled")
+            from videoflow.adapters.ffmpeg import FFmpegAdapter
+
+            job_adapter = FFmpegAdapter(cancel_event=job.cancel_event)
             result = self._runner(
                 job.source,
                 job.output,
+                adapter=job_adapter,
                 noise_db=float(options.get("noise_db", -30.0)),
                 min_silence_ms=int(options.get("min_silence_ms", 400)),
                 min_speech_ms=int(options.get("min_speech_ms", 100)),
