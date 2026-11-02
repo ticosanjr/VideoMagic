@@ -12,7 +12,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from videoflow.core.expressions import resolve_value
 from videoflow.domain.errors import RecipeError
@@ -105,6 +105,46 @@ class Recipe(StrictModel):
         if not RECIPE_ID.match(value):
             raise ValueError("recipe id must contain [A-Za-z0-9_.-]")
         return value
+
+    @model_validator(mode="after")
+    def repair_port_dependencies(self) -> Recipe:
+        """A wired input must also be a graph dependency.
+
+        Older recipes and hand-edited graphs can wire ``timeline.timeline``
+        without adding ``timeline`` to ``needs``. Repairing here keeps the
+        topology and the typed port graph in sync instead of failing later with
+        a misleading "must run earlier" error.
+        """
+
+        ids = {step.id for step in self.steps}
+        by_id = {step.id: step for step in self.steps}
+
+        def depends_on(start: str, target: str) -> bool:
+            stack = [start]
+            seen: set[str] = set()
+            while stack:
+                current = stack.pop()
+                if current == target:
+                    return True
+                if current in seen:
+                    continue
+                seen.add(current)
+                parent = by_id.get(current)
+                if parent is not None:
+                    stack.extend(parent.needs)
+            return False
+
+        for step in self.steps:
+            for reference in step.inputs.values():
+                source_id = str(reference).partition(".")[0].strip()
+                if (
+                    source_id in ids
+                    and source_id != step.id
+                    and source_id not in step.needs
+                    and not depends_on(source_id, step.id)
+                ):
+                    step.needs.append(source_id)
+        return self
 
     def validate_graph(
         self,

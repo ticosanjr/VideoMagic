@@ -3,6 +3,7 @@
   import { noticeCounts, sortNotices, type Notice } from "$lib/notifications";
   import { notifications } from "$lib/notifications.svelte";
   import { formatDateTime } from "$lib/format";
+  import { portal } from "$lib/portal";
   import { i18n } from "$lib/i18n.svelte";
 
   let {
@@ -29,7 +30,7 @@
 </script>
 
 {#if open}
-  <div class="fixed inset-0 z-[120]" role="presentation">
+  <div class="fixed inset-0 z-[1100]" role="presentation" use:portal>
     <button
       type="button"
       class="absolute inset-0 bg-black/40"

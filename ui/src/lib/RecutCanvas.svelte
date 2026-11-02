@@ -47,8 +47,10 @@
         )
     )
   );
-  const width = $derived(Math.max(900, sourceDuration * zoom + 32));
-  const step = $derived(zoom >= 100 ? 1 : zoom >= 50 ? 2 : zoom >= 24 ? 5 : 10);
+  const width = $derived(Math.max(420, sourceDuration * zoom + 32));
+  const step = $derived(
+    zoom >= 200 ? 1 : zoom >= 110 ? 2 : zoom >= 50 ? 5 : zoom >= 20 ? 10 : zoom >= 8 ? 30 : 60
+  );
 
   function activeVideoStart(clip: TimelineData["video"][number]): number {
     return clip.source_start_sec ?? (clip.source_in_frame ?? 0) / Math.max(1, timeline.fps);
@@ -197,8 +199,13 @@
 
   function zoomFromWheel(event: WheelEvent) {
     event.preventDefault();
+    const horizontal = event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY);
+    if (horizontal && scroller) {
+      scroller.scrollLeft += event.deltaX || event.deltaY;
+      return;
+    }
     const direction = event.deltaY > 0 ? -1 : 1;
-    zoom = Math.max(18, Math.min(220, zoom * (direction > 0 ? 1.16 : 0.86)));
+    zoom = Math.max(2, Math.min(400, zoom * (direction > 0 ? 1.16 : 0.86)));
   }
 
   onDestroy(() => {
@@ -217,7 +224,7 @@
     </div>
     <label class="flex items-center gap-2 text-[10px] text-neutral-500">
       Zoom
-      <input type="range" min="18" max="220" step="1" bind:value={zoom} class="w-24 accent-sky-400" />
+      <input type="range" min="2" max="400" step="1" bind:value={zoom} class="w-24 accent-sky-400" />
       <span class="w-8 text-right font-mono text-neutral-400">{Math.round(zoom)}</span>
     </label>
   </div>

@@ -13,13 +13,17 @@
     timeline,
     streamUrl = "",
     rate = $bindable(1),
-    ontime
+    controls = true,
+    ontime,
+    onstate
   }: {
     jobId: string;
     timeline: TimelineData;
     streamUrl?: string;
     rate?: number;
+    controls?: boolean;
     ontime?: (sourceSec: number, outputSec: number) => void;
+    onstate?: (playing: boolean) => void;
   } = $props();
 
   const segments = $derived(liveSegments(timeline.video, timeline.fps));
@@ -224,6 +228,7 @@
 
   function finishPlayback() {
     playing = false;
+    onstate?.(false);
     stopLoop();
     frontVideo()?.pause();
     backVideo()?.pause();
@@ -380,6 +385,7 @@
     if (!segments.length) return;
     error = "";
     if (playing) {
+      onstate?.(false);
       frontVideo()?.pause();
       backVideo()?.pause();
       frontAudio()?.pause();
@@ -404,6 +410,7 @@
       .play()
       .then(() => {
         playing = true;
+        onstate?.(true);
         stopLoop();
         raf = requestAnimationFrame(tick);
         const audio = frontAudio();
@@ -425,6 +432,29 @@
 
   export function seekSource(time: number) {
     seek(time);
+  }
+
+  export function seekOutput(time: number) {
+    if (!segments.length) return;
+    const target = Math.max(0, Math.min(outputDuration, time));
+    const segment =
+      segments.find(
+        (item) => target >= item.outputStart && target <= item.outputEnd
+      ) ?? segments[segments.length - 1];
+    const source = segment.start + Math.max(0, target - segment.outputStart);
+    seek(source);
+  }
+
+  export function playPause() {
+    togglePlay();
+  }
+
+  export function nextActive() {
+    nextSegment();
+  }
+
+  export function previousActive() {
+    previousSegment();
   }
 
   function previousSegment() {
@@ -483,6 +513,7 @@
 </script>
 
 <div class="mb-2 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-3" data-testid="live-player">
+  {#if controls}
   <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
     <div class="flex items-center gap-2">
       <span class="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] uppercase tracking-wide text-emerald-200">live recut</span>
@@ -504,6 +535,7 @@
       </select>
     </div>
   </div>
+  {/if}
 
   <audio bind:this={audioA} src={sourceUrl} preload="auto" onloadedmetadata={applyRate}></audio>
   <audio bind:this={audioB} src={sourceUrl} preload="auto" onloadedmetadata={applyRate}></audio>

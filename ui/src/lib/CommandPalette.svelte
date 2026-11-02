@@ -3,6 +3,7 @@
   import { filterCommands, moveActiveIndex, type Command } from "$lib/commandPalette";
   import { restoreFocus } from "$lib/a11y";
   import { i18n } from "$lib/i18n.svelte";
+  import { portal } from "$lib/portal";
 
   let {
     open = false,
@@ -62,7 +63,7 @@
 </script>
 
 {#if open}
-  <div class="fixed inset-0 z-[110] flex items-start justify-center px-4 pt-[12vh]" role="presentation">
+  <div class="fixed inset-0 z-[1000] flex items-start justify-center px-4 pt-[12vh]" role="presentation" use:portal>
     <button type="button" class="absolute inset-0 bg-black/50 backdrop-blur-sm" aria-label="Close command palette" onclick={onclose}></button>
     <div
       class="relative w-full max-w-xl overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl shadow-black/60"

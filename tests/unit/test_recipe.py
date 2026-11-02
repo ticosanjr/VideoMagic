@@ -194,6 +194,32 @@ def test_recipe_validation_rejects_cycles_and_unknown_types(tmp_path: Path) -> N
         unknown.validate_graph(step_types(), requires_by_type=requirements_by_type())
 
 
+def test_recipe_repairs_wired_inputs_into_dependencies() -> None:
+    recipe = parse_recipe(
+        {
+            "id": "wiring_repair",
+            "name": "Wiring repair",
+            "steps": [
+                {"id": "ingest", "type": "ingest"},
+                {"id": "vad", "type": "audio.vad", "needs": ["ingest"]},
+                {"id": "timeline", "type": "edit.timeline", "needs": ["vad"]},
+                {
+                    "id": "export",
+                    "type": "export.nle",
+                    "needs": [],
+                    "inputs": {"timeline": "timeline.timeline"},
+                },
+            ],
+        }
+    )
+    export = next(step for step in recipe.steps if step.id == "export")
+    assert "timeline" in export.needs
+    recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+    from videoflow.steps.ports import validate_recipe_ports
+
+    validate_recipe_ports(recipe)
+
+
 def test_recipe_runner_matches_legacy_timeline(tmp_path: Path) -> None:
     source = tmp_path / "source.mp4"
     source.write_bytes(b"fixture")

@@ -388,6 +388,19 @@
     activeTab = resolveRoute(window.location.hash).tab;
   }
 
+  function onUseTimeline(event: Event) {
+    const path = String((event as CustomEvent<{ path?: string }>).detail?.path ?? "");
+    if (!path) return;
+    selectTab("recipes");
+    setTimeout(() => {
+      window.dispatchEvent(
+        new CustomEvent("videoflow:builder-action", {
+          detail: { action: "load-timeline", path }
+        })
+      );
+    }, 80);
+  }
+
   onMount(() => {
     if (!window.location.hash) {
       const saved = localStorage.getItem("videoflow.tab");
@@ -422,6 +435,7 @@
       );
     };
     window.addEventListener("videoflow:api-error", onApiError);
+    window.addEventListener("videoflow:use-timeline", onUseTimeline);
     void connectToService();
     void refreshJobs();
     jobsTimer = setInterval(() => {
@@ -439,6 +453,7 @@
       window.removeEventListener("hashchange", syncHash);
       window.removeEventListener("keydown", onGlobalKey);
       window.removeEventListener("videoflow:api-error", onApiError);
+      window.removeEventListener("videoflow:use-timeline", onUseTimeline);
       clearInterval(jobsTimer);
     };
   });

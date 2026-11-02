@@ -109,7 +109,7 @@
     return clipVisible(start, end, view);
   }
 
-  const width = $derived(Math.max(1000, timeline.duration_sec * zoom + HEADER + 48));
+  const width = $derived(Math.max(480, timeline.duration_sec * zoom + HEADER + 48));
   const thumbCache = new Map<string, HTMLImageElement>();
 
   function x(time: number): number {
@@ -223,13 +223,20 @@
     });
     stage.on("wheel", (event: any) => {
       event.evt.preventDefault();
+      const horizontal =
+        event.evt.shiftKey || Math.abs(event.evt.deltaX) > Math.abs(event.evt.deltaY);
+      if (horizontal && scroller) {
+        scroller.scrollLeft += event.evt.deltaX || event.evt.deltaY;
+        return;
+      }
       const direction = event.evt.deltaY > 0 ? -1 : 1;
-      onZoom?.(Math.max(16, Math.min(400, zoom * (direction > 0 ? 1.18 : 0.85))));
+      onZoom?.(Math.max(2, Math.min(400, zoom * (direction > 0 ? 1.18 : 0.85))));
     });
   }
 
   function drawRuler(layer: any) {
-    const majorStep = zoom >= 110 ? 1 : zoom >= 50 ? 2 : zoom >= 24 ? 5 : 10;
+    const majorStep =
+      zoom >= 200 ? 1 : zoom >= 110 ? 2 : zoom >= 50 ? 5 : zoom >= 20 ? 10 : zoom >= 8 ? 30 : 60;
     for (let second = 0; second <= Math.ceil(timeline.duration_sec) + 1; second += 1) {
       const major = second % majorStep === 0;
       layer.add(
@@ -521,8 +528,8 @@
                 TRACKS[1].y + TRACKS[1].h / 2 + barHeight / 2
               ],
               stroke: "#34d399",
-              strokeWidth: 1.5,
-              opacity: 0.55,
+              strokeWidth: 2,
+              opacity: 0.85,
               listening: false
             })
           );

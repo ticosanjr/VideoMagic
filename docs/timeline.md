@@ -112,11 +112,17 @@ preview and a scrollable inspector. Selecting a clip or showing a status message
 never moves the timeline. Toolbar actions are icon buttons with fixed size and
 hover/ARIA labels.
 
-Transport supports start/end, previous/next active segment, play/pause, one-frame
-and one-second seeks, and playback speed from 1.0x to 3.0x in 0.5x steps. Speed
+There is one preview surface. It uses the live compositor when eligible, the
+rendered preview otherwise, and falls back to a fixed preparation state while a
+browser-safe source proxy is built. Transport supports start/end, previous/next
+active segment, play/pause, one-frame and one-second seeks, and playback speed
+from 1.0x to 3.0x in 0.5x steps. Speed
 is applied to every active video/audio layer. Clicking the ruler, empty track
 space, or a clip moves the playhead; dragging the playhead scrubs. A vertical
-wheel over the timeline zooms instead of scrolling the page.
+wheel over the timeline zooms instead of scrolling the page. Horizontal wheel or
+`Shift+wheel` scrolls the timeline; zoom now goes down to 2 px/s with adaptive
+ruler steps. Audio waveforms render on A1, with a visible fallback envelope when
+peaks are unavailable.
 
 ### Shortcuts
 
@@ -131,6 +137,7 @@ wheel over the timeline zooms instead of scrolling the page.
 | `S` | Split at playhead |
 | `Delete` / `Shift+Delete` | Delete or ripple delete |
 | `M` | Add marker |
+| `X` | Deactivate the selected clip or activate the selected inactive segment |
 | `+` / `-` | Zoom |
 | `F` | Fit |
 | `[` / `]` | Speed down or up 0.5x |
@@ -144,6 +151,8 @@ named immutable snapshot in `VIDEOWFLOW_HOME/timelines/`; **Timeline versions**
 opens the list and can load or delete a snapshot. Loading replaces the current
 state, increments revision, and records one undo entry. Snapshot metadata
 includes name, creation time, duration, revision, source path, and fingerprint.
+The snapshot dialog also has **Use in recipe**, which opens the recipe builder
+with a configured `timeline.load` node and its path already filled.
 
 `timeline.load` is a recipe step that reads a snapshot and exposes the `timeline`
 state port. It can feed `export.nle` or a render node without redoing VAD. Select

@@ -2,6 +2,7 @@
   import { focusTrap } from "$lib/a11y";
   import { cancelAllJobs, cancelJob, deleteJob, errorMessage, type Job } from "$lib/api";
   import { formatDateTime } from "$lib/format";
+  import { portal } from "$lib/portal";
   import { jobDisplayName, jobNextAction } from "$lib/jobsView";
   import { i18n } from "$lib/i18n.svelte";
 
@@ -97,7 +98,7 @@
 </script>
 
 {#if open}
-  <div class="fixed inset-0 z-[110]" role="presentation">
+  <div class="fixed inset-0 z-[1000]" role="presentation" use:portal>
     <button type="button" class="absolute inset-0 bg-black/40" aria-label="Close activity" onclick={onclose}></button>
     <aside
       class="absolute right-0 top-0 flex h-full w-[min(24rem,100vw)] flex-col overflow-hidden border-l border-neutral-800 bg-neutral-950 shadow-2xl shadow-black/50"

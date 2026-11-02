@@ -6,6 +6,7 @@ from videoflow.core.context import PipelineContext
 from videoflow.domain.state import MediaInfo, ProjectState
 from videoflow.steps import video_export
 from videoflow.steps.base import StepIO
+from videoflow.steps.export import ExportParams
 from videoflow.steps.video_export import VideoExportParams, VideoExportStep
 
 
@@ -40,3 +41,8 @@ def test_video_export_uses_ultrafast_by_default(tmp_path: Path, monkeypatch) -> 
     assert seen["crf"] == 30
     assert context.artifacts["video"].endswith("video.mp4")
     assert (tmp_path / "out" / "exports" / "video.mp4").is_file()
+
+
+def test_legacy_nle_mp4_target_is_removed() -> None:
+    params = ExportParams(targets=["mp4", "resolve"])
+    assert params.targets == ["resolve"]

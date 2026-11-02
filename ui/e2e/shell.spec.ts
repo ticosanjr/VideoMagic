@@ -139,6 +139,16 @@ test("force stops a running job from the activity drawer", async ({ page }) => {
   expect((await request).url()).toContain("force=true");
 });
 
+test("renders activity above the workspace navigation", async ({ page }) => {
+  await page.getByRole("button", { name: /Activity/ }).click();
+  await expect(page.getByTestId("activity-drawer")).toBeVisible();
+  const inside = await page.evaluate(() => {
+    const point = document.elementFromPoint(window.innerWidth - 20, 20);
+    return Boolean(point?.closest('[data-testid="activity-drawer"]'));
+  });
+  expect(inside).toBe(true);
+});
+
 test("stops every active job from the activity drawer", async ({ page }) => {
   await page.getByRole("button", { name: /Activity/ }).click();
   const request = page.waitForRequest(

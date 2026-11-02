@@ -550,8 +550,8 @@ test("shows live playback for hard-cut timelines and falls back otherwise", asyn
     await expect(page.getByTestId("live-player")).toBeVisible({ timeout: 1000 });
   }).toPass();
 
-  await expect(page.getByTestId("live-player")).toContainText("skips 1 inactive");
-  await expect(page.getByTestId("live-player").getByRole("button", { name: "Play" })).toBeVisible();
+  await expect(page.getByTestId("live-player")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
 });
 
 

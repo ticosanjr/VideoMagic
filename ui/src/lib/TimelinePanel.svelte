@@ -81,7 +81,13 @@
   let status = $state("");
   let playhead = $state(0);
   let playbackRate = $state(1);
-  let livePlayer = $state<{ seekSource: (time: number) => void } | null>(null);
+  let livePlayer = $state<{
+    seekSource: (time: number) => void;
+    seekOutput: (time: number) => void;
+    playPause: () => void;
+    nextActive: () => void;
+    previousActive: () => void;
+  } | null>(null);
   let liveSource = $state<LiveSourceState | null>(null);
   let liveSourceTimer: ReturnType<typeof setTimeout> | undefined;
   let snapshotOpen = $state(false);
@@ -187,6 +193,12 @@
 
   const duration = $derived(Math.max(0.001, timeline?.duration_sec ?? 1));
   const fps = $derived(timeline?.fps ?? 30);
+  const liveActive = $derived(
+    Boolean(
+      timeline?.live_eligible &&
+        (!liveSource || liveSource.status === "ready")
+    )
+  );
   const previewJob = $derived(jobs.find((job) => job.job_id === selected));
   const previewArtifact = $derived(
     Object.entries(previewJob?.result?.artifacts ?? {}).find(
@@ -196,7 +208,7 @@
         String(path).toLowerCase().endsWith(".mp4")
     )?.[0] ?? ""
   );
-  const canPreview = $derived(Boolean(previewUrl || previewArtifact));
+  const canPreview = $derived(Boolean(liveActive || previewUrl || previewArtifact));
 
   onMount(() => {
     try {
@@ -383,8 +395,9 @@
         if (cached) return [clip.id, cached] as const;
         try {
           const peaks = await getClipWaveform(jobId, start, end, buckets);
-          waveformCache.set(key, peaks);
-          return [clip.id, peaks] as const;
+          const usable = peaks.some((value) => value > 0.01) ? peaks : [];
+          waveformCache.set(key, usable);
+          return [clip.id, usable] as const;
         } catch {
           return null;
         }
@@ -733,6 +746,11 @@
   }
 
   function seekSegment(direction: -1 | 1) {
+    if (liveActive) {
+      if (direction > 0) livePlayer?.nextActive();
+      else livePlayer?.previousActive();
+      return;
+    }
     const clips = timeline?.video ?? [];
     if (!clips.length) return;
     let index = clips.findIndex(
@@ -793,6 +811,16 @@
     }
   }
 
+  function useInRecipe(snapshot: TimelineSnapshot) {
+    window.dispatchEvent(
+      new CustomEvent("videoflow:use-timeline", {
+        detail: { path: snapshot.path, name: snapshot.name }
+      })
+    );
+    snapshotOpen = false;
+    status = `Opening ${snapshot.name} in the recipe builder.`;
+  }
+
   async function removeVersion(snapshot: TimelineSnapshot) {
     snapshotBusy = true;
     try {
@@ -808,6 +836,7 @@
   function seek(value: number) {
     const target = Math.max(0, Math.min(duration, value));
     playhead = target;
+    if (liveActive) livePlayer?.seekOutput(target);
     prefetchFrames(target);
     clearTimeout(frameTimer);
     frameTimer = setTimeout(() => {
@@ -822,6 +851,10 @@
   }
 
   function togglePlay() {
+    if (liveActive) {
+      livePlayer?.playPause();
+      return;
+    }
     if (!videoEl) return;
     applyPlaybackRate();
     if (videoEl.paused) {
@@ -1128,7 +1161,7 @@
   }
 
   function fitTimeline() {
-    zoom = Math.max(18, Math.min(320, (1200 - 96) / duration));
+    zoom = Math.max(2, Math.min(400, (1200 - 96) / Math.max(0.1, duration)));
   }
 
   function editCaption(caption: TimelineData["captions"][number]) {
@@ -1281,6 +1314,18 @@
       void addMarker();
       return;
     }
+    if (key === "x") {
+      if (selectedInactiveId) {
+        event.preventDefault();
+        void toggleSegment(selectedInactiveId, true);
+        return;
+      }
+      if (selectedClip) {
+        event.preventDefault();
+        void toggleSegment(selectedClip.id, false);
+        return;
+      }
+    }
     if (event.key === "Delete" || event.key === "Backspace") {
       if (!selectedClip && !selectedIds.length) return;
       event.preventDefault();
@@ -1335,7 +1380,31 @@
       <div class="order-2 mb-2 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-3" data-testid="timeline-preview">
         <div class="grid gap-3 lg:h-[480px] lg:grid-cols-[minmax(0,1fr)_320px]">
           <div class="space-y-3 lg:h-full lg:min-h-0 lg:overflow-y-auto">
-            {#if previewUrl}
+            {#if liveActive}
+              <TimelinePlayer
+                bind:this={livePlayer}
+                jobId={selected}
+                {timeline}
+                streamUrl={liveSource?.url ?? ""}
+                bind:rate={playbackRate}
+                controls={false}
+                ontime={(source, output) => {
+                  liveSourceTime = source;
+                  playhead = output;
+                }}
+                onstate={(value) => (playing = value)}
+              />
+            {:else if timeline.live_eligible && liveSource?.status === "preparing"}
+              <div class="flex h-[340px] items-center justify-center rounded-xl border border-sky-500/20 bg-sky-950/20 text-[11px] text-sky-200" data-testid="live-preparing">
+                <span class="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-sky-300 border-r-transparent"></span>
+                Preparing browser-safe live playback…
+              </div>
+            {:else if timeline.live_eligible && liveSource?.status === "failed"}
+              <div class="flex h-[340px] flex-col items-center justify-center rounded-xl border border-amber-400/20 bg-amber-950/20 p-4 text-center text-[11px] text-amber-200" data-testid="live-fallback">
+                <p>Live playback unavailable: {liveSource.error || liveSource.reason}.</p>
+                <p class="mt-1 text-[10px] text-amber-200/70">Rendering the browser preview instead.</p>
+              </div>
+            {:else if previewUrl}
               <video
                 bind:this={videoEl}
                 class="h-[340px] w-full rounded-xl border border-neutral-800 bg-black object-contain"
@@ -1437,6 +1506,22 @@
                 <p class="mt-2 text-[10px] text-neutral-500">Select a clip on the canvas to inspect and edit it.</p>
               {/if}
               {#if editStatus}<p class="mt-1 text-[10px] text-amber-300">{editStatus}</p>{/if}
+            </div>
+
+            <div class="rounded-xl border border-neutral-800 bg-neutral-900/40 p-3" data-testid="inactive-list">
+              <div class="flex items-center justify-between">
+                <p class="text-[10px] uppercase tracking-wide text-neutral-500">Inactive segments</p>
+                <span class="text-[9px] text-neutral-600">{timeline.inactive.length}</span>
+              </div>
+              <div class="mt-2 max-h-32 space-y-1 overflow-auto">
+                {#each timeline.inactive as item (item.id)}
+                  <div class="flex items-center gap-1 rounded bg-neutral-950/60 px-1.5 py-1">
+                    <button type="button" onclick={() => selectRecut("inactive", item.id)} class="min-w-0 flex-1 truncate text-left text-[10px] text-rose-200">{item.id} · {item.reason} · {item.video_start_sec.toFixed(1)}s</button>
+                    <button type="button" onclick={() => void toggleSegment(item.id, true)} class="rounded px-1 text-[10px] text-sky-300 hover:text-white" aria-label={`Activate ${item.id}`}>Activate</button>
+                  </div>
+                {/each}
+                {#if !timeline.inactive.length}<p class="text-[10px] text-neutral-600">Every source segment is active.</p>{/if}
+              </div>
             </div>
 
             <div class="rounded-xl border border-neutral-800 bg-neutral-900/40 p-3">
@@ -1558,7 +1643,7 @@
         <button type="button" onclick={fitTimeline} class="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300">Fit</button>
         <label class="flex items-center gap-2 text-[10px] text-neutral-500">
           Zoom
-          <input type="range" min="16" max="400" step="1" bind:value={zoom} data-testid="timeline-zoom" class="w-24 accent-sky-400" />
+          <input type="range" min="2" max="400" step="1" bind:value={zoom} data-testid="timeline-zoom" class="w-24 accent-sky-400" />
           <span class="w-9 text-right font-mono text-neutral-400">{Math.round(zoom)}</span>
         </label>
       </div>
@@ -1605,31 +1690,6 @@
       </div>
 
       {#if viewMode === "recut"}
-        {#if timeline.live_eligible}
-          {#if !liveSource || liveSource.status === "ready"}
-            <TimelinePlayer
-              bind:this={livePlayer}
-              jobId={selected}
-              {timeline}
-              streamUrl={liveSource?.url ?? ""}
-              bind:rate={playbackRate}
-              ontime={(source) => (liveSourceTime = source)}
-            />
-          {:else if liveSource.status === "failed"}
-            <div data-testid="live-fallback" class="mb-2 rounded-xl border border-amber-400/20 bg-amber-950/20 px-3 py-2 text-[10px] text-amber-200">
-              Live playback unavailable: {liveSource.error || liveSource.reason}. Use the rendered preview.
-            </div>
-          {:else}
-            <div data-testid="live-preparing" class="mb-2 flex h-[84px] items-center gap-2 rounded-xl border border-sky-500/20 bg-sky-950/20 px-3 text-[10px] text-sky-200">
-              <span class="h-3 w-3 animate-spin rounded-full border-2 border-sky-300 border-r-transparent"></span>
-              Preparing browser-safe live playback…
-            </div>
-          {/if}
-        {:else}
-          <div data-testid="live-fallback" class="mb-2 rounded-xl border border-amber-400/20 bg-amber-950/20 px-3 py-2 text-[10px] text-amber-200">
-            Live playback unavailable: {timeline.live_reason}. Use the rendered preview.
-          </div>
-        {/if}
         <RecutCanvas
           {timeline}
           selectedId={selectedInactiveId || selectedClip?.id || ""}
@@ -1739,6 +1799,7 @@
         <button type="button" class="block w-full px-3 py-1.5 text-left text-neutral-300 hover:bg-white/5" onclick={() => { clipMenu = null; void applyEdit("duplicate"); }}>Duplicate</button>
         <button type="button" class="block w-full px-3 py-1.5 text-left text-neutral-300 hover:bg-white/5" onclick={() => { clipMenu = null; deleteSelected(false); }}>Delete</button>
         <button type="button" class="block w-full px-3 py-1.5 text-left text-neutral-300 hover:bg-white/5" onclick={() => { clipMenu = null; deleteSelected(true); }}>Ripple delete</button>
+        <button type="button" class="block w-full px-3 py-1.5 text-left text-rose-200 hover:bg-white/5" onclick={() => { const clip = clipMenu?.clipId; clipMenu = null; if (clip) void toggleSegment(clip, false); }}>Deactivate clip</button>
         <button type="button" class="block w-full px-3 py-1.5 text-left text-neutral-300 hover:bg-white/5" onclick={() => { clipMenu = null; void applyEdit("slide", { delta_sec: clipDelta }); }}>Slide {clipDelta}s</button>
         <button type="button" class="block w-full px-3 py-1.5 text-left text-neutral-300 hover:bg-white/5" onclick={() => { clipMenu = null; void addMarker(); }}>Add marker here</button>
         <button type="button" class="block w-full px-3 py-1.5 text-left text-neutral-500 hover:bg-white/5" onclick={() => { clipMenu = null; void refreshComments(); }}>Properties / comments</button>
@@ -1774,6 +1835,7 @@
               <p class="mt-0.5 truncate font-mono text-[9px] text-neutral-600">{snapshot.path}</p>
             </div>
             <button type="button" onclick={() => void loadVersion(snapshot)} disabled={snapshotBusy} class="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1 text-[10px] text-sky-200 disabled:opacity-40">Load</button>
+            <button type="button" onclick={() => useInRecipe(snapshot)} disabled={snapshotBusy} class="rounded-lg border border-violet-500/40 bg-violet-500/10 px-2.5 py-1 text-[10px] text-violet-200 disabled:opacity-40">Use in recipe</button>
             <button type="button" onclick={() => void removeVersion(snapshot)} disabled={snapshotBusy} class="flex h-7 w-7 items-center justify-center rounded-lg border border-rose-500/30 text-rose-300 disabled:opacity-40" title="Delete version" aria-label={`Delete ${snapshot.name}`}><Icon name="trash" size={12} /></button>
           </div>
         {/each}

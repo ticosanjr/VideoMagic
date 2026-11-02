@@ -114,19 +114,21 @@ def test_sources_must_run_earlier_and_be_ancestors() -> None:
             ]
         )
 
-    with pytest.raises(RecipeError, match="add ingest to needs"):
-        validate(
-            [
-                {"id": "ingest", "type": "ingest"},
-                {"id": "other", "type": "audio.vad"},
-                {
-                    "id": "edit",
-                    "type": "edit.timeline",
-                    "needs": ["other"],
-                    "inputs": {"speech": "ingest.media"},
-                },
-            ]
-        )
+    repaired = recipe(
+        [
+            {"id": "ingest", "type": "ingest"},
+            {"id": "vad", "type": "audio.vad", "needs": ["ingest"]},
+            {
+                "id": "edit",
+                "type": "edit.timeline",
+                "needs": [],
+                "inputs": {"speech": "vad.speech"},
+            },
+        ]
+    )
+    validate_recipe_ports(repaired)
+    edit = next(step for step in repaired.steps if step.id == "edit")
+    assert "vad" in edit.needs
 
 
 def test_types_must_match_and_required_inputs_must_be_wired() -> None:

@@ -3,6 +3,37 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.35.0] - 2026-11-02
+
+### Added
+
+- One preview surface for Normal and Recut, driven by the same transport.
+- Timeline cursor seeks the preview; play/pause, segment navigation, speed, and
+  click-to-seek work across live and rendered preview modes.
+- Waveform fallback and signal filtering keep the audio track visible even when
+  peaks are missing or all-zero.
+- Zoom down to 2 px/s with adaptive ruler steps; horizontal wheel/Shift+wheel
+  scrolls, vertical wheel zooms.
+- Quick `X` toggle for active/inactive segments and an inactive-segment list in
+  Normal view.
+- **Use in recipe** from a timeline snapshot opens the builder with a configured
+  `timeline.load` node.
+- Activity, notifications, command palette, and shortcuts are portalled above
+  the workspace navigation.
+
+### Fixed
+
+- Recipes with wired inputs but missing `needs` are repaired automatically,
+  fixing `source timeline must run earlier` errors.
+- Legacy `export.nle` configurations with `mp4` migrate to timeline-only targets.
+- Activity/notification overlays no longer render behind the Produce/Edit/Runs/
+  Library/Setup bar.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.34.0] - 2026-11-02
 
 ### Added

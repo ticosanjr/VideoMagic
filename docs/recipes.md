@@ -268,7 +268,10 @@ The `export.video` node is separate from `export.nle`. `export.nle` only writes
 editing timelines; `export.video` renders the final video. Its default is
 `ultrafast` (libx264 `ultrafast`, CRF 30), the fastest practical H.264/AAC MP4
 profile. Built-in recipes end with both nodes. Use the node header dot or the
-inspector toggle to disable either exporter without deleting it.
+inspector toggle to disable either exporter without deleting it. Disabled nodes
+are omitted from the run and their parameters stay saved. Wired inputs are
+automatically added to `needs` on load, repairing older recipes that failed with
+"source timeline must run earlier".
 
 ## Direct MP4
 

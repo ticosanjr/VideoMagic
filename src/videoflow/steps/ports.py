@@ -366,6 +366,11 @@ def validate_recipe_ports(recipe: Any) -> None:
             source = step_by_id.get(source_id)
             if source is None:
                 raise RecipeError(f"{step.id}.{input_id}: unknown node {source_id}")
+            if not source.enabled:
+                raise RecipeError(
+                    f"{step.id}.{input_id}: source {source_id} is disabled; "
+                    "enable it or remove this input"
+                )
             if position.get(source_id, 10**9) >= position.get(step.id, -1):
                 raise RecipeError(
                     f"{step.id}.{input_id}: source {source_id} must run earlier"

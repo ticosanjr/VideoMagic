@@ -1,6 +1,7 @@
 <script lang="ts">
   import { focusTrap } from "$lib/a11y";
   import { i18n } from "$lib/i18n.svelte";
+  import { portal } from "$lib/portal";
 
   let { open = false, onclose }: { open?: boolean; onclose: () => void } = $props();
 
@@ -40,7 +41,7 @@
 </script>
 
 {#if open}
-  <div class="fixed inset-0 z-[110] flex items-center justify-center px-4" role="presentation">
+  <div class="fixed inset-0 z-[1200] flex items-center justify-center px-4" role="presentation" use:portal>
     <button type="button" class="absolute inset-0 bg-black/50" aria-label="Close shortcuts" onclick={onclose}></button>
     <div
       class="relative w-full max-w-lg overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl shadow-black/60"

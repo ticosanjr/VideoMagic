@@ -334,7 +334,15 @@
 
   onMount(() => {
     const onBuilderAction = (event: Event) => {
-      const action = String((event as CustomEvent<string>).detail ?? "");
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (detail && typeof detail === "object") {
+        const payload = detail as { action?: string; path?: string };
+        if (payload.action === "load-timeline" && payload.path) {
+          addStep("timeline.load", { path: payload.path });
+          return;
+        }
+      }
+      const action = String(detail ?? "");
       if (action === "add-step") {
         addOpen = true;
         inspectorOpen = false;
@@ -627,7 +635,7 @@
     };
   }
 
-  function addStep(type: string) {
+  function addStep(type: string, initialParams: Record<string, unknown> = {}) {
     const manifest = manifestFor(type);
     if (!manifest) return;
     pushUndo();
@@ -647,7 +655,7 @@
           title: manifest.title,
           type,
           description: manifest.description,
-          params: defaultsFor(manifest),
+          params: { ...defaultsFor(manifest), ...initialParams },
           schema: manifest.params_schema,
           enabled: true,
           onEnabledChange: (enabled: boolean) => patchStepEnabled(id, enabled),
