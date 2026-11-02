@@ -931,6 +931,19 @@
   >
     <div bind:this={container} style={`width:${width}px;height:${HEIGHT}px`}></div>
   </div>
+  <div class="pointer-events-none absolute left-0 top-0 z-20 h-full w-[96px] border-r border-neutral-800 bg-neutral-950/95" data-testid="timeline-track-headers">
+    <p class="absolute left-2 top-1.5 text-[9px] font-bold text-neutral-500">TIMELINE</p>
+    {#each [
+      { label: "V1 · VIDEO", top: 32, height: 96 },
+      { label: "A1 · DIALOGUE", top: 132, height: 58 },
+      { label: "S1 · CAPTIONS", top: 194, height: 48 },
+      { label: "B1 · B-ROLL", top: 246, height: 62 },
+      { label: "M1 · MARKERS", top: 310, height: 26 }
+    ] as track}
+      <span class="absolute left-2 truncate text-[8px] font-bold text-neutral-400" style={`top:${track.top + 6}px;width:84px`}>{track.label}</span>
+      <span class="absolute left-0 right-0 border-b border-neutral-900" style={`top:${track.top + track.height}px`}></span>
+    {/each}
+  </div>
   {#if hover && hoverFrame}
     <div
       class="pointer-events-none absolute top-8 z-30 overflow-hidden rounded-lg border border-sky-400/40 bg-black shadow-2xl shadow-black/60"

@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import type { TimelineData, TimelineInactive } from "$lib/api";
+  import { jobFrameUrl, type TimelineData, type TimelineInactive } from "$lib/api";
 
   let {
     timeline,
+    jobId = "",
     selectedId = "",
     busy = false,
     playhead = 0,
@@ -14,6 +15,7 @@
     onseek
   }: {
     timeline: TimelineData;
+    jobId?: string;
     selectedId?: string;
     busy?: boolean;
     playhead?: number;
@@ -37,6 +39,9 @@
   } | null>(null);
   let draft = $state<{ id: string; start: number; end: number } | null>(null);
   let suppressClick = false;
+  let hover = $state<{ x: number; time: number } | null>(null);
+  let hoverFrame = $state("");
+  let hoverTimer: ReturnType<typeof setTimeout> | undefined;
 
   const sourceDuration = $derived(
     Math.max(
@@ -211,6 +216,27 @@
     onseek(value);
   }
 
+  function hoverMove(event: PointerEvent) {
+    if (!jobId) return;
+    const element = event.currentTarget as HTMLElement | null;
+    if (!element) return;
+    const rect = element.getBoundingClientRect();
+    const time = Math.max(
+      0,
+      Math.min(sourceDuration, (event.clientX - rect.left - 8) / zoom)
+    );
+    hover = { x: event.clientX - rect.left, time };
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => {
+      hoverFrame = jobFrameUrl(jobId, time);
+    }, 120);
+  }
+
+  function hoverLeave() {
+    hover = null;
+    clearTimeout(hoverTimer);
+  }
+
   function zoomFromWheel(event: WheelEvent) {
     event.preventDefault();
     const horizontal = event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY);
@@ -223,6 +249,7 @@
   }
 
   onDestroy(() => {
+    clearTimeout(hoverTimer);
     window.removeEventListener("pointermove", moveTrim);
     window.removeEventListener("pointerup", finishTrim);
     window.removeEventListener("pointercancel", finishTrim);
@@ -254,6 +281,8 @@
       tabindex="0"
       onclick={seekFromEvent}
       onwheel={zoomFromWheel}
+      onpointermove={hoverMove}
+      onpointerleave={hoverLeave}
       onkeydown={(event) => {
         if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
         event.preventDefault();
@@ -350,6 +379,16 @@
         {/each}
       </div>
 
+      {#if hover && hoverFrame}
+        <div
+          class="pointer-events-none absolute top-7 z-30 overflow-hidden rounded-lg border border-sky-400/40 bg-black shadow-2xl shadow-black/60"
+          style={`left:${Math.max(8, Math.min(width - 174, hover.x + 12))}px`}
+          data-testid="recut-hover-frame"
+        >
+          <img src={hoverFrame} alt="" class="h-[90px] w-[160px] object-cover" />
+          <span class="absolute bottom-1 right-1 rounded bg-black/70 px-1 font-mono text-[9px] text-white">{hover.time.toFixed(2)}s</span>
+        </div>
+      {/if}
       {#if playhead > 0}
         <span class="absolute bottom-0 top-6 z-20 w-px bg-rose-300" style={`left:${leftFor(playhead)}px`} data-testid="recut-playhead"></span>
       {/if}

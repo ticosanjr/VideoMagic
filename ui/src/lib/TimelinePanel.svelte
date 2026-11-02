@@ -1163,6 +1163,24 @@
     }
   }
 
+  function jumpMarker(direction: -1 | 1) {
+    const markers = [...(timeline?.markers ?? [])].sort(
+      (left, right) => left.time_sec - right.time_sec
+    );
+    if (!markers.length) return;
+    let target: { time_sec: number } | undefined;
+    if (direction > 0) {
+      target = markers.find((marker) => {
+        return marker.time_sec > playhead + 0.01;
+      });
+    } else {
+      target = [...markers].reverse().find((marker) => {
+        return marker.time_sec < playhead - 0.01;
+      });
+    }
+    if (target) seek(target.time_sec);
+  }
+
   function markIn() {
     inPoint = playhead;
     if (outPoint !== null && outPoint <= inPoint) outPoint = null;
@@ -1347,6 +1365,10 @@
     }
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();
+      if (event.altKey) {
+        jumpMarker(event.key === "ArrowRight" ? 1 : -1);
+        return;
+      }
       const delta = event.shiftKey ? 1 : 1 / Math.max(1, fps);
       seek(playhead + (event.key === "ArrowRight" ? delta : -delta));
       return;
@@ -1707,6 +1729,8 @@
         <button type="button" onclick={togglePlay} disabled={!canPreview} class="flex h-8 w-8 items-center justify-center rounded-lg border border-sky-500/40 bg-sky-500/10 text-sky-200 disabled:opacity-40" title={playing ? "Pause (Space)" : "Play (Space)"} aria-label={playing ? "Pause" : "Play"}><Icon name={playing ? "pause" : "play"} size={14} /></button>
         <button type="button" onclick={() => seekSegment(1)} disabled={!timeline} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300 disabled:opacity-40" title="Next segment (Shift+L)" aria-label="Next segment"><Icon name="chevron-right" size={14} /></button>
         <button type="button" onclick={() => seek(duration)} disabled={!timeline} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300 disabled:opacity-40" title="Go to end (End)" aria-label="Go to end"><Icon name="skip-forward" size={14} /></button>
+        <button type="button" onclick={() => jumpMarker(-1)} disabled={!timeline?.markers.length} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300 disabled:opacity-40" title="Previous marker (Alt+Left)" aria-label="Previous marker"><Icon name="bookmark" size={13} /></button>
+        <button type="button" onclick={() => jumpMarker(1)} disabled={!timeline?.markers.length} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300 disabled:opacity-40" title="Next marker (Alt+Right)" aria-label="Next marker"><Icon name="bookmark" size={13} /></button>
         <select value={String(playbackRate)} onchange={(event) => setPlaybackRate(Number(event.currentTarget.value))} class="h-8 w-[68px] rounded-lg border border-neutral-700 bg-neutral-950 px-1 font-mono text-[10px] text-neutral-300" title="Playback speed" aria-label="Playback speed">
           {#each [1, 1.5, 2, 2.5, 3] as value}
             <option value={String(value)}>{value.toFixed(1)}x</option>
@@ -1798,6 +1822,7 @@
       {#if viewMode === "recut"}
         <RecutCanvas
           {timeline}
+          jobId={selected}
           selectedId={selectedInactiveId || selectedClip?.id || ""}
           busy={editBusy}
           playhead={liveSourceTime}

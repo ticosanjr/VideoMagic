@@ -3,6 +3,19 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.38.0] - 2026-11-02
+
+### Added
+
+- Fixed timeline track headers that stay visible while the canvas scrolls.
+- Previous/next marker navigation from the transport and `Alt+Left/Right`.
+- Frame thumbnails with source-time labels while hovering the Recut canvas.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.37.0] - 2026-11-02
 
 ### Added

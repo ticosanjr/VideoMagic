@@ -28,6 +28,7 @@
     { keys: "Shift + J / L", action: "Timeline: previous or next segment" },
     { keys: "← / →", action: "Timeline: one frame" },
     { keys: "Shift + ← / →", action: "Timeline: one second" },
+    { keys: "Alt + ← / →", action: "Timeline: previous or next marker" },
     { keys: "Home / End", action: "Timeline: jump to start or end" },
     { keys: "S", action: "Timeline: split at the playhead" },
     { keys: "Delete / Shift+Delete", action: "Timeline: delete or ripple delete" },
