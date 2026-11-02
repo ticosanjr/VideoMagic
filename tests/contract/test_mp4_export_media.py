@@ -204,6 +204,9 @@ def test_crossfade_timeline_keeps_finishing_filters(tmp_path: Path) -> None:
     state = state_for(media, clips=6)
     for clip in state.video_segments[:-1]:
         clip.transition_out = Transition(type="crossfade", duration_frames=2)
+    state.video_segments[2].transition_out = Transition(
+        type="crossfade", duration_frames=2, audio=False
+    )
     overlay = tmp_path / "overlay.png"
     subprocess.run(
         [
