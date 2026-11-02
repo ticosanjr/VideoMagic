@@ -3,6 +3,19 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.39.0] - 2026-11-02
+
+### Added
+
+- Multi-selection inspector now edits transition type, duration, fade-in, and
+  fade-out for every selected clip in one action.
+- Batch style application keeps the existing copy/paste and deactivate actions.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.38.0] - 2026-11-02
 
 ### Added

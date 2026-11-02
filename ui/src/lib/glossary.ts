@@ -504,6 +504,8 @@ export const GLOSSARY: Record<string, string> = {
   "URL:": "URL:",
   "Undo": "Desfazer",
   "Upload": "Enviar",
+  "Applying…": "Aplicando…",
+  "Apply to selected": "Aplicar aos selecionados",
   "TIMELINE": "LINHA DO TEMPO",
   "Deactivate selected": "Desativar selecionados",
   "Fit selection": "Ajustar seleção",

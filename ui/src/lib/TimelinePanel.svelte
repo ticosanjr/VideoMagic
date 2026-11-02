@@ -84,6 +84,10 @@
   let inPoint = $state<number | null>(null);
   let outPoint = $state<number | null>(null);
   let copiedStyle = $state<Record<string, unknown> | null>(null);
+  let batchTransitionType = $state<"none" | "crossfade" | "fade_to_black">("none");
+  let batchTransitionFrames = $state(6);
+  let batchFadeIn = $state(0);
+  let batchFadeOut = $state(0);
   let livePlayer = $state<{
     seekSource: (time: number) => void;
     seekOutput: (time: number) => void;
@@ -1240,6 +1244,28 @@
     status = `Copied style from ${selectedClip.id}.`;
   }
 
+  async function applyBatchStyle() {
+    if (!selected || !selectedIds.length) return;
+    styleBusy = true;
+    error = "";
+    try {
+      for (const id of selectedIds) {
+        await updateTimelineClip(selected, id, {
+          transition_type: batchTransitionType,
+          transition_duration_frames: Math.max(1, Math.round(batchTransitionFrames)),
+          fade_in_sec: Math.max(0, batchFadeIn),
+          fade_out_sec: Math.max(0, batchFadeOut)
+        });
+      }
+      status = `Applied batch style to ${selectedIds.length} clip(s).`;
+      await loadTimeline("", { assets: false, deliverables: false });
+    } catch (reason) {
+      error = errorMessage(reason);
+    } finally {
+      styleBusy = false;
+    }
+  }
+
   async function pasteClipStyle() {
     if (!copiedStyle || !selected) return;
     const ids = selectedIds.length ? selectedIds : selectedClip ? [selectedClip.id] : [];
@@ -1570,6 +1596,27 @@
                   <button type="button" onclick={fitSelection} class="rounded border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300">Fit selection</button>
                   <button type="button" onclick={() => void deactivateSelected()} disabled={editBusy} class="rounded border border-rose-500/40 px-2 py-1 text-[10px] text-rose-200 disabled:opacity-40">Deactivate selected</button>
                   <button type="button" onclick={() => void pasteClipStyle()} disabled={!copiedStyle || styleBusy} class="rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-200 disabled:opacity-40">Paste style</button>
+                </div>
+                <div class="mt-3 grid grid-cols-2 gap-2 border-t border-sky-500/20 pt-2">
+                  <label class="text-[10px] text-neutral-400">Transition
+                    <select bind:value={batchTransitionType} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100">
+                      <option value="none">cut</option>
+                      <option value="crossfade">crossfade</option>
+                      <option value="fade_to_black">fade to black</option>
+                    </select>
+                  </label>
+                  <label class="text-[10px] text-neutral-400">Frames
+                    <input type="number" min="1" max="120" step="1" bind:value={batchTransitionFrames} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
+                  </label>
+                  <label class="text-[10px] text-neutral-400">Fade in (s)
+                    <input type="number" min="0" step="0.05" bind:value={batchFadeIn} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
+                  </label>
+                  <label class="text-[10px] text-neutral-400">Fade out (s)
+                    <input type="number" min="0" step="0.05" bind:value={batchFadeOut} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
+                  </label>
+                  <div class="col-span-2">
+                    <button type="button" onclick={() => void applyBatchStyle()} disabled={styleBusy} class="w-full rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-200 disabled:opacity-40">{styleBusy ? "Applying…" : "Apply to selected"}</button>
+                  </div>
                 </div>
               </div>
             {/if}
