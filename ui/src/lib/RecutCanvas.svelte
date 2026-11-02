@@ -7,6 +7,7 @@
     selectedId = "",
     busy = false,
     playhead = 0,
+    waveforms = {},
     onselect,
     ontoggle,
     ontrim,
@@ -16,6 +17,7 @@
     selectedId?: string;
     busy?: boolean;
     playhead?: number;
+    waveforms?: Record<string, number[]>;
     onselect: (kind: "active" | "inactive", id: string) => void;
     ontoggle: (id: string, active: boolean) => void;
     ontrim: (id: string, start: number, end: number) => void;
@@ -64,6 +66,18 @@
   function activeAudioEnd(clip: TimelineData["audio"][number]): number {
     return clip.source_out_sec ?? clip.end_sec;
   }
+  function wavePoints(peaks: number[]): string {
+    if (peaks.length < 2) return "";
+    const points: string[] = [];
+    for (let index = 0; index < peaks.length; index += 1) {
+      points.push(`${(index / (peaks.length - 1)) * 100},${50 - Math.max(0.02, peaks[index]) * 42}`);
+    }
+    for (let index = peaks.length - 1; index >= 0; index -= 1) {
+      points.push(`${(index / (peaks.length - 1)) * 100},${50 + Math.max(0.02, peaks[index]) * 42}`);
+    }
+    return points.join(" ");
+  }
+
   function widthFor(start: number, end: number): number {
     return Math.max(12, (Math.max(start, end) - start) * zoom);
   }
@@ -315,7 +329,14 @@
             title="Active audio clip."
             class="absolute top-6 h-7 overflow-hidden rounded border border-sky-400/60 bg-sky-500/15 px-1 text-left text-[8px] text-sky-100"
             style={`left:${leftFor(activeAudioStart(clip))}px;width:${widthFor(activeAudioStart(clip), activeAudioEnd(clip))}px`}
-          >{clip.id}</button>
+          >
+            {#if (waveforms[clip.id]?.length ?? 0) > 1}
+              <svg class="pointer-events-none absolute inset-0 h-full w-full opacity-70" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                <polygon points={wavePoints(waveforms[clip.id])} fill="#34d399" fill-opacity="0.45" stroke="#6ee7b7" stroke-width="0.6" />
+              </svg>
+            {/if}
+            <span class="relative">{clip.id}</span>
+          </button>
         {/each}
         {#each inactive as item (item.id)}
           <button

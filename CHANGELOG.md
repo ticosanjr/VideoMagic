@@ -3,6 +3,20 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.37.0] - 2026-11-02
+
+### Added
+
+- Timeline hover thumbnails with a debounced frame preview and source time.
+- Waveforms in the Recut audio lane, using the same peaks as the Normal canvas.
+- Multi-selection inspector with Fit selection, Deactivate selected, and Paste
+  style actions.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.36.0] - 2026-11-02
 
 ### Added

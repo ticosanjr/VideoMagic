@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import type { TimelineData } from "$lib/api";
+  import { jobFrameUrl, type TimelineData } from "$lib/api";
   import { clipVisible, visibleRange } from "$lib/timelineView";
 
   let {
@@ -83,6 +83,9 @@
   let scrollLeft = $state(0);
   let viewportWidth = $state(1200);
   let scroller = $state<HTMLDivElement | null>(null);
+  let hover = $state<{ x: number; time: number } | null>(null);
+  let hoverFrame = $state("");
+  let hoverTimer: ReturnType<typeof setTimeout> | undefined;
   function onScroll(event: Event) {
     const element = event.currentTarget as HTMLDivElement;
     scrollLeft = element.scrollLeft;
@@ -221,9 +224,19 @@
       const pointer = stage.getPointerPosition();
       if (!pointer) return;
       if (scrubbing) onSeek(timeAt(pointer.x));
+      if (jobId && pointer.x >= HEADER) {
+        const time = timeAt(pointer.x);
+        hover = { x: pointer.x, time };
+        clearTimeout(hoverTimer);
+        hoverTimer = setTimeout(() => {
+          hoverFrame = jobFrameUrl(jobId, time);
+        }, 120);
+      }
     });
     stage.on("mouseup touchend mouseleave", () => {
       scrubbing = false;
+      hover = null;
+      clearTimeout(hoverTimer);
     });
     stage.on("wheel", (event: any) => {
       event.evt.preventDefault();
@@ -853,6 +866,7 @@
   });
 
   onDestroy(() => {
+    clearTimeout(hoverTimer);
     stage?.destroy();
     stage = null;
     scene = null;
@@ -917,4 +931,14 @@
   >
     <div bind:this={container} style={`width:${width}px;height:${HEIGHT}px`}></div>
   </div>
+  {#if hover && hoverFrame}
+    <div
+      class="pointer-events-none absolute top-8 z-30 overflow-hidden rounded-lg border border-sky-400/40 bg-black shadow-2xl shadow-black/60"
+      style={`left:${Math.max(8, Math.min((scroller?.clientWidth ?? 900) - 174, hover.x - scrollLeft + 12))}px`}
+      data-testid="timeline-hover-frame"
+    >
+      <img src={hoverFrame} alt="" class="h-[96px] w-[160px] object-cover" />
+      <span class="absolute bottom-1 right-1 rounded bg-black/70 px-1 font-mono text-[9px] text-white">{hover.time.toFixed(2)}s</span>
+    </div>
+  {/if}
 </div>

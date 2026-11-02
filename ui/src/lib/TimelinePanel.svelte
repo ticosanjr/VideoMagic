@@ -1201,6 +1201,13 @@
     }, 0);
   }
 
+  async function deactivateSelected() {
+    if (!selected || !selectedIds.length) return;
+    await applyBatch(
+      selectedIds.map((id) => ({ clip_id: id, action: "deactivate" })) as never
+    );
+  }
+
   function copyClipStyle() {
     if (!selectedClip) return;
     copiedStyle = {
@@ -1534,6 +1541,16 @@
           </div>
 
           <div class="space-y-2 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+            {#if selectedIds.length > 1}
+              <div class="rounded-xl border border-sky-500/30 bg-sky-950/20 p-3" data-testid="multi-selection">
+                <p class="text-[10px] uppercase tracking-wide text-sky-300">{selectedIds.length} clips selected</p>
+                <div class="mt-2 flex flex-wrap gap-1">
+                  <button type="button" onclick={fitSelection} class="rounded border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300">Fit selection</button>
+                  <button type="button" onclick={() => void deactivateSelected()} disabled={editBusy} class="rounded border border-rose-500/40 px-2 py-1 text-[10px] text-rose-200 disabled:opacity-40">Deactivate selected</button>
+                  <button type="button" onclick={() => void pasteClipStyle()} disabled={!copiedStyle || styleBusy} class="rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-200 disabled:opacity-40">Paste style</button>
+                </div>
+              </div>
+            {/if}
             <div class="rounded-xl border border-neutral-800 bg-neutral-900/40 p-3">
               <div class="flex items-center justify-between">
                 <p class="text-[10px] uppercase tracking-wide text-neutral-500">Selected clip</p>
@@ -1784,6 +1801,7 @@
           selectedId={selectedInactiveId || selectedClip?.id || ""}
           busy={editBusy}
           playhead={liveSourceTime}
+          {waveforms}
           onselect={selectRecut}
           ontoggle={toggleSegment}
           ontrim={(id, start, end) => void trimInactiveRange(id, start, end)}

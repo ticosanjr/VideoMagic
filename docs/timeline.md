@@ -153,8 +153,9 @@ named immutable snapshot in `VIDEOWFLOW_HOME/timelines/`; **Timeline versions**
 opens the list and can load or delete a snapshot. Loading replaces the current
 state, increments revision, and records one undo entry. Snapshot metadata
 includes name, creation time, duration, revision, source path, and fingerprint.
-The timeline supports in/out marks (I/O), fit selection (Shift+F), and
-copy/paste of clip style (transition, scale, position, fades). The snapshot
+The timeline supports in/out marks (I/O), fit selection (Shift+F), hover frame
+thumbnails, Recut waveforms, multi-selection actions, and copy/paste of clip
+style (transition, scale, position, fades). The snapshot
 dialog also has **Use in recipe**, which opens the recipe builder
 with a configured `timeline.load` node and its path already filled.
 
