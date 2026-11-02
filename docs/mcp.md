@@ -100,7 +100,8 @@ still required.
 | `videoflow_edit_short` | `index`, `title`, `start_sec`, `end_sec`, `aspect_ratio`, `burn_subtitles`, `caption_style` | **live**: re-renders one Short into `shorts/edited/` |
 | `videoflow_export_fcpxml` | `output_path`, `target_nle` | **live**: exports the latest completed timeline |
 | `videoflow_run_pipeline` | `preset_name`, `overrides`, optional `source`, optional `output` | **live**: starts a real job |
-| `videoflow_get_job` | `job_id` | **live**: status, progress, report |
+| `videoflow_list_jobs` | `limit`, `offset`, `summary` | **live**: paginated jobs; `summary=true` omits the embedded recipe |
+| `videoflow_get_job` | `job_id` | **live**: status, progress, report; list summaries omit the embedded recipe |
 | `videoflow_cancel_job` | `job_id` | **live**: cooperative cancel |
 
 `videoflow_run_recipe` is the preferred entry point. `run_pipeline` remains as

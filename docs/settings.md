@@ -1,6 +1,8 @@
 # Settings
 
-`settings.json` under the VideoFlow home stores the local configuration. The
+`settings.json` under the VideoFlow home stores the local configuration. An
+unreadable file falls back to defaults and is reported through
+`GET /api/v1/system` (`settings_error`) and the doctor checks. The
 Settings tab adds search, units, help tips, and a discard-changes action.
 
 | Section | Fields | Notes |

@@ -100,13 +100,18 @@ class FakeJob:
         self.result = result
         self.options = options or {}
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, *, summary: bool = False) -> dict[str, Any]:
+        options = (
+            {key: value for key, value in self.options.items() if key != "recipe"}
+            if summary
+            else self.options
+        )
         return {
             "job_id": self.job_id,
             "status": self.status,
             "source": str(self.source),
             "output": str(self.output),
-            "options": self.options,
+            "options": options,
             "result": self.result,
         }
 

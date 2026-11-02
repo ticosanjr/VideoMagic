@@ -3,6 +3,34 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.25.3] - 2026-11-02
+
+### Fixed
+
+- **Broken settings no longer fail silently.** An unreadable
+  `settings.json` still falls back to defaults, but reports
+  `settings_error`, fails the doctor settings check, and raises a global
+  warning in the UI.
+- **Database failures are visible.** SQLite read/write errors set
+  `database_error` in `GET /system`, feed the doctor check, and are logged
+  instead of being swallowed.
+- **Network and timeout failures reach the global error path.** API requests
+  abort after ten minutes and emit the same notification event as HTTP errors.
+
+### Changed
+
+- **MCP job lists omit embedded recipes by default.**
+  `videoflow_list_jobs(..., summary=true)` matches the API summary payload.
+- Removed the remaining unused client helpers for job-first state, URL import,
+  media probe, filesystem roots, model install, config transfer, project
+  updates, B-roll reads, and Short LLM analysis. Every exported client function
+  is now called by the UI.
+
+### Notes
+
+- Full-tree coverage is 96.2%.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.25.2] - 2026-11-02
 
 ### Changed

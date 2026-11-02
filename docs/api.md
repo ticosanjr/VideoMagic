@@ -93,11 +93,15 @@ GET /api/v1/system
   "home": "/home/editor/.videoflow",
   "allowed_roots": ["/home/editor", "/home/editor/projects", "/home/editor/.videoflow"],
   "ffmpeg": "/usr/bin/ffmpeg",
-  "ffprobe": "/usr/bin/ffprobe"
+  "ffprobe": "/usr/bin/ffprobe",
+  "settings_error": "",
+  "database_error": ""
 }
 ```
 
-`allowed_roots` comes from `VIDEOWFLOW_ALLOWED_ROOTS` (path-separator list) or
+`settings_error` is non-empty when `settings.json` could not be parsed and the
+server fell back to defaults. `database_error` reports the last SQLite failure.
+Both also appear in the doctor checks. `allowed_roots` comes from `VIDEOWFLOW_ALLOWED_ROOTS` (path-separator list) or
 defaults to home, cwd, and the portable data directory.
 
 ### Capabilities and provider policy

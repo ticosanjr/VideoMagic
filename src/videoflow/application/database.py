@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import shutil
 import sqlite3
 import threading
@@ -15,8 +16,24 @@ from typing import Any
 from videoflow.runtime import portable_home
 
 DB_FILE = "videoflow.db"
+logger = logging.getLogger(__name__)
 _initialized: set[str] = set()
 _init_lock = threading.Lock()
+_error_lock = threading.Lock()
+_last_error = ""
+
+
+def last_error() -> str:
+    with _error_lock:
+        return _last_error
+
+
+def _set_error(message: str) -> None:
+    global _last_error
+    with _error_lock:
+        _last_error = message
+    if message:
+        logger.warning("%s", message)
 
 
 def db_path() -> Path:
@@ -81,6 +98,7 @@ def connect() -> sqlite3.Connection:
             _create_schema(connection)
             _initialized.add(key)
     connection.commit()
+    _set_error("")
     return connection
 
 
@@ -117,8 +135,8 @@ def upsert_job(job_id: str, payload: dict[str, Any]) -> None:
                 ),
             )
             connection.commit()
-    except sqlite3.Error:
-        pass
+    except sqlite3.Error as exc:
+        _set_error(f"could not persist job {job_id}: {exc}")
 
 
 def list_jobs() -> list[dict[str, Any]]:
@@ -129,8 +147,10 @@ def list_jobs() -> list[dict[str, Any]]:
             rows = connection.execute(
                 "SELECT payload FROM jobs ORDER BY updated_at"
             ).fetchall()
-    except sqlite3.Error:
+    except sqlite3.Error as exc:
+        _set_error(f"could not read jobs: {exc}")
         return []
+    _set_error("")
     result: list[dict[str, Any]] = []
     for (payload,) in rows:
         try:
@@ -155,8 +175,8 @@ def upsert_assets(items: list[tuple[str, dict[str, Any]]]) -> None:
                 ],
             )
             connection.commit()
-    except sqlite3.Error:
-        pass
+    except sqlite3.Error as exc:
+        _set_error(f"could not persist assets: {exc}")
 
 
 def upsert_asset(asset_id: str, payload: dict[str, Any]) -> None:
@@ -186,8 +206,10 @@ def list_assets_db(
                 sql += " LIMIT ? OFFSET ?"
                 params.extend([max(1, int(limit)), max(0, int(offset))])
             rows = connection.execute(sql, params).fetchall()
-    except sqlite3.Error:
+    except sqlite3.Error as exc:
+        _set_error(f"could not read assets: {exc}")
         return []
+    _set_error("")
     result: list[dict[str, Any]] = []
     for (payload,) in rows:
         try:
@@ -205,8 +227,10 @@ def list_batches() -> list[dict[str, Any]]:
             rows = connection.execute(
                 "SELECT payload FROM batches ORDER BY updated_at"
             ).fetchall()
-    except sqlite3.Error:
+    except sqlite3.Error as exc:
+        _set_error(f"could not read batches: {exc}")
         return []
+    _set_error("")
     result: list[dict[str, Any]] = []
     for (payload,) in rows:
         try:
@@ -224,8 +248,8 @@ def upsert_batch(batch_id: str, payload: dict[str, Any]) -> None:
                 (batch_id, json.dumps(payload, sort_keys=True), _now()),
             )
             connection.commit()
-    except sqlite3.Error:
-        pass
+    except sqlite3.Error as exc:
+        _set_error(f"could not persist batch {batch_id}: {exc}")
 
 
 def integrity() -> dict[str, object]:
@@ -243,6 +267,7 @@ def integrity() -> dict[str, object]:
             "batches": batches,
         }
     except sqlite3.Error as exc:
+        _set_error(f"database integrity check failed: {exc}")
         return {"ok": False, "integrity": "unavailable", "error": str(exc)}
 
 

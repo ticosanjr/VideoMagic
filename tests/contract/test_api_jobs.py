@@ -331,6 +331,8 @@ def test_system_endpoint_reports_roots(monkeypatch, tmp_path: Path) -> None:
     payload = client.get("/api/v1/system").json()
     assert payload["ok"] is True
     assert str(tmp_path) in payload["allowed_roots"]
+    assert payload["settings_error"] == ""
+    assert payload["database_error"] == ""
 
 
 def test_events_stream_delivers_the_terminal_state(monkeypatch, tmp_path: Path) -> None:
@@ -982,3 +984,17 @@ def test_job_list_can_omit_the_embedded_recipe(monkeypatch, tmp_path: Path) -> N
     assert "recipe" not in summary["options"]
     assert summary["options"]["mode"] == "recipe"
     assert full["options"]["recipe"]["id"] == "large"
+
+
+def test_system_reports_an_invalid_settings_file(monkeypatch, tmp_path: Path) -> None:
+    from videoflow.application.settings import settings_path
+
+    path = settings_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("not json", encoding="utf-8")
+    client = make_client(monkeypatch, tmp_path)
+
+    payload = client.get("/api/v1/system").json()
+    assert "invalid" in payload["settings_error"]
+    doctor = client.get("/api/v1/system/doctor").json()
+    assert doctor["checks"]["settings"]["valid"] is False

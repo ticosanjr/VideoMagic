@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 from datetime import UTC, datetime
 from pathlib import Path
@@ -16,6 +17,7 @@ AUDIO = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
 IMAGE = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
 FONT = {".ttf", ".otf", ".woff", ".woff2"}
 ALL = VIDEO | AUDIO | IMAGE | FONT
+logger = logging.getLogger(__name__)
 
 
 def library_dir() -> Path:
@@ -76,8 +78,8 @@ def _write(assets: list[dict[str, Any]]) -> None:
         upsert_assets(
             [(str(asset.get("id", "")), asset) for asset in assets]
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("could not persist the asset index: %s", exc)
 
 
 def _record(path: Path, tags: list[str] | None = None) -> dict[str, Any]:

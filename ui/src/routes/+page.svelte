@@ -282,6 +282,12 @@
     for (let attempt = 0; attempt < 30; attempt += 1) {
       try {
         system = await getSystem();
+        if (system.settings_error) {
+          notify("warning", system.settings_error, "Settings file is invalid");
+        }
+        if (system.database_error) {
+          notify("warning", system.database_error, "Database is degraded");
+        }
         connecting = false;
         return;
       } catch (reason) {

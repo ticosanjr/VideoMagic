@@ -274,3 +274,16 @@ def test_assets_are_batched_in_one_transaction(home: Path) -> None:
     stored = database.list_assets_db()
 
     assert {item["id"] for item in stored} == {"a1", "a2"}
+
+
+def test_database_errors_are_reported(
+    home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken() -> None:
+        raise sqlite3.OperationalError("disk is full")
+
+    monkeypatch.setattr(database, "connect", broken)
+
+    database.upsert_job("job-1", _job())
+
+    assert "disk is full" in database.last_error()

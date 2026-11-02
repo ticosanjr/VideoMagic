@@ -10,18 +10,18 @@ uv run python scripts/coverage_layers.py
 The `.coveragerc` used for this report disables the release gate's omit list so
 adapters, exporters, API, jobs, and MCP are visible.
 
-## Current working tree (2.25.2)
+## Current working tree (2.25.3)
 
 | Layer | Hit | Total | Cover | 2.12 target | 2.13 target |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| api | 2,577 | 2,706 | 95.2% | 75% | 85% |
-| jobs | 566 | 613 | 92.3% | 85% | 90% |
+| api | 2,580 | 2,709 | 95.2% | 75% | 85% |
+| jobs | 568 | 615 | 92.4% | 85% | 90% |
 | exporters | 1,319 | 1,383 | 95.4% | 90% | 95% |
 | mcp | 1,162 | 1,168 | 99.5% | 80% | 80% |
 | steps | 2,795 | 2,879 | 97.1% | — | — |
-| application | 7,797 | 8,210 | 95.0% | — | — |
+| application | 7,836 | 8,251 | 95.0% | — | — |
 | domain | 1,033 | 1,035 | 99.8% | — | — |
-| **full tree** | **19,868** | **20,651** | **96.2%** | — | — |
+| **full tree** | **19,910** | **20,695** | **96.2%** | — | — |
 
 The full-tree 95% gate is **met**. The release gate (`uv run pytest`) is at
 99.4%. Remaining misses are mostly unreachable defensive branches.

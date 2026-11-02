@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
+import threading
 from pathlib import Path
 from typing import Literal
 
@@ -13,6 +15,22 @@ from videoflow.application.schema_migrations import migrate_settings
 from videoflow.runtime import portable_home
 
 SETTINGS_FILE = "settings.json"
+logger = logging.getLogger(__name__)
+_error_lock = threading.Lock()
+_last_error = ""
+
+
+def settings_error() -> str:
+    with _error_lock:
+        return _last_error
+
+
+def _set_error(message: str) -> None:
+    global _last_error
+    with _error_lock:
+        _last_error = message
+    if message:
+        logger.warning("%s", message)
 
 
 class RuntimeSettings(BaseModel):
@@ -145,12 +163,16 @@ def settings_path() -> Path:
 def load_settings() -> AppSettings:
     path = settings_path()
     if not path.is_file():
+        _set_error("")
         return AppSettings()
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-        return AppSettings.model_validate(migrate_settings(payload))
-    except (OSError, ValueError, TypeError):
+        settings = AppSettings.model_validate(migrate_settings(payload))
+    except (OSError, ValueError, TypeError) as exc:
+        _set_error(f"settings.json is invalid; using defaults: {exc}")
         return AppSettings()
+    _set_error("")
+    return settings
 
 
 def save_settings(settings: AppSettings) -> AppSettings:

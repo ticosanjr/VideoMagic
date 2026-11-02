@@ -15,6 +15,8 @@ export interface SystemInfo {
   allowed_roots: string[];
   ffmpeg: string | null;
   ffprobe: string | null;
+  settings_error?: string;
+  database_error?: string;
 }
 
 export interface LocalModel {
@@ -837,19 +839,31 @@ function raiseApiError(
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const controller = init?.signal ? null : new AbortController();
+  const timer = controller
+    ? setTimeout(() => controller.abort(), 10 * 60 * 1000)
+    : undefined;
   let response: Response;
   try {
     response = await fetch(path, {
       headers: { "Content-Type": "application/json" },
-      ...init
+      ...init,
+      signal: init?.signal ?? controller?.signal
     });
   } catch (reason) {
+    const timedOut = controller?.signal.aborted ?? false;
     const error = new ApiError(
-      "network_error",
-      reason instanceof Error ? reason.message : "The backend is unreachable."
+      timedOut ? "request_timeout" : "network_error",
+      timedOut
+        ? "The backend did not answer within ten minutes."
+        : reason instanceof Error
+          ? reason.message
+          : "The backend is unreachable."
     );
-    emitApiError(error, path, "Backend unreachable");
+    emitApiError(error, path, timedOut ? "Backend timeout" : "Backend unreachable");
     throw error;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) raiseApiError(response, payload, path);
@@ -923,17 +937,6 @@ export async function stopService(): Promise<void> {
 export async function listLocalModels(): Promise<LocalModel[]> {
   const response = await request<{ ok: boolean; models: LocalModel[] }>("/api/v1/models");
   return response.models;
-}
-
-export async function installLocalModel(modelId: string): Promise<LocalModel> {
-  const response = await request<{ ok: boolean; model: LocalModel }>(
-    `/api/v1/models/${encodeURIComponent(modelId)}/install`,
-    {
-      method: "POST",
-      body: JSON.stringify({ allow_external_services: true })
-    }
-  );
-  return response.model;
 }
 
 export async function registerLocalModel(payload: {
@@ -1050,11 +1053,6 @@ export function getSystem(): Promise<SystemInfo> {
   return request<SystemInfo>("/api/v1/system");
 }
 
-export async function getFsRoots(): Promise<FsRoot[]> {
-  const response = await request<{ ok: boolean; roots: FsRoot[] }>("/api/v1/fs/roots");
-  return response.roots;
-}
-
 export async function listDirectory(params: {
   path?: string;
   mode: "file" | "directory";
@@ -1078,26 +1076,6 @@ export async function createDirectory(parent: string, name: string): Promise<FsE
     body: JSON.stringify({ parent, name })
   });
   return response.entry;
-}
-
-export async function importMedia(
-  url: string,
-  options: {
-    max_height?: number;
-    allow_playlist?: boolean;
-    allow_external_services?: boolean;
-    allowed_external_hosts?: string[];
-  } = {}
-): Promise<ImportedMedia> {
-  return request<ImportedMedia>("/api/v1/media/import", {
-    method: "POST",
-    body: JSON.stringify({ url, ...options })
-  });
-}
-
-export function probeMedia(path: string): Promise<ProbedMedia> {
-  const query = new URLSearchParams({ path });
-  return request<ProbedMedia>(`/api/v1/media/probe?${query.toString()}`);
 }
 
 export async function getPublishTargets(): Promise<PublishTarget[]> {
@@ -1173,25 +1151,6 @@ export async function applyProjectTemplate(name: string): Promise<Record<string,
   const response = await request<{ ok: boolean; options: Record<string, unknown> }>(
     `/api/v1/project-templates/${encodeURIComponent(name)}/apply`,
     { method: "POST" }
-  );
-  return response.options;
-}
-
-export async function exportConfig(options: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const response = await request<{ ok: boolean; envelope: Record<string, unknown> }>(
-    "/api/v1/config/export",
-    { method: "POST", body: JSON.stringify({ options }) }
-  );
-  return response.envelope;
-}
-
-export async function importConfig(
-  schemaVersion: number,
-  options: Record<string, unknown>
-): Promise<Record<string, unknown>> {
-  const response = await request<{ ok: boolean; options: Record<string, unknown> }>(
-    "/api/v1/config/import",
-    { method: "POST", body: JSON.stringify({ schema_version: schemaVersion, options }) }
   );
   return response.options;
 }
@@ -1794,23 +1753,6 @@ export async function generateShortVoiceover(
   });
 }
 
-export async function analyzeShortLlm(
-  jobId: string,
-  index: number,
-  payload: {
-    base_url?: string;
-    model?: string;
-    max_frames?: number;
-    allow_external_services?: boolean;
-    allowed_external_hosts?: string[];
-  }
-): Promise<{ ok: boolean; analysis: ShortVisionAnalysis; short: ShortClip }> {
-  return request(`/api/v1/jobs/${jobId}/shorts/${index}/analyze/llm`, {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
-}
-
 export async function analyzeShort(
   jobId: string,
   index: number
@@ -2112,17 +2054,6 @@ export async function createProject(payload: {
   return response.project;
 }
 
-export async function updateProject(
-  projectId: string,
-  payload: { name: string; source: string; output: string }
-): Promise<Project> {
-  const response = await request<{ ok: boolean; project: Project }>(
-    `/api/v1/projects/${encodeURIComponent(projectId)}`,
-    { method: "PATCH", body: JSON.stringify(payload) }
-  );
-  return response.project;
-}
-
 export async function deleteProject(projectId: string): Promise<void> {
   await request(`/api/v1/projects/${encodeURIComponent(projectId)}`, {
     method: "DELETE"
@@ -2266,13 +2197,6 @@ export async function redoTimeline(jobId: string): Promise<void> {
   });
 }
 
-export async function getBroll(jobId: string): Promise<{
-  plan: Record<string, Array<Record<string, unknown>>>;
-  approval: Record<string, { approved: number[]; order: number[] }>;
-}> {
-  return request(`/api/v1/jobs/${encodeURIComponent(jobId)}/broll`);
-}
-
 export async function approveBroll(
   jobId: string,
   payload: { title: string; approved: number[]; order: number[] }
@@ -2408,10 +2332,6 @@ export async function cancelJob(jobId: string): Promise<Job> {
   return response.job;
 }
 
-export function getJobState(jobId: string): Promise<JobState> {
-  return request<JobState>(`/api/v1/jobs/${jobId}/state`);
-}
-
 export async function getLogs(
   jobId: string,
   module?: string,
@@ -2513,12 +2433,6 @@ export function jobArtifactUrl(jobId: string, artifactName: string): string {
 
 export function shortFileUrl(jobId: string, index: number): string {
   return `/api/v1/jobs/${encodeURIComponent(jobId)}/shorts/${index}/file`;
-}
-
-export function logDownloadUrl(jobId: string, module?: string): string {
-  const params = new URLSearchParams({ download: "1" });
-  if (module) params.set("module", module);
-  return `/api/v1/jobs/${jobId}/logs?${params.toString()}`;
 }
 
 export function errorMessage(error: unknown): string {

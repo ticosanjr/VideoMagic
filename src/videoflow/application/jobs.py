@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import os
 import threading
 import time
@@ -55,6 +56,7 @@ JobStatus = Literal[
     "queued", "running", "waiting_approval", "succeeded", "failed", "cancelled"
 ]
 TERMINAL: frozenset[str] = frozenset({"succeeded", "failed", "cancelled"})
+logger = logging.getLogger(__name__)
 Runner = Callable[..., Any]
 
 
@@ -972,8 +974,8 @@ class JobManager:
                 encoding="utf-8",
             )
             temporary.replace(path)
-        except OSError:
-            pass
+        except OSError as exc:
+            logger.warning("could not persist job state for %s: %s", job.job_id, exc)
 
     def _load_jobs(self) -> None:
         if self._store_dir is None:
@@ -992,8 +994,8 @@ class JobManager:
                     job.error = None
                     self._pending.append(str(job.job_id))
                     self._persist_job(job)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("could not load persisted jobs: %s", exc)
         if not self._store_dir.is_dir():
             self._drain_queue()
             return

@@ -49,6 +49,7 @@ from videoflow.application.capabilities import (
 )
 from videoflow.application.caption_ai import apply_llm_emoji
 from videoflow.application.database import backup as backup_database
+from videoflow.application.database import last_error as database_error
 from videoflow.application.database import metrics as database_metrics
 from videoflow.application.database import restore as restore_database
 from videoflow.application.deliverables import (
@@ -189,6 +190,7 @@ from videoflow.application.settings import (
     env_overrides,
     load_settings,
     save_settings,
+    settings_error,
 )
 from videoflow.application.sfx import delete_sfx, list_sfx, save_sfx
 from videoflow.application.short_editor import ShortEditOptions
@@ -4051,17 +4053,24 @@ def register_routes(
             connection = sqlite3.connect(portable_home() / "videoflow.db")
             integrity = connection.execute("PRAGMA integrity_check").fetchone()[0]
             connection.close()
-            checks["database"] = {"integrity": integrity, "ok": integrity == "ok"}
-            ok = ok and integrity == "ok"
+            checks["database"] = {
+                "integrity": integrity,
+                "ok": integrity == "ok",
+                "error": database_error(),
+            }
+            ok = ok and integrity == "ok" and not database_error()
         except Exception as exc:
             checks["database"] = {"integrity": "unavailable", "ok": False, "error": str(exc)}
         settings = load_settings()
+        error = settings_error()
         checks["settings"] = {
             "file": str(portable_home() / "settings.json"),
-            "valid": True,
+            "valid": not error,
+            "error": error,
             "locale": settings.runtime.locale,
             "theme": settings.ui.theme,
         }
+        ok = ok and not error
         checks["providers"] = len(list_providers())
         checks["service_definitions"] = len(list_definitions())
         return {"ok": ok, "checks": checks}
@@ -4615,6 +4624,8 @@ def register_routes(
             "allowed_roots": [str(item) for item in allowed_roots()],
             "ffmpeg": find_binary("ffmpeg"),
             "ffprobe": find_binary("ffprobe"),
+            "settings_error": settings_error(),
+            "database_error": database_error(),
         }
 
 

@@ -1727,11 +1727,16 @@ def build_server(
         return {"ok": True, "approval": approval}
 
     @mcp.tool()
-    def videoflow_list_jobs(limit: int = 20, offset: int = 0) -> dict[str, object]:
+    def videoflow_list_jobs(
+        limit: int = 20, offset: int = 0, summary: bool = True
+    ) -> dict[str, object]:
         """List jobs newest first with status, progress, and attempts."""
 
         jobs = manager.list(limit=limit, offset=offset)
-        return {"ok": True, "jobs": [job.to_dict() for job in jobs]}
+        return {
+            "ok": True,
+            "jobs": [job.to_dict(summary=summary) for job in jobs],
+        }
 
     @mcp.tool()
     def videoflow_pause_job(job_id: str) -> dict[str, object]:

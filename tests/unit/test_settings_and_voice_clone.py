@@ -37,6 +37,11 @@ def test_settings_round_trip_and_corrupt_fallback(tmp_path: Path) -> None:
 
     settings_module.settings_path().write_text("not json", encoding="utf-8")
     assert load_settings() == AppSettings()
+    assert "invalid" in settings_module.settings_error()
+
+    save_settings(AppSettings())
+    assert load_settings() == AppSettings()
+    assert settings_module.settings_error() == ""
 
 
 def test_effective_roots_and_ffmpeg(
