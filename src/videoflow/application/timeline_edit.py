@@ -12,7 +12,7 @@ from videoflow.domain.timebase import Rounding
 
 TimelineAction = Literal[
     "trim", "move", "delete", "split", "ripple", "ripple_trim", "slip",
-    "slide", "duplicate", "deactivate", "activate",
+    "slide", "duplicate", "deactivate", "activate", "recut",
 ]
 
 
@@ -295,6 +295,166 @@ def _activate_clip(state: ProjectState, clip_id: str) -> None:
     _repack_timeline(state)
 
 
+def _recut_inactive(
+    state: ProjectState,
+    clip_id: str,
+    start_frame: int,
+    end_frame: int,
+    *,
+    media,
+) -> None:
+    """Move an inactive cut boundary and resize the adjacent active clips."""
+
+    item = next(
+        (entry for entry in state.inactive_segments if entry.clip_id == clip_id),
+        None,
+    )
+    if item is None:
+        raise InvalidTimeError(f"Unknown inactive clip: {clip_id}")
+    if start_frame >= end_frame:
+        raise InvalidTimeError("Recut end must be after start.")
+    if start_frame < 0 or end_frame > media.duration_frames:
+        raise InvalidTimeError("Recut exceeds source media.")
+
+    old_start = item.video.source_in_frame
+    old_end = item.video.source_out_frame
+    ordered = sorted(state.video_segments, key=lambda clip: clip.source_in_frame)
+    previous = next(
+        (clip for clip in reversed(ordered) if clip.source_out_frame == old_start),
+        None,
+    )
+    following = next(
+        (clip for clip in ordered if clip.source_in_frame == old_end),
+        None,
+    )
+
+    if previous is None and start_frame != old_start:
+        raise InvalidTimeError("The inactive segment has no preceding clip to trim.")
+    if following is None and end_frame != old_end:
+        raise InvalidTimeError("The inactive segment has no following clip to trim.")
+    if previous is not None and start_frame < previous.source_in_frame + 1:
+        raise InvalidTimeError("Recut would remove the preceding clip.")
+    if following is not None and end_frame > following.source_out_frame - 1:
+        raise InvalidTimeError("Recut would remove the following clip.")
+
+    timebase = media.timebase()
+    media_samples = timebase.seconds_to_samples(
+        timebase.frames_to_seconds(media.duration_frames), Rounding.NEAREST
+    )
+    old_start_sample = timebase.frame_start_sample(old_start)
+    old_end_sample = timebase.frame_start_sample(old_end)
+    start_sample = timebase.frame_start_sample(start_frame)
+    end_sample = min(timebase.frame_start_sample(end_frame), media_samples)
+
+    previous_audio = (
+        next(
+            (clip for clip in state.audio_segments if clip.clip_id == previous.clip_id),
+            None,
+        )
+        if previous is not None
+        else None
+    )
+    following_audio = (
+        next(
+            (clip for clip in state.audio_segments if clip.clip_id == following.clip_id),
+            None,
+        )
+        if following is not None
+        else None
+    )
+    new_previous_audio_out = (
+        previous_audio.source_out_sample + start_sample - old_start_sample
+        if previous_audio is not None
+        else None
+    )
+    new_following_audio_in = (
+        following_audio.source_in_sample + end_sample - old_end_sample
+        if following_audio is not None
+        else None
+    )
+    if (
+        previous_audio is not None
+        and new_previous_audio_out is not None
+        and new_previous_audio_out <= previous_audio.source_in_sample
+    ):
+        raise InvalidTimeError("Recut would remove the preceding audio clip.")
+    if (
+        following_audio is not None
+        and new_following_audio_in is not None
+        and new_following_audio_in >= following_audio.source_out_sample
+    ):
+        raise InvalidTimeError("Recut would remove the following audio clip.")
+
+    if previous is not None:
+        video_ratio = (previous.timeline_out_frame - previous.timeline_in_frame) / max(
+            1, previous.source_out_frame - previous.source_in_frame
+        )
+        previous.source_out_frame = start_frame
+        previous.timeline_out_frame = previous.timeline_in_frame + max(
+            1,
+            round(
+                (previous.source_out_frame - previous.source_in_frame) * video_ratio
+            ),
+        )
+        previous.transition_out = None
+        if previous_audio is not None and new_previous_audio_out is not None:
+            audio_ratio = (
+                previous_audio.timeline_out_sample - previous_audio.timeline_in_sample
+            ) / max(1, previous_audio.source_out_sample - previous_audio.source_in_sample)
+            previous_audio.source_out_sample = new_previous_audio_out
+            previous_audio.timeline_out_sample = previous_audio.timeline_in_sample + max(
+                1,
+                round(
+                    (
+                        previous_audio.source_out_sample
+                        - previous_audio.source_in_sample
+                    )
+                    * audio_ratio
+                ),
+            )
+
+    if following is not None:
+        video_ratio = (following.timeline_out_frame - following.timeline_in_frame) / max(
+            1, following.source_out_frame - following.source_in_frame
+        )
+        following.source_in_frame = end_frame
+        following.timeline_out_frame = following.timeline_in_frame + max(
+            1,
+            round(
+                (following.source_out_frame - following.source_in_frame) * video_ratio
+            ),
+        )
+        if following_audio is not None and new_following_audio_in is not None:
+            audio_ratio = (
+                following_audio.timeline_out_sample - following_audio.timeline_in_sample
+            ) / max(1, following_audio.source_out_sample - following_audio.source_in_sample)
+            following_audio.source_in_sample = new_following_audio_in
+            following_audio.timeline_out_sample = following_audio.timeline_in_sample + max(
+                1,
+                round(
+                    (
+                        following_audio.source_out_sample
+                        - following_audio.source_in_sample
+                    )
+                    * audio_ratio
+                ),
+            )
+
+    inactive_start_sample = timebase.frame_start_sample(start_frame)
+    inactive_end_sample = min(timebase.frame_start_sample(end_frame), media_samples)
+    if inactive_end_sample <= inactive_start_sample:
+        raise InvalidTimeError("Recut would leave an empty inactive segment.")
+    item.video.source_in_frame = start_frame
+    item.video.source_out_frame = end_frame
+    item.video.timeline_in_frame = 0
+    item.video.timeline_out_frame = end_frame - start_frame
+    item.audio.source_in_sample = inactive_start_sample
+    item.audio.source_out_sample = inactive_end_sample
+    item.audio.timeline_in_sample = 0
+    item.audio.timeline_out_sample = inactive_end_sample - inactive_start_sample
+    _repack_timeline(state)
+
+
 def apply_timeline_edit(state: ProjectState, edit: TimelineEdit) -> ProjectState:
     fps = _fps(state)
     media = state.media_info
@@ -304,6 +464,17 @@ def apply_timeline_edit(state: ProjectState, edit: TimelineEdit) -> ProjectState
         return state
     if edit.action == "activate":
         _activate_clip(state, edit.clip_id)
+        return state
+    if edit.action == "recut":
+        if edit.start_sec is None or edit.end_sec is None:
+            raise InvalidTimeError("Recut requires start and end.")
+        _recut_inactive(
+            state,
+            edit.clip_id,
+            round(max(0.0, edit.start_sec) * fps),
+            round(max(0.0, edit.end_sec) * fps),
+            media=media,
+        )
         return state
     video = next((clip for clip in state.video_segments if clip.clip_id == edit.clip_id), None)
     if video is None:

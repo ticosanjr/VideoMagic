@@ -1963,7 +1963,8 @@ export async function editTimeline(
       | "slide"
       | "duplicate"
       | "deactivate"
-      | "activate";
+      | "activate"
+      | "recut";
     start_sec?: number;
     end_sec?: number;
     delta_sec?: number;
@@ -1999,7 +2000,8 @@ export async function editTimelineBatch(
       | "slide"
       | "duplicate"
       | "deactivate"
-      | "activate";
+      | "activate"
+      | "recut";
     start_sec?: number;
     end_sec?: number;
     delta_sec?: number;

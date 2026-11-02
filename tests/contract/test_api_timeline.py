@@ -604,6 +604,43 @@ def test_timeline_deactivate_activate_and_reports_inactive(monkeypatch, tmp_path
     assert payload["inactive"] == []
 
 
+def test_timeline_recut_moves_an_inactive_cut_boundary(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    job = _job(manager, tmp_path)
+    base = f"/api/v1/jobs/{job.job_id}/timeline"
+
+    deactivated = client.patch(
+        base,
+        json={"clip_id": "v2", "action": "deactivate"},
+    )
+    assert deactivated.status_code == 200, deactivated.text
+
+    recut = client.patch(
+        base,
+        json={
+            "clip_id": "v2",
+            "action": "recut",
+            "start_sec": 0.6,
+            "end_sec": 2.0,
+        },
+    )
+    assert recut.status_code == 200, recut.text
+    payload = client.get(base).json()
+    assert payload["video"][0]["id"] == "v1"
+    assert payload["video"][0]["end_sec"] == 0.6
+    assert payload["inactive"][0]["video_start_sec"] == 0.6
+    assert payload["inactive"][0]["video_end_sec"] == 2.0
+    assert payload["inactive"][0]["audio_start_sec"] == 0.6
+    assert payload["duration_sec"] == 0.6
+    assert payload["can_undo"] is True
+
+    undone = client.post(f"/api/v1/jobs/{job.job_id}/timeline/undo")
+    assert undone.status_code == 200, undone.text
+    payload = client.get(base).json()
+    assert payload["video"][0]["end_sec"] == 1.0
+    assert payload["inactive"][0]["video_start_sec"] == 1.0
+
+
 def test_timeline_reports_live_eligibility_and_source_stream(monkeypatch, tmp_path: Path) -> None:
     client, manager = _client(monkeypatch, tmp_path)
     (tmp_path / "source.mp4").write_bytes(b"fixture")

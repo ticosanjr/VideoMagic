@@ -308,3 +308,119 @@ def test_activate_unknown_clip_is_rejected() -> None:
     state = state_with_three_clips()
     with pytest.raises(InvalidTimeError, match="Unknown inactive"):
         apply_timeline_edit(state, TimelineEdit(clip_id="missing", action="activate"))
+
+
+def test_recut_grows_the_inactive_range_into_both_neighbors() -> None:
+    state = state_with_three_clips()
+    apply_timeline_edit(state, TimelineEdit(clip_id="v2", action="deactivate"))
+    item = state.inactive_segments[0]
+    item.reason = "silence"
+
+    apply_timeline_edit(
+        state,
+        TimelineEdit(clip_id="v2", action="recut", start_sec=0.6, end_sec=2.4),
+    )
+
+    assert (item.video.source_in_frame, item.video.source_out_frame) == (15, 60)
+    assert (item.audio.source_in_sample, item.audio.source_out_sample) == (
+        28800,
+        115200,
+    )
+    assert item.reason == "silence"
+    assert [
+        (clip.clip_id, clip.source_in_frame, clip.source_out_frame)
+        for clip in state.video_segments
+    ] == [("v1", 0, 15), ("v3", 60, 75)]
+    assert [
+        (clip.timeline_in_frame, clip.timeline_out_frame)
+        for clip in state.video_segments
+    ] == [(0, 15), (15, 30)]
+    assert [
+        (clip.clip_id, clip.source_in_sample, clip.source_out_sample)
+        for clip in state.audio_segments
+    ] == [("v1", 0, 28800), ("v3", 115200, 144000)]
+    assert [
+        (clip.timeline_in_sample, clip.timeline_out_sample)
+        for clip in state.audio_segments
+    ] == [(0, 28800), (28800, 57600)]
+
+
+def test_recut_shrinks_the_inactive_range_and_expands_neighbors() -> None:
+    state = state_with_three_clips()
+    apply_timeline_edit(state, TimelineEdit(clip_id="v2", action="deactivate"))
+
+    apply_timeline_edit(
+        state,
+        TimelineEdit(clip_id="v2", action="recut", start_sec=1.2, end_sec=1.8),
+    )
+
+    item = state.inactive_segments[0]
+    assert (item.video.source_in_frame, item.video.source_out_frame) == (30, 45)
+    assert (item.audio.source_in_sample, item.audio.source_out_sample) == (
+        57600,
+        86400,
+    )
+    assert [
+        (clip.clip_id, clip.source_in_frame, clip.source_out_frame)
+        for clip in state.video_segments
+    ] == [("v1", 0, 30), ("v3", 45, 75)]
+    assert [
+        (clip.timeline_in_frame, clip.timeline_out_frame)
+        for clip in state.video_segments
+    ] == [(0, 30), (30, 60)]
+    assert [
+        (clip.clip_id, clip.source_in_sample, clip.source_out_sample)
+        for clip in state.audio_segments
+    ] == [("v1", 0, 57600), ("v3", 86400, 144000)]
+
+
+def test_recut_keeps_edges_without_an_adjacent_active_clip() -> None:
+    leading = state_with_three_clips()
+    apply_timeline_edit(leading, TimelineEdit(clip_id="v1", action="deactivate"))
+    with pytest.raises(InvalidTimeError, match="no preceding clip"):
+        apply_timeline_edit(
+            leading,
+            TimelineEdit(clip_id="v1", action="recut", start_sec=0.2, end_sec=1.0),
+        )
+
+    trailing = state_with_three_clips()
+    apply_timeline_edit(trailing, TimelineEdit(clip_id="v3", action="deactivate"))
+    with pytest.raises(InvalidTimeError, match="no following clip"):
+        apply_timeline_edit(
+            trailing,
+            TimelineEdit(clip_id="v3", action="recut", start_sec=2.0, end_sec=3.2),
+        )
+
+
+def test_recut_rejects_bounds_that_remove_a_neighbor() -> None:
+    state = state_with_three_clips()
+    apply_timeline_edit(state, TimelineEdit(clip_id="v2", action="deactivate"))
+
+    with pytest.raises(InvalidTimeError, match="preceding clip"):
+        apply_timeline_edit(
+            state,
+            TimelineEdit(clip_id="v2", action="recut", start_sec=0.0, end_sec=2.0),
+        )
+    with pytest.raises(InvalidTimeError, match="following clip"):
+        apply_timeline_edit(
+            state,
+            TimelineEdit(clip_id="v2", action="recut", start_sec=1.0, end_sec=3.2),
+        )
+
+
+def test_recut_requires_a_known_inactive_clip_and_range() -> None:
+    state = state_with_three_clips()
+    apply_timeline_edit(state, TimelineEdit(clip_id="v2", action="deactivate"))
+
+    with pytest.raises(InvalidTimeError, match="Unknown inactive"):
+        apply_timeline_edit(
+            state,
+            TimelineEdit(clip_id="missing", action="recut", start_sec=1.0, end_sec=2.0),
+        )
+    with pytest.raises(InvalidTimeError, match="requires start and end"):
+        apply_timeline_edit(state, TimelineEdit(clip_id="v2", action="recut"))
+    with pytest.raises(InvalidTimeError, match="after start"):
+        apply_timeline_edit(
+            state,
+            TimelineEdit(clip_id="v2", action="recut", start_sec=2.0, end_sec=1.0),
+        )

@@ -3,6 +3,26 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.30.0] - 2026-11-02
+
+### Added
+
+- **Editable Recut cut boundaries.** Inactive segments can be resized with edge
+  handles in the Recut canvas or with Start/End controls in the Recut
+  inspector. Adjacent active clips grow or shrink to match, the active timeline
+  is repacked, and every change participates in undo/redo and the ETag revision
+  path.
+- The timeline API accepts `action: "recut"` with new source `start_sec` and
+  `end_sec` for an inactive segment.
+
+### Notes
+
+- Edges without an adjacent active clip stay fixed, so a leading or trailing
+  silent range cannot be extended into unassigned media.
+- Inactive reasons are preserved when a cut is adjusted.
+- Full-tree coverage is 96.0%.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.29.0] - 2026-11-02
 
 ### Added

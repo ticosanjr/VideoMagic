@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import type { TimelineData, TimelineInactive } from "$lib/api";
 
   let {
@@ -7,7 +8,8 @@
     busy = false,
     playhead = 0,
     onselect,
-    ontoggle
+    ontoggle,
+    ontrim
   }: {
     timeline: TimelineData;
     selectedId?: string;
@@ -15,10 +17,22 @@
     playhead?: number;
     onselect: (kind: "active" | "inactive", id: string) => void;
     ontoggle: (id: string, active: boolean) => void;
+    ontrim: (id: string, start: number, end: number) => void;
   } = $props();
 
   let zoom = $state(70);
   let scroller = $state<HTMLDivElement | null>(null);
+  let drag = $state<{
+    id: string;
+    edge: "start" | "end";
+    originX: number;
+    start: number;
+    end: number;
+    startMin: number;
+    endMax: number;
+  } | null>(null);
+  let draft = $state<{ id: string; start: number; end: number } | null>(null);
+  let suppressClick = false;
 
   const sourceDuration = $derived(
     Math.max(
@@ -62,6 +76,116 @@
     if (reason === "retake") return "retake";
     return "manual";
   }
+
+  const frameSec = $derived(1 / Math.max(1, timeline.fps));
+
+  function displayStart(item: TimelineInactive): number {
+    return draft?.id === item.id ? draft.start : item.video_start_sec;
+  }
+  function displayEnd(item: TimelineInactive): number {
+    return draft?.id === item.id ? draft.end : item.video_end_sec;
+  }
+  function adjacentBounds(item: TimelineInactive): { startMin: number; endMax: number } {
+    const epsilon = frameSec / 2;
+    const before = timeline.video
+      .filter((clip) => {
+        return activeVideoEnd(clip) <= item.video_start_sec + epsilon;
+      })
+      .sort((left, right) => activeVideoEnd(right) - activeVideoEnd(left))[0];
+    const after = timeline.video
+      .filter((clip) => {
+        return activeVideoStart(clip) >= item.video_end_sec - epsilon;
+      })
+      .sort((left, right) => activeVideoStart(left) - activeVideoStart(right))[0];
+    const startMin =
+      before && Math.abs(activeVideoEnd(before) - item.video_start_sec) <= epsilon
+        ? activeVideoStart(before) + frameSec
+        : item.video_start_sec;
+    const endMax =
+      after && Math.abs(activeVideoStart(after) - item.video_end_sec) <= epsilon
+        ? activeVideoEnd(after) - frameSec
+        : item.video_end_sec;
+    return { startMin, endMax };
+  }
+
+  function beginTrim(
+    event: PointerEvent,
+    item: TimelineInactive,
+    edge: "start" | "end"
+  ) {
+    if (busy) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const bounds = adjacentBounds(item);
+    drag = {
+      id: item.id,
+      edge,
+      originX: event.clientX,
+      start: item.video_start_sec,
+      end: item.video_end_sec,
+      ...bounds
+    };
+    draft = { id: item.id, start: item.video_start_sec, end: item.video_end_sec };
+    suppressClick = false;
+    window.addEventListener("pointermove", moveTrim);
+    window.addEventListener("pointerup", finishTrim, { once: true });
+    window.addEventListener("pointercancel", finishTrim, { once: true });
+  }
+
+  function moveTrim(event: PointerEvent) {
+    if (!drag) return;
+    const delta = (event.clientX - drag.originX) / zoom;
+    if (Math.abs(delta) > 0.002) suppressClick = true;
+    if (drag.edge === "start") {
+      draft = {
+        id: drag.id,
+        start: Math.min(
+          drag.end - frameSec,
+          Math.max(drag.startMin, drag.start + delta)
+        ),
+        end: drag.end
+      };
+    } else {
+      draft = {
+        id: drag.id,
+        start: drag.start,
+        end: Math.max(
+          drag.start + frameSec,
+          Math.min(drag.endMax, drag.end + delta)
+        )
+      };
+    }
+  }
+
+  function finishTrim() {
+    window.removeEventListener("pointermove", moveTrim);
+    const current = drag;
+    const value = draft;
+    drag = null;
+    draft = null;
+    if (
+      current &&
+      value &&
+      (Math.abs(value.start - current.start) > 0.0005 ||
+        Math.abs(value.end - current.end) > 0.0005)
+    ) {
+      ontrim(current.id, value.start, value.end);
+    }
+  }
+
+  function selectBlock(kind: "active" | "inactive", id: string) {
+    if (suppressClick) {
+      suppressClick = false;
+      return;
+    }
+    onselect(kind, id);
+  }
+
+  onDestroy(() => {
+    window.removeEventListener("pointermove", moveTrim);
+    window.removeEventListener("pointerup", finishTrim);
+    window.removeEventListener("pointercancel", finishTrim);
+  });
 </script>
 
 <div class="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950" data-testid="recut-canvas">
@@ -105,13 +229,29 @@
           <button
             type="button"
             data-testid={`recut-inactive-${item.id}`}
-            onclick={() => onselect("inactive", item.id)}
+            onclick={() => selectBlock("inactive", item.id)}
             ondblclick={() => ontoggle(item.id, true)}
             disabled={busy}
-            title={`Inactive (${reasonLabel(item.reason)}). Double-click to activate.`}
+            title={`Inactive (${reasonLabel(item.reason)}). Double-click to activate; drag an edge to move the cut.`}
             class={`absolute top-7 h-8 overflow-hidden rounded border px-1 text-left text-[9px] ${selectedId === item.id ? "border-rose-200 bg-rose-500/40 text-white ring-1 ring-rose-200" : "border-rose-400/70 bg-rose-500/20 text-rose-100 hover:bg-rose-500/30"}`}
-            style={`left:${leftFor(item.video_start_sec)}px;width:${widthFor(item.video_start_sec, item.video_end_sec)}px`}
-          >{item.id} · {reasonLabel(item.reason)}</button>
+            style={`left:${leftFor(displayStart(item))}px;width:${widthFor(displayStart(item), displayEnd(item))}px`}
+          >
+            <span
+              role="separator"
+              aria-label={`Trim ${item.id} start`}
+              data-testid={`recut-trim-start-${item.id}`}
+              class="absolute inset-y-0 left-0 z-10 w-2 cursor-ew-resize rounded-l bg-rose-200/40 hover:bg-rose-100/70"
+              onpointerdown={(event) => beginTrim(event, item, "start")}
+            ></span>
+            <span
+              role="separator"
+              aria-label={`Trim ${item.id} end`}
+              data-testid={`recut-trim-end-${item.id}`}
+              class="absolute inset-y-0 right-0 z-10 w-2 cursor-ew-resize rounded-r bg-rose-200/40 hover:bg-rose-100/70"
+              onpointerdown={(event) => beginTrim(event, item, "end")}
+            ></span>
+            <span class="pointer-events-none relative z-0 px-1">{item.id} · {reasonLabel(item.reason)}</span>
+          </button>
         {/each}
       </div>
 

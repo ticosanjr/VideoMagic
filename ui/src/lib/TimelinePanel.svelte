@@ -158,6 +158,8 @@
   let previewDirty = $state(false);
   let viewMode = $state<"normal" | "recut">("normal");
   let selectedInactiveId = $state("");
+  let inactiveStart = $state(0);
+  let inactiveEnd = $state(0);
   let liveSourceTime = $state(0);
   let previewScheduled: ReturnType<typeof setTimeout> | undefined;
   let disposed = false;
@@ -753,6 +755,13 @@
     timeline?.inactive.find((item) => item.id === selectedInactiveId) ?? null
   );
 
+  $effect(() => {
+    const item = selectedInactive;
+    if (!item) return;
+    inactiveStart = item.video_start_sec;
+    inactiveEnd = item.video_end_sec;
+  });
+
   function selectRecut(kind: "active" | "inactive", id: string) {
     if (kind === "active") {
       selectedInactiveId = "";
@@ -782,6 +791,39 @@
         deliverables: false
       });
       selectedInactiveId = makeActive ? "" : id;
+      schedulePreview();
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.code === "precondition_failed") {
+        await loadTimeline("", { assets: false, deliverables: false });
+        error = "The timeline changed in another window. Reloaded the latest revision.";
+      } else {
+        error = errorMessage(reason);
+        errorDetail = describeError(reason);
+      }
+    } finally {
+      editBusy = false;
+    }
+  }
+
+  async function trimInactiveRange(id: string, start: number, end: number) {
+    if (!timeline || editBusy) return;
+    if (!(end > start)) {
+      error = "The cut end must be after its start.";
+      return;
+    }
+    editBusy = true;
+    error = "";
+    errorDetail = "";
+    try {
+      const response = await editTimeline(selected, timeline.revision, {
+        clip_id: id,
+        action: "recut",
+        start_sec: start,
+        end_sec: end
+      });
+      status = `Recut boundary saved at revision ${response.revision}. ${response.warning}`;
+      await loadTimeline("", { assets: false, deliverables: false });
+      selectedInactiveId = id;
       schedulePreview();
     } catch (reason) {
       if (reason instanceof ApiError && reason.code === "precondition_failed") {
@@ -1327,6 +1369,7 @@
           playhead={liveSourceTime}
           onselect={selectRecut}
           ontoggle={toggleSegment}
+          ontrim={(id, start, end) => void trimInactiveRange(id, start, end)}
         />
       {:else}
       <TimelineCanvas
@@ -1387,7 +1430,34 @@
       {#if viewMode === "recut" && selectedInactive}
         <div data-testid="recut-selection" class="flex flex-wrap items-center justify-between gap-2 border-t border-neutral-800 px-3 py-2 text-[10px]">
           <p class="text-rose-200">Inactive <span class="font-mono">{selectedInactive.id}</span> · {selectedInactive.reason}</p>
-          <button type="button" onclick={() => void toggleSegment(selectedInactive.id, true)} disabled={editBusy} class="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1 text-sky-200 disabled:opacity-40">Activate</button>
+          <div class="flex flex-wrap items-center gap-2">
+            <label class="flex items-center gap-1 text-neutral-500">
+              Start
+              <input
+                data-testid="recut-start"
+                type="number"
+                min="0"
+                step="0.01"
+                bind:value={inactiveStart}
+                disabled={editBusy}
+                class="w-20 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 font-mono text-[10px] text-neutral-200"
+              />
+            </label>
+            <label class="flex items-center gap-1 text-neutral-500">
+              End
+              <input
+                data-testid="recut-end"
+                type="number"
+                min="0"
+                step="0.01"
+                bind:value={inactiveEnd}
+                disabled={editBusy}
+                class="w-20 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 font-mono text-[10px] text-neutral-200"
+              />
+            </label>
+            <button type="button" onclick={() => void trimInactiveRange(selectedInactive.id, inactiveStart, inactiveEnd)} disabled={editBusy} class="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1 text-rose-100 disabled:opacity-40">Apply cut</button>
+            <button type="button" onclick={() => void toggleSegment(selectedInactive.id, true)} disabled={editBusy} class="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1 text-sky-200 disabled:opacity-40">Activate</button>
+          </div>
         </div>
       {/if}
 

@@ -578,7 +578,7 @@ class TimelineEditRequest(BaseModel):
     clip_id: str = Field(min_length=1)
     action: Literal[
         "trim", "move", "delete", "split", "ripple", "ripple_trim", "slip",
-        "slide", "duplicate", "deactivate", "activate",
+        "slide", "duplicate", "deactivate", "activate", "recut",
     ]
     start_sec: float | None = Field(default=None, ge=0.0)
     end_sec: float | None = Field(default=None, ge=0.0)

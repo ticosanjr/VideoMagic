@@ -424,6 +424,58 @@ test("persists the Recut view choice", async ({ page }) => {
 });
 
 
+test("edits an inactive cut boundary from the Recut inspector", async ({ page }) => {
+  const inactiveTimeline = {
+    ...timeline,
+    duration_sec: 3,
+    source_duration_sec: 8,
+    video: [timeline.video[0]],
+    audio: [{ ...timeline.audio[0], source_in_sec: 0, source_out_sec: 3 }],
+    inactive: [
+      {
+        id: "v2",
+        reason: "silence",
+        video_start_sec: 3,
+        video_end_sec: 8,
+        audio_start_sec: 3,
+        audio_end_sec: 8
+      }
+    ]
+  };
+  const payloads: Array<Record<string, unknown>> = [];
+  await page.route("**/api/v1/jobs/job-1/timeline", async (route) => {
+    if (route.request().method() === "PATCH") {
+      payloads.push(JSON.parse(route.request().postData() ?? "{}"));
+      return route.fulfill({
+        json: { ok: true, revision: 4, can_undo: true, can_redo: false, warning: "" }
+      });
+    }
+    return route.fulfill({ json: inactiveTimeline });
+  });
+
+  await page.reload();
+  const recut = page.getByRole("button", { name: "Recut", exact: true });
+  await expect(async () => {
+    await recut.click();
+    await expect(page.getByTestId("recut-canvas")).toBeVisible({ timeout: 1000 });
+  }).toPass();
+
+  await page.getByTestId("recut-inactive-v2").click();
+  await expect(page.getByTestId("recut-selection")).toContainText("silence");
+  await page.getByTestId("recut-start").fill("3.5");
+  await page.getByTestId("recut-end").fill("8");
+  await page.getByRole("button", { name: "Apply cut", exact: true }).click();
+
+  await expect.poll(() => payloads.map((item) => item.action)).toContain("recut");
+  expect(payloads.at(-1)).toMatchObject({
+    clip_id: "v2",
+    action: "recut",
+    start_sec: 3.5,
+    end_sec: 8
+  });
+});
+
+
 test("shows live playback for hard-cut timelines and falls back otherwise", async ({ page }) => {
   const liveTimeline = {
     ...timeline,
