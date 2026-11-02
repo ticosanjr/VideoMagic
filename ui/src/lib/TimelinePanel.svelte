@@ -190,7 +190,10 @@
   const previewJob = $derived(jobs.find((job) => job.job_id === selected));
   const previewArtifact = $derived(
     Object.entries(previewJob?.result?.artifacts ?? {}).find(
-      ([name]) => name === "mp4" || name.endsWith("mp4")
+      ([name, path]) =>
+        name === "mp4" ||
+        name.endsWith("mp4") ||
+        String(path).toLowerCase().endsWith(".mp4")
     )?.[0] ?? ""
   );
   const canPreview = $derived(Boolean(previewUrl || previewArtifact));
@@ -279,7 +282,12 @@
       frameUrl = "";
       const jobId = selected;
       const artifacts = previewJob?.result?.artifacts ?? {};
-      const mp4 = Object.entries(artifacts).find(([name]) => name === "mp4" || name.endsWith("mp4"));
+      const mp4 = Object.entries(artifacts).find(
+        ([name, path]) =>
+          name === "mp4" ||
+          name.endsWith("mp4") ||
+          String(path).toLowerCase().endsWith(".mp4")
+      );
       previewUrl = mp4 ? jobArtifactUrl(jobId, mp4[0]) : "";
       if (!keepClipId) previewDirty = false;
       if (keepClipId) renderReady = false;

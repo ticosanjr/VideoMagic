@@ -59,6 +59,34 @@ _EXPORT_WITH_SHORTS = {
     **_EXPORT,
     "needs": ["timeline", "render_shorts"],
 }
+_VIDEO_EXPORT = {
+    "id": "video_export",
+    "type": "export.video",
+    "needs": ["timeline"],
+    "inputs": {"timeline": "timeline.timeline"},
+    "params": {"preset": "ultrafast", "subdir": "exports", "filename": "video.mp4"},
+}
+
+
+def _ensure_video_export(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if any(step.get("type") == "export.video" for step in steps):
+        return steps
+    sources = [
+        str(step.get("id"))
+        for step in steps
+        if step.get("type") in {"edit.timeline", "timeline.load"}
+    ]
+    if not sources:
+        return steps
+    source = sources[-1]
+    return [
+        *steps,
+        {
+            **_VIDEO_EXPORT,
+            "needs": [source],
+            "inputs": {"timeline": f"{source}.timeline"},
+        },
+    ]
 
 BUILTIN_RECIPES: dict[str, dict[str, Any]] = {
     "youtube_talking_head": {
@@ -325,7 +353,7 @@ def _add_recipe(
         "llm": {"provider": "none"},
         "variables": variables or {},
         "variants": variants or [],
-        "steps": steps,
+        "steps": _ensure_video_export(steps),
     }
 
 
@@ -1071,6 +1099,14 @@ _recut_preset(
         "audio_crossfade_ms": 15,
     },
 )
+
+
+def _ensure_all_builtin_video_exports() -> None:
+    for payload in BUILTIN_RECIPES.values():
+        payload["steps"] = _ensure_video_export(list(payload.get("steps") or []))
+
+
+_ensure_all_builtin_video_exports()
 
 
 def builtin_recipe(recipe_id: str) -> Recipe:

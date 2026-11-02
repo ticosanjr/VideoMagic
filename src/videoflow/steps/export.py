@@ -23,7 +23,7 @@ from videoflow.steps.registry import register_step
 class ExportParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    targets: list[Literal["resolve", "premiere", "kdenlive", "mp4"]] = Field(
+    targets: list[Literal["resolve", "premiere", "kdenlive"]] = Field(
         default_factory=lambda: ["resolve", "premiere", "kdenlive"]
     )
     dialect: Dialect = "1.9"

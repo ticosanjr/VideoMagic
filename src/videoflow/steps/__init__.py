@@ -23,6 +23,7 @@ from videoflow.steps import (
     timeline_load,
     transcribe,
     translation,
+    video_export,
 )
 from videoflow.steps.base import BaseStep, EmptyParams, StepIO
 from videoflow.steps.registry import (
@@ -64,4 +65,5 @@ __all__ = [
     "timeline_load",
     "transcribe",
     "translation",
+    "video_export",
 ]

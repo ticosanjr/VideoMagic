@@ -119,6 +119,7 @@ export const STEP_ICON_NAMES: Record<string, IconName> = {
   "edit.timeline": "scissors",
   "timeline.load": "folder",
   "export.nle": "share",
+  "export.video": "film",
   "shorts.select": "smartphone",
   "shorts.score": "chart",
   "shorts.reframe": "crop",

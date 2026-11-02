@@ -281,6 +281,14 @@ test("cycles node width from the node header", async ({ page }) => {
   expect(after?.width).not.toBe(before?.width);
 });
 
+test("disables and re-enables a node from its header", async ({ page }) => {
+  const node = page.getByTestId("step-edit.timeline");
+  await page.getByTestId("step-enabled-edit.timeline").click();
+  await expect(node).toContainText("disabled");
+  await page.getByTestId("step-enabled-edit.timeline").click();
+  await expect(node).not.toContainText("disabled");
+});
+
 test("opens the recipe template gallery", async ({ page }) => {
   await page.getByTestId("recipe-library").click();
   const dialog = page.getByRole("dialog", { name: "Recipe library" });

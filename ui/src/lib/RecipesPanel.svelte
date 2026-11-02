@@ -95,6 +95,8 @@
     mediaOverride?: string;
     outputMode?: "pipeline" | "folder";
     outputDir?: string;
+    enabled?: boolean;
+    onEnabledChange?: (enabled: boolean) => void;
     presets?: NodePreset[];
     options?: NodeOptions | null;
     onApplyPreset?: (preset: NodePreset) => void;
@@ -492,6 +494,8 @@
           description: manifest?.description ?? "",
           params: step.params,
           schema: manifest?.params_schema ?? {},
+          enabled: step.enabled !== false,
+          onEnabledChange: (enabled: boolean) => patchStepEnabled(step.id, enabled),
           inputs: step.inputs ?? {},
           inputPorts: manifest?.inputs ?? [],
           outputPorts: manifest?.outputs ?? [],
@@ -616,7 +620,7 @@
           media_override: data.mediaOverride ?? "",
           output_mode: data.outputMode ?? "pipeline",
           output_dir: data.outputDir ?? "",
-          enabled: true,
+          enabled: data.enabled !== false,
           params: data.params ?? {}
         };
       })
@@ -645,6 +649,8 @@
           description: manifest.description,
           params: defaultsFor(manifest),
           schema: manifest.params_schema,
+          enabled: true,
+          onEnabledChange: (enabled: boolean) => patchStepEnabled(id, enabled),
           inputs: {},
           inputPorts: manifest.inputs ?? [],
           outputPorts: manifest.outputs ?? [],
@@ -1494,6 +1500,16 @@
     if (selectedId === id) {
       paramText = JSON.stringify(params, null, 2);
     }
+    scheduleUiSave();
+  }
+
+  function patchStepEnabled(id: string, enabled: boolean) {
+    pushUndo();
+    nodes = nodes.map((node) =>
+      node.id === id
+        ? { ...node, data: { ...nodeData(node), enabled } }
+        : node
+    );
     scheduleUiSave();
   }
 

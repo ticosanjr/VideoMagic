@@ -48,6 +48,8 @@
       description?: string;
       icon?: string;
       color?: string;
+      enabled?: boolean;
+      onEnabledChange?: (enabled: boolean) => void;
       params: Record<string, unknown>;
       schema?: Record<string, unknown>;
       inputs?: Record<string, string>;
@@ -190,7 +192,14 @@
         <p class="mt-1 text-[9px] text-rose-300">{errorCount} field error{errorCount === 1 ? "" : "s"}</p>
       {/if}
     </div>
-    <IconButton icon="close" label="Close inspector" onclick={() => onclose?.()} />
+    <div class="flex items-center gap-1">
+      <IconButton
+        icon={node.enabled === false ? "play" : "pause"}
+        label={node.enabled === false ? "Enable node" : "Disable node"}
+        onclick={() => node.onEnabledChange?.(node.enabled === false)}
+      />
+      <IconButton icon="close" label="Close inspector" onclick={() => onclose?.()} />
+    </div>
   </div>
 
   <div class="flex flex-wrap items-center gap-1 border-b border-neutral-800 px-3 py-1.5">

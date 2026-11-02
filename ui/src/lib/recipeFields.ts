@@ -127,6 +127,16 @@ const FIELD_META: Record<string, Record<string, FieldMeta>> = {
     dialect: { group: "Export", label: "FCPXML dialect" },
     subdir: { group: "Export", label: "Subdirectory" }
   },
+  "export.video": {
+    preset: {
+      group: "Video",
+      label: "Speed preset",
+      control: "select",
+      options: ["ultrafast", "fast", "balanced", "quality"]
+    },
+    subdir: { group: "Video", label: "Subdirectory" },
+    filename: { group: "Video", label: "Filename", placeholder: "video.mp4" }
+  },
   "timeline.load": {
     path: { group: "Source", label: "Timeline file" },
     snapshot_id: { group: "Source", label: "Snapshot id" }
@@ -211,6 +221,12 @@ const PRESETS: Record<string, Array<{ label: string; patch: Record<string, unkno
     { label: "Conservative", patch: { strictness: "conservative", strategy: "keep_best" } },
     { label: "Balanced", patch: { strictness: "balanced", strategy: "keep_last" } },
     { label: "Aggressive", patch: { strictness: "aggressive", strategy: "keep_last" } }
+  ],
+  "export.video": [
+    { label: "Ultrafast", patch: { preset: "ultrafast" } },
+    { label: "Fast", patch: { preset: "fast" } },
+    { label: "Balanced", patch: { preset: "balanced" } },
+    { label: "Quality", patch: { preset: "quality" } }
   ]
 };
 

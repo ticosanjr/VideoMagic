@@ -122,7 +122,8 @@ values genuinely shared by multiple nodes or profiles.
 | `shorts.reframe` | `shorts.select` | crop focus via static crop, motion, or face tracking |
 | `shorts.captions` | `shorts.select` | ASS caption files per Short |
 | `shorts.render` | `shorts.select` (+ optional reframe/captions) | MP4 + `shorts.json`; uses caption files when present |
-| `export.nle` | `edit.timeline` | FCPXML, XMEML, Kdenlive, and/or MP4 |
+| `export.nle` | `edit.timeline` | FCPXML/Resolve, XMEML/Premiere, and Kdenlive timelines |
+| `export.video` | `edit.timeline` or `timeline.load` | Direct video file with ultrafast/fast/balanced/quality presets |
 
 `GET /api/v1/steps` returns each step's JSON parameter schema. The UI uses that
 manifest to generate node defaults, so new steps do not require a new node
@@ -260,6 +261,14 @@ Request fields: `source_dir`, `output_root`, `recipe` or `recipe_id`,
 `recursive`, `extensions`, `resume`, and `max_files`. The UI exposes the same
 flow through the **Batch** modal. `GET /api/v1/batches/{id}` returns item-level
 status.
+
+## Video export
+
+The `export.video` node is separate from `export.nle`. `export.nle` only writes
+editing timelines; `export.video` renders the final video. Its default is
+`ultrafast` (libx264 `ultrafast`, CRF 30), the fastest practical H.264/AAC MP4
+profile. Built-in recipes end with both nodes. Use the node header dot or the
+inspector toggle to disable either exporter without deleting it.
 
 ## Direct MP4
 

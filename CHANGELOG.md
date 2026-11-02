@@ -3,6 +3,26 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.34.0] - 2026-11-02
+
+### Added
+
+- **Separate timeline and video export nodes.** `export.nle` now writes only
+  Resolve/FCPXML, Premiere/XMEML, and Kdenlive timelines. New `export.video`
+  renders the direct video file.
+- `export.video` presets: `ultrafast` (default, libx264 ultrafast/CRF 30),
+  `fast`, `balanced`, and `quality`, plus configurable output folder and
+  filename.
+- All built-in recipes with a timeline now end with both `export.nle` and
+  `export.video`.
+- Quick node enable/disable from the node header and the inspector. Disabled
+  nodes are omitted from the recipe run without deleting their configuration.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.33.1] - 2026-11-02
 
 ### Added

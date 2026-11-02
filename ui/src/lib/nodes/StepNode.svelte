@@ -22,6 +22,8 @@
       schema?: Record<string, unknown>;
       status?: "idle" | "queued" | "running" | "cached" | "executed" | "failed" | "skipped";
       implementation?: "available" | "partial" | "planned";
+      enabled?: boolean;
+      onEnabledChange?: (enabled: boolean) => void;
       icon?: string;
       color?: string;
       progress?: number;
@@ -101,7 +103,7 @@
 
 <div
   data-testid={`step-${data.type}`}
-  class={`relative rounded-2xl border text-left shadow-xl transition ${data.dimmed ? "opacity-25" : ""} ${implementation === "planned" ? "border-dashed" : ""} ${
+  class={`relative rounded-2xl border text-left shadow-xl transition ${data.dimmed ? "opacity-25" : ""} ${data.enabled === false ? "opacity-60" : ""} ${implementation === "planned" ? "border-dashed" : ""} ${
     selected
       ? "border-sky-400/70 bg-sky-950/80 ring-2 ring-sky-400/20"
       : status === "failed"
@@ -127,6 +129,9 @@
           {#if implementation !== "available"}
             <span class={`rounded px-1 py-0.5 text-[8px] uppercase ${implementation === "partial" ? "bg-amber-500/10 text-amber-300" : "bg-neutral-700/60 text-neutral-400"}`}>{implementation}</span>
           {/if}
+          {#if data.enabled === false}
+            <span class="rounded bg-neutral-700/60 px-1 py-0.5 text-[8px] uppercase text-neutral-300">disabled</span>
+          {/if}
           {#if errorCount}
             <span
               class="rounded bg-rose-500/15 px-1 py-0.5 text-[8px] font-semibold text-rose-200"
@@ -137,6 +142,7 @@
         <p class="mt-0.5 truncate font-mono text-[10px] text-sky-300/80">{data.type}</p>
       </div>
       <div class="flex shrink-0 items-center gap-1">
+        <button type="button" data-testid={`step-enabled-${data.type}`} title={data.enabled === false ? "Enable this node" : "Disable this node"} onclick={(event) => { event.stopPropagation(); data.onEnabledChange?.(data.enabled === false); }} class={`rounded px-1 text-[11px] ${data.enabled === false ? "text-emerald-300" : "text-emerald-400/80 hover:text-emerald-200"}`}>{data.enabled === false ? "○" : "●"}</button>
         <button type="button" data-testid={`step-width-${data.type}`} title="Cycle width" onclick={(event) => { event.stopPropagation(); data.onWidth?.(); }} class="rounded px-1 text-[11px] text-neutral-500 hover:text-neutral-200">↔</button>
         <button type="button" data-testid={`step-pin-${data.type}`} title={data.pinned ? "Unpin" : "Pin open"} onclick={(event) => { event.stopPropagation(); data.onPin?.(); }} class={`rounded px-1 text-[11px] ${data.pinned ? "text-amber-300" : "text-neutral-500 hover:text-neutral-200"}`}>⌖</button>
         <button type="button" data-testid={`step-toggle-${data.type}`} title={data.expanded ? "Collapse" : "Expand"} onclick={(event) => { event.stopPropagation(); data.onToggle?.(); }} class="rounded px-1 text-[11px] text-neutral-500 hover:text-neutral-200">{data.expanded ? "▴" : "▾"}</button>
