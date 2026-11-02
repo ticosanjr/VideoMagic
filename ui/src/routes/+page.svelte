@@ -660,6 +660,7 @@
   open={activityOpen}
   {jobs}
   onclose={() => (activityOpen = false)}
+  onchanged={() => refreshJobs()}
   onopenjobs={() => {
     activityOpen = false;
     selectTab("jobs");

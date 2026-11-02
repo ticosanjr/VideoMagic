@@ -264,8 +264,9 @@ status.
 
 `export.nle` accepts `mp4` in its `targets` list. The exporter builds one FFmpeg
 filter graph from the validated timeline, applies J/L-cut audio ranges and
-static transforms, and writes H.264/AAC with `+faststart`. The legacy job form
-also exposes an **MP4** target.
+static transforms, and writes H.264/AAC with `+faststart`. The Recut recipes do
+not include `mp4` by default; render it from the Edit tab so the MP4 cannot block
+the timeline from opening. The legacy job form also exposes an **MP4** target.
 
 ## Artifacts
 
@@ -376,8 +377,9 @@ Two built-in recipes focus on removing silence before any creative edit:
 | `recut_replacement` | ingest → vad → timeline → export | Fast, deterministic silence recut |
 | `recut_replacement_retakes` | ingest → vad → transcribe → retakes → timeline → export | Silence recut plus retake culling |
 
-Both export **MP4, FCPXML (Resolve), XMEML (Premiere), and Kdenlive** from the
-same timeline.
+Both export **FCPXML (Resolve), XMEML (Premiere), and Kdenlive** from the same
+timeline. The MP4 is rendered from the Edit tab after the cut is final, so NLE
+export cannot block timeline editing.
 
 ### Silence controls
 

@@ -130,6 +130,7 @@
   let frameUrl = $state("");
   let frameTimer: ReturnType<typeof setTimeout> | undefined;
   let seekTimer: ReturnType<typeof setTimeout> | undefined;
+  let jobsTimer: ReturnType<typeof setInterval> | undefined;
   let assets = $state<AssetRecord[]>([]);
   let commentText = $state("");
   let commentBusy = $state(false);
@@ -185,6 +186,9 @@
       /* private mode */
     }
     void loadJobs();
+    jobsTimer = setInterval(() => {
+      if (!document.hidden) void loadJobs();
+    }, 4000);
     window.addEventListener("keydown", onKeydown);
   });
 
@@ -200,6 +204,7 @@
   onDestroy(() => {
     disposed = true;
     window.removeEventListener("keydown", onKeydown);
+    clearInterval(jobsTimer);
     cancelAnimationFrame(raf);
     clearTimeout(previewScheduled);
     clearTimeout(frameTimer);
@@ -216,9 +221,12 @@
 
   async function loadJobs() {
     try {
-      jobs = (await listJobs()).filter((job) => job.status === "succeeded");
-      if (jobs[0]) {
-        selected = jobs[0].job_id;
+      const available = (await listJobs()).filter(
+        (job) => job.status === "succeeded" || job.timeline_ready
+      );
+      jobs = available;
+      if (!available.some((job) => job.job_id === selected) && available[0]) {
+        selected = available[0].job_id;
         await loadTimeline();
       }
     } catch (reason) {

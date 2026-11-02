@@ -357,6 +357,7 @@ export interface Job {
   message: string;
   source: string;
   output: string;
+  timeline_ready?: boolean;
   options: Partial<JobOptions>;
   result: {
     ok: boolean;
@@ -2321,11 +2322,21 @@ export async function retryJob(jobId: string): Promise<Job> {
   return response.job;
 }
 
-export async function cancelJob(jobId: string): Promise<Job> {
-  const response = await request<{ ok: boolean; job: Job }>(`/api/v1/jobs/${jobId}/cancel`, {
-    method: "POST"
-  });
+export async function cancelJob(jobId: string, force = false): Promise<Job> {
+  const query = force ? "?force=true" : "";
+  const response = await request<{ ok: boolean; job: Job }>(
+    `/api/v1/jobs/${jobId}/cancel${query}`,
+    { method: "POST" }
+  );
   return response.job;
+}
+
+export async function deleteJob(jobId: string, force = false): Promise<void> {
+  const query = force ? "?force=true" : "";
+  await request<{ ok: boolean; removed: string }>(
+    `/api/v1/jobs/${jobId}${query}`,
+    { method: "DELETE" }
+  );
 }
 
 export async function getLogs(

@@ -3,6 +3,32 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.32.0] - 2026-11-02
+
+### Fixed
+
+- **Recut no longer blocks on an MP4 render inside `export.nle`.** The Recut
+  recipes write Resolve, Premiere, and Kdenlive timelines only. Render the MP4
+  from the Edit tab when the cut is final.
+- **The Edit tab opens as soon as `edit.timeline` finishes.** `project_state.json`
+  is published atomically after the timeline step, and running jobs with
+  `timeline_ready` appear in the timeline picker instead of waiting for the
+  whole recipe to succeed.
+- Newer manual edits are never overwritten by the runner's later state write.
+- **Jobs can be cancelled or removed at any time.** Cancelling a running job
+  sets the FFmpeg cancellation event, and force stop/remove deletes the job from
+  the queue and store. The Activity drawer now has Cancel, Force stop, Dismiss,
+  and Clear finished actions.
+- Cancelling or removing a queued job drains the next worker immediately.
+- Export steps report per-target progress and honour cancellation.
+
+### Notes
+
+- MP4 is still available through the render queue and the Edit tab, with its
+  existing revision tracking and cancellation.
+- Full-tree coverage is 96.0%.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.31.0] - 2026-11-02
 
 ### Added

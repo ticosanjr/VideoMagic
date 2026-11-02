@@ -103,6 +103,67 @@ def test_cancel_terminal_job_is_a_noop(tmp_path: Path) -> None:
     assert manager.cancel(str(job.job_id)).status == "succeeded"
 
 
+def test_timeline_ready_is_visible_while_the_job_is_running(tmp_path: Path) -> None:
+    ready = threading.Event()
+    release = threading.Event()
+
+    def runner(source: Path, output: Path, *, progress, should_cancel, **kwargs):
+        output.mkdir(parents=True, exist_ok=True)
+        (output / "project_state.json").write_text("{}", encoding="utf-8")
+        progress("timeline", 100, "Timeline ready")
+        ready.set()
+        release.wait(2)
+        return {"ok": True}
+
+    manager = JobManager(runner)
+    job = manager.start(tmp_path / "in.mp4", tmp_path / "out")
+    assert ready.wait(2)
+    assert manager.get(str(job.job_id)).timeline_ready is True
+    release.set()
+    wait_for(job, manager)
+
+
+def test_removing_a_running_job_stops_it_and_does_not_reappear(tmp_path: Path) -> None:
+    started = threading.Event()
+
+    def runner(source: Path, output: Path, *, progress, should_cancel, **kwargs):
+        started.set()
+        while not should_cancel():
+            time.sleep(0.01)
+        raise JobCancelledError("removed")
+
+    store = tmp_path / "store"
+    manager = JobManager(runner, max_active=1, store_dir=store)
+    job = manager.start(tmp_path / "in.mp4", tmp_path / "out")
+    assert started.wait(2)
+    manager.remove(str(job.job_id), force=True)
+    with pytest.raises(JobNotFoundError):
+        manager.get(str(job.job_id))
+    time.sleep(0.15)
+    assert not (store / f"{job.job_id}.json").exists()
+    assert manager.list() == []
+
+
+def test_removing_a_queued_job_drains_the_next_worker(tmp_path: Path) -> None:
+    blocker = threading.Event()
+
+    def runner(source: Path, output: Path, *, progress, should_cancel, **kwargs):
+        blocker.wait(3)
+        return {"ok": True}
+
+    manager = JobManager(runner, max_active=1)
+    first = manager.start(tmp_path / "a.mp4", tmp_path / "a")
+    second = manager.start(tmp_path / "b.mp4", tmp_path / "b", queue=True)
+    assert second.status == "queued"
+    manager.remove(str(second.job_id), force=True)
+    third = manager.start(tmp_path / "c.mp4", tmp_path / "c", queue=True)
+    assert third.status == "queued"
+    blocker.set()
+    wait_for(first, manager)
+    wait_for(third, manager)
+    assert manager.get(str(third.job_id)).status == "succeeded"
+
+
 def test_history_is_pruned(tmp_path: Path) -> None:
     manager = JobManager(fake_runner, history=0)
     first = manager.start(tmp_path / "a.mp4", tmp_path / "a")

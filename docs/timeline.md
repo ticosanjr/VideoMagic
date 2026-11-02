@@ -90,6 +90,14 @@ ranges, transform/transition data, and the reason (`manual`, `silence`,
 - Complex timelines that still require FFmpeg filters fall back to the rendered
   preview instead of approximating the look.
 
+## Timeline availability
+
+`edit.timeline` publishes `project_state.json` atomically as soon as the
+timeline step finishes. The Edit tab lists jobs with `timeline_ready` even while
+the job is still exporting, so NLE export or an explicit render never blocks
+editing. Later runner writes compare revisions and never overwrite newer manual
+edits.
+
 ## Waveforms
 
 `GET /api/v1/jobs/{id}/timeline/waveform?start=&end=&buckets=` returns normalised

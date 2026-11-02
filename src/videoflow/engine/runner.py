@@ -41,6 +41,32 @@ from videoflow.steps.ports import (
 StepStatus = Literal["cached", "executed", "skipped"]
 
 
+def persist_project_state(context: PipelineContext) -> Path | None:
+    """Write the timeline atomically without clobbering newer manual edits."""
+
+    if context.state is None:
+        return None
+    destination = context.output / "project_state.json"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.is_file():
+        try:
+            from videoflow.domain.state import ProjectState
+
+            current = ProjectState.model_validate_json(
+                destination.read_text(encoding="utf-8")
+            )
+        except (OSError, ValueError):
+            current = None
+        if current is not None and current.revision > context.state.revision:
+            return destination
+    temporary = destination.with_name(f".{destination.name}.tmp")
+    temporary.write_text(
+        context.state.model_dump_json(indent=2) + "\n", encoding="utf-8"
+    )
+    os.replace(temporary, destination)
+    return destination
+
+
 @dataclass(frozen=True, slots=True)
 class StepRun:
     id: str
@@ -97,6 +123,7 @@ class RecipeRunner:
         adapter: Any | None = None,
         llm_client: Any | None = None,
         asr_client: Any | None = None,
+        cancel_event: Any | None = None,
     ) -> None:
         recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
         validate_recipe_ports(recipe)
@@ -104,6 +131,7 @@ class RecipeRunner:
         self.adapter = adapter
         self.llm_client = llm_client
         self.asr_client = asr_client
+        self.cancel_event = cancel_event
 
     def _ensure_media_override(self, context: PipelineContext, recipe_step: RecipeStep) -> None:
         value = recipe_step.media_override.strip()
@@ -332,6 +360,7 @@ class RecipeRunner:
                 progress=progress,
                 step_progress=step_progress,
                 should_cancel=should_cancel,
+                cancel_event=self.cancel_event,
                 log=log,
             )
             directory = step_dir(output_path, recipe_step.id)
@@ -356,6 +385,7 @@ class RecipeRunner:
                 if step_progress is not None:
                     step_progress(recipe_step.id, 100, f"{step.title} bypassed")
                 io.report(100, f"{step.title} bypassed")
+                persist_project_state(context)
                 continue
 
             if resume:
@@ -390,6 +420,7 @@ class RecipeRunner:
                     self._copy_node_outputs(context, context, recipe_step, step, {})
                     capture_outputs(context, step, recipe_step.id)
                     io.report(100, "Cached checkpoint reused")
+                    persist_project_state(context)
                     continue
 
             context.cache_misses.append(recipe_step.id)
@@ -425,6 +456,7 @@ class RecipeRunner:
             context.metadata.setdefault("step_progress", {})[recipe_step.id] = 100
             if step_progress is not None:
                 step_progress(recipe_step.id, 100, f"{step.title} ready")
+            persist_project_state(context)
             context.hashes[recipe_step.id] = fingerprint
             outputs = tuple(str(path) for path in step.cache_outputs(context))
             write_json(
@@ -464,8 +496,7 @@ class RecipeRunner:
                 telemetry.finish(recipe_step.id, f"{step.title} ready")
 
         state_path = output_path / "project_state.json"
-        if context.state is not None:
-            write_text(state_path, context.state.model_dump_json(indent=2) + "\n")
+        persist_project_state(context)
         report_path = output_path / "run.json"
         result = RecipeRunResult(
             recipe_id=self.recipe.id,

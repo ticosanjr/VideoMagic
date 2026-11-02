@@ -164,6 +164,26 @@ def test_export_service_rejects_an_unknown_target(tmp_path: Path) -> None:
         export_timeline(sample_state(tmp_path), tmp_path / "exports", targets=("avid",))
 
 
+def test_export_service_reports_progress_and_cancels(tmp_path: Path) -> None:
+    from videoflow.domain.errors import JobCancelledError
+
+    events: list[tuple[str, int]] = []
+    artifacts = export_timeline(
+        sample_state(tmp_path),
+        tmp_path / "exports",
+        progress=lambda target, value: events.append((target, value)),
+    )
+    assert artifacts
+    assert ("resolve", 0) in events
+    assert ("kdenlive", 100) in events
+    with pytest.raises(JobCancelledError):
+        export_timeline(
+            sample_state(tmp_path),
+            tmp_path / "cancelled",
+            should_cancel=lambda: True,
+        )
+
+
 def test_export_rejects_an_empty_timeline(tmp_path: Path) -> None:
     source = tmp_path / "source.mp4"
     source.write_bytes(b"fixture")

@@ -16,7 +16,7 @@ def test_recut_replacement_is_a_valid_silence_only_recipe() -> None:
     export = next(step for step in recipe.enabled_steps() if step.id == "export")
     assert export.inputs == {"timeline": "timeline.timeline"}
     export = next(step for step in recipe.enabled_steps() if step.id == "export")
-    assert export.params["targets"] == ["mp4", "resolve", "premiere", "kdenlive"]
+    assert export.params["targets"] == ["resolve", "premiere", "kdenlive"]
 
 
 def test_recut_retakes_variant_adds_transcription_and_culling() -> None:
@@ -110,7 +110,7 @@ def test_recut_global_presets_are_valid_and_tuned() -> None:
         assert recipe.variables == {}
         assert next(
             step for step in recipe.enabled_steps() if step.id == "export"
-        ).params["targets"] == ["mp4", "resolve", "premiere", "kdenlive"]
+        ).params["targets"] == ["resolve", "premiere", "kdenlive"]
 
 
 def test_run_route_resolves_source_and_output_from_the_recipe(monkeypatch, tmp_path) -> None:

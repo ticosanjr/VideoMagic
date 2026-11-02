@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import {
     cancelJob,
+    deleteJob,
     errorMessage,
     getJobDag,
     listJobs,
@@ -127,6 +128,19 @@
     } finally {
       busy = "";
       confirmCancel = "";
+    }
+  }
+
+  async function remove(job: Job) {
+    busy = job.job_id;
+    try {
+      await deleteJob(job.job_id, true);
+      notifications.push({ kind: "info", title: "Job removed", message: jobDisplayName(job) });
+      await refresh();
+    } catch (reason) {
+      error = errorMessage(reason);
+    } finally {
+      busy = "";
     }
   }
 
@@ -323,10 +337,8 @@
                 <button type="button" disabled={busy === job.job_id} class="rounded-lg bg-sky-500/15 px-2.5 py-1 text-[11px] font-medium text-sky-200 ring-1 ring-inset ring-sky-400/25 hover:bg-sky-500/20 disabled:opacity-40" onclick={() => void retry(job)}>
                   {busy === job.job_id ? "…" : i18n.t("retry")}
                 </button>
-              {:else if job.status === "succeeded"}
-                {#if job.result?.artifacts && Object.keys(job.result.artifacts).length}
-                  <button type="button" class="rounded-lg border border-white/10 px-2.5 py-1 text-[11px] text-neutral-300 hover:text-sky-200" onclick={() => onopentimeline?.(job)}>Open in Timeline</button>
-                {/if}
+              {:else if job.status === "succeeded" || job.timeline_ready}
+                <button type="button" class="rounded-lg border border-white/10 px-2.5 py-1 text-[11px] text-neutral-300 hover:text-sky-200" onclick={() => onopentimeline?.(job)}>Open in Timeline</button>
               {/if}
               <label class="flex items-center gap-1 text-[10px] text-neutral-500">
                 {i18n.t("priority")}
@@ -353,6 +365,9 @@
                 {:else}
                   <button type="button" class="rounded-lg border border-rose-500/20 px-2.5 py-1 text-[11px] text-rose-300 hover:border-rose-400/40" onclick={() => (confirmCancel = job.job_id)}>{i18n.t("cancel")}</button>
                 {/if}
+                <button type="button" disabled={busy === job.job_id} class="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-[11px] text-rose-200 disabled:opacity-40" onclick={() => void remove(job)}>Force stop</button>
+              {:else if ["succeeded", "failed", "cancelled"].includes(job.status)}
+                <button type="button" disabled={busy === job.job_id} class="rounded-lg border border-white/10 px-2.5 py-1 text-[11px] text-neutral-400 disabled:opacity-40" onclick={() => void remove(job)}>{i18n.t("dismiss")}</button>
               {/if}
             </div>
           </div>

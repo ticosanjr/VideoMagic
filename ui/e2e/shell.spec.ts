@@ -126,6 +126,19 @@ test("opens the activity drawer from the header", async ({ page }) => {
   await expect(drawer.getByText("Approve the hook")).toBeVisible();
 });
 
+test("force stops a running job from the activity drawer", async ({ page }) => {
+  await page.getByRole("button", { name: /Activity/ }).click();
+  const drawer = page.getByTestId("activity-drawer");
+  const running = drawer.locator("li").filter({ hasText: "Rendering timeline" });
+  const request = page.waitForRequest(
+    (item) =>
+      item.method() === "DELETE" &&
+      item.url().includes("11111111-1111-1111-1111-111111111111")
+  );
+  await running.getByRole("button", { name: "Force stop" }).click();
+  expect((await request).url()).toContain("force=true");
+});
+
 test("opens the notification center", async ({ page }) => {
   await page.getByRole("button", { name: /Notifications/ }).click();
   await expect(page.getByTestId("notification-center")).toBeVisible();

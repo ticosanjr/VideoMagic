@@ -1886,9 +1886,20 @@ def register_routes(
             raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
 
     @app.post("/api/v1/jobs/{job_id}/cancel")
-    def cancel_job(job_id: str) -> dict[str, object]:
+    def cancel_job(job_id: str, force: bool = False) -> dict[str, object]:
         try:
-            return {"ok": True, "job": jobs.cancel(job_id).to_dict()}
+            return {
+                "ok": True,
+                "job": jobs.cancel(job_id, force=force).to_dict(),
+            }
+        except VideoFlowError as exc:
+            raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
+
+    @app.delete("/api/v1/jobs/{job_id}")
+    def remove_job(job_id: str, force: bool = False) -> dict[str, object]:
+        try:
+            jobs.remove(job_id, force=force)
+            return {"ok": True, "removed": job_id}
         except VideoFlowError as exc:
             raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
 

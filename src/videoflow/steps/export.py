@@ -9,6 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.export_service import export_timeline
 from videoflow.application.nle_extras import nle_extras_from_output
 from videoflow.core.context import PipelineContext
@@ -45,12 +46,35 @@ class ExportStep(BaseStep):
         destination = context.output / options.subdir
         destination.mkdir(parents=True, exist_ok=True)
         io.report(20, "Writing NLE timelines")
+        completed = 0
+        target_count = max(1, len(options.targets))
+
+        def on_progress(target: str, value: int) -> None:
+            nonlocal completed
+            io.check_cancel()
+            local = max(0, min(100, int(value)))
+            overall = 20 + int(
+                ((completed + local / 100) / target_count) * 75
+            )
+            io.report(min(95, overall), f"Exporting {target} ({local}%)")
+            if local >= 100:
+                completed += 1
+
+        adapter = (
+            io.adapter
+            if getattr(io.adapter, "render", None) is not None
+            else FFmpegAdapter(cancel_event=io.cancel_event)
+        )
         artifacts = export_timeline(
             context.state,
             destination,
             targets=options.targets,
             dialect=options.dialect,
             extras=nle_extras_from_output(context.output),
+            progress=on_progress,
+            should_cancel=io.check_cancel,
+            adapter=adapter,
+            cache_dir=context.output / "render" / "segments",
         )
         context.artifacts.update({name: str(path) for name, path in artifacts.items()})
         sidecars = destination / "sidecars"

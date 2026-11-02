@@ -499,6 +499,11 @@ process group. On cancel or timeout the adapter sends `SIGTERM`, waits one
 second, then sends `SIGKILL`, and the queue removes the partial file. A
 `kill -9` of the service leaves no orphaned FFmpeg process.
 
+Use `POST .../cancel?force=true` to mark a running job cancelled immediately and
+drain the next queued worker. `DELETE /api/v1/jobs/{job_id}` removes a job from
+the queue, store, and Activity list; add `?force=true` to stop and remove a
+running job. Cancelling or removing a queued job also drains the next worker.
+
 ### Pause, resume, priority
 
 `POST /api/v1/jobs/{id}/pause` pauses a queued job immediately or requests a

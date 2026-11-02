@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (2.31.0)
+## Implementation status (2.32.0)
 
 | Area | State |
 | --- | --- |
@@ -12,7 +12,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Silero VAD via ONNX Runtime with FFmpeg `silencedetect` fallback | implemented |
 | Deterministic timeline, J/L-cuts, fades, punch-ins | implemented |
 | FCPXML 1.9/1.10, xmeml v4, native Kdenlive MLT export | implemented |
-| Portable artifacts | 2.31.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
+| Portable artifacts | 2.32.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
 | Run history | persisted in `work/run-history.json`, including failed runs, paginated by `GET /api/v1/runs` |
 | Diagnostics | doctor covers FFmpeg capabilities, CUDA/ONNX, SQLite, providers, services, models, disk, and settings; support bundle ZIP |
 | NLE validation | `scripts/validate_nle.py` and `POST /api/v1/exports/validate` |
@@ -26,7 +26,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Operational store | SQLite WAL with `schema_version=2`, migration from JSON, backup/restore, and idempotent job requeue |
 | Release | tag-triggered Linux/AppImage/Windows/SBOM release workflow |
 | Batch persistence | SQLite is read first, JSON stays as an interchange mirror; paginated API/UI |
-| Job persistence | SQLite is read first and JSON fills gaps; interrupted jobs are requeued on startup |
+| Job persistence | SQLite is read first and JSON fills gaps; interrupted jobs are requeued on startup; cancel/force stop kill FFmpeg, remove jobs from the store, and drain the queue |
 | Professional shell | five areas (Produce/Edit/Runs/Library/Setup), command palette, shortcuts, activity, notifications, runs dashboard, pause/resume, priority ([shell.md](shell.md)) |
 | Timeline editing | Normal/Recut views, non-destructive inactive segments, editable Recut cut boundaries, live crossfade/overlay/title compositing, group trim, slip, slide, ripple trim, duplicate, comments, context menu, real waveforms, preview scheduler, incremental Shorts, and tracked lock/mute/solo ([timeline.md](timeline.md)) |
 | Content quality | golden set and channel profiles, TF-IDF/optional embedding B-roll with licenses, SFX library, delivery package, hook/duration A/B, dubbing alignment and review, and a localized recipe ([quality.md](quality.md)) |

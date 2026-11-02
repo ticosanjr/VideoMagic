@@ -963,7 +963,7 @@ def _recut_steps(*, with_retakes: bool) -> list[dict[str, object]]:
             "type": "export.nle",
             "needs": ["timeline"],
             "inputs": {"timeline": "timeline.timeline"},
-            "params": {"targets": ["mp4", "resolve", "premiere", "kdenlive"]},
+            "params": {"targets": ["resolve", "premiere", "kdenlive"]},
         }
     )
     return steps
@@ -975,7 +975,8 @@ _add_recipe(
     _recut_steps(with_retakes=False),
     description=(
         "Remove silence with detailed VAD controls, choose a hard/J/L cut, and "
-        "export MP4 plus Resolve, Premiere, and Kdenlive timelines."
+        "export Resolve, Premiere, and Kdenlive timelines. Render the MP4 from "
+        "the Edit tab when the cut is final."
     ),
 )
 _add_recipe(

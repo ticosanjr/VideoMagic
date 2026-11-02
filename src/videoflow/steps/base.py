@@ -49,6 +49,7 @@ class StepIO:
     progress: Callable[[str, int, str], None] | None = None
     step_progress: Callable[[str, int, str], None] | None = None
     should_cancel: Callable[[], bool] | None = None
+    cancel_event: Any | None = None
     log: Callable[[str, str, str], None] | None = None
 
     def check_cancel(self) -> None:

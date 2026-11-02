@@ -143,6 +143,8 @@ export const GLOSSARY: Record<string, string> = {
   "Cache dir": "Pasta de cache",
   "Cached": "Em cache",
   "Cancel": "Cancelar",
+  "Force stop": "Forçar parada",
+  "Clear finished": "Limpar finalizados",
   "Cancel batch": "Cancelar lote",
   "Capability": "Capacidade",
   "Captions": "Legendas",

@@ -324,6 +324,47 @@ def test_unknown_job_is_404(monkeypatch, tmp_path: Path) -> None:
     client = make_client(monkeypatch, tmp_path)
     assert client.get("/api/v1/jobs/missing").status_code == 404
     assert client.post("/api/v1/jobs/missing/cancel").status_code == 404
+    assert client.delete("/api/v1/jobs/missing").status_code == 404
+
+
+def test_jobs_can_be_force_removed(monkeypatch, tmp_path: Path) -> None:
+    import threading
+
+    from videoflow.domain.errors import JobCancelledError
+
+    started = threading.Event()
+
+    def slow(source, output, *, progress, should_cancel, **kwargs):
+        started.set()
+        while not should_cancel():
+            time.sleep(0.01)
+        raise JobCancelledError("removed")
+
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    client = make_client(monkeypatch, tmp_path, runner=slow)
+    response = client.post(
+        "/api/v1/jobs",
+        json={"source": str(source), "output": str(tmp_path / "out")},
+    )
+    assert response.status_code == 202, response.text
+    job_id = response.json()["job"]["job_id"]
+    assert started.wait(2)
+
+    removed = client.delete(f"/api/v1/jobs/{job_id}?force=true")
+    assert removed.status_code == 200, removed.text
+    assert removed.json()["removed"] == job_id
+    assert client.get(f"/api/v1/jobs/{job_id}").status_code == 404
+
+    terminal_client = make_client(monkeypatch, tmp_path)
+    completed = terminal_client.post(
+        "/api/v1/jobs",
+        json={"source": str(source), "output": str(tmp_path / "done")},
+    )
+    done_id = completed.json()["job"]["job_id"]
+    assert wait_http(terminal_client, done_id)["status"] == "succeeded"
+    assert terminal_client.delete(f"/api/v1/jobs/{done_id}").status_code == 200
+    assert terminal_client.get(f"/api/v1/jobs/{done_id}").status_code == 404
 
 
 def test_system_endpoint_reports_roots(monkeypatch, tmp_path: Path) -> None:

@@ -160,6 +160,15 @@ def list_jobs() -> list[dict[str, Any]]:
     return result
 
 
+def delete_job(job_id: str) -> None:
+    try:
+        with contextlib.closing(connect()) as connection:
+            connection.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
+            connection.commit()
+    except sqlite3.Error as exc:
+        _set_error(f"could not delete job {job_id}: {exc}")
+
+
 def upsert_assets(items: list[tuple[str, dict[str, Any]]]) -> None:
     if not items:
         return

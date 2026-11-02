@@ -191,6 +191,29 @@ test("renders the canvas timeline and edit controls", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Redo" })).toBeDisabled();
 });
 
+test("opens the timeline while a recipe is still exporting", async ({ page }) => {
+  await page.route("**/api/v1/jobs", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        jobs: [
+          {
+            ...job,
+            status: "running",
+            progress: 80,
+            stage: "export",
+            message: "Exporting resolve",
+            timeline_ready: true
+          }
+        ]
+      }
+    })
+  );
+  await page.reload();
+  await expect(page.getByTestId("timeline-canvas")).toBeVisible();
+  await expect(page.getByText(/rev 3/)).toBeVisible();
+});
+
 test("exposes B-roll approval controls", async ({ page }) => {
   const section = page.locator("section", { hasText: "B-roll approval" });
   await expect(section).toBeVisible();

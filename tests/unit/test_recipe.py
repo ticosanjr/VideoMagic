@@ -295,7 +295,7 @@ def test_job_manager_runs_recipe_mode(monkeypatch, tmp_path: Path) -> None:
     from videoflow.application.jobs import JobManager
 
     class FakeRunner:
-        def __init__(self, recipe) -> None:
+        def __init__(self, recipe, **_kwargs) -> None:
             self.recipe = recipe
 
         def run(self, source, output, **_kwargs):
@@ -683,7 +683,7 @@ def test_failed_recipe_writes_failure_and_history(monkeypatch, tmp_path: Path) -
     from videoflow.engine.history import read_runs
 
     class FailingRunner:
-        def __init__(self, recipe) -> None:
+        def __init__(self, recipe, **_kwargs) -> None:
             self.recipe = recipe
 
         def run(self, source, output, **_kwargs):

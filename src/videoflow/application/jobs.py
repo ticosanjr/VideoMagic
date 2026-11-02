@@ -89,6 +89,11 @@ class Job:
     telemetry: JobTelemetry = field(default_factory=JobTelemetry)
     step_progress: dict[str, int] = field(default_factory=dict)
     idempotency_key: str = ""
+    timeline_ready: bool = False
+    deleted: bool = False
+    cancel_event: threading.Event = field(
+        default_factory=threading.Event, repr=False, compare=False
+    )
     finalizer: Callable[[Job], None] | None = field(default=None, repr=False)
 
     def to_dict(self, *, summary: bool = False) -> dict[str, Any]:
@@ -121,6 +126,7 @@ class Job:
             "duration_ms": _duration_ms(self.started_at, self.finished_at),
             "step_progress": dict(self.step_progress),
             "idempotency_key": self.idempotency_key,
+            "timeline_ready": self.timeline_ready,
             "log_count": self.telemetry.log_count(),
             "stages": self.telemetry.stages(),
         }
@@ -378,6 +384,7 @@ class JobManager:
             self._launch(job)
 
     def pause(self, job_id: str) -> Job:
+        drain = False
         with self._lock:
             job = self._jobs.get(job_id)
             if job is None:
@@ -391,12 +398,16 @@ class JobManager:
                 job.stage = "paused"
                 job.message = "Paused"
                 self._persist_job(job)
-                return job
-            job.pause_requested = True
-            job.cancel_requested = True
-            job.message = "Pausing"
-            self._persist_job(job)
-            return job
+                drain = True
+            else:
+                job.pause_requested = True
+                job.cancel_requested = True
+                job.cancel_event.set()
+                job.message = "Pausing"
+                self._persist_job(job)
+        if drain:
+            self._drain_queue()
+        return job
 
     def unpause(self, job_id: str) -> Job:
         with self._lock:
@@ -410,6 +421,7 @@ class JobManager:
             job.message = "Resuming"
             job.cancel_requested = False
             job.pause_requested = False
+            job.cancel_event.clear()
             job.error = None
             self._pending.append(str(job.job_id))
             self._persist_job(job)
@@ -455,32 +467,66 @@ class JobManager:
             return jobs[start:]
         return jobs[start : start + max(0, int(limit))]
 
-    def cancel(self, job_id: str) -> Job:
+    def cancel(self, job_id: str, *, force: bool = False) -> Job:
+        drain = False
         with self._lock:
             job = self._jobs.get(job_id)
             if job is None:
                 raise JobNotFoundError(f"Unknown job: {job_id}")
             if job.status in TERMINAL:
                 return job
-            if job.status == "queued":
+            job.cancel_requested = True
+            job.cancel_event.set()
+            if job.status in {"queued", "waiting_approval"}:
                 with contextlib.suppress(ValueError):
                     self._pending.remove(str(job.job_id))
                 job.status = "cancelled"
                 job.stage = "cancelled"
                 job.message = "Cancelled"
                 job.finished_at = _now()
-                self._persist_job(job)
-                return job
-            job.cancel_requested = True
-            if job.status == "queued":
+                drain = True
+            elif force:
                 job.status = "cancelled"
                 job.stage = "cancelled"
-                job.message = "Cancelled before starting"
+                job.message = "Cancelled"
                 job.finished_at = _now()
+                drain = True
             else:
                 job.message = "Cancellation requested"
             self._persist_job(job)
-            return job
+        if drain:
+            self._drain_queue()
+        return job
+
+    def remove(self, job_id: str, *, force: bool = False) -> Job:
+        """Remove a job from the active list and store, stopping work if needed."""
+
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                raise JobNotFoundError(f"Unknown job: {job_id}")
+            job.deleted = True
+            job.cancel_requested = True
+            job.cancel_event.set()
+            if job.status not in TERMINAL:
+                job.status = "cancelled"
+                job.stage = "cancelled"
+                job.message = "Removed"
+                job.finished_at = _now()
+            with contextlib.suppress(ValueError):
+                self._pending.remove(str(job.job_id))
+            self._jobs.pop(str(job.job_id), None)
+        try:
+            from videoflow.application.database import delete_job
+
+            delete_job(str(job.job_id))
+        except Exception:
+            pass
+        if self._store_dir is not None:
+            with contextlib.suppress(OSError):
+                (self._store_dir / f"{job.job_id}.json").unlink(missing_ok=True)
+        self._drain_queue()
+        return job
 
     def _work(self, job: Job) -> None:
         if job.options.get("mode") == "recipe":
@@ -601,12 +647,16 @@ class JobManager:
                 job.stage = stage
                 job.progress = percent
                 job.message = message
+                if not job.timeline_ready and (
+                    job.output / "project_state.json"
+                ).is_file():
+                    job.timeline_ready = True
 
         def log(module: str, level: str, message: str) -> None:
             telemetry.log(module, level, message)
 
         def should_cancel() -> bool:
-            return job.cancel_requested
+            return job.cancel_requested or job.cancel_event.is_set() or job.cancel_event.is_set()
 
         try:
             transcript_sentences = _project_transcript(options.get("transcript_state"))
@@ -791,8 +841,13 @@ class JobManager:
                     job.finished_at = _now()
                 if job.status in TERMINAL:
                     job.lease_expires_at = ""
-            _write_log(job)
-            self._persist_job(job)
+                if (job.output / "project_state.json").is_file():
+                    job.timeline_ready = True
+            if not job.deleted:
+                _write_log(job)
+                self._persist_job(job)
+            elif job.status == "cancelled":
+                _write_log(job)
             self._drain_queue()
 
     def _work_recipe(self, job: Job) -> None:
@@ -812,6 +867,10 @@ class JobManager:
                 job.stage = stage
                 job.progress = percent
                 job.message = message
+                if not job.timeline_ready and (
+                    job.output / "project_state.json"
+                ).is_file():
+                    job.timeline_ready = True
 
         def log(module: str, level: str, message: str) -> None:
             job.telemetry.log(module, level, message)
@@ -821,9 +880,13 @@ class JobManager:
                 job.step_progress[stage] = max(0, min(100, int(percent)))
                 job.stage = stage
                 job.message = message
+                if not job.timeline_ready and (
+                    job.output / "project_state.json"
+                ).is_file():
+                    job.timeline_ready = True
 
         def should_cancel() -> bool:
-            return job.cancel_requested
+            return job.cancel_requested or job.cancel_event.is_set()
 
         try:
             recipe = Recipe.model_validate(job.options.get("recipe") or {})
@@ -831,7 +894,13 @@ class JobManager:
                 Sentence.model_validate(item)
                 for item in job.options.get("transcript_sentences", [])
             ]
-            runner = RecipeRunner(recipe)
+            from videoflow.adapters.ffmpeg import FFmpegAdapter
+
+            runner = RecipeRunner(
+                recipe,
+                adapter=FFmpegAdapter(cancel_event=job.cancel_event),
+                cancel_event=job.cancel_event,
+            )
             base_variables = dict(job.options.get("variables") or {})
             variants = recipe.variants or []
             variant_summaries: list[dict[str, object]] = []
@@ -893,6 +962,8 @@ class JobManager:
                     job.progress = 100
                     job.stage = "done"
                     job.message = "Finished"
+                    if (job.output / "project_state.json").is_file():
+                        job.timeline_ready = True
                     payload = result.to_dict()
                     if variant_summaries:
                         payload["variants"] = variant_summaries
@@ -951,13 +1022,16 @@ class JobManager:
                     job.finished_at = _now()
                 if job.status in TERMINAL:
                     job.lease_expires_at = ""
-            _write_log(job)
-            _record_recipe_history(job)
-            self._persist_job(job)
+            if not job.deleted:
+                _write_log(job)
+                _record_recipe_history(job)
+                self._persist_job(job)
+            elif job.status == "cancelled":
+                _write_log(job)
             self._drain_queue()
 
     def _persist_job(self, job: Job) -> None:
-        if self._store_dir is None:
+        if job.deleted or self._store_dir is None:
             return
         try:
             from videoflow.application.database import upsert_job
@@ -1051,6 +1125,7 @@ def _job_from_dict(payload: dict[str, Any]) -> Job:
         if isinstance(value, (int, float))
     }
     job.idempotency_key = str(payload.get("idempotency_key") or "")
+    job.timeline_ready = bool(payload.get("timeline_ready", False))
     job.pause_requested = bool(payload.get("pause_requested", False))
     job.priority = int(payload.get("priority", 0))
     job.attempts = int(payload.get("attempts", 0) or 0)
