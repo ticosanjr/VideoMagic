@@ -1,6 +1,6 @@
 <script lang="ts">
   import { focusTrap } from "$lib/a11y";
-  import { cancelJob, deleteJob, errorMessage, type Job } from "$lib/api";
+  import { cancelAllJobs, cancelJob, deleteJob, errorMessage, type Job } from "$lib/api";
   import { formatDateTime } from "$lib/format";
   import { jobDisplayName, jobNextAction } from "$lib/jobsView";
   import { i18n } from "$lib/i18n.svelte";
@@ -61,6 +61,19 @@
     error = "";
     try {
       await deleteJob(job.job_id, true);
+      await onchanged?.();
+    } catch (reason) {
+      error = errorMessage(reason);
+    } finally {
+      busy = "";
+    }
+  }
+
+  async function stopAll() {
+    busy = "all";
+    error = "";
+    try {
+      await cancelAllJobs(true);
       await onchanged?.();
     } catch (reason) {
       error = errorMessage(reason);
@@ -137,6 +150,11 @@
         {/if}
       </div>
       <footer class="border-t border-neutral-800 p-3">
+        {#if running.length || queued.length || attention.length}
+          <button type="button" disabled={busy === "all"} class="mb-2 w-full rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-200 disabled:opacity-40" onclick={() => void stopAll()}>
+            {busy === "all" ? "Stopping…" : "Stop all"}
+          </button>
+        {/if}
         {#if finished.length}
           <button type="button" disabled={busy === "clear"} class="mb-2 w-full rounded-xl border border-white/10 px-3 py-2 text-xs text-neutral-400 hover:text-neutral-100 disabled:opacity-40" onclick={() => void clearFinished()}>
             {busy === "clear" ? "Clearing…" : `Clear finished (${finished.length})`}

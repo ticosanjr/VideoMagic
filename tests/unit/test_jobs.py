@@ -179,6 +179,25 @@ def test_runner_receives_a_cancelable_adapter(tmp_path: Path) -> None:
     assert adapter.cancel_event is job.cancel_event
 
 
+def test_cancel_all_stops_running_and_queued_jobs(tmp_path: Path) -> None:
+    started = threading.Event()
+
+    def runner(source: Path, output: Path, *, progress, should_cancel, **kwargs):
+        started.set()
+        while not should_cancel():
+            time.sleep(0.01)
+        raise JobCancelledError("stopped")
+
+    manager = JobManager(runner, max_active=1)
+    first = manager.start(tmp_path / "a.mp4", tmp_path / "a")
+    second = manager.start(tmp_path / "b.mp4", tmp_path / "b", queue=True)
+    assert started.wait(2)
+    manager.cancel_all(force=True)
+    assert first.status == "cancelled"
+    assert second.status == "cancelled"
+    wait_for(first, manager)
+
+
 def test_history_is_pruned(tmp_path: Path) -> None:
     manager = JobManager(fake_runner, history=0)
     first = manager.start(tmp_path / "a.mp4", tmp_path / "a")

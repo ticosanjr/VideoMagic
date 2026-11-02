@@ -1895,6 +1895,13 @@ def register_routes(
         except VideoFlowError as exc:
             raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
 
+    @app.post("/api/v1/jobs/cancel_all")
+    def cancel_all_jobs(force: bool = True) -> dict[str, object]:
+        return {
+            "ok": True,
+            "jobs": [job.to_dict() for job in jobs.cancel_all(force=force)],
+        }
+
     @app.delete("/api/v1/jobs/{job_id}")
     def remove_job(job_id: str, force: bool = False) -> dict[str, object]:
         try:

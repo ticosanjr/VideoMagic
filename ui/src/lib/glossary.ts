@@ -144,6 +144,7 @@ export const GLOSSARY: Record<string, string> = {
   "Cached": "Em cache",
   "Cancel": "Cancelar",
   "Force stop": "Forçar parada",
+  "Stop all": "Parar tudo",
   "Clear finished": "Limpar finalizados",
   "Cancel batch": "Cancelar lote",
   "Capability": "Capacidade",

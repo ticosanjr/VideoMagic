@@ -3,6 +3,20 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.32.2] - 2026-11-02
+
+### Added
+
+- **Stop all** in the Activity drawer, backed by
+  `POST /api/v1/jobs/cancel_all`. It cancels every queued, running, paused, or
+  approval-waiting job and immediately drains the queue.
+- Bulk test coverage for stopping running and queued jobs together.
+
+### Notes
+
+- Full-tree coverage is 96.0%.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.32.1] - 2026-11-02
 
 ### Fixed

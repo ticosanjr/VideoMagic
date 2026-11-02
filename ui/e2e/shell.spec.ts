@@ -139,6 +139,16 @@ test("force stops a running job from the activity drawer", async ({ page }) => {
   expect((await request).url()).toContain("force=true");
 });
 
+test("stops every active job from the activity drawer", async ({ page }) => {
+  await page.getByRole("button", { name: /Activity/ }).click();
+  const request = page.waitForRequest(
+    (item) =>
+      item.method() === "POST" && item.url().includes("/api/v1/jobs/cancel_all")
+  );
+  await page.getByTestId("activity-drawer").getByRole("button", { name: "Stop all" }).click();
+  expect((await request).url()).toContain("force=true");
+});
+
 test("opens the notification center", async ({ page }) => {
   await page.getByRole("button", { name: /Notifications/ }).click();
   await expect(page.getByTestId("notification-center")).toBeVisible();

@@ -2339,6 +2339,15 @@ export async function deleteJob(jobId: string, force = false): Promise<void> {
   );
 }
 
+export async function cancelAllJobs(force = true): Promise<Job[]> {
+  const query = force ? "?force=true" : "";
+  const response = await request<{ ok: boolean; jobs: Job[] }>(
+    `/api/v1/jobs/cancel_all${query}`,
+    { method: "POST" }
+  );
+  return response.jobs;
+}
+
 export async function getLogs(
   jobId: string,
   module?: string,

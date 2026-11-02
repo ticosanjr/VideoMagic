@@ -502,7 +502,9 @@ second, then sends `SIGKILL`, and the queue removes the partial file. A
 Use `POST .../cancel?force=true` to mark a running job cancelled immediately and
 drain the next queued worker. `DELETE /api/v1/jobs/{job_id}` removes a job from
 the queue, store, and Activity list; add `?force=true` to stop and remove a
-running job. Cancelling or removing a queued job also drains the next worker.
+running job. `POST /api/v1/jobs/cancel_all?force=true` stops every active job and
+drains the queue. Cancelling or removing a queued job also drains the next
+worker.
 
 ### Pause, resume, priority
 

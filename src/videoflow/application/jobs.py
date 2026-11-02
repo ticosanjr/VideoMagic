@@ -528,6 +528,23 @@ class JobManager:
         self._drain_queue()
         return job
 
+    def cancel_all(self, *, force: bool = False) -> list[Job]:
+        """Stop every queued or running job."""
+
+        with self._lock:
+            ids = [
+                str(job.job_id)
+                for job in self._jobs.values()
+                if job.status not in TERMINAL
+            ]
+        stopped: list[Job] = []
+        for job_id in ids:
+            try:
+                stopped.append(self.cancel(job_id, force=force))
+            except JobNotFoundError:
+                continue
+        return stopped
+
     def _work(self, job: Job) -> None:
         if job.options.get("mode") == "recipe":
             self._work_recipe(job)
