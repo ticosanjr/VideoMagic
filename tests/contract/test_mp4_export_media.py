@@ -294,3 +294,30 @@ def test_incremental_export_seeks_and_reuses_segments(tmp_path: Path) -> None:
 
     assert second.is_file()
     assert not [command for command in cached_adapter.commands if "-ss" in command]
+
+
+def test_preview_renders_once_at_proxy_height(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    from videoflow.application.previews import build_preview, preview_paths
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
+    media = FFmpegAdapter().probe(source(tmp_path))
+    job = SimpleNamespace(job_id="preview-job", output=tmp_path / "out", result={})
+    job.output.mkdir(parents=True)
+    state = state_for(media, clips=6)
+    (job.output / "project_state.json").write_text(
+        state.model_dump_json(), encoding="utf-8"
+    )
+
+    preview = build_preview(job)
+
+    assert preview.is_file()
+    _full, expected = preview_paths(job)
+    assert preview == expected
+    assert not _full.exists()
+    rendered = FFmpegAdapter().probe(preview)
+    assert rendered.height == 540
+    assert abs(rendered.duration_frames - 36) <= 2

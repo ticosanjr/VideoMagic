@@ -59,7 +59,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("shows backend errors globally with details", async ({ page }) => {
-  await page.route("**/api/v1/jobs", (route) =>
+  await page.route("**/api/v1/jobs*", (route) =>
     route.fulfill({
       status: 500,
       json: {

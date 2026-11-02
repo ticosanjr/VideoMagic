@@ -336,3 +336,31 @@ test("drags a library asset onto the timeline as an overlay", async ({ page }) =
   expect(posts[0]["path"]).toBe("/tmp/logo.png");
   expect(Number(posts[0]["start_sec"])).toBeGreaterThanOrEqual(0);
 });
+
+
+test("does not reload deliverables for a timeline edit", async ({ page }) => {
+  const deliverableRequests: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (
+      url.pathname.endsWith("/review") ||
+      url.pathname.endsWith("/thumbnails") ||
+      url.pathname.endsWith("/thumbnails/metrics") ||
+      url.pathname.endsWith("/review/comments") ||
+      url.pathname === "/api/v1/assets"
+    ) {
+      deliverableRequests.push(url.pathname);
+    }
+  });
+
+  await page.reload();
+  await expect(page.getByTestId("timeline-canvas")).toBeVisible();
+  const before = deliverableRequests.length;
+
+  const canvas = page.getByTestId("timeline-canvas");
+  await canvas.click({ position: { x: 150, y: 80 } });
+  await page.getByRole("button", { name: "Move", exact: true }).click();
+  await expect(page.getByText(/Timeline revision/)).toBeVisible();
+
+  expect(deliverableRequests.length).toBe(before);
+});

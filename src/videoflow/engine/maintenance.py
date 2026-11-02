@@ -23,6 +23,34 @@ def _size(path: Path) -> int:
     return total
 
 
+def _prune_old_entries(
+    directory: Path,
+    cutoff: float,
+    *,
+    kind: str,
+    removed: list[dict[str, Any]],
+    dry_run: bool,
+) -> int:
+    freed = 0
+    if not directory.is_dir():
+        return freed
+    for item in directory.iterdir():
+        try:
+            if item.stat().st_mtime >= cutoff:
+                continue
+        except OSError:
+            continue
+        size = _size(item)
+        removed.append({"kind": kind, "path": str(item), "bytes": size})
+        freed += size
+        if not dry_run:
+            if item.is_dir():
+                shutil.rmtree(item, ignore_errors=True)
+            else:
+                item.unlink(missing_ok=True)
+    return freed
+
+
 def prune_output(
     output: Path,
     *,
@@ -66,6 +94,42 @@ def prune_output(
                     shutil.rmtree(item, ignore_errors=True)
                 else:
                     item.unlink(missing_ok=True)
+    for kind, directory in (
+        ("preview-frame", output / "preview" / "frames"),
+        ("render-segment", output / "render" / "segments"),
+    ):
+        freed += _prune_old_entries(
+            directory,
+            cutoff,
+            kind=kind,
+            removed=removed,
+            dry_run=dry_run,
+        )
+    legacy_preview = output / "preview" / "timeline-preview.mp4"
+    if legacy_preview.is_file():
+        size = legacy_preview.stat().st_size
+        removed.append(
+            {"kind": "preview-intermediate", "path": str(legacy_preview), "bytes": size}
+        )
+        freed += size
+        if not dry_run:
+            legacy_preview.unlink(missing_ok=True)
+    for directory in (output / "preview", output / "render"):
+        if not directory.is_dir():
+            continue
+        for partial in directory.iterdir():
+            if not partial.name.endswith(".part.mp4"):
+                continue
+            try:
+                if partial.stat().st_mtime >= cutoff:
+                    continue
+            except OSError:
+                continue
+            size = partial.stat().st_size
+            removed.append({"kind": "partial", "path": str(partial), "bytes": size})
+            freed += size
+            if not dry_run:
+                partial.unlink(missing_ok=True)
     runs = read_runs(output)
     trimmed = 0
     if len(runs) > keep_runs:

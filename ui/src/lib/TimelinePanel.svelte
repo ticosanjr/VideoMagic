@@ -204,8 +204,12 @@
     }
   }
 
-  async function loadTimeline(keepClipId = "") {
+  async function loadTimeline(
+    keepClipId = "",
+    options: { assets?: boolean; deliverables?: boolean } = {}
+  ) {
     if (!selected) return;
+    const { assets = true, deliverables = true } = options;
     loading = true;
     error = "";
     editStatus = "";
@@ -217,7 +221,7 @@
       if (!keepClipId) selectedIds = [];
       comments = loaded.comments ?? [];
       overlays = loaded.overlays ?? [];
-      void loadAssets();
+      if (assets) void loadAssets();
       const keep = keepClipId
         ? timeline.video.find((clip) => clip.id === keepClipId) ?? null
         : null;
@@ -236,7 +240,7 @@
         void hydratePreview(jobId, timeline.revision);
         void hydrateRender(jobId);
       }
-      await loadDeliverables();
+      if (deliverables) await loadDeliverables();
     } catch (reason) {
       error = errorMessage(reason);
       timeline = null;
@@ -306,32 +310,29 @@
   }
 
   async function loadDeliverables() {
-    try {
-      const review = await getJobReview(selected);
-      const payload = (review.review ?? {}) as {
+    const [reviewResult, thumbResult, metricResult, commentResult] =
+      await Promise.allSettled([
+        getJobReview(selected),
+        getJobThumbnails(selected),
+        getThumbnailMetrics(selected),
+        getReviewComments(selected)
+      ]);
+    if (reviewResult.status === "fulfilled") {
+      const payload = (reviewResult.value.review ?? {}) as {
         checks?: Array<{ id: string; label: string; ok: boolean }>;
       };
       reviewChecks = payload.checks ?? [];
-      reviewApproval = review.approval ?? {};
-    } catch {
+      reviewApproval = reviewResult.value.approval ?? {};
+    } else {
       reviewChecks = [];
       reviewApproval = {};
     }
-    try {
-      thumbnails = await getJobThumbnails(selected);
-    } catch {
-      thumbnails = { variants: [], selected: "" };
-    }
-    try {
-      thumbMetrics = await getThumbnailMetrics(selected);
-    } catch {
-      thumbMetrics = [];
-    }
-    try {
-      reviewComments = await getReviewComments(selected);
-    } catch {
-      reviewComments = [];
-    }
+    thumbnails =
+      thumbResult.status === "fulfilled"
+        ? thumbResult.value
+        : { variants: [], selected: "" };
+    thumbMetrics = metricResult.status === "fulfilled" ? metricResult.value : [];
+    reviewComments = commentResult.status === "fulfilled" ? commentResult.value : [];
   }
 
   async function decideReview(approved: boolean) {
@@ -537,7 +538,7 @@
         fade_out_sec: fadeOut
       });
       status = `Clip style saved at revision ${response.revision}.`;
-      await loadTimeline(selectedClip.id);
+      await loadTimeline(selectedClip.id, { assets: false, deliverables: false });
     } catch (reason) {
       error = errorMessage(reason);
     } finally {
@@ -565,7 +566,7 @@
         duration_sec: 3,
         kind: asset.kind === "video" ? "video" : "image",
       });
-      await loadTimeline(selectedClip?.id ?? "");
+      await loadTimeline(selectedClip?.id ?? "", { assets: false, deliverables: false });
     } catch (reason) {
       error = errorMessage(reason);
     }
@@ -574,7 +575,7 @@
   async function removeOverlay(overlayId: string) {
     try {
       overlays = await removeTimelineOverlay(selected, overlayId);
-      await loadTimeline(selectedClip?.id ?? "");
+      await loadTimeline(selectedClip?.id ?? "", { assets: false, deliverables: false });
     } catch (reason) {
       error = errorMessage(reason);
     }
@@ -751,11 +752,11 @@
         ...values
       });
       status = `Timeline revision ${response.revision} saved. ${response.warning}`;
-      await loadTimeline(selectedClip.id);
+      await loadTimeline(selectedClip.id, { assets: false, deliverables: false });
       schedulePreview();
     } catch (reason) {
       if (reason instanceof ApiError && reason.code === "precondition_failed") {
-        await loadTimeline(selectedClip?.id ?? "");
+        await loadTimeline(selectedClip?.id ?? "", { assets: false, deliverables: false });
         error = "The timeline changed in another window. Reloaded the latest revision.";
       } else {
         error = errorMessage(reason);
@@ -771,11 +772,11 @@
     try {
       const response = await editTimelineBatch(selected, timeline?.revision, edits as never);
       status = `Batch applied to ${response.applied} clip(s) at revision ${response.revision}.`;
-      await loadTimeline(selectedClip?.id ?? "");
+      await loadTimeline(selectedClip?.id ?? "", { assets: false, deliverables: false });
       schedulePreview();
     } catch (reason) {
       if (reason instanceof ApiError && reason.code === "precondition_failed") {
-        await loadTimeline(selectedClip?.id ?? "");
+        await loadTimeline(selectedClip?.id ?? "", { assets: false, deliverables: false });
         error = "The timeline changed in another window. Reloaded the latest revision.";
       } else {
         error = errorMessage(reason);
@@ -829,7 +830,7 @@
     editBusy = true;
     try {
       await undoTimeline(selected);
-      await loadTimeline();
+      await loadTimeline("", { assets: false, deliverables: false });
       schedulePreview();
       status = "Undid the last timeline edit.";
     } catch (reason) {
@@ -843,7 +844,7 @@
     editBusy = true;
     try {
       await redoTimeline(selected);
-      await loadTimeline();
+      await loadTimeline("", { assets: false, deliverables: false });
       schedulePreview();
       status = "Redid the last timeline edit.";
     } catch (reason) {

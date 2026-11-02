@@ -89,7 +89,14 @@ class Job:
     idempotency_key: str = ""
     finalizer: Callable[[Job], None] | None = field(default=None, repr=False)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, *, summary: bool = False) -> dict[str, Any]:
+        options = self.options
+        if summary and isinstance(options, dict):
+            options = {
+                key: value
+                for key, value in options.items()
+                if key not in {"recipe", "transcript_sentences"}
+            }
         return {
             "job_id": str(self.job_id),
             "status": self.status,
@@ -103,7 +110,7 @@ class Job:
             "message": self.message,
             "source": str(self.source),
             "output": str(self.output),
-            "options": self.options,
+            "options": options,
             "result": self.result,
             "error": self.error,
             "created_at": self.created_at,

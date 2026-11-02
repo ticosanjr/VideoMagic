@@ -1867,11 +1867,20 @@ def register_routes(
         return {"ok": True, "options": options}
 
     @app.get("/api/v1/jobs")
-    def list_jobs(limit: int | None = None, offset: int = 0) -> dict[str, object]:
+    def list_jobs(
+        limit: int | None = None, offset: int = 0, summary: bool = False
+    ) -> dict[str, object]:
+        all_jobs = jobs.list()
+        start = max(0, int(offset))
+        selected = (
+            all_jobs[start:]
+            if limit is None
+            else all_jobs[start : start + max(0, int(limit))]
+        )
         return {
             "ok": True,
-            "jobs": [job.to_dict() for job in jobs.list(limit=limit, offset=offset)],
-            "total": len(jobs.list()),
+            "jobs": [job.to_dict(summary=summary) for job in selected],
+            "total": len(all_jobs),
         }
 
     @app.get("/api/v1/jobs/{job_id}")

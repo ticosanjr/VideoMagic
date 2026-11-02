@@ -71,10 +71,11 @@ def _write(assets: list[dict[str, Any]]) -> None:
     )
     os.replace(temporary, path)
     try:
-        from videoflow.application.database import upsert_asset
+        from videoflow.application.database import upsert_assets
 
-        for asset in assets:
-            upsert_asset(str(asset.get("id", "")), asset)
+        upsert_assets(
+            [(str(asset.get("id", "")), asset) for asset in assets]
+        )
     except Exception:
         pass
 

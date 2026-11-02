@@ -144,7 +144,7 @@ def build_preview(
     cancel_event: Any | None = None,
     state: ProjectState | None = None,
 ) -> Path:
-    full, preview = preview_paths(job)
+    _full, preview = preview_paths(job)
     preview.parent.mkdir(parents=True, exist_ok=True)
     state_path = Path(
         str((job.result or {}).get("state_path") or job.output / "project_state.json")
@@ -167,31 +167,28 @@ def build_preview(
                 state_path.read_text(encoding="utf-8")
             )
             ass_path = job.output / "titles.ass"
-            report(20, "Rendering timeline")
+            report(20, "Rendering preview")
             adapter = FFmpegAdapter(cancel_event=cancel_event)
             export_mp4(
                 loaded,
-                full,
+                temporary,
                 adapter=adapter,
                 audio_filters=_audio_filters(job) + _track_filters(job),
                 video_filters=_video_filters(job) + _video_track_filters(job),
                 ass_path=ass_path if ass_path.is_file() else None,
+                scale_height=height,
             )
         else:
             report(20, "Using the last MP4 artifact")
             FFmpegAdapter(cancel_event=cancel_event).transcode_preview(
-                _fallback_source(job), full
+                _fallback_source(job), temporary, width=height
             )
-        report(80, f"Building {height}p proxy")
-        FFmpegAdapter(cancel_event=cancel_event).transcode_preview(
-            full, temporary, width=height
-        )
+        report(95, "Finalizing preview")
         temporary.replace(preview)
         report(100, "Preview ready")
         return preview
     finally:
         temporary.unlink(missing_ok=True)
-        full.unlink(missing_ok=True)
 
 
 def _stat(path: Path) -> list[int] | None:

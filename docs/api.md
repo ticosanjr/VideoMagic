@@ -14,9 +14,13 @@ Implemented today:
 - `POST /api/v1/batches`, `GET /api/v1/batches`,
   `GET /api/v1/batches/{id}`, `POST /api/v1/batches/{id}/cancel`
 - `GET /api/v1/runs?output=...&limit=...&offset=...` returns paginated run history
-- `GET /api/v1/jobs?limit=...&offset=...` and `/api/v1/batches?limit=...&offset=...` paginate persisted jobs/batches
+- `GET /api/v1/jobs?limit=...&offset=...&summary=true` and
+  `/api/v1/batches?limit=...&offset=...` paginate persisted jobs/batches.
+  `summary=true` omits the embedded recipe document from every job.
 - `POST /api/v1/exports/validate` checks FCPXML, XMEML, and Kdenlive structure
-- `POST /api/v1/maintenance/prune` trims output checkpoints, B-roll cache, and run history
+- `POST /api/v1/maintenance/prune` trims output checkpoints, B-roll cache, run
+  history, old preview frames, legacy preview intermediates, and render
+  segments
 - `GET /api/v1/fs/roots`, `GET /api/v1/fs/list`, `POST /api/v1/fs/mkdir`
 - `GET /api/v1/media/probe`
 - `POST /api/v1/media/import`

@@ -241,3 +241,36 @@ def test_legacy_tables_gain_the_new_columns(home: Path, tmp_path: Path) -> None:
 
     assert {"status", "priority", "lease_expires", "finished_at"} <= columns
     assert version == "1"
+
+
+def test_schema_is_initialized_once_per_database(
+    home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[int] = []
+    original = database._create_schema
+
+    def counted(connection: sqlite3.Connection) -> None:
+        calls.append(1)
+        original(connection)
+
+    monkeypatch.setattr(database, "_create_schema", counted)
+
+    with database.connect():
+        pass
+    with database.connect():
+        pass
+
+    assert len(calls) == 1
+
+
+def test_assets_are_batched_in_one_transaction(home: Path) -> None:
+    database.upsert_assets(
+        [
+            ("a1", {"id": "a1", "name": "one", "kind": "video"}),
+            ("a2", {"id": "a2", "name": "two", "kind": "audio"}),
+        ]
+    )
+
+    stored = database.list_assets_db()
+
+    assert {item["id"] for item in stored} == {"a1", "a2"}

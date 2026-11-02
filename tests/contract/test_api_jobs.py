@@ -961,3 +961,24 @@ def test_provider_connection_test(monkeypatch) -> None:
     payload = response.json()
     assert payload["ok"] is True
     assert payload["secret_present"] is True
+
+
+def test_job_list_can_omit_the_embedded_recipe(monkeypatch, tmp_path: Path) -> None:
+    from tests.contract.test_api_timeline import _client, _job
+
+    client, manager = _client(monkeypatch, tmp_path)
+    job = _job(manager, tmp_path)
+    job.options["recipe"] = {
+        "schema_version": 1,
+        "id": "large",
+        "name": "Large",
+        "steps": [{"id": "ingest", "type": "ingest"}],
+    }
+    job.options["mode"] = "recipe"
+
+    summary = client.get("/api/v1/jobs", params={"summary": True}).json()["jobs"][0]
+    full = client.get("/api/v1/jobs").json()["jobs"][0]
+
+    assert "recipe" not in summary["options"]
+    assert summary["options"]["mode"] == "recipe"
+    assert full["options"]["recipe"]["id"] == "large"

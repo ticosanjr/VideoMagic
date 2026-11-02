@@ -6,6 +6,7 @@ import contextlib
 import json
 import shutil
 import sqlite3
+import threading
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,18 +15,15 @@ from typing import Any
 from videoflow.runtime import portable_home
 
 DB_FILE = "videoflow.db"
+_initialized: set[str] = set()
+_init_lock = threading.Lock()
 
 
 def db_path() -> Path:
     return portable_home() / DB_FILE
 
 
-def connect() -> sqlite3.Connection:
-    path = db_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(path, timeout=10.0)
-    connection.execute("PRAGMA journal_mode=WAL")
-    connection.execute("PRAGMA synchronous=NORMAL")
+def _create_schema(connection: sqlite3.Connection) -> None:
     connection.execute(
         "CREATE TABLE IF NOT EXISTS jobs ("
         "job_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL, "
@@ -68,6 +66,20 @@ def connect() -> sqlite3.Connection:
     connection.execute(
         "INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', '1')"
     )
+
+
+def connect() -> sqlite3.Connection:
+    path = db_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fresh = not path.is_file()
+    key = str(path.resolve())
+    connection = sqlite3.connect(path, timeout=10.0)
+    connection.execute("PRAGMA synchronous=NORMAL")
+    with _init_lock:
+        if fresh or key not in _initialized:
+            connection.execute("PRAGMA journal_mode=WAL")
+            _create_schema(connection)
+            _initialized.add(key)
     connection.commit()
     return connection
 
@@ -128,16 +140,27 @@ def list_jobs() -> list[dict[str, Any]]:
     return result
 
 
-def upsert_asset(asset_id: str, payload: dict[str, Any]) -> None:
+def upsert_assets(items: list[tuple[str, dict[str, Any]]]) -> None:
+    if not items:
+        return
     try:
         with contextlib.closing(connect()) as connection:
-            connection.execute(
-                "INSERT OR REPLACE INTO assets (asset_id, payload, updated_at) VALUES (?, ?, ?)",
-                (asset_id, json.dumps(payload, sort_keys=True), _now()),
+            now = _now()
+            connection.executemany(
+                "INSERT OR REPLACE INTO assets (asset_id, payload, updated_at) "
+                "VALUES (?, ?, ?)",
+                [
+                    (asset_id, json.dumps(payload, sort_keys=True), now)
+                    for asset_id, payload in items
+                ],
             )
             connection.commit()
     except sqlite3.Error:
         pass
+
+
+def upsert_asset(asset_id: str, payload: dict[str, Any]) -> None:
+    upsert_assets([(asset_id, payload)])
 
 
 def list_assets_db(

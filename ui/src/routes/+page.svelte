@@ -394,13 +394,21 @@
     syncHash();
     window.addEventListener("hashchange", syncHash);
     window.addEventListener("keydown", onGlobalKey);
+    let lastApiError = "";
+    let lastApiErrorAt = 0;
     const onApiError = (event: Event) => {
       const detail = (event as CustomEvent<{
         title?: string;
         code?: string;
         message?: string;
         detail?: string;
+        path?: string;
       }>).detail;
+      const key = `${detail.code ?? ""}|${detail.message ?? ""}|${detail.path ?? ""}`;
+      const now = Date.now();
+      if (key === lastApiError && now - lastApiErrorAt < 5000) return;
+      lastApiError = key;
+      lastApiErrorAt = now;
       notify(
         "error",
         detail.message ?? "Backend request failed",
@@ -412,7 +420,9 @@
     window.addEventListener("videoflow:api-error", onApiError);
     void connectToService();
     void refreshJobs();
-    jobsTimer = setInterval(() => void refreshJobs(), 8000);
+    jobsTimer = setInterval(() => {
+      if (!document.hidden) void refreshJobs();
+    }, 8000);
     void getSettings()
       .then(({ settings }) => {
         locale = settings.runtime.locale || "en";

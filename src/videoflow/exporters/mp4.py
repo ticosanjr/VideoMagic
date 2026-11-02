@@ -323,6 +323,7 @@ def _render_video_group(
     group_index: int,
     crf: int,
     preset: str,
+    scale_height: int | None = None,
 ) -> Path:
     video = sorted(state.video_segments, key=lambda item: item.timeline_in_frame)
     transitions = [item.transition_out for item in video[:-1]]
@@ -366,6 +367,11 @@ def _render_video_group(
             label = f"[x{offset_index}]"
             cumulative += durations[offset_index] - seconds
 
+    if scale_height is not None:
+        height = max(64, min(2160, int(scale_height)))
+        chains.append(f"{label}scale=-2:{height}:flags=lanczos[vout]")
+        label = "[vout]"
+
     target = directory / f"group-{group_index:04d}.mp4"
     renderer.render(
         [
@@ -404,6 +410,7 @@ def _export_mp4_segmented(
     video_filters: Sequence[str] | None,
     ass_path: Path | None,
     progress: Callable[[int], None] | None,
+    scale_height: int | None = None,
 ) -> Path:
     media, video_map, audio_map = require_timeline(state)
     video = sorted(state.video_segments, key=lambda item: item.timeline_in_frame)
@@ -432,6 +439,7 @@ def _export_mp4_segmented(
                     group_index=group_index,
                     crf=crf,
                     preset=preset,
+                    scale_height=scale_height,
                 )
             )
             if progress is not None:
@@ -463,13 +471,18 @@ def _export_mp4_segmented(
 
         audio_only = directory / "audio.m4a"
         audio_inputs, audio_graph = _audio_graph_inputs(state, media, source)
+        audio_label = "[aout]"
+        audio_effects = [item for item in (audio_filters or []) if item]
+        if audio_effects:
+            audio_graph += f";{audio_label}{','.join(audio_effects)}[afinal]"
+            audio_label = "[afinal]"
         renderer.render(
             [
                 *audio_inputs,
                 "-filter_complex",
                 audio_graph,
                 "-map",
-                "[aout]",
+                audio_label,
                 "-vn",
                 "-c:a",
                 "aac",
@@ -500,13 +513,12 @@ def _export_mp4_segmented(
                 str(combined),
             ]
         )
-        has_finishing = (
-            bool(audio_filters)
-            or bool(video_filters)
+        has_video_finishing = (
+            bool(video_filters)
             or ass_path is not None
             or bool(state.overlays)
         )
-        if not has_finishing:
+        if not has_video_finishing:
             shutil.move(str(combined), str(destination))
             if progress is not None:
                 progress(100)
@@ -551,10 +563,11 @@ def _export_mp4_segmented(
             adapter=renderer,
             crf=crf,
             preset=preset,
-            audio_filters=audio_filters,
+            audio_filters=None,
             video_filters=video_filters,
             ass_path=ass_path,
             progress=wrapped,
+            scale_height=None,
         )
 
 
@@ -573,6 +586,7 @@ def export_mp4(
     video_filters: Sequence[str] | None = None,
     ass_path: Path | None = None,
     progress: Callable[[int], None] | None = None,
+    scale_height: int | None = None,
 ) -> Path:
     """Render the validated main timeline to an H.264/AAC MP4 atomically."""
 
@@ -591,6 +605,7 @@ def export_mp4(
             video_filters=video_filters,
             ass_path=ass_path,
             progress=progress,
+            scale_height=scale_height,
         )
     temporary = destination.with_name(
         f".{destination.stem}.{uuid4().hex}.part.mp4"
@@ -606,6 +621,7 @@ def export_mp4(
             video_filters=video_filters,
             ass_path=ass_path,
             progress=progress,
+            scale_height=scale_height,
         )
         temporary.replace(destination)
     except BaseException:
@@ -625,6 +641,7 @@ def _render_classic_mp4(
     video_filters: Sequence[str] | None = None,
     ass_path: Path | None = None,
     progress: Callable[[int], None] | None = None,
+    scale_height: int | None = None,
 ) -> Path:
     """Render the classic single-pass graph to ``output_path``."""
 
@@ -674,6 +691,10 @@ def _render_classic_mp4(
         input_index += 1
     if overlay_chains:
         graph += ";" + ";".join(overlay_chains)
+    if scale_height is not None:
+        height = max(64, min(2160, int(scale_height)))
+        graph += f";{video_label}scale=-2:{height}:flags=lanczos[vscale]"
+        video_label = "[vscale]"
     destination = Path(output_path).expanduser()
     destination.parent.mkdir(parents=True, exist_ok=True)
     renderer = adapter or FFmpegAdapter()

@@ -2234,6 +2234,7 @@
   function watch(jobId: string) {
     clearInterval(poll);
     poll = setInterval(async () => {
+      if (document.hidden) return;
       try {
         job = await getJob(jobId);
         if (job) {
@@ -2326,6 +2327,7 @@
   function watchBatch(batchId: string) {
     clearInterval(batchPoll);
     batchPoll = setInterval(async () => {
+      if (document.hidden) return;
       try {
         batch = await getBatch(batchId);
         if (["succeeded", "failed", "cancelled"].includes(batch.status)) {

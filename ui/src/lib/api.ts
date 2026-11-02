@@ -804,6 +804,21 @@ function apiDetail(payload: unknown): Record<string, unknown> {
   return {};
 }
 
+function emitApiError(error: ApiError, path: string, title: string): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent("videoflow:api-error", {
+      detail: {
+        title,
+        code: error.code,
+        message: error.message,
+        detail: describeError(error),
+        path
+      }
+    })
+  );
+}
+
 function raiseApiError(
   response: Response,
   payload: unknown,
@@ -817,27 +832,25 @@ function raiseApiError(
     response.status,
     detail
   );
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(
-      new CustomEvent("videoflow:api-error", {
-        detail: {
-          title: `Backend error ${response.status}`,
-          code: error.code,
-          message: error.message,
-          detail: describeError(error),
-          path
-        }
-      })
-    );
-  }
+  emitApiError(error, path, `Backend error ${response.status}`);
   throw error;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...init
-  });
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      headers: { "Content-Type": "application/json" },
+      ...init
+    });
+  } catch (reason) {
+    const error = new ApiError(
+      "network_error",
+      reason instanceof Error ? reason.message : "The backend is unreachable."
+    );
+    emitApiError(error, path, "Backend unreachable");
+    throw error;
+  }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) raiseApiError(response, payload, path);
   return payload as T;
@@ -2350,8 +2363,10 @@ export function assetFileUrl(assetId: string): string {
   return `/api/v1/assets/${encodeURIComponent(assetId)}/file`;
 }
 
-export async function listJobs(): Promise<Job[]> {
-  const response = await request<{ ok: boolean; jobs: Job[] }>("/api/v1/jobs");
+export async function listJobs(summary = true): Promise<Job[]> {
+  const response = await request<{ ok: boolean; jobs: Job[] }>(
+    `/api/v1/jobs?summary=${summary ? "true" : "false"}`
+  );
   return response.jobs;
 }
 

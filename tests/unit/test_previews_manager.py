@@ -143,11 +143,17 @@ def test_build_preview_renders_from_project_state(
     )
 
     assert result == job.output / "preview" / "preview.mp4"
-    assert seen["target"] == job.output / "preview" / "timeline-preview.mp4"
-    assert "ass_path" in seen["kwargs"]  # type: ignore[operator]
+    target = seen["target"]
+    assert isinstance(target, Path)
+    assert target.parent == job.output / "preview"
+    assert target.name.endswith(".part.mp4")
+    kwargs = seen["kwargs"]
+    assert isinstance(kwargs, dict)
+    assert "ass_path" in kwargs
+    assert kwargs["scale_height"] == previews.proxy_height()
     assert messages[0] == (5, "Reading project state")
     assert messages[-1] == (100, "Preview ready")
-    assert result.read_bytes() == b"preview"
+    assert result.read_bytes() == b"full"
 
 
 def test_build_preview_falls_back_to_the_last_artifact(

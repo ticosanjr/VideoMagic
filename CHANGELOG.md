@@ -3,6 +3,35 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.25.2] - 2026-11-02
+
+### Changed
+
+- **Previews render once at proxy height.** The old full-resolution render plus
+  a second transcode is gone; previews are encoded directly at the configured
+  proxy height and written atomically.
+- **Audio-only filters no longer re-encode video.** Long segmented timelines
+  apply audio filters on the audio track and copy the video, skipping a whole
+  video encode.
+- **Timeline edits reload less.** Clip, style, overlay, undo, and redo changes
+  no longer refetch assets or review/thumbnail data; the four deliverable calls
+  run in parallel on initial load.
+- **The job list can omit embedded recipes.** `GET /jobs?summary=true` keeps the
+  fields the UI needs and drops the full recipe document from every row; the
+  shell uses it for its eight-second poll.
+- **SQLite initializes once per database.** Schema checks run on the first
+  connection instead of every connection, and asset scans upsert in one
+  transaction instead of one connection per file.
+- **Maintenance prunes preview frames, render segments, legacy preview
+  intermediates, and stale partial files** alongside checkpoints and B-roll.
+- Repeated API errors are deduplicated, network failures reach the global
+  notification path, and background polling pauses while the window is hidden.
+
+### Notes
+
+- Full-tree coverage is 96.2%.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.25.1] - 2026-11-02
 
 ### Fixed

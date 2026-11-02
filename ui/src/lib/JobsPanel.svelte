@@ -75,7 +75,9 @@
 
   onMount(() => {
     void refresh();
-    timer = setInterval(() => void refresh(), 4000);
+    timer = setInterval(() => {
+      if (!document.hidden) void refresh();
+    }, 4000);
     return () => clearInterval(timer);
   });
 

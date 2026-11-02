@@ -64,3 +64,38 @@ def test_global_cache_prune_by_age_and_size(monkeypatch, tmp_path: Path) -> None
     assert result["ok"] is True
     assert str(old) in result["removed"]
     assert new.is_file()
+
+
+def test_prune_removes_old_preview_frames_segments_and_intermediates(
+    tmp_path: Path,
+) -> None:
+    old = time.time() - 30 * 86400
+    frames = tmp_path / "preview" / "frames"
+    (frames / "1").mkdir(parents=True)
+    (frames / "1" / "frame.jpg").write_bytes(b"old")
+    os.utime(frames / "1", (old, old))
+    (frames / "2").mkdir()
+    (frames / "2" / "frame.jpg").write_bytes(b"new")
+
+    segments = tmp_path / "render" / "segments"
+    segments.mkdir(parents=True)
+    (segments / "old.mp4").write_bytes(b"old")
+    os.utime(segments / "old.mp4", (old, old))
+    (segments / "new.mp4").write_bytes(b"new")
+
+    legacy = tmp_path / "preview" / "timeline-preview.mp4"
+    legacy.write_bytes(b"legacy")
+    partial = tmp_path / "preview" / ".preview.part.mp4"
+    partial.write_bytes(b"partial")
+    os.utime(partial, (old, old))
+
+    result = prune_output(tmp_path, keep_days=14)
+
+    assert not (frames / "1").exists()
+    assert (frames / "2").is_dir()
+    assert not (segments / "old.mp4").exists()
+    assert (segments / "new.mp4").is_file()
+    assert not legacy.exists()
+    assert not partial.exists()
+    kinds = {item["kind"] for item in result["removed"]}
+    assert {"preview-frame", "render-segment", "preview-intermediate", "partial"} <= kinds

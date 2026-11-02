@@ -201,3 +201,50 @@ def test_large_crossfade_timeline_uses_bounded_groups(
         command for command in renderer.commands if "[aout]" in " ".join(command)
     )
     assert "acrossfade=d=" in " ".join(audio_command)
+
+
+def test_audio_only_filters_do_not_reencode_video(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state = sample_state(tmp_path)
+    state.video_segments = [
+        state.video_segments[0].model_copy(
+            update={
+                "clip_id": f"v{index}",
+                "source_in_frame": 0,
+                "source_out_frame": 10,
+                "timeline_in_frame": index * 10,
+                "timeline_out_frame": index * 10 + 10,
+            }
+        )
+        for index in range(17)
+    ]
+    state.audio_segments = []
+    from videoflow.domain.state import AudioSegment
+
+    state.audio_segments = [
+        AudioSegment(
+            clip_id=f"v{index}",
+            source_in_sample=0,
+            source_out_sample=1600,
+            timeline_in_sample=index * 1600,
+            timeline_out_sample=index * 1600 + 1600,
+        )
+        for index in range(17)
+    ]
+    renderer = FakeRenderer()
+
+    export_mp4(
+        state,
+        tmp_path / "audio-filtered.mp4",
+        adapter=renderer,
+        audio_filters=["volume=0.5"],
+    )
+
+    video_commands = [command for command in renderer.commands if "-c:v" in command]
+    assert len(video_commands) == 17
+    audio_commands = [
+        command for command in renderer.commands if "[afinal]" in " ".join(command)
+    ]
+    assert audio_commands
+    assert "volume=0.5" in " ".join(audio_commands[0])
