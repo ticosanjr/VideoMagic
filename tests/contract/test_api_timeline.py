@@ -602,3 +602,30 @@ def test_timeline_deactivate_activate_and_reports_inactive(monkeypatch, tmp_path
     payload = client.get(base).json()
     assert [clip["id"] for clip in payload["video"]] == ["v1", "v2"]
     assert payload["inactive"] == []
+
+
+def test_timeline_reports_live_eligibility_and_source_stream(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    (tmp_path / "source.mp4").write_bytes(b"fixture")
+    job = _job(manager, tmp_path)
+    base = f"/api/v1/jobs/{job.job_id}/timeline"
+
+    payload = client.get(base).json()
+    assert payload["live_eligible"] is True
+    assert payload["live_reason"] == "hard cuts only"
+
+    response = client.get(
+        f"/api/v1/jobs/{job.job_id}/source/file",
+        headers={"Range": "bytes=0-1"},
+    )
+    assert response.status_code == 206
+    assert response.content == b"fixture"[:2]
+
+    transition = client.patch(
+        f"/api/v1/jobs/{job.job_id}/timeline/clip/v1",
+        json={"transition_type": "crossfade"},
+    )
+    assert transition.status_code == 200, transition.text
+    payload = client.get(base).json()
+    assert payload["live_eligible"] is False
+    assert "transitions" in payload["live_reason"]

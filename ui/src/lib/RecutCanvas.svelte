@@ -5,12 +5,14 @@
     timeline,
     selectedId = "",
     busy = false,
+    playhead = 0,
     onselect,
     ontoggle
   }: {
     timeline: TimelineData;
     selectedId?: string;
     busy?: boolean;
+    playhead?: number;
     onselect: (kind: "active" | "inactive", id: string) => void;
     ontoggle: (id: string, active: boolean) => void;
   } = $props();
@@ -137,6 +139,9 @@
         {/each}
       </div>
 
+      {#if playhead > 0}
+        <span class="absolute bottom-0 top-6 z-20 w-px bg-rose-300" style={`left:${leftFor(playhead)}px`} data-testid="recut-playhead"></span>
+      {/if}
       <p class="absolute bottom-2 left-2 text-[9px] text-neutral-600">
         Source time · {sourceDuration.toFixed(1)}s · double-click a block to toggle it
       </p>

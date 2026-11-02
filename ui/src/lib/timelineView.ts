@@ -58,3 +58,29 @@ export function groupTrimEdits(
   }
   return edits;
 }
+
+export interface LiveSegment {
+  id: string;
+  start: number;
+  end: number;
+  outputStart: number;
+}
+
+/** Active source ranges in playback order; gaps are inactive and never played. */
+export function liveSegments(video: TimelineClip[], fps: number): LiveSegment[] {
+  const active = video
+    .map((clip) => {
+      const start =
+        clip.source_start_sec ?? (clip.source_in_frame ?? 0) / Math.max(1, fps);
+      const end = clip.source_end_sec ?? (clip.source_out_frame ?? 0) / Math.max(1, fps);
+      return { id: clip.id, start, end };
+    })
+    .filter((clip) => clip.end > clip.start)
+    .sort((left, right) => left.start - right.start);
+  let cursor = 0;
+  return active.map((clip) => {
+    const segment = { ...clip, outputStart: cursor };
+    cursor += clip.end - clip.start;
+    return segment;
+  });
+}

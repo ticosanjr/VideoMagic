@@ -1834,6 +1834,8 @@ export interface TimelineData {
   fps: number;
   duration_sec: number;
   source_duration_sec: number;
+  live_eligible: boolean;
+  live_reason: string;
   video: TimelineClip[];
   audio: TimelineClip[];
   captions: Array<{
@@ -2392,6 +2394,10 @@ export function renderFileUrl(jobId: string): string {
 
 export function previewFileUrl(jobId: string): string {
   return `/api/v1/jobs/${encodeURIComponent(jobId)}/preview/file`;
+}
+
+export function jobSourceFileUrl(jobId: string): string {
+  return `/api/v1/jobs/${encodeURIComponent(jobId)}/source/file`;
 }
 
 export async function getPreviewStatus(jobId: string): Promise<PreviewStatus> {

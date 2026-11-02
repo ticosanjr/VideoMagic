@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clipVisible, groupTrimEdits, visibleRange } from "./timelineView";
+import { clipVisible, groupTrimEdits, liveSegments, visibleRange } from "./timelineView";
 
 describe("visibleRange", () => {
   it("maps scroll and zoom to a padded time window", () => {
@@ -56,5 +56,31 @@ describe("groupTrimEdits", () => {
 
   it("skips edits that would not change the clip", () => {
     expect(groupTrimEdits(clips, "right", 0, 20)).toEqual([]);
+  });
+});
+
+
+describe("liveSegments", () => {
+  it("orders active ranges and skips the inactive gap in output time", () => {
+    const segments = liveSegments(
+      [
+        { id: "b", start_sec: 5, end_sec: 7, source_in_frame: 75, source_out_frame: 105 },
+        { id: "a", start_sec: 0, end_sec: 2, source_in_frame: 0, source_out_frame: 30 }
+      ],
+      15
+    );
+
+    expect(segments).toEqual([
+      { id: "a", start: 0, end: 2, outputStart: 0 },
+      { id: "b", start: 5, end: 7, outputStart: 2 }
+    ]);
+  });
+
+  it("uses explicit source seconds when provided", () => {
+    const segments = liveSegments(
+      [{ id: "a", start_sec: 3, end_sec: 4, source_start_sec: 10, source_end_sec: 11 }],
+      30
+    );
+    expect(segments[0]).toMatchObject({ start: 10, end: 11, outputStart: 0 });
   });
 });

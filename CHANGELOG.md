@@ -3,6 +3,26 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.28.0] - 2026-11-02
+
+### Added
+
+- **Live Recut playback in the editor.** Hard-cut timelines play the source
+  directly and jump over inactive ranges. The player shows source and output
+  time, preloads through the source stream, and can advance to the next active
+  segment.
+- `GET /jobs/{id}/source/file` streams the source with Range support.
+- The timeline payload reports `live_eligible` and `live_reason`; complex
+  timelines fall back to the rendered preview instead of playing inaccurately.
+
+### Notes
+
+- Live eligibility requires hard cuts, paired audio (J/L offsets supported via a
+  separate audio element), identity transforms, no transitions/overlays/ASS/
+  filters, and no track mute/solo.
+- Full-tree coverage is 96.0%.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.27.0] - 2026-11-02
 
 ### Added

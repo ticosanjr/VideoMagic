@@ -38,6 +38,8 @@ const timeline = {
   fps: 25,
   duration_sec: 8,
   source_duration_sec: 10,
+  live_eligible: false,
+  live_reason: "test fixture",
   inactive: [],
   video: [
     { id: "v1", start_sec: 0, end_sec: 3, source_in_frame: 0, source_out_frame: 75, zoom: 1, keyframes: 0, transition: "crossfade" },
@@ -419,4 +421,38 @@ test("persists the Recut view choice", async ({ page }) => {
   await expect(page.getByTestId("recut-canvas")).toBeVisible();
   await page.reload();
   await expect(page.getByTestId("recut-canvas")).toBeVisible();
+});
+
+
+test("shows live playback for hard-cut timelines and falls back otherwise", async ({ page }) => {
+  const liveTimeline = {
+    ...timeline,
+    duration_sec: 5,
+    source_duration_sec: 8,
+    live_eligible: true,
+    live_reason: "hard cuts only",
+    inactive: [
+      {
+        id: "v2",
+        reason: "silence",
+        video_start_sec: 3,
+        video_end_sec: 8,
+        audio_start_sec: 3,
+        audio_end_sec: 8
+      }
+    ],
+    video: [timeline.video[0]]
+  };
+  await page.route("**/api/v1/jobs/job-1/timeline", (route) =>
+    route.fulfill({ json: liveTimeline })
+  );
+  await page.reload();
+  const recut = page.getByRole("button", { name: "Recut", exact: true });
+  await expect(async () => {
+    await recut.click();
+    await expect(page.getByTestId("live-player")).toBeVisible({ timeout: 1000 });
+  }).toPass();
+
+  await expect(page.getByTestId("live-player")).toContainText("skips 1 inactive");
+  await expect(page.getByTestId("live-player")).toContainText("Play");
 });

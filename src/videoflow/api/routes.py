@@ -142,6 +142,7 @@ from videoflow.application.publishing import (
     list_targets,
     save_target,
 )
+from videoflow.application.render_inputs import read_filters
 from videoflow.application.render_queue import renders
 from videoflow.application.run_defaults import resolve_run_roots
 from videoflow.application.schedules import (
@@ -3145,6 +3146,39 @@ def register_routes(
             },
         }
 
+    def _live_playback(
+        state: ProjectState, meta: object
+    ) -> tuple[bool, str]:
+        media = state.media_info
+        if media is None:
+            return False, "no media info"
+        source = Path(media.source_path).expanduser()
+        if not source.is_file():
+            return False, "source media is offline"
+        if state.overlays:
+            return False, "overlays require the rendered preview"
+        video = sorted(state.video_segments, key=lambda item: item.timeline_in_frame)
+        audio = {clip.clip_id: clip for clip in state.audio_segments}
+        if any(clip.transition_out is not None for clip in video):
+            return False, "transitions require the rendered preview"
+        for clip in video:
+            transform = clip.transform
+            if (
+                abs(float(transform.scale) - 1.0) > 0.0001
+                or abs(float(transform.pos_x)) > 0.0001
+                or abs(float(transform.pos_y)) > 0.0001
+                or transform.keyframes
+                or transform.type != "none"
+            ):
+                return False, "clip transforms require the rendered preview"
+            if clip.clip_id not in audio:
+                return False, "audio/video segments are not paired"
+        tracks = getattr(meta, "tracks", {}) or {}
+        for state_track in tracks.values():
+            if getattr(state_track, "muted", False) or getattr(state_track, "solo", False):
+                return False, "track mute/solo requires the rendered preview"
+        return True, "hard cuts only"
+
     @app.get("/api/v1/jobs/{job_id}/timeline")
     def job_timeline(
         job_id: str, request: Request, response: Response
@@ -3174,6 +3208,22 @@ def register_routes(
         history = _timeline_history(job)
         meta = load_meta(job.output)
         broll_plan = (job.result or {}).get("broll_plan", {})
+        live_eligible, live_reason = _live_playback(state, meta)
+        if live_eligible:
+            for path in (
+                job.output / "titles.ass",
+                job.output / "color" / "filters.json",
+                job.output / "audio" / "master-filters.json",
+            ):
+                if path.suffix == ".ass" and path.is_file():
+                    live_eligible, live_reason = False, "titles require the rendered preview"
+                    break
+                if path.suffix == ".json" and read_filters(path):
+                    live_eligible, live_reason = (
+                        False,
+                        "master filters require the rendered preview",
+                    )
+                    break
         etag = _timeline_etag(state.revision)
         if (request.headers.get("if-none-match") or "").strip() in {etag, "*"}:
             return Response(status_code=304, headers={"ETag": etag})
@@ -3189,6 +3239,8 @@ def register_routes(
             "source_duration_sec": round(
                 (media.duration_frames / fps) if media is not None else 0.0, 3
             ),
+            "live_eligible": live_eligible,
+            "live_reason": live_reason,
             "video": [
                 {
                     "id": clip.clip_id,
@@ -3280,6 +3332,22 @@ def register_routes(
                 "audio_sample_rate": media.audio_sample_rate if media is not None else 0,
             },
         }
+
+    @app.get("/api/v1/jobs/{job_id}/source/file")
+    def job_source_file(job_id: str) -> FileResponse:
+        try:
+            job = jobs.get(job_id)
+            state = load_state(_timeline_state_path(job))
+            media = state.media_info
+            if media is None:
+                raise StateNotReadyError("The project has no media info.")
+            source = resolve_allowed(Path(media.source_path), allowed_roots())
+            if not source.is_file():
+                raise StateNotReadyError("The source media is not available.")
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return FileResponse(source, media_type="video/mp4", filename=source.name)
 
     @app.get("/api/v1/jobs/{job_id}/timeline/waveform")
     def job_waveform(

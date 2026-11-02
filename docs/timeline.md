@@ -64,8 +64,14 @@ ranges, transform/transition data, and the reason (`manual`, `silence`,
   inactive clips red. The view choice is stored in the browser.
 - `PATCH /timeline` accepts `deactivate` and `activate` actions. They repack the
   active timeline, record history, and bump the revision.
-- Render and NLE export consume only active segments. Live playback that skips
-  inactive regions is the next phase.
+- Render and NLE export consume only active segments.
+- `live_eligible`/`live_reason` describe whether the browser can play the active
+  source ranges directly. Hard cuts, identity transforms, paired audio (J/L
+  offsets play through a separate audio element), no transitions/overlays/
+  filters, and no track mute/solo are eligible.
+- The live Recut player streams `GET /jobs/{id}/source/file` (Range-capable),
+  seeks to each active source range, and jumps over inactive ranges. Complex
+  timelines fall back to the rendered preview with the reason shown.
 
 ## Waveforms
 

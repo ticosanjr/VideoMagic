@@ -4,6 +4,7 @@
   import ErrorBanner from "$lib/ErrorBanner.svelte";
   import TimelineCanvas from "$lib/TimelineCanvas.svelte";
   import RecutCanvas from "$lib/RecutCanvas.svelte";
+  import TimelinePlayer from "$lib/TimelinePlayer.svelte";
   import { groupTrimEdits } from "$lib/timelineView";
   import ShortEditor from "$lib/ShortEditor.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -157,6 +158,7 @@
   let previewDirty = $state(false);
   let viewMode = $state<"normal" | "recut">("normal");
   let selectedInactiveId = $state("");
+  let liveSourceTime = $state(0);
   let previewScheduled: ReturnType<typeof setTimeout> | undefined;
   let disposed = false;
   const waveformCache = new Map<string, number[]>();
@@ -1307,10 +1309,22 @@
       </div>
 
       {#if viewMode === "recut"}
+        {#if timeline.live_eligible}
+          <TimelinePlayer
+            jobId={selected}
+            {timeline}
+            ontime={(source) => (liveSourceTime = source)}
+          />
+        {:else}
+          <div data-testid="live-fallback" class="mb-2 rounded-xl border border-amber-400/20 bg-amber-950/20 px-3 py-2 text-[10px] text-amber-200">
+            Live playback unavailable: {timeline.live_reason}. Use the rendered preview.
+          </div>
+        {/if}
         <RecutCanvas
           {timeline}
           selectedId={selectedInactiveId || selectedClip?.id || ""}
           busy={editBusy}
+          playhead={liveSourceTime}
           onselect={selectRecut}
           ontoggle={toggleSegment}
         />
