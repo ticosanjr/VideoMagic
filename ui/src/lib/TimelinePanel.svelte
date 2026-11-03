@@ -1302,12 +1302,42 @@
     status = `Copied style from ${selectedClip.id}.`;
   }
 
-  async function applyBatchStyle() {
-    if (!selected || !selectedIds.length) return;
+  async function applyStyleToSelection(
+    ids: string[],
+    payload: Parameters<typeof updateTimelineClips>[2],
+    label: string
+  ) {
+    if (!selected || !ids.length) return;
     styleBusy = true;
     error = "";
     try {
-      const payload = {
+      const result = await updateTimelineClips(selected, ids, payload);
+      status = `${label} to ${result.applied} clip(s) at revision ${result.revision}.`;
+      await loadTimeline(selectedClip?.id ?? "", {
+        assets: false,
+        deliverables: false
+      });
+      schedulePreview();
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.code === "precondition_failed") {
+        await loadTimeline(selectedClip?.id ?? "", {
+          assets: false,
+          deliverables: false
+        });
+        error = "The timeline changed in another window. Reloaded the latest revision.";
+      } else {
+        error = errorMessage(reason);
+      }
+    } finally {
+      styleBusy = false;
+    }
+  }
+
+  async function applyBatchStyle() {
+    if (!selected || !selectedIds.length) return;
+    await applyStyleToSelection(
+      selectedIds,
+      {
         transition_type: batchTransitionType,
         transition_duration_frames: Math.max(1, Math.round(batchTransitionFrames)),
         fade_in_sec: Math.max(0, batchFadeIn),
@@ -1315,61 +1345,32 @@
         scale: Math.max(1, Math.min(3, batchScale)),
         pos_x: Math.max(-1, Math.min(1, batchPosX)),
         pos_y: Math.max(-1, Math.min(1, batchPosY))
-      };
-      const result = await updateTimelineClips(selected, selectedIds, payload);
-      status = `Applied batch style to ${result.applied} clip(s) at revision ${result.revision}.`;
-      await loadTimeline(selectedClip?.id ?? "", { assets: false, deliverables: false });
-      schedulePreview();
-    } catch (reason) {
-      if (reason instanceof ApiError && reason.code === "precondition_failed") {
-        await loadTimeline(selectedClip?.id ?? "", {
-          assets: false,
-          deliverables: false
-        });
-        error = "The timeline changed in another window. Reloaded the latest revision.";
-      } else {
-        error = errorMessage(reason);
-      }
-    } finally {
-      styleBusy = false;
-    }
+      },
+      "Applied batch style"
+    );
   }
 
   async function resetBatchTransform() {
+    if (!selected || !selectedIds.length) return;
     batchScale = 1;
     batchPosX = 0;
     batchPosY = 0;
-    await applyBatchStyle();
+    await applyStyleToSelection(
+      selectedIds,
+      { scale: 1, pos_x: 0, pos_y: 0 },
+      "Reset transform"
+    );
   }
 
   async function pasteClipStyle() {
     if (!copiedStyle || !selected) return;
     const ids = selectedIds.length ? selectedIds : selectedClip ? [selectedClip.id] : [];
     if (!ids.length) return;
-    styleBusy = true;
-    error = "";
-    try {
-      const result = await updateTimelineClips(
-        selected,
-        ids,
-        copiedStyle as Parameters<typeof updateTimelineClips>[2]
-      );
-      status = `Pasted style to ${result.applied} clip(s) at revision ${result.revision}.`;
-      await loadTimeline(selectedClip?.id ?? "", { assets: false, deliverables: false });
-      schedulePreview();
-    } catch (reason) {
-      if (reason instanceof ApiError && reason.code === "precondition_failed") {
-        await loadTimeline(selectedClip?.id ?? "", {
-          assets: false,
-          deliverables: false
-        });
-        error = "The timeline changed in another window. Reloaded the latest revision.";
-      } else {
-        error = errorMessage(reason);
-      }
-    } finally {
-      styleBusy = false;
-    }
+    await applyStyleToSelection(
+      ids,
+      copiedStyle as Parameters<typeof updateTimelineClips>[2],
+      "Pasted style"
+    );
   }
 
   function editCaption(caption: TimelineData["captions"][number]) {

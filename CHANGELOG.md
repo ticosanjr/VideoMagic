@@ -3,6 +3,21 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.47.0] - 2026-11-03
+
+### Fixed
+
+- **Reset transform** now resets only scale and position. It no longer also
+  applies the current transition and fade values to the selection.
+- Batch style, paste style, and reset transform share one code path, so
+  precondition conflicts reload the latest revision instead of leaving a stale
+  editor state.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.46.0] - 2026-11-03
 
 ### Changed
