@@ -95,7 +95,7 @@ def test_unknown_source_nodes_and_ports_are_rejected() -> None:
 
 
 def test_sources_must_run_earlier_and_be_ancestors() -> None:
-    with pytest.raises(RecipeError, match="must run earlier"):
+    with pytest.raises(RecipeError, match="creates a cycle"):
         validate(
             [
                 {"id": "ingest", "type": "ingest"},
@@ -129,6 +129,33 @@ def test_sources_must_run_earlier_and_be_ancestors() -> None:
     validate_recipe_ports(repaired)
     edit = next(step for step in repaired.steps if step.id == "edit")
     assert "vad" in edit.needs
+
+
+def test_disabled_steps_do_not_block_port_validation() -> None:
+    validate(
+        [
+            {"id": "ingest", "type": "ingest"},
+            {
+                "id": "vad",
+                "type": "audio.vad",
+                "needs": ["ingest"],
+                "inputs": {"media": "ingest.media"},
+            },
+            {
+                "id": "edit",
+                "type": "edit.timeline",
+                "needs": ["vad"],
+                "inputs": {"speech": "vad.speech"},
+            },
+            {
+                "id": "video_export",
+                "type": "export.video",
+                "enabled": False,
+                "needs": ["edit"],
+                "inputs": {"timeline": "edit.timeline"},
+            },
+        ]
+    )
 
 
 def test_types_must_match_and_required_inputs_must_be_wired() -> None:

@@ -20,6 +20,7 @@ from videoflow import __version__
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.audio import audio_filters
 from videoflow.application.fonts import fonts_dir
+from videoflow.application.models import model_roots, models_dir
 from videoflow.application.portable import run_portable
 from videoflow.application.retakes import cull_intervals
 from videoflow.application.retakes import cull_retakes as cull_transcript_retakes
@@ -294,6 +295,10 @@ def _doctor() -> int:
         checks["home_error"] = str(exc)
         ok = False
     checks["ui"] = str(ui_dir()) if ui_dir() else None
+    checks["models"] = {
+        "dir": str(models_dir()),
+        "search_paths": [str(path) for path in model_roots()],
+    }
     whisper_binary = find_whisper_binary()
     whisper_model = find_whisper_model()
     checks["whisper"] = {

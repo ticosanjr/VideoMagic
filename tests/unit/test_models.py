@@ -30,6 +30,27 @@ def test_install_refuses_unknown_model(monkeypatch, tmp_path: Path) -> None:
         raise AssertionError("expected an unknown-model failure")
 
 
+def test_models_are_found_in_external_or_portable_home(monkeypatch, tmp_path: Path) -> None:
+    portable = tmp_path / "portable"
+    external = tmp_path / "external"
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(portable))
+    monkeypatch.setenv("VIDEOWFLOW_EXTERNAL_HOME", str(external))
+
+    external_model = external / "models" / "whisper" / "ggml-tiny.bin"
+    external_model.parent.mkdir(parents=True)
+    external_model.write_bytes(b"external")
+    assert models.installed_path("whisper-tiny") == external_model
+    assert models.verify_model("whisper-tiny")["path"] == str(external_model)
+    assert str(external / "models") in models.verify_model("whisper-tiny")["search_paths"]
+
+    external_model.unlink()
+    portable_model = portable / "models" / "whisper" / "ggml-tiny.bin"
+    portable_model.parent.mkdir(parents=True)
+    portable_model.write_bytes(b"portable")
+    assert models.installed_path("whisper-tiny") == portable_model
+    assert models.models_dir() == external / "models"
+
+
 def test_pyannote_model_install_uses_huggingface(monkeypatch, tmp_path: Path) -> None:
     import sys
     import types

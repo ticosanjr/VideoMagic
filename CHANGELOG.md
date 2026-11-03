@@ -3,6 +3,48 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.48.0] - 2026-11-03
+
+### Fixed
+
+- **Disabled export nodes no longer block a recipe.** Port validation skipped
+  disabled steps, so a disabled `export.video` reported the misleading
+  `source timeline must run earlier` error and made MP4 export feel mandatory.
+  Disabled steps are now ignored until they are enabled.
+- Built-in recipes no longer inject an MP4 export automatically. Add or enable
+  `export.video` only when an MP4 is actually wanted.
+- Cycle wiring now names the edge that creates the cycle instead of only
+  reporting `must run earlier`.
+- Timeline edit endpoints accept a JSON string body as well as an object, so a
+  stale client that double-encoded `activate`/`deactivate` no longer fails with
+  `request_invalid`.
+- Split works from the official playhead in Normal and Recut. If the playhead
+  is outside a clip, it moves to the middle of the target clip before splitting.
+- The Recut cursor and the Normal playhead are one official cursor. Seeking the
+  Recut canvas maps source time to output time, and Play always starts from the
+  official playhead in both live and rendered previews.
+- Fit and Fit selection use the real scroller width and the correct fixed-header
+  offset for each view instead of a hardcoded 1200 px.
+- The Normal timeline shows a loading skeleton instead of a blank area, and the
+  Konva canvas rebuilds when its container size changes.
+- Track visible/mute/solo/lock controls now live in the fixed left header in
+  front of the tracks, not in the toolbar above the timeline.
+
+### Added
+
+- Optional models are resolved from the external data home, the portable home,
+  sibling release folders, and the bundle. New downloads go to the external
+  home, so replacing a release no longer requires downloading them again.
+- `doctor` reports the preferred models directory and every search path.
+- Tests for disabled recipe steps, double-encoded timeline bodies, source/output
+  cursor mapping, fit math, model search paths, split in both views, playback
+  from a seeked playhead, and track controls.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.47.0] - 2026-11-03
 
 ### Fixed

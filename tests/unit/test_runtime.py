@@ -70,6 +70,30 @@ def test_find_whisper_honours_environment_overrides(monkeypatch, tmp_path: Path)
     assert runtime.find_whisper_model() is None
 
 
+def test_model_search_reads_the_external_home(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("VIDEOWFLOW_WHISPER_MODEL", raising=False)
+    monkeypatch.delenv("VIDEOWFLOW_FASTER_WHISPER_MODEL", raising=False)
+    portable = tmp_path / "portable"
+    external = tmp_path / "external"
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(portable))
+    monkeypatch.setenv("VIDEOWFLOW_EXTERNAL_HOME", str(external))
+    monkeypatch.setattr(runtime, "bundle_root", lambda: tmp_path / "bundle")
+    monkeypatch.setattr(runtime, "executable_dir", lambda: tmp_path / "bin")
+
+    whisper = external / "models" / "whisper" / "ggml-tiny.bin"
+    whisper.parent.mkdir(parents=True)
+    whisper.write_bytes(b"model")
+    assert runtime.find_whisper_model() == whisper
+
+    faster = external / "models" / "faster-whisper" / "small"
+    faster.mkdir(parents=True)
+    (faster / "model.bin").write_bytes(b"model")
+    (faster / "config.json").write_text("{}", encoding="utf-8")
+    assert runtime.find_faster_whisper_model("small") == faster
+
+
 def test_find_silero_model_prefers_bundle_and_honours_override(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.delenv("VIDEOWFLOW_SILERO_MODEL", raising=False)
     monkeypatch.setattr(runtime, "bundle_root", lambda: tmp_path)

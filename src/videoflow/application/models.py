@@ -14,7 +14,7 @@ import httpx
 
 from videoflow.application.capabilities import ensure_external_allowed
 from videoflow.domain.errors import FilesystemError, StateNotReadyError
-from videoflow.runtime import portable_home
+from videoflow.runtime import external_home, model_search_dirs, portable_home
 
 _FASTER_WHISPER_SMALL = (
     "https://huggingface.co/Systran/faster-whisper-small/resolve/main"
@@ -196,13 +196,19 @@ def verify_model(model_id: str) -> dict[str, object]:
     if entry.get("kind") == "local":
         path = Path(str(entry.get("path") or "")).expanduser()
         return {"id": model_id, "ok": path.exists(), "path": str(path)}
+    found = installed_path(model_id)
+    target = found or _target(model_id)
+    search_paths = [str(root) for root in model_roots()]
     if entry.get("kind") == "pyannote":
-        target = _target(model_id)
-        return {"id": model_id, "ok": _installed(model_id), "path": str(target)}
+        return {
+            "id": model_id,
+            "ok": found is not None,
+            "path": str(target),
+            "search_paths": search_paths,
+        }
     files = entry.get("files", [])
     missing: list[str] = []
     checks: list[dict[str, object]] = []
-    target = _target(model_id)
     for _, name, expected in files:
         path = target / name if entry.get("kind") == "faster-whisper" else target
         exists = path.is_file()
@@ -220,21 +226,56 @@ def verify_model(model_id: str) -> dict[str, object]:
         "id": model_id,
         "ok": not missing,
         "path": str(target),
+        "search_paths": search_paths,
         "files": checks,
         "invalid": missing,
     }
 
 
 def models_dir() -> Path:
+    """Preferred directory for new downloads.
+
+    Frozen builds keep ``portable_home()`` inside the release folder. Download
+    to the persistent external home by default so replacing a release does not
+    require downloading the same model again. An explicit setting or
+    ``VIDEOWFLOW_MODELS_DIR`` still wins, and a non-writable external location
+    falls back to the portable directory.
+    """
+
     try:
         from videoflow.application.settings import load_settings
 
         configured = load_settings().paths.models_dir
     except Exception:
         configured = ""
-    directory = Path(configured).expanduser() if configured else portable_home() / "models"
-    directory.mkdir(parents=True, exist_ok=True)
-    return directory
+    if configured:
+        directory = Path(configured).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        return directory
+    raw = os.environ.get("VIDEOWFLOW_MODELS_DIR", "")
+    if raw:
+        directory = Path(raw).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        return directory
+    external = external_home() / "models"
+    try:
+        external.mkdir(parents=True, exist_ok=True)
+        return external
+    except OSError:
+        directory = portable_home() / "models"
+        directory.mkdir(parents=True, exist_ok=True)
+        return directory
+
+
+def model_roots() -> list[Path]:
+    """All roots checked for an installed model, preferred install path first."""
+
+    roots: list[Path] = [models_dir(), *model_search_dirs(), portable_home() / "models"]
+    unique: list[Path] = []
+    for root in roots:
+        if root not in unique:
+            unique.append(root)
+    return unique
 
 
 def _target(model_id: str) -> Path:
@@ -244,23 +285,37 @@ def _target(model_id: str) -> Path:
     return models_dir() / str(entry["target"])
 
 
-def _installed(model_id: str) -> bool:
-    target = _target(model_id)
-    kind = _entry(model_id)["kind"]
+def _candidates(model_id: str) -> list[Path]:
+    entry = _entry(model_id)
+    if entry.get("kind") == "local":
+        return [Path(str(entry.get("path") or "")).expanduser()]
+    return [root / str(entry["target"]) for root in model_roots()]
+
+
+def _is_model_path(path: Path, kind: str) -> bool:
     if kind == "local":
-        return target.exists()
+        return path.exists()
     if kind == "faster-whisper":
-        return (target / "model.bin").is_file() and (target / "config.json").is_file()
+        return (path / "model.bin").is_file() and (path / "config.json").is_file()
     if kind == "pyannote":
-        return target.is_dir() and (target / "config.yaml").is_file()
-    return target.is_file()
+        return path.is_dir() and (path / "config.yaml").is_file()
+    return path.is_file()
+
+
+def _installed(model_id: str) -> bool:
+    kind = _entry(model_id)["kind"]
+    return any(_is_model_path(path, kind) for path in _candidates(model_id))
 
 
 def installed_path(model_id: str) -> Path | None:
     try:
-        return _target(model_id) if _installed(model_id) else None
+        kind = _entry(model_id)["kind"]
     except StateNotReadyError:
         return None
+    for path in _candidates(model_id):
+        if _is_model_path(path, kind):
+            return path
+    return None
 
 
 def list_models() -> list[dict[str, object]]:
@@ -275,7 +330,8 @@ def list_models() -> list[dict[str, object]]:
             "license": entry.get("license", ""),
             "source": entry.get("source", ""),
             "installed": _installed(model_id),
-            "path": str(_target(model_id)),
+            "path": str(installed_path(model_id) or _target(model_id)),
+            "search_paths": [str(root) for root in model_roots()],
             "custom": model_id not in CATALOG,
         }
         for model_id, entry in {**CATALOG, **_local_models()}.items()
@@ -299,7 +355,11 @@ def install_model(
 
     if _installed(model_id):
         report(100, "Already installed")
-        return {"id": model_id, "installed": True, "path": str(_target(model_id))}
+        return {
+            "id": model_id,
+            "installed": True,
+            "path": str(installed_path(model_id) or _target(model_id)),
+        }
     entry = CATALOG.get(model_id) or _local_models().get(model_id)
     if entry is None:
         raise StateNotReadyError(f"Unknown model: {model_id}")
@@ -395,11 +455,15 @@ def remove_model(model_id: str) -> None:
     if entry.get("kind") == "local":
         remove_local_model(model_id)
         return
-    target = _target(model_id)
-    if target.is_dir():
-        shutil.rmtree(target)
-    elif target.exists():
-        target.unlink()
-        target.with_suffix(target.suffix + ".part").unlink(missing_ok=True)
-    else:
+    kind = entry["kind"]
+    removed = False
+    for target in _candidates(model_id):
+        if kind in {"faster-whisper", "pyannote"} and target.is_dir():
+            shutil.rmtree(target)
+            removed = True
+        elif target.exists():
+            target.unlink(missing_ok=True)
+            target.with_suffix(target.suffix + ".part").unlink(missing_ok=True)
+            removed = True
+    if not removed:
         raise StateNotReadyError(f"Model is not installed: {model_id}")

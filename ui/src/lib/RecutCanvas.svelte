@@ -10,10 +10,12 @@
     busy = false,
     playhead = 0,
     waveforms = {},
+    tracks = {},
     onselect,
     ontoggle,
     ontrim,
-    onseek
+    onseek,
+    onToggleTrack
   }: {
     timeline: TimelineData;
     jobId?: string;
@@ -26,7 +28,11 @@
     ontoggle: (id: string, active: boolean) => void;
     ontrim: (id: string, start: number, end: number) => void;
     onseek?: (sourceSec: number) => void;
+    tracks?: Record<string, { muted: boolean; solo: boolean; locked: boolean }>;
+    onToggleTrack?: (track: string, key: "muted" | "solo" | "locked") => void;
   } = $props();
+
+  const HEADER = 88;
 
   let scroller = $state<HTMLDivElement | null>(null);
   let drag = $state<{
@@ -55,7 +61,7 @@
         )
     )
   );
-  const width = $derived(Math.max(420, sourceDuration * zoom + 32));
+  const width = $derived(Math.max(420, HEADER + sourceDuration * zoom + 32));
   const step = $derived(
     zoom >= 200 ? 1 : zoom >= 110 ? 2 : zoom >= 50 ? 5 : zoom >= 20 ? 10 : zoom >= 8 ? 30 : 60
   );
@@ -88,7 +94,7 @@
     return Math.max(12, (Math.max(start, end) - start) * zoom);
   }
   function leftFor(start: number): number {
-    return 8 + start * zoom;
+    return HEADER + start * zoom;
   }
 
   const videoActive = $derived(timeline.video);
@@ -212,7 +218,7 @@
     const rect = element.getBoundingClientRect();
     const value = Math.max(
       0,
-      Math.min(sourceDuration, (event.clientX - rect.left - 8) / zoom)
+      Math.min(sourceDuration, (event.clientX - rect.left - HEADER) / zoom)
     );
     onseek(value);
   }
@@ -224,7 +230,7 @@
     const rect = element.getBoundingClientRect();
     const time = Math.max(
       0,
-      Math.min(sourceDuration, (event.clientX - rect.left - 8) / zoom)
+      Math.min(sourceDuration, (event.clientX - rect.left - HEADER) / zoom)
     );
     hover = { x: event.clientX - rect.left, time };
     clearTimeout(hoverTimer);
@@ -267,7 +273,8 @@
     <span class="font-mono text-[10px] text-neutral-500">{Math.round(zoom)} px/s</span>
   </div>
 
-  <div bind:this={scroller} class="overflow-x-auto">
+  <div class="relative">
+    <div bind:this={scroller} class="overflow-x-auto" data-testid="recut-scroller">
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
@@ -379,7 +386,7 @@
       {#if hover && hoverFrame}
         <div
           class="pointer-events-none absolute top-7 z-30 overflow-hidden rounded-lg border border-sky-400/40 bg-black shadow-2xl shadow-black/60"
-          style={`left:${Math.max(8, Math.min(width - 174, hover.x + 12))}px`}
+          style={`left:${Math.max(HEADER + 8, Math.min(width - 174, hover.x + 12))}px`}
           data-testid="recut-hover-frame"
         >
           <img src={hoverFrame} alt="" class="h-[90px] w-[160px] object-cover" />
@@ -389,9 +396,29 @@
       {#if playhead > 0}
         <span class="absolute bottom-0 top-6 z-20 w-px bg-rose-300" style={`left:${leftFor(playhead)}px`} data-testid="recut-playhead"></span>
       {/if}
-      <p class="absolute bottom-2 left-2 text-[9px] text-neutral-600">
+      <p class="absolute bottom-2 left-[96px] text-[9px] text-neutral-600">
         Source time · {sourceDuration.toFixed(1)}s · double-click a block to toggle it
       </p>
+    </div>
+    </div>
+    <div class="absolute left-0 top-0 z-20 h-full w-[88px] border-r border-neutral-800 bg-neutral-950/95" data-testid="recut-track-headers">
+      <p class="absolute left-2 top-1 text-[8px] font-bold text-neutral-500">RECUT</p>
+      <span class="absolute left-2 top-[30px] text-[8px] font-bold text-neutral-400">V1 · VIDEO</span>
+      {#if onToggleTrack}
+        <div class="absolute left-1.5 top-[44px] flex items-center gap-0.5">
+          <button type="button" onclick={() => onToggleTrack("video", "muted")} class={`rounded px-1 text-[8px] ${(tracks.video ?? { muted: false, solo: false, locked: false }).muted ? "bg-amber-500/25 text-amber-200" : "text-neutral-500 hover:text-neutral-200"}`} aria-label="Hide V1 · VIDEO">V</button>
+          <button type="button" onclick={() => onToggleTrack("video", "solo")} class={`rounded px-1 text-[8px] ${(tracks.video ?? { muted: false, solo: false, locked: false }).solo ? "bg-amber-500/25 text-amber-200" : "text-neutral-500 hover:text-neutral-200"}`} aria-label="Solo V1 · VIDEO">S</button>
+          <button type="button" onclick={() => onToggleTrack("video", "locked")} class={`rounded px-1 text-[8px] ${(tracks.video ?? { muted: false, solo: false, locked: false }).locked ? "bg-sky-500/25 text-sky-200" : "text-neutral-500 hover:text-neutral-200"}`} aria-label="Lock V1 · VIDEO">L</button>
+        </div>
+      {/if}
+      <span class="absolute left-2 top-[100px] text-[8px] font-bold text-neutral-400">A1 · DIALOGUE</span>
+      {#if onToggleTrack}
+        <div class="absolute left-1.5 top-[114px] flex items-center gap-0.5">
+          <button type="button" onclick={() => onToggleTrack("audio", "muted")} class={`rounded px-1 text-[8px] ${(tracks.audio ?? { muted: false, solo: false, locked: false }).muted ? "bg-rose-500/25 text-rose-200" : "text-neutral-500 hover:text-neutral-200"}`} aria-label="Mute A1 · DIALOGUE">M</button>
+          <button type="button" onclick={() => onToggleTrack("audio", "solo")} class={`rounded px-1 text-[8px] ${(tracks.audio ?? { muted: false, solo: false, locked: false }).solo ? "bg-amber-500/25 text-amber-200" : "text-neutral-500 hover:text-neutral-200"}`} aria-label="Solo A1 · DIALOGUE">S</button>
+          <button type="button" onclick={() => onToggleTrack("audio", "locked")} class={`rounded px-1 text-[8px] ${(tracks.audio ?? { muted: false, solo: false, locked: false }).locked ? "bg-sky-500/25 text-sky-200" : "text-neutral-500 hover:text-neutral-200"}`} aria-label="Lock A1 · DIALOGUE">L</button>
+        </div>
+      {/if}
     </div>
   </div>
 </div>

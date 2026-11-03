@@ -190,6 +190,42 @@ test("renders the canvas timeline and edit controls", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Split" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Undo" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Redo" })).toBeDisabled();
+  const headers = page.getByTestId("timeline-track-headers");
+  await expect(headers.getByRole("button", { name: "Hide V1 · VIDEO" })).toBeVisible();
+  await expect(headers.getByRole("button", { name: "Mute A1 · DIALOGUE" })).toBeVisible();
+});
+
+test("splits at the official playhead in normal and Recut views", async ({ page }) => {
+  const patches: Array<Record<string, unknown>> = [];
+  page.on("request", (request) => {
+    if (request.method() === "PATCH" && request.url().endsWith("/timeline")) {
+      patches.push(JSON.parse(request.postData() ?? "{}"));
+    }
+  });
+  const canvas = page.getByTestId("timeline-canvas");
+  await canvas.scrollIntoViewIfNeeded();
+  await canvas.click({ position: { x: 96 + 140, y: 60 } });
+  const split = page.getByRole("button", { name: "Split" });
+  await expect(split).toBeEnabled();
+  await split.click();
+  await expect.poll(() => patches.length).toBeGreaterThan(0);
+  expect(patches.at(-1)).toMatchObject({ clip_id: "v1", action: "split" });
+
+  await page.getByRole("button", { name: "Recut" }).click();
+  await page.getByTestId("recut-active-v1").click();
+  await page.keyboard.press("s");
+  await expect.poll(() => patches.length).toBeGreaterThan(1);
+  expect(patches.at(-1)).toMatchObject({ clip_id: "v1", action: "split" });
+});
+
+test("fit selection zooms to the selected clip", async ({ page }) => {
+  const canvas = page.getByTestId("timeline-canvas");
+  await canvas.scrollIntoViewIfNeeded();
+  await canvas.click({ position: { x: 96 + 140, y: 60 } });
+  const zoom = page.getByTestId("timeline-zoom");
+  const before = Number(await zoom.inputValue());
+  await page.getByRole("button", { name: "Fit selection" }).click();
+  await expect.poll(async () => Number(await zoom.inputValue())).toBeGreaterThan(before);
 });
 
 test("opens the timeline while a recipe is still exporting", async ({ page }) => {
@@ -655,6 +691,69 @@ function playbackFixture(): string | null {
     return null;
   }
 }
+
+test("plays from the official playhead after a timeline seek", async ({ page }) => {
+  const fixture = playbackFixture();
+  test.skip(!fixture, "ffmpeg with libvpx is unavailable");
+  const liveTimeline = {
+    ...timeline,
+    duration_sec: 5,
+    source_duration_sec: 5,
+    live_eligible: true,
+    live_reason: "webm fixture",
+    inactive: [],
+    video: [
+      {
+        ...timeline.video[0],
+        start_sec: 0,
+        end_sec: 5,
+        source_in_frame: 0,
+        source_out_frame: 125,
+        source_start_sec: 0,
+        source_end_sec: 5
+      }
+    ],
+    audio: [
+      {
+        ...timeline.audio[0],
+        start_sec: 0,
+        end_sec: 5,
+        source_in_sec: 0,
+        source_out_sec: 5
+      }
+    ]
+  };
+  await page.route("**/api/v1/jobs/job-1/timeline", (route) =>
+    route.fulfill({ json: liveTimeline })
+  );
+  await page.route("**/api/v1/jobs/job-1/source/file", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "video/webm",
+      body: readFileSync(fixture!)
+    })
+  );
+  await page.reload();
+  await expect(page.getByTestId("live-player")).toBeVisible();
+  const canvas = page.getByTestId("timeline-canvas");
+  await canvas.scrollIntoViewIfNeeded();
+  await canvas.click({ position: { x: 96 + 140, y: 60 } });
+  await expect(page.getByTestId("timeline-timecode")).toContainText("00:02");
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(() => {
+          const video = document.querySelector(
+            '[data-testid="live-video-a"]'
+          ) as HTMLVideoElement | null;
+          return video?.currentTime ?? 0;
+        }),
+      { timeout: 5000 }
+    )
+    .toBeGreaterThan(1.5);
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
+});
 
 test("plays a real browser-compatible source and pauses", async ({ page }) => {
   const fixture = playbackFixture();

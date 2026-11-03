@@ -27,6 +27,7 @@
     onSlipClip,
     onContextMenu,
     onDropAsset,
+    onToggleTrack,
     onZoom
   }: {
     timeline: TimelineData;
@@ -52,6 +53,7 @@
     onSlipClip?: (clipId: string, deltaSec: number) => void;
     onContextMenu?: (clip: TimelineData["video"][number], x: number, y: number) => void;
     onDropAsset?: (asset: Record<string, unknown>, timeSec: number) => void;
+    onToggleTrack?: (track: string, key: "muted" | "solo" | "locked") => void;
     onZoom?: (zoom: number) => void;
   } = $props();
 
@@ -71,6 +73,7 @@
   let scene: any = null;
   let overlay: any = null;
   let konva: any = null;
+  let resizeObserver: ResizeObserver | null = null;
   let playheadLine: any = null;
   let playheadKnob: any = null;
   let guideLine: any = null;
@@ -861,11 +864,25 @@
 
   onMount(async () => {
     konva = (await import("konva")).default;
-    drawBackground();
-    drawOverlay();
+    // Wait one frame so the scroll container has its final width on first mount.
+    requestAnimationFrame(() => {
+      drawBackground();
+      drawOverlay();
+    });
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        if (!stage) return;
+        stage.width(width);
+        drawBackground();
+        drawOverlay();
+      });
+      if (container) resizeObserver.observe(container);
+    }
   });
 
   onDestroy(() => {
+    resizeObserver?.disconnect();
+    resizeObserver = null;
     clearTimeout(hoverTimer);
     stage?.destroy();
     stage = null;
@@ -931,16 +948,24 @@
   >
     <div bind:this={container} style={`width:${width}px;height:${HEIGHT}px`}></div>
   </div>
-  <div class="pointer-events-none absolute left-0 top-0 z-20 h-full w-[96px] border-r border-neutral-800 bg-neutral-950/95" data-testid="timeline-track-headers">
+  <div class="pointer-events-auto absolute left-0 top-0 z-20 h-full w-[96px] border-r border-neutral-800 bg-neutral-950/95" data-testid="timeline-track-headers">
     <p class="absolute left-2 top-1.5 text-[9px] font-bold text-neutral-500">TIMELINE</p>
     {#each [
-      { label: "V1 · VIDEO", top: 32, height: 96 },
-      { label: "A1 · DIALOGUE", top: 132, height: 58 },
-      { label: "S1 · CAPTIONS", top: 194, height: 48 },
-      { label: "B1 · B-ROLL", top: 246, height: 62 },
-      { label: "M1 · MARKERS", top: 310, height: 26 }
+      { id: "video", label: "V1 · VIDEO", top: 32, height: 96, toggle: "V" },
+      { id: "audio", label: "A1 · DIALOGUE", top: 132, height: 58, toggle: "M" },
+      { id: "captions", label: "S1 · CAPTIONS", top: 194, height: 48, toggle: "V" },
+      { id: "broll", label: "B1 · B-ROLL", top: 246, height: 62, toggle: "V" },
+      { id: "markers", label: "M1 · MARKERS", top: 310, height: 26, toggle: "" }
     ] as track}
-      <span class="absolute left-2 truncate text-[8px] font-bold text-neutral-400" style={`top:${track.top + 6}px;width:84px`}>{track.label}</span>
+      {@const state = tracks[track.id] ?? { muted: false, solo: false, locked: false }}
+      <span class="absolute left-2 truncate text-[8px] font-bold text-neutral-400" style={`top:${track.top + 4}px;width:84px`}>{track.label}</span>
+      {#if onToggleTrack && track.toggle}
+        <div class="absolute left-1.5 flex items-center gap-0.5" style={`top:${track.top + 18}px`}>
+          <button type="button" onclick={() => onToggleTrack(track.id, "muted")} class={`rounded px-1 text-[8px] ${state.muted ? (track.id === "audio" ? "bg-rose-500/25 text-rose-200" : "bg-amber-500/25 text-amber-200") : "text-neutral-500 hover:text-neutral-200"}`} aria-label={`${track.id === "audio" ? "Mute" : "Hide"} ${track.label}`}>{track.toggle}</button>
+          <button type="button" onclick={() => onToggleTrack(track.id, "solo")} class={`rounded px-1 text-[8px] ${state.solo ? "bg-amber-500/25 text-amber-200" : "text-neutral-500 hover:text-neutral-200"}`} aria-label={`Solo ${track.label}`}>S</button>
+          <button type="button" onclick={() => onToggleTrack(track.id, "locked")} class={`rounded px-1 text-[8px] ${state.locked ? "bg-sky-500/25 text-sky-200" : "text-neutral-500 hover:text-neutral-200"}`} aria-label={`Lock ${track.label}`}>L</button>
+        </div>
+      {/if}
       <span class="absolute left-0 right-0 border-b border-neutral-900" style={`top:${track.top + track.height}px`}></span>
     {/each}
   </div>

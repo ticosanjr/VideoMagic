@@ -583,7 +583,26 @@ class ProviderTestRequest(BaseModel):
     path: str = "/models"
 
 
-class TimelineEditRequest(BaseModel):
+class LenientJsonBody(BaseModel):
+    """Accept a JSON object even when a client double-encoded the body."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def decode_body(cls, value: Any) -> Any:
+        if isinstance(value, (bytes, bytearray)):
+            value = value.decode("utf-8", "replace")
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except ValueError as exc:
+                raise ValueError("body must be a JSON object") from exc
+            if not isinstance(parsed, dict):
+                raise ValueError("body must be a JSON object")
+            return parsed
+        return value
+
+
+class TimelineEditRequest(LenientJsonBody):
     clip_id: str = Field(min_length=1)
     action: Literal[
         "trim", "move", "delete", "split", "ripple", "ripple_trim", "slip",
@@ -595,7 +614,7 @@ class TimelineEditRequest(BaseModel):
     split_sec: float | None = Field(default=None, ge=0.0)
 
 
-class ClipUpdateRequest(BaseModel):
+class ClipUpdateRequest(LenientJsonBody):
     transition_type: Literal["crossfade", "fade_to_black", "none"] | None = None
     transition_duration_frames: int | None = Field(default=None, ge=1, le=120)
     scale: float | None = Field(default=None, ge=1.0, le=3.0)
@@ -609,13 +628,13 @@ class ClipBatchStyleRequest(ClipUpdateRequest):
     clip_ids: list[str] = Field(min_length=1, max_length=200)
 
 
-class MarkerRequest(BaseModel):
+class MarkerRequest(LenientJsonBody):
     time_sec: float = Field(ge=0.0)
     label: str = Field(default="", max_length=300)
     color: str = Field(default="#38bdf8", max_length=20)
 
 
-class TimelineBatchRequest(BaseModel):
+class TimelineBatchRequest(LenientJsonBody):
     edits: list[TimelineEditRequest] = Field(min_length=1, max_length=200)
 
 

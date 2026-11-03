@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   clipVisible,
+  fitScrollLeft,
+  fitZoom,
   groupTrimEdits,
   liveOutputDuration,
   liveSegments,
+  outputForSource,
+  sourceForOutput,
   visibleRange
 } from "./timelineView";
 
@@ -139,5 +143,46 @@ describe("liveSegments", () => {
       30
     );
     expect(segments[0]).toMatchObject({ start: 10, end: 11, outputStart: 0 });
+  });
+});
+
+describe("source and output mapping", () => {
+  const segments = liveSegments(
+    [
+      { id: "a", start_sec: 0, end_sec: 2, source_in_frame: 0, source_out_frame: 30 },
+      { id: "b", start_sec: 5, end_sec: 7, source_in_frame: 75, source_out_frame: 105 }
+    ],
+    15
+  );
+
+  it("maps the official playhead to the source used by the player", () => {
+    expect(sourceForOutput(segments, 0)).toBe(0);
+    expect(sourceForOutput(segments, 1.5)).toBe(1.5);
+    expect(sourceForOutput(segments, 2.5)).toBe(5.5);
+    expect(sourceForOutput(segments, 3.5)).toBe(6.5);
+  });
+
+  it("maps a Recut source cursor back to the official output playhead", () => {
+    expect(outputForSource(segments, 0)).toBe(0);
+    expect(outputForSource(segments, 1.5)).toBe(1.5);
+    expect(outputForSource(segments, 3)).toBe(2);
+    expect(outputForSource(segments, 6)).toBe(3);
+  });
+});
+
+describe("fit helpers", () => {
+  it("fits a span into the real viewport minus the fixed header", () => {
+    expect(fitZoom(10, 1096, 96, 0)).toBe(100);
+    expect(fitZoom(10, 1096, 96, 96)).toBeCloseTo(90.4);
+  });
+
+  it("clamps the zoom to the supported range", () => {
+    expect(fitZoom(0.01, 500, 0, 0)).toBe(400);
+    expect(fitZoom(10_000, 500, 0, 0)).toBe(2);
+  });
+
+  it("keeps a margin before the fitted range", () => {
+    expect(fitScrollLeft(5, 100)).toBe(476);
+    expect(fitScrollLeft(0, 100)).toBe(0);
   });
 });

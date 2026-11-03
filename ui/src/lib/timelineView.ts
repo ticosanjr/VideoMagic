@@ -116,3 +116,50 @@ export function liveSegments(video: TimelineClip[], fps: number): LiveSegment[] 
 export function liveOutputDuration(segments: LiveSegment[]): number {
   return segments.at(-1)?.outputEnd ?? 0;
 }
+
+/** Map an output/playhead time to the source time used by the live player. */
+export function sourceForOutput(segments: LiveSegment[], outputSec: number): number {
+  if (!segments.length) return 0;
+  const target = Math.max(0, outputSec);
+  for (const segment of segments) {
+    if (target < segment.outputStart) return segment.start;
+    if (target <= segment.outputEnd) {
+      return Math.min(segment.end, segment.start + (target - segment.outputStart));
+    }
+  }
+  return segments.at(-1)?.end ?? 0;
+}
+
+/** Map a source/Recut time to the official output playhead time. */
+export function outputForSource(segments: LiveSegment[], sourceSec: number): number {
+  if (!segments.length) return 0;
+  const target = Math.max(0, sourceSec);
+  let previousEnd = 0;
+  for (const segment of segments) {
+    if (target < segment.start) return previousEnd;
+    if (target <= segment.end) {
+      return Math.min(segment.outputEnd, segment.outputStart + (target - segment.start));
+    }
+    previousEnd = segment.outputEnd;
+  }
+  return previousEnd;
+}
+
+/** Zoom that fits a time span into the real scroller viewport. */
+export function fitZoom(
+  spanSec: number,
+  viewportPx: number,
+  headerPx = 0,
+  paddingPx = 48,
+  min = 2,
+  max = 400
+): number {
+  const available = Math.max(1, viewportPx - headerPx - paddingPx);
+  return Math.max(min, Math.min(max, available / Math.max(0.1, spanSec)));
+}
+
+/** Scroll offset that places the range start just after the fixed header. */
+export function fitScrollLeft(startSec: number, zoom: number, marginPx = 24): number {
+  return Math.max(0, startSec * zoom - marginPx);
+}
+

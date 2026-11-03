@@ -140,6 +140,7 @@ class Recipe(StrictModel):
                 if (
                     source_id in ids
                     and source_id != step.id
+                    and by_id[source_id].enabled
                     and source_id not in step.needs
                     and not depends_on(source_id, step.id)
                 ):

@@ -6,7 +6,7 @@
   import RecutCanvas from "$lib/RecutCanvas.svelte";
   import TimelinePlayer from "$lib/TimelinePlayer.svelte";
   import Modal from "$lib/ui/Modal.svelte";
-  import { groupTrimEdits } from "$lib/timelineView";
+  import { fitScrollLeft, fitZoom, groupTrimEdits, liveSegments, outputForSource, sourceForOutput } from "$lib/timelineView";
   import ShortEditor from "$lib/ShortEditor.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import WaveformStrip from "$lib/WaveformStrip.svelte";
@@ -97,6 +97,7 @@
   let livePlayer = $state<{
     seekSource: (time: number) => void;
     seekOutput: (time: number) => void;
+    getOutputTime: () => number;
     playPause: () => void;
     nextActive: () => void;
     previousActive: () => void;
@@ -198,7 +199,6 @@
   let selectedInactiveId = $state("");
   let inactiveStart = $state(0);
   let inactiveEnd = $state(0);
-  let liveSourceTime = $state(0);
   let previewScheduled: ReturnType<typeof setTimeout> | undefined;
   let disposed = false;
   const waveformCache = new Map<string, number[]>();
@@ -207,6 +207,15 @@
 
   const duration = $derived(Math.max(0.001, timeline?.duration_sec ?? 1));
   const fps = $derived(timeline?.fps ?? 30);
+  const segments = $derived(liveSegments(timeline?.video ?? [], fps));
+  const recutPlayhead = $derived(sourceForOutput(segments, playhead));
+  const clipUnderPlayhead = $derived(
+    (timeline?.video ?? []).find(
+      (clip) =>
+        playhead > clip.start_sec &&
+        playhead < clip.end_sec
+    ) ?? null
+  );
   const liveActive = $derived(
     Boolean(
       timeline?.live_eligible &&
@@ -887,11 +896,22 @@
 
   function togglePlay() {
     if (liveActive) {
+      const playerTime = livePlayer?.getOutputTime?.() ?? playhead;
+      if (!playing && Math.abs(playerTime - playhead) > 0.05) {
+        livePlayer?.seekOutput(playhead);
+      }
       livePlayer?.playPause();
       return;
     }
     if (!videoEl) return;
     applyPlaybackRate();
+    const startAt = Math.max(0, Math.min(duration, playhead));
+    if (startAt >= duration - 0.01) {
+      playhead = 0;
+      videoEl.currentTime = 0;
+    } else if (Math.abs(videoEl.currentTime - startAt) > 0.05) {
+      videoEl.currentTime = startAt;
+    }
     if (videoEl.paused) {
       void videoEl.play();
     } else {
@@ -1000,8 +1020,7 @@
   }
 
   function recutSeek(source: number) {
-    liveSourceTime = source;
-    livePlayer?.seekSource(source);
+    seek(outputForSource(segments, source));
   }
 
   async function toggleSegment(id: string, makeActive: boolean) {
@@ -1162,18 +1181,21 @@
   }
 
   function splitSelected() {
-    if (!selectedClip) return;
+    const clip = selectedClip ?? clipUnderPlayhead;
+    if (!clip) {
+      error = "Select a clip or move the playhead over one before splitting.";
+      return;
+    }
+    if (clip !== selectedClip) selectClip(clip);
     const minimum = 1 / Math.max(1, fps);
     const inside =
-      playhead > selectedClip.start_sec + minimum &&
-      playhead < selectedClip.end_sec - minimum;
-    const split = inside
-      ? playhead
-      : (selectedClip.start_sec + selectedClip.end_sec) / 2;
+      playhead > clip.start_sec + minimum &&
+      playhead < clip.end_sec - minimum;
+    const split = inside ? playhead : (clip.start_sec + clip.end_sec) / 2;
     playhead = split;
     status = inside
-      ? `Splitting ${selectedClip.id} at ${split.toFixed(2)}s.`
-      : `Playhead moved to the middle of ${selectedClip.id} to split.`;
+      ? `Splitting ${clip.id} at ${split.toFixed(2)}s.`
+      : `Playhead moved to the middle of ${clip.id} to split.`;
     void applyEdit("split", { split_sec: split });
   }
 
@@ -1261,24 +1283,62 @@
     window.addEventListener("pointerup", up, { once: true });
   }
 
+  function fitScroller(): HTMLElement | null {
+    return document.querySelector<HTMLElement>(
+      viewMode === "recut" ? '[data-testid="recut-scroller"]' : '[data-testid="timeline-scroller"]'
+    );
+  }
+
+  function fitHeaderWidth(): number {
+    return viewMode === "recut" ? 88 : 96;
+  }
+
   function fitTimeline() {
-    zoom = Math.max(2, Math.min(400, (1200 - 96) / Math.max(0.1, duration)));
+    const viewport = fitScroller()?.clientWidth ?? 1200;
+    const span =
+      viewMode === "recut"
+        ? Math.max(0.1, timeline?.source_duration_sec ?? duration)
+        : duration;
+    zoom = fitZoom(span, viewport, fitHeaderWidth());
+    requestAnimationFrame(() => {
+      const scroller = fitScroller();
+      if (scroller) scroller.scrollLeft = 0;
+    });
   }
 
   function fitSelection() {
-    const clips = (timeline?.video ?? []).filter(
-      (clip) => selectedIds.includes(clip.id) || clip.id === selectedClip?.id
-    );
-    const target = clips.length ? clips : (timeline?.video ?? []);
-    if (!target.length) return;
-    const start = Math.min(...target.map((clip) => clip.start_sec));
-    const end = Math.max(...target.map((clip) => clip.end_sec));
+    const recut = viewMode === "recut";
+    let start = 0;
+    let end = recut ? Math.max(0.1, timeline?.source_duration_sec ?? duration) : duration;
+    if (recut && selectedInactiveId) {
+      const item = (timeline?.inactive ?? []).find((entry) => entry.id === selectedInactiveId);
+      if (item) {
+        start = item.video_start_sec;
+        end = item.video_end_sec;
+      }
+    } else if (recut && selectedClip) {
+      const clip = selectedClip;
+      const segment = segments.find((entry) => entry.id === clip.id);
+      if (segment) {
+        start = segment.start;
+        end = segment.end;
+      }
+    } else {
+      const clips = (timeline?.video ?? []).filter(
+        (clip) => selectedIds.includes(clip.id) || clip.id === selectedClip?.id
+      );
+      if (clips.length) {
+        start = Math.min(...clips.map((clip) => clip.start_sec));
+        end = Math.max(...clips.map((clip) => clip.end_sec));
+      }
+    }
     const span = Math.max(0.1, end - start);
-    zoom = Math.max(2, Math.min(400, (1200 - 96) / span));
-    setTimeout(() => {
-      const scroller = document.querySelector<HTMLElement>('[data-testid="timeline-scroller"]');
-      if (scroller) scroller.scrollLeft = Math.max(0, (start - 1) * zoom);
-    }, 0);
+    const viewport = fitScroller()?.clientWidth ?? 1200;
+    zoom = fitZoom(span, viewport, fitHeaderWidth());
+    requestAnimationFrame(() => {
+      const scroller = fitScroller();
+      if (scroller) scroller.scrollLeft = fitScrollLeft(start, zoom);
+    });
   }
 
   async function deactivateSelected() {
@@ -1557,7 +1617,7 @@
       return;
     }
     if (key === "s") {
-      if (!selectedClip) return;
+      if (!selectedClip && !clipUnderPlayhead) return;
       event.preventDefault();
       splitSelected();
     }
@@ -1599,6 +1659,22 @@
     {#if status}<p class="mt-2 text-[11px] text-emerald-300" role="status">{status}</p>{/if}
   </section>
 
+  {#if !timeline && (loading || (!error && jobs.length))}
+    <section class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4" aria-busy="true" data-testid="timeline-loading">
+      <div class="animate-pulse space-y-3">
+        <div class="h-[340px] rounded-xl border border-neutral-800 bg-neutral-950/80"></div>
+        <div class="flex gap-2">
+          <div class="h-8 w-8 rounded-lg bg-neutral-800"></div>
+          <div class="h-8 w-8 rounded-lg bg-neutral-800"></div>
+          <div class="h-8 w-8 rounded-lg bg-neutral-800"></div>
+          <div class="h-8 flex-1 rounded-lg bg-neutral-800/60"></div>
+        </div>
+        <div class="h-[220px] rounded-xl border border-neutral-800 bg-neutral-950/70"></div>
+      </div>
+      <p class="mt-2 text-[11px] text-neutral-500">Loading the timeline and active segments…</p>
+    </section>
+  {/if}
+
   {#if timeline}
       <div class="flex flex-col gap-4">
       <div class="mb-2 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-3" data-testid="timeline-preview">
@@ -1612,8 +1688,7 @@
                 streamUrl={liveSource?.url ?? ""}
                 bind:rate={playbackRate}
                 controls={false}
-                ontime={(source, output) => {
-                  liveSourceTime = source;
+                ontime={(_source, output) => {
                   playhead = output;
                 }}
                 onstate={(value) => (playing = value)}
@@ -1908,7 +1983,7 @@
         <button type="button" onclick={() => void undo()} disabled={!timeline.can_undo || editBusy} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300 disabled:opacity-40" title="Undo (Ctrl+Z)" aria-label="Undo"><Icon name="undo" size={14} /></button>
         <button type="button" onclick={() => void redo()} disabled={!timeline.can_redo || editBusy} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300 disabled:opacity-40" title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><Icon name="redo" size={14} /></button>
         {#if selectedIds.length > 1}<span class="rounded bg-sky-500/10 px-2 py-1 text-[10px] text-sky-200">{selectedIds.length} selected</span>{/if}
-        <button type="button" onclick={splitSelected} disabled={!selectedClip || editBusy} class="flex h-8 w-8 items-center justify-center rounded-lg border border-violet-500/40 text-violet-200 disabled:opacity-40" title="Split selected clip at playhead (S)" aria-label="Split"><Icon name="scissors" size={14} /></button>
+        <button type="button" onclick={splitSelected} disabled={(!selectedClip && !clipUnderPlayhead) || editBusy} class="flex h-8 w-8 items-center justify-center rounded-lg border border-violet-500/40 text-violet-200 disabled:opacity-40" title="Split selected clip at playhead (S)" aria-label="Split"><Icon name="scissors" size={14} /></button>
         <button type="button" onclick={() => deleteSelected(false)} disabled={!selectedIds.length && !selectedClip || editBusy} class="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-500/40 text-rose-200 disabled:opacity-40" title="Delete selected clip (Delete)" aria-label="Delete"><Icon name="trash" size={14} /></button>
         <button type="button" onclick={() => deleteSelected(true)} disabled={!selectedIds.length && !selectedClip || editBusy} class="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-500/30 text-rose-300 disabled:opacity-40" title="Delete and close the gap (Shift+Delete)" aria-label="Ripple delete"><Icon name="arrow-up" size={14} /></button>
         <button type="button" onclick={() => selectedClip && void toggleSegment(selectedClip.id, false)} disabled={!selectedClip || editBusy} class="rounded-lg border border-rose-500/40 px-2 py-1 text-[10px] text-rose-200 disabled:opacity-40" title="Keep the clip but mark it inactive">Deactivate</button>
@@ -1929,15 +2004,6 @@
       </div>
 
       <div class="flex flex-wrap gap-2 border-b border-neutral-800 px-3 py-1.5">
-        {#each [["video", "V1"], ["audio", "A1"], ["captions", "S1"], ["broll", "B1"]] as [trackId, label]}
-          {@const state = timeline.tracks?.[trackId] ?? { muted: false, solo: false, locked: false }}
-          <div class="flex items-center gap-1 rounded border border-neutral-800 bg-neutral-950/60 px-1.5 py-0.5 text-[9px] text-neutral-400">
-            <span class="font-mono text-neutral-500">{label}</span>
-            <button type="button" onclick={() => void toggleTrack(trackId, "muted")} class={`rounded px-1 ${state.muted ? "bg-rose-500/20 text-rose-300" : "text-neutral-500 hover:text-neutral-200"}`} aria-label={`Mute ${label}`}>M</button>
-            <button type="button" onclick={() => void toggleTrack(trackId, "solo")} class={`rounded px-1 ${state.solo ? "bg-amber-500/20 text-amber-300" : "text-neutral-500 hover:text-neutral-200"}`} aria-label={`Solo ${label}`}>S</button>
-            <button type="button" onclick={() => void toggleTrack(trackId, "locked")} class={`rounded px-1 ${state.locked ? "bg-sky-500/20 text-sky-300" : "text-neutral-500 hover:text-neutral-200"}`} aria-label={`Lock ${label}`}>L</button>
-          </div>
-        {/each}
         <div class="ml-auto flex flex-wrap items-center gap-1">
           <button type="button" onclick={() => void renderTimeline()} disabled={renderBusy || !selected} class="rounded border border-emerald-500/40 px-2 py-0.5 text-[10px] text-emerald-200 disabled:opacity-40">{renderBusy ? `Rendering ${renderPercent}%` : "Render MP4"}</button>
           {#if renderBusy}<button type="button" onclick={() => void stopRender()} class="rounded border border-rose-500/30 px-1.5 py-0.5 text-[10px] text-rose-300">Cancel</button>{/if}
@@ -1981,12 +2047,14 @@
           bind:zoom={zoom}
           selectedId={selectedInactiveId || selectedClip?.id || ""}
           busy={editBusy}
-          playhead={liveSourceTime}
+          playhead={recutPlayhead}
           {waveforms}
+          tracks={timeline.tracks ?? {}}
           onselect={selectRecut}
           ontoggle={toggleSegment}
           ontrim={(id, start, end) => void trimInactiveRange(id, start, end)}
           onseek={recutSeek}
+          onToggleTrack={toggleTrack}
         />
       {:else}
       <TimelineCanvas
@@ -2005,6 +2073,7 @@
           {waveforms}
           onSeek={seek}
           onSelectClip={selectClip}
+          onToggleTrack={toggleTrack}
           onMoveClips={(ids, delta) => {
             void applyBatch(ids.map((id) => ({ clip_id: id, action: "move", delta_sec: delta })));
           }}

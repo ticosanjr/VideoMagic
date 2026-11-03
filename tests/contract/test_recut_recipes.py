@@ -13,7 +13,6 @@ def test_recut_replacement_is_a_valid_silence_only_recipe() -> None:
         "vad",
         "timeline",
         "export",
-        "video_export",
     ]
     assert "transcribe" not in {step.id for step in enabled}
     timeline = next(step for step in enabled if step.id == "timeline")
@@ -23,9 +22,6 @@ def test_recut_replacement_is_a_valid_silence_only_recipe() -> None:
     assert export.inputs == {"timeline": "timeline.timeline"}
     export = next(step for step in recipe.enabled_steps() if step.id == "export")
     assert export.params["targets"] == ["resolve", "premiere", "kdenlive"]
-    video = next(step for step in enabled if step.id == "video_export")
-    assert video.inputs == {"timeline": "timeline.timeline"}
-    assert video.params["preset"] == "ultrafast"
 
 
 def test_recut_retakes_variant_adds_transcription_and_culling() -> None:
@@ -38,7 +34,6 @@ def test_recut_retakes_variant_adds_transcription_and_culling() -> None:
         "retakes",
         "timeline",
         "export",
-        "video_export",
     ]
     timeline = next(step for step in recipe.enabled_steps() if step.id == "timeline")
     assert "retakes" in timeline.needs

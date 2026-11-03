@@ -350,8 +350,26 @@ def validate_recipe_ports(recipe: Any) -> None:
     step_by_id = {step.id: step for step in recipe.steps}
     order = [step.id for step in recipe.topological_order()]
     position = {step_id: index for index, step_id in enumerate(order)}
+
+    def depends_on(start: str, target: str) -> bool:
+        stack = [start]
+        seen: set[str] = set()
+        while stack:
+            current = stack.pop()
+            if current == target:
+                return True
+            if current in seen:
+                continue
+            seen.add(current)
+            parent = step_by_id.get(current)
+            if parent is not None:
+                stack.extend(parent.needs)
+        return False
+
     for step in recipe.steps:
-        if not step.inputs:
+        # A disabled step is not part of the executable graph. Its wiring is
+        # kept for re-enabling, but it must not block the recipe from running.
+        if not step.enabled or not step.inputs:
             continue
         input_ports = {port.id: port for port in get_step(step.type).input_ports}
         for input_id, reference in step.inputs.items():
@@ -372,6 +390,12 @@ def validate_recipe_ports(recipe: Any) -> None:
                     "enable it or remove this input"
                 )
             if position.get(source_id, 10**9) >= position.get(step.id, -1):
+                if depends_on(source_id, step.id):
+                    raise RecipeError(
+                        f"{step.id}.{input_id}: source {source_id} must run earlier "
+                        f"(wiring {source_id}.{source_port} -> "
+                        f"{step.id}.{input_id} creates a cycle)"
+                    )
                 raise RecipeError(
                     f"{step.id}.{input_id}: source {source_id} must run earlier"
                 )

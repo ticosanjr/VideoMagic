@@ -260,6 +260,31 @@ def test_batch_clip_style_rejects_unknown_clip_without_mutating(
     assert empty.status_code == 422
 
 
+def test_timeline_edit_accepts_a_double_encoded_json_body(
+    monkeypatch, tmp_path: Path
+) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    job = _job(manager, tmp_path)
+    base = f"/api/v1/jobs/{job.job_id}/timeline"
+
+    deactivate = client.patch(
+        base,
+        content=json.dumps({"clip_id": "v1", "action": "deactivate"}),
+        headers={"content-type": "application/json"},
+    )
+    assert deactivate.status_code == 200, deactivate.text
+    assert deactivate.json()["revision"] == 2
+
+    activate = client.patch(
+        base,
+        content=json.dumps({"clip_id": "v1", "action": "activate"}),
+        headers={"content-type": "application/json"},
+    )
+    assert activate.status_code == 200, activate.text
+    payload = client.get(base).json()
+    assert [clip["id"] for clip in payload["video"]] == ["v1", "v2"]
+
+
 def test_schedule_crud_and_run_now(monkeypatch, tmp_path: Path) -> None:
     client, _ = _client(monkeypatch, tmp_path)
     source = tmp_path / "source.mp4"

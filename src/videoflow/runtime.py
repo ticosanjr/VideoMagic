@@ -42,6 +42,53 @@ def portable_home() -> Path:
     return Path.home() / ".videoflow"
 
 
+def external_home() -> Path:
+    """Persistent data directory that survives replacing a frozen release."""
+
+    override = os.environ.get("VIDEOWFLOW_EXTERNAL_HOME")
+    if override:
+        return Path(override).expanduser()
+    if os.environ.get("VIDEOWFLOW_HOME"):
+        return portable_home()
+    return Path.home() / ".videoflow"
+
+
+def _sibling_release_model_dirs() -> list[Path]:
+    appimage = os.environ.get("APPIMAGE")
+    if not appimage:
+        return []
+    releases = Path(appimage).expanduser().resolve().parent.parent
+    candidates: list[Path] = []
+    for pattern in ("*/videoflow-data/models", "*/models"):
+        candidates.extend(sorted(releases.glob(pattern), reverse=True))
+    return candidates
+
+
+def model_search_dirs() -> list[Path]:
+    """Every directory that may already contain an installed model.
+
+    The external home comes before the portable one so a model downloaded by a
+    previous release keeps working after the release folder is replaced.
+    """
+
+    raw = os.environ.get("VIDEOWFLOW_MODELS_DIR", "")
+    candidates = [Path(raw).expanduser()] if raw else []
+    candidates.extend(
+        (
+            external_home() / "models",
+            portable_home() / "models",
+            bundle_root() / "models",
+            executable_dir() / "models",
+        )
+    )
+    candidates.extend(_sibling_release_model_dirs())
+    unique: list[Path] = []
+    for candidate in candidates:
+        if candidate not in unique:
+            unique.append(candidate)
+    return unique
+
+
 def ensure_home() -> Path:
     home = portable_home()
     home.mkdir(parents=True, exist_ok=True)
@@ -136,7 +183,7 @@ def find_whisper_model() -> Path | None:
         bundle_root() / "vendor" / "whisper" / "ggml-tiny.bin",
         executable_dir() / "whisper" / "ggml-tiny.bin",
         executable_dir() / "ggml-tiny.bin",
-        portable_home() / "models" / "whisper" / "ggml-tiny.bin",
+        *(root / "whisper" / "ggml-tiny.bin" for root in model_search_dirs()),
     )
     for candidate in candidates:
         if candidate.is_file():
@@ -154,6 +201,7 @@ def find_silero_model() -> Path | None:
         bundle_root() / "vendor" / "silero" / "silero_vad.onnx",
         executable_dir() / "silero" / "silero_vad.onnx",
         executable_dir() / "silero_vad.onnx",
+        *(root / "silero" / "silero_vad.onnx" for root in model_search_dirs()),
     )
     for candidate in candidates:
         if candidate.is_file():
@@ -191,17 +239,22 @@ def expected_faster_whisper_model(model_size: str = "small") -> Path:
         return Path(override).expanduser()
     if not is_frozen():
         return bundle_root() / "vendor" / "faster-whisper" / model_size
-    return bundle_root() / "faster-whisper" / model_size
+    return external_home() / "models" / "faster-whisper" / model_size
 
 
 def _faster_whisper_candidates(model_size: str) -> tuple[Path, ...]:
-    return (
+    candidates = (
         bundle_root() / "faster-whisper" / model_size,
         bundle_root() / "vendor" / "faster-whisper" / model_size,
         executable_dir() / "faster-whisper" / model_size,
         executable_dir() / "vendor" / "faster-whisper" / model_size,
-        portable_home() / "models" / "faster-whisper" / model_size,
+        *(root / "faster-whisper" / model_size for root in model_search_dirs()),
     )
+    unique: list[Path] = []
+    for candidate in candidates:
+        if candidate not in unique:
+            unique.append(candidate)
+    return tuple(unique)
 
 
 def _is_faster_whisper_model(path: Path) -> bool:

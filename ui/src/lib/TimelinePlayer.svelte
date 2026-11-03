@@ -465,6 +465,10 @@
     seek(source);
   }
 
+  export function getOutputTime(): number {
+    return outputTime;
+  }
+
   export function playPause() {
     togglePlay();
   }
