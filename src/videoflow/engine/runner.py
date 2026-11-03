@@ -126,7 +126,6 @@ class RecipeRunner:
         cancel_event: Any | None = None,
     ) -> None:
         recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
-        validate_recipe_ports(recipe)
         self.recipe = recipe
         self.adapter = adapter
         self.llm_client = llm_client
@@ -262,7 +261,7 @@ class RecipeRunner:
         started = time.perf_counter()
         recipe = self.recipe.with_variables(variables, profile=profile)
         recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
-        validate_recipe_ports(recipe)
+        validate_recipe_ports(recipe, through=through)
         source_path = Path(source).expanduser().resolve()
         source_stamp = source_fingerprint(source_path)
         output_path = Path(output).expanduser().resolve()
@@ -558,7 +557,7 @@ class RecipeRunner:
     ) -> dict[str, Any]:
         recipe = self.recipe.with_variables(variables, profile=profile)
         recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
-        validate_recipe_ports(recipe)
+        validate_recipe_ports(recipe, through=through)
         order = self._order_through(recipe.topological_order(), through)
         return {
             "ok": True,

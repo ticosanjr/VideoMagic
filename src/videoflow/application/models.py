@@ -128,7 +128,11 @@ LOCAL_FILE = "models-local.json"
 
 
 def _local_models() -> dict[str, dict[str, Any]]:
-    path = portable_home() / LOCAL_FILE
+    path = external_home() / LOCAL_FILE
+    if not path.is_file():
+        legacy = portable_home() / LOCAL_FILE
+        if legacy.is_file():
+            path = legacy
     if not path.is_file():
         return {}
     try:
@@ -176,7 +180,7 @@ def register_local_model(
         "kind": kind,
         "path": str(target),
     }
-    path_file = portable_home() / LOCAL_FILE
+    path_file = external_home() / LOCAL_FILE
     path_file.parent.mkdir(parents=True, exist_ok=True)
     path_file.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return payload[model_id]
@@ -186,7 +190,7 @@ def remove_local_model(model_id: str) -> None:
     payload = _local_models()
     if payload.pop(model_id, None) is None:
         raise StateNotReadyError(f"Unknown local model: {model_id}")
-    path_file = portable_home() / LOCAL_FILE
+    path_file = external_home() / LOCAL_FILE
     path_file.parent.mkdir(parents=True, exist_ok=True)
     path_file.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 

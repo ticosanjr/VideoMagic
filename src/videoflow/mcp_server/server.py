@@ -2278,15 +2278,20 @@ def build_server(
         return {"ok": True, "recipe": recipe_to_dict(recipe)}
 
     @mcp.tool()
-    def videoflow_validate_recipe(recipe: dict[str, object]) -> dict[str, object]:
+    def videoflow_validate_recipe(
+        recipe: dict[str, object], through: str | None = None
+    ) -> dict[str, object]:
         """Validate a recipe DAG and return its execution order."""
 
         try:
             parsed = parse_recipe(recipe)  # type: ignore[arg-type]
             parsed.validate_graph(step_types(), requires_by_type=requirements_by_type())
-            validate_recipe_ports(parsed)
+            validate_recipe_ports(parsed, through=through)
             resolved = parsed.with_variables({})
+            allowed = parsed.ids_through(through) if through is not None else None
             for step in resolved.steps:
+                if allowed is not None and step.id not in allowed:
+                    continue
                 try:
                     get_step(step.type).validate_params(step.params)
                 except ValueError as exc:
@@ -2435,9 +2440,9 @@ def build_server(
             resolved_output = resolve_allowed(output_path, roots)
             parsed = resolve_recipe_paths(parsed, roots)
             parsed.validate_graph(step_types(), requires_by_type=requirements_by_type())
-            validate_recipe_ports(parsed)
             if step_id not in {step.id for step in parsed.enabled_steps()}:
                 return _error("unknown_step", f"Unknown or disabled step: {step_id}")
+            validate_recipe_ports(parsed, through=step_id)
             job = manager.start(
                 resolved_source,
                 resolved_output,

@@ -3,6 +3,30 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.49.0] - 2026-11-03
+
+### Fixed
+
+- **Run to here and scoped validation no longer inspect later nodes.** A broken
+  or disabled export after the target step cannot block running to an earlier
+  node, and the validate endpoint accepts `?through=<step>`.
+- Unknown step ids are reported as `Unknown or disabled step` before port
+  validation, instead of surfacing as a generic recipe error.
+- Local model registrations and model-download metadata now live in the
+  external data home, with a read fallback to the portable `videoflow-data`
+  copy. Replacing a release keeps local model definitions and download state.
+
+### Added
+
+- Tests for scoped recipe validation, scoped HTTP and MCP validation, and the
+  scoped validate client.
+- The MCP `videoflow_validate_recipe` tool accepts an optional `through` step.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.48.0] - 2026-11-03
 
 ### Fixed

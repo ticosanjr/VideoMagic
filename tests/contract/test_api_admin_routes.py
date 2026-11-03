@@ -67,6 +67,49 @@ def test_assets_presets_templates_and_config(monkeypatch, tmp_path: Path) -> Non
     )
 
 
+def test_recipe_validation_can_stop_before_a_later_export(
+    monkeypatch, tmp_path: Path
+) -> None:
+    client, _manager = _client(monkeypatch, tmp_path)
+    recipe = {
+        "schema_version": 1,
+        "id": "stop_early",
+        "name": "Stop early",
+        "steps": [
+            {"id": "ingest", "type": "ingest", "params": {}},
+            {
+                "id": "vad",
+                "type": "audio.vad",
+                "needs": ["ingest"],
+                "inputs": {"media": "ingest.media"},
+                "params": {},
+            },
+            {
+                "id": "edit",
+                "type": "edit.timeline",
+                "needs": ["vad"],
+                "inputs": {"speech": "vad.speech"},
+                "params": {},
+            },
+            {
+                "id": "video_export",
+                "type": "export.video",
+                "needs": ["edit"],
+                "inputs": {
+                    "timeline": "edit.timeline",
+                    "not_a_port": "edit.timeline",
+                },
+                "params": {},
+            },
+        ],
+    }
+    full = client.post("/api/v1/recipes/validate", json=recipe)
+    assert full.status_code == 422
+    scoped = client.post("/api/v1/recipes/validate?through=edit", json=recipe)
+    assert scoped.status_code == 200, scoped.text
+    assert scoped.json()["ok"] is True
+
+
 def test_recipes_batches_and_maintenance(monkeypatch, tmp_path: Path) -> None:
     client, _manager = _client(monkeypatch, tmp_path)
     recipes = client.get("/api/v1/recipes").json()["recipes"]

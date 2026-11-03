@@ -342,14 +342,19 @@ def type_compatible(source: str, target: str) -> bool:
     return source == target or source == "any" or target == "any"
 
 
-def validate_recipe_ports(recipe: Any) -> None:
-    """Validate explicit port wiring while leaving legacy ``needs`` untouched."""
+def validate_recipe_ports(recipe: Any, *, through: str | None = None) -> None:
+    """Validate explicit port wiring while leaving legacy ``needs`` untouched.
+
+    When ``through`` is set, only the target and its ancestors are checked, so a
+    later export cannot block running to an earlier node.
+    """
 
     from videoflow.steps import get_step
 
     step_by_id = {step.id: step for step in recipe.steps}
     order = [step.id for step in recipe.topological_order()]
     position = {step_id: index for index, step_id in enumerate(order)}
+    allowed = recipe.ids_through(through) if through is not None else None
 
     def depends_on(start: str, target: str) -> bool:
         stack = [start]
@@ -370,6 +375,8 @@ def validate_recipe_ports(recipe: Any) -> None:
         # A disabled step is not part of the executable graph. Its wiring is
         # kept for re-enabling, but it must not block the recipe from running.
         if not step.enabled or not step.inputs:
+            continue
+        if allowed is not None and step.id not in allowed:
             continue
         input_ports = {port.id: port for port in get_step(step.type).input_ports}
         for input_id, reference in step.inputs.items():

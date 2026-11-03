@@ -224,6 +224,25 @@ class Recipe(StrictModel):
             raise RecipeError(f"Recipe contains a dependency cycle: {', '.join(cycle)}")
         return ordered
 
+    def ids_through(self, step_id: str) -> set[str]:
+        """Ids that must run to reach ``step_id``, including it."""
+
+        enabled = {step.id: step for step in self.enabled_steps()}
+        target = enabled.get(step_id)
+        if target is None:
+            raise RecipeError(f"Unknown or disabled step: {step_id}")
+        needed: set[str] = set()
+        stack = [step_id]
+        while stack:
+            current = stack.pop()
+            if current in needed:
+                continue
+            needed.add(current)
+            parent = enabled.get(current)
+            if parent is not None:
+                stack.extend(parent.needs)
+        return needed
+
     def resolved_variables(self, values: dict[str, Any] | None = None) -> dict[str, Any]:
         provided = dict(values or {})
         result: dict[str, Any] = {}

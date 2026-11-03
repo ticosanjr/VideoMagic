@@ -834,12 +834,14 @@ def register_routes(
         else:
             recipe = get_recipe(str(request.recipe_id))
         recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
-        validate_recipe_ports(recipe)
+        if through is not None and through not in {
+            step.id for step in recipe.enabled_steps()
+        }:
+            raise RecipeError(f"Unknown or disabled step: {through}")
+        validate_recipe_ports(recipe, through=through)
         source, output = resolve_run_roots(
             recipe, request.source, request.output, roots
         )
-        if through is not None and through not in {step.id for step in recipe.enabled_steps()}:
-            raise RecipeError(f"Unknown or disabled step: {through}")
         recipe = resolve_recipe_paths(recipe, roots)
         if request.save_recipe:
             save_user_recipe(recipe)
@@ -1117,13 +1119,18 @@ def register_routes(
         return {"ok": True, "recipe": recipe_to_dict(recipe)}
 
     @app.post("/api/v1/recipes/validate")
-    def validate_recipe(payload: dict[str, Any]) -> dict[str, object]:
+    def validate_recipe(
+        payload: dict[str, Any], through: str | None = None
+    ) -> dict[str, object]:
         try:
             recipe = parse_recipe(payload)
             recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
-            validate_recipe_ports(recipe)
+            validate_recipe_ports(recipe, through=through)
             resolved = recipe.with_variables({})
+            allowed = recipe.ids_through(through) if through is not None else None
             for step in resolved.steps:
+                if allowed is not None and step.id not in allowed:
+                    continue
                 try:
                     get_step(step.type).validate_params(step.params)
                 except ValidationError as exc:

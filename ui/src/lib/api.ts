@@ -1558,12 +1558,17 @@ export async function restoreRecipeVersion(
 }
 
 export async function validateRecipe(
-  recipe: Recipe
+  recipe: Recipe,
+  through?: string
 ): Promise<{ ok: boolean; recipe: Recipe; order: string[] }> {
-  return request<{ ok: boolean; recipe: Recipe; order: string[] }>("/api/v1/recipes/validate", {
-    method: "POST",
-    body: JSON.stringify(recipe)
-  });
+  const query = through ? `?through=${encodeURIComponent(through)}` : "";
+  return request<{ ok: boolean; recipe: Recipe; order: string[] }>(
+    `/api/v1/recipes/validate${query}`,
+    {
+      method: "POST",
+      body: JSON.stringify(recipe)
+    }
+  );
 }
 
 export async function runRecipe(payload: {

@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from videoflow.application.models import install_model, installed_path
-from videoflow.runtime import portable_home
+from videoflow.runtime import external_home
 
 
 def _now() -> str:
@@ -49,7 +49,7 @@ class ModelDownloadManager:
 
     @property
     def path(self) -> Path:
-        return portable_home() / "model-downloads.json"
+        return external_home() / "model-downloads.json"
 
     def _load(self) -> None:
         path = self.path

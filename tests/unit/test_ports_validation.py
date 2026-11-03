@@ -158,6 +158,36 @@ def test_disabled_steps_do_not_block_port_validation() -> None:
     )
 
 
+def test_validation_can_stop_before_a_later_node() -> None:
+    steps = [
+        {"id": "ingest", "type": "ingest"},
+        {
+            "id": "vad",
+            "type": "audio.vad",
+            "needs": ["ingest"],
+            "inputs": {"media": "ingest.media"},
+        },
+        {
+            "id": "edit",
+            "type": "edit.timeline",
+            "needs": ["vad"],
+            "inputs": {"speech": "vad.speech"},
+        },
+        {
+            "id": "video_export",
+            "type": "export.video",
+            "needs": ["edit"],
+            "inputs": {
+                "timeline": "edit.timeline",
+                "not_a_port": "edit.timeline",
+            },
+        },
+    ]
+    with pytest.raises(RecipeError, match="unknown input port"):
+        validate(steps)
+    validate_recipe_ports(recipe(steps), through="edit")
+
+
 def test_types_must_match_and_required_inputs_must_be_wired() -> None:
     with pytest.raises(RecipeError, match="type mismatch"):
         validate(

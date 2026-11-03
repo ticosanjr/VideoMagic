@@ -2135,7 +2135,7 @@
     compareOpen = false;
     try {
       const recipe = recipeFromGraph();
-      await validateRecipe(recipe);
+      await validateRecipe(recipe, stepId);
       job = await runRecipeStep(stepId, {
         source: "",
         output: "",
