@@ -36,7 +36,7 @@ def test_incompatible_source_builds_a_proxy(tmp_path: Path, monkeypatch) -> None
     monkeypatch.setattr(live_source.FFmpegAdapter, "render", fake_render)
     current = job(tmp_path)
     started = manager.start(current, height=720)
-    assert started.status == "preparing"
+    assert started.status in {"preparing", "ready"}
     for _ in range(100):
         state = manager.status(current, height=720)
         if state.status in {"ready", "failed"}:
@@ -45,3 +45,32 @@ def test_incompatible_source_builds_a_proxy(tmp_path: Path, monkeypatch) -> None
     assert state.status == "ready"
     assert state.url.endswith("/live-source/file")
     assert manager.file(current, height=720) is not None
+
+
+def test_container_is_checked_before_direct_playback(tmp_path: Path, monkeypatch) -> None:
+    import json
+    import subprocess
+
+    manager = live_source.LiveSourceManager()
+    monkeypatch.setattr(live_source, "find_binary", lambda _name: "/usr/bin/ffprobe")
+    monkeypatch.setattr(
+        live_source.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0],
+            0,
+            json.dumps(
+                {
+                    "format": {"format_name": "matroska,webm"},
+                    "streams": [
+                        {"codec_type": "video", "codec_name": "h264"},
+                        {"codec_type": "audio", "codec_name": "aac"},
+                    ],
+                }
+            ),
+            "",
+        ),
+    )
+    compatible, reason = manager._probe_codecs(tmp_path / "source.mkv")
+    assert compatible is False
+    assert "webm-safe" in reason

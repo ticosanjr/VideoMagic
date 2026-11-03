@@ -791,11 +791,15 @@ function apiDetail(payload: unknown): Record<string, unknown> {
     return {
       code: "request_invalid",
       message: detail
-        .map((item) =>
-          item && typeof item === "object"
-            ? String((item as { msg?: unknown }).msg ?? "Invalid request")
-            : String(item)
-        )
+        .map((item) => {
+          if (!item || typeof item !== "object") return String(item);
+          const entry = item as { msg?: unknown; loc?: unknown };
+          const location = Array.isArray(entry.loc)
+            ? entry.loc.map((part) => String(part)).join(".")
+            : "";
+          const message = String(entry.msg ?? "Invalid request");
+          return location ? `${location}: ${message}` : message;
+        })
         .join("; "),
       errors: detail
     };

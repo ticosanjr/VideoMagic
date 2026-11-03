@@ -85,7 +85,7 @@ class LiveSourceManager:
                     "-v",
                     "error",
                     "-show_entries",
-                    "stream=codec_type,codec_name",
+                    "stream=codec_type,codec_name:format=format_name",
                     "-of",
                     "json",
                     str(source),
@@ -100,7 +100,9 @@ class LiveSourceManager:
         if completed.returncode != 0:
             return False, "ffprobe could not read the source"
         try:
-            streams = json.loads(completed.stdout).get("streams", [])
+            payload = json.loads(completed.stdout)
+            streams = payload.get("streams", [])
+            format_name = str((payload.get("format") or {}).get("format_name") or "")
         except (ValueError, AttributeError):
             return False, "ffprobe returned invalid JSON"
         video = next(
@@ -111,11 +113,17 @@ class LiveSourceManager:
         )
         video_codec = str(video.get("codec_name") or "")
         audio_codec = str(audio.get("codec_name") or "none")
-        if video_codec not in BROWSER_VIDEO:
+        containers = {item.strip() for item in format_name.split(",") if item.strip()}
+        browser_containers = {"mov", "mp4", "m4a", "3gp", "3g2", "mj2", "webm"}
+        if not containers & browser_containers:
+            return False, f"container {format_name or 'unknown'} is not browser-safe"
+        if "webm" not in containers and video_codec not in BROWSER_VIDEO:
             return False, f"video codec {video_codec or 'unknown'} is not browser-safe"
+        if "webm" in containers and video_codec not in {"vp8", "vp9", "av1"}:
+            return False, f"video codec {video_codec or 'unknown'} is not webm-safe"
         if audio_codec not in BROWSER_AUDIO:
             return False, f"audio codec {audio_codec} is not browser-safe"
-        return True, "source codec is browser-compatible"
+        return True, "source codec and container are browser-compatible"
 
     def _proxy_paths(self, job: Any) -> tuple[Path, Path]:
         directory = job.output / "work"

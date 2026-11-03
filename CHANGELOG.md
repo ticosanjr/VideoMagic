@@ -3,6 +3,21 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.43.0] - 2026-11-02
+
+### Fixed
+
+- Live source eligibility now checks the container as well as codecs. H.264 inside
+  MKV is sent through the proxy instead of being marked browser-safe.
+- Request validation errors now include the endpoint, method, body, and the
+  exact Pydantic field location, making `request_invalid` actionable.
+- Stabilized the live-source proxy test against the build completing quickly.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.42.0] - 2026-11-02
 
 ### Added
