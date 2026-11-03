@@ -64,6 +64,7 @@
     updateTimelineTrack,
     updateJobCaption,
     updateTimelineClip,
+    updateTimelineClips,
     type AssetRecord,
     type Job,
     type TimelineComment,
@@ -1306,21 +1307,29 @@
     styleBusy = true;
     error = "";
     try {
-      for (const id of selectedIds) {
-        await updateTimelineClip(selected, id, {
-          transition_type: batchTransitionType,
-          transition_duration_frames: Math.max(1, Math.round(batchTransitionFrames)),
-          fade_in_sec: Math.max(0, batchFadeIn),
-          fade_out_sec: Math.max(0, batchFadeOut),
-          scale: Math.max(1, Math.min(3, batchScale)),
-          pos_x: Math.max(-1, Math.min(1, batchPosX)),
-          pos_y: Math.max(-1, Math.min(1, batchPosY))
-        });
-      }
-      status = `Applied batch style to ${selectedIds.length} clip(s).`;
-      await loadTimeline("", { assets: false, deliverables: false });
+      const payload = {
+        transition_type: batchTransitionType,
+        transition_duration_frames: Math.max(1, Math.round(batchTransitionFrames)),
+        fade_in_sec: Math.max(0, batchFadeIn),
+        fade_out_sec: Math.max(0, batchFadeOut),
+        scale: Math.max(1, Math.min(3, batchScale)),
+        pos_x: Math.max(-1, Math.min(1, batchPosX)),
+        pos_y: Math.max(-1, Math.min(1, batchPosY))
+      };
+      const result = await updateTimelineClips(selected, selectedIds, payload);
+      status = `Applied batch style to ${result.applied} clip(s) at revision ${result.revision}.`;
+      await loadTimeline(selectedClip?.id ?? "", { assets: false, deliverables: false });
+      schedulePreview();
     } catch (reason) {
-      error = errorMessage(reason);
+      if (reason instanceof ApiError && reason.code === "precondition_failed") {
+        await loadTimeline(selectedClip?.id ?? "", {
+          assets: false,
+          deliverables: false
+        });
+        error = "The timeline changed in another window. Reloaded the latest revision.";
+      } else {
+        error = errorMessage(reason);
+      }
     } finally {
       styleBusy = false;
     }
@@ -1340,13 +1349,24 @@
     styleBusy = true;
     error = "";
     try {
-      for (const id of ids) {
-        await updateTimelineClip(selected, id, copiedStyle as Parameters<typeof updateTimelineClip>[2]);
-      }
-      status = `Pasted style to ${ids.length} clip(s).`;
+      const result = await updateTimelineClips(
+        selected,
+        ids,
+        copiedStyle as Parameters<typeof updateTimelineClips>[2]
+      );
+      status = `Pasted style to ${result.applied} clip(s) at revision ${result.revision}.`;
       await loadTimeline(selectedClip?.id ?? "", { assets: false, deliverables: false });
+      schedulePreview();
     } catch (reason) {
-      error = errorMessage(reason);
+      if (reason instanceof ApiError && reason.code === "precondition_failed") {
+        await loadTimeline(selectedClip?.id ?? "", {
+          assets: false,
+          deliverables: false
+        });
+        error = "The timeline changed in another window. Reloaded the latest revision.";
+      } else {
+        error = errorMessage(reason);
+      }
     } finally {
       styleBusy = false;
     }

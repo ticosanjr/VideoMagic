@@ -201,6 +201,65 @@ def test_clip_style_update_roundtrip(monkeypatch, tmp_path: Path) -> None:
     assert payload["revision"] == 2
 
 
+def test_batch_clip_style_is_one_revision_and_one_undo(
+    monkeypatch, tmp_path: Path
+) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    job = _job(manager, tmp_path)
+    base = f"/api/v1/jobs/{job.job_id}/timeline"
+
+    response = client.patch(
+        f"{base}/clips",
+        json={
+            "clip_ids": ["v1", "v2"],
+            "transition_type": "crossfade",
+            "transition_duration_frames": 10,
+            "scale": 1.1,
+            "fade_in_sec": 0.2,
+            "fade_out_sec": 0.3,
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["applied"] == 2
+    assert body["revision"] == 2
+    assert body["can_undo"] is True
+
+    payload = client.get(base).json()
+    assert payload["revision"] == 2
+    assert [clip["transition"] for clip in payload["video"]] == ["crossfade", "crossfade"]
+    assert [clip["transition_frames"] for clip in payload["video"]] == [10, 10]
+    assert [clip["zoom"] for clip in payload["video"]] == [1.1, 1.1]
+    assert [clip["fade_in_sec"] for clip in payload["audio"]] == [0.2, 0.2]
+    assert [clip["fade_out_sec"] for clip in payload["audio"]] == [0.3, 0.3]
+
+    assert client.post(f"{base}/undo").status_code == 200
+    undone = client.get(base).json()
+    assert [clip["transition"] for clip in undone["video"]] == [None, None]
+    assert undone["can_undo"] is False
+
+
+def test_batch_clip_style_rejects_unknown_clip_without_mutating(
+    monkeypatch, tmp_path: Path
+) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    job = _job(manager, tmp_path)
+    base = f"/api/v1/jobs/{job.job_id}/timeline"
+
+    response = client.patch(
+        f"{base}/clips",
+        json={"clip_ids": ["v1", "missing"], "scale": 1.5},
+    )
+    assert response.status_code == 409, response.text
+    payload = client.get(base).json()
+    assert payload["revision"] == 1
+    assert [clip["zoom"] for clip in payload["video"]] == [1.0, 1.0]
+    assert payload["can_undo"] is False
+
+    empty = client.patch(f"{base}/clips", json={"clip_ids": [], "scale": 1.5})
+    assert empty.status_code == 422
+
+
 def test_schedule_crud_and_run_now(monkeypatch, tmp_path: Path) -> None:
     client, _ = _client(monkeypatch, tmp_path)
     source = tmp_path / "source.mp4"

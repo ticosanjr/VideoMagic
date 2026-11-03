@@ -790,6 +790,8 @@ Project state is created by recipe runs and edited through the job timeline API.
 - `PATCH /api/v1/jobs/{job_id}/timeline/batch` for atomic multi-clip edits
 - `PATCH /api/v1/jobs/{job_id}/timeline/clip/{clip_id}` for transitions,
   scale, position, and audio fades
+- `PATCH /api/v1/jobs/{job_id}/timeline/clips` applies the same style to many
+  clips in one revision and one undo entry
 - `GET/PUT /api/v1/jobs/{job_id}/timeline/meta`,
   `POST /api/v1/jobs/{job_id}/timeline/markers`,
   `DELETE /api/v1/jobs/{job_id}/timeline/markers/{id}`,
@@ -980,8 +982,9 @@ rendered preview.
 
 - Send `If-None-Match` to get `304` when nothing changed.
 - Send `If-Match` with the last ETag on `PATCH /timeline`,
-  `PATCH /timeline/clip/{clip_id}`, and `PATCH /timeline/batch`. The UI does
-  this and reloads on `412` instead of overwriting another window.
+  `PATCH /timeline/clip/{clip_id}`, `PATCH /timeline/clips`, and
+  `PATCH /timeline/batch`. The UI does this and reloads on `412` instead of
+  overwriting another window.
 - A stale value returns `412` with `code: "precondition_failed"` and a fresh
   ETag in `details.etag`; nothing is written.
 

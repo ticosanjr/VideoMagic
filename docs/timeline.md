@@ -159,7 +159,8 @@ in/out marks (I/O), fit selection (Shift+F), hover frame thumbnails in both
 Normal and Recut, Recut waveforms, multi-selection actions, marker navigation,
 and copy/paste of clip style (transition, scale, position, fades), and batch
 transition/fade editing, scale, position, and reset transform for a
-multi-selection. The snapshot
+multi-selection. Multi-clip style edits use one request, so they produce a
+single revision and a single undo entry. The snapshot
 dialog also has **Use in recipe**, which opens the recipe builder
 with a configured `timeline.load` node and its path already filled.
 

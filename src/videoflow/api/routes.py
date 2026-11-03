@@ -605,6 +605,10 @@ class ClipUpdateRequest(BaseModel):
     fade_out_sec: float | None = Field(default=None, ge=0.0, le=30.0)
 
 
+class ClipBatchStyleRequest(ClipUpdateRequest):
+    clip_ids: list[str] = Field(min_length=1, max_length=200)
+
+
 class MarkerRequest(BaseModel):
     time_sec: float = Field(ge=0.0)
     label: str = Field(default="", max_length=300)
@@ -2598,6 +2602,105 @@ def register_routes(
             "warning": "Re-run export/render to refresh artifacts.",
         }
 
+    def _apply_clip_style(
+        state: ProjectState, clip_id: str, request: ClipUpdateRequest
+    ) -> None:
+        video = next(
+            (clip for clip in state.video_segments if clip.clip_id == clip_id), None
+        )
+        audio = next(
+            (clip for clip in state.audio_segments if clip.clip_id == clip_id), None
+        )
+        if video is None and audio is None:
+            raise StateNotReadyError(f"Unknown clip: {clip_id}")
+        if video is not None:
+            if request.transition_type is not None:
+                if request.transition_type == "none":
+                    video.transition_out = None
+                else:
+                    video.transition_out = Transition(
+                        type=request.transition_type,
+                        duration_frames=request.transition_duration_frames
+                        or (
+                            video.transition_out.duration_frames
+                            if video.transition_out
+                            else 6
+                        ),
+                    )
+            video.transform = video.transform.model_copy(
+                update={
+                    key: value
+                    for key, value in {
+                        "scale": request.scale,
+                        "pos_x": request.pos_x,
+                        "pos_y": request.pos_y,
+                    }.items()
+                    if value is not None
+                }
+            )
+        if audio is not None:
+            rate = (
+                state.media_info.audio_sample_rate
+                if state.media_info is not None
+                else 48000
+            )
+            if request.fade_in_sec is not None:
+                audio.fade_in_samples = round(request.fade_in_sec * rate)
+            if request.fade_out_sec is not None:
+                audio.fade_out_samples = round(request.fade_out_sec * rate)
+
+    @app.patch("/api/v1/jobs/{job_id}/timeline/clips")
+    def update_timeline_clips(
+        job_id: str, request: ClipBatchStyleRequest, http_request: Request
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            locked_scopes: set[str] = set()
+            if (
+                request.transition_type is not None
+                or request.scale is not None
+                or request.pos_x is not None
+                or request.pos_y is not None
+            ):
+                locked_scopes.add("video")
+            if request.fade_in_sec is not None or request.fade_out_sec is not None:
+                locked_scopes.add("audio")
+            _assert_tracks_unlocked(job, locked_scopes)
+            state_path = _timeline_state_path(job)
+            history = _timeline_history(job)
+            state = ProjectState.model_validate_json(
+                state_path.read_text(encoding="utf-8")
+            )
+            _require_if_match(http_request, state.revision)
+            previous = state.model_copy(deep=True)
+            known = {clip.clip_id for clip in state.video_segments} | {
+                clip.clip_id for clip in state.audio_segments
+            }
+            clip_ids = list(dict.fromkeys(request.clip_ids))
+            missing = [clip_id for clip_id in clip_ids if clip_id not in known]
+            if missing:
+                raise StateNotReadyError(
+                    f"Unknown clip(s): {', '.join(missing)}"
+                )
+            for clip_id in clip_ids:
+                _apply_clip_style(state, clip_id, request)
+            history.record(previous)
+            state = _apply_and_store(
+                job, state, state_path, history, previous.revision + 1
+            )
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        return {
+            "ok": True,
+            "revision": state.revision,
+            "applied": len(clip_ids),
+            "etag": _timeline_etag(state.revision),
+            "can_undo": history.can_undo,
+            "can_redo": history.can_redo,
+            "warning": "Re-run export/render to refresh artifacts.",
+        }
+
     @app.patch("/api/v1/jobs/{job_id}/timeline/clip/{clip_id}")
     def update_timeline_clip(
         job_id: str, clip_id: str, request: ClipUpdateRequest, http_request: Request
@@ -2620,50 +2723,7 @@ def register_routes(
             state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
             _require_if_match(http_request, state.revision)
             previous = state.model_copy(deep=True)
-            video = next(
-                (clip for clip in state.video_segments if clip.clip_id == clip_id), None
-            )
-            audio = next(
-                (clip for clip in state.audio_segments if clip.clip_id == clip_id), None
-            )
-            if video is None and audio is None:
-                raise StateNotReadyError(f"Unknown clip: {clip_id}")
-            if video is not None:
-                if request.transition_type is not None:
-                    if request.transition_type == "none":
-                        video.transition_out = None
-                    else:
-                        video.transition_out = Transition(
-                            type=request.transition_type,
-                            duration_frames=request.transition_duration_frames
-                            or (
-                                video.transition_out.duration_frames
-                                if video.transition_out
-                                else 6
-                            ),
-                        )
-                transform = video.transform
-                video.transform = transform.model_copy(
-                    update={
-                        key: value
-                        for key, value in {
-                            "scale": request.scale,
-                            "pos_x": request.pos_x,
-                            "pos_y": request.pos_y,
-                        }.items()
-                        if value is not None
-                    }
-                )
-            if audio is not None:
-                rate = (
-                    state.media_info.audio_sample_rate
-                    if state.media_info is not None
-                    else 48000
-                )
-                if request.fade_in_sec is not None:
-                    audio.fade_in_samples = round(request.fade_in_sec * rate)
-                if request.fade_out_sec is not None:
-                    audio.fade_out_samples = round(request.fade_out_sec * rate)
+            _apply_clip_style(state, clip_id, request)
             history.record(previous)
             state = _apply_and_store(
                 job, state, state_path, history, previous.revision + 1

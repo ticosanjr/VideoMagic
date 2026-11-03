@@ -3,6 +3,28 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.46.0] - 2026-11-03
+
+### Changed
+
+- Batch style edits now go through one `PATCH /timeline/clips` request instead
+  of one request per clip. A batch creates a single revision and a single undo
+  entry, and the editor keeps the current selection and playhead after the
+  update.
+- Unknown clip ids are rejected before any change is written, and duplicate ids
+  are de-duplicated.
+
+### Added
+
+- Contract tests for the batch style route covering single-revision undo,
+  unknown clip rejection, and empty-selection validation.
+- A UI test asserting the batch client sends one PATCH with `clip_ids`.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.45.0] - 2026-11-02
 
 ### Fixed

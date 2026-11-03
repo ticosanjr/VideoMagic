@@ -2219,6 +2219,34 @@ export async function updateTimelineClip(
   );
 }
 
+export async function updateTimelineClips(
+  jobId: string,
+  clipIds: string[],
+  payload: {
+    transition_type?: "crossfade" | "fade_to_black" | "none";
+    transition_duration_frames?: number;
+    scale?: number;
+    pos_x?: number;
+    pos_y?: number;
+    fade_in_sec?: number;
+    fade_out_sec?: number;
+  }
+): Promise<{
+  ok: boolean;
+  revision: number;
+  applied: number;
+  can_undo: boolean;
+  can_redo: boolean;
+}> {
+  if (!clipIds.length) {
+    throw new Error("Select at least one clip");
+  }
+  return request(`/api/v1/jobs/${encodeURIComponent(jobId)}/timeline/clips`, {
+    method: "PATCH",
+    body: JSON.stringify({ ...payload, clip_ids: clipIds })
+  });
+}
+
 export async function undoTimeline(jobId: string): Promise<void> {
   await request(`/api/v1/jobs/${encodeURIComponent(jobId)}/timeline/undo`, {
     method: "POST"
