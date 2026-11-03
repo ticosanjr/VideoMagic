@@ -3,6 +3,21 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.52.0] - 2026-11-03
+
+### Added
+
+- Every node's Outputs panel now has an **Inspect** button that opens its
+  persisted step outputs directly.
+- The step-output viewer can copy the selected port as JSON.
+- The viewer can open a second step side by side with an independent port
+  selector, so two steps can be compared without leaving the builder.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.51.0] - 2026-11-03
 
 ### Added

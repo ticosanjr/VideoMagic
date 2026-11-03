@@ -622,4 +622,6 @@ export const GLOSSARY: Record<string, string> = {
   "Mask": "Máscara",
   "Reset layout": "Redefinir layout",
   "No configured LLM provider. Retakes will only remove exact repetitions.": "Nenhum provider LLM configurado. O Retakes só removerá repetições exatas.",
+  "Copy JSON": "Copiar JSON",
+  "Compare\u2026": "Comparar\u2026",
 };

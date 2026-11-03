@@ -270,6 +270,10 @@
   let outputsError = $state("");
   let outputsTarget = $state("");
   let outputsSaved = $state("");
+  let outputsCompareStep = $state("");
+  let outputsCompareData = $state<StepOutputs | null>(null);
+  let outputsComparePortId = $state("");
+  let outputsCompareValue = $state<unknown>(null);
   let logBusy = $state(false);
   let logError = $state("");
   let comparison = $state<{
@@ -540,6 +544,7 @@
           outputDir: step.output_dir ?? "",
           onStepPatch: (key: "media_override" | "output_mode" | "output_dir", value: unknown) => patchStepField(step.id, key, value),
           onPickStepPath: (key: "media_override" | "output_dir") => openStepPathPicker(step.id, key),
+          onInspectOutputs: () => void openStepOutputs(step.id),
           implementation: manifest?.status ?? "available",
           icon: manifest?.icon ?? "●",
           color: manifest?.color ?? "#38bdf8",
@@ -692,6 +697,7 @@
           outputDir: "",
           onStepPatch: (key: "media_override" | "output_mode" | "output_dir", value: unknown) => patchStepField(id, key, value),
           onPickStepPath: (key: "media_override" | "output_dir") => openStepPathPicker(id, key),
+          onInspectOutputs: () => void openStepOutputs(id),
           implementation: manifest.status ?? "available",
           icon: manifest.icon ?? "●",
           color: manifest.color ?? "#38bdf8",
@@ -1245,6 +1251,10 @@
     outputsData = null;
     outputsPortId = "";
     outputsValue = null;
+    outputsCompareStep = "";
+    outputsCompareData = null;
+    outputsComparePortId = "";
+    outputsCompareValue = null;
     try {
       if (job && outputsJob?.job_id !== job.job_id) {
         outputsJob = job;
@@ -1294,6 +1304,37 @@
     }
   }
 
+  async function selectCompareStep(stepId: string) {
+    outputsCompareStep = stepId;
+    outputsCompareData = null;
+    outputsComparePortId = "";
+    outputsCompareValue = null;
+    if (!outputsJob || !stepId) return;
+    try {
+      outputsCompareData = await getStepOutputs(outputsJob.job_id, stepId);
+      const first = outputsCompareData.ports[0];
+      if (first) await selectComparePort(first.id);
+    } catch (reason) {
+      outputsError = errorMessage(reason);
+    }
+  }
+
+  async function selectComparePort(portId: string) {
+    if (!outputsJob || !outputsCompareData) return;
+    outputsComparePortId = portId;
+    try {
+      const response = await getStepOutputPort(
+        outputsJob.job_id,
+        outputsCompareStep,
+        portId
+      );
+      outputsCompareValue = response.port.value;
+    } catch (reason) {
+      outputsError = errorMessage(reason);
+      outputsCompareValue = null;
+    }
+  }
+
   async function saveCurrentStepOutputs() {
     if (!outputsJob || !outputsStep) return;
     const target = outputsTarget.trim();
@@ -1317,6 +1358,15 @@
   function outputValueText(value: unknown): string {
     if (value === undefined) return "";
     return typeof value === "string" ? value : JSON.stringify(value, null, 2);
+  }
+
+  async function copyOutputValue() {
+    try {
+      await navigator.clipboard.writeText(outputValueText(outputsValue));
+      outputsSaved = "Copied JSON to the clipboard.";
+    } catch {
+      outputsError = "Could not copy the output.";
+    }
   }
 
   async function generateProxy() {
@@ -2725,6 +2775,7 @@
               onpickpath={(path) => openNodePathPicker(inspected.id, path)}
               onsteppatch={(key, value) => patchStepField(inspected.id, key, value)}
               onpicksteppath={(key) => openStepPathPicker(inspected.id, key)}
+              oninspectoutputs={() => void openStepOutputs(inspected.id)}
               onapplypreset={(preset) => patchNodeParamsMany(inspected.id, preset.params)}
               onsavepreset={(name) => void saveNodePreset(inspected.id, nodeData(inspected).type, name)}
               onupdatepreset={(presetId) => void updateNodePresetFromNode(inspected.id, presetId)}
@@ -3183,6 +3234,17 @@
                 <option value={run.id}>{run.id} · {run.status}</option>
               {/each}
             </select>
+            <select
+              aria-label="Compare step"
+              value={outputsCompareStep}
+              onchange={(event) => void selectCompareStep(event.currentTarget.value)}
+              class="rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1 text-[11px] text-neutral-200"
+            >
+              <option value="">Compare…</option>
+              {#each outputsJob?.result?.step_runs ?? [] as run}
+                {#if run.id !== outputsStep}<option value={run.id}>{run.id}</option>{/if}
+              {/each}
+            </select>
             <button type="button" onclick={() => (outputsOpen = false)} class="rounded px-2 text-neutral-500 hover:text-neutral-200" aria-label="Close outputs">×</button>
           </div>
         </div>
@@ -3211,11 +3273,28 @@
               {/if}
             </div>
             <div class="flex min-h-0 flex-col">
-              <div class="min-h-0 flex-1 overflow-auto bg-neutral-950 p-3">
-                {#if outputsPortId}
-                  <pre class="whitespace-pre-wrap break-words font-mono text-[10px] text-neutral-300" data-testid="step-output-json">{outputValueText(outputsValue)}</pre>
-                {:else}
-                  <p class="text-[11px] text-neutral-500">No persisted output for this step.</p>
+              <div class={`grid min-h-0 flex-1 ${outputsCompareStep ? "md:grid-cols-2" : ""}`}>
+                <div class="min-h-0 overflow-auto bg-neutral-950 p-3">
+                  {#if outputsPortId}
+                    <pre class="whitespace-pre-wrap break-words font-mono text-[10px] text-neutral-300" data-testid="step-output-json">{outputValueText(outputsValue)}</pre>
+                  {:else}
+                    <p class="text-[11px] text-neutral-500">No persisted output for this step.</p>
+                  {/if}
+                </div>
+                {#if outputsCompareStep}
+                  <div class="min-h-0 overflow-auto border-t border-neutral-800 bg-neutral-950 p-3 md:border-l md:border-t-0">
+                    <select
+                      aria-label="Compare port"
+                      value={outputsComparePortId}
+                      onchange={(event) => void selectComparePort(event.currentTarget.value)}
+                      class="mb-2 w-full rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-[10px] text-neutral-200"
+                    >
+                      {#each outputsCompareData?.ports ?? [] as port}
+                        <option value={port.id}>{port.id}</option>
+                      {/each}
+                    </select>
+                    <pre class="whitespace-pre-wrap break-words font-mono text-[10px] text-neutral-300">{outputValueText(outputsCompareValue)}</pre>
+                  </div>
                 {/if}
               </div>
               <div class="flex flex-wrap items-center gap-2 border-t border-neutral-800 p-3">
@@ -3225,6 +3304,7 @@
                   aria-label="Save output folder"
                   class="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-900 px-2 py-1 font-mono text-[10px] text-neutral-200"
                 />
+                <button type="button" onclick={() => void copyOutputValue()} disabled={!outputsPortId} class="rounded-lg border border-neutral-700 px-3 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Copy JSON</button>
                 <button type="button" onclick={() => void saveCurrentStepOutputs()} disabled={outputsBusy || !outputsTarget.trim()} class="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-[10px] text-emerald-200 disabled:opacity-40">Save to folder</button>
               </div>
             </div>

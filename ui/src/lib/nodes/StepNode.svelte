@@ -42,6 +42,7 @@
         value: unknown
       ) => void;
       onPickStepPath?: (key: "media_override" | "output_dir") => void;
+      onInspectOutputs?: () => void;
       presets?: NodePreset[];
       options?: NodeOptions | null;
       onApplyPreset?: (preset: NodePreset) => void;
@@ -227,6 +228,7 @@
           outputDir={data.outputDir}
           onsteppatch={data.onStepPatch}
           onpicksteppath={data.onPickStepPath}
+          onInspectOutputs={data.onInspectOutputs}
         />
 
         <div class="flex flex-wrap gap-1 pt-1">

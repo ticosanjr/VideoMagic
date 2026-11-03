@@ -17,6 +17,7 @@
   let {
     node,
     busy = false,
+    oninspectoutputs = undefined,
     paramText = "",
     paramError = "",
     wiringOptions,
@@ -71,6 +72,7 @@
     onpickpath?: (path: string[]) => void;
     onsteppatch?: (key: "media_override" | "output_mode" | "output_dir", value: unknown) => void;
     onpicksteppath?: (key: "media_override" | "output_dir") => void;
+    oninspectoutputs?: () => void;
     onapplypreset?: (preset: NodePreset) => void;
     onsavepreset?: (name: string) => void;
     onupdatepreset?: (presetId: string) => void;
@@ -305,6 +307,7 @@
       prefix="inspector-"
       onsteppatch={onsteppatch}
       onpicksteppath={onpicksteppath}
+      onInspectOutputs={oninspectoutputs}
     />
 
     <Section title="Parameters (JSON)" icon="code" testid="inspector-json">

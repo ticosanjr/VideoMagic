@@ -8,7 +8,8 @@
     outputDir = "",
     prefix = "",
     onsteppatch,
-    onpicksteppath
+    onpicksteppath,
+    onInspectOutputs
   }: {
     type: string;
     outputPorts?: StepPort[];
@@ -20,6 +21,7 @@
       value: unknown
     ) => void;
     onpicksteppath?: (key: "output_dir") => void;
+    onInspectOutputs?: () => void;
   } = $props();
 
   const hasFileOutputs = $derived(
@@ -34,7 +36,12 @@
     class="rounded-lg border border-emerald-500/15 bg-emerald-950/10 p-2"
     data-testid={`${prefix}outputs-${type}`}
   >
-    <p class="text-[9px] uppercase tracking-wide text-emerald-300/80">Outputs</p>
+    <div class="flex items-center justify-between gap-2">
+      <p class="text-[9px] uppercase tracking-wide text-emerald-300/80">Outputs</p>
+      {#if onInspectOutputs}
+        <button type="button" onclick={(event) => { event.stopPropagation(); onInspectOutputs?.(); }} class="rounded border border-emerald-500/30 px-1.5 py-0.5 text-[9px] text-emerald-200 hover:bg-emerald-500/10" title="View and save this node's outputs">Inspect</button>
+      {/if}
+    </div>
     {#if outputPorts.length}
       <div class="mt-1 flex flex-wrap gap-1">
         {#each outputPorts as port}
