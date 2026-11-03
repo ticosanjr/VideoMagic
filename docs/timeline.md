@@ -157,7 +157,8 @@ Track headers stay fixed while the timeline scrolls. The timeline supports
 in/out marks (I/O), fit selection (Shift+F), hover frame thumbnails in both
 Normal and Recut, Recut waveforms, multi-selection actions, marker navigation,
 and copy/paste of clip style (transition, scale, position, fades), and batch
-transition/fade editing for a multi-selection. The snapshot
+transition/fade editing, scale, position, and reset transform for a
+multi-selection. The snapshot
 dialog also has **Use in recipe**, which opens the recipe builder
 with a configured `timeline.load` node and its path already filled.
 

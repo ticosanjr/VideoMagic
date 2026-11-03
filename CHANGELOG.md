@@ -3,6 +3,18 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.40.0] - 2026-11-02
+
+### Added
+
+- Multi-selection batch editing now includes scale and X/Y position.
+- Reset transform applies scale 1 and centered position to every selected clip.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.39.0] - 2026-11-02
 
 ### Added

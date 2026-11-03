@@ -88,6 +88,9 @@
   let batchTransitionFrames = $state(6);
   let batchFadeIn = $state(0);
   let batchFadeOut = $state(0);
+  let batchScale = $state(1);
+  let batchPosX = $state(0);
+  let batchPosY = $state(0);
   let livePlayer = $state<{
     seekSource: (time: number) => void;
     seekOutput: (time: number) => void;
@@ -1254,7 +1257,10 @@
           transition_type: batchTransitionType,
           transition_duration_frames: Math.max(1, Math.round(batchTransitionFrames)),
           fade_in_sec: Math.max(0, batchFadeIn),
-          fade_out_sec: Math.max(0, batchFadeOut)
+          fade_out_sec: Math.max(0, batchFadeOut),
+          scale: Math.max(1, Math.min(3, batchScale)),
+          pos_x: Math.max(-1, Math.min(1, batchPosX)),
+          pos_y: Math.max(-1, Math.min(1, batchPosY))
         });
       }
       status = `Applied batch style to ${selectedIds.length} clip(s).`;
@@ -1264,6 +1270,13 @@
     } finally {
       styleBusy = false;
     }
+  }
+
+  async function resetBatchTransform() {
+    batchScale = 1;
+    batchPosX = 0;
+    batchPosY = 0;
+    await applyBatchStyle();
   }
 
   async function pasteClipStyle() {
@@ -1598,6 +1611,18 @@
                   <button type="button" onclick={() => void pasteClipStyle()} disabled={!copiedStyle || styleBusy} class="rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-200 disabled:opacity-40">Paste style</button>
                 </div>
                 <div class="mt-3 grid grid-cols-2 gap-2 border-t border-sky-500/20 pt-2">
+                  <label class="text-[10px] text-neutral-400">Scale
+                    <input type="number" min="1" max="3" step="0.01" bind:value={batchScale} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
+                  </label>
+                  <label class="text-[10px] text-neutral-400">Position X
+                    <input type="number" min="-1" max="1" step="0.01" bind:value={batchPosX} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
+                  </label>
+                  <label class="text-[10px] text-neutral-400">Position Y
+                    <input type="number" min="-1" max="1" step="0.01" bind:value={batchPosY} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
+                  </label>
+                  <div class="flex items-end">
+                    <button type="button" onclick={() => void resetBatchTransform()} disabled={styleBusy} class="w-full rounded border border-neutral-600 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Reset transform</button>
+                  </div>
                   <label class="text-[10px] text-neutral-400">Transition
                     <select bind:value={batchTransitionType} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100">
                       <option value="none">cut</option>
