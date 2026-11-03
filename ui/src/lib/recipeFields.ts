@@ -6,6 +6,7 @@ export type RecipeControl =
   | "select"
   | "segmented"
   | "chips"
+  | "multi"
   | "path"
   | "color"
   | "json"
@@ -302,10 +303,7 @@ function controlFor(
   const schemaControl = resolved["x-control"];
   if (typeof schemaControl === "string") return schemaControl as RecipeControl;
   if (kind === "boolean") return "switch";
-  if (kind === "enum") {
-    const count = Array.isArray(resolved.enum) ? resolved.enum.length : 0;
-    return count > 0 && count <= 4 ? "segmented" : "select";
-  }
+  if (kind === "enum") return "select";
   if (kind === "number" && minimum !== undefined && maximum !== undefined) {
     return maximum - minimum <= 10_000 ? "slider" : "number";
   }
@@ -313,7 +311,8 @@ function controlFor(
   if (kind === "json" && itemOptions.length) return "chips";
   if (resolved.type === "array") {
     const items = resolved.items as Schema | undefined;
-    if (items && (items.type === "string" || Array.isArray(items.enum))) return "chips";
+    if (itemOptions.length) return "multi";
+    if (items && items.type === "string") return "chips";
   }
   if (kind === "path") return "path";
   if (kind === "color") return "color";

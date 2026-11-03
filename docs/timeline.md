@@ -107,12 +107,13 @@ edits.
 
 ## Editor layout and transport
 
-The Edit tab is a fixed-height workspace: transport toolbar, timeline, then the
-preview and a scrollable inspector. Selecting a clip or showing a status message
+The Edit tab is a fixed-height workspace: preview, transport toolbar, a
+vertically resizable timeline, and a scrollable inspector. The preview stays
+above the timeline and the transport sits immediately below the preview. Selecting a clip or showing a status message
 never moves the timeline. Toolbar actions are icon buttons with fixed size and
 hover/ARIA labels.
 
-There is one preview surface. It uses the live compositor when eligible, the
+There is one preview surface and one shared zoom control. It uses the live compositor when eligible, the
 rendered preview otherwise, and falls back to a fixed preparation state while a
 browser-safe source proxy is built. Transport supports start/end, previous/next
 active segment, play/pause, one-frame and one-second seeks, and playback speed

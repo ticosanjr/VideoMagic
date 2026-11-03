@@ -381,6 +381,27 @@
     }
   }
 
+  function playWhenReady(video: HTMLVideoElement): Promise<void> {
+    if (video.readyState >= 2) return video.play();
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const start = () => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        video.removeEventListener("canplay", start);
+        video.play().then(resolve).catch(reject);
+      };
+      const timer = window.setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        video.removeEventListener("canplay", start);
+        reject(new Error("The source is not ready to play yet."));
+      }, 5000);
+      video.addEventListener("canplay", start, { once: true });
+    });
+  }
+
   function togglePlay() {
     if (!segments.length) return;
     error = "";
@@ -406,8 +427,7 @@
     seekAudio(frontAudio(), video.currentTime, segment);
     if (frontAudio()) frontAudio()!.volume = gain();
     applyRate();
-    void video
-      .play()
+    void playWhenReady(video)
       .then(() => {
         playing = true;
         onstate?.(true);
@@ -459,18 +479,24 @@
 
   function previousSegment() {
     if (!segments.length) return;
-    const segment = segments[index];
+    const currentSegment = segments.find(
+      (segment) => outputTime >= segment.outputStart && outputTime < segment.outputEnd
+    );
     const target =
-      segment && sourceTime - segment.start > 0.75
-        ? segment.start
-        : segments[Math.max(0, index - 1)].start;
-    seek(target);
+      currentSegment && outputTime - currentSegment.outputStart > 0.75
+        ? currentSegment.outputStart
+        : [...segments].reverse().find((segment) => {
+            return segment.outputStart < outputTime - 0.01;
+          })?.outputStart;
+    if (target !== undefined) seekOutput(target);
   }
 
   function nextSegment() {
     if (!segments.length) return;
-    const nextIndex = Math.min(segments.length - 1, index + 1);
-    seek(segments[nextIndex].start);
+    const target = segments.find(
+      (segment) => segment.outputStart > outputTime + 0.01
+    );
+    if (target) seekOutput(target.outputStart);
   }
 
   $effect(() => {

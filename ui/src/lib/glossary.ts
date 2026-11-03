@@ -504,6 +504,8 @@ export const GLOSSARY: Record<string, string> = {
   "URL:": "URL:",
   "Undo": "Desfazer",
   "Upload": "Enviar",
+  "The timeline is loaded but has no active video segments. Re-run the timeline step or activate an inactive segment.": "A timeline foi carregada, mas não tem segmentos de vídeo ativos. Rode o step de timeline novamente ou ative um segmento inativo.",
+  "Select all": "Selecionar tudo",
   "Position Y": "Posição Y",
   "Position X": "Posição X",
   "Reset transform": "Redefinir transformação",

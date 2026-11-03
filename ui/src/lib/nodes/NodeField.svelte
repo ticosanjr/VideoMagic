@@ -173,6 +173,36 @@
       />
       {#if field.unit}<span class="text-[9px] text-neutral-500">{field.unit}</span>{/if}
     </span>
+  {:else if field.control === "multi"}
+    <details class="mt-1 rounded border border-neutral-700 bg-neutral-950" data-testid={testId}>
+      <summary class="cursor-pointer px-2 py-1 text-[11px] text-neutral-200">
+        {values().length ? `${values().length} selected` : "Choose…"}
+      </summary>
+      <div class="max-h-44 space-y-1 overflow-auto border-t border-neutral-800 p-2">
+        <div class="mb-1 flex gap-1">
+          <button type="button" onclick={(event) => { event.preventDefault(); onchange([...field.itemOptions]); }} class="rounded border border-emerald-500/30 px-1.5 py-0.5 text-[9px] text-emerald-200">Select all</button>
+          <button type="button" onclick={(event) => { event.preventDefault(); onchange([]); }} class="rounded border border-neutral-700 px-1.5 py-0.5 text-[9px] text-neutral-400">Clear</button>
+        </div>
+        {#each field.itemOptions as option}
+          <label class="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-[10px] text-neutral-300 hover:bg-white/5">
+            <input
+              type="checkbox"
+              checked={values().includes(option)}
+              onchange={(event) => {
+                const current = values();
+                onchange(
+                  event.currentTarget.checked
+                    ? [...current.filter((item) => item !== option), option]
+                    : current.filter((item) => item !== option)
+                );
+              }}
+              class="h-3 w-3 rounded border-neutral-700 bg-neutral-900"
+            />
+            {option}
+          </label>
+        {/each}
+      </div>
+    </details>
   {:else if field.control === "chips"}
     <span class="mt-1 flex flex-wrap gap-1" data-testid={testId}>
       {#if field.itemOptions.length}

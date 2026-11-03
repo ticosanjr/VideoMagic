@@ -826,9 +826,19 @@ function raiseApiError(
   response: Response,
   payload: unknown,
   path: string,
-  fallbackCode = "http_error"
+  fallbackCode = "http_error",
+  init?: RequestInit
 ): never {
   const detail = apiDetail(payload);
+  detail.path = path;
+  detail.method = String(init?.method ?? "GET").toUpperCase();
+  if (init?.body) {
+    try {
+      detail.request_body = JSON.parse(String(init.body));
+    } catch {
+      detail.request_body = String(init.body);
+    }
+  }
   const error = new ApiError(
     String(detail.code ?? fallbackCode),
     String(detail.message ?? response.statusText ?? "Request failed"),
@@ -867,7 +877,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     if (timer) clearTimeout(timer);
   }
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) raiseApiError(response, payload, path);
+  if (!response.ok) raiseApiError(response, payload, path, "http_error", init);
   return payload as T;
 }
 

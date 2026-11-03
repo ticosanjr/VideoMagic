@@ -173,14 +173,14 @@ test("shows full backend render error details", async ({ page }) => {
   await expect(banner).toContainText("ffmpeg -i source.mp4");
 });
 
-test("puts the timeline above the preview", async ({ page }) => {
+test("puts the preview above the timeline", async ({ page }) => {
   const preview = page.getByTestId("timeline-preview");
   const canvas = page.getByTestId("timeline-canvas");
   await expect(preview).toBeVisible();
   await expect(canvas).toBeVisible();
   const previewBox = await preview.boundingBox();
   const canvasBox = await canvas.boundingBox();
-  expect(canvasBox?.y ?? 0).toBeLessThan(previewBox?.y ?? 0);
+  expect(previewBox?.y ?? 0).toBeLessThan(canvasBox?.y ?? 0);
 });
 
 test("renders the canvas timeline and edit controls", async ({ page }) => {
@@ -217,6 +217,7 @@ test("opens the timeline while a recipe is still exporting", async ({ page }) =>
 
 test("clicking the timeline moves the playhead and the timeline stays fixed", async ({ page }) => {
   const canvas = page.getByTestId("timeline-canvas");
+  await canvas.scrollIntoViewIfNeeded();
   const before = await canvas.boundingBox();
   await canvas.click({ position: { x: 96 + 80 * 2, y: 60 } });
   await expect(page.getByTestId("timeline-timecode")).not.toContainText("00:00:00");

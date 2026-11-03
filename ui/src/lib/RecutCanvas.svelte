@@ -5,6 +5,7 @@
   let {
     timeline,
     jobId = "",
+    zoom = $bindable(70),
     selectedId = "",
     busy = false,
     playhead = 0,
@@ -16,6 +17,7 @@
   }: {
     timeline: TimelineData;
     jobId?: string;
+    zoom?: number;
     selectedId?: string;
     busy?: boolean;
     playhead?: number;
@@ -26,7 +28,6 @@
     onseek?: (sourceSec: number) => void;
   } = $props();
 
-  let zoom = $state(70);
   let scroller = $state<HTMLDivElement | null>(null);
   let drag = $state<{
     id: string;
@@ -263,11 +264,7 @@
       <span class="flex items-center gap-1"><span class="h-2 w-3 rounded-sm border border-rose-400 bg-rose-500/30"></span>inactive</span>
       <span class="text-neutral-600">{inactive.length} inactive segment(s)</span>
     </div>
-    <label class="flex items-center gap-2 text-[10px] text-neutral-500">
-      Zoom
-      <input type="range" min="2" max="400" step="1" bind:value={zoom} class="w-24 accent-sky-400" />
-      <span class="w-8 text-right font-mono text-neutral-400">{Math.round(zoom)}</span>
-    </label>
+    <span class="font-mono text-[10px] text-neutral-500">{Math.round(zoom)} px/s</span>
   </div>
 
   <div bind:this={scroller} class="overflow-x-auto">

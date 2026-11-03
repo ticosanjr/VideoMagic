@@ -133,6 +133,7 @@
     }
   }
   let zoom = $state(80);
+  let timelineHeight = $state(540);
   let snap = $state(true);
   let selectedClip = $state<TimelineData["video"][number] | null>(null);
   let selectedIds = $state<string[]>([]);
@@ -224,6 +225,8 @@
     try {
       const saved = localStorage.getItem("videoflow.timelineView");
       if (saved === "recut" || saved === "normal") viewMode = saved;
+      const height = Number(localStorage.getItem("videoflow.timelineHeight") || "");
+      if (Number.isFinite(height) && height >= 240) timelineHeight = height;
     } catch {
       /* private mode */
     }
@@ -992,10 +995,9 @@
       status = makeActive
         ? `Activated ${id} at revision ${response.revision}.`
         : `Deactivated ${id} at revision ${response.revision}.`;
-      await loadTimeline(makeActive ? id : "", {
-        assets: false,
-        deliverables: false
-      });
+      const keepPlayhead = playhead;
+      await loadTimeline(id, { assets: false, deliverables: false });
+      playhead = keepPlayhead;
       selectedInactiveId = makeActive ? "" : id;
       schedulePreview();
     } catch (reason) {
@@ -1139,7 +1141,18 @@
 
   function splitSelected() {
     if (!selectedClip) return;
-    void applyEdit("split", { split_sec: playhead });
+    const minimum = 1 / Math.max(1, fps);
+    const inside =
+      playhead > selectedClip.start_sec + minimum &&
+      playhead < selectedClip.end_sec - minimum;
+    const split = inside
+      ? playhead
+      : (selectedClip.start_sec + selectedClip.end_sec) / 2;
+    playhead = split;
+    status = inside
+      ? `Splitting ${selectedClip.id} at ${split.toFixed(2)}s.`
+      : `Playhead moved to the middle of ${selectedClip.id} to split.`;
+    void applyEdit("split", { split_sec: split });
   }
 
   async function undo() {
@@ -1204,6 +1217,26 @@
     inPoint = null;
     outPoint = null;
     status = "In/out marks cleared.";
+  }
+
+  function beginTimelineResize(event: PointerEvent) {
+    event.preventDefault();
+    const startY = event.clientY;
+    const startHeight = timelineHeight;
+    const move = (moveEvent: PointerEvent) => {
+      timelineHeight = Math.max(260, Math.min(900, startHeight + moveEvent.clientY - startY));
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      try {
+        localStorage.setItem("videoflow.timelineHeight", String(Math.round(timelineHeight)));
+      } catch {
+        /* private mode */
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up, { once: true });
   }
 
   function fitTimeline() {
@@ -1526,7 +1559,7 @@
 
   {#if timeline}
       <div class="flex flex-col gap-4">
-      <div class="order-2 mb-2 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-3" data-testid="timeline-preview">
+      <div class="mb-2 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-3" data-testid="timeline-preview">
         <div class="grid gap-3 lg:h-[480px] lg:grid-cols-[minmax(0,1fr)_320px]">
           <div class="space-y-3 lg:h-full lg:min-h-0 lg:overflow-y-auto">
             {#if liveActive}
@@ -1794,7 +1827,10 @@
           </div>
         </div>
       </div>
-    <section class="order-1 overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950">
+    <div class="group flex h-3 cursor-row-resize items-center justify-center rounded-full border border-neutral-800 bg-neutral-900/60" role="separator" aria-label="Resize timeline vertically" data-testid="timeline-resize" onpointerdown={beginTimelineResize}>
+      <span class="h-0.5 w-12 rounded-full bg-neutral-600 group-hover:bg-sky-400"></span>
+    </div>
+    <section class="overflow-y-auto rounded-2xl border border-neutral-800 bg-neutral-950" style={`height:${timelineHeight}px`}>
       <div class="flex flex-wrap items-center gap-2 border-b border-neutral-800 px-3 py-2">
         <button type="button" onclick={() => seek(0)} disabled={!timeline} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300 disabled:opacity-40" title="Go to start (Home)" aria-label="Go to start"><Icon name="skip-back" size={14} /></button>
         <button type="button" onclick={() => seekSegment(-1)} disabled={!timeline} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300 disabled:opacity-40" title="Previous segment (Shift+J)" aria-label="Previous segment"><Icon name="chevron-left" size={14} /></button>
@@ -1891,10 +1927,16 @@
         {#if !assets.length}<span class="text-[10px] text-neutral-600">Scan assets in the Assets tab to drag them here.</span>{/if}
       </div>
 
+      {#if !timeline.video.length}
+        <div class="mx-3 mb-2 rounded-xl border border-amber-400/20 bg-amber-950/20 px-3 py-2 text-[10px] text-amber-200" data-testid="timeline-empty">
+          The timeline is loaded but has no active video segments. Re-run the timeline step or activate an inactive segment.
+        </div>
+      {/if}
       {#if viewMode === "recut"}
         <RecutCanvas
           {timeline}
           jobId={selected}
+          bind:zoom={zoom}
           selectedId={selectedInactiveId || selectedClip?.id || ""}
           busy={editBusy}
           playhead={liveSourceTime}

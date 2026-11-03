@@ -3,6 +3,32 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.41.0] - 2026-11-02
+
+### Added
+
+- Preview moved back above the transport and timeline, with a persisted
+  vertical resize handle between preview and timeline.
+- One shared zoom control for Normal and Recut.
+- Dropdowns for all node enums and checkbox multi-select for option arrays,
+  including timeline export targets.
+- Clear timeline-empty diagnostics and richer backend request errors with
+  endpoint, method, and request body.
+- Play waits for `canplay`; next/previous segment now derive from the current
+  output time instead of a stale index.
+
+### Fixed
+
+- Split now keeps the playhead inside the selected clip or moves it to the
+  clip midpoint before sending the edit.
+- Activate/deactivate preserve the playhead and selection across the reload.
+- Preview order no longer places the timeline above the video.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.40.0] - 2026-11-02
 
 ### Added

@@ -17,13 +17,13 @@ const schema = {
 };
 
 describe("recipeFields controls", () => {
-  it("maps bounded numbers to sliders and enums to segmented controls", () => {
+  it("maps bounded numbers to sliders and enums/arrays to dropdowns", () => {
     const groups = fieldGroups(schema, {}, "audio.vad");
     const fields = Object.fromEntries(groups.flatMap((group) => group.fields).map((field) => [field.id, field]));
     expect(fields.noise_db.control).toBe("slider");
-    expect(fields.engine.control).toBe("segmented");
+    expect(fields.engine.control).toBe("select");
     expect(fields.apply_pads.control).toBe("switch");
-    expect(fields.targets.control).toBe("chips");
+    expect(fields.targets.control).toBe("multi");
     expect(fields.targets.itemOptions).toEqual(["mp4", "resolve", "premiere"]);
     expect(fields.huge.control).toBe("number");
   });
