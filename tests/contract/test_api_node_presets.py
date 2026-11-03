@@ -79,5 +79,24 @@ def test_node_options_expose_configured_providers(monkeypatch, tmp_path) -> None
     )
     payload = client.get("/api/v1/node-options").json()
     assert payload["providers"]["tts"][0]["id"] == "tts-demo"
+    assert payload["providers"]["tts"][0]["configured"] is True
+    assert payload["providers"]["tts"][0]["missing"] == []
     assert isinstance(payload["services"], list)
     assert isinstance(payload["models"], list)
+
+    client.put(
+        "/api/v1/providers/llm-demo",
+        json={
+            "id": "llm-demo",
+            "name": "LLM demo",
+            "capability": "llm",
+            "base_url": "http://127.0.0.1:9/v1",
+            "model": "",
+            "api_key_env": "",
+            "enabled": True,
+        },
+    )
+    payload = client.get("/api/v1/node-options").json()
+    llm = next(item for item in payload["providers"]["llm"] if item["id"] == "llm-demo")
+    assert llm["configured"] is False
+    assert llm["missing"] == ["model"]

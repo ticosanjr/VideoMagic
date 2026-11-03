@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from tests.unit.test_recipe import FakeAdapter
-from videoflow.application.providers import ProviderConfig, upsert_provider
+from videoflow.application.providers import ProviderConfig, provider_readiness, upsert_provider
 from videoflow.core.recipe import parse_recipe
 from videoflow.domain.errors import RecipeError
 from videoflow.engine.runner import RecipeRunner
@@ -78,3 +78,37 @@ def test_runner_rejects_a_provider_from_another_capability(tmp_path: Path) -> No
         RecipeRunner(recipe("tts-demo"), adapter=FakeAdapter()).run(
             source(tmp_path), tmp_path / "out", resume=False
         )
+
+
+def test_provider_readiness_reports_missing_fields() -> None:
+    assert provider_readiness(
+        {
+            "capability": "llm",
+            "enabled": True,
+            "base_url": "http://localhost:11434/v1",
+            "model": "qwen",
+        }
+    ) == (True, [])
+    configured, missing = provider_readiness(
+        {"capability": "llm", "enabled": True, "base_url": "http://localhost:1"}
+    )
+    assert configured is False
+    assert missing == ["model"]
+    assert provider_readiness(
+        {"capability": "asr", "enabled": False, "base_url": "x"}
+    ) == (False, ["enabled"])
+
+
+def test_runner_builds_an_llm_client_from_a_configured_provider() -> None:
+    client = RecipeRunner(recipe("asr-demo"))._llm_from_provider(
+        {
+            "base_url": "http://127.0.0.1:9/v1",
+            "model": "qwen",
+            "api_key_env": "VIDEOFLOW_LLM_KEY",
+        },
+        None,
+    )
+    assert client is not None
+    assert RecipeRunner(recipe("asr-demo"))._llm_from_provider(
+        {"base_url": "", "model": ""}, None
+    ) is None

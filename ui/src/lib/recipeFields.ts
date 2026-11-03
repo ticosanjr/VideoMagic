@@ -117,6 +117,11 @@ const FIELD_META: Record<string, Record<string, FieldMeta>> = {
     }
   },
   "retakes.cull": {
+    provider_id: {
+      group: "Provider",
+      label: "LLM provider (optional)",
+      optionsSource: "providers:llm"
+    },
     enabled: { group: "Retakes", label: "Remove retakes" },
     strategy: { group: "Retakes", label: "Strategy" },
     strictness: { group: "Retakes", label: "Strictness" },

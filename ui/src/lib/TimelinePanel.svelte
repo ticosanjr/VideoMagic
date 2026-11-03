@@ -5,8 +5,10 @@
   import TimelineCanvas from "$lib/TimelineCanvas.svelte";
   import RecutCanvas from "$lib/RecutCanvas.svelte";
   import TimelinePlayer from "$lib/TimelinePlayer.svelte";
+  import TimelineInspector from "$lib/TimelineInspector.svelte";
   import Modal from "$lib/ui/Modal.svelte";
-  import { fitScrollLeft, fitZoom, groupTrimEdits, liveSegments, outputForSource, sourceForOutput } from "$lib/timelineView";
+  import { fitScrollLeft, fitZoom, followScrollLeft, groupTrimEdits, liveSegments, outputForSource, sourceForOutput } from "$lib/timelineView";
+  import { formatSeconds } from "$lib/format";
   import ShortEditor from "$lib/ShortEditor.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import WaveformStrip from "$lib/WaveformStrip.svelte";
@@ -195,6 +197,9 @@
   let waveforms = $state<Record<string, number[]>>({});
   let autoPreview = $state(true);
   let previewDirty = $state(false);
+  let followPlayhead = $state(true);
+  let previewHeight = $state(480);
+  let previewInspectorWidth = $state(320);
   let viewMode = $state<"normal" | "recut">("normal");
   let selectedInactiveId = $state("");
   let inactiveStart = $state(0);
@@ -207,6 +212,13 @@
 
   const duration = $derived(Math.max(0.001, timeline?.duration_sec ?? 1));
   const fps = $derived(timeline?.fps ?? 30);
+  const removedDuration = $derived(
+    (timeline?.inactive ?? []).reduce(
+      (total, item) => total + Math.max(0, item.video_end_sec - item.video_start_sec),
+      0
+    )
+  );
+  const previewVideoHeight = $derived(Math.max(160, previewHeight - 100));
   const segments = $derived(liveSegments(timeline?.video ?? [], fps));
   const recutPlayhead = $derived(sourceForOutput(segments, playhead));
   const clipUnderPlayhead = $derived(
@@ -239,6 +251,16 @@
       if (saved === "recut" || saved === "normal") viewMode = saved;
       const height = Number(localStorage.getItem("videoflow.timelineHeight") || "");
       if (Number.isFinite(height) && height >= 240) timelineHeight = height;
+      const follow = localStorage.getItem("videoflow.followPlayhead");
+      if (follow === "false") followPlayhead = false;
+      const preview = Number(localStorage.getItem("videoflow.previewHeight") || "");
+      if (Number.isFinite(preview) && preview >= 260) previewHeight = preview;
+      const inspector = Number(
+        localStorage.getItem("videoflow.previewInspectorWidth") || ""
+      );
+      if (Number.isFinite(inspector) && inspector >= 240) {
+        previewInspectorWidth = inspector;
+      }
     } catch {
       /* private mode */
     }
@@ -925,6 +947,7 @@
     cancelAnimationFrame(raf);
     const tick = () => {
       if (videoEl) playhead = videoEl.currentTime;
+      followCursor();
       if (videoEl && !videoEl.paused) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -1283,6 +1306,64 @@
     window.addEventListener("pointerup", up, { once: true });
   }
 
+  function beginPreviewHeightResize(event: PointerEvent) {
+    event.preventDefault();
+    const startY = event.clientY;
+    const startHeight = previewHeight;
+    const move = (moveEvent: PointerEvent) => {
+      previewHeight = Math.max(
+        260,
+        Math.min(900, startHeight + moveEvent.clientY - startY)
+      );
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      try {
+        localStorage.setItem("videoflow.previewHeight", String(Math.round(previewHeight)));
+      } catch {
+        /* private mode */
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up, { once: true });
+  }
+
+  function beginInspectorResize(event: PointerEvent) {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = previewInspectorWidth;
+    const move = (moveEvent: PointerEvent) => {
+      previewInspectorWidth = Math.max(
+        240,
+        Math.min(640, startWidth - (moveEvent.clientX - startX))
+      );
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      try {
+        localStorage.setItem(
+          "videoflow.previewInspectorWidth",
+          String(Math.round(previewInspectorWidth))
+        );
+      } catch {
+        /* private mode */
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up, { once: true });
+  }
+
+  function resetPreviewLayout() {
+    previewHeight = 480;
+    previewInspectorWidth = 320;
+    try {
+      localStorage.setItem("videoflow.previewHeight", "480");
+      localStorage.setItem("videoflow.previewInspectorWidth", "320");
+    } catch {
+      /* private mode */
+    }
+  }
+
   function fitScroller(): HTMLElement | null {
     return document.querySelector<HTMLElement>(
       viewMode === "recut" ? '[data-testid="recut-scroller"]' : '[data-testid="timeline-scroller"]'
@@ -1304,6 +1385,30 @@
       const scroller = fitScroller();
       if (scroller) scroller.scrollLeft = 0;
     });
+  }
+
+  function setFollowPlayhead(value: boolean) {
+    followPlayhead = value;
+    try {
+      localStorage.setItem("videoflow.followPlayhead", String(value));
+    } catch {
+      /* private mode */
+    }
+  }
+
+  function followCursor() {
+    if (!followPlayhead || !playing) return;
+    const scroller = fitScroller();
+    if (!scroller) return;
+    const cursor = viewMode === "recut" ? recutPlayhead : playhead;
+    const next = followScrollLeft(
+      cursor,
+      zoom,
+      scroller.scrollLeft,
+      scroller.clientWidth,
+      fitHeaderWidth()
+    );
+    if (Math.abs(next - scroller.scrollLeft) > 1) scroller.scrollLeft = next;
   }
 
   function fitSelection() {
@@ -1678,8 +1783,18 @@
   {#if timeline}
       <div class="flex flex-col gap-4">
       <div class="mb-2 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-3" data-testid="timeline-preview">
-        <div class="grid gap-3 lg:h-[480px] lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div class="space-y-3 lg:h-full lg:min-h-0 lg:overflow-y-auto">
+        <div class="mb-2 flex flex-wrap items-center gap-3 text-[10px] text-neutral-400" data-testid="preview-durations">
+          <button type="button" onclick={resetPreviewLayout} class="rounded border border-neutral-700 px-2 py-0.5 text-[9px] text-neutral-400 hover:text-neutral-200">Reset layout</button>
+          <span>Source total <b class="font-mono text-neutral-200">{formatSeconds(timeline.source_duration_sec)}</b></span>
+          <span>Edited <b class="font-mono text-emerald-200">{formatSeconds(timeline.duration_sec)}</b></span>
+          <span>Removed <b class="font-mono text-rose-200">{formatSeconds(removedDuration)}</b></span>
+        </div>
+        <div
+          class="grid gap-3 lg:h-[var(--preview-h)] lg:grid-cols-[minmax(0,1fr)_var(--inspector-w)]"
+          style={`--preview-h:${previewHeight}px;--inspector-w:${previewInspectorWidth}px`}
+        >
+          <div class="relative space-y-3 lg:h-full lg:min-h-0 lg:overflow-y-auto">
+            <div class="absolute -right-2 top-0 z-10 h-full w-3 cursor-col-resize rounded bg-transparent hover:bg-sky-400/30" role="separator" aria-label="Resize preview width" data-testid="preview-width-resize" onpointerdown={beginInspectorResize}></div>
             {#if liveActive}
               <TimelinePlayer
                 bind:this={livePlayer}
@@ -1688,8 +1803,10 @@
                 streamUrl={liveSource?.url ?? ""}
                 bind:rate={playbackRate}
                 controls={false}
+                height={previewVideoHeight}
                 ontime={(_source, output) => {
                   playhead = output;
+                  followCursor();
                 }}
                 onstate={(value) => (playing = value)}
               />
@@ -1706,7 +1823,8 @@
             {:else if previewUrl}
               <video
                 bind:this={videoEl}
-                class="h-[340px] w-full rounded-xl border border-neutral-800 bg-black object-contain"
+                class="w-full rounded-xl border border-neutral-800 bg-black object-contain"
+                style={`height:${previewVideoHeight}px`}
                 controls
                 preload="metadata"
                 src={previewUrl}
@@ -1717,7 +1835,10 @@
                   if (videoEl) playhead = videoEl.currentTime;
                 }}
                 ontimeupdate={() => {
-                  if (videoEl && !videoEl.paused) playhead = videoEl.currentTime;
+                  if (videoEl && !videoEl.paused) {
+                    playhead = videoEl.currentTime;
+                    followCursor();
+                  }
                 }}
               >
                 <track kind="captions" src="data:text/vtt;charset=utf-8,WEBVTT%0A%0A" />
@@ -1751,7 +1872,9 @@
             {/if}
           </div>
 
-          <div class="space-y-2 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+          <TimelineInspector class="lg:h-full">
+            {#snippet inspect()}
+            {#if timeline}
             {#if selectedIds.length > 1}
               <div class="rounded-xl border border-sky-500/30 bg-sky-950/20 p-3" data-testid="multi-selection">
                 <p class="text-[10px] uppercase tracking-wide text-sky-300">{selectedIds.length} clips selected</p>
@@ -1941,7 +2064,24 @@
                 </div>
               </div>
             </div>
-          </div>
+            {/if}
+            {/snippet}
+            {#snippet effects()}
+              <div class="rounded-xl border border-violet-500/20 bg-violet-950/10 p-3" data-testid="timeline-effects">
+                <p class="text-[10px] uppercase tracking-wide text-violet-300">Effects</p>
+                <p class="mt-1 text-[10px] text-neutral-400">Clip effects will live here. Transitions, scale, position and fades remain in Inspect for now.</p>
+                <div class="mt-2 grid grid-cols-2 gap-1 text-[9px] text-neutral-500">
+                  <span class="rounded border border-neutral-800 px-2 py-1">Colour</span>
+                  <span class="rounded border border-neutral-800 px-2 py-1">Blur</span>
+                  <span class="rounded border border-neutral-800 px-2 py-1">Crop</span>
+                  <span class="rounded border border-neutral-800 px-2 py-1">Mask</span>
+                </div>
+              </div>
+            {/snippet}
+          </TimelineInspector>
+        </div>
+        <div class="group mt-2 flex h-3 cursor-row-resize items-center justify-center rounded-full border border-neutral-800 bg-neutral-900/60" role="separator" aria-label="Resize preview vertically" data-testid="preview-height-resize" onpointerdown={beginPreviewHeightResize}>
+          <span class="h-0.5 w-12 rounded-full bg-neutral-600 group-hover:bg-sky-400"></span>
         </div>
       </div>
     <div class="group flex h-3 cursor-row-resize items-center justify-center rounded-full border border-neutral-800 bg-neutral-900/60" role="separator" aria-label="Resize timeline vertically" data-testid="timeline-resize" onpointerdown={beginTimelineResize}>
@@ -1990,6 +2130,17 @@
         <label class="ml-auto flex items-center gap-1.5 text-[10px] text-neutral-500">
           <input type="checkbox" bind:checked={snap} class="h-3.5 w-3.5 rounded border-neutral-700 bg-neutral-800" />
           Snap
+        </label>
+        <label class="flex items-center gap-1.5 text-[10px] text-neutral-500" title="Scroll the timeline with the playing cursor">
+          <input
+            type="checkbox"
+            checked={followPlayhead}
+            onchange={(event) => setFollowPlayhead(event.currentTarget.checked)}
+            class="h-3.5 w-3.5 rounded border-neutral-700 bg-neutral-800"
+            aria-label="Follow playhead"
+            data-testid="follow-playhead"
+          />
+          Follow
         </label>
         <button type="button" onclick={markIn} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300" title="Mark in (I)" aria-label="Mark in"><Icon name="mark-in" size={14} /></button>
         <button type="button" onclick={markOut} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300" title="Mark out (O)" aria-label="Mark out"><Icon name="mark-out" size={14} /></button>

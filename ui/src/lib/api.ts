@@ -2895,6 +2895,8 @@ export interface ProviderOption {
   api_key_env: string;
   enabled: boolean;
   is_default: boolean;
+  configured?: boolean;
+  missing?: string[];
 }
 
 export interface NodeOptions {
@@ -2902,6 +2904,61 @@ export interface NodeOptions {
   providers: Record<string, ProviderOption[]>;
   services: ServiceDefinition[];
   models: Array<Record<string, unknown>>;
+}
+
+export interface StepOutputPort {
+  id: string;
+  label: string;
+  type: string;
+  hash: string;
+  size_bytes: number;
+  has_value: boolean;
+}
+
+export interface StepOutputs {
+  ok: boolean;
+  step_id: string;
+  type: string;
+  status: string;
+  fingerprint: string;
+  elapsed_ms: number;
+  ports: StepOutputPort[];
+  files: Array<{ name: string; path: string; exists: boolean; size_bytes: number }>;
+  artifacts: Array<{ name: string; path: string }>;
+}
+
+export async function getStepOutputs(
+  jobId: string,
+  stepId: string
+): Promise<StepOutputs> {
+  return request(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/steps/${encodeURIComponent(stepId)}/outputs`
+  );
+}
+
+export async function getStepOutputPort(
+  jobId: string,
+  stepId: string,
+  portId: string
+): Promise<{ ok: boolean; step_id: string; port: { id: string; label: string; type: string; value: unknown } }> {
+  return request(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/steps/${encodeURIComponent(stepId)}/outputs/${encodeURIComponent(portId)}`
+  );
+}
+
+export async function saveStepOutputs(
+  jobId: string,
+  stepId: string,
+  targetDir: string
+): Promise<{ ok: boolean; saved: string[] }> {
+  return request(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/steps/${encodeURIComponent(stepId)}/save`,
+    { method: "POST", body: JSON.stringify({ target_dir: targetDir }) }
+  );
+}
+
+export function stepOutputFileUrl(jobId: string, stepId: string, name: string): string {
+  return `/api/v1/jobs/${encodeURIComponent(jobId)}/steps/${encodeURIComponent(stepId)}/files/${encodeURIComponent(name)}`;
 }
 
 export async function getNodeOptions(): Promise<NodeOptions> {

@@ -110,6 +110,44 @@ def test_recipe_validation_can_stop_before_a_later_export(
     assert scoped.json()["ok"] is True
 
 
+def test_step_outputs_are_listed_read_saved_and_downloaded(
+    monkeypatch, tmp_path: Path
+) -> None:
+    from videoflow.application.step_outputs import write_step_outputs
+    from videoflow.steps.base import PortSpec
+
+    client, manager = _client(monkeypatch, tmp_path)
+    job = _job(manager, tmp_path)
+    media = job.output / "media.json"
+    media.write_text('{"ok": true}\n', encoding="utf-8")
+    write_step_outputs(
+        job.output,
+        step_id="ingest",
+        step_type="ingest",
+        status="executed",
+        fingerprint="fp",
+        ports={"media": {"path": str(media)}},
+        port_specs=[PortSpec("media", "Media", "media", "media")],
+        hashes={"media": "hash"},
+        files=[str(media)],
+        elapsed_ms=3,
+    )
+    base = f"/api/v1/jobs/{job.job_id}/steps/ingest"
+    listed = client.get(f"{base}/outputs")
+    assert listed.status_code == 200, listed.text
+    assert listed.json()["ports"][0]["id"] == "media"
+    port = client.get(f"{base}/outputs/media")
+    assert port.status_code == 200, port.text
+    assert port.json()["port"]["value"]["path"] == str(media)
+    download = client.get(f"{base}/files/media.json")
+    assert download.status_code == 200
+    target = tmp_path / "saved"
+    saved = client.post(f"{base}/save", json={"target_dir": str(target)})
+    assert saved.status_code == 200, saved.text
+    assert (target / "ingest-outputs.json").is_file()
+    assert client.get(f"/api/v1/jobs/{job.job_id}/steps/nope/outputs").status_code == 404
+
+
 def test_recipes_batches_and_maintenance(monkeypatch, tmp_path: Path) -> None:
     client, _manager = _client(monkeypatch, tmp_path)
     recipes = client.get("/api/v1/recipes").json()["recipes"]

@@ -12,6 +12,7 @@ from typing import Any, Literal
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.adapters.llm import OpenAICompatibleLlm
+from videoflow.application.step_outputs import write_step_outputs
 from videoflow.core.context import PipelineContext
 from videoflow.core.recipe import Recipe, RecipeStep
 from videoflow.domain.errors import RecipeError, StepExecutionError, VideoFlowError
@@ -156,6 +157,32 @@ class RecipeRunner:
             context.pcm_path = Path(wav)
             context.pcm_digest = adapter.pcm_digest(wav)
 
+    def _persist_step_outputs(
+        self,
+        context: PipelineContext,
+        step: Any,
+        recipe_step: RecipeStep,
+        *,
+        status: str,
+        fingerprint: str,
+        elapsed_ms: int = 0,
+        files: Any = (),
+        artifacts: dict[str, str] | None = None,
+    ) -> None:
+        write_step_outputs(
+            context.output,
+            step_id=recipe_step.id,
+            step_type=step.type,
+            status=status,
+            fingerprint=fingerprint,
+            ports=context.port_outputs.get(recipe_step.id, {}),
+            port_specs=step.output_ports,
+            hashes=context.port_hashes.get(recipe_step.id, {}),
+            files=files,
+            artifacts=artifacts,
+            elapsed_ms=elapsed_ms,
+        )
+
     def _merge_step_outputs(
         self,
         context: PipelineContext,
@@ -283,12 +310,14 @@ class RecipeRunner:
         )
         order = self._order_through(recipe.topological_order(), through)
         llm = self.llm_client or self._build_llm(log)
+        step_llms: dict[str, Any] = {}
         total = len(order)
         step_runs: list[StepRun] = []
 
         for index, recipe_step in enumerate(order, start=1):
             step = get_step(recipe_step.type)
             params = step.validate_params(recipe_step.params)
+            step_llm = llm
             provider_id = str(getattr(params, "provider_id", "") or "")
             if provider_id:
                 from videoflow.application.providers import list_providers
@@ -296,6 +325,7 @@ class RecipeRunner:
                 capability = {
                     "transcribe": "asr",
                     "localization.dub": "tts",
+                    "retakes.cull": "llm",
                 }.get(step.type, "")
                 provider = next(
                     (
@@ -313,6 +343,14 @@ class RecipeRunner:
                     raise RecipeError(
                         f"{recipe_step.id}: provider {provider_id} is not a {capability} provider"
                     )
+                if not bool(provider.get("configured", True)):
+                    missing = ", ".join(
+                        str(item) for item in provider.get("missing", [])
+                    )
+                    raise RecipeError(
+                        f"{recipe_step.id}: provider {provider_id} is not configured"
+                        + (f" (missing {missing})" if missing else "")
+                    )
                 values = {
                     "base_url": provider.get("base_url")
                     or getattr(params, "base_url", None),
@@ -328,6 +366,15 @@ class RecipeRunner:
                         if hasattr(params, key)
                     }
                 )
+                if step.type == "retakes.cull":
+                    if provider_id not in step_llms:
+                        client = self._llm_from_provider(provider, log)
+                        if client is None:
+                            raise RecipeError(
+                                f"{recipe_step.id}: provider {provider_id} is not configured"
+                            )
+                        step_llms[provider_id] = client
+                    step_llm = step_llms[provider_id]
             fingerprint = cache_key(
                 {
                     "checkpoint": CHECKPOINT_VERSION,
@@ -354,7 +401,7 @@ class RecipeRunner:
                 index=index,
                 total=total,
                 adapter=self.adapter,
-                llm_client=llm,
+                llm_client=step_llm,
                 asr_client=self.asr_client,
                 progress=progress,
                 step_progress=step_progress,
@@ -381,6 +428,13 @@ class RecipeRunner:
                     )
                 )
                 capture_outputs(context, step, recipe_step.id)
+                self._persist_step_outputs(
+                    context,
+                    step,
+                    recipe_step,
+                    status="skipped",
+                    fingerprint=fingerprint,
+                )
                 if step_progress is not None:
                     step_progress(recipe_step.id, 100, f"{step.title} bypassed")
                 io.report(100, f"{step.title} bypassed")
@@ -418,6 +472,14 @@ class RecipeRunner:
                         telemetry.finish(recipe_step.id, "Checkpoint reused")
                     self._copy_node_outputs(context, context, recipe_step, step, {})
                     capture_outputs(context, step, recipe_step.id)
+                    self._persist_step_outputs(
+                        context,
+                        step,
+                        recipe_step,
+                        status="cached",
+                        fingerprint=fingerprint,
+                        files=cached,
+                    )
                     io.report(100, "Cached checkpoint reused")
                     persist_project_state(context)
                     continue
@@ -452,6 +514,22 @@ class RecipeRunner:
                 context, step_context, recipe_step, step, before_artifacts
             )
             self._merge_step_outputs(context, step_context, step, recipe_step)
+            step_files = tuple(str(path) for path in step.cache_outputs(context))
+            step_artifacts = {
+                key: str(value)
+                for key, value in step_context.artifacts.items()
+                if before_artifacts.get(key) != value
+            }
+            self._persist_step_outputs(
+                context,
+                step,
+                recipe_step,
+                status="executed",
+                fingerprint=fingerprint,
+                elapsed_ms=elapsed_ms,
+                files=step_files,
+                artifacts=step_artifacts,
+            )
             context.metadata.setdefault("step_progress", {})[recipe_step.id] = 100
             if step_progress is not None:
                 step_progress(recipe_step.id, 100, f"{step.title} ready")
@@ -595,6 +673,27 @@ class RecipeRunner:
 
         visit(through)
         return [step for step in order if step.id in needed]
+
+    def _llm_from_provider(
+        self, provider: dict[str, object], log: Any | None
+    ) -> Any | None:
+        base_url = str(provider.get("base_url") or "").strip()
+        model = str(provider.get("model") or "").strip()
+        if not base_url or not model:
+            return None
+        from videoflow.application.secrets import get_secret
+        from videoflow.application.settings import load_settings
+
+        settings = load_settings().llm
+        return OpenAICompatibleLlm(
+            base_url=base_url,
+            model=model,
+            api_key=get_secret(str(provider.get("api_key_env") or "")),
+            timeout=settings.timeout_seconds,
+            temperature=settings.temperature,
+            max_tokens=settings.max_tokens,
+            retries=settings.retries,
+        )
 
     def _build_llm(self, log: Any | None) -> Any | None:
         config = self.recipe.llm

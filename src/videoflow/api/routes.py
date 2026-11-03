@@ -191,6 +191,12 @@ from videoflow.application.short_editor import ShortEditOptions
 from videoflow.application.short_editor import edit_short as edit_short_service
 from videoflow.application.short_metadata import generate_short_metadata
 from videoflow.application.state_cache import load_state
+from videoflow.application.step_outputs import (
+    load_step_outputs,
+    save_step_outputs,
+    step_output_port,
+    summarize_step_outputs,
+)
 from videoflow.application.thumbnail import generate_short_thumbnail
 from videoflow.application.timeline_edit import TimelineEdit, apply_timeline_edit
 from videoflow.application.timeline_history import TimelineHistory
@@ -644,6 +650,10 @@ class TimelineSnapshotRequest(BaseModel):
 
 class TimelineSnapshotLoadRequest(BaseModel):
     job_id: str = Field(min_length=1)
+
+
+class StepOutputSaveRequest(BaseModel):
+    target_dir: str = Field(min_length=1)
 
 
 class TimelineSnapshotImportRequest(BaseModel):
@@ -3776,6 +3786,130 @@ def register_routes(
                 detail={"ok": False, "code": "artifact_not_found", "message": artifact_name},
             )
         return FileResponse(path, filename=path.name)
+
+    @app.get("/api/v1/jobs/{job_id}/steps/{step_id}/outputs")
+    def job_step_outputs(job_id: str, step_id: str) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
+        if not step_id or "/" in step_id or "\\" in step_id:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "ok": False,
+                    "code": "step_invalid",
+                    "message": "Invalid step id.",
+                },
+            )
+        payload = load_step_outputs(job.output, step_id)
+        if payload is None:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "ok": False,
+                    "code": "step_outputs_missing",
+                    "message": f"No outputs persisted for step {step_id}.",
+                },
+            )
+        return {"ok": True, **summarize_step_outputs(payload)}
+
+    @app.get("/api/v1/jobs/{job_id}/steps/{step_id}/outputs/{port_id}")
+    def job_step_output_port(
+        job_id: str, step_id: str, port_id: str
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
+        if not step_id or "/" in step_id or "\\" in step_id:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "step_invalid", "message": "Invalid step id."},
+            )
+        payload = load_step_outputs(job.output, step_id)
+        if payload is None:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "ok": False,
+                    "code": "step_outputs_missing",
+                    "message": f"No outputs persisted for step {step_id}.",
+                },
+            )
+        item = step_output_port(payload, port_id)
+        if item is None:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "ok": False,
+                    "code": "step_port_missing",
+                    "message": f"Step {step_id} has no output port {port_id}.",
+                },
+            )
+        return {"ok": True, "step_id": step_id, "port": item}
+
+    @app.get("/api/v1/jobs/{job_id}/steps/{step_id}/files/{file_name}")
+    def job_step_output_file(
+        job_id: str, step_id: str, file_name: str
+    ) -> FileResponse:
+        try:
+            job = jobs.get(job_id)
+        except VideoFlowError as exc:
+            raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
+        if not step_id or "/" in step_id or "\\" in step_id:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "step_invalid", "message": "Invalid step id."},
+            )
+        payload = load_step_outputs(job.output, step_id)
+        if payload is None:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "ok": False,
+                    "code": "step_outputs_missing",
+                    "message": f"No outputs persisted for step {step_id}.",
+                },
+            )
+        for item in payload.get("files", []):
+            if not isinstance(item, dict) or str(item.get("name")) != file_name:
+                continue
+            path = Path(str(item.get("path", ""))).expanduser().resolve()
+            if path.is_relative_to(job.output.expanduser().resolve()) and path.is_file():
+                return FileResponse(path, filename=path.name)
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "ok": False,
+                "code": "step_file_missing",
+                "message": f"Step {step_id} has no file {file_name}.",
+            },
+        )
+
+    @app.post("/api/v1/jobs/{job_id}/steps/{step_id}/save")
+    def save_job_step_outputs(
+        job_id: str, step_id: str, request: StepOutputSaveRequest
+    ) -> dict[str, object]:
+        try:
+            job = jobs.get(job_id)
+            if not step_id or "/" in step_id or "\\" in step_id:
+                raise RecipeError("Invalid step id.")
+            target = resolve_allowed(Path(request.target_dir), allowed_roots())
+            saved = save_step_outputs(job.output, step_id, target)
+        except VideoFlowError as exc:
+            fail(exc)
+            raise
+        if not saved:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "ok": False,
+                    "code": "step_outputs_missing",
+                    "message": f"No outputs persisted for step {step_id}.",
+                },
+            )
+        return {"ok": True, "saved": saved}
 
     @app.get("/api/v1/jobs/{job_id}/shorts/{index}/file")
     def download_short_file(job_id: str, index: int) -> FileResponse:

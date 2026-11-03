@@ -882,6 +882,41 @@ test("keeps the live player at the official cursor across parent updates", async
   await expect(page.getByTestId("timeline-timecode")).toContainText("00:02");
 });
 
+test("shows source, edited, and removed durations and inspector tabs", async ({ page }) => {
+  const durations = page.getByTestId("preview-durations");
+  await expect(durations).toContainText("Source total");
+  await expect(durations).toContainText("Edited");
+  await expect(durations).toContainText("Removed");
+  await page.getByRole("tab", { name: "Effects" }).click();
+  await expect(page.getByTestId("timeline-effects")).toContainText("Effects");
+  await page.getByRole("tab", { name: "Inspect" }).click();
+  await expect(page.getByText("Selected clip", { exact: true })).toBeVisible();
+});
+
+test("resizes the preview and persists the follow toggle", async ({ page }) => {
+  const preview = page.getByTestId("timeline-preview");
+  await preview.scrollIntoViewIfNeeded();
+  const before = await preview.boundingBox();
+  const heightHandle = page.getByTestId("preview-height-resize");
+  const handle = await heightHandle.boundingBox();
+  await page.mouse.move((handle?.x ?? 0) + 20, (handle?.y ?? 0) + 2);
+  await page.mouse.down();
+  await page.mouse.move((handle?.x ?? 0) + 20, (handle?.y ?? 0) + 90, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(async () => (await preview.boundingBox())?.height ?? 0).toBeGreaterThan(
+    (before?.height ?? 0) + 40
+  );
+  expect(await page.evaluate(() => localStorage.getItem("videoflow.previewHeight"))).not.toBeNull();
+
+  const follow = page.getByTestId("follow-playhead");
+  await expect(follow).toBeChecked();
+  await follow.click();
+  await expect(follow).not.toBeChecked();
+  expect(await page.evaluate(() => localStorage.getItem("videoflow.followPlayhead"))).toBe("false");
+  await page.reload();
+  await expect(page.getByTestId("follow-playhead")).not.toBeChecked();
+});
+
 test("plays a real browser-compatible source and pauses", async ({ page }) => {
   const fixture = playbackFixture();
   test.skip(!fixture, "ffmpeg with libvpx is unavailable");

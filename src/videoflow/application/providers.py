@@ -75,8 +75,41 @@ def save_providers(providers: list[ProviderConfig]) -> list[ProviderConfig]:
     return providers
 
 
+def provider_readiness(item: dict[str, object]) -> tuple[bool, list[str]]:
+    """Return whether a provider is usable and which fields are missing."""
+
+    if not bool(item.get("enabled", True)):
+        return False, ["enabled"]
+    capability = str(item.get("capability") or "")
+    base_url = str(item.get("base_url") or "").strip()
+    model = str(item.get("model") or "").strip()
+    api_key_env = str(item.get("api_key_env") or "").strip()
+    missing: list[str] = []
+    if capability == "llm":
+        if not base_url:
+            missing.append("base_url")
+        if not model:
+            missing.append("model")
+    elif capability in {"asr", "tts", "translation", "vision", "diarization"}:
+        if not base_url:
+            missing.append("base_url")
+    elif capability in {"stock", "publishing"}:
+        if not (api_key_env or base_url):
+            missing.append("api_key_env")
+    elif not (base_url or model or api_key_env):
+        missing.append("base_url")
+    return not missing, missing
+
+
 def list_providers() -> list[dict[str, object]]:
-    return [item.model_dump(mode="json") for item in load_providers()]
+    items: list[dict[str, object]] = []
+    for provider in load_providers():
+        item = provider.model_dump(mode="json")
+        configured, missing = provider_readiness(item)
+        item["configured"] = configured
+        item["missing"] = missing
+        items.append(item)
+    return items
 
 
 def upsert_provider(provider: ProviderConfig) -> dict[str, object]:

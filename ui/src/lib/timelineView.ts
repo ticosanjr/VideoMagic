@@ -163,3 +163,21 @@ export function fitScrollLeft(startSec: number, zoom: number, marginPx = 24): nu
   return Math.max(0, startSec * zoom - marginPx);
 }
 
+/** Keep a playing cursor inside the visible band; otherwise leave scrolling alone. */
+export function followScrollLeft(
+  cursorSec: number,
+  zoom: number,
+  scrollLeft: number,
+  viewportPx: number,
+  headerPx = 0,
+  marginPx = 48,
+  anchorRatio = 0.35
+): number {
+  const viewport = Math.max(1, viewportPx);
+  const screenX = headerPx + cursorSec * zoom - scrollLeft;
+  const left = headerPx + marginPx;
+  const right = viewport - marginPx;
+  if (screenX >= left && screenX <= right) return scrollLeft;
+  return Math.max(0, cursorSec * zoom - (viewport - headerPx) * anchorRatio);
+}
+

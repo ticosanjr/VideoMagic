@@ -3,6 +3,42 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.51.0] - 2026-11-03
+
+### Added
+
+- **Retakes can use a configured LLM per node.** The node now has an optional
+  LLM provider selector; without one it keeps the recipe-level LLM and falls
+  back to exact-repeat culling. The node explains that it needs a transcript and
+  that no LLM means heuristic-only removal.
+- Provider-backed node fields show only enabled, configured providers. When a
+  capability has no configured provider, the field shows a setup message and a
+  link to Setup → Providers instead of an empty list. Incomplete providers are
+  reported with their missing fields.
+- Per-step outputs are persisted to `work/steps/<step>/outputs.json` for
+  executed, cached, and bypassed steps. The API lists ports, returns one port's
+  JSON, downloads files, and saves a copy to a chosen folder. The recipe builder
+  has an **Outputs** viewer with port tabs and save/download actions.
+- The timeline preview shows **Source total**, **Edited**, and **Removed**
+  durations.
+- A persisted **Follow** toggle scrolls the timeline with the playing cursor.
+  When disabled, playback leaves the scroll position untouched.
+- The preview can be resized horizontally and vertically, with persisted sizes
+  and a reset action.
+- The right-side timeline panels now live in a separate inspector widget with
+  **Inspect** and **Effects** tabs. Effects is reserved for future clip effects;
+  existing transitions, scale, position and fades remain in Inspect.
+
+### Changed
+
+- `doctor` and model metadata continue to use the external model home.
+- Recipe LLM settings warn when no configured LLM is available.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.50.0] - 2026-11-03
 
 ### Fixed

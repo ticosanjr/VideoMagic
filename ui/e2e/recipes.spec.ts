@@ -88,12 +88,75 @@ test.beforeEach(async ({ page }) => {
   await mockApi(page);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Recipe builder" })).toBeVisible();
-  await expect(page.getByTestId("step-edit.timeline")).toBeVisible();
+  await expect(page.getByTestId("step-edit.timeline")).toBeVisible({ timeout: 10000 });
 });
 
 test("loads saved node layout and inline fields", async ({ page }) => {
   await expect(page.getByTestId("field-transition_frames")).toBeVisible();
   await expect(page.getByTestId("step-pin-edit.timeline")).toBeVisible();
+});
+
+test("inspects a node output from the latest run", async ({ page }) => {
+  const job = {
+    job_id: "job-1",
+    status: "succeeded",
+    progress: 100,
+    stage: "done",
+    message: "Finished",
+    source: "/tmp/source.mp4",
+    output: "/tmp/out",
+    options: {},
+    created_at: "2026-11-03T10:00:00Z",
+    result: {
+      ok: true,
+      step_runs: [{ id: "retakes", type: "retakes.cull", status: "executed" }]
+    }
+  };
+  await page.route("**/api/v1/jobs?**", (route) =>
+    route.fulfill({ json: { ok: true, jobs: [job] } })
+  );
+  await page.route("**/api/v1/jobs/job-1/steps/retakes/outputs", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        step_id: "retakes",
+        type: "retakes.cull",
+        status: "executed",
+        fingerprint: "fp",
+        elapsed_ms: 4,
+        ports: [
+          {
+            id: "discarded",
+            label: "Discarded",
+            type: "integer_list",
+            hash: "h",
+            size_bytes: 12,
+            has_value: true
+          }
+        ],
+        files: [],
+        artifacts: []
+      }
+    })
+  );
+  await page.route("**/api/v1/jobs/job-1/steps/retakes/outputs/discarded", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        step_id: "retakes",
+        port: { id: "discarded", label: "Discarded", type: "integer_list", value: [3, 7] }
+      }
+    })
+  );
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Recipe builder" })).toBeVisible();
+  await expect(async () => {
+    await page.getByTestId("recipe-step-outputs").click();
+    await expect(page.getByRole("dialog", { name: "Step outputs" })).toBeVisible({
+      timeout: 1000
+    });
+  }).toPass();
+  await expect(page.getByTestId("step-output-json")).toContainText("7");
 });
 
 test("edits a field directly inside the node", async ({ page }) => {

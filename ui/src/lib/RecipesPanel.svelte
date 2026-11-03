@@ -27,6 +27,10 @@
     getJob,
     getLogs,
     getNodeOptions,
+    getStepOutputPort,
+    getStepOutputs,
+    saveStepOutputs,
+    stepOutputFileUrl,
     getRecipe,
     getRecipeHistory,
     getRecipeVersion,
@@ -64,6 +68,7 @@
     type RecipeSummary,
     type RunRecord,
     type NodeOptions,
+    type StepOutputs,
     type NodePreset,
     type StepManifest,
     type StepPort
@@ -255,6 +260,16 @@
   let logOpen = $state(false);
   let logStep = $state("");
   let logLines = $state<Awaited<ReturnType<typeof getLogs>>>([]);
+  let outputsOpen = $state(false);
+  let outputsJob = $state<Job | null>(null);
+  let outputsStep = $state("");
+  let outputsData = $state<StepOutputs | null>(null);
+  let outputsPortId = $state("");
+  let outputsValue = $state<unknown>(null);
+  let outputsBusy = $state(false);
+  let outputsError = $state("");
+  let outputsTarget = $state("");
+  let outputsSaved = $state("");
   let logBusy = $state(false);
   let logError = $state("");
   let comparison = $state<{
@@ -1220,6 +1235,88 @@
     } finally {
       logBusy = false;
     }
+  }
+
+  async function openStepOutputs(stepId: string) {
+    outputsOpen = true;
+    outputsBusy = true;
+    outputsError = "";
+    outputsSaved = "";
+    outputsData = null;
+    outputsPortId = "";
+    outputsValue = null;
+    try {
+      if (job && outputsJob?.job_id !== job.job_id) {
+        outputsJob = job;
+      } else if (!outputsJob) {
+        const history = await listJobs();
+        outputsJob =
+          history
+            .filter((item) => item.status === "succeeded")
+            .sort((left, right) => right.created_at.localeCompare(left.created_at))[0] ??
+          null;
+      }
+      if (!outputsJob) {
+        outputsError = "No finished run is available. Run a recipe first.";
+        return;
+      }
+      const targetStep =
+        stepId || outputsJob.result?.step_runs?.[0]?.id || "";
+      outputsStep = targetStep;
+      if (!targetStep) return;
+      outputsData = await getStepOutputs(outputsJob.job_id, targetStep);
+      const first = outputsData.ports[0];
+      if (first) await selectOutputPort(first.id);
+    } catch (reason) {
+      outputsError = errorMessage(reason);
+    } finally {
+      outputsBusy = false;
+    }
+  }
+
+  function openStepOutputsPicker() {
+    void openStepOutputs("");
+  }
+
+  async function selectOutputPort(portId: string) {
+    if (!outputsJob || !outputsData) return;
+    outputsPortId = portId;
+    outputsBusy = true;
+    outputsError = "";
+    try {
+      const response = await getStepOutputPort(outputsJob.job_id, outputsStep, portId);
+      outputsValue = response.port.value;
+    } catch (reason) {
+      outputsError = errorMessage(reason);
+      outputsValue = null;
+    } finally {
+      outputsBusy = false;
+    }
+  }
+
+  async function saveCurrentStepOutputs() {
+    if (!outputsJob || !outputsStep) return;
+    const target = outputsTarget.trim();
+    if (!target) {
+      outputsError = "Choose a folder before saving.";
+      return;
+    }
+    outputsBusy = true;
+    outputsError = "";
+    outputsSaved = "";
+    try {
+      const response = await saveStepOutputs(outputsJob.job_id, outputsStep, target);
+      outputsSaved = `${response.saved.length} file(s) saved.`;
+    } catch (reason) {
+      outputsError = errorMessage(reason);
+    } finally {
+      outputsBusy = false;
+    }
+  }
+
+  function outputValueText(value: unknown): string {
+    if (value === undefined) return "";
+    return typeof value === "string" ? value : JSON.stringify(value, null, 2);
   }
 
   async function generateProxy() {
@@ -2444,6 +2541,10 @@
         <IconButton icon="undo" label="Undo" disabled={!undoStack.length} onclick={undo} />
         <IconButton icon="redo" label="Redo" disabled={!redoStack.length} onclick={redo} />
         <Button icon="activity" variant="secondary" size="md" testid="recipe-runs" disabled={historyBusy} onclick={() => void openHistory()}>{historyBusy ? "Runs…" : "Runs"}</Button>
+        <button type="button" data-testid="recipe-step-outputs" onclick={openStepOutputsPicker} class="inline-flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-950/40 px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-sky-500 hover:text-sky-200">
+          <Icon name="file" size={14} />
+          Outputs
+        </button>
         <IconButton icon="code" label="Recipe JSON" testid="recipe-json" onclick={openRecipeJson} />
         <div class="relative">
           <Button icon="more" variant="secondary" size="md" testid="recipe-more" onclick={() => (moreOpen = !moreOpen)}>More</Button>
@@ -3062,6 +3163,77 @@
     </div>
   {/if}
 
+  {#if outputsOpen}
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-3" role="presentation"
+      onclick={(event) => { if (event.currentTarget === event.target) outputsOpen = false; }}>
+      <div class="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="Step outputs">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800 px-4 py-3">
+          <div>
+            <h3 class="text-sm font-semibold text-white">Step outputs</h3>
+            <p class="text-[10px] text-neutral-500">Inspect and save the declared output of each node.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <select
+              aria-label="Step"
+              value={outputsStep}
+              onchange={(event) => void openStepOutputs(event.currentTarget.value)}
+              class="rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1 text-[11px] text-neutral-200"
+            >
+              {#each outputsJob?.result?.step_runs ?? [] as run}
+                <option value={run.id}>{run.id} · {run.status}</option>
+              {/each}
+            </select>
+            <button type="button" onclick={() => (outputsOpen = false)} class="rounded px-2 text-neutral-500 hover:text-neutral-200" aria-label="Close outputs">×</button>
+          </div>
+        </div>
+        {#if outputsBusy}<p class="px-4 py-2 text-[11px] text-neutral-500" role="status">Loading…</p>{/if}
+        {#if outputsError}<p class="px-4 py-2 text-[11px] text-rose-300">{outputsError}</p>{/if}
+        {#if outputsSaved}<p class="px-4 py-2 text-[11px] text-emerald-300">{outputsSaved}</p>{/if}
+        {#if outputsData}
+          <div class="grid min-h-0 flex-1 gap-0 md:grid-cols-[220px_minmax(0,1fr)]">
+            <div class="min-h-0 overflow-auto border-b border-neutral-800 p-2 md:border-b-0 md:border-r">
+              <p class="px-1 text-[9px] uppercase tracking-wide text-emerald-300/80">Ports</p>
+              {#each outputsData.ports as port}
+                <button
+                  type="button"
+                  onclick={() => void selectOutputPort(port.id)}
+                  class={`mt-1 block w-full rounded-lg px-2 py-1.5 text-left text-[10px] ${outputsPortId === port.id ? "bg-sky-500/15 text-sky-100" : "text-neutral-400 hover:bg-white/5"}`}
+                >
+                  <span class="block font-mono">{port.id}</span>
+                  <span class="text-[9px] text-neutral-600">{port.type} · {port.size_bytes} B</span>
+                </button>
+              {/each}
+              {#if outputsData.files.length}
+                <p class="mt-3 px-1 text-[9px] uppercase tracking-wide text-amber-300/80">Files</p>
+                {#each outputsData.files as file}
+                  <a href={stepOutputFileUrl(outputsJob?.job_id ?? "", outputsStep, file.name)} download class="mt-1 block truncate rounded-lg px-2 py-1 text-[10px] text-neutral-400 hover:bg-white/5 hover:text-neutral-200">{file.name}</a>
+                {/each}
+              {/if}
+            </div>
+            <div class="flex min-h-0 flex-col">
+              <div class="min-h-0 flex-1 overflow-auto bg-neutral-950 p-3">
+                {#if outputsPortId}
+                  <pre class="whitespace-pre-wrap break-words font-mono text-[10px] text-neutral-300" data-testid="step-output-json">{outputValueText(outputsValue)}</pre>
+                {:else}
+                  <p class="text-[11px] text-neutral-500">No persisted output for this step.</p>
+                {/if}
+              </div>
+              <div class="flex flex-wrap items-center gap-2 border-t border-neutral-800 p-3">
+                <input
+                  bind:value={outputsTarget}
+                  placeholder="/path/to/saved-outputs"
+                  aria-label="Save output folder"
+                  class="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-900 px-2 py-1 font-mono text-[10px] text-neutral-200"
+                />
+                <button type="button" onclick={() => void saveCurrentStepOutputs()} disabled={outputsBusy || !outputsTarget.trim()} class="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-[10px] text-emerald-200 disabled:opacity-40">Save to folder</button>
+              </div>
+            </div>
+          </div>
+        {/if}
+      </div>
+    </div>
+  {/if}
+
   {#if nleOpen && nleReport}
     <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-3" role="presentation"
       onclick={(event) => { if (event.currentTarget === event.target) nleOpen = false; }}>
@@ -3339,6 +3511,12 @@
               <option value="opencode">OpenCode CLI (opt-in)</option>
             </select>
           </label>
+          {#if !(nodeOptions?.providers.llm ?? []).some((provider) => provider.configured)}
+            <p class="text-[9px] text-amber-300 sm:col-span-2" data-testid="recipe-llm-setup">
+              No configured LLM provider. Retakes will only remove exact repetitions.
+              <a href="#setup/providers" class="underline hover:text-amber-100">Configure in Providers</a>.
+            </p>
+          {/if}
           <label class="block text-[10px] text-neutral-500">
             Model
             <input bind:value={llm.model} placeholder="qwen2.5:7b-instruct" class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-[11px] text-neutral-200" />

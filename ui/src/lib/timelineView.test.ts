@@ -3,6 +3,7 @@ import {
   clipVisible,
   fitScrollLeft,
   fitZoom,
+  followScrollLeft,
   groupTrimEdits,
   liveOutputDuration,
   liveSegments,
@@ -185,5 +186,11 @@ describe("fit helpers", () => {
   it("keeps a margin before the fitted range", () => {
     expect(fitScrollLeft(5, 100)).toBe(476);
     expect(fitScrollLeft(0, 100)).toBe(0);
+  });
+
+  it("only scrolls when the playing cursor leaves the visible band", () => {
+    expect(followScrollLeft(10, 80, 0, 1200, 96)).toBe(0);
+    expect(followScrollLeft(20, 80, 0, 1200, 96)).toBeGreaterThan(0);
+    expect(followScrollLeft(2, 80, 1000, 1200, 96)).toBeLessThan(1000);
   });
 });

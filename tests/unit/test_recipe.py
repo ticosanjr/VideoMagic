@@ -985,3 +985,21 @@ def test_storyboard_step_writes_json(tmp_path: Path) -> None:
     )
     StoryboardStep().run(ctx, {}, StepIO())
     assert (tmp_path / "out" / "storyboard.json").is_file()
+
+
+def test_runner_persists_inspectable_step_outputs(tmp_path: Path) -> None:
+    transcript = srt(tmp_path / "subs.srt", repeat=True)
+    recipe = parse_recipe(base_steps(transcript))
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    RecipeRunner(recipe, adapter=FakeAdapter()).run(source, tmp_path / "out")
+    path = tmp_path / "out" / "work" / "steps" / "retakes" / "outputs.json"
+    assert path.is_file()
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["step_id"] == "retakes"
+    assert {item["id"] for item in payload["ports"]} == {
+        "speech",
+        "retakes",
+        "discarded",
+    }
+    assert all("value" in item for item in payload["ports"])

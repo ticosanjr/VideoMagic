@@ -14,6 +14,7 @@
     streamUrl = "",
     rate = $bindable(1),
     controls = true,
+    height = 340,
     ontime,
     onstate
   }: {
@@ -22,6 +23,7 @@
     streamUrl?: string;
     rate?: number;
     controls?: boolean;
+    height?: number;
     ontime?: (sourceSec: number, outputSec: number) => void;
     onstate?: (playing: boolean) => void;
   } = $props();
@@ -594,8 +596,8 @@
       preload="auto"
       muted
       playsinline
-      class="block max-h-[360px] w-full"
-      style={`opacity:${frontIsB ? backOpacity : frontOpacity}`}
+      class="block w-full object-contain"
+      style={`height:${height}px;opacity:${frontIsB ? backOpacity : frontOpacity}`}
       onloadedmetadata={applyRate}
       onerror={() => (error = "The source media could not be loaded for live playback.")}
     >

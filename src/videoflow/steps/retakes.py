@@ -25,6 +25,7 @@ from videoflow.steps.registry import register_step
 class RetakesParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    provider_id: str = ""
     enabled: bool = True
     strategy: Literal["keep_last", "keep_best"] = "keep_last"
     strictness: Literal["conservative", "balanced", "aggressive"] = "balanced"
@@ -36,7 +37,10 @@ class RetakesParams(BaseModel):
 class RetakesStep(BaseStep):
     type = "retakes.cull"
     title = "Retakes"
-    description = "Remove exact repeats and failed takes, then apply manual overrides."
+    description = (
+        "Remove exact repeats and failed takes. Requires a transcript; without "
+        "an LLM only exact repetitions are removed."
+    )
     requires = ("audio.vad", "transcribe")
     produces = ("retake_decisions", "retake_spans")
     params_model = RetakesParams

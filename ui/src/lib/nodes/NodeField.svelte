@@ -89,10 +89,15 @@
     if (!field.optionsSource || !options) return [];
     const [kind, capability] = field.optionsSource.split(":");
     if (kind === "providers") {
-      return (options.providers[capability] ?? []).map((provider) => ({
-        value: provider.id,
-        label: `${provider.name}${provider.is_default ? " · default" : ""}`
-      }));
+      return (options.providers[capability] ?? [])
+        .filter(
+          (provider) =>
+            provider.enabled !== false && provider.configured !== false
+        )
+        .map((provider) => ({
+          value: provider.id,
+          label: `${provider.name}${provider.is_default ? " · default" : ""}`
+        }));
     }
     if (kind === "services") {
       return options.services.map((service) => ({
@@ -143,6 +148,9 @@
     >
       {#if !field.required}<option value="">—</option>{/if}
       {#if field.optionsSource}
+        {#if displayValue() && !dynamicOptions().some((option) => option.value === displayValue())}
+          <option value={displayValue()}>{displayValue()} · not configured</option>
+        {/if}
         {#each dynamicOptions() as option}
           <option value={option.value}>{option.label}</option>
         {/each}
@@ -150,6 +158,12 @@
         {#each field.options as option}<option value={option}>{option}</option>{/each}
       {/if}
     </select>
+    {#if field.optionsSource && dynamicOptions().length === 0}
+      <span class="mt-1 block text-[9px] text-amber-300" data-testid={`${testId}-setup`}>
+        No configured {field.optionsSource.split(":")[1].toUpperCase()} provider.
+        <a href="#setup/providers" class="underline hover:text-amber-100">Configure in Providers</a>.
+      </span>
+    {/if}
   {:else if field.control === "slider"}
     <span class="mt-1 flex items-center gap-2">
       <input
