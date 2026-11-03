@@ -452,3 +452,50 @@ class ReduceStep(_FlowStep):
         target = options.collect if options.collect != "mapped" else "reduced"
         context.metadata[target] = selected
         io.report(100, f"Reduce selected {len(selected)}/{len(items)}")
+
+
+class JunctionParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["select", "merge_lists", "merge_dicts"] = "select"
+    selected_input: Literal[
+        "in1", "in2", "in3", "in4", "in5", "in6", "in7", "in8"
+    ] = "in1"
+
+
+@register_step
+class JunctionStep(BaseStep):
+    type = "flow.junction"
+    title = "Junction"
+    description = (
+        "Concentrate several inputs and pass one selected value or a merged "
+        "list/dictionary to the next node."
+    )
+    icon = "⋈"
+
+    def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
+        options = JunctionParams.model_validate(params)
+        values: dict[str, Any] = {}
+        for index in range(1, 9):
+            key = f"junction_in{index}"
+            if key in context.metadata:
+                values[f"in{index}"] = context.metadata[key]
+        if options.mode == "merge_lists":
+            merged: list[Any] = []
+            for value in values.values():
+                if isinstance(value, list):
+                    merged.extend(value)
+                else:
+                    merged.append(value)
+            context.metadata["junction_out"] = merged
+            io.report(100, f"Junction merged {len(values)} list input(s)")
+            return
+        if options.mode == "merge_dicts":
+            context.metadata["junction_out"] = dict(values)
+            io.report(100, f"Junction merged {len(values)} dictionary input(s)")
+            return
+        selected = values.get(options.selected_input)
+        if selected is None and values:
+            selected = next(iter(values.values()))
+        context.metadata["junction_out"] = selected
+        io.report(100, f"Junction passed {options.selected_input}")

@@ -162,6 +162,7 @@ export const STEP_ICON_NAMES: Record<string, IconName> = {
   "flow.map": "workflow",
   "flow.reduce": "workflow",
   "flow.subflow": "workflow",
+  "flow.junction": "workflow",
   "experiment.evaluate": "flask"
 };
 

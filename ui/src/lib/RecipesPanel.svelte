@@ -74,6 +74,13 @@
     type StepPort
   } from "$lib/api";
 
+  type EdgeData = {
+    sourcePort?: string;
+    targetPort?: string;
+    orderOnly?: boolean;
+  };
+  type RecipeEdge = Edge & { data?: EdgeData };
+
   type NodeStatus =
     | "idle"
     | "queued"
@@ -133,7 +140,7 @@
   let nodePresets = $state<NodePreset[]>([]);
   let nodeOptions = $state<NodeOptions | null>(null);
   let nodes = $state<Node[]>([]);
-  let edges = $state<Edge[]>([]);
+  let edges = $state<RecipeEdge[]>([]);
   let selectedId = $state<string | null>(null);
   let selectedNodeIds = $state<string[]>([]);
   let copiedNodeIds = $state<string[]>([]);
@@ -583,20 +590,37 @@
       } satisfies Node;
     });
     nodes = next;
-    edges = recipe.steps.flatMap((step) =>
-      step.needs.map((need) => {
-        const mappings = Object.entries(step.inputs ?? {})
-          .filter(([, reference]) => String(reference).split(".")[0] === need)
-          .map(([inputPort, reference]) => `${String(reference).split(".").slice(1).join(".")} → ${inputPort}`);
-        return {
+    const nextEdges: RecipeEdge[] = [];
+    for (const step of recipe.steps) {
+      const mappedSources = new Set<string>();
+      for (const [targetPort, reference] of Object.entries(step.inputs ?? {})) {
+        const [sourcePort, ...rest] = String(reference).split(".");
+        const source = sourcePort ?? "";
+        const outputPort = rest.join(".");
+        if (!source || !outputPort) continue;
+        mappedSources.add(source);
+        nextEdges.push({
+          id: `${source}.${outputPort}->${step.id}.${targetPort}`,
+          source,
+          target: step.id,
+          animated: true,
+          label: `${outputPort} → ${targetPort}`,
+          data: { sourcePort: outputPort, targetPort }
+        });
+      }
+      for (const need of step.needs) {
+        if (mappedSources.has(need)) continue;
+        nextEdges.push({
           id: `${need}->${step.id}`,
           source: need,
           target: step.id,
           animated: true,
-          label: mappings.join(" · ")
-        };
-      })
-    );
+          label: "dependency",
+          data: { orderOnly: true }
+        });
+      }
+    }
+    edges = nextEdges;
     selectedId = null;
     lastSelected = "";
     paramText = "{}";
@@ -871,23 +895,27 @@
     }));
   }
 
-  function removeConnection(source: string, target: string) {
+  function removeConnection(source: string, target: string, targetPort = "") {
     pushUndo();
     const targetNode = nodes.find((node) => node.id === target);
     if (!targetNode) return;
     const inputs = Object.fromEntries(
-      Object.entries(nodeData(targetNode).inputs ?? {}).filter(
-        ([, reference]) => String(reference).split(".")[0] !== source
-      )
+      Object.entries(nodeData(targetNode).inputs ?? {}).filter(([inputPort, reference]) => {
+        if (targetPort) return inputPort !== targetPort;
+        return String(reference).split(".")[0] !== source;
+      })
     );
     nodes = nodes.map((node) =>
       node.id === target
         ? { ...node, data: { ...nodeData(node), inputs } }
         : node
     );
-    edges = edges.filter(
-      (edge) => !(edge.source === source && edge.target === target)
-    );
+    edges = edges.filter((edge) => {
+      if (targetPort) {
+        return !(edge.target === target && edge.data?.targetPort === targetPort);
+      }
+      return !(edge.source === source && edge.target === target);
+    });
     wiring = null;
     scheduleUiSave();
   }
@@ -963,16 +991,13 @@
   function openEdgeWiring(edge: Edge) {
     const targetNode = nodes.find((node) => node.id === edge.target);
     if (!targetNode) return;
-    const entries = Object.entries(nodeData(targetNode).inputs ?? {}).filter(
-      ([, reference]) => String(reference).split(".")[0] === edge.source
-    );
-    const [inputPort, reference] = entries[0] ?? [];
-    if (inputPort && reference) {
+    const data = (edge.data ?? {}) as EdgeData;
+    if (data.targetPort && data.sourcePort) {
       wiring = {
         source: edge.source,
         target: edge.target,
-        sourcePort: String(reference).split(".").slice(1).join("."),
-        targetPort: inputPort
+        sourcePort: data.sourcePort,
+        targetPort: data.targetPort
       };
       return;
     }
@@ -996,7 +1021,6 @@
       return;
     }
     const reference = `${source}.${sourcePort}`;
-    const exists = edges.some((edge) => edge.source === source && edge.target === target);
     pushUndo();
     const label = `${sourcePort} → ${targetPort}`;
     nodes = nodes.map((node) =>
@@ -1010,24 +1034,23 @@
           }
         : node
     );
-    if (!exists) {
-      edges = [
-        ...edges,
-        {
-          id: `${source}->${target}`,
-          source,
-          target,
-          animated: true,
-          label
-        }
-      ];
-    } else {
-      edges = edges.map((edge) =>
-        edge.source === source && edge.target === target
-          ? { ...edge, label }
-          : edge
-      );
-    }
+    edges = edges.filter((edge) => {
+      if (edge.target !== target) return true;
+      if (edge.data?.targetPort === targetPort) return false;
+      if (edge.data?.orderOnly && edge.source === source) return false;
+      return true;
+    });
+    edges = [
+      ...edges,
+      {
+        id: `${source}.${sourcePort}->${target}.${targetPort}`,
+        source,
+        target,
+        animated: true,
+        label,
+        data: { sourcePort, targetPort }
+      }
+    ];
     wiring = null;
     scheduleUiSave();
   }
@@ -3005,11 +3028,14 @@
     {@const incompatibleInputs = inputPorts.filter(
       (port) => !compatibleInputs.includes(port)
     )}
+    {@const targetConnections = edges.filter(
+      (edge) => edge.target === wiring?.target && Boolean(edge.data?.targetPort || edge.data?.orderOnly)
+    )}
     <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-3" role="presentation"
       onclick={(event) => { if (event.currentTarget === event.target) wiring = null; }}>
       <div class="w-full max-w-lg rounded-2xl border border-neutral-700 bg-neutral-950 shadow-2xl" role="dialog" aria-modal="true" aria-label="Wire ports">
         <div class="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
-          <div><h3 class="text-sm font-semibold text-white">Wire ports</h3><p class="text-[10px] text-neutral-500">{wiring.source} → {wiring.target}</p></div>
+          <div><h3 class="text-sm font-semibold text-white">Wire ports</h3><p class="text-[10px] text-neutral-500">{wiring.source}.{wiring.sourcePort} → {wiring.target}.{wiring.targetPort}</p></div>
           <button type="button" onclick={() => (wiring = null)} class="rounded px-2 text-neutral-500 hover:text-neutral-200" aria-label="Close port wiring">×</button>
         </div>
         <div class="grid gap-3 p-4 sm:grid-cols-2">
@@ -3085,6 +3111,22 @@
             {/if}
           </div>
         </div>
+        {#if targetConnections.length}
+          <div class="border-t border-neutral-800 px-4 py-2" data-testid="wire-current-connections">
+            <p class="text-[10px] uppercase tracking-wide text-neutral-500">Current inputs on {wiring.target}</p>
+            <div class="mt-1 space-y-1">
+              {#each targetConnections as edge}
+                <div class="flex items-center gap-2 rounded border border-neutral-800 bg-neutral-900/40 px-2 py-1 text-[10px]">
+                  <span class="min-w-0 flex-1 truncate font-mono text-neutral-300">
+                    {edge.data?.orderOnly ? "dependency" : `${edge.data?.sourcePort} → ${edge.data?.targetPort}`}
+                  </span>
+                  <span class="truncate text-[9px] text-neutral-600">{edge.source}</span>
+                  <button type="button" onclick={() => removeConnection(edge.source, edge.target, edge.data?.targetPort ?? "")} class="rounded border border-rose-500/30 px-1.5 py-0.5 text-[9px] text-rose-300 hover:bg-rose-500/10">Disconnect</button>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
         <div class="flex items-center justify-between gap-2 border-t border-neutral-800 px-4 py-3">
           <p class="text-[10px] text-neutral-600">All ports are listed; incompatible ones are disabled inside the accordions.</p>
           <div class="flex gap-1.5">

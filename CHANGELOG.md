@@ -3,6 +3,30 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.55.0] - 2026-11-03
+
+### Fixed
+
+- Recipe edges are now created per port instead of one aggregated edge per
+  source/target pair. `retakes.speech → timeline.speech` and
+  `retakes.retakes → timeline.retakes` appear and open independently.
+- Connecting a new source to an occupied input replaces the old edge, so two
+  green edges can no longer claim the same input while only one is applied.
+- The wire dialog lists the target's current input bindings and can disconnect
+  a single binding.
+- Added a regression test proving Retakes changes the final timeline compared
+  with the same recipe without Retakes.
+
+### Added
+
+- `flow.junction`, a concentrator node with eight `any` inputs and one `any`
+  output. It can pass a selected input, merge lists, or merge dictionaries.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.54.0] - 2026-11-03
 
 ### Added

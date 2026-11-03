@@ -1003,3 +1003,41 @@ def test_runner_persists_inspectable_step_outputs(tmp_path: Path) -> None:
         "discarded",
     }
     assert all("value" in item for item in payload["ports"])
+
+
+def test_retakes_are_applied_to_the_final_timeline(tmp_path: Path) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    transcript = srt(tmp_path / "repeat.srt", repeat=True)
+    with_retakes = parse_recipe(base_steps(transcript))
+    without_retakes_data = base_steps(transcript)
+    without_retakes_data["steps"] = [
+        step
+        for step in without_retakes_data["steps"]
+        if step["id"] != "retakes"
+    ]
+    for step in without_retakes_data["steps"]:
+        if step["id"] == "timeline":
+            step["needs"] = ["vad"]
+            step["inputs"] = {"speech": "vad.speech"}
+    without_retakes = parse_recipe(without_retakes_data)
+    with_result = RecipeRunner(with_retakes, adapter=FakeAdapter()).run(
+        source, tmp_path / "with-retakes"
+    )
+    without_result = RecipeRunner(without_retakes, adapter=FakeAdapter()).run(
+        source, tmp_path / "without-retakes"
+    )
+
+    def duration(state) -> int:
+        return sum(
+            clip.source_out_frame - clip.source_in_frame
+            for clip in state.video_segments
+        )
+
+    assert duration(with_result.context.state) < duration(
+        without_result.context.state
+    )
+    assert with_result.context.state.retake_culls == [0]
+    assert len(with_result.context.state.video_segments) < len(
+        without_result.context.state.video_segments
+    )

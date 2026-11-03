@@ -191,6 +191,10 @@ const FIELD_META: Record<string, Record<string, FieldMeta>> = {
       placeholder: "/path/to/broll"
     }
   },
+  "flow.junction": {
+    mode: { group: "Junction", label: "Mode" },
+    selected_input: { group: "Junction", label: "Input to pass" }
+  },
   "retakes.cull": {
     provider_id: {
       group: "Provider",

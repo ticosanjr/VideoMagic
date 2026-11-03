@@ -439,6 +439,23 @@ test("shows typed ports and the wired edge label", async ({ page }) => {
   await expect(page.getByTestId("outputs-edit.timeline")).toContainText("Timeline state");
 });
 
+test("shows one edge per port", async ({ page }) => {
+  const recipe = structuredClone(fixture("recipe.json"));
+  const timeline = recipe.recipe.steps.find(
+    (step: { id: string }) => step.id === "timeline"
+  );
+  timeline.inputs = {
+    speech: "vad.speech",
+    silence: "vad.silence"
+  };
+  await page.route("**/api/v1/recipes/example_recipe", (route) =>
+    route.fulfill({ json: recipe })
+  );
+  await page.reload();
+  await expect(page.getByText("speech → speech")).toBeVisible();
+  await expect(page.getByText("silence → silence")).toBeVisible();
+});
+
 test("uses sliders, presets, and cut-mode controls inside the node", async ({ page }) => {
   await page
     .getByTestId("step-audio.vad")

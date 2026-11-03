@@ -37,6 +37,18 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
             PortSpec("source", "Transcript source", "string", "transcript_source"),
         ),
     ),
+    "flow.junction": (
+        tuple(
+            PortSpec(
+                f"in{index}",
+                f"Input {index}",
+                "any",
+                f"metadata:junction_in{index}",
+            )
+            for index in range(1, 9)
+        ),
+        (PortSpec("out", "Output", "any", "metadata:junction_out"),),
+    ),
     "retakes.cull": (
         (
             PortSpec("speech", "Speech spans", "sample_spans", "speech_intervals", True),
