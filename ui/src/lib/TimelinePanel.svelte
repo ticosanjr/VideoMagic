@@ -1597,12 +1597,12 @@
                 }}
                 onstate={(value) => (playing = value)}
               />
-            {:else if timeline.live_eligible && liveSource?.status === "preparing"}
+            {:else if timeline.live_eligible && liveSource?.status === "preparing" && !previewUrl}
               <div class="flex h-[340px] items-center justify-center rounded-xl border border-sky-500/20 bg-sky-950/20 text-[11px] text-sky-200" data-testid="live-preparing">
                 <span class="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-sky-300 border-r-transparent"></span>
                 Preparing browser-safe live playback…
               </div>
-            {:else if timeline.live_eligible && liveSource?.status === "failed"}
+            {:else if timeline.live_eligible && liveSource?.status === "failed" && !previewUrl}
               <div class="flex h-[340px] flex-col items-center justify-center rounded-xl border border-amber-400/20 bg-amber-950/20 p-4 text-center text-[11px] text-amber-200" data-testid="live-fallback">
                 <p>Live playback unavailable: {liveSource.error || liveSource.reason}.</p>
                 <p class="mt-1 text-[10px] text-amber-200/70">Rendering the browser preview instead.</p>

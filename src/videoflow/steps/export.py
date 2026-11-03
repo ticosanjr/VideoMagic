@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -22,7 +23,7 @@ from videoflow.steps.registry import register_step
 class ExportParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    targets: list[str] = Field(
+    targets: list[Literal["resolve", "premiere", "kdenlive"]] = Field(
         default_factory=lambda: ["resolve", "premiere", "kdenlive"]
     )
     dialect: Dialect = "1.9"
@@ -35,15 +36,6 @@ class ExportParams(BaseModel):
             return value
         cleaned = [item for item in value if str(item) != "mp4"]
         return cleaned or ["resolve", "premiere", "kdenlive"]
-
-    @field_validator("targets")
-    @classmethod
-    def known_timeline_targets(cls, value: list[str]) -> list[str]:
-        allowed = {"resolve", "premiere", "kdenlive"}
-        unknown = sorted(set(value) - allowed)
-        if unknown:
-            raise ValueError(f"Unknown timeline targets: {', '.join(unknown)}")
-        return value
 
 
 @register_step

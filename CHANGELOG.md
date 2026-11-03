@@ -3,6 +3,21 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.44.0] - 2026-11-02
+
+### Fixed
+
+- `export.nle.targets` exposes its enum again, so the node renders a real
+  multi-select with Resolve/Premiere/Kdenlive options.
+- When a live proxy is preparing or fails and a rendered preview exists, the
+  preview stays playable instead of being replaced by a status panel.
+- Request validation errors retain body, endpoint, and field location details.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.43.0] - 2026-11-02
 
 ### Fixed
