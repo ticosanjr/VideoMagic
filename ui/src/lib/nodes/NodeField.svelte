@@ -99,6 +99,18 @@
           label: `${provider.name}${provider.is_default ? " · default" : ""}`
         }));
     }
+    if (kind === "models") {
+      return (options.models ?? [])
+        .filter(
+          (model) =>
+            Boolean(model.installed) &&
+            String(model.capability ?? "") === capability
+        )
+        .map((model) => ({
+          value: String(model.id),
+          label: `${model.label ?? model.id} · ${model.kind ?? "model"}`
+        }));
+    }
     if (kind === "services") {
       return options.services.map((service) => ({
         value: service.id,
@@ -106,6 +118,17 @@
       }));
     }
     return [];
+  }
+  function setupKind(): string {
+    return field.optionsSource.split(":")[0] ?? "";
+  }
+
+  function setupHref(): string {
+    return setupKind() === "models" ? "#setup/models" : "#setup/providers";
+  }
+
+  function setupLabel(): string {
+    return setupKind() === "models" ? "AI models" : "Providers";
   }
 </script>
 
@@ -124,6 +147,7 @@
       aria-checked={field.value === true}
       aria-label={field.label}
       data-testid={testId}
+      disabled={field.disabled}
       onclick={(event) => { event.preventDefault(); change(!(field.value === true)); }}
       class={`mt-1 inline-flex h-5 w-9 items-center rounded-full border transition ${field.value === true ? "border-sky-400 bg-sky-500/40" : "border-neutral-700 bg-neutral-900"}`}
     >
@@ -134,6 +158,7 @@
       {#each field.options as option}
         <button
           type="button"
+          disabled={field.disabled}
           onclick={(event) => { event.preventDefault(); change(option); }}
           class={String(field.value) === option ? "rounded-md bg-sky-500/20 px-2 py-1 text-[10px] text-sky-200 ring-1 ring-inset ring-sky-400/30" : "rounded-md border border-neutral-700 px-2 py-1 text-[10px] text-neutral-400 hover:text-neutral-200"}
         >{option}</button>
@@ -143,6 +168,7 @@
     <select
       data-testid={testId}
       value={displayValue()}
+      disabled={field.disabled}
       onchange={(event) => change(event.currentTarget.value)}
       class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100"
     >
@@ -160,8 +186,12 @@
     </select>
     {#if field.optionsSource && dynamicOptions().length === 0}
       <span class="mt-1 block text-[9px] text-amber-300" data-testid={`${testId}-setup`}>
-        No configured {field.optionsSource.split(":")[1].toUpperCase()} provider.
-        <a href="#setup/providers" class="underline hover:text-amber-100">Configure in Providers</a>.
+        {#if setupKind() === "models"}
+          No installed {field.optionsSource.split(":")[1].toUpperCase()} model.
+        {:else}
+          No configured {field.optionsSource.split(":")[1].toUpperCase()} provider.
+        {/if}
+        <a href={setupHref()} class="underline hover:text-amber-100">Configure in {setupLabel()}</a>.
       </span>
     {/if}
   {:else if field.control === "slider"}
@@ -173,6 +203,7 @@
         max={field.maximum}
         step={field.step ?? 1}
         value={displayValue()}
+        disabled={field.disabled}
         oninput={(event) => change(event.currentTarget.value)}
         class="min-w-0 flex-1 accent-sky-500"
       />
@@ -245,6 +276,7 @@
       max={field.maximum}
       step={field.step}
       value={displayValue()}
+      disabled={field.disabled}
       oninput={(event) => change(event.currentTarget.value)}
       class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100"
     />
@@ -253,6 +285,7 @@
       data-testid={testId}
       rows="3"
       value={jsonDraft}
+      disabled={field.disabled}
       onfocus={() => (jsonFocused = true)}
       onblur={() => { jsonFocused = false; }}
       oninput={(event) => changeJson(event.currentTarget.value)}
@@ -265,6 +298,7 @@
         type="text"
         value={displayValue()}
         placeholder={field.placeholder}
+        disabled={field.disabled}
         oninput={(event) => change(event.currentTarget.value)}
         class="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100"
       />

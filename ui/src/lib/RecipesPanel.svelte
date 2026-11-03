@@ -351,6 +351,14 @@
     return () => window.removeEventListener("beforeunload", handler);
   });
 
+  async function refreshNodeOptions() {
+    try {
+      nodeOptions = await getNodeOptions();
+    } catch {
+      /* keep the previous options */
+    }
+  }
+
   onMount(() => {
     const onBuilderAction = (event: Event) => {
       const detail = (event as CustomEvent<unknown>).detail;
@@ -416,6 +424,7 @@
       }
     };
     window.addEventListener("keydown", onBuilderKey);
+    window.addEventListener("focus", refreshNodeOptions);
     void (async () => {
       try {
         steps = await listRecipeSteps();
@@ -431,6 +440,7 @@
     return () => {
       window.removeEventListener("videoflow:builder-action", onBuilderAction);
       window.removeEventListener("keydown", onBuilderKey);
+      window.removeEventListener("focus", refreshNodeOptions);
     };
   });
 

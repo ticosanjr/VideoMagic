@@ -1853,3 +1853,76 @@ def test_transcribe_requires_media(tmp_path: Path) -> None:
     context = make_context(tmp_path)
     with pytest.raises(IngestError, match="ingest step"):
         TranscribeStep().run(context, TranscribeParams(mode="none"), StepIO())
+
+
+def test_transcribe_uses_an_installed_asr_model_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from videoflow.application import models
+    from videoflow.steps import transcribe as transcribe_module
+    from videoflow.steps.transcribe import TranscribeParams, TranscribeStep
+
+    model_path = tmp_path / "faster-whisper-tiny"
+    model_path.mkdir()
+    monkeypatch.setattr(
+        models,
+        "list_models",
+        lambda: [
+            {
+                "id": "faster-whisper-tiny",
+                "label": "Faster-Whisper tiny",
+                "capability": "asr",
+                "kind": "faster-whisper",
+                "installed": True,
+            }
+        ],
+    )
+    monkeypatch.setattr(models, "installed_path", lambda _model_id: model_path)
+    calls: dict[str, object] = {}
+
+    class FakeFaster:
+        def __init__(self, **kwargs: object) -> None:
+            calls["faster"] = kwargs
+
+        def transcribe(self, wav: Path, sample_rate: int) -> list[Sentence]:
+            return [sentence(0, 0, 48000, "model id")]
+
+    monkeypatch.setattr(transcribe_module, "FasterWhisperAdapter", FakeFaster)
+    context = make_context(tmp_path / "model", media_info=make_media(tmp_path / "model"))
+    TranscribeStep().run(
+        context,
+        TranscribeParams(model_id="faster-whisper-tiny", mode="auto"),
+        StepIO(adapter=FakePcmAdapter()),
+    )
+    assert calls["faster"]["model"] == model_path
+    assert context.transcript_source == "faster_whisper"
+
+
+def test_transcribe_rejects_an_uninstalled_model_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from videoflow.application import models
+    from videoflow.domain.errors import TranscriptionError
+    from videoflow.steps.transcribe import TranscribeParams, TranscribeStep
+
+    monkeypatch.setattr(
+        models,
+        "list_models",
+        lambda: [
+            {
+                "id": "faster-whisper-tiny",
+                "label": "Faster-Whisper tiny",
+                "capability": "asr",
+                "kind": "faster-whisper",
+                "installed": False,
+            }
+        ],
+    )
+    monkeypatch.setattr(models, "installed_path", lambda _model_id: None)
+    context = make_context(tmp_path / "missing", media_info=make_media(tmp_path / "missing"))
+    with pytest.raises(TranscriptionError, match="not installed"):
+        TranscribeStep().run(
+            context,
+            TranscribeParams(model_id="faster-whisper-tiny", mode="auto"),
+            StepIO(adapter=FakePcmAdapter()),
+        )

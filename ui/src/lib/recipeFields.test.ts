@@ -94,3 +94,52 @@ describe("recipeFields controls", () => {
     expect(nodePresets("edit.timeline").map((preset) => preset.label)).toContain("J-cut");
   });
 });
+
+describe("transcribe field visibility", () => {
+  const transcribeSchema = {
+    type: "object",
+    properties: {
+      provider_id: { type: "string", default: "" },
+      mode: {
+        type: "string",
+        enum: ["auto", "srt", "http", "faster_whisper", "whisper_cpp"],
+        default: "auto"
+      },
+      model_id: { type: "string", default: "" },
+      model_size: { type: "string", default: "small" },
+      srt_path: { type: "string", default: "" },
+      base_url: { type: "string", default: "" },
+      whisper_model: { type: "string", default: "" },
+      device: { type: "string", default: "cpu" }
+    }
+  };
+  const ids = (params: Record<string, unknown>) =>
+    fieldGroups(transcribeSchema, params, "transcribe")
+      .flatMap((group) => group.fields)
+      .map((field) => field.id);
+
+  it("shows HTTP fields only without a provider", () => {
+    expect(ids({ mode: "http", provider_id: "" })).toContain("base_url");
+    expect(ids({ mode: "http", provider_id: "asr-demo" })).not.toContain("base_url");
+  });
+
+  it("shows local model fields only for the matching mode", () => {
+    expect(ids({ mode: "faster_whisper" })).toContain("model_size");
+    expect(ids({ mode: "whisper_cpp" })).not.toContain("model_size");
+    expect(ids({ mode: "whisper_cpp" })).toContain("whisper_model");
+    expect(ids({ mode: "srt" })).toContain("srt_path");
+    expect(ids({ mode: "srt" })).not.toContain("whisper_model");
+  });
+
+  it("disables model size when an explicit model id is selected", () => {
+    const field = fieldGroups(
+      transcribeSchema,
+      { mode: "faster_whisper", model_id: "faster-whisper-tiny" },
+      "transcribe"
+    )
+      .flatMap((group) => group.fields)
+      .find((item) => item.id === "model_size");
+    expect(field?.visible).toBe(true);
+    expect(field?.disabled).toBe(true);
+  });
+});

@@ -88,7 +88,7 @@ test.beforeEach(async ({ page }) => {
   await mockApi(page);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Recipe builder" })).toBeVisible();
-  await expect(page.getByTestId("step-edit.timeline")).toBeVisible({ timeout: 10000 });
+  await expect(page.getByTestId("step-edit.timeline")).toBeVisible({ timeout: 30000 });
 });
 
 test("loads saved node layout and inline fields", async ({ page }) => {

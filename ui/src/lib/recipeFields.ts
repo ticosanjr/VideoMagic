@@ -34,6 +34,8 @@ export interface RecipeField {
   help: string;
   value: unknown;
   defaultValue: unknown;
+  visible: boolean;
+  disabled: boolean;
 }
 
 export interface RecipeFieldGroup {
@@ -52,6 +54,79 @@ type FieldMeta = {
   optionsSource?: string;
   placeholder?: string;
   options?: string[];
+};
+
+
+type FieldRule = (params: Record<string, unknown>) => {
+  visible?: boolean;
+  disabled?: boolean;
+};
+
+const isLocalAsrMode = (params: Record<string, unknown>): boolean =>
+  ["auto", "faster_whisper", "whisper_cpp"].includes(String(params.mode ?? "auto"));
+
+const FIELD_RULES: Record<string, Record<string, FieldRule>> = {
+  transcribe: {
+    srt_path: (params) => ({ visible: String(params.mode) === "srt" }),
+    model_id: (params) => ({
+      visible: !params.provider_id && isLocalAsrMode(params)
+    }),
+    model_size: (params) => ({
+      visible:
+        !params.provider_id &&
+        (String(params.mode) === "faster_whisper" ||
+          (String(params.mode ?? "auto") === "auto" && !params.model_id)),
+      disabled: Boolean(params.model_id)
+    }),
+    device: (params) => ({
+      visible:
+        !params.provider_id &&
+        (String(params.mode) === "faster_whisper" ||
+          (String(params.mode ?? "auto") === "auto" && !params.model_id))
+    }),
+    compute_type: (params) => ({
+      visible:
+        !params.provider_id &&
+        (String(params.mode) === "faster_whisper" ||
+          (String(params.mode ?? "auto") === "auto" && !params.model_id))
+    }),
+    vad_filter: (params) => ({
+      visible:
+        !params.provider_id &&
+        (String(params.mode) === "faster_whisper" ||
+          (String(params.mode ?? "auto") === "auto" && !params.model_id))
+    }),
+    base_url: (params) => ({
+      visible: !params.provider_id && String(params.mode) === "http"
+    }),
+    model: (params) => ({
+      visible: !params.provider_id && String(params.mode) === "http"
+    }),
+    api_key_env: (params) => ({
+      visible: !params.provider_id && String(params.mode) === "http"
+    }),
+    whisper_binary: (params) => ({
+      visible: !params.provider_id && String(params.mode) === "whisper_cpp"
+    }),
+    whisper_model: (params) => ({
+      visible: !params.provider_id && String(params.mode) === "whisper_cpp"
+    })
+  },
+  "audio.diarize": {
+    model_path: (params) => ({ visible: String(params.method) === "pyannote" }),
+    device: (params) => ({ visible: String(params.method) === "pyannote" }),
+    hf_token_env: (params) => ({ visible: String(params.method) === "pyannote" }),
+    fallback_to_heuristic: (params) => ({
+      visible: String(params.method) === "pyannote"
+    }),
+    pause_ms: (params) => ({ visible: String(params.method) !== "pyannote" }),
+    max_speakers: (params) => ({ visible: String(params.method) !== "pyannote" })
+  },
+  "localization.dub": {
+    base_url: (params) => ({ visible: !params.provider_id }),
+    model: (params) => ({ visible: !params.provider_id }),
+    api_key_env: (params) => ({ visible: !params.provider_id })
+  }
 };
 
 const FIELD_META: Record<string, Record<string, FieldMeta>> = {
@@ -150,7 +225,12 @@ const FIELD_META: Record<string, Record<string, FieldMeta>> = {
   transcribe: {
     mode: { group: "Transcription", label: "Mode" },
     language: { group: "Transcription", label: "Language" },
-    model_size: { group: "Transcription", label: "Model" },
+    model_id: {
+      group: "Transcription",
+      label: "ASR model",
+      optionsSource: "models:asr"
+    },
+    model_size: { group: "Transcription", label: "Model size" },
     provider_id: { group: "Provider", label: "Configured provider", optionsSource: "providers:asr" },
     engine: { group: "Transcription", label: "Engine" },
     device: { group: "Transcription", label: "Device" },
@@ -349,6 +429,10 @@ function buildField(
   const maximum = typeof resolved.maximum === "number" ? resolved.maximum : undefined;
   const description = typeof resolved.description === "string" ? resolved.description : "";
   const defaultValue = resolved.default;
+  const rule = FIELD_RULES[stepType]?.[key];
+  const ruleState = rule
+    ? rule((params ?? {}) as Record<string, unknown>)
+    : {};
   return {
     path,
     id: path.join("."),
@@ -374,7 +458,9 @@ function buildField(
         : description || (kind === "path" ? "/path/to/file" : "")),
     help: description,
     value: getPath(params, path) ?? defaultValue,
-    defaultValue
+    defaultValue,
+    visible: ruleState.visible !== false,
+    disabled: ruleState.disabled === true
   };
 }
 
@@ -412,13 +498,13 @@ export function fieldGroups(
           nestedRequired.has(childKey),
           stepType
         );
-        if (field) nested.fields.push(field);
+        if (field && field.visible) nested.fields.push(field);
       }
       if (nested.fields.length) groups.push(nested);
       continue;
     }
     const field = buildField(key, raw, root, params, [key], required.has(key), stepType);
-    if (!field) continue;
+    if (!field || !field.visible) continue;
     const group = rootGroups.get(field.group) ?? {
       path: [],
       label: field.group,

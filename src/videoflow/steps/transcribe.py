@@ -36,6 +36,7 @@ class TranscribeParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     provider_id: str = ""
+    model_id: str = ""
     mode: Mode = "auto"
     srt_path: str | None = None
     model_size: Literal["tiny", "base", "small", "medium", "large-v2", "large-v3"] = "small"
@@ -69,6 +70,16 @@ class TranscribeStep(BaseStep):
             settings = None
         if settings is not None:
             default_model = settings.models.defaults.get("asr", "")
+            if not options.model_id and default_model:
+                try:
+                    from videoflow.application.models import installed_path
+
+                    if installed_path(str(default_model)) is not None:
+                        options = options.model_copy(
+                            update={"model_id": str(default_model)}
+                        )
+                except Exception:
+                    pass
             model_size = default_model.split("-")[-1] if default_model else ""
             if (
                 model_size in {"tiny", "base", "small", "medium", "large-v2", "large-v3"}
@@ -89,8 +100,41 @@ class TranscribeStep(BaseStep):
                 options = options.model_copy(
                     update={"vad_filter": settings.speech.vad_filter}
                 )
+        model_id = options.model_id.strip()
+        model_path: Path | None = None
+        model_kind = ""
+        if model_id:
+            from videoflow.application.models import installed_path, list_models
+
+            info = next(
+                (item for item in list_models() if str(item.get("id")) == model_id),
+                None,
+            )
+            if info is None:
+                raise TranscriptionError(f"Unknown ASR model: {model_id}")
+            if str(info.get("capability") or "") not in {"asr", "other"}:
+                raise TranscriptionError(
+                    f"Model {model_id} is not an ASR model"
+                )
+            model_path = installed_path(model_id)
+            if model_path is None:
+                raise TranscriptionError(
+                    f"ASR model {model_id} is not installed. Download it in Setup → AI models."
+                )
+            model_kind = str(info.get("kind") or "")
         media = require_media(context)
         mode = options.mode
+        if options.provider_id and mode not in {"srt", "project", "none"}:
+            mode = "http"
+        if model_kind and mode in {"auto", "faster_whisper", "whisper_cpp"}:
+            if model_kind == "faster-whisper":
+                mode = "faster_whisper"
+            elif model_kind == "whisper":
+                mode = "whisper_cpp"
+            else:
+                raise TranscriptionError(
+                    f"ASR model {model_id} has unsupported kind {model_kind}"
+                )
         if mode == "auto":
             if options.srt_path:
                 mode = "srt"
@@ -169,12 +213,15 @@ class TranscribeStep(BaseStep):
             elif mode == "whisper_cpp":
                 client = WhisperCliAdapter(
                     binary=options.whisper_binary or os.environ.get("VIDEOWFLOW_WHISPER_BIN"),
-                    model=options.whisper_model or os.environ.get("VIDEOWFLOW_WHISPER_MODEL"),
+                    model=model_path
+                    or options.whisper_model
+                    or os.environ.get("VIDEOWFLOW_WHISPER_MODEL"),
                     language=options.language,
                     log=lambda level, message: io.emit(level, message, module="transcribe"),
                 )
             else:
                 client = FasterWhisperAdapter(
+                    model=model_path,
                     model_size=options.model_size,
                     device=options.device,
                     compute_type=options.compute_type,
@@ -209,10 +256,25 @@ class TranscribeStep(BaseStep):
 
     @staticmethod
     def _available_mode(context: PipelineContext, io: StepIO) -> Mode:
-        if FasterWhisperAdapter.available("small"):
-            return "faster_whisper"
-        if os.environ.get("VIDEOWFLOW_WHISPER_BIN") or os.environ.get(
-            "VIDEOWFLOW_WHISPER_MODEL"
+        for size in ("tiny", "base", "small", "medium", "large-v3"):
+            if FasterWhisperAdapter.available(size):  # type: ignore[arg-type]
+                return "faster_whisper"
+        try:
+            from videoflow.application.models import list_models
+            from videoflow.runtime import find_whisper_binary
+
+            installed_whisper = any(
+                str(item.get("capability")) == "asr"
+                and str(item.get("kind")) == "whisper"
+                and bool(item.get("installed"))
+                for item in list_models()
+            )
+        except Exception:
+            installed_whisper = False
+        if (
+            os.environ.get("VIDEOWFLOW_WHISPER_BIN")
+            or os.environ.get("VIDEOWFLOW_WHISPER_MODEL")
+            or (installed_whisper and find_whisper_binary())
         ):
             return "whisper_cpp"
         if os.environ.get("VIDEOWFLOW_ASR_BASE_URL"):

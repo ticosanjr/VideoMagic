@@ -3,6 +3,36 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.54.0] - 2026-11-03
+
+### Added
+
+- The Transcribe node now exposes an **ASR model** selector populated from models
+  installed in Setup → AI models. Only installed ASR models are listed, with a
+  direct setup link when none exists.
+- `model_id` resolves to the installed model path. Faster-Whisper models use the
+  Faster-Whisper adapter; whisper.cpp models use the CLI adapter.
+- Automatic mode now considers every installed Faster-Whisper size and installed
+  whisper.cpp models instead of only `small`.
+- Selecting an ASR provider forces HTTP transcription, and settings defaults can
+  seed the installed model automatically.
+
+### Changed
+
+- Provider-specific fields are now conditional. In Transcribe, HTTP fields only
+  show for HTTP without a provider; whisper.cpp paths only for that mode; model
+  size/device/compute/VAD only for local Faster-Whisper; SRT path only for SRT.
+- Speaker turns only shows pyannote fields for `method=pyannote`, and heuristic
+  fields otherwise.
+- Dubbing hides manual TTS endpoint fields when a configured provider is chosen.
+- When an explicit ASR model is selected, `model_size` remains visible but
+  disabled.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.53.0] - 2026-11-03
 
 ### Changed
