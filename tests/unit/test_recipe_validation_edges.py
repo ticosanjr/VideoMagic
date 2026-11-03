@@ -190,3 +190,30 @@ def test_load_recipe_and_serialise(tmp_path: Path) -> None:
 def test_parse_recipe_reports_the_first_location() -> None:
     with pytest.raises(RecipeError, match="name"):
         parse_recipe(body(name=""))
+
+
+def test_explicit_wiring_can_replace_legacy_required_types() -> None:
+    from videoflow.steps import requirements_by_type, step_types
+
+    recipe = parse_recipe(
+        body(
+            steps=[
+                {"id": "ingest", "type": "ingest"},
+                {"id": "transcribe", "type": "transcribe", "needs": ["ingest"]},
+                {"id": "hub", "type": "flow.junction"},
+                {
+                    "id": "retakes",
+                    "type": "retakes.cull",
+                    "needs": ["hub", "transcribe"],
+                    "inputs": {
+                        "speech": "hub.out",
+                        "transcript": "transcribe.transcript",
+                    },
+                },
+            ]
+        )
+    )
+    recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+    from videoflow.steps.ports import validate_recipe_ports
+
+    validate_recipe_ports(recipe)

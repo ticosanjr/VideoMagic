@@ -174,6 +174,11 @@ class Recipe(StrictModel):
         if requires_by_type:
             by_id = {step.id: step for step in order}
             for step in order:
+                # Explicit port wiring is the source of truth. Legacy
+                # requires_by_type hints only apply to steps using implicit
+                # upstream state.
+                if step.inputs:
+                    continue
                 ancestors: set[str] = set()
                 stack = list(step.needs)
                 while stack:

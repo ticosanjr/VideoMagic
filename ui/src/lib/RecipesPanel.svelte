@@ -605,17 +605,26 @@
           target: step.id,
           animated: true,
           label: `${outputPort} → ${targetPort}`,
+          sourceHandle: outputPort,
+          targetHandle: targetPort,
           data: { sourcePort: outputPort, targetPort }
         });
       }
       for (const need of step.needs) {
         if (mappedSources.has(need)) continue;
+        const sourceManifest = manifestFor(
+          recipe.steps.find((item) => item.id === need)?.type ?? ""
+        );
+        const firstOutput = sourceManifest?.outputs?.[0]?.id;
+        const firstInput = manifestFor(step.type)?.inputs?.[0]?.id;
         nextEdges.push({
           id: `${need}->${step.id}`,
           source: need,
           target: step.id,
           animated: true,
           label: "dependency",
+          sourceHandle: firstOutput,
+          targetHandle: firstInput,
           data: { orderOnly: true }
         });
       }
@@ -948,7 +957,12 @@
       .join(" · ");
   }
 
-  function openWiring(source: string, target: string) {
+  function openWiring(
+    source: string,
+    target: string,
+    sourcePort?: string,
+    targetPort?: string
+  ) {
     const sourceNode = nodes.find((node) => node.id === source);
     const targetNode = nodes.find((node) => node.id === target);
     if (!sourceNode || !targetNode) return;
@@ -958,12 +972,16 @@
       error = `No ports available between ${source} and ${target}.`;
       return;
     }
+    const compatibleOutput = outputs.find((port) => port.id === sourcePort);
+    const compatibleInput = inputs.find((port) => port.id === targetPort);
     const firstCompatible = wiringChoices(source, target)[0];
     wiring = {
       source,
       target,
-      sourcePort: firstCompatible?.output.id ?? outputs[0].id,
-      targetPort: firstCompatible?.input.id ?? inputs[0].id
+      sourcePort:
+        compatibleOutput?.id ?? firstCompatible?.output.id ?? outputs[0].id,
+      targetPort:
+        compatibleInput?.id ?? firstCompatible?.input.id ?? inputs[0].id
     };
   }
 
@@ -1048,6 +1066,8 @@
         target,
         animated: true,
         label,
+        sourceHandle: sourcePort,
+        targetHandle: targetPort,
         data: { sourcePort, targetPort }
       }
     ];
@@ -1151,7 +1171,12 @@
       error = "This connection would create a cycle.";
       return;
     }
-    openWiring(connection.source, connection.target);
+    openWiring(
+      connection.source,
+      connection.target,
+      connection.sourceHandle ?? undefined,
+      connection.targetHandle ?? undefined
+    );
   }
 
   function selectedParams(): Record<string, unknown> {

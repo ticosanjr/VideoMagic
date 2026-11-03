@@ -47,6 +47,7 @@ class TimelineParams(BaseModel):
     transition_type: Literal["crossfade", "fade_to_black"] = "crossfade"
     project_id: str | None = None
     revision: int = Field(default=1, ge=1)
+    replace_manual: bool = True
 
     @model_validator(mode="after")
     def resolve_cut_mode(self) -> TimelineParams:
@@ -127,10 +128,26 @@ class TimelineStep(BaseStep):
             silence_spans=context.silence_spans,
             retake_spans=context.retake_spans,
         )
+        revision = options.revision
+        if options.replace_manual:
+            existing = context.output / "project_state.json"
+            if existing.is_file():
+                try:
+                    current = ProjectState.model_validate_json(
+                        existing.read_text(encoding="utf-8")
+                    )
+                except (OSError, ValueError):
+                    current = None
+                if current is not None and current.revision > revision:
+                    revision = current.revision + 1
+                    context.warnings.append(
+                        "Manual timeline edits at revision "
+                        f"{current.revision} were replaced by this recipe build."
+                    )
         project_id = UUID(options.project_id) if options.project_id else uuid4()
         context.state = ProjectState(
             project_id=project_id,
-            revision=options.revision,
+            revision=revision,
             media_info=media,
             vad_intervals=[
                 SampleSpan(start_sample=start, end_sample=end) for start, end in speech

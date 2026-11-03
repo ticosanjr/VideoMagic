@@ -103,6 +103,12 @@
           "id": "engine",
           "label": "VAD engine",
           "type": "string"
+        },
+        {
+          "id": "silence",
+          "label": "Silence spans",
+          "type": "inactive_spans",
+          "required": false
         }
       ]
     },
@@ -150,6 +156,12 @@
           "id": "transcript",
           "label": "Transcript",
           "type": "transcript"
+        },
+        {
+          "id": "silence",
+          "label": "Silence spans",
+          "type": "inactive_spans",
+          "required": false
         }
       ],
       "outputs": [

@@ -3,6 +3,34 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.56.0] - 2026-11-03
+
+### Fixed
+
+- Every input and output port now renders its own connection handle. Nodes can
+  receive multiple inputs on different ports and expose multiple outputs, and
+  edges carry the exact `sourceHandle`/`targetHandle`.
+- Recipe rebuilds now replace a newer manual timeline explicitly:
+  `edit.timeline` bumps above the current revision, persists the new state, and
+  records a warning. The **Replace manual timeline edits** toggle can disable
+  this behavior.
+- The legacy `requires_by_type` check no longer rejects explicitly wired steps
+  (for example Retakes fed through a junction); port validation remains the
+  source of truth.
+
+### Verified
+
+- Real test with `/home/rafael/Desktop/Kimi.mp4`:
+  - **with Retakes:** 340 clips, **17:07**;
+  - **without Retakes:** 312 clips, **19:05**;
+  - retake inactive segments: 97, discarded sentence ids: 399;
+  - the result is written to `project_state.json`, not only to the step output.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.55.0] - 2026-11-03
 
 ### Fixed

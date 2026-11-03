@@ -100,6 +100,12 @@
     ...validateParams(data.schema ?? {}, data.params ?? {}, data.type)
   });
   const errorCount = $derived(Object.keys(fieldErrors).length);
+  const inputPorts = $derived(data.inputPorts ?? []);
+  const outputPorts = $derived(data.outputPorts ?? []);
+
+  function portTop(index: number, total: number): string {
+    return `${((index + 1) / (total + 1)) * 100}%`;
+  }
 </script>
 
 <div
@@ -119,7 +125,20 @@
   }`}
   style={`width: ${width}px`}
 >
-  <Handle type="target" position={Position.Left} class="!h-2.5 !w-2.5 !border-neutral-500 !bg-neutral-800" />
+  {#if inputPorts.length}
+    {#each inputPorts as port, index}
+      <Handle
+        type="target"
+        position={Position.Left}
+        id={port.id}
+        title={port.label}
+        style={`top:${portTop(index, inputPorts.length)}`}
+        class="!h-2 !w-2 !border-neutral-500 !bg-neutral-800"
+      />
+    {/each}
+  {:else}
+    <Handle type="target" position={Position.Left} class="!h-2.5 !w-2.5 !border-neutral-500 !bg-neutral-800" />
+  {/if}
   <div class="px-3 py-2.5">
     <div class="flex items-start justify-between gap-2">
       <div class="min-w-0">
@@ -241,5 +260,18 @@
       </div>
     {/if}
   </div>
-  <Handle type="source" position={Position.Right} class="!h-2.5 !w-2.5 !border-neutral-500 !bg-sky-500" />
+  {#if outputPorts.length}
+    {#each outputPorts as port, index}
+      <Handle
+        type="source"
+        position={Position.Right}
+        id={port.id}
+        title={port.label}
+        style={`top:${portTop(index, outputPorts.length)}`}
+        class="!h-2 !w-2 !border-sky-400 !bg-sky-500"
+      />
+    {/each}
+  {:else}
+    <Handle type="source" position={Position.Right} class="!h-2.5 !w-2.5 !border-neutral-500 !bg-sky-500" />
+  {/if}
 </div>

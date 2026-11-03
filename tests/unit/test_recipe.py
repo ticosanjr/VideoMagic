@@ -1041,3 +1041,35 @@ def test_retakes_are_applied_to_the_final_timeline(tmp_path: Path) -> None:
     assert len(with_result.context.state.video_segments) < len(
         without_result.context.state.video_segments
     )
+
+
+def test_recipe_rebuild_replaces_newer_manual_timeline(tmp_path: Path) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    transcript = srt(tmp_path / "repeat2.srt", repeat=True)
+    output = tmp_path / "shared-out"
+    without_data = base_steps(transcript)
+    without_data["steps"] = [
+        step for step in without_data["steps"] if step["id"] != "retakes"
+    ]
+    for step in without_data["steps"]:
+        if step["id"] == "timeline":
+            step["needs"] = ["vad"]
+            step["inputs"] = {"speech": "vad.speech"}
+    without = parse_recipe(without_data)
+    without_result = RecipeRunner(without, adapter=FakeAdapter()).run(
+        source, output, resume=False
+    )
+    manual = without_result.context.state.model_copy(update={"revision": 10})
+    (output / "project_state.json").write_text(
+        manual.model_dump_json(), encoding="utf-8"
+    )
+
+    with_retakes = parse_recipe(base_steps(transcript))
+    result = RecipeRunner(with_retakes, adapter=FakeAdapter()).run(
+        source, output, resume=False
+    )
+    assert result.context.state.revision == 11
+    persisted = json.loads((output / "project_state.json").read_text())
+    assert persisted["revision"] == 11
+    assert any("replaced by this recipe build" in item for item in result.context.warnings)

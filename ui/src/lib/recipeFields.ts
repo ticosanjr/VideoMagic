@@ -159,6 +159,7 @@ const FIELD_META: Record<string, Record<string, FieldMeta>> = {
     anchor_point: { group: "Zoom", label: "Zoom anchor" },
     progressive_zoom: { group: "Zoom", label: "Progressive zoom" },
     pan_direction: { group: "Zoom", label: "Pan direction" },
+    replace_manual: { group: "Timeline", label: "Replace manual timeline edits" },
     pad_before_ms: { group: "Handles", unit: "ms", label: "Pad before override" },
     pad_after_ms: { group: "Handles", unit: "ms", label: "Pad after override" },
     transition_frames: {
