@@ -3,6 +3,33 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.50.0] - 2026-11-03
+
+### Fixed
+
+- **Long timelines no longer render blank.** The Konva stage was as wide as the
+  whole timeline, and timelines longer than the browser canvas limit (about
+  32k px) rendered a white/empty canvas. The stage is now viewport-sized with a
+  sticky drawing surface and a full-width scroll spacer.
+- **Seeking no longer rewinds the live player.** The player reset effect ran on
+  ordinary parent updates and restored the first segment, so the labels stayed
+  at 0 after a seek. It now resets only when the job, source, or segment
+  structure changes.
+- Segment boundaries now map to the next active segment instead of the previous
+  end, so Next segment lands on the correct source time.
+- Seeks force a playhead report, so the timeline timecode follows immediately
+  even inside the normal 80 ms report throttle.
+
+### Added
+
+- Tests for long-timeline canvas limits, cursor persistence across parent
+  updates, boundary mapping, and seek reporting.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.49.0] - 2026-11-03
 
 ### Fixed

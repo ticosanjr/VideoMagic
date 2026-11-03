@@ -123,7 +123,7 @@ export function sourceForOutput(segments: LiveSegment[], outputSec: number): num
   const target = Math.max(0, outputSec);
   for (const segment of segments) {
     if (target < segment.outputStart) return segment.start;
-    if (target <= segment.outputEnd) {
+    if (target < segment.outputEnd) {
       return Math.min(segment.end, segment.start + (target - segment.outputStart));
     }
   }

@@ -158,6 +158,7 @@ describe("source and output mapping", () => {
   it("maps the official playhead to the source used by the player", () => {
     expect(sourceForOutput(segments, 0)).toBe(0);
     expect(sourceForOutput(segments, 1.5)).toBe(1.5);
+    expect(sourceForOutput(segments, 2)).toBe(5);
     expect(sourceForOutput(segments, 2.5)).toBe(5.5);
     expect(sourceForOutput(segments, 3.5)).toBe(6.5);
   });

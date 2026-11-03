@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (2.49.0)
+## Implementation status (2.50.0)
 
 | Area | State |
 | --- | --- |
@@ -12,7 +12,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Silero VAD via ONNX Runtime with FFmpeg `silencedetect` fallback | implemented |
 | Deterministic timeline, J/L-cuts, fades, punch-ins | implemented |
 | FCPXML 1.9/1.10, xmeml v4, native Kdenlive MLT export | implemented |
-| Portable artifacts | 2.49.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
+| Portable artifacts | 2.50.0 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
 | Run history | persisted in `work/run-history.json`, including failed runs, paginated by `GET /api/v1/runs` |
 | Diagnostics | doctor covers FFmpeg capabilities, CUDA/ONNX, SQLite, providers, services, models, disk, and settings; support bundle ZIP |
 | NLE validation | `scripts/validate_nle.py` and `POST /api/v1/exports/validate` |

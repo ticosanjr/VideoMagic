@@ -95,39 +95,44 @@
     viewportWidth = element.clientWidth || viewportWidth;
   }
 
-  const fullDraw = $derived(timeline.video.length <= 300);
   const view = $derived(
-    fullDraw
-      ? { start: 0, end: timeline.duration_sec + 1 }
-      : visibleRange(
-          scrollLeft,
-          viewportWidth,
-          zoom,
-          Math.max(3, viewportWidth / Math.max(1, zoom))
-        )
+    visibleRange(
+      scrollLeft,
+      viewportWidth,
+      zoom,
+      Math.max(3, viewportWidth / Math.max(1, zoom))
+    )
   );
-  let drawnRange = { start: -1, end: -1 };
+  let scrollFrame = 0;
 
-  function maybeRedraw() {
-    if (fullDraw) return;
-    const current = visibleRange(scrollLeft, viewportWidth, zoom, 0);
-    if (current.start >= drawnRange.start && current.end <= drawnRange.end) return;
-    drawBackground();
+  function scheduleRedraw() {
+    if (scrollFrame) return;
+    scrollFrame = requestAnimationFrame(() => {
+      scrollFrame = 0;
+      drawBackground();
+      drawOverlay();
+    });
   }
 
   function isVisible(start: number, end: number): boolean {
     return clipVisible(start, end, view);
   }
 
-  const width = $derived(Math.max(480, timeline.duration_sec * zoom + HEADER + 48));
+  const fullWidth = $derived(Math.max(480, timeline.duration_sec * zoom + HEADER + 48));
+  // Konva renders one viewport-sized canvas. Drawing the full duration would
+  // exceed browser canvas limits for long videos and leave the area blank.
+  const stageWidth = $derived(Math.max(320, viewportWidth || 1200));
   const thumbCache = new Map<string, HTMLImageElement>();
 
   function x(time: number): number {
-    return HEADER + time * zoom;
+    return HEADER + time * zoom - scrollLeft;
   }
 
   function timeAt(pointerX: number): number {
-    return Math.max(0, Math.min(timeline.duration_sec, (pointerX - HEADER) / zoom));
+    return Math.max(
+      0,
+      Math.min(timeline.duration_sec, (pointerX - HEADER + scrollLeft) / zoom)
+    );
   }
 
   function snapTargets(ignoreId: string): number[] {
@@ -207,7 +212,7 @@
 
   function buildStage() {
     if (!konva || !container || stage) return;
-    stage = new konva.Stage({ container, width, height: HEIGHT });
+    stage = new konva.Stage({ container, width: stageWidth, height: HEIGHT });
     scene = new konva.Layer({ listening: true });
     overlay = new konva.Layer({ listening: true });
     stage.add(scene);
@@ -257,7 +262,12 @@
   function drawRuler(layer: any) {
     const majorStep =
       zoom >= 200 ? 1 : zoom >= 110 ? 2 : zoom >= 50 ? 5 : zoom >= 20 ? 10 : zoom >= 8 ? 30 : 60;
-    for (let second = 0; second <= Math.ceil(timeline.duration_sec) + 1; second += 1) {
+    const first = Math.max(0, Math.floor(view.start) - 1);
+    const last = Math.min(
+      Math.ceil(timeline.duration_sec) + 1,
+      Math.ceil(view.end) + 1
+    );
+    for (let second = first; second <= last; second += 1) {
       const major = second % majorStep === 0;
       layer.add(
         new konva.Line({
@@ -280,7 +290,7 @@
         );
       }
     }
-    layer.add(new konva.Rect({ x: 0, y: RULER, width, height: 1, fill: "#3f3f46", listening: false }));
+    layer.add(new konva.Rect({ x: 0, y: RULER, width: stageWidth, height: 1, fill: "#3f3f46", listening: false }));
   }
 
   function drawTracks(layer: any) {
@@ -300,7 +310,7 @@
         new konva.Rect({
           x: HEADER,
           y: track.y,
-          width: width - HEADER,
+          width: stageWidth - HEADER,
           height: track.h,
           fill: "#111114",
           stroke: "#27272a",
@@ -313,7 +323,7 @@
           new konva.Rect({
             x: HEADER,
             y: track.y,
-            width: width - HEADER,
+            width: stageWidth - HEADER,
             height: track.h,
             fill: "#000000",
             opacity: 0.38,
@@ -641,7 +651,7 @@
         })
       );
       chipX += chipWidth + 8;
-      if (chipX > width - 40) break;
+      if (chipX > stageWidth - 40) break;
     }
   }
 
@@ -683,9 +693,9 @@
     if (!konva || !container) return;
     buildStage();
     if (!stage || !scene) return;
-    stage.width(width);
+    stage.width(stageWidth);
     scene.destroyChildren();
-    scene.add(new konva.Rect({ x: 0, y: 0, width, height: HEIGHT, fill: "#09090b" }));
+    scene.add(new konva.Rect({ x: 0, y: 0, width: stageWidth, height: HEIGHT, fill: "#09090b" }));
     scene.add(
       new konva.Rect({
         x: 0,
@@ -717,7 +727,6 @@
     drawBroll(scene);
     drawMarkers(scene);
     scene.draw();
-    drawnRange = { start: view.start, end: view.end };
   }
 
   function drawOverlay() {
@@ -843,7 +852,7 @@
       strokeWidth: 1,
       draggable: true,
       dragBoundFunc: (position: { x: number; y: number }) => ({
-        x: Math.max(HEADER, Math.min(width - 8, position.x)),
+        x: Math.max(HEADER, Math.min(stageWidth - 8, position.x)),
         y: 16
       })
     });
@@ -864,23 +873,25 @@
 
   onMount(async () => {
     konva = (await import("konva")).default;
+    viewportWidth = scroller?.clientWidth || viewportWidth;
     // Wait one frame so the scroll container has its final width on first mount.
     requestAnimationFrame(() => {
+      stage?.width(stageWidth);
       drawBackground();
       drawOverlay();
     });
     if (typeof ResizeObserver !== "undefined") {
       resizeObserver = new ResizeObserver(() => {
         if (!stage) return;
-        stage.width(width);
-        drawBackground();
-        drawOverlay();
+        viewportWidth = scroller?.clientWidth || viewportWidth;
+        scheduleRedraw();
       });
-      if (container) resizeObserver.observe(container);
+      if (scroller) resizeObserver.observe(scroller);
     }
   });
 
   onDestroy(() => {
+    cancelAnimationFrame(scrollFrame);
     resizeObserver?.disconnect();
     resizeObserver = null;
     clearTimeout(hoverTimer);
@@ -911,9 +922,7 @@
   $effect(() => {
     scrollLeft;
     viewportWidth;
-    if (stage) {
-      maybeRedraw();
-    }
+    if (stage) scheduleRedraw();
   });
 
   $effect(() => {
@@ -946,7 +955,7 @@
       }
     }}
   >
-    <div bind:this={container} style={`width:${width}px;height:${HEIGHT}px`}></div>
+    <div style={`width:${fullWidth}px;height:${HEIGHT}px`}><div bind:this={container} class="sticky left-0 z-0" style={`width:${stageWidth}px;height:${HEIGHT}px`}></div></div>
   </div>
   <div class="pointer-events-auto absolute left-0 top-0 z-20 h-full w-[96px] border-r border-neutral-800 bg-neutral-950/95" data-testid="timeline-track-headers">
     <p class="absolute left-2 top-1.5 text-[9px] font-bold text-neutral-500">TIMELINE</p>

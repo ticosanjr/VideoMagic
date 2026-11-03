@@ -755,6 +755,133 @@ test("plays from the official playhead after a timeline seek", async ({ page }) 
   await page.getByRole("button", { name: "Pause", exact: true }).click();
 });
 
+test("keeps the Konva stage within browser canvas limits for long media", async ({ page }) => {
+  const longTimeline = {
+    ...timeline,
+    duration_sec: 1200,
+    source_duration_sec: 1200,
+    video: [
+      {
+        ...timeline.video[0],
+        start_sec: 0,
+        end_sec: 1200,
+        source_in_frame: 0,
+        source_out_frame: 30000,
+        source_start_sec: 0,
+        source_end_sec: 1200
+      }
+    ],
+    audio: [
+      {
+        ...timeline.audio[0],
+        start_sec: 0,
+        end_sec: 1200,
+        source_in_sec: 0,
+        source_out_sec: 1200
+      }
+    ]
+  };
+  await page.route("**/api/v1/jobs/job-1/timeline", (route) =>
+    route.fulfill({ json: longTimeline })
+  );
+  await page.reload();
+  const canvas = page.getByTestId("timeline-canvas");
+  await expect(canvas).toBeVisible();
+  const sizes = await canvas.evaluate((element) => {
+    const stageCanvas = element.querySelector("canvas") as HTMLCanvasElement | null;
+    const scroller = element.querySelector(
+      '[data-testid="timeline-scroller"]'
+    ) as HTMLElement | null;
+    return {
+      canvasWidth: stageCanvas?.width ?? 0,
+      contentWidth: scroller?.scrollWidth ?? 0
+    };
+  });
+  expect(sizes.canvasWidth).toBeGreaterThan(300);
+  expect(sizes.canvasWidth).toBeLessThan(8000);
+  expect(sizes.contentWidth).toBeGreaterThan(80000);
+});
+
+test("keeps the live player at the official cursor across parent updates", async ({ page }) => {
+  const fixture = playbackFixture();
+  test.skip(!fixture, "ffmpeg with libvpx is unavailable");
+  const twoPartTimeline = {
+    ...timeline,
+    duration_sec: 4,
+    source_duration_sec: 5,
+    live_eligible: true,
+    live_reason: "webm fixture",
+    inactive: [],
+    video: [
+      {
+        ...timeline.video[0],
+        id: "v1",
+        start_sec: 0,
+        end_sec: 2,
+        source_in_frame: 0,
+        source_out_frame: 50,
+        source_start_sec: 0,
+        source_end_sec: 2
+      },
+      {
+        ...timeline.video[1],
+        id: "v2",
+        start_sec: 2,
+        end_sec: 4,
+        source_in_frame: 75,
+        source_out_frame: 125,
+        source_start_sec: 3,
+        source_end_sec: 5
+      }
+    ],
+    audio: [
+      {
+        ...timeline.audio[0],
+        id: "v1",
+        start_sec: 0,
+        end_sec: 2,
+        source_in_sec: 0,
+        source_out_sec: 2
+      },
+      {
+        ...timeline.audio[1],
+        id: "v2",
+        start_sec: 2,
+        end_sec: 4,
+        source_in_sec: 3,
+        source_out_sec: 5
+      }
+    ]
+  };
+  await page.route("**/api/v1/jobs/job-1/timeline", (route) =>
+    route.fulfill({ json: twoPartTimeline })
+  );
+  await page.route("**/api/v1/jobs/job-1/source/file", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "video/webm",
+      body: readFileSync(fixture!)
+    })
+  );
+  await page.reload();
+  await expect(page.getByTestId("live-player")).toBeVisible();
+  const labels = () =>
+    page.evaluate(() =>
+      Array.from(document.querySelectorAll("span"))
+        .map((span) => span.textContent ?? "")
+        .filter((text) => text.startsWith("source ") || text.startsWith("output "))
+    );
+  const initial = await labels();
+  const canvas = page.getByTestId("timeline-canvas");
+  await canvas.scrollIntoViewIfNeeded();
+  await canvas.click({ position: { x: 96 + 70, y: 60 } });
+  await expect(page.getByTestId("timeline-timecode")).toContainText("00:01");
+  await expect.poll(async () => (await labels())[1]).not.toBe(initial[1]);
+  await page.getByRole("button", { name: "Next segment" }).click();
+  await expect.poll(labels).toEqual(["source 3.00s", "output 2.00s"]);
+  await expect(page.getByTestId("timeline-timecode")).toContainText("00:02");
+});
+
 test("plays a real browser-compatible source and pauses", async ({ page }) => {
   const fixture = playbackFixture();
   test.skip(!fixture, "ffmpeg with libvpx is unavailable");

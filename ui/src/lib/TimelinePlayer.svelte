@@ -143,8 +143,8 @@
     element.currentTime = Math.min(range.end, Math.max(range.start, expected));
   }
 
-  function report() {
-    if (performance.now() - lastReport < 80) return;
+  function report(force = false) {
+    if (!force && performance.now() - lastReport < 80) return;
     lastReport = performance.now();
     ontime?.(sourceTime, outputTime);
   }
@@ -372,7 +372,7 @@
     videoB?.pause();
     audioB?.pause();
     applyRate();
-    report();
+    report(true);
     if (playing) {
       stopLoop();
       void video?.play().catch(() => undefined);
@@ -459,7 +459,7 @@
     const target = Math.max(0, Math.min(outputDuration, time));
     const segment =
       segments.find(
-        (item) => target >= item.outputStart && target <= item.outputEnd
+        (item) => target >= item.outputStart && target < item.outputEnd
       ) ?? segments[segments.length - 1];
     const source = segment.start + Math.max(0, target - segment.outputStart);
     seek(source);
@@ -510,18 +510,25 @@
 
   let lastSourceUrl = "";
   let lastJobId = "";
+  let lastSegmentSignature = "";
 
   $effect(() => {
     const job = jobId;
     const url = sourceUrl;
     const count = segments.length;
     if (!job || !url || count === 0) return;
+    const signature = segments
+      .map((segment) => `${segment.id}:${segment.start}:${segment.end}:${segment.outputStart}`)
+      .join("|");
+    const first = lastSegmentSignature === "";
+    const segmentsChanged = !first && lastSegmentSignature !== signature;
     const jobChanged = lastJobId !== "" && lastJobId !== job;
     const sourceChanged = lastSourceUrl !== "" && lastSourceUrl !== url;
     lastJobId = job;
     lastSourceUrl = url;
-    // Do not reset a playback that started before the first Svelte effect flush.
-    if (playing && !jobChanged && !sourceChanged) return;
+    lastSegmentSignature = signature;
+    // Parent playhead updates re-run this effect, but must not rewind playback.
+    if (!first && !segmentsChanged && !jobChanged && !sourceChanged) return;
     index = 0;
     playing = false;
     crossfading = false;
