@@ -133,6 +133,22 @@ def read_snapshot_file(path: Path) -> tuple[dict[str, Any], ProjectState]:
     return metadata, state
 
 
+def import_snapshot(
+    payload: dict[str, Any],
+    *,
+    name: str = "",
+    job_id: str = "",
+) -> dict[str, Any]:
+    """Import an exported timeline document and store it as a new snapshot."""
+
+    if not isinstance(payload, dict):
+        raise ValueError("Timeline document is not an object")
+    state_payload = payload.get("state") if isinstance(payload.get("state"), dict) else payload
+    state = ProjectState.model_validate(state_payload)
+    label = name.strip() or str(payload.get("name") or "Imported timeline")
+    return save_snapshot(state, name=label, job_id=job_id)
+
+
 def delete_snapshot(snapshot_id: str) -> bool:
     path = snapshot_path(snapshot_id)
     if not path.is_file():

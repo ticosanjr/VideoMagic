@@ -3,6 +3,21 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.42.0] - 2026-11-02
+
+### Added
+
+- Timeline snapshots can be downloaded as JSON and imported back into the
+  library from the Timeline versions dialog.
+- Imported timelines are validated as project state and receive a new snapshot
+  id, so they can be loaded or used by `timeline.load` immediately.
+- API routes for snapshot download and import.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.41.0] - 2026-11-02
 
 ### Added

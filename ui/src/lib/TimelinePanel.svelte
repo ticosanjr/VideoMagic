@@ -31,12 +31,14 @@
     getJobThumbnails,
     getJobVariants,
     getLiveSourceStatus,
+    importTimelineSnapshot,
     listTimelineSnapshots,
     loadTimelineSnapshot,
     prefetchJobFrames,
     prepareLiveSource,
     saveTimelineSnapshot,
     selectJobVariant,
+    timelineSnapshotFileUrl,
     getPreviewStatus,
     getRenderStatus,
     getTimeline,
@@ -832,6 +834,25 @@
     );
     snapshotOpen = false;
     status = `Opening ${snapshot.name} in the recipe builder.`;
+  }
+
+  async function importVersion(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    snapshotBusy = true;
+    error = "";
+    try {
+      const payload = JSON.parse(await file.text()) as Record<string, unknown>;
+      const imported = await importTimelineSnapshot(payload, file.name.replace(/\.json$/i, ""));
+      snapshots = await listTimelineSnapshots();
+      status = `Imported timeline ${imported.name}.`;
+    } catch (reason) {
+      error = errorMessage(reason);
+    } finally {
+      snapshotBusy = false;
+      input.value = "";
+    }
   }
 
   async function removeVersion(snapshot: TimelineSnapshot) {
@@ -2071,6 +2092,10 @@
         <button type="button" onclick={() => void saveVersion()} disabled={snapshotBusy || !selected} class="flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-200 disabled:opacity-40">
           <Icon name="save" size={14} /> Save version
         </button>
+        <label class="flex cursor-pointer items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300">
+          <Icon name="folder" size={14} /> Import JSON
+          <input type="file" accept="application/json,.json" class="hidden" onchange={importVersion} />
+        </label>
       </div>
       <div class="mt-3 space-y-1.5">
         {#each snapshots as snapshot (snapshot.id)}
@@ -2083,6 +2108,7 @@
               <p class="mt-0.5 truncate font-mono text-[9px] text-neutral-600">{snapshot.path}</p>
             </div>
             <button type="button" onclick={() => void loadVersion(snapshot)} disabled={snapshotBusy} class="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1 text-[10px] text-sky-200 disabled:opacity-40">Load</button>
+            <a href={timelineSnapshotFileUrl(snapshot.id)} download class="rounded-lg border border-neutral-700 px-2.5 py-1 text-[10px] text-neutral-300" title="Download timeline JSON">JSON</a>
             <button type="button" onclick={() => useInRecipe(snapshot)} disabled={snapshotBusy} class="rounded-lg border border-violet-500/40 bg-violet-500/10 px-2.5 py-1 text-[10px] text-violet-200 disabled:opacity-40">Use in recipe</button>
             <button type="button" onclick={() => void removeVersion(snapshot)} disabled={snapshotBusy} class="flex h-7 w-7 items-center justify-center rounded-lg border border-rose-500/30 text-rose-300 disabled:opacity-40" title="Delete version" aria-label={`Delete ${snapshot.name}`}><Icon name="trash" size={12} /></button>
           </div>

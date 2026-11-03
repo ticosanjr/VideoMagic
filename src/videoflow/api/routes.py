@@ -208,9 +208,11 @@ from videoflow.application.timeline_meta import (
 )
 from videoflow.application.timeline_snapshots import (
     delete_snapshot,
+    import_snapshot,
     list_snapshots,
     read_snapshot,
     save_snapshot,
+    snapshot_path,
 )
 from videoflow.application.url_import import import_url
 from videoflow.application.voiceover import generate_short_voiceover
@@ -619,6 +621,12 @@ class TimelineSnapshotRequest(BaseModel):
 
 class TimelineSnapshotLoadRequest(BaseModel):
     job_id: str = Field(min_length=1)
+
+
+class TimelineSnapshotImportRequest(BaseModel):
+    payload: dict[str, Any]
+    name: str = Field(default="", max_length=120)
+    job_id: str = Field(default="", max_length=120)
 
 
 class ResumeRequest(BaseModel):
@@ -3274,6 +3282,37 @@ def register_routes(
                 detail={"ok": False, "code": "snapshot_failed", "message": str(exc)},
             ) from exc
         return {"ok": True, "timeline": metadata}
+
+    @app.post("/api/v1/timelines/import", status_code=201)
+    def import_timeline_snapshot(
+        request: TimelineSnapshotImportRequest,
+    ) -> dict[str, object]:
+        try:
+            metadata = import_snapshot(
+                request.payload, name=request.name, job_id=request.job_id
+            )
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "snapshot_invalid", "message": str(exc)},
+            ) from exc
+        return {"ok": True, "timeline": metadata}
+
+    @app.get("/api/v1/timelines/{snapshot_id}/file")
+    def download_timeline_snapshot(snapshot_id: str) -> FileResponse:
+        try:
+            path = snapshot_path(snapshot_id)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "snapshot_invalid", "message": str(exc)},
+            ) from exc
+        if not path.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail={"ok": False, "code": "snapshot_not_found"},
+            )
+        return FileResponse(path, media_type="application/json", filename=path.name)
 
     @app.delete("/api/v1/timelines/{snapshot_id}")
     def remove_timeline_snapshot(snapshot_id: str) -> dict[str, object]:

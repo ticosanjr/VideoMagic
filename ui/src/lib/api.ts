@@ -2302,6 +2302,21 @@ export async function loadTimelineSnapshot(
   return response.revision;
 }
 
+export function timelineSnapshotFileUrl(snapshotId: string): string {
+  return `/api/v1/timelines/${encodeURIComponent(snapshotId)}/file`;
+}
+
+export async function importTimelineSnapshot(
+  payload: Record<string, unknown>,
+  name = ""
+): Promise<TimelineSnapshot> {
+  const response = await request<{ ok: boolean; timeline: TimelineSnapshot }>(
+    "/api/v1/timelines/import",
+    { method: "POST", body: JSON.stringify({ payload, name }) }
+  );
+  return response.timeline;
+}
+
 export async function deleteTimelineSnapshot(snapshotId: string): Promise<void> {
   await request<{ ok: boolean }>(
     `/api/v1/timelines/${encodeURIComponent(snapshotId)}`,

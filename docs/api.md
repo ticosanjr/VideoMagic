@@ -959,6 +959,8 @@ the enabled default followed by its fallback chain.
   current state.
 - `POST /api/v1/timelines/{snapshot_id}/load` with `{"job_id": "..."}` replaces
   the job timeline, increments revision, and records undo.
+- `GET /api/v1/timelines/{snapshot_id}/file` downloads the timeline JSON.
+- `POST /api/v1/timelines/import` imports `{"payload": {...}, "name": "..."}`.
 - `DELETE /api/v1/timelines/{snapshot_id}` removes a saved version.
 
 ## 8. Timeline concurrency (ETag)

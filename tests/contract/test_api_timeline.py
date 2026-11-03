@@ -674,8 +674,21 @@ def test_timeline_snapshots_save_load_and_delete(monkeypatch, tmp_path: Path) ->
     assert [clip["id"] for clip in payload["video"]] == ["v1", "v2"]
     assert payload["can_undo"] is True
 
+    exported = client.get(f"/api/v1/timelines/{snapshot['id']}/file")
+    assert exported.status_code == 200
+    document = exported.json()
+
+    imported = client.post(
+        "/api/v1/timelines/import",
+        json={"payload": document, "name": "Imported copy"},
+    )
+    assert imported.status_code == 201, imported.text
+    imported_id = imported.json()["timeline"]["id"]
+    assert len(client.get("/api/v1/timelines").json()["timelines"]) == 2
+
     removed = client.delete(f"/api/v1/timelines/{snapshot['id']}")
     assert removed.status_code == 200, removed.text
+    assert client.delete(f"/api/v1/timelines/{imported_id}").status_code == 200
     assert client.get("/api/v1/timelines").json()["timelines"] == []
 
 

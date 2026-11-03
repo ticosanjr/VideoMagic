@@ -4,6 +4,7 @@ from pathlib import Path
 
 from videoflow.application.timeline_snapshots import (
     delete_snapshot,
+    import_snapshot,
     list_snapshots,
     read_snapshot,
     save_snapshot,
@@ -88,3 +89,20 @@ def test_timeline_load_step_reads_a_snapshot(monkeypatch, tmp_path: Path) -> Non
     assert context.media is not None
     assert context.media.source_path == str(tmp_path / "source.mp4")
     assert context.metadata["timeline_snapshot"]["name"] == "Loaded cut"
+
+
+def test_exported_timeline_can_be_imported(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
+    original = save_snapshot(state(tmp_path), name="Exported cut")
+    _, loaded = read_snapshot(original["id"])
+    imported = import_snapshot(
+        {
+            "kind": "videoflow.timeline",
+            "name": "Reimported",
+            "state": loaded.model_dump(mode="json"),
+        }
+    )
+    assert imported["name"] == "Reimported"
+    assert imported["id"] != original["id"]
+    _, restored = read_snapshot(imported["id"])
+    assert restored.video_segments[0].clip_id == "v1"
