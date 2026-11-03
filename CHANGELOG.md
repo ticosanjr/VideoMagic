@@ -3,6 +3,21 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.45.0] - 2026-11-02
+
+### Fixed
+
+- **Play now actually starts.** The initial Svelte reset effect could run after a
+  Play click and pause the video immediately. The reset effect now ignores an
+  already-playing source unless the job or source URL changes.
+- Added a real WebM playback E2E test that generates a short fixture and asserts
+  the playhead advances and Pause takes effect.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.44.0] - 2026-11-02
 
 ### Fixed

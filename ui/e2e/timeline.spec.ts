@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 
 const system = JSON.parse(readFileSync(new URL("./fixtures/system.json", import.meta.url), "utf8"));
 
@@ -614,4 +615,96 @@ test("composes live titles and overlays over the source", async ({ page }) => {
   await expect(page.getByTestId("live-titles")).toContainText("Intro title");
   await expect(page.getByTestId("live-titles")).toContainText("Speaker 1");
   await expect(page.getByTestId("live-overlays").locator("img")).toHaveCount(1);
+});
+
+
+function playbackFixture(): string | null {
+  const directory = new URL("./fixtures/", import.meta.url);
+  const path = new URL("playback.webm", directory).pathname;
+  if (existsSync(path)) return path;
+  try {
+    mkdirSync(directory, { recursive: true });
+    execFileSync(
+      "ffmpeg",
+      [
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=#1f2937:s=160x90:d=5",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:duration=5",
+        "-c:v",
+        "libvpx",
+        "-b:v",
+        "120k",
+        "-c:a",
+        "libvorbis",
+        "-shortest",
+        path
+      ],
+      { stdio: "ignore", timeout: 30000 }
+    );
+    return path;
+  } catch {
+    return null;
+  }
+}
+
+test("plays a real browser-compatible source and pauses", async ({ page }) => {
+  const fixture = playbackFixture();
+  test.skip(!fixture, "ffmpeg with libvpx is unavailable");
+  const liveTimeline = {
+    ...timeline,
+    duration_sec: 5,
+    source_duration_sec: 5,
+    live_eligible: true,
+    live_reason: "webm fixture",
+    inactive: [],
+    video: [
+      {
+        ...timeline.video[0],
+        start_sec: 0,
+        end_sec: 5,
+        source_in_frame: 0,
+        source_out_frame: 125,
+        source_start_sec: 0,
+        source_end_sec: 5
+      }
+    ],
+    audio: [
+      {
+        ...timeline.audio[0],
+        start_sec: 0,
+        end_sec: 5,
+        source_in_sec: 0,
+        source_out_sec: 5
+      }
+    ]
+  };
+  await page.route("**/api/v1/jobs/job-1/timeline", (route) =>
+    route.fulfill({ json: liveTimeline })
+  );
+  await page.route("**/api/v1/jobs/job-1/source/file", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "video/webm",
+      body: readFileSync(fixture!)
+    })
+  );
+  await page.reload();
+  await expect(page.getByTestId("live-player")).toBeVisible();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await page.waitForTimeout(1000);
+  await expect
+    .poll(async () => page.getByTestId("timeline-timecode").innerText(), {
+      timeout: 5000
+    })
+    .not.toBe("00:00:00");
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
 });

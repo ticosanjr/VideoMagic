@@ -10,7 +10,7 @@ uv run python scripts/coverage_layers.py
 The `.coveragerc` used for this report disables the release gate's omit list so
 adapters, exporters, API, jobs, and MCP are visible.
 
-## Current working tree (2.44.0)
+## Current working tree (2.45.0)
 
 | Layer | Hit | Total | Cover | 2.12 target | 2.13 target |
 | --- | ---: | ---: | ---: | ---: | ---: |

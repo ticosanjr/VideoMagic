@@ -504,11 +504,20 @@
     applyRate();
   });
 
+  let lastSourceUrl = "";
+  let lastJobId = "";
+
   $effect(() => {
     const job = jobId;
     const url = sourceUrl;
     const count = segments.length;
     if (!job || !url || count === 0) return;
+    const jobChanged = lastJobId !== "" && lastJobId !== job;
+    const sourceChanged = lastSourceUrl !== "" && lastSourceUrl !== url;
+    lastJobId = job;
+    lastSourceUrl = url;
+    // Do not reset a playback that started before the first Svelte effect flush.
+    if (playing && !jobChanged && !sourceChanged) return;
     index = 0;
     playing = false;
     crossfading = false;
@@ -569,6 +578,7 @@
   <div class="relative overflow-hidden rounded-xl border border-neutral-800 bg-black" data-testid="live-composite">
     <video
       bind:this={videoA}
+      data-testid="live-video-a"
       src={sourceUrl}
       preload="auto"
       muted
@@ -582,6 +592,7 @@
     </video>
     <video
       bind:this={videoB}
+      data-testid="live-video-b"
       src={sourceUrl}
       preload="auto"
       muted
