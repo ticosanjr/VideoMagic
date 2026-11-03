@@ -1875,49 +1875,7 @@
           <TimelineInspector class="lg:h-full">
             {#snippet inspect()}
             {#if timeline}
-            {#if selectedIds.length > 1}
-              <div class="rounded-xl border border-sky-500/30 bg-sky-950/20 p-3" data-testid="multi-selection">
-                <p class="text-[10px] uppercase tracking-wide text-sky-300">{selectedIds.length} clips selected</p>
-                <div class="mt-2 flex flex-wrap gap-1">
-                  <button type="button" onclick={fitSelection} class="rounded border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300">Fit selection</button>
-                  <button type="button" onclick={() => void deactivateSelected()} disabled={editBusy} class="rounded border border-rose-500/40 px-2 py-1 text-[10px] text-rose-200 disabled:opacity-40">Deactivate selected</button>
-                  <button type="button" onclick={() => void pasteClipStyle()} disabled={!copiedStyle || styleBusy} class="rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-200 disabled:opacity-40">Paste style</button>
-                </div>
-                <div class="mt-3 grid grid-cols-2 gap-2 border-t border-sky-500/20 pt-2">
-                  <label class="text-[10px] text-neutral-400">Scale
-                    <input type="number" min="1" max="3" step="0.01" bind:value={batchScale} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
-                  </label>
-                  <label class="text-[10px] text-neutral-400">Position X
-                    <input type="number" min="-1" max="1" step="0.01" bind:value={batchPosX} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
-                  </label>
-                  <label class="text-[10px] text-neutral-400">Position Y
-                    <input type="number" min="-1" max="1" step="0.01" bind:value={batchPosY} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
-                  </label>
-                  <div class="flex items-end">
-                    <button type="button" onclick={() => void resetBatchTransform()} disabled={styleBusy} class="w-full rounded border border-neutral-600 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Reset transform</button>
-                  </div>
-                  <label class="text-[10px] text-neutral-400">Transition
-                    <select bind:value={batchTransitionType} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100">
-                      <option value="none">cut</option>
-                      <option value="crossfade">crossfade</option>
-                      <option value="fade_to_black">fade to black</option>
-                    </select>
-                  </label>
-                  <label class="text-[10px] text-neutral-400">Frames
-                    <input type="number" min="1" max="120" step="1" bind:value={batchTransitionFrames} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
-                  </label>
-                  <label class="text-[10px] text-neutral-400">Fade in (s)
-                    <input type="number" min="0" step="0.05" bind:value={batchFadeIn} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
-                  </label>
-                  <label class="text-[10px] text-neutral-400">Fade out (s)
-                    <input type="number" min="0" step="0.05" bind:value={batchFadeOut} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
-                  </label>
-                  <div class="col-span-2">
-                    <button type="button" onclick={() => void applyBatchStyle()} disabled={styleBusy} class="w-full rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-200 disabled:opacity-40">{styleBusy ? "Applying…" : "Apply to selected"}</button>
-                  </div>
-                </div>
-              </div>
-            {/if}
+            
             <div class="rounded-xl border border-neutral-800 bg-neutral-900/40 p-3">
               <div class="flex items-center justify-between">
                 <p class="text-[10px] uppercase tracking-wide text-neutral-500">Selected clip</p>
@@ -1925,10 +1883,7 @@
               </div>
               {#if selectedClip}
                 <p class="mt-1 break-all font-mono text-[11px] text-sky-200">{selectedClip.id}</p>
-                <div class="mt-2 flex gap-1">
-                  <button type="button" onclick={copyClipStyle} class="rounded border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300" title="Copy transition, scale, position, and fades">Copy style</button>
-                  <button type="button" onclick={() => void pasteClipStyle()} disabled={!copiedStyle || styleBusy} class="rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-200 disabled:opacity-40" title="Paste style to the selected clip(s)">Paste style</button>
-                </div>
+                
                 <div class="mt-2 grid grid-cols-2 gap-2">
                   <label class="text-[10px] text-neutral-400">Timeline in
                     <input type="number" min="0" step="0.01" bind:value={clipStart} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
@@ -1943,30 +1898,6 @@
                     <input type="number" step="0.1" bind:value={clipDelta} class="mt-1 block w-20 rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
                   </label>
                   <button type="button" onclick={moveSelected} disabled={editBusy} class="rounded border border-neutral-600 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Move</button>
-                </div>
-                <div class="mt-3 grid grid-cols-2 gap-2 border-t border-neutral-800 pt-2">
-                  <label class="text-[10px] text-neutral-400">Transition
-                    <select bind:value={transitionType} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100">
-                      <option value="none">cut</option>
-                      <option value="crossfade">crossfade</option>
-                      <option value="fade_to_black">fade to black</option>
-                    </select>
-                  </label>
-                  <label class="text-[10px] text-neutral-400">Frames
-                    <input type="number" min="1" max="120" step="1" bind:value={transitionFrames} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
-                  </label>
-                  <label class="text-[10px] text-neutral-400">Scale
-                    <input type="number" min="1" max="3" step="0.01" bind:value={clipScale} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
-                  </label>
-                  <label class="text-[10px] text-neutral-400">Fade in (s)
-                    <input type="number" min="0" max="30" step="0.05" bind:value={fadeIn} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
-                  </label>
-                  <label class="text-[10px] text-neutral-400">Fade out (s)
-                    <input type="number" min="0" max="30" step="0.05" bind:value={fadeOut} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
-                  </label>
-                  <div class="flex items-end">
-                    <button type="button" onclick={() => void saveClipStyle()} disabled={styleBusy} class="w-full rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-300 disabled:opacity-40">{styleBusy ? "Saving…" : "Save style"}</button>
-                  </div>
                 </div>
                 <p class="mt-2 text-[10px] text-neutral-500">
                   Transition: {selectedClip.transition ?? "cut"} · keyframes: {selectedClip.keyframes ?? 0} · zoom {selectedClip.zoom?.toFixed(2) ?? "1.00"}
@@ -2067,9 +1998,93 @@
             {/if}
             {/snippet}
             {#snippet effects()}
-              <div class="rounded-xl border border-violet-500/20 bg-violet-950/10 p-3" data-testid="timeline-effects">
-                <p class="text-[10px] uppercase tracking-wide text-violet-300">Effects</p>
-                <p class="mt-1 text-[10px] text-neutral-400">Clip effects will live here. Transitions, scale, position and fades remain in Inspect for now.</p>
+              {#if selectedIds.length > 1}
+              <div class="rounded-xl border border-sky-500/30 bg-sky-950/20 p-3" data-testid="multi-selection">
+                <p class="text-[10px] uppercase tracking-wide text-sky-300">{selectedIds.length} clips selected</p>
+                <div class="mt-2 flex flex-wrap gap-1">
+                  <button type="button" onclick={fitSelection} class="rounded border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300">Fit selection</button>
+                  <button type="button" onclick={() => void deactivateSelected()} disabled={editBusy} class="rounded border border-rose-500/40 px-2 py-1 text-[10px] text-rose-200 disabled:opacity-40">Deactivate selected</button>
+                  <button type="button" onclick={() => void pasteClipStyle()} disabled={!copiedStyle || styleBusy} class="rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-200 disabled:opacity-40">Paste style</button>
+                </div>
+                <div class="mt-3 grid grid-cols-2 gap-2 border-t border-sky-500/20 pt-2">
+                  <label class="text-[10px] text-neutral-400">Scale
+                    <input type="number" min="1" max="3" step="0.01" bind:value={batchScale} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
+                  </label>
+                  <label class="text-[10px] text-neutral-400">Position X
+                    <input type="number" min="-1" max="1" step="0.01" bind:value={batchPosX} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
+                  </label>
+                  <label class="text-[10px] text-neutral-400">Position Y
+                    <input type="number" min="-1" max="1" step="0.01" bind:value={batchPosY} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
+                  </label>
+                  <div class="flex items-end">
+                    <button type="button" onclick={() => void resetBatchTransform()} disabled={styleBusy} class="w-full rounded border border-neutral-600 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Reset transform</button>
+                  </div>
+                  <label class="text-[10px] text-neutral-400">Transition
+                    <select bind:value={batchTransitionType} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100">
+                      <option value="none">cut</option>
+                      <option value="crossfade">crossfade</option>
+                      <option value="fade_to_black">fade to black</option>
+                    </select>
+                  </label>
+                  <label class="text-[10px] text-neutral-400">Frames
+                    <input type="number" min="1" max="120" step="1" bind:value={batchTransitionFrames} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
+                  </label>
+                  <label class="text-[10px] text-neutral-400">Fade in (s)
+                    <input type="number" min="0" step="0.05" bind:value={batchFadeIn} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
+                  </label>
+                  <label class="text-[10px] text-neutral-400">Fade out (s)
+                    <input type="number" min="0" step="0.05" bind:value={batchFadeOut} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
+                  </label>
+                  <div class="col-span-2">
+                    <button type="button" onclick={() => void applyBatchStyle()} disabled={styleBusy} class="w-full rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-200 disabled:opacity-40">{styleBusy ? "Applying…" : "Apply to selected"}</button>
+                  </div>
+                </div>
+              </div>
+            {/if}
+              {#if selectedClip}
+                <div class="rounded-xl border border-violet-500/20 bg-violet-950/10 p-3" data-testid="timeline-effects">
+                  <p class="text-[10px] uppercase tracking-wide text-violet-300">Clip effects</p>
+                  <div class="mt-2 flex gap-1">
+                  <button type="button" onclick={copyClipStyle} class="rounded border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300" title="Copy transition, scale, position, and fades">Copy style</button>
+                  <button type="button" onclick={() => void pasteClipStyle()} disabled={!copiedStyle || styleBusy} class="rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-200 disabled:opacity-40" title="Paste style to the selected clip(s)">Paste style</button>
+                </div>
+                  <div class="mt-3 grid grid-cols-2 gap-2 border-t border-neutral-800 pt-2">
+                  <label class="text-[10px] text-neutral-400">Transition
+                    <select bind:value={transitionType} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100">
+                      <option value="none">cut</option>
+                      <option value="crossfade">crossfade</option>
+                      <option value="fade_to_black">fade to black</option>
+                    </select>
+                  </label>
+                  <label class="text-[10px] text-neutral-400">Frames
+                    <input type="number" min="1" max="120" step="1" bind:value={transitionFrames} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
+                  </label>
+                  <label class="text-[10px] text-neutral-400">Scale
+                    <input type="number" min="1" max="3" step="0.01" bind:value={clipScale} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
+                  </label>
+                  <label class="text-[10px] text-neutral-400">Fade in (s)
+                    <input type="number" min="0" max="30" step="0.05" bind:value={fadeIn} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
+                  </label>
+                  <label class="text-[10px] text-neutral-400">Fade out (s)
+                    <input type="number" min="0" max="30" step="0.05" bind:value={fadeOut} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-[10px] text-neutral-100" />
+                  </label>
+                  <div class="flex items-end">
+                    <button type="button" onclick={() => void saveClipStyle()} disabled={styleBusy} class="w-full rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-300 disabled:opacity-40">{styleBusy ? "Saving…" : "Save style"}</button>
+                  </div>
+                </div>
+                
+                  <p class="mt-2 text-[10px] text-neutral-500">
+                    Transition: {selectedClip.transition ?? "cut"} · keyframes: {selectedClip.keyframes ?? 0} · zoom {selectedClip.zoom?.toFixed(2) ?? "1.00"}
+                  </p>
+                </div>
+              {:else if selectedIds.length <= 1}
+                <div class="rounded-xl border border-dashed border-neutral-800 p-3 text-[10px] text-neutral-500">
+                  Select a clip on the canvas to apply effects.
+                </div>
+              {/if}
+              <div class="rounded-xl border border-violet-500/20 bg-violet-950/10 p-3">
+                <p class="text-[10px] uppercase tracking-wide text-violet-300">More effects</p>
+                <p class="mt-1 text-[10px] text-neutral-400">Reserved for future clip effects.</p>
                 <div class="mt-2 grid grid-cols-2 gap-1 text-[9px] text-neutral-500">
                   <span class="rounded border border-neutral-800 px-2 py-1">Colour</span>
                   <span class="rounded border border-neutral-800 px-2 py-1">Blur</span>

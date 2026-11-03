@@ -3,6 +3,23 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.53.0] - 2026-11-03
+
+### Changed
+
+- The inspector's **Effects** tab now owns the clip effect controls:
+  transitions, duration, scale, position, fades, copy/paste style, batch
+  style, reset transform, and the selected-clip summary.
+- **Inspect** keeps the selected clip identity, trim/move, inactive segments,
+  captions, markers, comments, and overlays.
+- The Effects tab still reserves space for future colour, blur, crop, and mask
+  effects.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.52.0] - 2026-11-03
 
 ### Added

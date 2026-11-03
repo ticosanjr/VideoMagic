@@ -887,8 +887,11 @@ test("shows source, edited, and removed durations and inspector tabs", async ({ 
   await expect(durations).toContainText("Source total");
   await expect(durations).toContainText("Edited");
   await expect(durations).toContainText("Removed");
+  const canvas = page.getByTestId("timeline-canvas");
+  await canvas.scrollIntoViewIfNeeded();
+  await canvas.click({ position: { x: 96 + 140, y: 60 } });
   await page.getByRole("tab", { name: "Effects" }).click();
-  await expect(page.getByTestId("timeline-effects")).toContainText("Effects");
+  await expect(page.getByTestId("timeline-effects")).toContainText("Clip effects");
   await page.getByRole("tab", { name: "Inspect" }).click();
   await expect(page.getByText("Selected clip", { exact: true })).toBeVisible();
 });

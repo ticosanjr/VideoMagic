@@ -624,4 +624,8 @@ export const GLOSSARY: Record<string, string> = {
   "No configured LLM provider. Retakes will only remove exact repetitions.": "Nenhum provider LLM configurado. O Retakes só removerá repetições exatas.",
   "Copy JSON": "Copiar JSON",
   "Compare\u2026": "Comparar\u2026",
+  "Clip effects": "Efeitos do clipe",
+  "More effects": "Mais efeitos",
+  "Reserved for future clip effects.": "Reservado para efeitos futuros de clipe.",
+  "Select a clip on the canvas to apply effects.": "Selecione um clipe no canvas para aplicar efeitos.",
 };
