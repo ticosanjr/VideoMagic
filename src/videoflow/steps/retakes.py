@@ -42,7 +42,7 @@ class RetakesParams(BaseModel):
 @register_step
 class RetakesStep(BaseStep):
     type = "retakes.cull"
-    version = "4"
+    version = "6"
     title = "Retakes"
     description = (
         "Remove exact repeats and failed takes. Requires a transcript; without "
@@ -71,10 +71,15 @@ class RetakesStep(BaseStep):
 
         discard: list[int] = []
         restored: list[int] = []
+        overlap_cuts: list[tuple[int, int]] = []
         if options.normalize and not manual:
-            normalized = normalize_transcript(context.transcript)
+            normalized = normalize_transcript(
+                context.transcript,
+                cuts=overlap_cuts,
+            )
             if normalized:
                 context.transcript = normalized
+                context.retake_overlap_cuts = overlap_cuts
                 context.metadata["transcript_normalized"] = True
                 io.emit(
                     "info",
@@ -101,7 +106,9 @@ class RetakesStep(BaseStep):
             )
             discard = list(result.discard_sentence_ids)
             restored = list(result.restored_sentence_ids)
-            context.metadata["retakes_report"] = result.to_dict()
+            report = result.to_dict()
+            report["overlap_cuts"] = [list(span) for span in overlap_cuts]
+            context.metadata["retakes_report"] = report
             io.emit(
                 "info",
                 f"{len(result.groups)} group(s), {len(discard)} culled, "

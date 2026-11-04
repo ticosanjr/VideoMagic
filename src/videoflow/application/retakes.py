@@ -158,11 +158,29 @@ def _has_content(sentence: Sentence) -> bool:
     return len(_tokens(sentence.text)) >= 3 and len(sentence.text.split()) >= 4
 
 
+_STANDALONE = {
+    "sim",
+    "não",
+    "nao",
+    "talvez",
+    "certo",
+    "ok",
+    "obrigado",
+    "obrigada",
+    "até",
+    "ate",
+    "tchau",
+}
+
+
 def _complete(sentence: Sentence) -> bool:
     text = sentence.text.strip()
     if not text or _ELLIPSIS.match(text) or _WATERMARK.search(text):
         return False
-    return text.endswith((".", "!", "?")) or len(_tokens(text)) >= 4
+    tokens = _tokens(text)
+    if len(tokens) <= 1:
+        return text.strip(" .!?,;:").casefold() in _STANDALONE
+    return text.endswith((".", "!", "?")) or len(tokens) >= 4
 
 
 def _completeness(sentence: Sentence) -> float:

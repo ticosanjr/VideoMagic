@@ -122,44 +122,84 @@ def detect_noise_spans(
     return spans
 
 
+def _keep_internal_gap(
+    start: int,
+    end: int,
+    *,
+    mode: str,
+    rms_at: Callable[[int, int], int] | None,
+    energy_threshold: int,
+    long_gap_ms: int,
+    sample_rate: int,
+) -> bool:
+    """Decide whether a no-word gap is possible untranscribed speech."""
+
+    if mode == "all":
+        return False
+    energy = rms_at(start, end) if rms_at is not None else 0
+    if mode == "silence":
+        return energy >= energy_threshold
+    long_gap = (long_gap_ms * sample_rate + 500) // 1000
+    # Smart: short gaps are breaths, coughs, or pauses and are removed. Only a
+    # long gap with speech-like energy may be untranscribed speech worth keeping.
+    return end - start >= long_gap and energy >= energy_threshold
+
+
+_STANDALONE_WORDS = {
+    "sim",
+    "não",
+    "nao",
+    "talvez",
+    "certo",
+    "ok",
+    "obrigado",
+    "obrigada",
+    "até",
+    "ate",
+    "tchau",
+}
+
+
 def transcript_spans(
     transcript: Sequence[Any],
     discard_ids: set[int],
     *,
     sample_rate: int,
     duration_samples: int,
-    pad_before_ms: int = 40,
-    pad_after_ms: int = 60,
+    pad_before_ms: int = 20,
+    pad_after_ms: int = 40,
     noise_mode: str = "non_speech",
     noise_confidence: float = 0.5,
     min_ms: int = 80,
+    max_internal_gap_ms: int = 150,
+    internal_gap_mode: str = "smart",
+    gap_energy_threshold: int = 800,
+    long_gap_ms: int = 800,
+    drop_isolated_words: bool = True,
+    rms_at: Callable[[int, int], int] | None = None,
+    kept_gaps: list[tuple[int, int]] | None = None,
+    forced_cuts: Sequence[tuple[int, int]] = (),
 ) -> tuple[list[tuple[int, int]], list[InactiveSpan]]:
-    """Build kept speech spans from complete transcript sentences.
+    """Build tight word-run spans from complete transcript sentences.
 
-    VAD intervals can end inside a word or leave the tail of a discarded take
-    behind. The transcript already has sentence boundaries and word timings, so
-    using those spans as the edit unit removes both failure modes. Pads are
-    clamped to the midpoint of each gap, so neighbouring sentences never
-    overlap and every cut lands in the pause between them.
+    Each sentence is split at gaps above ``max_internal_gap_ms``. The gap is
+    removed unless the smart mode decides it is long and speech-like enough to
+    be untranscribed speech. This removes internal dead air, coughs, and the
+    aborted occurrence of a repeated phrase while keeping the final take.
     """
 
-    kept: list[tuple[int, int]] = []
+    maximum_gap = max(1, (max_internal_gap_ms * sample_rate + 500) // 1000)
+    before = max(0, (pad_before_ms * sample_rate + 500) // 1000)
+    after = max(0, (pad_after_ms * sample_rate + 500) // 1000)
+    minimum = max(1, (min_ms * sample_rate + 500) // 1000)
+    runs: list[tuple[int, int, int, str]] = []
     noise: list[InactiveSpan] = []
     for sentence in transcript:
         if sentence.id in discard_ids:
             continue
-        start = max(0, min(duration_samples, sentence.start_sample))
-        end = max(start, min(duration_samples, sentence.end_sample))
-        minimum = max(1, (min_ms * sample_rate + 500) // 1000)
-        if end - start < minimum:
-            if end > start:
-                noise.append(
-                    InactiveSpan(
-                        start_sample=start,
-                        end_sample=end,
-                        reason="noise",
-                    )
-                )
+        start_bound = max(0, min(duration_samples, sentence.start_sample))
+        end_bound = max(start_bound, min(duration_samples, sentence.end_sample))
+        if end_bound <= start_bound:
             continue
         text = sentence.text.strip()
         lexical = [
@@ -179,20 +219,99 @@ def transcript_spans(
             remove = average < noise_confidence and only_punctuation
         if remove:
             noise.append(
-                InactiveSpan(start_sample=start, end_sample=end, reason="noise")
+                InactiveSpan(
+                    start_sample=start_bound,
+                    end_sample=end_bound,
+                    reason="noise",
+                )
             )
             continue
-        kept.append((start, end))
 
-    kept.sort()
+        words = sorted(sentence.words, key=lambda word: word.start_sample)
+        words = [
+            word
+            for word in words
+            if not any(
+                start <= (word.start_sample + word.end_sample) // 2 <= end
+                for start, end in forced_cuts
+            )
+        ]
+        if not words:
+            continue
+        sentence_runs: list[tuple[int, int, int, str]] = []
+        current: list[Any] = [words[0]]
+        for previous, word in zip(words, words[1:], strict=False):
+            gap_start = max(previous.end_sample, start_bound)
+            gap_end = min(word.start_sample, end_bound)
+            gap = word.start_sample - previous.end_sample
+            if gap <= maximum_gap:
+                current.append(word)
+                continue
+            forced = any(
+                max(gap_start, cut_start) < min(gap_end, cut_end)
+                for cut_start, cut_end in forced_cuts
+            )
+            if not forced and _keep_internal_gap(
+                max(0, gap_start),
+                max(gap_start, gap_end),
+                mode=internal_gap_mode,
+                rms_at=rms_at,
+                energy_threshold=gap_energy_threshold,
+                long_gap_ms=long_gap_ms,
+                sample_rate=sample_rate,
+            ):
+                if kept_gaps is not None:
+                    kept_gaps.append((max(0, gap_start), max(gap_start, gap_end)))
+                current.append(word)
+            else:
+                sentence_runs.append(
+                    (
+                        current[0].start_sample,
+                        current[-1].end_sample,
+                        len(current),
+                        current[0].word,
+                    )
+                )
+                current = [word]
+        sentence_runs.append(
+            (
+                current[0].start_sample,
+                current[-1].end_sample,
+                len(current),
+                current[0].word,
+            )
+        )
+        has_main_run = any(count >= 2 for _start, _end, count, _word in sentence_runs)
+        for run in sentence_runs:
+            start, end, count, first_word = run
+            if (
+                drop_isolated_words
+                and has_main_run
+                and len(sentence_runs) > 1
+                and count == 1
+            ):
+                token = re.sub(r"[^\wÀ-ÿ]+", "", first_word.casefold())
+                if token not in _STANDALONE_WORDS:
+                    noise.append(
+                        InactiveSpan(
+                            start_sample=max(0, start),
+                            end_sample=max(start + 1, end),
+                            reason="noise",
+                        )
+                    )
+                    continue
+            runs.append(run)
+
+    runs.sort(key=lambda item: (item[0], item[1]))
     merged: list[tuple[int, int]] = []
-    for start, end in kept:
+    for start, end, _count, _word in runs:
+        start = max(0, min(duration_samples, start))
+        end = max(start, min(duration_samples, end))
         if merged and start <= merged[-1][1]:
             merged[-1] = (merged[-1][0], max(merged[-1][1], end))
         else:
             merged.append((start, end))
-    before = max(0, (pad_before_ms * sample_rate + 500) // 1000)
-    after = max(0, (pad_after_ms * sample_rate + 500) // 1000)
+
     spans: list[tuple[int, int]] = []
     for index, (start, end) in enumerate(merged):
         padded_start = max(0, start - before)
@@ -205,8 +324,17 @@ def transcript_spans(
             next_start = merged[index + 1][0]
             midpoint = (end + next_start) // 2
             padded_end = min(padded_end, midpoint)
-        if padded_end > padded_start:
-            spans.append((padded_start, padded_end))
+        if padded_end - padded_start < minimum:
+            if padded_end > padded_start:
+                noise.append(
+                    InactiveSpan(
+                        start_sample=padded_start,
+                        end_sample=padded_end,
+                        reason="noise",
+                    )
+                )
+            continue
+        spans.append((padded_start, padded_end))
     return spans, noise
 
 

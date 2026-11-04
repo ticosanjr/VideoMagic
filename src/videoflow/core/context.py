@@ -37,6 +37,7 @@ class PipelineContext(BaseModel):
     speech_intervals: list[tuple[int, int]] = Field(default_factory=list)
     silence_spans: list[InactiveSpan] = Field(default_factory=list)
     retake_spans: list[InactiveSpan] = Field(default_factory=list)
+    retake_overlap_cuts: list[tuple[int, int]] = Field(default_factory=list)
     inactive_spans: list[InactiveSpan] = Field(default_factory=list)
     vad_engine: str = "none"
     transcript: list[Sentence] = Field(default_factory=list)

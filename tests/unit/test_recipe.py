@@ -224,7 +224,15 @@ def test_recipe_runner_matches_legacy_timeline(tmp_path: Path) -> None:
     source = tmp_path / "source.mp4"
     source.write_bytes(b"fixture")
     transcript = srt(tmp_path / "subs.srt", repeat=True)
-    recipe = parse_recipe(base_steps(transcript))
+    data = base_steps(transcript)
+    for step in data["steps"]:
+        if step["id"] == "timeline":
+            step["params"] = {
+                "use_transcript_spans": False,
+                "pad_before_ms": None,
+                "pad_after_ms": None,
+            }
+    recipe = parse_recipe(data)
     recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
     result = RecipeRunner(recipe, adapter=FakeAdapter()).run(source, tmp_path / "recipe")
     legacy = run_portable(
@@ -1000,6 +1008,7 @@ def test_runner_persists_inspectable_step_outputs(tmp_path: Path) -> None:
     assert {item["id"] for item in payload["ports"]} == {
         "speech",
         "retakes",
+        "overlap_cuts",
         "discarded",
         "transcript",
         "normalized",

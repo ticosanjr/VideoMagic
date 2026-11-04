@@ -83,6 +83,12 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         (
             PortSpec("speech", "Kept speech", "sample_spans", "speech_intervals"),
             PortSpec("retakes", "Retake spans", "inactive_spans", "retake_spans"),
+            PortSpec(
+                "overlap_cuts",
+                "Overlap cuts",
+                "sample_spans",
+                "retake_overlap_cuts",
+            ),
             PortSpec("discarded", "Discarded sentence ids", "integer_list", "discard_sentence_ids"),
             PortSpec("transcript", "Normalized transcript", "transcript", "transcript"),
             PortSpec(

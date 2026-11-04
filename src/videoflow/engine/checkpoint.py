@@ -24,6 +24,7 @@ SNAPSHOT_FIELDS = (
     "speech_intervals",
     "silence_spans",
     "retake_spans",
+    "retake_overlap_cuts",
     "inactive_spans",
     "vad_engine",
     "transcript",

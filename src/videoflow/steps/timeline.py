@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+import array
+import contextlib
+import math
+import wave
+from collections.abc import Callable, Iterator
+from pathlib import Path
 from typing import Literal
 from uuid import UUID, uuid4
 
@@ -44,8 +50,13 @@ class TimelineParams(BaseModel):
     progressive_zoom: bool = False
     pan_direction: Literal["none", "left_to_right", "right_to_left"] = "none"
 
-    pad_before_ms: int | None = Field(default=None, ge=0)
-    pad_after_ms: int | None = Field(default=None, ge=0)
+    pad_before_ms: int | None = Field(default=20, ge=0)
+    pad_after_ms: int | None = Field(default=40, ge=0)
+    max_internal_gap_ms: int = Field(default=150, ge=0, le=2000)
+    internal_gap_mode: Literal["smart", "all", "silence"] = "smart"
+    gap_energy_threshold: int = Field(default=800, ge=0)
+    long_gap_ms: int = Field(default=800, ge=0)
+    drop_isolated_words: bool = True
     use_transcript_spans: bool = True
     noise_filter: Literal["off", "non_speech", "non_speech_and_nonlexical"] = (
         "non_speech"
@@ -72,10 +83,55 @@ class TimelineParams(BaseModel):
         return self
 
 
+def _pcm_path(context: PipelineContext) -> Path | None:
+    if context.pcm_path is not None and context.pcm_path.is_file():
+        return context.pcm_path
+    candidate = context.work / "source.wav"
+    return candidate if candidate.is_file() else None
+
+
+@contextlib.contextmanager
+def _pcm_rms(path: Path | None) -> Iterator[Callable[[int, int], int] | None]:
+    if path is None:
+        yield None
+        return
+    try:
+        opened = wave.open(str(path), "rb")  # noqa: SIM115 - closed below
+    except (OSError, EOFError, wave.Error):
+        yield None
+        return
+    with contextlib.closing(opened) as handle:
+        channels = max(1, handle.getnchannels())
+        width = handle.getsampwidth()
+
+        def rms(start: int, end: int) -> int:
+            start = max(0, start)
+            end = max(start + 1, end)
+            try:
+                handle.setpos(start)
+                data = handle.readframes(end - start)
+            except (OSError, wave.Error):
+                return 0
+            if not data:
+                return 0
+            if width != 2:
+                return 0
+            samples = array.array("h")
+            samples.frombytes(data)
+            if channels > 1:
+                samples = samples[::channels]
+            if not samples:
+                return 0
+            total = sum(sample * sample for sample in samples)
+            return int(math.sqrt(total / len(samples)))
+
+        yield rms
+
+
 @register_step
 class TimelineStep(BaseStep):
     type = "edit.timeline"
-    version = "3"
+    version = "5"
     title = "Build timeline"
     description = (
         "Turn kept speech spans into frame-quantised video and sample-aligned audio segments."
@@ -102,18 +158,38 @@ class TimelineStep(BaseStep):
             and bool(context.metadata.get("transcript_normalized"))
             and bool(context.transcript)
         )
+        kept_gaps: list[tuple[int, int]] = []
         if use_transcript:
-            speech, noise_spans = transcript_spans(
-                context.transcript,
-                set(context.discard_sentence_ids),
-                sample_rate=media.audio_sample_rate,
-                duration_samples=context.duration_samples(),
-                pad_before_ms=pad_before,
-                pad_after_ms=pad_after,
-                noise_mode=options.noise_filter,
-                noise_confidence=options.noise_confidence,
-            )
+            with _pcm_rms(_pcm_path(context)) as rms_at:
+                speech, noise_spans = transcript_spans(
+                    context.transcript,
+                    set(context.discard_sentence_ids),
+                    sample_rate=media.audio_sample_rate,
+                    duration_samples=context.duration_samples(),
+                    pad_before_ms=pad_before,
+                    pad_after_ms=pad_after,
+                    noise_mode=options.noise_filter,
+                    noise_confidence=options.noise_confidence,
+                    max_internal_gap_ms=options.max_internal_gap_ms,
+                    internal_gap_mode=options.internal_gap_mode,
+                    gap_energy_threshold=options.gap_energy_threshold,
+                    long_gap_ms=options.long_gap_ms,
+                    drop_isolated_words=options.drop_isolated_words,
+                    rms_at=rms_at,
+                    kept_gaps=kept_gaps,
+                    forced_cuts=context.retake_overlap_cuts,
+                )
             context.metadata["timeline_units"] = "transcript"
+            if kept_gaps:
+                seconds = sum(end - start for start, end in kept_gaps) / media.audio_sample_rate
+                context.warnings.append(
+                    f"Kept {len(kept_gaps)} long speech-like gap(s) "
+                    f"({seconds:.1f}s) as possible untranscribed speech."
+                )
+                context.metadata["kept_internal_gaps"] = {
+                    "spans": len(kept_gaps),
+                    "seconds": round(seconds, 3),
+                }
         else:
             noise_spans = detect_noise_spans(
                 context.speech_intervals,

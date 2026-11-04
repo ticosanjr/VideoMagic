@@ -109,3 +109,66 @@ def test_sentence_without_word_timings_uses_proportional_pseudo_words() -> None:
 def test_empty_sentence_text_is_skipped() -> None:
     segments = [sentence(0, "", 0, 10_000, [])]
     assert normalize_transcript(segments) == []
+
+
+def test_overlap_prefers_the_later_occurrence_and_its_timings() -> None:
+    segments = [
+        sentence(
+            0,
+            "alpha beta gamma.",
+            0,
+            30_000,
+            [
+                word("alpha", 0, 10_000),
+                word("beta", 10_000, 20_000),
+                word("gamma.", 20_000, 30_000),
+            ],
+        ),
+        sentence(
+            1,
+            "beta gamma. delta.",
+            20_000,
+            50_000,
+            [
+                word("beta", 20_000, 30_000),
+                word("gamma.", 30_000, 40_000),
+                word("delta.", 40_000, 50_000),
+            ],
+        ),
+    ]
+    normalized = normalize_transcript(segments)
+    assert [item.text for item in normalized] == ["alpha beta gamma.", "delta."]
+    beta = next(
+        word for item in normalized for word in item.words if word.word == "beta"
+    )
+    assert beta.start_sample == 20_000
+
+
+def test_overlap_records_a_cut_for_the_earlier_occurrence() -> None:
+    segments = [
+        sentence(
+            0,
+            "alpha beta gamma.",
+            0,
+            30_000,
+            [
+                word("alpha", 0, 10_000),
+                word("beta", 10_000, 20_000),
+                word("gamma.", 20_000, 30_000),
+            ],
+        ),
+        sentence(
+            1,
+            "beta gamma. delta.",
+            20_000,
+            50_000,
+            [
+                word("beta", 20_000, 30_000),
+                word("gamma.", 30_000, 40_000),
+                word("delta.", 40_000, 50_000),
+            ],
+        ),
+    ]
+    cuts: list[tuple[int, int]] = []
+    normalize_transcript(segments, cuts=cuts)
+    assert cuts == [(10_000, 20_000)]

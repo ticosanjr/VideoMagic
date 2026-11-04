@@ -327,3 +327,161 @@ def test_cut_snapping_without_cuts_or_silence_is_a_noop() -> None:
         0,
     )
     assert snap_cuts_to_silence([(1, 2)], []) == ([(1, 2)], 0)
+
+
+def _word_sentence(words: list[tuple[str, int, int]]) -> Sentence:
+    return Sentence(
+        id=0,
+        start_sample=words[0][1],
+        end_sample=words[-1][2],
+        text=" ".join(text for text, _start, _end in words),
+        words=[
+            WordTiming(
+                word=text,
+                start_sample=start,
+                end_sample=end,
+                probability=0.9,
+            )
+            for text, start, end in words
+        ],
+    )
+
+
+def test_word_runs_split_internal_gaps() -> None:
+    from videoflow.application.timeline_builder import transcript_spans
+
+    transcript = [
+        _word_sentence(
+            [
+                ("one", 0, 4_800),
+                ("two", 24_000, 28_800),
+                ("three", 48_000, 52_800),
+            ]
+        )
+    ]
+    spans, _noise = transcript_spans(
+        transcript,
+        set(),
+        sample_rate=48_000,
+        duration_samples=60_000,
+        pad_before_ms=20,
+        pad_after_ms=40,
+        max_internal_gap_ms=200,
+        internal_gap_mode="all",
+        drop_isolated_words=False,
+    )
+    assert len(spans) == 3
+    assert spans[0][0] == 0
+    assert all(not (start < 20_000 < end) for start, end in spans)
+
+
+def test_smart_gap_keeps_long_speech_but_removes_short_cough() -> None:
+    from videoflow.application.timeline_builder import transcript_spans
+
+    long_gap = [
+        _word_sentence(
+            [
+                ("one", 0, 4_800),
+                ("two", 52_800, 57_600),
+            ]
+        )
+    ]
+    kept, _noise = transcript_spans(
+        long_gap,
+        set(),
+        sample_rate=48_000,
+        duration_samples=96_000,
+        max_internal_gap_ms=200,
+        internal_gap_mode="smart",
+        gap_energy_threshold=800,
+        long_gap_ms=800,
+        rms_at=lambda _start, _end: 1_000,
+        drop_isolated_words=False,
+    )
+    quiet, _noise = transcript_spans(
+        long_gap,
+        set(),
+        sample_rate=48_000,
+        duration_samples=96_000,
+        max_internal_gap_ms=200,
+        internal_gap_mode="smart",
+        gap_energy_threshold=800,
+        long_gap_ms=800,
+        rms_at=lambda _start, _end: 100,
+        drop_isolated_words=False,
+    )
+    short_gap = [
+        _word_sentence(
+            [
+                ("one", 0, 4_800),
+                ("two", 19_200, 24_000),
+            ]
+        )
+    ]
+    short, _noise = transcript_spans(
+        short_gap,
+        set(),
+        sample_rate=48_000,
+        duration_samples=48_000,
+        max_internal_gap_ms=200,
+        internal_gap_mode="smart",
+        rms_at=lambda _start, _end: 1_000,
+        drop_isolated_words=False,
+    )
+    assert len(kept) == 1
+    assert len(quiet) == 2
+    assert len(short) == 2
+
+
+def test_isolated_single_word_tail_is_dropped() -> None:
+    from videoflow.application.timeline_builder import transcript_spans
+
+    transcript = [
+        _word_sentence(
+            [
+                ("complete", 0, 9_600),
+                ("sentence", 9_600, 19_200),
+                ("tail", 48_000, 52_800),
+            ]
+        )
+    ]
+    spans, noise = transcript_spans(
+        transcript,
+        set(),
+        sample_rate=48_000,
+        duration_samples=60_000,
+        max_internal_gap_ms=200,
+        internal_gap_mode="all",
+        drop_isolated_words=True,
+    )
+    assert len(spans) == 1
+    assert spans[0][0] == 0
+    assert any(span.start_sample == 48_000 for span in noise)
+
+
+def test_forced_overlap_cut_removes_a_speech_like_gap() -> None:
+    from videoflow.application.timeline_builder import transcript_spans
+
+    transcript = [
+        _word_sentence(
+            [
+                ("one", 0, 4_800),
+                ("two", 52_800, 57_600),
+            ]
+        )
+    ]
+    spans, _noise = transcript_spans(
+        transcript,
+        set(),
+        sample_rate=48_000,
+        duration_samples=96_000,
+        max_internal_gap_ms=200,
+        internal_gap_mode="smart",
+        gap_energy_threshold=800,
+        long_gap_ms=800,
+        rms_at=lambda _start, _end: 2_000,
+        forced_cuts=[(4_800, 52_800)],
+        drop_isolated_words=False,
+    )
+    assert len(spans) == 2
+    assert all(not (start < 40_000 < end) for start, end in spans)

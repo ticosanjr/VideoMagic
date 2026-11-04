@@ -164,6 +164,12 @@ const FIELD_META: Record<string, Record<string, FieldMeta>> = {
     noise_filter: { group: "Noise", label: "Noise filter" },
     noise_min_ms: { group: "Noise", label: "Minimum noise length" },
     noise_confidence: { group: "Noise", label: "Noise confidence" },
+    use_transcript_spans: { group: "Timeline", label: "Use complete sentences" },
+    max_internal_gap_ms: { group: "Timeline", label: "Maximum internal gap" },
+    internal_gap_mode: { group: "Timeline", label: "Internal gap policy" },
+    gap_energy_threshold: { group: "Timeline", label: "Gap speech energy" },
+    long_gap_ms: { group: "Timeline", label: "Long gap threshold" },
+    drop_isolated_words: { group: "Timeline", label: "Drop isolated words" },
     pad_after_ms: { group: "Handles", unit: "ms", label: "Pad after override" },
     transition_frames: {
       group: "Transitions",

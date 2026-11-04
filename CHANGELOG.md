@@ -3,6 +3,22 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.58.1] - 2026-11-04
+
+### Fixed
+
+- **Internal silence and repeated restatements.** Transcript normalisation now
+  prefers the later occurrence when consecutive ASR segments overlap, so a
+  restated phrase keeps the final take instead of the aborted one.
+- Kept sentences are split into word runs. Gaps above `max_internal_gap_ms`
+  are removed, including coughs, throat clearing, and pauses inside a sentence.
+  The default is 150 ms; `internal_gap_mode` can remove all no-word gaps or only
+  low-energy silence.
+- Default pads are tighter: 20 ms before and 40 ms after speech, configurable
+  per timeline.
+- Isolated word runs that are not part of a complete passage are dropped as
+  fragments, with a report entry.
+
 ## [2.58.0] - 2026-11-04
 
 ### Added

@@ -255,6 +255,26 @@ _STEP_DESCRIPTIONS: dict[str, dict[str, str]] = {
         "noise_confidence": (
             "Word-confidence threshold used by the aggressive noise filter."
         ),
+        "use_transcript_spans": (
+            "Build the cut from complete transcript sentences instead of VAD "
+            "intervals. Recommended with the DeepSeek recipe."
+        ),
+        "max_internal_gap_ms": (
+            "Remove pauses longer than this inside a sentence. Lower is tighter."
+        ),
+        "internal_gap_mode": (
+            "smart removes breaths, coughs, and pauses but keeps long speech-like "
+            "gaps; all removes every no-word gap; silence removes only quiet gaps."
+        ),
+        "gap_energy_threshold": (
+            "RMS threshold used to decide whether a long gap may contain "
+            "untranscribed speech."
+        ),
+        "long_gap_ms": "Gap length that can be kept as possible speech in smart mode.",
+        "drop_isolated_words": (
+            "Drop single-word tails inside a longer sentence. Common standalone "
+            "answers are preserved."
+        ),
     },
     "retakes.cull": {
         "single_pass": (
