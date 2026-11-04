@@ -1079,3 +1079,43 @@ def test_provider_chat_test_posts_a_completion(monkeypatch) -> None:
     assert payload["secret_present"] is True
     assert "latency_ms" in payload
     assert calls and calls[0]["url"].endswith("/chat/completions")
+
+
+def test_provider_test_uses_the_saved_provider_secret(monkeypatch) -> None:
+    import httpx
+
+    from videoflow.api import routes as routes_module
+
+    calls: list[dict[str, object]] = []
+
+    def fake_post(*args, **kwargs):
+        calls.append({"url": str(args[0]), **kwargs})
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "OK"}}]},
+            request=httpx.Request("POST", str(args[0])),
+        )
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "secret")
+    monkeypatch.setattr(
+        routes_module,
+        "list_providers",
+        lambda: [
+            {
+                "id": "deepseek",
+                "base_url": "https://api.deepseek.com/v1",
+                "api_key_env": "DEEPSEEK_API_KEY",
+                "model": "deepseek-chat",
+            }
+        ],
+    )
+    monkeypatch.setattr(routes_module.httpx, "post", fake_post)
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/v1/providers/test",
+        json={"provider_id": "deepseek", "mode": "chat"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["secret_present"] is True
+    assert calls
+    assert calls[0]["headers"]["Authorization"] == "Bearer secret"

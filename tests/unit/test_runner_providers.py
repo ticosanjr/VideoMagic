@@ -9,7 +9,7 @@ import pytest
 from tests.unit.test_recipe import FakeAdapter
 from videoflow.application.providers import ProviderConfig, provider_readiness, upsert_provider
 from videoflow.core.recipe import parse_recipe
-from videoflow.domain.errors import RecipeError
+from videoflow.domain.errors import InvalidConfigError, RecipeError
 from videoflow.engine.runner import RecipeRunner
 
 
@@ -112,3 +112,29 @@ def test_runner_builds_an_llm_client_from_a_configured_provider() -> None:
     assert RecipeRunner(recipe("asr-demo"))._llm_from_provider(
         {"base_url": "", "model": ""}, None
     ) is None
+
+
+def test_provider_secret_env_must_be_a_variable_name(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
+    with pytest.raises(InvalidConfigError, match="environment variable name"):
+        upsert_provider(
+            ProviderConfig(
+                id="deepseek",
+                name="DeepSeek",
+                capability="llm",
+                base_url="https://api.deepseek.com/v1",
+                api_key_env="sk-literal-key",
+            )
+        )
+    saved = upsert_provider(
+        ProviderConfig(
+            id="deepseek",
+            name="DeepSeek",
+            capability="llm",
+            base_url="https://api.deepseek.com/v1",
+            api_key_env=" DEEPSEEK_API_KEY ",
+        )
+    )
+    assert saved["api_key_env"] == "DEEPSEEK_API_KEY"

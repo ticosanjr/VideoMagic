@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.application.schema_migrations import migrate_providers
-from videoflow.domain.errors import StateNotReadyError
+from videoflow.domain.errors import InvalidConfigError, StateNotReadyError
 from videoflow.runtime import portable_home
 
 PROVIDERS_FILE = "providers.json"
+_SECRET_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 Capability = Literal[
     "llm",
@@ -39,6 +41,18 @@ class ProviderConfig(BaseModel):
     is_default: bool = False
     fallback: list[str] = Field(default_factory=list)
     notes: str = ""
+
+
+def validate_secret_name(value: str) -> str:
+    """Accept an environment variable name, never a literal API key."""
+
+    value = value.strip()
+    if value and not _SECRET_NAME.fullmatch(value):
+        raise InvalidConfigError(
+            "api_key_env must be an environment variable name such as "
+            "DEEPSEEK_API_KEY, not the API key itself."
+        )
+    return value
 
 
 def providers_path() -> Path:
@@ -113,6 +127,9 @@ def list_providers() -> list[dict[str, object]]:
 
 
 def upsert_provider(provider: ProviderConfig) -> dict[str, object]:
+    provider = provider.model_copy(
+        update={"api_key_env": validate_secret_name(provider.api_key_env)}
+    )
     providers = [item for item in load_providers() if item.id != provider.id]
 
     def same_capability(item: ProviderConfig) -> bool:

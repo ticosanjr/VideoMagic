@@ -5,12 +5,12 @@ from __future__ import annotations
 import os
 import tempfile
 import xml.etree.ElementTree as ET
+from collections.abc import Sequence
 from pathlib import Path
 
 from videoflow.domain.errors import ExportError
 from videoflow.domain.state import AudioSegment, MediaInfo, ProjectState, VideoSegment
 from videoflow.domain.timebase import Rounding, Timebase
-from videoflow.domain.timeline import is_packed
 
 
 def require_timeline(
@@ -50,10 +50,18 @@ def require_timeline(
     audio_spans = [
         (item.timeline_in_sample, item.timeline_out_sample) for item in state.audio_segments
     ]
-    if not is_packed(video_spans):
-        raise ExportError("Video timeline is not packed from frame zero")
-    if not is_packed(audio_spans):
-        raise ExportError("Audio timeline is not packed from sample zero")
+    video_gap = _first_gap(video_spans)
+    if video_gap is not None:
+        raise ExportError(
+            "Video timeline is not packed from frame zero "
+            f"(first gap at frames {video_gap[0]}-{video_gap[1]})"
+        )
+    audio_gap = _first_gap(audio_spans)
+    if audio_gap is not None:
+        raise ExportError(
+            "Audio timeline is not packed from sample zero "
+            f"(first gap at samples {audio_gap[0]}-{audio_gap[1]})"
+        )
 
     return media, video_by_id, audio_by_id
 
@@ -92,6 +100,26 @@ def xml_document(root: ET.Element, doctype: str) -> str:
     ET.indent(root, space="  ")
     body = ET.tostring(root, encoding="unicode")
     return f'<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE {doctype}>\n{body}\n'
+
+
+def _first_gap(
+    spans: Sequence[tuple[int, int]], *, origin: int = 0
+) -> tuple[int, int] | None:
+    """Return the first missing or invalid span, if any."""
+
+    ordered = sorted(spans)
+    if not ordered:
+        return None
+    if ordered[0][0] != origin:
+        return (origin, ordered[0][0])
+    cursor = origin
+    for start, end in ordered:
+        if end < start:
+            return (start, end)
+        if start != cursor:
+            return (cursor, start)
+        cursor = end
+    return None
 
 
 def _unique(

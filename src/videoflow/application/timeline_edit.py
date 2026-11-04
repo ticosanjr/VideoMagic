@@ -210,8 +210,8 @@ def _ripple_trim(
                     )
 
 
-def _repack_timeline(state: ProjectState) -> None:
-    """Reassign packed timeline positions after a visibility toggle."""
+def repack_timeline(state: ProjectState) -> None:
+    """Reassign packed timeline positions in timeline order."""
 
     video = sorted(state.video_segments, key=lambda clip: clip.timeline_in_frame)
     cursor = 0
@@ -256,7 +256,7 @@ def _deactivate_clip(state: ProjectState, clip_id: str, *, reason: str = "manual
     ]
     for clip in state.video_segments:
         clip.transition_out = None
-    _repack_timeline(state)
+    repack_timeline(state)
 
 
 def _activate_clip(state: ProjectState, clip_id: str) -> None:
@@ -292,7 +292,7 @@ def _activate_clip(state: ProjectState, clip_id: str) -> None:
     state.inactive_segments = [
         item for item in state.inactive_segments if item.clip_id != clip_id
     ]
-    _repack_timeline(state)
+    repack_timeline(state)
 
 
 def _recut_inactive(
@@ -452,7 +452,7 @@ def _recut_inactive(
     item.audio.source_out_sample = inactive_end_sample
     item.audio.timeline_in_sample = 0
     item.audio.timeline_out_sample = inactive_end_sample - inactive_start_sample
-    _repack_timeline(state)
+    repack_timeline(state)
 
 
 def apply_timeline_edit(state: ProjectState, edit: TimelineEdit) -> ProjectState:

@@ -3,6 +3,33 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.57.1] - 2026-11-04
+
+### Fixed
+
+- **`llm.timeline` now produces an exportable timeline.** Edits are applied
+  against the original timeline and gaps left by `delete`, head/tail `trim`,
+  and `move` are closed once at the end. The step reports `normalized`,
+  `gaps_closed`, `closed_frames`, and `closed_seconds`, and emits a warning.
+  This fixes the `Video timeline is not packed from frame zero` failure at the
+  MP4 export.
+- LLM `trim`/`crop_in`/`crop_out` ranges outside the target clip are rejected
+  instead of cutting a neighbouring clip or extending the source.
+- The MP4/NLE exporter error now names the first gap, for example
+  `first gap at frames 0-24`.
+- Provider `api_key_env` accepts only an environment variable name. Pasting a
+  literal API key into that field is rejected with an actionable message.
+- A saved provider's **test** action now resolves that provider's own secret
+  variable; previously it looked up the generic `VIDEOWFLOW_LLM_API_KEY`.
+- `deepseek_full_edit` no longer leaves 66 ripple gaps after deleting filler.
+
+### Notes
+
+- With the same DeepSeek response that failed before, the edited timeline
+  re-packs to 196 clips and 885.48 s (14:45), contiguous from frame zero.
+- Rotate any API key that was previously pasted into the `api_key_env` field;
+  that field is not secret storage.
+
 ## [2.57.0] - 2026-11-04
 
 ### Added

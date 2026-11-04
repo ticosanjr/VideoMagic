@@ -66,6 +66,14 @@
   let secretDraft = $state("");
   let testMode = $state<"chat" | "models">("chat");
   let providerTests = $state<Record<string, { ok: boolean; status_code: number | null; message: string; latency_ms?: number }>>({});
+  const SECRET_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+  function secretNameError(): string {
+    const value = draft.api_key_env.trim();
+    return value && !SECRET_NAME.test(value)
+      ? "Secret env must be a variable name like DEEPSEEK_API_KEY, not the API key."
+      : "";
+  }
   let voiceStatus = $state<VoiceCloneStatus | null>(null);
   let voiceProfiles = $state<VoiceProfile[]>([]);
   let voiceName = $state("");
@@ -195,6 +203,12 @@
       providerError = "Provider id and name are required.";
       return;
     }
+    const secretError = secretNameError();
+    if (secretError) {
+      providerError = secretError;
+      return;
+    }
+    draft.api_key_env = draft.api_key_env.trim();
     providerBusy = "save";
     providerError = "";
     providerMessage = "";
@@ -580,6 +594,7 @@
           </label>
           <label class="text-[10px] text-neutral-500 sm:col-span-2">Base URL<input bind:value={draft.base_url} placeholder="http://127.0.0.1:11434/v1" class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" /></label>
           <label class="text-[10px] text-neutral-500">Secret env<input bind:value={draft.api_key_env} placeholder="VIDEOWFLOW_LLM_API_KEY" class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" /></label>
+          <p class="text-[9px] text-neutral-500 sm:col-span-2">Name only, for example DEEPSEEK_API_KEY. Paste the key in Secret value.</p>
           <label class="text-[10px] text-neutral-500">Model<input bind:value={draft.model} placeholder="qwen2.5:7b-instruct" class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" /></label>
           {#if draft.api_key_env}
             <label class="text-[10px] text-neutral-500">Secret value<input type="password" bind:value={secretDraft} placeholder={editingProviderId && draft.secret_present ? "leave blank to keep current" : "paste API key"} class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" /></label>

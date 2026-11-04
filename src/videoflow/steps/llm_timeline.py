@@ -63,16 +63,34 @@ class LlmTimelineStep(BaseStep):
         except Exception as exc:
             raise StateNotReadyError(f"LLM timeline proposal failed: {exc}") from exc
         actions = actions[: options.max_actions]
-        updated, applied, rejected = apply_actions(context.state, actions)
-        context.state = updated
-        report = action_report(applied, rejected, reasoning)
+        result = apply_actions(context.state, actions)
+        context.state = result.state
+        report = action_report(
+            result.applied,
+            result.rejected,
+            reasoning,
+            normalized=result.normalized,
+            gaps_closed=result.gaps_closed,
+            closed_frames=result.closed_frames,
+            closed_seconds=result.closed_seconds,
+        )
         context.metadata["llm_timeline_report"] = report
-        if rejected:
+        if result.rejected:
             context.warnings.append(
-                f"LLM timeline rejected {len(rejected)} action(s); "
+                f"LLM timeline rejected {len(result.rejected)} action(s); "
                 "see llm_timeline_report"
             )
-        io.report(
-            100,
-            f"LLM edits applied {len(applied)}, rejected {len(rejected)}",
+        if result.normalized:
+            message = (
+                f"LLM timeline closed {result.gaps_closed} gap(s) "
+                f"({result.closed_seconds:.1f}s) to keep the export contiguous."
+            )
+            context.warnings.append(message)
+            io.emit("warning", message, module="llm.timeline")
+        summary = (
+            f"LLM edits applied {len(result.applied)}, "
+            f"rejected {len(result.rejected)}"
         )
+        if result.normalized:
+            summary += f", closed {result.gaps_closed} gap(s)"
+        io.report(100, summary)

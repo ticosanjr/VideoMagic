@@ -4,14 +4,20 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any
 
-from videoflow.application.timeline_edit import TimelineEdit, apply_timeline_edit
+from videoflow.application.timeline_edit import (
+    TimelineEdit,
+    apply_timeline_edit,
+    repack_timeline,
+)
 from videoflow.domain.state import (
     ProjectState,
     TransformKeyframe,
     Transition,
 )
+from videoflow.domain.timeline import is_packed
 
 ALLOWED_ACTIONS = {
     "trim",
@@ -51,6 +57,10 @@ Allowed actions and fields:
 - zoom_keyframes: keyframes [{"at":0..1,"scale":1..4,"pos_x":-1..1,
   "pos_y":-1..1,"curve":"linear|smooth"}]
 Use only clip ids from the timeline. Do not invent ids. Keep cuts inside clips.
+Times are absolute timeline seconds, exactly like start_sec/end_sec in the timeline.
+The rendered timeline must stay contiguous: deleting or trimming a clip closes the
+gap, and the engine re-packs any remaining gap once at the end. Prefer trim,
+crop_in, crop_out, delete, style, and zoom; avoid move unless the reorder is intended.
 User request:
 """
 
@@ -205,11 +215,29 @@ def _apply_cut(state: ProjectState, item: dict[str, Any], fps: float) -> None:
             start = video.timeline_in_frame / fps
         if end is None:
             end = video.timeline_out_frame / fps
+        start_frame = round(float(start) * fps)
+        end_frame = round(float(end) * fps)
+        # The model sees absolute timeline seconds. Reject ranges that fall
+        # outside the clip instead of silently cutting a neighbouring clip or
+        # extending the source. One frame of slack absorbs 3-decimal rounding.
+        if (
+            start_frame < video.timeline_in_frame - 1
+            or end_frame > video.timeline_out_frame + 1
+        ):
+            raise ValueError(
+                f"edit range {start:.3f}-{end:.3f}s is outside clip "
+                f"{video.timeline_in_frame / fps:.3f}-"
+                f"{video.timeline_out_frame / fps:.3f}s"
+            )
+        start_frame = max(video.timeline_in_frame, start_frame)
+        end_frame = min(video.timeline_out_frame, end_frame)
+        if end_frame <= start_frame:
+            raise ValueError("edit range is empty")
         edit = TimelineEdit(
             clip_id=clip_id,
             action="trim",
-            start_sec=float(start),
-            end_sec=float(end),
+            start_sec=start_frame / fps,
+            end_sec=end_frame / fps,
         )
     else:
         edit = TimelineEdit(
@@ -223,11 +251,55 @@ def _apply_cut(state: ProjectState, item: dict[str, Any], fps: float) -> None:
     apply_timeline_edit(state, edit)
 
 
+def _spans(state: ProjectState) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
+    video = [
+        (clip.timeline_in_frame, clip.timeline_out_frame)
+        for clip in state.video_segments
+    ]
+    audio = [
+        (clip.timeline_in_sample, clip.timeline_out_sample)
+        for clip in state.audio_segments
+    ]
+    return video, audio
+
+
+def _gap_stats(spans: Sequence[tuple[int, int]]) -> tuple[int, int]:
+    """Count gaps and missing units between contiguous spans."""
+
+    gaps = 0
+    missing = 0
+    cursor = 0
+    for start, end in sorted(spans):
+        if start > cursor:
+            gaps += 1
+            missing += start - cursor
+        cursor = max(cursor, end)
+    return gaps, missing
+
+
+def _fps(state: ProjectState) -> float:
+    media = state.media_info
+    return media.fps_num / media.fps_den if media is not None else 30.0
+
+
+@dataclass(frozen=True, slots=True)
+class ApplyResult:
+    """Deterministic outcome of applying one batch of LLM timeline actions."""
+
+    state: ProjectState
+    applied: list[dict[str, Any]]
+    rejected: list[dict[str, Any]]
+    normalized: bool = False
+    gaps_closed: int = 0
+    closed_frames: int = 0
+    closed_seconds: float = 0.0
+
+
 def apply_actions(
     state: ProjectState,
     actions: Sequence[dict[str, Any]],
-) -> tuple[ProjectState, list[dict[str, Any]], list[dict[str, Any]]]:
-    fps = state.media_info.fps_num / state.media_info.fps_den if state.media_info else 30.0
+) -> ApplyResult:
+    fps = _fps(state)
     working = state.model_copy(deep=True)
     applied: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
@@ -254,8 +326,46 @@ def apply_actions(
             continue
         applied.append(dict(item))
     if not applied:
-        return state, applied, rejected
-    return working, applied, rejected
+        return ApplyResult(state=state, applied=applied, rejected=rejected)
+
+    if not working.video_segments or not working.audio_segments:
+        rejected.extend(
+            {**entry, "error": "edit would remove every clip"} for entry in applied
+        )
+        return ApplyResult(state=state, applied=[], rejected=rejected)
+
+    video_ids = {clip.clip_id for clip in working.video_segments}
+    audio_ids = {clip.clip_id for clip in working.audio_segments}
+    if video_ids != audio_ids:
+        rejected.extend(
+            {**entry, "error": "edit would desynchronise audio and video"}
+            for entry in applied
+        )
+        return ApplyResult(state=state, applied=[], rejected=rejected)
+
+    video_spans, audio_spans = _spans(working)
+    normalized = False
+    gaps = 0
+    closed_frames = 0
+    if not is_packed(video_spans) or not is_packed(audio_spans):
+        # Apply all actions against the original timeline first, then close the
+        # holes once. Shifting after every delete would invalidate the absolute
+        # times used by the remaining actions.
+        gaps, closed_frames = _gap_stats(video_spans)
+        repack_timeline(working)
+        normalized = True
+        video_spans, audio_spans = _spans(working)
+        if not is_packed(video_spans) or not is_packed(audio_spans):
+            raise ValueError("timeline normalization left gaps or overlaps")
+    return ApplyResult(
+        state=working,
+        applied=applied,
+        rejected=rejected,
+        normalized=normalized,
+        gaps_closed=gaps,
+        closed_frames=closed_frames,
+        closed_seconds=round(closed_frames / fps, 3) if fps else 0.0,
+    )
 
 
 def propose_actions(
@@ -278,6 +388,11 @@ def action_report(
     applied: Sequence[dict[str, Any]],
     rejected: Sequence[dict[str, Any]],
     reasoning: str,
+    *,
+    normalized: bool = False,
+    gaps_closed: int = 0,
+    closed_frames: int = 0,
+    closed_seconds: float = 0.0,
 ) -> dict[str, Any]:
     return {
         "applied": list(applied),
@@ -285,4 +400,8 @@ def action_report(
         "reasoning": reasoning,
         "applied_count": len(applied),
         "rejected_count": len(rejected),
+        "normalized": normalized,
+        "gaps_closed": gaps_closed,
+        "closed_frames": closed_frames,
+        "closed_seconds": closed_seconds,
     }

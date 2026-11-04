@@ -103,3 +103,20 @@ def test_write_text_removes_the_temporary_file_on_failure(
     with pytest.raises(OSError):
         common.write_text(target, "data")
     assert list((tmp_path / "out").glob("*.tmp")) == []
+
+
+def test_require_timeline_reports_the_first_video_gap(tmp_path: Path) -> None:
+    payload = state(tmp_path)
+    payload.video_segments[0].timeline_in_frame = 5
+    payload.video_segments[0].timeline_out_frame = 35
+    payload.video_segments[1].timeline_in_frame = 40
+    payload.video_segments[1].timeline_out_frame = 70
+    with pytest.raises(ExportError, match=r"first gap at frames 0-5"):
+        common.require_timeline(payload)
+
+
+def test_require_timeline_reports_the_first_audio_gap(tmp_path: Path) -> None:
+    payload = state(tmp_path)
+    payload.audio_segments[0].timeline_in_sample = 1600
+    with pytest.raises(ExportError, match=r"first gap at samples 0-1600"):
+        common.require_timeline(payload)

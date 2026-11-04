@@ -118,3 +118,35 @@ def test_timeline_state_errors_and_track_updates(monkeypatch, tmp_path: Path) ->
         },
     ).status_code in {403, 404, 422}
     assert fresh.get("/api/v1/system/backup").status_code in {200, 404}
+
+
+def test_provider_secret_name_validation(monkeypatch, tmp_path: Path) -> None:
+    client, _manager = _client(monkeypatch, tmp_path)
+    payload = {
+        "id": "deepseek",
+        "name": "DeepSeek",
+        "capability": "llm",
+        "base_url": "https://api.deepseek.com/v1",
+        "model": "deepseek-chat",
+        "api_key_env": "sk-literal-key",
+    }
+    rejected = client.put("/api/v1/providers/deepseek", json=payload)
+    assert rejected.status_code == 422
+    assert rejected.json()["detail"]["code"] == "invalid_config"
+    assert "environment variable name" in rejected.json()["detail"]["message"]
+
+    probed = client.post(
+        "/api/v1/providers/test",
+        json={
+            "base_url": "http://127.0.0.1:9/v1",
+            "api_key_env": "sk-literal-key",
+            "mode": "models",
+        },
+    )
+    assert probed.status_code == 422
+    assert probed.json()["detail"]["code"] == "invalid_config"
+
+    payload["api_key_env"] = " DEEPSEEK_API_KEY "
+    saved = client.put("/api/v1/providers/deepseek", json=payload)
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["provider"]["api_key_env"] == "DEEPSEEK_API_KEY"

@@ -132,6 +132,7 @@ from videoflow.application.providers import (
     resolve_chain,
     set_default,
     upsert_provider,
+    validate_secret_name,
 )
 from videoflow.application.publishing import (
     PublishTarget,
@@ -233,6 +234,7 @@ from videoflow.domain.errors import (
     CapabilityUnavailableError,
     FilesystemError,
     IngestError,
+    InvalidConfigError,
     MediaNotFoundError,
     PathNotFoundError,
     RecipeError,
@@ -586,7 +588,7 @@ class AssetScanRequest(BaseModel):
 class ProviderTestRequest(BaseModel):
     provider_id: str = ""
     base_url: str = ""
-    api_key_env: str = "VIDEOWFLOW_LLM_API_KEY"
+    api_key_env: str = ""
     model: str = ""
     path: str = "/models"
     mode: Literal["models", "chat"] = "models"
@@ -1292,6 +1294,10 @@ def register_routes(
             base_url = base_url or str(provider.get("base_url") or "")
             api_key_env = api_key_env or str(provider.get("api_key_env") or "")
             model = model or str(provider.get("model") or "")
+        try:
+            api_key_env = validate_secret_name(api_key_env)
+        except InvalidConfigError as exc:
+            raise HTTPException(status_code=422, detail=exc.to_dict()) from exc
         base = base_url.rstrip("/")
         if not (base.startswith("http://") or base.startswith("https://")):
             raise HTTPException(
