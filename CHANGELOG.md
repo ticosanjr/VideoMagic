@@ -3,6 +3,42 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.58.0] - 2026-11-04
+
+### Added
+
+- **Retakes v2.** The transcript is normalised into complete sentences, the
+  LLM receives the full context in one request, and it returns keep/discard
+  groups instead of a flat list. Deterministic guards restore unique content,
+  reject oversized groups, and fall back to fuzzy near-duplicate clustering
+  when no LLM is configured.
+- **`llm.zoom` and `llm.style` nodes.** Zoom and style now have focused prompts
+  and separate reports. The DeepSeek recipe uses `llm_zoom → llm_style` and no
+  longer lets one node cut, zoom, and style at the same time.
+- **Transcript-span timeline.** Kept sentences become the edit units, so VAD
+  tails and fragments of discarded takes no longer reach the render.
+- **Noise filter.** VAD intervals or sentences without speech words, subtitle
+  watermarks, and (optionally) ellipsis-only material are removed as
+  non-destructive `noise` segments.
+- **Retake review panel.** The step-output viewer renders each retake group
+  with the kept and discarded text, timestamps, and reason.
+
+### Changed
+
+- `llm.timeline` now defaults to style/zoom only; cut actions require
+  `allow_cuts=true`.
+- Retake cuts are snapped into nearby silence, and timeline pads are clamped to
+  the midpoint between sentences so joined words never overlap.
+- The zoom renderer oversamples before `zoompan`, aligns crop pixels, supports
+  intermediate keyframes, and uses stable `scale`+`crop` for punch-ins.
+- Provider `api_key_env` must be a variable name, and per-provider tests resolve
+  that provider's saved secret.
+
+### Verified
+
+- Real Kimi.mp4 run: **123 complete sentences, 20:51**, zero active noise
+  segments, 24 retake discards, and 12 content-aware zooms.
+
 ## [2.57.1] - 2026-11-04
 
 ### Fixed

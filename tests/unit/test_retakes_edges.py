@@ -30,6 +30,7 @@ def test_result_dict_is_json_friendly() -> None:
         "restored_sentence_ids": [3],
         "reasoning": "reason",
         "windows": 2,
+        "groups": [],
     }
 
 

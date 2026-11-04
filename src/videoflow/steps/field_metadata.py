@@ -247,6 +247,27 @@ _STEP_DESCRIPTIONS: dict[str, dict[str, str]] = {
     "edit.timeline": {
         "project_id": "Project identifier attached to the generated timeline.",
         "revision": "Timeline revision stored with the project state.",
+        "noise_filter": (
+            "Remove VAD intervals with no transcript words (coughs, breaths). "
+            "The aggressive mode also removes ellipsis and subtitle watermarks."
+        ),
+        "noise_min_ms": "Do not remove non-speech intervals shorter than this.",
+        "noise_confidence": (
+            "Word-confidence threshold used by the aggressive noise filter."
+        ),
+    },
+    "retakes.cull": {
+        "single_pass": (
+            "Send the full transcript in one request instead of sentence windows. "
+            "Better for semantic retakes and paraphrases."
+        ),
+        "max_group_span_seconds": (
+            "Reject retake groups that span more than this many seconds."
+        ),
+        "max_discard_ratio": (
+            "Fall back to deterministic near-duplicate groups when the LLM tries "
+            "to discard more than this share of sentences."
+        ),
     },
     "llm.timeline": {
         "provider_id": "Configured LLM provider that proposes timeline edits.",
@@ -255,6 +276,20 @@ _STEP_DESCRIPTIONS: dict[str, dict[str, str]] = {
             "transition, or fade."
         ),
         "max_actions": "Maximum number of proposed edits applied from one response.",
+        "allow_cuts": (
+            "Allow this node to delete, trim, move, or ripple clips. Off keeps cuts "
+            "deterministic; style and zoom are still allowed."
+        ),
+    },
+    "llm.zoom": {
+        "provider_id": "Configured LLM provider that proposes zoom emphasis.",
+        "prompt": "Instruction for choosing content-aware zooms from the clip text.",
+        "max_actions": "Maximum number of zoom actions applied from one response.",
+    },
+    "llm.style": {
+        "provider_id": "Configured LLM provider that proposes transitions and fades.",
+        "prompt": "Instruction for choosing transitions, fades, scale, and position.",
+        "max_actions": "Maximum number of style actions applied from one response.",
     },
     "transcribe": {
         "mode": "Transcription source: auto, SRT, project state, local model, HTTP, or none.",

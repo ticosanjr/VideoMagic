@@ -4951,7 +4951,7 @@ wheels = [
 
 [[package]]
 name = "videoflow"
-version = "2.57.1"
+version = "2.58.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },

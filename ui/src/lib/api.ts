@@ -1908,7 +1908,7 @@ export interface TimelineData {
 
 export interface TimelineInactive {
   id: string;
-  reason: "silence" | "retake" | "manual";
+  reason: "silence" | "retake" | "manual" | "noise";
   video_start_sec: number;
   video_end_sec: number;
   audio_start_sec: number;

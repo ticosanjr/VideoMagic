@@ -159,11 +159,15 @@ def test_deepseek_full_edit_recipe_is_valid_and_favorite() -> None:
         "transcribe",
         "retakes",
         "timeline",
-        "llm_edit",
+        "llm_zoom",
+        "llm_style",
         "export",
         "video_export",
     ]
-    assert next(step for step in enabled if step.id == "llm_edit").params[
+    assert next(step for step in enabled if step.id == "llm_zoom").params[
+        "provider_id"
+    ] == "deepseek"
+    assert next(step for step in enabled if step.id == "llm_style").params[
         "provider_id"
     ] == "deepseek"
     assert get_meta("deepseek_full_edit").favorite is True

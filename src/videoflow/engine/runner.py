@@ -342,6 +342,8 @@ class RecipeRunner:
                     "localization.dub": "tts",
                     "retakes.cull": "llm",
                     "llm.timeline": "llm",
+                    "llm.zoom": "llm",
+                    "llm.style": "llm",
                 }.get(step.type, "")
                 provider = next(
                     (
@@ -382,7 +384,7 @@ class RecipeRunner:
                         if hasattr(params, key)
                     }
                 )
-                if step.type in {"retakes.cull", "llm.timeline"}:
+                if step.type in {"retakes.cull", "llm.timeline", "llm.zoom", "llm.style"}:
                     if provider_id not in step_llms:
                         client = self._llm_from_provider(provider, log)
                         if client is None:

@@ -303,6 +303,9 @@
     "audio.diarize",
     "retakes.cull",
     "edit.timeline",
+    "llm.timeline",
+    "llm.zoom",
+    "llm.style",
     "shorts.select",
     "shorts.reframe",
     "shorts.captions",
@@ -1416,6 +1419,29 @@
   function outputValueText(value: unknown): string {
     if (value === undefined) return "";
     return typeof value === "string" ? value : JSON.stringify(value, null, 2);
+  }
+
+  type RetakeGroupView = {
+    keep: number[];
+    discard: number[];
+    reason: string;
+    keep_text: string[];
+    discard_text: string[];
+    start_sec: number;
+    end_sec: number;
+  };
+
+  function retakeGroups(value: unknown): RetakeGroupView[] {
+    if (!value || typeof value !== "object" || !("groups" in value)) return [];
+    const groups = (value as { groups?: unknown }).groups;
+    if (!Array.isArray(groups)) return [];
+    return groups.filter(
+      (group): group is RetakeGroupView =>
+        Boolean(group) &&
+        typeof group === "object" &&
+        Array.isArray((group as RetakeGroupView).keep) &&
+        Array.isArray((group as RetakeGroupView).discard)
+    );
   }
 
   async function copyOutputValue() {
@@ -3353,7 +3379,31 @@
               <div class={`grid min-h-0 flex-1 ${outputsCompareStep ? "md:grid-cols-2" : ""}`}>
                 <div class="min-h-0 overflow-auto bg-neutral-950 p-3">
                   {#if outputsPortId}
-                    <pre class="whitespace-pre-wrap break-words font-mono text-[10px] text-neutral-300" data-testid="step-output-json">{outputValueText(outputsValue)}</pre>
+                    {#if outputsStep === "retakes" && outputsPortId === "report" && retakeGroups(outputsValue).length}
+                      <div class="space-y-2" data-testid="retake-report">
+                        {#each retakeGroups(outputsValue) as group, index}
+                          <div class="rounded-xl border border-neutral-800 bg-neutral-900/50 p-3">
+                            <div class="flex flex-wrap items-center justify-between gap-1 text-[10px] text-neutral-500">
+                              <span class="font-semibold text-neutral-300">Group {index + 1}</span>
+                              <span class="font-mono">{group.start_sec.toFixed(1)}s–{group.end_sec.toFixed(1)}s</span>
+                            </div>
+                            <p class="mt-2 text-[10px] uppercase tracking-wide text-emerald-300">Keep {group.keep.join(", ")}</p>
+                            {#each group.keep_text as text}
+                              <p class="mt-1 text-[11px] text-neutral-200">{text}</p>
+                            {/each}
+                            <p class="mt-2 text-[10px] uppercase tracking-wide text-rose-300">Discard {group.discard.join(", ")}</p>
+                            {#each group.discard_text as text}
+                              <p class="mt-1 text-[11px] text-neutral-500 line-through">{text}</p>
+                            {/each}
+                            {#if group.reason}
+                              <p class="mt-2 text-[10px] text-amber-300">Reason: {group.reason}</p>
+                            {/if}
+                          </div>
+                        {/each}
+                      </div>
+                    {:else}
+                      <pre class="whitespace-pre-wrap break-words font-mono text-[10px] text-neutral-300" data-testid="step-output-json">{outputValueText(outputsValue)}</pre>
+                    {/if}
                   {:else}
                     <p class="text-[11px] text-neutral-500">No persisted output for this step.</p>
                   {/if}

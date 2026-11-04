@@ -7,8 +7,10 @@ relative to its own video, so sync inside every clip is preserved.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from videoflow.domain.config import JlCutsConfig, ZoomsConfig
 from videoflow.domain.errors import InvalidTimeError
@@ -48,6 +50,164 @@ class _Clip:
     ts_out: int
     orig_as_in: int
     orig_as_out: int
+
+
+_WATERMARK = re.compile(
+    r"legendas?\s+pela\s+comunidade|amara\.org|subtitles?\s+by|"
+    r"legendado\s+por|transcri(?:ção|cao)\s+por",
+    re.IGNORECASE,
+)
+
+
+def detect_noise_spans(
+    speech: Sequence[tuple[int, int]],
+    transcript: Sequence[Any],
+    *,
+    sample_rate: int,
+    mode: str = "non_speech",
+    min_ms: int = 180,
+    confidence: float = 0.5,
+) -> list[InactiveSpan]:
+    """Detect VAD intervals that contain no speech words.
+
+    ``non_speech`` removes intervals with no transcript words at all (coughs,
+    throat clearing, breaths). ``non_speech_and_nonlexical`` also removes
+    ellipsis-only and subtitle-watermark intervals. The aggressive mode is
+    opt-in because some creators keep quiet room tone or music beds.
+    """
+
+    if mode == "off" or not transcript:
+        return []
+    minimum = max(1, (min_ms * sample_rate + 500) // 1000)
+    words: list[tuple[int, int, str, float]] = []
+    for sentence in transcript:
+        for word in getattr(sentence, "words", []):
+            words.append(
+                (word.start_sample, word.end_sample, word.word, float(word.probability))
+            )
+    spans: list[InactiveSpan] = []
+    for start, end in speech:
+        if end - start < minimum:
+            continue
+        inside = [item for item in words if item[1] > start and item[0] < end]
+        sentence_text = " ".join(
+            item.text
+            for item in transcript
+            if item.end_sample > start and item.start_sample < end
+        )
+        watermark = bool(_WATERMARK.search(sentence_text))
+        lexical = [
+            item for item in inside if re.search(r"[A-Za-zÀ-ÿ0-9]", item[2])
+        ]
+        if not inside:
+            if (
+                sentence_text
+                and re.search(r"[A-Za-zÀ-ÿ0-9]", sentence_text)
+                and not watermark
+            ):
+                continue
+            spans.append(InactiveSpan(start_sample=start, end_sample=end, reason="noise"))
+            continue
+        if not lexical and not watermark:
+            spans.append(InactiveSpan(start_sample=start, end_sample=end, reason="noise"))
+            continue
+        if mode != "non_speech_and_nonlexical":
+            continue
+        average = sum(item[3] for item in inside) / max(1, len(inside))
+        nonlexical = all(
+            not re.search(r"[A-Za-zÀ-ÿ0-9]", item[2]) for item in inside
+        )
+        if watermark or (average < confidence and nonlexical):
+            spans.append(InactiveSpan(start_sample=start, end_sample=end, reason="noise"))
+    return spans
+
+
+def transcript_spans(
+    transcript: Sequence[Any],
+    discard_ids: set[int],
+    *,
+    sample_rate: int,
+    duration_samples: int,
+    pad_before_ms: int = 40,
+    pad_after_ms: int = 60,
+    noise_mode: str = "non_speech",
+    noise_confidence: float = 0.5,
+    min_ms: int = 80,
+) -> tuple[list[tuple[int, int]], list[InactiveSpan]]:
+    """Build kept speech spans from complete transcript sentences.
+
+    VAD intervals can end inside a word or leave the tail of a discarded take
+    behind. The transcript already has sentence boundaries and word timings, so
+    using those spans as the edit unit removes both failure modes. Pads are
+    clamped to the midpoint of each gap, so neighbouring sentences never
+    overlap and every cut lands in the pause between them.
+    """
+
+    kept: list[tuple[int, int]] = []
+    noise: list[InactiveSpan] = []
+    for sentence in transcript:
+        if sentence.id in discard_ids:
+            continue
+        start = max(0, min(duration_samples, sentence.start_sample))
+        end = max(start, min(duration_samples, sentence.end_sample))
+        minimum = max(1, (min_ms * sample_rate + 500) // 1000)
+        if end - start < minimum:
+            if end > start:
+                noise.append(
+                    InactiveSpan(
+                        start_sample=start,
+                        end_sample=end,
+                        reason="noise",
+                    )
+                )
+            continue
+        text = sentence.text.strip()
+        lexical = [
+            word for word in sentence.words if re.search(r"[A-Za-zÀ-ÿ0-9]", word.word)
+        ]
+        watermark = bool(_WATERMARK.search(text))
+        only_punctuation = bool(text) and not re.search(r"[A-Za-zÀ-ÿ0-9]", text)
+        remove = watermark or not lexical or only_punctuation
+        if (
+            not remove
+            and noise_mode == "non_speech_and_nonlexical"
+            and sentence.words
+        ):
+            average = sum(word.probability for word in sentence.words) / len(
+                sentence.words
+            )
+            remove = average < noise_confidence and only_punctuation
+        if remove:
+            noise.append(
+                InactiveSpan(start_sample=start, end_sample=end, reason="noise")
+            )
+            continue
+        kept.append((start, end))
+
+    kept.sort()
+    merged: list[tuple[int, int]] = []
+    for start, end in kept:
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    before = max(0, (pad_before_ms * sample_rate + 500) // 1000)
+    after = max(0, (pad_after_ms * sample_rate + 500) // 1000)
+    spans: list[tuple[int, int]] = []
+    for index, (start, end) in enumerate(merged):
+        padded_start = max(0, start - before)
+        padded_end = min(duration_samples, end + after)
+        if index > 0:
+            previous_end = merged[index - 1][1]
+            midpoint = (previous_end + start) // 2
+            padded_start = max(padded_start, midpoint)
+        if index + 1 < len(merged):
+            next_start = merged[index + 1][0]
+            midpoint = (end + next_start) // 2
+            padded_end = min(padded_end, midpoint)
+        if padded_end > padded_start:
+            spans.append((padded_start, padded_end))
+    return spans, noise
 
 
 def build_timeline(
@@ -151,6 +311,7 @@ def build_inactive_segments(
     *,
     silence_spans: Sequence[InactiveSpan] = (),
     retake_spans: Sequence[InactiveSpan] = (),
+    noise_spans: Sequence[InactiveSpan] = (),
 ) -> tuple[InactiveSegment, ...]:
     """Turn the gaps between active source ranges into Recut segments.
 
@@ -190,6 +351,7 @@ def build_inactive_segments(
             end_sample,
             silence_spans=silence_spans,
             retake_spans=retake_spans,
+            noise_spans=noise_spans,
         )
         segments.append(
             InactiveSegment(
@@ -220,9 +382,10 @@ def _inactive_reason(
     *,
     silence_spans: Sequence[InactiveSpan],
     retake_spans: Sequence[InactiveSpan],
+    noise_spans: Sequence[InactiveSpan] = (),
 ) -> InactiveReason:
-    overlaps = {"manual": 0, "retake": 0, "silence": 0}
-    for span in (*retake_spans, *silence_spans):
+    overlaps = {"manual": 0, "retake": 0, "noise": 0, "silence": 0}
+    for span in (*retake_spans, *noise_spans, *silence_spans):
         overlap = min(end, span.end_sample) - max(start, span.start_sample)
         if overlap > 0:
             overlaps[span.reason] = max(overlaps[span.reason], overlap)
@@ -230,6 +393,8 @@ def _inactive_reason(
         return "manual"
     if overlaps["retake"]:
         return "retake"
+    if overlaps["noise"]:
+        return "noise"
     if overlaps["silence"]:
         return "silence"
     return "silence"

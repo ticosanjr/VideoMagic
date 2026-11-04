@@ -190,3 +190,47 @@ def test_recipe_wires_silence_into_inactive_segments(tmp_path: Path) -> None:
         for item in result.context.state.inactive_segments
     ] == [(30, 60, "silence")]
     assert result.context.port_outputs["timeline"]["inactive"][0].reason == "silence"
+
+
+def test_retakes_step_without_transcript_is_a_noop(tmp_path: Path) -> None:
+    ctx = context(tmp_path)
+    RetakesStep().run(ctx, RetakesParams(), StepIO())
+    assert ctx.retake_spans == []
+
+
+def test_retakes_step_rejects_manual_overrides_without_transcript(
+    tmp_path: Path,
+) -> None:
+    import pytest
+
+    from videoflow.domain.errors import IngestError
+
+    ctx = context(tmp_path)
+    with pytest.raises(IngestError, match="require a transcript"):
+        RetakesStep().run(
+            ctx,
+            RetakesParams(
+                manual_overrides=[{"sentence_id": 0, "action": "discard"}]
+            ),
+            StepIO(),
+        )
+
+
+def test_retakes_step_manual_only_override(tmp_path: Path) -> None:
+    ctx = context(tmp_path)
+    ctx.transcript = [
+        Sentence(id=0, start_sample=0, end_sample=48000, text="Manual cut."),
+        Sentence(id=1, start_sample=48000, end_sample=96000, text="Keep this."),
+    ]
+    ctx.speech_intervals = [(0, 96000)]
+    RetakesStep().run(
+        ctx,
+        RetakesParams(
+            enabled=False,
+            manual_overrides=[{"sentence_id": 0, "action": "discard"}],
+        ),
+        StepIO(),
+    )
+    assert [(span.start_sample, span.end_sample) for span in ctx.retake_spans] == [
+        (0, 48000)
+    ]

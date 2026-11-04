@@ -1088,8 +1088,11 @@ _add_recipe(
                 "provider_id": "deepseek",
                 "enabled": True,
                 "strategy": "keep_last",
-                "strictness": "aggressive",
+                "strictness": "balanced",
+                "single_pass": True,
                 "context_window": 25,
+                "max_group_span_seconds": 180,
+                "max_discard_ratio": 0.45,
             },
         },
         {
@@ -1098,35 +1101,52 @@ _add_recipe(
                 "cut_mode": "hard",
                 "replace_manual": True,
                 "zoom_mode": "manual_rules",
+                "noise_filter": "non_speech",
+                "noise_min_ms": 180,
             },
         },
         {
-            "id": "llm_edit",
-            "type": "llm.timeline",
+            "id": "llm_zoom",
+            "type": "llm.zoom",
             "needs": ["timeline"],
             "inputs": {"timeline": "timeline.timeline"},
             "params": {
                 "provider_id": "deepseek",
-                "max_actions": 60,
+                "max_actions": 24,
                 "prompt": (
-                    "Edit this talking-head video like a professional short-form "
-                    "editor. Tighten weak starts and dead air, crop in/out clips, "
-                    "use slow zoom in/out where it helps emphasis, keep transitions "
-                    "sparse, add gentle audio fades, and preserve a coherent story. "
-                    "Only use existing clip ids and valid times."
+                    "This is a talking-head video. Read each clip's text and choose "
+                    "at most one subtle zoom per major beat. Use punch_in or a smooth "
+                    "envelope for numbers, comparisons, reveals, and key claims. "
+                    "Never zoom non-speech or ellipsis clips, and do not alternate "
+                    "zoom in/out at every hard cut."
+                ),
+            },
+        },
+        {
+            "id": "llm_style",
+            "type": "llm.style",
+            "needs": ["llm_zoom"],
+            "inputs": {"timeline": "llm_zoom.timeline"},
+            "params": {
+                "provider_id": "deepseek",
+                "max_actions": 16,
+                "prompt": (
+                    "Add only the transitions and fades that help the story. Keep "
+                    "hard cuts as the default. Use a gentle fade at the start and "
+                    "end, and avoid drawing attention to non-speech clips."
                 ),
             },
         },
         {
             **_EXPORT,
-            "needs": ["llm_edit"],
-            "inputs": {"timeline": "llm_edit.timeline"},
+            "needs": ["llm_style"],
+            "inputs": {"timeline": "llm_style.timeline"},
         },
         {
             "id": "video_export",
             "type": "export.video",
-            "needs": ["llm_edit"],
-            "inputs": {"timeline": "llm_edit.timeline"},
+            "needs": ["llm_style"],
+            "inputs": {"timeline": "llm_style.timeline"},
             "params": {
                 "preset": "ultrafast",
                 "subdir": "exports",
@@ -1135,8 +1155,9 @@ _add_recipe(
         },
     ],
     description=(
-        "Transcribe, remove retakes with DeepSeek, edit cuts and zooms with "
-        "DeepSeek, then export NLE and MP4."
+        "Transcribe, group retakes with DeepSeek, build a clean cut, then add "
+        "content-aware zooms and sparse style with DeepSeek before exporting "
+        "NLE and MP4."
     ),
 )
 

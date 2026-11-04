@@ -235,3 +235,59 @@ def test_audio_only_filters_do_not_reencode_video(
     ]
     assert audio_commands
     assert "volume=0.5" in " ".join(audio_commands[0])
+
+
+def test_zoom_expression_uses_a_hold_envelope() -> None:
+    from videoflow.domain.state import TransformKeyframe
+    from videoflow.exporters.mp4 import _zoom_expression
+
+    expression = _zoom_expression(
+        [
+            TransformKeyframe(at=0.0, scale=1.0),
+            TransformKeyframe(at=0.2, scale=1.08),
+            TransformKeyframe(at=0.8, scale=1.08),
+            TransformKeyframe(at=1.0, scale=1.0),
+        ],
+        59,
+    )
+    assert "if(lt(on," in expression
+    assert "clip(" in expression
+    assert "1.08" in expression
+
+
+def test_zoom_filters_oversample_and_align_pixels(tmp_path: Path) -> None:
+    from videoflow.domain.state import Transform, TransformKeyframe
+    from videoflow.exporters.mp4 import _transform_filters
+
+    state = sample_state(tmp_path)
+    clip = state.video_segments[0].model_copy(
+        update={
+            "transform": Transform(
+                type="slow_zoom_in",
+                scale=1.08,
+                keyframes=[
+                    TransformKeyframe(at=0.0, scale=1.0),
+                    TransformKeyframe(at=1.0, scale=1.08),
+                ],
+            )
+        }
+    )
+    filters = _transform_filters(clip, state.media_info)
+    chain = ",".join(filters)
+    assert "zoompan=" in chain
+    assert "trunc((iw-iw/zoom)/2/2)*2" in chain
+    assert f"scale={state.media_info.width * 2}:{state.media_info.height * 2}" in chain
+    assert chain.endswith(f"scale={state.media_info.width}:{state.media_info.height}:flags=lanczos")
+
+
+def test_punch_in_uses_stable_scale_and_crop(tmp_path: Path) -> None:
+    from videoflow.domain.state import Transform
+    from videoflow.exporters.mp4 import _transform_filters
+
+    state = sample_state(tmp_path)
+    clip = state.video_segments[0].model_copy(
+        update={"transform": Transform(type="punch_in", scale=1.08)}
+    )
+    chain = ",".join(_transform_filters(clip, state.media_info))
+    assert "zoompan=" not in chain
+    assert "crop=" in chain

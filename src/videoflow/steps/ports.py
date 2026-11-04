@@ -61,6 +61,20 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
             ),
         ),
     ),
+    "llm.zoom": (
+        (PortSpec("timeline", "Timeline state", "timeline", "state", True),),
+        (
+            PortSpec("timeline", "Timeline state", "timeline", "state"),
+            PortSpec("report", "Zoom report", "json", "metadata:llm_zoom_report"),
+        ),
+    ),
+    "llm.style": (
+        (PortSpec("timeline", "Timeline state", "timeline", "state", True),),
+        (
+            PortSpec("timeline", "Timeline state", "timeline", "state"),
+            PortSpec("report", "Style report", "json", "metadata:llm_style_report"),
+        ),
+    ),
     "retakes.cull": (
         (
             PortSpec("speech", "Speech spans", "sample_spans", "speech_intervals", True),
@@ -70,6 +84,14 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
             PortSpec("speech", "Kept speech", "sample_spans", "speech_intervals"),
             PortSpec("retakes", "Retake spans", "inactive_spans", "retake_spans"),
             PortSpec("discarded", "Discarded sentence ids", "integer_list", "discard_sentence_ids"),
+            PortSpec("transcript", "Normalized transcript", "transcript", "transcript"),
+            PortSpec(
+                "normalized",
+                "Transcript normalized",
+                "boolean",
+                "metadata:transcript_normalized",
+            ),
+            PortSpec("report", "Retake report", "json", "metadata:retakes_report"),
         ),
     ),
     "edit.timeline": (

@@ -9,11 +9,20 @@ from videoflow.domain.state import (
     AudioSegment,
     MediaInfo,
     ProjectState,
+    Sentence,
     VideoSegment,
+    WordTiming,
 )
 from videoflow.domain.timeline import is_packed
 from videoflow.steps.base import StepIO
-from videoflow.steps.llm_timeline import LlmTimelineParams, LlmTimelineStep
+from videoflow.steps.llm_timeline import (
+    LlmStyleParams,
+    LlmStyleStep,
+    LlmTimelineParams,
+    LlmTimelineStep,
+    LlmZoomParams,
+    LlmZoomStep,
+)
 
 
 def _state(*, three_clips: bool = False) -> ProjectState:
@@ -80,6 +89,74 @@ def _state(*, three_clips: bool = False) -> ProjectState:
         ),
         video_segments=video,
         audio_segments=audio,
+        transcript=[
+            Sentence(
+                id=0,
+                start_sample=0,
+                end_sample=144000,
+                text="first clip",
+                words=[
+                    WordTiming(
+                        word="first",
+                        start_sample=0,
+                        end_sample=72000,
+                        probability=0.9,
+                    ),
+                    WordTiming(
+                        word="clip",
+                        start_sample=72000,
+                        end_sample=143000,
+                        probability=0.9,
+                    ),
+                ],
+            ),
+            Sentence(
+                id=1,
+                start_sample=144000,
+                end_sample=288000,
+                text="second clip",
+                words=[
+                    WordTiming(
+                        word="second",
+                        start_sample=144000,
+                        end_sample=216000,
+                        probability=0.9,
+                    ),
+                    WordTiming(
+                        word="clip",
+                        start_sample=216000,
+                        end_sample=287000,
+                        probability=0.9,
+                    ),
+                ],
+            ),
+            *(
+                [
+                    Sentence(
+                        id=2,
+                        start_sample=288000,
+                        end_sample=416000,
+                        text="third clip",
+                        words=[
+                            WordTiming(
+                                word="third",
+                                start_sample=288000,
+                                end_sample=350000,
+                                probability=0.9,
+                            ),
+                            WordTiming(
+                                word="clip",
+                                start_sample=350000,
+                                end_sample=415000,
+                                probability=0.9,
+                            ),
+                        ],
+                    )
+                ]
+                if three_clips
+                else []
+            ),
+        ],
     )
 
 
@@ -121,7 +198,7 @@ def test_apply_actions_crops_styles_and_zooms() -> None:
                 "action": "zoom",
                 "zoom_type": "slow_zoom_in",
                 "start_scale": 1.0,
-                "end_scale": 1.3,
+                "end_scale": 1.2,
             },
             {"clip_id": "missing", "action": "delete"},
             {"clip_id": "c1", "action": "unknown"},
@@ -140,7 +217,7 @@ def test_apply_actions_crops_styles_and_zooms() -> None:
     assert first.timeline_out_frame == 75
     assert first.transform.type == "slow_zoom_in"
     assert first.transform.keyframes[0].scale == 1.0
-    assert first.transform.keyframes[-1].scale == 1.3
+    assert first.transform.keyframes[-1].scale == 1.2
     second = next(clip for clip in working.video_segments if clip.clip_id == "c2")
     assert second.timeline_in_frame == 75
     assert second.transition_out is not None
@@ -264,7 +341,11 @@ def test_step_warns_when_it_closes_gaps(tmp_path: Path) -> None:
     step = LlmTimelineStep()
     step.run(
         context,
-        LlmTimelineParams(provider_id="deepseek", prompt="tighten"),
+        LlmTimelineParams(
+            provider_id="deepseek",
+            prompt="tighten",
+            allow_cuts=True,
+        ),
         StepIO(llm_client=client),
     )
     report = context.metadata["llm_timeline_report"]
@@ -279,3 +360,172 @@ def test_propose_actions_returns_empty_for_bad_shape(tmp_path: Path) -> None:
     actions, reasoning = propose_actions(client, "x", _state())
     assert actions == []
     assert reasoning
+
+
+def _pipeline(tmp_path: Path) -> PipelineContext:
+    output = tmp_path / "out"
+    output.mkdir()
+    work = output / "work"
+    exports = output / "exports"
+    work.mkdir()
+    exports.mkdir()
+    context = PipelineContext(
+        source=tmp_path / "source.mp4",
+        output=output,
+        work=work,
+        exports=exports,
+    )
+    context.state = _state()
+    context.source.write_bytes(b"x")
+    return context
+
+
+def test_payload_contains_transcript_text_and_speech_flag() -> None:
+    from videoflow.application.llm_timeline import timeline_payload
+
+    payload = timeline_payload(_state())
+    assert payload[0]["text"] == "first clip"
+    assert payload[0]["word_count"] == 2
+    assert payload[0]["has_speech"] is True
+
+
+def test_timeline_defaults_to_no_cuts(tmp_path: Path) -> None:
+    context = _pipeline(tmp_path)
+    client = FakeLlm(
+        [
+            {"clip_id": "c2", "action": "delete", "reason": "filler"},
+            {"clip_id": "c1", "action": "zoom", "scale": 1.05},
+        ]
+    )
+    LlmTimelineStep().run(
+        context,
+        LlmTimelineParams(provider_id="deepseek"),
+        StepIO(llm_client=client),
+    )
+    report = context.metadata["llm_timeline_report"]
+    assert report["applied_count"] == 1
+    assert report["rejected_count"] == 1
+    assert "not allowed" in report["rejected"][0]["error"]
+    assert len(context.state.video_segments) == 2
+
+
+def test_zoom_step_only_applies_zoom_actions(tmp_path: Path) -> None:
+    context = _pipeline(tmp_path)
+    client = FakeLlm(
+        [
+            {"clip_id": "c2", "action": "delete", "reason": "filler"},
+            {"clip_id": "c1", "action": "zoom", "scale": 1.05},
+        ]
+    )
+    LlmZoomStep().run(
+        context,
+        LlmZoomParams(provider_id="deepseek"),
+        StepIO(llm_client=client),
+    )
+    report = context.metadata["llm_zoom_report"]
+    assert report["applied_count"] == 1
+    assert report["rejected_count"] == 1
+    assert context.state.video_segments[0].transform.scale == 1.05
+
+
+def test_style_step_only_applies_style_actions(tmp_path: Path) -> None:
+    context = _pipeline(tmp_path)
+    client = FakeLlm(
+        [
+            {"clip_id": "c1", "action": "style", "transition_type": "fade_to_black"},
+            {"clip_id": "c1", "action": "zoom", "scale": 1.2},
+        ]
+    )
+    LlmStyleStep().run(
+        context,
+        LlmStyleParams(provider_id="deepseek"),
+        StepIO(llm_client=client),
+    )
+    report = context.metadata["llm_style_report"]
+    assert report["applied_count"] == 1
+    assert report["rejected_count"] == 1
+    assert context.state.video_segments[0].transition_out is not None
+
+
+def test_zoom_rejects_a_non_speech_clip(tmp_path: Path) -> None:
+    context = _pipeline(tmp_path)
+    context.state.transcript = [
+        Sentence(
+            id=0,
+            start_sample=0,
+            end_sample=144000,
+            text="...",
+            words=[
+                WordTiming(
+                    word="...",
+                    start_sample=0,
+                    end_sample=144000,
+                    probability=0.1,
+                )
+            ],
+        )
+    ]
+    client = FakeLlm([{"clip_id": "c1", "action": "zoom", "scale": 1.05}])
+    LlmZoomStep().run(
+        context,
+        LlmZoomParams(provider_id="deepseek"),
+        StepIO(llm_client=client),
+    )
+    report = context.metadata["llm_zoom_report"]
+    assert report["applied_count"] == 0
+    assert "no transcript text" in report["rejected"][0]["error"]
+
+
+def test_punch_in_does_not_create_zoompan_keyframes() -> None:
+    result = apply_actions(
+        _state(),
+        [{"clip_id": "c1", "action": "zoom", "zoom_type": "punch_in", "scale": 1.06}],
+    )
+    clip = result.state.video_segments[0]
+    assert clip.transform.type == "punch_in"
+    assert clip.transform.scale == 1.06
+    assert clip.transform.keyframes == []
+
+
+def test_zoom_step_skips_without_a_provider(tmp_path: Path) -> None:
+    context = _pipeline(tmp_path)
+    LlmZoomStep().run(context, LlmZoomParams(), StepIO(llm_client=None))
+    assert context.metadata["llm_zoom_report"]["reasoning"] == "skipped"
+    assert any("LLM zoom skipped" in warning for warning in context.warnings)
+
+
+def test_style_step_skips_without_a_provider(tmp_path: Path) -> None:
+    context = _pipeline(tmp_path)
+    LlmStyleStep().run(context, LlmStyleParams(), StepIO(llm_client=None))
+    assert context.metadata["llm_style_report"]["reasoning"] == "skipped"
+    assert any("LLM style skipped" in warning for warning in context.warnings)
+
+
+def test_zoom_keyframes_are_applied_and_clamped() -> None:
+    result = apply_actions(
+        _state(),
+        [
+            {
+                "clip_id": "c1",
+                "action": "zoom_keyframes",
+                "keyframes": [
+                    {"at": 0.0, "scale": 1.0},
+                    {"at": 0.5, "scale": 1.3},
+                    {"at": 1.0, "scale": 1.0},
+                ],
+            }
+        ],
+    )
+    assert len(result.applied) == 1
+    clip = result.state.video_segments[0]
+    assert len(clip.transform.keyframes) == 3
+    assert max(frame.scale for frame in clip.transform.keyframes) == 1.25
+
+
+def test_zoom_keyframes_without_scales_are_rejected() -> None:
+    result = apply_actions(
+        _state(),
+        [{"clip_id": "c1", "action": "zoom_keyframes", "keyframes": [{"at": 0.5}]}],
+    )
+    assert result.applied == []
+    assert result.rejected

@@ -161,6 +161,9 @@ const FIELD_META: Record<string, Record<string, FieldMeta>> = {
     pan_direction: { group: "Zoom", label: "Pan direction" },
     replace_manual: { group: "Timeline", label: "Replace manual timeline edits" },
     pad_before_ms: { group: "Handles", unit: "ms", label: "Pad before override" },
+    noise_filter: { group: "Noise", label: "Noise filter" },
+    noise_min_ms: { group: "Noise", label: "Minimum noise length" },
+    noise_confidence: { group: "Noise", label: "Noise confidence" },
     pad_after_ms: { group: "Handles", unit: "ms", label: "Pad after override" },
     transition_frames: {
       group: "Transitions",
@@ -199,6 +202,25 @@ const FIELD_META: Record<string, Record<string, FieldMeta>> = {
       optionsSource: "providers:llm"
     },
     prompt: { group: "Instruction", label: "Edit instruction" },
+    max_actions: { group: "Limits", label: "Maximum actions" },
+    allow_cuts: { group: "Cuts", label: "Allow cuts" }
+  },
+  "llm.zoom": {
+    provider_id: {
+      group: "Provider",
+      label: "LLM provider",
+      optionsSource: "providers:llm"
+    },
+    prompt: { group: "Instruction", label: "Zoom instruction" },
+    max_actions: { group: "Limits", label: "Maximum zooms" }
+  },
+  "llm.style": {
+    provider_id: {
+      group: "Provider",
+      label: "LLM provider",
+      optionsSource: "providers:llm"
+    },
+    prompt: { group: "Instruction", label: "Style instruction" },
     max_actions: { group: "Limits", label: "Maximum actions" }
   },
   "flow.junction": {

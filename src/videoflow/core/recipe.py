@@ -317,6 +317,8 @@ class Recipe(StrictModel):
             in {
                 "retakes.cull",
                 "llm.timeline",
+                "llm.zoom",
+                "llm.style",
                 "shorts.select",
                 "transcribe.auto",
             }

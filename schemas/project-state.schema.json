@@ -407,7 +407,8 @@
           "enum": [
             "silence",
             "retake",
-            "manual"
+            "manual",
+            "noise"
           ],
           "title": "Reason",
           "type": "string"

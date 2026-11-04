@@ -1001,6 +1001,9 @@ def test_runner_persists_inspectable_step_outputs(tmp_path: Path) -> None:
         "speech",
         "retakes",
         "discarded",
+        "transcript",
+        "normalized",
+        "report",
     }
     assert all("value" in item for item in payload["ports"])
 
@@ -1096,3 +1099,15 @@ def test_timeline_checkpoint_is_invalidated_by_newer_manual_state(
     assert timeline_run.status == "executed"
     persisted = json.loads((output / "project_state.json").read_text())
     assert persisted["revision"] == 8
+
+
+def test_retakes_normalize_transcript_and_timeline_uses_sentences(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    transcript = srt(tmp_path / "repeat.srt", repeat=True)
+    recipe = parse_recipe(base_steps(transcript))
+    result = RecipeRunner(recipe, adapter=FakeAdapter()).run(source, tmp_path / "out")
+    assert len(result.context.state.transcript) == 2
+    assert len(result.context.state.video_segments) == 1

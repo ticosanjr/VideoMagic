@@ -12,7 +12,7 @@ from videoflow.domain.constants import SCHEMA_VERSION
 from videoflow.domain.timebase import Timebase
 
 OverrideAction = Literal["keep", "discard"]
-InactiveReason = Literal["silence", "retake", "manual"]
+InactiveReason = Literal["silence", "retake", "manual", "noise"]
 TransformType = Literal["none", "punch_in", "slow_zoom_in", "slow_zoom_out", "pan"]
 FadeCurve = Literal["linear", "logarithmic"]
 ReframeMode = Literal[

@@ -7,9 +7,12 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from videoflow.application.retakes import subtract_spans
 from videoflow.application.timeline_builder import (
     build_inactive_segments,
     build_timeline,
+    detect_noise_spans,
+    transcript_spans,
 )
 from videoflow.application.vad import pad_spans
 from videoflow.core.context import PipelineContext
@@ -43,6 +46,12 @@ class TimelineParams(BaseModel):
 
     pad_before_ms: int | None = Field(default=None, ge=0)
     pad_after_ms: int | None = Field(default=None, ge=0)
+    use_transcript_spans: bool = True
+    noise_filter: Literal["off", "non_speech", "non_speech_and_nonlexical"] = (
+        "non_speech"
+    )
+    noise_min_ms: int = Field(default=180, ge=0, le=5000)
+    noise_confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     transition_frames: int = Field(default=0, ge=0, le=120)
     transition_type: Literal["crossfade", "fade_to_black"] = "crossfade"
     project_id: str | None = None
@@ -66,6 +75,7 @@ class TimelineParams(BaseModel):
 @register_step
 class TimelineStep(BaseStep):
     type = "edit.timeline"
+    version = "3"
     title = "Build timeline"
     description = (
         "Turn kept speech spans into frame-quantised video and sample-aligned audio segments."
@@ -87,13 +97,60 @@ class TimelineStep(BaseStep):
             if options.pad_after_ms is not None
             else int(context.metadata.get("speech_pad_after_ms", 150))
         )
-        speech = pad_spans(
-            context.speech_intervals,
-            media.audio_sample_rate,
-            pad_before,
-            pad_after,
-            context.duration_samples(),
+        use_transcript = (
+            options.use_transcript_spans
+            and bool(context.metadata.get("transcript_normalized"))
+            and bool(context.transcript)
         )
+        if use_transcript:
+            speech, noise_spans = transcript_spans(
+                context.transcript,
+                set(context.discard_sentence_ids),
+                sample_rate=media.audio_sample_rate,
+                duration_samples=context.duration_samples(),
+                pad_before_ms=pad_before,
+                pad_after_ms=pad_after,
+                noise_mode=options.noise_filter,
+                noise_confidence=options.noise_confidence,
+            )
+            context.metadata["timeline_units"] = "transcript"
+        else:
+            noise_spans = detect_noise_spans(
+                context.speech_intervals,
+                context.transcript,
+                sample_rate=media.audio_sample_rate,
+                mode=options.noise_filter,
+                min_ms=options.noise_min_ms,
+                confidence=options.noise_confidence,
+            )
+            raw_speech = context.speech_intervals
+            if noise_spans:
+                raw_speech = subtract_spans(
+                    raw_speech,
+                    [(span.start_sample, span.end_sample) for span in noise_spans],
+                )
+            speech = pad_spans(
+                raw_speech,
+                media.audio_sample_rate,
+                pad_before,
+                pad_after,
+                context.duration_samples(),
+            )
+            context.metadata["timeline_units"] = "vad"
+        if noise_spans:
+            seconds = sum(
+                span.end_sample - span.start_sample for span in noise_spans
+            ) / media.audio_sample_rate
+            context.warnings.append(
+                f"Noise filter removed {len(noise_spans)} non-speech span(s) "
+                f"({seconds:.1f}s)."
+            )
+            context.metadata["noise_filter"] = {
+                "mode": options.noise_filter,
+                "spans": len(noise_spans),
+                "seconds": round(seconds, 3),
+                "units": context.metadata.get("timeline_units", "vad"),
+            }
         jl = JlCutsConfig(
             enable_j_cuts=options.enable_j_cuts,
             enable_l_cuts=options.enable_l_cuts,
@@ -127,6 +184,7 @@ class TimelineStep(BaseStep):
             built.video_segments,
             silence_spans=context.silence_spans,
             retake_spans=context.retake_spans,
+            noise_spans=noise_spans,
         )
         revision = options.revision
         if options.replace_manual:
@@ -176,6 +234,7 @@ class TimelineStep(BaseStep):
                 "video": len(built.video_segments),
                 "audio": len(built.audio_segments),
                 "inactive": len(inactive),
+                "noise": [span.model_dump() for span in noise_spans],
                 "jl": jl.model_dump(),
                 "zooms": zooms.model_dump(),
             }

@@ -20,25 +20,54 @@ from videoflow.exporters.common import (
 )
 
 
+def _zoom_expression(keyframes: Sequence[Any], span: int) -> str:
+    """Piecewise-linear zoom expression for zoompan's ``on`` counter."""
+
+    points = [(max(0.0, min(1.0, frame.at)), float(frame.scale)) for frame in keyframes]
+    points = sorted(points)
+    if len(points) <= 2:
+        first_at, first_scale = points[0]
+        last_at, last_scale = points[-1]
+        width = max(1, round((last_at - first_at) * span))
+        return (
+            f"{first_scale:g}+({last_scale:g}-{first_scale:g})"
+            f"*clip((on-{round(first_at * span)})/{width},0,1)"
+        )
+    expression = f"{points[-1][1]:g}"
+    for index in range(len(points) - 2, -1, -1):
+        start_at, start_scale = points[index]
+        end_at, end_scale = points[index + 1]
+        start = round(start_at * span)
+        end = round(end_at * span)
+        width = max(1, end - start)
+        segment = (
+            f"{start_scale:g}+({end_scale:g}-{start_scale:g})"
+            f"*clip((on-{start})/{width},0,1)"
+        )
+        expression = f"if(lt(on,{end}),{segment},{expression})"
+    return expression
+
+
 def _transform_filters(clip: VideoSegment, media: MediaInfo) -> list[str]:
     transform = clip.transform
     filters: list[str] = []
     if transform.keyframes:
-        first = transform.keyframes[0]
-        last = transform.keyframes[-1]
         duration = max(1, clip.source_out_frame - clip.source_in_frame)
         span = max(1, duration - 1)
-        zoom = (
-            f"{first.scale:g}+({last.scale:g}-{first.scale:g})"
-            f"*(on-1)/{span}"
-        )
-        filters.append(
-            "zoompan="
-            f"z='{zoom}':"
-            "x='iw/2-(iw/zoom/2)':"
-            "y='ih/2-(ih/zoom/2)':"
-            f"d=1:s={media.width}x{media.height}:"
-            f"fps={media.fps_num}/{media.fps_den}"
+        zoom = _zoom_expression(transform.keyframes, span)
+        width = max(2, media.width * 2)
+        height = max(2, media.height * 2)
+        filters.extend(
+            [
+                f"scale={width}:{height}:flags=lanczos",
+                "zoompan="
+                f"z='{zoom}':"
+                "x='trunc((iw-iw/zoom)/2/2)*2':"
+                "y='trunc((ih-ih/zoom)/2/2)*2':"
+                f"d=1:s={width}x{height}:"
+                f"fps={media.fps_num}/{media.fps_den}",
+                f"scale={media.width}:{media.height}:flags=lanczos",
+            ]
         )
         return filters
     scale = float(transform.scale)
