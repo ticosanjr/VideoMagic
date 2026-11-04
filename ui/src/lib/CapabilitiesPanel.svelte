@@ -562,10 +562,10 @@
         <summary class="cursor-pointer text-[11px] font-medium text-neutral-300">{editingProviderId ? `Edit ${editingProviderId}` : "Add a provider"}</summary>
         <div class="mt-2 flex flex-wrap gap-1">
           {#each [
-            { label: "DeepSeek", patch: { capability: "llm" as const, base_url: "https://api.deepseek.com/v1", model: "deepseek-chat", api_key_env: "DEEPSEEK_API_KEY" } },
-            { label: "OpenAI", patch: { capability: "llm" as const, base_url: "https://api.openai.com/v1", model: "gpt-4o-mini", api_key_env: "OPENAI_API_KEY" } },
-            { label: "Ollama", patch: { capability: "llm" as const, base_url: "http://127.0.0.1:11434/v1", model: "qwen2.5:7b-instruct", api_key_env: "VIDEOWFLOW_LLM_API_KEY" } },
-            { label: "OpenRouter", patch: { capability: "llm" as const, base_url: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini", api_key_env: "OPENROUTER_API_KEY" } }
+            { label: "DeepSeek", patch: { name: "DeepSeek", capability: "llm" as const, base_url: "https://api.deepseek.com/v1", model: "deepseek-chat", api_key_env: "DEEPSEEK_API_KEY" } },
+            { label: "OpenAI", patch: { name: "OpenAI", capability: "llm" as const, base_url: "https://api.openai.com/v1", model: "gpt-4o-mini", api_key_env: "OPENAI_API_KEY" } },
+            { label: "Ollama", patch: { name: "Ollama", capability: "llm" as const, base_url: "http://127.0.0.1:11434/v1", model: "qwen2.5:7b-instruct", api_key_env: "VIDEOWFLOW_LLM_API_KEY" } },
+            { label: "OpenRouter", patch: { name: "OpenRouter", capability: "llm" as const, base_url: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini", api_key_env: "OPENROUTER_API_KEY" } }
           ] as preset}
             <button type="button" onclick={() => applyPreset(preset.patch)} class="rounded border border-neutral-700 px-2 py-1 text-[9px] text-neutral-300 hover:border-sky-500">{preset.label}</button>
           {/each}
