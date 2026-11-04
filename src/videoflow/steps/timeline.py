@@ -13,7 +13,9 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from videoflow.application.repeats import detect_repeated_cuts
 from videoflow.application.retakes import subtract_spans
+from videoflow.application.silence import cap_silence_spans, detect_silence_spans
 from videoflow.application.timeline_builder import (
     build_inactive_segments,
     build_timeline,
@@ -56,7 +58,17 @@ class TimelineParams(BaseModel):
     internal_gap_mode: Literal["smart", "all", "silence"] = "smart"
     gap_energy_threshold: int = Field(default=800, ge=0)
     long_gap_ms: int = Field(default=800, ge=0)
+    max_silence_ms: int = Field(default=500, ge=0, le=10000)
+    keep_silence_ms: int = Field(default=300, ge=0, le=5000)
+    silence_threshold_db: float = Field(default=-35.0, ge=-80.0, le=0.0)
+    silence_frame_ms: int = Field(default=10, ge=1, le=100)
+    min_clip_ms: int = Field(default=200, ge=1, le=5000)
     drop_isolated_words: bool = True
+    detect_repeats: bool = True
+    repeat_min_words: int = Field(default=5, ge=2, le=20)
+    repeat_max_gap_seconds: float = Field(default=180.0, ge=1.0, le=3600.0)
+    repeat_pad_ms: int = Field(default=40, ge=0, le=500)
+    repeat_max_cuts: int = Field(default=40, ge=1, le=200)
     use_transcript_spans: bool = True
     noise_filter: Literal["off", "non_speech", "non_speech_and_nonlexical"] = (
         "non_speech"
@@ -131,7 +143,7 @@ def _pcm_rms(path: Path | None) -> Iterator[Callable[[int, int], int] | None]:
 @register_step
 class TimelineStep(BaseStep):
     type = "edit.timeline"
-    version = "5"
+    version = "7"
     title = "Build timeline"
     description = (
         "Turn kept speech spans into frame-quantised video and sample-aligned audio segments."
@@ -159,6 +171,24 @@ class TimelineStep(BaseStep):
             and bool(context.transcript)
         )
         kept_gaps: list[tuple[int, int]] = []
+        repeat_cuts: list[tuple[int, int]] = []
+        repeat_report: list[dict[str, object]] = []
+        if use_transcript and options.detect_repeats:
+            repeat_cuts, repeat_report = detect_repeated_cuts(
+                context.transcript,
+                set(context.discard_sentence_ids),
+                sample_rate=media.audio_sample_rate,
+                min_words=options.repeat_min_words,
+                max_gap_seconds=options.repeat_max_gap_seconds,
+                pad_ms=options.repeat_pad_ms,
+                max_cuts=options.repeat_max_cuts,
+            )
+            if repeat_cuts:
+                context.warnings.append(
+                    f"Removed {len(repeat_cuts)} repeated passage(s) "
+                    "from earlier occurrences."
+                )
+                context.metadata["repeat_cuts"] = repeat_report
         if use_transcript:
             with _pcm_rms(_pcm_path(context)) as rms_at:
                 speech, noise_spans = transcript_spans(
@@ -177,9 +207,42 @@ class TimelineStep(BaseStep):
                     drop_isolated_words=options.drop_isolated_words,
                     rms_at=rms_at,
                     kept_gaps=kept_gaps,
-                    forced_cuts=context.retake_overlap_cuts,
+                    forced_cuts=[
+                        *context.retake_overlap_cuts,
+                        *repeat_cuts,
+                    ],
                 )
             context.metadata["timeline_units"] = "transcript"
+            pcm_path = _pcm_path(context)
+            silences = detect_silence_spans(
+                pcm_path,
+                sample_rate=media.audio_sample_rate,
+                frame_ms=options.silence_frame_ms,
+                threshold_db=options.silence_threshold_db,
+                min_ms=100,
+            )
+            if not silences:
+                silences = list(context.silence_spans)
+            speech, capped_seconds = cap_silence_spans(
+                speech,
+                silences,
+                sample_rate=media.audio_sample_rate,
+                max_silence_ms=options.max_silence_ms,
+                keep_silence_ms=options.keep_silence_ms,
+                pad_before_ms=pad_before,
+                pad_after_ms=pad_after,
+                min_clip_ms=options.min_clip_ms,
+            )
+            if capped_seconds:
+                context.warnings.append(
+                    f"Silence cap removed {capped_seconds:.1f}s "
+                    f"(max {options.max_silence_ms} ms)."
+                )
+                context.metadata["silence_cap"] = {
+                    "removed_seconds": round(capped_seconds, 3),
+                    "max_silence_ms": options.max_silence_ms,
+                    "keep_silence_ms": options.keep_silence_ms,
+                }
             if kept_gaps:
                 seconds = sum(end - start for start, end in kept_gaps) / media.audio_sample_rate
                 context.warnings.append(
@@ -311,6 +374,10 @@ class TimelineStep(BaseStep):
                 "audio": len(built.audio_segments),
                 "inactive": len(inactive),
                 "noise": [span.model_dump() for span in noise_spans],
+                "silence": {
+                    "max_ms": options.max_silence_ms,
+                    "keep_ms": options.keep_silence_ms,
+                },
                 "jl": jl.model_dump(),
                 "zooms": zooms.model_dump(),
             }

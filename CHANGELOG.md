@@ -3,6 +3,42 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.58.2] - 2026-11-04
+
+### Added
+
+- **Audio silence cap.** The timeline now measures silence on the PCM (10 ms
+  frames, -35 dB, 100 ms minimum) and caps runs above `max_silence_ms` while
+  retaining `keep_silence_ms` of natural pause. Defaults: 500 ms / 300 ms,
+  matching the human reference. This removes silence hidden inside broad word
+  timestamps, not just gaps between words.
+- **Context cleanup node (`llm.cleanup`).** A conservative pass removes only
+  clear out-of-context asides such as a remark about a fly, with before/after
+  context. Sponsor, pricing, links, CTAs, sign-offs, and unique content are
+  protected deterministically.
+- **Repeated-passage cuts.** Exact repeated 5+ word passages keep the last
+  occurrence and remove only the earlier occurrences, preserving content
+  between them. Repeats further apart than the configured window are treated
+  as callbacks and kept.
+- **Safer retake keeper.** Chooses the most complete, clean sentence instead of
+  the last tail. Sponsor/CTA, unique numbers, and proper names in a discarded
+  sentence are restored. Exact repeats are resolved deterministically.
+
+### Changed
+
+- The cut-first DeepSeek recipe is
+  `retakes → llm_cleanup → timeline → export`; `llm.zoom` and `llm.style`
+  remain separate nodes and are disabled until the cut phase is finished.
+- Retake/timeline checkpoints bumped for the new keeper and silence logic.
+
+### Verified
+
+- Real Kimi.mp4 run: **14:42**, **188.9 s silence** vs **189.8 s** in the human
+  reference, maximum silence 0.62 s vs 0.51 s, 238 clips, zero no-word clips.
+- The 24 s aborted phrase is split into the prefix plus the final take.
+- 44 retake discards, 3 cleanup removals, 8 repeated-passage cuts, 18 unique
+  sentences restored.
+
 ## [2.58.1] - 2026-11-04
 
 ### Fixed

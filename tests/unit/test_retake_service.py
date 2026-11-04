@@ -254,3 +254,96 @@ def test_legacy_flat_discard_is_paired_with_a_keeper() -> None:
     result = cull_retakes(sentences, client=client)
     assert result.discard_sentence_ids == (0,)
     assert result.groups[0].keep == (1,)
+
+
+def test_tail_keeper_is_replaced_by_the_complete_sentence() -> None:
+    sentences = [
+        sentence(
+            0,
+            "E nos testes de agentes, onde a IA precisa agir, aí a coisa ficou assustadora.",
+            0,
+            4000,
+        ),
+        sentence(1, "Aí a coisa ficou assustadora.", 4000, 6000),
+    ]
+    client = FakeClient(
+        [{"groups": [{"keep": [1], "discard": [0], "reason": "tail"}]}]
+    )
+    result = cull_retakes(sentences, client=client)
+    assert result.groups[0].keep == (0,)
+    assert result.groups[0].discard == (1,)
+
+
+def test_unique_numbers_are_restored_from_a_retake_group() -> None:
+    sentences = [
+        sentence(0, "O K3.1 Pro tem 2,8 trilhões de parâmetros no total.", 0, 4000),
+        sentence(1, "O Quimica 3 tinha 4,8 trilhões de parâmetros no total.", 4000, 8000),
+    ]
+    client = FakeClient(
+        [{"groups": [{"keep": [0], "discard": [1], "reason": "same spec"}]}]
+    )
+    result = cull_retakes(sentences, client=client)
+    assert result.discard_sentence_ids == ()
+    assert result.restored_sentence_ids == (1,)
+
+
+def test_sponsor_segment_is_restored() -> None:
+    sentences = [
+        sentence(0, "O modelo foi lançado com uma arquitetura nova.", 0, 4000),
+        sentence(
+            1,
+            "A Hostgator apoia esse vídeo e está com ofertas especiais.",
+            4000,
+            9000,
+        ),
+    ]
+    client = FakeClient(
+        [{"groups": [{"keep": [0], "discard": [1], "reason": "similar"}]}]
+    )
+    result = cull_retakes(sentences, client=client)
+    assert result.discard_sentence_ids == ()
+
+
+def test_corrupted_repeated_keeper_loses_to_a_clean_sentence() -> None:
+    sentences = [
+        sentence(
+            0,
+            "Os modelos abertos que os programadores podem baixar e examinar ficavam atrasados.",
+            0,
+            6000,
+        ),
+        sentence(
+            1,
+            "Os modelos abertos que os programadores podem baixar, que os "
+            "programadores podem baixar e examinar, ficavam atrasados.",
+            6000,
+            12000,
+        ),
+    ]
+    client = FakeClient(
+        [{"groups": [{"keep": [1], "discard": [0], "reason": "last"}]}]
+    )
+    result = cull_retakes(sentences, client=client)
+    assert result.groups[0].keep == (0,)
+
+
+def test_proper_noun_in_a_discarded_sentence_is_restored() -> None:
+    sentences = [
+        sentence(
+            0,
+            "E a Monchotte sabia disso, mas fez isso por pura consciência moral.",
+            0,
+            5000,
+        ),
+        sentence(
+            1,
+            "Mas fez isso por pura consciência moral e boa vontade com a humanidade?",
+            5000,
+            9000,
+        ),
+    ]
+    client = FakeClient(
+        [{"groups": [{"keep": [1], "discard": [0], "reason": "restated"}]}]
+    )
+    result = cull_retakes(sentences, client=client)
+    assert result.discard_sentence_ids == ()

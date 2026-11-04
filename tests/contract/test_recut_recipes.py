@@ -158,16 +158,16 @@ def test_deepseek_full_edit_recipe_is_valid_and_favorite() -> None:
         "vad",
         "transcribe",
         "retakes",
+        "llm_cleanup",
         "timeline",
-        "llm_zoom",
-        "llm_style",
         "export",
         "video_export",
     ]
-    assert next(step for step in enabled if step.id == "llm_zoom").params[
+    assert next(step for step in enabled if step.id == "llm_cleanup").params[
         "provider_id"
     ] == "deepseek"
-    assert next(step for step in enabled if step.id == "llm_style").params[
-        "provider_id"
-    ] == "deepseek"
+    disabled = {
+        step.id for step in recipe.steps if step.enabled is False
+    }
+    assert {"llm_zoom", "llm_style"} <= disabled
     assert get_meta("deepseek_full_edit").favorite is True

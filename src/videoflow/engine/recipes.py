@@ -1096,7 +1096,28 @@ _add_recipe(
             },
         },
         {
+            "id": "llm_cleanup",
+            "type": "llm.cleanup",
+            "needs": ["retakes"],
+            "inputs": {
+                "transcript": "retakes.transcript",
+                "discarded": "retakes.discarded",
+            },
+            "params": {
+                "provider_id": "deepseek",
+                "max_words": 10,
+                "max_cuts": 12,
+                "prompt": (
+                    "Remove only clear out-of-context interruptions such as a "
+                    "remark about the room or recording. Preserve sponsor "
+                    "segments, prices, links, CTAs, examples, and any sentence "
+                    "that introduces new information."
+                ),
+            },
+        },
+        {
             **_TIMELINE,
+            "needs": ["vad", "retakes", "llm_cleanup"],
             "params": {
                 "cut_mode": "hard",
                 "replace_manual": True,
@@ -1111,11 +1132,17 @@ _add_recipe(
                 "gap_energy_threshold": 800,
                 "long_gap_ms": 800,
                 "drop_isolated_words": True,
+                "max_silence_ms": 500,
+                "keep_silence_ms": 300,
+                "silence_threshold_db": -35.0,
+                "silence_frame_ms": 10,
+                "min_clip_ms": 200,
             },
         },
         {
             "id": "llm_zoom",
             "type": "llm.zoom",
+            "enabled": False,
             "needs": ["timeline"],
             "inputs": {"timeline": "timeline.timeline"},
             "params": {
@@ -1133,6 +1160,7 @@ _add_recipe(
         {
             "id": "llm_style",
             "type": "llm.style",
+            "enabled": False,
             "needs": ["llm_zoom"],
             "inputs": {"timeline": "llm_zoom.timeline"},
             "params": {
@@ -1147,14 +1175,14 @@ _add_recipe(
         },
         {
             **_EXPORT,
-            "needs": ["llm_style"],
-            "inputs": {"timeline": "llm_style.timeline"},
+            "needs": ["timeline"],
+            "inputs": {"timeline": "timeline.timeline"},
         },
         {
             "id": "video_export",
             "type": "export.video",
-            "needs": ["llm_style"],
-            "inputs": {"timeline": "llm_style.timeline"},
+            "needs": ["timeline"],
+            "inputs": {"timeline": "timeline.timeline"},
             "params": {
                 "preset": "ultrafast",
                 "subdir": "exports",
@@ -1163,9 +1191,9 @@ _add_recipe(
         },
     ],
     description=(
-        "Transcribe, group retakes with DeepSeek, build a clean cut, then add "
-        "content-aware zooms and sparse style with DeepSeek before exporting "
-        "NLE and MP4."
+        "Transcribe, group retakes with DeepSeek, remove clear out-of-context "
+        "asides, cap silence to a tight reference profile, and export NLE and "
+        "MP4. Zoom and style nodes remain available but disabled."
     ),
 )
 

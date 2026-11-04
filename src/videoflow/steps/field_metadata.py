@@ -275,6 +275,16 @@ _STEP_DESCRIPTIONS: dict[str, dict[str, str]] = {
             "Drop single-word tails inside a longer sentence. Common standalone "
             "answers are preserved."
         ),
+        "max_silence_ms": (
+            "Silence runs longer than this are capped. Defaults to the human "
+            "reference maximum of about 500 ms."
+        ),
+        "keep_silence_ms": (
+            "Natural pause retained when a long silence is capped."
+        ),
+        "silence_threshold_db": "RMS threshold used to classify silence.",
+        "silence_frame_ms": "Frame size for audio silence detection.",
+        "min_clip_ms": "Discard resulting pieces shorter than this.",
     },
     "retakes.cull": {
         "single_pass": (
@@ -300,6 +310,15 @@ _STEP_DESCRIPTIONS: dict[str, dict[str, str]] = {
             "Allow this node to delete, trim, move, or ripple clips. Off keeps cuts "
             "deterministic; style and zoom are still allowed."
         ),
+    },
+    "llm.cleanup": {
+        "provider_id": "Configured LLM provider that identifies clear out-of-context asides.",
+        "prompt": (
+            "Instruction for the conservative cleanup pass. Sponsor, pricing, "
+            "links, CTAs, and unique content are protected by the step."
+        ),
+        "max_words": "Only sentences up to this length can be removed as asides.",
+        "max_cuts": "Maximum number of sentences the cleanup pass may remove.",
     },
     "llm.zoom": {
         "provider_id": "Configured LLM provider that proposes zoom emphasis.",

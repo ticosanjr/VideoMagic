@@ -170,6 +170,11 @@ const FIELD_META: Record<string, Record<string, FieldMeta>> = {
     gap_energy_threshold: { group: "Timeline", label: "Gap speech energy" },
     long_gap_ms: { group: "Timeline", label: "Long gap threshold" },
     drop_isolated_words: { group: "Timeline", label: "Drop isolated words" },
+    max_silence_ms: { group: "Silence", label: "Maximum silence" },
+    keep_silence_ms: { group: "Silence", label: "Keep silence" },
+    silence_threshold_db: { group: "Silence", label: "Silence threshold (dB)" },
+    silence_frame_ms: { group: "Silence", label: "Silence frame" },
+    min_clip_ms: { group: "Timeline", label: "Minimum clip" },
     pad_after_ms: { group: "Handles", unit: "ms", label: "Pad after override" },
     transition_frames: {
       group: "Transitions",
@@ -210,6 +215,16 @@ const FIELD_META: Record<string, Record<string, FieldMeta>> = {
     prompt: { group: "Instruction", label: "Edit instruction" },
     max_actions: { group: "Limits", label: "Maximum actions" },
     allow_cuts: { group: "Cuts", label: "Allow cuts" }
+  },
+  "llm.cleanup": {
+    provider_id: {
+      group: "Provider",
+      label: "LLM provider",
+      optionsSource: "providers:llm"
+    },
+    prompt: { group: "Instruction", label: "Cleanup instruction" },
+    max_words: { group: "Limits", label: "Maximum sentence words" },
+    max_cuts: { group: "Limits", label: "Maximum removals" }
   },
   "llm.zoom": {
     provider_id: {

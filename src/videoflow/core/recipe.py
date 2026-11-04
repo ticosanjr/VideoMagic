@@ -316,6 +316,7 @@ class Recipe(StrictModel):
             and step.type
             in {
                 "retakes.cull",
+                "llm.cleanup",
                 "llm.timeline",
                 "llm.zoom",
                 "llm.style",

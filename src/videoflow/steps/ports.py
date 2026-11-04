@@ -49,6 +49,27 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         ),
         (PortSpec("out", "Output", "any", "metadata:junction_out"),),
     ),
+    "llm.cleanup": (
+        (
+            PortSpec("transcript", "Transcript", "transcript", "transcript", True),
+            PortSpec(
+                "discarded",
+                "Discarded sentence ids",
+                "integer_list",
+                "discard_sentence_ids",
+                False,
+            ),
+        ),
+        (
+            PortSpec(
+                "discarded",
+                "Kept/discarded sentence ids",
+                "integer_list",
+                "discard_sentence_ids",
+            ),
+            PortSpec("report", "Cleanup report", "json", "metadata:cleanup_report"),
+        ),
+    ),
     "llm.timeline": (
         (PortSpec("timeline", "Timeline state", "timeline", "state", True),),
         (

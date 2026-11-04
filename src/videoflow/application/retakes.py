@@ -77,6 +77,43 @@ _WATERMARK = re.compile(
     r"legendado\s+por|transcri(?:ção|cao)\s+por",
     re.IGNORECASE,
 )
+_PROTECTED = re.compile(
+    r"https?://|www\.|r\$|\$|€|£|\bpre[çc]o\b|\bpatrocin|\bapoia\s+esse\s+v[íi]deo|"
+    r"\blink\b|\bcupom\b|\bdesconto\b|\bpromo[çc]|\boferta\b|\bblack\s+friday|"
+    r"\bassinatura\b|\bplano\b|\bgr[áa]tis\b|\bsite\b|\bloja\b|\bcomprar\b|"
+    r"\bclique\b|\binscreve\b|\bcanal\b|\blike\b|\bsininho\b|\bmembro\b",
+    re.IGNORECASE,
+)
+_NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
+_PROPER = re.compile(r"\b[A-ZÀ-Ý][a-zà-ÿ]{2,}\b")
+_COMMON_NAMES = {
+    "mas",
+    "então",
+    "entao",
+    "aí",
+    "ai",
+    "aqui",
+    "quando",
+    "porque",
+    "isso",
+    "isto",
+    "ele",
+    "ela",
+    "eles",
+    "elas",
+    "você",
+    "voce",
+    "agora",
+    "depois",
+    "antes",
+    "também",
+    "tambem",
+    "só",
+    "so",
+    "não",
+    "nao",
+    "sim",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,6 +230,100 @@ def _completeness(sentence: Sentence) -> float:
         probabilities = [word.probability for word in sentence.words]
         score += min(sum(probabilities) / len(probabilities), 1.0) * 0.3
     return round(score, 6)
+
+
+def _clean_candidate(sentence: Sentence) -> bool:
+    text = sentence.text.strip()
+    if not text or _ELLIPSIS.match(text) or _WATERMARK.search(text):
+        return False
+    tokens = _tokens(text)
+    if len(tokens) <= 1:
+        return text.strip(" .!?,;:").casefold() in _STANDALONE
+    if text.endswith((".", "!", "?")) and len(tokens) >= 3:
+        # A sentence that repeats a three-word block inside itself is corrupted
+        # by overlapping ASR windows; prefer the cleaner take.
+        words = text.casefold().split()
+        grams = [" ".join(words[i : i + 3]) for i in range(max(0, len(words) - 2))]
+        return len(grams) == len(set(grams))
+    return len(tokens) >= 4
+
+
+def _tail_candidate(candidate: Sentence, other: Sentence) -> bool:
+    left = _normalized(candidate.text)
+    right = _normalized(other.text)
+    if not left or not right or left == right:
+        return False
+    if len(candidate.text.split()) >= len(other.text.split()) * 0.75:
+        return False
+    return right.endswith(left) or left in right
+
+
+def _unique_facts(candidate: Sentence, keeper: Sentence) -> bool:
+    text = candidate.text.strip()
+    if _PROTECTED.search(text):
+        return True
+    left = {value.replace(",", ".") for value in _NUMBER.findall(text)}
+    right = {value.replace(",", ".") for value in _NUMBER.findall(keeper.text)}
+    if len(candidate.text.split()) >= 4 and left - right:
+        return True
+    names = {
+        item
+        for item in _PROPER.findall(text)
+        if item.casefold() not in _COMMON_NAMES
+        and item.casefold() not in keeper.text.casefold()
+    }
+    return len(candidate.text.split()) >= 4 and bool(names)
+
+
+def _keeper_score(
+    identifier: int,
+    ordered: Sequence[int],
+    sentences: dict[int, Sentence],
+) -> float:
+    sentence = sentences[identifier]
+    text = sentence.text.strip()
+    score = float(len(text.split()))
+    if text.endswith((".", "!", "?")):
+        score += 2.0
+    if _clean_candidate(sentence):
+        score += 3.0
+    else:
+        score -= 8.0
+    words = text.casefold().split()
+    grams = [" ".join(words[i : i + 3]) for i in range(max(0, len(words) - 2))]
+    if len(grams) != len(set(grams)):
+        score -= 12.0
+    if any(
+        other != identifier and _tail_candidate(sentence, sentences[other])
+        for other in ordered
+    ):
+        score -= 10.0
+    if _PROTECTED.search(text):
+        score += 8.0
+    return score
+
+
+def _choose_keeper(
+    ordered: Sequence[int],
+    sentences: dict[int, Sentence],
+    strategy: Strategy,
+) -> int:
+    # Prefer the most complete, clean candidate. The old rule kept the last
+    # sentence even when it was only the tail of a full restatement; that lost
+    # unique content. Ties go to the later occurrence for keep_last and to the
+    # higher completeness for keep_best.
+    return max(
+        ordered,
+        key=lambda item: (
+            _keeper_score(item, ordered, sentences),
+            (
+                sentences[item].start_sample
+                if strategy == "keep_last"
+                else _completeness(sentences[item])
+            ),
+            item,
+        ),
+    )
 
 
 def _keeper(group: Sequence[int], sentences: dict[int, Sentence], strategy: Strategy) -> int:
@@ -487,18 +618,23 @@ def _apply_strategy(
 
     adjusted: list[RetakeGroup] = []
     for group in groups:
-        keep = [identifier for identifier in group.keep if identifier in sentences]
-        discard = [
+        candidates = [
             identifier
-            for identifier in group.discard
-            if identifier in sentences and identifier not in keep
+            for identifier in dict.fromkeys(group.keep + group.discard)
+            if identifier in sentences
         ]
-        if not keep:
-            candidates = list(dict.fromkeys(group.keep + group.discard))
-            if not candidates:
-                continue
-            keep = [_keeper(candidates, sentences, strategy)]
-            discard = [identifier for identifier in candidates if identifier not in keep]
+        if not candidates:
+            continue
+        ordered = sorted(candidates, key=lambda item: (sentences[item].start_sample, item))
+        keeper = _choose_keeper(ordered, sentences, strategy)
+        keep = [keeper]
+        discard = [identifier for identifier in ordered if identifier != keeper]
+        # Sponsor/CTA and unique facts must survive even when the model grouped
+        # them with a similar retake.
+        for identifier in list(discard):
+            if _unique_facts(sentences[identifier], sentences[keeper]):
+                keep.append(identifier)
+                discard.remove(identifier)
         if not discard:
             continue
         keep_sentences = [sentences[identifier] for identifier in sorted(keep)]
@@ -659,7 +795,13 @@ def cull_retakes(
         )
 
     if not groups:
-        groups = list(cluster_similar_repetitions(sentences, strategy=strategy))
+        if proposed:
+            notes.append(
+                "LLM groups were rejected or restored; kept the content instead "
+                "of falling back to near-duplicate matching"
+            )
+        else:
+            groups = list(cluster_similar_repetitions(sentences, strategy=strategy))
 
     discard = {identifier for group in groups for identifier in group.discard}
     keepers = {identifier for group in groups for identifier in group.keep}
@@ -673,9 +815,16 @@ def cull_retakes(
         keepers = {identifier for group in groups for identifier in group.keep}
         discard -= keepers
 
-    # The exact-repeat guard protects the keeper of unambiguous retakes even
-    # when the LLM grouped the passage differently.
+    # Exact repeats are unambiguous: keep the last/best sentence and remove
+    # the earlier identical ones even when the LLM kept both.
     clusters = cluster_exact_repetitions([(item.id, item.text) for item in sentences])
+    for cluster in clusters:
+        keeper = _keeper(cluster.sentence_ids, order, strategy)
+        discard.update(
+            identifier
+            for identifier in cluster.sentence_ids
+            if identifier != keeper
+        )
     guarded: GuardResult = apply_retake_guard(
         sorted(discard),
         clusters=clusters,
@@ -686,6 +835,44 @@ def cull_retakes(
     restored = set(guarded.restored_sentence_ids)
     restored.update(proposed_discard - discard)
     groups = _reconcile_groups(groups, discard)
+    for cluster in clusters:
+        keeper = _keeper(cluster.sentence_ids, order, strategy)
+        removed = tuple(
+            identifier
+            for identifier in cluster.sentence_ids
+            if identifier != keeper and identifier in discard
+        )
+        if not removed:
+            continue
+        if any(set(group.discard) == set(removed) for group in groups):
+            continue
+        keep_sentence = order[keeper]
+        discard_sentences = [order[identifier] for identifier in removed]
+        groups.append(
+            RetakeGroup(
+                keep=(keeper,),
+                discard=removed,
+                reason="exact repeat",
+                keep_text=(keep_sentence.text,),
+                discard_text=tuple(item.text for item in discard_sentences),
+                start_sec=round(
+                    min(
+                        item.start_sample
+                        for item in [keep_sentence, *discard_sentences]
+                    )
+                    / 48000,
+                    3,
+                ),
+                end_sec=round(
+                    max(
+                        item.end_sample
+                        for item in [keep_sentence, *discard_sentences]
+                    )
+                    / 48000,
+                    3,
+                ),
+            )
+        )
     if not notes:
         notes.append("no retake groups")
     return RetakeResult(

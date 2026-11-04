@@ -42,7 +42,7 @@ class RetakesParams(BaseModel):
 @register_step
 class RetakesStep(BaseStep):
     type = "retakes.cull"
-    version = "6"
+    version = "8"
     title = "Retakes"
     description = (
         "Remove exact repeats and failed takes. Requires a transcript; without "
