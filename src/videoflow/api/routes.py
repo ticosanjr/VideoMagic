@@ -584,9 +584,12 @@ class AssetScanRequest(BaseModel):
 
 
 class ProviderTestRequest(BaseModel):
-    base_url: str = Field(min_length=1)
+    provider_id: str = ""
+    base_url: str = ""
     api_key_env: str = "VIDEOWFLOW_LLM_API_KEY"
+    model: str = ""
     path: str = "/models"
+    mode: Literal["models", "chat"] = "models"
 
 
 class LenientJsonBody(BaseModel):
@@ -1265,28 +1268,99 @@ def register_routes(
 
     @app.post("/api/v1/providers/test")
     def test_provider(request: ProviderTestRequest) -> dict[str, object]:
-        base = request.base_url.rstrip("/")
+        base_url = request.base_url
+        api_key_env = request.api_key_env
+        model = request.model
+        if request.provider_id:
+            provider = next(
+                (
+                    item
+                    for item in list_providers()
+                    if str(item.get("id")) == request.provider_id
+                ),
+                None,
+            )
+            if provider is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail={
+                        "ok": False,
+                        "code": "provider_not_found",
+                        "message": request.provider_id,
+                    },
+                )
+            base_url = base_url or str(provider.get("base_url") or "")
+            api_key_env = api_key_env or str(provider.get("api_key_env") or "")
+            model = model or str(provider.get("model") or "")
+        base = base_url.rstrip("/")
         if not (base.startswith("http://") or base.startswith("https://")):
             raise HTTPException(
                 status_code=422,
-                detail={"ok": False, "code": "invalid_url", "message": request.base_url},
+                detail={"ok": False, "code": "invalid_url", "message": base_url},
             )
-        api_key = get_secret(request.api_key_env)
+        api_key = get_secret(api_key_env)
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        started = time.perf_counter()
         try:
-            response = httpx.get(
-                f"{base}{request.path}",
-                headers=headers,
-                timeout=10.0,
-                follow_redirects=True,
-            )
+            if request.mode == "chat":
+                if not model:
+                    raise HTTPException(
+                        status_code=422,
+                        detail={
+                            "ok": False,
+                            "code": "model_required",
+                            "message": "Chat test requires a model.",
+                        },
+                    )
+                response = httpx.post(
+                    f"{base}/chat/completions",
+                    headers={**headers, "Content-Type": "application/json"},
+                    json={
+                        "model": model,
+                        "temperature": 0,
+                        "max_tokens": 8,
+                        "stream": False,
+                        "messages": [
+                            {"role": "user", "content": "Reply with OK only."}
+                        ],
+                    },
+                    timeout=20.0,
+                    follow_redirects=True,
+                )
+            else:
+                response = httpx.get(
+                    f"{base}{request.path}",
+                    headers=headers,
+                    timeout=10.0,
+                    follow_redirects=True,
+                )
         except httpx.HTTPError as exc:
-            return {"ok": False, "status_code": None, "message": str(exc)}
+            return {
+                "ok": False,
+                "status_code": None,
+                "message": str(exc),
+                "secret_present": bool(api_key),
+                "latency_ms": round((time.perf_counter() - started) * 1000),
+                "mode": request.mode,
+            }
+        body = response.text[:500]
+        if request.mode == "chat" and response.status_code < 400:
+            try:
+                payload = response.json()
+                body = str(
+                    payload.get("choices", [{}])[0]
+                    .get("message", {})
+                    .get("content", "")
+                )[:200] or body
+            except (ValueError, AttributeError, IndexError, TypeError):
+                pass
         return {
             "ok": 200 <= response.status_code < 400,
             "status_code": response.status_code,
-            "message": response.text[:500],
+            "message": body,
             "secret_present": bool(api_key),
+            "latency_ms": round((time.perf_counter() - started) * 1000),
+            "mode": request.mode,
         }
 
     def _providers_payload() -> list[dict[str, object]]:

@@ -42,6 +42,21 @@ from videoflow.steps.ports import (
 StepStatus = Literal["cached", "executed", "skipped"]
 
 
+def _project_state_revision(output: Path) -> int:
+    path = output / "project_state.json"
+    if not path.is_file():
+        return 0
+    try:
+        from videoflow.domain.state import ProjectState
+
+        revision = ProjectState.model_validate_json(
+            path.read_text(encoding="utf-8")
+        ).revision
+        return revision if revision > 1 else 0
+    except (OSError, ValueError):
+        return 0
+
+
 def persist_project_state(context: PipelineContext) -> Path | None:
     """Write the timeline atomically without clobbering newer manual edits."""
 
@@ -326,6 +341,7 @@ class RecipeRunner:
                     "transcribe": "asr",
                     "localization.dub": "tts",
                     "retakes.cull": "llm",
+                    "llm.timeline": "llm",
                 }.get(step.type, "")
                 provider = next(
                     (
@@ -366,7 +382,7 @@ class RecipeRunner:
                         if hasattr(params, key)
                     }
                 )
-                if step.type == "retakes.cull":
+                if step.type in {"retakes.cull", "llm.timeline"}:
                     if provider_id not in step_llms:
                         client = self._llm_from_provider(provider, log)
                         if client is None:
@@ -394,6 +410,12 @@ class RecipeRunner:
                         "mode": recipe_step.output_mode,
                         "dir": recipe_step.output_dir,
                     },
+                    "timeline_state_revision": (
+                        _project_state_revision(output_path)
+                        if step.type == "edit.timeline"
+                        and bool(getattr(params, "replace_manual", False))
+                        else 0
+                    ),
                 }
             )
             io = StepIO(

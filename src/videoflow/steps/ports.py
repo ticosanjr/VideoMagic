@@ -49,6 +49,18 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         ),
         (PortSpec("out", "Output", "any", "metadata:junction_out"),),
     ),
+    "llm.timeline": (
+        (PortSpec("timeline", "Timeline state", "timeline", "state", True),),
+        (
+            PortSpec("timeline", "Timeline state", "timeline", "state"),
+            PortSpec(
+                "report",
+                "Action report",
+                "json",
+                "metadata:llm_timeline_report",
+            ),
+        ),
+    ),
     "retakes.cull": (
         (
             PortSpec("speech", "Speech spans", "sample_spans", "speech_intervals", True),

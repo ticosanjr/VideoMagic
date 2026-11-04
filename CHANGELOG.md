@@ -3,6 +3,42 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.57.0] - 2026-11-04
+
+### Added
+
+- **`llm.timeline` recipe step.** The configured LLM can propose and the engine
+  can apply trim/crop in/out, move, split, delete, ripple, slip, slide,
+  duplicate, transitions, fades, scale, position, zoom, and zoom keyframes.
+  Unsupported or invalid actions are rejected and reported.
+- **`deepseek_full_edit` built-in recipe**, marked favorite. It transcribes,
+  removes retakes with DeepSeek, applies timeline edits with DeepSeek, and
+  exports NLE plus MP4.
+- Provider presets for DeepSeek, OpenAI, Ollama, and OpenRouter.
+- Provider connection testing now supports both model listing and a real chat
+  completion, with latency and secret status.
+
+### Changed
+
+- Provider setup is clearer: the editor opens on **edit**, the ID is locked while
+  editing, secrets can be set inside the editor, readiness and missing fields are
+  visible, and each saved provider has a test action.
+- Timeline checkpoint fingerprints now include a manual state revision above 1,
+  so a newer manual timeline invalidates the cache and the rebuild is written.
+- The `deepseek_full_edit` recipe uses explicit per-port wiring with the
+  `llm.timeline` node.
+
+### Verified
+
+- Real Kimi.mp4 test:
+  - with retakes: **17:07**, 340 clips;
+  - without retakes: **19:05**, 312 clips.
+
+### Notes
+
+- Full-tree coverage remains above the 95% gate.
+- 3.0 is still blocked only by the two manual QA sign-offs.
+
 ## [2.56.0] - 2026-11-03
 
 ### Fixed

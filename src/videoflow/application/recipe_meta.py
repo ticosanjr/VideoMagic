@@ -11,7 +11,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.runtime import portable_home
 
-DEFAULT_FAVORITES = frozenset({"recut_replacement", "recut_replacement_retakes"})
+DEFAULT_FAVORITES = frozenset(
+    {"recut_replacement", "recut_replacement_retakes", "deepseek_full_edit"}
+)
 _LOCK = threading.RLock()
 
 

@@ -248,6 +248,14 @@ _STEP_DESCRIPTIONS: dict[str, dict[str, str]] = {
         "project_id": "Project identifier attached to the generated timeline.",
         "revision": "Timeline revision stored with the project state.",
     },
+    "llm.timeline": {
+        "provider_id": "Configured LLM provider that proposes timeline edits.",
+        "prompt": (
+            "Edit instruction for the LLM: what to tighten, crop, zoom, "
+            "transition, or fade."
+        ),
+        "max_actions": "Maximum number of proposed edits applied from one response.",
+    },
     "transcribe": {
         "mode": "Transcription source: auto, SRT, project state, local model, HTTP, or none.",
     },

@@ -144,3 +144,26 @@ def test_run_route_resolves_source_and_output_from_the_recipe(monkeypatch, tmp_p
     job = manager.get(response.json()["job"]["job_id"])
     assert str(job.source) == str(source.resolve())
     assert job.output.name == "source-videoflow"
+
+
+def test_deepseek_full_edit_recipe_is_valid_and_favorite() -> None:
+    from videoflow.application.recipe_meta import get_meta
+    from videoflow.engine.recipes import get_recipe
+
+    recipe = get_recipe("deepseek_full_edit")
+    recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+    enabled = recipe.enabled_steps()
+    assert [step.id for step in enabled] == [
+        "ingest",
+        "vad",
+        "transcribe",
+        "retakes",
+        "timeline",
+        "llm_edit",
+        "export",
+        "video_export",
+    ]
+    assert next(step for step in enabled if step.id == "llm_edit").params[
+        "provider_id"
+    ] == "deepseek"
+    assert get_meta("deepseek_full_edit").favorite is True

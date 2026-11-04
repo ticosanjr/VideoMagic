@@ -1039,3 +1039,43 @@ def test_system_reports_an_invalid_settings_file(monkeypatch, tmp_path: Path) ->
     assert "invalid" in payload["settings_error"]
     doctor = client.get("/api/v1/system/doctor").json()
     assert doctor["checks"]["settings"]["valid"] is False
+
+
+def test_provider_chat_test_posts_a_completion(monkeypatch) -> None:
+    import httpx
+
+    from videoflow.api import routes as routes_module
+
+    calls: list[dict[str, object]] = []
+
+    def fake_post(*args, **kwargs):
+        calls.append({"url": str(args[0]), **kwargs})
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "OK"}}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+            },
+            request=httpx.Request("POST", str(args[0])),
+        )
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "secret")
+    monkeypatch.setattr(routes_module.httpx, "post", fake_post)
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/v1/providers/test",
+        json={
+            "base_url": "https://api.deepseek.com/v1",
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "model": "deepseek-chat",
+            "mode": "chat",
+        },
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["mode"] == "chat"
+    assert payload["message"] == "OK"
+    assert payload["secret_present"] is True
+    assert "latency_ms" in payload
+    assert calls and calls[0]["url"].endswith("/chat/completions")

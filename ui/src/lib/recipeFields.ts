@@ -192,6 +192,15 @@ const FIELD_META: Record<string, Record<string, FieldMeta>> = {
       placeholder: "/path/to/broll"
     }
   },
+  "llm.timeline": {
+    provider_id: {
+      group: "Provider",
+      label: "LLM provider",
+      optionsSource: "providers:llm"
+    },
+    prompt: { group: "Instruction", label: "Edit instruction" },
+    max_actions: { group: "Limits", label: "Maximum actions" }
+  },
   "flow.junction": {
     mode: { group: "Junction", label: "Mode" },
     selected_input: { group: "Junction", label: "Input to pass" }

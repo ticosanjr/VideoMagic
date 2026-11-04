@@ -1073,3 +1073,26 @@ def test_recipe_rebuild_replaces_newer_manual_timeline(tmp_path: Path) -> None:
     persisted = json.loads((output / "project_state.json").read_text())
     assert persisted["revision"] == 11
     assert any("replaced by this recipe build" in item for item in result.context.warnings)
+
+
+def test_timeline_checkpoint_is_invalidated_by_newer_manual_state(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"fixture")
+    transcript = srt(tmp_path / "cache.srt", repeat=True)
+    recipe = parse_recipe(base_steps(transcript))
+    output = tmp_path / "cache-out"
+    first = RecipeRunner(recipe, adapter=FakeAdapter()).run(source, output)
+    state = first.context.state
+    (output / "project_state.json").write_text(
+        state.model_copy(update={"revision": 7}).model_dump_json(),
+        encoding="utf-8",
+    )
+    second = RecipeRunner(recipe, adapter=FakeAdapter()).run(source, output)
+    timeline_run = next(
+        run for run in second.step_runs if run.id == "timeline"
+    )
+    assert timeline_run.status == "executed"
+    persisted = json.loads((output / "project_state.json").read_text())
+    assert persisted["revision"] == 8

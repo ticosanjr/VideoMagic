@@ -1072,6 +1072,75 @@ _recut_preset(
 )
 
 
+_add_recipe(
+    "deepseek_full_edit",
+    "DeepSeek full edit",
+    [
+        _INGEST,
+        _VAD,
+        {
+            **_TRANSCRIBE,
+            "params": {"mode": "auto", "language": "pt", "model_size": "small"},
+        },
+        {
+            **_RETAKES,
+            "params": {
+                "provider_id": "deepseek",
+                "enabled": True,
+                "strategy": "keep_last",
+                "strictness": "aggressive",
+                "context_window": 25,
+            },
+        },
+        {
+            **_TIMELINE,
+            "params": {
+                "cut_mode": "hard",
+                "replace_manual": True,
+                "zoom_mode": "manual_rules",
+            },
+        },
+        {
+            "id": "llm_edit",
+            "type": "llm.timeline",
+            "needs": ["timeline"],
+            "inputs": {"timeline": "timeline.timeline"},
+            "params": {
+                "provider_id": "deepseek",
+                "max_actions": 60,
+                "prompt": (
+                    "Edit this talking-head video like a professional short-form "
+                    "editor. Tighten weak starts and dead air, crop in/out clips, "
+                    "use slow zoom in/out where it helps emphasis, keep transitions "
+                    "sparse, add gentle audio fades, and preserve a coherent story. "
+                    "Only use existing clip ids and valid times."
+                ),
+            },
+        },
+        {
+            **_EXPORT,
+            "needs": ["llm_edit"],
+            "inputs": {"timeline": "llm_edit.timeline"},
+        },
+        {
+            "id": "video_export",
+            "type": "export.video",
+            "needs": ["llm_edit"],
+            "inputs": {"timeline": "llm_edit.timeline"},
+            "params": {
+                "preset": "ultrafast",
+                "subdir": "exports",
+                "filename": "video.mp4",
+            },
+        },
+    ],
+    description=(
+        "Transcribe, remove retakes with DeepSeek, edit cuts and zooms with "
+        "DeepSeek, then export NLE and MP4."
+    ),
+)
+
+
 def builtin_recipe(recipe_id: str) -> Recipe:
     try:
         payload = BUILTIN_RECIPES[recipe_id]

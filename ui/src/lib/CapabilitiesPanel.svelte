@@ -45,7 +45,13 @@
   let testKeyEnv = $state("VIDEOWFLOW_LLM_API_KEY");
   let testPath = $state("/models");
   let testBusy = $state(false);
-  let testResult = $state<{ ok: boolean; status_code: number | null; message: string; secret_present: boolean } | null>(null);
+  let testResult = $state<{
+    ok: boolean;
+    status_code: number | null;
+    message: string;
+    secret_present: boolean;
+    latency_ms?: number;
+  } | null>(null);
   let testError = $state("");
   let providers = $state<ProviderConfig[]>([]);
   let fallbacks = $state<Record<string, ProviderConfig[]>>({});
@@ -55,6 +61,11 @@
   let providerMessage = $state("");
   let providerError = $state("");
   let draft = $state<ProviderConfig>(blankProvider());
+  let editingProviderId = $state("");
+  let editorOpen = $state(false);
+  let secretDraft = $state("");
+  let testMode = $state<"chat" | "models">("chat");
+  let providerTests = $state<Record<string, { ok: boolean; status_code: number | null; message: string; latency_ms?: number }>>({});
   let voiceStatus = $state<VoiceCloneStatus | null>(null);
   let voiceProfiles = $state<VoiceProfile[]>([]);
   let voiceName = $state("");
@@ -123,8 +134,49 @@
 
   function editProvider(provider: ProviderConfig) {
     draft = { ...provider, fallback: [...provider.fallback] };
+    editingProviderId = provider.id;
+    editorOpen = true;
+    secretDraft = "";
     providerMessage = "";
     providerError = "";
+    testResult = null;
+    requestAnimationFrame(() => {
+      document.getElementById("provider-editor")?.scrollIntoView({ block: "start" });
+    });
+  }
+
+  function newProvider() {
+    draft = blankProvider();
+    editingProviderId = "";
+    editorOpen = true;
+    secretDraft = "";
+    testResult = null;
+    providerMessage = "";
+    providerError = "";
+    requestAnimationFrame(() => {
+      document.getElementById("provider-editor")?.scrollIntoView({ block: "start" });
+    });
+  }
+
+  function applyPreset(preset: Partial<ProviderConfig>) {
+    draft = { ...draft, ...preset, fallback: [...(draft.fallback ?? [])] };
+  }
+
+  async function testSavedProvider(provider: ProviderConfig) {
+    providerBusy = provider.id;
+    providerError = "";
+    try {
+      const result = await testProvider({
+        provider_id: provider.id,
+        mode: "chat",
+        path: "/models"
+      });
+      providerTests = { ...providerTests, [provider.id]: result };
+    } catch (reason) {
+      providerError = errorMessage(reason);
+    } finally {
+      providerBusy = "";
+    }
   }
 
   async function refreshProviders() {
@@ -149,9 +201,17 @@
     try {
       const payload = { ...draft, id: draft.id.trim().toLowerCase() };
       delete (payload as { secret_present?: boolean }).secret_present;
+      delete (payload as { configured?: boolean }).configured;
+      delete (payload as { missing?: string[] }).missing;
       const saved = await saveProvider(payload);
+      if (secretDraft.trim()) {
+        await setProviderSecret(saved.id, secretDraft.trim());
+        secretDraft = "";
+      }
       providerMessage = `${saved.name} saved.`;
       draft = blankProvider();
+      editingProviderId = "";
+      editorOpen = false;
       await refreshProviders();
     } catch (reason) {
       providerError = errorMessage(reason);
@@ -225,7 +285,9 @@
       testResult = await testProvider({
         base_url: draft.base_url || testUrl,
         api_key_env: draft.api_key_env || testKeyEnv,
-        path: testPath
+        model: draft.model,
+        path: testPath,
+        mode: testMode
       });
     } catch (reason) {
       testError = errorMessage(reason);
@@ -420,7 +482,10 @@
           <h3 class="text-xs font-semibold text-neutral-100">Configured providers</h3>
           <p class="mt-1 text-[10px] text-neutral-500">Saved in providers.json. The default provider is tried first; fallbacks are tried in order. Secrets: {secretBackend || "environment or keyring"}.</p>
         </div>
-        {#if providerMessage}<span class="text-[10px] text-emerald-300">{providerMessage}</span>{/if}
+        <div class="flex items-center gap-2">
+          {#if providerMessage}<span class="text-[10px] text-emerald-300">{providerMessage}</span>{/if}
+          <button type="button" onclick={newProvider} class="rounded-lg border border-sky-500/40 px-3 py-1 text-[10px] text-sky-200">Add provider</button>
+        </div>
       </div>
 
       <div class="mt-3 grid gap-3 lg:grid-cols-2">
@@ -452,6 +517,11 @@
               <span class="text-neutral-300">{provider.name}</span>
               <span class="rounded bg-neutral-800 px-1.5 py-0.5 text-[8px] uppercase text-neutral-400">{provider.capability}</span>
               {#if !provider.enabled}<span class="text-[8px] uppercase text-neutral-600">disabled</span>{/if}
+              {#if provider.configured === false}
+                <span class="text-[8px] uppercase text-amber-300">missing {provider.missing?.join(", ") || "config"}</span>
+              {:else}
+                <span class="text-[8px] uppercase text-emerald-300">ready</span>
+              {/if}
               {#if provider.api_key_env}
                 <span class={`text-[8px] uppercase ${provider.secret_present ? "text-emerald-300" : "text-amber-300"}`}>{provider.secret_present ? "secret present" : "secret missing"}</span>
               {/if}
@@ -459,9 +529,15 @@
                 {#if !provider.is_default}
                   <button type="button" onclick={() => void makeDefault(provider.id)} disabled={Boolean(providerBusy)} class="rounded border border-neutral-700 px-1.5 py-0.5 text-[9px] text-neutral-300 disabled:opacity-40">default</button>
                 {/if}
+                <button type="button" onclick={() => void testSavedProvider(provider)} disabled={Boolean(providerBusy)} class="rounded border border-emerald-500/30 px-1.5 py-0.5 text-[9px] text-emerald-300 disabled:opacity-40">test</button>
                 <button type="button" onclick={() => editProvider(provider)} class="rounded border border-neutral-700 px-1.5 py-0.5 text-[9px] text-sky-300">edit</button>
                 <button type="button" onclick={() => void removeProvider(provider.id)} disabled={Boolean(providerBusy)} class="rounded border border-rose-500/30 px-1.5 py-0.5 text-[9px] text-rose-300 disabled:opacity-40">remove</button>
               </span>
+              {#if providerTests[provider.id]}
+                <span class={`w-full text-[9px] ${providerTests[provider.id].ok ? "text-emerald-300" : "text-rose-300"}`}>
+                  {providerTests[provider.id].ok ? "chat OK" : "test failed"} · HTTP {providerTests[provider.id].status_code ?? "—"} · {providerTests[provider.id].latency_ms ?? "—"} ms · {providerTests[provider.id].message.slice(0, 160)}
+                </span>
+              {/if}
               {#if provider.api_key_env}
                 <div class="mt-1 flex w-full items-center gap-1">
                   <input
@@ -482,10 +558,20 @@
         </div>
       {/if}
 
-      <details class="mt-3 rounded-xl border border-neutral-800 bg-neutral-950/40 p-3" open={!providers.length}>
-        <summary class="cursor-pointer text-[11px] font-medium text-neutral-300">Add or edit a provider</summary>
+      <details id="provider-editor" class="mt-3 rounded-xl border border-neutral-800 bg-neutral-950/40 p-3" open={editorOpen || !providers.length}>
+        <summary class="cursor-pointer text-[11px] font-medium text-neutral-300">{editingProviderId ? `Edit ${editingProviderId}` : "Add a provider"}</summary>
+        <div class="mt-2 flex flex-wrap gap-1">
+          {#each [
+            { label: "DeepSeek", patch: { capability: "llm" as const, base_url: "https://api.deepseek.com/v1", model: "deepseek-chat", api_key_env: "DEEPSEEK_API_KEY" } },
+            { label: "OpenAI", patch: { capability: "llm" as const, base_url: "https://api.openai.com/v1", model: "gpt-4o-mini", api_key_env: "OPENAI_API_KEY" } },
+            { label: "Ollama", patch: { capability: "llm" as const, base_url: "http://127.0.0.1:11434/v1", model: "qwen2.5:7b-instruct", api_key_env: "VIDEOWFLOW_LLM_API_KEY" } },
+            { label: "OpenRouter", patch: { capability: "llm" as const, base_url: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini", api_key_env: "OPENROUTER_API_KEY" } }
+          ] as preset}
+            <button type="button" onclick={() => applyPreset(preset.patch)} class="rounded border border-neutral-700 px-2 py-1 text-[9px] text-neutral-300 hover:border-sky-500">{preset.label}</button>
+          {/each}
+        </div>
         <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          <label class="text-[10px] text-neutral-500">ID<input bind:value={draft.id} placeholder="ollama-local" class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">ID<input bind:value={draft.id} disabled={Boolean(editingProviderId)} placeholder="ollama-local" class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100 disabled:opacity-60" /></label>
           <label class="text-[10px] text-neutral-500">Name<input bind:value={draft.name} placeholder="Local Ollama" class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[10px] text-neutral-100" /></label>
           <label class="text-[10px] text-neutral-500">Capability
             <select bind:value={draft.capability} class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[10px] text-neutral-100">
@@ -495,17 +581,29 @@
           <label class="text-[10px] text-neutral-500 sm:col-span-2">Base URL<input bind:value={draft.base_url} placeholder="http://127.0.0.1:11434/v1" class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" /></label>
           <label class="text-[10px] text-neutral-500">Secret env<input bind:value={draft.api_key_env} placeholder="VIDEOWFLOW_LLM_API_KEY" class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" /></label>
           <label class="text-[10px] text-neutral-500">Model<input bind:value={draft.model} placeholder="qwen2.5:7b-instruct" class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" /></label>
+          {#if draft.api_key_env}
+            <label class="text-[10px] text-neutral-500">Secret value<input type="password" bind:value={secretDraft} placeholder={editingProviderId && draft.secret_present ? "leave blank to keep current" : "paste API key"} class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" /></label>
+          {/if}
           <label class="text-[10px] text-neutral-500">Fallback IDs (comma-separated)<input value={draft.fallback.join(", ")} oninput={(event) => (draft.fallback = event.currentTarget.value.split(",").map((item) => item.trim()).filter(Boolean))} class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" /></label>
           <div class="flex items-end gap-3 pb-1 text-[10px] text-neutral-400">
             <label class="flex items-center gap-1.5"><input type="checkbox" bind:checked={draft.enabled} class="h-3.5 w-3.5 rounded border-neutral-700 bg-neutral-800" />enabled</label>
             <label class="flex items-center gap-1.5"><input type="checkbox" bind:checked={draft.is_default} class="h-3.5 w-3.5 rounded border-neutral-700 bg-neutral-800" />default</label>
           </div>
         </div>
-        <div class="mt-2 flex flex-wrap gap-2">
+        <div class="mt-2 flex flex-wrap items-center gap-2">
           <button type="button" onclick={() => void saveDraft()} disabled={providerBusy === "save"} class="rounded-lg border border-sky-500/40 px-3 py-1.5 text-[10px] text-sky-200 disabled:opacity-40">{providerBusy === "save" ? "Saving…" : "Save provider"}</button>
-          <button type="button" onclick={() => void testDraft()} disabled={testBusy} class="rounded-lg border border-neutral-700 px-3 py-1.5 text-[10px] text-neutral-300 disabled:opacity-40">{testBusy ? "Testing…" : "Test connection"}</button>
-          <button type="button" onclick={() => (draft = blankProvider())} class="rounded-lg border border-neutral-800 px-3 py-1.5 text-[10px] text-neutral-500">Clear</button>
+          <select bind:value={testMode} aria-label="Test mode" class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[10px] text-neutral-300">
+            <option value="chat">Test chat</option>
+            <option value="models">List models</option>
+          </select>
+          <button type="button" onclick={() => void testDraft()} disabled={testBusy || !draft.base_url} class="rounded-lg border border-neutral-700 px-3 py-1.5 text-[10px] text-neutral-300 disabled:opacity-40">{testBusy ? "Testing…" : "Test connection"}</button>
+          <button type="button" onclick={() => { draft = blankProvider(); editingProviderId = ""; editorOpen = false; secretDraft = ""; }} class="rounded-lg border border-neutral-800 px-3 py-1.5 text-[10px] text-neutral-500">Cancel</button>
         </div>
+        {#if testResult}
+          <p class={`mt-2 text-[10px] ${testResult.ok ? "text-emerald-300" : "text-rose-300"}`}>
+            {testResult.ok ? "Connection OK" : "Connection failed"} · HTTP {testResult.status_code ?? "—"} · {testResult.latency_ms ?? "—"} ms · secret {testResult.secret_present ? "present" : "missing"} · {testResult.message.slice(0, 200)}
+          </p>
+        {/if}
       </details>
     </section>
 
