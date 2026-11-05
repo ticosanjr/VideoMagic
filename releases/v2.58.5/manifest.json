@@ -1,0 +1,23 @@
+{
+  "version": "2.58.5",
+  "built_at": "2026-11-05T10:15:11+00:00",
+  "host": "linux-x86_64",
+  "python": "3.12.3",
+  "artifacts": [
+    {
+      "name": "videoflow-2.58.5-linux-x86_64",
+      "sha256": "6799e5d1af4c9c1a9492d31530463e0085dd1695b873483bce0f33844b4793da",
+      "size_bytes": 272450408
+    },
+    {
+      "name": "VideoFlow-2.58.5-x86_64.AppImage",
+      "sha256": "ba42eca30941ac7e195da4adda283269c77437bfdc02a389915b31077fbe77de",
+      "size_bytes": 271706616
+    },
+    {
+      "name": "sbom.json",
+      "sha256": "21cf8925ff912ec267c98a3bf90738450af218925adebf4e268a05fd4b618a47",
+      "size_bytes": 9326
+    }
+  ]
+}
