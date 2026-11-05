@@ -14,6 +14,7 @@ rather than the primary decision maker.
 from __future__ import annotations
 
 import re
+import statistics
 from collections.abc import Sequence
 from dataclasses import dataclass
 from difflib import SequenceMatcher
@@ -224,6 +225,44 @@ def _content_tokens(text: str) -> set[str]:
         for token in _tokens(text)
         if len(token) >= 4 and token not in _CONTENT_STOPWORDS
     }
+
+
+def _watermark_only(text: str) -> bool:
+    """True when the text is only a subtitle credit or watermark.
+
+    ASR often appends "Legendas pela comunidade de Amara.org" to silence. The
+    phrase is not content; a sentence that also carries real words is kept.
+    """
+
+    if not _WATERMARK.search(text):
+        return False
+    remainder = _WATERMARK.sub(" ", text)
+    return len(_tokens(remainder)) < 3
+
+
+def _hallucination_loop(
+    cluster: Sequence[int],
+    order: dict[int, Sentence],
+    *,
+    sample_rate: int = 48_000,
+) -> bool:
+    """Detect an identical ASR loop rather than real repeated speech.
+
+    Whisper loops on music or silence and emits the same line at a regular
+    interval. A real repeated line is kept once; a loop is removed entirely,
+    which is also what the human edit does.
+    """
+
+    identifiers = [item for item in cluster if item in order]
+    if len(identifiers) < 4:
+        return False
+    if len(identifiers) >= 6:
+        return True
+    starts = sorted(order[item].start_sample / sample_rate for item in identifiers)
+    gaps = [end - start for start, end in zip(starts, starts[1:], strict=False)]
+    if not gaps:
+        return False
+    return 25.0 <= statistics.median(gaps) <= 35.0
 
 
 def _similarity(left: Sentence, right: Sentence) -> float:
@@ -907,9 +946,22 @@ def cull_retakes(
         )
 
     # Exact repeats are unambiguous: keep the last/best sentence and remove
-    # the earlier identical ones even when the LLM kept both.
+    # the earlier identical ones even when the LLM kept both. An identical
+    # line repeated four or more times at a regular interval is an ASR loop,
+    # not speech: the whole loop is removed.
     clusters = cluster_exact_repetitions([(item.id, item.text) for item in sentences])
-    for cluster in clusters:
+    loop_ids: set[int] = set()
+    loop_clusters: set[int] = set()
+    for index, cluster in enumerate(clusters):
+        if _hallucination_loop(cluster.sentence_ids, order):
+            loop_ids.update(cluster.sentence_ids)
+            loop_clusters.add(index)
+    watermark_ids = {
+        item.id for item in sentences if _watermark_only(item.text)
+    }
+    for index, cluster in enumerate(clusters):
+        if index in loop_clusters:
+            continue
         keeper = _keeper(cluster.sentence_ids, order, strategy)
         discard.update(
             identifier
@@ -917,17 +969,36 @@ def cull_retakes(
             if identifier != keeper
         )
     guarded: GuardResult = apply_retake_guard(
-        sorted(discard),
-        clusters=clusters,
+        sorted(discard - loop_ids - watermark_ids),
+        clusters=[
+            cluster
+            for index, cluster in enumerate(clusters)
+            if index not in loop_clusters
+        ],
         valid_ids=[item.id for item in sentences],
         strategy=strategy,
     )
     discard = set(guarded.discard_sentence_ids)
+    discard.update(loop_ids)
+    discard.update(watermark_ids)
     restored = set(guarded.restored_sentence_ids)
     restored.update(proposed_discard - discard)
     restored.update(global_restored)
+    restored -= loop_ids | watermark_ids
+    # A watermark sentence must never be the keeper of real content.
+    for group in groups:
+        if not (set(group.keep) & watermark_ids):
+            continue
+        for identifier in group.discard:
+            if identifier in watermark_ids or identifier in loop_ids:
+                continue
+            if identifier in discard:
+                discard.discard(identifier)
+                restored.add(identifier)
     groups = _reconcile_groups(groups, discard)
-    for cluster in clusters:
+    for index, cluster in enumerate(clusters):
+        if index in loop_clusters:
+            continue
         keeper = _keeper(cluster.sentence_ids, order, strategy)
         removed = tuple(
             identifier
@@ -965,6 +1036,36 @@ def cull_retakes(
                 ),
             )
         )
+    for index in sorted(loop_clusters):
+        cluster = clusters[index]
+        members = [order[identifier] for identifier in cluster.sentence_ids]
+        groups.append(
+            RetakeGroup(
+                keep=(),
+                discard=tuple(cluster.sentence_ids),
+                reason="repeated ASR loop",
+                discard_text=tuple(item.text for item in members),
+                start_sec=round(min(item.start_sample for item in members) / 48000, 3),
+                end_sec=round(max(item.end_sample for item in members) / 48000, 3),
+            )
+        )
+    credit_ids = watermark_ids - loop_ids
+    if credit_ids:
+        members = [order[identifier] for identifier in sorted(credit_ids)]
+        groups.append(
+            RetakeGroup(
+                keep=(),
+                discard=tuple(sorted(credit_ids)),
+                reason="watermark credit",
+                discard_text=tuple(item.text for item in members),
+                start_sec=round(min(item.start_sample for item in members) / 48000, 3),
+                end_sec=round(max(item.end_sample for item in members) / 48000, 3),
+            )
+        )
+    if loop_ids:
+        notes.append(f"removed {len(loop_ids)} sentence(s) from repeated ASR loops")
+    if watermark_ids:
+        notes.append(f"removed {len(watermark_ids)} watermark credit(s)")
     if not notes:
         notes.append("no retake groups")
     return RetakeResult(

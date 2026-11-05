@@ -21,6 +21,7 @@ from videoflow.application.timeline_builder import (
     build_inactive_segments,
     build_timeline,
     detect_noise_spans,
+    repair_clipped_words,
     transcript_spans,
 )
 from videoflow.application.vad import pad_spans
@@ -67,6 +68,9 @@ class TimelineParams(BaseModel):
     keep_silence_ms: int = Field(default=300, ge=0, le=5000)
     silence_threshold_db: float = Field(default=-35.0, ge=-80.0, le=0.0)
     silence_frame_ms: int = Field(default=10, ge=1, le=100)
+    silence_word_margin_ms: int = Field(default=20, ge=0, le=200)
+    repair_word_tails: bool = False
+    word_repair_max_ms: int = Field(default=800, ge=100, le=5000)
     min_clip_ms: int = Field(default=200, ge=1, le=5000)
     drop_isolated_words: bool = True
     detect_repeats: bool = True
@@ -382,6 +386,15 @@ class TimelineStep(BaseStep):
             pad_after_ms=pad_after,
             min_clip_ms=options.min_clip_ms,
         )
+        if options.repair_word_tails:
+            speech = repair_clipped_words(
+                speech,
+                context.transcript,
+                set(context.discard_sentence_ids),
+                sample_rate=media.audio_sample_rate,
+                max_word_ms=options.word_repair_max_ms,
+                guard_ms=options.silence_word_margin_ms,
+            )
         if capped_seconds:
             context.warnings.append(
                 f"Silence cap removed {capped_seconds:.1f}s "

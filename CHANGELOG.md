@@ -3,6 +3,33 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.58.6] - 2026-11-05
+
+### Added
+
+- **ASR loop removal.** An identical line repeated four or more times at a
+  regular interval is treated as a Whisper hallucination loop and removed
+  entirely instead of keeping one copy.
+- **Watermark credit removal.** Subtitle credits such as "Legendas pela
+  comunidade de Amara.org" are dropped when they carry no other content; a
+  sentence that also contains real words is preserved.
+- **Opt-in word-tail repair.** `repair_word_tails` extends capped spans back to
+  the end of a plausible word (default off because it adds low-energy tails).
+
+### Changed
+
+- Silence capping is unchanged; the word-tail repair is available per recipe
+  and disabled by default to keep the silence profile tight.
+
+### Verified
+
+- Four reference cases re-rendered with the 2.58.6 recipe: Kimi 0.7752,
+  alertaClaude 0.7958, brave 0.8174, gpt6.2astra 0.8487 audio F1 (mean
+  0.8093 vs 0.8041 for 2.58.5; brave +2.8 points).
+- Gate: 1,659 Python tests, 87 Vitest, line coverage above 95%.
+- The 98% target still requires take-level selection and a trained audio event
+  classifier; this release removes two concrete transcript-noise classes.
+
 ## [2.58.5] - 2026-11-05
 
 ### Added

@@ -365,3 +365,51 @@ def test_low_similarity_unique_sentence_is_restored() -> None:
     result = cull_retakes(sentences, client=client)
     assert result.discard_sentence_ids == ()
     assert 0 in result.restored_sentence_ids
+
+
+def test_repeated_asr_loop_is_removed_entirely() -> None:
+    text = "Legendas pela comunidade de Amara.org"
+    sentences = [
+        sentence(index, text, index * 30 * 48_000, (index * 30 + 3) * 48_000)
+        for index in range(6)
+    ]
+    result = cull_retakes(sentences)
+    assert result.discard_sentence_ids == tuple(range(6))
+    assert any(group.reason == "repeated ASR loop" for group in result.groups)
+
+
+def test_short_regular_loop_is_removed_entirely() -> None:
+    text = "Mas eu quero ver alguma coisa funcionando na minha frente."
+    sentences = [
+        sentence(index, text, index * 30 * 48_000, (index * 30 + 3) * 48_000)
+        for index in range(4)
+    ]
+    result = cull_retakes(sentences)
+    assert result.discard_sentence_ids == tuple(range(4))
+
+
+def test_three_attempts_keep_one_instead_of_removing_all() -> None:
+    text = "Química 3 resolvia só 34,3% das tarefas."
+    sentences = [
+        sentence(index, text, index * 30 * 48_000, (index * 30 + 3) * 48_000)
+        for index in range(3)
+    ]
+    result = cull_retakes(sentences)
+    assert len(result.discard_sentence_ids) == 2
+    assert result.discard_sentence_ids == (0, 1)
+
+
+def test_watermark_only_sentence_is_removed_but_mixed_sentence_is_kept() -> None:
+    sentences = [
+        sentence(0, "Legendas pela comunidade de Amara.org", 0, 3000),
+        sentence(
+            1,
+            "Legendas pela comunidade de Amara.org E até o começo desse ano a regra era outra.",
+            3000,
+            9000,
+        ),
+        sentence(2, "O modelo novo chegou e mudou o jogo.", 9000, 12_000),
+    ]
+    result = cull_retakes(sentences)
+    assert result.discard_sentence_ids == (0,)
+    assert 1 in result.restored_sentence_ids or 1 not in result.discard_sentence_ids

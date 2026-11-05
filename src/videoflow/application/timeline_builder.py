@@ -414,6 +414,55 @@ def transcript_spans(
     return spans, noise
 
 
+def repair_clipped_words(
+    spans: Sequence[tuple[int, int]],
+    transcript: Sequence[Any],
+    discard_ids: set[int],
+    *,
+    sample_rate: int,
+    max_word_ms: int = 800,
+    guard_ms: int = 20,
+) -> list[tuple[int, int]]:
+    """Extend kept spans so a cap never ends inside a plausible word.
+
+    Silence capping is necessary for pacing, but a detected silence can fall on
+    a low-energy syllable and cut a word in half. This pass restores only the
+    clipped part of the word (plus a small guard), so the cap still removes the
+    silence without leaving a clipped tail. Implausibly long ASR words are
+    ignored because their timing is unreliable.
+    """
+
+    maximum = max(1, round(max_word_ms * sample_rate / 1000))
+    guard = max(0, round(guard_ms * sample_rate / 1000))
+    words = [
+        (word.start_sample, word.end_sample)
+        for sentence in transcript
+        if sentence.id not in discard_ids
+        for word in sentence.words
+        if word.end_sample - word.start_sample <= maximum
+    ]
+    if not words:
+        return list(spans)
+    repaired: list[tuple[int, int]] = []
+    for start, end in spans:
+        new_start = start
+        new_end = end
+        for word_start, word_end in words:
+            if word_start < new_end < word_end:
+                new_end = word_end
+            if word_start < new_start < word_end:
+                new_start = word_start
+        repaired.append((max(0, new_start), max(new_start, new_end)))
+    repaired.sort()
+    merged: list[tuple[int, int]] = []
+    for start, end in repaired:
+        if merged and start <= merged[-1][1] + guard:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
 def add_untranscribed_spans(
     speech: Sequence[tuple[int, int]],
     vad: Sequence[Any],

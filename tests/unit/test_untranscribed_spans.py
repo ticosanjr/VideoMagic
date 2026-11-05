@@ -96,3 +96,33 @@ def test_transcript_spans_extend_head_and_tail_to_energy_valleys() -> None:
         rms_at=rms_at,
     )
     assert spans == [(900, 1300)]
+
+
+def test_repair_clipped_words_restores_a_word_split_by_the_cap() -> None:
+    from videoflow.application.timeline_builder import repair_clipped_words
+
+    sentence = _sentence(0, start=1000, end=1400)
+    result = repair_clipped_words(
+        [(800, 1200), (1300, 1600)],
+        [sentence],
+        set(),
+        sample_rate=1000,
+        max_word_ms=800,
+        guard_ms=20,
+    )
+    assert result == [(800, 1400), (1300, 1600)] or result == [(800, 1600)]
+
+
+def test_repair_clipped_words_ignores_implausibly_long_words() -> None:
+    from videoflow.application.timeline_builder import repair_clipped_words
+
+    sentence = _sentence(0, start=1000, end=1400)
+    result = repair_clipped_words(
+        [(800, 1200)],
+        [sentence],
+        set(),
+        sample_rate=1000,
+        max_word_ms=200,
+        guard_ms=20,
+    )
+    assert result == [(800, 1200)]
