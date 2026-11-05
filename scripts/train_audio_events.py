@@ -52,6 +52,8 @@ def _flanked(
 def _case(
     project: Path,
     edl_path: Path,
+    *,
+    negatives_per_case: int = 200,
 ) -> tuple[list[np.ndarray], list[int], dict[str, int]]:
     state = ProjectState.model_validate(
         json.loads((project / "project_state.json").read_text(encoding="utf-8"))
@@ -91,6 +93,28 @@ def _case(
         features.append(vector)
         labels.append(label)
         stats["positive" if label else "negative"] += 1
+    # Kept word segments are the real speech class. Candidate bursts that the
+    # human kept are often room tone, so using them as negatives taught the
+    # model nothing.
+    word_pool = [
+        (word.start_sample, word.end_sample)
+        for sentence in state.transcript
+        if any(
+            start <= (word.start_sample + word.end_sample) / 2 / 48_000 <= end
+            for word in sentence.words
+            for start, end in edl.kept_intervals
+        )
+        for word in sentence.words
+        if 80 <= (word.end_sample - word.start_sample) / 48_000 * 1000 <= 400
+    ]
+    random.Random(11).shuffle(word_pool)
+    for start, end in word_pool[:negatives_per_case]:
+        vector = span_features(pcm, start, end, sample_rate=48_000)
+        if vector is None:
+            continue
+        features.append(vector)
+        labels.append(0)
+        stats["negative"] += 1
     return features, labels, stats
 
 
@@ -106,12 +130,17 @@ def main() -> int:
     )
     parser.add_argument("--out", type=Path)
     parser.add_argument("--threshold", type=float, default=0.5)
+    parser.add_argument("--negatives-per-case", type=int, default=200)
     args = parser.parse_args()
 
     features: list[np.ndarray] = []
     labels: list[int] = []
     for project, edl in args.case:
-        case_features, case_labels, stats = _case(Path(project), Path(edl))
+        case_features, case_labels, stats = _case(
+            Path(project),
+            Path(edl),
+            negatives_per_case=args.negatives_per_case,
+        )
         features.extend(case_features)
         labels.extend(case_labels)
         print(
