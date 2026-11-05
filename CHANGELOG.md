@@ -3,6 +3,28 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.58.8] - 2026-11-05
+
+### Added
+
+- **Word-timing refinement.** `application/alignment.py` clamps every word to
+  the VAD speech region that contains its midpoint, caps tokens stamped across
+  seconds of audio to a believable duration, and snaps adjusted edges to nearby
+  low-energy valleys. This runs after transcript normalization and before
+  retakes, so every downstream decision sees usable word boundaries.
+- The refinement reports how many words were clamped, snapped, and how many
+  implausible timings remain.
+
+### Verified
+
+- Four reference cases: Kimi 0.8091, alertaClaude 0.8152, brave 0.7997,
+  gpt6.2astra 0.8393 audio F1 (mean 0.8158, up from 0.8054 in 2.58.7).
+- Max word duration on Kimi dropped from 18.2 s to 1.57 s.
+- Word cuts: Kimi 6, alerta 6, brave 5, gpt 32.
+- Gate: 1,673 Python tests, 87 Vitest, line coverage above 95%.
+- The 98% target still needs a trained audio event classifier and a learned
+  take scorer; timing is no longer the main blocker.
+
 ## [2.58.7] - 2026-11-05
 
 ### Added

@@ -6,6 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.alignment import refine_transcript
 from videoflow.application.retakes import (
     cull_intervals,
     inactive_spans_for_discards,
@@ -91,6 +92,27 @@ class RetakesStep(BaseStep):
                 "Transcript normalization skipped because manual sentence "
                 "overrides refer to the raw transcript."
             )
+
+        pcm_path = context.pcm_path
+        if pcm_path is None or not pcm_path.is_file():
+            candidate = context.work / "source.wav"
+            pcm_path = candidate if candidate.is_file() else None
+        refined, alignment = refine_transcript(
+            context.transcript,
+            context.speech_intervals,
+            pcm_path=pcm_path,
+            sample_rate=media.audio_sample_rate,
+        )
+        if refined:
+            context.transcript = refined
+            context.metadata["alignment"] = alignment
+            if alignment.get("implausible_before", 0):
+                context.warnings.append(
+                    "Refined "
+                    f"{alignment.get('vad_clamped', 0)} word timing(s); "
+                    f"implausible words {alignment['implausible_before']} -> "
+                    f"{alignment['implausible_after']}."
+                )
 
         if options.enabled:
             io.report(20, "Culling retakes")
