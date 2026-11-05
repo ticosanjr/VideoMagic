@@ -13,6 +13,7 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from videoflow.application.boundaries import enforce_word_integrity
 from videoflow.application.non_speech import detect_impulsive_noise, load_pcm_mono
 from videoflow.application.retakes import subtract_spans
 from videoflow.application.silence import cap_silence_spans, detect_silence_spans
@@ -71,6 +72,8 @@ class TimelineParams(BaseModel):
     silence_word_margin_ms: int = Field(default=20, ge=0, le=200)
     repair_word_tails: bool = False
     word_repair_max_ms: int = Field(default=800, ge=100, le=5000)
+    word_integrity_max_ms: int = Field(default=1500, ge=100, le=5000)
+    word_integrity_gap_ms: int = Field(default=500, ge=0, le=2000)
     min_clip_ms: int = Field(default=200, ge=1, le=5000)
     drop_isolated_words: bool = True
     detect_repeats: bool = True
@@ -419,6 +422,29 @@ class TimelineStep(BaseStep):
                 "seconds": round(seconds, 3),
                 "units": context.metadata.get("timeline_units", "vad"),
             }
+        removed_spans = [
+            *context.retake_overlap_cuts,
+            *repeat_cuts,
+            *((span.start_sample, span.end_sample) for span in noise_spans),
+        ]
+        speech, integrity_violations = enforce_word_integrity(
+            speech,
+            context.transcript,
+            set(context.discard_sentence_ids),
+            removed_spans=removed_spans,
+            sample_rate=media.audio_sample_rate,
+            max_word_ms=options.word_integrity_max_ms,
+            max_gap_ms=options.word_integrity_gap_ms,
+        )
+        context.metadata["word_integrity"] = {
+            "violations": len(integrity_violations),
+            "max_word_ms": options.word_integrity_max_ms,
+            "max_gap_ms": options.word_integrity_gap_ms,
+        }
+        if integrity_violations:
+            context.warnings.append(
+                f"{len(integrity_violations)} kept word(s) could not be kept whole."
+            )
         jl = JlCutsConfig(
             enable_j_cuts=options.enable_j_cuts,
             enable_l_cuts=options.enable_l_cuts,

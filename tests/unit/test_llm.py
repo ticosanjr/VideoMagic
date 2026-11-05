@@ -33,6 +33,7 @@ def test_successful_json_call_sends_auth_and_temperature() -> None:
     assert seen["auth"] == "Bearer secret"
     assert seen["body"]["temperature"] == 0
     assert seen["body"]["response_format"] == {"type": "json_object"}
+    assert seen["body"]["seed"] == 42
 
 
 def test_retry_without_response_format_on_400() -> None:

@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 
 from videoflow.adapters import LlmClient
+from videoflow.application.takes import select_duplicate_takes
 from videoflow.domain.retakes import (
     GuardResult,
     Strategy,
@@ -440,7 +441,7 @@ def cluster_similar_repetitions(
     sentences: Sequence[Sentence],
     *,
     strategy: Strategy = "keep_last",
-    max_gap_seconds: float = 90.0,
+    max_gap_seconds: float = 300.0,
     min_similarity: float = 0.62,
 ) -> tuple[RetakeGroup, ...]:
     """Group nearby near-duplicate sentences, including small word swaps."""
@@ -1036,6 +1037,32 @@ def cull_retakes(
                 ),
             )
         )
+    kept_sentences = [item for item in sentences if item.id not in discard]
+    take_groups = select_duplicate_takes(kept_sentences)
+    if take_groups:
+        existing_keepers = {identifier for group in groups for identifier in group.keep}
+        for group in take_groups:
+            remove = tuple(
+                identifier
+                for identifier in group.discard
+                if identifier not in existing_keepers
+                and identifier not in restored
+            )
+            if not remove:
+                continue
+            discard.update(remove)
+            groups.append(
+                RetakeGroup(
+                    keep=group.keep,
+                    discard=remove,
+                    reason=group.reason,
+                    keep_text=group.keep_text,
+                    discard_text=group.discard_text,
+                    start_sec=group.start_sec,
+                    end_sec=group.end_sec,
+                )
+            )
+        notes.append(f"grouped {len(take_groups)} duplicate take(s)")
     for index in sorted(loop_clusters):
         cluster = clusters[index]
         members = [order[identifier] for identifier in cluster.sentence_ids]

@@ -102,3 +102,34 @@ def test_load_pcm_mono_rejects_non_16bit(tmp_path: Path) -> None:
     path = tmp_path / "8bit.wav"
     _write_wav(path, np.arange(100), rate=8000, width=1)
     assert load_pcm_mono(path).size == 0
+
+
+def test_voiced_tone_burst_is_not_removed() -> None:
+    rate = 8000
+    signal = np.zeros(rate, dtype=np.float32)
+    time = np.arange(1600, dtype=np.float32) / rate
+    signal[3200:4800] = 0.3 * np.sin(2 * np.pi * 200 * time).astype(np.float32)
+    spans = detect_impulsive_noise(
+        signal,
+        [(0, 2400), (6400, 8800)],
+        sample_rate=rate,
+        frame_ms=20,
+        rms_threshold=0.02,
+    )
+    assert spans == []
+
+
+def test_unvoiced_low_frequency_burst_is_detected() -> None:
+    signal = _base()
+    rng = np.random.default_rng(7)
+    noise = rng.normal(size=200).astype(np.float32)
+    # Smooth the noise so it is low-frequency and not spectrally flat.
+    noise = np.convolve(noise, np.ones(12, dtype=np.float32) / 12, mode="same")
+    signal[400:600] = 0.6 * noise.astype(np.float32)
+    spans = detect_impulsive_noise(
+        signal,
+        [(0, 300), (800, 1100)],
+        sample_rate=1000,
+        rms_threshold=0.02,
+    )
+    assert spans

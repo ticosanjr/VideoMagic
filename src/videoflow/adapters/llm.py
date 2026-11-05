@@ -32,6 +32,7 @@ class OpenAICompatibleLlm:
         temperature: float = 0.0,
         max_tokens: int = 0,
         retries: int = 2,
+        seed: int | None = 42,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -41,6 +42,7 @@ class OpenAICompatibleLlm:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.retries = max(0, int(retries))
+        self.seed = seed
 
     def complete_json(self, prompt: str, schema_name: str) -> dict[str, Any]:
         ensure_within_budget()
@@ -56,9 +58,13 @@ class OpenAICompatibleLlm:
         }
         if self.max_tokens > 0:
             payload["max_tokens"] = self.max_tokens
+        if self.seed is not None:
+            payload["seed"] = self.seed
         response = self._post(payload)
-        if response.status_code == 400:
-            payload.pop("response_format", None)
+        for optional in ("response_format", "seed"):
+            if response.status_code != 400:
+                break
+            payload.pop(optional, None)
             response = self._post(payload)
         if response.status_code >= 400:
             raise LlmError(

@@ -54,6 +54,28 @@ def _flatness(frame: np.ndarray) -> float:
     return geometric / arithmetic if arithmetic > 0 else 0.0
 
 
+def _harmonicity(frame: np.ndarray, sample_rate: int) -> float:
+    """Peak normalized autocorrelation in the human pitch range.
+
+    A voiced syllable is periodic and scores high; a cough, throat clear, or
+    click is noisy and scores low even when its spectrum is not flat.
+    """
+
+    if frame.size < 64 or sample_rate <= 0:
+        return 0.0
+    centered = frame.astype(np.float32) - float(np.mean(frame))
+    energy = float(np.dot(centered, centered))
+    if energy <= 1e-9:
+        return 0.0
+    correlation = np.correlate(centered, centered, mode="full")[centered.size - 1 :]
+    correlation = correlation / correlation[0]
+    minimum_lag = max(1, int(sample_rate / 400))
+    maximum_lag = min(correlation.size - 1, int(sample_rate / 70))
+    if maximum_lag <= minimum_lag:
+        return 0.0
+    return float(np.max(correlation[minimum_lag:maximum_lag]))
+
+
 def detect_impulsive_noise(
     pcm: np.ndarray,
     word_spans: Sequence[tuple[int, int]],
@@ -66,6 +88,8 @@ def detect_impulsive_noise(
     rms_threshold: float = 0.02,
     zcr_threshold: float = 0.18,
     flatness_threshold: float = 0.35,
+    harmonicity_threshold: float = 0.45,
+    noise_zcr_threshold: float = 0.10,
 ) -> list[tuple[int, int]]:
     """Return source spans of isolated impulsive noise between words."""
 
@@ -104,10 +128,12 @@ def detect_impulsive_noise(
             )
             if not protected:
                 middle = frames[(index + end) // 2]
-                noisy = (
-                    _flatness(middle) >= flatness_threshold
-                    or float(np.max(zcr[index:end])) >= zcr_threshold
+                flat = _flatness(middle) >= flatness_threshold
+                unvoiced = (
+                    _harmonicity(middle, sample_rate) < harmonicity_threshold
+                    and float(np.max(zcr[index:end])) >= noise_zcr_threshold
                 )
+                noisy = flat or float(np.max(zcr[index:end])) >= zcr_threshold or unvoiced
                 if noisy:
                     spans.append((start_sample, end_sample))
         index = end

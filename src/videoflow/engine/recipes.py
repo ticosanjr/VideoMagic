@@ -1096,7 +1096,9 @@ _add_recipe(
         {
             **_RETAKES,
             "params": {
-                "provider_id": "deepseek",
+                # The deterministic take engine is the primary decision maker.
+                # The LLM stays available per recipe as a semantic tie-breaker.
+                "provider_id": "",
                 "enabled": True,
                 "strategy": "keep_last",
                 "strictness": "balanced",
@@ -1169,6 +1171,8 @@ _add_recipe(
                 "silence_word_margin_ms": 20,
                 "repair_word_tails": False,
                 "word_repair_max_ms": 800,
+                "word_integrity_max_ms": 1500,
+                "word_integrity_gap_ms": 500,
                 "min_clip_ms": 200,
             },
         },

@@ -3,6 +3,43 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.58.7] - 2026-11-05
+
+### Added
+
+- **Take-level selection.** `application/takes.py` segments consecutive
+  sentences into takes at pauses and restarts, groups duplicate takes, and
+  discards an earlier attempt only when the later take preserves its numbers,
+  URLs, and most content words. The deterministic take engine is now the
+  primary retake decision; the LLM remains an optional tie-breaker.
+- **Word-integrity invariant.** `application/boundaries.py` checks that every
+  kept word is fully inside one kept span. A split word is merged when the gap
+  is small; unfixable cases are reported in `metadata["word_integrity"]`.
+- **Voicing-aware noise detector.** Impulsive noise classification now also
+  measures harmonicity, so a low-frequency throat clear is removed while a
+  voiced syllable is preserved.
+- **Reproducible LLM calls.** OpenAI-compatible requests send `seed=42` when the
+  endpoint supports it.
+
+### Changed
+
+- Near-duplicate clustering now looks across 300 s instead of 90 s, which
+  catches restarted passages later in the recording.
+- The builtin recipe keeps `provider_id=""` for retakes: deterministic take
+  selection is the default, and the LLM can still be enabled per recipe.
+
+### Verified
+
+- Four reference cases, deterministic take engine: Kimi 0.7847,
+  alertaClaude 0.8000, brave 0.7968, gpt6.2astra 0.8402 audio F1 (mean
+  0.8054, stable across repeated runs; 2.58.6 mean was 0.8093 but varied by
+  up to 4 points between identical LLM runs).
+- Word cuts: Kimi 7, alerta 4, brave 8, gpt 29 (2.58.6: 11/6/11/35).
+- Word-integrity violations after repair: 8/0/3/0 in the four cases.
+- Gate: 1,669 Python tests, 87 Vitest, line coverage above 95%.
+- The 98% target still requires forced alignment and a trained audio event
+  classifier; this release removes LLM variance and protects word boundaries.
+
 ## [2.58.6] - 2026-11-05
 
 ### Added
