@@ -98,6 +98,11 @@ class BaseStep(ABC):
     def validate_params(self, payload: dict[str, Any] | None) -> BaseModel:
         return self.params_model.model_validate(payload or {})
 
+    def is_cacheable(self, params: BaseModel) -> bool:
+        """Whether this step may reuse a checkpoint with these params."""
+
+        return True
+
     def cache_outputs(self, context: Any) -> tuple[Any, ...]:
         """Files that must still exist before a checkpoint can be reused."""
 

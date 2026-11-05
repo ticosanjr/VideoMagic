@@ -109,7 +109,7 @@ def test_portable_pipeline_writes_state_report_and_artifacts(tmp_path: Path) -> 
     assert report["ok"] is True
     assert report["pcm_sha256"] == "digest"
     assert report["video_segment_count"] == 2
-    assert report["artifacts"]["resolve"].endswith("timeline.fcpxml")
+    assert report["artifacts"]["resolve"].endswith(".fcpxml")
     assert report["vad_engine"] == "ffmpeg"
 
 

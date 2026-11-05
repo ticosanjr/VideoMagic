@@ -263,7 +263,18 @@ const FIELD_META: Record<string, Record<string, FieldMeta>> = {
   "export.nle": {
     targets: { group: "Export", label: "Outputs" },
     dialect: { group: "Export", label: "FCPXML dialect" },
-    subdir: { group: "Export", label: "Subdirectory" }
+    subdir: { group: "Export", label: "Subdirectory" },
+    filename_mode: {
+      group: "Export",
+      label: "Naming",
+      control: "select",
+      options: ["source_timestamp", "fixed"]
+    },
+    basename: {
+      group: "Export",
+      label: "Fixed base name",
+      placeholder: "timeline"
+    }
   },
   "export.video": {
     preset: {
@@ -273,7 +284,13 @@ const FIELD_META: Record<string, Record<string, FieldMeta>> = {
       options: ["ultrafast", "fast", "balanced", "quality"]
     },
     subdir: { group: "Video", label: "Subdirectory" },
-    filename: { group: "Video", label: "Filename", placeholder: "video.mp4" }
+    filename_mode: {
+      group: "Video",
+      label: "Naming",
+      control: "select",
+      options: ["source_timestamp", "fixed"]
+    },
+    filename: { group: "Video", label: "Fixed filename", placeholder: "video.mp4" }
   },
   "timeline.load": {
     path: { group: "Source", label: "Timeline file" },

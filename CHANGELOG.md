@@ -3,6 +3,33 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.58.4] - 2026-11-05
+
+### Added
+
+- **Timestamped export names.** `export.nle` and `export.video` now default to
+  `filename_mode="source_timestamp"`, producing
+  `<source>_VideoFlow_Edited_<yymmddhhmmss>.<ext>`. Collisions add `_1`, `_2`
+  before the extension. Fixed names remain available with
+  `filename_mode="fixed"` plus `basename`/`filename`.
+- UI fields `Naming`, `Fixed base name`, and `Fixed filename` for both export
+  nodes.
+
+### Changed
+
+- Timestamped exports bypass checkpoint reuse so each run writes a new file;
+  fixed-name exports remain cacheable.
+- NLE validation and `/api/v1/exports/validate` discover timestamped exports in
+  addition to the legacy `timeline.*` names.
+- The exported NLE files share one timestamped basename across
+  `.fcpxml`, `.xml`, and `.kdenlive`.
+
+### Verified
+
+- Gate: 1,624 Python tests, 87 Vitest, 95.03% line coverage.
+- Four reference outputs kept for review with the new naming convention:
+  Kimi, alertaClaude, brave, and gpt6.2astra.
+
 ## [2.58.3] - 2026-11-05
 
 ### Added

@@ -10,6 +10,11 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application.export_names import (
+    fixed_basename,
+    timestamped_basename,
+    unique_basename,
+)
 from videoflow.application.export_service import export_timeline
 from videoflow.application.nle_extras import nle_extras_from_output
 from videoflow.core.context import PipelineContext
@@ -28,6 +33,8 @@ class ExportParams(BaseModel):
     )
     dialect: Dialect = "1.9"
     subdir: str = "exports"
+    filename_mode: Literal["source_timestamp", "fixed"] = "source_timestamp"
+    basename: str = Field(default="timeline", min_length=1, max_length=120)
 
     @field_validator("targets", mode="before")
     @classmethod
@@ -53,6 +60,16 @@ class ExportStep(BaseStep):
             raise StateNotReadyError("The export step requires a built timeline")
         destination = context.output / options.subdir
         destination.mkdir(parents=True, exist_ok=True)
+        if options.filename_mode == "source_timestamp":
+            basename = unique_basename(
+                destination,
+                timestamped_basename(context.source),
+                (".fcpxml", ".xml", ".kdenlive", ".mp4"),
+            )
+        else:
+            basename = fixed_basename(options.basename)
+        context.metadata["export_basename"] = basename
+        context.metadata["export_filename_mode"] = options.filename_mode
         io.report(20, "Writing NLE timelines")
         completed = 0
         target_count = max(1, len(options.targets))
@@ -78,6 +95,7 @@ class ExportStep(BaseStep):
             destination,
             targets=options.targets,
             dialect=options.dialect,
+            basename=basename,
             extras=nle_extras_from_output(context.output),
             progress=on_progress,
             should_cancel=io.check_cancel,
@@ -142,6 +160,9 @@ class ExportStep(BaseStep):
             {name: str(path) for name, path in artifacts.items()}
         )
         io.report(100, f"{len(artifacts)} NLE artifacts written")
+
+    def is_cacheable(self, params: BaseModel) -> bool:
+        return getattr(params, "filename_mode", "source_timestamp") != "source_timestamp"
 
     def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
         return tuple(Path(path) for path in context.artifacts.values())

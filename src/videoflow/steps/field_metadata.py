@@ -370,6 +370,18 @@ _STEP_DESCRIPTIONS: dict[str, dict[str, str]] = {
     },
     "export.nle": {
         "targets": "NLE formats to write.",
+        "filename_mode": (
+            "source_timestamp names each export after the source video plus "
+            "VideoFlow_Edited_<yymmddhhmmss>; fixed uses the base name."
+        ),
+        "basename": "Base name used when filename_mode is fixed.",
+    },
+    "export.video": {
+        "filename_mode": (
+            "source_timestamp names each render after the source video plus "
+            "VideoFlow_Edited_<yymmddhhmmss>; fixed uses the filename."
+        ),
+        "filename": "Filename used when filename_mode is fixed.",
     },
     "flow.conditional": {
         "source": "Input source for the conditional branch.",

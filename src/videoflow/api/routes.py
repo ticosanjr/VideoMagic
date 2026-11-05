@@ -1627,11 +1627,12 @@ def register_routes(
     def validate_exports(request: ExportValidationRequest) -> dict[str, object]:
         try:
             resolved = resolve_allowed(Path(request.output), allowed_roots())
-            directory = (
-                resolved
-                if (resolved / "timeline.fcpxml").is_file()
-                else resolved / "exports"
-            )
+            if (resolved / "timeline.fcpxml").is_file() or any(
+                resolved.glob("*.fcpxml")
+            ):
+                directory = resolved
+            else:
+                directory = resolved / "exports"
             if not directory.is_dir():
                 raise PathNotFoundError(
                     f"Export directory does not exist: {directory}"

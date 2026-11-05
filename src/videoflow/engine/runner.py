@@ -472,7 +472,7 @@ class RecipeRunner:
                 persist_project_state(context)
                 continue
 
-            if resume:
+            if resume and step.is_cacheable(params):
                 cached = self._load_checkpoint(
                     context, step, manifest_path, snapshot_path, fingerprint
                 )

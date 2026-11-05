@@ -133,7 +133,7 @@ def base_steps(transcript: Path, *, shorts: bool = False) -> dict:
             "id": "export",
             "type": "export.nle",
             "needs": ["timeline"],
-            "params": {"targets": ["resolve"]},
+            "params": {"targets": ["resolve"], "filename_mode": "fixed"},
         },
     ]
     if shorts:

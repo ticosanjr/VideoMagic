@@ -8,6 +8,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application.export_names import timestamped_basename, unique_path
 from videoflow.application.render_inputs import read_filters
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import ExportError
@@ -31,6 +32,7 @@ class VideoExportParams(BaseModel):
 
     preset: VideoPreset = "ultrafast"
     subdir: str = Field(default="exports", max_length=120)
+    filename_mode: Literal["source_timestamp", "fixed"] = "source_timestamp"
     filename: str = Field(default="video.mp4", min_length=1, max_length=200)
 
 
@@ -47,11 +49,19 @@ class VideoExportStep(BaseStep):
         options = VideoExportParams.model_validate(params)
         if context.state is None:
             raise ExportError("The video export requires a timeline")
-        name = Path(options.filename).name
-        if not name or name in {".", ".."}:
-            raise ExportError("Video filename is invalid")
-        destination = context.output / options.subdir / name
-        destination.parent.mkdir(parents=True, exist_ok=True)
+        directory = context.output / options.subdir
+        directory.mkdir(parents=True, exist_ok=True)
+        if options.filename_mode == "source_timestamp":
+            destination = unique_path(
+                directory, f"{timestamped_basename(context.source)}.mp4"
+            )
+        else:
+            name = Path(options.filename).name
+            if not name or name in {".", ".."}:
+                raise ExportError("Video filename is invalid")
+            destination = directory / name
+        context.metadata["video_export_name"] = destination.name
+        context.metadata["video_filename_mode"] = options.filename_mode
         preset, crf = _PROFILES[options.preset]
         io.report(10, f"Rendering video with the {options.preset} preset")
         adapter = (
@@ -88,6 +98,9 @@ class VideoExportStep(BaseStep):
             }
         )
         io.report(100, f"Video ready: {destination.name}")
+
+    def is_cacheable(self, params: BaseModel) -> bool:
+        return getattr(params, "filename_mode", "source_timestamp") != "source_timestamp"
 
     def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
         path = context.artifacts.get("video")

@@ -65,6 +65,20 @@ KDENLIVE = """<?xml version="1.0"?>
 """
 
 
+def test_timestamped_exports_validate(tmp_path: Path) -> None:
+    base = "Kimi_VideoFlow_Edited_261105143012"
+    write(tmp_path, f"{base}.fcpxml", FCPXML)
+    write(tmp_path, f"{base}.xml", XMEML)
+    write(tmp_path, f"{base}.kdenlive", KDENLIVE)
+
+    report = validate_nle_exports(tmp_path)
+
+    assert report["ok"] is True
+    assert report["exports"]["fcpxml"]["path"].endswith(f"{base}.fcpxml")
+    assert report["exports"]["xmeml"]["path"].endswith(f"{base}.xml")
+    assert report["exports"]["kdenlive"]["path"].endswith(f"{base}.kdenlive")
+
+
 def test_all_exports_validate(tmp_path: Path) -> None:
     write(tmp_path, "timeline.fcpxml", FCPXML)
     write(tmp_path, "timeline.xml", XMEML)

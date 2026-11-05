@@ -8,16 +8,38 @@ from pathlib import Path
 from typing import Any
 
 
+def _resolve_export_path(
+    directory: Path,
+    extension: str,
+    fixed_name: str,
+) -> Path:
+    """Prefer the fixed legacy name, then the newest timestamped export."""
+
+    fixed = directory / fixed_name
+    if fixed.is_file():
+        return fixed
+    candidates = [
+        path
+        for path in directory.glob(f"*{extension}")
+        if "_VideoFlow_Edited_" in path.name
+    ]
+    if not candidates:
+        candidates = list(directory.glob(f"*{extension}"))
+    if not candidates:
+        return fixed
+    return max(candidates, key=lambda path: (path.stat().st_mtime, path.name))
+
+
 def validate_nle_exports(directory: Path) -> dict[str, Any]:
     directory = Path(directory).expanduser()
     checks: dict[str, dict[str, Any]] = {}
-    for name, validator in (
-        ("fcpxml", _validate_fcpxml),
-        ("xmeml", _validate_xmeml),
-        ("kdenlive", _validate_kdenlive),
+    for name, extension, validator in (
+        ("fcpxml", ".fcpxml", _validate_fcpxml),
+        ("xmeml", ".xml", _validate_xmeml),
+        ("kdenlive", ".kdenlive", _validate_kdenlive),
     ):
-        filename = "timeline.xml" if name == "xmeml" else f"timeline.{name}"
-        path = directory / filename
+        fixed_name = "timeline.xml" if name == "xmeml" else f"timeline.{name}"
+        path = _resolve_export_path(directory, extension, fixed_name)
         checks[name] = validator(path)
     ok = all(item["ok"] for item in checks.values())
     return {"ok": ok, "directory": str(directory), "exports": checks}

@@ -53,7 +53,10 @@ _EXPORT = {
     "id": "export",
     "type": "export.nle",
     "needs": ["timeline"],
-    "params": {"targets": ["resolve", "premiere", "kdenlive"]},
+    "params": {
+        "targets": ["resolve", "premiere", "kdenlive"],
+        "filename_mode": "source_timestamp",
+    },
 }
 _EXPORT_WITH_SHORTS = {
     **_EXPORT,
@@ -962,7 +965,10 @@ def _recut_steps(*, with_retakes: bool) -> list[dict[str, object]]:
             "type": "export.nle",
             "needs": ["timeline"],
             "inputs": {"timeline": "timeline.timeline"},
-            "params": {"targets": ["resolve", "premiere", "kdenlive"]},
+            "params": {
+        "targets": ["resolve", "premiere", "kdenlive"],
+        "filename_mode": "source_timestamp",
+    },
         }
     )
     return steps
@@ -1197,6 +1203,7 @@ _add_recipe(
             "params": {
                 "preset": "ultrafast",
                 "subdir": "exports",
+                "filename_mode": "source_timestamp",
                 "filename": "video.mp4",
             },
         },

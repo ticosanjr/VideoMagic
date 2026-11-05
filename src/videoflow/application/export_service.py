@@ -25,6 +25,13 @@ FILENAMES: dict[str, str] = {
     "mp4": "timeline.mp4",
 }
 
+SUFFIXES: dict[str, str] = {
+    "resolve": ".fcpxml",
+    "premiere": ".xml",
+    "kdenlive": ".kdenlive",
+    "mp4": ".mp4",
+}
+
 
 def export_timeline(
     state: ProjectState,
@@ -32,6 +39,7 @@ def export_timeline(
     *,
     targets: Sequence[str] = DEFAULT_TARGETS,
     dialect: Dialect = "1.9",
+    basename: str | None = None,
     extras: NleExtras = EMPTY,
     progress: Callable[[str, int], None] | None = None,
     should_cancel: Callable[[], object] | None = None,
@@ -60,7 +68,11 @@ def export_timeline(
             if progress is not None:
                 progress(target, 100)
             continue
-        destination = directory / FILENAMES[target]
+        destination = (
+            directory / f"{basename}{SUFFIXES[target]}"
+            if basename is not None and target in SUFFIXES
+            else directory / FILENAMES[target]
+        )
         if target == "resolve":
             artifacts[target] = export_fcpxml(
                 state, destination, dialect=dialect, extras=extras
