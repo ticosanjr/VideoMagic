@@ -13,7 +13,6 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from videoflow.application.repeats import detect_repeated_cuts
 from videoflow.application.retakes import subtract_spans
 from videoflow.application.silence import cap_silence_spans, detect_silence_spans
 from videoflow.application.timeline_builder import (
@@ -23,6 +22,7 @@ from videoflow.application.timeline_builder import (
     transcript_spans,
 )
 from videoflow.application.vad import pad_spans
+from videoflow.application.word_cuts import plan_word_cuts
 from videoflow.core.context import PipelineContext
 from videoflow.domain.config import JlCutsConfig, ZoomsConfig
 from videoflow.domain.state import InactiveSpan, ProjectState, SampleSpan
@@ -69,6 +69,7 @@ class TimelineParams(BaseModel):
     repeat_max_gap_seconds: float = Field(default=180.0, ge=1.0, le=3600.0)
     repeat_pad_ms: int = Field(default=40, ge=0, le=500)
     repeat_max_cuts: int = Field(default=40, ge=1, le=200)
+    word_cut_max_ratio: float = Field(default=0.2, ge=0.0, le=0.5)
     use_transcript_spans: bool = True
     noise_filter: Literal["off", "non_speech", "non_speech_and_nonlexical"] = (
         "non_speech"
@@ -172,23 +173,25 @@ class TimelineStep(BaseStep):
         )
         kept_gaps: list[tuple[int, int]] = []
         repeat_cuts: list[tuple[int, int]] = []
-        repeat_report: list[dict[str, object]] = []
         if options.detect_repeats and context.transcript:
-            repeat_cuts, repeat_report = detect_repeated_cuts(
+            plan = plan_word_cuts(
                 context.transcript,
                 set(context.discard_sentence_ids),
                 sample_rate=media.audio_sample_rate,
-                min_words=options.repeat_min_words,
                 max_gap_seconds=options.repeat_max_gap_seconds,
-                pad_ms=options.repeat_pad_ms,
+                min_words=max(4, options.repeat_min_words),
+                max_cut_ratio=options.word_cut_max_ratio,
                 max_cuts=options.repeat_max_cuts,
             )
+            repeat_cuts = plan.cuts
             if repeat_cuts:
+                ratio = plan.cut_words / max(1, plan.total_words)
                 context.warnings.append(
-                    f"Removed {len(repeat_cuts)} repeated passage(s) "
-                    "from earlier occurrences."
+                    f"Removed {len(repeat_cuts)} word-level repeat(s) "
+                    f"({plan.cut_words} words, {ratio:.1%})."
                 )
-                context.metadata["repeat_cuts"] = repeat_report
+                context.metadata["word_cuts"] = plan.to_dict()
+                context.metadata["repeat_cuts"] = plan.report
         if use_transcript:
             with _pcm_rms(_pcm_path(context)) as rms_at:
                 speech, noise_spans = transcript_spans(

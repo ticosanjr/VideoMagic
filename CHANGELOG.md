@@ -3,6 +3,45 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.58.3] - 2026-11-05
+
+### Added
+
+- **Word-level repeat cuts.** Stutters (1–3 words), prefix/tail retakes,
+  fuzzy restatements, and local 5–8 word n-grams now cut only the duplicated
+  words and keep the last complete occurrence. Unique words, numbers, and URLs
+  are protected; the pass is capped at 20% of the kept words.
+- **Offline calibration tools.** `scripts/build_reference_edl.py` builds an
+  audio-aligned reference EDL from a raw/edited pair, and
+  `scripts/cut_eval.py` measures final-audio similarity, cut/word agreement,
+  word-tail safety, silence, loudness, spectral balance, clicks, and sponsor
+  recall. Both are offline only.
+- **`cut_eval --reference-video`** for audio-only comparison when no EDL is
+  available.
+
+### Changed
+
+- **Default ASR is faster-whisper large-v3.** The recipe uses
+  `faster-whisper-large-v3` when installed, with the small model as fallback.
+  Weights live in `~/.videoflow/models` and survive release upgrades even when
+  a portable home is configured.
+- **Large-v3 catalog fixed.** Downloads use `vocabulary.json` and
+  `preprocessor_config.json` (128 mel bins); the old `vocabulary.txt` URL does
+  not exist for this model.
+- **Timeline pads are 60/120 ms** and the local repeat window is 120 s. The
+  word-tail median rose from 46.7 ms to ~123–127 ms.
+- The doctor now creates the portable home before checking disk usage.
+
+### Verified
+
+- Reference pairs: Kimi, alertaClaude, brave, gpt6.2astra.
+- large-v3 vs small: alerta 0.7945 vs 0.8059; brave **0.7868 vs 0.6959**;
+  gpt **0.8559 vs 0.5543**. Kimi small improved from 0.7749 to 0.7816 with the
+  word-level pass.
+- Word-tail cuts (<60 ms) fell from 177 on the old Kimi small run to 3–35 on
+  the new videos.
+- Gate: 1.632 Python tests, 87 Vitest, 95.02% line coverage.
+
 ## [2.58.2] - 2026-11-04
 
 ### Added
