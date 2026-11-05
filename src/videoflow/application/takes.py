@@ -293,6 +293,61 @@ def _covers(keeper: Take, candidate: Take, *, min_coverage: float = 0.6) -> bool
     return coverage >= min_coverage
 
 
+def semantic_duplicate_sentences(
+    sentences: Sequence[Sentence],
+    discard_ids: set[int],
+    *,
+    max_gap_seconds: float = 300.0,
+    threshold: float = 0.8,
+    min_coverage: float = 0.6,
+) -> set[int]:
+    """Discard earlier sentences that a later sentence restates semantically."""
+
+    from videoflow.application import semantic
+
+    if not semantic.available():
+        return set()
+    kept = [
+        sentence
+        for sentence in sentences
+        if sentence.id not in discard_ids
+        and _complete(sentence)
+        and len(sentence.text.split()) >= 4
+    ]
+    if len(kept) < 2:
+        return set()
+    vectors = semantic.encode([sentence.text for sentence in kept])
+    if vectors is None:
+        return set()
+    index = {sentence.id: position for position, sentence in enumerate(kept)}
+    ordered = sorted(kept, key=lambda item: (item.start_sample, item.id))
+    extra: set[int] = set()
+    for position, earlier in enumerate(ordered):
+        if earlier.id in extra:
+            continue
+        earlier_tokens = _content_tokens(earlier.text)
+        if not earlier_tokens:
+            continue
+        for later in ordered[position + 1 :]:
+            if later.start_sample - earlier.start_sample > max_gap_seconds * 48_000:
+                break
+            if later.id in extra:
+                continue
+            if _facts(earlier.text) - _facts(later.text):
+                continue
+            if semantic.cosine(
+                vectors[index[earlier.id]], vectors[index[later.id]]
+            ) < threshold:
+                continue
+            coverage = len(earlier_tokens & _content_tokens(later.text)) / len(
+                earlier_tokens
+            )
+            if coverage >= min_coverage:
+                extra.add(earlier.id)
+                break
+    return extra
+
+
 def select_duplicate_takes(
     sentences: Sequence[Sentence],
     *,

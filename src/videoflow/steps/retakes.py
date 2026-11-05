@@ -37,6 +37,7 @@ class RetakesParams(BaseModel):
     single_pass: bool = True
     max_group_span_seconds: float = Field(default=180.0, ge=15.0, le=600.0)
     max_discard_ratio: float = Field(default=0.45, ge=0.05, le=0.9)
+    semantic_duplicates: bool = False
     manual_overrides: list[dict[str, Any]] = Field(default_factory=list)
 
 
@@ -125,6 +126,7 @@ class RetakesStep(BaseStep):
                 single_pass=options.single_pass,
                 max_group_span_seconds=options.max_group_span_seconds,
                 max_discard_ratio=options.max_discard_ratio,
+                semantic_duplicates=options.semantic_duplicates,
             )
             discard = list(result.discard_sentence_ids)
             restored = list(result.restored_sentence_ids)

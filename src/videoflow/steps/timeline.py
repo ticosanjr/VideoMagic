@@ -92,6 +92,8 @@ class TimelineParams(BaseModel):
     impulsive_noise_max_ms: int = Field(default=600, ge=40, le=5000)
     impulsive_noise_margin_ms: int = Field(default=80, ge=0, le=500)
     use_audio_event_model: bool = False
+    use_ast_audio_tagger: bool = True
+    ast_noise_threshold: float = Field(default=0.1, ge=0.0, le=1.0)
     use_transcript_spans: bool = True
     noise_filter: Literal["off", "non_speech", "non_speech_and_nonlexical"] = (
         "non_speech"
@@ -303,6 +305,8 @@ class TimelineStep(BaseStep):
                         min_ms=options.impulsive_noise_min_ms,
                         max_ms=options.impulsive_noise_max_ms,
                         margin_ms=options.impulsive_noise_margin_ms,
+                        use_ast=options.use_ast_audio_tagger,
+                        ast_threshold=options.ast_noise_threshold,
                     )
                     if impulsive:
                         speech = subtract_spans(speech, impulsive)

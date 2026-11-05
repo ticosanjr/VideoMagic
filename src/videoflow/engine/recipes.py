@@ -1106,6 +1106,7 @@ _add_recipe(
                 "context_window": 25,
                 "max_group_span_seconds": 180,
                 "max_discard_ratio": 0.45,
+                "semantic_duplicates": False,
             },
         },
         {
@@ -1166,6 +1167,8 @@ _add_recipe(
                 "impulsive_noise_max_ms": 600,
                 "impulsive_noise_margin_ms": 80,
                 "use_audio_event_model": False,
+                "use_ast_audio_tagger": False,
+                "ast_noise_threshold": 0.1,
                 "max_silence_ms": 500,
                 "keep_silence_ms": 300,
                 "silence_threshold_db": -35.0,

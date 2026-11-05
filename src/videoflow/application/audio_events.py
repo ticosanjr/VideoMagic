@@ -71,6 +71,115 @@ def _mfcc(frames: np.ndarray, sample_rate: int) -> np.ndarray:
     return np.concatenate([coefficients.mean(axis=0), coefficients.std(axis=0)])
 
 
+NOISE_LABELS = {
+    "Cough",
+    "Throat clearing",
+    "Sneeze",
+    "Snort",
+    "Gasp",
+    "Wheeze",
+    "Breathing",
+    "Sniff",
+    "Grunt",
+    "Sigh",
+}
+
+_AST: tuple[object, object, list[int]] | None = None
+_AST_PATH: Path | None = None
+
+
+def ast_model_path() -> Path | None:
+    raw = os.environ.get("VIDEOFLOW_AUDIO_TAGGER", "").strip()
+    if raw:
+        path = Path(raw).expanduser()
+        return path if (path / "config.json").is_file() else None
+    default = Path.home() / ".videoflow" / "models" / "audio-tagging" / "ast-audioset"
+    return default if (default / "config.json").is_file() else None
+
+
+def _load_ast() -> tuple[object, object, list[int]] | None:
+    global _AST, _AST_PATH
+    path = ast_model_path()
+    if path is None:
+        return None
+    if _AST is not None and path == _AST_PATH:
+        return _AST
+    try:
+        from transformers import ASTFeatureExtractor, ASTForAudioClassification
+
+        extractor = ASTFeatureExtractor.from_pretrained(str(path))
+        model = ASTForAudioClassification.from_pretrained(str(path))
+        model.eval()
+        labels = [
+            str(model.config.id2label[index])
+            for index in range(len(model.config.id2label))
+        ]
+        noise = [index for index, label in enumerate(labels) if label in NOISE_LABELS]
+        if not noise:
+            return None
+        _AST = (extractor, model, noise)
+        _AST_PATH = path
+        return _AST
+    except Exception:
+        _AST = None
+        _AST_PATH = None
+        return None
+
+
+def _resample(clip: np.ndarray, source: int, target: int = 16_000) -> np.ndarray:
+    if source == target or clip.size == 0:
+        return clip.astype(np.float32)
+    length = max(1, round(clip.size * target / source))
+    positions = np.linspace(0, clip.size - 1, length)
+    return np.interp(positions, np.arange(clip.size), clip).astype(np.float32)
+
+
+def score_ast_candidates(
+    pcm: np.ndarray,
+    candidates: Sequence[tuple[int, int]],
+    *,
+    sample_rate: int = 48_000,
+    threshold: float = 0.1,
+    window_seconds: float = 1.0,
+    batch_size: int = 8,
+) -> list[tuple[int, int]]:
+    """Keep candidates that AST tags as cough, throat clear, or similar."""
+
+    loaded = _load_ast()
+    if loaded is None or not candidates:
+        return []
+    import torch
+
+    extractor, model, noise = loaded
+    window = int(16_000 * window_seconds)
+    signal = np.asarray(pcm, dtype=np.float32)
+    kept: list[tuple[int, int]] = []
+    for offset in range(0, len(candidates), batch_size):
+        batch_candidates = candidates[offset : offset + batch_size]
+        clips: list[np.ndarray] = []
+        for start, end in batch_candidates:
+            center = (start + end) // 2
+            half = window // 2
+            left = max(0, center - half)
+            right = min(signal.size, center + half)
+            clip = _resample(signal[left:right], sample_rate)
+            clip = (
+                np.pad(clip, (0, window - clip.size))
+                if clip.size < window
+                else clip[:window]
+            )
+            clips.append(clip)
+        inputs = extractor(clips, sampling_rate=16_000, return_tensors="pt")
+        with torch.no_grad():
+            logits = model(**inputs).logits
+        probabilities = torch.sigmoid(logits).numpy()
+        scores = probabilities[:, noise].max(axis=1)
+        for candidate, score in zip(batch_candidates, scores, strict=False):
+            if float(score) >= threshold:
+                kept.append(candidate)
+    return kept
+
+
 FEATURE_NAMES = (
     "duration_ms",
     "rms_mean",
@@ -323,11 +432,23 @@ def detect_audio_events(
     max_ms: int = 600,
     margin_ms: int = 80,
     rms_threshold: float = 0.02,
+    use_ast: bool = False,
+    ast_threshold: float = 0.1,
 ) -> list[tuple[int, int]]:
-    """Detect non-speech events with the trained model or the heuristic."""
+    """Detect non-speech events with AST, the trained model, or the heuristic."""
 
-    if model is None:
-        return detect_impulsive_noise(
+    heuristic = detect_impulsive_noise(
+        pcm,
+        word_spans,
+        sample_rate=sample_rate,
+        frame_ms=frame_ms,
+        min_ms=min_ms,
+        max_ms=max_ms,
+        margin_ms=margin_ms,
+        rms_threshold=rms_threshold,
+    )
+    if use_ast:
+        candidates = candidate_bursts(
             pcm,
             word_spans,
             sample_rate=sample_rate,
@@ -337,6 +458,16 @@ def detect_audio_events(
             margin_ms=margin_ms,
             rms_threshold=rms_threshold,
         )
+        ast = score_ast_candidates(
+            pcm,
+            candidates,
+            sample_rate=sample_rate,
+            threshold=ast_threshold,
+        )
+        if ast:
+            heuristic = sorted({*heuristic, *ast})
+    if model is None:
+        return heuristic
     candidates = candidate_bursts(
         pcm,
         word_spans,
@@ -347,4 +478,5 @@ def detect_audio_events(
         margin_ms=margin_ms,
         rms_threshold=rms_threshold,
     )
-    return score_candidates(pcm, candidates, model, sample_rate=sample_rate)
+    scored = score_candidates(pcm, candidates, model, sample_rate=sample_rate)
+    return sorted({*heuristic, *scored})

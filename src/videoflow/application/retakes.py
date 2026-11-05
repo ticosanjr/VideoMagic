@@ -20,7 +20,10 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 
 from videoflow.adapters import LlmClient
-from videoflow.application.takes import select_duplicate_takes
+from videoflow.application.takes import (
+    select_duplicate_takes,
+    semantic_duplicate_sentences,
+)
 from videoflow.domain.retakes import (
     GuardResult,
     Strategy,
@@ -845,6 +848,7 @@ def cull_retakes(
     single_pass: bool = True,
     max_group_span_seconds: float = 180.0,
     max_discard_ratio: float = 0.45,
+    semantic_duplicates: bool = False,
 ) -> RetakeResult:
     if not sentences:
         return RetakeResult((), (), "", 0, ())
@@ -1037,6 +1041,14 @@ def cull_retakes(
                 ),
             )
         )
+    if semantic_duplicates:
+        semantic_ids = semantic_duplicate_sentences(sentences, discard)
+        if semantic_ids:
+            discard.update(semantic_ids)
+            restored -= semantic_ids
+            notes.append(
+                f"removed {len(semantic_ids)} semantic duplicate sentence(s)"
+            )
     kept_sentences = [item for item in sentences if item.id not in discard]
     take_groups = select_duplicate_takes(kept_sentences)
     if take_groups:
