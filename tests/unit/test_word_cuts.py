@@ -206,3 +206,18 @@ def test_max_cuts_limits_selected_ranges() -> None:
         max_cuts=1,
     )
     assert len(plan.report) == 1
+
+
+def test_stutter_with_a_longer_same_sentence_gap() -> None:
+    sentence = _sentence(0, ["fazia", "fazia", "coisa"], step=1.0)
+    plan = _plan([sentence])
+    assert plan.cut_words == 1
+    assert plan.report[0]["reason"] == "stutter"
+
+
+def test_phrase_stutter_cuts_the_earlier_attempt() -> None:
+    sentence = _sentence(0, ["eu", "acho", "eu", "acho", "que"])
+    plan = _plan([sentence])
+    assert plan.cut_words == 2
+    assert plan.report[0]["reason"] == "stutter"
+    assert plan.report[0]["text"] == "eu acho"

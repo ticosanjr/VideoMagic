@@ -3,6 +3,44 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.58.5] - 2026-11-05
+
+### Added
+
+- **Head/tail energy guard.** Kept spans now extend to the nearest low-energy
+  valley (80 ms head, 160 ms tail, speech-like threshold) instead of stopping
+  at the ASR word timestamp. This protects word onsets and tails without
+  adding a blanket pad to every clip.
+- **Impulsive non-speech detector.** Short high-energy broadband bursts
+  outside every kept word (coughs, throat clears, clicks) are removed; bursts
+  that overlap a word with an 80 ms margin are preserved.
+- **Unique-content retake guard.** A discarded sentence is restored when it is
+  not a near-duplicate of the keeper and contains content words that appear
+  nowhere in the kept transcript.
+- **Longer/phrase stutters.** Repeated words with up to 900 ms inside the same
+  sentence and 2–3 word phrase stutters are cut; stutters are exempt from the
+  20% word-cut budget.
+- **Optional untranscribed recall.** `keep_untranscribed` can add long
+  speech-like VAD regions missing from the transcript; it is off by default
+  because it can also keep non-speech.
+
+### Changed
+
+- Hard-cut audio fades/crossfades are 10 ms and the timeline keeps the 60/120
+  ms pads plus the new energy guard.
+- The saved cut recipe keeps `keep_untranscribed=false` for precision; the
+  recall mode remains available per recipe.
+
+### Verified
+
+- Four reference cases re-rendered: Kimi 0.7876, alertaClaude 0.7964,
+  brave 0.7894, gpt6.2astra 0.8430 audio F1.
+- Impulsive events removed: Kimi 9, alerta 7, brave 5, gpt 0.
+- Word-tail median 123–133 ms; non-speech and content-preservation fixes are
+  in place, but the 98% target still needs take-level editing and forced
+  alignment.
+- Gate: 1,631 Python tests, 87 Vitest, 95.01% line coverage.
+
 ## [2.58.4] - 2026-11-05
 
 ### Added

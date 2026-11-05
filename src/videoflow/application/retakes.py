@@ -162,11 +162,67 @@ def _normalized(text: str) -> str:
     return normalize_sentence_text(text)
 
 
+_CONTENT_STOPWORDS = {
+    "para",
+    "porque",
+    "quando",
+    "entao",
+    "então",
+    "tambem",
+    "também",
+    "ainda",
+    "sobre",
+    "entre",
+    "depois",
+    "antes",
+    "agora",
+    "aqui",
+    "isso",
+    "este",
+    "esta",
+    "esse",
+    "essa",
+    "como",
+    "mais",
+    "menos",
+    "muito",
+    "pouco",
+    "todo",
+    "toda",
+    "todos",
+    "todas",
+    "fazer",
+    "fazia",
+    "coisa",
+    "gente",
+    "pode",
+    "podem",
+    "vamos",
+    "você",
+    "voce",
+    "eles",
+    "elas",
+    "com",
+    "sem",
+    "uma",
+    "uns",
+    "umas",
+}
+
+
 def _tokens(text: str) -> set[str]:
     return {
         token
         for token in re.findall(r"[a-z0-9à-ÿ]+", text.casefold())
         if len(token) > 2 or token.isdigit()
+    }
+
+
+def _content_tokens(text: str) -> set[str]:
+    return {
+        token
+        for token in _tokens(text)
+        if len(token) >= 4 and token not in _CONTENT_STOPWORDS
     }
 
 
@@ -815,6 +871,41 @@ def cull_retakes(
         keepers = {identifier for group in groups for identifier in group.keep}
         discard -= keepers
 
+    # Never delete a sentence whose content words appear nowhere in the kept
+    # transcript. This is the last line of defence against the LLM grouping a
+    # meaningful sentence with a retake.
+    global_restored: set[int] = set()
+    group_keeper: dict[int, int] = {}
+    for group in groups:
+        if not group.keep:
+            continue
+        for identifier in group.discard:
+            group_keeper.setdefault(identifier, group.keep[0])
+    kept_ids = {item.id for item in sentences} - discard
+    kept_tokens: set[str] = set()
+    for item in sentences:
+        if item.id in kept_ids:
+            kept_tokens.update(_content_tokens(item.text))
+    for identifier in sorted(discard):
+        item = order[identifier]
+        if len(item.text.split()) < 4:
+            continue
+        keeper_id = group_keeper.get(identifier)
+        keeper = order.get(keeper_id) if keeper_id is not None else None
+        if keeper is None or _similarity(item, keeper) >= 0.65:
+            continue
+        unique = _content_tokens(item.text) - kept_tokens
+        if not unique:
+            continue
+        discard.remove(identifier)
+        kept_ids.add(identifier)
+        kept_tokens.update(_content_tokens(item.text))
+        global_restored.add(identifier)
+    if global_restored:
+        notes.append(
+            f"restored {len(global_restored)} sentence(s) with unique content words"
+        )
+
     # Exact repeats are unambiguous: keep the last/best sentence and remove
     # the earlier identical ones even when the LLM kept both.
     clusters = cluster_exact_repetitions([(item.id, item.text) for item in sentences])
@@ -834,6 +925,7 @@ def cull_retakes(
     discard = set(guarded.discard_sentence_ids)
     restored = set(guarded.restored_sentence_ids)
     restored.update(proposed_discard - discard)
+    restored.update(global_restored)
     groups = _reconcile_groups(groups, discard)
     for cluster in clusters:
         keeper = _keeper(cluster.sentence_ids, order, strategy)

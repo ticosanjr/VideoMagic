@@ -195,18 +195,19 @@ def _stutter_cuts(
     words: Sequence[WordRef],
     *,
     sample_rate: int,
-    max_gap_ms: int = 350,
+    max_gap_ms: int = 900,
 ) -> list[WordCut]:
     gap = round(max_gap_ms * sample_rate / 1000)
+    short_gap = round(350 * sample_rate / 1000)
     cuts: list[WordCut] = []
     index = 0
     while index < len(words) - 1:
         following = index + 1
-        while (
-            following < len(words)
-            and words[following].norm == words[index].norm
-            and words[following].start_sample - words[following - 1].end_sample <= gap
-        ):
+        while following < len(words) and words[following].norm == words[index].norm:
+            same_sentence = words[following].sentence_id == words[index].sentence_id
+            allowed = gap if same_sentence else short_gap
+            if words[following].start_sample - words[following - 1].end_sample > allowed:
+                break
             following += 1
         if following - index >= 2:
             cuts.append(
@@ -218,6 +219,43 @@ def _stutter_cuts(
                 )
             )
         index = following
+    return cuts
+
+
+def _phrase_stutters(
+    words: Sequence[WordRef],
+    *,
+    sample_rate: int,
+    max_gap_ms: int = 700,
+) -> list[WordCut]:
+    gap = round(max_gap_ms * sample_rate / 1000)
+    cuts: list[WordCut] = []
+    for size in (2, 3):
+        index = 0
+        while index + 2 * size <= len(words):
+            first = [word.norm for word in words[index : index + size]]
+            second = [word.norm for word in words[index + size : index + 2 * size]]
+            same_sentence = (
+                words[index].sentence_id == words[index + 2 * size - 1].sentence_id
+            )
+            separated = (
+                words[index + size].start_sample
+                - words[index + size - 1].end_sample
+            )
+            if first == second and same_sentence and separated <= gap:
+                cuts.append(
+                    WordCut(
+                        index,
+                        index + size - 1,
+                        "stutter",
+                        " ".join(
+                            word.text for word in words[index : index + size]
+                        ),
+                    )
+                )
+                index += 2 * size
+            else:
+                index += 1
     return cuts
 
 
@@ -384,6 +422,7 @@ def plan_word_cuts(
     counts = Counter(word.norm for word in words)
     candidates: list[WordCut] = []
     candidates.extend(_stutter_cuts(words, sample_rate=sample_rate))
+    candidates.extend(_phrase_stutters(words, sample_rate=sample_rate))
     candidates.extend(_sentence_cuts(_sentence_groups(words)))
     candidates.extend(
         _ngram_cuts(
@@ -409,7 +448,7 @@ def plan_word_cuts(
         ),
     ):
         length = cut.end - cut.start + 1
-        if used + length > limit:
+        if used + length > limit and cut.reason != "stutter":
             continue
         if any(
             cut.start <= existing.end and existing.start <= cut.end

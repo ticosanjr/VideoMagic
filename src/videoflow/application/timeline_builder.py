@@ -12,6 +12,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from videoflow.application.retakes import subtract_spans
 from videoflow.domain.config import JlCutsConfig, ZoomsConfig
 from videoflow.domain.errors import InvalidTimeError
 from videoflow.domain.state import (
@@ -160,6 +161,37 @@ _STANDALONE_WORDS = {
 }
 
 
+def _extend_start_to_valley(
+    rms_at: Callable[[int, int], int],
+    start: int,
+    *,
+    guard_samples: int,
+    frame_samples: int,
+    threshold: int,
+) -> int:
+    for offset in range(frame_samples, guard_samples + 1, frame_samples):
+        position = max(0, start - offset)
+        if rms_at(position, min(start, position + frame_samples)) <= threshold:
+            return position
+    return max(0, start - guard_samples)
+
+
+def _extend_end_to_valley(
+    rms_at: Callable[[int, int], int],
+    end: int,
+    *,
+    guard_samples: int,
+    frame_samples: int,
+    threshold: int,
+    duration_samples: int,
+) -> int:
+    for offset in range(0, guard_samples + 1, frame_samples):
+        position = min(duration_samples, end + offset)
+        if rms_at(position, min(duration_samples, position + frame_samples)) <= threshold:
+            return position
+    return min(duration_samples, end + guard_samples)
+
+
 def transcript_spans(
     transcript: Sequence[Any],
     discard_ids: set[int],
@@ -168,6 +200,9 @@ def transcript_spans(
     duration_samples: int,
     pad_before_ms: int = 20,
     pad_after_ms: int = 40,
+    head_guard_ms: int = 0,
+    tail_guard_ms: int = 0,
+    guard_energy_threshold: int = 800,
     noise_mode: str = "non_speech",
     noise_confidence: float = 0.5,
     min_ms: int = 80,
@@ -192,6 +227,9 @@ def transcript_spans(
     before = max(0, (pad_before_ms * sample_rate + 500) // 1000)
     after = max(0, (pad_after_ms * sample_rate + 500) // 1000)
     minimum = max(1, (min_ms * sample_rate + 500) // 1000)
+    guard_frame = max(1, round(sample_rate * 0.01))
+    head_guard = max(0, round(head_guard_ms * sample_rate / 1000))
+    tail_guard = max(0, round(tail_guard_ms * sample_rate / 1000))
     runs: list[tuple[int, int, int, str]] = []
     noise: list[InactiveSpan] = []
     for sentence in transcript:
@@ -264,19 +302,57 @@ def transcript_spans(
                     kept_gaps.append((max(0, gap_start), max(gap_start, gap_end)))
                 current.append(word)
             else:
+                run_start = current[0].start_sample
+                run_end = current[-1].end_sample
+                if rms_at is not None and tail_guard:
+                    run_end = _extend_end_to_valley(
+                        rms_at,
+                        run_end,
+                        guard_samples=tail_guard,
+                        frame_samples=guard_frame,
+                        threshold=guard_energy_threshold,
+                        duration_samples=duration_samples,
+                    )
+                if rms_at is not None and head_guard:
+                    run_start = _extend_start_to_valley(
+                        rms_at,
+                        run_start,
+                        guard_samples=head_guard,
+                        frame_samples=guard_frame,
+                        threshold=guard_energy_threshold,
+                    )
                 sentence_runs.append(
                     (
-                        current[0].start_sample,
-                        current[-1].end_sample,
+                        run_start,
+                        run_end,
                         len(current),
                         current[0].word,
                     )
                 )
                 current = [word]
+        run_start = current[0].start_sample
+        run_end = current[-1].end_sample
+        if rms_at is not None and tail_guard:
+            run_end = _extend_end_to_valley(
+                rms_at,
+                run_end,
+                guard_samples=tail_guard,
+                frame_samples=guard_frame,
+                threshold=guard_energy_threshold,
+                duration_samples=duration_samples,
+            )
+        if rms_at is not None and head_guard:
+            run_start = _extend_start_to_valley(
+                rms_at,
+                run_start,
+                guard_samples=head_guard,
+                frame_samples=guard_frame,
+                threshold=guard_energy_threshold,
+            )
         sentence_runs.append(
             (
-                current[0].start_sample,
-                current[-1].end_sample,
+                run_start,
+                run_end,
                 len(current),
                 current[0].word,
             )
@@ -336,6 +412,68 @@ def transcript_spans(
             continue
         spans.append((padded_start, padded_end))
     return spans, noise
+
+
+def add_untranscribed_spans(
+    speech: Sequence[tuple[int, int]],
+    vad: Sequence[Any],
+    transcript: Sequence[Any],
+    discard_ids: set[int],
+    *,
+    sample_rate: int,
+    duration_samples: int,
+    min_ms: int = 500,
+    energy_threshold: int = 800,
+    pad_before_ms: int = 0,
+    pad_after_ms: int = 0,
+    rms_at: Callable[[int, int], int] | None = None,
+    forced_cuts: Sequence[tuple[int, int]] = (),
+) -> list[tuple[int, int]]:
+    """Add long, speech-like VAD regions that the transcript did not cover.
+
+    The transcript remains the precision source, but an ASR miss must not delete
+    a meaningful passage. Only regions longer than ``min_ms`` with speech-like
+    energy are added; short coughs and low-energy room tone stay out.
+    """
+
+    vad_spans = [
+        (item.start_sample, item.end_sample)
+        if hasattr(item, "start_sample")
+        else (int(item[0]), int(item[1]))
+        for item in vad
+    ]
+    word_spans = [
+        (word.start_sample, word.end_sample)
+        for sentence in transcript
+        if sentence.id not in discard_ids
+        for word in sentence.words
+    ]
+    discard_spans = [
+        (sentence.start_sample, sentence.end_sample)
+        for sentence in transcript
+        if sentence.id in discard_ids
+    ]
+    remaining = subtract_spans(
+        vad_spans,
+        [*word_spans, *discard_spans, *forced_cuts],
+    )
+    minimum = max(1, round(min_ms * sample_rate / 1000))
+    before = max(0, round(pad_before_ms * sample_rate / 1000))
+    after = max(0, round(pad_after_ms * sample_rate / 1000))
+    additions: list[tuple[int, int]] = []
+    for start, end in remaining:
+        if end - start < minimum:
+            continue
+        energy = rms_at(start, end) if rms_at is not None else 0
+        if energy < energy_threshold:
+            continue
+        additions.append(
+            (
+                max(0, start - before),
+                min(duration_samples, end + after),
+            )
+        )
+    return _normalize_spans([*speech, *additions], duration_samples)
 
 
 def build_timeline(

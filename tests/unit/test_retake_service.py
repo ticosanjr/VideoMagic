@@ -347,3 +347,21 @@ def test_proper_noun_in_a_discarded_sentence_is_restored() -> None:
     )
     result = cull_retakes(sentences, client=client)
     assert result.discard_sentence_ids == ()
+
+
+def test_low_similarity_unique_sentence_is_restored() -> None:
+    sentences = [
+        sentence(
+            0,
+            "O modelo usa roteamento condicional para economizar compute.",
+            0,
+            4000,
+        ),
+        sentence(1, "O modelo usa uma arquitetura nova e eficiente.", 4000, 8000),
+    ]
+    client = FakeClient(
+        [{"groups": [{"keep": [1], "discard": [0], "reason": "same topic"}]}]
+    )
+    result = cull_retakes(sentences, client=client)
+    assert result.discard_sentence_ids == ()
+    assert 0 in result.restored_sentence_ids

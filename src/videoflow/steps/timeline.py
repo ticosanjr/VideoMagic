@@ -13,9 +13,11 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from videoflow.application.non_speech import detect_impulsive_noise, load_pcm_mono
 from videoflow.application.retakes import subtract_spans
 from videoflow.application.silence import cap_silence_spans, detect_silence_spans
 from videoflow.application.timeline_builder import (
+    add_untranscribed_spans,
     build_inactive_segments,
     build_timeline,
     detect_noise_spans,
@@ -54,6 +56,9 @@ class TimelineParams(BaseModel):
 
     pad_before_ms: int | None = Field(default=20, ge=0)
     pad_after_ms: int | None = Field(default=40, ge=0)
+    head_guard_ms: int = Field(default=80, ge=0, le=500)
+    tail_guard_ms: int = Field(default=200, ge=0, le=800)
+    guard_energy_threshold: int = Field(default=800, ge=0)
     max_internal_gap_ms: int = Field(default=150, ge=0, le=2000)
     internal_gap_mode: Literal["smart", "all", "silence"] = "smart"
     gap_energy_threshold: int = Field(default=800, ge=0)
@@ -70,6 +75,13 @@ class TimelineParams(BaseModel):
     repeat_pad_ms: int = Field(default=40, ge=0, le=500)
     repeat_max_cuts: int = Field(default=40, ge=1, le=200)
     word_cut_max_ratio: float = Field(default=0.2, ge=0.0, le=0.5)
+    keep_untranscribed: bool = True
+    untranscribed_min_ms: int = Field(default=500, ge=100, le=5000)
+    untranscribed_energy_threshold: int = Field(default=800, ge=0)
+    remove_impulsive_noise: bool = True
+    impulsive_noise_min_ms: int = Field(default=40, ge=10, le=1000)
+    impulsive_noise_max_ms: int = Field(default=600, ge=40, le=5000)
+    impulsive_noise_margin_ms: int = Field(default=80, ge=0, le=500)
     use_transcript_spans: bool = True
     noise_filter: Literal["off", "non_speech", "non_speech_and_nonlexical"] = (
         "non_speech"
@@ -201,6 +213,9 @@ class TimelineStep(BaseStep):
                     duration_samples=context.duration_samples(),
                     pad_before_ms=pad_before,
                     pad_after_ms=pad_after,
+                    head_guard_ms=options.head_guard_ms,
+                    tail_guard_ms=options.tail_guard_ms,
+                    guard_energy_threshold=options.guard_energy_threshold,
                     noise_mode=options.noise_filter,
                     noise_confidence=options.noise_confidence,
                     max_internal_gap_ms=options.max_internal_gap_ms,
@@ -215,6 +230,88 @@ class TimelineStep(BaseStep):
                         *repeat_cuts,
                     ],
                 )
+                if options.keep_untranscribed:
+                    before_seconds = sum(
+                        end - start for start, end in speech
+                    ) / media.audio_sample_rate
+                    speech = add_untranscribed_spans(
+                        speech,
+                        context.speech_intervals,
+                        context.transcript,
+                        set(context.discard_sentence_ids),
+                        sample_rate=media.audio_sample_rate,
+                        duration_samples=context.duration_samples(),
+                        min_ms=options.untranscribed_min_ms,
+                        energy_threshold=options.untranscribed_energy_threshold,
+                        pad_before_ms=pad_before,
+                        pad_after_ms=pad_after,
+                        rms_at=rms_at,
+                        forced_cuts=[
+                            *context.retake_overlap_cuts,
+                            *repeat_cuts,
+                        ],
+                    )
+                    after_seconds = sum(
+                        end - start for start, end in speech
+                    ) / media.audio_sample_rate
+                    if after_seconds > before_seconds:
+                        context.warnings.append(
+                            "Kept "
+                            f"{after_seconds - before_seconds:.1f}s of long "
+                            "speech-like audio without transcript words."
+                        )
+                        context.metadata["untranscribed_added"] = {
+                            "seconds": round(after_seconds - before_seconds, 3),
+                            "min_ms": options.untranscribed_min_ms,
+                        }
+                    noise_spans = [
+                        span
+                        for span in noise_spans
+                        if not any(
+                            span.start_sample < end and span.end_sample > start
+                            for start, end in speech
+                        )
+                    ]
+                if options.remove_impulsive_noise:
+                    pcm = load_pcm_mono(
+                        _pcm_path(context),
+                        sample_rate=media.audio_sample_rate,
+                    )
+                    kept_words = [
+                        (word.start_sample, word.end_sample)
+                        for sentence in context.transcript
+                        if sentence.id not in set(context.discard_sentence_ids)
+                        for word in sentence.words
+                    ]
+                    impulsive = detect_impulsive_noise(
+                        pcm,
+                        kept_words,
+                        sample_rate=media.audio_sample_rate,
+                        min_ms=options.impulsive_noise_min_ms,
+                        max_ms=options.impulsive_noise_max_ms,
+                        margin_ms=options.impulsive_noise_margin_ms,
+                    )
+                    if impulsive:
+                        speech = subtract_spans(speech, impulsive)
+                        noise_spans.extend(
+                            InactiveSpan(
+                                start_sample=start,
+                                end_sample=end,
+                                reason="noise",
+                            )
+                            for start, end in impulsive
+                        )
+                        seconds = sum(
+                            end - start for start, end in impulsive
+                        ) / media.audio_sample_rate
+                        context.warnings.append(
+                            f"Removed {len(impulsive)} impulsive non-speech event(s) "
+                            f"({seconds:.1f}s)."
+                        )
+                        context.metadata["impulsive_noise"] = {
+                            "spans": len(impulsive),
+                            "seconds": round(seconds, 3),
+                        }
             context.metadata["timeline_units"] = "transcript"
             if kept_gaps:
                 seconds = sum(
