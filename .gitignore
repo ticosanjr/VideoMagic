@@ -20,4 +20,5 @@ ui/.vite/
 *.wav
 *.mp4
 *.mov
+Outputs/
 .DS_Store

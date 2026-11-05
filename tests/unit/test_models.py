@@ -9,6 +9,7 @@ from videoflow.application import models
 
 def test_catalog_lists_both_optional_models(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
+    monkeypatch.setenv("VIDEOWFLOW_MODELS_DIR", str(tmp_path / "models"))
     listed = models.list_models()
     assert {
         "faster-whisper-small",
@@ -51,11 +52,36 @@ def test_models_are_found_in_external_or_portable_home(monkeypatch, tmp_path: Pa
     assert models.models_dir() == external / "models"
 
 
+def test_models_dir_uses_persistent_home_without_explicit_override(
+    monkeypatch, tmp_path: Path
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "portable"))
+    monkeypatch.delenv("VIDEOWFLOW_MODELS_DIR", raising=False)
+    monkeypatch.delenv("VIDEOWFLOW_EXTERNAL_HOME", raising=False)
+    assert models.models_dir() == home / ".videoflow" / "models"
+
+
+def test_large_v3_catalog_includes_preprocessor_and_json_vocabulary() -> None:
+    entry = models.CATALOG["faster-whisper-large-v3"]
+    names = {name for _url, name, _checksum in entry["files"]}
+    assert {
+        "config.json",
+        "tokenizer.json",
+        "vocabulary.json",
+        "preprocessor_config.json",
+        "model.bin",
+    } <= names
+
+
 def test_pyannote_model_install_uses_huggingface(monkeypatch, tmp_path: Path) -> None:
     import sys
     import types
 
     monkeypatch.setenv("VIDEOFLOW_HOME", str(tmp_path))
+    monkeypatch.setenv("VIDEOWFLOW_MODELS_DIR", str(tmp_path / "models"))
 
     def snapshot_download(*, repo_id, local_dir, token):
         target = Path(local_dir)

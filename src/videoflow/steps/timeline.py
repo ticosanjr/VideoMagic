@@ -173,7 +173,7 @@ class TimelineStep(BaseStep):
         kept_gaps: list[tuple[int, int]] = []
         repeat_cuts: list[tuple[int, int]] = []
         repeat_report: list[dict[str, object]] = []
-        if use_transcript and options.detect_repeats:
+        if options.detect_repeats and context.transcript:
             repeat_cuts, repeat_report = detect_repeated_cuts(
                 context.transcript,
                 set(context.discard_sentence_ids),
@@ -213,38 +213,10 @@ class TimelineStep(BaseStep):
                     ],
                 )
             context.metadata["timeline_units"] = "transcript"
-            pcm_path = _pcm_path(context)
-            silences = detect_silence_spans(
-                pcm_path,
-                sample_rate=media.audio_sample_rate,
-                frame_ms=options.silence_frame_ms,
-                threshold_db=options.silence_threshold_db,
-                min_ms=100,
-            )
-            if not silences:
-                silences = list(context.silence_spans)
-            speech, capped_seconds = cap_silence_spans(
-                speech,
-                silences,
-                sample_rate=media.audio_sample_rate,
-                max_silence_ms=options.max_silence_ms,
-                keep_silence_ms=options.keep_silence_ms,
-                pad_before_ms=pad_before,
-                pad_after_ms=pad_after,
-                min_clip_ms=options.min_clip_ms,
-            )
-            if capped_seconds:
-                context.warnings.append(
-                    f"Silence cap removed {capped_seconds:.1f}s "
-                    f"(max {options.max_silence_ms} ms)."
-                )
-                context.metadata["silence_cap"] = {
-                    "removed_seconds": round(capped_seconds, 3),
-                    "max_silence_ms": options.max_silence_ms,
-                    "keep_silence_ms": options.keep_silence_ms,
-                }
             if kept_gaps:
-                seconds = sum(end - start for start, end in kept_gaps) / media.audio_sample_rate
+                seconds = sum(
+                    end - start for start, end in kept_gaps
+                ) / media.audio_sample_rate
                 context.warnings.append(
                     f"Kept {len(kept_gaps)} long speech-like gap(s) "
                     f"({seconds:.1f}s) as possible untranscribed speech."
@@ -263,11 +235,25 @@ class TimelineStep(BaseStep):
                 confidence=options.noise_confidence,
             )
             raw_speech = context.speech_intervals
+            removals: list[tuple[int, int]] = []
             if noise_spans:
-                raw_speech = subtract_spans(
-                    raw_speech,
-                    [(span.start_sample, span.end_sample) for span in noise_spans],
+                removals.extend(
+                    (span.start_sample, span.end_sample) for span in noise_spans
                 )
+            discard_ids = set(context.discard_sentence_ids)
+            removals.extend(
+                (sentence.start_sample, sentence.end_sample)
+                for sentence in context.transcript
+                if sentence.id in discard_ids
+            )
+            removals.extend(
+                (span.start_sample, span.end_sample)
+                for span in context.retake_spans
+            )
+            removals.extend(context.retake_overlap_cuts)
+            removals.extend(repeat_cuts)
+            if removals:
+                raw_speech = subtract_spans(raw_speech, removals)
             speech = pad_spans(
                 raw_speech,
                 media.audio_sample_rate,
@@ -276,6 +262,36 @@ class TimelineStep(BaseStep):
                 context.duration_samples(),
             )
             context.metadata["timeline_units"] = "vad"
+        pcm_path = _pcm_path(context)
+        silences = detect_silence_spans(
+            pcm_path,
+            sample_rate=media.audio_sample_rate,
+            frame_ms=options.silence_frame_ms,
+            threshold_db=options.silence_threshold_db,
+            min_ms=100,
+        )
+        if not silences:
+            silences = list(context.silence_spans)
+        speech, capped_seconds = cap_silence_spans(
+            speech,
+            silences,
+            sample_rate=media.audio_sample_rate,
+            max_silence_ms=options.max_silence_ms,
+            keep_silence_ms=options.keep_silence_ms,
+            pad_before_ms=pad_before,
+            pad_after_ms=pad_after,
+            min_clip_ms=options.min_clip_ms,
+        )
+        if capped_seconds:
+            context.warnings.append(
+                f"Silence cap removed {capped_seconds:.1f}s "
+                f"(max {options.max_silence_ms} ms)."
+            )
+            context.metadata["silence_cap"] = {
+                "removed_seconds": round(capped_seconds, 3),
+                "max_silence_ms": options.max_silence_ms,
+                "keep_silence_ms": options.keep_silence_ms,
+            }
         if noise_spans:
             seconds = sum(
                 span.end_sample - span.start_sample for span in noise_spans

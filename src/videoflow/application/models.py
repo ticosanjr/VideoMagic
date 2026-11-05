@@ -23,8 +23,26 @@ _WHISPER_TINY = (
     "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin"
 )
 
-def _faster_entry(size: str, repo: str, size_mb: int) -> dict[str, Any]:
+def _faster_entry(
+    size: str,
+    repo: str,
+    size_mb: int,
+    *,
+    vocabulary: str = "vocabulary.txt",
+    preprocessor: bool = False,
+) -> dict[str, Any]:
     base = f"https://huggingface.co/{repo}/resolve/main"
+    files = [
+        (f"{base}/config.json", "config.json", None),
+        (f"{base}/tokenizer.json", "tokenizer.json", None),
+        (f"{base}/{vocabulary}", vocabulary, None),
+        (f"{base}/model.bin", "model.bin", None),
+    ]
+    if preprocessor:
+        files.insert(
+            2,
+            (f"{base}/preprocessor_config.json", "preprocessor_config.json", None),
+        )
     return {
         "label": f"Faster-Whisper {size}",
         "capability": "asr",
@@ -34,12 +52,7 @@ def _faster_entry(size: str, repo: str, size_mb: int) -> dict[str, Any]:
         "size_mb": size_mb,
         "kind": "faster-whisper",
         "target": f"faster-whisper/{size}",
-        "files": [
-            (f"{base}/config.json", "config.json", None),
-            (f"{base}/tokenizer.json", "tokenizer.json", None),
-            (f"{base}/vocabulary.txt", "vocabulary.txt", None),
-            (f"{base}/model.bin", "model.bin", None),
-        ],
+        "files": files,
     }
 
 
@@ -99,7 +112,11 @@ CATALOG: dict[str, dict[str, Any]] = {
     "faster-whisper-base": _faster_entry("base", "Systran/faster-whisper-base", 145),
     "faster-whisper-medium": _faster_entry("medium", "Systran/faster-whisper-medium", 1530),
     "faster-whisper-large-v3": _faster_entry(
-        "large-v3", "Systran/faster-whisper-large-v3", 3090
+        "large-v3",
+        "Systran/faster-whisper-large-v3",
+        3090,
+        vocabulary="vocabulary.json",
+        preprocessor=True,
     ),
     "whisper-base": _whisper_entry("base", 142),
     "whisper-small": _whisper_entry("small", 466),
@@ -261,7 +278,13 @@ def models_dir() -> Path:
         directory = Path(raw).expanduser()
         directory.mkdir(parents=True, exist_ok=True)
         return directory
-    external = external_home() / "models"
+    external_override = os.environ.get("VIDEOWFLOW_EXTERNAL_HOME", "")
+    external_root = (
+        Path(external_override).expanduser()
+        if external_override
+        else Path.home() / ".videoflow"
+    )
+    external = external_root / "models"
     try:
         external.mkdir(parents=True, exist_ok=True)
         return external

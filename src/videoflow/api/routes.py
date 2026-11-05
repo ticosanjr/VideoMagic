@@ -4648,8 +4648,10 @@ def register_routes(
             else:
                 ok = False
             checks[name] = entry
+        home = portable_home()
         try:
-            probe = portable_home() / ".write-test"
+            home.mkdir(parents=True, exist_ok=True)
+            probe = home / ".write-test"
             probe.write_text("ok", encoding="utf-8")
             probe.unlink()
             checks["home_writable"] = True
@@ -4666,9 +4668,14 @@ def register_routes(
             for item in list_models()
         ]
         checks["ui"] = str(ui_dir()) if ui_dir() else None
+        try:
+            usage = shutil.disk_usage(home)
+            free_bytes, total_bytes = usage.free, usage.total
+        except OSError:
+            free_bytes = total_bytes = 0
         checks["disk"] = {
-            "free_bytes": shutil.disk_usage(portable_home()).free,
-            "total_bytes": shutil.disk_usage(portable_home()).total,
+            "free_bytes": free_bytes,
+            "total_bytes": total_bytes,
         }
         ffmpeg = find_binary("ffmpeg")
         if ffmpeg:

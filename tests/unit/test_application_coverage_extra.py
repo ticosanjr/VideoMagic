@@ -1320,8 +1320,10 @@ def test_verify_catalog_models(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_models_dir_configuration(monkeypatch, tmp_path: Path) -> None:
+    external = tmp_path / "external"
+    monkeypatch.setenv("VIDEOWFLOW_EXTERNAL_HOME", str(external))
     default = models.models_dir()
-    assert default == models.portable_home() / "models"
+    assert default == external / "models"
     assert default.is_dir()
 
     custom = tmp_path / "custom-models"
@@ -1336,7 +1338,7 @@ def test_models_dir_configuration(monkeypatch, tmp_path: Path) -> None:
         raise RuntimeError("settings failed")
 
     monkeypatch.setattr(app_settings, "load_settings", broken)
-    assert models.models_dir() == models.portable_home() / "models"
+    assert models.models_dir() == external / "models"
 
 
 class _Stream:

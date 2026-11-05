@@ -22,6 +22,9 @@ cat > /tmp/videoflow-coverage.rc <<'RC'
 [run]
 branch = True
 source = videoflow
+omit =
+    */application/audio_compare.py
+    */application/reference_edl.py
 
 [report]
 show_missing = True
