@@ -97,7 +97,23 @@ _STOPWORDS = {
     "estao",
 }
 
+_FILLERS = {
+    "ah",
+    "ahn",
+    "eh",
+    "er",
+    "erm",
+    "ha",
+    "hã",
+    "hm",
+    "hmm",
+    "hum",
+    "uh",
+    "um",
+}
+
 _PRIORITY = {
+    "filler": 0,
     "stutter": 0,
     "prefix_tail": 1,
     "restatement": 2,
@@ -219,6 +235,15 @@ def _stutter_cuts(
                 )
             )
         index = following
+    return cuts
+
+
+def _filler_cuts(words: Sequence[WordRef]) -> list[WordCut]:
+    cuts: list[WordCut] = []
+    for index, word in enumerate(words):
+        if word.norm not in _FILLERS or _protected(word.text):
+            continue
+        cuts.append(WordCut(index, index, "filler", word.text))
     return cuts
 
 
@@ -354,7 +379,7 @@ def _split_cut(
     current_start: int | None = None
     for index in range(cut.start, cut.end + 1):
         word = words[index]
-        cuttable = counts[word.norm] > 1
+        cuttable = counts[word.norm] > 1 or cut.reason == "filler"
         if cuttable:
             if current_start is None:
                 current_start = index
@@ -380,7 +405,8 @@ def _split_cut(
     return [
         run
         for run in runs
-        if any(_content(words[index].norm) for index in range(run.start, run.end + 1))
+        if run.reason == "filler"
+        or any(_content(words[index].norm) for index in range(run.start, run.end + 1))
     ]
 
 
@@ -412,6 +438,7 @@ def plan_word_cuts(
     min_words: int = 4,
     max_cut_ratio: float = 0.2,
     max_cuts: int = 60,
+    remove_fillers: bool = False,
 ) -> WordCutPlan:
     """Return word-level source cuts and a report."""
 
@@ -421,6 +448,8 @@ def plan_word_cuts(
         return WordCutPlan([], [], 0, total)
     counts = Counter(word.norm for word in words)
     candidates: list[WordCut] = []
+    if remove_fillers:
+        candidates.extend(_filler_cuts(words))
     candidates.extend(_stutter_cuts(words, sample_rate=sample_rate))
     candidates.extend(_phrase_stutters(words, sample_rate=sample_rate))
     candidates.extend(_sentence_cuts(_sentence_groups(words)))
@@ -448,7 +477,7 @@ def plan_word_cuts(
         ),
     ):
         length = cut.end - cut.start + 1
-        if used + length > limit and cut.reason != "stutter":
+        if used + length > limit and cut.reason not in {"stutter", "filler"}:
             continue
         if any(
             cut.start <= existing.end and existing.start <= cut.end

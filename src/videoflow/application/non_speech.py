@@ -76,6 +76,61 @@ def _harmonicity(frame: np.ndarray, sample_rate: int) -> float:
     return float(np.max(correlation[minimum_lag:maximum_lag]))
 
 
+def candidate_bursts(
+    pcm: np.ndarray,
+    word_spans: Sequence[tuple[int, int]],
+    *,
+    sample_rate: int = 48_000,
+    frame_ms: int = 10,
+    min_ms: int = 40,
+    max_ms: int = 600,
+    margin_ms: int = 80,
+    rms_threshold: float = 0.02,
+) -> list[tuple[int, int]]:
+    """Return short active bursts that do not overlap a kept word."""
+
+    signal = np.asarray(pcm, dtype=np.float32)
+    if signal.size == 0:
+        return []
+    frame_length = max(1, round(sample_rate * frame_ms / 1000))
+    count = signal.size // frame_length
+    if count == 0:
+        return []
+    frames = signal[: count * frame_length].reshape(count, frame_length)
+    rms = np.sqrt(np.mean(frames * frames, axis=1))
+    active = rms > rms_threshold
+    minimum = max(1, round(min_ms / frame_ms))
+    maximum = max(minimum, round(max_ms / frame_ms))
+    margin = max(0, round(margin_ms * sample_rate / 1000))
+    spans: list[tuple[int, int]] = []
+    index = 0
+    while index < count:
+        if not active[index]:
+            index += 1
+            continue
+        end = index + 1
+        while end < count and active[end]:
+            end += 1
+        if minimum <= end - index <= maximum:
+            start_sample = index * frame_length
+            end_sample = end * frame_length
+            protected = any(
+                start_sample < word_end + margin
+                and end_sample > word_start - margin
+                for word_start, word_end in word_spans
+            )
+            if not protected:
+                spans.append((start_sample, end_sample))
+        index = end
+    merged: list[tuple[int, int]] = []
+    for start, end in spans:
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
 def detect_impulsive_noise(
     pcm: np.ndarray,
     word_spans: Sequence[tuple[int, int]],
@@ -94,53 +149,41 @@ def detect_impulsive_noise(
     """Return source spans of isolated impulsive noise between words."""
 
     signal = np.asarray(pcm, dtype=np.float32)
-    if signal.size == 0:
+    candidates = candidate_bursts(
+        signal,
+        word_spans,
+        sample_rate=sample_rate,
+        frame_ms=frame_ms,
+        min_ms=min_ms,
+        max_ms=max_ms,
+        margin_ms=margin_ms,
+        rms_threshold=rms_threshold,
+    )
+    if not candidates:
         return []
     frame_length = max(1, round(sample_rate * frame_ms / 1000))
-    count = signal.size // frame_length
-    if count == 0:
-        return []
-    frames = signal[: count * frame_length].reshape(count, frame_length)
-    rms = np.sqrt(np.mean(frames * frames, axis=1))
-    signs = np.signbit(frames)
-    zcr = np.mean(signs[:, 1:] != signs[:, :-1], axis=1)
-    active = rms > rms_threshold
-    minimum = max(1, round(min_ms / frame_ms))
-    maximum = max(minimum, round(max_ms / frame_ms))
-    margin = max(0, round(margin_ms * sample_rate / 1000))
     spans: list[tuple[int, int]] = []
-    index = 0
-    while index < count:
-        if not active[index]:
-            index += 1
+    for start_sample, end_sample in candidates:
+        middle_start = max(0, (start_sample + end_sample) // 2 - frame_length // 2)
+        middle = signal[middle_start : middle_start + frame_length]
+        if middle.size < 8:
             continue
-        end = index + 1
-        while end < count and active[end]:
-            end += 1
-        length = end - index
-        if minimum <= length <= maximum:
-            start_sample = index * frame_length
-            end_sample = end * frame_length
-            protected = any(
-                start_sample < word_end + margin
-                and end_sample > word_start - margin
-                for word_start, word_end in word_spans
+        segment = signal[start_sample:end_sample]
+        usable = (segment.size // frame_length) * frame_length
+        if usable >= frame_length:
+            frames = segment[:usable].reshape(-1, frame_length)
+            signs = np.signbit(frames)
+            zcr = float(
+                np.max(np.mean(signs[:, 1:] != signs[:, :-1], axis=1))
             )
-            if not protected:
-                middle = frames[(index + end) // 2]
-                flat = _flatness(middle) >= flatness_threshold
-                unvoiced = (
-                    _harmonicity(middle, sample_rate) < harmonicity_threshold
-                    and float(np.max(zcr[index:end])) >= noise_zcr_threshold
-                )
-                noisy = flat or float(np.max(zcr[index:end])) >= zcr_threshold or unvoiced
-                if noisy:
-                    spans.append((start_sample, end_sample))
-        index = end
-    merged: list[tuple[int, int]] = []
-    for start, end in spans:
-        if merged and start <= merged[-1][1]:
-            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
         else:
-            merged.append((start, end))
-    return merged
+            signs = np.signbit(segment)
+            zcr = float(np.mean(signs[1:] != signs[:-1])) if segment.size > 1 else 0.0
+        flat = _flatness(middle) >= flatness_threshold
+        unvoiced = (
+            _harmonicity(middle, sample_rate) < harmonicity_threshold
+            and zcr >= noise_zcr_threshold
+        )
+        if flat or zcr >= zcr_threshold or unvoiced:
+            spans.append((start_sample, end_sample))
+    return spans

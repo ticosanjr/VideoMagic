@@ -221,3 +221,16 @@ def test_phrase_stutter_cuts_the_earlier_attempt() -> None:
     assert plan.cut_words == 2
     assert plan.report[0]["reason"] == "stutter"
     assert plan.report[0]["text"] == "eu acho"
+
+
+def test_isolated_filler_is_cut() -> None:
+    sentence = _sentence(0, ["hum", "o", "modelo", "novo", "chegou"])
+    plan = _plan([sentence], remove_fillers=True)
+    assert plan.report[0]["reason"] == "filler"
+    assert plan.report[0]["text"] == "hum"
+
+
+def test_filler_inside_a_word_is_not_cut() -> None:
+    sentence = _sentence(0, ["humano", "modelo", "novo", "chegou"])
+    plan = _plan([sentence])
+    assert not any(item["reason"] == "filler" for item in plan.report)

@@ -3,6 +3,39 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.58.9] - 2026-11-05
+
+### Added
+
+- **Audio-event classifier infrastructure.** `application/audio_events.py`
+  extracts 38 features (duration, RMS, ZCR, flatness, harmonicity, spectral
+  centroid/rolloff/flux, low-band ratio, onset, and 26 MFCC statistics), trains
+  a pure-numpy logistic-regression model, and scores candidate bursts. A model
+  is only used when its recorded precision and recall are at least 0.5.
+- **Weak-label training script.** `scripts/train_audio_events.py` builds
+  positives from short internal cuts in the human EDL and negatives from kept
+  regions.
+- **Reference EDLs** for alertaClaude, brave, and gpt6.2astra, in addition to
+  Kimi.
+- **Optional filler removal** (`remove_fillers`, default off) for isolated
+  non-lexical fillers.
+
+### Changed
+
+- The default recipe keeps `use_audio_event_model=false` and
+  `remove_fillers=false`: the weak labels available today are not separable
+  enough to beat the heuristic, and removing fillers reduced audio F1 by
+  2.2 points on Kimi.
+- Default timeline behaviour is unchanged from 2.58.8.
+
+### Verified
+
+- 2.58.8 reference results remain the best: Kimi 0.8091, alertaClaude 0.8152,
+  brave 0.7997, gpt6.2astra 0.8393 (mean 0.8158).
+- Weak-label classifier on the four cases: test precision 0.10, recall 0.44;
+  correctly rejected by the quality gate.
+- Gate: 1,675 Python tests, 87 Vitest, line coverage above 95%.
+
 ## [2.58.8] - 2026-11-05
 
 ### Added

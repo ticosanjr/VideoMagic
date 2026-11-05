@@ -13,8 +13,9 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from videoflow.application.audio_events import detect_audio_events, load_model
 from videoflow.application.boundaries import enforce_word_integrity
-from videoflow.application.non_speech import detect_impulsive_noise, load_pcm_mono
+from videoflow.application.non_speech import load_pcm_mono
 from videoflow.application.retakes import subtract_spans
 from videoflow.application.silence import cap_silence_spans, detect_silence_spans
 from videoflow.application.timeline_builder import (
@@ -77,6 +78,7 @@ class TimelineParams(BaseModel):
     min_clip_ms: int = Field(default=200, ge=1, le=5000)
     drop_isolated_words: bool = True
     detect_repeats: bool = True
+    remove_fillers: bool = False
     repeat_min_words: int = Field(default=5, ge=2, le=20)
     repeat_max_gap_seconds: float = Field(default=180.0, ge=1.0, le=3600.0)
     repeat_pad_ms: int = Field(default=40, ge=0, le=500)
@@ -89,6 +91,7 @@ class TimelineParams(BaseModel):
     impulsive_noise_min_ms: int = Field(default=40, ge=10, le=1000)
     impulsive_noise_max_ms: int = Field(default=600, ge=40, le=5000)
     impulsive_noise_margin_ms: int = Field(default=80, ge=0, le=500)
+    use_audio_event_model: bool = False
     use_transcript_spans: bool = True
     noise_filter: Literal["off", "non_speech", "non_speech_and_nonlexical"] = (
         "non_speech"
@@ -201,6 +204,7 @@ class TimelineStep(BaseStep):
                 min_words=max(4, options.repeat_min_words),
                 max_cut_ratio=options.word_cut_max_ratio,
                 max_cuts=options.repeat_max_cuts,
+                remove_fillers=options.remove_fillers,
             )
             repeat_cuts = plan.cuts
             if repeat_cuts:
@@ -290,10 +294,12 @@ class TimelineStep(BaseStep):
                         if sentence.id not in set(context.discard_sentence_ids)
                         for word in sentence.words
                     ]
-                    impulsive = detect_impulsive_noise(
+                    event_model = load_model() if options.use_audio_event_model else None
+                    impulsive = detect_audio_events(
                         pcm,
                         kept_words,
                         sample_rate=media.audio_sample_rate,
+                        model=event_model,
                         min_ms=options.impulsive_noise_min_ms,
                         max_ms=options.impulsive_noise_max_ms,
                         margin_ms=options.impulsive_noise_margin_ms,
@@ -318,6 +324,7 @@ class TimelineStep(BaseStep):
                         context.metadata["impulsive_noise"] = {
                             "spans": len(impulsive),
                             "seconds": round(seconds, 3),
+                            "model": bool(event_model),
                         }
             context.metadata["timeline_units"] = "transcript"
             if kept_gaps:
