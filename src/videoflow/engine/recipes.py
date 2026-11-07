@@ -1260,7 +1260,7 @@ _add_recipe(
             "id": "drift",
             "type": "edit.drift",
             "needs": ["transcribe"],
-            "params": {"offset_ms": 200.0, "min_ms": 0.0, "max_ms": 500.0},
+            "params": {"offset_ms": "$drift_offset_ms", "min_ms": 0.0, "max_ms": 500.0},
         },
         {
             **_RETAKES,
@@ -1528,6 +1528,7 @@ _add_recipe(
                 "Minimal_Tech",
             ],
         },
+        "drift_offset_ms": {"type": "number", "default": 0.0},
         "target_loudness_lufs": {"type": "number", "default": -16.5},
         "true_peak_db": {"type": "number", "default": -1.5},
         "asset_dir": {"type": "string", "default": ""},

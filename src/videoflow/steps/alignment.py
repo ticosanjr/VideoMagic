@@ -18,7 +18,7 @@ from videoflow.steps.registry import register_step
 class DriftParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    offset_ms: float = Field(default=200.0, ge=0.0, le=2000.0)
+    offset_ms: float = Field(default=0.0, ge=0.0, le=2000.0)
     min_ms: float = Field(default=0.0, ge=0.0, le=2000.0)
     max_ms: float = Field(default=2000.0, ge=0.0, le=5000.0)
 

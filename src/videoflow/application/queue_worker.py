@@ -61,6 +61,10 @@ def run_once(
             time.sleep(0.02)
     finally:
         stop.set()
+        # The worker thread may still be writing its final state when the
+        # polling loop sees a terminal status. Persist once more so callers and
+        # the operational database agree immediately after run_once returns.
+        manager._persist_job(job)  # noqa: SLF001 - same manager contract
     return job
 
 

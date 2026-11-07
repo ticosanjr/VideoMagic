@@ -3,6 +3,16 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.59.1] - 2026-11-07
+
+### Fixed
+
+- `autonomous_studio_master` now defaults `drift_offset_ms` to 0 and exposes it
+  as a recipe variable. The 200 ms value remains available for sources with a
+  real camera/audio buffer latency; applying it blindly shifted every cut.
+- Narrative beats run after retakes and cleanup, so duplicated takes no longer
+  appear in the context blocks.
+
 ## [2.59.0] - 2026-11-07
 
 ### Added

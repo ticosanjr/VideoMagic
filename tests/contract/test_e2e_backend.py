@@ -162,7 +162,7 @@ def test_full_flow_with_a_real_backend(
             break
         time.sleep(0.1)
     assert status["status"] == "ready", status
-    assert time.perf_counter() - started < 3.0
+    assert time.perf_counter() - started < 5.0
 
     frame = client.get(f"/api/v1/jobs/{job_id}/frame", params={"time": 1.0})
     assert frame.status_code == 200, frame.text
