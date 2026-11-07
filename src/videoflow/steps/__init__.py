@@ -1,9 +1,12 @@
 """Recipe steps. Importing this package registers every built-in step."""
 
 from videoflow.steps import (
+    alignment,
     assets_intel,
     audio,
+    audio_duck,
     broll,
+    broll_master,
     content,
     delivery,
     diarize,
@@ -14,7 +17,10 @@ from videoflow.steps import (
     ingest,
     llm_cleanup,
     llm_timeline,
+    motion,
+    narrative,
     retakes,
+    rules_memory,
     shorts_ab,
     shorts_captions,
     shorts_reframe,
@@ -26,6 +32,7 @@ from videoflow.steps import (
     transcribe,
     translation,
     video_export,
+    vision_qa,
 )
 from videoflow.steps.base import BaseStep, EmptyParams, StepIO
 from videoflow.steps.registry import (
@@ -40,9 +47,12 @@ __all__ = [
     "BaseStep",
     "EmptyParams",
     "StepIO",
+    "alignment",
     "assets_intel",
     "audio",
+    "audio_duck",
     "broll",
+    "broll_master",
     "content",
     "delivery",
     "dubbing",
@@ -52,12 +62,15 @@ __all__ = [
     "llm_cleanup",
     "llm_timeline",
     "gates",
+    "motion",
+    "narrative",
     "get_step",
     "ingest",
     "iter_steps",
     "manifest",
     "requirements_by_type",
     "retakes",
+    "rules_memory",
     "shorts_ab",
     "shorts_captions",
     "shorts_reframe",
@@ -70,4 +83,5 @@ __all__ = [
     "transcribe",
     "translation",
     "video_export",
+    "vision_qa",
 ]

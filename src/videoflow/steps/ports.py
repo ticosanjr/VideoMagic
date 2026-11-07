@@ -279,6 +279,45 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         (PortSpec("output", "Output", "any", "artifacts"),),
     ),
     "experiment.evaluate": ((), (PortSpec("artifacts", "Winner", "artifact_map", "artifacts"),)),
+    "edit.drift": (
+        (PortSpec("transcript", "Transcript", "transcript", "transcript", True),),
+        (
+            PortSpec("transcript", "Corrected transcript", "transcript", "transcript"),
+            PortSpec("report", "Drift report", "json", "metadata:drift_correction"),
+        ),
+    ),
+    "narrative.beats": (
+        (PortSpec("transcript", "Transcript", "transcript", "transcript", True),),
+        (
+            PortSpec("beats", "Narrative beats", "json", "metadata:narrative_beats"),
+            PortSpec(
+                "entities",
+                "Narrative entities",
+                "json",
+                "artifacts:narrative_entities",
+            ),
+        ),
+    ),
+    "broll.plan_master": (
+        (PortSpec("timeline", "Timeline state", "timeline", "state", True),),
+        (PortSpec("plan", "B-roll plan", "json", "metadata:broll_plan"),),
+    ),
+    "audio.duck": (
+        (PortSpec("master", "Audio master", "audio", "artifacts:audio_master", True),),
+        (PortSpec("mix", "Audio mix", "audio", "artifacts:audio_mix"),),
+    ),
+    "rules.memory": (
+        (),
+        (PortSpec("report", "Rules report", "json", "metadata:rules_memory"),),
+    ),
+    "motion.render": (
+        (PortSpec("timeline", "Timeline state", "timeline", "state", True),),
+        (PortSpec("plan", "Motion plan", "json", "metadata:motion_plan"),),
+    ),
+    "qa.vision": (
+        (PortSpec("video", "Rendered video", "artifact", "artifacts:video", True),),
+        (PortSpec("report", "Vision QA", "json", "metadata:vision_qa"),),
+    ),
 }
 
 

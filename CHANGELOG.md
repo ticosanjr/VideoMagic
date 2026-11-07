@@ -3,6 +3,34 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.59.0] - 2026-11-07
+
+### Added
+
+- **Autonomous studio master recipe** (`autonomous_studio_master`): drift
+  correction, deterministic de-talking, narrative beats and entities, local
+  B-roll planning, audio mastering and ducking, XML/MP4 export, and QA.
+- **`edit.drift`**: subtracts the camera/audio buffer offset from every word and
+  sentence, with zero-clamping and a drift report.
+- **`narrative.beats`**: splits the cleaned transcript into 100–300-word context
+  blocks, assigns Hook/Context/Conflict/Turning Point/Proof/Payoff, and extracts
+  people, objects, metrics, and locations. LLM is optional and off by default.
+- **`broll.plan_master`**: matches local assets to narrative blocks for the
+  long-form master, without changing the Shorts B-roll flow.
+- **`audio.duck`**: FFmpeg sidechain ducking for a music bed, with a safe no-op
+  when no music is configured.
+- **`rules.memory`**: appends and consolidates `agents.md`/`claude.md` rules.
+- **Phase-2 shells**: `motion.render` and `qa.vision` are registered and
+  bypassed, so the recipe shape is ready for the renderer and vision QA.
+- `export.nle` now tolerates empty artifact entries.
+
+### Verified
+
+- `autonomous_studio_master` ran end-to-end on a 2-minute alertaClaude clip and
+  produced MP4 + FCPXML + Premiere XML + Kdenlive, narrative beats, drift
+  report, B-roll plan, audio master/QA, and rulebooks.
+- Gate: 1,682 Python tests, 87 Vitest, line coverage above 95%.
+
 ## [2.58.9] - 2026-11-05
 
 ### Added

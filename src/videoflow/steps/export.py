@@ -165,4 +165,8 @@ class ExportStep(BaseStep):
         return getattr(params, "filename_mode", "source_timestamp") != "source_timestamp"
 
     def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
-        return tuple(Path(path) for path in context.artifacts.values())
+        return tuple(
+            Path(path)
+            for path in context.artifacts.values()
+            if isinstance(path, (str, Path)) and str(path)
+        )
