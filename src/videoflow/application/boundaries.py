@@ -12,18 +12,9 @@ import re
 from collections.abc import Sequence
 from typing import Any
 
+from videoflow.application.spans import merge_spans
+
 _LETTER = re.compile(r"[^a-z0-9à-ÿ]")
-
-
-def _merge(spans: Sequence[tuple[int, int]]) -> list[tuple[int, int]]:
-    ordered = sorted((start, end) for start, end in spans if end > start)
-    merged: list[tuple[int, int]] = []
-    for start, end in ordered:
-        if merged and start <= merged[-1][1]:
-            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
-        else:
-            merged.append((start, end))
-    return merged
 
 
 def _removed(
@@ -97,10 +88,10 @@ def enforce_word_integrity(
         sample_rate=sample_rate,
     )
     if not words:
-        return _merge(spans), []
+        return merge_spans(spans), []
     tolerance = round(tolerance_ms * sample_rate / 1000)
     maximum_gap = round(max_gap_ms * sample_rate / 1000)
-    current = _merge(spans)
+    current = merge_spans(spans)
     violations: list[dict[str, int]] = []
     for word_start, word_end in words:
         if _contained((word_start, word_end), current, tolerance):
@@ -138,5 +129,5 @@ def enforce_word_integrity(
             continue
         keep = [span for index, span in enumerate(current) if index not in overlapping]
         keep.append((low, high))
-        current = _merge(keep)
+        current = merge_spans(keep)
     return current, violations

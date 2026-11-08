@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import json
 import threading
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.clock import now_iso as _now
 from videoflow.domain.errors import CapabilityUnavailableError, StateNotReadyError
 from videoflow.runtime import portable_home
 
@@ -62,8 +62,6 @@ class VoiceCloneProvider(Protocol):
     def delete_profile(self, profile_id: str) -> None: ...
 
 
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def store_dir() -> Path:

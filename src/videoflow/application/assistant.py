@@ -8,13 +8,13 @@ approval, so a completion can never edit or render on its own.
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from videoflow.adapters import LlmClient
+from videoflow.application.clock import now_iso as _now
 from videoflow.application.copilot import ALLOWED_ACTIONS
 from videoflow.domain.errors import StateNotReadyError
 
@@ -105,8 +105,6 @@ class HistoryEntry(BaseModel):
     error: str = ""
 
 
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def validate_actions(turn: Turn) -> Turn:

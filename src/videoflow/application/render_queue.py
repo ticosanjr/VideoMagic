@@ -6,11 +6,12 @@ import hashlib
 import json
 import threading
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application.clock import now_iso as _now
+from videoflow.application.files import stat_signature
 from videoflow.application.render_inputs import render_inputs as _render_inputs
 from videoflow.domain.errors import (
     JobCancelledError,
@@ -19,11 +20,6 @@ from videoflow.domain.errors import (
 )
 from videoflow.domain.state import ProjectState
 from videoflow.exporters.mp4 import export_mp4
-
-
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
-
 
 RENDER_CACHE_VERSION = 1
 
@@ -64,21 +60,14 @@ def _read_manifest(path: Path) -> dict[str, object]:
     return payload if isinstance(payload, dict) else {}
 
 
-def _stat(path: Path) -> list[int] | None:
-    if not path.is_file():
-        return None
-    stat = path.stat()
-    return [stat.st_mtime_ns, stat.st_size]
-
-
 def _inputs_signature(job: Any) -> dict[str, object]:
     state_path = _state_path(job)
     audio_filters, video_filters, ass_path = _render_inputs(job)
     return {
-        "state": _stat(state_path),
-        "audio": _stat(job.output / "audio" / "master-filters.json"),
-        "video": _stat(job.output / "color" / "filters.json"),
-        "ass": _stat(ass_path),
+        "state": stat_signature(state_path),
+        "audio": stat_signature(job.output / "audio" / "master-filters.json"),
+        "video": stat_signature(job.output / "color" / "filters.json"),
+        "ass": stat_signature(ass_path),
         "audio_filters": audio_filters,
         "video_filters": video_filters,
     }

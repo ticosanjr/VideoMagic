@@ -226,7 +226,7 @@ def test_asset_index_skips_without_directory_and_indexes_files(tmp_path: Path) -
 def test_audio_master_and_qa_measure_and_warn(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from videoflow.steps import content
+    from videoflow.steps import content_audio
     from videoflow.steps.content import (
         AudioMasterParams,
         AudioMasterStep,
@@ -234,7 +234,7 @@ def test_audio_master_and_qa_measure_and_warn(
         AudioQaStep,
     )
 
-    monkeypatch.setattr(content, "FFmpegAdapter", _FakeFFmpeg)
+    monkeypatch.setattr(content_audio, "FFmpegAdapter", _FakeFFmpeg)
     context = make_context(tmp_path)
     with pytest.raises(IngestError, match="ingested media"):
         AudioMasterStep().run(context, AudioMasterParams(), StepIO())
@@ -387,10 +387,10 @@ def test_titles_lower_third_dedup_limit_and_cards(tmp_path: Path) -> None:
 def test_thumbnail_variants_use_adapter_and_cache_outputs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from videoflow.steps import content
+    from videoflow.steps import content_visual
     from videoflow.steps.content import ThumbnailParams, ThumbnailStep
 
-    monkeypatch.setattr(content, "FFmpegAdapter", _FakeFFmpeg)
+    monkeypatch.setattr(content_visual, "FFmpegAdapter", _FakeFFmpeg)
     context = make_context(tmp_path)
     with pytest.raises(IngestError, match="ingested media"):
         ThumbnailStep().run(context, ThumbnailParams(), StepIO())

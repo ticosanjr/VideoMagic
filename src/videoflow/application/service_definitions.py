@@ -9,20 +9,18 @@ import signal
 import sqlite3
 import subprocess
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.clock import now_iso as _now
 from videoflow.domain.errors import StateNotReadyError
 from videoflow.runtime import portable_home
 
 DB_FILE = "videoflow.db"
 
 
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 class ServiceDefinition(BaseModel):

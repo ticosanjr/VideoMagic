@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 import re
 import threading
-from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.clock import now_iso as _now
 from videoflow.domain.errors import StateNotReadyError
 from videoflow.runtime import portable_home
 
@@ -121,8 +121,6 @@ class NodePresetUpdate(BaseModel):
     params: dict[str, object] | None = None
 
 
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def _path() -> Path:

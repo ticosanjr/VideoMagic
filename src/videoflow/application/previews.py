@@ -7,20 +7,16 @@ import json
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application.clock import now_iso as _now
+from videoflow.application.files import stat_signature
 from videoflow.application.render_inputs import audio_filters, video_filters
 from videoflow.domain.errors import StateNotReadyError, VideoFlowError
 from videoflow.domain.state import ProjectState
 from videoflow.exporters.mp4 import export_mp4
-
-
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
-
 
 PREVIEW_CACHE_VERSION = 1
 
@@ -141,29 +137,22 @@ def build_preview(
         temporary.unlink(missing_ok=True)
 
 
-def _stat(path: Path) -> list[int] | None:
-    if not path.is_file():
-        return None
-    stat = path.stat()
-    return [stat.st_mtime_ns, stat.st_size]
-
-
 def preview_inputs(job: Any) -> dict[str, object]:
     state_path = Path(
         str((job.result or {}).get("state_path") or job.output / "project_state.json")
     )
     ass_path = job.output / "titles.ass"
     payload: dict[str, object] = {
-        "state": _stat(state_path),
-        "audio": _stat(job.output / "audio" / "master-filters.json"),
-        "video": _stat(job.output / "color" / "filters.json"),
-        "ass": _stat(ass_path),
+        "state": stat_signature(state_path),
+        "audio": stat_signature(job.output / "audio" / "master-filters.json"),
+        "video": stat_signature(job.output / "color" / "filters.json"),
+        "ass": stat_signature(ass_path),
         "height": proxy_height(),
     }
     if not state_path.is_file():
         try:
             artifact = _fallback_source(job)
-            payload["fallback"] = _stat(artifact)
+            payload["fallback"] = stat_signature(artifact)
         except StateNotReadyError:
             payload["fallback"] = None
     return payload

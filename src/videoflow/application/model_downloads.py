@@ -5,15 +5,11 @@ from __future__ import annotations
 import json
 import threading
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 
+from videoflow.application.clock import now_iso as _now
 from videoflow.application.models import install_model, installed_path
 from videoflow.runtime import external_home
-
-
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 @dataclass

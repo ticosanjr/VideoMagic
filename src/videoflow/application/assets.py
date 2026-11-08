@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from videoflow.application.clock import now_iso as _now
 from videoflow.runtime import portable_home
 
 VIDEO = {".mp4", ".mov", ".mkv", ".webm", ".m4v", ".avi"}
@@ -30,8 +31,6 @@ def index_path() -> Path:
     return library_dir() / "index.json"
 
 
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def _kind(suffix: str) -> str:

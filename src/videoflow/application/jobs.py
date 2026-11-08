@@ -23,6 +23,7 @@ from uuid import UUID, uuid4
 from videoflow.adapters.llm import FallbackLlm, OpenAICompatibleLlm
 from videoflow.application.audio import audio_filters
 from videoflow.application.capabilities import ensure_external_allowed
+from videoflow.application.clock import now_iso_ms as _now
 from videoflow.application.images import images_dir
 from videoflow.application.music import music_dir
 from videoflow.application.portable import run_portable
@@ -60,8 +61,6 @@ logger = logging.getLogger(__name__)
 Runner = Callable[..., Any]
 
 
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="milliseconds")
 
 
 @dataclass

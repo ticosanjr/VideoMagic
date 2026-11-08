@@ -17,6 +17,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.clock import now_iso as _now
+from videoflow.application.database import DB_FILE, db_path  # noqa: F401 - re-exported
 from videoflow.application.schema_migrations import migrate_schedule
 from videoflow.domain.errors import StateNotReadyError
 from videoflow.domain.paths import resolve_allowed
@@ -24,12 +26,9 @@ from videoflow.engine.recipes import get_recipe, resolve_recipe_paths
 from videoflow.runtime import allowed_roots, portable_home
 
 LEGACY_FILE = "recipe-schedules.json"
-DB_FILE = "videoflow.db"
 MAX_RUNS = 20
 
 
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def _parse(value: str) -> datetime:
@@ -72,10 +71,6 @@ class RecipeSchedule(BaseModel):
             }
         )
         self.runs = self.runs[-MAX_RUNS:]
-
-
-def db_path() -> Path:
-    return portable_home() / DB_FILE
 
 
 def _connect() -> sqlite3.Connection:

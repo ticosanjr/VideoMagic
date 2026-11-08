@@ -11,11 +11,11 @@ import json
 import threading
 import time
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
+from videoflow.application.clock import now_iso_ms as _now
 from videoflow.application.jobs import TERMINAL, JobManager
 from videoflow.domain.errors import BatchError, JobQueueFullError, VideoFlowError
 
@@ -26,8 +26,6 @@ BatchStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
 ItemStatus = Literal["pending", "running", "succeeded", "failed", "cancelled"]
 
 
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="milliseconds")
 
 
 @dataclass

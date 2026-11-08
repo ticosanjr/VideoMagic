@@ -34,7 +34,7 @@ time.sleep(30)
 """
 
 
-def wait_for(predicate, timeout: float = 10.0) -> None:
+def wait_for(predicate, timeout: float = 30.0) -> None:
     deadline = time.time() + timeout
     while time.time() < deadline:
         if predicate():

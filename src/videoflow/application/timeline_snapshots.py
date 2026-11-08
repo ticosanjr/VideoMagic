@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from videoflow.application.clock import now_iso_ms as _now
 from videoflow.domain.state import ProjectState
 from videoflow.runtime import ensure_home
 
@@ -22,8 +23,6 @@ def timelines_dir() -> Path:
     return directory
 
 
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="milliseconds")
 
 
 def _duration_sec(state: ProjectState) -> float:

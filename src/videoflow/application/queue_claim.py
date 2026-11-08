@@ -4,14 +4,11 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
+from videoflow.application.clock import now_utc as _now
 from videoflow.application.database import connect
-
-
-def _now() -> datetime:
-    return datetime.now(UTC)
 
 
 def _iso(value: datetime) -> str:

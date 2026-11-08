@@ -9,10 +9,10 @@ import shutil
 import sqlite3
 import threading
 import zipfile
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from videoflow.application.clock import now_iso as _now
 from videoflow.runtime import portable_home
 
 DB_FILE = "videoflow.db"
@@ -102,8 +102,6 @@ def connect() -> sqlite3.Connection:
     return connection
 
 
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def upsert_job(job_id: str, payload: dict[str, Any]) -> None:

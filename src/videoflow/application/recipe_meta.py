@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 import threading
-from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.clock import now_iso as _now
 from videoflow.runtime import portable_home
 
 DEFAULT_FAVORITES = frozenset(
@@ -30,8 +30,6 @@ def meta_path() -> Path:
     return portable_home() / "recipe_meta.json"
 
 
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def _read() -> dict[str, dict[str, object]]:

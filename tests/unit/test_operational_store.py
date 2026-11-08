@@ -21,8 +21,18 @@ def fake_runner(source: Path, output: Path, *, progress, should_cancel, **kwargs
 
 def wait_for(manager: JobManager, job_id: str, timeout: float = 5.0) -> None:
     deadline = time.time() + timeout
+    terminal = {"succeeded", "failed", "cancelled"}
     while time.time() < deadline:
-        if manager.get(job_id).status in {"succeeded", "failed", "cancelled"}:
+        if manager.get(job_id).status in terminal:
+            # The worker writes the operational database in its finally block;
+            # wait for that write before a caller reloads from SQLite.
+            while time.time() < deadline:
+                stored = {
+                    item["job_id"]: item for item in database.list_jobs()
+                }
+                if stored.get(job_id, {}).get("status") in terminal:
+                    return
+                time.sleep(0.01)
             return
         time.sleep(0.01)
     raise AssertionError("job did not finish")

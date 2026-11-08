@@ -9,12 +9,12 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Literal
 
+from videoflow.application.clock import now_iso_ms as _now
+
 StageStatus = Literal["pending", "running", "succeeded", "failed", "cancelled"]
 LogLevel = Literal["debug", "info", "warning", "error"]
 
 
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="milliseconds")
 
 
 @dataclass
