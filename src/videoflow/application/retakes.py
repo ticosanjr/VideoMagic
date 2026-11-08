@@ -31,12 +31,12 @@ from videoflow.application.takes import (
     select_duplicate_takes,
     semantic_duplicate_sentences,
 )
+from videoflow.application.text import content_tokens, normalize_text, token_set
 from videoflow.domain.retakes import (
     GuardResult,
     Strategy,
     apply_retake_guard,
     cluster_exact_repetitions,
-    normalize_sentence_text,
 )
 from videoflow.domain.state import Sentence
 
@@ -171,7 +171,7 @@ class RetakeResult:
 
 
 def _normalized(text: str) -> str:
-    return normalize_sentence_text(text)
+    return normalize_text(text)
 
 
 _CONTENT_STOPWORDS = {
@@ -223,19 +223,11 @@ _CONTENT_STOPWORDS = {
 
 
 def _tokens(text: str) -> set[str]:
-    return {
-        token
-        for token in re.findall(r"[a-z0-9à-ÿ]+", text.casefold())
-        if len(token) > 2 or token.isdigit()
-    }
+    return token_set(text)
 
 
 def _content_tokens(text: str) -> set[str]:
-    return {
-        token
-        for token in _tokens(text)
-        if len(token) >= 4 and token not in _CONTENT_STOPWORDS
-    }
+    return content_tokens(text, _CONTENT_STOPWORDS)
 
 
 def _watermark_only(text: str) -> bool:

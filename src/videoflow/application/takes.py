@@ -14,9 +14,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 
+from videoflow.application.text import content_tokens, normalize_text, token_list, token_set
 from videoflow.domain.state import Sentence
 
-_TOKEN = re.compile(r"[a-z0-9à-ÿ]+")
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
 _URL = re.compile(r"https?://|www\.", re.IGNORECASE)
 _STOPWORDS = {
@@ -129,23 +129,19 @@ class TakeGroup:
 
 
 def _normalized(text: str) -> str:
-    return " ".join(text.casefold().split()).strip(" .,!?;:\"'")
+    return normalize_text(text)
 
 
 def _tokens(text: str) -> list[str]:
-    return _TOKEN.findall(text.casefold())
+    return token_list(text)
 
 
 def _token_set(text: str) -> set[str]:
-    return {token for token in _tokens(text) if len(token) > 2 or token.isdigit()}
+    return token_set(text)
 
 
 def _content_tokens(text: str) -> set[str]:
-    return {
-        token
-        for token in _token_set(text)
-        if len(token) >= 4 and token not in _STOPWORDS
-    }
+    return content_tokens(text, _STOPWORDS)
 
 
 def _facts(text: str) -> set[str]:
