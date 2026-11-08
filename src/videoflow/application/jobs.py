@@ -12,7 +12,6 @@ import logging
 import os
 import threading
 import time
-import traceback
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -25,6 +24,7 @@ from videoflow.application.audio import audio_filters
 from videoflow.application.capabilities import ensure_external_allowed
 from videoflow.application.clock import now_iso_ms as _now
 from videoflow.application.images import images_dir
+from videoflow.application.job_executor import JobExecutor, JobRunPolicy, RunOutcome
 from videoflow.application.music import music_dir
 from videoflow.application.portable import run_portable
 from videoflow.application.secrets import get_secret
@@ -43,12 +43,9 @@ from videoflow.domain.config import (
     ZoomsConfig,
 )
 from videoflow.domain.errors import (
-    ApprovalRequiredError,
-    JobCancelledError,
     JobNotFoundError,
     JobQueueFullError,
     ProjectStateError,
-    VideoFlowError,
 )
 from videoflow.domain.state import ManualOverride, ProjectState, Sentence
 from videoflow.exporters.fcpxml import Dialect
@@ -259,6 +256,12 @@ class JobManager:
         self._pending: list[str] = []
         self._lock = threading.Lock()
         self._retry_thread: threading.Thread | None = None
+        self._executor = JobExecutor(
+            self,
+            write_log=_write_log,
+            write_failure=_write_failure,
+            record_history=_record_recipe_history,
+        )
         if self._store_dir is not None and load_store:
             self._load_jobs()
 
@@ -548,13 +551,20 @@ class JobManager:
         if job.options.get("mode") == "recipe":
             self._work_recipe(job)
             return
-        with self._lock:
-            job.status = "running"
-            job.started_at = _now()
-            job.message = "Starting"
-            job.lease_expires_at = (
-                datetime.now(UTC) + timedelta(seconds=300)
-            ).isoformat(timespec="seconds")
+        self._executor.run(job, self._run_legacy)
+
+    def _work_recipe(self, job: Job) -> None:
+        self._executor.run(
+            job,
+            self._run_recipe,
+            JobRunPolicy(
+                record_recipe_history=True,
+                write_failure=True,
+                cancel_error=True,
+            ),
+        )
+
+    def _run_legacy(self, job: Job, callbacks: Any) -> RunOutcome:
         options = job.options
         jl = JlCutsConfig(
             enable_j_cuts=bool(options.get("jcut", True)),
@@ -658,397 +668,206 @@ class JobManager:
 
         telemetry = job.telemetry
 
-        def progress(stage: str, percent: int, message: str) -> None:
-            with self._lock:
-                job.stage = stage
-                job.progress = percent
-                job.message = message
-                if not job.timeline_ready and (
-                    job.output / "project_state.json"
-                ).is_file():
-                    job.timeline_ready = True
-
-        def log(module: str, level: str, message: str) -> None:
-            telemetry.log(module, level, message)
-
-        def should_cancel() -> bool:
-            return job.cancel_requested or job.cancel_event.is_set() or job.cancel_event.is_set()
-
-        try:
-            transcript_sentences = _project_transcript(options.get("transcript_state"))
-            shorts = bool(options.get("shorts", False))
-            if base_url and (cull or shorts) and (
-                transcript or transcript_sentences or bool(options.get("transcribe", False))
-            ):
-                ensure_external_allowed(
-                    str(base_url),
-                    capability="external_llm",
-                    allow_external_services=allow_external_services,
-                allowed_external_hosts=allowed_external_hosts,
-                    allowed_hosts=allowed_external_hosts,
+        transcript_sentences = _project_transcript(options.get("transcript_state"))
+        shorts = bool(options.get("shorts", False))
+        if base_url and (cull or shorts) and (
+            transcript or transcript_sentences or bool(options.get("transcribe", False))
+        ):
+            ensure_external_allowed(
+                str(base_url),
+                capability="external_llm",
+                allow_external_services=allow_external_services,
+            allowed_external_hosts=allowed_external_hosts,
+                allowed_hosts=allowed_external_hosts,
+            )
+            model = str(
+                options.get("llm_model")
+                or provider_model
+                or os.environ.get("VIDEOWFLOW_LLM_MODEL", "qwen2.5:7b-instruct")
+            )
+            clients = [
+                OpenAICompatibleLlm(
+                    base_url=str(item["base_url"]),
+                    model=str(item.get("model") or model),
+                    api_key=os.environ.get(
+                        str(item.get("api_key_env") or "VIDEOWFLOW_LLM_API_KEY")
+                    ),
                 )
-                model = str(
-                    options.get("llm_model")
-                    or provider_model
-                    or os.environ.get("VIDEOWFLOW_LLM_MODEL", "qwen2.5:7b-instruct")
-                )
+                for item in provider_chain
+                if item.get("base_url")
+            ]
+            if not clients:
                 clients = [
                     OpenAICompatibleLlm(
-                        base_url=str(item["base_url"]),
-                        model=str(item.get("model") or model),
-                        api_key=os.environ.get(
-                            str(item.get("api_key_env") or "VIDEOWFLOW_LLM_API_KEY")
-                        ),
+                        base_url=str(base_url),
+                        model=model,
+                        api_key=get_secret("VIDEOWFLOW_LLM_API_KEY"),
                     )
-                    for item in provider_chain
-                    if item.get("base_url")
                 ]
-                if not clients:
-                    clients = [
-                        OpenAICompatibleLlm(
-                            base_url=str(base_url),
-                            model=model,
-                            api_key=get_secret("VIDEOWFLOW_LLM_API_KEY"),
-                        )
-                    ]
-                llm = FallbackLlm(clients) if len(clients) > 1 else clients[0]
-            else:
-                llm = None
-            project_id = options.get("project_id")
-            modules_config = options.get("modules_config")
-            module_enabled = options.get("module_enabled")
-            from videoflow.adapters.ffmpeg import FFmpegAdapter
+            llm = FallbackLlm(clients) if len(clients) > 1 else clients[0]
+        else:
+            llm = None
+        project_id = options.get("project_id")
+        modules_config = options.get("modules_config")
+        module_enabled = options.get("module_enabled")
+        from videoflow.adapters.ffmpeg import FFmpegAdapter
 
-            job_adapter = FFmpegAdapter(cancel_event=job.cancel_event)
-            result = self._runner(
-                job.source,
-                job.output,
-                adapter=job_adapter,
-                noise_db=float(options.get("noise_db", -30.0)),
-                min_silence_ms=int(options.get("min_silence_ms", 400)),
-                min_speech_ms=int(options.get("min_speech_ms", 100)),
-                vad_engine=str(options.get("vad_engine", "auto")),  # type: ignore[arg-type]
-                speech_threshold=float(options.get("speech_threshold", 0.5)),
-                speech_pad_before_ms=int(options.get("speech_pad_before_ms", 120)),
-                speech_pad_after_ms=int(options.get("speech_pad_after_ms", 150)),
-                jl=jl,
-                zooms=zooms,
-                dialect=dialect,
-                progress=progress,
-                should_cancel=should_cancel,
-                telemetry=telemetry,
-                log=log,
-                targets=tuple(options.get("export_targets", ("resolve", "premiere", "kdenlive"))),
-                transcript_path=Path(transcript) if transcript else None,
-                cull_retakes=cull,
-                llm_client=llm,
-                strictness=str(options.get("strictness", "balanced")),
-                retake_strategy=str(options.get("retake_strategy", "keep_last")),
-                context_window=int(options.get("context_window", 15)),
-                shorts=shorts,
-                shorts_count=int(options.get("shorts_count", 3)),
-                shorts_min_sec=int(options.get("shorts_min_sec", 30)),
-                shorts_max_sec=int(options.get("shorts_max_sec", 60)),
-                shorts_subtitles=bool(options.get("shorts_subtitles", True)),
-                shorts_config=_shorts_config(options),
-                allow_external_services=allow_external_services,
-                allowed_external_hosts=allowed_external_hosts,
-                overrides=[
-                    ManualOverride.model_validate(item)
-                    for item in options.get("overrides", [])
-                ],
-                transcribe=bool(options.get("transcribe", False)),
-                asr_base_url=options.get("asr_base_url")
-                or os.environ.get("VIDEOWFLOW_ASR_BASE_URL")
-                or _provider_value("asr", "base_url"),
-                asr_model=str(
-                    options.get("asr_model")
-                    or _provider_value("asr", "model")
-                    or "whisper-1"
+        job_adapter = FFmpegAdapter(cancel_event=job.cancel_event)
+        result = self._runner(
+            job.source,
+            job.output,
+            adapter=job_adapter,
+            noise_db=float(options.get("noise_db", -30.0)),
+            min_silence_ms=int(options.get("min_silence_ms", 400)),
+            min_speech_ms=int(options.get("min_speech_ms", 100)),
+            vad_engine=str(options.get("vad_engine", "auto")),  # type: ignore[arg-type]
+            speech_threshold=float(options.get("speech_threshold", 0.5)),
+            speech_pad_before_ms=int(options.get("speech_pad_before_ms", 120)),
+            speech_pad_after_ms=int(options.get("speech_pad_after_ms", 150)),
+            jl=jl,
+            zooms=zooms,
+            dialect=dialect,
+            progress=callbacks.progress,
+            should_cancel=callbacks.should_cancel,
+            telemetry=telemetry,
+            log=callbacks.log,
+            targets=tuple(options.get("export_targets", ("resolve", "premiere", "kdenlive"))),
+            transcript_path=Path(transcript) if transcript else None,
+            cull_retakes=cull,
+            llm_client=llm,
+            strictness=str(options.get("strictness", "balanced")),
+            retake_strategy=str(options.get("retake_strategy", "keep_last")),
+            context_window=int(options.get("context_window", 15)),
+            shorts=shorts,
+            shorts_count=int(options.get("shorts_count", 3)),
+            shorts_min_sec=int(options.get("shorts_min_sec", 30)),
+            shorts_max_sec=int(options.get("shorts_max_sec", 60)),
+            shorts_subtitles=bool(options.get("shorts_subtitles", True)),
+            shorts_config=_shorts_config(options),
+            allow_external_services=allow_external_services,
+            allowed_external_hosts=allowed_external_hosts,
+            overrides=[
+                ManualOverride.model_validate(item)
+                for item in options.get("overrides", [])
+            ],
+            transcribe=bool(options.get("transcribe", False)),
+            asr_base_url=options.get("asr_base_url")
+            or os.environ.get("VIDEOWFLOW_ASR_BASE_URL")
+            or _provider_value("asr", "base_url"),
+            asr_model=str(
+                options.get("asr_model")
+                or _provider_value("asr", "model")
+                or "whisper-1"
+            ),
+            asr_language=str(options.get("asr_language", "pt")),
+            whisper_model=options.get("whisper_model") or None,
+            faster_whisper_model=options.get("faster_whisper_model") or None,
+            transcribe_config=TranscribeConfig(
+                engine=str(options.get("whisper_engine", "auto")),  # type: ignore[arg-type]
+                model_size=str(options.get("whisper_model_size", "small")),  # type: ignore[arg-type]
+                language=str(options.get("asr_language", "pt")),  # type: ignore[arg-type]
+                device=str(options.get("whisper_device", "cpu")),  # type: ignore[arg-type]
+                compute_type=str(  # type: ignore[arg-type]
+                    options.get("whisper_compute_type", "int8")
                 ),
-                asr_language=str(options.get("asr_language", "pt")),
-                whisper_model=options.get("whisper_model") or None,
-                faster_whisper_model=options.get("faster_whisper_model") or None,
-                transcribe_config=TranscribeConfig(
-                    engine=str(options.get("whisper_engine", "auto")),  # type: ignore[arg-type]
-                    model_size=str(options.get("whisper_model_size", "small")),  # type: ignore[arg-type]
-                    language=str(options.get("asr_language", "pt")),  # type: ignore[arg-type]
-                    device=str(options.get("whisper_device", "cpu")),  # type: ignore[arg-type]
-                    compute_type=str(  # type: ignore[arg-type]
-                        options.get("whisper_compute_type", "int8")
-                    ),
-                    vad_filter=bool(options.get("whisper_vad_filter", False)),
-                ),
-                transcript_sentences=transcript_sentences,
-                project_id=UUID(str(project_id)) if project_id else None,
-                revision=int(options.get("revision", 1)),
-                modules_config=(
-                    ModulesConfig.model_validate(modules_config)
-                    if modules_config is not None
-                    else None
-                ),
-                module_enabled=(
-                    ModuleEnabled.model_validate(module_enabled)
-                    if module_enabled is not None
-                    else None
-                ),
-                audio_filters=tuple(audio_filters(audio_config)),
-                overlay_path=overlay_path,
-                overlay_position=overlay_config.position,
-                overlay_margin=overlay_config.margin_px,
-                overlay_width_ratio=overlay_config.width_ratio,
-                overlay_opacity=overlay_config.opacity,
-                music_path=music_path,
-                music_volume=music_config.volume,
-                music_ducking=music_config.ducking,
-                music_fade_in_ms=music_config.fade_in_ms,
-                music_fade_out_ms=music_config.fade_out_ms,
-                intro_path=intro_path,
-                outro_path=outro_path,
-                intro_duration_sec=intro_config.intro_duration_sec,
-                outro_duration_sec=intro_config.outro_duration_sec,
-            )
-            if job.finalizer is not None and not job.cancel_requested:
-                job.finalizer(job)
-            with self._lock:
-                if job.cancel_requested:
-                    job.status = "cancelled"
-                    job.stage = "cancelled"
-                    job.message = "Cancelled"
-                else:
-                    job.status = "succeeded"
-                    job.progress = 100
-                    job.stage = "done"
-                    job.message = "Finished"
-                    job.result = _result_dict(result)
-        except JobCancelledError as exc:
-            with self._lock:
-                if job.pause_requested:
-                    job.status = "paused"
-                    job.stage = "paused"
-                    job.message = "Paused"
-                    job.error = None
-                else:
-                    job.status = "cancelled"
-                    job.stage = "cancelled"
-                    job.message = str(exc)
-        except VideoFlowError as exc:
-            telemetry.fail_running(exc.message)
-            with self._lock:
-                if self._schedule_retry_locked(job):
-                    return
-                job.status = "failed"
-                job.stage = job.stage or "failed"
-                job.message = exc.message
-                job.error = exc.to_dict()
-        except Exception as exc:  # pragma: no cover - unexpected worker failure
-            traceback.print_exc()
-            telemetry.fail_running(str(exc))
-            with self._lock:
-                if self._schedule_retry_locked(job):
-                    return
-                job.status = "failed"
-                job.stage = job.stage or "failed"
-                job.message = str(exc)
-                job.error = {
-                    "ok": False,
-                    "code": "internal_error",
-                    "message": str(exc),
-                }
-        finally:
-            with self._lock:
-                if job.status not in {"paused", "queued", "running"}:
-                    job.finished_at = _now()
-                if job.status in TERMINAL:
-                    job.lease_expires_at = ""
-                if (job.output / "project_state.json").is_file():
-                    job.timeline_ready = True
-            if not job.deleted:
-                _write_log(job)
-                self._persist_job(job)
-            elif job.status == "cancelled":
-                _write_log(job)
-            self._drain_queue()
+                vad_filter=bool(options.get("whisper_vad_filter", False)),
+            ),
+            transcript_sentences=transcript_sentences,
+            project_id=UUID(str(project_id)) if project_id else None,
+            revision=int(options.get("revision", 1)),
+            modules_config=(
+                ModulesConfig.model_validate(modules_config)
+                if modules_config is not None
+                else None
+            ),
+            module_enabled=(
+                ModuleEnabled.model_validate(module_enabled)
+                if module_enabled is not None
+                else None
+            ),
+            audio_filters=tuple(audio_filters(audio_config)),
+            overlay_path=overlay_path,
+            overlay_position=overlay_config.position,
+            overlay_margin=overlay_config.margin_px,
+            overlay_width_ratio=overlay_config.width_ratio,
+            overlay_opacity=overlay_config.opacity,
+            music_path=music_path,
+            music_volume=music_config.volume,
+            music_ducking=music_config.ducking,
+            music_fade_in_ms=music_config.fade_in_ms,
+            music_fade_out_ms=music_config.fade_out_ms,
+            intro_path=intro_path,
+            outro_path=outro_path,
+            intro_duration_sec=intro_config.intro_duration_sec,
+            outro_duration_sec=intro_config.outro_duration_sec,
+        )
+        return RunOutcome(result=_result_dict(result))
 
-    def _work_recipe(self, job: Job) -> None:
+    def _run_recipe(self, job: Job, callbacks: Any) -> RunOutcome:
         from videoflow.core.recipe import Recipe
         from videoflow.engine.runner import RecipeRunner
 
-        with self._lock:
-            job.status = "running"
-            job.started_at = _now()
-            job.message = "Starting recipe"
-            job.lease_expires_at = (
-                datetime.now(UTC) + timedelta(seconds=300)
-            ).isoformat(timespec="seconds")
+        recipe = Recipe.model_validate(job.options.get("recipe") or {})
+        transcript_sentences = [
+            Sentence.model_validate(item)
+            for item in job.options.get("transcript_sentences", [])
+        ]
+        from videoflow.adapters.ffmpeg import FFmpegAdapter
 
-        def progress(stage: str, percent: int, message: str) -> None:
-            with self._lock:
-                job.stage = stage
-                job.progress = percent
-                job.message = message
-                if not job.timeline_ready and (
-                    job.output / "project_state.json"
-                ).is_file():
-                    job.timeline_ready = True
-
-        def log(module: str, level: str, message: str) -> None:
-            job.telemetry.log(module, level, message)
-
-        def step_progress(stage: str, percent: int, message: str) -> None:
-            with self._lock:
-                job.step_progress[stage] = max(0, min(100, int(percent)))
-                job.stage = stage
-                job.message = message
-                if not job.timeline_ready and (
-                    job.output / "project_state.json"
-                ).is_file():
-                    job.timeline_ready = True
-
-        def should_cancel() -> bool:
-            return job.cancel_requested or job.cancel_event.is_set()
-
-        try:
-            recipe = Recipe.model_validate(job.options.get("recipe") or {})
-            transcript_sentences = [
-                Sentence.model_validate(item)
-                for item in job.options.get("transcript_sentences", [])
-            ]
-            from videoflow.adapters.ffmpeg import FFmpegAdapter
-
-            runner = RecipeRunner(
-                recipe,
-                adapter=FFmpegAdapter(cancel_event=job.cancel_event),
-                cancel_event=job.cancel_event,
-            )
-            base_variables = dict(job.options.get("variables") or {})
-            variants = recipe.variants or []
-            variant_summaries: list[dict[str, object]] = []
-            result = None
-            if variants:
-                for index, variant in enumerate(variants, start=1):
-                    name = str(variant.get("name") or f"variant-{index}")
-                    overrides = variant.get("variables")
-                    variables = {
-                        **base_variables,
-                        **(overrides if isinstance(overrides, dict) else {}),
-                    }
-                    target = job.output / name
-                    variant_result = runner.run(
-                        job.source,
-                        target,
-                        progress=progress,
-                        should_cancel=should_cancel,
-                        log=log,
-                        telemetry=job.telemetry,
-                        transcript_sentences=transcript_sentences,
-                        through=job.options.get("through"),
-                        resume=bool(job.options.get("resume", True)),
-                        variables=variables,
-                        profile=job.options.get("profile"),
-                    )
-                    variant_summaries.append(
-                        {
-                            "name": name,
-                            "output": str(target),
-                            "summary": variant_result.to_dict(),
-                        }
-                    )
-                    result = variant_result
-            else:
-                result = runner.run(
+        runner = RecipeRunner(
+            recipe,
+            adapter=FFmpegAdapter(cancel_event=job.cancel_event),
+            cancel_event=job.cancel_event,
+        )
+        base_variables = dict(job.options.get("variables") or {})
+        variants = recipe.variants or []
+        variant_summaries: list[dict[str, object]] = []
+        result = None
+        if variants:
+            for index, variant in enumerate(variants, start=1):
+                name = str(variant.get("name") or f"variant-{index}")
+                overrides = variant.get("variables")
+                variables = {
+                    **base_variables,
+                    **(overrides if isinstance(overrides, dict) else {}),
+                }
+                target = job.output / name
+                variant_result = runner.run(
                     job.source,
-                    job.output,
-                    progress=progress,
-                    should_cancel=should_cancel,
-                    log=log,
+                    target,
+                    progress=callbacks.progress,
+                    should_cancel=callbacks.should_cancel,
+                    log=callbacks.log,
                     telemetry=job.telemetry,
                     transcript_sentences=transcript_sentences,
                     through=job.options.get("through"),
                     resume=bool(job.options.get("resume", True)),
-                    variables=base_variables,
+                    variables=variables,
                     profile=job.options.get("profile"),
                 )
-            if job.finalizer is not None and not job.cancel_requested:
-                job.finalizer(job)
-            with self._lock:
-                if job.cancel_requested:
-                    job.status = "cancelled"
-                    job.stage = "cancelled"
-                    job.message = "Cancelled"
-                else:
-                    assert result is not None
-                    job.status = "succeeded"
-                    job.progress = 100
-                    job.stage = "done"
-                    job.message = "Finished"
-                    if (job.output / "project_state.json").is_file():
-                        job.timeline_ready = True
-                    payload = result.to_dict()
-                    if variant_summaries:
-                        payload["variants"] = variant_summaries
-                    job.result = payload
-        except ApprovalRequiredError as exc:
-            with self._lock:
-                job.status = "waiting_approval"
-                job.stage = "waiting_approval"
-                job.message = exc.message
-                job.error = exc.to_dict()
-                job.progress = max(1, min(99, job.progress))
-            self._persist_job(job)
-            return
-        except JobCancelledError as exc:
-            job.telemetry.fail_running(exc.message)
-            with self._lock:
-                if job.pause_requested:
-                    job.status = "paused"
-                    job.stage = "paused"
-                    job.message = "Paused"
-                    job.error = None
-                else:
-                    job.status = "cancelled"
-                    job.stage = "cancelled"
-                    job.message = str(exc)
-                    job.error = {
-                        "ok": False,
-                        "code": "job_cancelled",
-                        "message": str(exc),
+                variant_summaries.append(
+                    {
+                        "name": name,
+                        "output": str(target),
+                        "summary": variant_result.to_dict(),
                     }
-            _write_failure(job)
-        except VideoFlowError as exc:
-            job.telemetry.fail_running(exc.message)
-            with self._lock:
-                if self._schedule_retry_locked(job):
-                    return
-                job.status = "failed"
-                job.stage = job.stage or "failed"
-                job.message = exc.message
-                job.error = exc.to_dict()
-            _write_failure(job)
-        except Exception as exc:  # pragma: no cover - unexpected worker failure
-            traceback.print_exc()
-            job.telemetry.fail_running(str(exc))
-            with self._lock:
-                if self._schedule_retry_locked(job):
-                    return
-                job.status = "failed"
-                job.stage = job.stage or "failed"
-                job.message = str(exc)
-                job.error = {"ok": False, "code": "internal_error", "message": str(exc)}
-            _write_failure(job)
-        finally:
-            with self._lock:
-                if job.status not in {"paused", "queued", "running"}:
-                    job.finished_at = _now()
-                if job.status in TERMINAL:
-                    job.lease_expires_at = ""
-            if not job.deleted:
-                _write_log(job)
-                _record_recipe_history(job)
-                self._persist_job(job)
-            elif job.status == "cancelled":
-                _write_log(job)
-            self._drain_queue()
+                )
+                result = variant_result
+        else:
+            result = runner.run(
+                job.source,
+                job.output,
+                progress=callbacks.progress,
+                should_cancel=callbacks.should_cancel,
+                log=callbacks.log,
+                telemetry=job.telemetry,
+                transcript_sentences=transcript_sentences,
+                through=job.options.get("through"),
+                resume=bool(job.options.get("resume", True)),
+                variables=base_variables,
+                profile=job.options.get("profile"),
+            )
+        return RunOutcome(result=result.to_dict(), variants=variant_summaries)
 
     def _persist_job(self, job: Job) -> None:
         if job.deleted or self._store_dir is None:
