@@ -37,6 +37,8 @@ class Host:
         self.output = output
 
     def _schedule_retry_locked(self, job: object) -> bool:
+        if self.retry:
+            job.status = "queued"
         return self.retry
 
     def _persist_job(self, job: object) -> None:
@@ -134,3 +136,52 @@ def test_executor_marks_cancelled_and_writes_failure(tmp_path: Path) -> None:
     assert job.status == "cancelled"
     assert job.error is not None
     assert host.failures == 1
+
+
+def test_executor_reports_step_progress_and_timeline_ready(tmp_path: Path) -> None:
+    host = Host(tmp_path)
+    job = _job(tmp_path)
+    (tmp_path / "project_state.json").write_text("{}", encoding="utf-8")
+    executor = _executor(host)
+
+    def run(job: object, callbacks: JobCallbacks) -> RunOutcome:
+        callbacks.step_progress("transcribe", 42, "words")
+        callbacks.log("transcribe", "info", "done")
+        return RunOutcome(result={"ok": True})
+
+    executor.run(job, run)
+    assert job.step_progress["transcribe"] == 42
+    assert job.timeline_ready is True
+    assert job.telemetry.lines == [("transcribe", "info", "done")]
+
+
+def test_executor_waits_for_approval(tmp_path: Path) -> None:
+    from videoflow.domain.errors import ApprovalRequiredError
+
+    host = Host(tmp_path)
+    job = _job(tmp_path)
+    executor = _executor(host)
+
+    def run(job: object, callbacks: JobCallbacks) -> RunOutcome:
+        raise ApprovalRequiredError("gate", "Review", "Approve it")
+
+    executor.run(job, run)
+    assert job.status == "waiting_approval"
+    assert job.error is not None
+    assert host.persisted == 1
+
+
+def test_executor_schedules_retry_before_failing(tmp_path: Path) -> None:
+    from videoflow.domain.errors import VideoFlowError
+
+    host = Host(tmp_path)
+    host.retry = True
+    job = _job(tmp_path)
+    executor = _executor(host)
+
+    def run(job: object, callbacks: JobCallbacks) -> RunOutcome:
+        raise VideoFlowError("temporary")
+
+    executor.run(job, run)
+    assert job.status == "queued"
+    assert job.telemetry.failed == ["temporary"]

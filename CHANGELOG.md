@@ -3,6 +3,28 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [2.59.2] - 2026-11-08
+
+### Changed
+
+- **Job lifecycle unified.** `JobExecutor` owns running/retry/cancel/approval,
+  persistence, finalizer, and queue draining; the legacy pipeline and recipe
+  runner are adapters. `jobs.py` drops from 1263 to 1081 lines.
+- **Shared text helpers.** `application/text.py` now owns normalization,
+  tokenization, token sets, and content tokens for retakes and takes.
+- **Shared file stores.** `application/asset_store.py` owns music/SFX listing
+  and saving; limits and suffixes stay local.
+- **Shared primitives.** `clock.py`, `spans.py`, `files.py`, and
+  `retake_spans.py` replace duplicated helpers.
+- **Content steps split.** `steps/content.py` is 308 lines; audio and visual
+  steps live in `content_audio.py` and `content_visual.py`.
+
+### Verified
+
+- 1,690 Python tests, 87 Vitest, gate green, full-tree line coverage 98%.
+- New modules: `job_executor` 99%, `asset_store` 100%, `text` 100%,
+  `spans` 100%, `files` 100%, `content_audio` 100%, `content_visual` 100%.
+
 ## [2.59.1] - 2026-11-07
 
 ### Fixed
