@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import hashlib
-import re
 from pathlib import Path
 
-from videoflow.domain.errors import AssetNotFoundError, FilesystemError
+from videoflow.application.asset_store import list_files, save_file
+from videoflow.domain.errors import AssetNotFoundError
 from videoflow.runtime import portable_home
 
 MAX_MUSIC_BYTES = 100 * 1024 * 1024
@@ -20,31 +19,19 @@ def music_dir() -> Path:
 
 
 def list_music() -> list[dict[str, object]]:
-    return [
-        {"file": str(path), "name": path.name, "size_bytes": path.stat().st_size}
-        for path in sorted(music_dir().iterdir())
-        if path.is_file() and path.suffix.casefold() in _SUFFIXES
-    ]
+    return list_files(music_dir(), _SUFFIXES)
 
 
 def save_music(filename: str, data: bytes) -> dict[str, object]:
-    if not data:
-        raise FilesystemError("The music file is empty.")
-    if len(data) > MAX_MUSIC_BYTES:
-        raise FilesystemError("Music files must be at most 100 MB.")
-    suffix = Path(filename).suffix.casefold()
-    if suffix not in _SUFFIXES:
-        raise FilesystemError("Use .mp3, .wav, .m4a, .aac, or .ogg.")
-    digest = hashlib.sha256(data).hexdigest()
-    stem = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(filename).stem).strip("-") or "music"
-    target = music_dir() / f"{stem}-{digest[:10]}{suffix}"
-    target.write_bytes(data)
-    return {
-        "file": str(target),
-        "name": target.name,
-        "size_bytes": len(data),
-        "sha256": digest,
-    }
+    return save_file(
+        filename,
+        data,
+        directory=music_dir(),
+        suffixes=_SUFFIXES,
+        max_bytes=MAX_MUSIC_BYTES,
+        label="music",
+        default_stem="music",
+    )
 
 
 def music_filter(
