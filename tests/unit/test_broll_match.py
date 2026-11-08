@@ -80,7 +80,7 @@ def test_match_uses_shots_and_writes_licenses(
         },
     ]
     monkeypatch.setattr(
-        "videoflow.steps.assets_intel.list_assets", lambda limit=2000: assets
+        "videoflow.steps.assets_match.list_assets", lambda limit=2000: assets
     )
     ctx = context(tmp_path)
 
@@ -102,7 +102,7 @@ def test_match_without_shots_falls_back_to_the_whole_clip(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "videoflow.steps.assets_intel.list_assets",
+        "videoflow.steps.assets_match.list_assets",
         lambda limit=2000: [
             {
                 "id": "a1",

@@ -14,7 +14,7 @@ from tests.unit.test_steps_coverage_extra import (
     sentence,
 )
 from videoflow.application.shorts import ShortClip
-from videoflow.steps import assets_intel
+from videoflow.steps import assets_audio, assets_match, assets_shots
 from videoflow.steps.assets_intel import (
     AssetMatchStep,
     BeatParams,
@@ -48,9 +48,9 @@ def test_shots_step_writes_thumbnails_and_warns_on_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     context = make_context(tmp_path, media_info=make_media(tmp_path))
-    monkeypatch.setattr(assets_intel, "detect_scene_changes", lambda *_a, **_k: [0.0, 1.0])
+    monkeypatch.setattr(assets_shots, "detect_scene_changes", lambda *_a, **_k: [0.0, 1.0])
     monkeypatch.setattr(
-        assets_intel, "scene_intervals", lambda *_a, **_k: [(0, RATE), (RATE, 2 * RATE)]
+        assets_shots, "scene_intervals", lambda *_a, **_k: [(0, RATE), (RATE, 2 * RATE)]
     )
     calls: list[str] = []
 
@@ -61,7 +61,7 @@ def test_shots_step_writes_thumbnails_and_warns_on_failure(
                 raise RuntimeError("decoder failed")
             target.write_bytes(b"png")
 
-    monkeypatch.setattr(assets_intel, "FFmpegAdapter", Adapter)
+    monkeypatch.setattr(assets_shots, "FFmpegAdapter", Adapter)
     io = StepIO(progress=lambda *_a: None)
 
     ShotsStep().run(context, ShotsParams(), io)
@@ -80,8 +80,8 @@ def test_shots_step_falls_back_to_one_whole_clip(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     context = make_context(tmp_path, media_info=make_media(tmp_path))
-    monkeypatch.setattr(assets_intel, "detect_scene_changes", lambda *_a, **_k: [])
-    monkeypatch.setattr(assets_intel, "scene_intervals", lambda *_a, **_k: [])
+    monkeypatch.setattr(assets_shots, "detect_scene_changes", lambda *_a, **_k: [])
+    monkeypatch.setattr(assets_shots, "scene_intervals", lambda *_a, **_k: [])
 
     ShotsStep().run(context, ShotsParams(thumbnails=False), StepIO())
 
@@ -108,8 +108,8 @@ def test_asset_match_uses_tfidf_without_embeddings(
         {"id": "c", "name": "photo", "path": "/c.png", "kind": "image", "tags": []},
         {"id": "d", "name": "audio", "path": "/d.wav", "kind": "audio", "tags": []},
     ]
-    monkeypatch.setattr(assets_intel, "list_assets", lambda limit=2000: assets)
-    monkeypatch.setattr(assets_intel.embeddings, "available", lambda: False)
+    monkeypatch.setattr(assets_match, "list_assets", lambda limit=2000: assets)
+    monkeypatch.setattr(assets_match.embeddings, "available", lambda: False)
 
     AssetMatchStep().run(context, MatchParams(query="ocean"), StepIO())
 
@@ -140,9 +140,9 @@ def test_asset_match_uses_embeddings_and_limits_windows(
         {"id": "a", "name": "a", "path": "/a.mp4", "kind": "video", "tags": []},
         {"id": "b", "name": "b", "path": "/b.mp4", "kind": "video", "tags": []},
     ]
-    monkeypatch.setattr(assets_intel, "list_assets", lambda limit=2000: assets)
-    monkeypatch.setattr(assets_intel.embeddings, "available", lambda: True)
-    monkeypatch.setattr(assets_intel.embeddings, "scores", lambda *_a: [0.9, 0.8])
+    monkeypatch.setattr(assets_match, "list_assets", lambda limit=2000: assets)
+    monkeypatch.setattr(assets_match.embeddings, "available", lambda: True)
+    monkeypatch.setattr(assets_match.embeddings, "scores", lambda *_a: [0.9, 0.8])
 
     AssetMatchStep().run(
         context, MatchParams(max_per_short=1, min_score=0.5), StepIO()
@@ -167,8 +167,8 @@ def test_asset_match_deduplicates_assets(
         selected_shorts=clips,
     )
     assets = [{"id": "a", "name": "shared", "path": "/a.mp4", "kind": "video"}]
-    monkeypatch.setattr(assets_intel, "list_assets", lambda limit=2000: assets)
-    monkeypatch.setattr(assets_intel.embeddings, "available", lambda: False)
+    monkeypatch.setattr(assets_match, "list_assets", lambda limit=2000: assets)
+    monkeypatch.setattr(assets_match.embeddings, "available", lambda: False)
 
     AssetMatchStep().run(context, MatchParams(min_score=0.0), StepIO())
 
@@ -199,7 +199,7 @@ def test_music_beat_tempo_fallback_and_detection(
     assert beats[-1] < 4.0
     assert json.loads(Path(context.artifacts["beats"]).read_text())[ "source" ] == "tempo"
 
-    monkeypatch.setattr(assets_intel, "detect_beats", lambda _path: [0.0, 0.5, 1.0])
+    monkeypatch.setattr(assets_audio, "detect_beats", lambda _path: [0.0, 0.5, 1.0])
     MusicBeatStep().run(context, BeatParams(path=str(tmp_path / "song.wav")), StepIO())
     payload = json.loads(Path(context.artifacts["beats"]).read_text())
     assert payload["source"] == "audio"
@@ -214,7 +214,7 @@ def test_music_beat_detection_failure_warns(
     def fail(_path: Path) -> list[float]:
         raise RuntimeError("no audio")
 
-    monkeypatch.setattr(assets_intel, "detect_beats", fail)
+    monkeypatch.setattr(assets_audio, "detect_beats", fail)
 
     MusicBeatStep().run(context, BeatParams(path=str(tmp_path / "bad.wav")), StepIO())
 
