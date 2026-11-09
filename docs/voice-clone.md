@@ -2,7 +2,7 @@
 
 ## Status
 
-Deferred for 3.0. No cloning is performed by 2.59.4.
+Deferred for 3.0. No cloning is performed by 2.60.0.
 
 ## Why
 

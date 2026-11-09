@@ -129,6 +129,8 @@ def _read_cache(url: str, ttl_hours: int) -> dict[str, Any] | None:
         payload = json.loads(_cache_path(url).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+    if not isinstance(payload, dict):
+        return None
     fetched = float(payload.get("fetched_ts") or 0)
     if time.time() - fetched > ttl_hours * 3600:
         return None

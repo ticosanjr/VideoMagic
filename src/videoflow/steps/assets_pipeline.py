@@ -321,7 +321,11 @@ class AssetsAssignStep(BaseStep):
             )
         by_unit: dict[str, list[dict[str, Any]]] = {}
         for item in assets:
-            if not isinstance(item, dict) or not item.get("downloaded_path"):
+            if (
+                not isinstance(item, dict)
+                or not item.get("downloaded_path")
+                or str(item.get("kind") or "") not in {"video", "image"}
+            ):
                 continue
             by_unit.setdefault(str(item.get("unit_id") or ""), []).append(item)
         assignments: list[dict[str, Any]] = []

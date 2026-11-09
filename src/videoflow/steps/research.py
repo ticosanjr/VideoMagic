@@ -556,7 +556,7 @@ class ConsolidateStep(BaseStep):
             context.output / "research" / "master.md",
             _render_research_markdown(
                 "Master research",
-                master["topic"],
+                str(master.get("topic") or ""),
                 cases,
                 notes or " | ".join(warnings),
             ),
@@ -650,6 +650,10 @@ class PresenterProfileStep(BaseStep):
             "cadence": "short" if len(words) / max(1, len(sentences)) < 14 else "long",
         }
         _write_json(context.output / "research" / "presenter-profile.json", profile)
+        vocabulary = profile.get("vocabulary")
+        vocabulary_text = ", ".join(
+            str(item) for item in (vocabulary if isinstance(vocabulary, list) else [])[:40]
+        )
         _write_text(
             context.output / "research" / "presenter-profile.md",
             "# Presenter profile\n\n"
@@ -657,7 +661,7 @@ class PresenterProfileStep(BaseStep):
             f"- Words: {profile['word_count']}\n"
             f"- Average sentence: {profile['avg_sentence_words']} words\n"
             f"- Cadence: {profile['cadence']}\n"
-            f"- Vocabulary: {', '.join(profile['vocabulary'][:40])}\n",
+            f"- Vocabulary: {vocabulary_text}\n",
         )
         context.metadata["presenter_profile"] = profile
         context.artifacts["presenter_profile"] = str(

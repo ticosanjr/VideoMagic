@@ -3,7 +3,7 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
-## [Unreleased]
+## [2.60.0] - 2026-11-09
 
 ### Added
 
@@ -42,6 +42,13 @@ follow semantic versioning once the project reaches 1.0.
 - **Fact-check and voice repair.** `factcheck.audit` with citation validation,
   a HILT correction gate, optional TTS or uploaded voice patches, and the final
   approval/export checkpoint.
+
+### Verified
+
+- 1,780 Python tests, 87 Vitest, 90 Playwright; configured gate coverage 98%.
+- Full-tree coverage 93.52% line (27,042/28,916), 91.41% with branches.
+- Local gate green: `ruff`, unit/contract, fault injection, media, layer
+  coverage, UI unit/static, E2E, and packaging smoke.
 
 ## [2.59.4] - 2026-11-09
 

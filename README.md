@@ -6,7 +6,7 @@ recording into an editable timeline: it removes silence and retakes, adds
 J-cuts and punch-ins, proposes vertical Shorts, masters the dialogue bed, and
 exports timelines for DaVinci Resolve, Adobe Premiere Pro, and Kdenlive.
 
-> Status: 2.59.4 local stable. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
+> Status: 2.60.0 local stable. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical Shorts,
 > audio mastering and loudness QA, burned titles, color/LUT grading, analytics
@@ -134,6 +134,15 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - Native NLE finishing: titles, markers, chapters, colour filters, a B-roll
   lane, and the audio master in FCPXML, XMEML, and Kdenlive, plus
   `scripts/qa_nle.py` to fail an export that loses them.
+- Human-in-the-loop: durable approvals, questions, file handoffs, local/e-mail/
+  Slack/Signal notifications, and the favorited `full_ai_editor` recipe with
+  research, dual script, decoupage, asset license, motion, audio, fact-check,
+  voice-repair, and final approval checkpoints.
+- Research and assets: local/SearXNG/Wikipedia/Internet Archive research,
+  citation manifests, Pexels/Pixabay/Openverse/Wikimedia harvesting, short
+  fair-use YouTube excerpts, an explicit license ledger, and export gating.
+- Motion and audio: JSON scene codegen, FFmpeg motion rendering, procedural
+  copyright-free music/Foley, final dialogue/music/SFX mix, and intro compiler.
 - Professional finishing: pause/resume and priority, slide, duplicate, per-clip
   comments, context menu, drag-and-drop timeline overlays, incremental Shorts
   and segment-cached timeline renders, frame preview, light/high-contrast

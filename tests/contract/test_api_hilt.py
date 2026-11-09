@@ -212,3 +212,116 @@ def test_slack_url_verification(monkeypatch, tmp_path: Path) -> None:
     )
     assert response.status_code == 200
     assert response.json() == {"ok": True, "challenge": "abc"}
+
+
+def test_hilt_artifact_download_and_cancel(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    output = tmp_path / "out"
+    output.mkdir()
+    (output / "manual.txt").write_text("review me", encoding="utf-8")
+    recipe = _base_recipe(
+        [
+            {
+                "id": "gate",
+                "type": "human.gate",
+                "params": {
+                    "gate_id": "review",
+                    "title": "Review",
+                    "artifacts": ["manual.txt"],
+                },
+            }
+        ]
+    )
+    job = manager.start(
+        source, output, {"mode": "recipe", "recipe": recipe}, queue=True
+    )
+    waiting = _wait(manager, str(job.job_id), {"waiting_approval", "failed"})
+    assert waiting.status == "waiting_approval", waiting.error
+    interaction = waiting.error["interaction"]
+    interaction_id = interaction["interaction_id"]
+    artifact_id = interaction["artifacts"][0]["id"]
+    download = client.get(
+        f"/api/v1/jobs/{job.job_id}/interactions/{interaction_id}/artifacts/{artifact_id}"
+    )
+    assert download.status_code == 200
+    assert download.content == b"review me"
+
+    cancelled = client.post(
+        f"/api/v1/jobs/{job.job_id}/interactions/{interaction_id}/cancel"
+    )
+    assert cancelled.status_code == 200
+    assert manager.get(str(job.job_id)).status == "cancelled"
+
+
+def test_interaction_list_get_and_missing_artifact(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    recipe = _base_recipe(
+        [
+            {
+                "id": "gate",
+                "type": "human.gate",
+                "params": {
+                    "gate_id": "review",
+                    "title": "Review",
+                    "artifacts": ["manual.txt"],
+                },
+            }
+        ]
+    )
+    output = tmp_path / "out"
+    output.mkdir()
+    (output / "manual.txt").write_text("review", encoding="utf-8")
+    job = manager.start(
+        source, output, {"mode": "recipe", "recipe": recipe}, queue=True
+    )
+    waiting = _wait(manager, str(job.job_id), {"waiting_approval", "failed"})
+    assert waiting.status == "waiting_approval", waiting.error
+    (output / "manual.txt").unlink()
+    listed = client.get(f"/api/v1/jobs/{job.job_id}/interactions")
+    assert listed.status_code == 200
+    interaction = listed.json()["interactions"][0]
+    detail = client.get(
+        f"/api/v1/jobs/{job.job_id}/interactions/{interaction['interaction_id']}"
+    )
+    assert detail.status_code == 200
+    artifact_id = interaction["artifacts"][0]["id"]
+    missing = client.get(
+        f"/api/v1/jobs/{job.job_id}/interactions/{interaction['interaction_id']}"
+        f"/artifacts/{artifact_id}"
+    )
+    assert missing.status_code == 404
+
+
+def test_upload_with_unknown_file_request_is_rejected(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    recipe = _base_recipe(
+        [
+            {
+                "id": "files",
+                "type": "human.files",
+                "params": {
+                    "gate_id": "files",
+                    "title": "Files",
+                    "files": [{"id": "a", "label": "A", "required": True, "accept": [".md"]}],
+                },
+            }
+        ]
+    )
+    job = manager.start(
+        source, tmp_path / "out", {"mode": "recipe", "recipe": recipe}, queue=True
+    )
+    waiting = _wait(manager, str(job.job_id), {"waiting_input", "failed"})
+    assert waiting.status == "waiting_input", waiting.error
+    interaction_id = waiting.error["interaction"]["interaction_id"]
+    response = client.post(
+        f"/api/v1/jobs/{job.job_id}/interactions/{interaction_id}/files",
+        data={"request_id": "unknown"},
+        files={"files": ("a.md", b"x", "text/markdown")},
+    )
+    assert response.status_code == 409

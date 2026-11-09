@@ -57,12 +57,13 @@ class VoicePatchStep(BaseStep):
             context.warnings.append("Voice repair skipped: no final audio master.")
             io.report(100, "Voice repair skipped (no audio master)")
             return
-        patch = Path(options.patch_path)
-        if not patch.is_absolute():
-            patch = context.output / patch
-        if not patch.is_file() and options.allow_tts and text.strip():
-            patch = self._tts_patch(context, text, io)
-        if patch is None or not patch.is_file():
+        candidate = Path(options.patch_path)
+        if not candidate.is_absolute():
+            candidate = context.output / candidate
+        patch_path: Path | None = candidate
+        if not candidate.is_file() and options.allow_tts and text.strip():
+            patch_path = self._tts_patch(context, text, io)
+        if patch_path is None or not patch_path.is_file():
             context.warnings.append(
                 "Voice repair skipped: no patch file or TTS provider."
             )
@@ -84,6 +85,7 @@ class VoicePatchStep(BaseStep):
         binary = find_binary("ffmpeg")
         if binary is None:
             raise RuntimeError("FFmpeg is required for voice repair.")
+        patch = patch_path
         segment = max(0.05, end - start)
         target = context.output / "audio" / "final-repaired.wav"
         filters = []

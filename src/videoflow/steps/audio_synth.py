@@ -67,7 +67,9 @@ class AudioComposeStep(BaseStep):
         }
         target = context.output / "audio" / "music-plan.json"
         target.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
-        context.artifacts["audio_music"] = str(payload["files"]["mix"])
+        files = payload.get("files")
+        if isinstance(files, dict):
+            context.artifacts["audio_music"] = str(files.get("mix") or "")
         context.artifacts["audio_music_plan"] = str(target)
         context.metadata["audio_music"] = plan
         context.hashes["audio.compose"] = digest_payload(plan)

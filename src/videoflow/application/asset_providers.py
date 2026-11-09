@@ -619,7 +619,7 @@ def _youtube(
     return results[:limit]
 
 
-PROVIDERS = {
+PROVIDERS: dict[str, Any] = {
     "pexels": _pexels,
     "pixabay": _pixabay,
     "openverse": _openverse,

@@ -151,7 +151,7 @@ def _release_notes(version: str, staged: list[dict[str, object]]) -> str:
             "Linux plain binary:\n\n"
             "```bash\n"
             f"./{linux} doctor\n"
-            f"./{linux} demo -o demo\n"
+            f"./{linux} recipe list\n"
             f"./{linux} recipe run youtube_talking_head input.mp4 -o project\n"
             "```"
         )
@@ -161,7 +161,7 @@ def _release_notes(version: str, staged: list[dict[str, object]]) -> str:
             "```bash\n"
             f"chmod +x {appimage}\n"
             f"./{appimage} version\n"
-            f"./{appimage} demo -o demo\n"
+            f"./{appimage} recipe list\n"
             "```"
         )
     if windows:
@@ -170,7 +170,7 @@ def _release_notes(version: str, staged: list[dict[str, object]]) -> str:
             "```powershell\n"
             f".\\{windows} version\n"
             f".\\{windows} doctor\n"
-            f".\\{windows} demo -o demo\n"
+            f".\\{windows} recipe list\n"
             "```\n\n"
             "The Windows artifact is PE32+ x86-64 and was smoke-tested under Wine."
         )
