@@ -72,7 +72,7 @@ def test_waveform_endpoint_returns_peaks(monkeypatch, tmp_path: Path) -> None:
 
     calls: list[dict[str, object]] = []
 
-    import videoflow.api.routes as routes
+    import videoflow.api.routes_timeline as routes
 
     def fake_peaks(source, *, start_sec, end_sec, buckets):
         calls.append(

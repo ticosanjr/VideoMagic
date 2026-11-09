@@ -625,6 +625,7 @@ def test_event_stream_skips_unchanged_payloads(monkeypatch, tmp_path: Path) -> N
 
 def test_preview_render_frame_and_waveform_paths(monkeypatch, tmp_path: Path) -> None:
     from videoflow.api import routes as routes_module
+    from videoflow.api import routes_timeline as timeline_module
 
     client, manager = _client(monkeypatch, tmp_path)
     (tmp_path / "source.mp4").write_bytes(b"source")
@@ -686,7 +687,7 @@ def test_preview_render_frame_and_waveform_paths(monkeypatch, tmp_path: Path) ->
     def fail_peaks(*args, **kwargs):
         raise ValueError("bad audio stream")
 
-    monkeypatch.setattr(routes_module, "peaks_for_range", fail_peaks)
+    monkeypatch.setattr(timeline_module, "peaks_for_range", fail_peaks)
     waveform = client.get(f"{base}/timeline/waveform")
     assert waveform.status_code == 422
     assert _error(waveform)["code"] == "waveform_failed"
