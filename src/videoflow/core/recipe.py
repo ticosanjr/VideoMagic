@@ -78,6 +78,28 @@ class RecipeStep(StrictModel):
         return value
 
 
+def depends_on(
+    start: str,
+    target: str,
+    by_id: dict[str, RecipeStep],
+) -> bool:
+    """Return whether ``start`` reaches ``target`` through ``needs`` edges."""
+
+    stack = [start]
+    seen: set[str] = set()
+    while stack:
+        current = stack.pop()
+        if current == target:
+            return True
+        if current in seen:
+            continue
+        seen.add(current)
+        parent = by_id.get(current)
+        if parent is not None:
+            stack.extend(parent.needs)
+    return False
+
+
 class RecipeVariable(StrictModel):
     type: Literal["string", "number", "boolean", "enum"] = "string"
     default: Any = None
@@ -119,21 +141,6 @@ class Recipe(StrictModel):
         ids = {step.id for step in self.steps}
         by_id = {step.id: step for step in self.steps}
 
-        def depends_on(start: str, target: str) -> bool:
-            stack = [start]
-            seen: set[str] = set()
-            while stack:
-                current = stack.pop()
-                if current == target:
-                    return True
-                if current in seen:
-                    continue
-                seen.add(current)
-                parent = by_id.get(current)
-                if parent is not None:
-                    stack.extend(parent.needs)
-            return False
-
         for step in self.steps:
             for reference in step.inputs.values():
                 source_id = str(reference).partition(".")[0].strip()
@@ -142,7 +149,7 @@ class Recipe(StrictModel):
                     and source_id != step.id
                     and by_id[source_id].enabled
                     and source_id not in step.needs
-                    and not depends_on(source_id, step.id)
+                    and not depends_on(source_id, step.id, by_id)
                 ):
                     step.needs.append(source_id)
         return self

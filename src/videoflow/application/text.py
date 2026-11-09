@@ -110,3 +110,19 @@ STOPWORDS: frozenset[str] = frozenset({
 })
 
 URL_PATTERN = re.compile(r"https?://|www\.", re.IGNORECASE)
+
+STANDALONE_WORDS: frozenset[str] = frozenset(
+    {
+        "sim",
+        "não",
+        "nao",
+        "talvez",
+        "certo",
+        "ok",
+        "obrigado",
+        "obrigada",
+        "até",
+        "ate",
+        "tchau",
+    }
+)

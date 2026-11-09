@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from videoflow.application.retakes import subtract_spans
+from videoflow.application.text import STANDALONE_WORDS
 from videoflow.domain.config import JlCutsConfig, ZoomsConfig
 from videoflow.domain.errors import InvalidTimeError
 from videoflow.domain.state import (
@@ -145,20 +146,6 @@ def _keep_internal_gap(
     # long gap with speech-like energy may be untranscribed speech worth keeping.
     return end - start >= long_gap and energy >= energy_threshold
 
-
-_STANDALONE_WORDS = {
-    "sim",
-    "não",
-    "nao",
-    "talvez",
-    "certo",
-    "ok",
-    "obrigado",
-    "obrigada",
-    "até",
-    "ate",
-    "tchau",
-}
 
 
 def _extend_start_to_valley(
@@ -367,7 +354,7 @@ def transcript_spans(
                 and count == 1
             ):
                 token = re.sub(r"[^\wÀ-ÿ]+", "", first_word.casefold())
-                if token not in _STANDALONE_WORDS:
+                if token not in STANDALONE_WORDS:
                     noise.append(
                         InactiveSpan(
                             start_sample=max(0, start),

@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from videoflow.core.recipe import depends_on
 from videoflow.domain.errors import RecipeError, VideoFlowError
 from videoflow.steps.base import PortSpec
 
@@ -468,21 +469,6 @@ def validate_recipe_ports(recipe: Any, *, through: str | None = None) -> None:
     position = {step_id: index for index, step_id in enumerate(order)}
     allowed = recipe.ids_through(through) if through is not None else None
 
-    def depends_on(start: str, target: str) -> bool:
-        stack = [start]
-        seen: set[str] = set()
-        while stack:
-            current = stack.pop()
-            if current == target:
-                return True
-            if current in seen:
-                continue
-            seen.add(current)
-            parent = step_by_id.get(current)
-            if parent is not None:
-                stack.extend(parent.needs)
-        return False
-
     for step in recipe.steps:
         # A disabled step is not part of the executable graph. Its wiring is
         # kept for re-enabling, but it must not block the recipe from running.
@@ -509,7 +495,7 @@ def validate_recipe_ports(recipe: Any, *, through: str | None = None) -> None:
                     "enable it or remove this input"
                 )
             if position.get(source_id, 10**9) >= position.get(step.id, -1):
-                if depends_on(source_id, step.id):
+                if depends_on(source_id, step.id, step_by_id):
                     raise RecipeError(
                         f"{step.id}.{input_id}: source {source_id} must run earlier "
                         f"(wiring {source_id}.{source_port} -> "

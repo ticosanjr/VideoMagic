@@ -15,7 +15,7 @@ hides the contract. VideoFlow resolves this with two layers:
 
 | Scope | Line coverage | Notes |
 | --- | --- | --- |
-| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 98% gate (1,723 passing, 1 strict xfail, 18 deselected; application layer 94.19%) |
+| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 98% gate (1,723 passing, 1 strict xfail, 18 deselected; application layer ~94.2%) |
 | Full tree | **95%** | Current: 95.22% line (24,136/25,348), 93.55% with branches |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |

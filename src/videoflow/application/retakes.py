@@ -31,7 +31,12 @@ from videoflow.application.takes import (
     select_duplicate_takes,
     semantic_duplicate_sentences,
 )
-from videoflow.application.text import content_tokens, normalize_text, token_set
+from videoflow.application.text import (
+    STANDALONE_WORDS,
+    content_tokens,
+    normalize_text,
+    token_set,
+)
 from videoflow.domain.errors import InvalidRetakeIdsError
 from videoflow.domain.retakes import (
     GuardResult,
@@ -294,20 +299,6 @@ def _has_content(sentence: Sentence) -> bool:
     return len(_tokens(sentence.text)) >= 3 and len(sentence.text.split()) >= 4
 
 
-_STANDALONE = {
-    "sim",
-    "não",
-    "nao",
-    "talvez",
-    "certo",
-    "ok",
-    "obrigado",
-    "obrigada",
-    "até",
-    "ate",
-    "tchau",
-}
-
 
 def _complete(sentence: Sentence) -> bool:
     text = sentence.text.strip()
@@ -315,7 +306,7 @@ def _complete(sentence: Sentence) -> bool:
         return False
     tokens = _tokens(text)
     if len(tokens) <= 1:
-        return text.strip(" .!?,;:").casefold() in _STANDALONE
+        return text.strip(" .!?,;:").casefold() in STANDALONE_WORDS
     return text.endswith((".", "!", "?")) or len(tokens) >= 4
 
 
@@ -337,7 +328,7 @@ def _clean_candidate(sentence: Sentence) -> bool:
         return False
     tokens = _tokens(text)
     if len(tokens) <= 1:
-        return text.strip(" .!?,;:").casefold() in _STANDALONE
+        return text.strip(" .!?,;:").casefold() in STANDALONE_WORDS
     if text.endswith((".", "!", "?")) and len(tokens) >= 3:
         # A sentence that repeats a three-word block inside itself is corrupted
         # by overlapping ASR windows; prefer the cleaner take.
