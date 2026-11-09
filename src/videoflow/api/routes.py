@@ -23,6 +23,7 @@ from videoflow import __version__
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.api.errors import status_for
 from videoflow.api.routes_assets import register_asset_routes
+from videoflow.api.routes_discovery import register_discovery_routes
 from videoflow.application import recipe_meta, voice_clone
 from videoflow.application.assets import (
     get_asset,
@@ -44,10 +45,6 @@ from videoflow.application.broll_approval import (
     redo_approval,
     save_approval,
     undo_approval,
-)
-from videoflow.application.capabilities import (
-    capability_manifest,
-    external_services_allowed,
 )
 from videoflow.application.caption_ai import apply_llm_emoji
 from videoflow.application.database import backup as backup_database
@@ -257,7 +254,6 @@ from videoflow.engine.recipes import (
 from videoflow.engine.runner import RecipeRunner
 from videoflow.runtime import allowed_roots, find_binary, portable_home
 from videoflow.steps import get_step, requirements_by_type, step_types
-from videoflow.steps import manifest as step_manifest
 from videoflow.steps.ports import validate_recipe_ports
 
 logger = logging.getLogger(__name__)
@@ -878,36 +874,7 @@ def register_routes(
 
     register_asset_routes(app)
 
-    @app.get("/api/v1/node-options")
-    def node_options() -> dict[str, object]:
-        providers: dict[str, list[dict[str, object]]] = {}
-        for item in list_providers():
-            capability = str(item.get("capability") or "")
-            providers.setdefault(capability, []).append(item)
-        return {
-            "ok": True,
-            "providers": providers,
-            "services": [
-                item.model_dump(mode="json") for item in list_definitions()
-            ],
-            "models": list_models(),
-        }
-
-    @app.get("/api/v1/capabilities")
-    def capabilities(allow_external: bool = False) -> dict[str, object]:
-        return {
-            "ok": True,
-            "external_services_allowed": external_services_allowed(allow_external),
-            "capabilities": capability_manifest(allow_external_services=allow_external),
-        }
-
-    @app.get("/api/v1/steps")
-    def list_steps() -> dict[str, object]:
-        return {"ok": True, "steps": step_manifest()}
-
-    @app.get("/api/v1/recipes")
-    def recipes() -> dict[str, object]:
-        return {"ok": True, "recipes": recipe_meta.decorate(list_recipes())}
+    register_discovery_routes(app)
 
     @app.get("/api/v1/node-presets")
     def node_presets(step_type: str = "") -> dict[str, object]:
