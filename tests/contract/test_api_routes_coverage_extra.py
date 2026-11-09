@@ -897,6 +897,7 @@ def test_short_download_index_and_thumbnail_edge_cases(monkeypatch, tmp_path: Pa
 
 def test_admin_models_services_and_system_paths(monkeypatch, tmp_path: Path) -> None:
     from videoflow.api import routes as routes_module
+    from videoflow.api import routes_system as system_module
 
     client, _manager = _client(monkeypatch, tmp_path)
     (tmp_path / "home").mkdir(parents=True, exist_ok=True)
@@ -925,7 +926,7 @@ def test_admin_models_services_and_system_paths(monkeypatch, tmp_path: Path) -> 
     assert invalid.status_code == 422
     assert _error(invalid)["code"] == "invalid_backup"
 
-    monkeypatch.setattr(routes_module, "find_binary", lambda name: None)
+    monkeypatch.setattr(system_module, "find_binary", lambda name: None)
     doctor = client.get("/api/v1/system/doctor")
     assert doctor.status_code == 200
     assert doctor.json()["checks"]["ffmpeg"]["found"] is False
@@ -1032,10 +1033,11 @@ def test_admin_models_services_and_system_paths(monkeypatch, tmp_path: Path) -> 
 
 def test_read_only_inventory_endpoints(monkeypatch, tmp_path: Path) -> None:
     from videoflow.api import routes as routes_module
+    from videoflow.api import routes_system as system_module
 
     client, _manager = _client(monkeypatch, tmp_path)
     (tmp_path / "home").mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(routes_module, "find_binary", lambda name: None)
+    monkeypatch.setattr(system_module, "find_binary", lambda name: None)
     paths = [
         "/api/v1/jobs",
         "/api/v1/batches",
@@ -1183,7 +1185,7 @@ def test_copilot_and_assistant_error_paths(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_doctor_defensive_environment_branches(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.api import routes as routes_module
+    from videoflow.api import routes_system as routes_module
 
     client, _manager = _client(monkeypatch, tmp_path)
     (tmp_path / "home").mkdir(parents=True, exist_ok=True)
