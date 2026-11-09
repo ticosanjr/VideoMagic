@@ -61,7 +61,7 @@ def test_pixabay_video_and_image(monkeypatch) -> None:
         },
     }
     monkeypatch.setattr(
-        "videoflow.application.asset_providers.httpx.get", _fake_get(routes)
+        "videoflow.application.asset_providers.search.httpx.get", _fake_get(routes)
     )
     results = search_assets(
         "evidence",
@@ -111,7 +111,7 @@ def test_openverse_and_wikimedia(monkeypatch) -> None:
         },
     }
     monkeypatch.setattr(
-        "videoflow.application.asset_providers.httpx.get", _fake_get(routes)
+        "videoflow.application.asset_providers.search.httpx.get", _fake_get(routes)
     )
     results = search_assets(
         "document",
@@ -144,7 +144,7 @@ def test_internet_archive_metadata(monkeypatch) -> None:
         },
     }
     monkeypatch.setattr(
-        "videoflow.application.asset_providers.httpx.get", _fake_get(routes)
+        "videoflow.application.asset_providers.search.httpx.get", _fake_get(routes)
     )
     results = search_assets(
         "archive",
@@ -160,10 +160,10 @@ def test_internet_archive_metadata(monkeypatch) -> None:
 
 def test_youtube_search(monkeypatch) -> None:
     monkeypatch.setattr(
-        "videoflow.application.asset_providers.find_binary", lambda name: "/bin/yt-dlp"
+        "videoflow.application.asset_providers.search.find_binary", lambda name: "/bin/yt-dlp"
     )
     monkeypatch.setattr(
-        "videoflow.application.asset_providers.subprocess.run",
+        "videoflow.application.asset_providers.search.subprocess.run",
         lambda *args, **kwargs: SimpleNamespace(
             returncode=0,
             stdout="abc\tEvidence clip\t600\tCreator\n",

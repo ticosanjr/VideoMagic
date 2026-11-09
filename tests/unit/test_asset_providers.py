@@ -85,7 +85,7 @@ def test_pexels_search_returns_license_metadata(monkeypatch) -> None:
 
     monkeypatch.setenv("PEXELS_API_KEY", "key")
     monkeypatch.setattr(
-        "videoflow.application.asset_providers.httpx.get",
+        "videoflow.application.asset_providers.search.httpx.get",
         lambda *args, **kwargs: Response(),
     )
     results = search_assets(
@@ -109,7 +109,7 @@ def test_download_hashes_the_file(monkeypatch, tmp_path: Path) -> None:
         return Path(destination)
 
     monkeypatch.setattr(
-        "videoflow.application.asset_providers._download_http", fake_download
+        "videoflow.application.asset_providers.download._download_http", fake_download
     )
     result = download_asset(candidate, target, settings=AppSettings(), clip_seconds=15)
     assert result.downloaded_path == str(target)
@@ -133,7 +133,7 @@ def test_youtube_clip_is_short(monkeypatch, tmp_path: Path) -> None:
         return Path(destination), 60.0, 75.0
 
     monkeypatch.setattr(
-        "videoflow.application.asset_providers._download_youtube", fake_download
+        "videoflow.application.asset_providers.download._download_youtube", fake_download
     )
     result = download_asset(
         candidate, tmp_path / "clip.mp4", settings=AppSettings(), clip_seconds=15
