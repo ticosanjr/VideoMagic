@@ -440,7 +440,7 @@ distribution.
 - [ ] A real recipe run reports `"vad_engine": "silero"` on a speech clip.
 - [ ] The artifacts parse (XML/MLT) and open in the three NLEs.
 - [ ] `videoflow serve` answers `/health`, `/`, and `/mcp/`.
-- [ ] An MCP host lists seventy-one tools over `videoflow mcp`.
+- [ ] An MCP host lists seventy-four tools over `videoflow mcp`.
 - [ ] The plain binary runs with `PATH` empty, proving bundled FFmpeg is used.
 - [ ] The AppImage runs `version` and `doctor` (normal PATH for FUSE).
 - [ ] The Windows `.exe` runs `version` and `doctor` (natively or under Wine).

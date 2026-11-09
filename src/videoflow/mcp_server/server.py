@@ -15,7 +15,7 @@ from mcp.server import MCPServer
 from mcp.types import ToolAnnotations
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
-from videoflow.application import recipe_meta
+from videoflow.application import hilt, recipe_meta
 from videoflow.application.backups import scheduled_backup
 from videoflow.application.brand_templates import (
     BrandTemplate,
@@ -873,6 +873,101 @@ def build_server(
         if str(job.job_id) == last.get("job_id"):
             last["output"] = job.output
         return {"ok": True, "job": job.to_dict()}
+
+    @tool
+    def videoflow_list_interactions(
+        job_id: str = "", pending_only: bool = True
+    ) -> dict[str, object]:
+        """List human-in-the-loop requests, optionally for one job."""
+
+        items: list[dict[str, object]] = []
+        jobs = [manager.get(job_id)] if job_id else manager.list()
+        for job in jobs:
+            if job_id and job.status not in {"waiting_approval", "waiting_input"}:
+                continue
+            try:
+                requests = hilt.list_requests(job.output, job_id=str(job.job_id))
+            except OSError:
+                continue
+            for request in requests:
+                if pending_only and request.status != "pending":
+                    continue
+                response = hilt.load_response(job.output, request.interaction_id)
+                items.append(
+                    {
+                        "job_id": str(job.job_id),
+                        "job_status": job.status,
+                        "interaction": hilt.public_payload(
+                            job.output, request, response
+                        ),
+                    }
+                )
+        return {"ok": True, "interactions": items, "count": len(items)}
+
+    @tool
+    def videoflow_get_interaction(
+        job_id: str, interaction_id: str
+    ) -> dict[str, object]:
+        """Return one HILT request, its response, and review artifacts."""
+
+        try:
+            job = manager.get(job_id)
+            request = hilt.find_request(job.output, job_id, interaction_id)
+            response = hilt.load_response(job.output, interaction_id)
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {
+            "ok": True,
+            "interaction": hilt.public_payload(job.output, request, response),
+        }
+
+    @tool
+    def videoflow_respond_to_interaction(
+        job_id: str,
+        interaction_id: str,
+        action: str = "submit",
+        answers: dict[str, Any] | None = None,
+        comment: str = "",
+        channel: str = "local",
+        token: str = "",
+    ) -> dict[str, object]:
+        """Answer a waiting HILT request and resume the recipe."""
+
+        try:
+            job = manager.get(job_id)
+            if job.status not in {"waiting_approval", "waiting_input"}:
+                raise StateNotReadyError(
+                    "The job is not waiting for a human response."
+                )
+            existing = hilt.load_response(job.output, interaction_id)
+            if existing is not None and existing.resumed_job_id:
+                resumed = manager.get(existing.resumed_job_id)
+                return {"ok": True, "job": resumed.to_dict(), "duplicate": True}
+            _request, response = hilt.respond(
+                job.output,
+                job_id,
+                interaction_id,
+                action=action,
+                answers=answers or {},
+                comment=comment,
+                channel=channel,
+                token=token,
+            )
+            resumed = manager.start(
+                job.source,
+                job.output,
+                {**job.options, "resume": True},
+                queue=True,
+            )
+            hilt.mark_resumed(job.output, interaction_id, str(resumed.job_id))
+            manager.mark_answered(job_id, str(resumed.job_id))
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {
+            "ok": True,
+            "job": resumed.to_dict(),
+            "action": response.action,
+        }
 
     @tool
     def videoflow_cancel_job(job_id: str) -> dict[str, object]:

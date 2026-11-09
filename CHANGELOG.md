@@ -21,6 +21,8 @@ follow semantic versioning once the project reaches 1.0.
   and optional Events API), and Signal (signal-cli REST) send requests, accept
   replies and attachments, enforce sender allowlists, and record per-channel
   delivery failures without failing the job.
+- **MCP HILT tools.** `videoflow_list_interactions`,
+  `videoflow_get_interaction`, and `videoflow_respond_to_interaction` (74 tools).
 
 ## [2.59.4] - 2026-11-09
 

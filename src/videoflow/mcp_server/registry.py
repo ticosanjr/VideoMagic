@@ -190,6 +190,21 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "export",
     ),
     ToolSpec(
+        "videoflow_list_interactions",
+        "List human-in-the-loop requests, optionally for one waiting job.",
+        "export",
+    ),
+    ToolSpec(
+        "videoflow_get_interaction",
+        "Return one HILT request, its response, and review artifacts.",
+        "export",
+    ),
+    ToolSpec(
+        "videoflow_respond_to_interaction",
+        "Answer a waiting HILT request and resume the recipe.",
+        "export",
+    ),
+    ToolSpec(
         "videoflow_cancel_job",
         "Ask the active job to stop between stages.",
         "export",

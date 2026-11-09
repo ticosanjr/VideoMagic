@@ -59,7 +59,7 @@ the same allowlist jail.
 
 ## 2. Tools
 
-All seventy-one tools and five resources execute real work. Recipes are the
+All seventy-four tools and five resources execute real work. Recipes are the
 execution contract: `videoflow_run_recipe` and `videoflow_run_recipe_inline`
 start real jobs, and the timeline/short tools operate on the completed job.
 `videoflow_load_media` remains a media registration helper.
@@ -95,6 +95,9 @@ start real jobs, and the timeline/short tools operate on the completed job.
 | `videoflow_export_fcpxml` | `output_path`, `target_nle` | **live**: exports the latest completed timeline |
 | `videoflow_list_jobs` | `limit`, `offset`, `summary` | **live**: paginated jobs; `summary=true` omits the embedded recipe |
 | `videoflow_get_job` | `job_id` | **live**: status, progress, report; list summaries omit the embedded recipe |
+| `videoflow_list_interactions` | `job_id`, `pending_only` | **live**: durable HILT requests, responses, and review artifacts |
+| `videoflow_get_interaction` | `job_id`, `interaction_id` | **live**: one request with questions, files, artifacts, and response |
+| `videoflow_respond_to_interaction` | `job_id`, `interaction_id`, `action`, `answers`, `comment`, `channel`, `token` | **live**: records the answer and resumes the recipe |
 | `videoflow_cancel_job` | `job_id` | **live**: cooperative cancel |
 
 `videoflow_run_recipe` is the preferred entry point. `run_pipeline` remains as
