@@ -15,6 +15,9 @@ follow semantic versioning once the project reaches 1.0.
   options, capabilities, steps, and the recipe list. `routes.py` drops to
   4,684 lines and the `register_*` pattern is established for the remaining
   domains.
+- **UI API client extracted.** `ui/src/lib/api/client.ts` owns `ApiError`,
+  `request`, and error formatting; `api.ts` drops from 2,984 to 2,833 lines
+  while preserving every public import.
 - **Complete status mapping.** Added the missing codes for transcription,
   retakes, approval, schema migration, capability, rendering, and external
   policy failures so they no longer fall back to 400.
