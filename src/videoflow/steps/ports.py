@@ -356,6 +356,14 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         (PortSpec("master", "Audio master", "audio", "artifacts:audio_master", True),),
         (PortSpec("mix", "Final mix", "audio", "artifacts:audio_mix"),),
     ),
+    "factcheck.audit": (
+        (),
+        (PortSpec("report", "Fact-check report", "json", "metadata:factcheck"),),
+    ),
+    "voice.patch": (
+        (PortSpec("master", "Audio master", "audio", "artifacts:audio_mix", False),),
+        (PortSpec("master", "Repaired master", "audio", "artifacts:audio_master"),),
+    ),
     "intro.compile": (
         (),
         (PortSpec("intro", "Intro clip", "artifact", "artifacts:intro"),),

@@ -39,6 +39,9 @@ follow semantic versioning once the project reaches 1.0.
 - **Motion, audio, and intro.** `motion.codegen`/`motion.render` with an FFmpeg
   backend, NLE overlay manifests, procedural music and Foley with a final
   dialogue/music/SFX mix, and `intro.compile` for the high-retention opening.
+- **Fact-check and voice repair.** `factcheck.audit` with citation validation,
+  a HILT correction gate, optional TTS or uploaded voice patches, and the final
+  approval/export checkpoint.
 
 ## [2.59.4] - 2026-11-09
 

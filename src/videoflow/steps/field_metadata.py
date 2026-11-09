@@ -489,6 +489,17 @@ _STEP_DESCRIPTIONS: dict[str, dict[str, str]] = {
         "sfx_gain": "Foley level.",
         "output_name": "Final audio filename.",
     },
+    "factcheck.audit": {
+        "max_claims": "Maximum claims in the report.",
+        "language": "Report language.",
+    },
+    "voice.patch": {
+        "patch_path": "Output-relative replacement audio.",
+        "start_sec": "Start of the segment; blank uses the HILT answer.",
+        "end_sec": "End of the segment; blank uses the HILT answer.",
+        "text": "Optional TTS repair text.",
+        "allow_tts": "Use a configured TTS provider when no file patch exists.",
+    },
     "intro.compile": {
         "duration_sec": "Target intro duration.",
         "clip_seconds": "Seconds per selected asset.",

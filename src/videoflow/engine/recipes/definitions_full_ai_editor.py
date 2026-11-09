@@ -589,9 +589,15 @@ _add_recipe(
             },
         },
         {
+            "id": "factcheck_audit",
+            "type": "factcheck.audit",
+            "needs": ["sample_review", "narrative"],
+            "params": {"max_claims": 120},
+        },
+        {
             "id": "factcheck_review",
             "type": "human.input",
-            "needs": ["narrative", "sample_review"],
+            "needs": ["factcheck_audit"],
             "params": {
                 "gate_id": "factcheck",
                 "title": "Fact-check and repair",
@@ -613,13 +619,62 @@ _add_recipe(
                         "type": "textarea",
                         "required": False,
                     },
+                    {
+                        "id": "patch_start_sec",
+                        "label": "Voice patch start (seconds)",
+                        "type": "number",
+                        "required": False,
+                    },
+                    {
+                        "id": "patch_end_sec",
+                        "label": "Voice patch end (seconds)",
+                        "type": "number",
+                        "required": False,
+                    },
+                    {
+                        "id": "voice_text",
+                        "label": "Voice repair text (optional TTS)",
+                        "type": "textarea",
+                        "required": False,
+                    },
                 ],
+            },
+        },
+        {
+            "id": "voice_files",
+            "type": "human.files",
+            "needs": ["factcheck_review"],
+            "params": {
+                "gate_id": "voice_files",
+                "title": "Voice repair clip (optional)",
+                "description": (
+                    "Upload a replacement audio clip for the repaired line; "
+                    "otherwise submit without a file and the TTS path is used."
+                ),
+                "files": [
+                    {
+                        "id": "patch",
+                        "label": "Replacement voice clip",
+                        "required": False,
+                        "accept": [".wav", ".mp3", ".m4a", ".aac", ".flac"],
+                        "target": "audio/voice-patch.wav",
+                    }
+                ],
+            },
+        },
+        {
+            "id": "voice_patch",
+            "type": "voice.patch",
+            "needs": ["voice_files", "audio_mix"],
+            "params": {
+                "patch_path": "audio/voice-patch.wav",
+                "allow_tts": True,
             },
         },
         {
             "id": "final_review",
             "type": "human.gate",
-            "needs": ["factcheck_review", "sample_review"],
+            "needs": ["factcheck_review", "voice_patch", "sample_review"],
             "params": {
                 "gate_id": "final_review",
                 "title": "Final approval",
@@ -629,6 +684,7 @@ _add_recipe(
                     "assets/licenses.json",
                     "assets/assignments.json",
                     "audio/qa.json",
+                    "audio/final-repaired.wav",
                     "factcheck/",
                 ],
             },

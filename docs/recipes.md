@@ -377,9 +377,11 @@ publishing, analytics, localization, and finishing.
 scoped research and a dual script before ingest, then pauses for the editorial
 brief, research corrections, master dossier, script lock, decoupage audit,
 entity corrections, style lock, asset license review, motion render, audio mix,
-sample homologation, fact-check, and final approval. See [hilt.md](hilt.md),
-[research.md](research.md), [vision-decoupage.md](vision-decoupage.md),
-[assets-licensing.md](assets-licensing.md), and [motion-audio.md](motion-audio.md).
+fact-check, voice repair, sample homologation, and final approval. See
+[hilt.md](hilt.md), [research.md](research.md),
+[vision-decoupage.md](vision-decoupage.md),
+[assets-licensing.md](assets-licensing.md), [motion-audio.md](motion-audio.md),
+and [factcheck-voice.md](factcheck-voice.md).
 
 ## CLI
 

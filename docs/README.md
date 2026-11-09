@@ -47,6 +47,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Vision and decoupage | Eye-contact green labels, reference XML calibration, frame-accurate speech map, entity corrections ([vision-decoupage.md](vision-decoupage.md)) |
 | Art direction and assets | Style guide, unit storyboard, Pexels/Pixabay/Openverse/Wikimedia/Internet Archive/YouTube discovery, license ledger, and export gating ([assets-licensing.md](assets-licensing.md)) |
 | Motion and audio | JSON scene codegen, FFmpeg motion renderer, procedural music/Foley, final audio mix, and intro compiler ([motion-audio.md](motion-audio.md)) |
+| Fact-check and repair | Claim audit, citation validation, HILT fact-check, voice patch/TTS repair, and final export approval ([factcheck-voice.md](factcheck-voice.md)) |
 | Typed ports | Step inputs/outputs, inspector/edge wiring, branch isolation, input-hash cache ([recipes.md](recipes.md)) |
 | Node IO | Media pickers and output-folder policy inside nodes, Inputs/Config/Outputs layout |
 | Recut presets | Podcast, Lecture, and Social variants with tuned VAD/cut settings |

@@ -18,6 +18,7 @@ from videoflow.steps import (
     entities,
     export,
     face_contact,
+    factcheck,
     flow,
     gates,
     ingest,
@@ -41,6 +42,7 @@ from videoflow.steps import (
     translation,
     video_export,
     vision_qa,
+    voice_patch,
 )
 from videoflow.steps.base import BaseStep, EmptyParams, StepIO
 from videoflow.steps.registry import (
@@ -72,6 +74,7 @@ __all__ = [
     "diarize",
     "export",
     "face_contact",
+    "factcheck",
     "flow",
     "llm_cleanup",
     "llm_timeline",
@@ -99,5 +102,6 @@ __all__ = [
     "transcribe",
     "translation",
     "video_export",
+    "voice_patch",
     "vision_qa",
 ]
