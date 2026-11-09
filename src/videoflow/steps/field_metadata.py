@@ -411,6 +411,24 @@ _STEP_DESCRIPTIONS: dict[str, dict[str, str]] = {
         "presenter_profile": "Optional presenter profile text or profile path.",
         "max_cases_per_call": "Research cases sent to one model call.",
     },
+    "vision.face_contact": {
+        "sample_fps": "Frames sampled per second for face analysis.",
+        "max_frames": "Maximum sampled frames.",
+        "min_face_ratio": "Minimum face width relative to the frame.",
+        "center_tolerance": "How far the face may sit from the frame centre.",
+        "min_eyes": "Minimum detected eyes for a direct-to-camera label.",
+        "backend": "auto, opencv, or none.",
+        "write_markers": "Write green eye-contact markers into timeline_meta.json.",
+    },
+    "decoupage.calibrate": {
+        "baseline_path": "Output-relative XMEML/FCPXML reference edit.",
+        "use_current_timeline": "Compare the reference against the current timeline.",
+    },
+    "entities.apply": {
+        "corrections_path": "Output-relative JSON written by the human input step.",
+        "narrative_path": "Output-relative narrative entities JSON.",
+        "output_stem": "Base name for the corrected manifest and report.",
+    },
     "metadata.pack": {
         "platform": "Platform whose metadata format is generated.",
     },

@@ -309,6 +309,7 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         (
             PortSpec("transcript", "Corrected transcript", "transcript", "transcript"),
             PortSpec("report", "Drift report", "json", "metadata:drift_correction"),
+            PortSpec("map", "Frame-accurate speech map", "json", "metadata:speech_map"),
         ),
     ),
     "narrative.beats": (
@@ -338,6 +339,25 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
     "motion.render": (
         (PortSpec("timeline", "Timeline state", "timeline", "state", True),),
         (PortSpec("plan", "Motion plan", "json", "metadata:motion_plan"),),
+    ),
+    "entities.apply": (
+        (),
+        (
+            PortSpec(
+                "entities",
+                "Corrected entities",
+                "json",
+                "metadata:narrative_entities_corrected",
+            ),
+        ),
+    ),
+    "decoupage.calibrate": (
+        (PortSpec("media", "Media info", "media", "media", True),),
+        (PortSpec("profile", "Calibration profile", "json", "metadata:decoupage_profile"),),
+    ),
+    "vision.face_contact": (
+        (PortSpec("media", "Media info", "media", "media", True),),
+        (PortSpec("labels", "Eye-contact spans", "json", "metadata:eye_contact"),),
     ),
     "qa.vision": (
         (PortSpec("video", "Rendered video", "artifact", "artifacts:video", True),),

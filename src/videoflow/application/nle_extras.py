@@ -121,6 +121,7 @@ def nle_extras_from_output(output: Path) -> NleExtras:
         NleMarker(
             name=item.label or item.id,
             start_sec=item.time_sec,
+            end_sec=getattr(item, "end_sec", 0.0),
             note=item.color,
             color=item.color,
         )

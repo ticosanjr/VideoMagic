@@ -122,6 +122,7 @@ class ClipBatchStyleRequest(ClipUpdateRequest):
 
 class MarkerRequest(LenientJsonBody):
     time_sec: float = Field(ge=0.0)
+    end_sec: float = Field(default=0.0, ge=0.0)
     label: str = Field(default="", max_length=300)
     color: str = Field(default="#38bdf8", max_length=20)
 
@@ -614,6 +615,7 @@ def register_timeline_routes(app: FastAPI, jobs: JobManager) -> None:
                 f"{len(load_meta(job.output).markers) + 1}"
             ),
             time_sec=request.time_sec,
+            end_sec=request.end_sec,
             label=request.label,
             color=request.color,
         )

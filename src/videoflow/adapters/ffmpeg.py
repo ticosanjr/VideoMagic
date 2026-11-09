@@ -451,6 +451,49 @@ class FFmpegAdapter:
         )
         return target
 
+    def extract_frames(
+        self,
+        source: Path,
+        directory: Path,
+        *,
+        fps: float = 1.0,
+        width: int = 640,
+        max_frames: int | None = None,
+        timeout: int = DEFAULT_TIMEOUT_SECONDS,
+    ) -> list[Path]:
+        """Extract JPEG samples for vision analysis and return them in order."""
+
+        source_path = Path(source).expanduser()
+        target_dir = Path(directory).expanduser()
+        target_dir.mkdir(parents=True, exist_ok=True)
+        for existing in target_dir.glob("frame-*.jpg"):
+            with contextlib.suppress(OSError):
+                existing.unlink()
+        rate = max(0.05, min(60.0, float(fps)))
+        self._capture(
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-i",
+                str(source_path),
+                "-vf",
+                f"fps={rate:.6f},scale={max(64, int(width))}:-2",
+                "-q:v",
+                "3",
+                *(
+                    ["-frames:v", str(max(1, int(max_frames)))]
+                    if max_frames is not None
+                    else []
+                ),
+                str(target_dir / "frame-%06d.jpg"),
+            ],
+            timeout=timeout,
+        )
+        return sorted(target_dir.glob("frame-*.jpg"))
+
     def render_thumbnail(
         self,
         source: Path,

@@ -16,6 +16,7 @@ class Marker(BaseModel):
 
     id: str = Field(min_length=1, max_length=60)
     time_sec: float = Field(ge=0.0)
+    end_sec: float = Field(default=0.0, ge=0.0)
     label: str = Field(default="", max_length=300)
     color: str = Field(default="#38bdf8", max_length=20)
 
@@ -68,14 +69,28 @@ def save_meta(output: Path, meta: TimelineMeta) -> TimelineMeta:
 
 
 def add_marker(
-    output: Path, *, marker_id: str, time_sec: float, label: str = "", color: str = "#38bdf8"
+    output: Path,
+    *,
+    marker_id: str,
+    time_sec: float,
+    end_sec: float = 0.0,
+    label: str = "",
+    color: str = "#38bdf8",
 ) -> TimelineMeta:
     if time_sec < 0:
         raise StateNotReadyError("Marker time must be non-negative.")
+    if end_sec < 0:
+        raise StateNotReadyError("Marker end time must be non-negative.")
     meta = load_meta(output)
     meta.markers = [item for item in meta.markers if item.id != marker_id]
     meta.markers.append(
-        Marker(id=marker_id, time_sec=time_sec, label=label, color=color)
+        Marker(
+            id=marker_id,
+            time_sec=time_sec,
+            end_sec=max(time_sec, end_sec),
+            label=label,
+            color=color,
+        )
     )
     meta.markers.sort(key=lambda item: item.time_sec)
     return save_meta(output, meta)

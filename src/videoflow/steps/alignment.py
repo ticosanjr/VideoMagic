@@ -86,19 +86,57 @@ class DriftCorrectionStep(BaseStep):
                 )
             )
         context.transcript = corrected
+        fps = (
+            context.media.fps_num / max(1, context.media.fps_den)
+            if context.media is not None
+            else 30.0
+        )
+        speech_map = [
+            {
+                "segment_id": sentence.id,
+                "verbatim_text": sentence.text,
+                "start_sec": round(sentence.start_sample / max(1, sample_rate), 3),
+                "end_sec": round(sentence.end_sample / max(1, sample_rate), 3),
+                "start_frame": int(
+                    round(sentence.start_sample / max(1, sample_rate) * fps)
+                ),
+                "end_frame": int(
+                    round(sentence.end_sample / max(1, sample_rate) * fps)
+                ),
+            }
+            for sentence in corrected
+        ]
         report = {
             "applied": True,
             "offset_ms": options.offset_ms,
             "offset_samples": offset,
+            "offset_frames": int(round(options.offset_ms / 1000 * fps)),
+            "media_fps": round(fps, 6),
             "sentences": len(corrected),
             "words_adjusted": adjusted,
             "clamped_at_zero": clamped,
         }
         context.metadata["drift_correction"] = report
+        context.metadata["speech_map"] = speech_map
         target = context.output / "alignment" / "drift.json"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         context.artifacts["drift_report"] = str(target)
+        map_path = context.output / "alignment" / "speech-map.json"
+        map_path.write_text(
+            json.dumps(
+                {
+                    "offset_ms": options.offset_ms,
+                    "fps": round(fps, 6),
+                    "segments": speech_map,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        context.artifacts["speech_map"] = str(map_path)
         context.hashes["edit.drift"] = digest_payload(report)
         if clamped:
             context.warnings.append(
@@ -107,5 +145,8 @@ class DriftCorrectionStep(BaseStep):
         io.report(100, f"Applied {options.offset_ms:.0f} ms drift correction")
 
     def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
-        path = context.artifacts.get("drift_report")
-        return (Path(path),) if path else ()
+        return tuple(
+            Path(context.artifacts[key])
+            for key in ("drift_report", "speech_map")
+            if context.artifacts.get(key)
+        )

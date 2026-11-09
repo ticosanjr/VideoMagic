@@ -1,0 +1,62 @@
+# Vision, decoupage, and corrections
+
+## Eye-contact green labels
+
+`vision.face_contact` samples the source and detects the largest centred face
+with at least one visible eye. It writes:
+
+- `vision/face-contact.json` — intervals, confidence, frame counts;
+- `timeline_meta.json` markers named `Eye contact` in green `#00FF66`.
+
+The marker end time is carried into FCPXML/XMEML exports, so the green label is
+visible as a marker span in the NLE.
+
+OpenCV is optional:
+
+```bash
+pip install 'videoflow[vision]'
+```
+
+Without it the step writes an explicit `available: false` report and the HILT
+decoupage audit remains the manual path.
+
+## Reference decoupage calibration
+
+`decoupage.calibrate` reads a human-edited Premiere XMEML or FCPXML timeline,
+extracts source intervals, and writes `decoupage/profile.json` and
+`decoupage/profile.md`:
+
+- reference cut count;
+- kept ratio against the source duration;
+- recommended retake strictness (`conservative`, `balanced`, `aggressive`);
+- overlap with the current timeline when one is available.
+
+`retakes.cull` with `use_profile: true` applies the recommended strictness.
+The Full AI Editor asks for an optional reference XML after ingest and before
+the retake pass.
+
+## Frame-accurate speech map
+
+`edit.drift` now writes `alignment/speech-map.json` with each sentence in
+seconds and frames at the media frame rate, alongside the corrected transcript.
+This is the input for graphics, lower thirds, and SFX timing.
+
+## Entity corrections
+
+`entities.apply` reads the answers from the HILT entity review and applies
+`heard -> canonical` lines to the narrative entity manifest. It writes
+`narrative/entities-corrected.json` and `.md`, keeping the before/after mapping
+for audit. Corrections cover people, objects/locations, and metrics.
+
+## Full AI Editor integration
+
+```
+ingest
+  → baseline_files (human.files, optional)
+  → decoupage.calibrate
+  → vision.face_contact
+  → vad / transcribe / drift / retakes
+  → timeline
+  → narrative / entities_review / entities.apply
+  → decoupage_files / decoupage_review
+```

@@ -202,6 +202,47 @@ _add_recipe(
             "params": {"extract_pcm": True},
         },
         {
+            "id": "baseline_files",
+            "type": "human.files",
+            "needs": ["ingest"],
+            "params": {
+                "gate_id": "baseline_files",
+                "title": "Reference decoupage (optional)",
+                "description": (
+                    "Upload a human-edited Premiere XMEML or FCPXML timeline to "
+                    "calibrate retake strictness. Submit without a file to skip."
+                ),
+                "files": [
+                    {
+                        "id": "baseline",
+                        "label": "Reference timeline XML",
+                        "required": False,
+                        "accept": [".xml", ".fcpxml"],
+                        "target": "decoupage/baseline.xml",
+                    }
+                ],
+            },
+        },
+        {
+            "id": "decoupage_calibrate",
+            "type": "decoupage.calibrate",
+            "needs": ["ingest", "baseline_files"],
+            "params": {
+                "baseline_path": "decoupage/baseline.xml",
+                "use_current_timeline": False,
+            },
+        },
+        {
+            "id": "face_contact",
+            "type": "vision.face_contact",
+            "needs": ["ingest"],
+            "params": {
+                "sample_fps": 1.0,
+                "max_frames": 3000,
+                "write_markers": True,
+            },
+        },
+        {
             "id": "vad",
             "type": "audio.vad",
             "needs": ["ingest"],
@@ -216,8 +257,8 @@ _add_recipe(
         {
             "id": "retakes",
             "type": "retakes.cull",
-            "needs": ["vad", "transcribe"],
-            "params": {"enabled": True},
+            "needs": ["vad", "transcribe", "decoupage_calibrate"],
+            "params": {"enabled": True, "use_profile": True},
         },
         {
             "id": "drift",
@@ -283,7 +324,12 @@ _add_recipe(
                     "Approve the cut or send the job back. Green-label eye-contact "
                     "clips are metadata in the timeline and NLE markers."
                 ),
-                "artifacts": ["exports/", "project_state.json", "decoupage/"],
+                "artifacts": [
+                    "exports/",
+                    "project_state.json",
+                    "decoupage/",
+                    "vision/face-contact.json",
+                ],
             },
         },
         {
@@ -328,6 +374,15 @@ _add_recipe(
             },
         },
         {
+            "id": "entities_apply",
+            "type": "entities.apply",
+            "needs": ["entities_review"],
+            "params": {
+                "corrections_path": "entities/corrections.json",
+                "narrative_path": "narrative/entities.json",
+            },
+        },
+        {
             "id": "style_files",
             "type": "human.files",
             "needs": ["script_review"],
@@ -352,12 +407,12 @@ _add_recipe(
         {
             "id": "style_review",
             "type": "human.gate",
-            "needs": ["style_files", "entities_review"],
+            "needs": ["style_files", "entities_apply"],
             "params": {
                 "gate_id": "style_review",
                 "title": "Style lock",
                 "description": "Approve the art direction before asset harvesting.",
-                "artifacts": ["style/", "entities/"],
+                "artifacts": ["style/", "narrative/entities-corrected.json"],
             },
         },
         {

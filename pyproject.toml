@@ -41,6 +41,9 @@ faster-whisper = [
 diarization = [
     "pyannote.audio>=3.3",
 ]
+vision = [
+    "opencv-python-headless>=4.10",
+]
 
 [project.scripts]
 videoflow = "videoflow.cli:main"

@@ -2052,6 +2052,7 @@ export interface TimelineComment {
 export interface TimelineMarker {
   id: string;
   time_sec: number;
+  end_sec?: number;
   label: string;
   color: string;
 }

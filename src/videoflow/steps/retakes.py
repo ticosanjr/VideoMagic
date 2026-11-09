@@ -40,6 +40,7 @@ class RetakesParams(BaseModel):
     max_discard_ratio: float = Field(default=0.45, ge=0.05, le=0.9)
     semantic_duplicates: bool = False
     manual_overrides: list[dict[str, Any]] = Field(default_factory=list)
+    use_profile: bool = False
 
 
 @register_step
@@ -62,6 +63,19 @@ class RetakesStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = RetakesParams.model_validate(params)
+        if options.use_profile:
+            profile = context.metadata.get("decoupage_profile")
+            if isinstance(profile, dict) and profile.get("available"):
+                recommended = str(profile.get("recommended_strictness") or "")
+                if (
+                    recommended in {"conservative", "balanced", "aggressive"}
+                    and recommended != options.strictness
+                ):
+                    context.warnings.append(
+                        "Retake strictness calibrated from the reference edit: "
+                        f"{options.strictness} -> {recommended}."
+                    )
+                    options = options.model_copy(update={"strictness": recommended})
         media = require_media(context)
         manual = [ManualOverride.model_validate(item) for item in options.manual_overrides]
         if not context.transcript:

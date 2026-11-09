@@ -44,6 +44,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Recut and recipe library | Recut Replacement (+ retakes), detailed VAD/cut controls, favorites/recent/tags on the server ([recipes.md](recipes.md)) |
 | Human-in-the-loop | Durable approvals, questions, file handoffs, local/e-mail/Slack/Signal notifications, and the Full AI Editor recipe ([hilt.md](hilt.md)) |
 | Research and script | Local/SearXNG/Wikipedia/Internet Archive providers, scoped agents, citation validation, consolidation, presenter profile, and dual script ([research.md](research.md)) |
+| Vision and decoupage | Eye-contact green labels, reference XML calibration, frame-accurate speech map, entity corrections ([vision-decoupage.md](vision-decoupage.md)) |
 | Typed ports | Step inputs/outputs, inspector/edge wiring, branch isolation, input-hash cache ([recipes.md](recipes.md)) |
 | Node IO | Media pickers and output-folder policy inside nodes, Inputs/Config/Outputs layout |
 | Recut presets | Podcast, Lecture, and Social variants with tuned VAD/cut settings |
