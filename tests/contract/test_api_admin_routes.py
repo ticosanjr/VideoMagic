@@ -6,16 +6,16 @@ from tests.contract.test_api_timeline import _client, _job
 
 
 def test_assets_presets_templates_and_config(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.api import routes as routes_module
+    from videoflow.api import routes_assets as assets_module
 
     client, _manager = _client(monkeypatch, tmp_path)
 
-    monkeypatch.setattr(routes_module, "save_music", lambda name, body: {"name": name})
-    monkeypatch.setattr(routes_module, "save_image", lambda name, body: {"name": name})
-    monkeypatch.setattr(routes_module, "save_font", lambda name, body: {"name": name})
-    monkeypatch.setattr(routes_module, "delete_music", lambda name: None)
-    monkeypatch.setattr(routes_module, "delete_images", lambda name: None)
-    monkeypatch.setattr(routes_module, "delete_fonts", lambda name: None)
+    monkeypatch.setattr(assets_module, "save_music", lambda name, body: {"name": name})
+    monkeypatch.setattr(assets_module, "save_image", lambda name, body: {"name": name})
+    monkeypatch.setattr(assets_module, "save_font", lambda name, body: {"name": name})
+    monkeypatch.setattr(assets_module, "delete_music", lambda name: None)
+    monkeypatch.setattr(assets_module, "delete_images", lambda name: None)
+    monkeypatch.setattr(assets_module, "delete_fonts", lambda name: None)
     assert client.post("/api/v1/assets/music?name=a.mp3", content=b"x").status_code == 201
     assert client.post("/api/v1/assets/images?name=a.png", content=b"x").status_code == 201
     assert client.post("/api/v1/assets/fonts?name=a.ttf", content=b"x").status_code == 201

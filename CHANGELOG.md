@@ -9,7 +9,10 @@ follow semantic versioning once the project reaches 1.0.
 
 - **Central typed-error handling.** `api/errors.py` owns the HTTP status map and
   the app installs one `VideoFlowError` handler. Removed 120 repeated
-  `try/except VideoFlowError` blocks from `routes.py` (5,289 → 4,798 lines).
+  `try/except VideoFlowError` blocks from `routes.py` (5,289 → 4,717 lines).
+- **Asset routes extracted.** `api/routes_assets.py` owns music, SFX, image,
+  and font upload/list/delete; `register_asset_routes` is the first domain
+  module in the route split.
 - **Complete status mapping.** Added the missing codes for transcription,
   retakes, approval, schema migration, capability, rendering, and external
   policy failures so they no longer fall back to 400.

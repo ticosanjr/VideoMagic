@@ -90,6 +90,7 @@ def test_request_model_validators_and_bad_json(monkeypatch, tmp_path: Path) -> N
 
 def test_asset_filesystem_and_media_error_paths(monkeypatch, tmp_path: Path) -> None:
     from videoflow.api import routes as routes_module
+    from videoflow.api import routes_assets as assets_module
     from videoflow.domain.errors import FilesystemError
     from videoflow.domain.state import MediaInfo
 
@@ -105,7 +106,7 @@ def test_asset_filesystem_and_media_error_paths(monkeypatch, tmp_path: Path) -> 
         "fonts": ("save_font", "font_invalid"),
     }
     for kind, (attribute, code) in savers.items():
-        monkeypatch.setattr(routes_module, attribute, fail_save)
+        monkeypatch.setattr(assets_module, attribute, fail_save)
         response = client.post(f"/api/v1/assets/{kind}?name=bad.bin", content=b"x")
         assert response.status_code == 422, response.text
         assert _error(response)["code"] == code

@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 from videoflow import __version__
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.api.errors import status_for
+from videoflow.api.routes_assets import register_asset_routes
 from videoflow.application import recipe_meta, voice_clone
 from videoflow.application.assets import (
     get_asset,
@@ -65,8 +66,6 @@ from videoflow.application.deliverables import (
 )
 from videoflow.application.dubbing import generate_short_dubbing
 from videoflow.application.filesystem import create_directory, list_directory, roots_payload
-from videoflow.application.fonts import delete_fonts, list_fonts, save_font
-from videoflow.application.images import delete_images, list_images, save_image
 from videoflow.application.jobs import TERMINAL, Job, JobManager
 from videoflow.application.live_source import live_sources
 from videoflow.application.model_downloads import downloads as model_downloads
@@ -79,7 +78,6 @@ from videoflow.application.models import (
 )
 from videoflow.application.multimodal import analyze_short_entry
 from videoflow.application.multimodal_llm import analyze_short_llm_entry
-from videoflow.application.music import delete_music, list_music, save_music
 from videoflow.application.nle_validation import validate_nle_exports
 from videoflow.application.node_presets import (
     NodePresetRequest,
@@ -188,7 +186,6 @@ from videoflow.application.settings import (
     save_settings,
     settings_error,
 )
-from videoflow.application.sfx import delete_sfx, list_sfx, save_sfx
 from videoflow.application.short_editor import ShortEditOptions
 from videoflow.application.short_editor import edit_short as edit_short_service
 from videoflow.application.short_metadata import generate_short_metadata
@@ -879,85 +876,7 @@ def register_routes(
         recipe_meta.touch(recipe.id)
         return {"ok": True, "job": job.to_dict()}
 
-    @app.get("/api/v1/assets/music")
-    def music() -> dict[str, object]:
-        return {"ok": True, "music": list_music()}
-
-    @app.post("/api/v1/assets/music", status_code=201)
-    async def upload_music(name: str, request: Request) -> dict[str, object]:
-        try:
-            asset = save_music(name, await request.body())
-        except FilesystemError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail={"ok": False, "code": "music_invalid", "message": str(exc)},
-            ) from exc
-        return {"ok": True, "music": asset}
-
-    @app.get("/api/v1/assets/sfx")
-    def sfx() -> dict[str, object]:
-        return {"ok": True, "sfx": list_sfx()}
-
-    @app.post("/api/v1/assets/sfx", status_code=201)
-    async def upload_sfx(name: str, request: Request) -> dict[str, object]:
-        try:
-            asset = save_sfx(name, await request.body())
-        except FilesystemError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail={"ok": False, "code": "sfx_invalid", "message": str(exc)},
-            ) from exc
-        return {"ok": True, "sfx": asset}
-
-    @app.delete("/api/v1/assets/sfx/{name}")
-    def remove_sfx(name: str) -> dict[str, object]:
-        delete_sfx(name)
-        return {"ok": True, "deleted": name}
-
-    @app.get("/api/v1/assets/images")
-    def images() -> dict[str, object]:
-        return {"ok": True, "images": list_images()}
-
-    @app.post("/api/v1/assets/images", status_code=201)
-    async def upload_image(name: str, request: Request) -> dict[str, object]:
-        try:
-            asset = save_image(name, await request.body())
-        except FilesystemError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail={"ok": False, "code": "image_invalid", "message": str(exc)},
-            ) from exc
-        return {"ok": True, "image": asset}
-
-    @app.delete("/api/v1/assets/music/{name}")
-    def remove_music(name: str) -> dict[str, object]:
-        delete_music(name)
-        return {"ok": True, "deleted": name}
-
-    @app.delete("/api/v1/assets/images/{name}")
-    def remove_image(name: str) -> dict[str, object]:
-        delete_images(name)
-        return {"ok": True, "deleted": name}
-
-    @app.delete("/api/v1/assets/fonts/{name}")
-    def remove_font(name: str) -> dict[str, object]:
-        delete_fonts(name)
-        return {"ok": True, "deleted": name}
-
-    @app.get("/api/v1/assets/fonts")
-    def fonts() -> dict[str, object]:
-        return {"ok": True, "fonts": list_fonts()}
-
-    @app.post("/api/v1/assets/fonts", status_code=201)
-    async def upload_font(name: str, request: Request) -> dict[str, object]:
-        try:
-            asset = save_font(name, await request.body())
-        except FilesystemError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail={"ok": False, "code": "font_invalid", "message": str(exc)},
-            ) from exc
-        return {"ok": True, "font": asset}
+    register_asset_routes(app)
 
     @app.get("/api/v1/node-options")
     def node_options() -> dict[str, object]:
