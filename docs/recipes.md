@@ -376,8 +376,10 @@ publishing, analytics, localization, and finishing.
 `full_ai_editor` is the long-form, human-reviewed documentary recipe. It runs
 scoped research and a dual script before ingest, then pauses for the editorial
 brief, research corrections, master dossier, script lock, decoupage audit,
-entity corrections, style lock, sample homologation, fact-check, and final
-approval. See [hilt.md](hilt.md) and [research.md](research.md).
+entity corrections, style lock, asset license review, sample homologation,
+fact-check, and final approval. See [hilt.md](hilt.md),
+[research.md](research.md), [vision-decoupage.md](vision-decoupage.md), and
+[assets-licensing.md](assets-licensing.md).
 
 ## CLI
 

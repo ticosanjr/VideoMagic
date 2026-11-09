@@ -289,6 +289,7 @@ _add_recipe(
                 "targets": ["resolve", "premiere", "kdenlive"],
                 "filename_mode": "fixed",
                 "basename": "decoupage-preview",
+                "require_licenses": False,
             },
         },
         {
@@ -405,14 +406,24 @@ _add_recipe(
             },
         },
         {
+            "id": "style_guide",
+            "type": "style.guide",
+            "needs": ["style_files", "entities_apply"],
+            "params": {"theme": "dark", "palette_colors": 6},
+        },
+        {
             "id": "style_review",
             "type": "human.gate",
-            "needs": ["style_files", "entities_apply"],
+            "needs": ["style_guide"],
             "params": {
                 "gate_id": "style_review",
                 "title": "Style lock",
                 "description": "Approve the art direction before asset harvesting.",
-                "artifacts": ["style/", "narrative/entities-corrected.json"],
+                "artifacts": [
+                    "style/style-guide.md",
+                    "style/style-guide.json",
+                    "narrative/entities-corrected.json",
+                ],
             },
         },
         {
@@ -422,16 +433,76 @@ _add_recipe(
             "params": {},
         },
         {
+            "id": "storyboard_units",
+            "type": "storyboard.units",
+            "needs": ["storyboard", "style_guide"],
+            "params": {"max_units": 400, "max_unit_seconds": 45},
+        },
+        {
             "id": "assets_index",
             "type": "assets.index",
             "needs": ["ingest"],
             "params": {"asset_dir": "$assets_dir"},
         },
         {
-            "id": "broll",
-            "type": "broll.plan_master",
-            "needs": ["timeline", "assets_index", "narrative"],
-            "params": {"asset_dir": "$assets_dir", "max_per_block": 2},
+            "id": "assets_discover",
+            "type": "assets.discover",
+            "needs": ["storyboard_units", "style_guide", "style_review"],
+            "params": {
+                "providers": [
+                    "pexels",
+                    "pixabay",
+                    "openverse",
+                    "wikimedia",
+                    "internet_archive",
+                    "youtube",
+                ],
+                "media": "all",
+                "max_units": 40,
+                "max_per_unit": 2,
+                "allow_external_services": "$allow_external_services",
+            },
+        },
+        {
+            "id": "assets_harvest",
+            "type": "assets.harvest",
+            "needs": ["assets_discover"],
+            "params": {
+                "max_assets": 40,
+                "clip_seconds": 15,
+                "allow_external_services": "$allow_external_services",
+            },
+        },
+        {
+            "id": "assets_license_audit",
+            "type": "assets.license_audit",
+            "needs": ["assets_harvest"],
+            "params": {},
+        },
+        {
+            "id": "assets_review",
+            "type": "human.gate",
+            "needs": ["assets_license_audit"],
+            "params": {
+                "gate_id": "assets_review",
+                "title": "Asset license review",
+                "description": (
+                    "Approve the harvested assets. Fair-use YouTube excerpts and "
+                    "CC items must be reviewed here before the final export."
+                ),
+                "artifacts": [
+                    "assets/licenses.json",
+                    "assets/licenses.md",
+                    "assets/manifest.json",
+                    "assets/candidates.json",
+                ],
+            },
+        },
+        {
+            "id": "assets_assign",
+            "type": "assets.assign",
+            "needs": ["assets_review", "storyboard_units"],
+            "params": {},
         },
         {
             "id": "audio_master",
@@ -452,7 +523,7 @@ _add_recipe(
                 "decoupage_review",
                 "style_review",
                 "storyboard",
-                "broll",
+                "assets_assign",
                 "audio_qa",
             ],
             "params": {
@@ -464,9 +535,10 @@ _add_recipe(
                 ),
                 "artifacts": [
                     "exports/",
-                    "broll/",
+                    "assets/assignments.json",
+                    "assets/licenses.json",
                     "audio/qa.json",
-                    "storyboard.json",
+                    "storyboard/units.json",
                     "style/",
                 ],
             },
@@ -509,9 +581,10 @@ _add_recipe(
                 "description": "Approve the final assembly and delivery package.",
                 "artifacts": [
                     "exports/",
+                    "assets/licenses.json",
+                    "assets/assignments.json",
                     "audio/qa.json",
                     "factcheck/",
-                    "broll/",
                 ],
             },
         },
@@ -522,6 +595,7 @@ _add_recipe(
             "params": {
                 "targets": ["resolve", "premiere", "kdenlive"],
                 "filename_mode": "source_timestamp",
+                "require_licenses": True,
             },
         },
         {

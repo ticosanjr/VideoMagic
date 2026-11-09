@@ -359,6 +359,19 @@
       </section>
 
       <section class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
+        <h3 class="text-xs font-semibold text-neutral-100">Asset licensing</h3>
+        <p class="mt-1 text-[10px] text-neutral-500">Stock providers and fair-use limits. Every harvested asset is written to the license ledger.</p>
+        <div class="mt-3 grid gap-2 sm:grid-cols-2">
+          <label class="text-[10px] text-neutral-500">Pexels key env<input bind:value={settings.stock.pexels_key_env} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">Pixabay key env<input bind:value={settings.stock.pixabay_key_env} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">Openverse token env<input bind:value={settings.stock.openverse_token_env} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">YouTube clip seconds<input type="number" min="1" max="120" bind:value={settings.stock.youtube_fair_use_seconds} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">YouTube clips per video<input type="number" min="1" max="10" bind:value={settings.stock.youtube_max_per_video} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
+          <label class="flex items-center gap-1 text-[10px] text-neutral-400"><input type="checkbox" bind:checked={settings.stock.allow_fair_use} class="h-3.5 w-3.5" />allow fair-use excerpts</label>
+        </div>
+      </section>
+
+      <section class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
         <h3 class="text-xs font-semibold text-neutral-100">Models</h3>
         <div class="mt-3 grid gap-2 sm:grid-cols-2">
           <label class="text-[10px] text-neutral-500">Device

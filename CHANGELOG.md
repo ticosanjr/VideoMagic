@@ -31,6 +31,11 @@ follow semantic versioning once the project reaches 1.0.
 - **Vision and decoupage.** `vision.face_contact` green labels (optional OpenCV),
   XMEML/FCPXML reference calibration, frame-accurate `speech-map.json`, and
   human entity corrections applied by `entities.apply`.
+- **Art direction and licensed assets.** `style.guide`, `storyboard.units`,
+  `assets.discover`, `assets.harvest`, `assets.license_audit`, and
+  `assets.assign`; Pexels/Pixabay/Openverse/Wikimedia/Internet Archive and
+  short fair-use YouTube excerpts; explicit `assets/licenses.json` ledger and
+  export blocking until the review gate approves.
 
 ## [2.59.4] - 2026-11-09
 

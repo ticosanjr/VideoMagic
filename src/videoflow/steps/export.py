@@ -10,6 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application.asset_providers import license_blockers
 from videoflow.application.export_names import (
     fixed_basename,
     timestamped_basename,
@@ -18,7 +19,7 @@ from videoflow.application.export_names import (
 from videoflow.application.export_service import export_timeline
 from videoflow.application.nle_extras import nle_extras_from_output
 from videoflow.core.context import PipelineContext
-from videoflow.domain.errors import StateNotReadyError
+from videoflow.domain.errors import ExportError, StateNotReadyError
 from videoflow.exporters.fcpxml import Dialect
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload
@@ -35,6 +36,7 @@ class ExportParams(BaseModel):
     subdir: str = "exports"
     filename_mode: Literal["source_timestamp", "fixed"] = "source_timestamp"
     basename: str = Field(default="timeline", min_length=1, max_length=120)
+    require_licenses: bool = True
 
     @field_validator("targets", mode="before")
     @classmethod
@@ -58,6 +60,16 @@ class ExportStep(BaseStep):
         options = ExportParams.model_validate(params)
         if context.state is None:
             raise StateNotReadyError("The export step requires a built timeline")
+        blockers = license_blockers(context.output) if options.require_licenses else []
+        if blockers:
+            titles = ", ".join(
+                str(item.get("title") or item.get("asset_id"))
+                for item in blockers[:6]
+            )
+            raise ExportError(
+                "Asset licenses need review before export: "
+                f"{titles}. Approve them at the assets review gate."
+            )
         destination = context.output / options.subdir
         destination.mkdir(parents=True, exist_ok=True)
         if options.filename_mode == "source_timestamp":
@@ -114,6 +126,9 @@ class ExportStep(BaseStep):
             "audio/master.wav",
             "audio/master-filters.json",
             "color/filters.json",
+            "assets/licenses.json",
+            "assets/licenses.md",
+            "assets/assignments.json",
         ):
             source = context.output / relative
             if not source.is_file():

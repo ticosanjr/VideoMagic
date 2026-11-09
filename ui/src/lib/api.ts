@@ -669,7 +669,12 @@ export interface AppSettings {
   stock: {
     provider: "local" | "pexels";
     pexels_key_env: string;
+    pixabay_key_env: string;
+    openverse_token_env: string;
     asset_dir: string;
+    youtube_fair_use_seconds: number;
+    youtube_max_per_video: number;
+    allow_fair_use: boolean;
   };
   translation: {
     target_language: string;

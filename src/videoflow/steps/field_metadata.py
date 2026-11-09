@@ -411,6 +411,40 @@ _STEP_DESCRIPTIONS: dict[str, dict[str, str]] = {
         "presenter_profile": "Optional presenter profile text or profile path.",
         "max_cases_per_call": "Research cases sent to one model call.",
     },
+    "style.guide": {
+        "directive": "Editorial visual and audio direction; the brief answer is used when empty.",
+        "reference_paths": "Output-relative reference boards or style images.",
+        "theme": "light or dark.",
+        "palette_colors": "Maximum palette colours.",
+    },
+    "storyboard.units": {
+        "script_path": "Output-relative dual-script JSON.",
+        "max_units": "Maximum timed units.",
+        "max_unit_seconds": "Maximum seconds per unit.",
+    },
+    "assets.discover": {
+        "units_path": "Output-relative unit storyboard.",
+        "providers": "pexels, pixabay, openverse, wikimedia, internet_archive, youtube.",
+        "media": "all, video, image, or audio.",
+        "max_units": "Maximum units to query.",
+        "max_per_unit": "Maximum candidates per unit.",
+        "allow_external_services": "Allow provider network calls.",
+        "allowed_external_hosts": "Optional host allowlist.",
+    },
+    "assets.harvest": {
+        "candidates_path": "Output-relative candidate manifest.",
+        "max_assets": "Maximum downloads.",
+        "clip_seconds": "Maximum YouTube excerpt length.",
+        "allow_external_services": "Allow downloads.",
+        "register_library": "Register harvested files in the asset library.",
+    },
+    "assets.license_audit": {
+        "manifest_path": "Output-relative harvest manifest.",
+    },
+    "assets.assign": {
+        "units_path": "Output-relative unit storyboard.",
+        "manifest_path": "Output-relative harvest manifest.",
+    },
     "vision.face_contact": {
         "sample_fps": "Frames sampled per second for face analysis.",
         "max_frames": "Maximum sampled frames.",
@@ -443,6 +477,10 @@ _STEP_DESCRIPTIONS: dict[str, dict[str, str]] = {
             "VideoFlow_Edited_<yymmddhhmmss>; fixed uses the base name."
         ),
         "basename": "Base name used when filename_mode is fixed.",
+        "require_licenses": (
+            "Block export when the asset ledger has unknown or unapproved "
+            "fair-use assets."
+        ),
     },
     "export.video": {
         "filename_mode": (

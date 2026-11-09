@@ -695,4 +695,10 @@ export const GLOSSARY: Record<string, string> = {
   "SearXNG URL": "URL do SearXNG",
   "Wikipedia language": "Idioma da Wikipedia",
   "allow network by default": "permitir rede por padrão",
+  "Asset licensing": "Licenciamento de assets",
+  "Openverse token env": "Env do token Openverse",
+  "Pixabay key env": "Env da chave Pixabay",
+  "YouTube clip seconds": "Segundos do trecho do YouTube",
+  "YouTube clips per video": "Trechos por vídeo do YouTube",
+  "allow fair-use excerpts": "permitir trechos em fair use",
 };

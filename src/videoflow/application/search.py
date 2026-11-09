@@ -179,6 +179,12 @@ def _assert_public_url(url: str, allowed_hosts: Iterable[str] = ()) -> None:
         )
 
 
+def assert_public_url(url: str, allowed_hosts: Iterable[str] = ()) -> None:
+    """Public wrapper for asset download URL checks."""
+
+    _assert_public_url(url, allowed_hosts)
+
+
 def _robots_allowed(url: str, *, timeout: float) -> bool:
     parsed = urlparse(url)
     robots = f"{parsed.scheme}://{parsed.netloc}/robots.txt"

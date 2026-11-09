@@ -129,7 +129,12 @@ class StockSettings(BaseModel):
 
     provider: Literal["local", "pexels"] = "local"
     pexels_key_env: str = "PEXELS_API_KEY"
+    pixabay_key_env: str = "PIXABAY_API_KEY"
+    openverse_token_env: str = "OPENVERSE_TOKEN"
     asset_dir: str = ""
+    youtube_fair_use_seconds: int = Field(default=15, ge=1, le=120)
+    youtube_max_per_video: int = Field(default=3, ge=1, le=10)
+    allow_fair_use: bool = True
 
 
 class TranslationSettings(BaseModel):

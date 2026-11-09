@@ -340,6 +340,30 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         (PortSpec("timeline", "Timeline state", "timeline", "state", True),),
         (PortSpec("plan", "Motion plan", "json", "metadata:motion_plan"),),
     ),
+    "style.guide": (
+        (),
+        (PortSpec("style", "Style guide", "json", "metadata:style_guide"),),
+    ),
+    "storyboard.units": (
+        (PortSpec("script", "Dual script", "json", "metadata:script", False),),
+        (PortSpec("units", "Unit storyboard", "json", "metadata:storyboard_units"),),
+    ),
+    "assets.discover": (
+        (PortSpec("units", "Unit storyboard", "json", "metadata:storyboard_units", False),),
+        (PortSpec("candidates", "Asset candidates", "json", "metadata:asset_candidates"),),
+    ),
+    "assets.harvest": (
+        (PortSpec("candidates", "Asset candidates", "json", "metadata:asset_candidates", False),),
+        (PortSpec("manifest", "Harvest manifest", "json", "metadata:assets_manifest"),),
+    ),
+    "assets.license_audit": (
+        (PortSpec("manifest", "Harvest manifest", "json", "metadata:assets_manifest", False),),
+        (PortSpec("blockers", "License blockers", "json", "metadata:license_blockers"),),
+    ),
+    "assets.assign": (
+        (PortSpec("units", "Unit storyboard", "json", "metadata:storyboard_units", False),),
+        (PortSpec("assignments", "Asset assignments", "json", "metadata:asset_assignments"),),
+    ),
     "entities.apply": (
         (),
         (

@@ -2,7 +2,9 @@
 
 from videoflow.steps import (
     alignment,
+    art_direction,
     assets_intel,
+    assets_pipeline,
     audio,
     audio_duck,
     broll,
@@ -52,7 +54,9 @@ __all__ = [
     "EmptyParams",
     "StepIO",
     "alignment",
+    "art_direction",
     "assets_intel",
+    "assets_pipeline",
     "audio",
     "audio_duck",
     "broll",
