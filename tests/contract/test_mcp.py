@@ -19,6 +19,26 @@ def test_server_registers_every_public_tool() -> None:
     assert sorted(asyncio.run(inspect())) == sorted(tool.name for tool in TOOL_SPECS)
 
 
+def test_server_uses_the_registry_as_its_public_descriptions() -> None:
+    async def inspect() -> dict[str, str]:
+        tools = await build_server().list_tools()
+        return {tool.name: tool.description or "" for tool in tools}
+
+    descriptions = asyncio.run(inspect())
+    for spec in TOOL_SPECS:
+        assert descriptions[spec.name] == spec.description
+
+
+def test_every_tool_has_annotations() -> None:
+    async def inspect() -> dict[str, object]:
+        tools = await build_server().list_tools()
+        return {tool.name: tool.annotations for tool in tools}
+
+    annotations = asyncio.run(inspect())
+    assert len(annotations) == len(TOOL_SPECS)
+    assert all(value is not None for value in annotations.values())
+
+
 def test_tools_without_media_return_a_typed_error() -> None:
     async def call() -> object:
         return await build_server().call_tool(

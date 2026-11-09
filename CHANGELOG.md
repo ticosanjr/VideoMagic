@@ -25,6 +25,14 @@ follow semantic versioning once the project reaches 1.0.
 - **UI API client extracted.** `ui/src/lib/api/client.ts` owns `ApiError`,
   `request`, and error formatting; `api.ts` drops from 2,984 to 2,833 lines
   while preserving every public import.
+- **MCP surface hardened.** The registry is now the single source of truth for
+  tool names and descriptions; annotations are passed through the public
+  `@mcp.tool(annotations=...)` API instead of mutating the SDK's private tool
+  manager. Corrected 20+ public descriptions, including provider readiness
+  versus secret presence, and added contract tests that every registered tool
+  matches its registry description and carries annotations.
+- `videoflow_list_jobs` now returns `total` and clamps `limit`/`offset` like the
+  other paginated list tools.
 - **Complete status mapping.** Added the missing codes for transcription,
   retakes, approval, schema migration, capability, rendering, and external
   policy failures so they no longer fall back to 400.

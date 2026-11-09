@@ -1,4 +1,9 @@
-"""Public MCP surface. Names here are the contract agents call."""
+"""Public MCP surface.
+
+The server registers the names, descriptions, and annotations from this module
+verbatim. Keep this file in sync with the tool implementations; the contract
+test fails when a tool is missing or its public description drifts.
+"""
 
 from __future__ import annotations
 
@@ -71,7 +76,7 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "videoflow_list_capabilities",
-        "List feature availability and external-provider policy.",
+        "List feature availability and whether external providers are allowed.",
         "system",
     ),
     ToolSpec(
@@ -146,7 +151,10 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "videoflow_generate_shorts",
-        "Propose vertical clips in source time. YOLO reframing is not available in v1.",
+        (
+            "Propose social clips in source time with an optional source window. "
+            "YOLO reframing is not available in v1."
+        ),
         "shorts",
     ),
     ToolSpec(
@@ -201,7 +209,7 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "videoflow_remove_model",
-        "Remove a downloaded local model.",
+        "Remove one downloaded model, freeing local disk space.",
         "models",
     ),
     ToolSpec(
@@ -216,12 +224,12 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "videoflow_get_job",
-        "Return the status of one project job.",
+        "Return the status and report of one job.",
         "export",
     ),
     ToolSpec(
         "videoflow_cancel_job",
-        "Ask the active job to stop between modules.",
+        "Ask the active job to stop between stages.",
         "export",
     ),
     ToolSpec(
@@ -291,7 +299,7 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "videoflow_list_providers",
-        "List configured providers, fallback chains, and secret presence.",
+        "List configured providers, readiness, and fallback chains.",
         "providers",
     ),
     ToolSpec(
@@ -314,13 +322,25 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "Approve or reject the review checklist for a job.",
         "review",
     ),
-    ToolSpec("videoflow_list_jobs", "List jobs with status and progress.", "jobs"),
-    ToolSpec("videoflow_pause_job", "Pause a queued or running job.", "jobs"),
+    ToolSpec(
+        "videoflow_list_jobs",
+        "List jobs newest first with status, progress, and attempts.",
+        "jobs",
+    ),
+    ToolSpec(
+        "videoflow_pause_job",
+        "Pause a queued job or request a cooperative pause for a running one.",
+        "jobs",
+    ),
     ToolSpec("videoflow_unpause_job", "Requeue a paused job.", "jobs"),
-    ToolSpec("videoflow_set_job_priority", "Set job priority.", "jobs"),
+    ToolSpec(
+        "videoflow_set_job_priority",
+        "Set a job priority and reorder the pending queue.",
+        "jobs",
+    ),
     ToolSpec(
         "videoflow_get_timeline",
-        "Read clips, audio, overlays, markers, tracks, and comments.",
+        "Read clips, audio, overlays, markers, tracks, and comments from the canonical timeline.",
         "timeline",
     ),
     ToolSpec(
@@ -335,12 +355,12 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "videoflow_list_clip_comments",
-        "List clip comments.",
+        "List comments for a clip or the whole timeline.",
         "timeline",
     ),
     ToolSpec(
         "videoflow_add_clip_comment",
-        "Add a clip comment.",
+        "Add a comment to a timeline clip.",
         "timeline",
     ),
     ToolSpec(
@@ -350,26 +370,30 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "videoflow_copilot_recipe",
-        "Draft and validate a recipe with the configured LLM.",
+        "Draft and validate a recipe from a natural-language request.",
         "copilot",
     ),
     ToolSpec(
         "videoflow_copilot_timeline",
-        "Propose or apply validated timeline edits with the LLM.",
+        "Propose (or apply) validated timeline edits from a request.",
         "copilot",
     ),
     ToolSpec(
         "videoflow_cost_metrics",
-        "Read LLM token usage and estimated cost.",
+        "Return token usage and estimated LLM cost.",
         "copilot",
     ),
     ToolSpec(
         "videoflow_validate_exports",
-        "Validate FCPXML, XMEML, and Kdenlive exports.",
+        "Validate the FCPXML, XMEML, and Kdenlive exports of a job.",
         "export",
     ),
-    ToolSpec("videoflow_list_plugins", "List local plugins.", "plugins"),
-    ToolSpec("videoflow_reload_plugins", "Reload local plugins.", "plugins"),
+    ToolSpec(
+        "videoflow_list_plugins",
+        "List local plugin manifests and sandbox status.",
+        "plugins",
+    ),
+    ToolSpec("videoflow_reload_plugins", "Reload every enabled plugin.", "plugins"),
     ToolSpec(
         "videoflow_set_plugin_enabled",
         "Enable or disable a plugin.",
@@ -377,12 +401,12 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "videoflow_create_backup",
-        "Create a timestamped SQLite backup.",
+        "Create a timestamped SQLite backup and prune old snapshots.",
         "maintenance",
     ),
     ToolSpec(
         "videoflow_render_frame",
-        "Extract a JPEG frame at a timestamp.",
+        "Extract a JPEG frame from a job source at a timestamp.",
         "timeline",
     ),
 )
