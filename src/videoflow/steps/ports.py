@@ -229,6 +229,22 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         (PortSpec("metadata", "Context metadata", "dict", "metadata", False),),
         (),
     ),
+    "research.multi_agent": (
+        (),
+        (PortSpec("agents", "Scoped research", "json", "metadata:research_agents"),),
+    ),
+    "research.consolidate": (
+        (PortSpec("agents", "Scoped research", "json", "metadata:research_agents", True),),
+        (PortSpec("master", "Master research", "json", "metadata:research_master"),),
+    ),
+    "presenter.profile": (
+        (),
+        (PortSpec("profile", "Presenter profile", "json", "metadata:presenter_profile"),),
+    ),
+    "script.dual_output": (
+        (PortSpec("master", "Master research", "json", "metadata:research_master", True),),
+        (PortSpec("script", "Dual script", "json", "metadata:script"),),
+    ),
     "metadata.pack": (
         (PortSpec("shorts", "Shorts", "short_list", "shorts", True),),
         (PortSpec("artifacts", "Metadata", "artifact_map", "artifacts"),),

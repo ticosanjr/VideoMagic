@@ -723,6 +723,20 @@ export interface AppSettings {
       poll_seconds: number;
     };
   };
+  search: {
+    enabled: boolean;
+    providers: string[];
+    local_paths: string[];
+    seed_urls: string[];
+    searxng_url: string;
+    wikipedia_language: string;
+    max_results: number;
+    fetch_pages: number;
+    allow_network: boolean;
+    timeout_seconds: number;
+    max_bytes: number;
+    cache_ttl_hours: number;
+  };
 }
 
 export interface ServiceDefinition {

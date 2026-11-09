@@ -2735,6 +2735,8 @@ def register_routes(
                 "notifications.email.enabled",
                 "notifications.slack.enabled",
                 "notifications.signal.enabled",
+                "search.enabled",
+                "search.providers",
             ],
         }
 

@@ -470,3 +470,15 @@ class HiltExpiredError(VideoFlowError):
     """A human interaction passed its deadline without a response."""
 
     code = "hilt_expired"
+
+
+class SearchError(VideoFlowError):
+    """A research provider failed, was unavailable, or returned unusable data."""
+
+    code = "search_failed"
+
+
+class SearchBlockedError(SearchError):
+    """A search or fetch target is outside the allowed network policy."""
+
+    code = "search_blocked"

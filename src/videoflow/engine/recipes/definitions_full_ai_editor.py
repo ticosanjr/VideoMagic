@@ -64,44 +64,55 @@ _add_recipe(
             },
         },
         {
-            "id": "research_files",
-            "type": "human.files",
+            "id": "research",
+            "type": "research.multi_agent",
             "needs": ["brief"],
             "params": {
+                "topic": "$topic",
+                "allow_external_services": "$allow_external_services",
+                "max_results": 6,
+                "fetch_pages": 3,
+            },
+        },
+        {
+            "id": "research_files",
+            "type": "human.files",
+            "needs": ["research"],
+            "params": {
                 "gate_id": "research_files",
-                "title": "Research datasets",
+                "title": "Revise research (optional)",
                 "description": (
-                    "Provide the four scoped research Markdown files. Each case "
-                    "must include summary, defense position, publication date, and sources."
+                    "Review the generated dossiers. Upload corrected or additional "
+                    "Markdown files here; otherwise submit without files and continue."
                 ),
                 "files": [
                     {
                         "id": "agent_a",
-                        "label": "Agent A - serious crimes and homicides",
-                        "required": True,
+                        "label": "Revised Agent A",
+                        "required": False,
                         "accept": [".md", ".txt", ".json"],
-                        "target": "research/agent-a.md",
+                        "target": "research/revised/agent-a.md",
                     },
                     {
                         "id": "agent_b",
-                        "label": "Agent B - corruption 1980-2010",
-                        "required": True,
+                        "label": "Revised Agent B",
+                        "required": False,
                         "accept": [".md", ".txt", ".json"],
-                        "target": "research/agent-b.md",
+                        "target": "research/revised/agent-b.md",
                     },
                     {
                         "id": "agent_c",
-                        "label": "Agent C - 2010-2018",
-                        "required": True,
+                        "label": "Revised Agent C",
+                        "required": False,
                         "accept": [".md", ".txt", ".json"],
-                        "target": "research/agent-c.md",
+                        "target": "research/revised/agent-c.md",
                     },
                     {
                         "id": "agent_d",
-                        "label": "Agent D - 2018-present",
-                        "required": True,
+                        "label": "Revised Agent D",
+                        "required": False,
                         "accept": [".md", ".txt", ".json"],
-                        "target": "research/agent-d.md",
+                        "target": "research/revised/agent-d.md",
                     },
                 ],
             },
@@ -113,33 +124,60 @@ _add_recipe(
             "params": {
                 "gate_id": "research_review",
                 "title": "Research review",
-                "description": "Approve the consolidated research before script generation.",
+                "description": "Approve the scoped dossiers after reviewing their citations.",
                 "artifacts": ["research/"],
+            },
+        },
+        {
+            "id": "research_consolidate",
+            "type": "research.consolidate",
+            "needs": ["research_review"],
+            "params": {"max_cases": 200, "require_sources": True},
+        },
+        {
+            "id": "research_master_review",
+            "type": "human.gate",
+            "needs": ["research_consolidate"],
+            "params": {
+                "gate_id": "research_master_review",
+                "title": "Master dossier review",
+                "description": "Approve the deduplicated master dossier before the script.",
+                "artifacts": ["research/master.md", "research/master.json"],
+            },
+        },
+        {
+            "id": "script",
+            "type": "script.dual_output",
+            "needs": ["research_master_review"],
+            "params": {
+                "target_words": 11000,
+                "max_sections": 314,
+                "max_cases_per_call": 8,
             },
         },
         {
             "id": "script_files",
             "type": "human.files",
-            "needs": ["research_review"],
+            "needs": ["script"],
             "params": {
                 "gate_id": "script_files",
-                "title": "Dual script",
+                "title": "Revise the dual script (optional)",
                 "description": (
-                    "Provide the narration script for the studio and the edition "
-                    "script with visual instructions for every section."
+                    "Upload a revised narration or edition script; otherwise submit "
+                    "without files and review the generated script."
                 ),
                 "files": [
                     {
                         "id": "narration",
-                        "label": "Narration script (plain text)",
-                        "required": True,
+                        "label": "Revised narration script",
+                        "required": False,
                         "accept": [".txt", ".md"],
                         "target": "script/narration.txt",
                     },
                     {
                         "id": "edition",
-                        "label": "Edition script (Markdown)",
-                        "required": True,
+                        "label": "Revised edition script",
+                        "required": False,
                         "accept": [".md", ".txt"],
                         "target": "script/edition.md",
                     },
@@ -466,6 +504,16 @@ _add_recipe(
             "type": "number",
             "default": 70,
             "description": "Target runtime in minutes.",
+        },
+        "topic": {
+            "type": "string",
+            "default": "",
+            "description": "Research directive; the brief answer is used when empty.",
+        },
+        "allow_external_services": {
+            "type": "boolean",
+            "default": False,
+            "description": "Allow SearXNG, Wikipedia, Internet Archive, and page fetches.",
         },
     },
 )

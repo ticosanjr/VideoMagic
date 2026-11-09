@@ -209,6 +209,23 @@ class NotificationSettings(BaseModel):
     signal: SignalNotificationSettings = Field(default_factory=SignalNotificationSettings)
 
 
+class SearchSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+    providers: list[str] = Field(default_factory=lambda: ["local"])
+    local_paths: list[str] = Field(default_factory=list)
+    seed_urls: list[str] = Field(default_factory=list)
+    searxng_url: str = ""
+    wikipedia_language: str = "pt"
+    max_results: int = Field(default=6, ge=1, le=50)
+    fetch_pages: int = Field(default=3, ge=0, le=20)
+    allow_network: bool = False
+    timeout_seconds: float = Field(default=20.0, ge=1.0, le=120.0)
+    max_bytes: int = Field(default=2_000_000, ge=10_000, le=50_000_000)
+    cache_ttl_hours: int = Field(default=24, ge=1, le=24 * 30)
+
+
 class AppSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -225,6 +242,7 @@ class AppSettings(BaseModel):
     stock: StockSettings = Field(default_factory=StockSettings)
     translation: TranslationSettings = Field(default_factory=TranslationSettings)
     notifications: NotificationSettings = Field(default_factory=NotificationSettings)
+    search: SearchSettings = Field(default_factory=SearchSettings)
 
 
 def settings_path() -> Path:

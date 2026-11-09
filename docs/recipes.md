@@ -373,10 +373,11 @@ reframe/caption/A-B variants, podcast, interview, webinar, lecture, product
 demo, testimonial, livestream, B-roll, music, SFX, metadata, thumbnails,
 publishing, analytics, localization, and finishing.
 
-`full_ai_editor` is the long-form, human-reviewed documentary recipe. It pauses
-for the editorial brief, research datasets, script lock, decoupage audit, entity
-corrections, style lock, sample homologation, fact-check, and final approval.
-See [hilt.md](hilt.md) for the checkpoint contract.
+`full_ai_editor` is the long-form, human-reviewed documentary recipe. It runs
+scoped research and a dual script before ingest, then pauses for the editorial
+brief, research corrections, master dossier, script lock, decoupage audit,
+entity corrections, style lock, sample homologation, fact-check, and final
+approval. See [hilt.md](hilt.md) and [research.md](research.md).
 
 ## CLI
 

@@ -341,6 +341,23 @@
         {/if}
       </section>
 
+      <section class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4" data-settings-section>
+        <h3 class="text-xs font-semibold text-neutral-100">Research providers</h3>
+        <p class="mt-1 text-[10px] text-neutral-500">Local, free, and self-hosted sources. External fetches require the explicit allow flag or a configured local host.</p>
+        <div class="mt-3 grid gap-2 sm:grid-cols-2">
+          <label class="text-[10px] text-neutral-500">Providers (comma)<input value={(settings?.search.providers ?? []).join(", ")} oninput={(event) => { if (settings) settings.search.providers = splitList(event.currentTarget.value); }} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">SearXNG URL<input bind:value={settings.search.searxng_url} placeholder="http://127.0.0.1:8080" class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">Local corpus paths (comma)<input value={(settings?.search.local_paths ?? []).join(", ")} oninput={(event) => { if (settings) settings.search.local_paths = splitList(event.currentTarget.value); }} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">Crawl seed URLs (comma)<input value={(settings?.search.seed_urls ?? []).join(", ")} oninput={(event) => { if (settings) settings.search.seed_urls = splitList(event.currentTarget.value); }} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">Wikipedia language<input bind:value={settings.search.wikipedia_language} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">Max results<input type="number" bind:value={settings.search.max_results} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">Pages per scope<input type="number" bind:value={settings.search.fetch_pages} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">Cache TTL hours<input type="number" bind:value={settings.search.cache_ttl_hours} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
+          <label class="flex items-center gap-1 text-[10px] text-neutral-400"><input type="checkbox" bind:checked={settings.search.enabled} class="h-3.5 w-3.5" />enabled</label>
+          <label class="flex items-center gap-1 text-[10px] text-neutral-400"><input type="checkbox" bind:checked={settings.search.allow_network} class="h-3.5 w-3.5" />allow network by default</label>
+        </div>
+      </section>
+
       <section class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
         <h3 class="text-xs font-semibold text-neutral-100">Models</h3>
         <div class="mt-3 grid gap-2 sm:grid-cols-2">

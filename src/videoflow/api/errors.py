@@ -26,6 +26,8 @@ STATUS_BY_CODE: dict[str, int] = {
     "hilt_response_invalid": 409,
     "hilt_attachment_invalid": 422,
     "hilt_expired": 410,
+    "search_failed": 502,
+    "search_blocked": 403,
     "upstream_dirty": 409,
     "project_not_found": 404,
     "project_exists": 409,

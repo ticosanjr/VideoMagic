@@ -23,6 +23,11 @@ follow semantic versioning once the project reaches 1.0.
   delivery failures without failing the job.
 - **MCP HILT tools.** `videoflow_list_interactions`,
   `videoflow_get_interaction`, and `videoflow_respond_to_interaction` (74 tools).
+- **Research and dual-script engine.** Local/SearXNG/Wikipedia/Internet Archive
+  providers, citation manifests, scoped `research.multi_agent`,
+  `research.consolidate`, `presenter.profile`, and `script.dual_output`; the
+  Full AI Editor now generates research and script before the ingest phase and
+  keeps optional human correction gates.
 
 ## [2.59.4] - 2026-11-09
 
