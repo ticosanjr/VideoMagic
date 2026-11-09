@@ -98,20 +98,21 @@ def test_asset_filesystem_and_media_error_paths(monkeypatch, tmp_path: Path) -> 
     fonts = client.delete("/api/v1/assets/fonts/missing.ttf")
     assert fonts.status_code in {404, 500}
 
-    monkeypatch.setattr(routes_module, "get_asset", lambda asset_id: None)
+    from videoflow.api import routes_library as library_module
+    monkeypatch.setattr(library_module, "get_asset", lambda asset_id: None)
     assert client.get("/api/v1/assets/missing/file").status_code == 404
 
     outside = tmp_path.parent / "outside.bin"
     outside.write_bytes(b"x")
     monkeypatch.setattr(
-        routes_module, "get_asset", lambda asset_id: {"id": asset_id, "path": str(outside)}
+        library_module, "get_asset", lambda asset_id: {"id": asset_id, "path": str(outside)}
     )
     denied = client.get("/api/v1/assets/outside/file")
     assert denied.status_code == 403
     assert _error(denied)["code"] == "path_not_allowed"
 
     monkeypatch.setattr(
-        routes_module,
+        library_module,
         "get_asset",
         lambda asset_id: {"id": asset_id, "path": str(tmp_path / "gone.bin")},
     )
@@ -199,14 +200,14 @@ def test_asset_filesystem_and_media_error_paths(monkeypatch, tmp_path: Path) -> 
 
 
 def test_provider_secret_voice_clone_and_plugin_errors(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.api import routes as routes_module
+    from videoflow.api import routes_providers as providers_module
 
     client, _manager = _client(monkeypatch, tmp_path)
 
     def fail_get(*args, **kwargs):
         raise httpx.ConnectError("provider down")
 
-    monkeypatch.setattr(routes_module.httpx, "get", fail_get)
+    monkeypatch.setattr(providers_module.httpx, "get", fail_get)
     probe = client.post(
         "/api/v1/providers/test", json={"base_url": "http://127.0.0.1:9/v1"}
     )
@@ -1196,12 +1197,14 @@ def test_route_error_boundaries_with_service_failures(monkeypatch, tmp_path: Pat
         "base_url": "http://127.0.0.1:9/v1",
         "model": "boundary",
     }
-    monkeypatch.setattr(routes_module, "upsert_provider", explode)
+    from videoflow.api import routes_providers as providers_module
+    monkeypatch.setattr(providers_module, "upsert_provider", explode)
     failed_provider = client.put("/api/v1/providers/boundary", json=provider)
     assert failed_provider.status_code == 409
     assert _error(failed_provider)["code"] == "state_not_ready"
 
-    monkeypatch.setattr(routes_module, "upsert_schedule", explode)
+    from videoflow.api import routes_schedules as schedules_module
+    monkeypatch.setattr(schedules_module, "upsert_schedule", explode)
     failed_schedule = client.put(
         "/api/v1/schedules/boundary",
         json={"id": "boundary", "recipe_id": "youtube_talking_head"},

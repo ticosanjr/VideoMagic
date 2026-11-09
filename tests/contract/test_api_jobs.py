@@ -751,12 +751,12 @@ def test_provider_connection_test(monkeypatch) -> None:
     import httpx
     from fastapi.testclient import TestClient
 
-    from videoflow.api import routes
+    from videoflow.api import routes_providers
     from videoflow.api.app import create_app
 
     monkeypatch.setenv("TEST_PROVIDER_KEY", "secret")
     monkeypatch.setattr(
-        routes.httpx,
+        routes_providers.httpx,
         "get",
         lambda *args, **kwargs: httpx.Response(
             200, text='{"data":[]}', request=httpx.Request("GET", str(args[0]))
@@ -815,7 +815,7 @@ def test_system_reports_an_invalid_settings_file(monkeypatch, tmp_path: Path) ->
 def test_provider_chat_test_posts_a_completion(monkeypatch) -> None:
     import httpx
 
-    from videoflow.api import routes as routes_module
+    from videoflow.api import routes_providers as routes_module
 
     calls: list[dict[str, object]] = []
 
@@ -855,7 +855,7 @@ def test_provider_chat_test_posts_a_completion(monkeypatch) -> None:
 def test_provider_test_uses_the_saved_provider_secret(monkeypatch) -> None:
     import httpx
 
-    from videoflow.api import routes as routes_module
+    from videoflow.api import routes_providers as routes_module
 
     calls: list[dict[str, object]] = []
 

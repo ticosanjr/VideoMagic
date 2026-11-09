@@ -5,11 +5,9 @@ from __future__ import annotations
 import json
 import logging
 import os
-import time
 from pathlib import Path
 from typing import Any, Literal
 
-import httpx
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, model_validator
@@ -20,12 +18,16 @@ from videoflow.api.routes_assets import register_asset_routes
 from videoflow.api.routes_discovery import register_discovery_routes
 from videoflow.api.routes_hilt import register_hilt_routes
 from videoflow.api.routes_jobs import register_job_routes
+from videoflow.api.routes_library import register_library_routes
 from videoflow.api.routes_presets import register_preset_routes
+from videoflow.api.routes_providers import register_provider_routes
+from videoflow.api.routes_publish import register_publish_routes
 from videoflow.api.routes_recipes import (
     RecipeRunRequest,
     register_recipe_routes,
     start_recipe_job,
 )
+from videoflow.api.routes_schedules import register_schedule_routes
 from videoflow.api.routes_system import register_system_routes
 from videoflow.api.routes_timeline import (
     _apply_and_store,
@@ -34,22 +36,6 @@ from videoflow.api.routes_timeline import (
     _timeline_history,
     _timeline_state_path,
     register_timeline_routes,
-)
-from videoflow.application import voice_clone
-from videoflow.application.assets import (
-    get_asset,
-    list_assets,
-    remove_asset,
-    scan_directory,
-    update_tags,
-)
-from videoflow.application.brand_templates import (
-    BrandTemplate,
-    apply_brand_options,
-    delete_template,
-    get_template,
-    list_templates,
-    save_template,
 )
 from videoflow.application.broll_approval import (
     load_approvals,
@@ -94,59 +80,12 @@ from videoflow.application.previews import (
     previews,
     write_preview_manifest,
 )
-from videoflow.application.project_templates import (
-    ProjectTemplate,
-    export_config,
-    import_config,
-    sanitize_options,
-)
-from videoflow.application.project_templates import (
-    delete_template as delete_project_template,
-)
-from videoflow.application.project_templates import (
-    get_template as get_project_template,
-)
-from videoflow.application.project_templates import (
-    list_templates as list_project_templates,
-)
-from videoflow.application.project_templates import (
-    save_template as save_project_template,
-)
 from videoflow.application.providers import (
-    ProviderConfig,
-    delete_provider,
-    fallback_manifest,
     first_provider,
-    list_providers,
-    resolve_chain,
-    set_default,
-    upsert_provider,
-    validate_secret_name,
-)
-from videoflow.application.publishing import (
-    PublishTarget,
-    cancel_publish,
-    delete_target,
-    dispatch_due,
-    enqueue_publish,
-    list_queue,
-    list_targets,
-    save_target,
 )
 from videoflow.application.render_queue import renders
-from videoflow.application.schedules import (
-    RecipeSchedule,
-    delete_schedule,
-    load_schedules,
-    run_now,
-    upsert_schedule,
-)
 from videoflow.application.secrets import (
-    delete_secret,
     get_secret,
-    secret_backend,
-    secret_present,
-    set_secret,
 )
 from videoflow.application.service_definitions import (
     ServiceDefinition,
@@ -195,9 +134,7 @@ from videoflow.domain.config import (
 from videoflow.domain.errors import (
     CapabilityUnavailableError,
     FilesystemError,
-    InvalidConfigError,
     MediaNotFoundError,
-    PathNotFoundError,
     RecipeError,
     StateNotReadyError,
     VideoFlowError,
@@ -205,7 +142,6 @@ from videoflow.domain.errors import (
 from videoflow.domain.paths import resolve_allowed
 from videoflow.domain.state import MediaInfo, ProjectState
 from videoflow.engine.batch import BatchManager
-from videoflow.engine.history import read_runs
 from videoflow.engine.recipes import (
     get_recipe,
     list_recipes,
@@ -284,35 +220,14 @@ class NewDirectoryRequest(BaseModel):
     name: str = Field(min_length=1, max_length=255)
 
 
-class PublishTargetRequest(BaseModel):
-    description: str = ""
-    webhook_url: str = Field(min_length=1)
-    secret_name: str = "VIDEOWFLOW_PUBLISH_TOKEN"
-    enabled: bool = True
 
 
-class PublishShortRequest(BaseModel):
-    target: str = Field(min_length=1)
-    platform: Literal["youtube", "tiktok", "instagram", "linkedin"] = "youtube"
-    tone: Literal["engaging", "professional", "educational", "bold"] = "engaging"
-    scheduled_at: str | None = None
-    extra_hashtags: list[str] = Field(default_factory=list)
-    allow_external_services: bool = False
-    allowed_external_hosts: list[str] = Field(default_factory=list)
 
 
-class PublishDispatchRequest(BaseModel):
-    allow_external_services: bool = False
-    allowed_external_hosts: list[str] = Field(default_factory=list)
 
 
-class ConfigExportRequest(BaseModel):
-    options: dict[str, Any] = Field(default_factory=dict)
 
 
-class ConfigImportRequest(BaseModel):
-    schema_version: int
-    options: dict[str, Any] = Field(default_factory=dict)
 
 
 class ShortDubbingRequest(BaseModel):
@@ -330,19 +245,8 @@ class ShortDubbingRequest(BaseModel):
     allowed_external_hosts: list[str] = Field(default_factory=list)
 
 
-class AssetScanRequest(BaseModel):
-    directory: str = Field(min_length=1)
-    tags: list[str] = Field(default_factory=list)
-    recursive: bool = True
 
 
-class ProviderTestRequest(BaseModel):
-    provider_id: str = ""
-    base_url: str = ""
-    api_key_env: str = ""
-    model: str = ""
-    path: str = "/models"
-    mode: Literal["models", "chat"] = "models"
 
 
 
@@ -398,12 +302,8 @@ class BrollApprovalRequest(BaseModel):
 
 
 
-class AssetTagsRequest(BaseModel):
-    tags: list[str] = Field(default_factory=list)
 
 
-class ExportValidationRequest(BaseModel):
-    output: str = Field(min_length=1)
 
 
 
@@ -542,349 +442,35 @@ def register_routes(
 
 
     register_system_routes(app)
+    register_provider_routes(app)
+    register_publish_routes(app, jobs)
+    register_library_routes(app)
+    register_schedule_routes(app, jobs)
 
-    @app.post("/api/v1/providers/test")
-    def test_provider(request: ProviderTestRequest) -> dict[str, object]:
-        base_url = request.base_url
-        api_key_env = request.api_key_env
-        model = request.model
-        if request.provider_id:
-            provider = next(
-                (
-                    item
-                    for item in list_providers()
-                    if str(item.get("id")) == request.provider_id
-                ),
-                None,
-            )
-            if provider is None:
-                raise HTTPException(
-                    status_code=404,
-                    detail={
-                        "ok": False,
-                        "code": "provider_not_found",
-                        "message": request.provider_id,
-                    },
-                )
-            base_url = base_url or str(provider.get("base_url") or "")
-            api_key_env = api_key_env or str(provider.get("api_key_env") or "")
-            model = model or str(provider.get("model") or "")
-        try:
-            api_key_env = validate_secret_name(api_key_env)
-        except InvalidConfigError as exc:
-            raise HTTPException(status_code=422, detail=exc.to_dict()) from exc
-        base = base_url.rstrip("/")
-        if not (base.startswith("http://") or base.startswith("https://")):
-            raise HTTPException(
-                status_code=422,
-                detail={"ok": False, "code": "invalid_url", "message": base_url},
-            )
-        api_key = get_secret(api_key_env)
-        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-        started = time.perf_counter()
-        try:
-            if request.mode == "chat":
-                if not model:
-                    raise HTTPException(
-                        status_code=422,
-                        detail={
-                            "ok": False,
-                            "code": "model_required",
-                            "message": "Chat test requires a model.",
-                        },
-                    )
-                response = httpx.post(
-                    f"{base}/chat/completions",
-                    headers={**headers, "Content-Type": "application/json"},
-                    json={
-                        "model": model,
-                        "temperature": 0,
-                        "max_tokens": 8,
-                        "stream": False,
-                        "messages": [
-                            {"role": "user", "content": "Reply with OK only."}
-                        ],
-                    },
-                    timeout=20.0,
-                    follow_redirects=True,
-                )
-            else:
-                response = httpx.get(
-                    f"{base}{request.path}",
-                    headers=headers,
-                    timeout=10.0,
-                    follow_redirects=True,
-                )
-        except httpx.HTTPError as exc:
-            return {
-                "ok": False,
-                "status_code": None,
-                "message": str(exc),
-                "secret_present": bool(api_key),
-                "latency_ms": round((time.perf_counter() - started) * 1000),
-                "mode": request.mode,
-            }
-        body = response.text[:500]
-        if request.mode == "chat" and response.status_code < 400:
-            try:
-                payload = response.json()
-                body = str(
-                    payload.get("choices", [{}])[0]
-                    .get("message", {})
-                    .get("content", "")
-                )[:200] or body
-            except (ValueError, AttributeError, IndexError, TypeError):
-                pass
-        return {
-            "ok": 200 <= response.status_code < 400,
-            "status_code": response.status_code,
-            "message": body,
-            "secret_present": bool(api_key),
-            "latency_ms": round((time.perf_counter() - started) * 1000),
-            "mode": request.mode,
-        }
 
-    def _providers_payload() -> list[dict[str, object]]:
-        return [
-            {**item, "secret_present": secret_present(str(item.get("api_key_env") or ""))}
-            for item in list_providers()
-        ]
 
-    @app.get("/api/v1/providers")
-    def providers_list() -> dict[str, object]:
-        return {
-            "ok": True,
-            "providers": _providers_payload(),
-            "fallbacks": fallback_manifest(),
-            "secret_backend": secret_backend(),
-        }
 
-    @app.post("/api/v1/providers/{provider_id}/secret")
-    def providers_secret(provider_id: str, request: dict[str, str]) -> dict[str, object]:
-        value = str(request.get("value") or "")
-        if not value:
-            raise HTTPException(
-                status_code=422,
-                detail={"ok": False, "code": "empty_secret", "message": provider_id},
-            )
-        provider = next(
-            (item for item in list_providers() if item["id"] == provider_id), None
-        )
-        if provider is None:
-            raise HTTPException(
-                status_code=404,
-                detail={"ok": False, "code": "provider_not_found", "message": provider_id},
-            )
-        name = str(provider.get("api_key_env") or "")
-        if not name:
-            raise HTTPException(
-                status_code=422,
-                detail={"ok": False, "code": "secret_name_missing", "message": provider_id},
-            )
-        set_secret(name, value)
-        return {
-            "ok": True,
-            "secret_present": True,
-            "secret_backend": secret_backend(),
-        }
 
-    @app.delete("/api/v1/providers/{provider_id}/secret")
-    def providers_secret_delete(provider_id: str) -> dict[str, object]:
-        provider = next(
-            (item for item in list_providers() if item["id"] == provider_id), None
-        )
-        if provider is None:
-            raise HTTPException(
-                status_code=404,
-                detail={"ok": False, "code": "provider_not_found", "message": provider_id},
-            )
-        name = str(provider.get("api_key_env") or "")
-        if name:
-            delete_secret(name)
-        return {"ok": True, "secret_present": False, "secret_backend": secret_backend()}
 
-    @app.put("/api/v1/providers/{provider_id}")
-    def providers_save(provider_id: str, request: ProviderConfig) -> dict[str, object]:
-        if request.id != provider_id:
-            raise HTTPException(
-                status_code=422,
-                detail={"ok": False, "code": "provider_id_mismatch", "message": provider_id},
-            )
-        payload = upsert_provider(request)
-        return {"ok": True, "provider": payload, "fallbacks": fallback_manifest()}
 
-    @app.delete("/api/v1/providers/{provider_id}")
-    def providers_delete(provider_id: str) -> dict[str, object]:
-        delete_provider(provider_id)
-        return {"ok": True, "fallbacks": fallback_manifest()}
 
-    @app.post("/api/v1/providers/{provider_id}/default")
-    def providers_default(provider_id: str) -> dict[str, object]:
-        payload = set_default(provider_id)
-        return {"ok": True, "provider": payload, "fallbacks": fallback_manifest()}
 
-    @app.get("/api/v1/voice-clone/status")
-    def voice_clone_status() -> dict[str, object]:
-        return voice_clone.status()
 
-    @app.get("/api/v1/voice-clone/profiles")
-    def voice_clone_profiles() -> dict[str, object]:
-        return {
-            "ok": True,
-            "profiles": [
-                profile.model_dump(mode="json")
-                for profile in voice_clone.list_profiles()
-            ],
-        }
 
-    @app.post("/api/v1/voice-clone/profiles", status_code=201)
-    def voice_clone_create(
-        request: voice_clone.VoiceProfileRequest,
-    ) -> dict[str, object]:
-        profile = voice_clone.create_profile(request)
-        return {"ok": True, "profile": profile.model_dump(mode="json")}
 
-    @app.delete("/api/v1/voice-clone/profiles/{profile_id}")
-    def voice_clone_delete(profile_id: str) -> dict[str, object]:
-        voice_clone.delete_profile(profile_id)
-        return {"ok": True, "deleted": profile_id}
 
-    @app.post("/api/v1/voice-clone/synthesize")
-    def voice_clone_synthesize(
-        request: voice_clone.VoiceSynthesizeRequest,
-    ) -> dict[str, object]:
-        voice_clone.synthesize(request)
-        return {"ok": True}
 
-    @app.get("/api/v1/providers/resolve")
-    def providers_resolve(capability: str = "llm") -> dict[str, object]:
-        known = {
-            "llm",
-            "asr",
-            "tts",
-            "vision",
-            "stock",
-            "translation",
-            "diarization",
-            "publishing",
-        }
-        if capability not in known:
-            raise HTTPException(
-                status_code=422,
-                detail={"ok": False, "code": "unknown_capability", "message": capability},
-            )
-        return {"ok": True, "capability": capability, "chain": resolve_chain(capability)}
 
-    @app.get("/api/v1/schedules")
-    def schedules_list() -> dict[str, object]:
-        return {
-            "ok": True,
-            "schedules": [item.model_dump(mode="json") for item in load_schedules()],
-        }
 
-    @app.put("/api/v1/schedules/{schedule_id}")
-    def schedules_save(schedule_id: str, request: RecipeSchedule) -> dict[str, object]:
-        if request.id != schedule_id:
-            raise HTTPException(
-                status_code=422,
-                detail={"ok": False, "code": "schedule_id_mismatch", "message": schedule_id},
-            )
-        saved = upsert_schedule(request)
-        return {"ok": True, "schedule": saved.model_dump(mode="json")}
 
-    @app.delete("/api/v1/schedules/{schedule_id}")
-    def schedules_delete(schedule_id: str) -> dict[str, object]:
-        delete_schedule(schedule_id)
-        return {"ok": True, "deleted": schedule_id}
 
-    @app.post("/api/v1/schedules/{schedule_id}/run")
-    def schedules_run(schedule_id: str) -> dict[str, object]:
-        schedule = run_now(jobs, schedule_id)
-        return {"ok": True, "schedule": schedule.model_dump(mode="json")}
 
-    @app.get("/api/v1/assets")
-    def list_assets_route(
-        q: str = "",
-        kind: str = "",
-        limit: int = 500,
-    ) -> dict[str, object]:
-        return {"ok": True, "assets": list_assets(q, kind, limit)}
 
-    @app.post("/api/v1/assets/scan")
-    def scan_assets(request: AssetScanRequest) -> dict[str, object]:
-        directory = resolve_allowed(Path(request.directory), allowed_roots())
-        records = scan_directory(
-            directory,
-            tags=request.tags,
-            recursive=request.recursive,
-        )
-        return {"ok": True, "scanned": len(records), "assets": records}
 
-    @app.patch("/api/v1/assets/{asset_id}")
-    def tag_asset(asset_id: str, request: AssetTagsRequest) -> dict[str, object]:
-        asset = update_tags(asset_id, request.tags)
-        if asset is None:
-            raise HTTPException(
-                status_code=404,
-                detail={"ok": False, "code": "asset_not_found", "message": asset_id},
-            )
-        return {"ok": True, "asset": asset}
 
-    @app.delete("/api/v1/assets/{asset_id}")
-    def delete_asset(asset_id: str) -> dict[str, object]:
-        if not remove_asset(asset_id):
-            raise HTTPException(
-                status_code=404,
-                detail={"ok": False, "code": "asset_not_found", "message": asset_id},
-            )
-        return {"ok": True}
 
-    @app.get("/api/v1/assets/{asset_id}/file")
-    def asset_file(asset_id: str) -> FileResponse:
-        asset = get_asset(asset_id)
-        if asset is None:
-            raise HTTPException(
-                status_code=404,
-                detail={"ok": False, "code": "asset_not_found", "message": asset_id},
-            )
-        try:
-            path = resolve_allowed(Path(str(asset["path"])), allowed_roots())
-        except VideoFlowError as exc:
-            raise HTTPException(status_code=403, detail=exc.to_dict()) from exc
-        if not path.is_file():
-            raise HTTPException(
-                status_code=404,
-                detail={"ok": False, "code": "asset_file_not_found"},
-            )
-        return FileResponse(path, filename=path.name)
 
-    @app.post("/api/v1/exports/validate")
-    def validate_exports(request: ExportValidationRequest) -> dict[str, object]:
-        resolved = resolve_allowed(Path(request.output), allowed_roots())
-        if (resolved / "timeline.fcpxml").is_file() or any(
-            resolved.glob("*.fcpxml")
-        ):
-            directory = resolved
-        else:
-            directory = resolved / "exports"
-        if not directory.is_dir():
-            raise PathNotFoundError(
-                f"Export directory does not exist: {directory}"
-            )
-        return validate_nle_exports(directory)
 
-    @app.get("/api/v1/runs")
-    def list_runs(
-        output: str,
-        limit: int | None = None,
-        offset: int = 0,
-    ) -> dict[str, object]:
-        resolved = resolve_allowed(Path(output), allowed_roots())
-        return {
-            "ok": True,
-            "runs": read_runs(resolved, limit=limit, offset=offset),
-            "total": len(read_runs(resolved)),
-        }
 
     @app.get("/api/v1/batches")
     def list_batches(limit: int | None = None, offset: int = 0) -> dict[str, object]:
@@ -913,135 +499,24 @@ def register_routes(
     register_job_routes(app, jobs)
     register_hilt_routes(app, jobs)
 
-    @app.get("/api/v1/publish/targets")
-    def publish_targets() -> dict[str, object]:
-        return {"ok": True, "targets": list_targets()}
 
-    @app.put("/api/v1/publish/targets/{name}")
-    def put_publish_target(name: str, request: PublishTargetRequest) -> dict[str, object]:
-        return {
-            "ok": True,
-            "target": save_target(
-                PublishTarget(name=name, **request.model_dump())
-            ),
-        }
 
-    @app.delete("/api/v1/publish/targets/{name}")
-    def remove_publish_target(name: str) -> dict[str, object]:
-        delete_target(name)
-        return {"ok": True, "deleted": name}
 
-    @app.get("/api/v1/publish/queue")
-    def publish_queue() -> dict[str, object]:
-        return {"ok": True, "items": list_queue()}
 
-    @app.post("/api/v1/publish/queue/{item_id}/cancel")
-    def cancel_publish_item(item_id: str) -> dict[str, object]:
-        return {"ok": True, "item": cancel_publish(item_id)}
 
-    @app.post("/api/v1/publish/dispatch")
-    def publish_dispatch(request: PublishDispatchRequest) -> dict[str, object]:
-        items = dispatch_due(
-            allow_external_services=request.allow_external_services,
-            allowed_hosts=tuple(request.allowed_external_hosts),
-        )
-        return {"ok": True, "items": items}
 
-    @app.post("/api/v1/jobs/{job_id}/shorts/{index}/publish")
-    def publish_short(
-        job_id: str, index: int, request: PublishShortRequest
-    ) -> dict[str, object]:
-        job = jobs.get(job_id)
-        if job.status != "succeeded" or job.result is None:
-            raise StateNotReadyError(
-                "The job must succeed before a Short can be published."
-            )
-        shorts = job.result.get("shorts")
-        if not isinstance(shorts, list) or index < 0 or index >= len(shorts):
-            raise StateNotReadyError("Short index is out of range.")
-        entry = shorts[index]
-        if not isinstance(entry, dict) or not entry.get("path"):
-            raise StateNotReadyError("Short asset is missing.")
-        metadata = generate_short_metadata(
-            output=job.output,
-            index=index,
-            result=job.result,
-            platform=request.platform,
-            tone=request.tone,
-            extra_hashtags=tuple(request.extra_hashtags),
-        )
-        item = enqueue_publish(
-            target_name=request.target,
-            asset_path=Path(str(entry["path"])),
-            title=str(metadata["title"]),
-            description=str(metadata["description"]),
-            hashtags=[str(tag) for tag in metadata["hashtags"]],
-            platform=request.platform,
-            scheduled_at=request.scheduled_at,
-            job_id=job_id,
-            short_index=index,
-        )
-        return {"ok": True, "item": item}
 
-    @app.get("/api/v1/project-templates")
-    def project_templates() -> dict[str, object]:
-        return {"ok": True, "templates": list_project_templates()}
 
-    @app.get("/api/v1/project-templates/{name}")
-    def project_template(name: str) -> dict[str, object]:
-        return {
-            "ok": True,
-            "template": get_project_template(name).model_dump(mode="json"),
-        }
 
-    @app.put("/api/v1/project-templates/{name}")
-    def put_project_template(name: str, template: ProjectTemplate) -> dict[str, object]:
-        payload = save_project_template(template.model_copy(update={"name": name}))
-        return {"ok": True, "template": payload}
 
-    @app.delete("/api/v1/project-templates/{name}")
-    def remove_project_template(name: str) -> dict[str, object]:
-        delete_project_template(name)
-        return {"ok": True, "deleted": name}
 
-    @app.post("/api/v1/project-templates/{name}/apply")
-    def apply_project_template(name: str) -> dict[str, object]:
-        options = get_project_template(name).options
-        return {"ok": True, "options": sanitize_options(options)}
 
-    @app.post("/api/v1/config/export")
-    def config_export(request: ConfigExportRequest) -> dict[str, object]:
-        return {"ok": True, "envelope": export_config(request.options)}
 
-    @app.post("/api/v1/config/import")
-    def config_import(request: ConfigImportRequest) -> dict[str, object]:
-        options = import_config(
-            {"schema_version": request.schema_version, "options": request.options}
-        )
-        return {"ok": True, "options": options}
 
-    @app.get("/api/v1/brand-templates")
-    def brand_templates() -> dict[str, object]:
-        return {"ok": True, "templates": list_templates()}
 
-    @app.get("/api/v1/brand-templates/{name}")
-    def brand_template(name: str) -> dict[str, object]:
-        return {"ok": True, "template": get_template(name).model_dump(mode="json")}
 
-    @app.put("/api/v1/brand-templates/{name}")
-    def put_brand_template(name: str, template: BrandTemplate) -> dict[str, object]:
-        payload = save_template(template.model_copy(update={"name": name}))
-        return {"ok": True, "template": payload}
 
-    @app.delete("/api/v1/brand-templates/{name}")
-    def remove_brand_template(name: str) -> dict[str, object]:
-        delete_template(name)
-        return {"ok": True, "deleted": name}
 
-    @app.post("/api/v1/brand-templates/{name}/apply")
-    def apply_brand_template(name: str) -> dict[str, object]:
-        options = apply_brand_options({}, name)
-        return {"ok": True, "options": options}
 
 
 

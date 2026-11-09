@@ -33,7 +33,13 @@ def test_short_edit_analysis_assets_and_publish(monkeypatch, tmp_path: Path) -> 
     )
     monkeypatch.setattr(routes_module, "analyze_short_entry", lambda **kwargs: {"score": 1})
     monkeypatch.setattr(routes_module, "analyze_short_llm_entry", lambda **kwargs: {"score": 2})
-    monkeypatch.setattr(routes_module, "enqueue_publish", lambda **kwargs: {"id": "item-1"})
+    from videoflow.api import routes_publish as publish_module
+    monkeypatch.setattr(publish_module, "enqueue_publish", lambda **kwargs: {"id": "item-1"})
+    monkeypatch.setattr(
+        publish_module,
+        "generate_short_metadata",
+        lambda **kwargs: {"title": "T", "description": "D", "hashtags": ["#a"]},
+    )
 
     assert client.post(f"{base}/edit", json={"title": "edited"}).status_code == 200
     assert client.post(f"{base}/captions/emoji", json={}).status_code == 200
