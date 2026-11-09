@@ -32,13 +32,14 @@ from videoflow.application.takes import (
     semantic_duplicate_sentences,
 )
 from videoflow.application.text import content_tokens, normalize_text, token_set
+from videoflow.domain.errors import InvalidRetakeIdsError
 from videoflow.domain.retakes import (
     GuardResult,
     Strategy,
     apply_retake_guard,
     cluster_exact_repetitions,
 )
-from videoflow.domain.state import Sentence
+from videoflow.domain.state import ManualOverride, Sentence
 
 PROMPT_HEADER = """\
 You are cleaning a talking-head transcript for a video editor.
@@ -570,10 +571,13 @@ def _parse_groups(
                 if item.id != identifier
                 and abs(item.start_sample - source.start_sample) <= 90 * 48000
             ]
-            keep = max(
-                candidates,
-                key=lambda item: (_similarity(source, item), item.start_sample),
-                default=None,
+            keep = (
+                max(
+                    candidates,
+                    key=lambda item: (_similarity(source, item), item.start_sample),
+                )
+                if candidates
+                else None
             )
             if keep is None:
                 continue
@@ -837,6 +841,54 @@ def _reconcile_groups(
     return reconciled
 
 
+def apply_manual_overrides(
+    discard: Sequence[int],
+    manual: Sequence[ManualOverride],
+    valid_ids: set[int],
+) -> tuple[list[int], list[int]]:
+    """Layer manual discard/restore actions over the automatic discard list.
+
+    Returns the sorted discard ids and the manual discard ids that survived
+    (i.e. were not restored by a later override). Raises when an override
+    references a sentence that is not in the transcript.
+    """
+
+    unknown = [item.sentence_id for item in manual if item.sentence_id not in valid_ids]
+    if unknown:
+        raise InvalidRetakeIdsError(unknown)
+    discarded = set(discard)
+    for item in manual:
+        if item.action == "discard":
+            discarded.add(item.sentence_id)
+        else:
+            discarded.discard(item.sentence_id)
+    result = sorted(discarded)
+    manual_discard_ids = sorted(
+        {item.sentence_id for item in manual if item.action == "discard"} & discarded
+    )
+    return result, manual_discard_ids
+
+
+def _group_for(
+    order: dict[int, Sentence],
+    keep: tuple[int, ...],
+    discard: tuple[int, ...],
+    reason: str,
+) -> RetakeGroup:
+    """Build a report group with text and sample-aligned bounds."""
+
+    members = [order[identifier] for identifier in (*keep, *discard)]
+    return RetakeGroup(
+        keep=keep,
+        discard=discard,
+        reason=reason,
+        keep_text=tuple(order[identifier].text for identifier in keep),
+        discard_text=tuple(order[identifier].text for identifier in discard),
+        start_sec=round(min(item.start_sample for item in members) / 48000, 3),
+        end_sec=round(max(item.end_sample for item in members) / 48000, 3),
+    )
+
+
 def cull_retakes(
     sentences: Sequence[Sentence],
     *,
@@ -934,8 +986,8 @@ def cull_retakes(
         if len(item.text.split()) < 4:
             continue
         keeper_id = group_keeper.get(identifier)
-        keeper = order.get(keeper_id) if keeper_id is not None else None
-        if keeper is None or _similarity(item, keeper) >= 0.65:
+        keeper_sentence = order.get(keeper_id) if keeper_id is not None else None
+        if keeper_sentence is None or _similarity(item, keeper_sentence) >= 0.65:
             continue
         unique = _content_tokens(item.text) - kept_tokens
         if not unique:
@@ -1013,33 +1065,7 @@ def cull_retakes(
             continue
         if any(set(group.discard) == set(removed) for group in groups):
             continue
-        keep_sentence = order[keeper]
-        discard_sentences = [order[identifier] for identifier in removed]
-        groups.append(
-            RetakeGroup(
-                keep=(keeper,),
-                discard=removed,
-                reason="exact repeat",
-                keep_text=(keep_sentence.text,),
-                discard_text=tuple(item.text for item in discard_sentences),
-                start_sec=round(
-                    min(
-                        item.start_sample
-                        for item in [keep_sentence, *discard_sentences]
-                    )
-                    / 48000,
-                    3,
-                ),
-                end_sec=round(
-                    max(
-                        item.end_sample
-                        for item in [keep_sentence, *discard_sentences]
-                    )
-                    / 48000,
-                    3,
-                ),
-            )
-        )
+        groups.append(_group_for(order, (keeper,), removed, "exact repeat"))
     if semantic_duplicates:
         semantic_ids = semantic_duplicate_sentences(sentences, discard)
         if semantic_ids:
@@ -1052,10 +1078,10 @@ def cull_retakes(
     take_groups = select_duplicate_takes(kept_sentences)
     if take_groups:
         existing_keepers = {identifier for group in groups for identifier in group.keep}
-        for group in take_groups:
+        for take_group in take_groups:
             remove = tuple(
                 identifier
-                for identifier in group.discard
+                for identifier in take_group.discard
                 if identifier not in existing_keepers
                 and identifier not in restored
             )
@@ -1064,41 +1090,25 @@ def cull_retakes(
             discard.update(remove)
             groups.append(
                 RetakeGroup(
-                    keep=group.keep,
+                    keep=take_group.keep,
                     discard=remove,
-                    reason=group.reason,
-                    keep_text=group.keep_text,
-                    discard_text=group.discard_text,
-                    start_sec=group.start_sec,
-                    end_sec=group.end_sec,
+                    reason=take_group.reason,
+                    keep_text=take_group.keep_text,
+                    discard_text=take_group.discard_text,
+                    start_sec=take_group.start_sec,
+                    end_sec=take_group.end_sec,
                 )
             )
         notes.append(f"grouped {len(take_groups)} duplicate take(s)")
     for index in sorted(loop_clusters):
         cluster = clusters[index]
-        members = [order[identifier] for identifier in cluster.sentence_ids]
         groups.append(
-            RetakeGroup(
-                keep=(),
-                discard=tuple(cluster.sentence_ids),
-                reason="repeated ASR loop",
-                discard_text=tuple(item.text for item in members),
-                start_sec=round(min(item.start_sample for item in members) / 48000, 3),
-                end_sec=round(max(item.end_sample for item in members) / 48000, 3),
-            )
+            _group_for(order, (), tuple(cluster.sentence_ids), "repeated ASR loop")
         )
     credit_ids = watermark_ids - loop_ids
     if credit_ids:
-        members = [order[identifier] for identifier in sorted(credit_ids)]
         groups.append(
-            RetakeGroup(
-                keep=(),
-                discard=tuple(sorted(credit_ids)),
-                reason="watermark credit",
-                discard_text=tuple(item.text for item in members),
-                start_sec=round(min(item.start_sample for item in members) / 48000, 3),
-                end_sec=round(max(item.end_sample for item in members) / 48000, 3),
-            )
+            _group_for(order, (), tuple(sorted(credit_ids)), "watermark credit")
         )
     if loop_ids:
         notes.append(f"removed {len(loop_ids)} sentence(s) from repeated ASR loops")

@@ -29,6 +29,7 @@ from videoflow.application.capabilities import ensure_external_allowed
 from videoflow.application.export_service import export_timeline
 from videoflow.application.fonts import fonts_dir
 from videoflow.application.retakes import (
+    apply_manual_overrides,
     cull_intervals,
     inactive_spans_for_discards,
     subtract_spans,
@@ -65,7 +66,7 @@ from videoflow.domain.config import (
     VadEngine,
     ZoomsConfig,
 )
-from videoflow.domain.errors import IngestError, InvalidRetakeIdsError, JobCancelledError
+from videoflow.domain.errors import IngestError, JobCancelledError
 from videoflow.domain.state import (
     InactiveSpan,
     ManualOverride,
@@ -408,19 +409,8 @@ def run_portable(
                 discard = list(result.discard_sentence_ids)
                 restored = list(result.restored_sentence_ids)
             valid = {item.id for item in transcript}
-            unknown = [item.sentence_id for item in manual if item.sentence_id not in valid]
-            if unknown:
-                raise InvalidRetakeIdsError(unknown)
-            discarded = set(discard)
-            for item in manual:
-                if item.action == "discard":
-                    discarded.add(item.sentence_id)
-                else:
-                    discarded.discard(item.sentence_id)
-            discard = sorted(discarded)
-            manual_discard_ids = sorted(
-                {item.sentence_id for item in manual if item.action == "discard"}
-                & discarded
+            discard, manual_discard_ids = apply_manual_overrides(
+                discard, manual, valid
             )
             retake_spans = inactive_spans_for_discards(
                 transcript, discard, manual_ids=manual_discard_ids

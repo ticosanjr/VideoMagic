@@ -6,14 +6,15 @@ import hashlib
 import json
 import threading
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.clock import now_iso as _now
-from videoflow.application.files import stat_signature
+from videoflow.application.files import read_json_dict, stat_signature, write_json_atomic
 from videoflow.application.render_inputs import audio_filters, video_filters
+from videoflow.application.worker_state import WorkerState
 from videoflow.domain.errors import StateNotReadyError, VideoFlowError
 from videoflow.domain.state import ProjectState
 from videoflow.exporters.mp4 import export_mp4
@@ -176,54 +177,27 @@ def write_preview_manifest(
         )
     if key is None:
         key = preview_key(job)
-    manifest = preview_manifest_path(job)
-    manifest.parent.mkdir(parents=True, exist_ok=True)
-    temporary = manifest.with_name(f".{manifest.name}.{threading.get_ident()}.tmp")
-    temporary.write_text(
-        json.dumps(
-            {
-                "key": key,
-                "revision": revision,
-                "height": proxy_height(),
-                "inputs": preview_inputs(job),
-            },
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
+    write_json_atomic(
+        preview_manifest_path(job),
+        {
+            "key": key,
+            "revision": revision,
+            "height": proxy_height(),
+            "inputs": preview_inputs(job),
+        },
     )
-    temporary.replace(manifest)
     return revision
 
 
 @dataclass
-class PreviewState:
-    job_id: str
-    status: str = "queued"
-    percent: int = 0
-    message: str = "Queued"
-    error: str = ""
-    error_details: dict[str, object] = field(default_factory=dict)
-    started_at: str = field(default_factory=_now)
-    finished_at: str = ""
-    cancel_requested: bool = False
+class PreviewState(WorkerState):
     revision: int = 0
     key: str = ""
-    cancel_event: Any = field(default_factory=threading.Event, repr=False)
 
     def to_dict(self) -> dict[str, object]:
-        return {
-            "job_id": self.job_id,
-            "status": self.status,
-            "percent": self.percent,
-            "message": self.message,
-            "error": self.error,
-            "error_details": dict(self.error_details),
-            "started_at": self.started_at,
-            "finished_at": self.finished_at,
-            "cancel_requested": self.cancel_requested,
-            "revision": self.revision,
-        }
+        payload = super().to_dict()
+        payload["revision"] = self.revision
+        return payload
 
 
 class PreviewManager:
@@ -235,14 +209,7 @@ class PreviewManager:
         preview = preview_paths(job)[1]
         if not preview.is_file() or preview.stat().st_size == 0:
             return False
-        try:
-            manifest = json.loads(
-                preview_manifest_path(job).read_text(encoding="utf-8")
-            )
-        except (OSError, ValueError):
-            return False
-        if not isinstance(manifest, dict):
-            return False
+        manifest = read_json_dict(preview_manifest_path(job))
         inputs = manifest.get("inputs")
         if isinstance(inputs, dict):
             try:

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -12,9 +11,13 @@ from pydantic import ValidationError
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.fonts import fonts_dir
 from videoflow.application.shorts import CaptionLine, build_ass_lines
+from videoflow.application.shorts_project import (
+    load_short_project,
+    save_short_entry,
+    short_entry,
+)
 from videoflow.domain.config import CaptionStyle
-from videoflow.domain.errors import ShortEditError, StateNotReadyError
-from videoflow.domain.state import ProjectState
+from videoflow.domain.errors import ShortEditError
 
 
 def generate_short_thumbnail(
@@ -26,22 +29,9 @@ def generate_short_thumbnail(
     title: str | None = None,
     caption_style: dict[str, Any] | None = None,
 ) -> dict[str, object]:
-    shorts = result.get("shorts")
-    if not isinstance(shorts, list) or index < 0 or index >= len(shorts):
-        raise ShortEditError(f"Short index {index} is out of range.")
-    entry = shorts[index]
-    if not isinstance(entry, dict):
-        raise ShortEditError(f"Short index {index} is invalid.")
+    entry = short_entry(result, index)
     output = output.expanduser().resolve()
-    state_path = output / "project_state.json"
-    shorts_path = output / "shorts.json"
-    try:
-        state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
-        report = json.loads(shorts_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        raise StateNotReadyError(
-            f"Cannot read the completed Shorts project: {exc}"
-        ) from exc
+    state, report = load_short_project(output)
     raw_source = entry.get("path")
     if not isinstance(raw_source, str) or not Path(raw_source).is_file():
         raise ShortEditError("The Short MP4 is missing.")
@@ -100,15 +90,11 @@ def generate_short_thumbnail(
     thumbs.append(payload)
     entry["thumbnails"] = thumbs
     entry["thumbnail"] = str(destination)
-    clips = report.get("clips")
-    if isinstance(clips, list) and 0 <= index < len(clips):
-        clips[index] = entry
-    shorts_path.write_text(
-        json.dumps(
-            {"ok": True, "clips": clips if isinstance(clips, list) else shorts},
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
+    save_short_entry(
+        output,
+        report,
+        index,
+        entry,
+        fallback=result.get("shorts") or [],
     )
     return payload

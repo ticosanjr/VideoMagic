@@ -128,3 +128,33 @@ def test_guard_accepts_a_plain_string_strategy_value() -> None:
         strategy=cast(str, "keep_last"),
     )
     assert result.restored_sentence_ids == (2,)
+
+
+def test_apply_manual_overrides_layers_discard_and_restore() -> None:
+    from videoflow.application.retakes import apply_manual_overrides
+    from videoflow.domain.state import ManualOverride
+
+    manual = [
+        ManualOverride(sentence_id=1, action="discard"),
+        ManualOverride(sentence_id=2, action="keep"),
+        ManualOverride(sentence_id=3, action="discard"),
+    ]
+
+    discard, manual_ids = apply_manual_overrides([1, 2], manual, {1, 2, 3})
+
+    assert discard == [1, 3]
+    assert manual_ids == [1, 3]
+
+
+def test_apply_manual_overrides_rejects_unknown_ids() -> None:
+    from videoflow.application.retakes import apply_manual_overrides
+    from videoflow.domain.state import ManualOverride
+
+    with pytest.raises(InvalidRetakeIdsError) as caught:
+        apply_manual_overrides(
+            [],
+            [ManualOverride(sentence_id=9, action="discard")],
+            {1},
+        )
+
+    assert caught.value.unknown_ids == (9,)

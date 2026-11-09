@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 from videoflow.adapters.llm import OpenAICompatibleLlm
 from videoflow.application.capabilities import ensure_external_allowed
 from videoflow.application.short_editor import ShortEditOptions, edit_short
-from videoflow.domain.errors import ShortEditError, StateNotReadyError
-from videoflow.domain.state import ProjectState
+from videoflow.application.shorts_project import (
+    load_short_project,
+    short_entry,
+    short_pieces,
+    transcript_text,
+)
+from videoflow.domain.errors import ShortEditError
 
 PROMPT = """\
 Pick 3 to 8 concrete, visual words from this short transcript and map each to
@@ -75,32 +79,10 @@ def apply_llm_emoji(
     allowed_external_hosts: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     output = output.expanduser().resolve()
-    try:
-        state = ProjectState.model_validate_json(
-            (output / "project_state.json").read_text(encoding="utf-8")
-        )
-        report = json.loads((output / "shorts.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        raise StateNotReadyError(f"Cannot read the completed Shorts project: {exc}") from exc
-    clips = report.get("clips")
-    if not isinstance(clips, list) or index < 0 or index >= len(clips):
-        raise ShortEditError(f"Short index {index} is out of range.")
-    entry = clips[index]
-    if not isinstance(entry, dict):
-        raise ShortEditError(f"Short index {index} is invalid.")
-    raw_pieces = entry.get("pieces") or []
-    try:
-        pieces = [(int(piece[0]), int(piece[1])) for piece in raw_pieces]
-    except (TypeError, ValueError, IndexError) as exc:
-        raise ShortEditError("The Short pieces are invalid.") from exc
-    text = " ".join(
-        sentence.text
-        for sentence in state.transcript
-        if any(
-            sentence.end_sample > start and sentence.start_sample < end
-            for start, end in pieces
-        )
-    )
+    state, report = load_short_project(output)
+    entry = short_entry(report, index, key="clips")
+    pieces = short_pieces(entry, require=False)
+    text = transcript_text(state, pieces)
     emoji_map = generate_emoji_map(
         text,
         base_url=base_url,

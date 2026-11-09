@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.application.alignment import refine_transcript
 from videoflow.application.retakes import (
+    apply_manual_overrides,
     cull_intervals,
     inactive_spans_for_discards,
     snap_cuts_to_silence,
@@ -18,7 +19,7 @@ from videoflow.application.retakes import (
 )
 from videoflow.application.transcript import normalize_transcript
 from videoflow.core.context import PipelineContext
-from videoflow.domain.errors import IngestError, InvalidRetakeIdsError
+from videoflow.domain.errors import IngestError
 from videoflow.domain.state import ManualOverride
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload, require_media
@@ -141,21 +142,7 @@ class RetakesStep(BaseStep):
             )
 
         valid = {item.id for item in context.transcript}
-        unknown = [item.sentence_id for item in manual if item.sentence_id not in valid]
-        if unknown:
-            raise InvalidRetakeIdsError(unknown)
-        discarded = set(discard)
-        for item in manual:
-            if item.action == "discard":
-                discarded.add(item.sentence_id)
-            else:
-                discarded.discard(item.sentence_id)
-        discard = sorted(discarded)
-
-        manual_discard_ids = sorted(
-            {item.sentence_id for item in manual if item.action == "discard"}
-            & discarded
-        )
+        discard, manual_discard_ids = apply_manual_overrides(discard, manual, valid)
         context.retake_spans = inactive_spans_for_discards(
             context.transcript, discard, manual_ids=manual_discard_ids
         )

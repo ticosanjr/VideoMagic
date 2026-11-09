@@ -14,86 +14,22 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 
-from videoflow.application.text import content_tokens, normalize_text, token_list, token_set
+from videoflow.application.text import (
+    STOPWORDS as _STOPWORDS,
+)
+from videoflow.application.text import (
+    URL_PATTERN as _URL,
+)
+from videoflow.application.text import (
+    content_tokens,
+    normalize_text,
+    token_list,
+    token_set,
+)
 from videoflow.domain.state import Sentence
 
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
-_URL = re.compile(r"https?://|www\.", re.IGNORECASE)
-_STOPWORDS = {
-    "a",
-    "o",
-    "as",
-    "os",
-    "e",
-    "é",
-    "de",
-    "da",
-    "do",
-    "das",
-    "dos",
-    "em",
-    "no",
-    "na",
-    "nos",
-    "nas",
-    "um",
-    "uma",
-    "uns",
-    "umas",
-    "que",
-    "se",
-    "por",
-    "para",
-    "com",
-    "sem",
-    "ao",
-    "aos",
-    "à",
-    "às",
-    "mais",
-    "menos",
-    "mas",
-    "ou",
-    "como",
-    "quando",
-    "porque",
-    "então",
-    "entao",
-    "aí",
-    "ai",
-    "aqui",
-    "agora",
-    "já",
-    "ja",
-    "ainda",
-    "também",
-    "tambem",
-    "só",
-    "so",
-    "não",
-    "nao",
-    "sim",
-    "isso",
-    "isto",
-    "ele",
-    "ela",
-    "eles",
-    "elas",
-    "eu",
-    "nós",
-    "você",
-    "voce",
-    "tem",
-    "foi",
-    "vai",
-    "ser",
-    "são",
-    "sao",
-    "está",
-    "esta",
-    "estão",
-    "estao",
-}
+
 
 
 @dataclass(frozen=True, slots=True)

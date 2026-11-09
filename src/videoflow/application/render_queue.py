@@ -5,14 +5,15 @@ from __future__ import annotations
 import hashlib
 import json
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.clock import now_iso as _now
-from videoflow.application.files import stat_signature
+from videoflow.application.files import read_json_dict, stat_signature, write_json_atomic
 from videoflow.application.render_inputs import render_inputs as _render_inputs
+from videoflow.application.worker_state import WorkerState
 from videoflow.domain.errors import (
     JobCancelledError,
     StateNotReadyError,
@@ -52,14 +53,6 @@ def _manifest_path(output: Path) -> Path:
     return output.parent / "manifest.json"
 
 
-def _read_manifest(path: Path) -> dict[str, object]:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    return payload if isinstance(payload, dict) else {}
-
-
 def _inputs_signature(job: Any) -> dict[str, object]:
     state_path = _state_path(job)
     audio_filters, video_filters, ass_path = _render_inputs(job)
@@ -74,43 +67,12 @@ def _inputs_signature(job: Any) -> dict[str, object]:
 
 
 def _write_manifest(path: Path, key: str, source: Path, inputs: dict[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{threading.get_ident()}.tmp")
-    temporary.write_text(
-        json.dumps(
-            {"key": key, "source": str(source), "inputs": inputs}, indent=2
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-    temporary.replace(path)
+    write_json_atomic(path, {"key": key, "source": str(source), "inputs": inputs})
 
 
 @dataclass
-class RenderState:
-    job_id: str
-    status: str = "queued"
-    percent: int = 0
-    message: str = "Queued"
-    error: str = ""
-    error_details: dict[str, object] = field(default_factory=dict)
-    started_at: str = field(default_factory=_now)
-    finished_at: str = ""
-    cancel_requested: bool = False
-    cancel_event: threading.Event = field(default_factory=threading.Event, repr=False)
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "job_id": self.job_id,
-            "status": self.status,
-            "percent": self.percent,
-            "message": self.message,
-            "error": self.error,
-            "error_details": dict(self.error_details),
-            "started_at": self.started_at,
-            "finished_at": self.finished_at,
-            "cancel_requested": self.cancel_requested,
-        }
+class RenderState(WorkerState):
+    """Render worker state; the lifecycle fields live in ``WorkerState``."""
 
 
 class RenderQueue:
@@ -126,7 +88,7 @@ class RenderQueue:
         output = self.output_path(job)
         if not output.is_file() or output.stat().st_size == 0:
             return False
-        manifest = _read_manifest(_manifest_path(output))
+        manifest = read_json_dict(_manifest_path(output))
         inputs = manifest.get("inputs")
         if isinstance(inputs, dict):
             try:

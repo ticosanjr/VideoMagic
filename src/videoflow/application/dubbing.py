@@ -12,9 +12,15 @@ from videoflow.adapters.llm import OpenAICompatibleLlm
 from videoflow.adapters.tts import OpenAITtsAdapter
 from videoflow.application.capabilities import ensure_external_allowed
 from videoflow.application.shorts import slugify
+from videoflow.application.shorts_project import (
+    load_short_project,
+    save_short_entry,
+    short_entry,
+    short_pieces,
+    transcript_text,
+)
 from videoflow.domain.config import DubbingConfig, TtsConfig
-from videoflow.domain.errors import LlmError, ShortEditError, StateNotReadyError, TtsError
-from videoflow.domain.state import ProjectState
+from videoflow.domain.errors import LlmError, ShortEditError, TtsError
 
 TRANSLATION_PROMPT = """\
 Translate this transcript into {language}. Preserve meaning, names, numbers, and
@@ -72,41 +78,15 @@ def generate_short_dubbing(
         allow_external_services=allow_external_services,
         allowed_hosts=allowed_external_hosts,
     )
-    shorts = result.get("shorts")
-    if not isinstance(shorts, list) or index < 0 or index >= len(shorts):
-        raise ShortEditError(f"Short index {index} is out of range.")
-    entry = shorts[index]
-    if not isinstance(entry, dict):
-        raise ShortEditError(f"Short index {index} is invalid.")
+    entry = short_entry(result, index)
     raw_source = entry.get("path")
     if not isinstance(raw_source, str) or not Path(raw_source).is_file():
         raise ShortEditError("The Short MP4 is missing.")
     output = output.expanduser().resolve()
-    state_path = output / "project_state.json"
-    shorts_path = output / "shorts.json"
-    try:
-        state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
-        report = json.loads(shorts_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        raise StateNotReadyError(
-            f"Cannot read the completed Shorts project: {exc}"
-        ) from exc
-    pieces = [
-        (int(piece[0]), int(piece[1]))
-        for piece in entry.get("pieces", [])
-        if isinstance(piece, (list, tuple)) and len(piece) == 2
-    ]
-    if not pieces:
-        raise ShortEditError("The Short has no source pieces.")
+    state, report = load_short_project(output)
+    pieces = short_pieces(entry, strict=False)
     if not source_text:
-        source_text = " ".join(
-            sentence.text
-            for sentence in state.transcript
-            if any(
-                sentence.end_sample > start and sentence.start_sample < end
-                for start, end in pieces
-            )
-        )
+        source_text = transcript_text(state, pieces)
     llm = OpenAICompatibleLlm(
         base_url=llm_base_url,
         model=llm_model,
@@ -189,15 +169,11 @@ def generate_short_dubbing(
     entry["path"] = str(mixed_path)
     if previous is not None:
         entry["previous_path"] = previous
-    clips = report.get("clips")
-    if isinstance(clips, list) and 0 <= index < len(clips):
-        clips[index] = entry
-    shorts_path.write_text(
-        json.dumps(
-            {"ok": True, "clips": clips if isinstance(clips, list) else shorts},
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
+    save_short_entry(
+        output,
+        report,
+        index,
+        entry,
+        fallback=result.get("shorts") or [],
     )
     return payload
