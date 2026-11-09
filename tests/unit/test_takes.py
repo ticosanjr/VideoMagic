@@ -61,3 +61,22 @@ def test_unrelated_takes_are_not_grouped() -> None:
         sentence(1, "A empresa abriu o código para todo mundo.", 3.0, 5.0),
     ]
     assert select_duplicate_takes(sentences) == ()
+
+
+def test_semantic_duplicate_sentences_discards_covered_earlier_line(monkeypatch) -> None:
+    import numpy as np
+
+    from videoflow.application import semantic
+    from videoflow.application.takes import semantic_duplicate_sentences
+
+    sentences = [
+        sentence(0, "O modelo novo chegou.", 0.0, 2.0),
+        sentence(1, "O modelo novo chegou e mudou o jogo.", 3.0, 5.0),
+    ]
+    monkeypatch.setattr(semantic, "available", lambda: True)
+    monkeypatch.setattr(
+        semantic,
+        "encode",
+        lambda _texts: np.asarray([[1.0, 0.0], [1.0, 0.0]], dtype=np.float32),
+    )
+    assert semantic_duplicate_sentences(sentences, set()) == {0}

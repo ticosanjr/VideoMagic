@@ -60,3 +60,24 @@ def test_plausible_word_is_left_alone() -> None:
 
 def test_plausible_ms_scales_with_word_length() -> None:
     assert plausible_ms("a") < plausible_ms("extraordinariamente")
+
+
+def test_snap_moves_to_the_quietest_frame() -> None:
+    from videoflow.application.alignment import _snap
+
+    def rms(start: int, end: int) -> int:
+        return 100 if 250 <= start <= 300 else 5000
+
+    position = _snap(
+        rms,
+        500,
+        direction=-1,
+        limit=300,
+        frame=100,
+        sample_rate=1000,
+    )
+    assert position == 300
+
+
+def test_plausible_ms_has_a_ceiling() -> None:
+    assert plausible_ms("a" * 100) == 1500

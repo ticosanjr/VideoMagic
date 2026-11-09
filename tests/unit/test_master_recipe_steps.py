@@ -164,3 +164,69 @@ def test_master_recipe_graph_and_params_are_valid() -> None:
     } <= types
     for step in recipe.steps:
         registry.get_step(step.type).validate_params(step.params)
+
+
+def test_broll_master_falls_back_to_transcript_blocks(tmp_path: Path) -> None:
+    context = _context(tmp_path)
+    context.transcript = [
+        _sentence(index, index * 10_000, (index + 1) * 10_000) for index in range(4)
+    ]
+    BrollMasterStep().run(context, BrollMasterParams(), StepIO())
+    plan = context.metadata["broll_plan"]
+    assert list(plan) == ["block_001"]
+    assert plan["block_001"] == []
+
+
+def test_narrative_model_merge_overrides_beats(tmp_path: Path) -> None:
+    class Client:
+        def complete_json(self, prompt: str, schema: str) -> dict:
+            return {
+                "blocks": [
+                    {
+                        "context_block_id": "block_001",
+                        "narrative_beat": "proof",
+                        "extracted_entities": {"people": [{"raw_mention": "Ana"}]},
+                    }
+                ]
+            }
+
+    context = _context(tmp_path)
+    context.transcript = [
+        _sentence(index, index * 10_000, (index + 1) * 10_000) for index in range(4)
+    ]
+    NarrativeBeatsStep().run(
+        context,
+        NarrativeParams(provider_id="fake", min_block_words=20, max_block_words=80),
+        StepIO(llm_client=Client()),
+    )
+    block = context.metadata["narrative_beats"][0]
+    assert block["narrative_beat"] == "proof"
+    assert block["extracted_entities"]["people"] == [{"raw_mention": "Ana"}]
+
+
+def test_audio_duck_applies_with_a_music_bed(tmp_path: Path, monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from videoflow.steps import audio_duck as module
+
+    context = _context(tmp_path)
+    master = context.output / "audio" / "master.wav"
+    master.parent.mkdir(parents=True)
+    master.write_bytes(b"dialogue")
+    music = tmp_path / "music.wav"
+    music.write_bytes(b"music")
+    context.artifacts["audio_master"] = str(master)
+
+    def fake_run(command, capture_output=True, text=True):
+        Path(command[-1]).write_bytes(b"mix")
+        return SimpleNamespace(returncode=0, stderr="")
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    monkeypatch.setattr(module, "find_binary", lambda _name: "ffmpeg")
+    AudioDuckStep().run(
+        context,
+        DuckParams(music_path=str(music)),
+        StepIO(),
+    )
+    assert context.metadata["audio_duck"]["applied"] is True
+    assert Path(context.artifacts["audio_mix"]).is_file()
