@@ -1,6 +1,9 @@
 # VideoFlow Product Requirements
 
-Status: normative. Version 1.0. Audience: product, engineering, QA.
+Status: historical v1. Audience: product, engineering, QA. The product moved
+to a recipes-first UI in 2.0; the rack sections (5.2 and the rack API in 5.11)
+are not normative for 2.59.3. See `README.md`, `docs/ui-spec.md`, and
+`docs/3.0-blockers.md` for the current contract.
 
 The original Portuguese brief is archived, non-normative, at
 [origin/prd-pt.md](origin/prd-pt.md). Where the two differ, this document and the

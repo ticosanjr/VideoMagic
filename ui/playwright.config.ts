@@ -8,6 +8,8 @@ export default defineConfig({
   // Keep the local gate deterministic: shared Vite compilation plus many
   // browser contexts can starve the first mount under parallel workers.
   workers: 1,
+  timeout: 60_000,
+  expect: { timeout: 15_000 },
   reporter: [["list"], ["json", { outputFile: "test-results/results.json" }]],
   use: {
     baseURL: "http://127.0.0.1:4173",

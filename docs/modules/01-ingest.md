@@ -3,8 +3,12 @@
 ## Implementation status
 
 Implemented in `adapters/ffmpeg.py`: FFprobe metadata, rational frame rate,
-frame count, 16 kHz mono PCM, and SHA-256 digest. Proxy generation and VFR
-normalisation are specified but not implemented.
+frame count, 16 kHz mono PCM, and SHA-256 digest.
+
+> **Not implemented:** proxy generation and VFR-to-CFR normalisation. The
+> `force_cfr` and `generate_proxy` keys remain in the schema for compatibility
+> but are ignored today; setting them has no effect. The preview proxy is a
+> separate on-demand render, not an ingest artifact.
 
 ## Purpose
 

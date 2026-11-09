@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import RedirectResponse, Response
 
 from videoflow import __version__
+from videoflow.api.errors import status_for
 from videoflow.api.openapi import install_openapi
 from videoflow.api.routes import register_routes
 from videoflow.application.backups import scheduled_backup
@@ -25,6 +26,7 @@ from videoflow.application.service_definitions import autostart
 from videoflow.application.service_definitions import stop_all as stop_managed_services
 from videoflow.application.settings import load_settings
 from videoflow.domain.constants import DEFAULT_API_HOST, DEFAULT_API_PORT
+from videoflow.domain.errors import VideoFlowError
 from videoflow.engine.batch import BatchManager
 from videoflow.runtime import portable_home, ui_dir
 
@@ -160,6 +162,13 @@ def create_app(
     from fastapi.responses import JSONResponse
 
     from videoflow.application.crash import write_crash_report
+
+    @app.exception_handler(VideoFlowError)
+    async def _typed_failure(_request: Request, exc: VideoFlowError) -> JSONResponse:
+        return JSONResponse(
+            status_code=status_for(exc.code),
+            content={"detail": exc.to_dict()},
+        )
 
     @app.exception_handler(Exception)
     async def _unhandled(_request: Request, exc: Exception) -> JSONResponse:

@@ -6,7 +6,7 @@ recording into an editable timeline: it removes silence and retakes, adds
 J-cuts and punch-ins, proposes vertical Shorts, masters the dialogue bed, and
 exports timelines for DaVinci Resolve, Adobe Premiere Pro, and Kdenlive.
 
-> Status: 2.11.0 local stable. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
+> Status: 2.59.3 local stable. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical Shorts,
 > audio mastering and loudness QA, burned titles, color/LUT grading, analytics
@@ -52,7 +52,7 @@ The same contract is available at `POST /api/v1/recipes/run` and through
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 593 passing, 1 strict xfail, 13 deselected
+uv run pytest                       # 1,723 passing, 1 strict xfail, 18 deselected
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model
@@ -71,7 +71,9 @@ npm run dev                         # http://127.0.0.1:5173
 
 ## Local release build
 
-Releases are built and staged locally; GitHub Actions is not used.
+The official release is built and staged locally. The GitHub Actions
+workflows are manual fallbacks for CI, Windows, and release assets; nothing
+runs on push.
 
 ```bash
 ./scripts/release_local.sh 2.0.0
@@ -100,7 +102,7 @@ uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper \
 ./dist/videoflow mcp                # MCP over stdio
 ```
 
-Artifacts are built locally, never in GitHub Actions:
+The local release is the canonical artifact build:
 
 ```bash
 uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper \
@@ -176,7 +178,7 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   audio fades, and the FCPXML output validates against Apple's 1.9 DTD.
 - Pure domain: rational time, cache hashing, planning, retake guard, path jail,
   redaction, schema generation.
-- MCP server with forty-one live tools and four resources: media ingest,
+- MCP server with seventy-eight live tools and five resources: media ingest,
   capability discovery, Silero speech detection, local
   Faster-Whisper/whisper.cpp transcription, transcript reads, staged
   retake/zoom/J-cut edits, shorts proposals, real jobs, NLE export, and project
@@ -263,10 +265,10 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - Manual import validation in Resolve, Premiere, and Kdenlive (automated XML
   validation is implemented; see `docs/nle-qa.md`).
 - A signed Windows binary (SmartScreen will warn), although the unsigned PE is
-  built by CI and attached to releases.
+  built by the manual Windows workflow and attached to releases.
 
-Every unimplemented contract has a test marked `xfail`, so the suite stays green
-while the specification stays executable.
+Known gaps are listed here; AC-01 is the only strict xfail. The others are
+product decisions or external dependencies, not silently skipped contracts.
 
 ## Documentation
 

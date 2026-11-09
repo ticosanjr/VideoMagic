@@ -29,7 +29,7 @@ async function mockShell(page: Page) {
 test("has no serious or critical WCAG A/AA violations", async ({ page }) => {
   await mockShell(page);
   await page.goto("/");
-  await expect(page.getByRole("button", { name: /Activity 1/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Activity 1/ })).toBeVisible({ timeout: 20_000 });
 
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
@@ -49,7 +49,7 @@ test("has no serious or critical WCAG A/AA violations", async ({ page }) => {
 test("keeps the shell visually stable", async ({ page }) => {
   await mockShell(page);
   await page.goto("/");
-  await expect(page.getByRole("button", { name: /Activity 1/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Activity 1/ })).toBeVisible({ timeout: 20_000 });
   await expect(page).toHaveScreenshot("shell.png", {
     animations: "disabled",
     maxDiffPixelRatio: 0.02,

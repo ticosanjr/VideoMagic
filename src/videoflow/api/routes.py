@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from videoflow import __version__
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.api.errors import status_for
 from videoflow.application import recipe_meta, voice_clone
 from videoflow.application.assets import (
     get_asset,
@@ -910,11 +911,7 @@ def register_routes(
 
     @app.delete("/api/v1/assets/sfx/{name}")
     def remove_sfx(name: str) -> dict[str, object]:
-        try:
-            delete_sfx(name)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        delete_sfx(name)
         return {"ok": True, "deleted": name}
 
     @app.get("/api/v1/assets/images")
@@ -934,29 +931,17 @@ def register_routes(
 
     @app.delete("/api/v1/assets/music/{name}")
     def remove_music(name: str) -> dict[str, object]:
-        try:
-            delete_music(name)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        delete_music(name)
         return {"ok": True, "deleted": name}
 
     @app.delete("/api/v1/assets/images/{name}")
     def remove_image(name: str) -> dict[str, object]:
-        try:
-            delete_images(name)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        delete_images(name)
         return {"ok": True, "deleted": name}
 
     @app.delete("/api/v1/assets/fonts/{name}")
     def remove_font(name: str) -> dict[str, object]:
-        try:
-            delete_fonts(name)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        delete_fonts(name)
         return {"ok": True, "deleted": name}
 
     @app.get("/api/v1/assets/fonts")
@@ -1024,74 +1009,46 @@ def register_routes(
     def node_preset_update(
         preset_id: str, request: NodePresetUpdate
     ) -> dict[str, object]:
-        try:
-            preset = update_preset(preset_id, request)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        preset = update_preset(preset_id, request)
         return {"ok": True, "preset": preset.model_dump(mode="json")}
 
     @app.delete("/api/v1/node-presets/{preset_id}")
     def node_preset_delete(preset_id: str) -> dict[str, object]:
-        try:
-            delete_preset(preset_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        delete_preset(preset_id)
         return {"ok": True, "deleted": preset_id}
 
     @app.post("/api/v1/node-presets/{preset_id}/favorite")
     def node_preset_favorite(
         preset_id: str, request: RecipeFavoriteRequest
     ) -> dict[str, object]:
-        try:
-            preset = set_preset_favorite(preset_id, request.favorite)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        preset = set_preset_favorite(preset_id, request.favorite)
         return {"ok": True, "preset": preset.model_dump(mode="json")}
 
     @app.post("/api/v1/recipes/{recipe_id}/favorite")
     def favorite_recipe(
         recipe_id: str, request: RecipeFavoriteRequest
     ) -> dict[str, object]:
-        try:
-            get_recipe(recipe_id)
-            entry = recipe_meta.set_favorite(recipe_id, request.favorite)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        get_recipe(recipe_id)
+        entry = recipe_meta.set_favorite(recipe_id, request.favorite)
         return {"ok": True, "meta": entry.model_dump(mode="json")}
 
     @app.post("/api/v1/recipes/{recipe_id}/touch")
     def touch_recipe(recipe_id: str) -> dict[str, object]:
-        try:
-            get_recipe(recipe_id)
-            entry = recipe_meta.touch(recipe_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        get_recipe(recipe_id)
+        entry = recipe_meta.touch(recipe_id)
         return {"ok": True, "meta": entry.model_dump(mode="json")}
 
     @app.patch("/api/v1/recipes/{recipe_id}/meta")
     def update_recipe_meta(
         recipe_id: str, request: RecipeMetaRequest
     ) -> dict[str, object]:
-        try:
-            get_recipe(recipe_id)
-            entry = recipe_meta.set_tags(recipe_id, request.tags)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        get_recipe(recipe_id)
+        entry = recipe_meta.set_tags(recipe_id, request.tags)
         return {"ok": True, "meta": entry.model_dump(mode="json")}
 
     @app.get("/api/v1/recipes/{recipe_id}")
     def recipe_detail(recipe_id: str) -> dict[str, object]:
-        try:
-            recipe = get_recipe(recipe_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        recipe = get_recipe(recipe_id)
         return {
             "ok": True,
             "recipe": recipe_to_dict(recipe),
@@ -1100,16 +1057,12 @@ def register_routes(
 
     @app.put("/api/v1/recipes/{recipe_id}")
     def save_recipe(recipe_id: str, payload: dict[str, Any]) -> dict[str, object]:
-        try:
-            recipe = parse_recipe(payload)
-            if recipe.id != recipe_id:
-                raise RecipeError("recipe id does not match the URL")
-            recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
-            validate_recipe_ports(recipe)
-            path = save_user_recipe(recipe)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        recipe = parse_recipe(payload)
+        if recipe.id != recipe_id:
+            raise RecipeError("recipe id does not match the URL")
+        recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+        validate_recipe_ports(recipe)
+        path = save_user_recipe(recipe)
         return {"ok": True, "recipe": recipe_to_dict(recipe), "path": str(path)}
 
     @app.get("/api/v1/recipes/{recipe_id}/history")
@@ -1118,45 +1071,34 @@ def register_routes(
 
     @app.get("/api/v1/recipes/{recipe_id}/history/{version}")
     def recipe_history_version(recipe_id: str, version: str) -> dict[str, object]:
-        try:
-            recipe = get_recipe_version(recipe_id, version)
-        except VideoFlowError as exc:
-            fail(exc)
+        recipe = get_recipe_version(recipe_id, version)
         return {"ok": True, "recipe": recipe.model_dump(mode="json")}
 
     @app.post("/api/v1/recipes/{recipe_id}/history/{version}/restore")
     def restore_history(recipe_id: str, version: str) -> dict[str, object]:
-        try:
-            recipe = restore_recipe_version(recipe_id, version)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        recipe = restore_recipe_version(recipe_id, version)
         return {"ok": True, "recipe": recipe_to_dict(recipe)}
 
     @app.post("/api/v1/recipes/validate")
     def validate_recipe(
         payload: dict[str, Any], through: str | None = None
     ) -> dict[str, object]:
-        try:
-            recipe = parse_recipe(payload)
-            recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
-            validate_recipe_ports(recipe, through=through)
-            resolved = recipe.with_variables({})
-            allowed = recipe.ids_through(through) if through is not None else None
-            for step in resolved.steps:
-                if allowed is not None and step.id not in allowed:
-                    continue
-                try:
-                    get_step(step.type).validate_params(step.params)
-                except ValidationError as exc:
-                    first = exc.errors()[0] if exc.errors() else {}
-                    raise RecipeError(
-                        f"{step.id}: {first.get('msg', 'invalid parameters')}"
-                    ) from exc
-            order = recipe.topological_order()
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        recipe = parse_recipe(payload)
+        recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+        validate_recipe_ports(recipe, through=through)
+        resolved = recipe.with_variables({})
+        allowed = recipe.ids_through(through) if through is not None else None
+        for step in resolved.steps:
+            if allowed is not None and step.id not in allowed:
+                continue
+            try:
+                get_step(step.type).validate_params(step.params)
+            except ValidationError as exc:
+                first = exc.errors()[0] if exc.errors() else {}
+                raise RecipeError(
+                    f"{step.id}: {first.get('msg', 'invalid parameters')}"
+                ) from exc
+        order = recipe.topological_order()
         return {
             "ok": True,
             "recipe": recipe_to_dict(recipe),
@@ -1166,65 +1108,49 @@ def register_routes(
 
     @app.post("/api/v1/recipes/dry-run")
     def recipe_dry_run(request: RecipeRunRequest) -> dict[str, object]:
-        try:
-            recipe = (
-                parse_recipe(request.recipe)
-                if request.recipe is not None
-                else get_recipe(str(request.recipe_id))
-            )
-            recipe = resolve_recipe_paths(recipe, allowed_roots())
-            plan = RecipeRunner(recipe).plan(
-                variables=request.variables,
-                profile=request.profile,
-                through=request.through,
-            )
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        recipe = (
+            parse_recipe(request.recipe)
+            if request.recipe is not None
+            else get_recipe(str(request.recipe_id))
+        )
+        recipe = resolve_recipe_paths(recipe, allowed_roots())
+        plan = RecipeRunner(recipe).plan(
+            variables=request.variables,
+            profile=request.profile,
+            through=request.through,
+        )
         return plan
 
     @app.post("/api/v1/recipes/run", status_code=202)
     def run_recipe(request: RecipeRunRequest) -> dict[str, object]:
-        try:
-            return start_recipe_job(request, request.through)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        return start_recipe_job(request, request.through)
 
     @app.post("/api/v1/steps/{step_id}/run", status_code=202)
     def run_step(step_id: str, request: RecipeRunRequest) -> dict[str, object]:
-        try:
-            return start_recipe_job(request, step_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        return start_recipe_job(request, step_id)
 
     @app.post("/api/v1/batches", status_code=202)
     def create_batch(request: BatchRequest) -> dict[str, object]:
         roots = allowed_roots()
-        try:
-            source_dir = resolve_allowed(Path(request.source_dir), roots)
-            output_root = resolve_allowed(Path(request.output_root), roots)
-            if request.recipe is not None:
-                recipe = parse_recipe(request.recipe)
-            else:
-                recipe = get_recipe(str(request.recipe_id))
-            recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
-            validate_recipe_ports(recipe)
-            recipe = resolve_recipe_paths(recipe, roots)
-            batch = batch_manager.start(
-                source_dir,
-                output_root,
-                recipe.model_dump(mode="json"),
-                recipe_id=recipe.id,
-                recursive=request.recursive,
-                extensions=request.extensions,
-                resume=request.resume,
-                max_files=request.max_files,
-            )
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        source_dir = resolve_allowed(Path(request.source_dir), roots)
+        output_root = resolve_allowed(Path(request.output_root), roots)
+        if request.recipe is not None:
+            recipe = parse_recipe(request.recipe)
+        else:
+            recipe = get_recipe(str(request.recipe_id))
+        recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
+        validate_recipe_ports(recipe)
+        recipe = resolve_recipe_paths(recipe, roots)
+        batch = batch_manager.start(
+            source_dir,
+            output_root,
+            recipe.model_dump(mode="json"),
+            recipe_id=recipe.id,
+            recursive=request.recursive,
+            extensions=request.extensions,
+            resume=request.resume,
+            max_files=request.max_files,
+        )
         return {"ok": True, "batch": batch.to_dict()}
 
     @app.post("/api/v1/maintenance/backup")
@@ -1242,15 +1168,11 @@ def register_routes(
 
     @app.post("/api/v1/maintenance/prune")
     def maintenance_prune(request: MaintenancePruneRequest) -> dict[str, object]:
-        try:
-            resolved = resolve_allowed(Path(request.output), allowed_roots())
-            if not resolved.is_dir():
-                raise PathNotFoundError(
-                    f"Output directory does not exist: {resolved}"
-                )
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        resolved = resolve_allowed(Path(request.output), allowed_roots())
+        if not resolved.is_dir():
+            raise PathNotFoundError(
+                f"Output directory does not exist: {resolved}"
+            )
         result = prune_output(
             resolved,
             keep_days=request.keep_days,
@@ -1430,34 +1352,22 @@ def register_routes(
 
     @app.put("/api/v1/providers/{provider_id}")
     def providers_save(provider_id: str, request: ProviderConfig) -> dict[str, object]:
-        try:
-            if request.id != provider_id:
-                raise HTTPException(
-                    status_code=422,
-                    detail={"ok": False, "code": "provider_id_mismatch", "message": provider_id},
-                )
-            payload = upsert_provider(request)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        if request.id != provider_id:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "provider_id_mismatch", "message": provider_id},
+            )
+        payload = upsert_provider(request)
         return {"ok": True, "provider": payload, "fallbacks": fallback_manifest()}
 
     @app.delete("/api/v1/providers/{provider_id}")
     def providers_delete(provider_id: str) -> dict[str, object]:
-        try:
-            delete_provider(provider_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        delete_provider(provider_id)
         return {"ok": True, "fallbacks": fallback_manifest()}
 
     @app.post("/api/v1/providers/{provider_id}/default")
     def providers_default(provider_id: str) -> dict[str, object]:
-        try:
-            payload = set_default(provider_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        payload = set_default(provider_id)
         return {"ok": True, "provider": payload, "fallbacks": fallback_manifest()}
 
     @app.get("/api/v1/voice-clone/status")
@@ -1478,31 +1388,19 @@ def register_routes(
     def voice_clone_create(
         request: voice_clone.VoiceProfileRequest,
     ) -> dict[str, object]:
-        try:
-            profile = voice_clone.create_profile(request)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        profile = voice_clone.create_profile(request)
         return {"ok": True, "profile": profile.model_dump(mode="json")}
 
     @app.delete("/api/v1/voice-clone/profiles/{profile_id}")
     def voice_clone_delete(profile_id: str) -> dict[str, object]:
-        try:
-            voice_clone.delete_profile(profile_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        voice_clone.delete_profile(profile_id)
         return {"ok": True, "deleted": profile_id}
 
     @app.post("/api/v1/voice-clone/synthesize")
     def voice_clone_synthesize(
         request: voice_clone.VoiceSynthesizeRequest,
     ) -> dict[str, object]:
-        try:
-            voice_clone.synthesize(request)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        voice_clone.synthesize(request)
         return {"ok": True}
 
     @app.get("/api/v1/providers/resolve")
@@ -1533,34 +1431,22 @@ def register_routes(
 
     @app.put("/api/v1/schedules/{schedule_id}")
     def schedules_save(schedule_id: str, request: RecipeSchedule) -> dict[str, object]:
-        try:
-            if request.id != schedule_id:
-                raise HTTPException(
-                    status_code=422,
-                    detail={"ok": False, "code": "schedule_id_mismatch", "message": schedule_id},
-                )
-            saved = upsert_schedule(request)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        if request.id != schedule_id:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "schedule_id_mismatch", "message": schedule_id},
+            )
+        saved = upsert_schedule(request)
         return {"ok": True, "schedule": saved.model_dump(mode="json")}
 
     @app.delete("/api/v1/schedules/{schedule_id}")
     def schedules_delete(schedule_id: str) -> dict[str, object]:
-        try:
-            delete_schedule(schedule_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        delete_schedule(schedule_id)
         return {"ok": True, "deleted": schedule_id}
 
     @app.post("/api/v1/schedules/{schedule_id}/run")
     def schedules_run(schedule_id: str) -> dict[str, object]:
-        try:
-            schedule = run_now(jobs, schedule_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        schedule = run_now(jobs, schedule_id)
         return {"ok": True, "schedule": schedule.model_dump(mode="json")}
 
     @app.get("/api/v1/assets")
@@ -1573,11 +1459,7 @@ def register_routes(
 
     @app.post("/api/v1/assets/scan")
     def scan_assets(request: AssetScanRequest) -> dict[str, object]:
-        try:
-            directory = resolve_allowed(Path(request.directory), allowed_roots())
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        directory = resolve_allowed(Path(request.directory), allowed_roots())
         records = scan_directory(
             directory,
             tags=request.tags,
@@ -1625,21 +1507,17 @@ def register_routes(
 
     @app.post("/api/v1/exports/validate")
     def validate_exports(request: ExportValidationRequest) -> dict[str, object]:
-        try:
-            resolved = resolve_allowed(Path(request.output), allowed_roots())
-            if (resolved / "timeline.fcpxml").is_file() or any(
-                resolved.glob("*.fcpxml")
-            ):
-                directory = resolved
-            else:
-                directory = resolved / "exports"
-            if not directory.is_dir():
-                raise PathNotFoundError(
-                    f"Export directory does not exist: {directory}"
-                )
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        resolved = resolve_allowed(Path(request.output), allowed_roots())
+        if (resolved / "timeline.fcpxml").is_file() or any(
+            resolved.glob("*.fcpxml")
+        ):
+            directory = resolved
+        else:
+            directory = resolved / "exports"
+        if not directory.is_dir():
+            raise PathNotFoundError(
+                f"Export directory does not exist: {directory}"
+            )
         return validate_nle_exports(directory)
 
     @app.get("/api/v1/runs")
@@ -1648,11 +1526,7 @@ def register_routes(
         limit: int | None = None,
         offset: int = 0,
     ) -> dict[str, object]:
-        try:
-            resolved = resolve_allowed(Path(output), allowed_roots())
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        resolved = resolve_allowed(Path(output), allowed_roots())
         return {
             "ok": True,
             "runs": read_runs(resolved, limit=limit, offset=offset),
@@ -1670,28 +1544,17 @@ def register_routes(
 
     @app.post("/api/v1/batches/{batch_id}/resume")
     def resume_batch(batch_id: str) -> dict[str, object]:
-        try:
-            batch = batch_manager.resume(batch_id)
-        except VideoFlowError as exc:
-            fail(exc)
+        batch = batch_manager.resume(batch_id)
         return {"ok": True, "batch": batch.to_dict()}
 
     @app.get("/api/v1/batches/{batch_id}")
     def get_batch(batch_id: str) -> dict[str, object]:
-        try:
-            batch = batch_manager.get(batch_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        batch = batch_manager.get(batch_id)
         return {"ok": True, "batch": batch.to_dict()}
 
     @app.post("/api/v1/batches/{batch_id}/cancel")
     def cancel_batch(batch_id: str) -> dict[str, object]:
-        try:
-            batch = batch_manager.cancel(batch_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        batch = batch_manager.cancel(batch_id)
         return {"ok": True, "batch": batch.to_dict()}
 
     @app.post("/api/v1/jobs", status_code=202)
@@ -1866,10 +1729,7 @@ def register_routes(
 
     @app.post("/api/v1/publish/queue/{item_id}/cancel")
     def cancel_publish_item(item_id: str) -> dict[str, object]:
-        try:
-            return {"ok": True, "item": cancel_publish(item_id)}
-        except VideoFlowError as exc:
-            fail(exc)
+        return {"ok": True, "item": cancel_publish(item_id)}
 
     @app.post("/api/v1/publish/dispatch")
     def publish_dispatch(request: PublishDispatchRequest) -> dict[str, object]:
@@ -1883,39 +1743,36 @@ def register_routes(
     def publish_short(
         job_id: str, index: int, request: PublishShortRequest
     ) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            if job.status != "succeeded" or job.result is None:
-                raise StateNotReadyError(
-                    "The job must succeed before a Short can be published."
-                )
-            shorts = job.result.get("shorts")
-            if not isinstance(shorts, list) or index < 0 or index >= len(shorts):
-                raise StateNotReadyError("Short index is out of range.")
-            entry = shorts[index]
-            if not isinstance(entry, dict) or not entry.get("path"):
-                raise StateNotReadyError("Short asset is missing.")
-            metadata = generate_short_metadata(
-                output=job.output,
-                index=index,
-                result=job.result,
-                platform=request.platform,
-                tone=request.tone,
-                extra_hashtags=tuple(request.extra_hashtags),
+        job = jobs.get(job_id)
+        if job.status != "succeeded" or job.result is None:
+            raise StateNotReadyError(
+                "The job must succeed before a Short can be published."
             )
-            item = enqueue_publish(
-                target_name=request.target,
-                asset_path=Path(str(entry["path"])),
-                title=str(metadata["title"]),
-                description=str(metadata["description"]),
-                hashtags=[str(tag) for tag in metadata["hashtags"]],
-                platform=request.platform,
-                scheduled_at=request.scheduled_at,
-                job_id=job_id,
-                short_index=index,
-            )
-        except VideoFlowError as exc:
-            fail(exc)
+        shorts = job.result.get("shorts")
+        if not isinstance(shorts, list) or index < 0 or index >= len(shorts):
+            raise StateNotReadyError("Short index is out of range.")
+        entry = shorts[index]
+        if not isinstance(entry, dict) or not entry.get("path"):
+            raise StateNotReadyError("Short asset is missing.")
+        metadata = generate_short_metadata(
+            output=job.output,
+            index=index,
+            result=job.result,
+            platform=request.platform,
+            tone=request.tone,
+            extra_hashtags=tuple(request.extra_hashtags),
+        )
+        item = enqueue_publish(
+            target_name=request.target,
+            asset_path=Path(str(entry["path"])),
+            title=str(metadata["title"]),
+            description=str(metadata["description"]),
+            hashtags=[str(tag) for tag in metadata["hashtags"]],
+            platform=request.platform,
+            scheduled_at=request.scheduled_at,
+            job_id=job_id,
+            short_index=index,
+        )
         return {"ok": True, "item": item}
 
     @app.get("/api/v1/project-templates")
@@ -1924,36 +1781,24 @@ def register_routes(
 
     @app.get("/api/v1/project-templates/{name}")
     def project_template(name: str) -> dict[str, object]:
-        try:
-            return {
-                "ok": True,
-                "template": get_project_template(name).model_dump(mode="json"),
-            }
-        except VideoFlowError as exc:
-            fail(exc)
+        return {
+            "ok": True,
+            "template": get_project_template(name).model_dump(mode="json"),
+        }
 
     @app.put("/api/v1/project-templates/{name}")
     def put_project_template(name: str, template: ProjectTemplate) -> dict[str, object]:
-        try:
-            payload = save_project_template(template.model_copy(update={"name": name}))
-        except VideoFlowError as exc:
-            fail(exc)
+        payload = save_project_template(template.model_copy(update={"name": name}))
         return {"ok": True, "template": payload}
 
     @app.delete("/api/v1/project-templates/{name}")
     def remove_project_template(name: str) -> dict[str, object]:
-        try:
-            delete_project_template(name)
-        except VideoFlowError as exc:
-            fail(exc)
+        delete_project_template(name)
         return {"ok": True, "deleted": name}
 
     @app.post("/api/v1/project-templates/{name}/apply")
     def apply_project_template(name: str) -> dict[str, object]:
-        try:
-            options = get_project_template(name).options
-        except VideoFlowError as exc:
-            fail(exc)
+        options = get_project_template(name).options
         return {"ok": True, "options": sanitize_options(options)}
 
     @app.post("/api/v1/config/export")
@@ -1962,12 +1807,9 @@ def register_routes(
 
     @app.post("/api/v1/config/import")
     def config_import(request: ConfigImportRequest) -> dict[str, object]:
-        try:
-            options = import_config(
-                {"schema_version": request.schema_version, "options": request.options}
-            )
-        except VideoFlowError as exc:
-            fail(exc)
+        options = import_config(
+            {"schema_version": request.schema_version, "options": request.options}
+        )
         return {"ok": True, "options": options}
 
     @app.get("/api/v1/brand-templates")
@@ -1976,33 +1818,21 @@ def register_routes(
 
     @app.get("/api/v1/brand-templates/{name}")
     def brand_template(name: str) -> dict[str, object]:
-        try:
-            return {"ok": True, "template": get_template(name).model_dump(mode="json")}
-        except VideoFlowError as exc:
-            fail(exc)
+        return {"ok": True, "template": get_template(name).model_dump(mode="json")}
 
     @app.put("/api/v1/brand-templates/{name}")
     def put_brand_template(name: str, template: BrandTemplate) -> dict[str, object]:
-        try:
-            payload = save_template(template.model_copy(update={"name": name}))
-        except VideoFlowError as exc:
-            fail(exc)
+        payload = save_template(template.model_copy(update={"name": name}))
         return {"ok": True, "template": payload}
 
     @app.delete("/api/v1/brand-templates/{name}")
     def remove_brand_template(name: str) -> dict[str, object]:
-        try:
-            delete_template(name)
-        except VideoFlowError as exc:
-            fail(exc)
+        delete_template(name)
         return {"ok": True, "deleted": name}
 
     @app.post("/api/v1/brand-templates/{name}/apply")
     def apply_brand_template(name: str) -> dict[str, object]:
-        try:
-            options = apply_brand_options({}, name)
-        except VideoFlowError as exc:
-            fail(exc)
+        options = apply_brand_options({}, name)
         return {"ok": True, "options": options}
 
     @app.get("/api/v1/jobs")
@@ -2056,74 +1886,54 @@ def register_routes(
 
     @app.post("/api/v1/jobs/{job_id}/pause")
     def pause_job(job_id: str) -> dict[str, object]:
-        try:
-            return {"ok": True, "job": jobs.pause(job_id).to_dict()}
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        return {"ok": True, "job": jobs.pause(job_id).to_dict()}
 
     @app.post("/api/v1/jobs/{job_id}/unpause")
     def unpause_job(job_id: str) -> dict[str, object]:
-        try:
-            return {"ok": True, "job": jobs.unpause(job_id).to_dict()}
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        return {"ok": True, "job": jobs.unpause(job_id).to_dict()}
 
     @app.patch("/api/v1/jobs/{job_id}/priority")
     def set_job_priority(job_id: str, request: PriorityRequest) -> dict[str, object]:
-        try:
-            return {"ok": True, "job": jobs.set_priority(job_id, request.priority).to_dict()}
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        return {"ok": True, "job": jobs.set_priority(job_id, request.priority).to_dict()}
 
     @app.post("/api/v1/jobs/{job_id}/retry", status_code=202)
     def retry_job(job_id: str) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            if job.status not in {"failed", "cancelled"}:
-                raise StateNotReadyError("Only failed or cancelled jobs can be retried.")
-            retried = jobs.start(
-                job.source,
-                job.output,
-                {**job.options, "resume": True},
-                queue=True,
-            )
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        if job.status not in {"failed", "cancelled"}:
+            raise StateNotReadyError("Only failed or cancelled jobs can be retried.")
+        retried = jobs.start(
+            job.source,
+            job.output,
+            {**job.options, "resume": True},
+            queue=True,
+        )
         return {"ok": True, "job": retried.to_dict()}
 
     @app.post("/api/v1/jobs/{job_id}/resume", status_code=202)
     def resume_job(job_id: str, request: ResumeRequest) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            if job.status != "waiting_approval":
-                raise StateNotReadyError("The job is not waiting for approval.")
-            gate = str((job.error or {}).get("gate_id") or "review")
-            approvals = job.output / "approvals"
-            approvals.mkdir(parents=True, exist_ok=True)
-            (approvals / f"{gate}.json").write_text(
-                json.dumps(
-                    {
-                        "approved": request.approved,
-                        "comment": request.comment,
-                    },
-                    indent=2,
-                )
-                + "\n",
-                encoding="utf-8",
+        job = jobs.get(job_id)
+        if job.status != "waiting_approval":
+            raise StateNotReadyError("The job is not waiting for approval.")
+        gate = str((job.error or {}).get("gate_id") or "review")
+        approvals = job.output / "approvals"
+        approvals.mkdir(parents=True, exist_ok=True)
+        (approvals / f"{gate}.json").write_text(
+            json.dumps(
+                {
+                    "approved": request.approved,
+                    "comment": request.comment,
+                },
+                indent=2,
             )
-            resumed = jobs.start(
-                job.source,
-                job.output,
-                {**job.options, "resume": True},
-                queue=True,
-            )
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+            + "\n",
+            encoding="utf-8",
+        )
+        resumed = jobs.start(
+            job.source,
+            job.output,
+            {**job.options, "resume": True},
+            queue=True,
+        )
         return {"ok": True, "job": resumed.to_dict(), "gate": gate}
 
     @app.get("/api/v1/jobs/{job_id}/events")
@@ -2143,11 +1953,7 @@ def register_routes(
     def job_variants(job_id: str) -> dict[str, object]:
         from videoflow.application.variants import compare_variants
 
-        try:
-            job = jobs.get(job_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
         return compare_variants(job.output, job.result)
 
     @app.post("/api/v1/jobs/{job_id}/variants/select")
@@ -2156,23 +1962,15 @@ def register_routes(
     ) -> dict[str, object]:
         from videoflow.application.variants import select_variant
 
-        try:
-            job = jobs.get(job_id)
-            payload = select_variant(job.output, request.name)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        payload = select_variant(job.output, request.name)
         return {"ok": True, "winner": payload["selected"]}
 
     @app.get("/api/v1/jobs/{job_id}/dag")
     def job_dag(job_id: str) -> dict[str, object]:
         from videoflow.application.run_dag import build_run_dag
 
-        try:
-            job = jobs.get(job_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
         return build_run_dag(job, jobs.list(limit=60))
 
     @app.get("/api/v1/jobs/{job_id}/logs")
@@ -2240,28 +2038,25 @@ def register_routes(
     def edit_short(
         job_id: str, index: int, request: ShortEditRequest
     ) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            if job.status != "succeeded" or job.result is None:
-                raise StateNotReadyError(
-                    "The job must succeed before a Short can be edited."
-                )
-            entry = edit_short_service(
-                source=job.source,
-                output=job.output,
-                index=index,
-                result=job.result,
-                options=ShortEditOptions(
-                    title=request.title,
-                    start_sec=request.start_sec,
-                    end_sec=request.end_sec,
-                    aspect_ratio=request.aspect_ratio,
-                    burn_subtitles=request.burn_subtitles,
-                    caption_style=request.caption_style,
-                ),
+        job = jobs.get(job_id)
+        if job.status != "succeeded" or job.result is None:
+            raise StateNotReadyError(
+                "The job must succeed before a Short can be edited."
             )
-        except VideoFlowError as exc:
-            fail(exc)
+        entry = edit_short_service(
+            source=job.source,
+            output=job.output,
+            index=index,
+            result=job.result,
+            options=ShortEditOptions(
+                title=request.title,
+                start_sec=request.start_sec,
+                end_sec=request.end_sec,
+                aspect_ratio=request.aspect_ratio,
+                burn_subtitles=request.burn_subtitles,
+                caption_style=request.caption_style,
+            ),
+        )
         return {
             "ok": True,
             "short": entry,
@@ -2272,27 +2067,24 @@ def register_routes(
     def short_emoji(
         job_id: str, index: int, request: ShortEmojiRequest
     ) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            if job.status != "succeeded" or job.result is None:
-                raise StateNotReadyError(
-                    "The job must succeed before captions can be edited."
-                )
-            payload = apply_llm_emoji(
-                source=job.source,
-                output=job.output,
-                index=index,
-                result=job.result,
-                base_url=request.base_url
-                or os.environ.get("VIDEOWFLOW_LLM_BASE_URL")
-                or "http://localhost:11434/v1",
-                model=request.model,
-                api_key=os.environ.get("VIDEOWFLOW_LLM_API_KEY"),
-                allow_external_services=request.allow_external_services,
-                allowed_external_hosts=tuple(request.allowed_external_hosts),
+        job = jobs.get(job_id)
+        if job.status != "succeeded" or job.result is None:
+            raise StateNotReadyError(
+                "The job must succeed before captions can be edited."
             )
-        except VideoFlowError as exc:
-            fail(exc)
+        payload = apply_llm_emoji(
+            source=job.source,
+            output=job.output,
+            index=index,
+            result=job.result,
+            base_url=request.base_url
+            or os.environ.get("VIDEOWFLOW_LLM_BASE_URL")
+            or "http://localhost:11434/v1",
+            model=request.model,
+            api_key=os.environ.get("VIDEOWFLOW_LLM_API_KEY"),
+            allow_external_services=request.allow_external_services,
+            allowed_external_hosts=tuple(request.allowed_external_hosts),
+        )
         return {
             "ok": True,
             "emoji_map": payload["emoji_map"],
@@ -2304,22 +2096,19 @@ def register_routes(
     def short_metadata(
         job_id: str, index: int, request: ShortMetadataRequest
     ) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            if job.status != "succeeded" or job.result is None:
-                raise StateNotReadyError(
-                    "The job must succeed before metadata can be generated."
-                )
-            metadata = generate_short_metadata(
-                output=job.output,
-                index=index,
-                result=job.result,
-                platform=request.platform,
-                tone=request.tone,
-                extra_hashtags=tuple(request.extra_hashtags),
+        job = jobs.get(job_id)
+        if job.status != "succeeded" or job.result is None:
+            raise StateNotReadyError(
+                "The job must succeed before metadata can be generated."
             )
-        except VideoFlowError as exc:
-            fail(exc)
+        metadata = generate_short_metadata(
+            output=job.output,
+            index=index,
+            result=job.result,
+            platform=request.platform,
+            tone=request.tone,
+            extra_hashtags=tuple(request.extra_hashtags),
+        )
         return {
             "ok": True,
             "metadata": metadata,
@@ -2330,29 +2119,26 @@ def register_routes(
     def create_preview(
         job_id: str, force: bool = False, background: bool = False
     ) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            if job.status != "succeeded":
-                raise StateNotReadyError("The job must succeed before preview rendering.")
-            preview = job.output / "preview" / "preview.mp4"
-            if background:
-                state = previews.start(job)
-                return {
-                    "ok": True,
-                    "status": state.to_dict(),
-                    "url": f"/api/v1/jobs/{job_id}/preview/file",
-                }
-            if not force and previews.is_ready(job):
-                return {
-                    "ok": True,
-                    "status": "ready",
-                    "path": str(preview),
-                    "url": f"/api/v1/jobs/{job_id}/preview/file",
-                }
-            build_preview(job)
-            write_preview_manifest(job)
-        except VideoFlowError as exc:
-            fail(exc)
+        job = jobs.get(job_id)
+        if job.status != "succeeded":
+            raise StateNotReadyError("The job must succeed before preview rendering.")
+        preview = job.output / "preview" / "preview.mp4"
+        if background:
+            state = previews.start(job)
+            return {
+                "ok": True,
+                "status": state.to_dict(),
+                "url": f"/api/v1/jobs/{job_id}/preview/file",
+            }
+        if not force and previews.is_ready(job):
+            return {
+                "ok": True,
+                "status": "ready",
+                "path": str(preview),
+                "url": f"/api/v1/jobs/{job_id}/preview/file",
+            }
+        build_preview(job)
+        write_preview_manifest(job)
         return {
             "ok": True,
             "status": "ready",
@@ -2362,23 +2148,15 @@ def register_routes(
 
     @app.post("/api/v1/jobs/{job_id}/render", status_code=202)
     def start_render(job_id: str) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            if job.status != "succeeded":
-                raise StateNotReadyError("The job must succeed before rendering.")
-            state = renders.start(job)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        if job.status != "succeeded":
+            raise StateNotReadyError("The job must succeed before rendering.")
+        state = renders.start(job)
         return {"ok": True, "render": state.to_dict()}
 
     @app.get("/api/v1/jobs/{job_id}/render/status")
     def render_status(job_id: str) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
         state = renders.get(job_id)
         ready = renders.is_ready(job)
         if state is None:
@@ -2428,11 +2206,7 @@ def register_routes(
 
     @app.get("/api/v1/jobs/{job_id}/preview/status")
     def preview_status(job_id: str) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
         state = previews.get(job_id)
         ready = previews.is_ready(job)
         if state is None:
@@ -2770,44 +2544,40 @@ def register_routes(
     def update_timeline_clips(
         job_id: str, request: ClipBatchStyleRequest, http_request: Request
     ) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            locked_scopes: set[str] = set()
-            if (
-                request.transition_type is not None
-                or request.scale is not None
-                or request.pos_x is not None
-                or request.pos_y is not None
-            ):
-                locked_scopes.add("video")
-            if request.fade_in_sec is not None or request.fade_out_sec is not None:
-                locked_scopes.add("audio")
-            _assert_tracks_unlocked(job, locked_scopes)
-            state_path = _timeline_state_path(job)
-            history = _timeline_history(job)
-            state = ProjectState.model_validate_json(
-                state_path.read_text(encoding="utf-8")
+        job = jobs.get(job_id)
+        locked_scopes: set[str] = set()
+        if (
+            request.transition_type is not None
+            or request.scale is not None
+            or request.pos_x is not None
+            or request.pos_y is not None
+        ):
+            locked_scopes.add("video")
+        if request.fade_in_sec is not None or request.fade_out_sec is not None:
+            locked_scopes.add("audio")
+        _assert_tracks_unlocked(job, locked_scopes)
+        state_path = _timeline_state_path(job)
+        history = _timeline_history(job)
+        state = ProjectState.model_validate_json(
+            state_path.read_text(encoding="utf-8")
+        )
+        _require_if_match(http_request, state.revision)
+        previous = state.model_copy(deep=True)
+        known = {clip.clip_id for clip in state.video_segments} | {
+            clip.clip_id for clip in state.audio_segments
+        }
+        clip_ids = list(dict.fromkeys(request.clip_ids))
+        missing = [clip_id for clip_id in clip_ids if clip_id not in known]
+        if missing:
+            raise StateNotReadyError(
+                f"Unknown clip(s): {', '.join(missing)}"
             )
-            _require_if_match(http_request, state.revision)
-            previous = state.model_copy(deep=True)
-            known = {clip.clip_id for clip in state.video_segments} | {
-                clip.clip_id for clip in state.audio_segments
-            }
-            clip_ids = list(dict.fromkeys(request.clip_ids))
-            missing = [clip_id for clip_id in clip_ids if clip_id not in known]
-            if missing:
-                raise StateNotReadyError(
-                    f"Unknown clip(s): {', '.join(missing)}"
-                )
-            for clip_id in clip_ids:
-                _apply_clip_style(state, clip_id, request)
-            history.record(previous)
-            state = _apply_and_store(
-                job, state, state_path, history, previous.revision + 1
-            )
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        for clip_id in clip_ids:
+            _apply_clip_style(state, clip_id, request)
+        history.record(previous)
+        state = _apply_and_store(
+            job, state, state_path, history, previous.revision + 1
+        )
         return {
             "ok": True,
             "revision": state.revision,
@@ -2822,32 +2592,28 @@ def register_routes(
     def update_timeline_clip(
         job_id: str, clip_id: str, request: ClipUpdateRequest, http_request: Request
     ) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            locked_scopes: set[str] = set()
-            if (
-                request.transition_type is not None
-                or request.scale is not None
-                or request.pos_x is not None
-                or request.pos_y is not None
-            ):
-                locked_scopes.add("video")
-            if request.fade_in_sec is not None or request.fade_out_sec is not None:
-                locked_scopes.add("audio")
-            _assert_tracks_unlocked(job, locked_scopes)
-            state_path = _timeline_state_path(job)
-            history = _timeline_history(job)
-            state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
-            _require_if_match(http_request, state.revision)
-            previous = state.model_copy(deep=True)
-            _apply_clip_style(state, clip_id, request)
-            history.record(previous)
-            state = _apply_and_store(
-                job, state, state_path, history, previous.revision + 1
-            )
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        locked_scopes: set[str] = set()
+        if (
+            request.transition_type is not None
+            or request.scale is not None
+            or request.pos_x is not None
+            or request.pos_y is not None
+        ):
+            locked_scopes.add("video")
+        if request.fade_in_sec is not None or request.fade_out_sec is not None:
+            locked_scopes.add("audio")
+        _assert_tracks_unlocked(job, locked_scopes)
+        state_path = _timeline_state_path(job)
+        history = _timeline_history(job)
+        state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+        _require_if_match(http_request, state.revision)
+        previous = state.model_copy(deep=True)
+        _apply_clip_style(state, clip_id, request)
+        history.record(previous)
+        state = _apply_and_store(
+            job, state, state_path, history, previous.revision + 1
+        )
         return {
             "ok": True,
             "revision": state.revision,
@@ -2908,20 +2674,16 @@ def register_routes(
 
     @app.post("/api/v1/jobs/{job_id}/timeline/undo")
     def undo_job_timeline(job_id: str) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            state_path = _timeline_state_path(job)
-            history = _timeline_history(job)
-            current = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
-            restored = history.undo_state(current)
-            if restored is None:
-                raise StateNotReadyError("Nothing to undo.")
-            state = _apply_and_store(
-                job, restored, state_path, history, current.revision + 1
-            )
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        state_path = _timeline_state_path(job)
+        history = _timeline_history(job)
+        current = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+        restored = history.undo_state(current)
+        if restored is None:
+            raise StateNotReadyError("Nothing to undo.")
+        state = _apply_and_store(
+            job, restored, state_path, history, current.revision + 1
+        )
         return {
             "ok": True,
             "revision": state.revision,
@@ -2931,20 +2693,16 @@ def register_routes(
 
     @app.post("/api/v1/jobs/{job_id}/timeline/redo")
     def redo_job_timeline(job_id: str) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            state_path = _timeline_state_path(job)
-            history = _timeline_history(job)
-            current = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
-            restored = history.redo_state(current)
-            if restored is None:
-                raise StateNotReadyError("Nothing to redo.")
-            state = _apply_and_store(
-                job, restored, state_path, history, current.revision + 1
-            )
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        state_path = _timeline_state_path(job)
+        history = _timeline_history(job)
+        current = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+        restored = history.redo_state(current)
+        if restored is None:
+            raise StateNotReadyError("Nothing to redo.")
+        state = _apply_and_store(
+            job, restored, state_path, history, current.revision + 1
+        )
         return {
             "ok": True,
             "revision": state.revision,
@@ -2995,95 +2753,71 @@ def register_routes(
 
     @app.get("/api/v1/jobs/{job_id}/review")
     def job_review(job_id: str) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
         return {"ok": True, **review_payload(job.output)}
 
     @app.patch("/api/v1/jobs/{job_id}/review")
     def decide_job_review(
         job_id: str, request: ReviewDecisionRequest
     ) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            approval = approve_review(
-                job.output,
-                approved=request.approved,
-                comment=request.comment,
-                reviewer=request.reviewer,
-            )
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        approval = approve_review(
+            job.output,
+            approved=request.approved,
+            comment=request.comment,
+            reviewer=request.reviewer,
+        )
         return {"ok": True, "approval": approval}
 
     @app.get("/api/v1/jobs/{job_id}/review/comments")
     def job_review_comments(job_id: str) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
         return {"ok": True, "comments": list_review_comments(job.output)}
 
     @app.post("/api/v1/jobs/{job_id}/review/comments", status_code=201)
     def add_job_review_comment(
         job_id: str, request: ReviewCommentRequest
     ) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            comments = add_review_comment(
-                job.output,
-                author=request.author,
-                text=request.text,
-                time_sec=request.time_sec,
-            )
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        comments = add_review_comment(
+            job.output,
+            author=request.author,
+            text=request.text,
+            time_sec=request.time_sec,
+        )
         return {"ok": True, "comments": comments}
 
     @app.get("/api/v1/jobs/{job_id}/thumbnails")
     def job_thumbnails(job_id: str) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
         return {"ok": True, **list_thumbnails(job.output)}
 
     @app.get("/api/v1/jobs/{job_id}/clips/{clip_id}/thumbnail")
     def job_clip_thumbnail(job_id: str, clip_id: str) -> FileResponse:
-        try:
-            job = jobs.get(job_id)
-            state_path = Path(
-                str((job.result or {}).get("state_path") or job.output / "project_state.json")
+        job = jobs.get(job_id)
+        state_path = Path(
+            str((job.result or {}).get("state_path") or job.output / "project_state.json")
+        )
+        state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+        clip = next(
+            (item for item in state.video_segments if item.clip_id == clip_id), None
+        )
+        if clip is None or state.media_info is None:
+            raise StateNotReadyError(f"Unknown clip: {clip_id}")
+        media = state.media_info
+        fps = media.fps_num / media.fps_den
+        slug = "".join(
+            char if char.isalnum() or char in "-_" else "-" for char in clip_id
+        )
+        target = job.output / "thumbnails" / "clips" / f"{slug}.png"
+        if not target.is_file():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            midpoint = (clip.source_in_frame + clip.source_out_frame) / 2
+            FFmpegAdapter().render_thumbnail(
+                Path(media.source_path),
+                target,
+                time_sec=max(0.0, midpoint / max(1.0, fps)),
             )
-            state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
-            clip = next(
-                (item for item in state.video_segments if item.clip_id == clip_id), None
-            )
-            if clip is None or state.media_info is None:
-                raise StateNotReadyError(f"Unknown clip: {clip_id}")
-            media = state.media_info
-            fps = media.fps_num / media.fps_den
-            slug = "".join(
-                char if char.isalnum() or char in "-_" else "-" for char in clip_id
-            )
-            target = job.output / "thumbnails" / "clips" / f"{slug}.png"
-            if not target.is_file():
-                target.parent.mkdir(parents=True, exist_ok=True)
-                midpoint = (clip.source_in_frame + clip.source_out_frame) / 2
-                FFmpegAdapter().render_thumbnail(
-                    Path(media.source_path),
-                    target,
-                    time_sec=max(0.0, midpoint / max(1.0, fps)),
-                )
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
         if not target.is_file():
             raise HTTPException(
                 status_code=404,
@@ -3093,11 +2827,7 @@ def register_routes(
 
     @app.get("/api/v1/jobs/{job_id}/thumbnails/metrics")
     def job_thumbnail_metrics(job_id: str) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
         return {"ok": True, "metrics": thumbnail_metrics(job.output)}
 
     @app.get("/api/v1/jobs/{job_id}/thumbnails/{name}")
@@ -3119,58 +2849,38 @@ def register_routes(
     def record_job_thumbnail_metric(
         job_id: str, name: str, request: ThumbnailMetricRequest
     ) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            metric = record_thumbnail_metric(
-                job.output,
-                name,
-                impressions=request.impressions,
-                clicks=request.clicks,
-            )
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        metric = record_thumbnail_metric(
+            job.output,
+            name,
+            impressions=request.impressions,
+            clicks=request.clicks,
+        )
         return {"ok": True, "metric": metric, "metrics": thumbnail_metrics(job.output)}
 
     @app.post("/api/v1/jobs/{job_id}/thumbnails/select")
     def choose_job_thumbnail(
         job_id: str, request: ThumbnailSelectRequest
     ) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            payload = select_thumbnail(job.output, request.name)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        payload = select_thumbnail(job.output, request.name)
         return {"ok": True, **payload}
 
     @app.post("/api/v1/jobs/{job_id}/broll/undo")
     def undo_job_broll(job_id: str) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            approval = undo_approval(job.output)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        approval = undo_approval(job.output)
         return {"ok": True, "approval": approval}
 
     @app.post("/api/v1/jobs/{job_id}/broll/redo")
     def redo_job_broll(job_id: str) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            approval = redo_approval(job.output)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        approval = redo_approval(job.output)
         return {"ok": True, "approval": approval}
 
     @app.get("/api/v1/jobs/{job_id}/broll")
     def job_broll(job_id: str) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
         plan = (job.result or {}).get("broll_plan", {})
         return {
             "ok": True,
@@ -3180,108 +2890,84 @@ def register_routes(
 
     @app.patch("/api/v1/jobs/{job_id}/broll")
     def update_job_broll(job_id: str, request: BrollApprovalRequest) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            plan = (job.result or {}).get("broll_plan", {})
-            approval = save_approval(
-                job.output,
-                title=request.title,
-                approved=request.approved,
-                order=request.order,
-                plan=plan,
-            )
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        plan = (job.result or {}).get("broll_plan", {})
+        approval = save_approval(
+            job.output,
+            title=request.title,
+            approved=request.approved,
+            order=request.order,
+            plan=plan,
+        )
         return {"ok": True, "approval": approval}
 
     @app.get("/api/v1/jobs/{job_id}/timeline/meta")
     def job_timeline_meta(job_id: str) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
         return {"ok": True, **load_meta(job.output).model_dump(mode="json")}
 
     @app.put("/api/v1/jobs/{job_id}/timeline/meta")
     def replace_job_timeline_meta(
         job_id: str, request: TimelineMeta
     ) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            meta = save_meta(job.output, request)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        meta = save_meta(job.output, request)
         return {"ok": True, **meta.model_dump(mode="json")}
 
     @app.post("/api/v1/jobs/{job_id}/timeline/markers", status_code=201)
     def create_job_marker(job_id: str, request: MarkerRequest) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            marker = add_marker(
-                job.output,
-                marker_id=(
-                    f"m-{int(request.time_sec * 1000)}-"
-                    f"{len(load_meta(job.output).markers) + 1}"
-                ),
-                time_sec=request.time_sec,
-                label=request.label,
-                color=request.color,
-            )
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        marker = add_marker(
+            job.output,
+            marker_id=(
+                f"m-{int(request.time_sec * 1000)}-"
+                f"{len(load_meta(job.output).markers) + 1}"
+            ),
+            time_sec=request.time_sec,
+            label=request.label,
+            color=request.color,
+        )
         return {"ok": True, "markers": [item.model_dump(mode="json") for item in marker.markers]}
 
     @app.delete("/api/v1/jobs/{job_id}/timeline/markers/{marker_id}")
     def delete_job_marker(job_id: str, marker_id: str) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            meta = remove_marker(job.output, marker_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        meta = remove_marker(job.output, marker_id)
         return {"ok": True, "markers": [item.model_dump(mode="json") for item in meta.markers]}
 
     @app.post("/api/v1/jobs/{job_id}/timeline/overlays", status_code=201)
     def create_timeline_overlay(job_id: str, request: OverlayRequest) -> dict[str, object]:
         from videoflow.domain.state import OverlayClip
 
-        try:
-            job = jobs.get(job_id)
-            _assert_tracks_unlocked(job, {"video"})
-            resolved = resolve_allowed(Path(request.path), allowed_roots())
-            state_path = _timeline_state_path(job)
-            history = _timeline_history(job)
-            state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
-            previous = state.model_copy(deep=True)
-            fps = (
-                state.media_info.fps_num / state.media_info.fps_den
-                if state.media_info is not None
-                else 30.0
-            )
-            overlay = OverlayClip(
-                overlay_id=request.overlay_id or f"overlay-{int(time.time() * 1000)}",
-                asset_id=request.asset_id,
-                path=str(resolved),
-                start_frame=round(request.start_sec * fps),
-                duration_frames=max(1, round(request.duration_sec * fps)),
-                position_x=request.position_x,
-                position_y=request.position_y,
-                width_ratio=request.width_ratio,
-                opacity=request.opacity,
-                kind=request.kind,
-            )
-            state.overlays = [
-                item for item in state.overlays if item.overlay_id != overlay.overlay_id
-            ] + [overlay]
-            history.record(previous)
-            state = _apply_and_store(job, state, state_path, history, previous.revision + 1)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        _assert_tracks_unlocked(job, {"video"})
+        resolved = resolve_allowed(Path(request.path), allowed_roots())
+        state_path = _timeline_state_path(job)
+        history = _timeline_history(job)
+        state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+        previous = state.model_copy(deep=True)
+        fps = (
+            state.media_info.fps_num / state.media_info.fps_den
+            if state.media_info is not None
+            else 30.0
+        )
+        overlay = OverlayClip(
+            overlay_id=request.overlay_id or f"overlay-{int(time.time() * 1000)}",
+            asset_id=request.asset_id,
+            path=str(resolved),
+            start_frame=round(request.start_sec * fps),
+            duration_frames=max(1, round(request.duration_sec * fps)),
+            position_x=request.position_x,
+            position_y=request.position_y,
+            width_ratio=request.width_ratio,
+            opacity=request.opacity,
+            kind=request.kind,
+        )
+        state.overlays = [
+            item for item in state.overlays if item.overlay_id != overlay.overlay_id
+        ] + [overlay]
+        history.record(previous)
+        state = _apply_and_store(job, state, state_path, history, previous.revision + 1)
         return {
             "ok": True,
             "revision": state.revision,
@@ -3290,22 +2976,18 @@ def register_routes(
 
     @app.delete("/api/v1/jobs/{job_id}/timeline/overlays/{overlay_id}")
     def delete_timeline_overlay(job_id: str, overlay_id: str) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            _assert_tracks_unlocked(job, {"video"})
-            state_path = _timeline_state_path(job)
-            history = _timeline_history(job)
-            state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
-            previous = state.model_copy(deep=True)
-            kept = [item for item in state.overlays if item.overlay_id != overlay_id]
-            if len(kept) == len(state.overlays):
-                raise StateNotReadyError(f"Unknown overlay: {overlay_id}")
-            state.overlays = kept
-            history.record(previous)
-            state = _apply_and_store(job, state, state_path, history, previous.revision + 1)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        _assert_tracks_unlocked(job, {"video"})
+        state_path = _timeline_state_path(job)
+        history = _timeline_history(job)
+        state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
+        previous = state.model_copy(deep=True)
+        kept = [item for item in state.overlays if item.overlay_id != overlay_id]
+        if len(kept) == len(state.overlays):
+            raise StateNotReadyError(f"Unknown overlay: {overlay_id}")
+        state.overlays = kept
+        history.record(previous)
+        state = _apply_and_store(job, state, state_path, history, previous.revision + 1)
         return {
             "ok": True,
             "revision": state.revision,
@@ -3314,49 +2996,33 @@ def register_routes(
 
     @app.get("/api/v1/jobs/{job_id}/timeline/comments")
     def list_clip_comments(job_id: str, clip_id: str = "") -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
         return {"ok": True, "comments": comments_for(job.output, clip_id)}
 
     @app.post("/api/v1/jobs/{job_id}/timeline/comments", status_code=201)
     def create_clip_comment(job_id: str, request: ClipCommentRequest) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            meta = add_comment(
-                job.output,
-                comment_id=request.id or f"comment-{int(time.time() * 1000)}",
-                clip_id=request.clip_id,
-                text=request.text,
-                author=request.author,
-            )
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        meta = add_comment(
+            job.output,
+            comment_id=request.id or f"comment-{int(time.time() * 1000)}",
+            clip_id=request.clip_id,
+            text=request.text,
+            author=request.author,
+        )
         return {"ok": True, "comments": [item.model_dump() for item in meta.comments]}
 
     @app.delete("/api/v1/jobs/{job_id}/timeline/comments/{comment_id}")
     def delete_clip_comment(job_id: str, comment_id: str) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            meta = remove_comment(job.output, comment_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        meta = remove_comment(job.output, comment_id)
         return {"ok": True, "comments": [item.model_dump() for item in meta.comments]}
 
     @app.put("/api/v1/jobs/{job_id}/timeline/tracks/{track}")
     def update_job_track(
         job_id: str, track: str, request: TrackState
     ) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            meta = set_track(job.output, track, request)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        meta = set_track(job.output, track, request)
         return {
             "ok": True,
             "tracks": {
@@ -3716,30 +3382,22 @@ def register_routes(
 
     @app.get("/api/v1/jobs/{job_id}/overlays/{overlay_id}/file")
     def job_overlay_file(job_id: str, overlay_id: str) -> FileResponse:
-        try:
-            job = jobs.get(job_id)
-            state = load_state(_timeline_state_path(job))
-            overlay = next(
-                (item for item in state.overlays if item.overlay_id == overlay_id),
-                None,
-            )
-            if overlay is None:
-                raise StateNotReadyError(f"Unknown overlay: {overlay_id}")
-            path = resolve_allowed(Path(overlay.path), allowed_roots())
-            if not path.is_file():
-                raise StateNotReadyError("The overlay asset is not available.")
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        state = load_state(_timeline_state_path(job))
+        overlay = next(
+            (item for item in state.overlays if item.overlay_id == overlay_id),
+            None,
+        )
+        if overlay is None:
+            raise StateNotReadyError(f"Unknown overlay: {overlay_id}")
+        path = resolve_allowed(Path(overlay.path), allowed_roots())
+        if not path.is_file():
+            raise StateNotReadyError("The overlay asset is not available.")
         return FileResponse(path, filename=path.name)
 
     @app.get("/api/v1/jobs/{job_id}/live-source/status")
     def live_source_status(job_id: str) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
         height = 0
         try:
             state = load_state(_timeline_state_path(job))
@@ -3751,11 +3409,7 @@ def register_routes(
 
     @app.post("/api/v1/jobs/{job_id}/live-source")
     def prepare_live_source(job_id: str) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
         height = 0
         try:
             state = load_state(_timeline_state_path(job))
@@ -3788,18 +3442,14 @@ def register_routes(
 
     @app.get("/api/v1/jobs/{job_id}/source/file")
     def job_source_file(job_id: str) -> FileResponse:
-        try:
-            job = jobs.get(job_id)
-            state = load_state(_timeline_state_path(job))
-            media = state.media_info
-            if media is None:
-                raise StateNotReadyError("The project has no media info.")
-            source = resolve_allowed(Path(media.source_path), allowed_roots())
-            if not source.is_file():
-                raise StateNotReadyError("The source media is not available.")
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        state = load_state(_timeline_state_path(job))
+        media = state.media_info
+        if media is None:
+            raise StateNotReadyError("The project has no media info.")
+        source = resolve_allowed(Path(media.source_path), allowed_roots())
+        if not source.is_file():
+            raise StateNotReadyError("The source media is not available.")
         return FileResponse(source, media_type="video/mp4", filename=source.name)
 
     @app.get("/api/v1/jobs/{job_id}/timeline/waveform")
@@ -3972,15 +3622,11 @@ def register_routes(
     def save_job_step_outputs(
         job_id: str, step_id: str, request: StepOutputSaveRequest
     ) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            if not step_id or "/" in step_id or "\\" in step_id:
-                raise RecipeError("Invalid step id.")
-            target = resolve_allowed(Path(request.target_dir), allowed_roots())
-            saved = save_step_outputs(job.output, step_id, target)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        if not step_id or "/" in step_id or "\\" in step_id:
+            raise RecipeError("Invalid step id.")
+        target = resolve_allowed(Path(request.target_dir), allowed_roots())
+        saved = save_step_outputs(job.output, step_id, target)
         if not saved:
             raise HTTPException(
                 status_code=404,
@@ -4024,22 +3670,19 @@ def register_routes(
     def short_thumbnail(
         job_id: str, index: int, request: ShortThumbnailRequest
     ) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            if job.status != "succeeded" or job.result is None:
-                raise StateNotReadyError(
-                    "The job must succeed before a thumbnail can be generated."
-                )
-            thumbnail = generate_short_thumbnail(
-                output=job.output,
-                index=index,
-                result=job.result,
-                time_sec=request.time_sec,
-                title=request.title,
-                caption_style=request.caption_style,
+        job = jobs.get(job_id)
+        if job.status != "succeeded" or job.result is None:
+            raise StateNotReadyError(
+                "The job must succeed before a thumbnail can be generated."
             )
-        except VideoFlowError as exc:
-            fail(exc)
+        thumbnail = generate_short_thumbnail(
+            output=job.output,
+            index=index,
+            result=job.result,
+            time_sec=request.time_sec,
+            title=request.title,
+            caption_style=request.caption_style,
+        )
         return {
             "ok": True,
             "thumbnail": thumbnail,
@@ -4081,148 +3724,139 @@ def register_routes(
     def short_voiceover(
         job_id: str, index: int, request: ShortVoiceoverRequest
     ) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            if job.status != "succeeded" or job.result is None:
-                raise StateNotReadyError(
-                    "The job must succeed before a voice-over can be generated."
-                )
-            state = ProjectState.model_validate_json(
-                (job.output / "project_state.json").read_text(encoding="utf-8")
+        job = jobs.get(job_id)
+        if job.status != "succeeded" or job.result is None:
+            raise StateNotReadyError(
+                "The job must succeed before a voice-over can be generated."
             )
-            stored = state.modules_config.tts
-            tts_provider = first_provider("tts") or {}
-            tts_defaults = load_settings().tts
-            config = TtsConfig(
-                provider=request.provider,
-                base_url=request.base_url
-                or stored.base_url
-                or str(tts_provider.get("base_url") or ""),
-                model=request.model
-                or stored.model
-                or str(tts_provider.get("model") or "")
-                or tts_defaults.model,
-                voice=request.voice or stored.voice or tts_defaults.voice,
-                secret_name=stored.secret_name
-                or str(tts_provider.get("api_key_env") or "VIDEOWFLOW_TTS_API_KEY"),
-                binary=request.binary or stored.binary,
-                model_path=request.model_path or stored.model_path,
-                speed=request.speed,
-                volume=request.volume,
-                original_volume=request.original_volume,
-            )
-            payload = generate_short_voiceover(
-                output=job.output,
-                index=index,
-                result=job.result,
-                text=request.text,
-                config=config,
-                api_key=get_secret(config.secret_name),
-                allow_external_services=request.allow_external_services,
-                allowed_external_hosts=tuple(request.allowed_external_hosts),
-            )
-        except VideoFlowError as exc:
-            fail(exc)
+        state = ProjectState.model_validate_json(
+            (job.output / "project_state.json").read_text(encoding="utf-8")
+        )
+        stored = state.modules_config.tts
+        tts_provider = first_provider("tts") or {}
+        tts_defaults = load_settings().tts
+        config = TtsConfig(
+            provider=request.provider,
+            base_url=request.base_url
+            or stored.base_url
+            or str(tts_provider.get("base_url") or ""),
+            model=request.model
+            or stored.model
+            or str(tts_provider.get("model") or "")
+            or tts_defaults.model,
+            voice=request.voice or stored.voice or tts_defaults.voice,
+            secret_name=stored.secret_name
+            or str(tts_provider.get("api_key_env") or "VIDEOWFLOW_TTS_API_KEY"),
+            binary=request.binary or stored.binary,
+            model_path=request.model_path or stored.model_path,
+            speed=request.speed,
+            volume=request.volume,
+            original_volume=request.original_volume,
+        )
+        payload = generate_short_voiceover(
+            output=job.output,
+            index=index,
+            result=job.result,
+            text=request.text,
+            config=config,
+            api_key=get_secret(config.secret_name),
+            allow_external_services=request.allow_external_services,
+            allowed_external_hosts=tuple(request.allowed_external_hosts),
+        )
         return {"ok": True, "voiceover": payload, "short": job.result["shorts"][index]}
 
     @app.post("/api/v1/jobs/{job_id}/shorts/{index}/dub")
     def short_dubbing(
         job_id: str, index: int, request: ShortDubbingRequest
     ) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            if job.status != "succeeded" or job.result is None:
-                raise StateNotReadyError(
-                    "The job must succeed before dubbing can be generated."
-                )
-            state = ProjectState.model_validate_json(
-                (job.output / "project_state.json").read_text(encoding="utf-8")
+        job = jobs.get(job_id)
+        if job.status != "succeeded" or job.result is None:
+            raise StateNotReadyError(
+                "The job must succeed before dubbing can be generated."
             )
-            stored_tts = state.modules_config.tts
-            tts_provider = first_provider("tts") or {}
-            tts_defaults = load_settings().tts
-            tts = TtsConfig(
-                provider="openai_compatible",
-                base_url=request.base_url
-                or stored_tts.base_url
-                or str(tts_provider.get("base_url") or ""),
-                model=request.model
-                or stored_tts.model
-                or str(tts_provider.get("model") or "")
-                or tts_defaults.model,
-                voice=request.voice or stored_tts.voice or tts_defaults.voice,
-                secret_name=stored_tts.secret_name
-                or str(tts_provider.get("api_key_env") or "VIDEOWFLOW_TTS_API_KEY"),
-                speed=request.speed,
-                volume=request.volume,
-                original_volume=request.original_volume,
-            )
-            dubbing = DubbingConfig(
-                target_language=request.target_language,
-                original_volume=request.original_volume,
-            )
-            payload = generate_short_dubbing(
-                output=job.output,
-                index=index,
-                result=job.result,
-                source_text=request.text,
-                target_language=request.target_language,
-                tts=tts,
-                dubbing=dubbing,
-                llm_base_url=(
-                    request.llm_base_url
-                    or state.modules_config.retakes.base_url
-                    or str((first_provider("llm") or {}).get("base_url") or "")
-                    or "http://localhost:11434/v1"
-                ),
-                llm_model=request.llm_model
-                or state.modules_config.retakes.model_name
-                or str((first_provider("llm") or {}).get("model") or ""),
-                llm_api_key=get_secret("VIDEOWFLOW_LLM_API_KEY"),
-                tts_api_key=get_secret(tts.secret_name),
-                allow_external_services=request.allow_external_services,
-                allowed_external_hosts=tuple(request.allowed_external_hosts),
-            )
-        except VideoFlowError as exc:
-            fail(exc)
+        state = ProjectState.model_validate_json(
+            (job.output / "project_state.json").read_text(encoding="utf-8")
+        )
+        stored_tts = state.modules_config.tts
+        tts_provider = first_provider("tts") or {}
+        tts_defaults = load_settings().tts
+        tts = TtsConfig(
+            provider="openai_compatible",
+            base_url=request.base_url
+            or stored_tts.base_url
+            or str(tts_provider.get("base_url") or ""),
+            model=request.model
+            or stored_tts.model
+            or str(tts_provider.get("model") or "")
+            or tts_defaults.model,
+            voice=request.voice or stored_tts.voice or tts_defaults.voice,
+            secret_name=stored_tts.secret_name
+            or str(tts_provider.get("api_key_env") or "VIDEOWFLOW_TTS_API_KEY"),
+            speed=request.speed,
+            volume=request.volume,
+            original_volume=request.original_volume,
+        )
+        dubbing = DubbingConfig(
+            target_language=request.target_language,
+            original_volume=request.original_volume,
+        )
+        payload = generate_short_dubbing(
+            output=job.output,
+            index=index,
+            result=job.result,
+            source_text=request.text,
+            target_language=request.target_language,
+            tts=tts,
+            dubbing=dubbing,
+            llm_base_url=(
+                request.llm_base_url
+                or state.modules_config.retakes.base_url
+                or str((first_provider("llm") or {}).get("base_url") or "")
+                or "http://localhost:11434/v1"
+            ),
+            llm_model=request.llm_model
+            or state.modules_config.retakes.model_name
+            or str((first_provider("llm") or {}).get("model") or ""),
+            llm_api_key=get_secret("VIDEOWFLOW_LLM_API_KEY"),
+            tts_api_key=get_secret(tts.secret_name),
+            allow_external_services=request.allow_external_services,
+            allowed_external_hosts=tuple(request.allowed_external_hosts),
+        )
         return {"ok": True, "dubbing": payload, "short": job.result["shorts"][index]}
 
     @app.post("/api/v1/jobs/{job_id}/shorts/{index}/analyze/llm")
     def analyze_short_vision(
         job_id: str, index: int, request: ShortVisionRequest
     ) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            if job.status != "succeeded" or job.result is None:
-                raise StateNotReadyError("The job must succeed before analysis.")
-            vision = first_provider("vision") or {}
-            base_url = (
-                request.base_url
-                or os.environ.get("VIDEOWFLOW_VISION_BASE_URL")
-                or str(vision.get("base_url") or "")
+        job = jobs.get(job_id)
+        if job.status != "succeeded" or job.result is None:
+            raise StateNotReadyError("The job must succeed before analysis.")
+        vision = first_provider("vision") or {}
+        base_url = (
+            request.base_url
+            or os.environ.get("VIDEOWFLOW_VISION_BASE_URL")
+            or str(vision.get("base_url") or "")
+        )
+        if not base_url:
+            raise CapabilityUnavailableError(
+                "external_vision",
+                "Configure a vision endpoint or VIDEOWFLOW_VISION_BASE_URL.",
             )
-            if not base_url:
-                raise CapabilityUnavailableError(
-                    "external_vision",
-                    "Configure a vision endpoint or VIDEOWFLOW_VISION_BASE_URL.",
-                )
-            analysis = analyze_short_llm_entry(
-                output=job.output,
-                index=index,
-                result=job.result,
-                base_url=base_url,
-                model=request.model
-                or str(vision.get("model") or "")
-                or os.environ.get("VIDEOWFLOW_VISION_MODEL", "gpt-4o-mini"),
-                api_key=get_secret(
-                    str(vision.get("api_key_env") or "VIDEOWFLOW_VISION_API_KEY")
-                ),
-                allow_external_services=request.allow_external_services,
-                allowed_external_hosts=tuple(request.allowed_external_hosts),
-                max_frames=request.max_frames,
-            )
-        except VideoFlowError as exc:
-            fail(exc)
+        analysis = analyze_short_llm_entry(
+            output=job.output,
+            index=index,
+            result=job.result,
+            base_url=base_url,
+            model=request.model
+            or str(vision.get("model") or "")
+            or os.environ.get("VIDEOWFLOW_VISION_MODEL", "gpt-4o-mini"),
+            api_key=get_secret(
+                str(vision.get("api_key_env") or "VIDEOWFLOW_VISION_API_KEY")
+            ),
+            allow_external_services=request.allow_external_services,
+            allowed_external_hosts=tuple(request.allowed_external_hosts),
+            max_frames=request.max_frames,
+        )
         return {
             "ok": True,
             "analysis": analysis,
@@ -4231,17 +3865,14 @@ def register_routes(
 
     @app.post("/api/v1/jobs/{job_id}/shorts/{index}/analyze")
     def analyze_short(job_id: str, index: int) -> dict[str, object]:
-        try:
-            job = jobs.get(job_id)
-            if job.status != "succeeded" or job.result is None:
-                raise StateNotReadyError("The job must succeed before analysis.")
-            analysis = analyze_short_entry(
-                output=job.output,
-                index=index,
-                result=job.result,
-            )
-        except VideoFlowError as exc:
-            fail(exc)
+        job = jobs.get(job_id)
+        if job.status != "succeeded" or job.result is None:
+            raise StateNotReadyError("The job must succeed before analysis.")
+        analysis = analyze_short_entry(
+            output=job.output,
+            index=index,
+            result=job.result,
+        )
         return {
             "ok": True,
             "analysis": analysis,
@@ -4279,31 +3910,19 @@ def register_routes(
 
     @app.get("/api/v1/presets")
     def list_presets() -> dict[str, object]:
-        try:
-            return {"ok": True, "presets": [entry.to_dict() for entry in load_presets()]}
-        except VideoFlowError as exc:
-            fail(exc)
+        return {"ok": True, "presets": [entry.to_dict() for entry in load_presets()]}
 
     @app.get("/api/v1/presets/{name}")
     def read_preset(name: str) -> dict[str, object]:
-        try:
-            return {"ok": True, "preset": get_preset(name).to_dict()}
-        except VideoFlowError as exc:
-            fail(exc)
+        return {"ok": True, "preset": get_preset(name).to_dict()}
 
     @app.put("/api/v1/presets/{name}")
     def write_preset(name: str, payload: dict[str, Any]) -> dict[str, object]:
-        try:
-            return {"ok": True, "preset": save_preset(name, payload).to_dict()}
-        except VideoFlowError as exc:
-            fail(exc)
+        return {"ok": True, "preset": save_preset(name, payload).to_dict()}
 
     @app.get("/api/v1/fs/roots")
     def fs_roots() -> dict[str, object]:
-        try:
-            return {"ok": True, "roots": roots_payload()}
-        except VideoFlowError as exc:
-            fail(exc)
+        return {"ok": True, "roots": roots_payload()}
 
     @app.get("/api/v1/fs/list")
     def fs_list(
@@ -4346,46 +3965,37 @@ def register_routes(
 
     @app.post("/api/v1/fs/mkdir", status_code=201)
     def fs_mkdir(request: NewDirectoryRequest) -> dict[str, object]:
-        try:
-            created = create_directory(request.parent, request.name)
-            return {"ok": True, "entry": created}
-        except VideoFlowError as exc:
-            fail(exc)
+        created = create_directory(request.parent, request.name)
+        return {"ok": True, "entry": created}
 
     @app.get("/api/v1/media/probe")
     def media_probe(path: str) -> dict[str, object]:
+        source = resolve_allowed(Path(path).expanduser(), allowed_roots())
+        if not source.is_file():
+            raise MediaNotFoundError(str(source))
         try:
-            source = resolve_allowed(Path(path).expanduser(), allowed_roots())
-            if not source.is_file():
-                raise MediaNotFoundError(str(source))
-            try:
-                size = source.stat().st_size
-            except OSError as exc:
-                raise FilesystemError(f"Could not inspect {source}: {exc}") from exc
-            media = probe_media(source)
-            return {
-                "ok": True,
-                "path": str(source),
-                "name": source.name,
-                "size_bytes": size,
-                "media": media.model_dump(mode="json"),
-            }
-        except VideoFlowError as exc:
-            fail(exc)
+            size = source.stat().st_size
+        except OSError as exc:
+            raise FilesystemError(f"Could not inspect {source}: {exc}") from exc
+        media = probe_media(source)
+        return {
+            "ok": True,
+            "path": str(source),
+            "name": source.name,
+            "size_bytes": size,
+            "media": media.model_dump(mode="json"),
+        }
 
     @app.post("/api/v1/media/import", status_code=201)
     def import_media(request: MediaImportRequest) -> dict[str, object]:
-        try:
-            path = import_url(
-                request.url,
-                max_height=request.max_height,
-                allow_playlist=request.allow_playlist,
-                allow_external_services=request.allow_external_services,
-                allowed_external_hosts=tuple(request.allowed_external_hosts),
-            )
-            media = FFmpegAdapter().probe(path)
-        except VideoFlowError as exc:
-            fail(exc)
+        path = import_url(
+            request.url,
+            max_height=request.max_height,
+            allow_playlist=request.allow_playlist,
+            allow_external_services=request.allow_external_services,
+            allowed_external_hosts=tuple(request.allowed_external_hosts),
+        )
+        media = FFmpegAdapter().probe(path)
         return {"ok": True, "path": str(path), "media": media.model_dump(mode="json")}
 
     @app.get("/api/v1/services/definitions")
@@ -4400,61 +4010,37 @@ def register_routes(
     def service_definition_save(
         service_id: str, request: ServiceDefinition
     ) -> dict[str, object]:
-        try:
-            if request.id != service_id:
-                raise HTTPException(
-                    status_code=422,
-                    detail={"ok": False, "code": "service_id_mismatch", "message": service_id},
-                )
-            saved = save_definition(request)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        if request.id != service_id:
+            raise HTTPException(
+                status_code=422,
+                detail={"ok": False, "code": "service_id_mismatch", "message": service_id},
+            )
+        saved = save_definition(request)
         return {"ok": True, "service": saved.model_dump(mode="json")}
 
     @app.delete("/api/v1/services/definitions/{service_id}")
     def service_definition_delete(service_id: str) -> dict[str, object]:
-        try:
-            delete_definition(service_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        delete_definition(service_id)
         return {"ok": True, "deleted": service_id}
 
     @app.post("/api/v1/services/definitions/{service_id}/start")
     def service_definition_start(service_id: str) -> dict[str, object]:
-        try:
-            status = start_service(service_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        status = start_service(service_id)
         return {"ok": True, "service": status}
 
     @app.post("/api/v1/services/definitions/{service_id}/stop")
     def service_definition_stop(service_id: str) -> dict[str, object]:
-        try:
-            status = stop_service(service_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        status = stop_service(service_id)
         return {"ok": True, "service": status}
 
     @app.get("/api/v1/services/definitions/{service_id}/status")
     def service_definition_status(service_id: str) -> dict[str, object]:
-        try:
-            status = status_service(service_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        status = status_service(service_id)
         return {"ok": True, "service": status}
 
     @app.get("/api/v1/services/definitions/{service_id}/logs")
     def service_definition_logs(service_id: str, lines: int = 200) -> dict[str, object]:
-        try:
-            status = status_service(service_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        status = status_service(service_id)
         return {
             "ok": True,
             "service": status,
@@ -4558,13 +4144,10 @@ def register_routes(
     def models_install(
         model_id: str, request: ModelInstallRequest | None = None
     ) -> dict[str, object]:
-        try:
-            payload = install_model(
-                model_id,
-                allow_network=bool(request.allow_external_services) if request else True,
-            )
-        except VideoFlowError as exc:
-            fail(exc)
+        payload = install_model(
+            model_id,
+            allow_network=bool(request.allow_external_services) if request else True,
+        )
         return {"ok": True, "model": payload}
 
     @app.post("/api/v1/models/{model_id}/download", status_code=202)
@@ -4593,35 +4176,24 @@ def register_routes(
 
     @app.post("/api/v1/models/local", status_code=201)
     def models_register_local(request: LocalModelRequest) -> dict[str, object]:
-        try:
-            payload = register_local_model(
-                model_id=request.id,
-                label=request.label or request.id,
-                capability=request.capability,
-                path=request.path,
-                kind=request.kind,
-                license=request.license,
-            )
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        payload = register_local_model(
+            model_id=request.id,
+            label=request.label or request.id,
+            capability=request.capability,
+            path=request.path,
+            kind=request.kind,
+            license=request.license,
+        )
         return {"ok": True, "model": payload}
 
     @app.post("/api/v1/models/{model_id}/verify")
     def models_verify(model_id: str) -> dict[str, object]:
-        try:
-            payload = verify_model(model_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        payload = verify_model(model_id)
         return {"ok": True, "verification": payload}
 
     @app.delete("/api/v1/models/{model_id}")
     def models_remove(model_id: str) -> dict[str, object]:
-        try:
-            remove_model(model_id)
-        except VideoFlowError as exc:
-            fail(exc)
+        remove_model(model_id)
         return {"ok": True, "removed": model_id}
 
     @app.get("/api/v1/system/doctor")
@@ -4745,11 +4317,7 @@ def register_routes(
         from videoflow.application.copilot import propose_recipe
         from videoflow.application.llm_factory import build_llm
 
-        try:
-            recipe = propose_recipe(build_llm(), request.prompt)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        recipe = propose_recipe(build_llm(), request.prompt)
         return {"ok": True, "recipe": recipe.model_dump(mode="json")}
 
     @app.post("/api/v1/jobs/{job_id}/copilot/timeline")
@@ -4759,50 +4327,46 @@ def register_routes(
         from videoflow.application.copilot import propose_timeline_edits
         from videoflow.application.llm_factory import build_llm
 
-        try:
-            job = jobs.get(job_id)
-            _assert_tracks_unlocked(job, {"video", "audio"})
-            state_path = _timeline_state_path(job)
-            history = _timeline_history(job)
-            state = ProjectState.model_validate_json(
-                state_path.read_text(encoding="utf-8")
-            )
-            edits = propose_timeline_edits(
-                build_llm(),
-                request.prompt,
-                [
-                    {
-                        "id": clip.clip_id,
-                        "start_sec": clip.timeline_in_frame
-                        / max(0.001, (state.media_info.fps_num / state.media_info.fps_den)),
-                        "end_sec": clip.timeline_out_frame
-                        / max(0.001, (state.media_info.fps_num / state.media_info.fps_den)),
-                    }
-                    for clip in state.video_segments
-                ],
-            )
-            if request.apply:
-                previous = state.model_copy(deep=True)
-                working = state.model_copy(deep=True)
-                for item in edits:
-                    working = apply_timeline_edit(
-                        working,
-                        TimelineEdit(
-                            clip_id=str(item.get("clip_id")),
-                            action=str(item.get("action")),  # type: ignore[arg-type]
-                            start_sec=item.get("start_sec"),
-                            end_sec=item.get("end_sec"),
-                            delta_sec=float(item.get("delta_sec") or 0.0),
-                            split_sec=item.get("split_sec"),
-                        ),
-                    )
-                history.record(previous)
-                state = _apply_and_store(
-                    job, working, state_path, history, previous.revision + 1
+        job = jobs.get(job_id)
+        _assert_tracks_unlocked(job, {"video", "audio"})
+        state_path = _timeline_state_path(job)
+        history = _timeline_history(job)
+        state = ProjectState.model_validate_json(
+            state_path.read_text(encoding="utf-8")
+        )
+        edits = propose_timeline_edits(
+            build_llm(),
+            request.prompt,
+            [
+                {
+                    "id": clip.clip_id,
+                    "start_sec": clip.timeline_in_frame
+                    / max(0.001, (state.media_info.fps_num / state.media_info.fps_den)),
+                    "end_sec": clip.timeline_out_frame
+                    / max(0.001, (state.media_info.fps_num / state.media_info.fps_den)),
+                }
+                for clip in state.video_segments
+            ],
+        )
+        if request.apply:
+            previous = state.model_copy(deep=True)
+            working = state.model_copy(deep=True)
+            for item in edits:
+                working = apply_timeline_edit(
+                    working,
+                    TimelineEdit(
+                        clip_id=str(item.get("clip_id")),
+                        action=str(item.get("action")),  # type: ignore[arg-type]
+                        start_sec=item.get("start_sec"),
+                        end_sec=item.get("end_sec"),
+                        delta_sec=float(item.get("delta_sec") or 0.0),
+                        split_sec=item.get("split_sec"),
+                    ),
                 )
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+            history.record(previous)
+            state = _apply_and_store(
+                job, working, state_path, history, previous.revision + 1
+            )
         return {
             "ok": True,
             "edits": edits,
@@ -4880,100 +4444,96 @@ def register_routes(
         from videoflow.application.cost import snapshot as cost_snapshot
         from videoflow.application.llm_factory import build_llm
 
-        try:
-            job = jobs.get(job_id)
-            context = _assistant_context(job)
-            before = cost_snapshot()
-            client = build_llm()
-            turn = assistant.plan(client, prompt=request.prompt, context=context)
-            observations: list[dict[str, object]] = []
-            if turn.actions and all(not item.writes for item in turn.actions):
-                observations = [_assistant_read(job, item) for item in turn.actions]
-                turn = assistant.plan(
-                    client,
-                    prompt=request.prompt,
-                    context=context,
-                    observations=observations,
-                )
-            writes = [item for item in turn.actions if item.writes]
-            diff: list[dict[str, Any]] = []
-            if writes:
-                state = ProjectState.model_validate_json(
-                    _timeline_state_path(job).read_text(encoding="utf-8")
-                )
-                before_timeline = _assistant_timeline(state)
-                working = state.model_copy(deep=True)
-                for action in writes:
-                    if action.tool != "apply_timeline_edits":
-                        continue
-                    for item in action.arguments.get("edits", []):
-                        working = apply_timeline_edit(
-                            working,
-                            TimelineEdit(
-                                clip_id=str(item.get("clip_id")),
-                                action=str(item.get("action")),  # type: ignore[arg-type]
-                                start_sec=item.get("start_sec"),
-                                end_sec=item.get("end_sec"),
-                                delta_sec=float(item.get("delta_sec") or 0.0),
-                                split_sec=item.get("split_sec"),
-                            ),
-                        )
-                diff = assistant.diff_timeline(
-                    before_timeline, _assistant_timeline(working)
-                )
-            after = cost_snapshot()
-            approval_id = ""
-            if writes:
-                import uuid
-
-                approval_id = f"approval-{uuid.uuid4().hex[:10]}"
-                assistant.save_pending(
-                    job.output,
-                    assistant.PendingPlan(
-                        approval_id=approval_id,
-                        job_id=str(job.job_id),
-                        prompt=request.prompt,
-                        message=turn.message,
-                        actions=writes,
-                        diff=diff,
-                        created_at=assistant.now(),
-                    ),
-                )
-                assistant.record_history(
-                    job.output,
-                    assistant.HistoryEntry(
-                        at=assistant.now(),
-                        job_id=str(job.job_id),
-                        prompt=request.prompt,
-                        message=turn.message,
-                        actions=[item.model_dump(mode="json") for item in writes],
-                        applied=False,
-                        approval_id=approval_id,
-                        tokens=int(after.get("prompt_tokens", 0))
-                        + int(after.get("completion_tokens", 0))
-                        - int(before.get("prompt_tokens", 0))
-                        - int(before.get("completion_tokens", 0)),
-                        cost_usd=round(
-                            float(after.get("estimated_cost_usd", 0.0))
-                            - float(before.get("estimated_cost_usd", 0.0)),
-                            6,
+        job = jobs.get(job_id)
+        context = _assistant_context(job)
+        before = cost_snapshot()
+        client = build_llm()
+        turn = assistant.plan(client, prompt=request.prompt, context=context)
+        observations: list[dict[str, object]] = []
+        if turn.actions and all(not item.writes for item in turn.actions):
+            observations = [_assistant_read(job, item) for item in turn.actions]
+            turn = assistant.plan(
+                client,
+                prompt=request.prompt,
+                context=context,
+                observations=observations,
+            )
+        writes = [item for item in turn.actions if item.writes]
+        diff: list[dict[str, Any]] = []
+        if writes:
+            state = ProjectState.model_validate_json(
+                _timeline_state_path(job).read_text(encoding="utf-8")
+            )
+            before_timeline = _assistant_timeline(state)
+            working = state.model_copy(deep=True)
+            for action in writes:
+                if action.tool != "apply_timeline_edits":
+                    continue
+                for item in action.arguments.get("edits", []):
+                    working = apply_timeline_edit(
+                        working,
+                        TimelineEdit(
+                            clip_id=str(item.get("clip_id")),
+                            action=str(item.get("action")),  # type: ignore[arg-type]
+                            start_sec=item.get("start_sec"),
+                            end_sec=item.get("end_sec"),
+                            delta_sec=float(item.get("delta_sec") or 0.0),
+                            split_sec=item.get("split_sec"),
                         ),
+                    )
+            diff = assistant.diff_timeline(
+                before_timeline, _assistant_timeline(working)
+            )
+        after = cost_snapshot()
+        approval_id = ""
+        if writes:
+            import uuid
+
+            approval_id = f"approval-{uuid.uuid4().hex[:10]}"
+            assistant.save_pending(
+                job.output,
+                assistant.PendingPlan(
+                    approval_id=approval_id,
+                    job_id=str(job.job_id),
+                    prompt=request.prompt,
+                    message=turn.message,
+                    actions=writes,
+                    diff=diff,
+                    created_at=assistant.now(),
+                ),
+            )
+            assistant.record_history(
+                job.output,
+                assistant.HistoryEntry(
+                    at=assistant.now(),
+                    job_id=str(job.job_id),
+                    prompt=request.prompt,
+                    message=turn.message,
+                    actions=[item.model_dump(mode="json") for item in writes],
+                    applied=False,
+                    approval_id=approval_id,
+                    tokens=int(after.get("prompt_tokens", 0))
+                    + int(after.get("completion_tokens", 0))
+                    - int(before.get("prompt_tokens", 0))
+                    - int(before.get("completion_tokens", 0)),
+                    cost_usd=round(
+                        float(after.get("estimated_cost_usd", 0.0))
+                        - float(before.get("estimated_cost_usd", 0.0)),
+                        6,
                     ),
-                )
-            token_delta = (
-                int(after.get("prompt_tokens", 0))
-                + int(after.get("completion_tokens", 0))
-                - int(before.get("prompt_tokens", 0))
-                - int(before.get("completion_tokens", 0))
+                ),
             )
-            cost_delta = round(
-                float(after.get("estimated_cost_usd", 0.0))
-                - float(before.get("estimated_cost_usd", 0.0)),
-                6,
-            )
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        token_delta = (
+            int(after.get("prompt_tokens", 0))
+            + int(after.get("completion_tokens", 0))
+            - int(before.get("prompt_tokens", 0))
+            - int(before.get("completion_tokens", 0))
+        )
+        cost_delta = round(
+            float(after.get("estimated_cost_usd", 0.0))
+            - float(before.get("estimated_cost_usd", 0.0)),
+            6,
+        )
         return {
             "ok": True,
             "message": turn.message,
@@ -5038,39 +4598,31 @@ def register_routes(
     ) -> dict[str, object]:
         from videoflow.application import assistant
 
-        try:
-            job = jobs.get(job_id)
-            pending = assistant.load_pending(job.output, request.approval_id)
-            if pending.job_id != str(job.job_id):
-                raise StateNotReadyError("The approval belongs to another job.")
-            results = [_assistant_apply(job, action) for action in pending.actions]
-            assistant.delete_pending(job.output, request.approval_id)
-            assistant.record_history(
-                job.output,
-                assistant.HistoryEntry(
-                    at=assistant.now(),
-                    job_id=str(job.job_id),
-                    prompt=pending.prompt,
-                    message=pending.message,
-                    actions=[item.model_dump(mode="json") for item in pending.actions],
-                    applied=True,
-                    approval_id=pending.approval_id,
-                ),
-            )
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
+        pending = assistant.load_pending(job.output, request.approval_id)
+        if pending.job_id != str(job.job_id):
+            raise StateNotReadyError("The approval belongs to another job.")
+        results = [_assistant_apply(job, action) for action in pending.actions]
+        assistant.delete_pending(job.output, request.approval_id)
+        assistant.record_history(
+            job.output,
+            assistant.HistoryEntry(
+                at=assistant.now(),
+                job_id=str(job.job_id),
+                prompt=pending.prompt,
+                message=pending.message,
+                actions=[item.model_dump(mode="json") for item in pending.actions],
+                applied=True,
+                approval_id=pending.approval_id,
+            ),
+        )
         return {"ok": True, "approval_id": request.approval_id, "results": results}
 
     @app.get("/api/v1/jobs/{job_id}/assistant/history")
     def assistant_history(job_id: str) -> dict[str, object]:
         from videoflow.application import assistant
 
-        try:
-            job = jobs.get(job_id)
-        except VideoFlowError as exc:
-            fail(exc)
-            raise
+        job = jobs.get(job_id)
         return {"ok": True, "history": assistant.read_history(job.output)}
 
     @app.get("/api/v1/metrics/cost")
@@ -5244,46 +4796,3 @@ def register_routes(
 
 def probe_media(path: Path) -> MediaInfo:
     return FFmpegAdapter().probe(path)
-
-
-def status_for(code: str) -> int:
-    return {
-        "path_not_allowed": 403,
-        "path_not_found": 404,
-        "not_a_directory": 422,
-        "directory_exists": 409,
-        "invalid_directory_name": 422,
-        "permission_denied": 403,
-        "filesystem_error": 500,
-        "asset_not_found": 404,
-        "job_queue_full": 429,
-        "job_not_found": 404,
-        "job_already_running": 409,
-        "upstream_dirty": 409,
-        "project_not_found": 404,
-        "project_exists": 409,
-        "project_state_invalid": 500,
-        "preset_not_found": 404,
-        "preset_invalid": 422,
-        "invalid_preset_name": 422,
-        "unknown_module": 404,
-        "module_bypassed": 409,
-        "media_not_found": 422,
-        "media_not_registered": 409,
-        "state_not_ready": 409,
-        "short_edit_failed": 422,
-        "tts_failed": 502,
-        "llm_failed": 502,
-        "transcript_not_found": 404,
-        "transcript_required": 422,
-        "invalid_override": 422,
-        "word_overrides_not_supported": 422,
-        "invalid_time": 422,
-        "invalid_config": 422,
-        "recipe_invalid": 422,
-        "step_failed": 422,
-        "batch_invalid": 422,
-        "export_failed": 422,
-        "ingest_failed": 422,
-        "not_implemented": 501,
-    }.get(code, 400)

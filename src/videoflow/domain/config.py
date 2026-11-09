@@ -75,18 +75,18 @@ class StrictModel(BaseModel):
 
 
 class IngestConfig(StrictModel):
-    force_cfr: bool = True
-    extract_audio_pcm: bool = True
-    generate_proxy: bool = False
+    force_cfr: bool = Field(default=True, deprecated=True)
+    extract_audio_pcm: bool = Field(default=True, deprecated=True)
+    generate_proxy: bool = Field(default=False, deprecated=True)
 
 
 class VadConfig(StrictModel):
     engine: VadEngine = "auto"
     speech_threshold: float = Field(default=0.5, ge=0.1, le=0.9)
-    min_silence_duration_ms: int = Field(default=400, ge=0)
+    min_silence_duration_ms: int = Field(default=400, ge=0, deprecated=True)
     speech_pad_before_ms: int = Field(default=120, ge=0)
     speech_pad_after_ms: int = Field(default=150, ge=0)
-    keep_handles_ms: int = Field(default=200, ge=0)
+    keep_handles_ms: int = Field(default=200, ge=0, deprecated=True)
 
 
 class TranscribeConfig(StrictModel):
@@ -104,7 +104,7 @@ class RetakesConfig(StrictModel):
     secret_name: str = DEFAULT_SECRET_NAME
     model_name: str = "qwen2.5:7b-instruct"
     strictness: Strictness = "balanced"
-    context_window_sentences: int = Field(default=15, ge=1, le=100)
+    context_window_sentences: int = Field(default=15, ge=1, le=100, deprecated=True)
     retake_strategy: RetakeStrategy = "keep_last"
     temperature: float = Field(default=0.0, ge=0.0, le=0.0)
     prompt_template_version: str = PROMPT_TEMPLATE_VERSION
@@ -227,11 +227,11 @@ class ShortsConfig(StrictModel):
 
 
 class ExportConfig(StrictModel):
-    fcpxml_dialect: FcpxmlDialect = "1.9"
-    write_fcpxml: bool = True
-    write_xmeml: bool = True
-    write_otio: bool = True
-    write_mp4: bool = False
+    fcpxml_dialect: FcpxmlDialect = Field(default="1.9", deprecated=True)
+    write_fcpxml: bool = Field(default=True, deprecated=True)
+    write_xmeml: bool = Field(default=True, deprecated=True)
+    write_otio: bool = Field(default=True, deprecated=True)
+    write_mp4: bool = Field(default=False, deprecated=True)
 
 
 class ProvidersConfig(StrictModel):

@@ -112,7 +112,7 @@ Mapping:
 | Progressive zoom | FCPXML `adjust-transform` scale keyframes, XMEML Basic Motion keyframes, MP4 `zoompan`, and Kdenlive affine `transition.rect` keyframes |
 | Transitions | FCPXML `transition`, XMEML video `transitionitem`, MP4 `xfade`/fades, Kdenlive affine opacity/volume fades |
 | Fade | keyframed `adjust-volume` ramp inside the `asset-clip` |
-| Markers | not emitted yet |
+| Markers | FCPXML `<marker>` elements on the sequence |
 
 Audio fades use clip-relative volume keyframes:
 

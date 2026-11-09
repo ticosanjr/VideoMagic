@@ -1,7 +1,9 @@
 # Recipe studio and timeline UI specification
 
 Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript, Konva, and
-wavesurfer.js. English strings only.
+wavesurfer.js. English is the default. The shell ships a pt-BR glossary for
+visible static strings; dynamic statuses and API messages remain English until
+they are localized.
 
 2.0.0 removes the legacy rack. The product is a recipe studio with a
 professional canvas timeline, automation schedules, and provider settings.

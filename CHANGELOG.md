@@ -3,6 +3,26 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [Unreleased]
+
+### Changed
+
+- **Central typed-error handling.** `api/errors.py` owns the HTTP status map and
+  the app installs one `VideoFlowError` handler. Removed 120 repeated
+  `try/except VideoFlowError` blocks from `routes.py` (5,289 → 4,798 lines).
+- **Complete status mapping.** Added the missing codes for transcription,
+  retakes, approval, schema migration, capability, rendering, and external
+  policy failures so they no longer fall back to 400.
+- **Documentation reconciliation.** README, testing, blockers, MCP, exporters,
+  ingest, UI spec, voice clone, and the historical PRD now match 2.59.3:
+  current test counts, 78 MCP tools/5 resources, FCPXML markers, the manual
+  GitHub Actions fallback, and the ignored ingest/proxy knobs.
+
+### Verified
+
+- 1,723 Python tests, 87 Vitest, 90 Playwright; gate coverage 98%.
+- Full-tree coverage 95.22% line (24,136/25,348), 93.55% with branches.
+
 ## [2.59.3] - 2026-11-09
 
 ### Changed

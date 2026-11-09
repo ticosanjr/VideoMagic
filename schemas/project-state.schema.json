@@ -359,6 +359,7 @@
       "properties": {
         "fcpxml_dialect": {
           "default": "1.9",
+          "deprecated": true,
           "enum": [
             "1.9",
             "1.10"
@@ -368,21 +369,25 @@
         },
         "write_fcpxml": {
           "default": true,
+          "deprecated": true,
           "title": "Write Fcpxml",
           "type": "boolean"
         },
         "write_mp4": {
           "default": false,
+          "deprecated": true,
           "title": "Write Mp4",
           "type": "boolean"
         },
         "write_otio": {
           "default": true,
+          "deprecated": true,
           "title": "Write Otio",
           "type": "boolean"
         },
         "write_xmeml": {
           "default": true,
+          "deprecated": true,
           "title": "Write Xmeml",
           "type": "boolean"
         }
@@ -430,16 +435,19 @@
       "properties": {
         "extract_audio_pcm": {
           "default": true,
+          "deprecated": true,
           "title": "Extract Audio Pcm",
           "type": "boolean"
         },
         "force_cfr": {
           "default": true,
+          "deprecated": true,
           "title": "Force Cfr",
           "type": "boolean"
         },
         "generate_proxy": {
           "default": false,
+          "deprecated": true,
           "title": "Generate Proxy",
           "type": "boolean"
         }
@@ -938,6 +946,7 @@
         },
         "context_window_sentences": {
           "default": 15,
+          "deprecated": true,
           "maximum": 100,
           "minimum": 1,
           "title": "Context Window Sentences",
@@ -1557,12 +1566,14 @@
         },
         "keep_handles_ms": {
           "default": 200,
+          "deprecated": true,
           "minimum": 0,
           "title": "Keep Handles Ms",
           "type": "integer"
         },
         "min_silence_duration_ms": {
           "default": 400,
+          "deprecated": true,
           "minimum": 0,
           "title": "Min Silence Duration Ms",
           "type": "integer"

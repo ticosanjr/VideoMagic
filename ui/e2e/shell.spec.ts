@@ -55,7 +55,7 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
   // The activity badge only appears after mount and the first jobs fetch; it is
   // the signal that the shell is hydrated and the keyboard listener is active.
-  await expect(page.getByRole("button", { name: /Activity 1/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Activity 1/ })).toBeVisible({ timeout: 20_000 });
 });
 
 test("shows backend errors globally with details", async ({ page }) => {

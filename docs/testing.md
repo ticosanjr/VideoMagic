@@ -15,7 +15,8 @@ hides the contract. VideoFlow resolves this with two layers:
 
 | Scope | Line coverage | Notes |
 | --- | --- | --- |
-| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 98.32% (449 passing, 10 strict xfail, 8 deselected) |
+| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 98% gate (1,723 passing, 1 strict xfail, 18 deselected; application layer 94.26%) |
+| Full tree | **95%** | Current: 95.22% line (24,136/25,348), 93.55% with branches |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |
 | UI | `npm run check`, `npm test`, `npm run test:e2e`, `npm run build` | Playwright: graph, inspector, schema fields, split-screen source, palette, NLE validation, run history |
@@ -32,17 +33,20 @@ uv run pytest -q -m "not xfail"         # only implemented behavior
 uv run pytest -m media --no-cov         # real FFmpeg fixtures (also in CI)
 uv run pytest -m slow --no-cov          # performance checks
 uv run pytest -m manual --no-cov        # prints the manual checklist
-uv run ruff check .
-uv run ruff format --check .
-uv run mypy
+uv run ruff check src tests scripts
+uv run mypy                             # scoped to domain + cache (see pyproject.toml)
 uv run python scripts/build_portable.py --fetch-ffmpeg  # packaging smoke
 ```
 
 The default run excludes `media`, `slow`, and `manual`. Use `--no-cov` for a
 subset run so the global coverage gate does not fail on modules that were not
-imported. GitHub Actions runs Linux lint, Python, media, UI, and Playwright checks. Playwright runs with
+imported. The manual GitHub Actions CI workflow runs the same lint, Python,
+media, UI, and Playwright checks. Playwright runs with
 `cd ui && npm run test:e2e`; its JSON report lands in
 `ui/test-results/results.json`.
+
+Formatting is not gate-enforced. Run `uv run ruff format <paths>` on files you
+touch when you want the formatter's layout; `ruff check` is the blocking lint.
 
 ## 4. Markers
 
@@ -120,12 +124,11 @@ imported. GitHub Actions runs Linux lint, Python, media, UI, and Playwright chec
 | `test_schemas.py` | Committed schemas match models, no `api_key` |
 | `test_pipeline.py` | Missing-source ingest and missing-audio transcription failures |
 
-### Contract (xfail until implemented)
+### Contract
 
 | File | Contract |
 | --- | --- |
-| `test_exporters.py` | Audio fades in all three dialects (AC-01); direct MP4 render |
-| `test_pipeline.py` | Per-module `execute` methods and the rack runner |
+| `test_exporters.py` | Audio fades in all three dialects; direct MP4 render. AC-01 manual NLE import is the only strict xfail |
 
 ## 6. Acceptance coverage
 

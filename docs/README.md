@@ -24,7 +24,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Assets | local library scan, search, tags, license, delete, and file serving |
 | Timeline | canvas editing with multi-select, batch edits, markers, track mute/solo/lock enforcement, clip thumbnails, drag/trim/split/ripple/group trim/slip, undo/redo, snapping, real per-clip waveforms, virtualization, preview scheduler, render queues, per-clip transition/fade/scale, and B-roll approval |
 | Operational store | SQLite WAL with `schema_version=2`, migration from JSON, backup/restore, and idempotent job requeue |
-| Release | tag-triggered Linux/AppImage/Windows/SBOM release workflow |
+| Release | local Linux/AppImage/SBOM release; manual GitHub Actions fallbacks for CI, Windows, and assets |
 | Batch persistence | SQLite is read first, JSON stays as an interchange mirror; paginated API/UI |
 | Job persistence | SQLite is read first and JSON fills gaps; interrupted jobs are requeued on startup; cancel/force stop/stop all kill FFmpeg, remove jobs from the store, and drain the queue |
 | Professional shell | five areas (Produce/Edit/Runs/Library/Setup), command palette, shortcuts, activity, notifications, runs dashboard, pause/resume, priority ([shell.md](shell.md)) |
@@ -35,7 +35,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Plugins | exporter and provider registration, manifest permissions, static sandbox allowlist ([plugins.md](plugins.md)) |
 | UI guidance | naming, tooltips, microcopy, empty states, units ([ui-copy.md](ui-copy.md)) |
 | Error catalog | codes, HTTP status, meaning, next action ([errors.md](errors.md)) |
-| Release gates | 2.14 evidence and the four open 3.0 blockers ([3.0-blockers.md](3.0-blockers.md)) |
+| Release gates | 2.59.3 evidence and the two open 3.0 blockers ([3.0-blockers.md](3.0-blockers.md)) |
 | Coverage | per-layer baseline and the remaining gap ([coverage.md](coverage.md)) |
 | Voice cloning | Explicit deferral, consent, and acceptance criteria ([voice-clone.md](voice-clone.md)) |
 | Settings | searchable settings with units, help tips, discard/reset ([settings.md](settings.md)) |
