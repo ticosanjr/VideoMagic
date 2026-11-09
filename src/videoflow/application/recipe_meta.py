@@ -12,7 +12,12 @@ from videoflow.application.clock import now_iso as _now
 from videoflow.runtime import portable_home
 
 DEFAULT_FAVORITES = frozenset(
-    {"recut_replacement", "recut_replacement_retakes", "deepseek_full_edit"}
+    {
+        "recut_replacement",
+        "recut_replacement_retakes",
+        "deepseek_full_edit",
+        "full_ai_editor",
+    }
 )
 _LOCK = threading.RLock()
 

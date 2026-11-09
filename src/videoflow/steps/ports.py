@@ -221,6 +221,14 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         (PortSpec("timeline", "Timeline state", "timeline", "state", False),),
         (),
     ),
+    "human.input": (
+        (PortSpec("metadata", "Context metadata", "dict", "metadata", False),),
+        (),
+    ),
+    "human.files": (
+        (PortSpec("metadata", "Context metadata", "dict", "metadata", False),),
+        (),
+    ),
     "metadata.pack": (
         (PortSpec("shorts", "Shorts", "short_list", "shorts", True),),
         (PortSpec("artifacts", "Metadata", "artifact_map", "artifacts"),),
@@ -392,6 +400,12 @@ EXTRA_OUTPUTS: dict[str, tuple[PortSpec, ...]] = {
     ),
     "human.gate": (
         PortSpec("metadata", "Gate result", "dict", "metadata"),
+    ),
+    "human.input": (
+        PortSpec("answers", "Human answers", "dict", "metadata:hilt_answers"),
+    ),
+    "human.files": (
+        PortSpec("files", "Received files", "dict", "metadata:hilt_files"),
     ),
     "localization.dub": (
         PortSpec("dubbed", "Dubbed Shorts", "list", "metadata:dubbed_shorts"),

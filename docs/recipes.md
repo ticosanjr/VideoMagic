@@ -367,11 +367,16 @@ The job stops as `waiting_approval`. `POST /api/v1/jobs/{id}/resume` writes
 after the Shorts render. It is skipped with a warning when no TTS provider is
 configured.
 
-The catalog includes 34 recipes: rough cut, captions, NLE export, clean audio,
+The catalog includes 44 recipes: rough cut, captions, NLE export, clean audio,
 chapters, Shorts select/render, best moments, hook first, trailer, review gate,
 reframe/caption/A-B variants, podcast, interview, webinar, lecture, product
 demo, testimonial, livestream, B-roll, music, SFX, metadata, thumbnails,
 publishing, analytics, localization, and finishing.
+
+`full_ai_editor` is the long-form, human-reviewed documentary recipe. It pauses
+for the editorial brief, research datasets, script lock, decoupage audit, entity
+corrections, style lock, sample homologation, fact-check, and final approval.
+See [hilt.md](hilt.md) for the checkpoint contract.
 
 ## CLI
 

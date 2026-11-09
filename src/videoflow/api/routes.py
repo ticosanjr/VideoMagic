@@ -18,6 +18,7 @@ from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.api.errors import status_for
 from videoflow.api.routes_assets import register_asset_routes
 from videoflow.api.routes_discovery import register_discovery_routes
+from videoflow.api.routes_hilt import register_hilt_routes
 from videoflow.api.routes_jobs import register_job_routes
 from videoflow.api.routes_presets import register_preset_routes
 from videoflow.api.routes_recipes import (
@@ -910,6 +911,7 @@ def register_routes(
         return {"ok": True, "batch": batch.to_dict()}
 
     register_job_routes(app, jobs)
+    register_hilt_routes(app, jobs)
 
     @app.get("/api/v1/publish/targets")
     def publish_targets() -> dict[str, object]:

@@ -289,7 +289,12 @@ def _sync_runs(jobs: Any, schedule: RecipeSchedule) -> bool:
     changed = False
     for run in schedule.runs:
         job_id = str(run.get("job_id") or "")
-        if not job_id or run.get("status") not in {"queued", "running", "waiting_approval"}:
+        if not job_id or run.get("status") not in {
+            "queued",
+            "running",
+            "waiting_approval",
+            "waiting_input",
+        }:
             continue
         try:
             job = jobs.get(job_id)

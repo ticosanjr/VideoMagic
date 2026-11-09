@@ -402,10 +402,12 @@ class ApprovalRequiredError(VideoFlowError):
         message: str = "",
         *,
         step_id: str = "",
+        interaction: dict[str, object] | None = None,
     ) -> None:
         self.gate_id = gate_id
         self.title = title or gate_id
         self.step_id = step_id
+        self.interaction = interaction
         super().__init__(message or f"Approval required: {self.title}")
 
     def to_dict(self) -> dict[str, object]:
@@ -417,4 +419,54 @@ class ApprovalRequiredError(VideoFlowError):
                 "step_id": self.step_id,
             }
         )
+        if self.interaction is not None:
+            payload["interaction"] = self.interaction
         return payload
+
+
+class HumanInputRequiredError(VideoFlowError):
+    """A recipe step is waiting for a question answer or a file handoff."""
+
+    code = "human_input_required"
+
+    def __init__(
+        self,
+        interaction: dict[str, object],
+        *,
+        message: str = "",
+    ) -> None:
+        self.interaction = interaction
+        self.gate_id = str(interaction.get("gate_id") or "review")
+        self.title = str(interaction.get("title") or "Human input required")
+        self.step_id = str(interaction.get("step_id") or "")
+        super().__init__(message or f"Human input required: {self.title}")
+
+    def to_dict(self) -> dict[str, object]:
+        payload = super().to_dict()
+        payload.update(
+            {
+                "gate_id": self.gate_id,
+                "title": self.title,
+                "step_id": self.step_id,
+                "interaction": self.interaction,
+            }
+        )
+        return payload
+
+
+class HiltResponseError(VideoFlowError):
+    """A human response is malformed, stale, or already resolved."""
+
+    code = "hilt_response_invalid"
+
+
+class HiltAttachmentError(VideoFlowError):
+    """An attachment is missing, too large, or outside the allowed types."""
+
+    code = "hilt_attachment_invalid"
+
+
+class HiltExpiredError(VideoFlowError):
+    """A human interaction passed its deadline without a response."""
+
+    code = "hilt_expired"

@@ -25,7 +25,7 @@
   let busy = $state("");
   let error = $state("");
 
-  const attention = $derived(jobs.filter((job) => ["waiting_approval", "failed"].includes(job.status)));
+  const attention = $derived(jobs.filter((job) => ["waiting_approval", "waiting_input", "failed"].includes(job.status)));
   const running = $derived(jobs.filter((job) => job.status === "running"));
   const queued = $derived(jobs.filter((job) => job.status === "queued"));
   const recent = $derived(
@@ -131,7 +131,7 @@
                       <span class="font-mono">{formatDateTime(job.created_at)}</span>
                     </div>
                     <div class="mt-2 flex flex-wrap justify-end gap-1.5">
-                      {#if ["running", "queued", "waiting_approval", "paused"].includes(job.status)}
+                      {#if ["running", "queued", "waiting_approval", "waiting_input", "paused"].includes(job.status)}
                         <button type="button" disabled={busy === job.job_id} class="rounded-lg border border-white/10 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40" onclick={() => void cancel(job)}>{i18n.t("cancel")}</button>
                         <button type="button" disabled={busy === job.job_id} class="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-1 text-[10px] text-rose-200 disabled:opacity-40" onclick={() => void remove(job)}>Force stop</button>
                       {:else}

@@ -34,9 +34,18 @@ from videoflow.domain.errors import (
 from videoflow.domain.state import ProjectState, Sentence
 
 JobStatus = Literal[
-    "queued", "running", "waiting_approval", "succeeded", "failed", "cancelled"
+    "queued",
+    "running",
+    "waiting_approval",
+    "waiting_input",
+    "succeeded",
+    "failed",
+    "cancelled",
+    "answered",
 ]
-TERMINAL: frozenset[str] = frozenset({"succeeded", "failed", "cancelled"})
+TERMINAL: frozenset[str] = frozenset(
+    {"succeeded", "failed", "cancelled", "answered"}
+)
 logger = logging.getLogger(__name__)
 
 
@@ -107,6 +116,11 @@ class Job:
             "timeline_ready": self.timeline_ready,
             "log_count": self.telemetry.log_count(),
             "stages": self.telemetry.stages(),
+            "interaction": (
+                (self.error or {}).get("interaction")
+                if self.status in {"waiting_approval", "waiting_input"}
+                else None
+            ),
         }
 
 
@@ -461,7 +475,7 @@ class JobManager:
                 return job
             job.cancel_requested = True
             job.cancel_event.set()
-            if job.status in {"queued", "waiting_approval"}:
+            if job.status in {"queued", "waiting_approval", "waiting_input"}:
                 with contextlib.suppress(ValueError):
                     self._pending.remove(str(job.job_id))
                 job.status = "cancelled"
@@ -481,6 +495,24 @@ class JobManager:
         if drain:
             self._drain_queue()
         return job
+
+    def mark_answered(self, job_id: str, resumed_job_id: str) -> Job:
+        """Mark the waiting job as superseded by the resumed run."""
+
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                raise JobNotFoundError(f"Unknown job: {job_id}")
+            if job.status in {"waiting_approval", "waiting_input"}:
+                with contextlib.suppress(ValueError):
+                    self._pending.remove(str(job.job_id))
+                job.status = "answered"
+                job.stage = "answered"
+                job.message = f"Answered; resumed as {resumed_job_id}"
+                job.finished_at = _now()
+                job.lease_expires_at = ""
+                self._persist_job(job)
+            return job
 
     def remove(self, job_id: str, *, force: bool = False) -> Job:
         """Remove a job from the active list and store, stopping work if needed."""
@@ -588,6 +620,7 @@ class JobManager:
                     resume=bool(job.options.get("resume", True)),
                     variables=variables,
                     profile=job.options.get("profile"),
+                    job_id=str(job.job_id),
                 )
                 variant_summaries.append(
                     {
@@ -610,6 +643,7 @@ class JobManager:
                 resume=bool(job.options.get("resume", True)),
                 variables=base_variables,
                 profile=job.options.get("profile"),
+                job_id=str(job.job_id),
             )
         return RunOutcome(result=result.to_dict(), variants=variant_summaries)
 

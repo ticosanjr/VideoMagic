@@ -125,6 +125,32 @@ def register_job_routes(app: FastAPI, jobs: JobManager) -> None:
         job = jobs.get(job_id)
         if job.status != "waiting_approval":
             raise StateNotReadyError("The job is not waiting for approval.")
+        interaction = (job.error or {}).get("interaction")
+        if isinstance(interaction, dict) and interaction.get("interaction_id"):
+            from videoflow.application import hilt
+
+            interaction_id = str(interaction["interaction_id"])
+            hilt.respond(
+                job.output,
+                job_id,
+                interaction_id,
+                action="approve" if request.approved else "reject",
+                comment=request.comment,
+                channel="local",
+            )
+            resumed = jobs.start(
+                job.source,
+                job.output,
+                {**job.options, "resume": True},
+                queue=True,
+            )
+            hilt.mark_resumed(job.output, interaction_id, str(resumed.job_id))
+            jobs.mark_answered(job_id, str(resumed.job_id))
+            return {
+                "ok": True,
+                "job": resumed.to_dict(),
+                "gate": str(interaction.get("gate_id") or "review"),
+            }
         gate = str((job.error or {}).get("gate_id") or "review")
         approvals = job.output / "approvals"
         approvals.mkdir(parents=True, exist_ok=True)

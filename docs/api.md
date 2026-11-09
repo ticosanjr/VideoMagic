@@ -38,6 +38,10 @@ Implemented today:
 - `POST /api/v1/recipes/run`, `GET /api/v1/jobs`, `GET /api/v1/jobs/{id}`,
   `POST /api/v1/jobs/{id}/cancel`, `POST /api/v1/jobs/{id}/retry`,
   `GET /api/v1/jobs/{id}/events`
+- `GET /api/v1/jobs/{id}/interactions`,
+  `POST /api/v1/jobs/{id}/interactions/{interaction_id}/respond`,
+  `POST /api/v1/jobs/{id}/interactions/{interaction_id}/files`,
+  `GET /api/v1/hilt/pending` ([hilt.md](hilt.md))
 - `GET /api/v1/presets`, `GET /api/v1/presets/{name}`,
   `PUT /api/v1/presets/{name}`
 - `GET /mcp/` (MCP Streamable HTTP) and `GET /` (recipe studio UI when built)

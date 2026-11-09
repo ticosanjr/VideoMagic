@@ -3,6 +3,21 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [Unreleased]
+
+### Added
+
+- **Human-in-the-loop (HILT).** Durable interactions under
+  `output/hilt/<interaction_id>/`, typed questions, file handoffs, review
+  artifacts, local notifications, and new `human.input` / `human.files` steps.
+- **HILT API and job state.** `waiting_input` jobs, interaction inspection,
+  answer/upload endpoints, artifact downloads, and a pending-interaction feed.
+- **Full AI Editor recipe.** `full_ai_editor` is built in and favorited by
+  default; it pauses for the brief, research, script, decoupage, entity, style,
+  sample, fact-check, and final gates.
+- **Studio HILT panel.** The recipe and job views render questions, file
+  uploads, review artifacts, and approve/reject actions without leaving the app.
+
 ## [2.59.4] - 2026-11-09
 
 ### Changed

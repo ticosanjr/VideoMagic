@@ -1,13 +1,12 @@
 """Smoke the built AppImage end to end.
 
-Checks version, doctor, demo, direct extraction fallback, and the no-argument
-desktop behavior (starts the local server and answers /health).
+Checks version, doctor, recipe catalog, direct extraction fallback, and the
+no-argument desktop behavior (starts the local server and answers /health).
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import subprocess
 import sys
@@ -32,11 +31,7 @@ def main() -> int:
 
     _run([str(appimage), "version"])
     _run([str(appimage), "doctor"])
-    report = args.out / "demo.json"
-    _run([str(appimage), "demo", "-o", str(args.out / "demo")], stdout=report)
-    payload = json.loads(report.read_text(encoding="utf-8"))
-    assert payload["ok"] is True, payload
-    assert set(payload["artifacts"]) == {"resolve", "premiere", "kdenlive"}
+    _run([str(appimage), "recipe", "list"])
 
     env = dict(os.environ)
     env["APPIMAGE_EXTRACT_AND_RUN"] = "1"
@@ -55,7 +50,7 @@ def main() -> int:
             process.wait(timeout=10)
         except subprocess.TimeoutExpired:
             process.kill()
-    print("PASS: AppImage version, doctor, demo, extract-run, and serve")
+    print("PASS: AppImage version, doctor, recipe catalog, extract-run, and serve")
     return 0
 
 

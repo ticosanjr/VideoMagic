@@ -651,4 +651,8 @@ export const GLOSSARY: Record<string, string> = {
   "Ollama": "Ollama",
   "OpenRouter": "OpenRouter",
   "Name only, for example DEEPSEEK_API_KEY. Paste the key in Secret value.": "Somente o nome, por exemplo DEEPSEEK_API_KEY. Cole a chave em Valor do segredo.",
+  "Choose…": "Escolher…",
+  "Comment": "Comentário",
+  "Review artifacts": "Revisar artefatos",
+  "Yes": "Sim",
 };

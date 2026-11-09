@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from videoflow.engine.recipes import definitions_advanced as _advanced  # noqa: F401
+from videoflow.engine.recipes import definitions_full_ai_editor as _full_ai_editor  # noqa: F401
 from videoflow.engine.recipes.catalog import (
     BUILTIN_RECIPES,
     builtin_recipe,

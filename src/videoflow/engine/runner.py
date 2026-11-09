@@ -297,6 +297,7 @@ class RecipeRunner:
         resume: bool = True,
         variables: dict[str, Any] | None = None,
         profile: str | None = None,
+        job_id: str = "",
     ) -> RecipeRunResult:
         from uuid import uuid4
 
@@ -319,6 +320,8 @@ class RecipeRunner:
             transcript=list(transcript_sentences or []),
             metadata={
                 "run_id": str(uuid4()),
+                "job_id": job_id,
+                "recipe_id": recipe.id,
                 "variables": dict(recipe.variables_resolved),
                 "profile": profile or "",
             },

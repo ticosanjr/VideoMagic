@@ -25,7 +25,7 @@ export interface JobQuery {
 }
 
 const ACTIVE_STATUSES = new Set(["running"]);
-const ATTENTION_STATUSES = new Set(["waiting_approval", "failed"]);
+const ATTENTION_STATUSES = new Set(["waiting_approval", "waiting_input", "failed"]);
 
 export function jobCounts(jobs: Job[]): JobCounts {
   return jobs.reduce<JobCounts>(
@@ -35,6 +35,7 @@ export function jobCounts(jobs: Job[]): JobCounts {
       if (job.status === "queued") counts.queued += 1;
       if (job.status === "paused") counts.paused += 1;
       if (job.status === "waiting_approval") counts.waiting += 1;
+      if (job.status === "waiting_input") counts.waiting += 1;
       if (job.status === "failed") counts.failed += 1;
       if (job.status === "succeeded") counts.succeeded += 1;
       return counts;
@@ -95,6 +96,8 @@ export function jobNextAction(job: Job): string {
       return "Wait or cancel";
     case "waiting_approval":
       return "Review and approve";
+    case "waiting_input":
+      return "Answer or upload files";
     case "failed":
       return "Retry after fixing the error";
     case "succeeded":

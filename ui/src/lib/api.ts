@@ -5,9 +5,11 @@ export type JobStatus =
   | "paused"
   | "running"
   | "waiting_approval"
+  | "waiting_input"
   | "succeeded"
   | "failed"
-  | "cancelled";
+  | "cancelled"
+  | "answered";
 export type StageStatus = "pending" | "running" | "succeeded" | "failed" | "cancelled";
 
 export interface SystemInfo {
@@ -350,6 +352,105 @@ export interface ShortEditPayload {
   caption_style?: Record<string, unknown>;
 }
 
+export type HiltQuestionType = "text" | "textarea" | "choice" | "boolean" | "number" | "file";
+
+export interface HiltQuestion {
+  id: string;
+  label: string;
+  type: HiltQuestionType;
+  required: boolean;
+  options: unknown[];
+  default: unknown;
+  placeholder: string;
+  help: string;
+  accept: string[];
+  max_mb: number;
+}
+
+export interface HiltFileRequest {
+  id: string;
+  label: string;
+  required: boolean;
+  accept: string[];
+  max_mb: number;
+  target: string;
+  allow_replace: boolean;
+  help: string;
+}
+
+export interface HiltArtifact {
+  id: string;
+  label: string;
+  path: string;
+  kind: string;
+  description: string;
+  exists: boolean;
+  size_bytes: number;
+  download_url?: string;
+}
+
+export interface HiltAttachment {
+  request_id: string;
+  original_name: string;
+  stored_path: string;
+  size_bytes: number;
+  sha256: string;
+  content_type: string;
+}
+
+export interface HiltResponse {
+  interaction_id: string;
+  action: "approve" | "reject" | "submit";
+  answers: Record<string, unknown>;
+  comment: string;
+  attachments: HiltAttachment[];
+  responder: string;
+  response_channel: string;
+  received_at: string;
+  resumed_job_id: string;
+}
+
+export interface HiltInteraction {
+  interaction_id: string;
+  job_id: string;
+  recipe_id: string;
+  step_id: string;
+  gate_id: string;
+  kind: "approval" | "question" | "files" | "review";
+  title: string;
+  description: string;
+  approve_label: string;
+  reject_label: string;
+  questions: HiltQuestion[];
+  files: HiltFileRequest[];
+  artifacts: HiltArtifact[];
+  channels: string[];
+  status: string;
+  created_at: string;
+  expires_at: string;
+  reminder_at: string;
+  token_required: boolean;
+  response_url: string;
+  files_url: string;
+  response?: HiltResponse | null;
+  expired?: boolean;
+}
+
+export interface HiltPending {
+  job_id: string;
+  job_status: JobStatus;
+  job_message: string;
+  interaction: HiltInteraction;
+}
+
+export interface HiltChannelStatus {
+  id: string;
+  label: string;
+  enabled: boolean;
+  available: boolean;
+  detail: string;
+}
+
 export interface Job {
   job_id: string;
   status: JobStatus;
@@ -409,6 +510,7 @@ export interface Job {
   step_progress?: Record<string, number>;
   log_count: number;
   stages: JobStage[];
+  interaction?: HiltInteraction | null;
 }
 
 export interface RecipeStep {
@@ -1549,6 +1651,74 @@ export async function resumeJob(
     { method: "POST", body: JSON.stringify(payload) }
   );
   return response.job;
+}
+
+export async function listJobInteractions(jobId: string): Promise<HiltInteraction[]> {
+  const response = await request<{ ok: boolean; interactions: HiltInteraction[] }>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/interactions`
+  );
+  return response.interactions;
+}
+
+export async function getJobInteraction(
+  jobId: string,
+  interactionId: string
+): Promise<HiltInteraction> {
+  const response = await request<{ ok: boolean; interaction: HiltInteraction }>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/interactions/${encodeURIComponent(interactionId)}`
+  );
+  return response.interaction;
+}
+
+export async function respondToInteraction(
+  jobId: string,
+  interactionId: string,
+  payload: {
+    action: "approve" | "reject" | "submit";
+    answers?: Record<string, unknown>;
+    comment?: string;
+    responder?: string;
+    channel?: string;
+    token?: string;
+  }
+): Promise<Job> {
+  const response = await request<{ ok: boolean; job: Job }>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/interactions/${encodeURIComponent(interactionId)}/respond`,
+    { method: "POST", body: JSON.stringify(payload) }
+  );
+  return response.job;
+}
+
+export async function uploadInteractionFiles(
+  jobId: string,
+  interactionId: string,
+  files: File[],
+  requestId = ""
+): Promise<HiltAttachment[]> {
+  const form = new FormData();
+  if (requestId) form.set("request_id", requestId);
+  for (const file of files) form.append("files", file);
+  const response = await request<{ ok: boolean; attachments: HiltAttachment[] }>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/interactions/${encodeURIComponent(interactionId)}/files`,
+    { method: "POST", body: form }
+  );
+  return response.attachments;
+}
+
+export async function listPendingInteractions(): Promise<HiltPending[]> {
+  const response = await request<{ ok: boolean; interactions: HiltPending[] }>(
+    "/api/v1/hilt/pending"
+  );
+  return response.interactions;
+}
+
+export async function listHiltChannels(): Promise<{
+  default: string[];
+  channels: HiltChannelStatus[];
+}> {
+  return request<{ default: string[]; channels: HiltChannelStatus[] }>(
+    "/api/v1/hilt/channels"
+  );
 }
 
 export async function runRecipeStep(

@@ -15,11 +15,12 @@ from typing import Any, Protocol
 
 from videoflow.domain.errors import (
     ApprovalRequiredError,
+    HumanInputRequiredError,
     JobCancelledError,
     VideoFlowError,
 )
 
-TERMINAL = frozenset({"succeeded", "failed", "cancelled"})
+TERMINAL = frozenset({"succeeded", "failed", "cancelled", "answered"})
 
 
 @dataclass(frozen=True)
@@ -134,6 +135,13 @@ class JobExecutor:
             with host._lock:
                 job.status = "waiting_approval"
                 job.stage = "waiting_approval"
+                job.message = exc.message
+                job.error = exc.to_dict()
+                job.progress = max(1, min(99, job.progress))
+        except HumanInputRequiredError as exc:
+            with host._lock:
+                job.status = "waiting_input"
+                job.stage = "waiting_input"
                 job.message = exc.message
                 job.error = exc.to_dict()
                 job.progress = max(1, min(99, job.progress))

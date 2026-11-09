@@ -21,6 +21,7 @@ dependencies = [
   "onnxruntime>=1.20",
   "opentimelineio>=0.18.1",
   "pydantic>=2.6",
+  "python-multipart>=0.0.20",
   "uvicorn>=0.32",
 ]
 

@@ -12,6 +12,8 @@
     type Node
   } from "@xyflow/svelte";
   import NodeInspector from "$lib/nodes/NodeInspector.svelte";
+  import HiltPanel from "$lib/HiltPanel.svelte";
+  import { notifications } from "$lib/notifications.svelte";
   import Modal from "$lib/ui/Modal.svelte";
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -224,6 +226,7 @@
   let error = $state("");
   let validation = $state<string[]>([]);
   let job = $state<Job | null>(null);
+  let lastHiltNotice = "";
   let busy = $state(false);
   let resume = $state(true);
   let poll: ReturnType<typeof setInterval> | undefined;
@@ -2495,10 +2498,24 @@
         if (job) {
           inputOutput = job.output;
           applyJobStatuses(job);
+          if (
+            job.status === "waiting_input" &&
+            job.interaction &&
+            job.interaction.interaction_id !== lastHiltNotice
+          ) {
+            lastHiltNotice = job.interaction.interaction_id;
+            notifications.push({
+              kind: "warning",
+              title: "Human input needed",
+              message: job.interaction.title,
+              actionLabel: "Open the recipe",
+              actionId: "tab:recipes"
+            });
+          }
         }
-        if (["succeeded", "failed", "cancelled", "waiting_approval"].includes(job.status)) {
+        if (["succeeded", "failed", "cancelled", "waiting_approval", "waiting_input"].includes(job.status)) {
           clearInterval(poll);
-          if (job.status !== "waiting_approval") void loadPrevious(job);
+          if (job.status !== "waiting_approval" && job.status !== "waiting_input") void loadPrevious(job);
         }
       } catch (reason) {
         error = errorMessage(reason);
@@ -2917,7 +2934,17 @@
         <div class="h-full rounded-full bg-sky-400 transition-all" style={`width: ${job.progress}%`}></div>
       </div>
       <p class="mt-2 text-[11px] text-neutral-400">{job.stage}: {job.message} · {job.progress}%</p>
-      {#if job.status === "waiting_approval"}
+      {#if job.status === "waiting_input" || (job.status === "waiting_approval" && job.interaction)}
+        <HiltPanel
+          {job}
+          onresumed={(next) => {
+            job = next;
+            watch(next.job_id);
+          }}
+          onerror={(message) => (error = message)}
+        />
+      {/if}
+      {#if job.status === "waiting_approval" && !job.interaction}
         <div class="mt-3 rounded-xl border border-amber-400/30 bg-amber-950/30 p-3">
           <p class="text-xs font-medium text-amber-200">{job.error?.title || "Approval required"}</p>
           <p class="mt-1 text-[11px] text-amber-200/70">{job.error?.message}</p>

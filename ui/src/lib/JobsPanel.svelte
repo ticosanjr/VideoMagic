@@ -99,6 +99,8 @@
         return "border-rose-500/30 bg-rose-950/40 text-rose-200";
       case "waiting_approval":
         return "border-amber-400/30 bg-amber-950/30 text-amber-200";
+      case "waiting_input":
+        return "border-amber-400/30 bg-amber-950/30 text-amber-200";
       case "running":
         return "border-sky-400/25 bg-sky-950/30 text-sky-200";
       case "queued":
@@ -277,7 +279,7 @@
             </div>
             <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-neutral-800">
               <div
-                class={`h-full rounded-full ${job.status === "failed" ? "bg-rose-400" : job.status === "waiting_approval" ? "bg-amber-400" : "bg-sky-400"} transition-all`}
+                class={`h-full rounded-full ${job.status === "failed" ? "bg-rose-400" : job.status === "waiting_approval" || job.status === "waiting_input" ? "bg-amber-400" : "bg-sky-400"} transition-all`}
                 style={`width: ${Math.max(0, Math.min(100, job.progress))}%`}
               ></div>
             </div>
@@ -331,7 +333,7 @@
           <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
             <p class="text-[11px] text-neutral-500">{i18n.t("next")}: <span class="text-neutral-300">{jobNextAction(job)}</span></p>
             <div class="flex flex-wrap gap-1.5">
-              {#if job.status === "waiting_approval"}
+              {#if job.status === "waiting_approval" || job.status === "waiting_input"}
                 <button type="button" class="rounded-lg bg-amber-400/15 px-2.5 py-1 text-[11px] font-medium text-amber-200 ring-1 ring-inset ring-amber-400/25 hover:bg-amber-400/20" onclick={() => onreview?.(job)}>{i18n.t("review")}</button>
               {:else if job.status === "failed" || job.status === "cancelled"}
                 <button type="button" disabled={busy === job.job_id} class="rounded-lg bg-sky-500/15 px-2.5 py-1 text-[11px] font-medium text-sky-200 ring-1 ring-inset ring-sky-400/25 hover:bg-sky-500/20 disabled:opacity-40" onclick={() => void retry(job)}>
