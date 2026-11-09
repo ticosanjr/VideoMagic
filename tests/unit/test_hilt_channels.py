@@ -7,6 +7,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from videoflow.application import hilt, hilt_channels
+from videoflow.application.hilt_channels import outbound as outbound_module
+from videoflow.application.hilt_channels import webhooks as webhooks_module
 from videoflow.application.settings import AppSettings
 from videoflow.domain.hilt import HiltQuestion
 
@@ -124,7 +126,7 @@ def test_slack_signature_verification(monkeypatch) -> None:
     signature = "v0=" + hmac.new(
         secret.encode(), b"v0:" + timestamp.encode() + b":" + body, hashlib.sha256
     ).hexdigest()
-    monkeypatch.setattr(hilt_channels.time, "time", lambda: 1700000000)
+    monkeypatch.setattr(webhooks_module.time, "time", lambda: 1700000000)
     assert hilt_channels.verify_slack_signature(body, timestamp, signature, secret)
     assert not hilt_channels.verify_slack_signature(body, "1700000000", "v0=bad", secret)
 
@@ -182,7 +184,7 @@ def test_signal_send_uses_the_rest_contract(monkeypatch) -> None:
         calls["json"] = kwargs.get("json")
         return FakeResponse()
 
-    monkeypatch.setattr(hilt_channels.httpx, "post", fake_post)
+    monkeypatch.setattr(outbound_module.httpx, "post", fake_post)
     settings = AppSettings()
     settings.notifications.signal.enabled = True
     settings.notifications.signal.number = "+15550001"
@@ -196,7 +198,7 @@ def test_signal_send_uses_the_rest_contract(monkeypatch) -> None:
         url="http://localhost",
         expires_at="",
     )
-    detail = hilt_channels._send_signal(settings, message)
+    detail = outbound_module._send_signal(settings, message)
     assert "sent" in detail
     assert calls["url"].endswith("/v2/send")
     assert calls["json"]["recipients"] == ["+15550002"]

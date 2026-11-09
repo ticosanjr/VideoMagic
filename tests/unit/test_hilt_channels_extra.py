@@ -4,6 +4,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from videoflow.application import hilt, hilt_channels
+from videoflow.application.hilt_channels import outbound as outbound_module
+from videoflow.application.hilt_channels import webhooks as webhooks_module
 from videoflow.application.settings import AppSettings
 from videoflow.domain.hilt import HiltQuestion
 
@@ -46,7 +48,7 @@ def test_email_send_contract(monkeypatch) -> None:
         def send_message(self, message):
             events["subject"] = message["Subject"]
 
-    monkeypatch.setattr(hilt_channels.smtplib, "SMTP", FakeSmtp)
+    monkeypatch.setattr(outbound_module.smtplib, "SMTP", FakeSmtp)
     settings = _settings()
     settings.notifications.email.smtp_user = "user"
     message = hilt_channels.OutboundMessage(
@@ -58,7 +60,7 @@ def test_email_send_contract(monkeypatch) -> None:
         url="http://localhost",
         expires_at="",
     )
-    detail = hilt_channels._send_email(settings, message)
+    detail = outbound_module._send_email(settings, message)
     assert "sent" in detail
     assert events["host"] == "smtp.example.com"
     assert "Review" in events["subject"]
@@ -66,7 +68,7 @@ def test_email_send_contract(monkeypatch) -> None:
 
 def test_slack_webhook_and_bot(monkeypatch) -> None:
     monkeypatch.setattr(
-        hilt_channels,
+        outbound_module,
         "get_secret",
         lambda name: "https://hooks.example/slack" if name == "webhook" else "bot",
     )
@@ -78,22 +80,22 @@ def test_slack_webhook_and_bot(monkeypatch) -> None:
             json=lambda: {"ok": True},
         )
 
-    monkeypatch.setattr(hilt_channels.httpx, "post", fake_post)
+    monkeypatch.setattr(outbound_module.httpx, "post", fake_post)
     settings = _settings()
     message = hilt_channels.OutboundMessage(
         title="Review", body="Body", interaction_id="i", job_id="j",
         token="token", url="http://localhost", expires_at=""
     )
-    assert "webhook" in hilt_channels._send_slack(settings, message)
+    assert "webhook" in outbound_module._send_slack(settings, message)
     settings.notifications.slack.mode = "bot"
-    assert "chat.postMessage" in hilt_channels._send_slack(settings, message)
+    assert "chat.postMessage" in outbound_module._send_slack(settings, message)
 
 
 def test_ingest_slack_event_and_email_payload(monkeypatch) -> None:
     settings = AppSettings()
-    monkeypatch.setattr(hilt_channels, "load_settings", lambda: settings)
+    monkeypatch.setattr(webhooks_module, "load_settings", lambda: settings)
     monkeypatch.setattr(
-        hilt_channels,
+        webhooks_module,
         "dispatch_reply",
         lambda jobs, reply: {"ok": True, "channel": reply.channel, "token": reply.token},
     )
@@ -140,12 +142,12 @@ def test_notify_request_logs_external_channels(monkeypatch, tmp_path: Path) -> N
         job_id="job-1",
     )
     monkeypatch.setattr(
-        hilt_channels,
+        outbound_module,
         "_send_email",
         lambda settings, message: "email ok",
     )
     monkeypatch.setattr(
-        hilt_channels,
+        outbound_module,
         "_send_slack",
         lambda settings, message: "slack ok",
     )
