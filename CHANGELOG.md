@@ -3,7 +3,7 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
-## [Unreleased]
+## [2.59.3] - 2026-11-09
 
 ### Changed
 
@@ -33,6 +33,14 @@ follow semantic versioning once the project reaches 1.0.
   scrollbar on Setup.
 - **Settings resilience.** A partial settings payload no longer crashes the
   panel while reading `allowed_roots`.
+
+### Verified
+
+- 1,704 Python tests, 87 Vitest, 90 Playwright, and 0 svelte-check errors.
+- Gate coverage 98% (application 94.26%); media and fault-injection tests pass.
+- `SHA256SUMS` verified; both Linux artifacts report `videoflow 2.59.3`.
+- AppImage 2.59.3 serves the studio at `127.0.0.1:8765` with the
+  `videoflow-data` copied from 2.59.2.
 
 ## [2.59.2] - 2026-11-08
 
