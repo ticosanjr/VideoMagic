@@ -30,7 +30,12 @@ from videoflow.domain.state import (
     Sentence,
     VideoSegment,
 )
-from videoflow.mcp_server import server as server_module
+from videoflow.mcp_server import prompts_resources as prompts_module
+from videoflow.mcp_server import tools_config as config_module
+from videoflow.mcp_server import tools_jobs as jobs_module
+from videoflow.mcp_server import tools_media as media_module
+from videoflow.mcp_server import tools_shorts as shorts_module
+from videoflow.mcp_server import tools_timeline as timeline_module
 from videoflow.mcp_server.server import build_server
 
 ROOTS_ENV = "VIDEOWFLOW_ALLOWED_ROOTS"
@@ -256,14 +261,14 @@ def test_asset_upload_import_and_config_errors(
         imported.append(harness.source)
         return harness.source
 
-    monkeypatch.setattr(server_module, "import_url", fake_import)
+    monkeypatch.setattr(media_module, "import_url", fake_import)
     payload = call(server, "videoflow_import_url", {"url": "https://example.invalid/v"})
     assert payload["ok"] is True
     assert payload["path"] == str(harness.source)
     assert payload["media"]["duration_frames"] == 90
     assert imported
 
-    monkeypatch.setattr(server_module, "import_url", lambda *a, **k: harness.source)
+    monkeypatch.setattr(media_module, "import_url", lambda *a, **k: harness.source)
     monkeypatch.setattr(
         FFmpegAdapter, "probe", lambda self, path: (_ for _ in ()).throw(IngestError("bad"))
     )
@@ -399,12 +404,12 @@ def test_short_tool_validation_and_job_states(
     job.result = {"shorts": [short], "state_path": str(harness.output / "project_state.json")}
 
     monkeypatch.setattr(
-        server_module, "edit_short_service", lambda **kwargs: {"title": "Edited"}
+        shorts_module, "edit_short_service", lambda **kwargs: {"title": "Edited"}
     )
     assert call(server, "videoflow_edit_short", {"index": 0, "title": "Edited"})["ok"] is True
 
     monkeypatch.setattr(
-        server_module,
+        shorts_module,
         "apply_llm_emoji",
         lambda **kwargs: {"emoji_map": {"a": "b"}, "short": {"title": "Hook"}},
     )
@@ -418,33 +423,33 @@ def test_short_tool_validation_and_job_states(
         "hashtags": ["#t"],
     }
     monkeypatch.setattr(metadata_module, "generate_short_metadata", metadata_stub)
-    monkeypatch.setattr(server_module, "generate_short_metadata", metadata_stub)
+    monkeypatch.setattr(shorts_module, "generate_short_metadata", metadata_stub)
     assert call(server, "videoflow_generate_short_metadata", {"index": 0})["ok"] is True, call(
         server, "videoflow_generate_short_metadata", {"index": 0}
     )
 
     monkeypatch.setattr(
-        server_module, "generate_short_thumbnail", lambda **kwargs: {"path": "thumb.png"}
+        shorts_module, "generate_short_thumbnail", lambda **kwargs: {"path": "thumb.png"}
     )
     assert call(server, "videoflow_generate_short_thumbnail", {"index": 0})["ok"] is True
 
     monkeypatch.setattr(
-        server_module, "generate_short_voiceover", lambda **kwargs: {"path": "voice.mp3"}
+        shorts_module, "generate_short_voiceover", lambda **kwargs: {"path": "voice.mp3"}
     )
     assert call(
         server, "videoflow_generate_short_voiceover", {"index": 0, "text": "hello"}
     )["ok"] is True
 
     monkeypatch.setattr(
-        server_module, "generate_short_dubbing", lambda **kwargs: {"path": "dub.mp3"}
+        shorts_module, "generate_short_dubbing", lambda **kwargs: {"path": "dub.mp3"}
     )
     assert call(server, "videoflow_dub_short", {"index": 0})["ok"] is True
 
-    monkeypatch.setattr(server_module, "analyze_short_entry", lambda **kwargs: {"score": 1})
+    monkeypatch.setattr(shorts_module, "analyze_short_entry", lambda **kwargs: {"score": 1})
     assert call(server, "videoflow_analyze_short", {"index": 0})["ok"] is True
 
     monkeypatch.setattr(
-        server_module, "analyze_short_llm_entry", lambda **kwargs: {"score": 2}
+        shorts_module, "analyze_short_llm_entry", lambda **kwargs: {"score": 2}
     )
     monkeypatch.delenv("VIDEOWFLOW_VISION_BASE_URL", raising=False)
     assert call(server, "videoflow_analyze_short_llm", {"index": 0})["code"] == ("not_implemented")
@@ -474,15 +479,15 @@ def test_schedule_short_metadata_and_publish_errors(
         "hashtags": ["#a"],
     }
     monkeypatch.setattr(metadata_module, "generate_short_metadata", metadata_stub)
-    monkeypatch.setattr(server_module, "generate_short_metadata", metadata_stub)
+    monkeypatch.setattr(shorts_module, "generate_short_metadata", metadata_stub)
     monkeypatch.setattr(
-        server_module,
+        config_module,
         "enqueue_publish",
         lambda **kwargs: {"id": "item-1"},
     )
     assert call(server, "videoflow_schedule_short", {"index": 0, "target": "demo"})["ok"] is True
     monkeypatch.setattr(
-        server_module,
+        config_module,
         "enqueue_publish",
         lambda **kwargs: (_ for _ in ()).throw(StateNotReadyError("no target")),
     )
@@ -581,9 +586,9 @@ def test_timeline_jobs_and_copilot(
     )
     assert state.transcript
 
-    real_apply = server_module.apply_timeline_edit
+    real_apply = timeline_module.apply_timeline_edit
     monkeypatch.setattr(
-        server_module,
+        timeline_module,
         "apply_timeline_edit",
         lambda *a, **k: (_ for _ in ()).throw(StateNotReadyError("bad edit")),
     )
@@ -616,7 +621,7 @@ def test_timeline_jobs_and_copilot(
         {"path": "/etc/passwd", "start_sec": 0.0, "duration_sec": 1.0},
     )["code"] == ("path_not_allowed")
     monkeypatch.setattr(
-        server_module,
+        timeline_module,
         "resolve_allowed",
         lambda *a, **k: (_ for _ in ()).throw(OSError("denied")),
     )
@@ -630,9 +635,9 @@ def test_timeline_jobs_and_copilot(
         server, "videoflow_remove_timeline_overlay", {"overlay_id": "missing"}
     )["code"] == ("state_not_ready")
 
-    monkeypatch.setattr(server_module, "build_llm", lambda: object())
+    monkeypatch.setattr(timeline_module, "build_llm", lambda: object())
     monkeypatch.setattr(
-        server_module, "propose_recipe", lambda *a, **k: (_ for _ in ()).throw(LlmError("no"))
+        timeline_module, "propose_recipe", lambda *a, **k: (_ for _ in ()).throw(LlmError("no"))
     )
     assert call(server, "videoflow_copilot_recipe", {"prompt": "x"})["code"] == "llm_failed"
 
@@ -646,19 +651,19 @@ def test_timeline_jobs_and_copilot(
             "steps": [{"id": "ingest", "type": "ingest", "params": {}}],
         }
     )
-    monkeypatch.setattr(server_module, "propose_recipe", lambda client, prompt: drafted)
+    monkeypatch.setattr(timeline_module, "propose_recipe", lambda client, prompt: drafted)
     assert call(server, "videoflow_copilot_recipe", {"prompt": "x"})["recipe"]["id"] == (
         "copilot_extra"
     )
 
-    monkeypatch.setattr(server_module, "propose_timeline_edits", lambda *a, **k: [])
+    monkeypatch.setattr(timeline_module, "propose_timeline_edits", lambda *a, **k: [])
     proposed = call(server, "videoflow_copilot_timeline", {"prompt": "x", "apply": False})
     assert proposed["ok"] is True
     assert proposed["applied"] is False
 
-    monkeypatch.setattr(server_module, "apply_timeline_edit", real_apply)
+    monkeypatch.setattr(timeline_module, "apply_timeline_edit", real_apply)
     monkeypatch.setattr(
-        server_module,
+        timeline_module,
         "propose_timeline_edits",
         lambda *a, **k: [
             {"clip_id": "v1", "action": "trim", "start_sec": 0.0, "end_sec": 0.5}
@@ -669,7 +674,7 @@ def test_timeline_jobs_and_copilot(
     assert applied["applied"] is True
 
     monkeypatch.setattr(
-        server_module,
+        timeline_module,
         "propose_timeline_edits",
         lambda *a, **k: (_ for _ in ()).throw(LlmError("no edits")),
     )
@@ -816,14 +821,14 @@ def test_export_models_backup_and_resources(
     harness.pipeline()
 
     monkeypatch.setattr(
-        server_module, "export_timeline", lambda *a, **k: (_ for _ in ()).throw(OSError("io"))
+        media_module, "export_timeline", lambda *a, **k: (_ for _ in ()).throw(OSError("io"))
     )
     assert call(
         server, "videoflow_export_fcpxml", {"output_path": str(harness.tmp / "x.fcpxml")}
     )["code"] == ("export_failed")
 
     monkeypatch.setattr(
-        server_module,
+        config_module,
         "install_model",
         lambda *a, **k: (_ for _ in ()).throw(VideoFlowError("download")),
     )
@@ -831,7 +836,7 @@ def test_export_models_backup_and_resources(
         "videoflow_error"
     )
     monkeypatch.setattr(
-        server_module,
+        config_module,
         "remove_model",
         lambda *a, **k: (_ for _ in ()).throw(VideoFlowError("missing")),
     )
@@ -840,7 +845,7 @@ def test_export_models_backup_and_resources(
     )
 
     monkeypatch.setattr(
-        server_module, "scheduled_backup", lambda: (_ for _ in ()).throw(OSError("disk"))
+        config_module, "scheduled_backup", lambda: (_ for _ in ()).throw(OSError("disk"))
     )
     assert call(server, "videoflow_create_backup", {})["code"] == "backup_failed"
 
@@ -893,14 +898,14 @@ def test_export_models_backup_and_resources(
         def iterdir(self):
             return [FakeItem("readme.txt"), FakeItem("shipped.json")]
 
-    monkeypatch.setattr(server_module, "files", lambda package: type("P", (), {
+    monkeypatch.setattr(prompts_module, "files", lambda package: type("P", (), {
         "joinpath": lambda self, name: FakeDir(),
     })())
     presets = json.loads(read(fresh.server, "videoflow://presets/list"))
     assert presets["presets"]["shipped.json"]["source"] == "shipped"
 
     monkeypatch.setattr(
-        server_module, "files", lambda package: (_ for _ in ()).throw(OSError("pkg"))
+        prompts_module, "files", lambda package: (_ for _ in ()).throw(OSError("pkg"))
     )
     presets = json.loads(read(fresh.server, "videoflow://presets/list"))
     assert presets["ok"] is True
@@ -919,7 +924,7 @@ def test_asset_upload_success_and_small_tools(
 
     assert call(server, "videoflow_upload_music", {"file_path": str(music)})["ok"] is True
     assert call(server, "videoflow_upload_image", {"file_path": str(image)})["ok"] is True
-    monkeypatch.setattr(server_module, "save_font", lambda name, data: {"name": name})
+    monkeypatch.setattr(media_module, "save_font", lambda name, data: {"name": name})
     assert call(server, "videoflow_upload_font", {"file_path": str(font)})["ok"] is True
     assert call(server, "videoflow_list_music", {})["music"]
     assert call(server, "videoflow_list_images", {})["images"]
@@ -955,12 +960,12 @@ def test_asset_upload_success_and_small_tools(
         {"name": "---", "template": {}},
     )["code"] == "filesystem_error"
 
-    monkeypatch.setattr(server_module, "install_model", lambda model_id, allow_network: {"id": 1})
-    monkeypatch.setattr(server_module, "remove_model", lambda model_id: None)
+    monkeypatch.setattr(config_module, "install_model", lambda model_id, allow_network: {"id": 1})
+    monkeypatch.setattr(config_module, "remove_model", lambda model_id: None)
     assert call(server, "videoflow_install_model", {"model_id": "demo"})["ok"] is True
     assert call(server, "videoflow_remove_model", {"model_id": "demo"})["ok"] is True
 
-    monkeypatch.setattr(server_module, "scheduled_backup", lambda: harness.tmp / "db.bak")
+    monkeypatch.setattr(config_module, "scheduled_backup", lambda: harness.tmp / "db.bak")
     assert call(server, "videoflow_create_backup", {})["ok"] is True
 
     assert call(server, "videoflow_run_schedule", {"schedule_id": "missing"})["code"] == (
@@ -1048,11 +1053,11 @@ def test_timeline_editing_and_export_success(
     assert isinstance(call(server, "videoflow_validate_exports", {}), dict)
 
     def fake_export(state_arg: Any, directory: Path, *, targets: list[str], dialect: str = ""):
-        target = Path(directory) / server_module.FILENAMES[targets[0]]
+        target = Path(directory) / media_module.FILENAMES[targets[0]]
         target.write_text("exported", encoding="utf-8")
         return {targets[0]: target}
 
-    monkeypatch.setattr(server_module, "export_timeline", fake_export)
+    monkeypatch.setattr(media_module, "export_timeline", fake_export)
     exported = call(
         server,
         "videoflow_export_fcpxml",
@@ -1073,7 +1078,7 @@ def test_timeline_editing_and_export_success(
     )["code"] == ("invalid_arguments")
 
     monkeypatch.setattr(
-        server_module,
+        media_module,
         "resolve_allowed",
         lambda *a, **k: (_ for _ in ()).throw(VideoFlowError("blocked")),
     )
@@ -1098,7 +1103,7 @@ def test_recipe_pipeline_and_batch_success(
     assert call(server, "videoflow_validate_recipe", {"recipe": recipe})["order"] == ["ingest"]
     assert call(server, "videoflow_save_recipe", {"recipe": recipe})["ok"] is True
     monkeypatch.setattr(
-        server_module, "parse_recipe", lambda *a, **k: (_ for _ in ()).throw(ValueError("bad"))
+        jobs_module, "parse_recipe", lambda *a, **k: (_ for _ in ()).throw(ValueError("bad"))
     )
     assert call(server, "videoflow_validate_recipe", {"recipe": recipe})["code"] == (
         "recipe_invalid"

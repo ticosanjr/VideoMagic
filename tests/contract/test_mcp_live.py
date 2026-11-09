@@ -69,7 +69,7 @@ def test_unknown_job_and_invalid_preset(monkeypatch, tmp_path: Path) -> None:
 
 def test_state_resources_and_export_use_the_completed_job(monkeypatch, tmp_path: Path) -> None:
     from videoflow.domain.state import ProjectState, Sentence
-    from videoflow.mcp_server import server as server_module
+    from videoflow.mcp_server import tools_media as media_module
 
     monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
     source = tmp_path / "source.mp4"
@@ -120,11 +120,11 @@ def test_state_resources_and_export_use_the_completed_job(monkeypatch, tmp_path:
     assert "Second sentence." in transcript["srt"]
 
     def fake_export(state_arg, directory, *, targets, dialect="1.9"):
-        path = Path(directory) / server_module.FILENAMES[targets[0]]
+        path = Path(directory) / media_module.FILENAMES[targets[0]]
         path.write_text("exported", encoding="utf-8")
         return {targets[0]: path}
 
-    monkeypatch.setattr(server_module, "export_timeline", fake_export)
+    monkeypatch.setattr(media_module, "export_timeline", fake_export)
     exported = call(
         server,
         "videoflow_export_fcpxml",

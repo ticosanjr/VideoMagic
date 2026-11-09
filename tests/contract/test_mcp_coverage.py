@@ -7,7 +7,10 @@ from pathlib import Path
 from tests.contract.test_api_timeline import _client
 from tests.recipe_jobs import start_recipe
 from videoflow.domain.state import ProjectState
-from videoflow.mcp_server import server as server_module
+from videoflow.mcp_server import tools_config as config_module
+from videoflow.mcp_server import tools_media as media_module
+from videoflow.mcp_server import tools_shorts as shorts_module
+from videoflow.mcp_server import tools_timeline as timeline_module
 from videoflow.mcp_server.server import build_server
 
 
@@ -319,31 +322,31 @@ def test_mcp_short_media_and_copilot_tools(monkeypatch, tmp_path: Path) -> None:
         lambda **kwargs: {"title": "T", "description": "D", "hashtags": ["#a"]},
     )
     monkeypatch.setattr(
-        server_module,
+        config_module,
         "enqueue_publish",
         lambda **kwargs: {"id": "item-1", "target": kwargs.get("target_name")},
     )
     assert call(server, "videoflow_schedule_short", {"index": 0, "target": "demo"})["ok"] is True
 
-    monkeypatch.setattr(server_module, "edit_short_service", lambda **kwargs: {"title": "Edited"})
+    monkeypatch.setattr(shorts_module, "edit_short_service", lambda **kwargs: {"title": "Edited"})
     assert call(server, "videoflow_edit_short", {"index": 0, "title": "Edited"})["ok"] is True
 
     monkeypatch.setattr(
-        server_module,
+        shorts_module,
         "apply_llm_emoji",
         lambda **kwargs: {"emoji_map": {"hello": "👋"}, "short": {"title": "Hook"}},
     )
     assert call(server, "videoflow_generate_short_emoji", {"index": 0})["ok"] is True
 
     monkeypatch.setattr(
-        server_module,
+        shorts_module,
         "generate_short_thumbnail",
         lambda **kwargs: {"path": str(tmp_path / "thumb.png")},
     )
     assert call(server, "videoflow_generate_short_thumbnail", {"index": 0})["ok"] is True
 
     monkeypatch.setattr(
-        server_module,
+        shorts_module,
         "generate_short_voiceover",
         lambda **kwargs: {"path": str(tmp_path / "voice.mp3")},
     )
@@ -353,15 +356,15 @@ def test_mcp_short_media_and_copilot_tools(monkeypatch, tmp_path: Path) -> None:
     )
 
     monkeypatch.setattr(
-        server_module,
+        shorts_module,
         "generate_short_dubbing",
         lambda **kwargs: {"path": str(tmp_path / "dub.mp3")},
     )
     assert call(server, "videoflow_dub_short", {"index": 0, "target_language": "en"})["ok"] is True
 
-    monkeypatch.setattr(server_module, "analyze_short_entry", lambda **kwargs: {"score": 1})
+    monkeypatch.setattr(shorts_module, "analyze_short_entry", lambda **kwargs: {"score": 1})
     assert call(server, "videoflow_analyze_short", {"index": 0})["ok"] is True
-    monkeypatch.setattr(server_module, "analyze_short_llm_entry", lambda **kwargs: {"score": 2})
+    monkeypatch.setattr(shorts_module, "analyze_short_llm_entry", lambda **kwargs: {"score": 2})
     assert (
         call(
             server, "videoflow_analyze_short_llm", {"index": 0, "base_url": "http://127.0.0.1:9/v1"}
@@ -379,11 +382,11 @@ def test_mcp_short_media_and_copilot_tools(monkeypatch, tmp_path: Path) -> None:
             "steps": [{"id": "ingest", "type": "ingest", "params": {}}],
         }
     )
-    monkeypatch.setattr(server_module, "build_llm", lambda: None)
-    monkeypatch.setattr(server_module, "propose_recipe", lambda client, prompt: recipe)
+    monkeypatch.setattr(timeline_module, "build_llm", lambda: None)
+    monkeypatch.setattr(timeline_module, "propose_recipe", lambda client, prompt: recipe)
     assert call(server, "videoflow_copilot_recipe", {"prompt": "ingest"})["ok"] is True
     monkeypatch.setattr(
-        server_module,
+        timeline_module,
         "propose_timeline_edits",
         lambda client, prompt, clips: [
             {"clip_id": "v1", "action": "trim", "start_sec": 0.0, "end_sec": 1.0}
@@ -411,17 +414,17 @@ def test_mcp_short_media_and_copilot_tools(monkeypatch, tmp_path: Path) -> None:
     image.write_bytes(b"png")
     font = upload_dir / "a.ttf"
     font.write_bytes(b"font")
-    monkeypatch.setattr(server_module, "save_music", lambda name, body: {"name": name})
-    monkeypatch.setattr(server_module, "save_image", lambda name, body: {"name": name})
-    monkeypatch.setattr(server_module, "save_font", lambda name, body: {"name": name})
+    monkeypatch.setattr(media_module, "save_music", lambda name, body: {"name": name})
+    monkeypatch.setattr(media_module, "save_image", lambda name, body: {"name": name})
+    monkeypatch.setattr(media_module, "save_font", lambda name, body: {"name": name})
     assert call(server, "videoflow_upload_music", {"file_path": str(audio)})["ok"] is True
     assert call(server, "videoflow_upload_image", {"file_path": str(image)})["ok"] is True
     assert call(server, "videoflow_upload_font", {"file_path": str(font)})["ok"] is True
 
     monkeypatch.setattr(
-        server_module, "install_model", lambda model_id, allow_network: {"id": model_id}
+        config_module, "install_model", lambda model_id, allow_network: {"id": model_id}
     )
-    monkeypatch.setattr(server_module, "remove_model", lambda model_id: None)
+    monkeypatch.setattr(config_module, "remove_model", lambda model_id: None)
     assert call(server, "videoflow_install_model", {"model_id": "demo"})["ok"] is True
     assert call(server, "videoflow_remove_model", {"model_id": "demo"})["ok"] is True
 
