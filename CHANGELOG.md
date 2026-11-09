@@ -17,8 +17,9 @@ follow semantic versioning once the project reaches 1.0.
   `api/routes_jobs.py` owns the 16 job lifecycle, query, event, variant, DAG,
   and log routes; `api/routes_timeline.py` owns the 26 timeline edit, metadata,
   snapshot, overlay, comment, track, and waveform routes plus the shared
-  timeline helpers. `routes.py` drops from 5,289 to 3,196 lines and the
-  `register_*` pattern is established for the remaining domains.
+  timeline helpers; `api/routes_recipes.py` owns recipe CRUD, validation,
+  history, dry-run, and run routes. `routes.py` drops from 5,289 to 3,047 lines
+  and the `register_*` pattern is established for the remaining domains.
 - **UI API client extracted.** `ui/src/lib/api/client.ts` owns `ApiError`,
   `request`, and error formatting; `api.ts` drops from 2,984 to 2,833 lines
   while preserving every public import.

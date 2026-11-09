@@ -364,7 +364,7 @@ def test_project_settings_template_and_config_errors(monkeypatch, tmp_path: Path
 def test_recipe_wiring_errors_and_save(monkeypatch, tmp_path: Path) -> None:
     from pydantic import ValidationError
 
-    from videoflow.api import routes as routes_module
+    from videoflow.api import routes_recipes as routes_module
 
     client, _manager = _client(monkeypatch, tmp_path)
     source = str(tmp_path / "source.mp4")
