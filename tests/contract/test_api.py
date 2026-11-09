@@ -61,12 +61,12 @@ def test_service_controls_are_rejected_without_a_managed_server() -> None:
 
 
 def test_services_endpoint_lists_discovered_processes(monkeypatch, tmp_path) -> None:
-    from videoflow.api import routes
+    from videoflow.api import routes_admin
     from videoflow.application.services import ServiceProcess
 
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
     monkeypatch.setattr(
-        routes,
+        routes_admin,
         "discover_services",
         lambda current_pid=None: [
             ServiceProcess(
@@ -96,10 +96,10 @@ def test_services_log_returns_tail(monkeypatch, tmp_path) -> None:
 
 
 def test_cleanup_services_returns_stopped_pids(monkeypatch) -> None:
-    from videoflow.api import routes
+    from videoflow.api import routes_admin
 
     monkeypatch.setattr(
-        routes,
+        routes_admin,
         "stop_other_services",
         lambda current_pid=None: {"stopped": [9], "failed": [], "services": []},
     )

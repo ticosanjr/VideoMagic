@@ -848,7 +848,7 @@ def test_short_download_index_and_thumbnail_edge_cases(monkeypatch, tmp_path: Pa
 
 
 def test_admin_models_services_and_system_paths(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.api import routes as routes_module
+    from videoflow.api import routes_admin as admin_module
     from videoflow.api import routes_system as system_module
 
     client, _manager = _client(monkeypatch, tmp_path)
@@ -884,7 +884,7 @@ def test_admin_models_services_and_system_paths(monkeypatch, tmp_path: Path) -> 
     assert doctor.json()["checks"]["ffmpeg"]["found"] is False
     assert doctor.json()["ok"] is False
 
-    routes_module.append_server_log("coverage smoke")
+    admin_module.append_server_log("coverage smoke")
     bundle = client.get("/api/v1/system/support-bundle")
     assert bundle.status_code == 200
     names = set(zipfile.ZipFile(io.BytesIO(bundle.content)).namelist())
@@ -916,7 +916,7 @@ def test_admin_models_services_and_system_paths(monkeypatch, tmp_path: Path) -> 
 
         raise StateNotReadyError("cannot stop service")
 
-    monkeypatch.setattr(routes_module, "stop_service", fail_stop)
+    monkeypatch.setattr(admin_module, "stop_service", fail_stop)
     stop_failed = client.post("/api/v1/services/definitions/anything/stop")
     assert stop_failed.status_code == 409
     assert _error(stop_failed)["code"] == "state_not_ready"
@@ -926,7 +926,7 @@ def test_admin_models_services_and_system_paths(monkeypatch, tmp_path: Path) -> 
     assert client.post("/api/v1/services/cleanup").status_code == 200
 
     monkeypatch.setattr(
-        routes_module,
+        admin_module,
         "discover_services",
         lambda current_pid=None: [SimpleNamespace(pid=os.getpid(), current=True, protected=False)],
     )
@@ -934,11 +934,11 @@ def test_admin_models_services_and_system_paths(monkeypatch, tmp_path: Path) -> 
     assert protected.status_code == 409
     assert _error(protected)["code"] == "service_protected"
     monkeypatch.setattr(
-        routes_module,
+        admin_module,
         "discover_services",
         lambda current_pid=None: [SimpleNamespace(pid=4242, current=False, protected=False)],
     )
-    monkeypatch.setattr(routes_module, "stop_service_pid", lambda pid: True)
+    monkeypatch.setattr(admin_module, "stop_service_pid", lambda pid: True)
     stopped = client.post("/api/v1/services/4242/stop")
     assert stopped.status_code == 200
     assert stopped.json()["stopped"] is True
@@ -1182,7 +1182,7 @@ def test_doctor_defensive_environment_branches(monkeypatch, tmp_path: Path) -> N
 
 
 def test_route_error_boundaries_with_service_failures(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.api import routes as routes_module
+    from videoflow.api import routes_admin as admin_module
     from videoflow.domain.errors import StateNotReadyError
 
     client, _manager = _client(monkeypatch, tmp_path)
@@ -1212,7 +1212,7 @@ def test_route_error_boundaries_with_service_failures(monkeypatch, tmp_path: Pat
     assert failed_schedule.status_code == 409
     assert _error(failed_schedule)["code"] == "state_not_ready"
 
-    monkeypatch.setattr(routes_module, "save_definition", explode)
+    monkeypatch.setattr(admin_module, "save_definition", explode)
     failed_service = client.put(
         "/api/v1/services/definitions/boundary",
         json={"id": "boundary", "name": "Boundary", "command": "true"},

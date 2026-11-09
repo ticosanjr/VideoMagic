@@ -119,16 +119,17 @@ def test_variants_broll_system_and_admin_success(monkeypatch, tmp_path: Path) ->
         == 201
     )
 
+    from videoflow.api import routes_admin as admin_module
     monkeypatch.setattr(
-        routes_module, "set_plugin_enabled", lambda plugin_id, enabled: {"id": plugin_id}
+        admin_module, "set_plugin_enabled", lambda plugin_id, enabled: {"id": plugin_id}
     )
     assert client.post("/api/v1/plugins/demo/enable", json={"enabled": True}).status_code == 200
     monkeypatch.setattr(
-        routes_module, "install_model", lambda model_id, allow_network: {"id": model_id}
+        admin_module, "install_model", lambda model_id, allow_network: {"id": model_id}
     )
     assert client.post("/api/v1/models/demo/install", json={}).status_code == 200
     monkeypatch.setattr(
-        routes_module, "start_service", lambda service_id: {"id": service_id, "status": "running"}
+        admin_module, "start_service", lambda service_id: {"id": service_id, "status": "running"}
     )
     assert (
         client.put(

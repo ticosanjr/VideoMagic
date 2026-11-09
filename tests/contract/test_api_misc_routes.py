@@ -162,7 +162,6 @@ def test_caption_schedule_assets_and_service_definitions(monkeypatch, tmp_path: 
 
 
 def test_corrupt_timeline_caption_and_batch_errors(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.api import routes as routes_module
 
     client, manager = _client(monkeypatch, tmp_path)
     job = _job(manager, tmp_path)
@@ -177,5 +176,6 @@ def test_corrupt_timeline_caption_and_batch_errors(monkeypatch, tmp_path: Path) 
         ).status_code
         == 422
     )
-    monkeypatch.setattr(routes_module, "remove_model", lambda model_id: None)
+    from videoflow.api import routes_admin as admin_module
+    monkeypatch.setattr(admin_module, "remove_model", lambda model_id: None)
     assert client.delete("/api/v1/models/demo").status_code == 200
