@@ -1,7 +1,9 @@
 # Error catalog
 
-Every API/MCP error is a JSON object with `ok: false`, `code`, `message`, and
-optional `details`. The UI shows the code, a human message, and the next action.
+Every API error is a JSON object with `detail` containing `ok: false`, `code`,
+`message`, and optional `details`. MCP tool failures use the same object as
+`structured_content` without the HTTP `detail` wrapper. The UI shows the code, a
+human message, and the next action.
 
 | Code | HTTP | Meaning | Next action |
 | --- | --- | --- | --- |
