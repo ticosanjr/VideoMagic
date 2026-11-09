@@ -112,6 +112,49 @@ def _project_overlays(directory: Path) -> tuple[NleBroll, ...]:
     return tuple(entries)
 
 
+def _motion(directory: Path) -> tuple[NleBroll, ...]:
+    entries: list[NleBroll] = []
+    manifest = directory / "motion" / "render-manifest.json"
+    if manifest.is_file():
+        try:
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            payload = {}
+        for scene in payload.get("scenes", []) if isinstance(payload, dict) else []:
+            if not isinstance(scene, dict) or not scene.get("path"):
+                continue
+            path = Path(str(scene["path"]))
+            if not path.is_file():
+                continue
+            entries.append(
+                NleBroll(
+                    path=str(path),
+                    start_sec=float(scene.get("start_sec") or 0.0),
+                    duration_sec=float(scene.get("duration_sec") or 1.0),
+                    name=str(scene.get("scene_id") or path.stem),
+                    kind="video",
+                )
+            )
+    intro = directory / "motion" / "intro.json"
+    if intro.is_file():
+        try:
+            payload = json.loads(intro.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            payload = {}
+        path = Path(str(payload.get("path") or "")) if isinstance(payload, dict) else Path()
+        if path.is_file():
+            entries.append(
+                NleBroll(
+                    path=str(path),
+                    start_sec=0.0,
+                    duration_sec=float(payload.get("duration_sec") or 1.0),
+                    name="intro",
+                    kind="video",
+                )
+            )
+    return tuple(entries)
+
+
 def nle_extras_from_output(output: Path) -> NleExtras:
     """Read markers, titles, B-roll, colour, and the audio master if present."""
 
@@ -151,7 +194,7 @@ def nle_extras_from_output(output: Path) -> NleExtras:
     return NleExtras(
         markers=markers,
         titles=_titles(directory / "titles.ass"),
-        broll=_broll(directory) + _project_overlays(directory),
+        broll=_broll(directory) + _project_overlays(directory) + _motion(directory),
         color_filters=colors,
         audio_filters=audio,
         audio_stem=str(stems) if stems.is_file() else "",

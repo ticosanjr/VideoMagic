@@ -463,6 +463,38 @@ _STEP_DESCRIPTIONS: dict[str, dict[str, str]] = {
         "narrative_path": "Output-relative narrative entities JSON.",
         "output_stem": "Base name for the corrected manifest and report.",
     },
+    "motion.codegen": {
+        "units_path": "Output-relative unit storyboard.",
+        "style_path": "Output-relative style guide.",
+        "assignments_path": "Output-relative asset assignments.",
+        "max_scenes": "Maximum generated scenes.",
+    },
+    "motion.render": {
+        "engine": "ffmpeg or remotion (FFmpeg is bundled; Remotion is optional).",
+        "render": "Render the scene graph.",
+        "max_scenes": "Maximum rendered scenes.",
+    },
+    "audio.compose": {
+        "bpm": "Tempo.",
+        "root_midi": "Root note as MIDI.",
+        "duration_sec": "Override duration; zero uses the source.",
+    },
+    "sfx.synthesize": {
+        "max_cues": "Maximum Foley cues.",
+        "kinds": "Foley types to cycle through.",
+        "use_scenes": "Place cues at rendered scene starts.",
+    },
+    "audio.mix": {
+        "music_gain": "Music bed level.",
+        "sfx_gain": "Foley level.",
+        "output_name": "Final audio filename.",
+    },
+    "intro.compile": {
+        "duration_sec": "Target intro duration.",
+        "clip_seconds": "Seconds per selected asset.",
+        "max_assets": "Maximum assets in the intro.",
+        "title": "Intro title; blank uses the topic.",
+    },
     "metadata.pack": {
         "platform": "Platform whose metadata format is generated.",
     },

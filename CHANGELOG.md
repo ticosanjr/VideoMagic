@@ -36,6 +36,9 @@ follow semantic versioning once the project reaches 1.0.
   `assets.assign`; Pexels/Pixabay/Openverse/Wikimedia/Internet Archive and
   short fair-use YouTube excerpts; explicit `assets/licenses.json` ledger and
   export blocking until the review gate approves.
+- **Motion, audio, and intro.** `motion.codegen`/`motion.render` with an FFmpeg
+  backend, NLE overlay manifests, procedural music and Foley with a final
+  dialogue/music/SFX mix, and `intro.compile` for the high-retention opening.
 
 ## [2.59.4] - 2026-11-09
 

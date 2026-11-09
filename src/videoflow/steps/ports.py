@@ -336,9 +336,29 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         (),
         (PortSpec("report", "Rules report", "json", "metadata:rules_memory"),),
     ),
+    "motion.codegen": (
+        (),
+        (PortSpec("scenes", "Motion scenes", "json", "metadata:motion_scenes"),),
+    ),
     "motion.render": (
-        (PortSpec("timeline", "Timeline state", "timeline", "state", True),),
-        (PortSpec("plan", "Motion plan", "json", "metadata:motion_plan"),),
+        (PortSpec("scenes", "Motion scenes", "json", "metadata:motion_scenes", False),),
+        (PortSpec("manifest", "Motion render manifest", "json", "metadata:motion_manifest"),),
+    ),
+    "audio.compose": (
+        (PortSpec("media", "Media info", "media", "media", False),),
+        (PortSpec("music", "Music bed", "artifact", "artifacts:audio_music"),),
+    ),
+    "sfx.synthesize": (
+        (),
+        (PortSpec("cues", "Foley cues", "json", "metadata:sfx_cues"),),
+    ),
+    "audio.mix": (
+        (PortSpec("master", "Audio master", "audio", "artifacts:audio_master", True),),
+        (PortSpec("mix", "Final mix", "audio", "artifacts:audio_mix"),),
+    ),
+    "intro.compile": (
+        (),
+        (PortSpec("intro", "Intro clip", "artifact", "artifacts:intro"),),
     ),
     "style.guide": (
         (),
