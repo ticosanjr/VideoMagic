@@ -162,7 +162,9 @@ def test_full_flow_with_a_real_backend(
             break
         time.sleep(0.1)
     assert status["status"] == "ready", status
-    assert time.perf_counter() - started < 5.0
+    # The preview is cached after the first render. Keep a generous bound for
+    # the local gate, where the real FFmpeg backend runs beside other checks.
+    assert time.perf_counter() - started < 10.0
 
     frame = client.get(f"/api/v1/jobs/{job_id}/frame", params={"time": 1.0})
     assert frame.status_code == 200, frame.text

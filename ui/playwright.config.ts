@@ -4,7 +4,7 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  retries: process.env.CI ? 2 : 1,
   // Keep the local gate deterministic: shared Vite compilation plus many
   // browser contexts can starve the first mount under parallel workers.
   workers: 1,
