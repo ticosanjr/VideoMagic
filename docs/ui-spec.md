@@ -200,3 +200,10 @@ restart, and is requeued. Jobs carry a priority and drain highest-first.
 - Timeline shortcuts ignore focused inputs, textareas, and selects.
 - Panels are usable from 360 px upward; the timeline scrolls horizontally
   instead of shrinking clips below legibility.
+- Area tabs keep their labels on phones; sub-tabs scroll inside their own row,
+  so the page never gains a horizontal scrollbar.
+- Header actions are icon-first below `sm`; restart/stop stay available through
+  the command palette, and the recipe toolbar moves secondary actions into
+  More.
+- Tab changes scroll to the workspace top and announce the new area/tab through
+  a polite live region.

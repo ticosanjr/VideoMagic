@@ -17,6 +17,22 @@ follow semantic versioning once the project reaches 1.0.
   badges carry a colored dot, and the startup card shows unpack/FFmpeg/API
   progress.
 - The AppImage now ships `packaging/videoflow.png` as its default icon.
+- **Compact mobile shell.** Area tabs keep their labels, header actions become
+  icon-first, the service restart/stop controls move to the command palette,
+  and the recipe toolbar folds secondary actions into More on narrow screens.
+- **Mobile builder height.** The recipe canvas uses a shorter viewport on
+  phones, so the graph and footer are reachable without a long scroll.
+- Media empty state now uses the shared branded empty state.
+- Changing tabs scrolls to the workspace top and announces the new area/tab
+  through a polite live region.
+
+### Fixed
+
+- **Mobile navigation overflow.** Sub-tabs now scroll inside their own row
+  instead of widening the page; the page no longer gains a horizontal
+  scrollbar on Setup.
+- **Settings resilience.** A partial settings payload no longer crashes the
+  panel while reading `allowed_roots`.
 
 ## [2.59.2] - 2026-11-08
 

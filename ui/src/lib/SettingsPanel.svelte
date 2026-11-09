@@ -33,7 +33,7 @@
       settings = payload.settings;
       env = payload.env;
       restartRequired = payload.restart_required;
-      rootsText = settings.paths.allowed_roots.join(", ");
+      rootsText = (settings.paths?.allowed_roots ?? []).join(", ");
     } catch (reason) {
       error = errorMessage(reason);
     }
@@ -86,7 +86,7 @@
     try {
       const parsed = JSON.parse(await file.text()) as AppSettings;
       settings = await saveSettings(parsed);
-      rootsText = settings.paths.allowed_roots.join(", ");
+      rootsText = (settings.paths?.allowed_roots ?? []).join(", ");
       status = "Settings imported.";
     } catch (reason) {
       error = errorMessage(reason);
@@ -98,7 +98,7 @@
     busy = true;
     try {
       settings = await resetSettings();
-      rootsText = settings.paths.allowed_roots.join(", ");
+      rootsText = (settings.paths?.allowed_roots ?? []).join(", ");
       status = "Settings reset to defaults.";
     } catch (reason) {
       error = errorMessage(reason);

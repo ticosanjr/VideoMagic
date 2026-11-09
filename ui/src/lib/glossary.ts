@@ -8,6 +8,7 @@
 
 export const GLOSSARY: Record<string, string> = {
   "studio": "estúdio",
+  "Recipe JSON": "JSON da receita",
   "local only": "somente local",
   "unpack": "extrair",
   "api": "api",

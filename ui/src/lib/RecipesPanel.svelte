@@ -2663,28 +2663,38 @@
           disabled={busy}
           onclick={() => void execute()}
         >{busy ? "Starting…" : "Run"}</Button>
-        <Button icon="save" variant="secondary" size="md" onclick={() => void save()} title="Save the recipe">Save</Button>
-        <Button icon="check" variant="secondary" size="md" onclick={() => void validate()} title="Validate the recipe graph">Validate</Button>
+        <Button icon="save" variant="secondary" size="md" class="max-sm:hidden" onclick={() => void save()} title="Save the recipe">Save</Button>
+        <Button icon="check" variant="secondary" size="md" class="max-sm:hidden" onclick={() => void validate()} title="Validate the recipe graph">Validate</Button>
         <Button
           icon="panel"
           variant={inspectorOpen ? "primary" : "secondary"}
           size="md"
+          class="max-sm:hidden"
           onclick={toggleInspector}
           title={inspectorOpen ? "Close the inspector" : "Open the inspector"}
         >Inspector</Button>
         <IconButton icon="undo" label="Undo" disabled={!undoStack.length} onclick={undo} />
         <IconButton icon="redo" label="Redo" disabled={!redoStack.length} onclick={redo} />
-        <Button icon="activity" variant="secondary" size="md" testid="recipe-runs" disabled={historyBusy} onclick={() => void openHistory()}>{historyBusy ? "Runs…" : "Runs"}</Button>
-        <button type="button" data-testid="recipe-step-outputs" onclick={openStepOutputsPicker} class="inline-flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-950/40 px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-sky-500 hover:text-sky-200">
+        <Button icon="activity" variant="secondary" size="md" class="max-sm:hidden" testid="recipe-runs" disabled={historyBusy} onclick={() => void openHistory()}>{historyBusy ? "Runs…" : "Runs"}</Button>
+        <button type="button" data-testid="recipe-step-outputs" onclick={openStepOutputsPicker} class="hidden items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-950/40 px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-sky-500 hover:text-sky-200 sm:inline-flex">
           <Icon name="file" size={14} />
           Outputs
         </button>
-        <IconButton icon="code" label="Recipe JSON" testid="recipe-json" onclick={openRecipeJson} />
+        <IconButton icon="code" label="Recipe JSON" testid="recipe-json" class="max-sm:hidden" onclick={openRecipeJson} />
         <div class="relative">
           <Button icon="more" variant="secondary" size="md" testid="recipe-more" onclick={() => (moreOpen = !moreOpen)}>More</Button>
           {#if moreOpen}
             <button type="button" class="fixed inset-0 z-40 cursor-default" aria-label="Close menu" onclick={() => (moreOpen = false)}></button>
             <div class="absolute right-0 z-50 mt-1 w-56 overflow-hidden rounded-xl border border-neutral-700 bg-neutral-950 p-1 shadow-2xl" role="menu" data-testid="recipe-more-menu">
+              <div class="sm:hidden">
+                <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; void save(); }}><Icon name="save" size={13} />Save recipe</button>
+                <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; void validate(); }}><Icon name="check" size={13} />Validate</button>
+                <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; toggleInspector(); }}><Icon name="panel" size={13} />Inspector</button>
+                <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; void openHistory(); }}><Icon name="activity" size={13} />Runs</button>
+                <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; openStepOutputsPicker(); }}><Icon name="file" size={13} />Outputs</button>
+                <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; openRecipeJson(); }}><Icon name="code" size={13} />Recipe JSON</button>
+                <div class="my-1 border-t border-neutral-800"></div>
+              </div>
               <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; void dryRun(); }}><Icon name="flask" size={13} />Dry run</button>
               <button type="button" role="menuitem" data-testid="nle-validate" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" disabled={nleBusy} onclick={() => { moreOpen = false; void openNleValidation(); }}><Icon name="check" size={13} />{nleBusy ? "Validating…" : "Validate NLE exports"}</button>
               <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; void openBatchHistory(); }}><Icon name="layers" size={13} />Batch history</button>
@@ -2756,7 +2766,7 @@
 
       <div class="flex flex-col gap-2 xl:flex-row">
         <div class="relative min-w-0 flex-1">
-        <div bind:this={canvasEl} class="h-[clamp(560px,72vh,920px)] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950">
+        <div bind:this={canvasEl} class="h-[clamp(360px,58vh,920px)] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950 sm:h-[clamp(560px,72vh,920px)]">
           <SvelteFlow
             bind:nodes
             bind:edges

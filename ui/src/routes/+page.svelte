@@ -147,6 +147,20 @@
       keywords: "diagnostics logs export",
       hint: "Redacted diagnostics for local debugging"
     },
+    {
+      id: "action:restart",
+      title: "Restart the local service",
+      group: "Maintain",
+      keywords: "service restart reload",
+      hint: "Reloads the local API and the studio"
+    },
+    {
+      id: "action:stop",
+      title: "Stop the local service",
+      group: "Maintain",
+      keywords: "service stop shutdown",
+      hint: "Stops the local API; reopen VideoFlow to start again"
+    },
     ...jobs
       .filter((job) => ["running", "queued"].includes(job.status))
       .map((job) => ({
@@ -225,6 +239,8 @@
     else if (command.id === "action:shortcuts") shortcutsOpen = true;
     else if (command.id === "action:refresh") void refreshJobs();
     else if (command.id === "action:support") window.open("/api/v1/system/support-bundle", "_blank");
+    else if (command.id === "action:restart") void restartLocalService();
+    else if (command.id === "action:stop") void stopLocalService();
     else if (command.id.startsWith("retry:")) {
       const jobId = command.id.slice(6);
       void retryJob(jobId)
@@ -382,6 +398,10 @@
     activeTab = tab;
     history.replaceState(null, "", hashFor(tab));
     localStorage.setItem("videoflow.tab", tab);
+    if (typeof window !== "undefined") {
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+    }
   }
 
   $effect(() => {
@@ -523,21 +543,22 @@
           ></span>
           server {system?.version ?? (connecting ? "connecting…" : "offline")}
         </span>
-        <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-mono text-[11px] text-neutral-500" title="UI bundle version">ui {UI_VERSION}</span>
+        <span class="hidden items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-mono text-[11px] text-neutral-500 sm:inline-flex" title="UI bundle version">ui {UI_VERSION}</span>
         <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-500">FFmpeg {system?.ffmpeg ? "ready" : connecting ? "checking…" : "missing"}</span>
         <button
           type="button"
           onclick={() => (onboardingOpen = true)}
           class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300"
           title="Open the getting-started guide"
-        ><Icon name="bulb" size={12} class="mr-1" />Guide</button>
+          aria-label="Guide"
+        ><Icon name="bulb" size={12} class="mr-1" /><span class="sr-only sm:not-sr-only">Guide</span></button>
         <button
           type="button"
           onclick={() => (activityOpen = true)}
           class="relative rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300"
           title="Activity drawer (U)"
         >
-          {t(locale, "activity")}
+          <Icon name="activity" size={12} class="mr-1" /><span class="sr-only sm:not-sr-only">{t(locale, "activity")}</span>
           {#if runningJobs.length}
             <span class={`ml-1 rounded-full bg-sky-500/20 px-1.5 py-0.5 font-mono text-[10px] text-sky-200 ${hasRunningJob ? "animate-pulse" : ""}`}>{runningJobs.length}</span>
           {/if}
@@ -548,7 +569,7 @@
           class="relative rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300"
           title="Notification center (N)"
         >
-          {t(locale, "notifications")}
+          <Icon name="info" size={12} class="mr-1" /><span class="sr-only sm:not-sr-only">{t(locale, "notifications")}</span>
           {#if counts.errors + counts.warnings + attentionJobs.length}
             <span class={`ml-1 rounded-full px-1.5 py-0.5 font-mono text-[10px] ${counts.errors ? "bg-rose-500/20 text-rose-200" : "bg-amber-400/20 text-amber-200"}`}>{counts.errors + counts.warnings + attentionJobs.length}</span>
           {/if}
@@ -569,10 +590,10 @@
         {#if serviceStopped}
           <span class="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-[11px] text-amber-200">Service stopped · close this tab</span>
         {:else}
-          <button type="button" onclick={() => void restartLocalService()} disabled={Boolean(serviceBusy)} class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300 disabled:opacity-40">
+          <button type="button" onclick={() => void restartLocalService()} disabled={Boolean(serviceBusy)} class="hidden rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300 disabled:opacity-40 sm:inline-flex">
             {serviceBusy === "restart" ? "Restarting…" : "Restart service"}
           </button>
-          <button type="button" onclick={() => void stopLocalService()} disabled={Boolean(serviceBusy)} class="rounded-full border border-rose-500/20 bg-rose-500/[0.04] px-3 py-1 text-[11px] text-rose-300 transition hover:border-rose-400/40 hover:bg-rose-500/10 disabled:opacity-40">
+          <button type="button" onclick={() => void stopLocalService()} disabled={Boolean(serviceBusy)} class="hidden rounded-full border border-rose-500/20 bg-rose-500/[0.04] px-3 py-1 text-[11px] text-rose-300 transition hover:border-rose-400/40 hover:bg-rose-500/10 disabled:opacity-40 sm:inline-flex">
             {serviceBusy === "stop" ? "Stopping…" : "Stop service"}
           </button>
         {/if}
@@ -587,31 +608,37 @@
               type="button"
               role="tab"
               aria-selected={activeArea === area.id}
+              aria-label={t(locale, area.id)}
               title={t(locale, `${area.id}_hint`)}
               onclick={() => selectTab(defaultTabForArea(area.id))}
               onkeydown={(event) => onTabKey(event, AREAS.map((item) => item.id), area.id, (id) => selectTab(defaultTabForArea(id as AreaId)))}
-              class={`rounded-xl px-3.5 py-2 text-xs font-medium transition ${activeArea === area.id ? "bg-sky-500/15 text-sky-200 ring-1 ring-inset ring-sky-400/20" : "text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-200"}`}
+              class={`rounded-xl px-2 py-2 text-[10px] font-medium transition sm:px-3.5 sm:text-xs ${activeArea === area.id ? "bg-sky-500/15 text-sky-200 ring-1 ring-inset ring-sky-400/20" : "text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-200"}`}
             >
-              <Icon name={AREA_ICONS[area.id]} size={14} class="mr-1.5" />{t(locale, area.id)}
+              <Icon name={AREA_ICONS[area.id]} size={14} class="mr-1 sm:mr-1.5" />
+              {t(locale, area.id)}
             </button>
           {/each}
         </div>
       </div>
       {#if subTabs.length > 1}
-        <div class="mt-1 flex min-w-max gap-1 overflow-x-auto border-t border-neutral-800/70 px-1 pt-1" role="tablist" aria-label={t(locale, activeArea)}>
-          {#each subTabs as tabId}
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === tabId}
-              title={TAB_HINTS[tabId]}
-              onclick={() => selectTab(tabId)}
-              onkeydown={(event) => onTabKey(event, subTabs, tabId, (id) => selectTab(id as TabId))}
-              class={`rounded-lg px-2.5 py-1 text-[11px] transition ${activeTab === tabId ? "bg-white/[0.06] text-neutral-100" : "text-neutral-500 hover:text-neutral-200"}`}
-            >
-              <Icon name={TAB_ICONS[tabId]} size={12} class="mr-1.5" />{t(locale, tabId)}
-            </button>
-          {/each}
+        <div class="mt-1 overflow-x-auto border-t border-neutral-800/70 pt-1">
+          <div class="flex min-w-max gap-1 px-1" role="tablist" aria-label={t(locale, activeArea)}>
+            {#each subTabs as tabId}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tabId}
+                aria-label={t(locale, tabId)}
+                title={TAB_HINTS[tabId]}
+                onclick={() => selectTab(tabId)}
+                onkeydown={(event) => onTabKey(event, subTabs, tabId, (id) => selectTab(id as TabId))}
+                class={`rounded-lg px-2.5 py-1 text-[11px] transition ${activeTab === tabId ? "bg-white/[0.06] text-neutral-100" : "text-neutral-500 hover:text-neutral-200"}`}
+              >
+                <Icon name={TAB_ICONS[tabId]} size={12} class="mr-1 sm:mr-1.5" />
+                {t(locale, tabId)}
+              </button>
+            {/each}
+          </div>
         </div>
       {/if}
     </nav>
@@ -622,6 +649,7 @@
       <span class="text-neutral-200">{t(locale, activeTab)}</span>
       <span class="ml-2 hidden text-neutral-600 sm:inline">{TAB_HINTS[activeTab]}</span>
     </div>
+    <p class="sr-only" aria-live="polite">{t(locale, activeArea)} · {t(locale, activeTab)}</p>
 
     <ErrorBanner
       message={[serviceError, systemError].filter(Boolean).join(" · ")}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import HelpTip from "$lib/HelpTip.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import EmptyState from "$lib/EmptyState.svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
   import { onMount } from "svelte";
   import PathPicker from "$lib/PathPicker.svelte";
@@ -156,7 +157,13 @@
       </article>
     {/each}
     {#if filtered.length === 0}
-      <p class="col-span-full rounded-2xl border border-dashed border-neutral-800 p-8 text-center text-xs text-neutral-500">No assets yet. Scan a folder to build the library.</p>
+      <div class="col-span-full">
+        <EmptyState
+          title="No assets yet"
+          description="Scan a folder to build the library, then tag and license each asset."
+          icon="image"
+        />
+      </div>
     {/if}
   </section>
 </div>
