@@ -7,7 +7,7 @@ from tests.contract.test_api_timeline import _client, _job
 
 
 def test_short_edit_analysis_assets_and_publish(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.api import routes as routes_module
+    from videoflow.api import routes_outputs as routes_module
 
     client, job, _media, _thumb, _outside = _short_job(monkeypatch, tmp_path)
     base = f"/api/v1/jobs/{job.job_id}/shorts/0"
@@ -59,7 +59,7 @@ def test_short_edit_analysis_assets_and_publish(monkeypatch, tmp_path: Path) -> 
 
 
 def test_variants_broll_system_and_admin_success(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.api import routes as routes_module
+    from videoflow.api import routes_media as routes_module
 
     client, manager = _client(monkeypatch, tmp_path)
     job = _job(manager, tmp_path)

@@ -273,7 +273,7 @@ def test_edit_short_updates_result_and_writes_a_new_render(monkeypatch, tmp_path
         return destination
 
     monkeypatch.setattr(
-        "videoflow.api.routes.FFmpegAdapter.render_short", fake_render
+        "videoflow.adapters.ffmpeg.FFmpegAdapter.render_short", fake_render
     )
     client = TestClient(create_app(jobs=manager))
     response = client.post(
@@ -619,7 +619,7 @@ def test_preview_proxy_routes(monkeypatch, tmp_path: Path) -> None:
     from fastapi.testclient import TestClient
 
     from tests.recipe_jobs import manager_with_runner
-    from videoflow.api import routes
+    from videoflow.api import routes_outputs
     from videoflow.api.app import create_app
 
     def runner(source, output, **kwargs):
@@ -630,7 +630,7 @@ def test_preview_proxy_routes(monkeypatch, tmp_path: Path) -> None:
         return {"ok": True, "artifacts": {"mp4": str(artifact)}, "shorts": []}
 
     monkeypatch.setattr(
-        routes.FFmpegAdapter,
+        routes_outputs.FFmpegAdapter,
         "transcode_preview",
         lambda self, source, target, **kwargs: target.write_bytes(b"proxy") or target,
     )

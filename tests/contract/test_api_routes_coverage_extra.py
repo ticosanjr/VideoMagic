@@ -65,8 +65,8 @@ def test_request_model_validators_and_bad_json(monkeypatch, tmp_path: Path) -> N
 
 
 def test_asset_filesystem_and_media_error_paths(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.api import routes as routes_module
     from videoflow.api import routes_assets as assets_module
+    from videoflow.api import routes_media as media_module
     from videoflow.domain.errors import FilesystemError
     from videoflow.domain.state import MediaInfo
 
@@ -138,7 +138,7 @@ def test_asset_filesystem_and_media_error_paths(monkeypatch, tmp_path: Path) -> 
     def explode(*args, **kwargs):
         raise OverflowError("too many entries")
 
-    monkeypatch.setattr(routes_module, "list_directory", explode)
+    monkeypatch.setattr(media_module, "list_directory", explode)
     listing = client.get("/api/v1/fs/list")
     assert listing.status_code == 500
     assert _error(listing)["code"] == "filesystem_error"
@@ -182,7 +182,7 @@ def test_asset_filesystem_and_media_error_paths(monkeypatch, tmp_path: Path) -> 
             audio_sample_rate=48000,
         )
 
-    monkeypatch.setattr(routes_module.FFmpegAdapter, "probe", fake_probe)
+    monkeypatch.setattr(media_module.FFmpegAdapter, "probe", fake_probe)
     probed = client.get("/api/v1/media/probe", params={"path": str(present)})
     assert probed.status_code == 200
     assert probed.json()["media"]["duration_frames"] == 42
@@ -193,7 +193,7 @@ def test_asset_filesystem_and_media_error_paths(monkeypatch, tmp_path: Path) -> 
 
         raise IngestError("cannot import")
 
-    monkeypatch.setattr(routes_module, "import_url", fail_import)
+    monkeypatch.setattr(media_module, "import_url", fail_import)
     imported = client.post("/api/v1/media/import", json={"url": "http://example.test/v"})
     assert imported.status_code == 422
     assert _error(imported)["code"] == "ingest_failed"
@@ -576,7 +576,7 @@ def test_event_stream_skips_unchanged_payloads(monkeypatch, tmp_path: Path) -> N
 
 
 def test_preview_render_frame_and_waveform_paths(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.api import routes as routes_module
+    from videoflow.api import routes_outputs as routes_module
     from videoflow.api import routes_timeline as timeline_module
 
     client, manager = _client(monkeypatch, tmp_path)
@@ -648,7 +648,7 @@ def test_preview_render_frame_and_waveform_paths(monkeypatch, tmp_path: Path) ->
 def test_timeline_etag_lock_overlay_comment_and_state_paths(
     monkeypatch, tmp_path: Path
 ) -> None:
-    from videoflow.api import routes as routes_module
+    from videoflow.api import routes_outputs as routes_module
     from videoflow.domain.state import (
         AudioSegment,
         ProjectState,
@@ -984,7 +984,7 @@ def test_admin_models_services_and_system_paths(monkeypatch, tmp_path: Path) -> 
 
 
 def test_read_only_inventory_endpoints(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.api import routes as routes_module
+    from videoflow.api import routes_media as media_module
     from videoflow.api import routes_system as system_module
 
     client, _manager = _client(monkeypatch, tmp_path)
@@ -1060,7 +1060,7 @@ def test_read_only_inventory_endpoints(monkeypatch, tmp_path: Path) -> None:
 
         raise FilesystemError("cannot resolve roots")
 
-    monkeypatch.setattr(routes_module, "roots_payload", fail_roots)
+    monkeypatch.setattr(media_module, "roots_payload", fail_roots)
     broken_roots = client.get("/api/v1/fs/roots")
     assert broken_roots.status_code == 500
     assert _error(broken_roots)["code"] == "filesystem_error"

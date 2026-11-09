@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from videoflow.api import routes
+from videoflow.api import routes_media
 from videoflow.api.app import create_app
 from videoflow.domain.state import MediaInfo
 
@@ -194,7 +194,7 @@ def test_probe_media_returns_metadata_and_rejects_outside_paths(
         height=1080,
         audio_sample_rate=48000,
     )
-    monkeypatch.setattr(routes, "probe_media", lambda path: info)
+    monkeypatch.setattr(routes_media, "probe_media", lambda path: info)
 
     response = client.get("/api/v1/media/probe", params={"path": str(source)})
     assert response.status_code == 200, response.text

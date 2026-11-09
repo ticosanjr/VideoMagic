@@ -125,10 +125,10 @@ def test_assistant_read_tools_and_preview_approval(monkeypatch, tmp_path: Path) 
     observations = response.json()["observations"]
     assert {item["tool"] for item in observations} == {"a1", "a2", "a3", "a4"}
 
-    from videoflow.api import routes as routes_module
+    from videoflow.api import routes_copilot as copilot_module
 
     state = PreviewState(job_id=str(job.job_id), status="queued")
-    monkeypatch.setattr(routes_module.previews, "start", lambda item: state)
+    monkeypatch.setattr(copilot_module.previews, "start", lambda item: state)
     approved = client.post(
         f"/api/v1/jobs/{job.job_id}/assistant/approve",
         json={"approval_id": response.json()["approval_id"]},
