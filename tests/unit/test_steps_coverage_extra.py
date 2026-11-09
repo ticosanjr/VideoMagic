@@ -484,7 +484,7 @@ def test_review_step_reports_missing_and_ready_checks(tmp_path: Path) -> None:
 def test_metadata_pack_collects_and_records_failures(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from videoflow.steps import delivery
+    from videoflow.steps import delivery_metadata
     from videoflow.steps.delivery import MetadataPackParams, MetadataPackStep
 
     def fake_metadata(**kwargs: object) -> dict[str, object]:
@@ -497,7 +497,7 @@ def test_metadata_pack_collects_and_records_failures(
             "hashtags": list(kwargs["extra_hashtags"]),  # type: ignore[arg-type]
         }
 
-    monkeypatch.setattr(delivery, "generate_short_metadata", fake_metadata)
+    monkeypatch.setattr(delivery_metadata, "generate_short_metadata", fake_metadata)
     context = make_context(
         tmp_path,
         shorts=[{"title": "one"}, {"title": "two"}],
@@ -520,7 +520,7 @@ def test_metadata_pack_collects_and_records_failures(
 def test_thumbnail_pack_copies_variants_and_warns(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from videoflow.steps import delivery
+    from videoflow.steps import delivery_metadata
     from videoflow.steps.delivery import ThumbnailPackParams, ThumbnailPackStep
 
     def fake_thumbnail(**kwargs: object) -> dict[str, object]:
@@ -533,7 +533,7 @@ def test_thumbnail_pack_copies_variants_and_warns(
         target.write_bytes(b"png")
         return {"path": str(target)}
 
-    monkeypatch.setattr(delivery, "generate_short_thumbnail", fake_thumbnail)
+    monkeypatch.setattr(delivery_metadata, "generate_short_thumbnail", fake_thumbnail)
     context = make_context(
         tmp_path,
         shorts=[
@@ -551,7 +551,7 @@ def test_thumbnail_pack_copies_variants_and_warns(
 def test_publish_queue_skips_and_enqueues_with_failures(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from videoflow.steps import delivery
+    from videoflow.steps import delivery_publish
     from videoflow.steps.delivery import PublishQueueParams, PublishQueueStep
 
     reports: list[str] = []
@@ -566,7 +566,7 @@ def test_publish_queue_skips_and_enqueues_with_failures(
             raise RuntimeError("target exploded")
         return {"target": kwargs["target_name"], "title": kwargs["title"]}
 
-    monkeypatch.setattr(delivery, "enqueue_publish", fake_enqueue)
+    monkeypatch.setattr(delivery_publish, "enqueue_publish", fake_enqueue)
     context.shorts = [
         {"path": "one.mp4", "title": "One"},
         {"title": "no path"},
