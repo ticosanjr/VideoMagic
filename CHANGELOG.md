@@ -3,6 +3,21 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
+## [Unreleased]
+
+### Changed
+
+- **Premium shell.** A branded logo and app icon, PWA manifest, theme-color and
+  social metadata, an ambient studio backdrop, a live document title, and a
+  service status dot.
+- **First-run and empty states.** The guide modal gained a progress rail, step
+  icons, a local-only badge, and a skip action; empty states gained a branded
+  icon and an optional shortcut hint.
+- **Status and startup feedback.** Running jobs pulse in the header, status
+  badges carry a colored dot, and the startup card shows unpack/FFmpeg/API
+  progress.
+- The AppImage now ships `packaging/videoflow.png` as its default icon.
+
 ## [2.59.2] - 2026-11-08
 
 ### Changed

@@ -21,6 +21,7 @@
   import ShortcutsModal from "$lib/ShortcutsModal.svelte";
   import TimelinePanel from "$lib/TimelinePanel.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import Logo from "$lib/ui/Logo.svelte";
   import { errorMessage, getSettings, getSystem, listJobs, restartService, retryJob, stopService, type Job, type SystemInfo } from "$lib/api";
   import type { Command } from "$lib/commandPalette";
   import { t } from "$lib/i18n";
@@ -101,6 +102,12 @@
   const counts = $derived(noticeCounts(notifications.items));
   const attentionJobs = $derived(
     jobs.filter((job) => ["waiting_approval", "failed"].includes(job.status))
+  );
+  const runningJobs = $derived(
+    jobs.filter((job) => ["running", "queued"].includes(job.status))
+  );
+  const hasRunningJob = $derived(
+    jobs.some((job) => job.status === "running")
   );
 
   const commands = $derived<Command[]>([
@@ -384,6 +391,26 @@
     void tick().then(() => translateTree(document.body, locale));
   });
 
+  $effect(() => {
+    if (typeof document === "undefined") return;
+    const area = t(locale, activeArea);
+    const tab = t(locale, activeTab);
+    const suffix = runningJobs.length ? ` · ${runningJobs.length} running` : "";
+    document.title = `VideoFlow — ${area} · ${tab}${suffix}`;
+  });
+
+  function applyTheme(theme: string) {
+    if (typeof document === "undefined") return;
+    document.documentElement.dataset.theme = theme;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) {
+      meta.setAttribute(
+        "content",
+        theme === "light" ? "#f8fafc" : theme === "high-contrast" ? "#000000" : "#09090b"
+      );
+    }
+  }
+
   function syncHash() {
     activeTab = resolveRoute(window.location.hash).tab;
   }
@@ -445,7 +472,7 @@
       .then(({ settings }) => {
         locale = settings.runtime.locale || "en";
         i18n.set(locale);
-        document.documentElement.dataset.theme = settings.ui.theme;
+        applyTheme(settings.ui.theme);
         document.documentElement.dataset.density = settings.ui.density;
       })
       .catch(() => {});
@@ -462,29 +489,40 @@
 <svelte:head>
   <title>VideoFlow — Recipe studio</title>
   <meta name="description" content="Local, non-destructive video pre-edit pipeline." />
+  <meta property="og:title" content="VideoFlow" />
+  <meta property="og:description" content="Local, non-destructive video pre-edit studio with recipes, a canvas timeline, and NLE exports." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary" />
 </svelte:head>
 
 <div class="min-h-screen bg-neutral-950">
+  <div class="vf-backdrop pointer-events-none fixed inset-0 -z-10" aria-hidden="true">
+    <div class="absolute -top-48 left-1/2 h-[40rem] w-[70rem] -translate-x-1/2 rounded-full bg-sky-500/[0.07] blur-[130px]"></div>
+    <div class="absolute -bottom-64 right-[-12rem] h-[34rem] w-[34rem] rounded-full bg-indigo-500/[0.07] blur-[130px]"></div>
+    <div class="vf-grid absolute inset-0"></div>
+  </div>
+  <div class="pointer-events-none fixed inset-x-0 top-0 z-50 h-px bg-gradient-to-r from-transparent via-sky-400/70 to-transparent" aria-hidden="true"></div>
   <a href="#workspace-content" class="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[80] focus:rounded-lg focus:bg-sky-500 focus:px-3 focus:py-2 focus:text-sm focus:text-neutral-950">Skip to content</a>
   <div class={`mx-auto flex min-h-screen flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8 ${activeTab === "recipes" || activeTab === "timeline" ? "max-w-[1800px]" : "max-w-[1600px]"}`}>
     <header class="flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-center gap-3">
-        <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-300 ring-1 ring-inset ring-sky-400/20">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-            <rect x="3" y="5" width="18" height="14" rx="2" />
-            <path d="M7 5v14M17 5v14M3 9h4M3 15h4M17 9h4M17 15h4" />
-          </svg>
-        </div>
+        <Logo size={44} />
         <div>
           <div class="flex items-center gap-2">
             <h1 class="text-xl font-semibold tracking-tight text-white">VideoFlow</h1>
-            <span class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-neutral-500">recipe studio</span>
+            <span class="rounded-full border border-sky-400/20 bg-sky-400/[0.06] px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.18em] text-sky-200/80">studio</span>
           </div>
-          <p class="mt-0.5 text-xs text-neutral-500">{t(locale, "subtitle")}</p>
+          <p class="mt-1 text-xs text-neutral-400">{t(locale, "subtitle")}</p>
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-2 text-xs">
-        <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-mono text-[11px] text-neutral-400" title="Server version">server {system?.version ?? (connecting ? "connecting…" : "offline")}</span>
+        <span class="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-mono text-[11px] text-neutral-400" title="Server version">
+          <span
+            class={`mr-1.5 h-1.5 w-1.5 rounded-full ${system ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]" : connecting ? "animate-pulse bg-amber-400" : "bg-rose-400"}`}
+            aria-hidden="true"
+          ></span>
+          server {system?.version ?? (connecting ? "connecting…" : "offline")}
+        </span>
         <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-mono text-[11px] text-neutral-500" title="UI bundle version">ui {UI_VERSION}</span>
         <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-500">FFmpeg {system?.ffmpeg ? "ready" : connecting ? "checking…" : "missing"}</span>
         <button
@@ -500,8 +538,8 @@
           title="Activity drawer (U)"
         >
           {t(locale, "activity")}
-          {#if jobs.filter((job) => ["running", "queued"].includes(job.status)).length}
-            <span class="ml-1 rounded-full bg-sky-500/20 px-1.5 py-0.5 font-mono text-[10px] text-sky-200">{jobs.filter((job) => ["running", "queued"].includes(job.status)).length}</span>
+          {#if runningJobs.length}
+            <span class={`ml-1 rounded-full bg-sky-500/20 px-1.5 py-0.5 font-mono text-[10px] text-sky-200 ${hasRunningJob ? "animate-pulse" : ""}`}>{runningJobs.length}</span>
           {/if}
         </button>
         <button
@@ -605,18 +643,47 @@
     {/if}
 
     {#if !system && !serviceStopped}
-      <div class="rounded-2xl border border-sky-400/20 bg-sky-950/30 px-4 py-3 text-xs text-sky-200">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p class="font-medium">{connecting ? "Connecting to the local VideoFlow service…" : "Could not reach the local service."}</p>
-            <p class="mt-1 text-sky-200/70">
-              {connecting ? "The portable build can take a few seconds to unpack on first launch." : systemError || "Start VideoFlow again or run videoflow restart."}
-            </p>
+      <div
+        class="relative overflow-hidden rounded-2xl border border-sky-400/20 bg-sky-950/20 px-4 py-4 text-xs text-sky-100"
+        role="status"
+        data-testid="startup-card"
+      >
+        <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-400/60 to-transparent"></div>
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div class="flex items-start gap-3">
+            <div class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-sky-400/20 bg-sky-400/10">
+              <Logo size={26} />
+              {#if connecting}
+                <span class="absolute -right-1 -top-1 h-2.5 w-2.5 animate-ping rounded-full bg-sky-400/70"></span>
+              {/if}
+            </div>
+            <div>
+              <p class="font-medium text-sky-50">
+                {connecting ? "Starting the local studio…" : "Could not reach the local service."}
+              </p>
+              <p class="mt-1 max-w-xl text-sky-200/70">
+                {connecting
+                  ? "Unpacking the portable build, checking FFmpeg, and opening the local API. Everything stays on this machine."
+                  : systemError || "Start VideoFlow again or run videoflow restart."}
+              </p>
+              {#if connecting}
+                <div class="mt-3 flex flex-wrap gap-3 text-[10px] uppercase tracking-wide text-sky-200/50">
+                  <span class="inline-flex items-center gap-1"><span class="h-1 w-1 rounded-full bg-sky-300/70"></span>unpack</span>
+                  <span class="inline-flex items-center gap-1"><span class="h-1 w-1 rounded-full bg-sky-300/70"></span>ffmpeg</span>
+                  <span class="inline-flex items-center gap-1"><span class="h-1 w-1 rounded-full bg-sky-300/70"></span>api</span>
+                </div>
+              {/if}
+            </div>
           </div>
           <button type="button" onclick={() => void connectToService()} disabled={connecting} class="rounded-lg border border-sky-400/30 px-3 py-1.5 text-[11px] disabled:opacity-40">
             {connecting ? "Connecting…" : "Retry now"}
           </button>
         </div>
+        {#if connecting}
+          <div class="mt-4 h-1 overflow-hidden rounded-full bg-sky-400/10">
+            <div class="h-full w-1/3 animate-[vf-slide_1.4s_ease-in-out_infinite] rounded-full bg-gradient-to-r from-sky-400/40 via-sky-300 to-sky-400/40"></div>
+          </div>
+        {/if}
       </div>
     {/if}
 
@@ -665,8 +732,12 @@
       {/if}
     </div>
 
-    <footer class="pb-4 text-xs text-neutral-500">
-      <p>Local only. The server binds to 127.0.0.1. Project state stays the timeline source of truth; SQLite is the operational store for jobs, assets, and batches.</p>
+    <footer class="flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pb-4 pt-4 text-[11px] text-neutral-500">
+      <p class="inline-flex items-center gap-2">
+        <span class="h-1.5 w-1.5 rounded-full bg-emerald-400/80" aria-hidden="true"></span>
+        Local-first · nothing leaves this machine
+      </p>
+      <p class="text-neutral-600">Project state is the timeline source of truth · SQLite indexes jobs, assets, and batches</p>
     </footer>
   </div>
 </div>
@@ -691,7 +762,7 @@
 <Modal
   open={onboardingOpen}
   title="Getting started"
-  description="Four steps to a first cut. Everything stays on this machine."
+  description="Set up the local studio, then run a first cut. Nothing leaves this machine."
   width="w-[min(1080px,96vw)]"
   onclose={() => (onboardingOpen = false)}
 >

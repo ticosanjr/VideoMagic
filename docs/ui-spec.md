@@ -26,6 +26,20 @@ There is no project creation wizard, no module rack, and no global run form.
 Recipes own execution; the timeline owns editing. The filesystem picker is a
 modal utility.
 
+### Brand and shell
+
+- The header uses the gradient VideoFlow mark, a `studio` badge, and the
+  product subtitle. The same mark is the favicon, the PWA icon, and the
+  AppImage icon.
+- The shell carries a low-contrast ambient backdrop and a top accent line.
+  Both are decorative (`aria-hidden`) and respect reduced motion.
+- `manifest.webmanifest`, `theme-color`, `apple-touch-icon`, and social meta
+  tags make the local studio installable and shareable without a network.
+- The document title tracks the active area/tab and appends the running job
+  count, so a background tab still reports useful state.
+- The server pill has a status dot: emerald when the API answers, pulsing
+  amber while connecting, rose when offline.
+
 ## 2. Error contract
 
 - One `ErrorBanner` component renders `role="alert"` and

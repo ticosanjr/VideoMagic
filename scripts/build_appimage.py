@@ -19,6 +19,7 @@ from pathlib import Path
 from videoflow import __version__
 
 ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_ICON = ROOT / "packaging" / "videoflow.png"
 APPIMAGETOOL_URL = (
     "https://github.com/AppImage/appimagetool/releases/download/continuous/"
     "appimagetool-x86_64.AppImage"
@@ -93,7 +94,7 @@ def build_appdir(binary: Path, work: Path, *, icon: Path | None = None) -> Path:
     desktop = """[Desktop Entry]
 Type=Application
 Name=VideoFlow
-Comment=Portable non-destructive video pre-edit pipeline
+Comment=Local-first, non-destructive video pre-edit studio
 Exec=videoflow
 Icon=videoflow
 Terminal=true
@@ -104,6 +105,8 @@ Categories=AudioVideo;Video;
         desktop, encoding="utf-8"
     )
     icon_path = appdir / "videoflow.png"
+    if icon is None and DEFAULT_ICON.is_file():
+        icon = DEFAULT_ICON
     if icon is not None:
         shutil.copy2(icon, icon_path)
     else:

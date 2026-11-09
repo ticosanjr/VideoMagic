@@ -248,7 +248,7 @@
       {/each}
     </div>
   {:else if visible.length === 0}
-    <EmptyState title={i18n.t("no_jobs")} description="Run a recipe from Produce, or clear the filters." action="Open Produce" onaction={() => (window.location.hash = "#recipes")} />
+    <EmptyState title={i18n.t("no_jobs")} description="Run a recipe from Produce, or clear the filters." action="Open Produce" icon="activity" hint="Shortcut: G then J" onaction={() => (window.location.hash = "#recipes")} />
   {:else}
     <ul class="space-y-2" data-testid="job-list">
       {#each visible as job (job.job_id)}

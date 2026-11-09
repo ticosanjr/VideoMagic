@@ -11,6 +11,16 @@
     succeeded: "border-emerald-400/25 bg-emerald-950/30 text-emerald-200"
   };
 
+  const DOTS: Record<string, string> = {
+    failed: "bg-rose-400",
+    cancelled: "bg-neutral-500",
+    waiting_approval: "bg-amber-400",
+    paused: "bg-amber-400",
+    running: "animate-pulse bg-sky-400",
+    queued: "bg-neutral-400",
+    succeeded: "bg-emerald-400"
+  };
+
   const ACTIONS: Record<string, string> = {
     failed: "Fix the error, then retry",
     cancelled: "Retry to run it again",
@@ -27,5 +37,6 @@
   title={ACTIONS[status] ?? status}
   aria-label={`${status.replaceAll("_", " ")}. ${ACTIONS[status] ?? ""}`}
 >
+  <span class={`h-1.5 w-1.5 rounded-full ${DOTS[status] ?? DOTS.queued}`} aria-hidden="true"></span>
   {status.replaceAll("_", " ")}
 </span>

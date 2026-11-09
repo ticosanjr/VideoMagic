@@ -157,3 +157,59 @@ html:not([data-theme="light"]):not([data-theme="high-contrast"]) .text-neutral-5
 html:not([data-theme="light"]):not([data-theme="high-contrast"]) .text-neutral-600 {
   color: #a1a1aa;
 }
+
+/* Premium shell details: selection, scrollbars, ambient grid, and the
+   indeterminate startup bar. All motion respects prefers-reduced-motion. */
+::selection {
+  background: rgba(56, 189, 248, 0.28);
+  color: #ffffff;
+}
+
+.vf-grid {
+  background-image:
+    linear-gradient(to right, rgba(148, 163, 184, 0.16) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.16) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black, transparent 78%);
+}
+
+@keyframes vf-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(420%);
+  }
+}
+
+:root {
+  --vf-scrollbar: #3f3f46;
+  --vf-scrollbar-hover: #52525b;
+}
+
+[data-theme="light"] {
+  --vf-scrollbar: #cbd5e1;
+  --vf-scrollbar-hover: #94a3b8;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--vf-scrollbar) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--vf-scrollbar);
+  background-clip: content-box;
+  border: 2px solid transparent;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--vf-scrollbar-hover);
+  background-clip: content-box;
+}

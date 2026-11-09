@@ -7,6 +7,17 @@
  */
 
 export const GLOSSARY: Record<string, string> = {
+  "studio": "estúdio",
+  "local only": "somente local",
+  "unpack": "extrair",
+  "api": "api",
+  "ffmpeg": "ffmpeg",
+  "Four steps to a first cut. Everything stays on this machine.":
+    "Quatro passos para o primeiro corte. Tudo fica nesta máquina.",
+  "Local-first · nothing leaves this machine": "Local-first · nada sai desta máquina",
+  "Skip for now": "Pular por enquanto",
+  "Tip: press": "Dica: pressione",
+  "for the command palette.": "para abrir a paleta de comandos.",
   "+ Add step": "+ Adicionar etapa",
   "No presets for this step yet.": "Ainda não há presets para esta etapa.",
   "unsaved": "não salvo",
