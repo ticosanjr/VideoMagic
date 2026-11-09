@@ -3,7 +3,7 @@
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 
-## [Unreleased]
+## [2.59.4] - 2026-11-09
 
 ### Changed
 
@@ -37,14 +37,35 @@ follow semantic versioning once the project reaches 1.0.
   retakes, approval, schema migration, capability, rendering, and external
   policy failures so they no longer fall back to 400.
 - **Documentation reconciliation.** README, testing, blockers, MCP, exporters,
-  ingest, UI spec, voice clone, and the historical PRD now match 2.59.3:
-  current test counts, 78 MCP tools/5 resources, FCPXML markers, the manual
+  ingest, UI spec, voice clone, and the historical PRD now match 2.59.4:
+  current test counts, 71 MCP tools/5 resources, FCPXML markers, the manual
   GitHub Actions fallback, and the ignored ingest/proxy knobs.
+- **Concurrent history writes.** `engine/history.py` uses a per-process,
+  per-thread temporary file, so two jobs writing run history cannot delete each
+  other's temp file.
+- **History write failures.** A job whose output is unwritable still fails
+  cleanly; the history write is logged instead of raising on the worker thread.
+
+### Removed
+
+- **Legacy job execution path.** Removed `POST /api/v1/jobs`, the 127-field
+  `NewJobRequest`, `application/portable.py`, `JobManager._run_legacy`, and the
+  `runner` injection. Recipe jobs are the only execution path.
+- **Legacy CLI demo.** Removed `videoflow demo`, which existed only to exercise
+  the portable pipeline.
+- **Legacy staged MCP tools.** Removed `videoflow_run_vad`,
+  `videoflow_transcribe`, `videoflow_cull_retakes`,
+  `videoflow_configure_zooms`, `videoflow_apply_jcuts`,
+  `videoflow_generate_shorts`, and `videoflow_run_pipeline`. The MCP surface is
+  now 71 tools; `videoflow_run_recipe`, `videoflow_run_recipe_inline`, and
+  `videoflow_run_step` are the supported execution tools.
+- Removed the legacy-specific tests and adapted the remaining job tests to
+  recipe jobs through `tests/recipe_jobs.py`.
 
 ### Verified
 
-- 1,723 Python tests, 87 Vitest, 90 Playwright; gate coverage 98%.
-- Full-tree coverage 95.22% line (24,136/25,348), 93.55% with branches.
+- 1,685 Python tests, 87 Vitest, 90 Playwright; gate coverage 98%.
+- Full-tree coverage 95.14% line (23,429/24,627), 93.45% with branches.
 
 ## [2.59.3] - 2026-11-09
 

@@ -29,16 +29,15 @@ Linux release. No GitHub Actions workflow runs automatically.
 | --- | --- |
 | `videoflow version` | Version and platform |
 | `videoflow doctor` | FFmpeg/FFprobe, Silero, Faster-Whisper package/model, data directory, UI assets, MCP import |
-| `videoflow demo -o DIR` | Generates a 6 s fixture and runs the whole pipeline |
-| `videoflow run INPUT -o DIR` | Ingest, Silero/FFmpeg VAD, cuts, J/L, zooms, three NLE exports |
-| `videoflow serve` | HTTP API + MCP Streamable HTTP + static rack UI |
+| `videoflow recipe run RECIPE INPUT -o DIR` | Runs a recipe with ingest, VAD, transcription, cuts, zooms, Shorts, and NLE export |
+| `videoflow serve` | HTTP API + MCP Streamable HTTP + static studio UI |
 | `videoflow mcp` | MCP over stdio for an agent host |
 
-`run` defaults to `--vad-engine auto`: Silero VAD runs when the model and ONNX
-Runtime are present, otherwise FFmpeg `silencedetect` takes over. Add
-`--transcribe` for offline Faster-Whisper, with whisper.cpp as the automatic
-fallback, `--cull-retakes` for transcript-driven culling, or `shorts` for
-vertical clips. The LLM retake path is optional.
+Recipes default to `audio.vad` with Silero when the model and ONNX Runtime are
+present, otherwise FFmpeg `silencedetect`. Add a `transcribe` step for offline
+Faster-Whisper, with whisper.cpp as the automatic fallback, a `retakes.cull`
+step for transcript-driven culling, or a `shorts.select` step for vertical
+clips. The LLM retake path is optional.
 
 ## 2. Linux
 
@@ -46,8 +45,7 @@ vertical clips. The LLM retake path is optional.
 chmod +x videoflow
 ./videoflow version
 ./videoflow doctor
-./videoflow demo -o ./videoflow-demo
-./videoflow run ~/Videos/interview.mp4 -o ./interview-edit
+./videoflow recipe run youtube_talking_head ~/Videos/interview.mp4 -o ./interview-edit
 ```
 
 No installation. Keep the binary anywhere and run it. If it is on a read-only
@@ -62,8 +60,7 @@ VIDEOWFLOW_HOME=/home/you/.videoflow ./videoflow serve
 ```powershell
 .\videoflow.exe version
 .\videoflow.exe doctor
-.\videoflow.exe demo -o .\videoflow-demo
-.\videoflow.exe run "$env:USERPROFILE\Videos\interview.mp4" -o .\interview-edit
+.\videoflow.exe recipe run youtube_talking_head "$env:USERPROFILE\Videos\interview.mp4" -o .\interview-edit
 ```
 
 Notes:
@@ -226,7 +223,7 @@ videoflow serve [--host 127.0.0.1] [--port 8765]
 
 - `GET /health`
 - `GET /api/v1/system` — version, data directory, allowed roots, FFmpeg paths
-- `POST /api/v1/jobs` — start a portable run
+- `POST /api/v1/recipes/run` — start a recipe run
 - `GET /api/v1/jobs/{id}` and `GET /api/v1/jobs/{id}/events` (SSE)
 - `GET /api/v1/jobs/{id}/state` returns the project state for the inspector
 - `POST /api/v1/jobs/{id}/cancel`
@@ -266,12 +263,11 @@ Speaks MCP over stdin/stdout. Register it in the host:
 }
 ```
 
-Twelve tools and four resources are registered, and all of them are live.
-`videoflow_load_media`, `videoflow_run_vad`, `videoflow_transcribe`,
-`videoflow_get_transcript`, and `videoflow_generate_shorts` do immediate work.
-Retake, zoom, and J-cut tools stage edits for the next
-`videoflow_run_pipeline`; `videoflow_export_fcpxml` exports the latest completed
-job. See [the MCP manual](../mcp.md) for the full contract.
+Seventy-one tools and five resources are registered, and all of them are live.
+`videoflow_run_recipe`, `videoflow_run_recipe_inline`, and
+`videoflow_run_step` start real jobs; the timeline, Shorts, review, publishing,
+and export tools operate on completed jobs. See
+[the MCP manual](../mcp.md) for the full contract.
 
 ### doctor
 
@@ -288,12 +284,6 @@ Checks:
 Exit code is `0` only when every required check passes. The Silero and
 Faster-Whisper entries report `found: false` without failing `doctor`, because
 `auto` can fall back to FFmpeg and whisper.cpp respectively.
-
-### demo
-
-Creates a 6 s test clip with two silent gaps, then runs `run` on it. This is the
-portable self-test. It proves FFmpeg, the timeline builder, and all three
-exporters in one command.
 
 ## 5. Data and secrets
 
@@ -436,26 +426,24 @@ VIDEOWFLOW_VENDOR_DIR='Z:\path\to\vendor-win' \
 ```
 
 The result is a standard PE32+ `.exe`. It was validated under Wine with
-`version`, `doctor`, and `demo`, producing all three exports. Native Windows
-testing is still recommended before wide distribution.
+`version` and `doctor`. Native Windows testing is still recommended before wide
+distribution.
 
 ## 8. Verification checklist
 
 - [ ] `videoflow version` prints the expected version.
 - [ ] `videoflow doctor` exits 0 with FFmpeg paths inside the bundle.
-- [ ] `videoflow demo -o tmp` writes three artifacts.
-- [ ] `videoflow run INPUT -o tmp --transcribe` writes a transcript from the
-      bundled tiny model.
+- [ ] `videoflow recipe run youtube_talking_head INPUT -o tmp` writes the
+      timeline artifacts.
 - [ ] `videoflow doctor` reports the bundled whisper binary and model.
 - [ ] `videoflow doctor` reports the bundled Silero model and ONNX Runtime.
-- [ ] A real `videoflow run` reports `"vad_engine": "silero"` on a speech clip.
+- [ ] A real recipe run reports `"vad_engine": "silero"` on a speech clip.
 - [ ] The artifacts parse (XML/MLT) and open in the three NLEs.
 - [ ] `videoflow serve` answers `/health`, `/`, and `/mcp/`.
-- [ ] An MCP host lists forty-one tools over `videoflow mcp`.
+- [ ] An MCP host lists seventy-one tools over `videoflow mcp`.
 - [ ] The plain binary runs with `PATH` empty, proving bundled FFmpeg is used.
-- [ ] The AppImage runs `version` and `demo` (normal PATH for FUSE).
-- [ ] The Windows `.exe` runs `version`, `doctor`, and `demo` (natively or under
-      Wine).
+- [ ] The AppImage runs `version` and `doctor` (normal PATH for FUSE).
+- [ ] The Windows `.exe` runs `version` and `doctor` (natively or under Wine).
 - [ ] On Windows, the artifact is unblocked and SmartScreen is documented.
 
 ## 9. Limitations

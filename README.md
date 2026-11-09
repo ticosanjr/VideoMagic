@@ -6,7 +6,7 @@ recording into an editable timeline: it removes silence and retakes, adds
 J-cuts and punch-ins, proposes vertical Shorts, masters the dialogue bed, and
 exports timelines for DaVinci Resolve, Adobe Premiere Pro, and Kdenlive.
 
-> Status: 2.59.3 local stable. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
+> Status: 2.59.4 local stable. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical Shorts,
 > audio mastering and loudness QA, burned titles, color/LUT grading, analytics
@@ -93,7 +93,6 @@ not embedded by default; add `--with-models` for a fully offline artifact.
 uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper \
   --with-silero --with-faster-whisper
 ./dist/videoflow doctor
-./dist/videoflow demo -o ./demo
 ./dist/videoflow recipe run youtube_talking_head ~/Videos/interview.mp4 -o ./interview-edit
 ./dist/videoflow serve --open       # API + MCP HTTP + studio UI, stays running
 ./dist/videoflow status             # PID, URL, and all discovered services
@@ -178,13 +177,13 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   audio fades, and the FCPXML output validates against Apple's 1.9 DTD.
 - Pure domain: rational time, cache hashing, planning, retake guard, path jail,
   redaction, schema generation.
-- MCP server with seventy-eight live tools and five resources: media ingest,
-  capability discovery, Silero speech detection, local
-  Faster-Whisper/whisper.cpp transcription, transcript reads, staged
-  retake/zoom/J-cut edits, shorts proposals, real jobs, NLE export, and project
-  state/preset/export resources. Streamable HTTP is mounted on the local API.
-- Unified CLI (`run`, `serve`, `mcp`, `doctor`, `demo`, `version`) and a
-  PyInstaller onefile build for Linux and Windows.
+- MCP server with seventy-one live tools and five resources: media ingest,
+  capability discovery, recipe runs, transcript reads, timeline edits, shorts,
+  jobs, NLE export, and project state/preset/export resources. Streamable HTTP
+  is mounted on the local API.
+- Unified CLI (`version`, `doctor`, `shorts`, `recipe`, `serve`, `status`,
+  `restart`, `stop`, `mcp`) and a PyInstaller onefile build for Linux and
+  Windows.
 - Recipes-first workspace: a Svelte Flow DAG editor backed by a typed recipe
   engine, plus the classic Speech, Edit, Shorts, Studio, Export, Models,
   Services, and Providers tabs, a capability manifest, opt-in external-provider policy, a model downloader,
@@ -221,7 +220,7 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - Two-source split-screen: left panel from the main source, right panel from a second angle.
 - Repository policy test enforcing JSON for project data and tests.
 - Automatic tag release workflow for Linux, AppImage, Windows, SBOM, and checksums.
-- Windows smoke test (`version`, `doctor`, `demo`) in CI.
+- Windows smoke test (`version`, `doctor`) in CI.
 - CI media tests and automatic post-run checkpoint pruning.
 - Job history persisted as JSON; interrupted jobs are marked failed after restart.
 - Batch resume from the API and the batch modal.
@@ -257,8 +256,6 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 
 ## Not implemented yet
 
-- Legacy project-scoped module reruns now start the full project pipeline (or
-  return a cached no-op); recipe steps remain the checkpointed path.
 - Kdenlive exact cross-dissolve validation; transitions are emitted as affine opacity/volume fades.
 - Pyannote is optional and requires a model/install; heuristic remains the default.
 - Face tracking for the main timeline.

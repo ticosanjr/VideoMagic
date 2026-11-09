@@ -320,143 +320,8 @@ def test_asset_upload_import_and_config_errors(
     assert call(server, "videoflow_list_recipes", {"limit": 0})["ok"] is True
 
 
-def test_media_vad_and_transcribe_paths(
-    harness: Harness, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    server = harness.server
-    harness.load()
-    # A second load of the same source keeps the pending state (branch 548->561).
-    harness.load()
-
-    for arguments, code in [
-        ({"noise_db": -1.0}, "invalid_arguments"),
-        ({"min_silence_ms": -1}, "invalid_arguments"),
-        ({"min_speech_ms": -1}, "invalid_arguments"),
-        ({"vad_engine": "nope"}, "invalid_arguments"),
-        ({"speech_threshold": 0.0}, "invalid_arguments"),
-        ({"speech_pad_before_ms": -1}, "invalid_arguments"),
-        ({"speech_pad_after_ms": -1}, "invalid_arguments"),
-    ]:
-        assert call(server, "videoflow_run_vad", arguments)["code"] == code
-
-    monkeypatch.setattr(
-        server_module, "detect_vad", lambda *a, **k: (_ for _ in ()).throw(IngestError("no"))
-    )
-    assert call(server, "videoflow_run_vad", {})["code"] == "ingest_failed"
-
-    for arguments in [
-        {"language": "zz"},
-        {"engine": "nope"},
-        {"device": "tpu"},
-        {"compute_type": "bf16"},
-    ]:
-        assert call(server, "videoflow_transcribe", arguments)["code"] == "invalid_arguments"
-
-    class FakeFasterWhisper:
-        def __init__(self, **kwargs: Any) -> None:
-            self.kwargs = kwargs
-
-        def transcribe(self, wav: Path, rate: int) -> list[Sentence]:
-            return [sentence(0, "Faster.")]
-
-    class FakeWhisper:
-        def __init__(self, **kwargs: Any) -> None:
-            self.kwargs = kwargs
-
-        def transcribe(self, wav: Path, rate: int) -> list[Sentence]:
-            return [sentence(0, "Plain.")]
-
-    monkeypatch.setattr(FFmpegAdapter, "extract_pcm", lambda self, *a, **k: harness.source)
-    monkeypatch.setattr(server_module, "FasterWhisperAdapter", FakeFasterWhisper)
-    monkeypatch.setattr(server_module, "WhisperCliAdapter", FakeWhisper)
-    monkeypatch.setattr(server_module, "find_faster_whisper_model", lambda model: None)
-    monkeypatch.setattr(
-        server_module, "expected_faster_whisper_model", lambda model: Path("/models") / model
-    )
-
-    faster = call(
-        server,
-        "videoflow_transcribe",
-        {"engine": "faster-whisper", "language": "en"},
-    )
-    assert faster["ok"] is True
-    assert faster["source"] == "faster-whisper"
-    assert faster["model"].endswith("small")
-    assert faster["transcript"][0]["text"] == "Faster."
-    assert (harness.tmp / "source-videoflow" / "work" / "mcp-transcript.srt").is_file()
-
-    model_file = harness.tmp / "ggml-small.bin"
-    model_file.write_bytes(b"model")
-    plain = call(
-        server,
-        "videoflow_transcribe",
-        {"engine": "whisper.cpp", "model": str(model_file)},
-    )
-    assert plain["ok"] is True
-    assert plain["source"] == "whisper"
-    assert plain["model"] == str(model_file)
-
-    monkeypatch.setattr(
-        server_module, "format_srt", lambda *a, **k: (_ for _ in ()).throw(OSError("disk"))
-    )
-    broken = call(server, "videoflow_transcribe", {"engine": "whisper.cpp"})
-    assert broken["code"] == "transcript_write_failed"
-
-    monkeypatch.setattr(
-        server_module,
-        "FasterWhisperAdapter",
-        type(
-            "Boom",
-            (),
-            {
-                "__init__": lambda self, **k: None,
-                "transcribe": lambda self, *a, **k: (_ for _ in ()).throw(
-                    IngestError("asr failed")
-                ),
-            },
-        ),
-    )
-    failed = call(server, "videoflow_transcribe", {"engine": "faster-whisper"})
-    assert failed["code"] == "ingest_failed"
 
 
-def test_transcript_retake_and_zoom_validation(
-    harness: Harness, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    server = harness.server
-
-    assert call(server, "videoflow_get_transcript", {})["code"] == "transcript_not_found"
-    assert call(server, "videoflow_cull_retakes", {})["code"] == "transcript_not_found"
-    assert call(
-        server, "videoflow_cull_retakes", {"manual_word_indices": [0]}
-    )["code"] == ("word_overrides_not_supported")
-
-    for arguments in [
-        {"mode": "nope"},
-        {"scale": 1.0},
-        {"anchor": "corner"},
-    ]:
-        assert call(server, "videoflow_configure_zooms", arguments)["code"] == (
-            "invalid_arguments"
-        )
-    for arguments in [{"offset_ms": 0}, {"crossfade_ms": 0}]:
-        assert call(server, "videoflow_apply_jcuts", arguments)["code"] == "invalid_arguments"
-
-    harness.load()
-    harness.write_state(transcript=[sentence(0), sentence(1)])
-    harness.pipeline()
-    unknown = call(server, "videoflow_cull_retakes", {"discard_sentence_ids": [99]})
-    assert unknown["code"] == "invalid_retake_ids"
-    assert unknown["unknown_ids"] == [99]
-    culled = call(server, "videoflow_cull_retakes", {"discard_sentence_ids": [0]})
-    assert culled["ok"] is True
-
-    transcript = call(server, "videoflow_get_transcript", {})
-    assert transcript["ok"] is True
-    assert transcript["sentence_count"] == 2
-
-    harness.write_state(raw="{not json")
-    assert call(server, "videoflow_get_transcript", {})["code"] == "transcript_not_found"
 
 
 def test_short_tool_validation_and_job_states(
@@ -501,10 +366,6 @@ def test_short_tool_validation_and_job_states(
     assert call(
         server, "videoflow_generate_short_metadata", {"index": 0, "tone": "sassy"}
     )["code"] == ("invalid_arguments")
-
-    assert call(
-        server, "videoflow_generate_shorts", {"min_duration": 1, "max_duration": 10}
-    )["code"] == ("transcript_not_found")
 
     harness.load()
     harness.write_state(transcript=[sentence(0), sentence(1)])
@@ -654,107 +515,6 @@ def test_schedule_short_metadata_and_publish_errors(
     )
 
 
-def test_generate_shorts_boost_and_llm_paths(
-    harness: Harness, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    server = harness.server
-    harness.load()
-    harness.write_state(transcript=[sentence(0), sentence(1), sentence(2)])
-    harness.pipeline()
-
-    from videoflow.application import audio_analysis, video_analysis
-
-    monkeypatch.setattr(video_analysis, "detect_scene_changes", lambda source: [(0.0, 1.0)])
-    monkeypatch.setattr(video_analysis, "scene_intervals", lambda cuts, sample_rate: [(0, 48000)])
-    boosted = call(
-        server,
-        "videoflow_generate_shorts",
-        {"min_duration": 1, "max_duration": 10, "count": 1, "scene_change_boost": True},
-    )
-    assert boosted["ok"] is True
-    assert boosted["scene_change_boost"] is True
-
-    monkeypatch.setattr(
-        video_analysis,
-        "detect_scene_changes",
-        lambda source: (_ for _ in ()).throw(VideoFlowError("scene failed")),
-    )
-    tolerated = call(
-        server,
-        "videoflow_generate_shorts",
-        {"min_duration": 1, "max_duration": 10, "count": 1, "scene_change_boost": True},
-    )
-    assert tolerated["ok"] is True
-
-    monkeypatch.setattr(audio_analysis, "detect_audio_energy", lambda source, rate: [(0, 48000)])
-    energy = call(
-        server,
-        "videoflow_generate_shorts",
-        {"min_duration": 1, "max_duration": 10, "count": 1, "audio_energy_boost": True},
-    )
-    assert energy["ok"] is True
-    assert energy["audio_energy_boost"] is True
-
-    monkeypatch.setattr(audio_analysis, "detect_audio_energy", lambda source, rate: [])
-    no_energy = call(
-        server,
-        "videoflow_generate_shorts",
-        {"min_duration": 1, "max_duration": 10, "count": 1, "audio_energy_boost": True},
-    )
-    assert no_energy["ok"] is True
-
-    monkeypatch.setattr(
-        audio_analysis,
-        "detect_audio_energy",
-        lambda source, rate: (_ for _ in ()).throw(VideoFlowError("energy failed")),
-    )
-    tolerated = call(
-        server,
-        "videoflow_generate_shorts",
-        {"min_duration": 1, "max_duration": 10, "count": 1, "audio_energy_boost": True},
-    )
-    assert tolerated["ok"] is True
-
-    monkeypatch.setenv("VIDEOWFLOW_LLM_BASE_URL", "http://example.invalid/v1")
-    blocked = call(
-        server,
-        "videoflow_generate_shorts",
-        {"min_duration": 1, "max_duration": 10, "count": 1, "selection_mode": "heuristic"},
-    )
-    assert blocked["code"] == "not_implemented"
-    monkeypatch.setattr(server_module, "OpenAICompatibleLlm", lambda **kwargs: object())
-    allowed = call(
-        server,
-        "videoflow_generate_shorts",
-        {
-            "min_duration": 1,
-            "max_duration": 10,
-            "count": 1,
-            "selection_mode": "heuristic",
-            "allow_external_services": True,
-            "allowed_external_hosts": ["example.invalid"],
-        },
-    )
-    assert allowed["ok"] is True
-
-    monkeypatch.delenv("VIDEOWFLOW_LLM_BASE_URL")
-    (harness.tmp / "media-less").mkdir(exist_ok=True)
-    media_less = Harness(monkeypatch, harness.tmp / "media-less")
-    media_less.write_state(transcript=[sentence(0)], with_media=False)
-    media_less.pipeline()
-    before_load = call(
-        media_less.server,
-        "videoflow_generate_shorts",
-        {"min_duration": 1, "max_duration": 10},
-    )
-    assert before_load["code"] == "media_not_found"
-    media_less.load()
-    missing_media = call(
-        media_less.server,
-        "videoflow_generate_shorts",
-        {"min_duration": 1, "max_duration": 10},
-    )
-    assert missing_media["code"] == "media_not_found"
 
 
 def test_timeline_jobs_and_copilot(
@@ -1293,7 +1053,6 @@ def test_timeline_editing_and_export_success(
         return {targets[0]: target}
 
     monkeypatch.setattr(server_module, "export_timeline", fake_export)
-    assert call(server, "videoflow_configure_zooms", {})["ok"] is True
     exported = call(
         server,
         "videoflow_export_fcpxml",
@@ -1301,15 +1060,12 @@ def test_timeline_editing_and_export_success(
     )
     assert exported["ok"] is True
     assert exported["size_bytes"] > 0
-    assert "warning" in exported
-    server.videoflow_last["pending_options"] = {}  # type: ignore[attr-defined]
     clean = call(
         server,
         "videoflow_export_fcpxml",
         {"output_path": str(harness.tmp / "clean.fcpxml")},
     )
     assert clean["ok"] is True
-    assert "warning" not in clean
     assert call(
         server,
         "videoflow_export_fcpxml",
@@ -1428,35 +1184,11 @@ def test_resources_prompts_and_whisper_sibling(
 ) -> None:
     server = harness.server
 
-    class FakeWhisper:
-        def __init__(self, **kwargs: Any) -> None:
-            self.kwargs = kwargs
-
-        def transcribe(self, wav: Path, rate: int) -> list[Sentence]:
-            return [sentence(0, "From whisper.")]
-
-    monkeypatch.setattr(FFmpegAdapter, "extract_pcm", lambda self, *a, **k: harness.source)
-    monkeypatch.setattr(server_module, "WhisperCliAdapter", FakeWhisper)
-    default_model = harness.tmp / "default" / "ggml-tiny.bin"
-    default_model.parent.mkdir()
-    default_model.write_bytes(b"m")
-    sibling = default_model.parent / "ggml-small.bin"
-    sibling.write_bytes(b"m")
-    monkeypatch.setenv("VIDEOWFLOW_WHISPER_MODEL", str(default_model))
-
     harness.load()
-    transcribed = call(server, "videoflow_transcribe", {"engine": "whisper.cpp", "model": "small"})
-    assert transcribed["ok"] is True
-    assert transcribed["model"] == str(sibling)
-
-    cached = call(server, "videoflow_get_transcript", {"include_word_timestamps": False})
-    assert cached["ok"] is True
-    assert "words" not in cached["transcript"][0]
-
-    harness.write_state(transcript=[sentence(0)])
+    harness.write_state(transcript=[sentence(0, "From whisper.")])
     harness.pipeline()
     state_payload = json.loads(read(server, "videoflow://project/state"))
-    assert state_payload["transcript"][0]["text"] == "A sentence."
+    assert state_payload["transcript"][0]["text"] == "From whisper."
     transcript_payload = read(server, "videoflow://project/transcript")
     assert "From whisper." in transcript_payload
     assert json.loads(read(server, "videoflow://project/exports"))["code"] == (
@@ -1485,85 +1217,6 @@ def test_resources_prompts_and_whisper_sibling(
     assert first["path"] == second["path"]
 
 
-def test_granular_validation_and_adapter_branches(
-    harness: Harness, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from types import SimpleNamespace
-
-    server = harness.server
-    assert call(server, "videoflow_run_vad", {})["code"] == "source_required"
-    assert call(server, "videoflow_transcribe", {})["code"] == "source_required"
-    assert call(server, "videoflow_apply_jcuts", {})["ok"] is True
-
-    invalid_shorts = [
-        {"min_duration": 0},
-        {"min_duration": 10, "max_duration": 5},
-        {"aspect_ratio": "4:3"},
-        {"prompt_mode": "bad"},
-        {"hook_mode": "bad"},
-        {"reframe_mode": "bad"},
-        {"start_sec": 5, "end_sec": 1},
-        {"count": 0},
-        {"count": 1, "min_count": 2},
-        {"selection_mode": "bad"},
-    ]
-    for arguments in invalid_shorts:
-        payload = call(server, "videoflow_generate_shorts", arguments)
-        assert payload["code"] == "invalid_arguments", arguments
-
-    harness.load()
-    monkeypatch.setattr(FFmpegAdapter, "extract_pcm", lambda self, *a, **k: harness.source)
-    monkeypatch.setattr(
-        server_module,
-        "detect_vad",
-        lambda *a, **k: SimpleNamespace(spans=[(0, 48000)], engine="ffmpeg"),
-    )
-    vad = call(server, "videoflow_run_vad", {"vad_engine": "ffmpeg"})
-    assert vad["ok"] is True
-    assert vad["interval_count"] == 1
-    assert vad["vad_engine"] == "ffmpeg"
-    assert vad["silence_seconds"] > 0
-
-    class FakeFaster:
-        def __init__(self, **kwargs: Any) -> None:
-            self.kwargs = kwargs
-
-        def transcribe(self, wav: Path, rate: int) -> list[Sentence]:
-            return [sentence(0, "Faster.")]
-
-    class FakeWhisper:
-        def __init__(self, **kwargs: Any) -> None:
-            self.kwargs = kwargs
-
-        def transcribe(self, wav: Path, rate: int) -> list[Sentence]:
-            return [sentence(0, "Whisper.")]
-
-    monkeypatch.setattr(FFmpegAdapter, "extract_pcm", lambda self, *a, **k: harness.source)
-    monkeypatch.setattr(server_module, "FasterWhisperAdapter", FakeFaster)
-    monkeypatch.setattr(server_module, "WhisperCliAdapter", FakeWhisper)
-    model_dir = harness.tmp / "faster" / "small"
-    model_dir.mkdir(parents=True)
-    monkeypatch.setattr(
-        server_module, "find_faster_whisper_model", lambda model: model_dir
-    )
-    found = call(server, "videoflow_transcribe", {"engine": "faster-whisper"})
-    assert found["ok"] is True
-    assert found["model"] == str(model_dir)
-
-    default_model = harness.tmp / "whisper" / "ggml-tiny.bin"
-    default_model.parent.mkdir()
-    default_model.write_bytes(b"m")
-    monkeypatch.setenv("VIDEOWFLOW_WHISPER_MODEL", str(default_model))
-    fallback = call(
-        server, "videoflow_transcribe", {"engine": "whisper.cpp", "model": "medium"}
-    )
-    assert fallback["ok"] is True
-    assert fallback["model"] == str(default_model)
-    empty_model = call(
-        server, "videoflow_transcribe", {"engine": "whisper.cpp", "model": ""}
-    )
-    assert empty_model["ok"] is True
-    assert empty_model["model"] == str(default_model)
 
 
 def test_mcp_step_and_batch_reject_invalid_port_wiring(harness: Harness) -> None:

@@ -21,7 +21,6 @@ from videoflow.application import settings as settings_module
 from videoflow.application import tracking as tracking_module
 from videoflow.application.services import ServiceProcess
 from videoflow.application.shorts import ShortClip
-from videoflow.domain.errors import VideoFlowError
 from videoflow.domain.state import MediaInfo, Sentence
 from videoflow.engine import batch as batch_module
 from videoflow.engine import maintenance as maintenance_module
@@ -87,49 +86,10 @@ def _fake_uvicorn(run) -> SimpleNamespace:
 # ---------------------------------------------------------------- demo
 
 
-def test_demo_requires_ffmpeg(monkeypatch, capsys) -> None:
-    monkeypatch.setattr(cli, "find_binary", lambda _name: None)
-    assert cli.main(["demo"]) == 1
-    assert "FFmpeg is not available." in capsys.readouterr().err
 
 
-def test_demo_runs_the_pipeline(monkeypatch, tmp_path, capsys) -> None:
-    calls: dict[str, object] = {}
-
-    def fake_run(source, output, **kwargs):
-        calls.update({"source": source, "output": output, **kwargs})
-        return FakeResult({"ok": True})
-
-    monkeypatch.setattr(cli, "find_binary", lambda _name: "/usr/bin/ffmpeg")
-    monkeypatch.setattr(
-        cli.subprocess,
-        "run",
-        lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout="", stderr=""),
-    )
-    monkeypatch.setattr(cli, "run_portable", fake_run)
-    out = tmp_path / "demo"
-    assert cli.main(["demo", "--out", str(out)]) == 0
-    assert json.loads(capsys.readouterr().out) == {"ok": True}
-    assert calls["source"] == out.resolve() / "demo-source.mp4"
-    assert calls["output"] == out.resolve()
-    assert calls["vad_engine"] == "ffmpeg"
-    assert calls["source"].parent.is_dir()
 
 
-def test_demo_reports_ffmpeg_failure(monkeypatch, tmp_path, capsys) -> None:
-    monkeypatch.setattr(cli, "find_binary", lambda _name: "/usr/bin/ffmpeg")
-    monkeypatch.setattr(
-        cli.subprocess,
-        "run",
-        lambda *args, **kwargs: SimpleNamespace(returncode=1, stdout="", stderr="boom"),
-    )
-
-    def fail(*args, **kwargs):
-        raise AssertionError("run_portable must not run")
-
-    monkeypatch.setattr(cli, "run_portable", fail)
-    assert cli.main(["demo", "--out", str(tmp_path / "demo")]) == 1
-    assert "boom" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------- shorts
@@ -1691,33 +1651,5 @@ def test_pid_and_browser_helpers(monkeypatch, tmp_path) -> None:
     )
 
 
-def test_main_maps_videoflow_errors(monkeypatch, tmp_path, capsys) -> None:
-    class Completed:
-        returncode = 0
-        stdout = ""
-        stderr = ""
-
-    def fail(*args, **kwargs):
-        raise VideoFlowError("boom")
-
-    monkeypatch.setattr(cli, "find_binary", lambda _name: "/usr/bin/ffmpeg")
-    monkeypatch.setattr(cli.subprocess, "run", lambda *args, **kwargs: Completed())
-    monkeypatch.setattr(cli, "run_portable", fail)
-    assert cli.main(["demo", "-o", str(tmp_path / "demo")]) == 1
-    payload = json.loads(capsys.readouterr().err)
-    assert payload == {"ok": False, "code": "videoflow_error", "message": "boom"}
 
 
-def test_main_maps_keyboard_interrupt(monkeypatch, tmp_path) -> None:
-    class Completed:
-        returncode = 0
-        stdout = ""
-        stderr = ""
-
-    def interrupt(*args, **kwargs):
-        raise KeyboardInterrupt
-
-    monkeypatch.setattr(cli, "find_binary", lambda _name: "/usr/bin/ffmpeg")
-    monkeypatch.setattr(cli.subprocess, "run", lambda *args, **kwargs: Completed())
-    monkeypatch.setattr(cli, "run_portable", interrupt)
-    assert cli.main(["demo", "-o", str(tmp_path / "demo")]) == 130

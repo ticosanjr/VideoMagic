@@ -35,7 +35,7 @@ Implemented today:
 - `GET/PUT/DELETE /api/v1/project-templates`, `POST /api/v1/project-templates/{name}/apply`
 - `POST /api/v1/config/export`, `POST /api/v1/config/import`
 - Short thumbnail generation and download
-- `POST /api/v1/jobs`, `GET /api/v1/jobs`, `GET /api/v1/jobs/{id}`,
+- `POST /api/v1/recipes/run`, `GET /api/v1/jobs`, `GET /api/v1/jobs/{id}`,
   `POST /api/v1/jobs/{id}/cancel`, `POST /api/v1/jobs/{id}/retry`,
   `GET /api/v1/jobs/{id}/events`
 - `GET /api/v1/presets`, `GET /api/v1/presets/{name}`,
@@ -240,243 +240,27 @@ used by the picker to show duration, resolution, frame rate, and audio rate.
 
 ### Start
 
+Jobs are created by `POST /api/v1/recipes/run` (or
+`POST /api/v1/recipes/{recipe_id}/run` via the step runner). The legacy
+`POST /api/v1/jobs` creation route and its flat 127-field option object were
+removed in 2.59.4; use a recipe with typed variables and step parameters.
+
 ```http
-POST /api/v1/jobs
+POST /api/v1/recipes/run
 Content-Type: application/json
-```
 
-```json
-{
-  "source": "/media/interview.mp4",
-  "output": "/projects/interview-edit",
-  "noise_db": -30,
-  "min_silence_ms": 400,
-  "min_speech_ms": 100,
-  "vad_engine": "auto",
-  "speech_threshold": 0.5,
-  "speech_pad_before_ms": 120,
-  "speech_pad_after_ms": 150,
-  "jcut": true,
-  "lcut": false,
-  "offset_ms": 200,
-  "crossfade_ms": 20,
-  "fade_in_ms": 20,
-  "fade_out_ms": 20,
-  "fade_curve": "logarithmic",
-  "handle_check": true,
-  "zooms": true,
-  "zoom_mode": "alternate_cuts",
-  "zoom_min_scale": 1.0,
-  "zoom_max_scale": 1.5,
-  "punch_in_scale": 1.15,
-  "anchor_point": "upper_third",
-  "progressive_zoom": false,
-  "pan_direction": "none",
-  "dialect": "1.9",
-  "export_targets": ["resolve", "premiere", "kdenlive"],
-  "transcript": "/media/interview.srt",
-  "cull_retakes": true,
-  "strictness": "balanced",
-  "retake_strategy": "keep_last",
-  "context_window": 15,
-  "llm_base_url": "http://localhost:11434/v1",
-  "llm_model": "qwen2.5:7b-instruct",
-  "shorts": true,
-  "shorts_count": 3,
-  "shorts_min_count": 3,
-  "shorts_min_sec": 30,
-  "shorts_max_sec": 60,
-  "shorts_subtitles": true,
-  "shorts_selection_mode": "auto",
-  "shorts_prompt": "pricing and margins",
-  "shorts_reprompt": "more energy",
-  "shorts_prompt_mode": "replace",
-  "shorts_hook_mode": "off",
-  "shorts_reframe_mode": "center_crop_9_16",
-  "shorts_audio_energy_boost": false,
-  "shorts_scene_change_boost": false,
-  "shorts_remove_fillers": false,
-  "shorts_filler_words": ["hum", "hmm", "uh", "um"],
-  "shorts_aspect": "9:16",
-  "shorts_source_start_sec": 0,
-  "shorts_source_end_sec": null,
-  "allow_external_services": false,
-  "allowed_external_hosts": [],
-  "audio_enhance": false,
-  "audio_highpass_hz": 80,
-  "audio_denoise": true,
-  "audio_denoise_db": 12,
-  "audio_noise_floor_db": -30,
-  "audio_loudnorm": true,
-  "audio_target_lufs": -16.0,
-  "audio_true_peak_db": -1.5,
-  "overlay_enabled": false,
-  "overlay_asset": "",
-  "overlay_position": "bottom_right",
-  "overlay_margin_px": 32,
-  "overlay_width_ratio": 0.18,
-  "overlay_opacity": 0.9,
-  "music_enabled": false,
-  "music_asset": "",
-  "music_volume": 0.18,
-  "music_ducking": true,
-  "music_fade_in_ms": 250,
-  "music_fade_out_ms": 500,
-  "intro_enabled": false,
-  "intro_asset": "",
-  "intro_duration_sec": 2.0,
-  "outro_enabled": false,
-  "outro_asset": "",
-  "outro_duration_sec": 2.0,
-  "caption_font_family": "Arial",
-  "caption_font_size": 72,
-  "caption_font_weight": "bold",
-  "caption_italic": false,
-  "caption_uppercase": false,
-  "caption_primary_color": "#FFFFFF",
-  "caption_highlight_color": "#FFD400",
-  "caption_outline_color": "#000000",
-  "caption_outline_width": 4,
-  "caption_shadow_color": "#000000",
-  "caption_shadow_offset": 2,
-  "caption_shadow_opacity": 0.6,
-  "caption_background_color": "#000000",
-  "caption_background_opacity": 0.0,
-  "caption_background_padding": 0,
-  "caption_alignment": 2,
-  "caption_position_x": 0.5,
-  "caption_position_y": 0.78,
-  "caption_max_width": 0.9,
-  "caption_animation": "none",
-  "caption_word_timing": "engine",
-  "caption_censor_enabled": false,
-  "caption_censor_words": ["porra", "merda"],
-  "caption_censor_replacement": "***",
-  "caption_keyword_highlight_enabled": false,
-  "caption_keyword_color": "#00E5FF",
-  "caption_keyword_words": [],
-  "caption_emoji_enabled": false,
-  "caption_emoji_map": { "money": "💰" },
-  "caption_brand_vocabulary": { "video flow": "VideoFlow" },
-  "overrides": [
-    { "sentence_id": 4, "action": "keep" },
-    { "sentence_id": 7, "action": "discard" }
-  ],
-  "transcribe": true,
-  "asr_base_url": "http://localhost:8000/v1",
-  "asr_model": "whisper-1",
-  "asr_language": "pt",
-  "whisper_engine": "auto",
-  "whisper_model_size": "small",
-  "whisper_device": "cpu",
-  "whisper_compute_type": "int8",
-  "whisper_vad_filter": false,
-  "whisper_model": null,
-  "faster_whisper_model": null
-}
-```
-
-`vad_engine` selects `auto`, `silero`, or `ffmpeg`. `auto` uses the bundled
-Silero model when ONNX Runtime and the model are available, otherwise FFmpeg.
-`speech_threshold` applies to Silero; `speech_pad_before_ms` and
-`speech_pad_after_ms` apply to both engines. Explicit `silero` fails when the
-model or runtime is missing instead of silently downgrading.
-
-`zoom_min_scale` and `zoom_max_scale` bound the punch-in; `punch_in_scale`
-must stay inside that window. Fade fields configure the first/last audio ramps
-and the join crossfade curve.
-
-`shorts_min_count` is a minimum, not a cap; `shorts_count` is the target and
-maximum. If the material cannot produce the minimum, the result includes a
-warning. `shorts_selection_mode` is `auto`, `llm`, or `heuristic`.
-`caption_*` fields configure the burned Shorts captions/karaoke. Word timings
-come from the transcript engine; `caption_word_timing=proportional` distributes
-a sentence's duration across its words, and `sentence` disables karaoke.
-
-`transcript` is optional and is resolved through the same allowlist as media.
-When `cull_retakes` is true and `VIDEOWFLOW_LLM_BASE_URL` is set, the worker
-uses the OpenAI-compatible endpoint; otherwise only exact repeated text is
-culled.
-
-`overrides` is applied after the retake guard: `keep` removes a sentence from
-the cull set, `discard` adds it. Manual decisions win over the model and guard.
-Overrides require a transcript.
-
-When `transcribe` is true and no SRT is supplied, an `asr_base_url` selects the
-remote path: the worker posts the analysis WAV to
-`<asr_base_url>/audio/transcriptions` with `response_format=verbose_json`. The
-API key is read from `VIDEOWFLOW_ASR_API_KEY`; the base URL falls back to
-`VIDEOWFLOW_ASR_BASE_URL`.
-
-With no URL, `whisper_engine` selects the local path:
-
-- `auto` uses Faster-Whisper when the optional package and selected model
-  directory are present, then falls back to whisper.cpp.
-- `faster-whisper` requires Faster-Whisper and the model; it never silently
-  downgrades.
-- `whisper.cpp` forces the bundled CLI and GGML model.
-
-`whisper_model_size` selects `tiny`, `base`, `small`, `medium`, or `large-v3`.
-`whisper_device` is `cpu` or `cuda`; `whisper_compute_type` is `int8`,
-`float16`, or `float32`. `whisper_vad_filter` enables Faster-Whisper's internal
-VAD and should stay false when module 02 is enabled. An empty
-`faster_whisper_model` uses the bundled model for the chosen size; a directory
-selects a local CTranslate2 model. An empty `whisper_model` uses the bundled
-GGML tiny model; a path selects another GGML file. SRT wins if present.
-
-The job result and `run.json` report `transcript_source` as `faster-whisper`,
-`whisper`, `asr`, `srt`, or `project`.
-
-`source` and `output` are resolved through the path allowlist. Both are required.
-The output directory is created by the worker.
-
-Response `202`:
-
-```json
-{
-  "ok": true,
-  "job": {
-    "job_id": "4cd1312c-...",
-    "status": "running",
-    "progress": 0,
-    "stage": "queued",
-    "message": "Waiting for a worker",
-    "source": "/media/interview.mp4",
-    "output": "/projects/interview-edit",
-    "options": { "noise_db": -30.0, "min_silence_ms": 400, "jcut": true },
-    "result": null,
-    "error": null,
-    "created_at": "2026-10-19T21:09:48.120+00:00",
-    "started_at": "2026-10-19T21:09:48.130+00:00",
-    "finished_at": null,
-    "duration_ms": 410,
-    "log_count": 12,
-    "stages": [
-      {
-        "id": "ingest",
-        "module": "ingest",
-        "label": "Ingest",
-        "status": "succeeded",
-        "progress": 100,
-        "started_at": "2026-10-19T21:09:48.131+00:00",
-        "finished_at": "2026-10-19T21:09:48.310+00:00",
-        "duration_ms": 179,
-        "message": "PCM ready",
-        "error": null
-      }
-    ]
-  }
-}
+{"recipe_id": "youtube_talking_head",
+ "source": "/media/interview.mp4",
+ "output": "/projects/interview-edit"}
 ```
 
 The default concurrency is two active jobs per process. A third start returns
-`429 job_queue_full`.
+`429 job_queue_full` unless it is queued.
 
-Both `POST /api/v1/jobs` and `POST /api/v1/recipes/run` accept an optional
-`idempotency_key`. While a job with that key is queued, running, or waiting for
-approval, a second request returns the same job instead of creating another
-one. Once the job reaches a terminal status the key is free again. Use it for
-automation and watch folders so a retried request cannot duplicate work.
+`POST /api/v1/recipes/run` accepts an optional `idempotency_key`. While a job
+with that key is queued, running, or waiting for approval, a second request
+returns the same job instead of creating another one. Once the job reaches a
+terminal status the key is free again.
 
 ### List and read
 
@@ -748,7 +532,7 @@ is no separate event bus.
 
 ### Result
 
-On success, `job.result` is the `run_portable` report:
+On success, `job.result` is the recipe run report:
 
 ```json
 {

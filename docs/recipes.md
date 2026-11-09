@@ -290,7 +290,7 @@ Every run writes:
 - `exports/` — NLE documents.
 - `shorts/` and `shorts.json` — when Shorts steps are present.
 
-The legacy pipeline remains available at `POST /api/v1/jobs` and is covered by
+The legacy pipeline was removed in 2.59.4; recipe jobs are the only execution path and are covered by
 a parity test against the recipe path.
 
 

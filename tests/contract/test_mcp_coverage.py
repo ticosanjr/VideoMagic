@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 
 from tests.contract.test_api_timeline import _client
+from tests.recipe_jobs import start_recipe
 from videoflow.domain.state import ProjectState
 from videoflow.mcp_server import server as server_module
 from videoflow.mcp_server.server import build_server
@@ -29,7 +30,7 @@ def _setup(monkeypatch, tmp_path: Path):
     server = build_server(manager)
     loaded = call(server, "videoflow_load_media", {"file_path": str(source)})
     assert loaded["ok"] is True, loaded
-    job = manager.start(source, tmp_path / "out", options={}, queue=True)
+    job = start_recipe(manager, source, tmp_path / "out", queue=True)
     server.videoflow_last.update(  # type: ignore[attr-defined]
         source=source, output=job.output, job_id=str(job.job_id)
     )
@@ -121,8 +122,6 @@ def test_mcp_read_and_admin_tools(monkeypatch, tmp_path: Path) -> None:
     job_id = str(job.job_id)
 
     for name, args in [
-        ("videoflow_run_vad", {"noise_db": 0}),
-        ("videoflow_transcribe", {"language": "xx"}),
         ("videoflow_import_url", {"url": "not-a-url"}),
         (
             "videoflow_export_fcpxml",
@@ -264,7 +263,6 @@ def test_mcp_timeline_short_and_run_tools(monkeypatch, tmp_path: Path) -> None:
         call(server, "videoflow_decide_review", {"approved": True, "job_id": job_id})["ok"] is True
     )
 
-    assert call(server, "videoflow_generate_shorts", {"count": 1, "min_count": 1})["ok"] is True
     assert call(server, "videoflow_edit_short", {"index": 0, "title": "New"})["ok"] in {True, False}
     assert call(server, "videoflow_generate_short_metadata", {"index": 0})["ok"] in {True, False}
     assert call(server, "videoflow_analyze_short", {"index": 0})["ok"] in {True, False}
@@ -427,17 +425,4 @@ def test_mcp_short_media_and_copilot_tools(monkeypatch, tmp_path: Path) -> None:
     assert call(server, "videoflow_install_model", {"model_id": "demo"})["ok"] is True
     assert call(server, "videoflow_remove_model", {"model_id": "demo"})["ok"] is True
 
-    for index, args in enumerate(
-        [
-            {"min_duration": 0},
-            {"aspect_ratio": "4:3"},
-            {"prompt_mode": "bad"},
-            {"hook_mode": "bad"},
-            {"reframe_mode": "bad"},
-            {"start_sec": 10, "end_sec": 1},
-            {"count": 0},
-            {"count": 1, "min_count": 2},
-            {"selection_mode": "bad"},
-        ]
-    ):
-        assert call(server, "videoflow_generate_shorts", args)["ok"] is False, index
+

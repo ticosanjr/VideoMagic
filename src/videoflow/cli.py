@@ -21,7 +21,6 @@ from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.audio import audio_filters
 from videoflow.application.fonts import fonts_dir
 from videoflow.application.models import model_roots, models_dir
-from videoflow.application.portable import run_portable
 from videoflow.application.retakes import cull_intervals
 from videoflow.application.retakes import cull_retakes as cull_transcript_retakes
 from videoflow.application.services import (
@@ -76,8 +75,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _version()
         if args.command == "doctor":
             return _doctor()
-        if args.command == "demo":
-            return _demo(args)
         if args.command == "shorts":
             return _shorts(args)
         if args.command == "recipe":
@@ -113,8 +110,6 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("version", help="Print the version and exit.")
     sub.add_parser("doctor", help="Check FFmpeg, data directory, UI, and MCP.")
 
-    demo = sub.add_parser("demo", help="Generate a fixture and run the full pipeline.")
-    demo.add_argument("-o", "--out", type=Path, default=Path("videoflow-demo"))
 
     shorts = sub.add_parser("shorts", help="Select and render vertical 9:16 clips.")
     shorts.add_argument("source", type=Path)
@@ -341,49 +336,6 @@ def _doctor() -> int:
     checks["ok"] = ok
     print(json.dumps(checks, indent=2))
     return 0 if ok else 1
-
-
-def _demo(args: argparse.Namespace) -> int:
-    ffmpeg = find_binary("ffmpeg")
-    if ffmpeg is None:
-        print("FFmpeg is not available.", file=sys.stderr)
-        return 1
-    output = Path(args.out).expanduser().resolve()
-    output.mkdir(parents=True, exist_ok=True)
-    source = output / "demo-source.mp4"
-    command = [
-        ffmpeg,
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-y",
-        "-f",
-        "lavfi",
-        "-i",
-        "testsrc2=size=640x360:rate=30",
-        "-f",
-        "lavfi",
-        "-i",
-        "sine=frequency=440:sample_rate=48000:duration=6",
-        "-af",
-        "volume=0:enable='between(t,1,2)+between(t,3,4)'",
-        "-t",
-        "6",
-        "-c:v",
-        "libx264",
-        "-pix_fmt",
-        "yuv420p",
-        "-c:a",
-        "aac",
-        str(source),
-    ]
-    completed = subprocess.run(command, capture_output=True, text=True, check=False)
-    if completed.returncode != 0:
-        print(completed.stderr.strip(), file=sys.stderr)
-        return 1
-    result = run_portable(source, output, vad_engine="ffmpeg")
-    print(json.dumps(result.to_dict(), indent=2))
-    return 0
 
 
 def _shorts(args: argparse.Namespace) -> int:

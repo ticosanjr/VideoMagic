@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.recipe_jobs import manager_with_runner, start_recipe
 from videoflow.application import database
 from videoflow.application.backups import prune_backups, scheduled_backup
 from videoflow.application.services import rotate_log
@@ -89,7 +90,6 @@ def test_job_fails_cleanly_when_the_output_is_not_writable(
 ) -> None:
     import time
 
-    from videoflow.application.jobs import JobManager
 
     def runner(source: Path, output: Path, *, progress, should_cancel, **kwargs):
         output.mkdir(parents=True, exist_ok=True)
@@ -102,8 +102,8 @@ def test_job_fails_cleanly_when_the_output_is_not_writable(
     blocked.mkdir()
     os.chmod(blocked, 0o500)
     try:
-        manager = JobManager(runner)
-        job = manager.start(source, blocked / "out", {})
+        manager = manager_with_runner(runner)
+        job = start_recipe(manager, source, blocked / "out", {})
         for _ in range(300):
             if job.status in {"failed", "succeeded", "cancelled"}:
                 break
@@ -120,7 +120,6 @@ def test_api_timeline_rejects_a_corrupt_state(
     from fastapi.testclient import TestClient
 
     from videoflow.api.app import create_app
-    from videoflow.application.jobs import JobManager
 
     def runner(source: Path, output: Path, **kwargs):
         output.mkdir(parents=True, exist_ok=True)
@@ -129,9 +128,9 @@ def test_api_timeline_rejects_a_corrupt_state(
 
     monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
-    manager = JobManager(runner)
+    manager = manager_with_runner(runner)
     client = TestClient(create_app(jobs=manager))
-    job = manager.start(tmp_path / "source.mp4", tmp_path / "out", {})
+    job = start_recipe(manager, tmp_path / "source.mp4", tmp_path / "out", {})
     for _ in range(200):
         if job.status in {"succeeded", "failed"}:
             break
@@ -150,7 +149,6 @@ def test_disk_full_fails_an_export_without_a_success_marker(
     import errno
     import time
 
-    from videoflow.application.jobs import JobManager
 
     def runner(source: Path, output: Path, *, progress, should_cancel, **kwargs):
         output.mkdir(parents=True, exist_ok=True)
@@ -158,8 +156,8 @@ def test_disk_full_fails_an_export_without_a_success_marker(
 
     source = tmp_path / "source.mp4"
     source.write_bytes(b"x")
-    manager = JobManager(runner)
-    job = manager.start(source, tmp_path / "out", {})
+    manager = manager_with_runner(runner)
+    job = start_recipe(manager, source, tmp_path / "out", {})
     for _ in range(300):
         if job.status in {"failed", "succeeded", "cancelled"}:
             break

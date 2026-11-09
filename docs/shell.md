@@ -96,7 +96,7 @@ by Vitest.
 
 ## Idempotency
 
-`POST /api/v1/jobs` and `POST /api/v1/recipes/run` accept `idempotency_key`.
+`POST /api/v1/recipes/run` accepts `idempotency_key`.
 While the matching job is `queued`, `running`, or `waiting_approval`, the
 request returns that job. Terminal jobs release the key. The check is in-memory
 inside the single local process and the key is persisted with the job, so a

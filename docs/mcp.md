@@ -59,10 +59,10 @@ the same allowlist jail.
 
 ## 2. Tools
 
-All seventy-eight tools and five resources execute real work. `videoflow_load_media` remembers the source.
-Analysis tools work immediately. Edit tools stage configuration for the next
-`videoflow_run_pipeline`; the result says `applies_to_next_run` when a job is
-still required.
+All seventy-one tools and five resources execute real work. Recipes are the
+execution contract: `videoflow_run_recipe` and `videoflow_run_recipe_inline`
+start real jobs, and the timeline/short tools operate on the completed job.
+`videoflow_load_media` remains a media registration helper.
 
 | Tool | Inputs | Behavior |
 | --- | --- | --- |
@@ -86,20 +86,13 @@ still required.
 | `videoflow_list_capabilities` | `allow_external_services` | **live**: feature availability, provider policy, and blocked reasons |
 | `videoflow_import_url` | `url`, `max_height`, `allow_playlist`, `allow_external_services`, `allowed_external_hosts` | **live**: yt-dlp download plus probe |
 | `videoflow_load_media` | `file_path` | **live**: probes and remembers the source; loading a different source clears the old MCP project context |
-| `videoflow_run_vad` | `noise_db`, `min_silence_ms`, `min_speech_ms`, `vad_engine`, `speech_threshold`, `speech_pad_before_ms`, `speech_pad_after_ms` | **live**: Silero when available, FFmpeg fallback; returns sample intervals, removable silence, and the selected engine |
-| `videoflow_transcribe` | `model`, `language`, `engine`, `device`, `compute_type`, `vad_filter`, `model_path` | **live**: local Faster-Whisper or whisper.cpp; returns sentences and stages an SRT for the next run |
 | `videoflow_get_transcript` | `include_word_timestamps` | **live**: cached or project-state transcript, plus SRT |
-| `videoflow_cull_retakes` | `discard_sentence_ids`, `manual_word_indices` | **live/staged**: automatic exact-repeat culling plus manual sentence discards; the guard protects the final take |
-| `videoflow_configure_zooms` | `mode`, `scale`, `anchor` | **live/staged**: punch-in, anchor, and pan metadata |
-| `videoflow_apply_jcuts` | `offset_ms`, `crossfade_ms` | **live/staged**: audio offset and logarithmic micro-fades |
-| `videoflow_generate_shorts` | `min_duration`, `max_duration`, `count`, `min_count`, `selection_mode`, `subtitles`, `aspect_ratio`, `start_sec`, `end_sec`, `allow_external_services`, `prompt`, `reprompt`, `prompt_mode`, `hook_mode` | **live**: ranked social clip proposals in source time; aspect/window/prompt/hook apply to the next run |
 | `videoflow_dub_short` | `index`, `target_language`, `text`, `base_url`, `model`, `voice`, `speed`, `volume`, `original_volume`, `llm_base_url`, `llm_model`, `allow_external_services`, `allowed_external_hosts` | **live**: translate + TTS + mix |
 | `videoflow_generate_short_voiceover` | `index`, `text`, `base_url`, `model`, `voice`, `speed`, `volume`, `original_volume`, `allow_external_services`, `allowed_external_hosts` | **live**: TTS + mix over a completed Short |
 | `videoflow_generate_short_thumbnail` | `index`, `time_sec`, `title`, `caption_style` | **live**: PNG frame plus caption-style title overlay |
 | `videoflow_generate_short_metadata` | `index`, `platform`, `tone`, `extra_hashtags` | **live**: platform title, description, hashtags, and character limits |
 | `videoflow_edit_short` | `index`, `title`, `start_sec`, `end_sec`, `aspect_ratio`, `burn_subtitles`, `caption_style` | **live**: re-renders one Short into `shorts/edited/` |
 | `videoflow_export_fcpxml` | `output_path`, `target_nle` | **live**: exports the latest completed timeline |
-| `videoflow_run_pipeline` | `preset_name`, `overrides`, optional `source`, optional `output` | **live**: starts a real job |
 | `videoflow_list_jobs` | `limit`, `offset`, `summary` | **live**: paginated jobs; `summary=true` omits the embedded recipe |
 | `videoflow_get_job` | `job_id` | **live**: status, progress, report; list summaries omit the embedded recipe |
 | `videoflow_cancel_job` | `job_id` | **live**: cooperative cancel |
@@ -147,18 +140,9 @@ Presets accepted by `run_pipeline`:
 `faster_whisper_model`. Unknown keys return `invalid_overrides`. `transcript` is
 resolved through the same path allowlist as the source.
 
-When a job starts, VideoFlow merges options in this order: preset defaults,
-explicit `overrides`, then staged MCP edits for keys the caller did not
-explicitly set. Staged edits are cleared when the job starts.
-
-`videoflow_cull_retakes` is sentence-level. Passing `manual_word_indices` returns
-`word_overrides_not_supported`; word-level culling is not part of v1.
-
-`videoflow_generate_shorts` returns proposals; it does not render MP4 files.
-Set `shorts` in the pipeline options to render them. `min_count` defaults to the
-smaller of 3 and `count`; use `selection_mode=llm` or `heuristic` to choose the
-ranking path. Caption style fields are accepted as flat `caption_*` overrides
-and are stored in the project's `ShortsConfig`.
+Recipes carry their own typed variables, step parameters, and variants. Use
+`videoflow_validate_recipe` or `videoflow_list_steps` before a run; the recipe
+engine owns retakes, zooms, J-cuts, transcription, Shorts, and export.
 
 `videoflow_export_fcpxml` keeps its historical name. `target_nle` selects the
 dialect: `resolve` (`.fcpxml`), `premiere` (`.xml`), or `kdenlive` (`.kdenlive`).
@@ -185,43 +169,37 @@ not transport failures.
 The complete path, using only public tools:
 
 ```
-1.  videoflow_load_media(file_path="/media/interview.mp4")
-2.  videoflow_run_vad(noise_db=-30, min_silence_ms=400, vad_engine="auto")
-3.  videoflow_transcribe(model="small", language="pt")
-4.  videoflow_get_transcript(include_word_timestamps=true)
-5.  videoflow_cull_retakes(discard_sentence_ids=[...])
-6.  videoflow_configure_zooms(mode="alternate_cuts", scale=1.15)
-7.  videoflow_apply_jcuts(offset_ms=200, crossfade_ms=20)
-8.  videoflow_generate_shorts(min_duration=30, max_duration=60, count=3)
-9.  videoflow_run_pipeline(preset_name="youtube-talking-head",
-                           output="/projects/interview-edit")
-10. videoflow_get_job(job_id=...) until status is succeeded or failed
-11. videoflow_export_fcpxml(output_path="/projects/interview-edit/exports/copy.fcpxml",
+1.  videoflow_list_recipes()
+2.  videoflow_run_recipe(recipe_id="youtube_talking_head",
+                         source="/media/interview.mp4",
+                         output="/projects/interview-edit")
+3.  videoflow_get_job(job_id=...) until status is succeeded or failed
+4.  videoflow_get_timeline(job_id=...)
+5.  videoflow_get_transcript(include_word_timestamps=true)
+6.  videoflow_edit_timeline(...) / videoflow_add_timeline_overlay(...)
+7.  videoflow_export_fcpxml(output_path="/projects/interview-edit/exports/copy.fcpxml",
                             target_nle="resolve")
-12. read videoflow://project/state and videoflow://project/exports
-13. call videoflow_list_capabilities before using an external provider
-14. call videoflow_edit_short to trim, retitle, or reframe a completed Short
-15. call videoflow_generate_short_metadata for platform copy
-16. call videoflow_list_fonts or videoflow_upload_font for caption typography
-17. call videoflow_generate_short_thumbnail for a cover image
-18. call videoflow_list_images or videoflow_upload_image for watermarks
-19. call videoflow_list_music or videoflow_upload_music for background music
-20. call videoflow_generate_short_voiceover for narration
-21. call videoflow_dub_short for translation dubbing
-22. call videoflow_list_brand_templates or videoflow_save_brand_template for reusable branding
-23. call videoflow_list_project_templates / videoflow_export_config for project presets
-24. call videoflow_import_url for public source links
-25. call videoflow_schedule_short for webhook publishing
-26. call videoflow_analyze_short for optional multimodal analysis
+8.  read videoflow://project/state and videoflow://project/exports
+9.  call videoflow_list_capabilities before using an external provider
+10. call videoflow_edit_short to trim, retitle, or reframe a completed Short
+11. call videoflow_generate_short_metadata for platform copy
+12. call videoflow_list_fonts or videoflow_upload_font for caption typography
+13. call videoflow_generate_short_thumbnail for a cover image
+14. call videoflow_list_images or videoflow_upload_image for watermarks
+15. call videoflow_list_music or videoflow_upload_music for background music
+16. call videoflow_generate_short_voiceover for narration
+17. call videoflow_dub_short for translation dubbing
+18. call videoflow_list_brand_templates or videoflow_save_brand_template for reusable branding
+19. call videoflow_list_project_templates / videoflow_export_config for project presets
+20. call videoflow_import_url for public source links
+21. call videoflow_schedule_short for webhook publishing
+22. call videoflow_analyze_short for optional multimodal analysis
 ```
 
-`videoflow_transcribe` writes a cached SRT and stages it, so the next pipeline
-uses exactly the transcript the agent inspected. `engine="auto"` prefers
-Faster-Whisper when its package and model are installed, then uses whisper.cpp;
-pass `engine="whisper.cpp"` to force the fallback. If transcription is skipped,
-run the pipeline with `transcribe=true` and the desired `asr_language`,
-`whisper_engine`, model size, or local model path. Retake culling needs a
-transcript from either path.
+Transcription is a recipe step (`transcribe`); the completed job exposes the
+transcript through `videoflow_get_transcript` and `videoflow://project/transcript`.
+The engine prefers Faster-Whisper when its package and model are installed, then
+falls back to whisper.cpp. Retake culling also runs as a recipe step.
 
 An agent must not assume that a tool call returns instantly. Poll
 `videoflow_get_job` at a human pace or subscribe to the SSE stream through the
@@ -281,7 +259,7 @@ Every tool carries MCP annotations:
 | `readOnlyHint` | No state change | `videoflow_get_timeline`, `videoflow_list_recipes` |
 | `destructiveHint` | Removes or cancels work | `videoflow_cancel_job`, `videoflow_delete_*` |
 | `idempotentHint` | Safe to repeat | `videoflow_save_recipe`, `videoflow_pause_job` |
-| `openWorldHint` | May reach the network | `videoflow_import_url`, `videoflow_transcribe_*` |
+| `openWorldHint` | May reach the network | `videoflow_import_url`, `videoflow_install_model` |
 
 Agents should require confirmation before a tool with `destructiveHint`, and may
 cache results from `readOnlyHint` tools.

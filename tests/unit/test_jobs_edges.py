@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.recipe_jobs import manager_with_runner, start_recipe
 from videoflow.application import jobs as jobs_module
-from videoflow.application.jobs import JobManager
 from videoflow.domain.errors import JobQueueFullError, ProjectStateError
 from videoflow.domain.state import MediaInfo, ProjectState
 
@@ -30,11 +30,11 @@ def test_queue_full_cancel_pause_and_unpause(tmp_path: Path) -> None:
         release.wait(timeout=5)
         return {"ok": True}
 
-    manager = JobManager(runner=runner, max_active=1)
-    first = manager.start(tmp_path / "a.mp4", tmp_path / "a", {})
+    manager = manager_with_runner(runner=runner, max_active=1)
+    first = start_recipe(manager, tmp_path / "a.mp4", tmp_path / "a", {})
     with pytest.raises(JobQueueFullError):
-        manager.start(tmp_path / "b.mp4", tmp_path / "b", {})
-    second = manager.start(tmp_path / "b.mp4", tmp_path / "b", {}, queue=True)
+        start_recipe(manager, tmp_path / "b.mp4", tmp_path / "b", {})
+    second = start_recipe(manager, tmp_path / "b.mp4", tmp_path / "b", {}, queue=True)
     assert second.status == "queued"
 
     assert manager.cancel(str(second.job_id)).status == "cancelled"
@@ -55,9 +55,9 @@ def test_queued_pause_and_unpause(tmp_path: Path) -> None:
         release.wait(timeout=5)
         return {"ok": True}
 
-    manager = JobManager(runner=runner, max_active=1)
-    first = manager.start(tmp_path / "a.mp4", tmp_path / "a", {})
-    second = manager.start(tmp_path / "b.mp4", tmp_path / "b", {}, queue=True)
+    manager = manager_with_runner(runner=runner, max_active=1)
+    first = start_recipe(manager, tmp_path / "a.mp4", tmp_path / "a", {})
+    second = start_recipe(manager, tmp_path / "b.mp4", tmp_path / "b", {}, queue=True)
     paused = manager.pause(str(second.job_id))
     assert paused.status == "paused"
     resumed = manager.unpause(str(second.job_id))
@@ -73,16 +73,16 @@ def test_get_loads_from_the_store_and_prunes_history(tmp_path: Path) -> None:
         return {"ok": True}
 
     store = tmp_path / "jobs"
-    manager = JobManager(runner=runner, max_active=2, store_dir=store, history=1)
-    first = _wait(manager.start(tmp_path / "a.mp4", tmp_path / "a", {}))
-    second = _wait(manager.start(tmp_path / "b.mp4", tmp_path / "b", {}))
-    third = _wait(manager.start(tmp_path / "c.mp4", tmp_path / "c", {}))
+    manager = manager_with_runner(runner=runner, max_active=2, store_dir=store, history=1)
+    first = _wait(start_recipe(manager, tmp_path / "a.mp4", tmp_path / "a", {}))
+    second = _wait(start_recipe(manager, tmp_path / "b.mp4", tmp_path / "b", {}))
+    third = _wait(start_recipe(manager, tmp_path / "c.mp4", tmp_path / "c", {}))
     manager._prune()  # noqa: SLF001
     assert str(first.job_id) not in {str(item.job_id) for item in manager.list()}
     assert str(third.job_id) in {str(item.job_id) for item in manager.list()}
     assert not (store / f"{first.job_id}.json").exists()
 
-    loaded = JobManager(runner=runner, store_dir=store)
+    loaded = manager_with_runner(runner=runner, store_dir=store)
     restored = loaded.get(str(second.job_id))
     assert restored.job_id == second.job_id
 
@@ -96,8 +96,8 @@ def test_retry_with_backoff_reaches_success(tmp_path: Path) -> None:
             raise RuntimeError("transient")
         return {"ok": True}
 
-    manager = JobManager(runner=runner, max_active=1)
-    job = manager.start(
+    manager = manager_with_runner(runner=runner, max_active=1)
+    job = start_recipe(manager, 
         tmp_path / "a.mp4",
         tmp_path / "a",
         {"max_attempts": 2, "retry_backoff_seconds": 0.01},
@@ -164,7 +164,7 @@ def test_queued_cancel_missing_ids_and_store_fallback(tmp_path: Path) -> None:
     def runner(source, output, *, progress, should_cancel, **kwargs):
         return {"ok": True}
 
-    manager = JobManager(runner=runner, store_dir=tmp_path / "store")
+    manager = manager_with_runner(runner=runner, store_dir=tmp_path / "store")
     job = jobs_module.Job(
         source=tmp_path / "a.mp4",
         output=tmp_path / "out",
@@ -195,7 +195,7 @@ def test_corrupt_store_and_pending_entries_are_skipped(tmp_path: Path) -> None:
     store = tmp_path / "store"
     store.mkdir()
     (store / "bad.json").write_text("{not json", encoding="utf-8")
-    manager = JobManager(store_dir=store)
+    manager = manager_with_runner(store_dir=store)
     manager._drain_queue()
     assert manager.list() == []
 
@@ -211,8 +211,8 @@ def test_paused_running_job_is_reported(tmp_path: Path) -> None:
         release.wait(timeout=5)
         raise JobCancelledError("paused")
 
-    manager = JobManager(runner=runner, max_active=1)
-    job = manager.start(tmp_path / "a.mp4", tmp_path / "a", {})
+    manager = manager_with_runner(runner=runner, max_active=1)
+    job = start_recipe(manager, tmp_path / "a.mp4", tmp_path / "a", {})
     manager._jobs[str(job.job_id)].pause_requested = True
     manager._jobs[str(job.job_id)].cancel_requested = True
     release.set()
@@ -226,8 +226,8 @@ def test_finalizer_runs_on_success(tmp_path: Path) -> None:
     def runner(source, output, *, progress, should_cancel, **kwargs):
         return {"ok": True}
 
-    manager = JobManager(runner=runner, max_active=1)
-    job = manager.start(
+    manager = manager_with_runner(runner=runner, max_active=1)
+    job = start_recipe(manager, 
         tmp_path / "a.mp4",
         tmp_path / "a",
         {},

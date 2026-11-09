@@ -46,11 +46,11 @@ FFmpeg, removes silence, applies J/L-cuts and punch-ins, and writes
 happened. Add `--transcribe` for local Faster-Whisper with a whisper.cpp
 fallback, or `--transcript` with `--cull-retakes` for retake removal.
 
-`videoflow demo -o demo` proves the whole chain on a generated clip.
+`videoflow recipe run youtube_talking_head input.mp4 -o demo` proves the chain on a real clip.
 
-`videoflow serve` exposes the same run as `POST /api/v1/jobs`, with progress at
+`videoflow serve` exposes the same run as `POST /api/v1/recipes/run`, with progress at
 `GET /api/v1/jobs/{id}` and `GET /api/v1/jobs/{id}/events`. The MCP tools
-`videoflow_load_media`, `videoflow_run_pipeline`, `videoflow_get_job`, and
+`videoflow_run_recipe`, `videoflow_get_job`, and
 `videoflow_cancel_job` drive it from an agent.
 
 ### Rack UI (portable run)

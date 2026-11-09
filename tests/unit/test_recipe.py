@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.recipe_jobs import MINIMAL_RECIPE, manager_with_runner, start_recipe
 from videoflow.api.app import create_app
-from videoflow.application.portable import run_portable
 from videoflow.core.recipe import parse_recipe
 from videoflow.domain.errors import RecipeError
 from videoflow.domain.state import MediaInfo
@@ -220,42 +220,6 @@ def test_recipe_repairs_wired_inputs_into_dependencies() -> None:
     validate_recipe_ports(recipe)
 
 
-def test_recipe_runner_matches_legacy_timeline(tmp_path: Path) -> None:
-    source = tmp_path / "source.mp4"
-    source.write_bytes(b"fixture")
-    transcript = srt(tmp_path / "subs.srt", repeat=True)
-    data = base_steps(transcript)
-    for step in data["steps"]:
-        if step["id"] == "timeline":
-            step["params"] = {
-                "use_transcript_spans": False,
-                "pad_before_ms": None,
-                "pad_after_ms": None,
-            }
-    recipe = parse_recipe(data)
-    recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
-    result = RecipeRunner(recipe, adapter=FakeAdapter()).run(source, tmp_path / "recipe")
-    legacy = run_portable(
-        source,
-        tmp_path / "legacy",
-        adapter=FakeAdapter(),  # type: ignore[arg-type]
-        vad_engine="ffmpeg",
-        transcript_path=transcript,
-        cull_retakes=True,
-    )
-    assert len(result.context.state.video_segments) == len(legacy.state.video_segments)
-    assert [
-        (segment.source_in_frame, segment.source_out_frame)
-        for segment in result.context.state.video_segments
-    ] == [
-        (segment.source_in_frame, segment.source_out_frame)
-        for segment in legacy.state.video_segments
-    ]
-    assert result.context.state.retake_culls == legacy.state.retake_culls
-    assert result.state_path.is_file()
-    assert json.loads(result.report_path.read_text())["recipe_id"] == "test_recipe"
-
-
 def test_recipe_runner_renders_shorts(tmp_path: Path) -> None:
     source = tmp_path / "source.mp4"
     source.write_bytes(b"fixture")
@@ -326,7 +290,6 @@ def test_recipe_api_lists_steps_and_validates() -> None:
 
 
 def test_job_manager_runs_recipe_mode(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.application.jobs import JobManager
 
     class FakeRunner:
         def __init__(self, recipe, **_kwargs) -> None:
@@ -355,8 +318,8 @@ def test_job_manager_runs_recipe_mode(monkeypatch, tmp_path: Path) -> None:
         "name": "Job recipe",
         "steps": [{"id": "ingest", "type": "ingest"}],
     }
-    manager = JobManager()
-    job = manager.start(
+    manager = manager_with_runner()
+    job = start_recipe(manager, 
         source,
         tmp_path / "out",
         {"mode": "recipe", "recipe": recipe},
@@ -712,7 +675,6 @@ def test_broll_plan_reaches_short_render(tmp_path: Path) -> None:
 
 
 def test_failed_recipe_writes_failure_and_history(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.application.jobs import JobManager
     from videoflow.domain.errors import IngestError
     from videoflow.engine.history import read_runs
 
@@ -736,7 +698,7 @@ def test_failed_recipe_writes_failure_and_history(monkeypatch, tmp_path: Path) -
         "steps": [{"id": "ingest", "type": "ingest"}],
     }
     output = tmp_path / "out"
-    job = JobManager().start(
+    job = manager_with_runner().start(
         source,
         output,
         {"mode": "recipe", "recipe": recipe},
@@ -788,14 +750,13 @@ def test_second_split_source_is_resolved_inside_allowlist(tmp_path: Path) -> Non
 
 
 def test_job_history_survives_restart(tmp_path: Path) -> None:
-    from videoflow.application.jobs import JobManager
 
     def runner(source, output, **kwargs):
         return {"ok": True, "elapsed_seconds": 0.1}
 
     store = tmp_path / "jobs"
-    manager = JobManager(runner=runner, store_dir=store)
-    job = manager.start(tmp_path / "source.mp4", tmp_path / "out", {})
+    manager = manager_with_runner(runner=runner, store_dir=store)
+    job = start_recipe(manager, tmp_path / "source.mp4", tmp_path / "out", {})
     import time
 
     for _ in range(200):
@@ -808,7 +769,7 @@ def test_job_history_survives_restart(tmp_path: Path) -> None:
                 except (OSError, ValueError):
                     pass
         time.sleep(0.01)
-    reopened = JobManager(runner=runner, store_dir=store)
+    reopened = manager_with_runner(runner=runner, store_dir=store)
     assert reopened.get(str(job.job_id)).status == "succeeded"
     assert reopened.list()
 
@@ -819,7 +780,6 @@ def test_interrupted_job_is_requeued_on_restart(tmp_path: Path) -> None:
     import time
     from uuid import uuid4
 
-    from videoflow.application.jobs import JobManager
 
     store = tmp_path / "jobs"
     store.mkdir()
@@ -831,7 +791,7 @@ def test_interrupted_job_is_requeued_on_restart(tmp_path: Path) -> None:
                 "status": "running",
                 "source": str(tmp_path / "source.mp4"),
                 "output": str(tmp_path / "out"),
-                "options": {},
+                "options": {"mode": "recipe", "recipe": MINIMAL_RECIPE},
             }
         )
     )
@@ -841,7 +801,7 @@ def test_interrupted_job_is_requeued_on_restart(tmp_path: Path) -> None:
         release.wait(timeout=5)
         return {"ok": True}
 
-    manager = JobManager(runner, store_dir=store)
+    manager = manager_with_runner(runner, store_dir=store)
     restored = manager.get(str(job_id))
     assert restored.status in {"queued", "running"}
     release.set()
@@ -896,14 +856,13 @@ def test_step_io_reports_local_and_overall_progress() -> None:
 
 
 def test_job_manager_lists_with_pagination(tmp_path: Path) -> None:
-    from videoflow.application.jobs import JobManager
 
     def runner(source, output, **kwargs):
         return {"ok": True}
 
-    manager = JobManager(runner=runner)
-    first = manager.start(tmp_path / "a.mp4", tmp_path / "a", {})
-    second = manager.start(tmp_path / "b.mp4", tmp_path / "b", {})
+    manager = manager_with_runner(runner=runner)
+    first = start_recipe(manager, tmp_path / "a.mp4", tmp_path / "a", {})
+    second = start_recipe(manager, tmp_path / "b.mp4", tmp_path / "b", {})
     jobs = manager.list(limit=1)
     assert len(jobs) == 1
     assert jobs[0].job_id in {first.job_id, second.job_id}

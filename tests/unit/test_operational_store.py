@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.recipe_jobs import manager_with_runner, start_recipe
 from videoflow.application import database
 from videoflow.application.jobs import JobManager
 from videoflow.engine.batch import BatchManager
@@ -45,8 +46,8 @@ def home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
 
 
 def started_job(home: Path, tmp_path: Path) -> dict[str, object]:
-    manager = JobManager(fake_runner, store_dir=tmp_path / "jobs")
-    job = manager.start(tmp_path / "source.mp4", tmp_path / "output")
+    manager = manager_with_runner(fake_runner, store_dir=tmp_path / "jobs")
+    job = start_recipe(manager, tmp_path / "source.mp4", tmp_path / "output")
     wait_for(manager, str(job.job_id))
     return manager.get(str(job.job_id)).to_dict()
 
@@ -58,7 +59,7 @@ def test_jobs_are_read_from_the_database_before_json(
     for path in (tmp_path / "jobs").glob("*.json"):
         path.unlink()
 
-    reloaded = JobManager(fake_runner, store_dir=tmp_path / "jobs")
+    reloaded = manager_with_runner(fake_runner, store_dir=tmp_path / "jobs")
 
     assert reloaded.get(str(payload["job_id"])).status == "succeeded"
 
@@ -70,7 +71,7 @@ def test_interrupted_jobs_are_requeued_from_the_database(
     payload.update({"status": "running", "stage": "export", "progress": 40})
     database.upsert_job(str(payload["job_id"]), payload)
 
-    reloaded = JobManager(fake_runner, store_dir=tmp_path / "jobs")
+    reloaded = manager_with_runner(fake_runner, store_dir=tmp_path / "jobs")
     wait_for(reloaded, str(payload["job_id"]))
 
     job = reloaded.get(str(payload["job_id"]))
@@ -88,7 +89,7 @@ def test_stale_json_does_not_override_the_database(
         json.dumps(stale), encoding="utf-8"
     )
 
-    reloaded = JobManager(fake_runner, store_dir=tmp_path / "jobs")
+    reloaded = manager_with_runner(fake_runner, store_dir=tmp_path / "jobs")
 
     job = reloaded.get(str(payload["job_id"]))
     assert job.status == "succeeded"
@@ -119,7 +120,7 @@ def test_batches_are_restored_from_the_database(
     }
     database.upsert_batch(str(payload["batch_id"]), payload)
 
-    jobs = JobManager(fake_runner, store_dir=None)
+    jobs = manager_with_runner(fake_runner, store_dir=None)
     batches = BatchManager(jobs, store_dir=tmp_path / "batches")
 
     assert batches.get(str(payload["batch_id"])).status == "succeeded"

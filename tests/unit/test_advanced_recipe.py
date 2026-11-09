@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.recipe_jobs import manager_with_runner, start_recipe
 from videoflow.application import database
 from videoflow.application.plugins import load_plugins
 from videoflow.application.shorts import ShortClip
@@ -147,7 +148,6 @@ def test_human_gate_pauses_and_resumes(tmp_path: Path) -> None:
 
 
 def test_job_variants_write_separate_outputs(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.application.jobs import JobManager
 
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
     source = tmp_path / "source.mp4"
@@ -171,8 +171,8 @@ def test_job_variants_write_separate_outputs(monkeypatch, tmp_path: Path) -> Non
             }
         ],
     }
-    manager = JobManager()
-    job = manager.start(source, tmp_path / "out", {"mode": "recipe", "recipe": recipe})
+    manager = manager_with_runner()
+    job = start_recipe(manager, source, tmp_path / "out", {"mode": "recipe", "recipe": recipe})
     for _ in range(300):
         if job.status in {"succeeded", "failed", "cancelled"}:
             break
@@ -276,7 +276,6 @@ def test_i18n_locale_strings() -> None:
 
 
 def test_job_queue_waits_for_a_slot(tmp_path: Path) -> None:
-    from videoflow.application.jobs import JobManager
 
     release = __import__("threading").Event()
 
@@ -284,9 +283,9 @@ def test_job_queue_waits_for_a_slot(tmp_path: Path) -> None:
         release.wait(timeout=10)
         return {"ok": True}
 
-    manager = JobManager(wait_runner, max_active=1)
-    first = manager.start(tmp_path / "a.mp4", tmp_path / "out-a", queue=True)
-    second = manager.start(tmp_path / "b.mp4", tmp_path / "out-b", queue=True)
+    manager = manager_with_runner(wait_runner, max_active=1)
+    first = start_recipe(manager, tmp_path / "a.mp4", tmp_path / "out-a", queue=True)
+    second = start_recipe(manager, tmp_path / "b.mp4", tmp_path / "out-b", queue=True)
     assert first.status in {"queued", "running"}
     assert second.status == "queued"
     release.set()

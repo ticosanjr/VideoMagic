@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.recipe_jobs import manager_with_runner, start_recipe
 from videoflow.api.app import create_app
 from videoflow.application.jobs import JobManager
 from videoflow.domain.state import AudioSegment, MediaInfo, ProjectState, VideoSegment
@@ -51,13 +52,13 @@ def _runner(source: Path, output: Path, **kwargs):
 def make_client(monkeypatch, tmp_path: Path) -> TestClient:
     monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
-    return TestClient(create_app(jobs=JobManager(runner=_runner)))
+    return TestClient(create_app(jobs=manager_with_runner(runner=_runner)))
 
 
 def finished_job(tmp_path: Path, manager: JobManager):
     source = tmp_path / "source.mp4"
     source.write_bytes(b"x")
-    job = manager.start(source, tmp_path / "out", {})
+    job = start_recipe(manager, source, tmp_path / "out", {})
     for _ in range(300):
         if job.status in {"succeeded", "failed", "cancelled"}:
             break

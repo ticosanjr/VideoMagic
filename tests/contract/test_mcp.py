@@ -42,7 +42,7 @@ def test_every_tool_has_annotations() -> None:
 def test_tools_without_media_return_a_typed_error() -> None:
     async def call() -> object:
         return await build_server().call_tool(
-            "videoflow_transcribe", {"model": "small", "language": "pt"}
+            "videoflow_run_recipe", {"recipe_id": "youtube_talking_head"}
         )
 
     result = asyncio.run(call())

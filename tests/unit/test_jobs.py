@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.recipe_jobs import manager_with_runner, start_recipe
 from videoflow.application.jobs import JobManager
 from videoflow.domain.errors import (
     JobCancelledError,
@@ -29,8 +30,8 @@ def fake_runner(source: Path, output: Path, *, progress, should_cancel, **kwargs
 
 
 def test_job_completes_and_reports_progress(tmp_path: Path) -> None:
-    manager = JobManager(fake_runner)
-    job = manager.start(tmp_path / "in.mp4", tmp_path / "out")
+    manager = manager_with_runner(fake_runner)
+    job = start_recipe(manager, tmp_path / "in.mp4", tmp_path / "out")
     wait_for(job, manager)
     finished = manager.get(str(job.job_id))
     assert finished.status == "succeeded"
@@ -45,8 +46,8 @@ def test_job_failure_is_recorded(tmp_path: Path) -> None:
     def failing(*args, **kwargs):
         raise VideoFlowError("boom")
 
-    manager = JobManager(failing)
-    job = manager.start(tmp_path / "in.mp4", tmp_path / "out")
+    manager = manager_with_runner(failing)
+    job = start_recipe(manager, tmp_path / "in.mp4", tmp_path / "out")
     wait_for(job, manager)
     finished = manager.get(str(job.job_id))
     assert finished.status == "failed"
@@ -67,8 +68,8 @@ def test_job_can_be_cancelled(tmp_path: Path) -> None:
                 raise JobCancelledError("stopped")
             time.sleep(0.01)
 
-    manager = JobManager(slow)
-    job = manager.start(tmp_path / "in.mp4", tmp_path / "out")
+    manager = manager_with_runner(slow)
+    job = start_recipe(manager, tmp_path / "in.mp4", tmp_path / "out")
     assert started.wait(2)
     manager.cancel(str(job.job_id))
     wait_for(job, manager)
@@ -82,23 +83,23 @@ def test_queue_limit(tmp_path: Path) -> None:
         blocker.wait(2)
         return {"ok": True}
 
-    manager = JobManager(wait_runner, max_active=1)
-    manager.start(tmp_path / "a.mp4", tmp_path / "a")
+    manager = manager_with_runner(wait_runner, max_active=1)
+    start_recipe(manager, tmp_path / "a.mp4", tmp_path / "a")
     with pytest.raises(JobQueueFullError):
-        manager.start(tmp_path / "b.mp4", tmp_path / "b")
+        start_recipe(manager, tmp_path / "b.mp4", tmp_path / "b")
     blocker.set()
 
 
 def test_unknown_job(tmp_path: Path) -> None:
-    manager = JobManager(fake_runner)
+    manager = manager_with_runner(fake_runner)
     with pytest.raises(JobNotFoundError):
         manager.get("missing")
     assert manager.list() == []
 
 
 def test_cancel_terminal_job_is_a_noop(tmp_path: Path) -> None:
-    manager = JobManager(fake_runner)
-    job = manager.start(tmp_path / "in.mp4", tmp_path / "out")
+    manager = manager_with_runner(fake_runner)
+    job = start_recipe(manager, tmp_path / "in.mp4", tmp_path / "out")
     wait_for(job, manager)
     assert manager.cancel(str(job.job_id)).status == "succeeded"
 
@@ -115,8 +116,8 @@ def test_timeline_ready_is_visible_while_the_job_is_running(tmp_path: Path) -> N
         release.wait(2)
         return {"ok": True}
 
-    manager = JobManager(runner)
-    job = manager.start(tmp_path / "in.mp4", tmp_path / "out")
+    manager = manager_with_runner(runner)
+    job = start_recipe(manager, tmp_path / "in.mp4", tmp_path / "out")
     assert ready.wait(2)
     assert manager.get(str(job.job_id)).timeline_ready is True
     release.set()
@@ -133,8 +134,8 @@ def test_removing_a_running_job_stops_it_and_does_not_reappear(tmp_path: Path) -
         raise JobCancelledError("removed")
 
     store = tmp_path / "store"
-    manager = JobManager(runner, max_active=1, store_dir=store)
-    job = manager.start(tmp_path / "in.mp4", tmp_path / "out")
+    manager = manager_with_runner(runner, max_active=1, store_dir=store)
+    job = start_recipe(manager, tmp_path / "in.mp4", tmp_path / "out")
     assert started.wait(2)
     manager.remove(str(job.job_id), force=True)
     with pytest.raises(JobNotFoundError):
@@ -151,12 +152,12 @@ def test_removing_a_queued_job_drains_the_next_worker(tmp_path: Path) -> None:
         blocker.wait(3)
         return {"ok": True}
 
-    manager = JobManager(runner, max_active=1)
-    first = manager.start(tmp_path / "a.mp4", tmp_path / "a")
-    second = manager.start(tmp_path / "b.mp4", tmp_path / "b", queue=True)
+    manager = manager_with_runner(runner, max_active=1)
+    first = start_recipe(manager, tmp_path / "a.mp4", tmp_path / "a")
+    second = start_recipe(manager, tmp_path / "b.mp4", tmp_path / "b", queue=True)
     assert second.status == "queued"
     manager.remove(str(second.job_id), force=True)
-    third = manager.start(tmp_path / "c.mp4", tmp_path / "c", queue=True)
+    third = start_recipe(manager, tmp_path / "c.mp4", tmp_path / "c", queue=True)
     assert third.status == "queued"
     blocker.set()
     wait_for(first, manager)
@@ -164,19 +165,6 @@ def test_removing_a_queued_job_drains_the_next_worker(tmp_path: Path) -> None:
     assert manager.get(str(third.job_id)).status == "succeeded"
 
 
-def test_runner_receives_a_cancelable_adapter(tmp_path: Path) -> None:
-    seen = {}
-
-    def runner(source: Path, output: Path, *, progress, should_cancel, adapter=None, **kwargs):
-        seen["adapter"] = adapter
-        return {"ok": True}
-
-    manager = JobManager(runner)
-    job = manager.start(tmp_path / "in.mp4", tmp_path / "out")
-    wait_for(job, manager)
-    adapter = seen["adapter"]
-    assert adapter is not None
-    assert adapter.cancel_event is job.cancel_event
 
 
 def test_cancel_all_stops_running_and_queued_jobs(tmp_path: Path) -> None:
@@ -188,9 +176,9 @@ def test_cancel_all_stops_running_and_queued_jobs(tmp_path: Path) -> None:
             time.sleep(0.01)
         raise JobCancelledError("stopped")
 
-    manager = JobManager(runner, max_active=1)
-    first = manager.start(tmp_path / "a.mp4", tmp_path / "a")
-    second = manager.start(tmp_path / "b.mp4", tmp_path / "b", queue=True)
+    manager = manager_with_runner(runner, max_active=1)
+    first = start_recipe(manager, tmp_path / "a.mp4", tmp_path / "a")
+    second = start_recipe(manager, tmp_path / "b.mp4", tmp_path / "b", queue=True)
     assert started.wait(2)
     manager.cancel_all(force=True)
     assert first.status == "cancelled"
@@ -199,125 +187,18 @@ def test_cancel_all_stops_running_and_queued_jobs(tmp_path: Path) -> None:
 
 
 def test_history_is_pruned(tmp_path: Path) -> None:
-    manager = JobManager(fake_runner, history=0)
-    first = manager.start(tmp_path / "a.mp4", tmp_path / "a")
+    manager = manager_with_runner(fake_runner, history=0)
+    first = start_recipe(manager, tmp_path / "a.mp4", tmp_path / "a")
     wait_for(first, manager)
-    second = manager.start(tmp_path / "b.mp4", tmp_path / "b")
+    second = start_recipe(manager, tmp_path / "b.mp4", tmp_path / "b")
     wait_for(second, manager)
     assert len(manager.list()) == 1
 
 
-def test_job_forwards_vad_options(tmp_path: Path) -> None:
-    seen: dict[str, object] = {}
-
-    def runner(source: Path, output: Path, *, progress, should_cancel, **kwargs):
-        seen.update(kwargs)
-        progress("done", 100, "done")
-        return {"ok": True}
-
-    manager = JobManager(runner)
-    job = manager.start(
-        tmp_path / "in.mp4",
-        tmp_path / "out",
-        {
-            "vad_engine": "silero",
-            "speech_threshold": 0.65,
-            "speech_pad_before_ms": 40,
-            "speech_pad_after_ms": 50,
-        },
-    )
-    wait_for(job, manager)
-    assert seen["vad_engine"] == "silero"
-    assert seen["speech_threshold"] == 0.65
-    assert seen["speech_pad_before_ms"] == 40
-    assert seen["speech_pad_after_ms"] == 50
 
 
-def test_job_forwards_faster_whisper_options(tmp_path: Path) -> None:
-    from videoflow.domain.config import TranscribeConfig
-
-    seen: dict[str, object] = {}
-
-    def runner(source: Path, output: Path, *, progress, should_cancel, **kwargs):
-        seen.update(kwargs)
-        progress("done", 100, "done")
-        return {"ok": True}
-
-    manager = JobManager(runner)
-    model = tmp_path / "model"
-    job = manager.start(
-        tmp_path / "in.mp4",
-        tmp_path / "out",
-        {
-            "whisper_engine": "faster-whisper",
-            "whisper_model_size": "medium",
-            "whisper_device": "cuda",
-            "whisper_compute_type": "float16",
-            "whisper_vad_filter": True,
-            "asr_language": "en",
-            "faster_whisper_model": str(model),
-        },
-    )
-    wait_for(job, manager)
-    config = seen["transcribe_config"]
-    assert isinstance(config, TranscribeConfig)
-    assert config.engine == "faster-whisper"
-    assert config.model_size == "medium"
-    assert config.language == "en"
-    assert config.device == "cuda"
-    assert config.compute_type == "float16"
-    assert config.vad_filter is True
-    assert seen["faster_whisper_model"] == str(model)
 
 
-def test_job_forwards_detailed_zoom_shorts_and_caption_config(tmp_path: Path) -> None:
-    seen: dict[str, object] = {}
-
-    def runner(source: Path, output: Path, *, progress, should_cancel, **kwargs):
-        seen.update(kwargs)
-        progress("done", 100, "done")
-        return {"ok": True}
-
-    manager = JobManager(runner)
-    job = manager.start(
-        tmp_path / "in.mp4",
-        tmp_path / "out",
-        {
-            "zoom_min_scale": 1.1,
-            "zoom_max_scale": 1.8,
-            "punch_in_scale": 1.3,
-            "fade_in_ms": 10,
-            "fade_out_ms": 30,
-            "fade_curve": "linear",
-            "shorts": True,
-            "shorts_count": 3,
-            "shorts_min_count": 3,
-            "shorts_selection_mode": "heuristic",
-            "caption_font_family": "Inter",
-            "caption_font_size": 96,
-            "caption_primary_color": "#F0F0F0",
-            "caption_background_color": "#112233",
-            "caption_background_opacity": 0.4,
-            "caption_position_y": 0.7,
-            "caption_word_timing": "proportional",
-        },
-    )
-    wait_for(job, manager)
-    assert seen["jl"].fade_in_ms == 10
-    assert seen["jl"].fade_out_ms == 30
-    assert seen["jl"].fade_curve == "linear"
-    assert seen["zooms"].min_scale == 1.1
-    assert seen["zooms"].max_scale == 1.8
-    config = seen["shorts_config"]
-    assert config.min_clips == 3
-    assert config.max_clips_to_generate == 3
-    assert config.selection_mode == "heuristic"
-    assert config.caption_style.font_family == "Inter"
-    assert config.caption_style.font_size == 96
-    assert config.caption_style.background_color == "#112233"
-    assert config.caption_style.background_opacity == 0.4
-    assert config.caption_style.position_y == 0.7
-    assert config.caption_style.word_timing == "proportional"
 
 
 def test_idempotency_key_reuses_an_active_job(tmp_path: Path) -> None:
@@ -327,12 +208,12 @@ def test_idempotency_key_reuses_an_active_job(tmp_path: Path) -> None:
         release.wait(timeout=3.0)
         return {"ok": True}
 
-    manager = JobManager(runner)
+    manager = manager_with_runner(runner)
     source = tmp_path / "source.mp4"
     output = tmp_path / "out"
-    first = manager.start(source, output, idempotency_key="run-1", queue=True)
-    second = manager.start(source, output, idempotency_key="run-1", queue=True)
-    third = manager.start(source, output, idempotency_key="run-2", queue=True)
+    first = start_recipe(manager, source, output, idempotency_key="run-1", queue=True)
+    second = start_recipe(manager, source, output, idempotency_key="run-1", queue=True)
+    third = start_recipe(manager, source, output, idempotency_key="run-2", queue=True)
 
     assert second.job_id == first.job_id
     assert third.job_id != first.job_id
@@ -346,9 +227,9 @@ def test_pause_and_unpause_a_queued_job(tmp_path: Path) -> None:
         release.wait(timeout=5.0)
         return {"ok": True}
 
-    manager = JobManager(runner, max_active=1)
-    first = manager.start(tmp_path / "a.mp4", tmp_path / "out-a", {})
-    second = manager.start(tmp_path / "b.mp4", tmp_path / "out-b", {}, queue=True)
+    manager = manager_with_runner(runner, max_active=1)
+    first = start_recipe(manager, tmp_path / "a.mp4", tmp_path / "out-a", {})
+    second = start_recipe(manager, tmp_path / "b.mp4", tmp_path / "out-b", {}, queue=True)
     for _ in range(100):
         if second.status == "queued":
             break
@@ -375,9 +256,9 @@ def test_priority_is_stored_and_validated(tmp_path: Path) -> None:
         release.wait(timeout=5.0)
         return {"ok": True}
 
-    manager = JobManager(runner, max_active=1)
-    first = manager.start(tmp_path / "a.mp4", tmp_path / "out-a", {})
-    queued = manager.start(tmp_path / "b.mp4", tmp_path / "out-b", {}, queue=True)
+    manager = manager_with_runner(runner, max_active=1)
+    first = start_recipe(manager, tmp_path / "a.mp4", tmp_path / "out-a", {})
+    queued = start_recipe(manager, tmp_path / "b.mp4", tmp_path / "out-b", {}, queue=True)
 
     updated = manager.set_priority(str(queued.job_id), 7)
 
@@ -395,8 +276,8 @@ def test_failed_job_retries_with_backoff(tmp_path: Path) -> None:
             raise VideoFlowError("transient")
         return {"ok": True}
 
-    manager = JobManager(runner)
-    job = manager.start(
+    manager = manager_with_runner(runner)
+    job = start_recipe(manager, 
         tmp_path / "a.mp4",
         tmp_path / "out",
         {"max_attempts": 2, "retry_backoff_seconds": 0.1},

@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
+from tests.recipe_jobs import MINIMAL_RECIPE, manager_with_runner
 from videoflow.application import database, queue_claim
 
 
@@ -18,7 +19,7 @@ def _payload(job_id: str) -> dict[str, object]:
         "next_run": "",
         "source": "/tmp/source.mp4",
         "output": f"/tmp/{job_id}",
-        "options": {},
+        "options": {"mode": "recipe", "recipe": MINIMAL_RECIPE},
         "created_at": "2026-01-01T00:00:00+00:00",
     }
 
@@ -72,7 +73,6 @@ def test_expired_lease_is_recovered_and_heartbeat_checks_owner(monkeypatch, tmp_
 
 
 def test_worker_runs_a_claimed_job_and_updates_the_store(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.application.jobs import JobManager
     from videoflow.application.queue_worker import run_once
 
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
@@ -84,7 +84,7 @@ def test_worker_runs_a_claimed_job_and_updates_the_store(monkeypatch, tmp_path: 
         kwargs["progress"]("done", 100, "done")
         return {"ok": True, "artifacts": {}}
 
-    manager = JobManager(runner=runner, store_dir=tmp_path / "jobs", load_store=False)
+    manager = manager_with_runner(runner=runner, store_dir=tmp_path / "jobs", load_store=False)
     database.upsert_job(job_id, _payload(job_id))
     job = run_once(manager, "worker-1", timeout=10)
     assert job is not None

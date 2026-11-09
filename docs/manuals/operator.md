@@ -12,7 +12,7 @@ If you have the onefile artifact, skip the development setup below:
 
 ```bash
 ./videoflow doctor
-./videoflow demo -o ./demo
+./videoflow doctor
 ./videoflow run /media/interview.mp4 -o ./interview-edit
 ./videoflow serve
 ```

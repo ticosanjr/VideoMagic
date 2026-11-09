@@ -19,43 +19,25 @@ from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
-from videoflow.adapters.llm import FallbackLlm, OpenAICompatibleLlm
-from videoflow.application.audio import audio_filters
-from videoflow.application.capabilities import ensure_external_allowed
 from videoflow.application.clock import now_iso_ms as _now
-from videoflow.application.images import images_dir
 from videoflow.application.job_executor import JobExecutor, JobRunPolicy, RunOutcome
-from videoflow.application.music import music_dir
-from videoflow.application.portable import run_portable
-from videoflow.application.secrets import get_secret
 from videoflow.application.telemetry import JobTelemetry
 from videoflow.domain.config import (
-    AudioEnhanceConfig,
     CaptionStyle,
-    IntroOutroConfig,
-    JlCutsConfig,
-    ModuleEnabled,
-    ModulesConfig,
-    MusicConfig,
-    OverlayConfig,
     ShortsConfig,
-    TranscribeConfig,
-    ZoomsConfig,
 )
 from videoflow.domain.errors import (
     JobNotFoundError,
     JobQueueFullError,
     ProjectStateError,
 )
-from videoflow.domain.state import ManualOverride, ProjectState, Sentence
-from videoflow.exporters.fcpxml import Dialect
+from videoflow.domain.state import ProjectState, Sentence
 
 JobStatus = Literal[
     "queued", "running", "waiting_approval", "succeeded", "failed", "cancelled"
 ]
 TERMINAL: frozenset[str] = frozenset({"succeeded", "failed", "cancelled"})
 logger = logging.getLogger(__name__)
-Runner = Callable[..., Any]
 
 
 
@@ -241,14 +223,14 @@ def _provider_value(capability: str, key: str) -> str:
 class JobManager:
     def __init__(
         self,
-        runner: Runner = run_portable,
         *,
         max_active: int = 2,
         history: int = 50,
         store_dir: Path | None = None,
         load_store: bool = True,
+        recipe_runner_factory: Callable[[Any, Any], Any] | None = None,
     ) -> None:
-        self._runner = runner
+        self._recipe_runner_factory = recipe_runner_factory
         self._max_active = max_active
         self._history = history
         self._store_dir = Path(store_dir).expanduser() if store_dir is not None else None
@@ -548,10 +530,7 @@ class JobManager:
         return stopped
 
     def _work(self, job: Job) -> None:
-        if job.options.get("mode") == "recipe":
-            self._work_recipe(job)
-            return
-        self._executor.run(job, self._run_legacy)
+        self._work_recipe(job)
 
     def _work_recipe(self, job: Job) -> None:
         self._executor.run(
@@ -564,245 +543,6 @@ class JobManager:
             ),
         )
 
-    def _run_legacy(self, job: Job, callbacks: Any) -> RunOutcome:
-        options = job.options
-        jl = JlCutsConfig(
-            enable_j_cuts=bool(options.get("jcut", True)),
-            enable_l_cuts=bool(options.get("lcut", False)),
-            offset_ms=int(options.get("offset_ms", 200)),
-            audio_crossfade_ms=int(options.get("crossfade_ms", 20)),
-            fade_in_ms=int(options.get("fade_in_ms", 20)),
-            fade_out_ms=int(options.get("fade_out_ms", 20)),
-            fade_curve=str(options.get("fade_curve", "logarithmic")),  # type: ignore[arg-type]
-            handle_check=bool(options.get("handle_check", True)),
-        )
-        zooms = ZoomsConfig(
-            mode=str(options.get("zoom_mode", "alternate_cuts")),  # type: ignore[arg-type]
-            min_scale=float(options.get("zoom_min_scale", 1.0)),
-            max_scale=float(options.get("zoom_max_scale", 1.5)),
-            punch_in_scale=float(options.get("punch_in_scale", 1.15)),
-            anchor_point=str(options.get("anchor_point", "upper_third")),  # type: ignore[arg-type]
-            progressive_zoom=bool(options.get("progressive_zoom", False)),
-            pan_direction=str(options.get("pan_direction", "none")),  # type: ignore[arg-type]
-        )
-        if not options.get("zooms", True):
-            zooms = ZoomsConfig(
-                mode="manual_rules",
-                min_scale=zooms.min_scale,
-                max_scale=zooms.max_scale,
-                anchor_point=zooms.anchor_point,
-            )
-        dialect: Dialect = options.get("dialect", "1.9")
-        overlay_config = OverlayConfig(
-            enabled=bool(options.get("overlay_enabled", False)),
-            asset=str(options.get("overlay_asset", "")),
-            position=str(options.get("overlay_position", "bottom_right")),  # type: ignore[arg-type]
-            margin_px=int(options.get("overlay_margin_px", 32)),
-            width_ratio=float(options.get("overlay_width_ratio", 0.18)),
-            opacity=float(options.get("overlay_opacity", 0.9)),
-        )
-        overlay_path = (
-            images_dir() / overlay_config.asset
-            if overlay_config.enabled and overlay_config.asset
-            else None
-        )
-        music_config = MusicConfig(
-            enabled=bool(options.get("music_enabled", False)),
-            asset=str(options.get("music_asset", "")),
-            volume=float(options.get("music_volume", 0.18)),
-            ducking=bool(options.get("music_ducking", True)),
-            fade_in_ms=int(options.get("music_fade_in_ms", 250)),
-            fade_out_ms=int(options.get("music_fade_out_ms", 500)),
-        )
-        music_path = (
-            music_dir() / music_config.asset
-            if music_config.enabled and music_config.asset
-            else None
-        )
-        intro_config = IntroOutroConfig(
-            intro_enabled=bool(options.get("intro_enabled", False)),
-            intro_asset=str(options.get("intro_asset", "")),
-            intro_duration_sec=float(options.get("intro_duration_sec", 2.0)),
-            outro_enabled=bool(options.get("outro_enabled", False)),
-            outro_asset=str(options.get("outro_asset", "")),
-            outro_duration_sec=float(options.get("outro_duration_sec", 2.0)),
-        )
-        intro_path = (
-            images_dir() / intro_config.intro_asset
-            if intro_config.intro_enabled and intro_config.intro_asset
-            else None
-        )
-        outro_path = (
-            images_dir() / intro_config.outro_asset
-            if intro_config.outro_enabled and intro_config.outro_asset
-            else None
-        )
-        audio_config = AudioEnhanceConfig(
-            enabled=bool(options.get("audio_enhance", False)),
-            highpass_hz=int(options.get("audio_highpass_hz", 80)),
-            denoise=bool(options.get("audio_denoise", True)),
-            denoise_db=int(options.get("audio_denoise_db", 12)),
-            noise_floor_db=int(options.get("audio_noise_floor_db", -30)),
-            loudnorm=bool(options.get("audio_loudnorm", True)),
-            target_lufs=float(options.get("audio_target_lufs", -16.0)),
-            true_peak_db=float(options.get("audio_true_peak_db", -1.5)),
-        )
-        transcript = options.get("transcript")
-        cull = bool(options.get("cull_retakes", False))
-        allow_external_services = bool(options.get("allow_external_services", False))
-        allowed_external_hosts = tuple(
-            str(item) for item in (options.get("allowed_external_hosts") or [])
-        )
-        base_url = options.get("llm_base_url") or os.environ.get("VIDEOWFLOW_LLM_BASE_URL")
-        provider_model = ""
-        provider_chain: list[dict[str, object]] = []
-        if not base_url:
-            from videoflow.application.providers import resolve_chain
-
-            provider_chain = [
-                item for item in resolve_chain("llm") if item.get("base_url")
-            ]
-            if provider_chain:
-                base_url = str(provider_chain[0]["base_url"])
-                provider_model = str(provider_chain[0].get("model") or "")
-
-        telemetry = job.telemetry
-
-        transcript_sentences = _project_transcript(options.get("transcript_state"))
-        shorts = bool(options.get("shorts", False))
-        if base_url and (cull or shorts) and (
-            transcript or transcript_sentences or bool(options.get("transcribe", False))
-        ):
-            ensure_external_allowed(
-                str(base_url),
-                capability="external_llm",
-                allow_external_services=allow_external_services,
-            allowed_external_hosts=allowed_external_hosts,
-                allowed_hosts=allowed_external_hosts,
-            )
-            model = str(
-                options.get("llm_model")
-                or provider_model
-                or os.environ.get("VIDEOWFLOW_LLM_MODEL", "qwen2.5:7b-instruct")
-            )
-            clients = [
-                OpenAICompatibleLlm(
-                    base_url=str(item["base_url"]),
-                    model=str(item.get("model") or model),
-                    api_key=os.environ.get(
-                        str(item.get("api_key_env") or "VIDEOWFLOW_LLM_API_KEY")
-                    ),
-                )
-                for item in provider_chain
-                if item.get("base_url")
-            ]
-            if not clients:
-                clients = [
-                    OpenAICompatibleLlm(
-                        base_url=str(base_url),
-                        model=model,
-                        api_key=get_secret("VIDEOWFLOW_LLM_API_KEY"),
-                    )
-                ]
-            llm = FallbackLlm(clients) if len(clients) > 1 else clients[0]
-        else:
-            llm = None
-        project_id = options.get("project_id")
-        modules_config = options.get("modules_config")
-        module_enabled = options.get("module_enabled")
-        from videoflow.adapters.ffmpeg import FFmpegAdapter
-
-        job_adapter = FFmpegAdapter(cancel_event=job.cancel_event)
-        result = self._runner(
-            job.source,
-            job.output,
-            adapter=job_adapter,
-            noise_db=float(options.get("noise_db", -30.0)),
-            min_silence_ms=int(options.get("min_silence_ms", 400)),
-            min_speech_ms=int(options.get("min_speech_ms", 100)),
-            vad_engine=str(options.get("vad_engine", "auto")),  # type: ignore[arg-type]
-            speech_threshold=float(options.get("speech_threshold", 0.5)),
-            speech_pad_before_ms=int(options.get("speech_pad_before_ms", 120)),
-            speech_pad_after_ms=int(options.get("speech_pad_after_ms", 150)),
-            jl=jl,
-            zooms=zooms,
-            dialect=dialect,
-            progress=callbacks.progress,
-            should_cancel=callbacks.should_cancel,
-            telemetry=telemetry,
-            log=callbacks.log,
-            targets=tuple(options.get("export_targets", ("resolve", "premiere", "kdenlive"))),
-            transcript_path=Path(transcript) if transcript else None,
-            cull_retakes=cull,
-            llm_client=llm,
-            strictness=str(options.get("strictness", "balanced")),
-            retake_strategy=str(options.get("retake_strategy", "keep_last")),
-            context_window=int(options.get("context_window", 15)),
-            shorts=shorts,
-            shorts_count=int(options.get("shorts_count", 3)),
-            shorts_min_sec=int(options.get("shorts_min_sec", 30)),
-            shorts_max_sec=int(options.get("shorts_max_sec", 60)),
-            shorts_subtitles=bool(options.get("shorts_subtitles", True)),
-            shorts_config=_shorts_config(options),
-            allow_external_services=allow_external_services,
-            allowed_external_hosts=allowed_external_hosts,
-            overrides=[
-                ManualOverride.model_validate(item)
-                for item in options.get("overrides", [])
-            ],
-            transcribe=bool(options.get("transcribe", False)),
-            asr_base_url=options.get("asr_base_url")
-            or os.environ.get("VIDEOWFLOW_ASR_BASE_URL")
-            or _provider_value("asr", "base_url"),
-            asr_model=str(
-                options.get("asr_model")
-                or _provider_value("asr", "model")
-                or "whisper-1"
-            ),
-            asr_language=str(options.get("asr_language", "pt")),
-            whisper_model=options.get("whisper_model") or None,
-            faster_whisper_model=options.get("faster_whisper_model") or None,
-            transcribe_config=TranscribeConfig(
-                engine=str(options.get("whisper_engine", "auto")),  # type: ignore[arg-type]
-                model_size=str(options.get("whisper_model_size", "small")),  # type: ignore[arg-type]
-                language=str(options.get("asr_language", "pt")),  # type: ignore[arg-type]
-                device=str(options.get("whisper_device", "cpu")),  # type: ignore[arg-type]
-                compute_type=str(  # type: ignore[arg-type]
-                    options.get("whisper_compute_type", "int8")
-                ),
-                vad_filter=bool(options.get("whisper_vad_filter", False)),
-            ),
-            transcript_sentences=transcript_sentences,
-            project_id=UUID(str(project_id)) if project_id else None,
-            revision=int(options.get("revision", 1)),
-            modules_config=(
-                ModulesConfig.model_validate(modules_config)
-                if modules_config is not None
-                else None
-            ),
-            module_enabled=(
-                ModuleEnabled.model_validate(module_enabled)
-                if module_enabled is not None
-                else None
-            ),
-            audio_filters=tuple(audio_filters(audio_config)),
-            overlay_path=overlay_path,
-            overlay_position=overlay_config.position,
-            overlay_margin=overlay_config.margin_px,
-            overlay_width_ratio=overlay_config.width_ratio,
-            overlay_opacity=overlay_config.opacity,
-            music_path=music_path,
-            music_volume=music_config.volume,
-            music_ducking=music_config.ducking,
-            music_fade_in_ms=music_config.fade_in_ms,
-            music_fade_out_ms=music_config.fade_out_ms,
-            intro_path=intro_path,
-            outro_path=outro_path,
-            intro_duration_sec=intro_config.intro_duration_sec,
-            outro_duration_sec=intro_config.outro_duration_sec,
-        )
-        return RunOutcome(result=_result_dict(result))
-
     def _run_recipe(self, job: Job, callbacks: Any) -> RunOutcome:
         from videoflow.core.recipe import Recipe
         from videoflow.engine.runner import RecipeRunner
@@ -814,10 +554,14 @@ class JobManager:
         ]
         from videoflow.adapters.ffmpeg import FFmpegAdapter
 
-        runner = RecipeRunner(
-            recipe,
-            adapter=FFmpegAdapter(cancel_event=job.cancel_event),
-            cancel_event=job.cancel_event,
+        runner = (
+            self._recipe_runner_factory(recipe, job)
+            if self._recipe_runner_factory is not None
+            else RecipeRunner(
+                recipe,
+                adapter=FFmpegAdapter(cancel_event=job.cancel_event),
+                cancel_event=job.cancel_event,
+            )
         )
         base_variables = dict(job.options.get("variables") or {})
         variants = recipe.variants or []
@@ -983,25 +727,28 @@ def _record_recipe_history(job: Job) -> None:
     if isinstance(recipe, dict):
         recipe_id = str(recipe.get("id", ""))
     recipe_id = str(payload.get("recipe_id") or recipe_id)
-    append_run(
-        job.output,
-        {
-            "job_id": str(job.job_id),
-            "status": job.status,
-            "recipe_id": recipe_id,
-            "created_at": job.created_at,
-            "started_at": job.started_at,
-            "finished_at": job.finished_at,
-            "duration_ms": _duration_ms(job.started_at, job.finished_at) or 0,
-            "step_runs": payload.get("step_runs", []),
-            "cache_hits": payload.get("cache_hits", []),
-            "cache_misses": payload.get("cache_misses", []),
-            "artifacts": payload.get("artifacts", {}),
-            "warnings": payload.get("warnings", []),
-            "error": job.error,
-            "message": job.message,
-        },
-    )
+    try:
+        append_run(
+            job.output,
+            {
+                "job_id": str(job.job_id),
+                "status": job.status,
+                "recipe_id": recipe_id,
+                "created_at": job.created_at,
+                "started_at": job.started_at,
+                "finished_at": job.finished_at,
+                "duration_ms": _duration_ms(job.started_at, job.finished_at) or 0,
+                "step_runs": payload.get("step_runs", []),
+                "cache_hits": payload.get("cache_hits", []),
+                "cache_misses": payload.get("cache_misses", []),
+                "artifacts": payload.get("artifacts", {}),
+                "warnings": payload.get("warnings", []),
+                "error": job.error,
+                "message": job.message,
+            },
+        )
+    except OSError as exc:
+        logger.warning("could not record run history for %s: %s", job.job_id, exc)
     if job.status == "succeeded" and os.environ.get("VIDEOWFLOW_PRUNE_AFTER_RUN", "1") != "0":
         try:
             from videoflow.engine.maintenance import prune_output

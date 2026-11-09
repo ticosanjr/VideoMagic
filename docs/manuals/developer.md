@@ -171,7 +171,7 @@ cd ui && npm ci && npm run build && cd ..
 uv sync --extra dev
 uv run python scripts/build_portable.py --fetch-ffmpeg
 ./dist/videoflow doctor
-./dist/videoflow demo -o /tmp/videoflow-demo
+./dist/videoflow doctor
 ```
 
 The spec is `packaging/videoflow.spec`. It bundles presets, the UI, and the

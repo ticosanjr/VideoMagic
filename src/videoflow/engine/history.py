@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +22,9 @@ def append_run(output: Path, record: dict[str, Any], *, limit: int = MAX_RUNS) -
     runs.append(record)
     runs = runs[-limit:]
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(".json.tmp")
+    temporary = path.with_name(
+        f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+    )
     temporary.write_text(
         json.dumps({"runs": runs}, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",

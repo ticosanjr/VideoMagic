@@ -108,7 +108,7 @@ print(asyncio.run(build_server().list_tools()))
 PY
 ```
 
-Expect forty-one tools. Analysis tools answer immediately; edit tools stage options
+Expect seventy-one tools. Recipe runs execute immediately; timeline and Shorts tools operate on completed jobs
 for the next pipeline run. A successful smoke should load media, run VAD,
 transcribe, read the transcript, start a job, poll it to success, and export.
 
@@ -138,11 +138,11 @@ bits.
 ```bash
 uv run python scripts/build_portable.py --fetch-ffmpeg
 env -i PATH=/nonexistent ./dist/videoflow doctor
-env -i PATH=/nonexistent ./dist/videoflow demo -o /tmp/videoflow-demo
+env -i PATH=/nonexistent ./dist/videoflow version
 env -i PATH=/nonexistent ./dist/videoflow serve --port 8799
 ```
 
-Then check `/health`, `/`, `/mcp/`, and the forty-one tools over `videoflow mcp`.
+Then check `/health`, `/`, `/mcp/`, and the seventy-one tools over `videoflow mcp`.
 On Windows, run the same commands with `videoflow.exe`; FFmpeg is found inside
 the bundle, so an empty `PATH` is the proof.
 

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.recipe_jobs import manager_with_runner, start_recipe
 from videoflow.domain.state import AudioSegment, MediaInfo, ProjectState, VideoSegment
 from videoflow.exporters.fcpxml import export_fcpxml
 from videoflow.exporters.kdenlive import export_kdenlive
@@ -103,7 +104,6 @@ def test_four_k_thousand_clips_ten_jobs_and_twenty_variants(
     import threading
     import time
 
-    from videoflow.application.jobs import JobManager
 
     state = large_state(tmp_path)
     state.media_info = state.media_info.model_copy(
@@ -121,9 +121,9 @@ def test_four_k_thousand_clips_ten_jobs_and_twenty_variants(
         release.wait(timeout=5)
         return {"ok": True}
 
-    manager = JobManager(runner, max_active=10)
+    manager = manager_with_runner(runner, max_active=10)
     jobs = [
-        manager.start(
+        start_recipe(manager, 
             tmp_path / f"source-{index}.mp4",
             tmp_path / f"out-{index}",
             {"variants": [{"name": f"v{variant}"} for variant in range(20)]},
@@ -142,7 +142,6 @@ def test_job_start_latency_percentiles_and_memory(tmp_path: Path) -> None:
     import threading
     import time
 
-    from videoflow.application.jobs import JobManager
 
     release = threading.Event()
 
@@ -150,14 +149,14 @@ def test_job_start_latency_percentiles_and_memory(tmp_path: Path) -> None:
         release.wait(timeout=10)
         return {"ok": True}
 
-    manager = JobManager(runner, max_active=12)
+    manager = manager_with_runner(runner, max_active=12)
     before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     timings: list[float] = []
     jobs = []
     for index in range(24):
         started = time.perf_counter()
         jobs.append(
-            manager.start(
+            start_recipe(manager, 
                 tmp_path / f"load-{index}.mp4",
                 tmp_path / f"load-out-{index}",
                 {},

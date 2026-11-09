@@ -10,12 +10,12 @@ import sys
 import time
 from pathlib import Path
 
-from videoflow.application.jobs import JobManager
+from tests.recipe_jobs import MINIMAL_RECIPE, manager_with_runner
 
 CHILD = r"""
 import json, sys, time
 from pathlib import Path
-from videoflow.application.jobs import JobManager
+from tests.recipe_jobs import MINIMAL_RECIPE, manager_with_runner, start_recipe
 
 home = Path(sys.argv[1]); source = Path(sys.argv[2]); output = Path(sys.argv[3])
 marker = Path(sys.argv[4])
@@ -24,8 +24,8 @@ def runner(source, output, *, progress, should_cancel, **kwargs):
     time.sleep(30)
     return {"ok": True}
 
-manager = JobManager(runner, store_dir=home / "jobs")
-job = manager.start(source, output, {})
+manager = manager_with_runner(runner, store_dir=home / "jobs")
+job = start_recipe(manager, source, output, {})
 while job.status != "running":
     time.sleep(0.01)
 manager._persist_job(job)
@@ -77,7 +77,7 @@ def test_sigkill_requeues_the_running_job(tmp_path: Path) -> None:
     def fast(source: Path, output: Path, *, progress, should_cancel, **kwargs):
         return {"ok": True}
 
-    recovered = JobManager(fast, store_dir=home / "jobs")
+    recovered = manager_with_runner(fast, store_dir=home / "jobs")
     current = recovered.get(job_id)
     for _ in range(300):
         current = recovered.get(job_id)
@@ -99,7 +99,7 @@ def test_interrupted_recipe_job_is_requeued(tmp_path: Path) -> None:
         "message": "working",
         "source": str(tmp_path / "source.mp4"),
         "output": str(tmp_path / "out"),
-        "options": {},
+        "options": {"mode": "recipe", "recipe": MINIMAL_RECIPE},
         "progress": 40,
         "result": None,
         "error": None,
@@ -108,7 +108,7 @@ def test_interrupted_recipe_job_is_requeued(tmp_path: Path) -> None:
     (jobs / f"{payload['job_id']}.json").write_text(json.dumps(payload), encoding="utf-8")
     os.environ["VIDEOWFLOW_HOME"] = str(home)
 
-    recovered = JobManager(lambda *args, **kwargs: {"ok": True}, store_dir=jobs)
+    recovered = manager_with_runner(lambda *args, **kwargs: {"ok": True}, store_dir=jobs)
     job = recovered.get(payload["job_id"])
 
     assert job.status in {"queued", "running", "succeeded"}

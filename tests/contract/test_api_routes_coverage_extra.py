@@ -31,30 +31,6 @@ def _recipe(recipe_id: str = "coverage_recipe") -> dict:
 
 def test_request_model_validators_and_bad_json(monkeypatch, tmp_path: Path) -> None:
     client, _manager = _client(monkeypatch, tmp_path)
-    base = {"source": str(tmp_path / "source.mp4"), "output": str(tmp_path / "out")}
-    cases = [
-        (
-            {**base, "zoom_min_scale": 2.0, "zoom_max_scale": 1.5},
-            "zoom_min_scale exceeds zoom_max_scale",
-        ),
-        (
-            {**base, "zoom_min_scale": 1.0, "zoom_max_scale": 2.0, "punch_in_scale": 2.5},
-            "punch_in_scale must be inside the zoom window",
-        ),
-        (
-            {**base, "shorts_count": 2, "shorts_min_count": 3},
-            "shorts_min_count exceeds shorts_count",
-        ),
-        (
-            {**base, "shorts_source_start_sec": 10.0, "shorts_source_end_sec": 5.0},
-            "shorts_source_end_sec must be greater than shorts_source_start_sec",
-        ),
-    ]
-    for payload, message in cases:
-        response = client.post("/api/v1/jobs", json=payload)
-        assert response.status_code == 422, response.text
-        assert message in response.text
-
     no_recipe = client.post("/api/v1/recipes/run", json={"source": "s", "output": "o"})
     assert no_recipe.status_code == 422
     assert "provide exactly one of recipe or recipe_id" in no_recipe.text
@@ -81,7 +57,7 @@ def test_request_model_validators_and_bad_json(monkeypatch, tmp_path: Path) -> N
     assert "end_sec must be greater than start_sec" in trim.text
 
     malformed = client.post(
-        "/api/v1/jobs",
+        "/api/v1/recipes/run",
         content=b"{not json",
         headers={"content-type": "application/json"},
     )
@@ -447,31 +423,6 @@ def test_publish_short_states_and_template_job_options(monkeypatch, tmp_path: Pa
     missing_path = client.post(f"{base}/1/publish", json={"target": "demo"})
     assert missing_path.status_code == 409
     assert "asset is missing" in _error(missing_path)["message"]
-
-    project = {"name": "opts", "description": "", "options": {"crf": 20}}
-    assert client.put("/api/v1/project-templates/opts", json=project).status_code == 200
-    brand = {"name": "brand", "description": ""}
-    assert client.put("/api/v1/brand-templates/brand", json=brand).status_code == 200
-
-    body = {
-        "source": str(tmp_path / "source.mp4"),
-        "output": str(tmp_path / "templated"),
-        "project_template": "opts",
-        "brand_template": "brand",
-    }
-    wired = client.post("/api/v1/jobs", json=body)
-    assert wired.status_code == 202, wired.text
-
-    unknown_project = client.post(
-        "/api/v1/jobs", json={**body, "project_template": "missing", "output": str(tmp_path / "x1")}
-    )
-    assert unknown_project.status_code == 409
-    assert _error(unknown_project)["code"] == "state_not_ready"
-    unknown_brand = client.post(
-        "/api/v1/jobs", json={**body, "brand_template": "missing", "output": str(tmp_path / "x2")}
-    )
-    assert unknown_brand.status_code == 409
-    assert _error(unknown_brand)["code"] == "state_not_ready"
 
 
 def test_job_state_guards_for_pending_work(monkeypatch, tmp_path: Path) -> None:

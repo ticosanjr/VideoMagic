@@ -155,7 +155,7 @@ def create_app(
                 "service": "videoflow",
                 "version": __version__,
                 "ui": False,
-                "endpoints": ["/health", "/api/v1/system", "/api/v1/jobs"],
+                "endpoints": ["/health", "/api/v1/system", "/api/v1/recipes"],
                 "hint": "Run the CLI with `videoflow run` or build the UI.",
             }
 

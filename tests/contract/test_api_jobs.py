@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.recipe_jobs import MINIMAL_RECIPE, manager_with_runner, start_recipe
 from videoflow.api.app import create_app
-from videoflow.application.jobs import JobManager
 
 
 def fake_runner(
@@ -45,7 +45,7 @@ def fake_runner(
 
 def make_client(monkeypatch, tmp_path: Path, runner=fake_runner) -> TestClient:
     monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
-    manager = JobManager(runner)
+    manager = manager_with_runner(runner)
     return TestClient(create_app(jobs=manager))
 
 
@@ -59,20 +59,32 @@ def wait_http(client: TestClient, job_id: str, timeout: float = 5.0) -> dict:
     raise AssertionError("job did not finish")
 
 
+def start_job(
+    client: TestClient,
+    source: Path,
+    output: Path,
+    *,
+    idempotency_key: str | None = None,
+    queue: bool = True,
+    priority: int = 0,
+    **options,
+) -> dict:
+    job = client.app.state.jobs.start(
+        Path(source),
+        Path(output),
+        {"mode": "recipe", "recipe": MINIMAL_RECIPE, **options},
+        queue=queue,
+        priority=priority,
+        idempotency_key=idempotency_key,
+    )
+    return job.to_dict()
+
+
 def test_create_and_poll_a_job(monkeypatch, tmp_path: Path) -> None:
     source = tmp_path / "source.mp4"
     source.write_bytes(b"x")
     client = make_client(monkeypatch, tmp_path)
-    response = client.post(
-        "/api/v1/jobs",
-        json={
-            "source": str(source),
-            "output": str(tmp_path / "out"),
-            "vad_engine": "ffmpeg",
-        },
-    )
-    assert response.status_code == 202
-    job = response.json()["job"]
+    job = start_job(client, source, tmp_path / "out")
     assert wait_http(client, job["job_id"])["status"] == "succeeded"
     assert (tmp_path / "out" / "run.json").is_file()
 
@@ -80,8 +92,12 @@ def test_create_and_poll_a_job(monkeypatch, tmp_path: Path) -> None:
 def test_path_outside_the_allowlist_is_rejected(monkeypatch, tmp_path: Path) -> None:
     client = make_client(monkeypatch, tmp_path)
     response = client.post(
-        "/api/v1/jobs",
-        json={"source": "/etc/passwd", "output": str(tmp_path / "out")},
+        "/api/v1/recipes/run",
+        json={
+            "recipe_id": "youtube_talking_head",
+            "source": "/etc/passwd",
+            "output": str(tmp_path / "out"),
+        },
     )
     assert response.status_code == 403
     assert response.json()["detail"]["code"] == "path_not_allowed"
@@ -90,56 +106,19 @@ def test_path_outside_the_allowlist_is_rejected(monkeypatch, tmp_path: Path) -> 
 def test_transcript_option_and_state_endpoint(monkeypatch, tmp_path: Path) -> None:
     source = tmp_path / "source.mp4"
     source.write_bytes(b"x")
-    subs = tmp_path / "subs.srt"
-    subs.write_text("1\n00:00:00,000 --> 00:00:01,000\nhi\n", encoding="utf-8")
     client = make_client(monkeypatch, tmp_path)
-    response = client.post(
-        "/api/v1/jobs",
-        json={
-            "source": str(source),
-            "output": str(tmp_path / "out"),
-            "transcript": str(subs),
-            "cull_retakes": True,
-        },
-    )
-    assert response.status_code == 202
-    job = response.json()["job"]
-    assert job["options"]["transcript"] == str(subs)
-    assert job["options"]["cull_retakes"] is True
+    job = start_job(client, source, tmp_path / "out")
     wait_http(client, job["job_id"])
     state = client.get(f"/api/v1/jobs/{job['job_id']}/state")
     assert state.status_code == 200
     assert state.json()["retake_culls"] == [0]
 
 
-def test_transcript_outside_the_jail_is_rejected(monkeypatch, tmp_path: Path) -> None:
-    source = tmp_path / "source.mp4"
-    source.write_bytes(b"x")
-    client = make_client(monkeypatch, tmp_path)
-    response = client.post(
-        "/api/v1/jobs",
-        json={
-            "source": str(source),
-            "output": str(tmp_path / "out"),
-            "transcript": "/etc/passwd",
-            "cull_retakes": True,
-        },
-    )
-    assert response.status_code == 403
-
-
 def test_state_is_missing_before_a_run(monkeypatch, tmp_path: Path) -> None:
     source = tmp_path / "source.mp4"
     source.write_bytes(b"x")
     client = make_client(monkeypatch, tmp_path)
-    client.post(
-        "/api/v1/jobs",
-        json={
-            "source": str(source),
-            "output": str(tmp_path / "out"),
-            "vad_engine": "ffmpeg",
-        },
-    )
+    start_job(client, source, tmp_path / "out")
     # Fake runner writes state immediately; unknown job is the stable 404 case.
     assert client.get("/api/v1/jobs/missing/state").status_code == 404
 
@@ -148,14 +127,7 @@ def test_artifact_download_is_confined_to_the_job_output(monkeypatch, tmp_path: 
     source = tmp_path / "source.mp4"
     source.write_bytes(b"x")
     client = make_client(monkeypatch, tmp_path)
-    job = client.post(
-        "/api/v1/jobs",
-        json={
-            "source": str(source),
-            "output": str(tmp_path / "out"),
-            "vad_engine": "ffmpeg",
-        },
-    ).json()["job"]
+    job = start_job(client, source, tmp_path / "out")
     wait_http(client, job["job_id"])
     response = client.get(f"/api/v1/jobs/{job['job_id']}/artifacts/resolve")
     assert response.status_code == 200
@@ -167,14 +139,7 @@ def test_job_reports_stages_and_logs(monkeypatch, tmp_path: Path) -> None:
     source = tmp_path / "source.mp4"
     source.write_bytes(b"x")
     client = make_client(monkeypatch, tmp_path)
-    job = client.post(
-        "/api/v1/jobs",
-        json={
-            "source": str(source),
-            "output": str(tmp_path / "out"),
-            "vad_engine": "ffmpeg",
-        },
-    ).json()["job"]
+    job = start_job(client, source, tmp_path / "out")
     finished = wait_http(client, job["job_id"])
     assert finished["stages"][0]["id"] == "ingest"
     assert finished["stages"][0]["duration_ms"] is not None
@@ -189,135 +154,6 @@ def test_job_reports_stages_and_logs(monkeypatch, tmp_path: Path) -> None:
     assert "fake PCM" in downloaded.text
 
 
-def test_new_module_options_are_forwarded(monkeypatch, tmp_path: Path) -> None:
-    source = tmp_path / "source.mp4"
-    source.write_bytes(b"x")
-    client = make_client(monkeypatch, tmp_path)
-    response = client.post(
-        "/api/v1/jobs",
-        json={
-            "source": str(source),
-            "output": str(tmp_path / "out"),
-            "min_speech_ms": 150,
-            "vad_engine": "silero",
-            "speech_threshold": 0.6,
-            "speech_pad_before_ms": 80,
-            "speech_pad_after_ms": 90,
-            "offset_ms": 250,
-            "crossfade_ms": 30,
-            "handle_check": False,
-            "zoom_mode": "manual_rules",
-            "punch_in_scale": 1.2,
-            "anchor_point": "center",
-            "progressive_zoom": True,
-            "pan_direction": "left_to_right",
-            "export_targets": ["resolve"],
-            "strictness": "aggressive",
-            "retake_strategy": "keep_best",
-            "context_window": 20,
-            "shorts": True,
-            "shorts_count": 2,
-            "shorts_min_sec": 5,
-            "shorts_max_sec": 10,
-            "shorts_subtitles": False,
-            "shorts_prompt": "pricing",
-            "shorts_reprompt": "more energy",
-            "shorts_prompt_mode": "refine",
-            "shorts_hook_mode": "repeat",
-            "shorts_reframe_mode": "motion_tracking",
-            "shorts_audio_energy_boost": True,
-            "shorts_scene_change_boost": True,
-            "shorts_remove_fillers": True,
-            "shorts_filler_words": ["um", "uh"],
-            "shorts_aspect": "1:1",
-            "shorts_source_start_sec": 5,
-            "shorts_source_end_sec": 50,
-            "allow_external_services": True,
-            "allowed_external_hosts": ["api.example.com"],
-            "overrides": [{"sentence_id": 3, "action": "discard"}],
-            "transcribe": True,
-            "asr_base_url": "http://asr.local/v1",
-            "asr_model": "whisper-1",
-            "asr_language": "en",
-            "whisper_model": "/models/ggml-small.bin",
-            "caption_censor_enabled": True,
-            "caption_censor_words": ["merda"],
-            "caption_censor_replacement": "***",
-            "audio_enhance": True,
-            "audio_highpass_hz": 120,
-            "audio_denoise_db": 18,
-            "audio_target_lufs": -14.0,
-            "overlay_enabled": True,
-            "overlay_asset": "logo.png",
-            "overlay_position": "top_left",
-            "overlay_width_ratio": 0.2,
-            "music_enabled": True,
-            "music_asset": "track.mp3",
-            "music_volume": 0.2,
-            "music_ducking": False,
-            "intro_enabled": True,
-            "intro_asset": "intro.png",
-            "intro_duration_sec": 1.5,
-            "outro_enabled": True,
-            "outro_asset": "outro.png",
-            "caption_keyword_highlight_enabled": True,
-            "caption_keyword_words": ["pricing"],
-            "caption_emoji_enabled": True,
-            "caption_emoji_map": {"money": "💰"},
-            "caption_brand_vocabulary": {"video flow": "VideoFlow"},
-        },
-    )
-    assert response.status_code == 202
-    options = response.json()["job"]["options"]
-    assert options["vad_engine"] == "silero"
-    assert options["speech_threshold"] == 0.6
-    assert options["speech_pad_before_ms"] == 80
-    assert options["speech_pad_after_ms"] == 90
-    assert options["offset_ms"] == 250
-    assert options["export_targets"] == ["resolve"]
-    assert options["context_window"] == 20
-    assert options["shorts_count"] == 2
-    assert options["shorts_prompt"] == "pricing"
-    assert options["shorts_reprompt"] == "more energy"
-    assert options["shorts_prompt_mode"] == "refine"
-    assert options["shorts_hook_mode"] == "repeat"
-    assert options["shorts_reframe_mode"] == "motion_tracking"
-    assert options["shorts_audio_energy_boost"] is True
-    assert options["shorts_scene_change_boost"] is True
-    assert options["shorts_remove_fillers"] is True
-    assert options["shorts_filler_words"] == ["um", "uh"]
-    assert options["shorts_aspect"] == "1:1"
-    assert options["caption_censor_enabled"] is True
-    assert options["caption_censor_words"] == ["merda"]
-    assert options["caption_keyword_highlight_enabled"] is True
-    assert options["caption_keyword_words"] == ["pricing"]
-    assert options["caption_emoji_map"] == {"money": "💰"}
-    assert options["caption_brand_vocabulary"] == {"video flow": "VideoFlow"}
-    assert options["audio_enhance"] is True
-    assert options["audio_highpass_hz"] == 120
-    assert options["audio_denoise_db"] == 18
-    assert options["audio_target_lufs"] == -14.0
-    assert options["overlay_enabled"] is True
-    assert options["overlay_asset"] == "logo.png"
-    assert options["overlay_position"] == "top_left"
-    assert options["overlay_width_ratio"] == 0.2
-    assert options["music_enabled"] is True
-    assert options["music_asset"] == "track.mp3"
-    assert options["music_volume"] == 0.2
-    assert options["music_ducking"] is False
-    assert options["intro_enabled"] is True
-    assert options["intro_asset"] == "intro.png"
-    assert options["intro_duration_sec"] == 1.5
-    assert options["outro_enabled"] is True
-    assert options["outro_asset"] == "outro.png"
-    assert options["shorts_source_start_sec"] == 5
-    assert options["shorts_source_end_sec"] == 50
-    assert options["allow_external_services"] is True
-    assert options["allowed_external_hosts"] == ["api.example.com"]
-    assert options["overrides"] == [{"sentence_id": 3, "action": "discard"}]
-    assert options["transcribe"] is True
-    assert options["asr_language"] == "en"
-    assert options["whisper_model"] == "/models/ggml-small.bin"
 
 
 def test_unknown_job_is_404(monkeypatch, tmp_path: Path) -> None:
@@ -343,12 +179,8 @@ def test_jobs_can_be_force_removed(monkeypatch, tmp_path: Path) -> None:
     source = tmp_path / "source.mp4"
     source.write_bytes(b"x")
     client = make_client(monkeypatch, tmp_path, runner=slow)
-    response = client.post(
-        "/api/v1/jobs",
-        json={"source": str(source), "output": str(tmp_path / "out")},
-    )
-    assert response.status_code == 202, response.text
-    job_id = response.json()["job"]["job_id"]
+    job = start_job(client, source, tmp_path / "out")
+    job_id = job["job_id"]
     assert started.wait(2)
 
     removed = client.delete(f"/api/v1/jobs/{job_id}?force=true")
@@ -357,11 +189,8 @@ def test_jobs_can_be_force_removed(monkeypatch, tmp_path: Path) -> None:
     assert client.get(f"/api/v1/jobs/{job_id}").status_code == 404
 
     terminal_client = make_client(monkeypatch, tmp_path)
-    completed = terminal_client.post(
-        "/api/v1/jobs",
-        json={"source": str(source), "output": str(tmp_path / "done")},
-    )
-    done_id = completed.json()["job"]["job_id"]
+    completed = start_job(terminal_client, source, tmp_path / "done")
+    done_id = completed["job_id"]
     assert wait_http(terminal_client, done_id)["status"] == "succeeded"
     assert terminal_client.delete(f"/api/v1/jobs/{done_id}").status_code == 200
     assert terminal_client.get(f"/api/v1/jobs/{done_id}").status_code == 404
@@ -380,14 +209,7 @@ def test_events_stream_delivers_the_terminal_state(monkeypatch, tmp_path: Path) 
     source = tmp_path / "source.mp4"
     source.write_bytes(b"x")
     client = make_client(monkeypatch, tmp_path)
-    job = client.post(
-        "/api/v1/jobs",
-        json={
-            "source": str(source),
-            "output": str(tmp_path / "out"),
-            "vad_engine": "ffmpeg",
-        },
-    ).json()["job"]
+    job = start_job(client, source, tmp_path / "out")
     wait_http(client, job["job_id"])
     response = client.get(f"/api/v1/jobs/{job['job_id']}/events")
     assert response.status_code == 200
@@ -396,57 +218,6 @@ def test_events_stream_delivers_the_terminal_state(monkeypatch, tmp_path: Path) 
 
 
 @pytest.mark.media
-def test_real_job_writes_three_artifacts(monkeypatch, tmp_path: Path) -> None:
-    import shutil
-    import subprocess
-
-    ffmpeg = shutil.which("ffmpeg")
-    if ffmpeg is None:
-        pytest.skip("FFmpeg is not on PATH")
-    source = tmp_path / "source.mp4"
-    subprocess.run(
-        [
-            ffmpeg,
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-y",
-            "-f",
-            "lavfi",
-            "-i",
-            "testsrc2=size=320x240:rate=30",
-            "-f",
-            "lavfi",
-            "-i",
-            "sine=frequency=440:sample_rate=48000:duration=4",
-            "-af",
-            "volume=0:enable='between(t,1,2)'",
-            "-t",
-            "4",
-            "-c:v",
-            "libx264",
-            "-pix_fmt",
-            "yuv420p",
-            "-c:a",
-            "aac",
-            str(source),
-        ],
-        check=True,
-    )
-    monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
-    client = TestClient(create_app())
-    job = client.post(
-        "/api/v1/jobs",
-        json={
-            "source": str(source),
-            "output": str(tmp_path / "out"),
-            "vad_engine": "ffmpeg",
-        },
-    ).json()["job"]
-    finished = wait_http(client, job["job_id"], timeout=60)
-    assert finished["status"] == "succeeded", finished
-    for name in ("timeline.fcpxml", "timeline.xml", "timeline.kdenlive"):
-        assert (tmp_path / "out" / "exports" / name).is_file()
 
 
 def test_edit_short_updates_result_and_writes_a_new_render(monkeypatch, tmp_path: Path) -> None:
@@ -491,7 +262,7 @@ def test_edit_short_updates_result_and_writes_a_new_render(monkeypatch, tmp_path
     job = Job(source=source, output=output, options={})
     job.status = "succeeded"
     job.result = {"ok": True, "shorts": [entry]}
-    manager = JobManager()
+    manager = manager_with_runner()
     manager._jobs[str(job.job_id)] = job
 
     def fake_render(self, source, pieces, destination, **kwargs):
@@ -572,7 +343,7 @@ def test_short_metadata_is_generated_and_persisted(monkeypatch, tmp_path: Path) 
     job = Job(source=source, output=output, options={})
     job.status = "succeeded"
     job.result = {"ok": True, "shorts": [entry]}
-    manager = JobManager()
+    manager = manager_with_runner()
     manager._jobs[str(job.job_id)] = job
     client = TestClient(create_app(jobs=manager))
     response = client.post(
@@ -630,7 +401,7 @@ def test_short_thumbnail_is_generated_and_persisted(monkeypatch, tmp_path: Path)
     job = Job(source=source, output=output, options={})
     job.status = "succeeded"
     job.result = {"ok": True, "shorts": [entry]}
-    manager = JobManager()
+    manager = manager_with_runner()
     manager._jobs[str(job.job_id)] = job
 
     def fake_thumbnail(self, source, destination, **kwargs):
@@ -694,7 +465,7 @@ def test_short_voiceover_mixes_and_persists(monkeypatch, tmp_path: Path) -> None
     job = Job(source=source, output=output, options={})
     job.status = "succeeded"
     job.result = {"ok": True, "shorts": [entry]}
-    manager = JobManager()
+    manager = manager_with_runner()
     manager._jobs[str(job.job_id)] = job
 
     def fake_tts(self, text, destination, **kwargs):
@@ -766,7 +537,7 @@ def test_short_dubbing_translates_and_mixes(monkeypatch, tmp_path: Path) -> None
     job = Job(source=source, output=output, options={})
     job.status = "succeeded"
     job.result = {"ok": True, "shorts": [entry]}
-    manager = JobManager()
+    manager = manager_with_runner()
     manager._jobs[str(job.job_id)] = job
 
     def fake_llm(self, prompt, schema_name):
@@ -811,8 +582,8 @@ def test_short_dubbing_translates_and_mixes(monkeypatch, tmp_path: Path) -> None
 def test_job_artifact_and_short_file_routes(tmp_path: Path) -> None:
     from fastapi.testclient import TestClient
 
+    from tests.recipe_jobs import manager_with_runner
     from videoflow.api.app import create_app
-    from videoflow.application.jobs import JobManager
 
     def runner(source, output, **kwargs):
         output = Path(output)
@@ -828,8 +599,8 @@ def test_job_artifact_and_short_file_routes(tmp_path: Path) -> None:
             "elapsed_seconds": 0.0,
         }
 
-    manager = JobManager(runner=runner)
-    job = manager.start(tmp_path / "source.mp4", tmp_path / "out", {})
+    manager = manager_with_runner(runner=runner)
+    job = start_recipe(manager, tmp_path / "source.mp4", tmp_path / "out", {})
     for _ in range(200):
         if job.status in {"succeeded", "failed", "cancelled"}:
             break
@@ -847,9 +618,9 @@ def test_job_artifact_and_short_file_routes(tmp_path: Path) -> None:
 def test_preview_proxy_routes(monkeypatch, tmp_path: Path) -> None:
     from fastapi.testclient import TestClient
 
+    from tests.recipe_jobs import manager_with_runner
     from videoflow.api import routes
     from videoflow.api.app import create_app
-    from videoflow.application.jobs import JobManager
 
     def runner(source, output, **kwargs):
         output = Path(output)
@@ -863,8 +634,8 @@ def test_preview_proxy_routes(monkeypatch, tmp_path: Path) -> None:
         "transcode_preview",
         lambda self, source, target, **kwargs: target.write_bytes(b"proxy") or target,
     )
-    manager = JobManager(runner=runner)
-    job = manager.start(tmp_path / "source.mp4", tmp_path / "out", {})
+    manager = manager_with_runner(runner=runner)
+    job = start_recipe(manager, tmp_path / "source.mp4", tmp_path / "out", {})
     for _ in range(200):
         if job.status in {"succeeded", "failed", "cancelled"}:
             break
@@ -881,8 +652,8 @@ def test_preview_proxy_routes(monkeypatch, tmp_path: Path) -> None:
 def test_timeline_route_from_project_state(monkeypatch, tmp_path: Path) -> None:
     from fastapi.testclient import TestClient
 
+    from tests.recipe_jobs import manager_with_runner
     from videoflow.api.app import create_app
-    from videoflow.application.jobs import JobManager
     from videoflow.domain.state import (
         AudioSegment,
         MediaInfo,
@@ -928,8 +699,8 @@ def test_timeline_route_from_project_state(monkeypatch, tmp_path: Path) -> None:
         path.write_text(state.model_dump_json())
         return {"ok": True, "state_path": str(path), "artifacts": {}, "shorts": []}
 
-    manager = JobManager(runner=runner)
-    job = manager.start(tmp_path / "source.mp4", tmp_path / "out", {})
+    manager = manager_with_runner(runner=runner)
+    job = start_recipe(manager, tmp_path / "source.mp4", tmp_path / "out", {})
     for _ in range(200):
         if job.status in {"succeeded", "failed", "cancelled"}:
             break
