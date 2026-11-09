@@ -41,7 +41,9 @@ Implemented today:
 - `GET /api/v1/jobs/{id}/interactions`,
   `POST /api/v1/jobs/{id}/interactions/{interaction_id}/respond`,
   `POST /api/v1/jobs/{id}/interactions/{interaction_id}/files`,
-  `GET /api/v1/hilt/pending` ([hilt.md](hilt.md))
+  `GET /api/v1/hilt/pending`, `GET /api/v1/hilt/channels`,
+  `POST /api/v1/hilt/test`, `POST /api/v1/hilt/slack/events`,
+  `POST /api/v1/hilt/email/inbound` ([hilt.md](hilt.md))
 - `GET /api/v1/presets`, `GET /api/v1/presets/{name}`,
   `PUT /api/v1/presets/{name}`
 - `GET /mcp/` (MCP Streamable HTTP) and `GET /` (recipe studio UI when built)

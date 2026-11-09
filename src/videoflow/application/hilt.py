@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from videoflow.application.clock import now_iso
+from videoflow.application.settings import load_settings
 from videoflow.domain.errors import (
     HiltAttachmentError,
     HiltResponseError,
@@ -302,7 +303,12 @@ def create_request(
     for item in normalized_files:
         if item.target.strip():
             _relative_inside(output, item.target)
-    selected_channels = [str(item) for item in (channels or ["local"]) if str(item)]
+    selected_channels = (
+        [str(item) for item in channels if str(item)]
+        if channels
+        else list(load_settings().notifications.default_channels or ["local"])
+    )
+
     token = secrets.token_urlsafe(24)
     created = datetime.now(UTC)
     request = HiltRequest(

@@ -65,12 +65,30 @@ one or more `files` plus an optional `request_id`.
   the API and only its SHA-256 is persisted.
 - Notification failures are logged and never fail the job.
 
-## Current channels
+## Channels
 
-M0 ships the local channel: the studio panel plus a best-effort desktop
-notification (`notify-send` on Linux, `osascript` on macOS). E-mail, Slack, and
-Signal are the next milestone; the request/response contract already supports
-them through the same service.
+| Channel | Send | Receive |
+| --- | --- | --- |
+| Local | Studio panel + best-effort desktop notification (`notify-send`/`osascript`) | Studio API |
+| E-mail | SMTP/TLS with the reply token in the subject | IMAP `UNSEEN` polling and attachments |
+| Slack | Webhook or bot `chat.postMessage` | Bot history polling and optional Events API |
+| Signal | `signal-cli` REST `/v2/send` | `/v1/receive` polling and attachment download |
+
+External channels are opt-in in Settings. They are best-effort: a failed
+notification is written to `notifications.jsonl` and never fails the job.
+Inbound replies must carry the interaction token; e-mail/Slack/Signal senders
+can be restricted with allowlists. Slack Events requests are verified with the
+signing secret.
+
+The optional inbound webhooks are:
+
+```http
+POST /api/v1/hilt/slack/events
+POST /api/v1/hilt/email/inbound
+```
+
+Notification secrets are stored through `POST /api/v1/hilt/secrets` using the
+OS keyring when available; the API only reports presence, never the value.
 
 ## Full AI Editor
 

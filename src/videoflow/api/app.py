@@ -18,6 +18,7 @@ from videoflow.api.openapi import install_openapi
 from videoflow.api.routes import register_routes
 from videoflow.application.backups import scheduled_backup
 from videoflow.application.database import migrate_home
+from videoflow.application.hilt_channels import start_pollers, stop_pollers
 from videoflow.application.jobs import JobManager
 from videoflow.application.plugins import load_plugins
 from videoflow.application.publishing import start_scheduler, stop_scheduler
@@ -87,6 +88,14 @@ def create_app(
     install_openapi(app)
     app.state.jobs = manager
     app.state.batches = batches
+
+    @app.on_event("startup")
+    def _start_hilt_pollers() -> None:
+        start_pollers(manager)
+
+    @app.on_event("shutdown")
+    def _stop_hilt_pollers() -> None:
+        stop_pollers()
 
     @app.middleware("http")
     async def cache_and_version_headers(

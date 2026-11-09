@@ -7,7 +7,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from videoflow.application import hilt
+from videoflow.application import hilt, hilt_channels
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import (
     ApprovalRequiredError,
@@ -49,7 +49,7 @@ class GateParams(BaseModel):
     approve_label: str = "Approve"
     reject_label: str = "Reject"
     artifacts: list[str] = Field(default_factory=list)
-    channels: list[str] = Field(default_factory=lambda: ["local"])
+    channels: list[str] = Field(default_factory=list)
     expires_hours: int = Field(default=168, ge=1, le=24 * 365)
 
 
@@ -67,7 +67,7 @@ class HumanGateStep(_HumanStep):
             self._consume_legacy(context, legacy, options, io)
             return
         artifacts = hilt.build_artifacts(context.output, options.artifacts)
-        request, _token = hilt.create_request(
+        request, token = hilt.create_request(
             context.output,
             step_id=io.stage,
             gate_id=options.gate_id,
@@ -82,6 +82,7 @@ class HumanGateStep(_HumanStep):
             job_id=self._job_id(context),
             recipe_id=self._recipe_id(context),
         )
+        hilt_channels.notify_request(context.output, request, token)
         response = hilt.load_response(context.output, request.interaction_id)
         if response is None:
             raise ApprovalRequiredError(
@@ -133,7 +134,7 @@ class HumanInputParams(BaseModel):
     title: str = "Input needed"
     description: str = ""
     questions: list[HiltQuestion] = Field(min_length=1, max_length=50)
-    channels: list[str] = Field(default_factory=lambda: ["local"])
+    channels: list[str] = Field(default_factory=list)
     expires_hours: int = Field(default=168, ge=1, le=24 * 365)
     save_as: str = Field(default="", max_length=1000)
 
@@ -147,7 +148,7 @@ class HumanInputStep(_HumanStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = HumanInputParams.model_validate(params)
-        request, _token = hilt.create_request(
+        request, token = hilt.create_request(
             context.output,
             step_id=io.stage,
             gate_id=options.gate_id,
@@ -160,6 +161,7 @@ class HumanInputStep(_HumanStep):
             job_id=self._job_id(context),
             recipe_id=self._recipe_id(context),
         )
+        hilt_channels.notify_request(context.output, request, token)
         response = hilt.load_response(context.output, request.interaction_id)
         if response is None:
             raise HumanInputRequiredError(
@@ -198,7 +200,7 @@ class HumanFilesParams(BaseModel):
     title: str = "Files needed"
     description: str = ""
     files: list[HiltFileRequest] = Field(min_length=1, max_length=50)
-    channels: list[str] = Field(default_factory=lambda: ["local"])
+    channels: list[str] = Field(default_factory=list)
     expires_hours: int = Field(default=168, ge=1, le=24 * 365)
 
 
@@ -211,7 +213,7 @@ class HumanFilesStep(_HumanStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = HumanFilesParams.model_validate(params)
-        request, _token = hilt.create_request(
+        request, token = hilt.create_request(
             context.output,
             step_id=io.stage,
             gate_id=options.gate_id,
@@ -224,6 +226,7 @@ class HumanFilesStep(_HumanStep):
             job_id=self._job_id(context),
             recipe_id=self._recipe_id(context),
         )
+        hilt_channels.notify_request(context.output, request, token)
         response = hilt.load_response(context.output, request.interaction_id)
         if response is None:
             raise HumanInputRequiredError(

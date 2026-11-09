@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from videoflow.application import hilt
+from videoflow.application import hilt, hilt_channels
 from videoflow.application.jobs import JobManager
+from videoflow.application.secrets import secret_present, set_secret
 from videoflow.domain.errors import HiltResponseError, StateNotReadyError, VideoFlowError
 
 
@@ -24,6 +25,23 @@ class HiltRespondRequest(BaseModel):
 
 class HiltTestRequest(BaseModel):
     title: str = Field(default="VideoFlow HILT test", max_length=200)
+    channel: str = Field(default="local", max_length=40)
+
+
+class HiltSecretRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    value: str = Field(min_length=1, max_length=10000)
+
+
+_NOTIFICATION_SECRETS = {
+    "VIDEOWFLOW_SMTP_PASSWORD",
+    "VIDEOWFLOW_IMAP_PASSWORD",
+    "VIDEOWFLOW_SLACK_WEBHOOK_URL",
+    "VIDEOWFLOW_SLACK_BOT_TOKEN",
+    "VIDEOWFLOW_SLACK_SIGNING_SECRET",
+    "VIDEOWFLOW_SIGNAL_PASSWORD",
+    "VIDEOWFLOW_EMAIL_INBOUND_SECRET",
+}
 
 
 def _waiting_job(jobs: JobManager, job_id: str):
@@ -46,12 +64,48 @@ def register_hilt_routes(app: FastAPI, jobs: JobManager) -> None:
     """Register the human interaction routes for one app instance."""
 
     @app.get("/api/v1/hilt/channels")
-    def hilt_channels() -> dict[str, object]:
-        return hilt.channels_status()
+    def hilt_channels_route() -> dict[str, object]:
+        return hilt_channels.channels_status()
 
     @app.post("/api/v1/hilt/test")
     def hilt_test(request: HiltTestRequest) -> dict[str, object]:
-        return hilt.test_local_channel(request.title)
+        return hilt_channels.test_channel(request.channel)
+
+    @app.get("/api/v1/hilt/secrets")
+    def hilt_secrets() -> dict[str, object]:
+        return {
+            "ok": True,
+            "secrets": {
+                name: secret_present(name) for name in sorted(_NOTIFICATION_SECRETS)
+            },
+        }
+
+    @app.post("/api/v1/hilt/secrets")
+    def hilt_secret_save(request: HiltSecretRequest) -> dict[str, object]:
+        if request.name not in _NOTIFICATION_SECRETS:
+            raise HiltResponseError(f"Unknown notification secret: {request.name}")
+        set_secret(request.name, request.value)
+        return {"ok": True, "name": request.name, "present": True}
+
+    @app.post("/api/v1/hilt/slack/events")
+    async def slack_events(request: Request) -> dict[str, object]:
+        body = await request.body()
+        try:
+            payload = await request.json()
+        except ValueError:
+            raise HiltResponseError("Slack event must be JSON") from None
+        headers = {key.lower(): value for key, value in request.headers.items()}
+        return hilt_channels.ingest_slack_event(payload, body, headers, jobs)
+
+    @app.post("/api/v1/hilt/email/inbound")
+    async def email_inbound(request: Request) -> dict[str, object]:
+        body = await request.body()
+        try:
+            payload = await request.json()
+        except ValueError:
+            raise HiltResponseError("E-mail inbound payload must be JSON") from None
+        headers = {key.lower(): value for key, value in request.headers.items()}
+        return hilt_channels.ingest_email_payload(payload, body, headers, jobs)
 
     @app.get("/api/v1/hilt/pending")
     def hilt_pending() -> dict[str, object]:

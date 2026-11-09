@@ -139,6 +139,76 @@ class TranslationSettings(BaseModel):
     source_language: str = "auto"
 
 
+class LocalNotificationSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+    desktop: bool = True
+
+
+class EmailNotificationSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    smtp_host: str = ""
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_starttls: bool = True
+    smtp_ssl: bool = False
+    smtp_user: str = ""
+    smtp_password_secret: str = "VIDEOWFLOW_SMTP_PASSWORD"
+    from_address: str = ""
+    to_addresses: list[str] = Field(default_factory=list)
+    imap_host: str = ""
+    imap_port: int = Field(default=993, ge=1, le=65535)
+    imap_ssl: bool = True
+    imap_user: str = ""
+    imap_password_secret: str = "VIDEOWFLOW_IMAP_PASSWORD"
+    imap_folder: str = "INBOX"
+    allowed_senders: list[str] = Field(default_factory=list)
+    poll_seconds: int = Field(default=30, ge=10, le=3600)
+    max_attachment_mb: int = Field(default=512, ge=1, le=8192)
+
+
+class SlackNotificationSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    mode: Literal["webhook", "bot"] = "webhook"
+    webhook_secret: str = "VIDEOWFLOW_SLACK_WEBHOOK_URL"
+    bot_token_secret: str = "VIDEOWFLOW_SLACK_BOT_TOKEN"
+    signing_secret: str = "VIDEOWFLOW_SLACK_SIGNING_SECRET"
+    channel: str = ""
+    allowed_users: list[str] = Field(default_factory=list)
+    poll_seconds: int = Field(default=30, ge=10, le=3600)
+    use_events: bool = False
+
+
+class SignalNotificationSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    api_url: str = "http://127.0.0.1:8080"
+    number: str = ""
+    recipients: list[str] = Field(default_factory=list)
+    allowed_senders: list[str] = Field(default_factory=list)
+    password_secret: str = "VIDEOWFLOW_SIGNAL_PASSWORD"
+    poll_seconds: int = Field(default=30, ge=10, le=3600)
+
+
+class NotificationSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+    default_channels: list[str] = Field(default_factory=lambda: ["local"])
+    base_url: str = "http://127.0.0.1:8765"
+    interaction_ttl_hours: int = Field(default=168, ge=1, le=24 * 365)
+    reminder_hours: int = Field(default=24, ge=1, le=24 * 365)
+    local: LocalNotificationSettings = Field(default_factory=LocalNotificationSettings)
+    email: EmailNotificationSettings = Field(default_factory=EmailNotificationSettings)
+    slack: SlackNotificationSettings = Field(default_factory=SlackNotificationSettings)
+    signal: SignalNotificationSettings = Field(default_factory=SignalNotificationSettings)
+
+
 class AppSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -154,6 +224,7 @@ class AppSettings(BaseModel):
     tts: TtsSettings = Field(default_factory=TtsSettings)
     stock: StockSettings = Field(default_factory=StockSettings)
     translation: TranslationSettings = Field(default_factory=TranslationSettings)
+    notifications: NotificationSettings = Field(default_factory=NotificationSettings)
 
 
 def settings_path() -> Path:

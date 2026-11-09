@@ -2731,6 +2731,10 @@ def register_routes(
                 "paths.cache_dir",
                 "paths.models_dir",
                 "automation.scheduler_interval_seconds",
+                "notifications.enabled",
+                "notifications.email.enabled",
+                "notifications.slack.enabled",
+                "notifications.signal.enabled",
             ],
         }
 

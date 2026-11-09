@@ -42,7 +42,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Copilot | LLM recipe drafts and timeline edit plans, provider/service setup, validation rules ([copilot.md](copilot.md)) |
 | Assistant and review | Allowlisted tool-calling with approval/diff/cost, run graph, variant comparison ([projects-assistant.md](manuals/projects-assistant.md)) |
 | Recut and recipe library | Recut Replacement (+ retakes), detailed VAD/cut controls, favorites/recent/tags on the server ([recipes.md](recipes.md)) |
-| Human-in-the-loop | Durable approvals, questions, file handoffs, local notifications, and the Full AI Editor recipe ([hilt.md](hilt.md)) |
+| Human-in-the-loop | Durable approvals, questions, file handoffs, local/e-mail/Slack/Signal notifications, and the Full AI Editor recipe ([hilt.md](hilt.md)) |
 | Typed ports | Step inputs/outputs, inspector/edge wiring, branch isolation, input-hash cache ([recipes.md](recipes.md)) |
 | Node IO | Media pickers and output-folder policy inside nodes, Inputs/Config/Outputs layout |
 | Recut presets | Podcast, Lecture, and Social variants with tuned VAD/cut settings |

@@ -675,6 +675,54 @@ export interface AppSettings {
     target_language: string;
     source_language: string;
   };
+  notifications: {
+    enabled: boolean;
+    default_channels: string[];
+    base_url: string;
+    interaction_ttl_hours: number;
+    reminder_hours: number;
+    local: { enabled: boolean; desktop: boolean };
+    email: {
+      enabled: boolean;
+      smtp_host: string;
+      smtp_port: number;
+      smtp_starttls: boolean;
+      smtp_ssl: boolean;
+      smtp_user: string;
+      smtp_password_secret: string;
+      from_address: string;
+      to_addresses: string[];
+      imap_host: string;
+      imap_port: number;
+      imap_ssl: boolean;
+      imap_user: string;
+      imap_password_secret: string;
+      imap_folder: string;
+      allowed_senders: string[];
+      poll_seconds: number;
+      max_attachment_mb: number;
+    };
+    slack: {
+      enabled: boolean;
+      mode: "webhook" | "bot";
+      webhook_secret: string;
+      bot_token_secret: string;
+      signing_secret: string;
+      channel: string;
+      allowed_users: string[];
+      poll_seconds: number;
+      use_events: boolean;
+    };
+    signal: {
+      enabled: boolean;
+      api_url: string;
+      number: string;
+      recipients: string[];
+      allowed_senders: string[];
+      password_secret: string;
+      poll_seconds: number;
+    };
+  };
 }
 
 export interface ServiceDefinition {
@@ -1718,6 +1766,26 @@ export async function listHiltChannels(): Promise<{
 }> {
   return request<{ default: string[]; channels: HiltChannelStatus[] }>(
     "/api/v1/hilt/channels"
+  );
+}
+
+export async function testHiltChannel(
+  channel: string,
+  title = "VideoFlow HILT test"
+): Promise<{ ok: boolean; channel: string; message: string }> {
+  return request<{ ok: boolean; channel: string; message: string }>(
+    "/api/v1/hilt/test",
+    { method: "POST", body: JSON.stringify({ channel, title }) }
+  );
+}
+
+export async function saveHiltSecret(
+  name: string,
+  value: string
+): Promise<{ ok: boolean; name: string; present: boolean }> {
+  return request<{ ok: boolean; name: string; present: boolean }>(
+    "/api/v1/hilt/secrets",
+    { method: "POST", body: JSON.stringify({ name, value }) }
   );
 }
 

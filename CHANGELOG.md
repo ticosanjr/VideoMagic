@@ -17,6 +17,10 @@ follow semantic versioning once the project reaches 1.0.
   sample, fact-check, and final gates.
 - **Studio HILT panel.** The recipe and job views render questions, file
   uploads, review artifacts, and approve/reject actions without leaving the app.
+- **External HILT channels.** E-mail (SMTP/IMAP), Slack (webhook/bot + polling
+  and optional Events API), and Signal (signal-cli REST) send requests, accept
+  replies and attachments, enforce sender allowlists, and record per-channel
+  delivery failures without failing the job.
 
 ## [2.59.4] - 2026-11-09
 
