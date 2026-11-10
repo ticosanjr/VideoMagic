@@ -177,6 +177,30 @@ test("filters the job dashboard", async ({ page }) => {
   await page.getByLabel("Search jobs").fill("webinar");
   await expect(page.getByTestId("job-list").locator("li")).toHaveCount(1);
   await expect(page.getByText("Retry after fixing the error")).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear all" }).click();
+  await expect(page.getByTestId("job-list").locator("li")).toHaveCount(4);
+});
+
+test("focuses the jobs search with slash and clears with escape", async ({ page }) => {
+  await page.keyboard.press("/");
+  await expect(page.getByRole("tab", { name: "Jobs" })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  );
+  await expect(page.getByLabel("Search jobs")).toBeFocused();
+  await page.keyboard.type("webinar");
+  await expect(page.getByTestId("job-list").locator("li")).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await expect(page.getByLabel("Search jobs")).toHaveValue("");
+});
+
+test("shows recent commands in the palette", async ({ page }) => {
+  await page.keyboard.press("Control+k");
+  await page.getByRole("textbox", { name: "Search commands" }).fill("timeline");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Control+k");
+  await expect(page.getByRole("option").first()).toContainText("Recent");
 });
 
 test("asks for confirmation before cancelling a job", async ({ page }) => {

@@ -260,7 +260,7 @@
 
   <ErrorBanner message={error} title="Could not load jobs" onDismiss={() => (error = "")} testId="jobs-error" />
 
-  <div class="flex flex-wrap gap-1.5" role="tablist" aria-label="Job filters">
+  <div class="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Job filters">
     {#each filters as item}
       <button
         type="button"
@@ -270,6 +270,19 @@
         class={`rounded-full px-3 py-1 text-[11px] font-medium transition ${filter === item.id ? "bg-sky-500/15 text-sky-200 ring-1 ring-inset ring-sky-400/25" : "border border-neutral-800 text-neutral-400 hover:text-neutral-200"}`}
       >{item.label} <span class="ml-1 font-mono opacity-70">{item.count}</span></button>
     {/each}
+    {#if filter !== "all" || query.trim()}
+      <button
+        type="button"
+        class="rounded-full border border-neutral-800 px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/40 hover:text-sky-200"
+        onclick={() => {
+          filter = "all";
+          query = "";
+        }}
+      >{i18n.t("clear_all")}</button>
+    {/if}
+    <span class="ml-auto font-mono text-[10px] text-neutral-600" aria-label="Visible jobs">
+      {visible.length}/{jobs.length}
+    </span>
   </div>
 
   {#if loading}
