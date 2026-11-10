@@ -66,7 +66,8 @@ def test_searxng_provider(monkeypatch, tmp_path: Path) -> None:
             }
 
     monkeypatch.setattr(
-        "videoflow.application.search.httpx.get", lambda *args, **kwargs: FakeResponse()
+        "videoflow.application.search.web.httpx.get",
+        lambda *args, **kwargs: FakeResponse(),
     )
     settings = SearchSettings(
         providers=["searxng"],
@@ -97,12 +98,12 @@ def test_fetch_cache_and_robots(monkeypatch, tmp_path: Path) -> None:
         calls["fetch"] += 1
         return FakeResponse()
 
-    monkeypatch.setattr("videoflow.application.search.httpx.get", fake_get)
+    monkeypatch.setattr("videoflow.application.search.documents.httpx.get", fake_get)
     monkeypatch.setattr(
-        "videoflow.application.search._assert_public_url", lambda *a, **k: None
+        "videoflow.application.search.documents._assert_public_url", lambda *a, **k: None
     )
     monkeypatch.setattr(
-        "videoflow.application.search._robots_allowed", lambda *a, **k: True
+        "videoflow.application.search.documents._robots_allowed", lambda *a, **k: True
     )
     first = fetch_document(
         "https://example.com/page", SearchSettings(), allow_external_services=True
@@ -117,10 +118,10 @@ def test_fetch_cache_and_robots(monkeypatch, tmp_path: Path) -> None:
 
 def test_robots_disallow(monkeypatch) -> None:
     monkeypatch.setattr(
-        "videoflow.application.search._assert_public_url", lambda *a, **k: None
+        "videoflow.application.search.documents._assert_public_url", lambda *a, **k: None
     )
     monkeypatch.setattr(
-        "videoflow.application.search._robots_allowed", lambda *a, **k: False
+        "videoflow.application.search.documents._robots_allowed", lambda *a, **k: False
     )
     with pytest.raises(SearchBlockedError):
         fetch_document(

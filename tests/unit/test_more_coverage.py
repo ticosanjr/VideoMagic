@@ -113,9 +113,9 @@ def test_search_errors_and_fetch_content(monkeypatch) -> None:
         content = b"binary"
         encoding = "utf-8"
 
-    monkeypatch.setattr(search.httpx, "get", lambda *args, **kwargs: TextResponse())
-    monkeypatch.setattr(search, "_assert_public_url", lambda *args, **kwargs: None)
-    monkeypatch.setattr(search, "_robots_allowed", lambda *args, **kwargs: True)
+    monkeypatch.setattr(search.documents.httpx, "get", lambda *args, **kwargs: TextResponse())
+    monkeypatch.setattr(search.documents, "_assert_public_url", lambda *args, **kwargs: None)
+    monkeypatch.setattr(search.documents, "_robots_allowed", lambda *args, **kwargs: True)
     with pytest.raises(search.SearchError):
         fetch_document(
             "https://example.com/file.bin",

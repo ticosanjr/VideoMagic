@@ -40,7 +40,7 @@ def test_wikipedia_and_internet_archive(monkeypatch) -> None:
                 return Response(payload)
         return Response({}, 404)
 
-    monkeypatch.setattr(search.httpx, "get", fake_get)
+    monkeypatch.setattr(search.web.httpx, "get", fake_get)
     settings = SearchSettings(
         providers=["wikipedia", "internet_archive"],
         wikipedia_language="en",
@@ -54,7 +54,7 @@ def test_wikipedia_and_internet_archive(monkeypatch) -> None:
 
 def test_crawl_seed_matches_text(monkeypatch) -> None:
     monkeypatch.setattr(
-        search,
+        search.web,
         "fetch_document",
         lambda url, *args, **kwargs: SearchDocument(
             url=url, title="Seed", text="court corruption evidence", provider="web"
@@ -75,9 +75,9 @@ def test_robots_parser_and_private_host(monkeypatch) -> None:
         status_code = 200
         text = "User-agent: *\nDisallow: /blocked\n"
 
-    monkeypatch.setattr(search.httpx, "get", lambda *args, **kwargs: Robots())
-    assert search._robots_allowed("https://example.com/blocked", timeout=1) is False
-    assert search._robots_allowed("https://example.com/open", timeout=1) is True
+    monkeypatch.setattr(search.documents.httpx, "get", lambda *args, **kwargs: Robots())
+    assert search.documents._robots_allowed("https://example.com/blocked", timeout=1) is False
+    assert search.documents._robots_allowed("https://example.com/open", timeout=1) is True
 
 
 def test_local_search_skips_missing_roots(tmp_path: Path) -> None:
