@@ -24,17 +24,29 @@
 
   let busy = $state("");
   let error = $state("");
+  let query = $state("");
 
-  const attention = $derived(jobs.filter((job) => ["waiting_approval", "waiting_input", "failed"].includes(job.status)));
-  const running = $derived(jobs.filter((job) => job.status === "running"));
-  const queued = $derived(jobs.filter((job) => job.status === "queued"));
+  const filtered = $derived.by(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return jobs;
+    return jobs.filter((job) =>
+      [job.job_id, job.stage, job.message, jobDisplayName(job)]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(needle)
+    );
+  });
+  const attention = $derived(filtered.filter((job) => ["waiting_approval", "waiting_input", "failed"].includes(job.status)));
+  const running = $derived(filtered.filter((job) => job.status === "running"));
+  const queued = $derived(filtered.filter((job) => job.status === "queued"));
   const recent = $derived(
-    jobs
+    filtered
       .filter((job) => ["succeeded", "cancelled"].includes(job.status))
       .slice(0, 4)
   );
   const finished = $derived(
-    jobs.filter((job) => ["succeeded", "failed", "cancelled"].includes(job.status))
+    filtered.filter((job) => ["succeeded", "failed", "cancelled"].includes(job.status))
   );
 
   const sections = $derived([
@@ -113,6 +125,15 @@
         </div>
         <button type="button" class="rounded-lg border border-white/10 px-2 py-1 text-[11px] text-neutral-400 hover:text-neutral-100" onclick={onclose}>{i18n.t("close")}</button>
       </header>
+      <div class="border-b border-neutral-800 px-3 py-2">
+        <input
+          bind:value={query}
+          type="search"
+          placeholder={i18n.t("search_jobs")}
+          aria-label="Search activity"
+          class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-1.5 text-xs text-neutral-200 placeholder:text-neutral-600 focus:border-sky-500/50 focus:outline-none"
+        />
+      </div>
       <div class="flex-1 space-y-4 overflow-auto p-3" aria-live="polite">
         {#if error}
           <p class="rounded-lg border border-rose-500/30 bg-rose-950/30 px-3 py-2 text-[10px] text-rose-200">{error}</p>
@@ -147,6 +168,10 @@
         {#if jobs.length === 0}
           <p class="rounded-xl border border-dashed border-neutral-800 px-3 py-6 text-center text-xs text-neutral-500">
             No jobs yet. Run a recipe to populate the activity list.
+          </p>
+        {:else if filtered.length === 0}
+          <p class="rounded-xl border border-dashed border-neutral-800 px-3 py-6 text-center text-xs text-neutral-500">
+            No activity matches this search.
           </p>
         {/if}
       </div>

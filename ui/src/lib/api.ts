@@ -262,6 +262,10 @@ export interface ShortClip {
   crop_focus_y?: number;
   virality_score?: number;
   score_breakdown?: Record<string, number>;
+  arc?: string;
+  arc_reason?: string;
+  curation_source?: string;
+  crop_keyframes?: number[][];
   aspect_ratio?: string;
   width?: number;
   height?: number;

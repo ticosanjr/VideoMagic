@@ -168,6 +168,16 @@ test("stops every active job from the activity drawer", async ({ page }) => {
   expect((await request).url()).toContain("force=true");
 });
 
+test("filters the activity drawer", async ({ page }) => {
+  await page.getByRole("button", { name: /Activity/ }).click();
+  const drawer = page.getByTestId("activity-drawer");
+  await expect(drawer).toBeVisible();
+  await drawer.getByLabel("Search activity").fill("interview");
+  await expect(drawer.getByText("interview.mp4")).toBeVisible();
+  await drawer.getByLabel("Search activity").fill("no-such-job");
+  await expect(drawer.getByText("No activity matches this search.")).toBeVisible();
+});
+
 test("opens the notification center", async ({ page }) => {
   await page.getByRole("button", { name: /Notifications/ }).click();
   await expect(page.getByTestId("notification-center")).toBeVisible();

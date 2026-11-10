@@ -3037,6 +3037,11 @@
             {#each job.result.shorts.slice(0, 4) as short, index}
               <div class="rounded-lg border border-neutral-800 bg-neutral-950/60 p-2">
                 <p class="truncate text-[10px] text-neutral-300">{short.title}</p>
+                <div class="mt-1 flex flex-wrap items-center gap-1.5 text-[9px] text-neutral-500">
+                  {#if short.virality_score != null}<span class="font-mono">★ {short.virality_score}</span>{/if}
+                  {#if short.arc}<span class="rounded-full border border-sky-400/20 bg-sky-400/10 px-1.5 py-0.5 text-sky-200">{short.arc}</span>{/if}
+                  {#if short.curation_source}<span class="text-neutral-600">{short.curation_source}</span>{/if}
+                </div>
                 <video class="mt-1 w-full rounded" controls preload="metadata" src={shortFileUrl(job.job_id, index)}><track kind="captions" src="data:text/vtt;charset=utf-8,WEBVTT%0A%0A" /></video>
               </div>
             {/each}
