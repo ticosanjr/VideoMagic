@@ -22,7 +22,7 @@
   import TimelinePanel from "$lib/TimelinePanel.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Logo from "$lib/ui/Logo.svelte";
-  import { errorMessage, getSettings, getSystem, listJobs, restartService, retryJob, stopService, type Job, type SystemInfo } from "$lib/api";
+  import { errorMessage, getSettings, getSystem, listJobs, restartService, retryJob, saveSettings, stopService, type AppSettings, type Job, type SystemInfo } from "$lib/api";
   import type { Command } from "$lib/commandPalette";
   import { recordRecentCommand } from "$lib/commandPalette";
   import { t } from "$lib/i18n";
@@ -443,6 +443,29 @@
     }
   }
 
+  const THEMES: AppSettings["ui"]["theme"][] = [
+    "dark",
+    "light",
+    "high-contrast",
+    "system"
+  ];
+
+  async function cycleTheme() {
+    const current = document.documentElement.dataset.theme || "dark";
+    const index = THEMES.indexOf(current as AppSettings["ui"]["theme"]);
+    const next = THEMES[(index + 1) % THEMES.length];
+    applyTheme(next);
+    try {
+      const { settings } = await getSettings();
+      if (!settings) return;
+      settings.ui.theme = next;
+      await saveSettings(settings);
+      notify("success", `Theme set to ${next}.`, "Theme");
+    } catch (reason) {
+      notify("error", errorMessage(reason), "Could not save the theme");
+    }
+  }
+
   function syncHash() {
     activeTab = resolveRoute(window.location.hash).tab;
   }
@@ -567,6 +590,13 @@
         </span>
         <span class="hidden items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-mono text-[11px] text-neutral-500 sm:inline-flex" title="UI bundle version">ui {UI_VERSION}</span>
         <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-500">FFmpeg {system?.ffmpeg ? "ready" : connecting ? "checking…" : "missing"}</span>
+        <button
+          type="button"
+          onclick={() => void cycleTheme()}
+          class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300"
+          title="Cycle theme"
+          aria-label="Theme"
+        ><Icon name="palette" size={12} /><span class="sr-only">Theme</span></button>
         <button
           type="button"
           onclick={() => (onboardingOpen = true)}

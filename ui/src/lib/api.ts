@@ -640,7 +640,7 @@ export interface AppSettings {
     proxy_height: number;
   };
   ui: {
-    theme: "dark" | "light" | "system";
+    theme: "dark" | "light" | "system" | "high-contrast";
     density: "comfortable" | "compact";
     timeline_snap: boolean;
   };

@@ -104,6 +104,15 @@ test("closes the command palette with escape", async ({ page }) => {
   await expect(page.getByTestId("command-palette")).toHaveCount(0);
 });
 
+test("cycles the theme from the header", async ({ page }) => {
+  await page.getByRole("button", { name: "Theme" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(() => getComputedStyle(document.body).backgroundColor)
+    )
+    .toBe("rgb(248, 250, 252)");
+});
+
 test("shows the shortcut reference", async ({ page }) => {
   await page.keyboard.press("?");
   await expect(page.getByTestId("shortcuts-modal")).toBeVisible();
