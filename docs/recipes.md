@@ -367,11 +367,11 @@ The job stops as `waiting_approval`. `POST /api/v1/jobs/{id}/resume` writes
 after the Shorts render. It is skipped with a warning when no TTS provider is
 configured.
 
-The catalog includes 44 recipes: rough cut, captions, NLE export, clean audio,
+The catalog includes 47 recipes: rough cut, captions, NLE export, clean audio,
 chapters, Shorts select/render, best moments, hook first, trailer, review gate,
 reframe/caption/A-B variants, podcast, interview, webinar, lecture, product
 demo, testimonial, livestream, B-roll, music, SFX, metadata, thumbnails,
-publishing, analytics, localization, and finishing.
+publishing, analytics, localization, finishing, and the three OpusClip-style flows.
 
 `full_ai_editor` is the long-form, human-reviewed documentary recipe. It runs
 scoped research and a dual script before ingest, then pauses for the editorial
