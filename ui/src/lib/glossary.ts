@@ -60,6 +60,7 @@ export const GLOSSARY: Record<string, string> = {
   "Recent": "Recentes",
   "Copy ID": "Copiar ID",
   "Copy output": "Copiar saída",
+  "OpusClip": "OpusClip",
   "No activity matches this search.": "Nenhuma atividade corresponde a esta busca.",
   "Recipe config": "Configuração da receita",
   "Rename": "Renomear",

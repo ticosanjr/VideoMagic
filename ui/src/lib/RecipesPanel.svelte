@@ -3266,7 +3266,10 @@
               {#each visibleRecipes as recipe}
                 <div class="flex items-start gap-2 rounded-xl border border-neutral-800 bg-neutral-900/60 p-2 hover:border-sky-500">
                   <button type="button" onclick={() => { templatesOpen = false; void loadRecipe(recipe.id); }} class="min-w-0 flex-1 p-1 text-left">
-                    <p class="truncate text-xs font-medium text-neutral-100">{recipe.name}</p>
+                    <p class="truncate text-xs font-medium text-neutral-100">
+                      {recipe.name}
+                      {#if recipe.id.startsWith("opusclip_")}<span class="ml-1 rounded-full border border-sky-400/20 bg-sky-400/10 px-1.5 py-0.5 text-[8px] uppercase tracking-wide text-sky-200">OpusClip</span>{/if}
+                    </p>
                     <p class="mt-1 line-clamp-2 text-[10px] leading-4 text-neutral-500">{recipe.description || "No description"}</p>
                     <p class="mt-2 truncate font-mono text-[9px] text-neutral-600">{recipe.id} · {recipe.source}{recipe.last_used_at ? ` · used ${recipe.use_count}×` : ""}</p>
                     <input
