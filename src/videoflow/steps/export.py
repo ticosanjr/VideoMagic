@@ -29,7 +29,7 @@ from videoflow.steps.registry import register_step
 class ExportParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    targets: list[Literal["resolve", "premiere", "kdenlive"]] = Field(
+    targets: list[Literal["resolve", "premiere", "kdenlive", "edl"]] = Field(
         default_factory=lambda: ["resolve", "premiere", "kdenlive"]
     )
     dialect: Dialect = "1.9"
@@ -76,7 +76,7 @@ class ExportStep(BaseStep):
             basename = unique_basename(
                 destination,
                 timestamped_basename(context.source),
-                (".fcpxml", ".xml", ".kdenlive", ".mp4"),
+                (".fcpxml", ".xml", ".kdenlive", ".edl", ".mp4"),
             )
         else:
             basename = fixed_basename(options.basename)

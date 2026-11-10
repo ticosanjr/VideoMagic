@@ -1,5 +1,25 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **OpusClip-style recipes.** `opusclip_auto_shorts`, `opusclip_auto_broll`,
+  and `opusclip_nle_bridge` map the OpusClip workflow onto native VideoFlow
+  steps, with a parity matrix in `docs/opusclip-parity.md`.
+- **Curation controls.** `virality_threshold`, per-Short hook/development/
+  climax/CTA arc labels, and curation provenance in `shorts.json`.
+- **Voice isolation.** Optional `audio.isolate` step with RNNoise,
+  DeepFilterNet, and Demucs backends, plus `transcribe.audio_source`.
+- **Dynamic reframe.** Smoothed crop keyframes, backend selection, and
+  split-screen/PiP layout parameters in `shorts.reframe`.
+- **Caption presets.** Hormozi, Beast, clean-white, and podcast-speaker
+  presets, with preset application in captions and render steps.
+- **Synthetic B-roll.** `broll.generate` writes generated images to the asset
+  library and to the license ledger.
+- **EDL and social metadata.** CMX 3600 export and
+  `delivery/social_descriptions.json` per platform.
+
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
 

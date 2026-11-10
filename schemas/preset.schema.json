@@ -908,7 +908,11 @@
           "enum": [
             "tiktok_bold",
             "minimalist_box",
-            "highlight_word"
+            "highlight_word",
+            "hormozi_bold",
+            "beast_highlight",
+            "clean_white",
+            "podcast_speaker"
           ],
           "title": "Subtitles Preset",
           "type": "string"
@@ -924,6 +928,13 @@
           "minimum": 1,
           "title": "Target Duration Min Sec",
           "type": "integer"
+        },
+        "virality_threshold": {
+          "default": 0.0,
+          "maximum": 100.0,
+          "minimum": 0.0,
+          "title": "Virality Threshold",
+          "type": "number"
         }
       },
       "title": "ShortsConfig",

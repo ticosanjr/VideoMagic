@@ -24,6 +24,7 @@ class MetadataPackParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     platform: Literal["youtube", "tiktok", "instagram", "linkedin"] = "youtube"
+    platforms: list[str] = Field(default_factory=list)
     tone: str = "engaging"
     hashtags: list[str] = Field(default_factory=list)
 
@@ -65,6 +66,40 @@ class MetadataPackStep(BaseStep):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(entries, indent=2) + "\n", encoding="utf-8")
         context.artifacts["metadata_pack"] = str(target)
+        platforms = options.platforms or [options.platform]
+        social: list[dict[str, object]] = []
+        for index, _ in enumerate(context.shorts):
+            per_platform: dict[str, object] = {}
+            for platform in platforms:
+                try:
+                    per_platform[platform] = generate_short_metadata(
+                        output=context.output,
+                        index=index,
+                        result=result,
+                        platform=platform,
+                        tone=options.tone,
+                        extra_hashtags=tuple(options.hashtags),
+                    )
+                except Exception as exc:
+                    context.warnings.append(
+                        f"Social metadata failed for Short {index} on {platform}: {exc}"
+                    )
+            if per_platform:
+                social.append({"short_index": index, "platforms": per_platform})
+        social_target = context.output / "delivery" / "social_descriptions.json"
+        social_target.write_text(
+            json.dumps(
+                {
+                    "ok": True,
+                    "platforms": platforms,
+                    "shorts": social,
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        context.artifacts["social_descriptions"] = str(social_target)
         io.report(100, f"{len(entries)} metadata record(s)")
 
 @register_step

@@ -206,10 +206,13 @@ test("focuses the jobs search with slash and clears with escape", async ({ page 
 
 test("shows recent commands in the palette", async ({ page }) => {
   await page.keyboard.press("Control+k");
-  await page.getByRole("textbox", { name: "Search commands" }).fill("timeline");
+  const input = page.getByRole("textbox", { name: "Search commands" });
+  await input.fill("timeline");
   await page.keyboard.press("Enter");
+  await expect(page.getByTestId("command-palette")).toHaveCount(0);
   await page.keyboard.press("Control+k");
-  await expect(page.getByRole("option").first()).toContainText("Recent");
+  await expect(input).toHaveValue("");
+  await expect(page.getByTestId("command-palette")).toContainText("Recent");
 });
 
 test("asks for confirmation before cancelling a job", async ({ page }) => {

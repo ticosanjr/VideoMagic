@@ -57,7 +57,15 @@ ReframeMode = Literal[
     "face_tracking",
     "auto_face_tracking_yolo",
 ]
-SubtitlePreset = Literal["tiktok_bold", "minimalist_box", "highlight_word"]
+SubtitlePreset = Literal[
+    "tiktok_bold",
+    "minimalist_box",
+    "highlight_word",
+    "hormozi_bold",
+    "beast_highlight",
+    "clean_white",
+    "podcast_speaker",
+]
 ShortsExportFormat = Literal["fcpxml_timeline", "standalone_mp4", "both"]
 ShortsSelectionMode = Literal["auto", "llm", "heuristic"]
 ShortsAspect = Literal["9:16", "1:1", "16:9"]
@@ -205,6 +213,7 @@ class ShortsConfig(StrictModel):
     filler_words: list[str] = Field(
         default_factory=lambda: ["hum", "hmm", "uh", "um", "ah", "eh", "erm", "er"]
     )
+    virality_threshold: float = Field(default=0.0, ge=0.0, le=100.0)
     reframe_mode: ReframeMode = "center_crop_9_16"
     aspect_ratio: ShortsAspect = "9:16"
     resolution: ShortsResolution = 1080

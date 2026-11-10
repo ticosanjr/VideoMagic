@@ -7,10 +7,11 @@ One timeline model, three NLE dialects, one optional render.
 | DaVinci Resolve | FCPXML 1.9 (1.10 optional) | typed XML builder | implemented |
 | Adobe Premiere Pro | FCP 7 XML (`xmeml`) | typed XML builder | implemented |
 | Kdenlive 23.04+ | native `.kdenlive` MLT XML | typed XML builder | implemented |
+| Legacy NLE / archive | CMX 3600 `.edl` | typed text builder | implemented |
 | Preview / main timeline / shorts | MP4 | FFmpeg | implemented |
 
 All exporters live in `src/videoflow/exporters/`. `export_timeline` writes the
-three timeline artifacts from one validated state.
+FCPXML, XMEML, Kdenlive, EDL, and optional MP4 artifacts from one validated state.
 
 ## 0. Native finishing inputs
 

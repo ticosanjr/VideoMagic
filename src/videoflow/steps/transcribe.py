@@ -49,6 +49,7 @@ class TranscribeParams(BaseModel):
     api_key_env: str = "VIDEOWFLOW_ASR_API_KEY"
     whisper_binary: str | None = None
     whisper_model: str | None = None
+    audio_source: Literal["source", "master", "isolated"] = "source"
 
 
 @register_step
@@ -231,8 +232,13 @@ class TranscribeStep(BaseStep):
                 )
         io.report(45, "Calling speech-to-text")
         adapter = adapter_for(context, io)
+        audio_path = Path(context.source)
+        if options.audio_source == "master":
+            audio_path = Path(context.artifacts.get("audio_master") or context.source)
+        elif options.audio_source == "isolated":
+            audio_path = Path(context.artifacts.get("audio_isolated") or context.source)
         wav = adapter.extract_pcm(
-            Path(context.source), context.work / "transcribe.wav", sample_rate=16000
+            audio_path, context.work / "transcribe.wav", sample_rate=16000
         )
         transcript = client.transcribe(wav, media.audio_sample_rate)
         if not transcript:

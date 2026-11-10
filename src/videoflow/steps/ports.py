@@ -188,6 +188,14 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         (PortSpec("media", "Media info", "media", "media", True),),
         (PortSpec("artifacts", "Audio master", "artifact_map", "artifacts"),),
     ),
+    "audio.isolate": (
+        (PortSpec("master", "Audio master", "audio", "artifacts:audio_master", False),),
+        (PortSpec("isolated", "Isolated voice", "audio", "artifacts:audio_isolated"),),
+    ),
+    "broll.generate": (
+        (PortSpec("shorts", "Shorts", "short_list", "shorts", True),),
+        (PortSpec("generated", "Generated B-roll", "json", "metadata:generated_broll"),),
+    ),
     "audio.qa": (
         (PortSpec("media", "Media info", "media", "media", True),),
         (PortSpec("artifacts", "Audio QA", "artifact_map", "artifacts"),),

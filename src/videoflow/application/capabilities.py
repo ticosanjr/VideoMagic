@@ -618,11 +618,12 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "visual_tracking",
             "Visual tracking",
             "editing",
-            "planned",
-            "Face/person tracking for reframing and layouts.",
-            "planned",
-            "planned",
-            requires=["optional vision model"],
+            "partial",
+            "Motion, OpenCV face tracking, smoothed crop keyframes, and "
+            "split-screen layouts. MediaPipe/YOLO remain optional.",
+            "POST /api/v1/recipes/run",
+            "videoflow_run_recipe",
+            requires=["optional OpenCV/MediaPipe/YOLO"],
         ),
         _entry(
             "dubbing",

@@ -118,6 +118,22 @@ class ShortsSelectStep(BaseStep):
             scene_intervals=scenes,
             weights=profile_weights(options.profile),
         )
+        if options.virality_threshold > 0 and selected:
+            above = [
+                clip
+                for clip in selected
+                if clip.virality_score >= options.virality_threshold
+            ]
+            if above:
+                selected = above
+            else:
+                best = max(selected, key=lambda clip: clip.virality_score)
+                warnings.append(
+                    "No Short reached the virality threshold "
+                    f"{options.virality_threshold}; keeping the best clip "
+                    f"({best.virality_score})."
+                )
+                selected = [best]
         if options.reframe_mode != "center_crop_9_16":
             warnings.append(
                 "reframe_mode is handled by the shorts.reframe step; "

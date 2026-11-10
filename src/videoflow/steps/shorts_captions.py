@@ -6,6 +6,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.caption_presets import apply_preset
 from videoflow.application.shorts import (
     build_ass,
     build_ass_lines,
@@ -25,6 +26,7 @@ class CaptionsParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool = True
+    preset: str = ""
     caption_style: CaptionStyle = Field(default_factory=CaptionStyle)
 
 
@@ -41,6 +43,10 @@ class CaptionsStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = CaptionsParams.model_validate(params)
+        if options.preset:
+            options = options.model_copy(
+                update={"caption_style": apply_preset(options.preset, options.caption_style)}
+            )
         media = require_media(context)
         if not options.enabled:
             context.short_captions = {}

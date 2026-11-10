@@ -30,6 +30,85 @@ def focus_x_from_frames(frames: np.ndarray) -> float:
     return max(0.05, min(0.95, centroid / max(1, len(weights) - 1)))
 
 
+def _face_centers(frames: np.ndarray) -> list[float | None]:
+    if len(frames) == 0:
+        return []
+    import cv2  # type: ignore[import-not-found]
+
+    cascade_path = Path(cv2.data.haarcascades) / "haarcascade_frontalface_default.xml"
+    detector = cv2.CascadeClassifier(str(cascade_path))
+    centers: list[float | None] = []
+    for frame in frames:
+        faces = detector.detectMultiScale(frame, scaleFactor=1.1, minNeighbors=4)
+        if not len(faces):
+            centers.append(None)
+            continue
+        x, _y, width, _height = max(
+            faces, key=lambda item: int(item[2]) * int(item[3])
+        )
+        centers.append((x + width / 2) / max(1, frame.shape[1]))
+    return centers
+
+
+def _motion_centers(frames: np.ndarray) -> list[float | None]:
+    if len(frames) < 2:
+        return [None for _ in range(len(frames))]
+    values = frames.astype(np.int16)
+    difference = np.abs(np.diff(values, axis=0))
+    mask = difference > 18
+    centers: list[float | None] = [None]
+    for index in range(mask.shape[0]):
+        weights = mask[index].sum(axis=0).astype(np.float64)
+        if weights.sum() <= 0:
+            centers.append(None)
+            continue
+        x = np.arange(len(weights), dtype=np.float64)
+        centroid = float((weights * x).sum() / weights.sum())
+        centers.append(centroid / max(1, len(weights) - 1))
+    return centers
+
+
+def track_focus_keyframes(
+    source: Path,
+    pieces: Sequence[tuple[int, int]],
+    sample_rate: int,
+    *,
+    mode: str = "motion_tracking",
+    smoothing: float = 0.85,
+    fps: int = 2,
+) -> tuple[list[dict[str, float]], str]:
+    """Return a smoothed focus path for dynamic reframing."""
+
+    frames = frames_from_pieces(source, pieces, sample_rate, fps=fps)
+    if len(frames) == 0:
+        return [{"time_sec": 0.0, "focus_x": 0.5}], "motion_tracking"
+    values: list[float | None] = []
+    used_mode = "motion_tracking"
+    if mode in {"face_tracking", "auto_face_tracking_yolo"}:
+        try:
+            values = _face_centers(frames)
+        except ImportError:
+            values = []
+        if any(value is not None for value in values):
+            used_mode = "face_tracking"
+    if not values or not any(value is not None for value in values):
+        values = _motion_centers(frames)
+        used_mode = "motion_tracking"
+    weight = max(0.0, min(0.99, float(smoothing)))
+    smoothed = 0.5
+    keyframes: list[dict[str, float]] = []
+    for index, value in enumerate(values):
+        target = value if value is not None else smoothed
+        smoothed = weight * smoothed + (1.0 - weight) * target
+        keyframes.append(
+            {
+                "time_sec": round(index / max(1, fps), 3),
+                "focus_x": round(max(0.05, min(0.95, smoothed)), 4),
+            }
+        )
+    return keyframes, used_mode
+
+
 def track_focus_x(
     source: Path,
     pieces: Sequence[tuple[int, int]],

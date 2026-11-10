@@ -383,6 +383,19 @@ fact-check, voice repair, sample homologation, and final approval. See
 [assets-licensing.md](assets-licensing.md), [motion-audio.md](motion-audio.md),
 and [factcheck-voice.md](factcheck-voice.md).
 
+### OpusClip-style recipes
+
+Three recipes map the OpusClip workflow onto native VideoFlow steps:
+
+| Recipe | Pipeline | Notes |
+| --- | --- | --- |
+| `opusclip_auto_shorts` | ingest → vad → audio.master → audio.isolate → transcribe → diarize → retakes → narrative → shorts.select → score → reframe → captions → render → timeline → metadata → export | Cleanup, curation, dynamic reframe, kinetic captions, and NLE export. |
+| `opusclip_auto_broll` | ingest → vad → transcribe → retakes → narrative → shorts.select → score → broll.generate → broll.plan → reframe → captions → render → timeline → export | Synthetic or local B-roll with license records. |
+| `opusclip_nle_bridge` | ingest → vad → transcribe → retakes → narrative → chapters → timeline → shorts.select → score → render → metadata → thumbnails → export → nle.qa → delivery.package | Long-form timeline, chapters, NLE exports, Shorts metadata, and delivery package. |
+
+`audio.isolate`, `broll.generate`, and the image endpoint are optional. Each
+step degrades with a warning when its backend is not configured.
+
 ## CLI
 
 ```bash

@@ -75,8 +75,12 @@ class ShortClip:
     virality_score: float = 0.0
     score_breakdown: tuple[tuple[str, float], ...] = ()
     filler_words_removed: tuple[str, ...] = ()
+    arc: str = ""
+    arc_reason: str = ""
+    curation_source: str = "heuristic"
     crop_focus_x: float = 0.5
     crop_focus_y: float = 0.5
+    crop_keyframes: tuple[tuple[float, float], ...] = ()
     energy_peaks: int = 0
     scene_changes: int = 0
     split_screen: bool = False
@@ -106,8 +110,12 @@ class ShortClip:
             "hook_start_sample": self.hook_start_sample,
             "hook_end_sample": self.hook_end_sample,
             "filler_words_removed": list(self.filler_words_removed),
+            "arc": self.arc,
+            "arc_reason": self.arc_reason,
+            "curation_source": self.curation_source,
             "crop_focus_x": round(self.crop_focus_x, 4),
             "crop_focus_y": round(self.crop_focus_y, 4),
+            "crop_keyframes": [[round(t, 3), round(x, 4)] for t, x in self.crop_keyframes],
             "energy_peaks": self.energy_peaks,
             "scene_changes": self.scene_changes,
             "split_screen": self.split_screen,
@@ -157,8 +165,16 @@ def short_clip_from_dict(payload: dict[str, object]) -> ShortClip:
         virality_score=float(payload.get("virality_score", 0.0)),
         score_breakdown=score_breakdown,
         filler_words_removed=tuple(str(item) for item in filler),  # type: ignore[union-attr]
+        arc=str(payload.get("arc") or ""),
+        arc_reason=str(payload.get("arc_reason") or ""),
+        curation_source=str(payload.get("curation_source") or "heuristic"),
         crop_focus_x=float(payload.get("crop_focus_x", 0.5)),
         crop_focus_y=float(payload.get("crop_focus_y", 0.5)),
+        crop_keyframes=tuple(
+            (float(item[0]), float(item[1]))
+            for item in (payload.get("crop_keyframes") or [])
+            if isinstance(item, (list, tuple)) and len(item) >= 2
+        ),
         energy_peaks=int(payload.get("energy_peaks", 0)),
         scene_changes=int(payload.get("scene_changes", 0)),
         split_screen=bool(payload.get("split_screen", False)),
@@ -261,6 +277,15 @@ def select_shorts(
     if remove_fillers:
         selected = _apply_fillers(selected, sentences, filler_words)
     selected.sort(key=lambda item: item.start_sample)
+    selected = [
+        replace(
+            clip,
+            arc=arc,
+            arc_reason=reason,
+        )
+        for index, clip in enumerate(selected)
+        for arc, reason in [_arc_for(clip.title, index=index, total=len(selected))]
+    ]
     if len(selected) < min_clips:
         notes.append(
             f"Only {len(selected)} shorts could be selected; configured minimum is {min_clips}"
@@ -456,6 +481,53 @@ def slugify(value: str, index: int) -> str:
     return f"{index:02d}-{slug[:40] or 'short'}"
 
 
+def _arc_for(
+    text: str, *, index: int, total: int
+) -> tuple[str, str]:
+    """Return a lightweight hook/development/climax/CTA label for a Short."""
+
+    lowered = text.casefold()
+    cta_markers = (
+        "comenta",
+        "salva",
+        "segue",
+        "inscreve",
+        "subscribe",
+        "comment",
+        "save",
+        "follow",
+        "like",
+        "link",
+    )
+    hook_markers = ("como", "why", "por que", "você", "voce", "imagina", "segredo")
+    climax_markers = (
+        "resultado",
+        "result",
+        "consegui",
+        "descobri",
+        "maior",
+        "milhão",
+        "milhao",
+        "milhões",
+        "milhoes",
+        "%",
+    )
+    if any(marker in lowered for marker in cta_markers):
+        return "cta", "contains a call to action"
+    if index == 0 and (
+        text.rstrip().endswith("?")
+        or any(marker in lowered for marker in hook_markers)
+    ):
+        return "hook", "opens with a question or hook marker"
+    if any(marker in lowered for marker in climax_markers) or text.rstrip().endswith(
+        "!"
+    ):
+        return "climax", "contains a payoff, metric, or exclamation"
+    if index == max(0, total - 1) and total > 1:
+        return "cta", "closes the selected set"
+    return "development", "middle of the selected set"
+
+
 def _heuristic(
     sentences: Sequence[Sentence],
     *,
@@ -538,6 +610,7 @@ def _heuristic(
                 score_breakdown=tuple(breakdown),
                 energy_peaks=energy_count,
                 scene_changes=scene_count,
+                curation_source="heuristic",
             )
         )
     candidates.sort(key=lambda item: item.score, reverse=True)
@@ -775,6 +848,7 @@ def previous_shorts_from_report(path: Path) -> list[ShortClip]:
                 sentence_ids=sentence_ids,
                 pieces=pieces,
                 score=float(item.get("score", 0.0)),
+                curation_source="llm",
             )
         )
     return clips
@@ -933,6 +1007,7 @@ def _from_llm(
                 score_breakdown=tuple(breakdown),
                 energy_peaks=energy_count,
                 scene_changes=scene_count,
+                curation_source="llm",
             )
         )
     return clips

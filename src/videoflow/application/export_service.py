@@ -9,19 +9,21 @@ from typing import Any, Literal
 from videoflow import plugin_api
 from videoflow.domain.errors import ExportError
 from videoflow.domain.state import ProjectState
+from videoflow.exporters.edl import export_edl
 from videoflow.exporters.extras import EMPTY, NleExtras
 from videoflow.exporters.fcpxml import Dialect, export_fcpxml
 from videoflow.exporters.kdenlive import export_kdenlive
 from videoflow.exporters.mp4 import export_mp4
 from videoflow.exporters.xmeml import export_xmeml
 
-Target = Literal["resolve", "premiere", "kdenlive", "mp4"]
+Target = Literal["resolve", "premiere", "kdenlive", "edl", "mp4"]
 DEFAULT_TARGETS: tuple[Target, ...] = ("resolve", "premiere", "kdenlive")
 
 FILENAMES: dict[str, str] = {
     "resolve": "timeline.fcpxml",
     "premiere": "timeline.xml",
     "kdenlive": "timeline.kdenlive",
+    "edl": "timeline.edl",
     "mp4": "timeline.mp4",
 }
 
@@ -29,6 +31,7 @@ SUFFIXES: dict[str, str] = {
     "resolve": ".fcpxml",
     "premiere": ".xml",
     "kdenlive": ".kdenlive",
+    "edl": ".edl",
     "mp4": ".mp4",
 }
 
@@ -81,6 +84,8 @@ def export_timeline(
             artifacts[target] = export_xmeml(state, destination, extras=extras)
         elif target == "kdenlive":
             artifacts[target] = export_kdenlive(state, destination, extras=extras)
+        elif target == "edl":
+            artifacts[target] = export_edl(state, destination)
         else:
             artifacts[target] = export_mp4(
                 state,

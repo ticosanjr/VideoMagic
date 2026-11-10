@@ -66,6 +66,17 @@ class BrollStep(BaseStep):
         if not context.selected_shorts:
             io.report(100, "No Shorts selected")
             return
+        generated = context.metadata.get("generated_broll")
+        if (
+            options.provider == "local"
+            and not options.asset_dir
+            and isinstance(generated, list)
+            and generated
+            and isinstance(generated[0], dict)
+        ):
+            options = options.model_copy(
+                update={"asset_dir": str(Path(str(generated[0]["path"])).parent)}
+            )
         provider = self._provider(options, context)
         if provider is None:
             context.metadata["broll_plan"] = {}

@@ -456,3 +456,12 @@ def test_brand_vocabulary_rewrites_caption_text() -> None:
     )
     assert "VideoFlow" in ass
     assert "video flow" not in ass.lower()
+
+
+def test_arc_labels_cover_hook_climax_and_cta() -> None:
+    from videoflow.application.shorts import _arc_for
+
+    assert _arc_for("Por que isso funciona?", index=0, total=3)[0] == "hook"
+    assert _arc_for("O resultado foi 3x maior!", index=1, total=3)[0] == "climax"
+    assert _arc_for("Comenta e segue para mais", index=2, total=3)[0] == "cta"
+    assert _arc_for("Um detalhe do meio", index=1, total=3)[0] == "development"

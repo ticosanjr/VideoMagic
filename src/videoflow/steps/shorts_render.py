@@ -8,6 +8,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.application.broll_approval import load_approvals
+from videoflow.application.caption_presets import apply_preset
 from videoflow.application.fonts import fonts_dir
 from videoflow.application.shorts import (
     build_ass,
@@ -35,6 +36,7 @@ class RenderShortsParams(BaseModel):
     second_source_path: str | None = None
     mix_second_audio: bool = False
     broll_enabled: bool = True
+    preset: str = ""
     caption_style: CaptionStyle = Field(default_factory=CaptionStyle)
     audio_filters: list[str] = Field(default_factory=list)
     overlay_path: str | None = None
@@ -64,6 +66,10 @@ class RenderShortsStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = RenderShortsParams.model_validate(params)
+        if options.preset:
+            options = options.model_copy(
+                update={"caption_style": apply_preset(options.preset, options.caption_style)}
+            )
         media = require_media(context)
         if not context.selected_shorts:
             io.report(100, "No Shorts selected")

@@ -122,6 +122,7 @@ Every stub has a strict `xfail` contract in `tests/contract/`.
 | [Timebase](timebase.md) | You are touching frames, samples, pads, or exports |
 | [Pipeline](pipeline.md) | You are implementing or debugging a run |
 | [Recipes](recipes.md) | You are authoring, validating, or running a recipe DAG |
+| [OpusClip parity](opusclip-parity.md) | You are comparing the OpusClip feature set or running the OpusClip-style recipes |
 | [Cache](cache.md) | A rerun is slower than it should be |
 | [Testing](testing.md) | You are adding tests or running a release gate |
 | [API](api.md) | You are wiring the UI or a script |

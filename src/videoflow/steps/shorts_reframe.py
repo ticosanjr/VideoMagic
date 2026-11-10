@@ -6,9 +6,9 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
-from videoflow.application.tracking import track_focus_x
+from videoflow.application.tracking import track_focus_keyframes, track_focus_x
 from videoflow.core.context import PipelineContext
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload, require_media
@@ -27,6 +27,10 @@ class ReframeParams(BaseModel):
 
     mode: ReframeMode = "center_crop_9_16"
     split_screen_on_dialogue: bool = False
+    tracking_backend: Literal["auto", "opencv_haar", "mediapipe", "yolo"] = "auto"
+    smoothing_factor: float = Field(default=0.85, ge=0.0, le=0.99)
+    dynamic_crop: bool = False
+    layout: Literal["single", "split_screen", "pip"] = "single"
 
 
 @register_step
@@ -57,7 +61,11 @@ class ReframeStep(BaseStep):
                 for sentence in context.transcript
                 if sentence.id in set(clip.sentence_ids)
             }
-            split = options.split_screen_on_dialogue and len(speakers) > 1
+            split = options.layout == "split_screen" or (
+                options.layout == "single"
+                and options.split_screen_on_dialogue
+                and len(speakers) > 1
+            )
             return replace(
                 clip,
                 crop_focus_x=focus,
@@ -93,20 +101,50 @@ class ReframeStep(BaseStep):
         total = max(1, len(context.selected_shorts))
         for index, clip in enumerate(context.selected_shorts):
             io.check_cancel()
-            focus, used_mode = track_focus_x(
-                Path(context.source),
-                clip.pieces,
-                media.audio_sample_rate,
-                mode=options.mode,
-            )
+            tracking_mode = options.mode
+            if options.tracking_backend in {"mediapipe", "yolo"}:
+                tracking_mode = "auto_face_tracking_yolo"
+            elif options.tracking_backend == "opencv_haar":
+                tracking_mode = "face_tracking"
+            keyframes: list[dict[str, float]] = []
+            if options.dynamic_crop:
+                keyframes, used_mode = track_focus_keyframes(
+                    Path(context.source),
+                    clip.pieces,
+                    media.audio_sample_rate,
+                    mode=tracking_mode,
+                    smoothing=options.smoothing_factor,
+                )
+                focus = (
+                    sum(item["focus_x"] for item in keyframes) / len(keyframes)
+                    if keyframes
+                    else 0.5
+                )
+            else:
+                focus, used_mode = track_focus_x(
+                    Path(context.source),
+                    clip.pieces,
+                    media.audio_sample_rate,
+                    mode=tracking_mode,
+                )
             if used_mode != options.mode:
                 context.warnings.append(
                     f"{options.mode} unavailable; used {used_mode}"
                 )
             updated = with_split(clip, focus)
+            if keyframes:
+                updated = replace(
+                    updated,
+                    crop_keyframes=tuple(
+                        (item["time_sec"], item["focus_x"]) for item in keyframes
+                    ),
+                )
             tracked.append(updated)
             if index < len(context.shorts):
                 context.shorts[index]["crop_focus_x"] = round(focus, 4)
+                context.shorts[index]["crop_keyframes"] = [
+                    [item["time_sec"], item["focus_x"]] for item in keyframes
+                ]
                 context.shorts[index]["split_screen"] = updated.split_screen
                 context.shorts[index]["split_screen_focus_left"] = (
                     updated.split_screen_focus_left
