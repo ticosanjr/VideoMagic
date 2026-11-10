@@ -131,6 +131,8 @@
     ),
     { id: "action:notices", title: "Open notifications", group: "View", keywords: "alerts errors", shortcut: "N" },
     { id: "action:activity", title: "Open activity drawer", group: "View", keywords: "running queue", shortcut: "U" },
+    { id: "action:theme", title: "Cycle theme", group: "View", keywords: "dark light contrast system" },
+    { id: "action:search-jobs", title: "Search jobs", group: "Jobs", keywords: "filter find", shortcut: "/" },
     { id: "action:shortcuts", title: "Show keyboard shortcuts", group: "Help", keywords: "keys help", shortcut: "?" },
     { id: "action:refresh", title: "Refresh jobs", group: "Jobs", keywords: "reload queue" },
     { id: "action:builder:add-step", title: "Recipe: add step", group: "Recipe builder", keywords: "node step palette", shortcut: "A" },
@@ -240,6 +242,13 @@
     }
     if (command.id === "action:notices") noticesOpen = true;
     else if (command.id === "action:activity") activityOpen = true;
+    else if (command.id === "action:theme") void cycleTheme();
+    else if (command.id === "action:search-jobs") {
+      selectTab("jobs");
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new CustomEvent("videoflow:focus-jobs-search"));
+      });
+    }
     else if (command.id === "action:shortcuts") shortcutsOpen = true;
     else if (command.id === "action:refresh") void refreshJobs();
     else if (command.id === "action:support") window.open("/api/v1/system/support-bundle", "_blank");
