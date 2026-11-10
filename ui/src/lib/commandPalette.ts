@@ -7,6 +7,37 @@ export interface Command {
   shortcut?: string;
 }
 
+export const RECENT_LIMIT = 5;
+
+export function recordRecentCommand(
+  recentIds: string[],
+  id: string,
+  limit = RECENT_LIMIT
+): string[] {
+  return [id, ...recentIds.filter((item) => item !== id)].slice(0, limit);
+}
+
+export function withRecentCommands(
+  commands: Command[],
+  recentIds: string[],
+  limit = RECENT_LIMIT
+): Command[] {
+  if (!recentIds.length) return commands;
+  const byId = new Map(commands.map((command) => [command.id, command]));
+  const seen = new Set<string>();
+  const recent: Command[] = [];
+  for (const id of recentIds) {
+    if (seen.has(id)) continue;
+    const command = byId.get(id);
+    if (!command) continue;
+    seen.add(id);
+    recent.push({ ...command, group: "Recent" });
+    if (recent.length >= limit) break;
+  }
+  if (!recent.length) return commands;
+  return [...recent, ...commands.filter((command) => !seen.has(command.id))];
+}
+
 function score(command: Command, needle: string): number {
   const title = command.title.toLowerCase();
   if (title.startsWith(needle)) return 0;

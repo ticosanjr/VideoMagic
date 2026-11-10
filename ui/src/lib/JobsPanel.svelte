@@ -204,6 +204,18 @@
       busy = "";
     }
   }
+
+  async function copyText(value: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      notifications.push({ kind: "success", title: `${label} copied` });
+    } catch {
+      notifications.push({
+        kind: "error",
+        title: `Could not copy ${label.toLowerCase()}`
+      });
+    }
+  }
 </script>
 
 <section class="space-y-4">
@@ -264,7 +276,21 @@
                   <span class="rounded-full border border-white/10 px-2 py-0.5 font-mono text-[10px] text-neutral-400">{job.result.recipe_id}</span>
                 {/if}
               </div>
-              <p class="mt-1 truncate font-mono text-[10px] text-neutral-600">{job.job_id}</p>
+              <div class="mt-1 flex flex-wrap items-center gap-2">
+                <p class="truncate font-mono text-[10px] text-neutral-600">{job.job_id}</p>
+                <button
+                  type="button"
+                  class="rounded border border-white/10 px-1.5 py-0.5 text-[9px] text-neutral-400 hover:border-sky-500/40 hover:text-sky-200"
+                  onclick={() => void copyText(job.job_id, "Job ID")}
+                >Copy ID</button>
+                {#if job.output}
+                  <button
+                    type="button"
+                    class="rounded border border-white/10 px-1.5 py-0.5 text-[9px] text-neutral-400 hover:border-sky-500/40 hover:text-sky-200"
+                    onclick={() => void copyText(job.output, "Output path")}
+                  >Copy output</button>
+                {/if}
+              </div>
             </div>
             <div class="text-right text-[10px] text-neutral-500">
               <p>created {formatDateTime(job.created_at)}</p>

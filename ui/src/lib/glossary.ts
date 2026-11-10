@@ -58,6 +58,8 @@ export const GLOSSARY: Record<string, string> = {
   "Favorites": "Favoritos",
   "More": "Mais",
   "Recent": "Recentes",
+  "Copy ID": "Copiar ID",
+  "Copy output": "Copiar saída",
   "Recipe config": "Configuração da receita",
   "Rename": "Renomear",
   "Update": "Atualizar",

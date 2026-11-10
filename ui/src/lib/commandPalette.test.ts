@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   filterCommands,
   moveActiveIndex,
+  recordRecentCommand,
+  withRecentCommands,
   type Command
 } from "./commandPalette";
 
@@ -45,5 +47,47 @@ describe("moveActiveIndex", () => {
 
   it("stays at zero for empty lists", () => {
     expect(moveActiveIndex(4, 0, 1)).toBe(0);
+  });
+});
+
+describe("recordRecentCommand", () => {
+  it("moves an existing command to the front", () => {
+    expect(recordRecentCommand(["a", "b", "c"], "b")).toEqual(["b", "a", "c"]);
+  });
+
+  it("caps the list at the limit", () => {
+    expect(recordRecentCommand(["a", "b", "c", "d", "e"], "f")).toEqual([
+      "f",
+      "a",
+      "b",
+      "c",
+      "d"
+    ]);
+  });
+});
+
+describe("withRecentCommands", () => {
+  it("returns the original list without recent ids", () => {
+    expect(withRecentCommands(COMMANDS, [])).toBe(COMMANDS);
+  });
+
+  it("places recent commands first with a Recent group", () => {
+    const result = withRecentCommands(COMMANDS, ["tab:jobs", "action:backup"]);
+    expect(result.slice(0, 2).map((command) => command.id)).toEqual([
+      "tab:jobs",
+      "action:backup"
+    ]);
+    expect(result[0].group).toBe("Recent");
+    expect(result).toHaveLength(COMMANDS.length);
+  });
+
+  it("ignores unknown and duplicate recent ids", () => {
+    const result = withRecentCommands(COMMANDS, [
+      "missing",
+      "tab:timeline",
+      "tab:timeline"
+    ]);
+    expect(result[0].id).toBe("tab:timeline");
+    expect(result).toHaveLength(COMMANDS.length);
   });
 });

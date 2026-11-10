@@ -1,6 +1,6 @@
 <script lang="ts">
   import { focusTrap } from "$lib/a11y";
-  import { filterCommands, moveActiveIndex, type Command } from "$lib/commandPalette";
+  import { filterCommands, moveActiveIndex, withRecentCommands, type Command } from "$lib/commandPalette";
   import { restoreFocus } from "$lib/a11y";
   import { i18n } from "$lib/i18n.svelte";
   import { portal } from "$lib/portal";
@@ -8,11 +8,13 @@
   let {
     open = false,
     commands = [],
+    recentIds = [],
     onrun,
     onclose
   }: {
     open?: boolean;
     commands?: Command[];
+    recentIds?: string[];
     onrun: (command: Command) => void;
     onclose: () => void;
   } = $props();
@@ -22,7 +24,12 @@
   let input = $state<HTMLInputElement | null>(null);
   let previousFocus: HTMLElement | null = null;
 
-  const results = $derived(filterCommands(commands, query));
+  const results = $derived(
+    filterCommands(
+      query.trim() ? commands : withRecentCommands(commands, recentIds),
+      query
+    )
+  );
 
   $effect(() => {
     if (open) {

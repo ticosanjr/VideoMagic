@@ -24,6 +24,7 @@
   import Logo from "$lib/ui/Logo.svelte";
   import { errorMessage, getSettings, getSystem, listJobs, restartService, retryJob, stopService, type Job, type SystemInfo } from "$lib/api";
   import type { Command } from "$lib/commandPalette";
+  import { recordRecentCommand } from "$lib/commandPalette";
   import { t } from "$lib/i18n";
   import { i18n } from "$lib/i18n.svelte";
   import { translateTree } from "$lib/domI18n";
@@ -91,6 +92,7 @@
   let locale = $state("en");
   let allowedHosts = $state("");
   let paletteOpen = $state(false);
+  let recentCommands = $state<string[]>([]);
   let shortcutsOpen = $state(false);
   let activityOpen = $state(false);
   let noticesOpen = $state(false);
@@ -217,6 +219,8 @@
 
   function runCommand(command: Command) {
     paletteOpen = false;
+    recentCommands = recordRecentCommand(recentCommands, command.id);
+    localStorage.setItem("videoflow.recent-commands", JSON.stringify(recentCommands));
     if (command.id.startsWith("area:")) {
       const area = command.id.slice(5) as AreaId;
       selectTab(defaultTabForArea(area));
@@ -449,6 +453,16 @@
   }
 
   onMount(() => {
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem("videoflow.recent-commands") ?? "[]"
+      );
+      if (Array.isArray(saved)) {
+        recentCommands = saved.filter((item) => typeof item === "string").slice(0, 5);
+      }
+    } catch {
+      recentCommands = [];
+    }
     if (!window.location.hash) {
       const saved = localStorage.getItem("videoflow.tab");
       if (saved && isTabId(saved)) {
@@ -783,6 +797,7 @@
 <CommandPalette
   open={paletteOpen}
   {commands}
+  recentIds={recentCommands}
   onrun={runCommand}
   onclose={() => (paletteOpen = false)}
 />
