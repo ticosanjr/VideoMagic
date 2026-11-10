@@ -282,6 +282,14 @@
       shortcutsOpen = true;
       return;
     }
+    if (event.key === "/") {
+      event.preventDefault();
+      if (activeTab !== "jobs") selectTab("jobs");
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new CustomEvent("videoflow:focus-jobs-search"));
+      });
+      return;
+    }
     if (event.key.toLowerCase() === "n") {
       noticesOpen = !noticesOpen;
       return;

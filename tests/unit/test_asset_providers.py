@@ -4,6 +4,8 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
 from videoflow.application.asset_providers import (
     AssetCandidate,
     classify_license,
@@ -13,7 +15,13 @@ from videoflow.application.asset_providers import (
     search_assets,
     write_ledger,
 )
+from videoflow.application.asset_providers.download import (
+    _clip_bounds,
+    _download_http,
+    _download_youtube,
+)
 from videoflow.application.settings import AppSettings
+from videoflow.domain.errors import CapabilityUnavailableError, IngestError
 
 
 def _candidate(**overrides) -> AssetCandidate:
@@ -141,3 +149,198 @@ def test_youtube_clip_is_short(monkeypatch, tmp_path: Path) -> None:
     assert result.clip_start_sec == 60.0
     assert result.clip_end_sec == 75.0
     assert result.sha256
+
+
+def test_clip_bounds_for_youtube_candidates() -> None:
+    youtube = _candidate(provider="youtube", duration_sec=600)
+    assert _clip_bounds(youtube, 15) == (60.0, 75.0)
+    assert _clip_bounds(_candidate(provider="pexels"), 15) == (0.0, 0.0)
+    assert _clip_bounds(_candidate(provider="youtube", duration_sec=10), 15) == (
+        0.0,
+        10.0,
+    )
+    assert _clip_bounds(_candidate(provider="youtube", duration_sec=0), 15) == (
+        0.0,
+        15.0,
+    )
+    explicit = _candidate(provider="youtube", duration_sec=100, clip_start_sec=99)
+    assert _clip_bounds(explicit, 15) == (85.0, 100.0)
+
+
+class _StreamResponse:
+    def __init__(self, status_code=200, chunks=(b"video",)) -> None:
+        self.status_code = status_code
+        self._chunks = chunks
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args) -> None:
+        return None
+
+    def iter_bytes(self):
+        yield from self._chunks
+
+
+def test_download_http_writes_atomically(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(
+        "videoflow.application.asset_providers.download.assert_public_url",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "videoflow.application.asset_providers.download.ensure_external_allowed",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "videoflow.application.asset_providers.download.httpx.stream",
+        lambda *args, **kwargs: _StreamResponse(),
+    )
+    target = tmp_path / "nested" / "clip.mp4"
+    result = _download_http(
+        "https://cdn.example.com/clip.mp4",
+        target,
+        settings=AppSettings(),
+        allow_external_services=True,
+        allowed_external_hosts=(),
+    )
+    assert result == target
+    assert target.read_bytes() == b"video"
+    assert not target.with_name("clip.mp4.part").exists()
+
+
+def test_download_http_rejects_http_errors(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(
+        "videoflow.application.asset_providers.download.assert_public_url",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "videoflow.application.asset_providers.download.ensure_external_allowed",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "videoflow.application.asset_providers.download.httpx.stream",
+        lambda *args, **kwargs: _StreamResponse(status_code=404),
+    )
+    with pytest.raises(IngestError, match="HTTP 404"):
+        _download_http(
+            "https://cdn.example.com/clip.mp4",
+            tmp_path / "clip.mp4",
+            settings=AppSettings(),
+            allow_external_services=True,
+            allowed_external_hosts=(),
+        )
+
+
+def test_download_http_enforces_the_size_limit(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(
+        "videoflow.application.asset_providers.download.assert_public_url",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "videoflow.application.asset_providers.download.ensure_external_allowed",
+        lambda *args, **kwargs: None,
+    )
+
+    class Huge(bytes):
+        def __len__(self) -> int:
+            return 2 * 1024 * 1024 * 1024 + 1
+
+    monkeypatch.setattr(
+        "videoflow.application.asset_providers.download.httpx.stream",
+        lambda *args, **kwargs: _StreamResponse(chunks=(Huge(b"x"),)),
+    )
+    with pytest.raises(IngestError, match="2 GB"):
+        _download_http(
+            "https://cdn.example.com/clip.mp4",
+            tmp_path / "clip.mp4",
+            settings=AppSettings(),
+            allow_external_services=True,
+            allowed_external_hosts=(),
+        )
+
+
+def test_download_youtube_runs_ytdlp(monkeypatch, tmp_path: Path) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        Path(str(tmp_path / "clip.mp4")).write_bytes(b"excerpt")
+        return type("Completed", (), {"returncode": 0, "stderr": ""})()
+
+    monkeypatch.setattr(
+        "videoflow.application.asset_providers.download.find_binary",
+        lambda name: "/usr/bin/ffmpeg" if name == "ffmpeg" else "/usr/bin/yt-dlp",
+    )
+    monkeypatch.setattr(
+        "videoflow.application.asset_providers.download.subprocess.run", fake_run
+    )
+    candidate = _candidate(
+        provider="youtube",
+        duration_sec=600,
+        page_url="https://www.youtube.com/watch?v=abc",
+    )
+    path, start, end = _download_youtube(
+        candidate,
+        tmp_path / "clip.mp4",
+        settings=AppSettings(),
+        allow_external_services=True,
+        allowed_external_hosts=(),
+        clip_seconds=15,
+    )
+    assert path == tmp_path / "clip.mp4"
+    assert (start, end) == (60.0, 75.0)
+    assert "--ffmpeg-location" in calls[0]
+    assert calls[0][-1] == "https://www.youtube.com/watch?v=abc"
+
+
+def test_download_youtube_reports_failures(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(
+        "videoflow.application.asset_providers.download.find_binary",
+        lambda name: "/usr/bin/yt-dlp",
+    )
+    monkeypatch.setattr(
+        "videoflow.application.asset_providers.download.subprocess.run",
+        lambda *args, **kwargs: type(
+            "Completed", (), {"returncode": 1, "stderr": "boom"}
+        )(),
+    )
+    with pytest.raises(IngestError, match="boom"):
+        _download_youtube(
+            _candidate(provider="youtube"),
+            tmp_path / "clip.mp4",
+            settings=AppSettings(),
+            allow_external_services=True,
+            allowed_external_hosts=(),
+            clip_seconds=15,
+        )
+
+    monkeypatch.setattr(
+        "videoflow.application.asset_providers.download.subprocess.run",
+        lambda *args, **kwargs: type(
+            "Completed", (), {"returncode": 0, "stderr": ""}
+        )(),
+    )
+    with pytest.raises(IngestError, match="without a media file"):
+        _download_youtube(
+            _candidate(provider="youtube"),
+            tmp_path / "missing.mp4",
+            settings=AppSettings(),
+            allow_external_services=True,
+            allowed_external_hosts=(),
+            clip_seconds=15,
+        )
+
+
+def test_download_youtube_requires_ytdlp(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(
+        "videoflow.application.asset_providers.download.find_binary", lambda name: None
+    )
+    with pytest.raises(CapabilityUnavailableError):
+        _download_youtube(
+            _candidate(provider="youtube"),
+            tmp_path / "clip.mp4",
+            settings=AppSettings(),
+            allow_external_services=True,
+            allowed_external_hosts=(),
+            clip_seconds=15,
+        )

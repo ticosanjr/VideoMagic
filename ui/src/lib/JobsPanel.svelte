@@ -45,6 +45,7 @@
   let busy = $state("");
   let confirmCancel = $state("");
   let dags = $state<Record<string, RunDag>>({});
+  let searchInput = $state<HTMLInputElement | null>(null);
 
   async function toggleDag(job: Job) {
     if (dags[job.job_id]) {
@@ -76,10 +77,18 @@
 
   onMount(() => {
     void refresh();
+    const focusSearch = () => {
+      searchInput?.focus();
+      searchInput?.select();
+    };
+    window.addEventListener("videoflow:focus-jobs-search", focusSearch);
     timer = setInterval(() => {
       if (!document.hidden) void refresh();
     }, 4000);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("videoflow:focus-jobs-search", focusSearch);
+    };
   });
 
   async function refresh() {
@@ -226,10 +235,18 @@
     </div>
     <div class="flex items-center gap-2">
       <input
+        bind:this={searchInput}
         bind:value={query}
         type="search"
         placeholder={i18n.t("search_jobs")}
         aria-label="Search jobs"
+        title="Search jobs (/)"
+        onkeydown={(event) => {
+          if (event.key === "Escape") {
+            query = "";
+            event.currentTarget.blur();
+          }
+        }}
         class="w-56 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-xs text-neutral-200 placeholder:text-neutral-600 focus:border-sky-500/50 focus:outline-none"
       />
       <button
