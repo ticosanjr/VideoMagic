@@ -58,7 +58,7 @@ def test_full_ai_editor_research_phase_runs_after_the_brief(
         "Corruption court records and a property investigation.", encoding="utf-8"
     )
     monkeypatch.setattr(
-        "videoflow.steps.research.load_settings",
+        "videoflow.steps.research.agent.load_settings",
         lambda: AppSettings(
             search=SearchSettings(
                 local_paths=[str(corpus)], providers=["local"], fetch_pages=1

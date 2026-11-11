@@ -88,7 +88,7 @@ def test_research_consolidate_and_script(tmp_path: Path, monkeypatch) -> None:
         encoding="utf-8",
     )
     monkeypatch.setattr(
-        "videoflow.steps.research.load_settings",
+        "videoflow.steps.research.agent.load_settings",
         lambda: AppSettings(
             search=SearchSettings(
                 local_paths=[str(corpus)],
@@ -129,7 +129,7 @@ def test_research_and_script_fallbacks_without_llm(tmp_path: Path, monkeypatch) 
     corpus.mkdir()
     (corpus / "case.md").write_text("Corruption court record.", encoding="utf-8")
     monkeypatch.setattr(
-        "videoflow.steps.research.load_settings",
+        "videoflow.steps.research.agent.load_settings",
         lambda: AppSettings(
             search=SearchSettings(
                 local_paths=[str(corpus)], providers=["local"], fetch_pages=1
