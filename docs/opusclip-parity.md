@@ -11,7 +11,7 @@ supplied ComfyUI workflows onto the step registry.
 | F01 | Speech cleanup and voice isolation | Partial | `audio.master`, `audio.vad`, `audio.isolate`, `edit.timeline` filler cuts. Source separation is optional and falls back to the mastered audio. |
 | F02 | Transcription and alignment | Mostly complete | `transcribe` word timestamps, `audio.diarize`, `edit.drift`, and optional `alignment.forced` for imported SRT. Auto language is supported by faster-whisper. |
 | F03 | AI clipping and virality | Partial | `shorts.select`, `shorts.score` with heuristic/LLM/hybrid modes, `narrative.beats`, explainable 0–100 score, `virality_threshold`, arc labels, and LLM justification. |
-| F04 | Reframe and face tracking | Partial | `shorts.reframe` with motion, OpenCV Haar, smoothed crop keyframes, split-screen, and per-piece focus in the renderer. Per-frame crop and MediaPipe/YOLO remain optional. |
+| F04 | Reframe and face tracking | Partial | `shorts.reframe` with motion, OpenCV Haar, optional MediaPipe/YOLO face centers, smoothed crop keyframes, split-screen, and a per-frame FFmpeg crop expression. Optional backends fall back to motion. |
 | F05 | Kinetic captions | Mostly complete | `shorts.captions` karaoke, keyword highlight, emoji, speaker colors, `caption_presets`, ASS renderer. |
 | F06 | AI B-roll | Partial | `broll.generate`, `broll.plan`, `assets.*`, `assets.match`, overlay/PiP render. |
 | F07 | Timeline and NLE export | Mostly complete | `edit.timeline`, `export.nle` FCPXML/XMEML/Kdenlive/EDL, `export.video`, `nle.qa`, `delivery.package`, `metadata.pack` social sidecar. |
