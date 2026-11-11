@@ -4,7 +4,7 @@
   "name": "OpusClip-style Auto B-roll",
   "description": "Viral Shorts with entity-aware stock or local B-roll planning, reframing, kinetic captions, render, and NLE export.",
   "llm": {
-    "provider": "none",
+    "provider": "auto",
     "base_url": null,
     "model": "",
     "api_key_env": "VIDEOWFLOW_LLM_API_KEY",
@@ -101,7 +101,8 @@
       "params": {
         "profile": "tiktok",
         "top_k": 3,
-        "use_llm": true
+        "use_llm": true,
+        "score_mode": "hybrid"
       }
     },
     {
@@ -109,8 +110,9 @@
       "type": "broll.generate",
       "needs": ["score"],
       "params": {
+        "provider": "opencode_v2",
         "base_url": "",
-        "model": "flux1-schnell",
+        "model": "",
         "count": 2,
         "width": 1024,
         "height": 1024,

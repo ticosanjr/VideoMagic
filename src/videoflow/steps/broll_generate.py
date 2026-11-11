@@ -16,8 +16,9 @@ from videoflow.application.asset_providers import (
     write_ledger_from_payload,
 )
 from videoflow.application.assets import scan_directory
-from videoflow.application.image_gen import generate_image
+from videoflow.application.image_gen import generate_image as generate_openai_image
 from videoflow.application.images import images_dir, save_image
+from videoflow.application.intelligence import IntelligenceError, build_intelligence
 from videoflow.application.secrets import get_secret
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import IngestError
@@ -28,7 +29,7 @@ from videoflow.steps.registry import register_step
 class GenerateBrollParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    provider: Literal["openai_compatible"] = "openai_compatible"
+    provider: Literal["openai_compatible", "opencode_v2"] = "openai_compatible"
     base_url: str = ""
     model: str = "flux1-schnell"
     api_key_env: str = "VIDEOFLOW_IMAGE_API_KEY"
@@ -90,8 +91,10 @@ class GenerateBrollStep(BaseStep):
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = GenerateBrollParams.model_validate(params)
         base_url = options.base_url.strip()
-        if not base_url:
-            context.warnings.append("B-roll generation skipped: no image endpoint configured.")
+        if options.provider == "openai_compatible" and not base_url:
+            context.warnings.append(
+                "B-roll generation skipped: no image endpoint configured."
+            )
             io.report(100, "B-roll generation skipped")
             return
         prompt = _prompt_for(context, options.prompt)
@@ -101,18 +104,29 @@ class GenerateBrollStep(BaseStep):
             io.report(int(index / options.count * 80), f"Generating B-roll {index + 1}")
             seed = None if options.seed is None else options.seed + index
             try:
-                data = generate_image(
-                    f"{prompt} {options.negative_prompt}".strip(),
-                    base_url=base_url,
-                    model=options.model,
-                    api_key=api_key,
-                    seed=seed,
-                    width=options.width,
-                    height=options.height,
-                    allow_external_services=options.allow_external_services,
-                    allowed_external_hosts=tuple(options.allowed_external_hosts),
-                )
-            except (IngestError, OSError) as exc:
+                full_prompt = f"{prompt} {options.negative_prompt}".strip()
+                if options.provider == "opencode_v2":
+                    images = build_intelligence().generate_image(
+                        full_prompt,
+                        model=options.model,
+                        width=options.width,
+                        height=options.height,
+                        count=1,
+                    )
+                    data = images[0]
+                else:
+                    data = generate_openai_image(
+                        full_prompt,
+                        base_url=base_url,
+                        model=options.model,
+                        api_key=api_key,
+                        seed=seed,
+                        width=options.width,
+                        height=options.height,
+                        allow_external_services=options.allow_external_services,
+                        allowed_external_hosts=tuple(options.allowed_external_hosts),
+                    )
+            except (IngestError, OSError, IntelligenceError) as exc:
                 context.warnings.append(f"B-roll generation failed: {exc}")
                 continue
             saved = save_image(f"generated-{uuid4().hex[:10]}.png", data)

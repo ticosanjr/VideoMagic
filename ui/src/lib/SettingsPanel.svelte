@@ -5,6 +5,8 @@
   import HelpTip from "$lib/HelpTip.svelte";
   import {
     errorMessage,
+    getIntelligenceModels,
+    getIntelligenceStatus,
     getSettings,
     listHiltChannels,
     resetSettings,
@@ -12,7 +14,8 @@
     saveSettings,
     testHiltChannel,
     type AppSettings,
-    type HiltChannelStatus
+    type HiltChannelStatus,
+    type IntelligenceStatus
   } from "$lib/api";
 
   let settings = $state<AppSettings | null>(null);
@@ -27,6 +30,9 @@
   let hiltStatus = $state("");
   let secretValues = $state<Record<string, string>>({});
   let secretNames = $state<string[]>([]);
+  let intelligence = $state<IntelligenceStatus | null>(null);
+  let intelligenceBusy = $state(false);
+  let intelligenceModels = $state<string[]>([]);
 
   function filterSections(value: string) {
     const needle = value.trim().toLowerCase();
@@ -44,6 +50,11 @@
       rootsText = (settings.paths?.allowed_roots ?? []).join(", ");
       const hilt = await listHiltChannels();
       hiltChannels = hilt.channels;
+      try {
+        intelligence = await getIntelligenceStatus();
+      } catch {
+        intelligence = null;
+      }
       secretNames = [
         settings.notifications.email.smtp_password_secret,
         settings.notifications.email.imap_password_secret,
@@ -60,6 +71,19 @@
   function setDefault(capability: string, value: string) {
     if (!settings) return;
     settings.models.defaults[capability] = value;
+  }
+
+  async function refreshIntelligence() {
+    intelligenceBusy = true;
+    try {
+      intelligence = await getIntelligenceStatus();
+      const models = await getIntelligenceModels("opencode_v2");
+      intelligenceModels = models.models.map((item) => String(item.modelID ?? item.id ?? ""));
+    } catch (reason) {
+      error = errorMessage(reason);
+    } finally {
+      intelligenceBusy = false;
+    }
   }
 
   function addCapability(capability: string) {
@@ -435,6 +459,44 @@
           <label class="text-[10px] text-neutral-500">Diarization model<input bind:value={settings.speech.diarization_model} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
           <label class="flex items-end gap-2 pb-1 text-[10px] text-neutral-400"><input type="checkbox" bind:checked={settings.speech.vad_filter} class="h-3.5 w-3.5" />ASR VAD filter</label>
         </div>
+      </section>
+
+      <section class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4" data-settings-section>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h3 class="text-xs font-semibold text-neutral-100">Intelligence</h3>
+          <button type="button" onclick={() => void refreshIntelligence()} disabled={intelligenceBusy} class="rounded-lg border border-sky-500/30 px-2.5 py-1 text-[10px] text-sky-200 disabled:opacity-40">
+            {intelligenceBusy ? "Checking…" : "Test providers"}
+          </button>
+        </div>
+        <p class="mt-1 text-[10px] text-neutral-500">OpenCode V2 first, then DeepSeek, then any OpenAI-compatible provider. Local-first; remote providers need network access.</p>
+        <div class="mt-3 grid gap-2 sm:grid-cols-2">
+          <label class="flex items-end gap-2 pb-1 text-[10px] text-neutral-400"><input type="checkbox" bind:checked={settings.intelligence.enabled} class="h-3.5 w-3.5" />Enabled</label>
+          <label class="flex items-end gap-2 pb-1 text-[10px] text-neutral-400"><input type="checkbox" bind:checked={settings.intelligence.allow_network} class="h-3.5 w-3.5" />Allow remote providers</label>
+          <label class="text-[10px] text-neutral-500">Provider order (comma)<input value={(settings.intelligence.provider_order ?? []).join(", ")} oninput={(event) => { if (settings) settings.intelligence.provider_order = splitList(event.currentTarget.value); }} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">Budget (USD, 0 = off)<input type="number" min="0" step="0.01" bind:value={settings.intelligence.budget_usd} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">OpenCode base URL<input bind:value={settings.intelligence.opencode_base_url} placeholder="http://127.0.0.1:4096" class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">OpenCode model
+            <select bind:value={settings.intelligence.opencode_model} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100">
+              <option value="">auto</option>
+              {#each intelligenceModels as model}<option value={model}>{model}</option>{/each}
+            </select>
+          </label>
+          <label class="text-[10px] text-neutral-500">OpenCode token env<input bind:value={settings.intelligence.opencode_token_env} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">DeepSeek model<input bind:value={settings.intelligence.deepseek_model} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">DeepSeek base URL<input bind:value={settings.intelligence.deepseek_base_url} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">DeepSeek key env<input bind:value={settings.intelligence.deepseek_api_key_env} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" /></label>
+        </div>
+        {#if intelligence}
+          <div class="mt-3 space-y-1">
+            {#each intelligence.providers as provider}
+              <div class="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-950/60 px-2.5 py-1.5 text-[10px]">
+                <span class="font-mono text-neutral-300">{provider.provider} · {provider.kind}</span>
+                <span class={provider.ready ? "text-emerald-300" : "text-amber-300"}>{provider.ready ? "ready" : provider.detail || "not ready"}</span>
+              </div>
+            {/each}
+            <p class="text-[10px] text-neutral-500">Calls: {String((intelligence.telemetry as { calls?: number }).calls ?? 0)} · cost: ${String((intelligence.telemetry as { estimated_cost_usd?: number }).estimated_cost_usd ?? 0)}</p>
+          </div>
+        {/if}
       </section>
 
       <section class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">

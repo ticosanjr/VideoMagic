@@ -192,10 +192,15 @@ The MCP server and the UI share the same `JobManager`.
 `llm.provider` is one of:
 
 - `none` — local-only; deterministic steps still run.
+- `auto` — OpenCode V2 first, then DeepSeek, then any OpenAI-compatible
+  provider. This is the recommended default.
 - `openai_compatible` — Ollama, LM Studio, OpenAI, OpenRouter, Groq, or any
   endpoint with `/chat/completions`.
-- `opencode` — opt-in one-shot CLI bridge for curation/planning, with a
-  timeout, no shell, output limits, and strict JSON parsing.
+- `deepseek` — DeepSeek's OpenAI-compatible endpoint.
+- `opencode_v2` — the local OpenCode V2 HTTP API.
+- `opencode` / `opencode_cli` — opt-in one-shot CLI bridge for
+  curation/planning, with a timeout, no shell, output limits, and strict JSON
+  parsing.
 
 Secrets are referenced by environment variable name. A recipe never contains
 an API key.

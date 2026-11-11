@@ -4,7 +4,7 @@
   "name": "OpusClip-style NLE Bridge",
   "description": "Long-form timeline with chapters, FCPXML/XMEML/Kdenlive exports, NLE QA, Shorts metadata, and a delivery package.",
   "llm": {
-    "provider": "none",
+    "provider": "auto",
     "base_url": null,
     "model": "",
     "api_key_env": "VIDEOWFLOW_LLM_API_KEY",
@@ -99,7 +99,8 @@
       "needs": ["shorts"],
       "params": {
         "profile": "tiktok",
-        "top_k": 3
+        "top_k": 3,
+        "score_mode": "hybrid"
       }
     },
     {

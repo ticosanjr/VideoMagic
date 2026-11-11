@@ -121,6 +121,7 @@ def register_config_tools(register: Any, ctx: ToolContext) -> None:
             entry = shorts[index]
             if not isinstance(entry, dict) or not entry.get("path"):
                 raise StateNotReadyError("Short asset is missing.")
+            from videoflow.application.intelligence import build_intelligence
             from videoflow.application.short_metadata import generate_short_metadata
 
             metadata = generate_short_metadata(
@@ -129,6 +130,7 @@ def register_config_tools(register: Any, ctx: ToolContext) -> None:
                 result=job.result,
                 platform=platform,
                 tone=tone,
+                ai=build_intelligence(),
             )
             item = enqueue_publish(
                 target_name=target,

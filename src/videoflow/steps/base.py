@@ -45,6 +45,7 @@ class StepIO:
     total: int = 1
     adapter: Any | None = None
     llm_client: Any | None = None
+    ai: Any | None = None
     asr_client: Any | None = None
     progress: Callable[[str, int, str], None] | None = None
     step_progress: Callable[[str, int, str], None] | None = None

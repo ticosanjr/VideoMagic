@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from videoflow.engine.recipes.catalog import _add_recipe
+from videoflow.engine.recipes.catalog import BUILTIN_RECIPES, _add_recipe
 
 _add_recipe(
     "opusclip_auto_shorts",
@@ -429,3 +429,11 @@ _add_recipe(
     ],
     description="Long-form timeline with chapters, FCPXML/XMEML/Kdenlive exports, NLE QA, Shorts metadata, and a delivery package.",  # noqa: E501
 )
+
+
+for _recipe_id in (
+    "opusclip_auto_shorts",
+    "opusclip_auto_broll",
+    "opusclip_nle_bridge",
+):
+    BUILTIN_RECIPES[_recipe_id]["llm"] = {"provider": "auto"}

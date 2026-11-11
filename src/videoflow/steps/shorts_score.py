@@ -3,10 +3,17 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.intelligence import (
+    IntelligenceError,
+    build_intelligence,
+    score_prompt,
+    validate_score,
+)
 from videoflow.application.scoring import (
     PROFILES,
     profile_weights,
@@ -29,6 +36,7 @@ class ScoreParams(BaseModel):
     top_k: int = Field(default=0, ge=0, le=100)
     diversity_threshold: float = Field(default=0.75, ge=0.0, le=1.0)
     use_llm: bool = False
+    score_mode: Literal["heuristic", "llm", "hybrid"] = "heuristic"
 
 
 _similar = similar
@@ -72,6 +80,8 @@ class ShortsScoreStep(BaseStep):
         )
         if isinstance(analytics, dict):
             weights["analytics"] = 1.0
+        if options.score_mode in {"llm", "hybrid"}:
+            clips = self._llm_score(clips, context, io, options.score_mode)
         selected = rerank(
             clips,
             weights,
@@ -128,6 +138,82 @@ class ShortsScoreStep(BaseStep):
         )
         context.artifacts["shorts_selection_report"] = str(report)
         io.report(100, f"Scored {len(selected)}/{len(clips)} Short(s)")
+
+    def _llm_score(
+        self,
+        clips: list[Any],
+        context: PipelineContext,
+        io: StepIO,
+        mode: str,
+    ) -> list[Any]:
+        intelligence = io.ai or build_intelligence()
+        by_id = {sentence.id: sentence for sentence in context.transcript}
+        rate = (
+            context.media.audio_sample_rate if context.media is not None else 48000
+        )
+        updated: list[Any] = []
+        for clip in clips:
+            sentences = [
+                by_id[item] for item in clip.sentence_ids if item in by_id
+            ]
+            if not sentences:
+                updated.append(clip)
+                continue
+            text = " ".join(sentence.text for sentence in sentences)
+            first, last = sentences[0].id, sentences[-1].id
+            before = " ".join(
+                sentence.text
+                for sentence in context.transcript
+                if sentence.id < first
+            )[-1200:]
+            after = " ".join(
+                sentence.text
+                for sentence in context.transcript
+                if sentence.id > last
+            )[:1200]
+            prompt = score_prompt(
+                title=clip.title,
+                text=text,
+                duration=clip.duration_samples / max(1, rate),
+                before=before,
+                after=after,
+            )
+            try:
+                result = intelligence.complete_json(
+                    "curation.score",
+                    prompt,
+                    "videoflow.short_score",
+                    validator=validate_score,
+                )
+                payload = result.data
+            except IntelligenceError as exc:
+                context.warnings.append(f"LLM score fallback: {exc}")
+                updated.append(clip)
+                continue
+            score = float(payload["score"])
+            final = (
+                round((clip.virality_score + score) / 2.0, 1)
+                if mode == "hybrid"
+                else round(score, 1)
+            )
+            breakdown = list(clip.score_breakdown)
+            breakdown.append(("llm", round(score, 1)))
+            updated.append(
+                replace(
+                    clip,
+                    score=round(final / 4.0, 3),
+                    virality_score=final,
+                    score_breakdown=tuple(breakdown),
+                    arc=str(payload.get("arc") or clip.arc),
+                    arc_reason=str(
+                        payload.get("justification") or clip.arc_reason
+                    ),
+                    curation_source=(
+                        "hybrid" if mode == "hybrid" else "llm"
+                    ),
+                )
+            )
+        return updated
 
     def _llm_rerank(self, clips: list[Any], io: StepIO) -> list[Any]:
         if io.llm_client is None or len(clips) < 2:

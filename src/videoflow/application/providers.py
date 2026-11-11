@@ -34,6 +34,9 @@ class ProviderConfig(BaseModel):
     id: str = Field(min_length=1, max_length=80, pattern=r"^[a-z0-9][a-z0-9._-]*$")
     name: str = Field(min_length=1, max_length=120)
     capability: Capability
+    kind: Literal[
+        "openai_compatible", "deepseek", "opencode_v2", "opencode_cli"
+    ] = "openai_compatible"
     base_url: str = ""
     api_key_env: str = ""
     model: str = ""

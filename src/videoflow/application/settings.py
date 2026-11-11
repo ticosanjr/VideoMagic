@@ -231,6 +231,38 @@ class SearchSettings(BaseModel):
     cache_ttl_hours: int = Field(default=24, ge=1, le=24 * 30)
 
 
+class TaskPolicy(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    provider_order: list[str] = Field(default_factory=list)
+    model: str = ""
+    temperature: float = Field(default=0.0, ge=0.0, le=2.0)
+    max_tokens: int = Field(default=0, ge=0, le=200000)
+    timeout_seconds: float = Field(default=120.0, ge=5.0, le=600.0)
+    fallback: Literal["deterministic", "error", "none"] = "deterministic"
+    enabled: bool = True
+
+
+class IntelligenceSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+    provider_order: list[str] = Field(
+        default_factory=lambda: ["opencode_v2", "deepseek", "openai_compatible"]
+    )
+    allow_network: bool = False
+    budget_usd: float = Field(default=0.0, ge=0.0)
+    cache_enabled: bool = True
+    default_timeout_seconds: float = Field(default=120.0, ge=5.0, le=600.0)
+    opencode_base_url: str = ""
+    opencode_token_env: str = "OPENCODE_TOKEN"
+    opencode_model: str = ""
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_model: str = "deepseek-chat"
+    deepseek_api_key_env: str = "DEEPSEEK_API_KEY"
+    tasks: dict[str, TaskPolicy] = Field(default_factory=dict)
+
+
 class AppSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -248,6 +280,7 @@ class AppSettings(BaseModel):
     translation: TranslationSettings = Field(default_factory=TranslationSettings)
     notifications: NotificationSettings = Field(default_factory=NotificationSettings)
     search: SearchSettings = Field(default_factory=SearchSettings)
+    intelligence: IntelligenceSettings = Field(default_factory=IntelligenceSettings)
 
 
 def settings_path() -> Path:
@@ -305,6 +338,10 @@ def env_overrides() -> dict[str, str]:
         "VIDEOWFLOW_ALLOW_EXTERNAL",
         "VIDEOWFLOW_LLM_BASE_URL",
         "VIDEOWFLOW_LLM_MODEL",
+        "VIDEOWFLOW_OPENCODE_BASE_URL",
+        "VIDEOWFLOW_OPENCODE_MODEL",
+        "VIDEOWFLOW_DEEPSEEK_API_KEY",
+        "VIDEOWFLOW_COST_BUDGET_USD",
         "VIDEOWFLOW_ASR_BASE_URL",
         "VIDEOWFLOW_ASR_MODEL",
         "VIDEOWFLOW_VISION_BASE_URL",

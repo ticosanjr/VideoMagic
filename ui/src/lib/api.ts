@@ -732,6 +732,21 @@ export interface AppSettings {
       poll_seconds: number;
     };
   };
+  intelligence: {
+    enabled: boolean;
+    provider_order: string[];
+    allow_network: boolean;
+    budget_usd: number;
+    cache_enabled: boolean;
+    default_timeout_seconds: number;
+    opencode_base_url: string;
+    opencode_token_env: string;
+    opencode_model: string;
+    deepseek_base_url: string;
+    deepseek_model: string;
+    deepseek_api_key_env: string;
+    tasks: Record<string, Record<string, unknown>>;
+  };
   search: {
     enabled: boolean;
     providers: string[];
@@ -1441,6 +1456,32 @@ export async function getSettings(): Promise<{
   restart_required: string[];
 }> {
   return request("/api/v1/settings");
+}
+
+export interface IntelligenceProviderStatus {
+  provider: string;
+  kind: string;
+  ready: boolean;
+  detail: string;
+  models: string[];
+}
+
+export interface IntelligenceStatus {
+  ok: boolean;
+  enabled: boolean;
+  order: string[];
+  providers: IntelligenceProviderStatus[];
+  telemetry: Record<string, unknown>;
+}
+
+export async function getIntelligenceStatus(): Promise<IntelligenceStatus> {
+  return request("/api/v1/intelligence/status");
+}
+
+export async function getIntelligenceModels(
+  provider = "opencode_v2"
+): Promise<{ ok: boolean; provider: string; models: Record<string, unknown>[] }> {
+  return request(`/api/v1/intelligence/models?provider=${encodeURIComponent(provider)}`);
 }
 
 export async function saveSettings(settings: AppSettings): Promise<AppSettings> {

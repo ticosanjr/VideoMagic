@@ -10,6 +10,7 @@ from videoflow.api.routes_batches import register_batch_routes
 from videoflow.api.routes_copilot import register_copilot_routes
 from videoflow.api.routes_discovery import register_discovery_routes
 from videoflow.api.routes_hilt import register_hilt_routes
+from videoflow.api.routes_intelligence import register_intelligence_routes
 from videoflow.api.routes_jobs import register_job_routes
 from videoflow.api.routes_library import register_library_routes
 from videoflow.api.routes_media import register_media_routes
@@ -49,5 +50,6 @@ def register_routes(
     register_copilot_routes(app, jobs)
     register_job_routes(app, jobs)
     register_hilt_routes(app, jobs)
+    register_intelligence_routes(app)
     register_output_routes(app, jobs)
     register_timeline_routes(app, jobs)

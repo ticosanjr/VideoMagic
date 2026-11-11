@@ -4,7 +4,7 @@
   "name": "OpusClip-style Auto Shorts",
   "description": "Long-form ingest, audio cleanup, transcript, viral Short selection, active reframe, kinetic captions, render, and NLE export.",
   "llm": {
-    "provider": "none",
+    "provider": "auto",
     "base_url": null,
     "model": "",
     "api_key_env": "VIDEOWFLOW_LLM_API_KEY",
@@ -127,7 +127,8 @@
         "profile": "tiktok",
         "top_k": 3,
         "diversity_threshold": 0.75,
-        "use_llm": true
+        "use_llm": true,
+        "score_mode": "hybrid"
       }
     },
     {

@@ -32,6 +32,7 @@ from videoflow.application.deliverables import (
     thumbnail_metrics,
 )
 from videoflow.application.dubbing import generate_short_dubbing
+from videoflow.application.intelligence import build_intelligence
 from videoflow.application.jobs import JobManager
 from videoflow.application.live_source import live_sources
 from videoflow.application.multimodal import analyze_short_entry
@@ -282,6 +283,7 @@ def register_output_routes(app: FastAPI, jobs: JobManager) -> None:
             platform=request.platform,
             tone=request.tone,
             extra_hashtags=tuple(request.extra_hashtags),
+            ai=build_intelligence(),
         )
         return {
             "ok": True,

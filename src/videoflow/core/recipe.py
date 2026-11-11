@@ -32,7 +32,15 @@ class LlmRecipeConfig(StrictModel):
     Secrets are referenced by environment variable name, never stored inline.
     """
 
-    provider: Literal["openai_compatible", "opencode", "none"] = "none"
+    provider: Literal[
+        "auto",
+        "openai_compatible",
+        "deepseek",
+        "opencode_v2",
+        "opencode",
+        "opencode_cli",
+        "none",
+    ] = "none"
     base_url: str | None = None
     model: str = ""
     api_key_env: str = "VIDEOWFLOW_LLM_API_KEY"

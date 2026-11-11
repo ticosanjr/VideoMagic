@@ -42,12 +42,16 @@ def migrate_settings(payload: dict[str, Any]) -> dict[str, Any]:
     migrated.setdefault("ui", {})
     migrated.setdefault("automation", {})
     migrated.setdefault("models", {})
+    migrated.setdefault("intelligence", {})
     return migrated
 
 
 def migrate_providers(payload: dict[str, Any]) -> dict[str, Any]:
     migrated = _migrate(payload, PROVIDERS_VERSION, "providers")
     migrated.setdefault("providers", [])
+    for item in migrated.get("providers", []):
+        if isinstance(item, dict):
+            item.setdefault("kind", "openai_compatible")
     migrated.setdefault("fallbacks", {})
     migrated.setdefault("defaults", {})
     return migrated

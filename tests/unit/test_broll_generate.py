@@ -27,7 +27,7 @@ def test_generate_broll_writes_assets_and_license(tmp_path: Path, monkeypatch) -
 
     monkeypatch.setattr(
         generate_module,
-        "generate_image",
+        "generate_openai_image",
         lambda *args, **kwargs: b"\x89PNG\r\n\x1a\nimage",
     )
     monkeypatch.setattr(generate_module, "save_image", fake_save)

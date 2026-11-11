@@ -145,6 +145,8 @@ def register_short_tools(register: Any, ctx: ToolContext) -> None:
                 raise StateNotReadyError(
                     "The job must succeed before metadata can be generated."
                 )
+            from videoflow.application.intelligence import build_intelligence
+
             metadata = generate_short_metadata(
                 output=job.output,
                 index=index,
@@ -152,6 +154,7 @@ def register_short_tools(register: Any, ctx: ToolContext) -> None:
                 platform=platform,
                 tone=tone,
                 extra_hashtags=tuple(extra_hashtags or ()),
+                ai=build_intelligence(),
             )
         except VideoFlowError as exc:
             return exc.to_dict()

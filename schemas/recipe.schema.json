@@ -29,8 +29,12 @@
         "provider": {
           "default": "none",
           "enum": [
+            "auto",
             "openai_compatible",
+            "deepseek",
+            "opencode_v2",
             "opencode",
+            "opencode_cli",
             "none"
           ],
           "title": "Provider",

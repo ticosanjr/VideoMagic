@@ -343,6 +343,42 @@ test("navigates the five areas and redirects legacy hashes", async ({ page }) =>
   );
 });
 
+test("shows intelligence provider settings", async ({ page }) => {
+  await page.route("**/api/v1/settings", (route) =>
+    route.fulfill({
+      json: {
+        settings: {
+          schema_version: 1,
+          runtime: { host: "127.0.0.1", port: 8765, open_browser: true, log_level: "info", max_jobs: 2, history: 50, locale: "en" },
+          paths: { allowed_roots: [], ffmpeg: "", ffprobe: "", cache_dir: "", models_dir: "", output_root: "", temp_dir: "" },
+          models: { defaults: {}, device: "cpu", compute_type: "int8", threads: 0, hf_token_env: "HF_TOKEN" },
+          automation: { scheduler_interval_seconds: 20, max_retries: 5, retry_backoff_seconds: 30, enabled: true },
+          quality: { target_lufs: -16, true_peak_db: -1, vmaf_threshold: 90, proxy_height: 540 },
+          ui: { theme: "dark", density: "comfortable", timeline_snap: true },
+          llm: { temperature: 0, timeout_seconds: 90, max_tokens: 0, retries: 2, json_mode: true },
+          speech: { engine: "auto", language: "pt", device: "cpu", compute_type: "int8", vad_filter: false, diarization_model: "pyannote" },
+          tts: { provider: "openai_compatible", voice: "alloy", model: "tts-1", format: "mp3", speed: 1 },
+          stock: { provider: "local", pexels_key_env: "PEXELS_API_KEY", pixabay_key_env: "PIXABAY_API_KEY", openverse_token_env: "OPENVERSE_TOKEN", asset_dir: "", youtube_fair_use_seconds: 15, youtube_max_per_video: 3, allow_fair_use: true },
+          translation: { target_language: "en", source_language: "auto" },
+          notifications: { enabled: true, default_channels: ["local"], base_url: "http://127.0.0.1:8765", email: {}, slack: {}, signal: {}, local: {} },
+          search: { enabled: true, providers: ["local"], local_paths: [], seed_urls: [], searxng_url: "", wikipedia_language: "pt", max_results: 6, fetch_pages: 3, allow_network: false, timeout_seconds: 20, max_bytes: 2000000, cache_ttl_hours: 24 },
+          intelligence: { enabled: true, provider_order: ["opencode_v2", "deepseek"], allow_network: false, budget_usd: 0, cache_enabled: true, default_timeout_seconds: 120, opencode_base_url: "", opencode_token_env: "OPENCODE_TOKEN", opencode_model: "", deepseek_base_url: "https://api.deepseek.com", deepseek_model: "deepseek-chat", deepseek_api_key_env: "DEEPSEEK_API_KEY", tasks: {} }
+        },
+        env: {},
+        restart_required: []
+      }
+    })
+  );
+  await page.route("**/api/v1/intelligence/status", (route) =>
+    route.fulfill({
+      json: { ok: true, enabled: true, order: ["opencode_v2"], providers: [], telemetry: { calls: 0, estimated_cost_usd: 0 } }
+    })
+  );
+  await page.goto("/#settings");
+  await expect(page.getByRole("heading", { name: "Intelligence" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Test providers" })).toBeVisible();
+});
+
 test("opens a help tooltip from the keyboard", async ({ page }) => {
   await page.getByRole("tab", { name: "Setup" }).click();
   const help = page.getByRole("button", { name: /Help: AI models/ });

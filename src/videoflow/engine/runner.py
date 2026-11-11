@@ -328,6 +328,9 @@ class RecipeRunner:
         )
         order = self._order_through(recipe.topological_order(), through)
         llm = self.llm_client or self._build_llm(log)
+        from videoflow.application.intelligence import build_intelligence
+
+        ai = build_intelligence()
         step_llms: dict[str, Any] = {}
         total = len(order)
         step_runs: list[StepRun] = []
@@ -436,6 +439,7 @@ class RecipeRunner:
                 total=total,
                 adapter=self.adapter,
                 llm_client=step_llm,
+                ai=ai,
                 asr_client=self.asr_client,
                 progress=progress,
                 step_progress=step_progress,
@@ -744,7 +748,21 @@ class RecipeRunner:
                 provider = {}
             base_url = base_url or str(provider.get("base_url") or "")
             model = model or str(provider.get("model") or "")
-        if config.provider == "opencode":
+        if config.provider in {"auto", "opencode_v2", "deepseek"}:
+            from videoflow.application.intelligence import (
+                IntelligenceLlmAdapter,
+                build_intelligence,
+            )
+
+            intelligence = build_intelligence()
+            if config.provider == "auto":
+                from videoflow.application.llm_factory import build_llm
+
+                return build_llm()
+            return IntelligenceLlmAdapter(
+                intelligence, provider_id=config.provider
+            )
+        if config.provider in {"opencode", "opencode_cli"}:
             from videoflow.adapters.opencode import OpenCodeLlm
 
             return OpenCodeLlm(

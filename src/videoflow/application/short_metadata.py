@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from videoflow.application.metadata import generate_metadata
+from videoflow.application.metadata_llm import generate_metadata_with_llm
 from videoflow.application.shorts_project import (
     load_short_project,
     save_short_entry,
@@ -24,18 +25,30 @@ def generate_short_metadata(
     platform: str = "youtube",
     tone: str = "engaging",
     extra_hashtags: tuple[str, ...] = (),
+    ai: Any | None = None,
 ) -> dict[str, object]:
     entry = short_entry(result, index)
     state, report = load_short_project(output)
     pieces = short_pieces(entry)
     text = transcript_text(state, pieces)
     try:
-        metadata = generate_metadata(
-            text,
-            title=str(entry.get("title") or ""),
-            platform=platform,
-            tone=tone,
-            extra_hashtags=extra_hashtags,
+        metadata = (
+            generate_metadata_with_llm(
+                ai,
+                text,
+                title=str(entry.get("title") or ""),
+                platform=platform,
+                tone=tone,
+                extra_hashtags=extra_hashtags,
+            )
+            if ai is not None
+            else generate_metadata(
+                text,
+                title=str(entry.get("title") or ""),
+                platform=platform,
+                tone=tone,
+                extra_hashtags=extra_hashtags,
+            )
         )
     except ValueError as exc:
         raise ShortEditError(str(exc)) from exc

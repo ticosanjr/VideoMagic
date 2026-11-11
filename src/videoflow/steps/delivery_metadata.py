@@ -58,6 +58,7 @@ class MetadataPackStep(BaseStep):
                     platform=options.platform,
                     tone=options.tone,
                     extra_hashtags=tuple(options.hashtags),
+                    ai=io.ai,
                 )
                 entries.append(metadata)
             except Exception as exc:

@@ -16,6 +16,7 @@ from videoflow.application.brand_templates import (
     list_templates,
     save_template,
 )
+from videoflow.application.intelligence import build_intelligence
 from videoflow.application.jobs import JobManager
 from videoflow.application.project_templates import (
     ProjectTemplate,
@@ -137,6 +138,7 @@ def register_publish_routes(app: FastAPI, jobs: JobManager) -> None:
             platform=request.platform,
             tone=request.tone,
             extra_hashtags=tuple(request.extra_hashtags),
+            ai=build_intelligence(),
         )
         item = enqueue_publish(
             target_name=request.target,

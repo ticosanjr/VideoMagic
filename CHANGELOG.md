@@ -4,6 +4,13 @@
 
 ### Added
 
+- **Unified intelligence layer.** OpenCode V2, DeepSeek, and any
+  OpenAI-compatible provider behind one task router, with JSON validation,
+  fallback, telemetry, budgets, and deterministic fallbacks.
+- **LLM virality scoring.** `shorts.score` supports heuristic, LLM, and hybrid
+  modes with score, arc, and justification.
+- **LLM social metadata.** Titles, descriptions, and hashtags per platform with
+  deterministic fallback.
 - **OpusClip-style recipes.** `opusclip_auto_shorts`, `opusclip_auto_broll`,
   and `opusclip_nle_bridge` map the OpusClip workflow onto native VideoFlow
   steps, with a parity matrix in `docs/opusclip-parity.md`.
