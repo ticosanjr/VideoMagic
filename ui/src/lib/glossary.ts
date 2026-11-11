@@ -392,6 +392,7 @@ export const GLOSSARY: Record<string, string> = {
   "Project templates": "Modelos de projeto",
   "Properties / comments": "Propriedades / coment\u00e1rios",
   "Provider": "Provedor",
+  "Provider response": "Resposta do provedor",
   "Providers": "Provedores",
   "Proxy height (px)": "Altura do proxy (px)",
   "Publish / schedule": "Publicar / agendar",

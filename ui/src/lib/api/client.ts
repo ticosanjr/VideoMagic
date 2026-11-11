@@ -5,7 +5,10 @@
  * `formatBackendDetail`, and `describeError` through `$lib/api`.
  */
 
-export type RequestOptions = RequestInit & { silent?: boolean };
+export type RequestOptions = RequestInit & {
+  silent?: boolean;
+  redactBody?: boolean;
+};
 
 export class ApiError extends Error {
   code: string;
@@ -77,7 +80,7 @@ export function raiseApiError(
   const detail = apiDetail(payload);
   detail.path = path;
   detail.method = String(init?.method ?? "GET").toUpperCase();
-  if (init?.body) {
+  if (init?.body && !init?.redactBody) {
     try {
       detail.request_body = JSON.parse(String(init.body));
     } catch {

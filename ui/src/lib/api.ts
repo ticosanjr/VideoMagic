@@ -1083,24 +1083,34 @@ export async function setDefaultProvider(providerId: string): Promise<void> {
   });
 }
 
+export interface ProviderTestResult {
+  ok: boolean;
+  status_code: number | null;
+  code?: string;
+  message: string;
+  hint?: string;
+  provider_message?: string;
+  secret_present: boolean;
+  secret_source?: "request" | "environment" | "stored" | "missing";
+  latency_ms?: number;
+  mode?: string;
+  endpoint?: string;
+}
+
 export async function testProvider(payload: {
   provider_id?: string;
   base_url?: string;
   api_key_env?: string;
+  secret_value?: string;
   model?: string;
   path?: string;
   mode?: "models" | "chat";
-}): Promise<{
-  ok: boolean;
-  status_code: number | null;
-  message: string;
-  secret_present: boolean;
-  latency_ms?: number;
-  mode?: string;
-}> {
+}): Promise<ProviderTestResult> {
   return request("/api/v1/providers/test", {
     method: "POST",
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    silent: true,
+    redactBody: true
   });
 }
 

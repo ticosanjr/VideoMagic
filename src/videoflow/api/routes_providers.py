@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 import time
 from typing import Literal
 
@@ -34,9 +36,95 @@ class ProviderTestRequest(BaseModel):
     provider_id: str = ""
     base_url: str = ""
     api_key_env: str = ""
+    secret_value: str = ""
     model: str = ""
     path: str = "/models"
     mode: Literal["models", "chat"] = "models"
+
+
+def _test_secret(api_key_env: str, secret_value: str) -> tuple[str, str]:
+    """Return the key to use and where it came from."""
+
+    if secret_value.strip():
+        return secret_value.strip(), "request"
+    environment = os.environ.get(api_key_env, "") if api_key_env else ""
+    if environment:
+        return environment, "environment"
+    stored = get_secret(api_key_env)
+    if stored:
+        return stored, "stored"
+    return "", "missing"
+
+
+def _provider_message(body: str) -> str:
+    """Extract the human part of a provider error while keeping the raw text."""
+
+    text = body.strip()
+    if not text:
+        return ""
+    try:
+        payload = json.loads(text)
+    except ValueError:
+        return text[:1000]
+    if isinstance(payload, dict):
+        error = payload.get("error")
+        if isinstance(error, dict):
+            message = error.get("message") or error.get("detail")
+            if message:
+                return str(message)[:1000]
+        if isinstance(error, str) and error:
+            return error[:1000]
+        for key in ("message", "detail"):
+            value = payload.get(key)
+            if isinstance(value, str) and value:
+                return value[:1000]
+    return text[:1000]
+
+
+def _provider_failure(
+    status: int,
+    api_key: str,
+    api_key_env: str,
+    endpoint: str,
+    provider_message: str,
+) -> tuple[str, str, str]:
+    """Map a provider HTTP failure to a code, message, and hint."""
+
+    if status in {401, 403}:
+        if not api_key:
+            return (
+                "secret_missing",
+                f"No API key was found for {api_key_env or 'this provider'}.",
+                "Paste the key in Secret value and test again, or save the provider first.",
+            )
+        return (
+            "auth_failed",
+            f"The provider rejected the API key (HTTP {status}).",
+            "Check that the key is valid, not expired, and belongs to this provider.",
+        )
+    if status == 404:
+        return (
+            "endpoint_not_found",
+            "The endpoint was not found (HTTP 404).",
+            f"Check Base URL and path. Tried {endpoint}.",
+        )
+    if status == 429:
+        return (
+            "rate_limited",
+            "The provider rate-limited the request or the account has no credit (HTTP 429).",
+            "Check the provider quota and billing, then try again later.",
+        )
+    if status >= 500:
+        return (
+            "provider_error",
+            f"The provider returned a server error (HTTP {status}).",
+            "Try again later or check the provider status page.",
+        )
+    return (
+        "http_error",
+        f"The provider returned HTTP {status}.",
+        provider_message[:300] or "Check the provider settings and the request.",
+    )
 
 
 def register_provider_routes(app: FastAPI) -> None:
@@ -62,7 +150,10 @@ def register_provider_routes(app: FastAPI) -> None:
                     detail={
                         "ok": False,
                         "code": "provider_not_found",
-                        "message": request.provider_id,
+                        "message": (
+                            f"Provider {request.provider_id!r} was not found. "
+                            "Save it first or choose another provider."
+                        ),
                     },
                 )
             base_url = base_url or str(provider.get("base_url") or "")
@@ -72,28 +163,61 @@ def register_provider_routes(app: FastAPI) -> None:
             api_key_env = validate_secret_name(api_key_env)
         except InvalidConfigError as exc:
             raise HTTPException(status_code=422, detail=exc.to_dict()) from exc
-        base = base_url.rstrip("/")
+        base = base_url.strip().rstrip("/")
+        if not base:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "ok": False,
+                    "code": "invalid_url",
+                    "message": (
+                        "Enter a Base URL, for example "
+                        "https://api.deepseek.com/v1."
+                    ),
+                },
+            )
         if not (base.startswith("http://") or base.startswith("https://")):
             raise HTTPException(
                 status_code=422,
-                detail={"ok": False, "code": "invalid_url", "message": base_url},
+                detail={
+                    "ok": False,
+                    "code": "invalid_url",
+                    "message": (
+                        "Base URL must start with http:// or https:// "
+                        f"(got {base_url!r})."
+                    ),
+                },
             )
-        api_key = get_secret(api_key_env)
+        path = request.path or "/models"
+        if not path.startswith("/"):
+            path = f"/{path}"
+        if request.mode == "chat":
+            endpoint = (
+                base
+                if base.endswith("/chat/completions")
+                else f"{base}/chat/completions"
+            )
+        else:
+            endpoint = f"{base}{path}"
+        if request.mode == "chat" and not model:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "ok": False,
+                    "code": "model_required",
+                    "message": (
+                        "Chat test requires a model. Enter the model name, "
+                        "for example deepseek-chat."
+                    ),
+                },
+            )
+        api_key, secret_source = _test_secret(api_key_env, request.secret_value)
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         started = time.perf_counter()
         try:
             if request.mode == "chat":
-                if not model:
-                    raise HTTPException(
-                        status_code=422,
-                        detail={
-                            "ok": False,
-                            "code": "model_required",
-                            "message": "Chat test requires a model.",
-                        },
-                    )
                 response = httpx.post(
-                    f"{base}/chat/completions",
+                    endpoint,
                     headers={**headers, "Content-Type": "application/json"},
                     json={
                         "model": model,
@@ -109,7 +233,7 @@ def register_provider_routes(app: FastAPI) -> None:
                 )
             else:
                 response = httpx.get(
-                    f"{base}{request.path}",
+                    endpoint,
                     headers=headers,
                     timeout=10.0,
                     follow_redirects=True,
@@ -118,29 +242,61 @@ def register_provider_routes(app: FastAPI) -> None:
             return {
                 "ok": False,
                 "status_code": None,
-                "message": str(exc),
+                "code": "network_error",
+                "message": f"Could not reach the provider: {exc}",
+                "hint": "Check the base URL, the network, and any proxy.",
+                "provider_message": str(exc),
                 "secret_present": bool(api_key),
+                "secret_source": secret_source,
                 "latency_ms": round((time.perf_counter() - started) * 1000),
                 "mode": request.mode,
+                "endpoint": endpoint,
             }
-        body = response.text[:500]
-        if request.mode == "chat" and response.status_code < 400:
-            try:
-                payload = response.json()
-                body = str(
-                    payload.get("choices", [{}])[0]
-                    .get("message", {})
-                    .get("content", "")
-                )[:200] or body
-            except (ValueError, AttributeError, IndexError, TypeError):
-                pass
+        raw = response.text[:1000]
+        provider_message = _provider_message(raw)
+        ok = 200 <= response.status_code < 400
+        if ok:
+            code = "ok"
+            if request.mode == "chat":
+                message = ""
+                try:
+                    payload = response.json()
+                    message = str(
+                        payload.get("choices", [{}])[0]
+                        .get("message", {})
+                        .get("content", "")
+                    )[:200]
+                except (ValueError, AttributeError, IndexError, TypeError):
+                    message = ""
+                message = message or "Connection OK"
+            else:
+                message = "Connection OK. The models endpoint answered."
+            if secret_source == "request":
+                hint = "This key is used only for the test. Save the provider to store it."
+            elif secret_source == "missing":
+                hint = "Connected without an API key."
+            else:
+                hint = ""
+        else:
+            code, message, hint = _provider_failure(
+                response.status_code,
+                api_key,
+                api_key_env,
+                endpoint,
+                provider_message,
+            )
         return {
-            "ok": 200 <= response.status_code < 400,
+            "ok": ok,
             "status_code": response.status_code,
-            "message": body,
+            "code": code,
+            "message": message,
+            "hint": hint,
+            "provider_message": provider_message,
             "secret_present": bool(api_key),
+            "secret_source": secret_source,
             "latency_ms": round((time.perf_counter() - started) * 1000),
             "mode": request.mode,
+            "endpoint": endpoint,
         }
 
     def _providers_payload() -> list[dict[str, object]]:

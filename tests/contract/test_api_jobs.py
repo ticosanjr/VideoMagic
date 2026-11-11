@@ -852,6 +852,164 @@ def test_provider_chat_test_posts_a_completion(monkeypatch) -> None:
     assert calls and calls[0]["url"].endswith("/chat/completions")
 
 
+def test_provider_test_missing_secret_is_actionable(monkeypatch) -> None:
+    import httpx
+
+    from videoflow.api import routes_providers as routes_module
+
+    monkeypatch.delenv("VIDEOWFLOW_TEST_MISSING_KEY", raising=False)
+    monkeypatch.setattr(
+        routes_module.httpx,
+        "get",
+        lambda *args, **kwargs: httpx.Response(
+            401,
+            json={
+                "error": {
+                    "message": "Authentication Fails (governor)",
+                    "type": "authentication_error",
+                }
+            },
+            request=httpx.Request("GET", str(args[0])),
+        ),
+    )
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/v1/providers/test",
+        json={
+            "base_url": "https://api.deepseek.com/v1",
+            "api_key_env": "VIDEOWFLOW_TEST_MISSING_KEY",
+            "mode": "models",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["ok"] is False
+    assert payload["code"] == "secret_missing"
+    assert payload["secret_source"] == "missing"
+    assert payload["secret_present"] is False
+    assert "No API key was found" in payload["message"]
+    assert "VIDEOWFLOW_TEST_MISSING_KEY" in payload["message"]
+    assert payload["provider_message"] == "Authentication Fails (governor)"
+    assert payload["endpoint"].endswith("/models")
+
+
+def test_provider_test_uses_the_pasted_secret_without_saving_it(monkeypatch) -> None:
+    import httpx
+
+    from videoflow.api import routes_providers as routes_module
+
+    calls: list[dict[str, object]] = []
+
+    def fake_post(*args, **kwargs):
+        calls.append({"url": str(args[0]), **kwargs})
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "OK"}}]},
+            request=httpx.Request("POST", str(args[0])),
+        )
+
+    monkeypatch.delenv("VIDEOWFLOW_TEST_FORM_KEY", raising=False)
+    monkeypatch.setattr(routes_module.httpx, "post", fake_post)
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/v1/providers/test",
+        json={
+            "base_url": "https://api.deepseek.com/v1",
+            "api_key_env": "VIDEOWFLOW_TEST_FORM_KEY",
+            "secret_value": "sk-from-form",
+            "model": "deepseek-chat",
+            "mode": "chat",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["message"] == "OK"
+    assert payload["secret_source"] == "request"
+    assert payload["secret_present"] is True
+    assert "Save the provider" in payload["hint"]
+    assert calls and calls[0]["headers"]["Authorization"] == "Bearer sk-from-form"
+
+
+def test_provider_test_rejects_a_bad_key_with_a_clear_message(monkeypatch) -> None:
+    import httpx
+
+    from videoflow.api import routes_providers as routes_module
+
+    monkeypatch.setenv("VIDEOWFLOW_TEST_BAD_KEY", "sk-wrong")
+    monkeypatch.setattr(
+        routes_module.httpx,
+        "get",
+        lambda *args, **kwargs: httpx.Response(
+            401,
+            text='{"error":{"message":"Authentication Fails (governor)"}}',
+            request=httpx.Request("GET", str(args[0])),
+        ),
+    )
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/v1/providers/test",
+        json={
+            "base_url": "https://api.deepseek.com/v1",
+            "api_key_env": "VIDEOWFLOW_TEST_BAD_KEY",
+            "mode": "models",
+        },
+    )
+
+    payload = response.json()
+    assert response.status_code == 200
+    assert payload["code"] == "auth_failed"
+    assert payload["secret_source"] == "environment"
+    assert "rejected the API key" in payload["message"]
+    assert "valid" in payload["hint"]
+    assert payload["provider_message"] == "Authentication Fails (governor)"
+
+
+@pytest.mark.parametrize(
+    ("status", "code", "message_part"),
+    [
+        (404, "endpoint_not_found", "not found"),
+        (429, "rate_limited", "rate-limited"),
+        (500, "provider_error", "server error"),
+    ],
+)
+def test_provider_test_maps_http_failures(
+    monkeypatch, status: int, code: str, message_part: str
+) -> None:
+    import httpx
+
+    from videoflow.api import routes_providers as routes_module
+
+    monkeypatch.setenv("VIDEOWFLOW_TEST_MAP_KEY", "sk-present")
+    monkeypatch.setattr(
+        routes_module.httpx,
+        "get",
+        lambda *args, **kwargs: httpx.Response(
+            status,
+            text='{"error":{"message":"raw provider detail"}}',
+            request=httpx.Request("GET", str(args[0])),
+        ),
+    )
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/v1/providers/test",
+        json={
+            "base_url": "https://api.deepseek.com/v1",
+            "api_key_env": "VIDEOWFLOW_TEST_MAP_KEY",
+            "mode": "models",
+        },
+    )
+
+    payload = response.json()
+    assert response.status_code == 200
+    assert payload["code"] == code
+    assert message_part in payload["message"]
+    assert payload["hint"]
+    assert payload["provider_message"] == "raw provider detail"
+
+
 def test_provider_test_uses_the_saved_provider_secret(monkeypatch) -> None:
     import httpx
 

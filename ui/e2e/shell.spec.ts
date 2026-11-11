@@ -50,6 +50,25 @@ async function mockShell(page: Page) {
   });
 }
 
+async function mockProviders(page: Page) {
+  await page.route("**/api/v1/capabilities**", (route) =>
+    route.fulfill({
+      json: { ok: true, external_services_allowed: false, capabilities: [] }
+    })
+  );
+  await page.route("**/api/v1/providers", (route) =>
+    route.fulfill({
+      json: { ok: true, providers: [], fallbacks: {}, secret_backend: "file:0600" }
+    })
+  );
+  await page.route("**/api/v1/voice-clone/status", (route) =>
+    route.fulfill({ json: { ok: true, available: false } })
+  );
+  await page.route("**/api/v1/voice-clone/profiles", (route) =>
+    route.fulfill({ json: { ok: true, profiles: [] } })
+  );
+}
+
 test.beforeEach(async ({ page }) => {
   await mockShell(page);
   await page.goto("/");
@@ -78,6 +97,53 @@ test("shows backend errors globally with details", async ({ page }) => {
   await expect(center).toContainText("database exploded");
   await expect(center).toContainText("db_down");
   await expect(center).toContainText("trace line");
+});
+
+test("shows a provider validation error inline instead of silently failing", async ({
+  page
+}) => {
+  await mockProviders(page);
+  await page.goto("/#providers");
+  await page.getByLabel("Secret env").fill("sk-literal-key");
+  await page.getByRole("button", { name: "Test connection" }).click();
+  await expect(
+    page.getByText("Secret env must be a variable name like DEEPSEEK_API_KEY, not the API key.")
+  ).toBeVisible();
+});
+
+test("explains a provider rejection and keeps the raw response in details", async ({
+  page
+}) => {
+  await mockProviders(page);
+  await page.route("**/api/v1/providers/test", (route) =>
+    route.fulfill({
+      json: {
+        ok: false,
+        status_code: 401,
+        code: "auth_failed",
+        message: "The provider rejected the API key (HTTP 401).",
+        hint: "Check that the key is valid, not expired, and belongs to this provider.",
+        provider_message: "Authentication Fails (governor)",
+        secret_present: true,
+        secret_source: "request",
+        latency_ms: 365,
+        mode: "chat",
+        endpoint: "https://api.deepseek.com/v1/chat/completions"
+      }
+    })
+  );
+  await page.goto("/#providers");
+  await page.getByLabel("Secret env").fill("DEEPSEEK_API_KEY");
+  await page.getByLabel("Model", { exact: true }).fill("deepseek-chat");
+  await page.getByLabel("Secret value").fill("sk-test");
+  await page.getByRole("button", { name: "Test connection" }).click();
+  await expect(
+    page.getByText("The provider rejected the API key (HTTP 401).")
+  ).toBeVisible();
+  await expect(page.getByText("Check that the key is valid", { exact: false })).toBeVisible();
+  await expect(page.getByText("API key: from this form (not saved)")).toBeVisible();
+  await page.getByText("Provider response").click();
+  await expect(page.getByText("Authentication Fails (governor)")).toBeVisible();
 });
 
 test("opens the command palette with the keyboard and navigates", async ({ page }) => {

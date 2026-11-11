@@ -19,6 +19,7 @@
     type Capability,
     type CapabilitiesResponse,
     type ProviderConfig,
+    type ProviderTestResult,
     type VoiceCloneStatus,
     type VoiceProfile
   } from "$lib/api";
@@ -45,14 +46,10 @@
   let testKeyEnv = $state("VIDEOWFLOW_LLM_API_KEY");
   let testPath = $state("/models");
   let testBusy = $state(false);
-  let testResult = $state<{
-    ok: boolean;
-    status_code: number | null;
-    message: string;
-    secret_present: boolean;
-    latency_ms?: number;
-  } | null>(null);
+  let testResult = $state<ProviderTestResult | null>(null);
   let testError = $state("");
+  let draftTestResult = $state<ProviderTestResult | null>(null);
+  let draftTestError = $state("");
   let providers = $state<ProviderConfig[]>([]);
   let fallbacks = $state<Record<string, ProviderConfig[]>>({});
   let providerBusy = $state("");
@@ -65,8 +62,16 @@
   let editorOpen = $state(false);
   let secretDraft = $state("");
   let testMode = $state<"chat" | "models">("chat");
-  let providerTests = $state<Record<string, { ok: boolean; status_code: number | null; message: string; latency_ms?: number }>>({});
+  let providerTests = $state<Record<string, ProviderTestResult>>({});
   const SECRET_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+  function secretSourceLabel(source?: string): string {
+    if (source === "request") return "from this form (not saved)";
+    if (source === "environment") return "environment";
+    if (source === "stored") return "stored";
+    if (source === "missing") return "not found";
+    return "";
+  }
 
   function secretNameError(): string {
     const value = draft.api_key_env.trim();
@@ -147,7 +152,8 @@
     secretDraft = "";
     providerMessage = "";
     providerError = "";
-    testResult = null;
+    draftTestResult = null;
+    draftTestError = "";
     requestAnimationFrame(() => {
       document.getElementById("provider-editor")?.scrollIntoView({ block: "start" });
     });
@@ -158,7 +164,8 @@
     editingProviderId = "";
     editorOpen = true;
     secretDraft = "";
-    testResult = null;
+    draftTestResult = null;
+    draftTestError = "";
     providerMessage = "";
     providerError = "";
     requestAnimationFrame(() => {
@@ -292,19 +299,42 @@
   }
 
   async function testDraft() {
+    draftTestError = "";
+    draftTestResult = null;
+    const base = draft.base_url.trim();
+    if (!/^https?:\/\//i.test(base)) {
+      draftTestError = "Base URL must start with http:// or https://.";
+      return;
+    }
+    const secretError = secretNameError();
+    if (secretError) {
+      draftTestError = secretError;
+      return;
+    }
+    const envName = draft.api_key_env.trim();
+    const pasted = secretDraft.trim();
+    if (pasted && !envName) {
+      draftTestError =
+        "Enter the Secret env name (for example DEEPSEEK_API_KEY) to use the pasted key.";
+      return;
+    }
+    if (testMode === "chat" && !draft.model.trim()) {
+      draftTestError =
+        "Chat test requires a model. Enter the model name, for example deepseek-chat.";
+      return;
+    }
     testBusy = true;
-    testError = "";
-    testResult = null;
     try {
-      testResult = await testProvider({
-        base_url: draft.base_url || testUrl,
-        api_key_env: draft.api_key_env || testKeyEnv,
-        model: draft.model,
+      draftTestResult = await testProvider({
+        base_url: base,
+        api_key_env: envName,
+        secret_value: pasted,
+        model: draft.model.trim(),
         path: testPath,
         mode: testMode
       });
     } catch (reason) {
-      testError = errorMessage(reason);
+      draftTestError = errorMessage(reason);
     } finally {
       testBusy = false;
     }
@@ -343,13 +373,24 @@
   };
 
   async function runProviderTest() {
-    testBusy = true;
     testError = "";
     testResult = null;
+    const base = testUrl.trim();
+    if (!/^https?:\/\//i.test(base)) {
+      testError = "Base URL must start with http:// or https://.";
+      return;
+    }
+    const envName = testKeyEnv.trim();
+    if (envName && !SECRET_NAME.test(envName)) {
+      testError =
+        "Secret env must be a variable name like DEEPSEEK_API_KEY, not the API key.";
+      return;
+    }
+    testBusy = true;
     try {
       testResult = await testProvider({
-        base_url: testUrl,
-        api_key_env: testKeyEnv,
+        base_url: base,
+        api_key_env: envName,
         path: testPath
       });
     } catch (reason) {
@@ -384,6 +425,30 @@
 </script>
 
 <div class="space-y-4">
+  {#snippet providerTestFeedback(result: ProviderTestResult | null, error: string)}
+    {#if error}
+      <p class="mt-2 rounded-lg border border-rose-500/30 bg-rose-950/20 p-2 text-[10px] text-rose-300" role="alert">{error}</p>
+    {/if}
+    {#if result}
+      <div class={`mt-2 rounded-lg border p-2 text-[10px] ${result.ok ? "border-emerald-500/30 bg-emerald-950/20 text-emerald-300" : "border-rose-500/30 bg-rose-950/20 text-rose-300"}`} role="status" aria-live="polite">
+        <p class="font-medium">
+          {result.ok ? "Connection OK" : "Connection failed"}{#if result.status_code !== null && result.status_code !== undefined} · HTTP {result.status_code}{/if}{#if result.latency_ms !== undefined} · {result.latency_ms} ms{/if}
+        </p>
+        {#if result.message}<p class="mt-1 break-words text-neutral-300">{result.message}</p>{/if}
+        {#if result.hint}<p class="mt-1 break-words text-[9px] text-neutral-400">{result.hint}</p>{/if}
+        {#if result.secret_source}
+          <p class="mt-1 text-[9px] text-neutral-500">API key: {secretSourceLabel(result.secret_source)}</p>
+        {/if}
+        {#if result.provider_message}
+          <details class="mt-1">
+            <summary class="cursor-pointer text-[9px] text-neutral-500">Provider response</summary>
+            <pre class="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-all font-mono text-[9px] text-neutral-500">{result.provider_message}</pre>
+          </details>
+        {/if}
+      </div>
+    {/if}
+  {/snippet}
+
   <ErrorBanner message={error} onDismiss={() => (error = "")} />
   <ErrorBanner message={providerError} title="Provider configuration failed" onDismiss={() => (providerError = "")} testId="provider-error" />
   <div class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
@@ -444,13 +509,7 @@
       <input bind:value={testPath} placeholder="/models" class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" />
       <button type="button" onclick={() => void runProviderTest()} disabled={testBusy} class="rounded-lg border border-sky-500/40 px-3 py-1.5 text-[10px] text-sky-200 disabled:opacity-40">{testBusy ? "Testing…" : "Test"}</button>
     </div>
-    {#if testError}<p class="mt-2 text-[10px] text-rose-300">{testError}</p>{/if}
-    {#if testResult}
-      <div class={`mt-2 rounded-lg border p-2 text-[10px] ${testResult.ok ? "border-emerald-500/30 bg-emerald-950/20 text-emerald-300" : "border-rose-500/30 bg-rose-950/20 text-rose-300"}`}>
-        <p>{testResult.ok ? "Connection OK" : "Connection failed"} · HTTP {testResult.status_code ?? "—"} · secret {testResult.secret_present ? "present" : "missing"}</p>
-        {#if testResult.message}<p class="mt-1 break-all font-mono text-[9px] text-neutral-400">{testResult.message}</p>{/if}
-      </div>
-    {/if}
+    {@render providerTestFeedback(testResult, testError)}
   </div>
 
   <div class="rounded-2xl border border-amber-400/20 bg-amber-950/10 p-4" data-testid="voice-clone-shell">
@@ -549,8 +608,11 @@
               </span>
               {#if providerTests[provider.id]}
                 <span class={`w-full text-[9px] ${providerTests[provider.id].ok ? "text-emerald-300" : "text-rose-300"}`}>
-                  {providerTests[provider.id].ok ? "chat OK" : "test failed"} · HTTP {providerTests[provider.id].status_code ?? "—"} · {providerTests[provider.id].latency_ms ?? "—"} ms · {providerTests[provider.id].message.slice(0, 160)}
+                  {providerTests[provider.id].ok ? "chat OK" : "test failed"} · HTTP {providerTests[provider.id].status_code ?? "—"} · {providerTests[provider.id].latency_ms ?? "—"} ms · {providerTests[provider.id].message}
                 </span>
+                {#if providerTests[provider.id].hint}
+                  <span class="w-full text-[9px] text-neutral-500">{providerTests[provider.id].hint}</span>
+                {/if}
               {/if}
               {#if provider.api_key_env}
                 <div class="mt-1 flex w-full items-center gap-1">
@@ -614,11 +676,7 @@
           <button type="button" onclick={() => void testDraft()} disabled={testBusy || !draft.base_url} class="rounded-lg border border-neutral-700 px-3 py-1.5 text-[10px] text-neutral-300 disabled:opacity-40">{testBusy ? "Testing…" : "Test connection"}</button>
           <button type="button" onclick={() => { draft = blankProvider(); editingProviderId = ""; editorOpen = false; secretDraft = ""; }} class="rounded-lg border border-neutral-800 px-3 py-1.5 text-[10px] text-neutral-500">Cancel</button>
         </div>
-        {#if testResult}
-          <p class={`mt-2 text-[10px] ${testResult.ok ? "text-emerald-300" : "text-rose-300"}`}>
-            {testResult.ok ? "Connection OK" : "Connection failed"} · HTTP {testResult.status_code ?? "—"} · {testResult.latency_ms ?? "—"} ms · secret {testResult.secret_present ? "present" : "missing"} · {testResult.message.slice(0, 200)}
-          </p>
-        {/if}
+        {@render providerTestFeedback(draftTestResult, draftTestError)}
       </details>
     </section>
 
