@@ -12,7 +12,9 @@ Settings tab adds search, units, help tips, and a discard-changes action.
 | Models | default per capability, device, compute type, threads, HF token env | Empty default lets the engine pick |
 | Automation and quality | scheduler interval, retries, backoff, target LUFS, true peak, VMAF, proxy height | Quality values feed audio/visual QA |
 | LLM and speech | temperature, timeout, max tokens, retries, JSON mode, ASR engine/language/device | Copilot and transcript features |
+| Intelligence | provider order, OpenCode V2, DeepSeek, network, budget, timeout | See [intelligence.md](intelligence.md) |
 | TTS, stock, translation, UI | TTS voice/model, stock provider, translation, theme, density, locale | Theme/density are shell-only |
+| Notifications | UI notification level and HILT channels | Default `minimal` shows HITL, finished jobs, and blockers only |
 
 Search filters sections by their visible text. `Discard changes` reloads the
 saved file without touching the server. `Reset` restores server defaults and
