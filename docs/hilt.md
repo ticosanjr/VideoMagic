@@ -104,3 +104,9 @@ narration and edition approvals, the corrected entity manifest, placeholder
 previews, the retention intro, and the repaired voice. The same brief, research,
 master dossier, decoupage, style, asset-license, sample, fact-check, and final
 approvals remain.
+
+The **Produce · Lamera** tab is the operator workspace for this recipe. It
+shows the six phase progress bars, recent runs, the pending HITL inbox, the
+current approval/form with inline video and image previews, gate history, and
+the job log. Approving a gate resumes the job from its checkpoint and the
+workspace follows the resumed job id.

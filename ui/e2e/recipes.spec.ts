@@ -101,6 +101,220 @@ test("renders colored recipe group markers", async ({ page }) => {
   await expect(page.getByText("Ingest, VAD, and timeline")).toBeVisible();
 });
 
+test("edits a canvas group label from recipe config", async ({ page }) => {
+  await openMore(page);
+  await page.getByRole("menuitem", { name: "Recipe config" }).click();
+  await expect(page.getByRole("dialog", { name: "Recipe settings" })).toBeVisible();
+  await page.getByLabel("Label").fill("Decoupage revised");
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect(page.getByText("Decoupage revised")).toBeVisible();
+});
+
+test("opens the dedicated Lamera workspace and HITL gate", async ({ page }) => {
+  const interaction = {
+    interaction_id: "interaction-1",
+    job_id: "job-lamera",
+    recipe_id: "lamera_video_edit",
+    step_id: "research_review",
+    gate_id: "research_review",
+    kind: "approval",
+    title: "Research review",
+    description: "Approve the scoped dossiers.",
+    approve_label: "Approve",
+    reject_label: "Reject",
+    questions: [],
+    files: [],
+    artifacts: [
+      {
+        id: "dossier",
+        label: "Master dossier",
+        path: "research/master.md",
+        kind: "markdown",
+        description: "",
+        exists: true,
+        size_bytes: 1200,
+        download_url: "/api/v1/jobs/job-lamera/interactions/interaction-1/artifacts/dossier"
+      }
+    ],
+    channels: ["local"],
+    status: "pending",
+    created_at: "2026-11-11T20:00:00Z",
+    expires_at: "2026-11-18T20:00:00Z",
+    reminder_at: "",
+    token_required: false,
+    response_url: "",
+    files_url: "",
+    response: null,
+    expired: false
+  };
+  const job = {
+    job_id: "job-lamera",
+    status: "waiting_approval",
+    progress: 35,
+    stage: "research_review",
+    message: "Research review",
+    source: "/tmp/lamera-source.mp4",
+    output: "/tmp/lamera-output",
+    options: {},
+    result: null,
+    error: null,
+    created_at: "2026-11-11T20:00:00Z",
+    started_at: "2026-11-11T20:00:01Z",
+    finished_at: null,
+    duration_ms: 1000,
+    step_progress: { research_a: 100 },
+    log_count: 2,
+    stages: [
+      {
+        id: "brief",
+        module: "brief",
+        label: "Brief",
+        status: "succeeded",
+        progress: 100,
+        message: "Brief ready",
+        started_at: "",
+        finished_at: "",
+        duration_ms: 10,
+        error: null
+      },
+      {
+        id: "research_a",
+        module: "research.multi_agent",
+        label: "Research agents",
+        status: "succeeded",
+        progress: 100,
+        message: "Dossiers ready",
+        started_at: "",
+        finished_at: "",
+        duration_ms: 10,
+        error: null
+      },
+      {
+        id: "research_review",
+        module: "human.gate",
+        label: "Research review",
+        status: "running",
+        progress: 0,
+        message: "Waiting for approval",
+        started_at: "",
+        finished_at: null,
+        duration_ms: null,
+        error: null
+      }
+    ],
+    interaction
+  };
+  const recipe = {
+    schema_version: 1,
+    id: "lamera_video_edit",
+    name: "Lamera Video Edit",
+    description: "Long-form test recipe",
+    llm: { provider: "none" },
+    variables: {},
+    profiles: {},
+    variants: [],
+    steps: [
+      { id: "brief", type: "human.input", needs: [], enabled: true, params: {} },
+      { id: "research_a", type: "research.multi_agent", needs: ["brief"], enabled: true, params: {} },
+      { id: "research_review", type: "human.gate", needs: ["research_a"], enabled: true, params: {} },
+      { id: "ingest", type: "ingest", needs: ["research_review"], enabled: true, params: {} },
+      { id: "decoupage_review", type: "human.gate", needs: ["ingest"], enabled: true, params: {} },
+      { id: "export", type: "export.nle", needs: ["decoupage_review"], enabled: true, params: {} }
+    ],
+    ui: {
+      version: 1,
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: {},
+      groups: [
+        {
+          id: "research",
+          label: "Pesquisa",
+          description: "Pesquisa e roteiro",
+          color: "#38bdf8",
+          x: 0,
+          y: 0,
+          width: 1000,
+          height: 300,
+          nodes: ["brief", "research_a", "research_review"]
+        },
+        {
+          id: "decoupage",
+          label: "Decupagem",
+          description: "Corte e auditoria",
+          color: "#f59e0b",
+          x: 0,
+          y: 0,
+          width: 1000,
+          height: 300,
+          nodes: ["ingest", "decoupage_review"]
+        },
+        {
+          id: "delivery",
+          label: "Entrega",
+          description: "Exportação",
+          color: "#fb7185",
+          x: 0,
+          y: 0,
+          width: 1000,
+          height: 300,
+          nodes: ["export"]
+        }
+      ]
+    }
+  };
+  await page.route("**/api/v1/recipes/lamera_video_edit", (route) =>
+    route.fulfill({ json: { ok: true, recipe } })
+  );
+  await page.route("**/api/v1/steps", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        steps: [
+          { type: "human.input", title: "Brief", icon: "?", description: "", requires: [], produces: [], params_schema: {} },
+          { type: "research.multi_agent", title: "Research agents", icon: "⌕", description: "", requires: [], produces: [], params_schema: {} },
+          { type: "human.gate", title: "Research review", icon: "✓", description: "", requires: [], produces: [], params_schema: {} },
+          { type: "ingest", title: "Ingest media", icon: "→", description: "", requires: [], produces: [], params_schema: {} },
+          { type: "export.nle", title: "Export timelines", icon: "↗", description: "", requires: [], produces: [], params_schema: {} }
+        ]
+      }
+    })
+  );
+  await page.route("**/api/v1/jobs?**", (route) =>
+    route.fulfill({ json: { ok: true, jobs: [job], total: 1 } })
+  );
+  await page.route("**/api/v1/jobs/job-lamera", (route) =>
+    route.fulfill({ json: { ok: true, job } })
+  );
+  await page.route("**/api/v1/jobs/job-lamera/logs**", (route) =>
+    route.fulfill({ json: { ok: true, logs: [] } })
+  );
+  await page.route("**/api/v1/jobs/job-lamera/interactions", (route) =>
+    route.fulfill({ json: { ok: true, interactions: [interaction] } })
+  );
+  await page.route("**/api/v1/hilt/pending", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        interactions: [
+          { job_id: "job-lamera", job_status: "waiting_approval", job_message: "Research review", interaction }
+        ],
+        count: 1
+      }
+    })
+  );
+  await page.goto("/#lamera");
+
+  await expect(page.getByRole("heading", { name: "Lamera Video Edit" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "HITL inbox" })).toBeVisible();
+  await expect(
+    page.getByTestId("hilt-panel").getByRole("heading", { name: "Research review" })
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: /Pesquisa/ })).toBeVisible();
+  await expect(
+    page.getByTestId("hilt-panel").getByRole("button", { name: "Approve" })
+  ).toBeVisible();
+});
+
 test("inspects a node output from the latest run", async ({ page }) => {
   const job = {
     job_id: "job-1",

@@ -4,6 +4,7 @@
   import ActivityDrawer from "$lib/ActivityDrawer.svelte";
   import AutomationPanel from "$lib/AutomationPanel.svelte";
   import CapabilitiesPanel from "$lib/CapabilitiesPanel.svelte";
+  import LameraWorkspace from "$lib/LameraWorkspace.svelte";
   import CommandPalette from "$lib/CommandPalette.svelte";
   import CopilotPanel from "$lib/CopilotPanel.svelte";
   import IntegrationsPanel from "$lib/IntegrationsPanel.svelte";
@@ -50,6 +51,7 @@ import { noticeCounts } from "$lib/notifications";
 
   const TAB_HINTS: Record<TabId, string> = {
     recipes: "Visual recipe builder and runner",
+    lamera: "Dedicated Lamera run console and HITL inbox",
     assistant: "LLM recipe drafts and timeline edit plans",
     timeline: "Canvas timeline with preview, trim, split, and undo",
     jobs: "Queue, progress, approvals, pauses, and failures",
@@ -66,6 +68,7 @@ import { noticeCounts } from "$lib/notifications";
 
   const TAB_KEYS: Record<string, TabId> = {
     r: "recipes",
+    d: "lamera",
     c: "assistant",
     t: "timeline",
     j: "jobs",
@@ -823,6 +826,8 @@ import { noticeCounts } from "$lib/notifications";
     <div id="workspace-content" class="scroll-mt-24">
       {#if activeTab === "recipes"}
         <RecipesPanel />
+      {:else if activeTab === "lamera"}
+        <LameraWorkspace />
       {:else if activeTab === "media"}
         <AssetsPanel />
       {:else if activeTab === "timeline"}

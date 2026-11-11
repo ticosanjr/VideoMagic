@@ -662,6 +662,10 @@ class JobManager:
     def _persist_job(self, job: Job) -> None:
         if job.deleted or self._store_dir is None:
             return
+        # A pruned terminal job can still be finishing its worker finalizer.
+        # Do not resurrect it in the store after _prune removed it.
+        if job.status in TERMINAL and self._jobs.get(str(job.job_id)) is not job:
+            return
         try:
             from videoflow.application.database import upsert_job
 

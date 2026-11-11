@@ -40,6 +40,23 @@
     files = { ...files, [requestId]: selected ? Array.from(selected) : [] };
   }
 
+  function isVideo(path: string): boolean {
+    return /\.(mp4|webm|mov|m4v)$/i.test(path);
+  }
+
+  function isImage(path: string): boolean {
+    return /\.(png|jpe?g|webp|gif)$/i.test(path);
+  }
+
+  function mediaArtifacts(current: HiltInteraction) {
+    return current.artifacts.filter(
+      (artifact) =>
+        artifact.exists &&
+        Boolean(artifact.download_url) &&
+        (isVideo(artifact.path) || isImage(artifact.path))
+    );
+  }
+
   function fail(message: string) {
     localError = message;
     onerror?.(message);
@@ -108,6 +125,39 @@
                 {artifact.exists ? `${Math.max(1, Math.round(artifact.size_bytes / 1024))} KB` : "missing"}
               </span>
             </a>
+          {/each}
+        </div>
+      </div>
+    {/if}
+
+    {#if mediaArtifacts(interaction).length}
+      <div class="mt-3">
+        <p class="text-[10px] uppercase tracking-wide text-amber-300/60">Preview</p>
+        <div class="mt-1 grid gap-2 sm:grid-cols-2">
+          {#each mediaArtifacts(interaction) as artifact (artifact.id)}
+            {#if isVideo(artifact.path)}
+              <figure class="overflow-hidden rounded-lg border border-amber-400/10 bg-black/30">
+                <!-- svelte-ignore a11y_media_has_caption -->
+                <video
+                  controls
+                  preload="metadata"
+                  playsinline
+                  src={artifact.download_url}
+                  class="aspect-video w-full bg-black"
+                ></video>
+                <figcaption class="truncate px-2 py-1 text-[9px] text-amber-100/60">{artifact.label}</figcaption>
+              </figure>
+            {:else}
+              <a
+                href={artifact.download_url}
+                target="_blank"
+                rel="noreferrer"
+                class="overflow-hidden rounded-lg border border-amber-400/10 bg-black/30"
+              >
+                <img src={artifact.download_url} alt={artifact.label} class="max-h-48 w-full object-contain" />
+                <span class="block truncate px-2 py-1 text-[9px] text-amber-100/60">{artifact.label}</span>
+              </a>
+            {/if}
           {/each}
         </div>
       </div>

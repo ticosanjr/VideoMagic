@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (2.60.0)
+## Implementation status (2.63.0)
 
 | Area | State |
 | --- | --- |
@@ -35,14 +35,14 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Plugins | exporter and provider registration, manifest permissions, static sandbox allowlist ([plugins.md](plugins.md)) |
 | UI guidance | naming, tooltips, microcopy, empty states, units ([ui-copy.md](ui-copy.md)) |
 | Error catalog | codes, HTTP status, meaning, next action ([errors.md](errors.md)) |
-| Release gates | 2.62.0 evidence and the two open 3.0 blockers ([3.0-blockers.md](3.0-blockers.md)) |
+| Release gates | 2.63.0 evidence and the two open 3.0 blockers ([3.0-blockers.md](3.0-blockers.md)) |
 | Coverage | per-layer baseline and the remaining gap ([coverage.md](coverage.md)) |
 | Voice cloning | Explicit deferral, consent, and acceptance criteria ([voice-clone.md](voice-clone.md)) |
 | Settings | searchable settings with units, help tips, discard/reset ([settings.md](settings.md)) |
 | Copilot | LLM recipe drafts and timeline edit plans, provider/service setup, validation rules ([copilot.md](copilot.md)) |
 | Assistant and review | Allowlisted tool-calling with approval/diff/cost, run graph, variant comparison ([projects-assistant.md](manuals/projects-assistant.md)) |
 | Recut and recipe library | Recut Replacement (+ retakes), detailed VAD/cut controls, favorites/recent/tags on the server ([recipes.md](recipes.md)) |
-| Human-in-the-loop | Durable approvals, questions, file handoffs, local/e-mail/Slack/Signal notifications, and the Full AI Editor recipe ([hilt.md](hilt.md)) |
+| Human-in-the-loop | Durable approvals, questions, file handoffs, local/e-mail/Slack/Signal notifications, the Full AI Editor recipe, and the Lamera workspace/inbox ([hilt.md](hilt.md)) |
 | Research and script | Local/SearXNG/Wikipedia/Internet Archive providers, scoped agents, citation validation, consolidation, presenter profile, and dual script ([research.md](research.md)) |
 | Vision and decoupage | Eye-contact green labels, reference XML calibration, frame-accurate speech map, entity corrections ([vision-decoupage.md](vision-decoupage.md)) |
 | Art direction and assets | Style guide, unit storyboard, Pexels/Pixabay/Openverse/Wikimedia/Internet Archive/YouTube discovery, license ledger, and export gating ([assets-licensing.md](assets-licensing.md)) |
@@ -61,7 +61,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Batch resume | resume failed/cancelled batches and skip completed items |
 | Preview | synced MP4 preview plus waveform; background 540p proxy with titles, color, and audio-master filters |
 | MLT smoke | optional `melt` render check for generated Kdenlive projects |
-| Recipe UI | inline node fields, array JSON, undo/redo, cycle prevention, saved layout, per-step progress, NLE validation |
+| Recipe UI | inline node fields, array JSON, undo/redo, cycle prevention, saved layout, per-step progress, NLE validation, canvas group editor |
 | Windows PE | not part of the local Linux release; cross-build separately if needed |
 | CI and Windows | GitHub Actions test workflow and Windows portable artifact workflow |
 | SRT transcript import and LLM retake culling | implemented |

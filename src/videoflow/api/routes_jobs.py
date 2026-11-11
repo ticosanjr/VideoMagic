@@ -48,9 +48,19 @@ def register_job_routes(app: FastAPI, jobs: JobManager) -> None:
 
     @app.get("/api/v1/jobs")
     def list_jobs(
-        limit: int | None = None, offset: int = 0, summary: bool = False
+        limit: int | None = None,
+        offset: int = 0,
+        summary: bool = False,
+        recipe_id: str = "",
     ) -> dict[str, object]:
         all_jobs = jobs.list()
+        if recipe_id:
+            all_jobs = [
+                job
+                for job in all_jobs
+                if str((job.options.get("recipe") or {}).get("id") or "")
+                == recipe_id
+            ]
         start = max(0, int(offset))
         selected = (
             all_jobs[start:]

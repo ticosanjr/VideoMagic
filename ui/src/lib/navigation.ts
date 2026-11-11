@@ -4,6 +4,7 @@ export type AreaId = "produce" | "edit" | "runs" | "library" | "setup";
 
 export type TabId =
   | "recipes"
+  | "lamera"
   | "assistant"
   | "timeline"
   | "jobs"
@@ -29,7 +30,7 @@ export interface AreaMeta {
 }
 
 export const AREAS: AreaMeta[] = [
-  { id: "produce", tabs: ["recipes", "assistant"] },
+  { id: "produce", tabs: ["recipes", "lamera", "assistant"] },
   { id: "edit", tabs: ["timeline"] },
   { id: "runs", tabs: ["jobs", "schedules"] },
   { id: "library", tabs: ["media", "brand"] },
@@ -41,6 +42,7 @@ export const AREAS: AreaMeta[] = [
 
 export const TABS: TabMeta[] = [
   { id: "recipes", area: "produce", legacy: [] },
+  { id: "lamera", area: "produce", legacy: ["lamera-video"] },
   { id: "assistant", area: "produce", legacy: ["copilot"] },
   { id: "timeline", area: "edit", legacy: [] },
   { id: "jobs", area: "runs", legacy: [] },
@@ -125,6 +127,7 @@ export const AREA_ICONS: Record<AreaId, IconName> = {
 
 export const TAB_ICONS: Record<TabId, IconName> = {
   recipes: "list",
+  lamera: "grid",
   assistant: "sparkles",
   timeline: "film",
   jobs: "activity",

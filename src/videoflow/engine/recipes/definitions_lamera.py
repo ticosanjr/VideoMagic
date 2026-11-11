@@ -700,7 +700,7 @@ _STEPS: list[dict[str, Any]] = [
         "id": "storyboard_units",
         "type": "storyboard.units",
         "needs": ["storyboard", "style_guide"],
-        "params": {"max_units": 400, "max_unit_seconds": 45},
+        "params": {"max_units": 400, "max_unit_seconds": 45, "target_units": 225},
     },
     {
         "id": "storyboard_preview",

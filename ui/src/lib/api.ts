@@ -2599,9 +2599,18 @@ export function assetFileUrl(assetId: string): string {
   return `/api/v1/assets/${encodeURIComponent(assetId)}/file`;
 }
 
-export async function listJobs(summary = true): Promise<Job[]> {
+export async function listJobs(
+  summary = true,
+  options: { limit?: number; offset?: number; recipeId?: string } = {}
+): Promise<Job[]> {
+  const params = new URLSearchParams({
+    summary: summary ? "true" : "false"
+  });
+  if (options.limit !== undefined) params.set("limit", String(options.limit));
+  if (options.offset !== undefined) params.set("offset", String(options.offset));
+  if (options.recipeId) params.set("recipe_id", options.recipeId);
   const response = await request<{ ok: boolean; jobs: Job[] }>(
-    `/api/v1/jobs?summary=${summary ? "true" : "false"}`
+    `/api/v1/jobs?${params.toString()}`
   );
   return response.jobs;
 }

@@ -110,6 +110,7 @@ class UnitsParams(BaseModel):
     script_path: str = Field(default="script/script.json", max_length=2000)
     max_units: int = Field(default=400, ge=1, le=1000)
     max_unit_seconds: float = Field(default=45.0, ge=5.0, le=180.0)
+    target_units: int | None = Field(default=None, ge=1, le=1000)
     provider_id: str = ""
 
 
@@ -130,6 +131,64 @@ def _layout(visual: str) -> str:
 def _query(title: str, narration: str) -> str:
     words = re.findall(r"[0-9A-Za-zÀ-ÿ']+", f"{title} {narration}")
     return " ".join(words[:14]) or title
+
+
+def _merge_units(units: list[dict[str, Any]], target: int | None) -> list[dict[str, Any]]:
+    """Merge adjacent units until the requested target count is reached."""
+
+    if not target or target <= 0 or len(units) <= target:
+        return units
+    durations = [max(1.0, float(item.get("duration_sec") or 1.0)) for item in units]
+    bucket_seconds = sum(durations) / target
+    buckets: list[list[dict[str, Any]]] = []
+    current: list[dict[str, Any]] = []
+    current_seconds = 0.0
+    for unit, duration in zip(units, durations, strict=False):
+        current.append(unit)
+        current_seconds += duration
+        if current_seconds >= bucket_seconds and len(buckets) < target - 1:
+            buckets.append(current)
+            current = []
+            current_seconds = 0.0
+    if current:
+        if len(buckets) < target:
+            buckets.append(current)
+        else:
+            buckets[-1].extend(current)
+    merged: list[dict[str, Any]] = []
+    for index, bucket in enumerate(buckets, start=1):
+        first = bucket[0]
+        last = bucket[-1]
+        titles = [str(item.get("title") or "") for item in bucket if item.get("title")]
+        narrations = [
+            str(item.get("narration") or "") for item in bucket if item.get("narration")
+        ]
+        visuals = [
+            str(item.get("visual") or "") for item in bucket if item.get("visual")
+        ]
+        queries: list[str] = []
+        for item in bucket:
+            value = str(item.get("asset_query") or "").strip()
+            if value and value not in queries:
+                queries.append(value)
+        start = float(first.get("start_sec") or 0.0)
+        end = float(last.get("end_sec") or start)
+        merged.append(
+            {
+                "unit_id": f"UNIT-{index:04d}",
+                "section_id": first.get("section_id") or index,
+                "title": titles[0] if len(titles) <= 1 else f"{titles[0]} +{len(titles) - 1}",
+                "asset_query": " ".join(queries)[:240]
+                or (titles[0] if titles else ""),
+                "layout": str(first.get("layout") or "presenter_visual"),
+                "start_sec": round(start, 3),
+                "end_sec": round(end, 3),
+                "duration_sec": round(max(1.0, end - start), 3),
+                "narration": " ".join(narrations),
+                "visual": " ".join(dict.fromkeys(visuals)),
+            }
+        )
+    return merged
 
 
 @register_step
@@ -209,6 +268,7 @@ class StoryboardUnitsStep(BaseStep):
                 }
             )
             cursor += duration
+        units = _merge_units(units, options.target_units)
         target = context.output / "storyboard" / "units.json"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(

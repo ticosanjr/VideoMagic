@@ -777,6 +777,26 @@ def test_provider_connection_test(monkeypatch) -> None:
     assert payload["secret_present"] is True
 
 
+def test_job_list_can_filter_by_recipe(monkeypatch, tmp_path: Path) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    client = make_client(monkeypatch, tmp_path)
+    first = start_job(client, source, tmp_path / "out-a")
+    other = dict(MINIMAL_RECIPE)
+    other["id"] = "other"
+    second = client.app.state.jobs.start(
+        source,
+        tmp_path / "out-b",
+        {"mode": "recipe", "recipe": other},
+        queue=True,
+    )
+
+    filtered = client.get("/api/v1/jobs?recipe_id=test").json()
+    assert filtered["total"] == 1
+    assert [item["job_id"] for item in filtered["jobs"]] == [first["job_id"]]
+    assert second.job_id != first["job_id"]
+
+
 def test_job_list_can_omit_the_embedded_recipe(monkeypatch, tmp_path: Path) -> None:
     from tests.contract.test_api_timeline import _client, _job
 

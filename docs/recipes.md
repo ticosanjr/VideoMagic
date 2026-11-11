@@ -408,6 +408,11 @@ direction, licensed asset harvesting, motion/Foley, audio mix, fact-check,
 voice repair, and NLE/video export. The four research nodes are independent in
 the DAG; the current runner still executes DAG branches in series.
 
+`storyboard.units` has a `target_units` option; Lamera uses it to merge the
+script sections into 225 unit groups. The Recipe config modal also edits the
+canvas groups: label, description, colour, membership from the current selection,
+and removal.
+
 ### OpusClip-style recipes
 
 Three recipes map the OpusClip workflow onto native VideoFlow steps:

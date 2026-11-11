@@ -721,4 +721,38 @@ export const GLOSSARY: Record<string, string> = {
   "YouTube clip seconds": "Segundos do trecho do YouTube",
   "YouTube clips per video": "Trechos por vídeo do YouTube",
   "allow fair-use excerpts": "permitir trechos em fair use",
+  "A gate is waiting in another run": "Um gate está aguardando em outra execução",
+  "Cancel run": "Cancelar execução",
+  "HITL inbox": "Caixa de entrada HITL",
+  "Lamera Video Edit": "Lamera Video Edit",
+  "Lamera workspace": "Workspace Lamera",
+  "Loading Lamera recipe and runs…": "Carregando receita e execuções da Lamera…",
+  "No Lamera run selected.": "Nenhuma execução da Lamera selecionada.",
+  "No Lamera run yet. Open the recipe builder and start one.":
+    "Ainda não há execução da Lamera. Abra o construtor de receitas e inicie uma.",
+  "No gate history for this run.": "Sem histórico de gates para esta execução.",
+  "No gate is waiting": "Nenhum gate aguardando",
+  "No logs loaded.": "Nenhum log carregado.",
+  "No pending gate. The run will appear here when it needs you.":
+    "Nenhum gate pendente. A execução aparecerá aqui quando precisar de você.",
+  "Open recipe builder": "Abrir construtor de receitas",
+  "Open the recipe builder, choose Lamera Video Edit, and start a run.":
+    "Abra o construtor de receitas, escolha Lamera Video Edit e inicie uma execução.",
+  "Phases": "Fases",
+  "Preview": "Prévia",
+  "Select it in the HITL inbox to open the approval card.":
+    "Selecione na caixa HITL para abrir o cartão de aprovação.",
+  "The Lamera recipe is not available in this installation.":
+    "A receita Lamera não está disponível nesta instalação.",
+  "The run is working or has completed. Phase progress is below.":
+    "A execução está trabalhando ou terminou. O progresso das fases está abaixo.",
+  "gate waiting": "gate aguardando",
+  "stage": "etapa",
+  "Add group from selection": "Adicionar grupo da seleção",
+  "Add selected": "Adicionar selecionados",
+  "Canvas groups": "Grupos do canvas",
+  "Color": "Cor",
+  "Label": "Rótulo",
+  "No groups yet. Select nodes on the canvas and add a group.":
+    "Ainda não há grupos. Selecione nós no canvas e adicione um grupo.",
 };

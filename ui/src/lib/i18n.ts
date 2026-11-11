@@ -5,6 +5,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     runs: "Runs",
     setup: "Setup",
     recipes: "Recipes",
+    lamera: "Lamera",
     assistant: "Assistant",
     timeline: "Timeline",
     jobs: "Jobs",
@@ -57,6 +58,7 @@ const STRINGS: Record<string, Record<string, string>> = {
   },
   "pt-BR": {
     recipes: "Receitas",
+    lamera: "Lamera",
     assets: "Assets",
     timeline: "Timeline",
     jobs: "Tarefas",

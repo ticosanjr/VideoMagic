@@ -29,6 +29,7 @@ Vitest.
 | `?` | Shortcut reference |
 | `Esc` | Close the palette, drawer, modal, or notification center |
 | `g` then `r` | Produce · Recipes |
+| `g` then `d` | Produce · Lamera |
 | `g` then `c` | Produce · Assistant |
 | `g` then `t` | Edit · Timeline |
 | `g` then `j` | Runs · Jobs |
@@ -73,7 +74,7 @@ creation time. The footer jumps to the job dashboard.
 
 ## Areas
 
-The shell has five primary areas: **Produce** (Recipes, Assistant), **Edit**
+The shell has five primary areas: **Produce** (Recipes, Lamera, Assistant), **Edit**
 (Timeline), **Runs** (Jobs, Schedules), **Library** (Media, Brand library), and
 **Setup** (AI models, AI providers, Local services, Extensions, Connect,
 Settings). Flat hashes (`#recipes`, `#timeline`, …) are canonical; legacy

@@ -67,6 +67,7 @@
     type Batch,
     type Job,
     type Recipe,
+    type RecipeGroup,
     type NleValidationReport,
     type RecipeHistoryEntry,
     type RecipeSummary,
@@ -502,6 +503,27 @@
     return memo;
   }
 
+  const GROUP_COLORS = ["#38bdf8", "#f59e0b", "#22c55e", "#ec4899", "#06b6d4", "#fb7185"];
+
+  function groupNodeFor(group: RecipeGroup): Node {
+    return {
+      id: `group:${group.id}`,
+      type: "group",
+      position: { x: group.x, y: group.y },
+      data: {
+        label: group.label,
+        description: group.description,
+        color: group.color
+      },
+      style: `width:${group.width}px;height:${group.height}px;pointer-events:none;`,
+      draggable: false,
+      selectable: false,
+      connectable: false,
+      focusable: false,
+      zIndex: -1
+    };
+  }
+
   function graphFromRecipe(recipe: Recipe) {
     recipeId = recipe.id;
     recipeName = recipe.name;
@@ -530,22 +552,7 @@
     viewport = { ...recipeUi.viewport };
     const depth = levels(recipe);
     const rows: Record<number, number> = {};
-    const groupNodes: Node[] = (recipeUi.groups ?? []).map((group) => ({
-      id: `group:${group.id}`,
-      type: "group",
-      position: { x: group.x, y: group.y },
-      data: {
-        label: group.label,
-        description: group.description,
-        color: group.color
-      },
-      style: `width:${group.width}px;height:${group.height}px;pointer-events:none;`,
-      draggable: false,
-      selectable: false,
-      connectable: false,
-      focusable: false,
-      zIndex: -1
-    }));
+    const groupNodes: Node[] = (recipeUi.groups ?? []).map(groupNodeFor);
     const next = recipe.steps.map((step) => {
       const column = depth[step.id] ?? 0;
       const row = rows[column] ?? 0;
@@ -734,6 +741,126 @@
         };
       })
     };
+  }
+
+  function syncGroupNode(group: RecipeGroup) {
+    const id = `group:${group.id}`;
+    nodes = nodes.map((node) =>
+      node.id === id
+        ? {
+            ...node,
+            position: { x: group.x, y: group.y },
+            style: `width:${group.width}px;height:${group.height}px;pointer-events:none;`,
+            data: {
+              ...(node.data as object),
+              label: group.label,
+              description: group.description,
+              color: group.color
+            }
+          }
+        : node
+    );
+  }
+
+  function updateGroup(
+    id: string,
+    patch: Partial<Pick<RecipeGroup, "label" | "description" | "color" | "x" | "y" | "width" | "height" | "nodes">>
+  ) {
+    const groups = (recipeUi.groups ?? []).map((group) =>
+      group.id === id ? { ...group, ...patch } : group
+    );
+    recipeUi = { ...recipeUi, groups };
+    const updated = groups.find((group) => group.id === id);
+    if (updated) syncGroupNode(updated);
+    scheduleUiSave();
+  }
+
+  function selectedStepNodes(): Node[] {
+    return nodes.filter(
+      (node) => node.type === "step" && selectedNodeIds.includes(node.id)
+    );
+  }
+
+  function addGroupFromSelection() {
+    const chosen = selectedStepNodes();
+    if (!chosen.length) {
+      error = "Select one or more nodes on the canvas first.";
+      return;
+    }
+    const minX = Math.min(...chosen.map((node) => node.position.x)) - 40;
+    const minY = Math.min(...chosen.map((node) => node.position.y)) - 78;
+    const maxX =
+      Math.max(
+        ...chosen.map(
+          (node) => node.position.x + (nodeData(node).width ?? 420)
+        )
+      ) + 40;
+    const maxY =
+      Math.max(
+        ...chosen.map(
+          (node) => node.position.y + (nodeData(node).expanded ? 640 : 170)
+        )
+      ) + 40;
+    const index = (recipeUi.groups ?? []).length;
+    const group: RecipeGroup = {
+      id: `group-${Date.now()}`,
+      label: `Phase ${index + 1}`,
+      description: "",
+      color: GROUP_COLORS[index % GROUP_COLORS.length],
+      x: minX,
+      y: minY,
+      width: Math.max(260, maxX - minX),
+      height: Math.max(170, maxY - minY),
+      nodes: chosen.map((node) => node.id)
+    };
+    recipeUi = { ...recipeUi, groups: [...(recipeUi.groups ?? []), group] };
+    nodes = [...nodes, groupNodeFor(group)];
+    error = "";
+    scheduleUiSave();
+  }
+
+  function addSelectedToGroup(group: RecipeGroup) {
+    const chosen = selectedStepNodes();
+    if (!chosen.length) {
+      error = "Select one or more nodes on the canvas first.";
+      return;
+    }
+    const ids = Array.from(
+      new Set([...group.nodes, ...chosen.map((node) => node.id)])
+    );
+    const minX = Math.min(group.x, ...chosen.map((node) => node.position.x)) - 20;
+    const minY = Math.min(group.y, ...chosen.map((node) => node.position.y)) - 20;
+    const maxX =
+      Math.max(
+        group.x + group.width,
+        ...chosen.map(
+          (node) => node.position.x + (nodeData(node).width ?? 420)
+        )
+      ) + 20;
+    const maxY =
+      Math.max(
+        group.y + group.height,
+        ...chosen.map(
+          (node) => node.position.y + (nodeData(node).expanded ? 640 : 170)
+        )
+      ) + 20;
+    updateGroup(group.id, {
+      nodes: ids,
+      x: minX,
+      y: minY,
+      width: Math.max(260, maxX - minX),
+      height: Math.max(170, maxY - minY)
+    });
+    error = "";
+  }
+
+  function removeGroup(group: RecipeGroup) {
+    recipeUi = {
+      ...recipeUi,
+      groups: (recipeUi.groups ?? []).filter((item) => item.id !== group.id)
+    };
+    nodes = nodes.filter((node) => node.id !== `group:${group.id}`);
+    scheduleUiSave();
   }
 
   function addStep(type: string, initialParams: Record<string, unknown> = {}) {
@@ -3847,6 +3974,67 @@
               <input type="number" bind:value={llm.timeout_seconds} min="1" max="600" class="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-[11px] text-neutral-200" />
             </label>
           {/if}
+        </div>
+        <div class="mt-5 border-t border-neutral-800 pt-4">
+          <div class="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h4 class="text-[11px] font-semibold uppercase tracking-wide text-neutral-300">Canvas groups</h4>
+              <p class="mt-1 text-[10px] text-neutral-500">
+                Colored areas with a label and description. Select nodes on the canvas, then add them to a group.
+              </p>
+            </div>
+            <button
+              type="button"
+              onclick={addGroupFromSelection}
+              class="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1 text-[10px] text-sky-200"
+            >Add group from selection</button>
+          </div>
+          <div class="mt-2 space-y-2">
+            {#each recipeUi.groups ?? [] as group (group.id)}
+              <div class="rounded-lg border border-neutral-800 bg-neutral-900/60 p-2">
+                <div class="grid gap-2 sm:grid-cols-2">
+                  <label class="text-[10px] text-neutral-500">
+                    Label
+                    <input
+                      value={group.label}
+                      oninput={(event) => updateGroup(group.id, { label: event.currentTarget.value })}
+                      class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-200"
+                    />
+                  </label>
+                  <label class="text-[10px] text-neutral-500">
+                    Color
+                    <span class="mt-1 flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={group.color}
+                        oninput={(event) => updateGroup(group.id, { color: event.currentTarget.value })}
+                        class="h-7 w-10 rounded border border-neutral-700 bg-neutral-950"
+                      />
+                      <span class="font-mono text-[9px] text-neutral-500">{group.color}</span>
+                    </span>
+                  </label>
+                  <label class="text-[10px] text-neutral-500 sm:col-span-2">
+                    Description
+                    <textarea
+                      rows="2"
+                      value={group.description}
+                      oninput={(event) => updateGroup(group.id, { description: event.currentTarget.value })}
+                      class="mt-1 w-full resize-y rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-200"
+                    ></textarea>
+                  </label>
+                </div>
+                <div class="mt-1.5 flex flex-wrap items-center gap-2 text-[9px] text-neutral-500">
+                  <span>{group.nodes.length} node(s)</span>
+                  <button type="button" onclick={() => addSelectedToGroup(group)} class="rounded border border-neutral-700 px-1.5 py-0.5 text-neutral-300">Add selected</button>
+                  <button type="button" onclick={() => removeGroup(group)} class="rounded border border-rose-500/30 px-1.5 py-0.5 text-rose-300">Remove</button>
+                </div>
+              </div>
+            {:else}
+              <p class="rounded-lg border border-dashed border-neutral-800 px-2 py-2 text-[10px] text-neutral-500">
+                No groups yet. Select nodes on the canvas and add a group.
+              </p>
+            {/each}
+          </div>
         </div>
         <div class="mt-4 flex justify-end">
           <button type="button" onclick={() => (configOpen = false)} class="rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-medium text-neutral-950 hover:bg-sky-400">Done</button>
