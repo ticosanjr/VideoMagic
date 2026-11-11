@@ -50,6 +50,62 @@ def _face_centers(frames: np.ndarray) -> list[float | None]:
     return centers
 
 
+def _face_centers_mediapipe(frames: np.ndarray) -> list[float | None]:
+    import mediapipe as mp  # type: ignore[import-not-found]
+
+    detector = mp.solutions.face_detection.FaceDetection(
+        model_selection=1, min_detection_confidence=0.4
+    )
+    centers: list[float | None] = []
+    try:
+        for frame in frames:
+            rgb = np.stack([frame] * 3, axis=-1)
+            result = detector.process(rgb)
+            detections = result.detections or []
+            if not detections:
+                centers.append(None)
+                continue
+            best = max(
+                detections,
+                key=lambda item: float(
+                    item.location_data.relative_bounding_box.width
+                )
+                * float(item.location_data.relative_bounding_box.height),
+            )
+            box = best.location_data.relative_bounding_box
+            centers.append(float(box.xmin + box.width / 2))
+    finally:
+        detector.close()
+    return centers
+
+
+def _face_centers_yolo(frames: np.ndarray) -> list[float | None]:
+    import os
+
+    from ultralytics import YOLO  # type: ignore[import-not-found]
+
+    model_path = os.environ.get("VIDEOWFLOW_YOLO_MODEL", "yolov8n.pt")
+    model = YOLO(model_path)
+    centers: list[float | None] = []
+    for frame in frames:
+        rgb = np.stack([frame] * 3, axis=-1)
+        results = model.predict(rgb, verbose=False)
+        boxes = []
+        for result in results:
+            for box in getattr(result, "boxes", []) or []:
+                cls = int(box.cls[0]) if getattr(box, "cls", None) is not None else 0
+                if cls != 0:
+                    continue
+                x1, _y1, x2, _y2 = [float(value) for value in box.xyxy[0]]
+                boxes.append((x2 - x1, (x1 + x2) / 2))
+        if not boxes:
+            centers.append(None)
+            continue
+        _width, center = max(boxes, key=lambda item: item[0])
+        centers.append(center / max(1, frame.shape[1]))
+    return centers
+
+
 def _motion_centers(frames: np.ndarray) -> list[float | None]:
     if len(frames) < 2:
         return [None for _ in range(len(frames))]
@@ -76,15 +132,36 @@ def track_focus_keyframes(
     mode: str = "motion_tracking",
     smoothing: float = 0.85,
     fps: int = 2,
+    backend: str = "",
 ) -> tuple[list[dict[str, float]], str]:
     """Return a smoothed focus path for dynamic reframing."""
 
-    frames = frames_from_pieces(source, pieces, sample_rate, fps=fps)
+    wide = backend in {"mediapipe", "yolo"}
+    frames = frames_from_pieces(
+        source,
+        pieces,
+        sample_rate,
+        fps=fps,
+        width=256 if wide else 64,
+        height=144 if wide else 36,
+    )
     if len(frames) == 0:
         return [{"time_sec": 0.0, "focus_x": 0.5}], "motion_tracking"
     values: list[float | None] = []
     used_mode = "motion_tracking"
-    if mode in {"face_tracking", "auto_face_tracking_yolo"}:
+    if backend == "mediapipe":
+        try:
+            values = _face_centers_mediapipe(frames)
+            used_mode = "mediapipe"
+        except ImportError:
+            values = []
+    elif backend == "yolo":
+        try:
+            values = _face_centers_yolo(frames)
+            used_mode = "yolo"
+        except ImportError:
+            values = []
+    elif mode in {"face_tracking", "auto_face_tracking_yolo"}:
         try:
             values = _face_centers(frames)
         except ImportError:

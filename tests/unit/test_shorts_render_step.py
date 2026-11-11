@@ -181,3 +181,21 @@ def test_piece_focus_uses_keyframes() -> None:
     assert round(_piece_focus(keyframes, 0, RATE, RATE, 0.5), 3) == 0.633
     assert _piece_focus(None, 0, RATE, RATE, 0.5) == 0.5
     assert _piece_focus([(0.0, 0.3)], 5 * RATE, 6 * RATE, RATE, 0.5) == 0.3
+
+
+def test_crop_expression_is_piecewise_linear() -> None:
+    from videoflow.adapters.ffmpeg import _crop_expression
+
+    expression = _crop_expression([(0.0, 0.2), (1.0, 0.8)])
+    assert "lerp(0.2,0.8" in expression
+    assert expression.startswith("if(lt(t,1.0)")
+
+
+def test_piece_keyframes_are_relative_and_capped() -> None:
+    from videoflow.adapters.ffmpeg import _piece_keyframes
+
+    keyframes = [(index * 0.5, 0.5) for index in range(30)]
+    piece = _piece_keyframes(keyframes, 2 * RATE, 10 * RATE, RATE)
+    assert piece[0][0] == 0.0
+    assert piece[-1][0] == 8.0
+    assert len(piece) <= 12

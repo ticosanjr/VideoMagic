@@ -102,9 +102,7 @@ class ReframeStep(BaseStep):
         for index, clip in enumerate(context.selected_shorts):
             io.check_cancel()
             tracking_mode = options.mode
-            if options.tracking_backend in {"mediapipe", "yolo"}:
-                tracking_mode = "auto_face_tracking_yolo"
-            elif options.tracking_backend == "opencv_haar":
+            if options.tracking_backend in {"mediapipe", "yolo", "opencv_haar"}:
                 tracking_mode = "face_tracking"
             keyframes: list[dict[str, float]] = []
             if options.dynamic_crop:
@@ -114,6 +112,7 @@ class ReframeStep(BaseStep):
                     media.audio_sample_rate,
                     mode=tracking_mode,
                     smoothing=options.smoothing_factor,
+                    backend=options.tracking_backend,
                 )
                 focus = (
                     sum(item["focus_x"] for item in keyframes) / len(keyframes)

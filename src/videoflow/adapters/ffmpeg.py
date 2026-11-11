@@ -643,18 +643,27 @@ class FFmpegAdapter:
                             ),
                         ]
                 else:
-                    piece_focus = _piece_focus(
+                    piece_keyframes = _piece_keyframes(
                         crop_keyframes,
                         start,
                         end,
                         sample_rate,
-                        crop_focus_x,
                     )
+                    if len(piece_keyframes) > 1:
+                        expression = _crop_expression(piece_keyframes)
+                        crop_x = f"'({expression})*(iw-ow)'"
+                    else:
+                        focus = (
+                            piece_keyframes[0][1]
+                            if piece_keyframes
+                            else crop_focus_x
+                        )
+                        crop_x = str(max(0.0, min(1.0, focus)))
                     video_args = [
                         "-vf",
                         f"scale={width}:{height}:force_original_aspect_ratio=increase,"
                         f"crop={width}:{height}:"
-                        f"(iw-ow)*{max(0.0, min(1.0, piece_focus))}:"
+                        f"{crop_x}:"
                         f"(ih-oh)*{max(0.0, min(1.0, crop_focus_y))},setsar=1",
                     ]
                 self._capture(
@@ -1302,3 +1311,57 @@ def _piece_focus(
         nearest = min(keyframes, key=lambda item: abs(item[0] - start))
         values = [nearest[1]]
     return sum(values) / len(values)
+
+
+def _piece_keyframes(
+    keyframes: Sequence[tuple[float, float]] | None,
+    start_sample: int,
+    end_sample: int,
+    sample_rate: int,
+    *,
+    max_points: int = 12,
+) -> list[tuple[float, float]]:
+    """Return normalized keyframes for one rendered piece."""
+
+    if not keyframes or sample_rate <= 0 or end_sample <= start_sample:
+        return []
+    start = start_sample / sample_rate
+    end = end_sample / sample_rate
+    duration = end - start
+    selected = [
+        (max(0.0, min(duration, time_sec - start)), focus)
+        for time_sec, focus in keyframes
+        if start <= time_sec <= end
+    ]
+    if not selected:
+        nearest = min(keyframes, key=lambda item: abs(item[0] - start))
+        selected = [(0.0, nearest[1]), (duration, nearest[1])]
+    if selected[0][0] > 0:
+        selected.insert(0, (0.0, selected[0][1]))
+    if selected[-1][0] < duration:
+        selected.append((duration, selected[-1][1]))
+    selected = [
+        (round(time_sec, 3), round(max(0.05, min(0.95, focus)), 4))
+        for time_sec, focus in selected
+    ]
+    if len(selected) <= max_points:
+        return selected
+    step = (len(selected) - 1) / (max_points - 1)
+    indexes = sorted({round(index * step) for index in range(max_points)})
+    return [selected[index] for index in indexes]
+
+
+def _crop_expression(keyframes: Sequence[tuple[float, float]]) -> str:
+    """Build a piecewise-linear FFmpeg crop expression for x focus."""
+
+    points = list(keyframes)
+    if len(points) < 2:
+        return str(points[0][1] if points else 0.5)
+    expression = str(points[-1][1])
+    for index in range(len(points) - 2, -1, -1):
+        t0, v0 = points[index]
+        t1, v1 = points[index + 1]
+        span = max(0.001, t1 - t0)
+        segment = f"lerp({v0},{v1},(t-{t0})/{span})"
+        expression = f"if(lt(t,{t1}),{segment},{expression})"
+    return expression

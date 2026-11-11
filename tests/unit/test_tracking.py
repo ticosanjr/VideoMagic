@@ -68,3 +68,25 @@ def test_keyframes_fall_back_when_frames_are_empty(monkeypatch) -> None:
     )
     assert mode == "motion_tracking"
     assert keyframes == [{"time_sec": 0.0, "focus_x": 0.5}]
+
+
+def test_mediapipe_backend_falls_back_when_missing(monkeypatch) -> None:
+    from videoflow.application import tracking
+
+    monkeypatch.setattr(
+        tracking, "frames_from_pieces", lambda *a, **k: np.zeros((2, 36, 64), dtype=np.uint8)
+    )
+    monkeypatch.setattr(
+        tracking,
+        "_face_centers_mediapipe",
+        lambda frames: (_ for _ in ()).throw(ImportError("missing")),
+    )
+    monkeypatch.setattr(tracking, "_motion_centers", lambda frames: [0.3, 0.6])
+    keyframes, mode = tracking.track_focus_keyframes(
+        __import__("pathlib").Path("source.mp4"),
+        [(0, 48000)],
+        48000,
+        backend="mediapipe",
+    )
+    assert mode == "motion_tracking"
+    assert keyframes[-1]["focus_x"] > 0.3
