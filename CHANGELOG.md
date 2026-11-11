@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.61.2] - 2026-11-11
+
+### Fixed
+
+- **Transcription progress.** Faster-Whisper reports progress per segment, so
+  the job bar and node progress move during long transcriptions instead of
+  staying at 30% until the step ends.
+- **Cancellation and orphaned runs.** Cancelling or removing a running job now
+  stops the transcription at the next segment. Previously the worker kept
+  running and consumed CPU after the job was gone.
+- **Job heartbeat and persistence.** Running jobs renew their lease and persist
+  status, stage, and progress during long steps, so a restart no longer sees a
+  queued/0% job after a long transcription.
+- **Duplicate runs.** A second job for the same source and output is rejected
+  while another one is running, queued, or paused.
+- **Stale job polling.** The UI treats a missing job as no longer available
+  instead of showing a backend 404, and background polling no longer raises a
+  notification.
+- **CPU model guidance.** Transcribe warns when a large Whisper model is
+  selected on CPU.
+
 ## [2.61.1] - 2026-11-11
 
 ### Changed
