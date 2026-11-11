@@ -12,6 +12,8 @@ PRICES: dict[str, tuple[float, float]] = {
     "gpt-4.1": (2.0, 8.0),
     "gpt-4.1-mini": (0.4, 1.6),
     "o4-mini": (1.1, 4.4),
+    "deepseek-chat": (0.27, 1.10),
+    "deepseek-reasoner": (0.55, 2.19),
 }
 
 _LOCK = threading.Lock()

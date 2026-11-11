@@ -195,3 +195,9 @@ def test_llm_adapter_maps_schema_to_task(monkeypatch) -> None:
 def test_build_intelligence_has_a_status() -> None:
     intelligence = build_intelligence(AppSettings())
     assert isinstance(intelligence.status(), list)
+
+
+def test_deepseek_cost_is_known() -> None:
+    from videoflow.application.cost import estimate_cost
+
+    assert estimate_cost("deepseek-chat", 1_000_000, 1_000_000) == 1.37
