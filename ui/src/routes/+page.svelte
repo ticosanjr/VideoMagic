@@ -28,7 +28,8 @@
   import { t } from "$lib/i18n";
   import { i18n } from "$lib/i18n.svelte";
   import { translateTree } from "$lib/domI18n";
-  import { noticeCounts } from "$lib/notifications";
+  import { jobDisplayName } from "$lib/jobsView";
+import { noticeCounts } from "$lib/notifications";
   import { notifications } from "$lib/notifications.svelte";
   import { UI_VERSION } from "$lib/version";
   import "../app.css";
@@ -194,6 +195,7 @@
   ) {
     notifications.push({
       kind,
+      category: kind === "error" || kind === "warning" ? "blocker" : "action",
       title,
       message: title === message ? "" : message,
       code,
@@ -211,9 +213,43 @@
     }
   }
 
+  const previousJobStatus = new Map<string, string>();
+
   async function refreshJobs() {
     try {
-      jobs = await listJobs();
+      const next = await listJobs();
+      if (previousJobStatus.size) {
+        for (const job of next) {
+          const previous = previousJobStatus.get(job.job_id);
+          if (!previous || previous === job.status) continue;
+          if (job.status === "waiting_approval" || job.status === "waiting_input") {
+            notifications.push({
+              kind: "warning",
+              category: "hilt",
+              title: "Human review requested",
+              message: jobDisplayName(job),
+              actionLabel: "Open jobs",
+              actionId: `job:${job.job_id}`
+            });
+          } else if (["succeeded", "failed", "cancelled"].includes(job.status)) {
+            notifications.push({
+              kind: job.status === "failed" ? "warning" : "info",
+              category: "job_finished",
+              title:
+                job.status === "succeeded"
+                  ? "Job finished"
+                  : job.status === "failed"
+                    ? "Job failed"
+                    : "Job cancelled",
+              message: jobDisplayName(job),
+              actionLabel: "Open jobs",
+              actionId: `job:${job.job_id}`
+            });
+          }
+        }
+      }
+      for (const job of next) previousJobStatus.set(job.job_id, job.status);
+      jobs = next;
     } catch {
       // The activity drawer and palette keep the last known snapshot.
     }
@@ -548,6 +584,7 @@
         i18n.set(locale);
         applyTheme(settings.ui.theme);
         document.documentElement.dataset.density = settings.ui.density;
+        notifications.setLevel(settings.notifications?.ui_level ?? "minimal");
       })
       .catch(() => {});
     return () => {

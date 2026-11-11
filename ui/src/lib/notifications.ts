@@ -1,8 +1,16 @@
 export type NoticeKind = "info" | "success" | "warning" | "error";
+export type NoticeCategory =
+  | "hilt"
+  | "job_finished"
+  | "blocker"
+  | "action"
+  | "system";
+export type NoticeLevel = "minimal" | "standard" | "verbose";
 
 export interface Notice {
   id: string;
   kind: NoticeKind;
+  category: NoticeCategory;
   title: string;
   message: string;
   detail: string;
@@ -15,6 +23,7 @@ export interface Notice {
 
 export interface NoticeInput {
   kind: NoticeKind;
+  category?: NoticeCategory;
   title: string;
   message?: string;
   detail?: string;
@@ -31,6 +40,14 @@ const SEVERITY: Record<NoticeKind, number> = {
   success: 3
 };
 
+export function noticeAllowed(level: NoticeLevel, input: NoticeInput): boolean {
+  if (input.kind === "error" || input.kind === "warning") return true;
+  const category = input.category ?? "action";
+  if (level === "verbose") return true;
+  if (level === "standard") return category !== "system";
+  return category === "hilt" || category === "job_finished" || category === "blocker";
+}
+
 let counter = 0;
 
 export function createNotice(input: NoticeInput): Notice {
@@ -39,6 +56,7 @@ export function createNotice(input: NoticeInput): Notice {
   return {
     id: `notice-${Date.now().toString(36)}-${counter}`,
     kind,
+    category: input.category ?? (kind === "error" || kind === "warning" ? "blocker" : "action"),
     title: input.title,
     message: input.message ?? "",
     detail: input.detail ?? "",

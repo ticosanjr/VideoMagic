@@ -535,6 +535,13 @@
             </select>
           </label>
           <label class="flex items-end gap-2 pb-1 text-[10px] text-neutral-400"><input type="checkbox" bind:checked={settings.ui.timeline_snap} class="h-3.5 w-3.5" />timeline snap</label>
+          <label class="text-[10px] text-neutral-500">Notification level
+            <select bind:value={settings.notifications.ui_level} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100">
+              <option value="minimal">minimal</option>
+              <option value="standard">standard</option>
+              <option value="verbose">verbose</option>
+            </select>
+          </label>
         </div>
       </section>
     </div>

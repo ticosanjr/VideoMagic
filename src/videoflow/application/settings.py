@@ -208,6 +208,7 @@ class NotificationSettings(BaseModel):
     base_url: str = "http://127.0.0.1:8765"
     interaction_ttl_hours: int = Field(default=168, ge=1, le=24 * 365)
     reminder_hours: int = Field(default=24, ge=1, le=24 * 365)
+    ui_level: Literal["minimal", "standard", "verbose"] = "minimal"
     local: LocalNotificationSettings = Field(default_factory=LocalNotificationSettings)
     email: EmailNotificationSettings = Field(default_factory=EmailNotificationSettings)
     slack: SlackNotificationSettings = Field(default_factory=SlackNotificationSettings)

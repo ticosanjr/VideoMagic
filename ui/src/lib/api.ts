@@ -686,6 +686,7 @@ export interface AppSettings {
   };
   notifications: {
     enabled: boolean;
+    ui_level: "minimal" | "standard" | "verbose";
     default_channels: string[];
     base_url: string;
     interaction_ttl_hours: number;

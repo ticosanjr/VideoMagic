@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { createNotice, noticeCounts, sortNotices, type Notice } from "./notifications";
+import {
+  createNotice,
+  noticeAllowed,
+  noticeCounts,
+  sortNotices,
+  type Notice
+} from "./notifications";
 
 describe("createNotice", () => {
   it("fills defaults for a transient info notice", () => {
@@ -61,5 +67,20 @@ describe("noticeCounts", () => {
       createNotice({ kind: "success", title: "c" })
     ];
     expect(noticeCounts(notices)).toEqual({ total: 3, errors: 1, warnings: 1 });
+  });
+});
+
+
+describe("noticeAllowed", () => {
+  it("keeps HITL, finished jobs, and blockers in minimal mode", () => {
+    expect(noticeAllowed("minimal", { kind: "info", category: "hilt", title: "Review" })).toBe(true);
+    expect(noticeAllowed("minimal", { kind: "info", category: "job_finished", title: "Done" })).toBe(true);
+    expect(noticeAllowed("minimal", { kind: "error", title: "Boom" })).toBe(true);
+    expect(noticeAllowed("minimal", { kind: "success", category: "action", title: "Saved" })).toBe(false);
+  });
+
+  it("adds ordinary actions in standard mode and everything in verbose", () => {
+    expect(noticeAllowed("standard", { kind: "success", category: "action", title: "Saved" })).toBe(true);
+    expect(noticeAllowed("verbose", { kind: "info", category: "system", title: "Ping" })).toBe(true);
   });
 });
