@@ -7,6 +7,7 @@ module instead of two near-identical methods on ``JobManager``.
 
 from __future__ import annotations
 
+import time
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -83,26 +84,50 @@ class JobExecutor:
             job.lease_expires_at = (
                 datetime.now(UTC) + timedelta(seconds=300)
             ).isoformat(timespec="seconds")
+        host._persist_job(job)
+        job._last_progress_persist = time.monotonic()
+
+        def renew_lease() -> None:
+            job.lease_expires_at = (
+                datetime.now(UTC) + timedelta(seconds=300)
+            ).isoformat(timespec="seconds")
+
+        def persist_progress(*, force: bool = False) -> None:
+            now = time.monotonic()
+            last = float(getattr(job, "_last_progress_persist", 0.0) or 0.0)
+            if not force and now - last < 30.0:
+                return
+            job._last_progress_persist = now
+            host._persist_job(job)
 
         def progress(stage: str, percent: int, message: str) -> None:
             with host._lock:
+                changed = job.stage != stage
                 job.stage = stage
                 job.progress = percent
                 job.message = message
+                renew_lease()
                 if not job.timeline_ready and (
                     job.output / "project_state.json"
                 ).is_file():
                     job.timeline_ready = True
+            persist_progress(force=changed)
 
         def step_progress(stage: str, percent: int, message: str) -> None:
             with host._lock:
+                changed = job.stage != stage
                 job.step_progress[stage] = max(0, min(100, int(percent)))
                 job.stage = stage
                 job.message = message
+                renew_lease()
                 if not job.timeline_ready and (
                     job.output / "project_state.json"
                 ).is_file():
                     job.timeline_ready = True
+                update = getattr(job.telemetry, "update", None)
+                if callable(update):
+                    update(stage, percent, message)
+            persist_progress(force=changed)
 
         def log(module: str, level: str, message: str) -> None:
             job.telemetry.log(module, level, message)

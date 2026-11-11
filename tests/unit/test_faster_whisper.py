@@ -8,7 +8,7 @@ from types import ModuleType, SimpleNamespace
 import pytest
 
 from videoflow.adapters.faster_whisper import FasterWhisperAdapter
-from videoflow.domain.errors import TranscriptionError
+from videoflow.domain.errors import JobCancelledError, TranscriptionError
 
 
 def _wav(path: Path, rate: int = 16000) -> Path:
@@ -192,3 +192,68 @@ def test_available_requires_package_and_model(
 
     monkeypatch.setattr(module.importlib.util, "find_spec", lambda name: None)
     assert FasterWhisperAdapter.available(model=model) is False
+
+
+def test_transcribe_reports_segment_progress(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wav = _wav(tmp_path / "source.wav")
+    model = _model(tmp_path / "model")
+    engine = FakeEngine(
+        [
+            _segment("One.", [_word("One.", 0.0, 0.25)]),
+            _segment("Two.", [_word("Two.", 0.5, 1.0)]),
+            _segment("Tail.", [_word("Tail.", 1.0, 1.25)]),
+        ]
+    )
+    adapter = _adapter(model)
+    monkeypatch.setattr(adapter, "_load_engine", lambda path: engine)
+    seen: list[tuple[float, float]] = []
+
+    adapter.transcribe(wav, 16000, on_progress=lambda done, total: seen.append((done, total)))
+
+    assert seen == [(0.25, 1.0), (1.0, 1.0), (1.0, 1.0)]
+
+
+def test_transcribe_stops_when_cancelled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wav = _wav(tmp_path / "source.wav")
+    model = _model(tmp_path / "model")
+    engine = FakeEngine(
+        [
+            _segment("One.", [_word("One.", 0.0, 0.25)]),
+            _segment("Two.", [_word("Two.", 0.5, 1.0)]),
+        ]
+    )
+    adapter = _adapter(model)
+    monkeypatch.setattr(adapter, "_load_engine", lambda path: engine)
+    seen: list[float] = []
+
+    def progress(done: float, total: float) -> None:
+        seen.append(done)
+        raise JobCancelledError("stop")
+
+    with pytest.raises(JobCancelledError):
+        adapter.transcribe(wav, 16000, on_progress=progress)
+
+    assert seen == [0.25]
+
+
+def test_transcribe_honours_the_cancel_predicate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wav = _wav(tmp_path / "source.wav")
+    model = _model(tmp_path / "model")
+    engine = FakeEngine(
+        [
+            _segment("One.", [_word("One.", 0.0, 0.25)]),
+            _segment("Two.", [_word("Two.", 0.5, 1.0)]),
+        ]
+    )
+    adapter = _adapter(model)
+    monkeypatch.setattr(adapter, "_load_engine", lambda path: engine)
+    checks = iter([False, True])
+
+    with pytest.raises(JobCancelledError):
+        adapter.transcribe(wav, 16000, should_cancel=lambda: next(checks, True))

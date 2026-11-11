@@ -5,6 +5,8 @@
  * `formatBackendDetail`, and `describeError` through `$lib/api`.
  */
 
+export type RequestOptions = RequestInit & { silent?: boolean };
+
 export class ApiError extends Error {
   code: string;
   status: number;
@@ -70,7 +72,7 @@ export function raiseApiError(
   payload: unknown,
   path: string,
   fallbackCode = "http_error",
-  init?: RequestInit
+  init?: RequestOptions
 ): never {
   const detail = apiDetail(payload);
   detail.path = path;
@@ -88,11 +90,11 @@ export function raiseApiError(
     response.status,
     detail
   );
-  emitApiError(error, path, `Backend error ${response.status}`);
+  if (!init?.silent) emitApiError(error, path, `Backend error ${response.status}`);
   throw error;
 }
 
-export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestOptions): Promise<T> {
   const controller = init?.signal ? null : new AbortController();
   const timer = controller
     ? setTimeout(() => controller.abort(), 10 * 60 * 1000)
@@ -117,7 +119,9 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
           ? reason.message
           : "The backend is unreachable."
     );
-    emitApiError(error, path, timedOut ? "Backend timeout" : "Backend unreachable");
+    if (!init?.silent) {
+      emitApiError(error, path, timedOut ? "Backend timeout" : "Backend unreachable");
+    }
     throw error;
   } finally {
     if (timer) clearTimeout(timer);

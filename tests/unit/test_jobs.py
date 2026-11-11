@@ -7,6 +7,7 @@ import pytest
 from tests.recipe_jobs import manager_with_runner, start_recipe
 from videoflow.application.jobs import JobManager
 from videoflow.domain.errors import (
+    JobAlreadyRunningError,
     JobCancelledError,
     JobNotFoundError,
     JobQueueFullError,
@@ -40,6 +41,26 @@ def test_job_completes_and_reports_progress(tmp_path: Path) -> None:
         "ok": True,
         "artifacts": {"resolve": str(tmp_path / "out" / "timeline.fcpxml")},
     }
+
+
+def test_job_receives_runner_step_progress(tmp_path: Path) -> None:
+    def runner(
+        source: Path,
+        output: Path,
+        *,
+        progress,
+        step_progress,
+        should_cancel,
+        **kwargs,
+    ):
+        step_progress("transcribe", 42, "words")
+        return {"ok": True}
+
+    manager = manager_with_runner(runner)
+    job = start_recipe(manager, tmp_path / "in.mp4", tmp_path / "out")
+    wait_for(job, manager)
+    finished = manager.get(str(job.job_id))
+    assert finished.step_progress["transcribe"] == 42
 
 
 def test_job_failure_is_recorded(tmp_path: Path) -> None:
@@ -213,11 +234,32 @@ def test_idempotency_key_reuses_an_active_job(tmp_path: Path) -> None:
     output = tmp_path / "out"
     first = start_recipe(manager, source, output, idempotency_key="run-1", queue=True)
     second = start_recipe(manager, source, output, idempotency_key="run-1", queue=True)
-    third = start_recipe(manager, source, output, idempotency_key="run-2", queue=True)
+    third = start_recipe(
+        manager, source, tmp_path / "other", idempotency_key="run-2", queue=True
+    )
 
     assert second.job_id == first.job_id
     assert third.job_id != first.job_id
     release.set()
+
+
+def test_duplicate_source_and_output_is_rejected(tmp_path: Path) -> None:
+    release = threading.Event()
+
+    def runner(source: Path, output: Path, *, progress, should_cancel, **kwargs):
+        release.wait(timeout=3.0)
+        return {"ok": True}
+
+    manager = manager_with_runner(runner)
+    source = tmp_path / "source.mp4"
+    output = tmp_path / "out"
+    first = start_recipe(manager, source, output)
+
+    with pytest.raises(JobAlreadyRunningError):
+        start_recipe(manager, source, output, queue=True)
+
+    release.set()
+    wait_for(first, manager)
 
 
 def test_pause_and_unpause_a_queued_job(tmp_path: Path) -> None:

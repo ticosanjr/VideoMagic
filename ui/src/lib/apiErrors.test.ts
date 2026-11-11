@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ApiError, describeError, formatBackendDetail } from "./api";
+import { raiseApiError } from "./api/client";
 
 describe("API error detail", () => {
   it("keeps the backend code, status, command and stderr", () => {
@@ -38,5 +39,31 @@ describe("API error detail", () => {
   it("handles non-error values", () => {
     expect(describeError("plain")).toBe("plain");
     expect(formatBackendDetail(null)).toBe("");
+  });
+
+  it("can suppress the global notification for background polling", () => {
+    const events: Event[] = [];
+    const globals = globalThis as { window?: unknown };
+    const previous = globals.window;
+    globals.window = {
+      dispatchEvent: (event: Event) => {
+        events.push(event);
+        return true;
+      }
+    };
+    try {
+      expect(() =>
+        raiseApiError(
+          new Response("{}", { status: 404, statusText: "Not Found" }),
+          { detail: { code: "job_not_found", message: "Unknown job" } },
+          "/api/v1/jobs/missing",
+          "http_error",
+          { silent: true }
+        )
+      ).toThrow(ApiError);
+      expect(events).toHaveLength(0);
+    } finally {
+      globals.window = previous;
+    }
   });
 });

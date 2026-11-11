@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import os
 from pathlib import Path
 from typing import Literal
@@ -50,6 +51,19 @@ class TranscribeParams(BaseModel):
     whisper_binary: str | None = None
     whisper_model: str | None = None
     audio_source: Literal["source", "master", "isolated"] = "source"
+
+
+def _supports_keyword(function: object, name: str) -> bool:
+    """Whether a transcriber accepts an optional keyword argument."""
+
+    try:
+        parameters = inspect.signature(function).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD or parameter.name == name
+        for parameter in parameters
+    )
 
 
 @register_step
@@ -199,6 +213,16 @@ class TranscribeStep(BaseStep):
         context.cache_misses.append("transcribe")
 
         io.report(20, "Preparing speech-to-text")
+        large_model = options.model_size in {"large-v2", "large-v3"} or any(
+            size in options.model_id for size in ("large-v2", "large-v3")
+        )
+        if mode == "faster_whisper" and options.device == "cpu" and large_model:
+            io.emit(
+                "warning",
+                "Large Whisper models are very slow on CPU; use a small or medium "
+                "model, or a CUDA device.",
+                module="transcribe",
+            )
         client = io.asr_client
         if client is None:
             if mode == "http":
@@ -240,7 +264,29 @@ class TranscribeStep(BaseStep):
         wav = adapter.extract_pcm(
             audio_path, context.work / "transcribe.wav", sample_rate=16000
         )
-        transcript = client.transcribe(wav, media.audio_sample_rate)
+        next_log = [50]
+
+        def on_progress(done: float, total: float) -> None:
+            if total <= 0:
+                return
+            fraction = max(0.0, min(1.0, done / total))
+            percent = 45 + int(round(54 * fraction))
+            io.report(percent, f"Transcribed {done:.0f}s of {total:.0f}s")
+            if percent >= next_log[0]:
+                io.emit(
+                    "info",
+                    f"Transcribing {int(fraction * 100)}% "
+                    f"({done:.0f}s of {total:.0f}s)",
+                    module="transcribe",
+                )
+                next_log[0] = percent + 10
+
+        transcribe_kwargs: dict[str, object] = {}
+        if _supports_keyword(client.transcribe, "on_progress"):
+            transcribe_kwargs["on_progress"] = on_progress
+        transcript = client.transcribe(
+            wav, media.audio_sample_rate, **transcribe_kwargs
+        )
         if not transcript:
             raise TranscriptionError("Speech-to-text returned no sentences")
         context.transcript = list(transcript)

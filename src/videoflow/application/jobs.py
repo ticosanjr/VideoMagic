@@ -27,6 +27,7 @@ from videoflow.domain.config import (
     ShortsConfig,
 )
 from videoflow.domain.errors import (
+    JobAlreadyRunningError,
     JobNotFoundError,
     JobQueueFullError,
     ProjectStateError,
@@ -279,6 +280,15 @@ class JobManager:
                 for existing in self._jobs.values():
                     if existing.idempotency_key == key and existing.status not in TERMINAL:
                         return existing
+            source_path = Path(source)
+            output_path = Path(output)
+            for existing in self._jobs.values():
+                if (
+                    existing.status in {"running", "queued", "paused"}
+                    and existing.source == source_path
+                    and existing.output == output_path
+                ):
+                    raise JobAlreadyRunningError(existing.stage or str(existing.job_id))
             active = sum(
                 1 for job in self._jobs.values() if job.status in {"running", "queued"}
             )
@@ -612,6 +622,7 @@ class JobManager:
                     job.source,
                     target,
                     progress=callbacks.progress,
+                    step_progress=callbacks.step_progress,
                     should_cancel=callbacks.should_cancel,
                     log=callbacks.log,
                     telemetry=job.telemetry,
@@ -635,6 +646,7 @@ class JobManager:
                 job.source,
                 job.output,
                 progress=callbacks.progress,
+                step_progress=callbacks.step_progress,
                 should_cancel=callbacks.should_cancel,
                 log=callbacks.log,
                 telemetry=job.telemetry,

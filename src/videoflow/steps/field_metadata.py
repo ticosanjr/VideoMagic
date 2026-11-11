@@ -49,7 +49,10 @@ _DESCRIPTIONS: dict[str, str] = {
     "cut_mode": "Cut style at sentence joins: hard, J-cut, L-cut, or custom.",
     "denoise": "Apply FFT denoise to the audio master.",
     "denoise_db": "Denoise strength in decibels.",
-    "device": "Execution device: CPU, CUDA, or auto.",
+    "device": (
+        "Execution device: CPU, CUDA, or auto. Large Whisper models are very slow "
+        "on CPU; prefer a GPU or a smaller model."
+    ),
     "dialect": "FCPXML dialect written by the exporter.",
     "directory": "Folder used by this step.",
     "diversity_threshold": "Minimum title difference before two Shorts are considered distinct.",
@@ -105,7 +108,10 @@ _DESCRIPTIONS: dict[str, str] = {
     "mode": "Operating mode for this step.",
     "model": "Model name passed to the provider.",
     "model_path": "Local model path or Hugging Face model id.",
-    "model_size": "Faster-Whisper model size.",
+    "model_size": (
+        "Faster-Whisper model size. Use small or medium on CPU; large models "
+        "can take hours for a long recording."
+    ),
     "music_ducking": "Lower the music while speech is present.",
     "music_fade_in_ms": "Music fade-in length.",
     "music_fade_out_ms": "Music fade-out length.",

@@ -1974,8 +1974,14 @@ export async function generateShortThumbnail(
   });
 }
 
-export async function getJob(jobId: string): Promise<Job> {
-  const response = await request<{ ok: boolean; job: Job }>(`/api/v1/jobs/${jobId}`);
+export async function getJob(
+  jobId: string,
+  options?: { silent?: boolean }
+): Promise<Job> {
+  const response = await request<{ ok: boolean; job: Job }>(
+    `/api/v1/jobs/${jobId}`,
+    { silent: options?.silent }
+  );
   return response.job;
 }
 

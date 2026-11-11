@@ -22,7 +22,7 @@ from videoflow.domain.config import (
     MediaLanguage,
     ModelSize,
 )
-from videoflow.domain.errors import TranscriptionError
+from videoflow.domain.errors import JobCancelledError, TranscriptionError
 from videoflow.domain.state import Sentence, WordTiming
 from videoflow.domain.timebase import Rounding
 from videoflow.runtime import (
@@ -76,13 +76,20 @@ class FasterWhisperAdapter:
             return False
         return importlib.util.find_spec("faster_whisper") is not None
 
-    def transcribe(self, wav_path: Path, sample_rate: int) -> list[Sentence]:
+    def transcribe(
+        self,
+        wav_path: Path,
+        sample_rate: int,
+        *,
+        on_progress: Callable[[float, float], None] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> list[Sentence]:
         source = Path(wav_path).expanduser()
         if not source.is_file():
             raise TranscriptionError(f"Audio does not exist: {source}")
         if sample_rate <= 0:
             raise TranscriptionError("sample rate must be positive")
-        _require_16k(source)
+        frames = _require_16k(source)
         if self.language not in {"pt", "it", "en", "es", "auto"}:
             raise TranscriptionError(f"Unsupported transcription language: {self.language}")
         if self.beam_size < 1:
@@ -90,14 +97,25 @@ class FasterWhisperAdapter:
         model_path = self._resolve_model()
         engine = self._load_engine(model_path)
         try:
-            segments, _info = engine.transcribe(
+            segments, info = engine.transcribe(
                 str(source),
                 language=None if self.language == "auto" else self.language,
                 beam_size=self.beam_size,
                 word_timestamps=True,
                 vad_filter=self.vad_filter,
             )
-            sentences = _sentences(segments, sample_rate)
+            duration = float(getattr(info, "duration", 0.0) or 0.0)
+            if duration <= 0:
+                duration = frames / SAMPLE_RATE if frames > 0 else 0.0
+            sentences = _sentences(
+                segments,
+                sample_rate,
+                duration=duration,
+                on_progress=on_progress,
+                should_cancel=should_cancel,
+            )
+        except JobCancelledError:
+            raise
         except TranscriptionError:
             raise
         except Exception as exc:
@@ -160,9 +178,18 @@ class FasterWhisperAdapter:
         return self._engine
 
 
-def _sentences(segments: Iterable[Any], sample_rate: int) -> list[Sentence]:
+def _sentences(
+    segments: Iterable[Any],
+    sample_rate: int,
+    *,
+    duration: float = 0.0,
+    on_progress: Callable[[float, float], None] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
+) -> list[Sentence]:
     sentences: list[Sentence] = []
     for segment in segments:
+        if should_cancel is not None and should_cancel():
+            raise JobCancelledError("Job cancelled")
         text = str(getattr(segment, "text", "") or "").strip()
         if not text:
             continue
@@ -214,6 +241,11 @@ def _sentences(segments: Iterable[Any], sample_rate: int) -> list[Sentence]:
                 words=words,
             )
         )
+        if on_progress is not None:
+            elapsed = end_sample / sample_rate
+            if duration > 0:
+                elapsed = min(elapsed, duration)
+            on_progress(elapsed, duration)
     return sentences
 
 
@@ -247,13 +279,15 @@ def _is_model_dir(path: Path) -> bool:
     return path.is_dir() and (path / "model.bin").is_file() and (path / "config.json").is_file()
 
 
-def _require_16k(path: Path) -> None:
+def _require_16k(path: Path) -> int:
     try:
         with wave.open(str(path), "rb") as audio:
             rate = audio.getframerate()
+            frames = audio.getnframes()
     except (wave.Error, OSError, EOFError) as exc:
         raise TranscriptionError(f"Cannot read WAV header: {path}") from exc
     if rate != SAMPLE_RATE:
         raise TranscriptionError(
             f"Faster-Whisper needs {SAMPLE_RATE // 1000} kHz audio, got {rate} Hz"
         )
+    return frames

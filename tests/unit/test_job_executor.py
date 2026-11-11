@@ -17,9 +17,13 @@ class Telemetry:
     def __init__(self) -> None:
         self.lines: list[tuple[str, str, str]] = []
         self.failed: list[str] = []
+        self.updates: list[tuple[str, int, str]] = []
 
     def log(self, module: str, level: str, message: str) -> None:
         self.lines.append((module, level, message))
+
+    def update(self, stage: str, percent: int, message: str) -> None:
+        self.updates.append((stage, percent, message))
 
     def fail_running(self, message: str) -> None:
         self.failed.append(message)
@@ -102,7 +106,7 @@ def test_executor_runs_adapter_and_persists_success(tmp_path: Path) -> None:
     assert job.status == "succeeded"
     assert job.result == {"ok": True}
     assert job.progress == 100
-    assert host.persisted == 1
+    assert host.persisted >= 2
     assert host.drained == 1
 
 
@@ -144,8 +148,11 @@ def test_executor_reports_step_progress_and_timeline_ready(tmp_path: Path) -> No
     (tmp_path / "project_state.json").write_text("{}", encoding="utf-8")
     executor = _executor(host)
 
+    leases: list[str] = []
+
     def run(job: object, callbacks: JobCallbacks) -> RunOutcome:
         callbacks.step_progress("transcribe", 42, "words")
+        leases.append(job.lease_expires_at)  # type: ignore[attr-defined]
         callbacks.log("transcribe", "info", "done")
         return RunOutcome(result={"ok": True})
 
@@ -153,6 +160,8 @@ def test_executor_reports_step_progress_and_timeline_ready(tmp_path: Path) -> No
     assert job.step_progress["transcribe"] == 42
     assert job.timeline_ready is True
     assert job.telemetry.lines == [("transcribe", "info", "done")]
+    assert job.telemetry.updates == [("transcribe", 42, "words")]
+    assert leases and leases[0]
 
 
 def test_executor_waits_for_approval(tmp_path: Path) -> None:
@@ -168,7 +177,7 @@ def test_executor_waits_for_approval(tmp_path: Path) -> None:
     executor.run(job, run)
     assert job.status == "waiting_approval"
     assert job.error is not None
-    assert host.persisted == 1
+    assert host.persisted >= 2
 
 
 def test_executor_schedules_retry_before_failing(tmp_path: Path) -> None:

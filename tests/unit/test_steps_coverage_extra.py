@@ -1742,6 +1742,68 @@ def test_transcribe_whisper_and_faster_clients(
     assert faster_context.transcript[0].text == "over faster"
 
 
+def test_transcribe_reports_faster_whisper_progress(tmp_path: Path) -> None:
+    from videoflow.steps.transcribe import TranscribeParams, TranscribeStep
+
+    class FakeClient:
+        def transcribe(
+            self,
+            wav: Path,
+            sample_rate: int,
+            *,
+            on_progress: object = None,
+        ) -> list[Sentence]:
+            assert callable(on_progress)
+            on_progress(0.5, 1.0)  # type: ignore[operator]
+            return [sentence(0, 0, 48000, "progress")]
+
+    context = make_context(tmp_path, media_info=make_media(tmp_path))
+    reported: list[tuple[str, int, str]] = []
+    TranscribeStep().run(
+        context,
+        TranscribeParams(mode="faster_whisper", model_size="tiny", language="en"),
+        StepIO(
+            adapter=FakePcmAdapter(),
+            asr_client=FakeClient(),
+            progress=lambda stage, percent, message: reported.append(
+                (stage, percent, message)
+            ),
+        ),
+    )
+
+    assert any(percent == 72 for _, percent, _ in reported)
+    assert context.transcript[0].text == "progress"
+
+
+def test_transcribe_warns_about_large_models_on_cpu(tmp_path: Path) -> None:
+    from videoflow.steps.transcribe import TranscribeParams, TranscribeStep
+
+    class FakeClient:
+        def transcribe(self, wav: Path, sample_rate: int) -> list[Sentence]:
+            return [sentence(0, 0, 48000, "large")]
+
+    context = make_context(tmp_path, media_info=make_media(tmp_path))
+    emitted: list[tuple[str, str]] = []
+    TranscribeStep().run(
+        context,
+        TranscribeParams(
+            mode="faster_whisper",
+            model_size="large-v3",
+            device="cpu",
+            language="en",
+        ),
+        StepIO(
+            adapter=FakePcmAdapter(),
+            asr_client=FakeClient(),
+            log=lambda module, level, message: emitted.append((level, message)),
+        ),
+    )
+
+    assert any(
+        level == "warning" and "slow on CPU" in message for level, message in emitted
+    )
+
+
 def test_transcribe_settings_are_applied_and_errors_ignored(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -24,6 +24,7 @@
   import PathPicker from "$lib/PathPicker.svelte";
   import { recipesFor, type RecipeFilter } from "$lib/recipeLibrary";
   import {
+    ApiError,
     dryRunRecipe,
     errorMessage,
     getJob,
@@ -2494,7 +2495,7 @@
     poll = setInterval(async () => {
       if (document.hidden) return;
       try {
-        job = await getJob(jobId);
+        job = await getJob(jobId, { silent: true });
         if (job) {
           inputOutput = job.output;
           applyJobStatuses(job);
@@ -2518,8 +2519,15 @@
           if (job.status !== "waiting_approval" && job.status !== "waiting_input") void loadPrevious(job);
         }
       } catch (reason) {
-        error = errorMessage(reason);
         clearInterval(poll);
+        if (reason instanceof ApiError && reason.code === "job_not_found") {
+          job = null;
+          resetStatuses();
+          error = "";
+          status = "This job is no longer available. Start a new run.";
+          return;
+        }
+        error = errorMessage(reason);
       }
     }, 800);
   }
