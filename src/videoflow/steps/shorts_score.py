@@ -147,6 +147,11 @@ class ShortsScoreStep(BaseStep):
         mode: str,
     ) -> list[Any]:
         intelligence = io.ai or build_intelligence()
+        if not intelligence.available("curation.score"):
+            context.warnings.append(
+                "LLM scoring skipped: no intelligence provider is ready."
+            )
+            return clips
         by_id = {sentence.id: sentence for sentence in context.transcript}
         rate = (
             context.media.audio_sample_rate if context.media is not None else 48000

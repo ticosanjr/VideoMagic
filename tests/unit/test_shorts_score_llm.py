@@ -32,6 +32,9 @@ def test_llm_score_merges_with_heuristic(tmp_path: Path) -> None:
     )
 
     class FakeAi:
+        def available(self, task="generic"):
+            return True
+
         def complete_json(self, *args, **kwargs):
             return SimpleNamespace(
                 data={

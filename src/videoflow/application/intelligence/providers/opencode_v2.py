@@ -42,7 +42,7 @@ class OpenCodeV2Provider:
         self._token = token
         self.timeout = timeout
         self.retries = max(0, int(retries))
-        self._models: list[dict[str, Any]] | None = None
+        self._models: dict[str, list[dict[str, Any]]] = {}
 
     def status(self) -> IntelligenceStatus:
         if not self.base_url:
@@ -159,7 +159,7 @@ class OpenCodeV2Provider:
         return images
 
     def list_models(self, *, types: str = "chat") -> list[dict[str, Any]]:
-        if self._models is None:
+        if types not in self._models:
             response = self._request(
                 "GET", "/api/model", params={"types": types}, timeout=10.0
             )
@@ -169,8 +169,10 @@ class OpenCodeV2Provider:
                 )
             payload = response.json()
             items = payload.get("data") if isinstance(payload, dict) else payload
-            self._models = [item for item in items or [] if isinstance(item, dict)]
-        return self._models
+            self._models[types] = [
+                item for item in items or [] if isinstance(item, dict)
+            ]
+        return self._models[types]
 
     def _select_model(self, requested: str = "", *, types: str = "chat") -> dict[str, str]:
         value = (requested or self.model).strip()

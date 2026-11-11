@@ -45,3 +45,6 @@ class DeepSeekProvider(OpenAICompatibleProvider):
             detail="ready" if ready else "missing API key",
             models=[self.model] if self.model else [],
         )
+
+    def generate_image(self, prompt: str, **kwargs) -> list[bytes]:
+        raise NotImplementedError("DeepSeek does not expose image generation")
