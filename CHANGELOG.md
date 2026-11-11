@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.61.1] - 2026-11-11
+
+### Changed
+
+- **Internal refactors.** Split `application/retakes.py` and
+  `steps/research.py` into packages with unchanged public APIs, prompts,
+  artifacts, and behavior.
+- **Notifications.** The default UI level is `minimal`: HITL, finished jobs,
+  and blockers only.
+
 ## [2.61.0] - 2026-11-11
 
 ### Added
