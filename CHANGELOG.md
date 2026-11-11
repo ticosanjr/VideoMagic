@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.61.0] - 2026-11-11
 
 ### Added
 
@@ -26,6 +26,15 @@
   library and to the license ledger.
 - **EDL and social metadata.** CMX 3600 export and
   `delivery/social_descriptions.json` per platform.
+- **Forced alignment and dynamic crop.** Optional WhisperX/faster-whisper word
+  alignment, per-frame FFmpeg crop expressions, and optional MediaPipe/YOLO
+  face centers with motion fallback.
+- **LLM chapter titles and caption presets.** `chapters.plan` can name
+  chapters, and the caption preset gallery gained Hormozi/Beast/clean styles.
+- **Notification levels.** UI notifications default to HILT, finished jobs,
+  and blockers; `minimal`, `standard`, and `verbose` are configurable.
+- **Refactors.** Caption building moved to `application/captions.py`; the
+  intelligence provider logic is centralized in `application/intelligence/`.
 
 All notable changes are recorded here. Format follows Keep a Changelog; versions
 follow semantic versioning once the project reaches 1.0.
