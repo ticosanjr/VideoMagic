@@ -1,5 +1,29 @@
 # Changelog
 
+## [2.62.0] - 2026-11-11
+
+### Added
+
+- **Lamera Video Edit.** A new built-in, favorite long-form recipe with four
+  scoped research nodes, presenter profiling, separate narration and edition
+  approvals, decoupage and entity audits, placeholder previews, licensed asset
+  harvesting, motion/Foley, fact-check, voice repair, and final NLE export.
+- **Recipe canvas groups.** Recipes can store colored group areas with a label
+  and description. The new recipe is organized into six production phases.
+- **Split narrative steps.** `transcript.blocks` now owns context chunking and
+  `entities.extract` owns people, objects/locations/events, and metric
+  extraction. `narrative.beats` remains available for existing recipes.
+- **Placeholder previews.** `storyboard.preview` renders four representative
+  clips for composition review before the expensive media pass.
+
+### Changed
+
+- Research agents merge the aggregate manifest, so four independent research
+  nodes keep one complete `research/agents.json`.
+- `presenter.profile` accepts sample paths from the HILT brief.
+- `style.guide` records the audio direction, and `audio.mix` supports the
+  configurable SFX notch used by the Lamera audio profile.
+
 ## [2.61.3] - 2026-11-11
 
 ### Fixed
