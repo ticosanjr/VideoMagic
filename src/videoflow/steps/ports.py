@@ -221,6 +221,13 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         (PortSpec("transcript", "Transcript", "transcript", "transcript", True),),
         (PortSpec("speakers", "Speaker turns", "dict", "metadata:speaker_turns"),),
     ),
+    "alignment.forced": (
+        (PortSpec("transcript", "Transcript", "transcript", "transcript", True),),
+        (
+            PortSpec("transcript", "Word-aligned transcript", "transcript", "transcript"),
+            PortSpec("report", "Alignment report", "json", "metadata:forced_alignment"),
+        ),
+    ),
     "localization.dub": (
         (PortSpec("artifacts", "Short files", "artifact_map", "artifacts", True),),
         (PortSpec("artifacts", "Dubbed Shorts", "artifact_map", "artifacts"),),

@@ -2,6 +2,7 @@
 
 from videoflow.steps import (
     alignment,
+    alignment_forced,
     art_direction,
     assets_intel,
     assets_pipeline,
@@ -60,6 +61,7 @@ __all__ = [
     "EmptyParams",
     "StepIO",
     "alignment",
+    "alignment_forced",
     "art_direction",
     "assets_intel",
     "assets_pipeline",

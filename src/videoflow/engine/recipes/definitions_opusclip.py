@@ -48,9 +48,15 @@ _add_recipe(
             },
         },
         {
+            "id": "alignment",
+            "type": "alignment.forced",
+            "needs": ["transcribe"],
+            "params": {"backend": "auto", "model_size": "small", "language": "auto"},
+        },
+        {
             "id": "diarize",
             "type": "audio.diarize",
-            "needs": ["transcribe"],
+            "needs": ["alignment"],
             "params": {"method": "pyannote", "fallback_to_heuristic": True, "max_speakers": 4},
         },
         {
@@ -96,6 +102,7 @@ _add_recipe(
                 "top_k": 3,
                 "diversity_threshold": 0.75,
                 "use_llm": True,
+                "score_mode": "hybrid",
             },
         },
         {
@@ -233,15 +240,16 @@ _add_recipe(
             "id": "score",
             "type": "shorts.score",
             "needs": ["shorts"],
-            "params": {"profile": "tiktok", "top_k": 3, "use_llm": True},
+            "params": {"profile": "tiktok", "top_k": 3, "use_llm": True, "score_mode": "hybrid"},
         },
         {
             "id": "broll_generate",
             "type": "broll.generate",
             "needs": ["score"],
             "params": {
+                "provider": "opencode_v2",
                 "base_url": "",
-                "model": "flux1-schnell",
+                "model": "",
                 "count": 2,
                 "width": 1024,
                 "height": 1024,
@@ -386,7 +394,7 @@ _add_recipe(
             "id": "score",
             "type": "shorts.score",
             "needs": ["shorts"],
-            "params": {"profile": "tiktok", "top_k": 3},
+            "params": {"profile": "tiktok", "top_k": 3, "score_mode": "hybrid"},
         },
         {
             "id": "render_shorts",

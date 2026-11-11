@@ -69,9 +69,19 @@
       }
     },
     {
+      "id": "alignment",
+      "type": "alignment.forced",
+      "needs": ["transcribe"],
+      "params": {
+        "backend": "auto",
+        "model_size": "small",
+        "language": "auto"
+      }
+    },
+    {
       "id": "diarize",
       "type": "audio.diarize",
-      "needs": ["transcribe"],
+      "needs": ["alignment"],
       "params": {
         "method": "pyannote",
         "fallback_to_heuristic": true,

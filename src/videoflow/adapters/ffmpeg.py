@@ -564,6 +564,7 @@ class FFmpegAdapter:
         outro_duration_sec: float = 2.0,
         crop_focus_x: float = 0.5,
         crop_focus_y: float = 0.5,
+        crop_keyframes: Sequence[tuple[float, float]] | None = None,
         split_screen: bool = False,
         split_screen_zoom: float = 1.0,
         split_screen_focus_left: float = 0.5,
@@ -642,11 +643,18 @@ class FFmpegAdapter:
                             ),
                         ]
                 else:
+                    piece_focus = _piece_focus(
+                        crop_keyframes,
+                        start,
+                        end,
+                        sample_rate,
+                        crop_focus_x,
+                    )
                     video_args = [
                         "-vf",
                         f"scale={width}:{height}:force_original_aspect_ratio=increase,"
                         f"crop={width}:{height}:"
-                        f"(iw-ow)*{max(0.0, min(1.0, crop_focus_x))}:"
+                        f"(iw-ow)*{max(0.0, min(1.0, piece_focus))}:"
                         f"(ih-oh)*{max(0.0, min(1.0, crop_focus_y))},setsar=1",
                     ]
                 self._capture(
@@ -1272,3 +1280,25 @@ def _require_int(value: object, label: str) -> int:
     if parsed <= 0:
         raise IngestError(f"FFprobe reported an invalid {label}")
     return parsed
+
+
+def _piece_focus(
+    keyframes: Sequence[tuple[float, float]] | None,
+    start_sample: int,
+    end_sample: int,
+    sample_rate: int,
+    default: float,
+) -> float:
+    if not keyframes or sample_rate <= 0:
+        return default
+    start = start_sample / sample_rate
+    end = end_sample / sample_rate
+    values = [
+        focus
+        for time_sec, focus in keyframes
+        if start <= time_sec <= end
+    ]
+    if not values:
+        nearest = min(keyframes, key=lambda item: abs(item[0] - start))
+        values = [nearest[1]]
+    return sum(values) / len(values)

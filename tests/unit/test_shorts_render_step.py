@@ -172,3 +172,12 @@ def test_invalid_render_manifest_is_ignored(tmp_path: Path) -> None:
     RenderShortsStep().run(context, RenderShortsParams(), StepIO(adapter=FakeAdapter()))
 
     assert Path(str(context.shorts[0]["path"])).is_file()
+
+
+def test_piece_focus_uses_keyframes() -> None:
+    from videoflow.adapters.ffmpeg import _piece_focus
+
+    keyframes = [(0.0, 0.2), (0.5, 0.8), (1.0, 0.9)]
+    assert round(_piece_focus(keyframes, 0, RATE, RATE, 0.5), 3) == 0.633
+    assert _piece_focus(None, 0, RATE, RATE, 0.5) == 0.5
+    assert _piece_focus([(0.0, 0.3)], 5 * RATE, 6 * RATE, RATE, 0.5) == 0.3

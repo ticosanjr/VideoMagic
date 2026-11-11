@@ -210,7 +210,11 @@ class RenderShortsStep(BaseStep):
                     "cards": [options.intro_path, options.outro_path],
                     "split": [options.split_screen, options.split_screen_zoom],
                     "second": str(second_source_path) if second_source_path else "",
-                    "crop": [clip.crop_focus_x, clip.crop_focus_y],
+                    "crop": [
+                        clip.crop_focus_x,
+                        clip.crop_focus_y,
+                        list(clip.crop_keyframes),
+                    ],
                 }
             )
             cached = manifest.get(slug)
@@ -239,6 +243,11 @@ class RenderShortsStep(BaseStep):
                 overlay_opacity=options.overlay_opacity,
                 crop_focus_x=clip.crop_focus_x,
                 crop_focus_y=clip.crop_focus_y,
+                **(
+                    {"crop_keyframes": tuple(clip.crop_keyframes)}
+                    if clip.crop_keyframes
+                    else {}
+                ),
                 split_screen=options.split_screen or bool(entry.get("split_screen")),
                 split_screen_zoom=float(entry.get("split_screen_zoom", options.split_screen_zoom)),
                 split_screen_focus_left=float(
