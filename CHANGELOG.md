@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.63.0] - 2026-11-11
+
+### Added
+
+- **Lamera workspace.** A dedicated Produce tab with recent runs, six phase
+  progress bars, the current HITL gate, gate history, logs, and run controls.
+- **HITL inbox and previews.** Pending gates are listed across Lamera runs, and
+  gate artifacts with video or image media render inline.
+- **Canvas group editor.** Recipe settings can create a group from the current
+  node selection, add selected nodes, edit label/description/colour, and remove
+  groups.
+- **Recipe-filtered jobs.** `GET /api/v1/jobs?recipe_id=` filters the run list
+  used by task workspaces.
+- **Unit target merge.** `storyboard.units` accepts `target_units`; Lamera
+  merges the script sections into 225 units.
+
+### Fixed
+
+- A terminal job finalizer can no longer rewrite a store entry that was already
+  pruned, which removes a race in history pruning.
+
 ## [2.62.0] - 2026-11-11
 
 ### Added
