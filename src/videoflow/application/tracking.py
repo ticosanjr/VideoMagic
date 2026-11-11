@@ -84,8 +84,12 @@ def _face_centers_yolo(frames: np.ndarray) -> list[float | None]:
 
     from ultralytics import YOLO  # type: ignore[import-not-found]
 
-    model_path = os.environ.get("VIDEOWFLOW_YOLO_MODEL", "yolov8n.pt")
-    model = YOLO(model_path)
+    model_path = os.environ.get("VIDEOWFLOW_YOLO_MODEL", "")
+    if not model_path:
+        raise ImportError("Set VIDEOWFLOW_YOLO_MODEL to a local YOLO model file.")
+    if not Path(model_path).expanduser().is_file():
+        raise ImportError(f"YOLO model does not exist: {model_path}")
+    model = YOLO(str(Path(model_path).expanduser()))
     centers: list[float | None] = []
     for frame in frames:
         rgb = np.stack([frame] * 3, axis=-1)
