@@ -365,7 +365,7 @@ _add_recipe(
             "id": "chapters",
             "type": "chapters.plan",
             "needs": ["transcribe"],
-            "params": {"max_chapters": 12},
+            "params": {"max_chapters": 12, "use_llm": True},
         },
         {
             "id": "timeline",

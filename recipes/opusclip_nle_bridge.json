@@ -63,7 +63,8 @@
       "type": "chapters.plan",
       "needs": ["transcribe"],
       "params": {
-        "max_chapters": 12
+        "max_chapters": 12,
+        "use_llm": true
       }
     },
     {

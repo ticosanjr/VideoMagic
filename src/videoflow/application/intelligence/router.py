@@ -370,6 +370,8 @@ def _task_for_schema(schema_name: str) -> str:
         return "translation.transcript"
     if "emoji" in name:
         return "caption.emoji"
+    if "chapter" in name:
+        return "chapters.title"
     if "narrative" in name or "style" in name:
         return "narrative.beats"
     if "timeline" in name or "zoom" in name:
