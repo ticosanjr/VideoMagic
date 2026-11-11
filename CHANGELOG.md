@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.61.3] - 2026-11-11
+
+### Fixed
+
+- **Provider connection tests.** The provider editor now shows validation and
+  connection errors inline instead of silently stopping when the request fails.
+- **Actionable provider failures.** HTTP 401/403, 404, 429, 5xx, and network
+  failures now explain what happened and what to check. The raw provider
+  response stays available in a details block.
+- **Transient test keys.** A key pasted in Secret value can be tested without
+  saving it. The result says whether the key came from the form, the
+  environment, or the saved secret.
+- **Input validation.** Base URL, secret environment name, and the chat model
+  are checked before the test call.
+
 ## [2.61.2] - 2026-11-11
 
 ### Fixed
