@@ -17,6 +17,7 @@ DEFAULT_FAVORITES = frozenset(
         "recut_replacement_retakes",
         "deepseek_full_edit",
         "full_ai_editor",
+        "lamera_video_edit",
     }
 )
 _LOCK = threading.RLock()

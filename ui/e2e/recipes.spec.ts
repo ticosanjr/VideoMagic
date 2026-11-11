@@ -96,6 +96,11 @@ test("loads saved node layout and inline fields", async ({ page }) => {
   await expect(page.getByTestId("step-pin-edit.timeline")).toBeVisible();
 });
 
+test("renders colored recipe group markers", async ({ page }) => {
+  await expect(page.getByText("Decoupage", { exact: true })).toBeVisible();
+  await expect(page.getByText("Ingest, VAD, and timeline")).toBeVisible();
+});
+
 test("inspects a node output from the latest run", async ({ page }) => {
   const job = {
     job_id: "job-1",

@@ -80,7 +80,24 @@
           "pinned": false,
           "width": 420
         }
-      }
+      },
+      "groups": [
+        {
+          "id": "phase-decoupage",
+          "label": "Decoupage",
+          "description": "Ingest, VAD, and timeline",
+          "color": "#f59e0b",
+          "x": 40,
+          "y": 20,
+          "width": 1240,
+          "height": 260,
+          "nodes": [
+            "ingest",
+            "vad",
+            "timeline"
+          ]
+        }
+      ]
     }
   }
 }

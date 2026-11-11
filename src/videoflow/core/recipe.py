@@ -61,10 +61,33 @@ class RecipeViewport(StrictModel):
     zoom: float = Field(default=1.0, gt=0.0, le=4.0)
 
 
+class RecipeGroup(StrictModel):
+    """A visual grouping area on the recipe canvas."""
+
+    id: str = Field(min_length=1, max_length=80)
+    label: str = Field(min_length=1, max_length=120)
+    description: str = ""
+    color: str = Field(default="#38bdf8", max_length=32)
+    x: float = 0.0
+    y: float = 0.0
+    width: float = Field(default=800.0, ge=100.0, le=20000.0)
+    height: float = Field(default=400.0, ge=80.0, le=20000.0)
+    nodes: list[str] = Field(default_factory=list)
+
+
 class RecipeUi(StrictModel):
     version: int = Field(default=1, ge=1)
     viewport: RecipeViewport = Field(default_factory=RecipeViewport)
     nodes: dict[str, RecipeNodeUi] = Field(default_factory=dict)
+    groups: list[RecipeGroup] = Field(default_factory=list)
+
+    @field_validator("groups")
+    @classmethod
+    def unique_group_ids(cls, value: list[RecipeGroup]) -> list[RecipeGroup]:
+        ids = [group.id for group in value]
+        if len(ids) != len(set(ids)):
+            raise ValueError("recipe group ids must be unique")
+        return value
 
 
 class RecipeStep(StrictModel):

@@ -34,7 +34,17 @@ class PresenterProfileStep(BaseStep):
         options = PresenterParams.model_validate(params)
         texts: list[str] = []
         roots = allowed_roots()
-        for raw in options.paths:
+        paths = list(options.paths)
+        answers = context.metadata.get("hilt_answers", {})
+        answer_map = answers.get("answers", {}) if isinstance(answers, dict) else {}
+        for raw in re.split(
+            r"[\n,;]+", str(answer_map.get("presenter_samples") or "")
+        ):
+            if raw.strip():
+                paths.append(raw.strip())
+        for raw in paths:
+            if not str(raw).strip():
+                continue
             try:
                 path = resolve_allowed(Path(raw), roots)
                 if path.is_file():

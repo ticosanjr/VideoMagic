@@ -51,6 +51,72 @@
       "title": "LlmRecipeConfig",
       "type": "object"
     },
+    "RecipeGroup": {
+      "additionalProperties": false,
+      "description": "A visual grouping area on the recipe canvas.",
+      "properties": {
+        "color": {
+          "default": "#38bdf8",
+          "maxLength": 32,
+          "title": "Color",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "height": {
+          "default": 400.0,
+          "maximum": 20000.0,
+          "minimum": 80.0,
+          "title": "Height",
+          "type": "number"
+        },
+        "id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "nodes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Nodes",
+          "type": "array"
+        },
+        "width": {
+          "default": 800.0,
+          "maximum": 20000.0,
+          "minimum": 100.0,
+          "title": "Width",
+          "type": "number"
+        },
+        "x": {
+          "default": 0.0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "default": 0.0,
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "label"
+      ],
+      "title": "RecipeGroup",
+      "type": "object"
+    },
     "RecipeNodeUi": {
       "additionalProperties": false,
       "properties": {
@@ -151,6 +217,13 @@
     "RecipeUi": {
       "additionalProperties": false,
       "properties": {
+        "groups": {
+          "items": {
+            "$ref": "#/$defs/RecipeGroup"
+          },
+          "title": "Groups",
+          "type": "array"
+        },
         "nodes": {
           "additionalProperties": {
             "$ref": "#/$defs/RecipeNodeUi"

@@ -73,17 +73,22 @@ def _add_recipe(
     description: str = "",
     variables: dict[str, Any] | None = None,
     variants: list[dict[str, Any]] | None = None,
+    ui: dict[str, Any] | None = None,
+    llm: dict[str, Any] | None = None,
 ) -> None:
-    BUILTIN_RECIPES[recipe_id] = {
+    payload: dict[str, Any] = {
         "schema_version": 1,
         "id": recipe_id,
         "name": name,
         "description": description or name,
-        "llm": {"provider": "none"},
+        "llm": llm or {"provider": "none"},
         "variables": variables or {},
         "variants": variants or [],
         "steps": steps,
     }
+    if ui:
+        payload["ui"] = ui
+    BUILTIN_RECIPES[recipe_id] = payload
 
 
 def _shorts(

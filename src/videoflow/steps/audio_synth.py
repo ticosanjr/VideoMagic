@@ -168,6 +168,8 @@ class MixParams(BaseModel):
 
     music_gain: float = Field(default=0.22, ge=0.0, le=1.0)
     sfx_gain: float = Field(default=0.55, ge=0.0, le=1.0)
+    sfx_notch_hz: float = Field(default=0.0, ge=0.0, le=20000.0)
+    sfx_notch_db: float = Field(default=0.0, ge=-24.0, le=24.0)
     output_name: str = Field(default="final.wav", max_length=120)
 
 
@@ -247,8 +249,14 @@ class AudioMixStep(BaseStep):
             index = base_index + offset
             start_ms = max(0, int(float(cue.get("start_sec") or 0.0) * 1000))
             gain = options.sfx_gain * float(cue.get("gain") or 0.35)
+            chain = f"volume={gain}"
+            if options.sfx_notch_hz > 0 and options.sfx_notch_db != 0:
+                chain += (
+                    f",equalizer=f={options.sfx_notch_hz}:width_type=h:"
+                    f"width=1000:g={options.sfx_notch_db}"
+                )
             filter_parts.append(
-                f"[{index}:a]volume={gain},adelay={start_ms}:all=1[sfx{index}]"
+                f"[{index}:a]{chain},adelay={start_ms}:all=1[sfx{index}]"
             )
             mix_labels.append(f"[sfx{index}]")
         filter_parts.append(

@@ -339,6 +339,46 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
             ),
         ),
     ),
+    "transcript.blocks": (
+        (PortSpec("transcript", "Transcript", "transcript", "transcript", True),),
+        (
+            PortSpec("blocks", "Context blocks", "json", "metadata:narrative_blocks"),
+            PortSpec(
+                "blocks_markdown",
+                "Context blocks (Markdown)",
+                "artifact",
+                "artifacts:narrative_blocks_md",
+            ),
+        ),
+    ),
+    "entities.extract": (
+        (
+            PortSpec("blocks", "Context blocks", "json", "metadata:narrative_blocks", True),
+            PortSpec("script", "Dual script", "json", "metadata:script", False),
+        ),
+        (
+            PortSpec(
+                "entities",
+                "Entity manifest",
+                "json",
+                "metadata:narrative_entities",
+            ),
+        ),
+    ),
+    "storyboard.preview": (
+        (
+            PortSpec("units", "Unit storyboard", "json", "metadata:storyboard_units", True),
+            PortSpec("style", "Style guide", "json", "metadata:style_guide", True),
+        ),
+        (
+            PortSpec(
+                "previews",
+                "Placeholder previews",
+                "json",
+                "metadata:storyboard_previews",
+            ),
+        ),
+    ),
     "broll.plan_master": (
         (PortSpec("timeline", "Timeline state", "timeline", "state", True),),
         (PortSpec("plan", "B-roll plan", "json", "metadata:broll_plan"),),

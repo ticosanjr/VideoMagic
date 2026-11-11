@@ -163,10 +163,27 @@ class ResearchStep(BaseStep):
             agents.append(payload)
             context.artifacts[f"research_{agent_id}"] = str(markdown_path)
         context.metadata["research_agents"] = agents
-        context.artifacts["research_agents"] = str(
-            context.output / "research" / "agents.json"
+        aggregate_path = context.output / "research" / "agents.json"
+        context.artifacts["research_agents"] = str(aggregate_path)
+        existing: list[dict[str, Any]] = []
+        try:
+            payload = json.loads(aggregate_path.read_text(encoding="utf-8"))
+            raw = payload.get("agents") if isinstance(payload, dict) else payload
+            if isinstance(raw, list):
+                existing = [item for item in raw if isinstance(item, dict)]
+        except (OSError, ValueError):
+            existing = []
+        merged = {
+            str(item.get("agent_id")): item
+            for item in existing
+            if item.get("agent_id")
+        }
+        for item in agents:
+            merged[str(item["agent_id"])] = item
+        _write_json(
+            aggregate_path,
+            {"agents": [merged[key] for key in sorted(merged)]},
         )
-        _write_json(context.output / "research" / "agents.json", {"agents": agents})
         context.hashes["research.multi_agent"] = digest_payload(
             {"agents": [item["agent_id"] for item in agents], "topic": topic}
         )

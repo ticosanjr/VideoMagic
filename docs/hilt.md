@@ -95,3 +95,12 @@ OS keyring when available; the API only reports presence, never the value.
 `full_ai_editor` is a built-in, favorite recipe that uses HILT for the editorial
 brief, research datasets, script lock, decoupage audit, entity corrections, style
 lock, sample homologation, fact-check, and final approval.
+
+## Lamera Video Edit
+
+`lamera_video_edit` is a built-in, favorite recipe organized in six colored
+canvas groups. It adds HILT checkpoints for the presenter profile, separate
+narration and edition approvals, the corrected entity manifest, placeholder
+previews, the retention intro, and the repaired voice. The same brief, research,
+master dossier, decoupage, style, asset-license, sample, fact-check, and final
+approvals remain.

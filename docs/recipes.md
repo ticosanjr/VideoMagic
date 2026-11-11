@@ -372,7 +372,7 @@ The job stops as `waiting_approval`. `POST /api/v1/jobs/{id}/resume` writes
 after the Shorts render. It is skipped with a warning when no TTS provider is
 configured.
 
-The catalog includes 47 recipes: rough cut, captions, NLE export, clean audio,
+The catalog includes 48 recipes: rough cut, captions, NLE export, clean audio,
 chapters, Shorts select/render, best moments, hook first, trailer, review gate,
 reframe/caption/A-B variants, podcast, interview, webinar, lecture, product
 demo, testimonial, livestream, B-roll, music, SFX, metadata, thumbnails,
@@ -387,6 +387,26 @@ fact-check, voice repair, sample homologation, and final approval. See
 [vision-decoupage.md](vision-decoupage.md),
 [assets-licensing.md](assets-licensing.md), [motion-audio.md](motion-audio.md),
 and [factcheck-voice.md](factcheck-voice.md).
+
+### Lamera Video Edit
+
+`lamera_video_edit` is the favorite long-form recipe for the Lamera workflow.
+It keeps the same durable HILT checkpoints as `full_ai_editor`, but the canvas
+is grouped into six colored phases and the most overloaded responsibilities are
+split into separate nodes:
+
+- Four independent `research.multi_agent` nodes, one per temporal scope.
+- `transcript.blocks` for context chunking, separate from `entities.extract`.
+- `storyboard.preview` for four placeholder clips before asset harvesting.
+- Separate narration and edition approvals after the dual script.
+- Extra approvals for the presenter profile, entity manifest, unit placeholders,
+  intro, and repaired voice.
+
+The graph has 65 nodes and includes ingest, decoupage calibration, eye-contact
+labels, transcription, retakes, drift correction, entity extraction, art
+direction, licensed asset harvesting, motion/Foley, audio mix, fact-check,
+voice repair, and NLE/video export. The four research nodes are independent in
+the DAG; the current runner still executes DAG branches in series.
 
 ### OpusClip-style recipes
 

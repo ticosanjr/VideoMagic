@@ -19,6 +19,7 @@
   import Icon from "$lib/ui/Icon.svelte";
   import IconButton from "$lib/ui/IconButton.svelte";
   import { stepIcon } from "$lib/ui/icons";
+  import GroupNode from "$lib/nodes/GroupNode.svelte";
   import StepNode from "$lib/nodes/StepNode.svelte";
   import { setPath, validateParams } from "$lib/recipeFields";
   import PathPicker from "$lib/PathPicker.svelte";
@@ -137,7 +138,7 @@
     onOpenJson?: () => void;
   };
 
-  const nodeTypes = { step: StepNode };
+  const nodeTypes = { step: StepNode, group: GroupNode };
   let steps = $state<StepManifest[]>([]);
   let recipes = $state<RecipeSummary[]>([]);
   let nodePresets = $state<NodePreset[]>([]);
@@ -516,12 +517,35 @@
     recipeUi = recipe.ui ?? {
       version: 1,
       viewport: { x: 0, y: 0, zoom: 1 },
-      nodes: {}
+      nodes: {},
+      groups: []
     };
-    hasSavedViewport = Boolean(recipe.ui?.viewport);
+    recipeUi.groups = recipeUi.groups ?? [];
+    hasSavedViewport = Boolean(
+      recipe.ui?.viewport &&
+        (recipe.ui.viewport.x !== 0 ||
+          recipe.ui.viewport.y !== 0 ||
+          recipe.ui.viewport.zoom !== 1)
+    );
     viewport = { ...recipeUi.viewport };
     const depth = levels(recipe);
     const rows: Record<number, number> = {};
+    const groupNodes: Node[] = (recipeUi.groups ?? []).map((group) => ({
+      id: `group:${group.id}`,
+      type: "group",
+      position: { x: group.x, y: group.y },
+      data: {
+        label: group.label,
+        description: group.description,
+        color: group.color
+      },
+      style: `width:${group.width}px;height:${group.height}px;pointer-events:none;`,
+      draggable: false,
+      selectable: false,
+      connectable: false,
+      focusable: false,
+      zIndex: -1
+    }));
     const next = recipe.steps.map((step) => {
       const column = depth[step.id] ?? 0;
       const row = rows[column] ?? 0;
@@ -596,7 +620,7 @@
         }
       } satisfies Node;
     });
-    nodes = next;
+    nodes = [...groupNodes, ...next];
     const nextEdges: RecipeEdge[] = [];
     for (const step of recipe.steps) {
       const mappedSources = new Set<string>();
@@ -655,6 +679,7 @@
   }
 
   function recipeFromGraph(): Recipe {
+    const stepNodes = nodes.filter((node) => node.type === "step");
     return {
       schema_version: 1,
       id: recipeId.trim(),
@@ -668,7 +693,7 @@
         version: 1,
         viewport,
         nodes: Object.fromEntries(
-          nodes.map((node) => [
+          stepNodes.map((node) => [
             node.id,
             {
               x: node.position.x,
@@ -678,9 +703,15 @@
               width: nodeData(node).width ?? 420
             }
           ])
-        )
+        ),
+        groups: (recipeUi.groups ?? []).map((group) => ({
+          ...group,
+          nodes: group.nodes.filter((id) =>
+            stepNodes.some((node) => node.id === id)
+          )
+        }))
       },
-      steps: nodes.map((node) => {
+      steps: stepNodes.map((node) => {
         const data = nodeData(node);
         const sources = new Set(
           edges.filter((edge) => edge.target === node.id).map((edge) => edge.source)
@@ -715,12 +746,16 @@
       suffix += 1;
       id = `${type.replace(/[^a-zA-Z0-9_.-]/g, "_")}_${suffix}`;
     }
+    const stepCount = nodes.filter((node) => node.type === "step").length;
     nodes = [
       ...nodes,
       {
         id,
         type: "step",
-        position: { x: 80 + (nodes.length % 4) * 460, y: 100 + Math.floor(nodes.length / 4) * 180 },
+        position: {
+          x: 80 + (stepCount % 4) * 460,
+          y: 100 + Math.floor(stepCount / 4) * 180
+        },
         data: {
           title: manifest.title,
           type,
@@ -895,6 +930,7 @@
     const needle = value.trim().toLowerCase();
     const dimmed = new Set<string>();
     nodes = nodes.map((node) => {
+      if (node.type !== "step") return node;
       const data = nodeData(node);
       const hit =
         !needle ||
@@ -1668,13 +1704,18 @@
     const next = !current.expanded;
     const updates: Record<string, boolean> = {};
     for (const node of nodes) {
+      if (node.type !== "step") continue;
       const data = nodeData(node);
       updates[node.id] = node.id === id ? next : next && !data.pinned ? false : Boolean(data.expanded);
     }
-    nodes = nodes.map((node) => ({
-      ...node,
-      data: { ...nodeData(node), expanded: updates[node.id] ?? false }
-    }));
+    nodes = nodes.map((node) =>
+      node.type === "step"
+        ? {
+            ...node,
+            data: { ...nodeData(node), expanded: updates[node.id] ?? false }
+          }
+        : node
+    );
     recipeUi = {
       ...recipeUi,
       nodes: Object.fromEntries(
@@ -1893,6 +1934,7 @@
     };
     const rows: Record<number, number> = {};
     nodes = nodes.map((node) => {
+      if (node.type !== "step") return node;
       const column = visit(node.id);
       const row = rows[column] ?? 0;
       rows[column] = row + 1;
@@ -1966,6 +2008,7 @@
   function nodeValidationErrors(): Record<string, string> {
     const errors: Record<string, string> = {};
     for (const node of nodes) {
+      if (node.type !== "step") continue;
       const data = nodeData(node);
       for (const [key, message] of Object.entries(validateParams(data.schema ?? {}, data.params ?? {}, data.type))) {
         errors[`${node.id}.${key}`] = message;
@@ -2026,6 +2069,7 @@
 
   function setStatuses(statuses: Record<string, NodeStatus>, progress: Record<string, number> = {}) {
     nodes = nodes.map((node) => {
+      if (node.type !== "step") return node;
       const status = statuses[node.id];
       const percent = progress[node.id];
       if (!status && percent === undefined) return node;
@@ -2190,15 +2234,19 @@
 
   async function refreshNodePresets() {
     nodePresets = await listNodePresets();
-    nodes = nodes.map((node) => ({
-      ...node,
-      data: {
-        ...nodeData(node),
-        presets: nodePresets.filter(
-          (preset) => preset.step_type === nodeData(node).type
-        )
-      }
-    }));
+    nodes = nodes.map((node) =>
+      node.type === "step"
+        ? {
+            ...node,
+            data: {
+              ...nodeData(node),
+              presets: nodePresets.filter(
+                (preset) => preset.step_type === nodeData(node).type
+              )
+            }
+          }
+        : node
+    );
   }
 
   async function saveNodePreset(

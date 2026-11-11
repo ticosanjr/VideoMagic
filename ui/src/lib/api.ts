@@ -544,10 +544,23 @@ export interface RecipeNodeUi {
   width: number;
 }
 
+export interface RecipeGroup {
+  id: string;
+  label: string;
+  description: string;
+  color: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  nodes: string[];
+}
+
 export interface RecipeUi {
   version: number;
   viewport: { x: number; y: number; zoom: number };
   nodes: Record<string, RecipeNodeUi>;
+  groups?: RecipeGroup[];
 }
 
 export interface Recipe {
