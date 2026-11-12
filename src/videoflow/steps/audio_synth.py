@@ -50,7 +50,6 @@ class AudioComposeStep(BaseStep):
     status = "available"
     icon = "♫"
     color = "#a78bfa"
-    requires = ("ingest",)
     produces = ("music_bed",)
     params_model = ComposeParams
 
@@ -68,9 +67,15 @@ class AudioComposeStep(BaseStep):
             root_midi = int(audio.get("root_midi") or options.root_midi)
         except (TypeError, ValueError):
             root_midi = options.root_midi
-        duration = options.duration_sec or (
-            context.duration_samples() / max(1, sample_rate)
+        duration = options.duration_sec or float(
+            context.metadata.get("narration_duration_sec") or 0.0
         )
+        if duration <= 0.0:
+            duration = context.duration_samples() / max(1, sample_rate)
+        if duration <= 0.0:
+            raise ExportError(
+                "Music composition needs a duration, narration timing, or ingested media."
+            )
         payload = compose_music(
             context.output / "audio" / "music",
             duration_sec=duration,
@@ -161,10 +166,16 @@ class SfxSynthStep(BaseStep):
                     }
                 )
         if not cues:
-            duration = (
-                context.duration_samples()
-                / (context.media.audio_sample_rate if context.media is not None else 48000)
-            )
+            duration = float(context.metadata.get("narration_duration_sec") or 0.0)
+            if duration <= 0.0:
+                duration = (
+                    context.duration_samples()
+                    / (
+                        context.media.audio_sample_rate
+                        if context.media is not None
+                        else 48000
+                    )
+                )
             current = 0.0
             while current < duration and len(cues) < options.max_cues:
                 cues.append(
@@ -196,6 +207,11 @@ class MixParams(BaseModel):
     sfx_gain: float = Field(default=0.55, ge=0.0, le=1.0)
     sfx_notch_hz: float = Field(default=0.0, ge=0.0, le=20000.0)
     sfx_notch_db: float = Field(default=0.0, ge=-24.0, le=24.0)
+    duck_music: bool = True
+    duck_threshold: float = Field(default=0.02, gt=0.0, le=1.0)
+    duck_ratio: float = Field(default=8.0, ge=1.0, le=20.0)
+    duck_attack_ms: int = Field(default=20, ge=1, le=500)
+    duck_release_ms: int = Field(default=300, ge=10, le=2000)
     output_name: str = Field(default="final.wav", max_length=120)
 
 
@@ -210,7 +226,6 @@ class AudioMixStep(BaseStep):
     status = "available"
     icon = "♬"
     color = "#a78bfa"
-    requires = ("audio.master",)
     produces = ("audio_mix",)
     params_model = MixParams
 
@@ -277,9 +292,24 @@ class AudioMixStep(BaseStep):
         filter_parts = []
         mix_labels = ["[0:a]"]
         if music is not None and music.is_file():
-            filter_parts.append(
-                f"[1:a]volume={options.music_gain},atrim=0,asetpts=PTS-STARTPTS[music]"
+            chain = (
+                f"volume={options.music_gain},atrim=0,asetpts=PTS-STARTPTS"
             )
+            if options.duck_music:
+                filter_parts.append("[0:a]asplit=2[voice][sidechain]")
+                filter_parts.append(
+                    f"[1:a]{chain}[musicraw]"
+                )
+                filter_parts.append(
+                    f"[musicraw][sidechain]sidechaincompress="
+                    f"threshold={options.duck_threshold}:"
+                    f"ratio={options.duck_ratio}:"
+                    f"attack={options.duck_attack_ms}:"
+                    f"release={options.duck_release_ms}[music]"
+                )
+                mix_labels[0] = "[voice]"
+            else:
+                filter_parts.append(f"[1:a]{chain}[music]")
             mix_labels.append("[music]")
         base_index = 2 if music is not None and music.is_file() else 1
         for offset, (cue, _path) in enumerate(cue_paths):

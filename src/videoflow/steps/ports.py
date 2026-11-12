@@ -458,6 +458,112 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
             ),
         ),
     ),
+    "narration.synthesize": (
+        (),
+        (
+            PortSpec("audio", "Narration WAV", "string", "artifacts:audio_narration"),
+            PortSpec("master", "Dialogue master", "string", "artifacts:audio_master"),
+        ),
+    ),
+    "narration.align": (
+        (PortSpec("audio", "Narration WAV", "string", "artifacts:audio_narration", True),),
+        (
+            PortSpec("transcript", "Narration transcript", "transcript", "transcript"),
+            PortSpec("words", "Word timings", "json", "artifacts:narration_words"),
+        ),
+    ),
+    "storyboard.timed": (
+        (PortSpec("transcript", "Narration transcript", "transcript", "transcript", True),),
+        (
+            PortSpec("units", "Timed units", "json", "artifacts:storyboard_units"),
+        ),
+    ),
+    "captions.plan": (
+        (PortSpec("transcript", "Transcript", "transcript", "transcript", True),),
+        (
+            PortSpec("captions", "Caption ASS", "string", "artifacts:captions_ass"),
+            PortSpec("subtitles", "Merged ASS", "string", "artifacts:subtitles_ass"),
+        ),
+    ),
+    "scene.codegen": (
+        (
+            PortSpec("units", "Timed units", "json", "artifacts:storyboard_units", True),
+            PortSpec("style", "Style guide", "json", "metadata:style_guide", False),
+        ),
+        (
+            PortSpec("scenes", "Scene graph", "json", "artifacts:motion_scenes"),
+            PortSpec("code", "Scene code", "string", "artifacts:scene_code"),
+        ),
+    ),
+    "scene.render": (
+        (PortSpec("scenes", "Scene graph", "json", "artifacts:motion_scenes", True),),
+        (
+            PortSpec("manifest", "Render manifest", "json", "artifacts:motion_manifest"),
+        ),
+    ),
+    "scene.assemble": (
+        (
+            PortSpec("manifest", "Render manifest", "json", "artifacts:motion_manifest", True),
+            PortSpec("audio", "Final audio", "string", "artifacts:audio_mix", True),
+        ),
+        (PortSpec("draft", "Draft video", "string", "artifacts:video_draft"),),
+    ),
+    "export.master": (
+        (PortSpec("draft", "Draft video", "string", "artifacts:video_draft", True),),
+        (
+            PortSpec("video", "Master video", "string", "artifacts:video"),
+            PortSpec("report", "Master report", "json", "artifacts:master_report"),
+        ),
+    ),
+    "vision.ocr": (
+        (PortSpec("media", "Media info", "media", "media", True),),
+        (PortSpec("ocr", "OCR boxes", "json", "artifacts:vision_ocr"),),
+    ),
+    "vision.segment": (
+        (PortSpec("media", "Media info", "media", "media", True),),
+        (PortSpec("segments", "Subject masks", "json", "artifacts:vision_segments"),),
+    ),
+    "vision.track": (
+        (PortSpec("ocr", "OCR boxes", "json", "artifacts:vision_ocr", True),),
+        (PortSpec("tracks", "Track keyframes", "json", "artifacts:vision_tracks"),),
+    ),
+    "motion.callout": (
+        (PortSpec("units", "Timed units", "json", "artifacts:storyboard_units", True),),
+        (PortSpec("callouts", "Callout cards", "json", "artifacts:motion_callouts"),),
+    ),
+    "motion.attach": (
+        (PortSpec("timeline", "Timeline state", "timeline", "state", True),),
+        (
+            PortSpec("timeline", "Timeline state", "timeline", "state"),
+            PortSpec("report", "Overlay sync", "json", "artifacts:motion_attached"),
+        ),
+    ),
+    "composite.matte": (
+        (PortSpec("segments", "Subject masks", "json", "artifacts:vision_segments", True),),
+        (PortSpec("plan", "Matte plan", "json", "artifacts:matte_plan"),),
+    ),
+    "qa.frames": (
+        (),
+        (PortSpec("report", "Frame QA", "json", "artifacts:qa_frames"),),
+    ),
+    "qa.transcript": (
+        (),
+        (PortSpec("report", "Transcript QA", "json", "artifacts:qa_transcript"),),
+    ),
+    "qa.vision": (
+        (),
+        (
+            PortSpec("report", "Vision QA", "json", "artifacts:vision_qa"),
+            PortSpec("markdown", "Vision QA markdown", "string", "artifacts:vision_qa_md"),
+        ),
+    ),
+    "qa.repair": (
+        (),
+        (
+            PortSpec("plan", "Repair plan", "json", "artifacts:qa_repair"),
+            PortSpec("markdown", "Repair markdown", "string", "artifacts:qa_repair_md"),
+        ),
+    ),
     "entities.apply": (
         (),
         (
@@ -476,10 +582,6 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
     "vision.face_contact": (
         (PortSpec("media", "Media info", "media", "media", True),),
         (PortSpec("labels", "Eye-contact spans", "json", "metadata:eye_contact"),),
-    ),
-    "qa.vision": (
-        (PortSpec("video", "Rendered video", "artifact", "artifacts:video", True),),
-        (PortSpec("report", "Vision QA", "json", "metadata:vision_qa"),),
     ),
 }
 

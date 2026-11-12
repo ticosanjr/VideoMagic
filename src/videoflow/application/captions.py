@@ -7,6 +7,7 @@ import re
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
 from videoflow.domain.config import CaptionStyle
 from videoflow.domain.state import Sentence
@@ -296,3 +297,63 @@ def _ass_color(value: str, opacity: float = 1.0) -> str:
     blue = int(value[5:7], 16)
     alpha = round((1.0 - max(0.0, min(1.0, opacity))) * 255)
     return f"&H{alpha:02X}{blue:02X}{green:02X}{red:02X}"
+
+
+def merge_ass_files(paths: Sequence[Path], target: Path) -> Path:
+    """Combine ASS files so one FFmpeg pass can burn titles and captions."""
+
+    existing = [Path(path) for path in paths if Path(path).is_file()]
+    if not existing:
+        destination = Path(target)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text("", encoding="utf-8")
+        return destination
+    script_info: list[str] = []
+    styles: list[str] = []
+    events: list[str] = []
+    seen_styles: set[str] = set()
+    seen_events: set[str] = set()
+    for path in existing:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        section = ""
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("[") and stripped.endswith("]"):
+                section = stripped
+                if section == "[Script Info]":
+                    continue
+                continue
+            if section == "[Script Info]" and stripped:
+                if not any(item.startswith(("PlayResX", "PlayResY")) for item in script_info):
+                    script_info.append(stripped)
+            elif section == "[V4+ Styles]" and stripped.startswith("Style:"):
+                name = stripped.split(",", 1)[0]
+                if name not in seen_styles:
+                    seen_styles.add(name)
+                    styles.append(stripped)
+            elif (
+                section == "[Events]"
+                and stripped.startswith("Dialogue:")
+                and stripped not in seen_events
+            ):
+                seen_events.add(stripped)
+                events.append(stripped)
+    header = [
+        "[Script Info]",
+        "ScriptType: v4.00+",
+        *script_info,
+        "",
+        "[V4+ Styles]",
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, "
+        "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, "
+        "BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+        *styles,
+        "",
+        "[Events]",
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+        *events,
+    ]
+    destination = Path(target)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text("\n".join(header).rstrip() + "\n", encoding="utf-8")
+    return destination

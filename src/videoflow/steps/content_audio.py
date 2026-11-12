@@ -96,7 +96,6 @@ class AudioQaStep(BaseStep):
     status = "available"
     icon = "◉"
     color = "#22c55e"
-    requires = ("ingest",)
     produces = ("audio_qa",)
     params_model = AudioQaParams
 
@@ -116,8 +115,13 @@ class AudioQaStep(BaseStep):
                 )
         except Exception:
             pass
-        master = context.artifacts.get("audio_master")
+        master = (
+            context.artifacts.get("audio_mix")
+            or context.artifacts.get("audio_master")
+        )
         source = Path(master) if master else Path(context.source)
+        if not source.is_file():
+            raise IngestError("Audio QA requires a rendered audio mix or ingested media.")
         measurement = FFmpegAdapter().measure_loudness(source)
         lufs = float(measurement["integrated_lufs"])
         peak = float(measurement["true_peak_dbfs"])

@@ -558,6 +558,92 @@ _STEP_DESCRIPTIONS: dict[str, dict[str, str]] = {
     "flow.subflow": {
         "source": "Input source for the subflow.",
     },
+    "narration.synthesize": {
+        "provider_id": "Optional TTS provider; empty uses the default chain.",
+        "profile_id": "Optional voice-clone profile id.",
+        "source_path": "Use an operator-provided narration file instead of TTS.",
+        "speed": "Narration speed multiplier.",
+        "output_path": "Output-relative narration WAV.",
+    },
+    "narration.align": {
+        "mode": "ASR backend: auto, faster_whisper, whisper_cpp, http, or srt.",
+        "srt_path": "Use an existing SRT instead of running ASR.",
+        "model_size": "Whisper model size for alignment.",
+        "device": "cpu, cuda, or auto.",
+        "language": "Narration language.",
+    },
+    "storyboard.timed": {
+        "min_unit_seconds": "Minimum unit duration before merging.",
+        "max_unit_seconds": "Maximum unit duration used by the fallback.",
+        "target_units": "Optional target unit count; zero keeps every section.",
+    },
+    "captions.plan": {
+        "max_chars": "Maximum characters per caption line.",
+        "width": "Caption canvas width.",
+        "height": "Caption canvas height.",
+    },
+    "scene.codegen": {
+        "engine": "html, three, or ffmpeg scene representation.",
+        "title_style": "Title placement style.",
+        "three_js_path": "Optional local Three.js module to copy into the scene folder.",
+        "max_scenes": "Maximum generated scenes.",
+    },
+    "scene.render": {
+        "engine": "auto, playwright, or ffmpeg.",
+        "draft_scale": "Viewport scale for draft renders.",
+        "max_scenes": "Maximum rendered scenes.",
+    },
+    "scene.assemble": {
+        "output_path": "Output-relative draft MP4.",
+        "burn_subtitles": "Burn subtitles.ass/titles.ass into the draft.",
+        "allow_silent": "Allow assembly without the final audio mix.",
+    },
+    "export.master": {
+        "subdir": "Output subdirectory for the master.",
+        "filename": "Master filename.",
+    },
+    "vision.ocr": {
+        "sample_fps": "Frames sampled per second for OCR.",
+        "language": "Tesseract language list.",
+        "min_confidence": "Minimum OCR confidence.",
+        "backend": "auto, tesseract, or none.",
+    },
+    "vision.segment": {
+        "sample_fps": "Frames sampled per second for masks.",
+        "backend": "auto, mediapipe, grabcut, or none.",
+    },
+    "vision.track": {
+        "ocr_path": "Output-relative OCR manifest.",
+        "max_tracks": "Maximum tracked text boxes.",
+        "sample_fps": "Tracking sample rate.",
+    },
+    "motion.callout": {
+        "max_callouts": "Maximum callout cards.",
+        "duration_sec": "Default callout duration.",
+    },
+    "motion.attach": {
+        "callouts_path": "Output-relative callout manifest.",
+        "opacity": "Overlay opacity.",
+    },
+    "composite.matte": {
+        "segments_path": "Output-relative subject mask manifest.",
+    },
+    "qa.frames": {
+        "black_min_seconds": "Minimum black span to report.",
+        "freeze_min_seconds": "Minimum static span to report.",
+        "sample_fps": "QA frame sample rate.",
+    },
+    "qa.transcript": {
+        "reference_path": "Output-relative script reference.",
+        "transcript_path": "Output-relative spoken transcript.",
+        "min_similarity": "Minimum word similarity to pass.",
+    },
+    "qa.vision": {
+        "min_score": "Minimum aggregate QA score to pass.",
+    },
+    "qa.repair": {
+        "max_items": "Maximum repair items in the plan.",
+    },
 }
 
 _UNITS: dict[str, str] = {

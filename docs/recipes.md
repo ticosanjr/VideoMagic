@@ -414,6 +414,41 @@ script sections into 225 unit groups. The Recipe config modal also edits the
 canvas groups: label, description, colour, membership from the current selection,
 and removal.
 
+### Synthetic Code Studio
+
+`synthetic_code_studio` is the source-less recipe: it starts from a human brief
+and research, locks the script and fact-check before spending time on audio,
+then synthesizes narration, aligns word timestamps, builds a timed storyboard,
+and renders HTML/CSS/3D scenes. The renderer prefers Playwright/Chromium when
+the optional `render` extra is installed and falls back to the built-in FFmpeg
+scene renderer. Audio uses procedural music and Foley with music ducking and
+EBU R128 normalization; captions are written as ASS and burned into the draft.
+The graph has 43 nodes and six phases: briefing/research/script, voice/timing,
+art/storyboard, media/scenes, audio, and QA/delivery. Human gates: brief,
+research master, script/facts, voice, style, units, licenses, rendered scenes,
+QA, and final master.
+
+Optional: `uv sync --extra render` and `playwright install chromium` enable the
+headless HTML/CSS/Three.js path. OCR/stock providers are opt-in.
+
+### Footage Intelligence Edit
+
+`footage_intelligence_edit` starts from real footage. It keeps the decoupage,
+retake, timeline, entity, style, and licensed-asset pipeline, then adds OCR
+coordinates, subject masks, motion tracking, anchored callout cards, timeline
+overlay attachment, long-form captions, and direct MP4 export with the final
+mix. NLE export includes Resolve, Premiere, Kdenlive, and CMX 3600 EDL.
+The graph has 54 nodes and six phases: ingest/decoupage, entities/style/
+storyboard, vision anchors, media/overlays/color, audio, and QA/delivery. Human
+gates: brief, decoupage, entities, style, units, vision anchors, licenses,
+callouts, QA, and final delivery.
+
+OCR needs `pytesseract` plus the Tesseract binary. Subject masks use MediaPipe
+or OpenCV GrabCut when installed; tracking uses OpenCV Lucas-Kanade. Without
+those backends the steps write explicit warnings and the human gate remains the
+fallback. Automatic behind-subject compositing is intentionally a reviewed NLE
+operation; `composite.matte` writes the plan from the masks.
+
 ### OpusClip-style recipes
 
 Three recipes map the OpusClip workflow onto native VideoFlow steps:

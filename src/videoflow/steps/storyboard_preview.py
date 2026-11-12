@@ -77,7 +77,6 @@ class StoryboardPreviewStep(BaseStep):
     status = "available"
     icon = "▣"
     color = "#ec4899"
-    requires = ("storyboard.units", "style.guide")
     produces = ("storyboard_previews",)
     params_model = StoryboardPreviewParams
 

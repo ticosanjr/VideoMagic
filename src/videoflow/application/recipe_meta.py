@@ -18,6 +18,8 @@ DEFAULT_FAVORITES = frozenset(
         "deepseek_full_edit",
         "full_ai_editor",
         "lamera_video_edit",
+        "synthetic_code_studio",
+        "footage_intelligence_edit",
     }
 )
 _LOCK = threading.RLock()
