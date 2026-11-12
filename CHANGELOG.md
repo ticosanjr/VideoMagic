@@ -1,5 +1,41 @@
 # Changelog
 
+## [2.70.0] - 2026-11-12
+
+### Added
+
+- **Synthetic Code Studio.** A 43-node, six-phase recipe for script-first
+  video: research, fact-check, narration synthesis/alignment, timed storyboard,
+  HTML/CSS scene codegen, headless rendering with an FFmpeg fallback, procedural
+  audio with ducking/LUFS, captions, QA, and master export.
+- **Footage Intelligence Edit.** A 54-node, six-phase recipe for real footage:
+  decoupage, entities, style, OCR, subject masks, all three vision anchors,
+  tracked callouts, licensed media, direct MP4 with the final mix, NLE/EDL
+  export, and QA.
+- **New pipeline steps.** `narration.synthesize`, `narration.align`,
+  `storyboard.timed`, `scene.codegen`, `scene.render`, `scene.assemble`,
+  `export.master`, `captions.plan`, `vision.ocr`, `vision.segment`,
+  `vision.track`, `motion.callout`, `motion.attach`, `composite.matte`,
+  `qa.frames`, `qa.transcript`, `qa.repair`, and a live `qa.vision`.
+- **Multimodal QA.** `qa.vision` sends sampled frames to a configured
+  OpenAI-compatible vision provider, with deterministic frame, transcript, and
+  loudness checks as the fallback.
+- **Optional Three.js.** `scene.codegen.three_js_path` adds a WebGL camera and
+  3D plane to the generated scene document.
+- **Tray extras in the portable build.** Pillow, pystray, and pytesseract are
+  collected when installed; the tray icon and callout cards no longer depend on
+  source-only files.
+
+### Changed
+
+- `audio.mix` supports sidechain ducking and an optional target LUFS.
+- `audio.compose`, `audio.qa`, and `storyboard.preview` no longer require ingest
+  state, so the synthetic recipe can run without source footage.
+- `export.video` accepts `audio_source="mix"` and burns the merged
+  `subtitles.ass` when present.
+- `synthetic_code_studio` and `footage_intelligence_edit` are built-in
+  favorites.
+
 ## [2.69.0] - 2026-11-12
 
 ### Changed
