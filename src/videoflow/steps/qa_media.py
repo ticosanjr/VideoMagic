@@ -78,6 +78,7 @@ class QaFramesStep(BaseStep):
         except Exception as exc:  # noqa: BLE001 - frame sampling is best effort
             context.warnings.append(f"QA frame sampling skipped: {exc}")
         issues.extend(_empty_frame_issues(frames, options.sample_fps))
+        issues.extend(_clipping_issues(context))
         critical = [item for item in issues if item.get("severity") == "critical"]
         payload = {
             "ok": True,
@@ -108,6 +109,41 @@ class QaFramesStep(BaseStep):
     def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
         path = context.artifacts.get("qa_frames")
         return (Path(path),) if path else ()
+
+
+def _clipping_issues(context: PipelineContext) -> list[dict[str, Any]]:
+    """Flag OCR boxes that touch a frame border, a common render clipping bug."""
+
+    payload = _load(context.output / "vision" / "ocr.json", {})
+    issues: list[dict[str, Any]] = []
+    for frame in payload.get("frames", []) if isinstance(payload, dict) else []:
+        if not isinstance(frame, dict):
+            continue
+        width = int(frame.get("width") or 0)
+        height = int(frame.get("height") or 0)
+        if width <= 0 or height <= 0:
+            continue
+        for box in frame.get("boxes", []):
+            if not isinstance(box, dict):
+                continue
+            x = int(box.get("x") or 0)
+            y = int(box.get("y") or 0)
+            box_width = int(box.get("width") or 0)
+            box_height = int(box.get("height") or 0)
+            if x <= 1 or y <= 1 or x + box_width >= width - 1 or y + box_height >= height - 1:
+                issues.append(
+                    {
+                        "kind": "text_clipped",
+                        "severity": "warning",
+                        "start_sec": float(frame.get("time_sec") or 0.0),
+                        "end_sec": float(frame.get("time_sec") or 0.0),
+                        "message": (
+                            "OCR text box touches the frame border: "
+                            f"{str(box.get('text') or '')[:60]}"
+                        ),
+                    }
+                )
+    return issues
 
 
 def _empty_frame_issues(

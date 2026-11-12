@@ -440,3 +440,51 @@ def test_scene_codegen_copies_three_js_and_wires_the_camera(tmp_path: Path) -> N
     ).read_text(encoding="utf-8")
     assert "threeSetTime" in html
     assert "import * as THREE" in html
+
+
+def test_qa_frames_flags_clipped_ocr_boxes(tmp_path: Path, monkeypatch) -> None:
+    context = _context(tmp_path)
+    video = context.output / "exports" / "master.mp4"
+    video.parent.mkdir(parents=True)
+    video.write_bytes(b"video")
+    context.artifacts["video"] = str(video)
+    (context.output / "vision").mkdir(parents=True)
+    (context.output / "vision" / "ocr.json").write_text(
+        json.dumps(
+            {
+                "frames": [
+                    {
+                        "frame": "frame-00001.png",
+                        "time_sec": 3.0,
+                        "width": 1280,
+                        "height": 720,
+                        "boxes": [
+                            {
+                                "text": "Titulo cortado",
+                                "confidence": 0.8,
+                                "x": 0,
+                                "y": 100,
+                                "width": 200,
+                                "height": 40,
+                            }
+                        ],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "videoflow.steps.qa_media.detect_black", lambda *args, **kwargs: []
+    )
+    monkeypatch.setattr(
+        "videoflow.steps.qa_media.detect_freeze", lambda *args, **kwargs: []
+    )
+    monkeypatch.setattr(
+        "videoflow.steps.qa_media.extract_frames", lambda *args, **kwargs: []
+    )
+
+    QaFramesStep().run(context, QaFramesParams(), StepIO())
+
+    kinds = [item["kind"] for item in context.metadata["qa_frames"]["issues"]]
+    assert "text_clipped" in kinds
