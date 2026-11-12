@@ -300,6 +300,8 @@ class RecipeRunner:
         job_id: str = "",
         seed_metadata: dict[str, Any] | None = None,
         write_report: bool = True,
+        source_stamp: str | None = None,
+        ai: Any | None = None,
     ) -> RecipeRunResult:
         from uuid import uuid4
 
@@ -308,7 +310,8 @@ class RecipeRunner:
         recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
         validate_recipe_ports(recipe, through=through)
         source_path = Path(source).expanduser().resolve()
-        source_stamp = source_fingerprint(source_path)
+        if source_stamp is None:
+            source_stamp = source_fingerprint(source_path)
         output_path = Path(output).expanduser().resolve()
         work = output_path / "work"
         exports = output_path / "exports"
@@ -334,7 +337,8 @@ class RecipeRunner:
         llm = self.llm_client or self._build_llm(log)
         from videoflow.application.intelligence import build_intelligence
 
-        ai = build_intelligence()
+        if ai is None:
+            ai = build_intelligence()
         step_llms: dict[str, Any] = {}
         total = len(order)
         step_runs: list[StepRun] = []
@@ -361,6 +365,8 @@ class RecipeRunner:
                     context,
                     source_path=source_path,
                     output_path=output_path,
+                    source_stamp=source_stamp,
+                    ai=ai,
                     llm=llm,
                     resume=resume,
                     job_id=job_id,
@@ -679,6 +685,8 @@ class RecipeRunner:
         *,
         source_path: Path,
         output_path: Path,
+        source_stamp: str,
+        ai: Any,
         llm: Any | None,
         resume: bool,
         job_id: str,
@@ -721,6 +729,8 @@ class RecipeRunner:
                 telemetry=telemetry,
                 resume=resume,
                 job_id=job_id,
+                source_stamp=source_stamp,
+                ai=ai,
                 seed_metadata={
                     "hilt_answers": context.metadata.get("hilt_answers", {}),
                     "variables": context.metadata.get("variables", {}),

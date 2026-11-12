@@ -24,7 +24,9 @@
   } from "$lib/api";
 
   const RECIPE_ID = "lamera_video_edit";
-  const POLL_MS = 1200;
+  const POLL_FAST_MS = 1200;
+  const POLL_QUEUED_MS = 2500;
+  const POLL_IDLE_MS = 6000;
 
   let recipe = $state<Recipe | null>(null);
   let manifests = $state<StepManifest[]>([]);
@@ -40,8 +42,46 @@
   let error = $state("");
   let logsOpen = $state(false);
   let historyOpen = $state(false);
-  let poll: ReturnType<typeof setInterval> | undefined;
+  let poll: ReturnType<typeof setTimeout> | undefined;
+  let pollInFlight = false;
   let lastStatus = "";
+
+  function isTerminal(status: string): boolean {
+    return status === "succeeded" || status === "failed" || status === "cancelled";
+  }
+
+  function pollDelay(): number {
+    if (!job) return POLL_FAST_MS;
+    if (job.status === "waiting_approval" || job.status === "waiting_input" || job.status === "paused") {
+      return POLL_IDLE_MS;
+    }
+    if (job.status === "queued") return POLL_QUEUED_MS;
+    return POLL_FAST_MS;
+  }
+
+  function stopPolling() {
+    clearTimeout(poll);
+    poll = undefined;
+  }
+
+  function schedulePoll(delay = pollDelay()) {
+    stopPolling();
+    if (!selectedJobId) return;
+    if (typeof document !== "undefined" && document.hidden) return;
+    poll = setTimeout(() => void pollTick(), delay);
+  }
+
+  async function pollTick() {
+    poll = undefined;
+    if (!selectedJobId || pollInFlight) return;
+    pollInFlight = true;
+    try {
+      await refreshJob();
+    } finally {
+      pollInFlight = false;
+      if (selectedJobId && job && !isTerminal(job.status)) schedulePoll();
+    }
+  }
 
   const groups = $derived(recipe?.ui?.groups ?? []);
 
@@ -183,7 +223,7 @@
   }
 
   async function selectJob(id: string) {
-    clearInterval(poll);
+    stopPolling();
     selectedJobId = id;
     if (!id) {
       job = null;
@@ -198,7 +238,7 @@
     selectedGroupId = currentGroupId();
     await loadLogs();
     await loadHistory();
-    poll = setInterval(() => void refreshJob(), POLL_MS);
+    schedulePoll();
   }
 
   async function refreshJob() {
@@ -213,15 +253,15 @@
           await refreshPending();
           await loadHistory();
         }
-        if (next.status === "succeeded" || next.status === "failed" || next.status === "cancelled") {
-          clearInterval(poll);
+        if (isTerminal(next.status)) {
+          stopPolling();
           await loadLogs();
           await refreshLists();
           await loadHistory();
         }
       }
     } catch (reason) {
-      clearInterval(poll);
+      stopPolling();
       if (reason instanceof ApiError && reason.code === "job_not_found") {
         selectedJobId = "";
         job = null;
@@ -368,12 +408,24 @@
     error = "";
   }
 
+  function handleVisibility() {
+    if (document.hidden) {
+      stopPolling();
+      return;
+    }
+    if (selectedJobId && !poll) {
+      void pollTick();
+    }
+  }
+
   onMount(() => {
+    document.addEventListener("visibilitychange", handleVisibility);
     void load();
   });
 
   onDestroy(() => {
-    clearInterval(poll);
+    document.removeEventListener("visibilitychange", handleVisibility);
+    stopPolling();
   });
 </script>
 
