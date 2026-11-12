@@ -117,6 +117,12 @@
         </select>
       </div>
     </div>
+    <div class="mt-4 grid gap-2 sm:grid-cols-4" data-testid="media-summary">
+      <div class="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2"><p class="vf-label">Assets</p><p class="mt-1 text-[length:var(--vf-text-lg)] font-semibold text-neutral-100">{assets.length}</p></div>
+      <div class="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2"><p class="vf-label">Video</p><p class="mt-1 text-[length:var(--vf-text-lg)] font-semibold text-neutral-100">{assets.filter((item) => item.kind === "video").length}</p></div>
+      <div class="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2"><p class="vf-label">Audio</p><p class="mt-1 text-[length:var(--vf-text-lg)] font-semibold text-neutral-100">{assets.filter((item) => item.kind === "audio").length}</p></div>
+      <div class="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2"><p class="vf-label">Images</p><p class="mt-1 text-[length:var(--vf-text-lg)] font-semibold text-neutral-100">{assets.filter((item) => item.kind === "image").length}</p></div>
+    </div>
     <div class="mt-3 grid gap-2 md:grid-cols-[1fr_auto_auto]">
       <input bind:value={scanDir} placeholder="/path/to/assets" class="rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 font-mono text-xs text-neutral-200" />
       <button type="button" onclick={() => (picker = true)} class="rounded-lg border border-neutral-700 px-3 py-2 text-xs text-neutral-300 hover:border-sky-500">Choose folder</button>
@@ -161,7 +167,9 @@
         <EmptyState
           title="No assets yet"
           description="Scan a folder to build the library, then tag and license each asset."
+          action="Scan a folder"
           icon="image"
+          onaction={() => (picker = true)}
         />
       </div>
     {/if}

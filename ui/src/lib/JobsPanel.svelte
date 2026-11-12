@@ -262,6 +262,25 @@
 
   <ErrorBanner message={error} title="Could not load jobs" onDismiss={() => (error = "")} testId="jobs-error" />
 
+  <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" data-testid="jobs-summary">
+    <button type="button" onclick={() => (filter = "attention")} class="rounded-xl border border-amber-400/20 bg-amber-950/10 px-3 py-2 text-left transition-colors hover:border-amber-400/40">
+      <p class="vf-label text-amber-300/80">{i18n.t("attention")}</p>
+      <p class="mt-1 text-[length:var(--vf-text-xl)] font-semibold text-amber-100">{counts.waiting}</p>
+    </button>
+    <button type="button" onclick={() => (filter = "active")} class="rounded-xl border border-sky-400/20 bg-sky-950/10 px-3 py-2 text-left transition-colors hover:border-sky-400/40">
+      <p class="vf-label text-sky-300/80">{i18n.t("running")}</p>
+      <p class="mt-1 text-[length:var(--vf-text-xl)] font-semibold text-sky-100">{counts.active}</p>
+    </button>
+    <button type="button" onclick={() => (filter = "queued")} class="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left transition-colors hover:border-white/20">
+      <p class="vf-label">{i18n.t("queued")}</p>
+      <p class="mt-1 text-[length:var(--vf-text-xl)] font-semibold text-neutral-100">{counts.queued}</p>
+    </button>
+    <button type="button" onclick={() => (filter = "succeeded")} class="rounded-xl border border-emerald-400/15 bg-emerald-950/10 px-3 py-2 text-left transition-colors hover:border-emerald-400/35">
+      <p class="vf-label text-emerald-300/70">{i18n.t("succeeded")}</p>
+      <p class="mt-1 text-[length:var(--vf-text-xl)] font-semibold text-emerald-100">{counts.succeeded}</p>
+    </button>
+  </div>
+
   <div class="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Job filters">
     {#each filters as item}
       <button

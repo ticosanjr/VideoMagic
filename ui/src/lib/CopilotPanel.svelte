@@ -34,6 +34,24 @@
   let cost = $state(0);
   let history = $state<AssistantHistoryEntry[]>([]);
 
+  const SUGGESTIONS: Record<"recipe" | "timeline" | "agent", string[]> = {
+    recipe: [
+      "Remove silence, add captions, and render three vertical Shorts.",
+      "Create a B-roll pass with licensed media and a review gate.",
+      "Build a documentary recipe with research, fact-check, and voice repair."
+    ],
+    timeline: [
+      "Tighten the first clip and remove the last one.",
+      "Add a short caption to every sentence and keep the existing music.",
+      "Find repeated takes and keep the last one."
+    ],
+    agent: [
+      "Summarize what this run produced.",
+      "Find the strongest hook in the transcript.",
+      "List the artifacts that still need a human review."
+    ]
+  };
+
   onMount(async () => {
     try {
       jobs = (await listJobs()).filter((job) => job.status === "succeeded");
@@ -125,6 +143,12 @@
     <button type="button" class={mode === "recipe" ? "rounded-xl bg-sky-500/15 px-3 py-1.5 text-xs text-sky-200 ring-1 ring-inset ring-sky-400/25" : "rounded-xl border border-neutral-800 px-3 py-1.5 text-xs text-neutral-400"} onclick={() => (mode = "recipe")}>Recipe draft</button>
     <button type="button" class={mode === "timeline" ? "rounded-xl bg-sky-500/15 px-3 py-1.5 text-xs text-sky-200 ring-1 ring-inset ring-sky-400/25" : "rounded-xl border border-neutral-800 px-3 py-1.5 text-xs text-neutral-400"} onclick={() => (mode = "timeline")}>Timeline edit</button>
     <button type="button" class={mode === "agent" ? "rounded-xl bg-sky-500/15 px-3 py-1.5 text-xs text-sky-200 ring-1 ring-inset ring-sky-400/25" : "rounded-xl border border-neutral-800 px-3 py-1.5 text-xs text-neutral-400"} onclick={() => (mode = "agent")}>Agent tools</button>
+  </div>
+
+  <div class="flex flex-wrap gap-2" data-testid="assistant-suggestions">
+    {#each SUGGESTIONS[mode] as suggestion}
+      <button type="button" onclick={() => (prompt = suggestion)} class="rounded-lg border border-neutral-800 bg-neutral-950/50 px-2.5 py-1.5 text-left text-[length:var(--vf-text-xs)] text-neutral-400 transition-colors hover:border-sky-500/40 hover:text-neutral-100">{suggestion}</button>
+    {/each}
   </div>
 
   {#if mode !== "recipe"}

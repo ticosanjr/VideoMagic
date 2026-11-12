@@ -3,6 +3,7 @@
   import ErrorBanner from "$lib/ErrorBanner.svelte";
   import FieldHint from "$lib/FieldHint.svelte";
   import HelpTip from "$lib/HelpTip.svelte";
+  import SetupHealth from "$lib/SetupHealth.svelte";
   import {
     errorMessage,
     getIntelligenceModels,
@@ -185,6 +186,7 @@
 </script>
 
 <div class="space-y-4" data-testid="settings-panel">
+  <SetupHealth />
   <ErrorBanner message={error} onDismiss={() => (error = "")} testId="settings-error" />
 
   <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">

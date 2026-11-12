@@ -844,6 +844,37 @@ export const GLOSSARY: Record<string, string> = {
   "Vision anchors": "Âncoras visuais",
   "Voice and timing": "Voz e timing",
   "Words": "Palavras",
+  "Images": "Imagens",
+  "Setup health": "Saúde do setup",
+  "The four checks that block a first recipe run.":
+    "As quatro verificações que bloqueiam a primeira execução.",
+  "No runs to edit yet": "Ainda não há execuções para editar",
+  "Run a recipe from Produce. When a recipe produces a timeline, it appears here for frame-accurate editing.":
+    "Rode uma receita em Produzir. Quando ela gerar uma timeline, ela aparece aqui para edição frame a frame.",
+  "Open Produce": "Abrir Produzir",
+  "Scan a folder": "Escanear uma pasta",
+  "Ready": "Pronto",
+  "Missing": "Ausente",
+  "installed": "instalados",
+  "running": "executando",
+  "configured": "configurados",
+  "Remove silence, add captions, and render three vertical Shorts.":
+    "Remova silêncios, adicione legendas e renderize três Shorts verticais.",
+  "Create a B-roll pass with licensed media and a review gate.":
+    "Crie uma passagem de B-roll com mídia licenciada e um gate de revisão.",
+  "Build a documentary recipe with research, fact-check, and voice repair.":
+    "Monte uma receita documental com pesquisa, fact-check e reparo de voz.",
+  "Tighten the first clip and remove the last one.":
+    "Aperte o primeiro clipe e remova o último.",
+  "Add a short caption to every sentence and keep the existing music.":
+    "Adicione legenda curta em cada frase e mantenha a música existente.",
+  "Find repeated takes and keep the last one.":
+    "Encontre tomadas repetidas e mantenha a última.",
+  "Summarize what this run produced.": "Resuma o que esta execução produziu.",
+  "Find the strongest hook in the transcript.":
+    "Encontre o gancho mais forte na transcrição.",
+  "List the artifacts that still need a human review.":
+    "Liste os artefatos que ainda precisam de revisão humana.",
   "Create profile": "Criar perfil",
   "Voice clone": "Clone de voz",
 };

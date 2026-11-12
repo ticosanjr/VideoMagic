@@ -625,3 +625,20 @@ test("organizes recipes with favorites and recent filters", async ({ page }) => 
   await page.getByRole("button", { name: /Add Example recipe to favorites/ }).click();
   await expect(page.getByText(/added to favorites/)).toBeVisible();
 });
+
+
+test("shows the setup health checklist", async ({ page }) => {
+  await page.goto("/#settings");
+  await expect(page.getByTestId("setup-health")).toBeVisible();
+  await expect(page.getByText("Setup health")).toBeVisible();
+  await expect(page.getByText("FFmpeg").first()).toBeVisible();
+});
+
+
+test("shows assistant prompt suggestions", async ({ page }) => {
+  await page.goto("/#assistant");
+  await expect(page.getByTestId("assistant-suggestions")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Remove silence, add captions, and render three vertical Shorts." })
+  ).toBeVisible();
+});

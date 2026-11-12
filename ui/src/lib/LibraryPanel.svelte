@@ -172,7 +172,13 @@
       </div>
       <button type="button" onclick={() => void load()} class="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300">Refresh</button>
     </div>
-    {#if status}<p class="mt-2 text-[11px] text-emerald-300" role="status">{status}</p>{/if}
+    {#if status}<p class="mt-2 text-[length:var(--vf-text-xs)] text-emerald-300" role="status">{status}</p>{/if}
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" data-testid="library-summary">
+      <div class="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2"><p class="vf-label">Brand templates</p><p class="mt-1 text-[length:var(--vf-text-lg)] font-semibold text-neutral-100">{brands.length}</p></div>
+      <div class="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2"><p class="vf-label">Project templates</p><p class="mt-1 text-[length:var(--vf-text-lg)] font-semibold text-neutral-100">{projects.length}</p></div>
+      <div class="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2"><p class="vf-label">Presets</p><p class="mt-1 text-[length:var(--vf-text-lg)] font-semibold text-neutral-100">{presets.length}</p></div>
+      <div class="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2"><p class="vf-label">Local media</p><p class="mt-1 text-[length:var(--vf-text-lg)] font-semibold text-neutral-100">{music.length + sfx.length + images.length + fonts.length}</p></div>
+    </div>
   </section>
 
   <div class="grid gap-4 lg:grid-cols-2">

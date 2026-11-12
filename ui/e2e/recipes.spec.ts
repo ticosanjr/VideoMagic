@@ -595,7 +595,7 @@ test("opens the schedules tab", async ({ page }) => {
 test("opens the timeline tab", async ({ page }) => {
   await page.getByRole("tab", { name: "Edit" }).click();
   await expect(page.getByRole("heading", { name: "Timeline" })).toBeVisible();
-  await expect(page.getByText("Run a recipe to populate the timeline.")).toBeVisible();
+  await expect(page.getByTestId("timeline-empty")).toBeVisible();
 });
 
 test("opens persisted run history and shows failures", async ({ page }) => {

@@ -11,6 +11,7 @@
   import { formatSeconds } from "$lib/format";
   import ShortEditor from "$lib/ShortEditor.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import EmptyState from "$lib/EmptyState.svelte";
   import WaveformStrip from "$lib/WaveformStrip.svelte";
   import {
     ApiError,
@@ -1759,10 +1760,21 @@
         <button type="button" onclick={() => void loadTimeline()} class="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-700 text-neutral-300" title="Refresh timeline" aria-label="Refresh timeline"><Icon name="refresh" size={14} /></button>
       </div>
     </div>
-    {#if loading}<p class="mt-2 text-[11px] text-neutral-500">Loading timeline…</p>{/if}
-    {#if !loading && !jobs.length}<p class="mt-2 text-[11px] text-neutral-500">Run a recipe to populate the timeline.</p>{/if}
-    {#if status}<p class="mt-2 text-[11px] text-emerald-300" role="status">{status}</p>{/if}
+    {#if loading}<p class="mt-2 text-[length:var(--vf-text-xs)] text-neutral-500">Loading timeline…</p>{/if}
+    {#if status}<p class="mt-2 text-[length:var(--vf-text-xs)] text-emerald-300" role="status">{status}</p>{/if}
   </section>
+
+  {#if !loading && !jobs.length}
+    <section class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4" data-testid="timeline-empty">
+      <EmptyState
+        title="No runs to edit yet"
+        description="Run a recipe from Produce. When a recipe produces a timeline, it appears here for frame-accurate editing."
+        action="Open Produce"
+        icon="film"
+        onaction={() => (window.location.hash = "#overview")}
+      />
+    </section>
+  {/if}
 
   {#if !timeline && (loading || (!error && jobs.length))}
     <section class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4" aria-busy="true" data-testid="timeline-loading">
