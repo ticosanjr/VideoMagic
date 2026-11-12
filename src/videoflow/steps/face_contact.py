@@ -30,7 +30,9 @@ class FaceContactParams(BaseModel):
     min_face_ratio: float = Field(default=0.08, ge=0.005, le=1.0)
     center_tolerance: float = Field(default=0.30, ge=0.0, le=1.0)
     min_eyes: int = Field(default=1, ge=0, le=2)
-    backend: Literal["auto", "mediapipe", "opencv", "none"] = "auto"
+    backend: Literal["auto", "mediapipe", "yolo", "opencv", "none"] = "auto"
+    yolo_model: str = Field(default="", max_length=4000)
+    yolo_confidence: float = Field(default=0.35, ge=0.0, le=1.0)
     write_markers: bool = True
 
 
@@ -41,6 +43,51 @@ def _cv2() -> Any | None:
         return cv2
     except Exception:  # noqa: BLE001 - optional dependency
         return None
+
+
+def _yolo() -> Any | None:
+    try:
+        from ultralytics import YOLO  # type: ignore[import-not-found]
+
+        return YOLO
+    except Exception:  # noqa: BLE001 - optional dependency
+        return None
+
+
+def _analyze_yolo(
+    model: Any,
+    image: Any,
+    *,
+    min_face_ratio: float,
+    center_tolerance: float,
+    confidence: float = 0.35,
+) -> tuple[bool, float, float]:
+    results = model.predict(image, conf=confidence, verbose=False)
+    boxes = getattr(results[0], "boxes", None) if results else None
+    raw = getattr(boxes, "xyxy", None) if boxes is not None else None
+    rows = raw.tolist() if hasattr(raw, "tolist") else list(raw or [])
+    width = float(image.shape[1])
+    best: tuple[float, float, float] | None = None
+    for row in rows:
+        if not isinstance(row, (list, tuple)) or len(row) < 4:
+            continue
+        x1, y1, x2, y2 = (float(value) for value in row[:4])
+        area = max(0.0, x2 - x1) * max(0.0, y2 - y1)
+        face_ratio = max(0.0, x2 - x1) / max(1.0, width)
+        center = (x1 + x2) / 2.0 / max(1.0, width)
+        offset = abs(center - 0.5)
+        if best is None or area > best[2]:
+            best = (face_ratio, offset, area)
+    if best is None:
+        return False, 0.0, 0.0
+    face_ratio, offset, _area = best
+    eye_contact = face_ratio >= min_face_ratio and offset <= center_tolerance
+    score = min(
+        1.0,
+        0.65 * min(1.0, face_ratio / max(0.01, min_face_ratio))
+        + 0.35 * (1.0 - min(1.0, offset / max(0.01, center_tolerance))),
+    )
+    return eye_contact, score, face_ratio
 
 
 def _mediapipe() -> Any | None:
@@ -179,9 +226,9 @@ class FaceContactStep(BaseStep):
     type = "vision.face_contact"
     title = "Eye-contact labels"
     description = (
-        "Sample the source, detect direct-to-camera eye contact with MediaPipe "
-        "or OpenCV, and write green label spans and timeline markers. The HILT "
-        "audit remains the fallback."
+        "Sample the source, detect direct-to-camera eye contact with MediaPipe, "
+        "YOLO, or OpenCV, and write green label spans and timeline markers. The "
+        "HILT audit remains the fallback."
     )
     status = "partial"
     icon = "◉"
@@ -196,19 +243,26 @@ class FaceContactStep(BaseStep):
         backend = options.backend
         cv2 = _cv2() if backend != "none" else None
         mediapipe = _mediapipe() if backend in {"auto", "mediapipe"} else None
+        yolo = _yolo() if options.yolo_model and backend in {"auto", "yolo"} else None
         if backend == "none" or cv2 is None or (
             backend == "mediapipe" and mediapipe is None
-        ):
+        ) or (backend == "yolo" and (yolo is None or not options.yolo_model)):
             reason = (
                 "MediaPipe is not installed. Install the optional vision extra or "
                 "review the decoupage manually at the HILT gate."
                 if backend == "mediapipe"
+                else "YOLO requires ultralytics and a local face model path."
+                if backend == "yolo"
                 else "OpenCV is not installed. Use pip install 'videoflow[vision]' "
                 "or review the decoupage manually at the HILT gate."
             )
             payload = {
                 "available": False,
-                "backend": "mediapipe" if backend == "mediapipe" else "none",
+                "backend": "mediapipe"
+                if backend == "mediapipe"
+                else "yolo"
+                if backend == "yolo"
+                else "none",
                 "reason": reason,
                 "eye_contact_intervals": [],
                 "green_label_count": 0,
@@ -219,10 +273,36 @@ class FaceContactStep(BaseStep):
             context.warnings.append(f"Eye-contact detection skipped: {reason}")
             io.report(100, "Eye-contact analysis unavailable (optional vision extra)")
             return
-        use_mediapipe = mediapipe is not None and backend in {"auto", "mediapipe"}
-        backend_name = "mediapipe" if use_mediapipe else "opencv"
+        use_mediapipe = backend in {"auto", "mediapipe"} and mediapipe is not None
+        use_yolo = (
+            backend == "yolo"
+            or (backend == "auto" and not use_mediapipe)
+        ) and yolo is not None and bool(options.yolo_model)
+        yolo_model_obj = None
+        if use_yolo:
+            try:
+                yolo_model_obj = yolo(options.yolo_model)
+            except Exception as exc:  # noqa: BLE001 - optional backend
+                if backend == "yolo":
+                    payload = {
+                        "available": False,
+                        "backend": "yolo",
+                        "reason": f"YOLO model could not be loaded: {exc}",
+                        "eye_contact_intervals": [],
+                        "green_label_count": 0,
+                    }
+                    self._write(target, payload)
+                    context.metadata["eye_contact"] = payload
+                    context.artifacts["eye_contact"] = str(target)
+                    context.warnings.append(
+                        f"Eye-contact detection skipped: {payload['reason']}"
+                    )
+                    io.report(100, "Eye-contact analysis unavailable (YOLO load)")
+                    return
+                use_yolo = False
+        backend_name = "mediapipe" if use_mediapipe else "yolo" if use_yolo else "opencv"
         face_cascade = eye_cascade = None
-        if not use_mediapipe:
+        if not use_mediapipe and not use_yolo:
             cascades = _cascades(cv2)
             if cascades is None:
                 payload = {
@@ -295,6 +375,14 @@ class FaceContactStep(BaseStep):
                         min_face_ratio=options.min_face_ratio,
                         center_tolerance=options.center_tolerance,
                         min_eyes=options.min_eyes,
+                    )
+                elif yolo_model_obj is not None:
+                    eye_contact, confidence, _ratio = _analyze_yolo(
+                        yolo_model_obj,
+                        image,
+                        min_face_ratio=options.min_face_ratio,
+                        center_tolerance=options.center_tolerance,
+                        confidence=options.yolo_confidence,
                     )
                 else:
                     eye_contact, confidence, _ratio = _analyze_frame(

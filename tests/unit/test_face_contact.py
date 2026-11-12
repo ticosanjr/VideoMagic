@@ -15,6 +15,7 @@ from videoflow.steps.face_contact import (
     FaceContactStep,
     _analyze_frame,
     _analyze_mediapipe,
+    _analyze_yolo,
     _merge_intervals,
 )
 
@@ -63,6 +64,19 @@ class FakeFaceMesh:
 
     def close(self) -> None:
         pass
+
+
+class FakeYoloModel:
+    def predict(self, image, **kwargs):
+        return [
+            SimpleNamespace(
+                boxes=SimpleNamespace(xyxy=[[10, 10, 60, 90]])
+            )
+        ]
+
+
+def FakeYolo(path: str) -> FakeYoloModel:
+    return FakeYoloModel()
 
 
 class FakeMediaPipe:
@@ -133,6 +147,38 @@ def test_mediapipe_eye_contact_and_step(tmp_path: Path, monkeypatch) -> None:
     )
     assert payload["available"] is True
     assert payload["backend"] == "mediapipe"
+    assert payload["green_label_count"] == 1
+
+
+def test_yolo_eye_contact_and_step(tmp_path: Path, monkeypatch) -> None:
+    ok, confidence, ratio = _analyze_yolo(
+        FakeYoloModel(),
+        np.zeros((100, 100, 3), dtype=np.uint8),
+        min_face_ratio=0.1,
+        center_tolerance=0.3,
+    )
+    assert ok is True
+    assert confidence > 0.5
+    assert ratio == pytest.approx(0.5)
+
+    monkeypatch.setattr("videoflow.steps.face_contact._cv2", lambda: FakeCv2())
+    monkeypatch.setattr("videoflow.steps.face_contact._yolo", lambda: FakeYolo)
+    context = PipelineContext(
+        source=tmp_path / "source.mp4",
+        output=tmp_path / "out",
+        work=tmp_path / "out" / "work",
+        exports=tmp_path / "out" / "exports",
+    )
+    FaceContactStep().run(
+        context,
+        FaceContactParams(backend="yolo", yolo_model="fake.pt"),
+        StepIO(adapter=FakeAdapter()),
+    )
+    payload = json.loads(
+        (tmp_path / "out" / "vision" / "face-contact.json").read_text()
+    )
+    assert payload["available"] is True
+    assert payload["backend"] == "yolo"
     assert payload["green_label_count"] == 1
 
 
