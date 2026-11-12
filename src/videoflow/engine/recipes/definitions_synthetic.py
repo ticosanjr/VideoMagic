@@ -102,6 +102,19 @@ _STEPS: list[dict[str, Any]] = [
         "params": {
             "gate_id": "brief",
             "title": "Briefing do vídeo sintético",
+            "summary": (
+                "Defina o tema, o recorte, a voz e a regra de não mostrar "
+                "rosto antes da pesquisa."
+            ),
+            "checklist": [
+                "Tema e recorte claros",
+                "Duração e formato definidos",
+                "Perfil de voz ou TTS escolhido",
+                "Regra de rosto documentada",
+            ],
+            "next_step": "Pesquisa e roteiro",
+            "severity": "warning",
+            "group": "brief",
             "description": (
                 "Defina tema, recorte, voz, duração, formato e a regra de não "
                 "mostrar rosto humano. O roteiro só começa depois desta direção."
@@ -308,6 +321,18 @@ _STEPS: list[dict[str, Any]] = [
         "params": {
             "gate_id": "script_review",
             "title": "Roteiro e fatos aprovados",
+            "summary": (
+                "Corrija o texto agora; depois da narração, mudar palavras "
+                "invalida o timing."
+            ),
+            "checklist": [
+                "Fact-check revisado",
+                "Narração sem erros factuais",
+                "Duração compatível com o alvo",
+            ],
+            "next_step": "Síntese da narração",
+            "severity": "critical",
+            "group": "script",
             "description": (
                 "Corrija o texto agora. Depois da narração, mudar palavras altera "
                 "todos os tempos e invalida o storyboard."
@@ -462,6 +487,14 @@ _STEPS: list[dict[str, Any]] = [
         "params": {
             "gate_id": "scene_review",
             "title": "Cenas renderizadas aprovadas",
+            "summary": "Confira composição, texto e movimento antes de misturar o áudio final.",
+            "checklist": [
+                "Nenhum texto cortado",
+                "Cenas sem buracos ou quadros vazios",
+                "Movimento e transições coerentes",
+            ],
+            "next_step": "Mix de áudio e montagem",
+            "group": "scenes",
             "description": "Confira composição, texto e movimento antes do áudio final.",
             "artifacts": ["motion/render-manifest.json", "motion/scenes.json"],
         },

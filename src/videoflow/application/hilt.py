@@ -269,6 +269,11 @@ def create_request(
     kind: str,
     title: str,
     description: str = "",
+    summary: str = "",
+    checklist: list[str] | None = None,
+    severity: str = "info",
+    next_step: str = "",
+    group: str = "",
     questions: list[HiltQuestion] | list[dict[str, Any]] | None = None,
     files: list[HiltFileRequest] | list[dict[str, Any]] | None = None,
     artifacts: list[HiltArtifact] | list[dict[str, Any]] | None = None,
@@ -320,6 +325,11 @@ def create_request(
         kind=kind,  # type: ignore[arg-type]
         title=title,
         description=description,
+        summary=summary,
+        checklist=[str(item) for item in (checklist or []) if str(item).strip()][:50],
+        severity=severity,  # type: ignore[arg-type]
+        next_step=next_step,
+        group=group,
         approve_label=approve_label,
         reject_label=reject_label,
         questions=normalized_questions,

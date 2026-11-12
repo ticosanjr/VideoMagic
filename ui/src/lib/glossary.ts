@@ -780,6 +780,28 @@ export const GLOSSARY: Record<string, string> = {
   "Variables": "Variáveis",
   "Workspace folder": "Pasta de trabalho",
   "Your repeatable pipelines": "Seus fluxos repetíveis",
+  "Artifacts": "Artefatos",
+  "Checklist": "Checklist",
+  "Created": "Criado",
+  "Current step": "Etapa atual",
+  "Loading run…": "Carregando execução…",
+  "Next step:": "Próxima etapa:",
+  "No artifacts yet. They appear as the run produces files.":
+    "Ainda não há artefatos. Eles aparecem conforme a execução produz arquivos.",
+  "No interactions yet.": "Ainda não há interações.",
+  "No logs yet.": "Ainda não há logs.",
+  "Nothing is waiting.": "Nada aguardando.",
+  "Open builder": "Abrir builder",
+  "Recent log": "Log recente",
+  "Run details": "Detalhes da execução",
+  "Run workspace": "Workspace da execução",
+  "Stages appear when the run starts.":
+    "As etapas aparecem quando a execução começa.",
+  "Start a run or continue editing.":
+    "Inicie uma execução ou continue editando.",
+  "This run is no longer available.": "Esta execução não está mais disponível.",
+  "Use Open runs to switch between active runs and gates.":
+    "Use Abrir execuções para alternar entre execuções ativas e gates.",
   "Create profile": "Criar perfil",
   "Voice clone": "Clone de voz",
 };

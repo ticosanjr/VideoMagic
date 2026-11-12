@@ -73,6 +73,11 @@ class HiltRequest(HiltModel):
     kind: InteractionKind = "approval"
     title: str = Field(min_length=1, max_length=300)
     description: str = Field(default="", max_length=8000)
+    summary: str = Field(default="", max_length=4000)
+    checklist: list[str] = Field(default_factory=list, max_length=50)
+    severity: Literal["info", "warning", "critical"] = "info"
+    next_step: str = Field(default="", max_length=1000)
+    group: str = Field(default="", max_length=120)
     approve_label: str = Field(default="Approve", max_length=80)
     reject_label: str = Field(default="Reject", max_length=80)
     questions: list[HiltQuestion] = Field(default_factory=list)

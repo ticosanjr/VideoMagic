@@ -423,6 +423,11 @@ export interface HiltInteraction {
   kind: "approval" | "question" | "files" | "review";
   title: string;
   description: string;
+  summary?: string;
+  checklist?: string[];
+  severity?: "info" | "warning" | "critical";
+  next_step?: string;
+  group?: string;
   approve_label: string;
   reject_label: string;
   questions: HiltQuestion[];

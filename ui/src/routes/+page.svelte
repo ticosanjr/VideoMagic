@@ -16,7 +16,9 @@
   import OnboardingCard from "$lib/OnboardingCard.svelte";
   import Modal from "$lib/ui/Modal.svelte";
   import PluginsPanel from "$lib/PluginsPanel.svelte";
+  import HitlInbox from "$lib/HitlInbox.svelte";
   import ProduceHome from "$lib/ProduceHome.svelte";
+  import RecipeWorkspace from "$lib/RecipeWorkspace.svelte";
   import RecipesPanel from "$lib/RecipesPanel.svelte";
   import ServicesPanel from "$lib/ServicesPanel.svelte";
   import SettingsPanel from "$lib/SettingsPanel.svelte";
@@ -25,7 +27,7 @@
   import Icon from "$lib/ui/Icon.svelte";
   import Logo from "$lib/ui/Logo.svelte";
   import Progress from "$lib/ui/Progress.svelte";
-  import { errorMessage, getSettings, getSystem, listJobs, restartService, retryJob, saveSettings, stopService, type AppSettings, type Job, type SystemInfo } from "$lib/api";
+  import { errorMessage, getSettings, getSystem, listJobs, listPendingInteractions, restartService, retryJob, saveSettings, stopService, type AppSettings, type HiltPending, type Job, type SystemInfo } from "$lib/api";
   import type { Command } from "$lib/commandPalette";
   import { recordRecentCommand } from "$lib/commandPalette";
   import { t } from "$lib/i18n";
@@ -106,6 +108,9 @@ import { noticeCounts } from "$lib/notifications";
   let noticesOpen = $state(false);
   let onboardingOpen = $state(false);
   let jobs = $state<Job[]>([]);
+  let pendingHilt = $state<HiltPending[]>([]);
+  let inboxOpen = $state(false);
+  let workspaceJobId = $state("");
   let gPending = 0;
   let jobsTimer: ReturnType<typeof setInterval> | undefined;
 
@@ -221,6 +226,14 @@ import { noticeCounts } from "$lib/notifications";
   }
 
   const previousJobStatus = new Map<string, string>();
+
+  async function refreshHilt() {
+    try {
+      pendingHilt = await listPendingInteractions();
+    } catch {
+      pendingHilt = [];
+    }
+  }
 
   async function refreshJobs() {
     try {
@@ -472,6 +485,7 @@ import { noticeCounts } from "$lib/notifications";
   }
 
   function selectTab(tab: TabId) {
+    workspaceJobId = "";
     activeTab = tab;
     history.replaceState(null, "", hashFor(tab));
     localStorage.setItem("videoflow.tab", tab);
@@ -532,7 +546,22 @@ import { noticeCounts } from "$lib/notifications";
   }
 
   function syncHash() {
+    const run = window.location.hash.match(/^#run\/([^/?]+)/);
+    if (run) {
+      workspaceJobId = decodeURIComponent(run[1]);
+      activeTab = "jobs";
+      return;
+    }
+    workspaceJobId = "";
     activeTab = resolveRoute(window.location.hash).tab;
+  }
+
+  function openWorkspace(jobId: string) {
+    if (!jobId) return;
+    workspaceJobId = jobId;
+    activeTab = "jobs";
+    history.replaceState(null, "", `#run/${encodeURIComponent(jobId)}`);
+    window.scrollTo({ top: 0, behavior: "auto" });
   }
 
   function onUseTimeline(event: Event) {
@@ -595,8 +624,12 @@ import { noticeCounts } from "$lib/notifications";
     window.addEventListener("videoflow:use-timeline", onUseTimeline);
     void connectToService();
     void refreshJobs();
+    void refreshHilt();
     jobsTimer = setInterval(() => {
-      if (!document.hidden) void refreshJobs();
+      if (!document.hidden) {
+        void refreshJobs();
+        void refreshHilt();
+      }
     }, 8000);
     void getSettings()
       .then(({ settings }) => {
@@ -732,6 +765,16 @@ import { noticeCounts } from "$lib/notifications";
             title="Open the getting-started guide"
             aria-label="Guide"
           ><Icon name="bulb" size={15} /><span class="sr-only md:not-sr-only md:ml-1.5">Guide</span></button>
+          <button
+            type="button"
+            data-testid="needs-you"
+            onclick={() => (inboxOpen = true)}
+            class="relative inline-flex h-9 items-center justify-center rounded-lg border border-amber-400/25 bg-amber-400/10 px-2.5 text-[length:var(--vf-text-xs)] text-amber-100 transition-colors hover:border-amber-400/50 hover:bg-amber-400/15"
+            title="Pending gates"
+          >
+            <Icon name="check" size={14} class="mr-1.5" /><span class="sr-only md:not-sr-only">{t(locale, "needs_you")}</span>
+            {#if pendingHilt.length}<span class="ml-1.5 rounded-full bg-amber-400/20 px-1.5 py-0.5 font-mono text-[length:var(--vf-text-2xs)] text-amber-100">{pendingHilt.length}</span>{/if}
+          </button>
           <button
             type="button"
             onclick={() => (activityOpen = true)}
@@ -874,11 +917,17 @@ import { noticeCounts } from "$lib/notifications";
     {/if}
 
     <div id="workspace-content" class="scroll-mt-24">
-      {#if activeTab === "overview"}
+      {#if workspaceJobId}
+        <RecipeWorkspace
+          jobId={workspaceJobId}
+          onback={() => selectTab("jobs")}
+          onopenbuilder={(recipeId) => void editRecipe(recipeId)}
+        />
+      {:else if activeTab === "overview"}
         <ProduceHome
           onedit={(recipeId) => void editRecipe(recipeId)}
-          onreview={() => selectTab("jobs")}
-          onstarted={() => selectTab("jobs")}
+          onreview={(jobId) => (jobId ? openWorkspace(jobId) : selectTab("jobs"))}
+          onstarted={(job) => openWorkspace(job.job_id)}
         />
       {:else if activeTab === "recipes"}
         <RecipesPanel />
@@ -890,7 +939,8 @@ import { noticeCounts } from "$lib/notifications";
         <TimelinePanel />
       {:else if activeTab === "jobs"}
         <JobsPanel
-          onreview={() => selectTab("recipes")}
+          onreview={(job) => (job.interaction ? openWorkspace(job.job_id) : selectTab("recipes"))}
+          onopen={(job) => openWorkspace(job.job_id)}
           onopentimeline={() => selectTab("timeline")}
         />
       {:else if activeTab === "assistant"}
@@ -929,6 +979,16 @@ import { noticeCounts } from "$lib/notifications";
     </div>
   </div>
 </div>
+
+<HitlInbox
+  open={inboxOpen}
+  items={pendingHilt}
+  onclose={() => (inboxOpen = false)}
+  onopen={(jobId) => {
+    inboxOpen = false;
+    openWorkspace(jobId);
+  }}
+/>
 
 <ActivityDrawer
   open={activityOpen}

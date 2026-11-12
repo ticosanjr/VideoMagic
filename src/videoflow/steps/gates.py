@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -46,6 +47,11 @@ class GateParams(BaseModel):
     gate_id: str = Field(default="review", min_length=1, max_length=80)
     title: str = "Review"
     description: str = ""
+    summary: str = Field(default="", max_length=4000)
+    checklist: list[str] = Field(default_factory=list, max_length=50)
+    severity: Literal["info", "warning", "critical"] = "info"
+    next_step: str = Field(default="", max_length=1000)
+    group: str = Field(default="", max_length=120)
     approve_label: str = "Approve"
     reject_label: str = "Reject"
     artifacts: list[str] = Field(default_factory=list)
@@ -74,6 +80,11 @@ class HumanGateStep(_HumanStep):
             kind="approval",
             title=options.title,
             description=options.description or f"Approve {options.title} to continue.",
+            summary=options.summary,
+            checklist=options.checklist,
+            severity=options.severity,
+            next_step=options.next_step,
+            group=options.group,
             artifacts=artifacts,
             channels=options.channels,
             expires_hours=options.expires_hours,
@@ -133,6 +144,11 @@ class HumanInputParams(BaseModel):
     gate_id: str = Field(default="input", min_length=1, max_length=80)
     title: str = "Input needed"
     description: str = ""
+    summary: str = Field(default="", max_length=4000)
+    checklist: list[str] = Field(default_factory=list, max_length=50)
+    severity: Literal["info", "warning", "critical"] = "info"
+    next_step: str = Field(default="", max_length=1000)
+    group: str = Field(default="", max_length=120)
     questions: list[HiltQuestion] = Field(min_length=1, max_length=50)
     channels: list[str] = Field(default_factory=list)
     expires_hours: int = Field(default=168, ge=1, le=24 * 365)
@@ -155,6 +171,11 @@ class HumanInputStep(_HumanStep):
             kind="question",
             title=options.title,
             description=options.description or "Answer the questions to continue.",
+            summary=options.summary,
+            checklist=options.checklist,
+            severity=options.severity,
+            next_step=options.next_step,
+            group=options.group,
             questions=options.questions,
             channels=options.channels,
             expires_hours=options.expires_hours,
@@ -199,6 +220,11 @@ class HumanFilesParams(BaseModel):
     gate_id: str = Field(default="files", min_length=1, max_length=80)
     title: str = "Files needed"
     description: str = ""
+    summary: str = Field(default="", max_length=4000)
+    checklist: list[str] = Field(default_factory=list, max_length=50)
+    severity: Literal["info", "warning", "critical"] = "info"
+    next_step: str = Field(default="", max_length=1000)
+    group: str = Field(default="", max_length=120)
     files: list[HiltFileRequest] = Field(min_length=1, max_length=50)
     channels: list[str] = Field(default_factory=list)
     expires_hours: int = Field(default=168, ge=1, le=24 * 365)
@@ -220,6 +246,11 @@ class HumanFilesStep(_HumanStep):
             kind="files",
             title=options.title,
             description=options.description or "Upload the requested files to continue.",
+            summary=options.summary,
+            checklist=options.checklist,
+            severity=options.severity,
+            next_step=options.next_step,
+            group=options.group,
             files=options.files,
             channels=options.channels,
             expires_hours=options.expires_hours,

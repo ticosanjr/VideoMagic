@@ -31,9 +31,11 @@
 
   let {
     onreview,
+    onopen,
     onopentimeline
   }: {
     onreview?: (job: Job) => void;
+    onopen?: (job: Job) => void;
     onopentimeline?: (job: Job) => void;
   } = $props();
 

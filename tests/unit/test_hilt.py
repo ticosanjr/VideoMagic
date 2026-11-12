@@ -196,3 +196,23 @@ def test_public_payload_hides_the_token(tmp_path: Path, monkeypatch) -> None:
     assert "token_hash" not in payload
     assert payload["response_url"].endswith("/respond")
     assert json.loads(json.dumps(payload))["interaction_id"] == request.interaction_id
+
+
+def test_request_metadata_round_trip(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("VIDEOWFLOW_DESKTOP_NOTIFICATIONS", "0")
+    output = tmp_path / "out"
+    request, _token = _request(
+        output,
+        summary="Check the facts before narration.",
+        checklist=["Sources attached", "No unsupported claims"],
+        severity="warning",
+        next_step="Narration synthesis",
+        group="script",
+    )
+    payload = hilt.public_payload(output, request)
+
+    assert payload["summary"] == "Check the facts before narration."
+    assert payload["checklist"] == ["Sources attached", "No unsupported claims"]
+    assert payload["severity"] == "warning"
+    assert payload["next_step"] == "Narration synthesis"
+    assert payload["group"] == "script"

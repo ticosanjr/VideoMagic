@@ -357,6 +357,15 @@ _STEPS: list[dict[str, Any]] = [
         "params": {
             "gate_id": "vision_review",
             "title": "Âncoras visuais aprovadas",
+            "summary": "Confira OCR, máscaras e tracking antes de posicionar os callouts.",
+            "checklist": [
+                "Caixas de OCR nos textos corretos",
+                "Máscaras sem buracos no sujeito",
+                "Tracks não desviam do objeto",
+            ],
+            "next_step": "Callouts ancorados",
+            "severity": "warning",
+            "group": "vision",
             "description": "Confira caixas de OCR, máscaras e tracks antes dos callouts.",
             "artifacts": ["vision/ocr.json", "vision/segments.json", "vision/tracks.json"],
         },
@@ -532,6 +541,15 @@ _STEPS: list[dict[str, Any]] = [
         "params": {
             "gate_id": "qa_review",
             "title": "QA aprovado",
+            "summary": "Revise os problemas automáticos antes da aprovação final.",
+            "checklist": [
+                "Sem quadros pretos ou vazios",
+                "Transcript dentro do limite",
+                "Loudness dentro do alvo",
+            ],
+            "next_step": "Aprovação final e entrega",
+            "severity": "warning",
+            "group": "delivery",
             "artifacts": ["qa/vision-report.md", "qa/repair-plan.md"],
         },
     },
