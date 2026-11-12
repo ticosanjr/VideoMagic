@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.67.0] - 2026-11-12
+
+### Added
+
+- **YOLO eye-contact backend.** `vision.face_contact` accepts `backend=yolo`
+  with a local `yolo_model` path and `yolo_confidence`, using the largest
+  detected face box and the same center/size checks. MediaPipe remains the
+  preferred automatic backend; OpenCV and the HILT audit remain fallbacks.
+
 ## [2.66.0] - 2026-11-12
 
 ### Added
