@@ -1400,7 +1400,7 @@ export async function listRecipeSteps(): Promise<StepManifest[]> {
 
 export async function listRecipes(): Promise<RecipeSummary[]> {
   const response = await request<{ ok: boolean; recipes: RecipeSummary[] }>("/api/v1/recipes");
-  return response.recipes;
+  return response.recipes ?? [];
 }
 
 export async function getJobReview(jobId: string): Promise<{
@@ -1798,7 +1798,7 @@ export async function listJobInteractions(jobId: string): Promise<HiltInteractio
   const response = await request<{ ok: boolean; interactions: HiltInteraction[] }>(
     `/api/v1/jobs/${encodeURIComponent(jobId)}/interactions`
   );
-  return response.interactions;
+  return response.interactions ?? [];
 }
 
 export async function getJobInteraction(
@@ -1850,7 +1850,7 @@ export async function listPendingInteractions(): Promise<HiltPending[]> {
   const response = await request<{ ok: boolean; interactions: HiltPending[] }>(
     "/api/v1/hilt/pending"
   );
-  return response.interactions;
+  return response.interactions ?? [];
 }
 
 export async function listHiltChannels(): Promise<{
@@ -2617,7 +2617,7 @@ export async function listJobs(
   const response = await request<{ ok: boolean; jobs: Job[] }>(
     `/api/v1/jobs?${params.toString()}`
   );
-  return response.jobs;
+  return response.jobs ?? [];
 }
 
 export async function pauseJob(jobId: string): Promise<Job> {
@@ -2674,7 +2674,7 @@ export async function cancelAllJobs(force = true): Promise<Job[]> {
     `/api/v1/jobs/cancel_all${query}`,
     { method: "POST" }
   );
-  return response.jobs;
+  return response.jobs ?? [];
 }
 
 export async function getLogs(

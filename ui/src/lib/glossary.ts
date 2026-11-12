@@ -875,6 +875,9 @@ export const GLOSSARY: Record<string, string> = {
     "Encontre o gancho mais forte na transcrição.",
   "List the artifacts that still need a human review.":
     "Liste os artefatos que ainda precisam de revisão humana.",
+  "Step list": "Lista de etapas",
+  "Tap a step to edit its parameters. The graph editor needs a wider screen.":
+    "Toque em uma etapa para editar os parâmetros. O editor de grafo precisa de uma tela maior.",
   "Create profile": "Criar perfil",
   "Voice clone": "Clone de voz",
 };

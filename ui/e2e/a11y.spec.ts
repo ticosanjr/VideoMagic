@@ -56,3 +56,22 @@ test("keeps the shell visually stable", async ({ page }) => {
     mask: [page.getByTitle("Server version"), page.getByTitle("UI bundle version")]
   });
 });
+
+
+test("keeps the mobile shell and builder fallback accessible", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockShell(page);
+  await page.goto("/#overview");
+  await expect(page.getByTestId("produce-home")).toBeVisible({ timeout: 20_000 });
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(
+    results.violations
+      .filter((item) => item.impact === "serious" || item.impact === "critical")
+      .map((item) => item.id)
+  ).toEqual([]);
+
+  await page.goto("/#recipes");
+  await expect(page.getByTestId("recipe-step-list")).toBeVisible({ timeout: 20_000 });
+});

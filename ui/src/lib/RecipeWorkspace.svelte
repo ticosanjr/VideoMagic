@@ -43,6 +43,7 @@
   let tab = $state<"overview" | "artifacts" | "logs" | "history">("overview");
   let poll: ReturnType<typeof setTimeout> | undefined;
   let inFlight = false;
+  let lastStatus = "";
 
   const groups = $derived(recipe?.ui?.groups ?? []);
   const kind = $derived.by(() => {
@@ -69,8 +70,15 @@
   );
 
   onMount(() => {
+    const onVisibility = () => {
+      if (!document.hidden) schedule();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
     void load();
-    return () => clearTimeout(poll);
+    return () => {
+      clearTimeout(poll);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   });
 
   onDestroy(() => clearTimeout(poll));
@@ -89,6 +97,7 @@
         recipe = await getRecipe(recipeId).catch(() => null);
       }
       await Promise.all([loadLogs(), loadHistory()]);
+      lastStatus = next.status;
     } catch (reason) {
       error = errorMessage(reason);
     } finally {
@@ -101,8 +110,12 @@
     error = "";
     try {
       const next = await getJob(jobId, { silent: true });
+      const changed = next.status !== lastStatus;
       job = next;
-      await Promise.all([loadLogs(), loadHistory()]);
+      lastStatus = next.status;
+      if (changed || tab === "logs" || tab === "history") {
+        await Promise.all([loadLogs(), loadHistory()]);
+      }
     } catch (reason) {
       error = errorMessage(reason);
     } finally {

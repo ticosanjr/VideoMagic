@@ -161,6 +161,7 @@
   let layoutStatus = $state("");
   let viewport = $state({ x: 0, y: 0, zoom: 1 });
   let canvasEl: HTMLDivElement | null = $state(null);
+  let narrow = $state(false);
   let hasSavedViewport = $state(false);
   let undoStack = $state<Recipe[]>([]);
   let redoStack = $state<Recipe[]>([]);
@@ -407,6 +408,10 @@
         void openHistory();
       }
     };
+    const narrowQuery = window.matchMedia("(max-width: 1023px)");
+    narrow = narrowQuery.matches;
+    const onNarrow = () => (narrow = narrowQuery.matches);
+    narrowQuery.addEventListener("change", onNarrow);
     window.addEventListener("videoflow:builder-action", onBuilderAction);
     const onLoadRecipe = (event: Event) => {
       const recipe = String((event as CustomEvent<unknown>).detail ?? "").trim();
@@ -466,6 +471,7 @@
       }
     })();
     return () => {
+      narrowQuery.removeEventListener("change", onNarrow);
       window.removeEventListener("videoflow:builder-action", onBuilderAction);
       window.removeEventListener("videoflow:load-recipe", onLoadRecipe);
       window.removeEventListener("keydown", onBuilderKey);
@@ -2979,7 +2985,26 @@
 
       <div class="flex flex-col gap-2 xl:flex-row">
         <div class="relative min-w-0 flex-1">
-        <div bind:this={canvasEl} class="h-[clamp(360px,58vh,920px)] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950 sm:h-[clamp(560px,72vh,920px)]">
+        {#if narrow}
+          <div class="space-y-2 rounded-xl border border-neutral-800 bg-neutral-950 p-3" data-testid="recipe-step-list">
+            <p class="vf-label">Step list</p>
+            <p class="text-[length:var(--vf-text-xs)] text-neutral-500">Tap a step to edit its parameters. The graph editor needs a wider screen.</p>
+            <ol class="space-y-1.5">
+              {#each nodes.filter((node) => node.type === "step") as node (node.id)}
+                <li>
+                  <button type="button" onclick={() => selectNode(node.id)} class={`flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left ${selectedId === node.id ? "border-sky-500/40 bg-sky-500/10" : "border-neutral-800 bg-neutral-900/50"}`}>
+                    <span class="min-w-0">
+                      <span class="block truncate text-[length:var(--vf-text-xs)] font-medium text-neutral-100">{nodeData(node).title}</span>
+                      <span class="block truncate font-mono text-[length:var(--vf-text-2xs)] text-neutral-500">{nodeData(node).type}</span>
+                    </span>
+                    <Icon name="chevron" size={14} class="shrink-0 -rotate-90 text-neutral-500" />
+                  </button>
+                </li>
+              {/each}
+            </ol>
+          </div>
+        {/if}
+        <div bind:this={canvasEl} class="hidden h-[clamp(360px,58vh,920px)] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950 lg:block sm:h-[clamp(560px,72vh,920px)]">
           <SvelteFlow
             bind:nodes
             bind:edges
