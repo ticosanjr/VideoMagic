@@ -119,3 +119,54 @@ def test_voice_synthesis_is_unavailable(tmp_path: Path) -> None:
 
     with pytest.raises(StateNotReadyError, match="Unknown voice profile"):
         synthesize(VoiceSynthesizeRequest(profile_id="missing", text="hello"))
+
+
+def test_elevenlabs_clone_profile_and_synthesis(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import httpx
+
+    sample = tmp_path / "speaker.wav"
+    sample.write_bytes(b"RIFFdata")
+    monkeypatch.setenv("VIDEOWFLOW_VOICE_CLONE_PROVIDER", "elevenlabs")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "test-key")
+    calls: list[dict[str, object]] = []
+
+    def fake_post(url: str, **kwargs: object) -> httpx.Response:
+        calls.append({"url": url, **kwargs})
+        if str(url).endswith("/voices/add"):
+            return httpx.Response(
+                200,
+                json={"voice_id": "voice-123"},
+                request=httpx.Request("POST", url),
+            )
+        return httpx.Response(
+            200,
+            content=b"mp3-bytes",
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(voice_clone.httpx, "post", fake_post)
+    profile = create_profile(
+        VoiceProfileRequest(
+            name="Host clone",
+            consent_ref="consent-123",
+            sample_paths=[str(sample)],
+        )
+    )
+    assert profile.provider == "elevenlabs"
+    assert profile.provider_voice_id == "voice-123"
+    assert profile.sample_count == 1
+    assert calls[0]["headers"]["xi-api-key"] == "test-key"  # type: ignore[index]
+
+    audio = synthesize(
+        VoiceSynthesizeRequest(profile_id=profile.id, text="hello")
+    )
+    assert audio == b"mp3-bytes"
+    assert str(calls[1]["url"]).endswith("/text-to-speech/voice-123")
+    status = voice_clone.status()
+    assert status["available"] is True
+    assert status["provider"] == "elevenlabs"
+
+    delete_profile(profile.id)
+    assert list_profiles() == []

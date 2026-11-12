@@ -96,8 +96,8 @@ def _ui() -> dict[str, Any]:
             "#fb7185",
             [
                 ["sample_review", "factcheck_audit", "factcheck_review", "voice_files"],
-                ["voice_patch", "voice_review", "final_review", "export"],
-                ["nle_qa", "video_export", "chapters"],
+                ["voice_clone", "voice_patch", "voice_review", "final_review"],
+                ["export", "nle_qa", "video_export", "chapters"],
             ],
         ),
     ]
@@ -951,8 +951,18 @@ _STEPS: list[dict[str, Any]] = [
                     "required": False,
                 },
                 {
+                    "id": "voice_profile_id",
+                    "label": "ID do perfil de clone de voz (opcional)",
+                    "type": "text",
+                    "required": False,
+                    "help": (
+                        "Crie um perfil em Setup → AI providers. Se vazio, o "
+                        "voice.patch usa o clipe enviado ou TTS."
+                    ),
+                },
+                {
                     "id": "voice_text",
-                    "label": "Texto para TTS (opcional)",
+                    "label": "Texto para TTS/clone (opcional)",
                     "type": "textarea",
                     "required": False,
                 },
@@ -982,9 +992,15 @@ _STEPS: list[dict[str, Any]] = [
         },
     },
     {
+        "id": "voice_clone",
+        "type": "voice.clone",
+        "needs": ["factcheck_review", "audio_mix"],
+        "params": {"output_path": "audio/voice-patch.mp3"},
+    },
+    {
         "id": "voice_patch",
         "type": "voice.patch",
-        "needs": ["voice_files", "audio_mix"],
+        "needs": ["voice_files", "voice_clone", "audio_mix"],
         "params": {
             "patch_path": "audio/voice-patch.wav",
             "allow_tts": True,

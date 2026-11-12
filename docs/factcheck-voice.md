@@ -19,13 +19,16 @@ and optional repair text.
 `voice.patch` replaces a spoken segment in the final master:
 
 - uses an uploaded `audio/voice-patch.wav` from `voice_files`;
+- or uses the optional `voice.clone` repair clip at
+  `audio/voice-patch.mp3`;
 - or asks a configured TTS provider to synthesize the repair text;
 - splices pre/patch/post with FFmpeg and copies the result to
   `audio/master.wav`;
 - records `audio/final-repaired.wav`, the patch source, and the segment range.
 
-This is a repair path, not a voice-clone claim. Voice cloning remains an
-explicit provider/consent feature outside this build.
+`voice.clone` is opt-in and only runs when a voice profile and repair text are
+provided. It uses the configured ElevenLabs provider with the stored consent
+reference; otherwise the patch/TTS path remains.
 
 ## Final assembly
 
@@ -46,6 +49,7 @@ sample_review
   → factcheck.audit
   → factcheck_review (human.input)
   → voice_files (human.files, optional)
+  → voice.clone (optional)
   → voice.patch
   → final_review (human.gate)
   → export.nle

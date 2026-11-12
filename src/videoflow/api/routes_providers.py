@@ -8,7 +8,7 @@ import time
 from typing import Literal
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 
 from videoflow.application import voice_clone
@@ -407,9 +407,9 @@ def register_provider_routes(app: FastAPI) -> None:
     @app.post("/api/v1/voice-clone/synthesize")
     def voice_clone_synthesize(
         request: voice_clone.VoiceSynthesizeRequest,
-    ) -> dict[str, object]:
-        voice_clone.synthesize(request)
-        return {"ok": True}
+    ) -> Response:
+        audio = voice_clone.synthesize(request)
+        return Response(content=audio, media_type="audio/mpeg")
 
     @app.get("/api/v1/providers/resolve")
     def providers_resolve(capability: str = "llm") -> dict[str, object]:

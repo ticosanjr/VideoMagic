@@ -447,6 +447,17 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         (PortSpec("units", "Unit storyboard", "json", "metadata:storyboard_units", False),),
         (PortSpec("assignments", "Asset assignments", "json", "metadata:asset_assignments"),),
     ),
+    "voice.clone": (
+        (),
+        (
+            PortSpec(
+                "patch",
+                "Cloned voice patch",
+                "audio",
+                "artifacts:voice_clone_patch",
+            ),
+        ),
+    ),
     "entities.apply": (
         (),
         (

@@ -47,6 +47,7 @@ from videoflow.steps import (
     translation,
     video_export,
     vision_qa,
+    voice_clone,
     voice_patch,
 )
 from videoflow.steps.base import BaseStep, EmptyParams, StepIO
@@ -112,6 +113,7 @@ __all__ = [
     "transcript_blocks",
     "translation",
     "video_export",
+    "voice_clone",
     "voice_patch",
     "vision_qa",
 ]

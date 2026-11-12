@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (2.67.0)
+## Implementation status (2.68.0)
 
 | Area | State |
 | --- | --- |
@@ -35,9 +35,9 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Plugins | exporter and provider registration, manifest permissions, static sandbox allowlist ([plugins.md](plugins.md)) |
 | UI guidance | naming, tooltips, microcopy, empty states, units ([ui-copy.md](ui-copy.md)) |
 | Error catalog | codes, HTTP status, meaning, next action ([errors.md](errors.md)) |
-| Release gates | 2.67.0 evidence and the two open 3.0 blockers ([3.0-blockers.md](3.0-blockers.md)) |
+| Release gates | 2.68.0 evidence and the two open 3.0 blockers ([3.0-blockers.md](3.0-blockers.md)) |
 | Coverage | per-layer baseline and the remaining gap ([coverage.md](coverage.md)) |
-| Voice cloning | Explicit deferral, consent, and acceptance criteria ([voice-clone.md](voice-clone.md)) |
+| Voice cloning | Optional ElevenLabs provider, consent, profile/sample API, and TTS/patch fallback ([voice-clone.md](voice-clone.md)) |
 | Settings | searchable settings with units, help tips, discard/reset ([settings.md](settings.md)) |
 | Copilot | LLM recipe drafts and timeline edit plans, provider/service setup, validation rules ([copilot.md](copilot.md)) |
 | Assistant and review | Allowlisted tool-calling with approval/diff/cost, run graph, variant comparison ([projects-assistant.md](manuals/projects-assistant.md)) |
@@ -51,7 +51,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Typed ports | Step inputs/outputs, inspector/edge wiring, branch isolation, input-hash cache ([recipes.md](recipes.md)) |
 | Node IO | Media pickers and output-folder policy inside nodes, Inputs/Config/Outputs layout |
 | Recut presets | Podcast, Lecture, and Social variants with tuned VAD/cut settings |
-| Voice clone shell | Contracts, consent metadata, status/profiles API, no synthesis |
+| Voice clone | Optional ElevenLabs synthesis, consent metadata, profile/sample API, and TTS/patch fallback |
 | Integrations | OpenCode and Paperclip over MCP/REST with DeepSeek, prompts, config, and troubleshooting ([integrations.md](integrations.md)) |
 | Hardening | fault injection, log rotation, scheduled backups, AA keyboard/focus/reduced-motion, 1,000-clip writer stress ([hardening.md](hardening.md)) |
 | Cancellation | FFmpeg runs in its own process group; render and preview cancel within one poll and delete partial output |

@@ -402,10 +402,10 @@ split into separate nodes:
 - Extra approvals for the presenter profile, entity manifest, unit placeholders,
   intro, and repaired voice.
 
-The graph has 65 nodes and includes ingest, decoupage calibration, eye-contact
+The graph has 66 nodes and includes ingest, decoupage calibration, eye-contact
 labels, transcription, retakes, drift correction, entity extraction, art
 direction, licensed asset harvesting, motion/Foley, audio mix, fact-check,
-voice repair, and NLE/video export. The four research nodes share the same
+voice repair (including an optional cloned repair clip), and NLE/video export. The four research nodes share the same
 dependency set, so the runner executes them concurrently and merges their
 dossiers, hashes, ports, and warnings. Other DAG branches remain sequential.
 

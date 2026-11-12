@@ -60,6 +60,12 @@ class VoicePatchStep(BaseStep):
         candidate = Path(options.patch_path)
         if not candidate.is_absolute():
             candidate = context.output / candidate
+        if not candidate.is_file():
+            for suffix in (".mp3", ".m4a", ".wav"):
+                alternative = candidate.with_suffix(suffix)
+                if alternative.is_file():
+                    candidate = alternative
+                    break
         patch_path: Path | None = candidate
         if not candidate.is_file() and options.allow_tts and text.strip():
             patch_path = self._tts_patch(context, text, io)

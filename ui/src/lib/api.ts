@@ -2996,6 +2996,8 @@ export interface VoiceProfile {
   provider: string;
   consent_ref: string;
   sample_count: number;
+  sample_paths?: string[];
+  provider_voice_id?: string;
   created_at: string;
   metadata: Record<string, string>;
 }
@@ -3015,6 +3017,7 @@ export async function createVoiceProfile(payload: {
   name: string;
   consent_ref: string;
   sample_count: number;
+  sample_paths?: string[];
 }): Promise<VoiceProfile> {
   const response = await request<{ ok: boolean; profile: VoiceProfile }>(
     "/api/v1/voice-clone/profiles",

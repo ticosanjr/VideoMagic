@@ -84,6 +84,7 @@
   let voiceName = $state("");
   let voiceConsent = $state("");
   let voiceSamples = $state(0);
+  let voiceSamplePaths = $state("");
   let voiceError = $state("");
   let voiceBusy = $state(false);
 
@@ -103,11 +104,16 @@
       await createVoiceProfile({
         name: voiceName.trim(),
         consent_ref: voiceConsent.trim(),
-        sample_count: voiceSamples
+        sample_count: voiceSamples,
+        sample_paths: voiceSamplePaths
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean)
       });
       voiceName = "";
       voiceConsent = "";
       voiceSamples = 0;
+      voiceSamplePaths = "";
       await refreshVoiceClone();
     } catch (reason) {
       voiceError = errorMessage(reason);
@@ -515,9 +521,9 @@
   <div class="rounded-2xl border border-amber-400/20 bg-amber-950/10 p-4" data-testid="voice-clone-shell">
     <div class="flex flex-wrap items-start justify-between gap-2">
       <div>
-        <h3 class="text-xs font-semibold text-neutral-100">Voice clone (shell)</h3>
+        <h3 class="text-xs font-semibold text-neutral-100">Voice clone</h3>
         <p class="mt-1 max-w-2xl text-[10px] leading-5 text-neutral-400">
-          Contracts and consent metadata only. No cloning, training, upload, or synthesis runs in this build.
+          Optional ElevenLabs cloning. Store a consent reference and server-local reference samples; synthesis runs only when the provider and secret are configured.
         </p>
       </div>
       <span class="rounded-full px-2 py-0.5 text-[10px] {voiceStatus?.available ? "bg-emerald-500/10 text-emerald-300" : "bg-amber-500/10 text-amber-300"}">
@@ -531,14 +537,15 @@
       <input bind:value={voiceName} placeholder="Profile name" class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" />
       <input bind:value={voiceConsent} placeholder="Consent reference" class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" />
       <input bind:value={voiceSamples} type="number" min="0" max="100" placeholder="Samples" class="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" />
-      <button type="button" onclick={() => void addVoiceProfile()} disabled={voiceBusy || !voiceName.trim() || !voiceConsent.trim()} class="rounded-lg border border-amber-400/30 px-3 py-1.5 text-[10px] text-amber-200 disabled:opacity-40">Store consent</button>
+      <button type="button" onclick={() => void addVoiceProfile()} disabled={voiceBusy || !voiceName.trim() || !voiceConsent.trim()} class="rounded-lg border border-amber-400/30 px-3 py-1.5 text-[10px] text-amber-200 disabled:opacity-40">Create profile</button>
     </div>
+    <input bind:value={voiceSamplePaths} placeholder="Reference sample paths (comma-separated, server-local)" class="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" />
     {#if voiceError}<p class="mt-2 text-[10px] text-rose-300">{voiceError}</p>{/if}
     {#if voiceProfiles.length}
       <ul class="mt-2 space-y-1">
         {#each voiceProfiles as profile (profile.id)}
           <li class="flex items-center justify-between gap-2 rounded-lg border border-white/5 bg-black/20 px-2 py-1 text-[10px] text-neutral-400">
-            <span class="truncate">{profile.name} · {profile.sample_count} sample(s) · consent {profile.consent_ref}</span>
+            <span class="truncate">{profile.name} · {profile.sample_count} sample(s) · consent {profile.consent_ref}{#if profile.provider_voice_id} · clone {profile.provider_voice_id}{/if}</span>
             <button type="button" onclick={() => void removeVoiceProfile(profile)} class="text-rose-300">Delete</button>
           </li>
         {/each}

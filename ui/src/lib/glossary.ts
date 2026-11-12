@@ -755,4 +755,6 @@ export const GLOSSARY: Record<string, string> = {
   "Label": "Rótulo",
   "No groups yet. Select nodes on the canvas and add a group.":
     "Ainda não há grupos. Selecione nós no canvas e adicione um grupo.",
+  "Create profile": "Criar perfil",
+  "Voice clone": "Clone de voz",
 };
