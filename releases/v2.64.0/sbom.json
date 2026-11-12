@@ -537,9 +537,9 @@
     },
     {
       "name": "videoflow",
-      "purl": "pkg:pypi/videoflow@2.61.3",
+      "purl": "pkg:pypi/videoflow@2.64.0",
       "type": "library",
-      "version": "2.61.3"
+      "version": "2.64.0"
     }
   ],
   "metadata": {

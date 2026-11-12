@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.64.0] - 2026-11-12
+
+### Added
+
+- **Transcription resume.** The transcribe step checkpoints complete segments
+  keyed by the PCM digest. A restart trims the WAV tail and resumes from the
+  absolute sample offset instead of redoing the whole recording.
+- **Entity extraction quality.** `entities.extract` resolves single-word names
+  from the edition script, captures quoted event/object phrases, and accepts
+  `known_entities` hints alongside the existing phonetic corrections.
+- **Style-guide audio direction.** Compose, Foley, and mix read the approved
+  style guide for BPM, key, Foley kinds, and the SFX notch.
+- **License expiry blockers.** `AssetCandidate.expires_at` is preserved in the
+  ledger, and expired clearances block audit, review, and export.
+- **Transcription ETA.** The transcribe log estimates runtime from duration,
+  model, and device before the Whisper pass starts.
+
 ## [2.63.0] - 2026-11-11
 
 ### Added
