@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.66.0] - 2026-11-12
+
+### Added
+
+- **MediaPipe eye-contact backend.** `vision.face_contact` now prefers MediaPipe
+  Face Mesh when installed, using eye aspect ratio and face centering, then
+  falls back to the OpenCV Haar path. `backend` accepts `mediapipe`, `opencv`,
+  `auto`, or `none`; the HILT audit remains the fallback.
+
 ## [2.65.0] - 2026-11-12
 
 ### Added
