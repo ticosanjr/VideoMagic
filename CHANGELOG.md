@@ -1,5 +1,36 @@
 # Changelog
 
+## [2.71.0] - 2026-11-13
+
+### Added
+
+- **Produce overview.** A favorites-first home with pending gates, recent runs,
+  setup health, a searchable recipe library, and a two-step run composer with
+  source/workspace pickers, variables, and preflight checks.
+- **HITL inbox and run workspace.** A global pending-gates drawer, a generic
+  `#run/<job_id>` workspace with phase progress, artifacts, logs, and history,
+  plus recipe-specific panels for Synthetic Code Studio, Footage Intelligence
+  Edit, Lamera, Full AI Editor, and DeepSeek.
+- **Richer HITL requests.** Gates now carry summary, checklist, severity, next
+  step, and group metadata; required questions are validated before submission.
+- **Setup health, media/library summaries, assistant suggestions, and a mobile
+  step-list fallback** for the recipe builder.
+- **Script-first recipes can run without source media.** The runner gets a
+  deterministic placeholder source and a workspace default.
+
+### Changed
+
+- New design foundation: tokens, readability floor, rail/sidebar shell, active
+  run bar, larger shared controls, and the decorative grid removed.
+- The default Produce tab is now Overview; `#recipes` keeps the graph builder.
+- Runs show a needs-you summary and can open the run workspace directly.
+
+### Fixed
+
+- Direct video export can use the final mixed audio and merged subtitles.
+- Workspace polling pauses in hidden tabs, avoids overlap, and does not reload
+  logs and history when the run status has not changed.
+
 ## [2.70.0] - 2026-11-12
 
 ### Added
