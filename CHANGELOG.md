@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.68.0] - 2026-11-12
+
+### Added
+
+- **Optional voice cloning.** The voice-clone provider supports ElevenLabs when
+  `VIDEOWFLOW_VOICE_CLONE_PROVIDER=elevenlabs` and `ELEVENLABS_API_KEY` are
+  configured. Profiles upload server-local reference samples, store the consent
+  reference and provider voice id, and can synthesize audio.
+- **`voice.clone` step.** It consumes the fact-check repair text and an approved
+  profile, writes `audio/voice-patch.mp3`, and `voice.patch` prefers a human WAV,
+  then the cloned MP3, then TTS.
+- **Lamera voice repair path.** The fact-check form accepts a clone profile id;
+  the recipe adds the clone step before the repair splice.
+
 ## [2.67.0] - 2026-11-12
 
 ### Added
