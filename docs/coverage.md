@@ -10,6 +10,24 @@ uv run python scripts/coverage_layers.py
 The `.coveragerc` used for this report disables the release gate's omit list so
 adapters, exporters, API, jobs, and MCP are visible.
 
+## Current working tree (2.66.0)
+
+| Layer | Hit | Total | Cover |
+| --- | ---: | ---: | ---: |
+| api | 2,698 | 2,875 | 93.84% |
+| jobs | 484 | 509 | 95.09% |
+| exporters | 1,211 | 1,261 | 96.03% |
+| mcp | 991 | 1,021 | 97.06% |
+| steps | 6,058 | 6,692 | 90.53% |
+| application | 12,822 | 14,030 | 91.39% |
+| domain | 1,170 | 1,176 | 99.49% |
+| **full tree (statements)** | **28,345** | **30,595** | **92.6%** |
+| **full tree (branch report)** | — | — | **90%** |
+
+The full-tree 95% target is still open; the configured release gate remains at
+98% on its selected source set. The new research, transcription-resume,
+MediaPipe, and HITL workspace paths are covered by focused tests.
+
 ## Current working tree (2.58.5)
 
 | Layer | Hit | Total | Cover | 2.12 target | 2.13 target |
