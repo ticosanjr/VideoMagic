@@ -240,6 +240,42 @@ def test_transcribe_stops_when_cancelled(
     assert seen == [0.25]
 
 
+def test_transcribe_resumes_from_an_offset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from videoflow.domain.state import Sentence
+
+    wav = _wav(tmp_path / "source.wav")
+    model = _model(tmp_path / "model")
+    engine = FakeEngine([_segment("Tail.", [_word("Tail.", 0.25, 0.5)])])
+    adapter = _adapter(model)
+    monkeypatch.setattr(adapter, "_load_engine", lambda path: engine)
+    initial = [
+        Sentence(
+            id=0,
+            start_sample=0,
+            end_sample=8000,
+            text="Head.",
+        )
+    ]
+    seen: list[Sentence] = []
+
+    sentences = adapter.transcribe(
+        wav,
+        16000,
+        offset_samples=8000,
+        initial_sentences=initial,
+        on_segment=seen.append,
+    )
+
+    assert len(sentences) == 2
+    assert sentences[1].id == 1
+    assert sentences[1].start_sample == 12000
+    assert sentences[1].end_sample == 16000
+    assert seen == [sentences[1]]
+    assert engine.seen["audio"].endswith("source.resume.wav")
+
+
 def test_transcribe_honours_the_cancel_predicate(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

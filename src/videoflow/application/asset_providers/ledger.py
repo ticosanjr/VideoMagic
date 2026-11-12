@@ -5,23 +5,40 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Iterable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from videoflow.application.asset_providers.models import AssetCandidate
 
 
+def _expired(value: object) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+    try:
+        deadline = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if deadline.tzinfo is None:
+        deadline = deadline.replace(tzinfo=UTC)
+    return deadline < datetime.now(UTC)
+
+
+def _blocked(record: dict[str, Any]) -> bool:
+    return (
+        record.get("license_status") in {"unknown", "cc_review"}
+        or (
+            record.get("license_status") == "fair_use_review"
+            and not record.get("approved")
+        )
+        or _expired(record.get("expires_at"))
+    )
+
+
 def ledger_payload(candidates: Iterable[AssetCandidate]) -> dict[str, Any]:
     records = [candidate.to_dict() for candidate in candidates]
-    blockers = [
-        record
-        for record in records
-        if record["license_status"] in {"unknown", "cc_review"}
-        or (
-            record["license_status"] == "fair_use_review"
-            and not record["approved"]
-        )
-    ]
+    blockers = [record for record in records if _blocked(record)]
     return {
         "schema_version": 1,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -44,9 +61,12 @@ def write_ledger(output: Path, candidates: Iterable[AssetCandidate]) -> Path:
     )
     lines = ["# Asset licenses", ""]
     for record in payload["assets"]:
+        expiry = (
+            f" — expires {record['expires_at']}" if record.get("expires_at") else ""
+        )
         lines.append(
             f"- **{record['title']}** — {record['license_status']} — "
-            f"{record['license'] or 'no license metadata'} — {record['page_url']}"
+            f"{record['license'] or 'no license metadata'} — {record['page_url']}{expiry}"
         )
     if payload["blockers"]:
         lines.extend(
@@ -76,14 +96,11 @@ def read_ledger(output: Path) -> dict[str, Any]:
 
 def license_blockers(output: Path) -> list[dict[str, Any]]:
     payload = read_ledger(output)
-    blockers = []
-    for record in payload.get("assets", []):
-        if record.get("license_status") in {"unknown", "cc_review"} or (
-            record.get("license_status") == "fair_use_review"
-            and not record.get("approved")
-        ):
-            blockers.append(record)
-    return blockers
+    return [
+        record
+        for record in payload.get("assets", [])
+        if isinstance(record, dict) and _blocked(record)
+    ]
 
 
 def mark_approved(output: Path, *, approval_id: str, reviewer: str = "") -> Path:
@@ -103,11 +120,7 @@ def mark_approved(output: Path, *, approval_id: str, reviewer: str = "") -> Path
     payload["blockers"] = [
         record
         for record in payload.get("assets", [])
-        if record.get("license_status") in {"unknown", "cc_review"}
-        or (
-            record.get("license_status") == "fair_use_review"
-            and not record.get("approved")
-        )
+        if isinstance(record, dict) and _blocked(record)
     ]
     payload["counts"] = {
         status: sum(

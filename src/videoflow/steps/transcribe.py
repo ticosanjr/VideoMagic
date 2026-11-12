@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import json
 import os
 from pathlib import Path
 from typing import Literal
@@ -157,6 +158,28 @@ class TranscribeStep(BaseStep):
                 mode = "project"
             else:
                 mode = self._available_mode(context, io)
+        if mode == "faster_whisper" and media.duration_frames > 0:
+            fps = media.fps_num / max(1, media.fps_den)
+            audio_minutes = media.duration_frames / max(0.001, fps) / 60.0
+            factors = {
+                "tiny": 0.15,
+                "base": 0.25,
+                "small": 0.40,
+                "medium": 0.80,
+                "large-v2": 1.50,
+                "large-v3": 1.60,
+            }
+            factor = factors.get(options.model_size, 0.5)
+            if options.device == "cuda":
+                factor /= 6.0
+            eta = audio_minutes * factor
+            io.emit(
+                "info",
+                f"Transcription estimate: about {eta:.0f} min for "
+                f"{audio_minutes:.1f} min of audio on {options.device} "
+                f"({options.model_size}).",
+                module="transcribe",
+            )
         if mode == "none":
             context.transcript = []
             context.transcript_source = "none"
@@ -211,6 +234,47 @@ class TranscribeStep(BaseStep):
                     io.report(100, "Transcript loaded from cache")
                     return
         context.cache_misses.append("transcribe")
+        partial_path = context.work / "transcribe.partial.json"
+        initial_sentences: list[Sentence] = []
+        if source_key and partial_path.is_file():
+            try:
+                partial = json.loads(partial_path.read_text(encoding="utf-8"))
+                if isinstance(partial, dict) and partial.get("source") == source_key:
+                    initial_sentences = [
+                        Sentence.model_validate(item)
+                        for item in partial.get("sentences", [])
+                    ]
+            except (OSError, ValueError, TypeError):
+                initial_sentences = []
+        offset_samples = (
+            initial_sentences[-1].end_sample if initial_sentences else 0
+        )
+
+        def persist_partial(sentences: list[Sentence]) -> None:
+            if not source_key:
+                return
+            partial_path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = partial_path.with_suffix(".json.tmp")
+            temporary.write_text(
+                json.dumps(
+                    {
+                        "source": source_key,
+                        "sentences": [
+                            sentence.model_dump(mode="json") for sentence in sentences
+                        ],
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            temporary.replace(partial_path)
+
+        partial_sentences = list(initial_sentences)
+
+        def on_segment(sentence: Sentence) -> None:
+            partial_sentences.append(sentence)
+            persist_partial(partial_sentences)
 
         io.report(20, "Preparing speech-to-text")
         large_model = options.model_size in {"large-v2", "large-v3"} or any(
@@ -284,12 +348,20 @@ class TranscribeStep(BaseStep):
         transcribe_kwargs: dict[str, object] = {}
         if _supports_keyword(client.transcribe, "on_progress"):
             transcribe_kwargs["on_progress"] = on_progress
+        if _supports_keyword(client.transcribe, "on_segment"):
+            transcribe_kwargs["on_segment"] = on_segment
+        if _supports_keyword(client.transcribe, "initial_sentences"):
+            transcribe_kwargs["initial_sentences"] = initial_sentences
+        if _supports_keyword(client.transcribe, "offset_samples"):
+            transcribe_kwargs["offset_samples"] = offset_samples
         transcript = client.transcribe(
             wav, media.audio_sample_rate, **transcribe_kwargs
         )
         if not transcript:
             raise TranscriptionError("Speech-to-text returned no sentences")
         context.transcript = list(transcript)
+        if source_key:
+            partial_path.unlink(missing_ok=True)
         context.transcript_source = mode
         context.hashes["transcribe"] = digest_payload(
             [sentence.model_dump(mode="json") for sentence in transcript]

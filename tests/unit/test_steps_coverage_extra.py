@@ -1775,6 +1775,61 @@ def test_transcribe_reports_faster_whisper_progress(tmp_path: Path) -> None:
     assert context.transcript[0].text == "progress"
 
 
+def test_transcribe_resumes_from_a_partial_checkpoint(tmp_path: Path) -> None:
+    from videoflow.steps.transcribe import TranscribeParams, TranscribeStep
+
+    context = make_context(tmp_path, media_info=make_media(tmp_path))
+    context.pcm_digest = "digest"
+    partial_path = context.work / "transcribe.partial.json"
+    partial_path.write_text(
+        json.dumps(
+            {
+                "source": "digest",
+                "sentences": [
+                    sentence(0, 0, 48000, "head").model_dump(mode="json")
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class FakeClient:
+        def __init__(self) -> None:
+            self.offset = -1
+            self.initial = 0
+
+        def transcribe(
+            self,
+            wav: Path,
+            sample_rate: int,
+            *,
+            initial_sentences: list[Sentence] | None = None,
+            offset_samples: int = 0,
+            on_segment: object = None,
+            on_progress: object = None,
+        ) -> list[Sentence]:
+            self.offset = offset_samples
+            self.initial = len(initial_sentences or [])
+            new = sentence(1, 48000, 96000, "tail")
+            assert callable(on_segment)
+            on_segment(new)  # type: ignore[operator]
+            payload = json.loads(partial_path.read_text(encoding="utf-8"))
+            assert payload["sentences"][-1]["text"] == "tail"
+            return [*(initial_sentences or []), new]
+
+    client = FakeClient()
+    TranscribeStep().run(
+        context,
+        TranscribeParams(mode="faster_whisper", model_size="tiny", language="en"),
+        StepIO(adapter=FakePcmAdapter(), asr_client=client),
+    )
+
+    assert client.initial == 1
+    assert client.offset == 48000
+    assert [item.text for item in context.transcript] == ["head", "tail"]
+    assert not partial_path.exists()
+
+
 def test_transcribe_warns_about_large_models_on_cpu(tmp_path: Path) -> None:
     from videoflow.steps.transcribe import TranscribeParams, TranscribeStep
 

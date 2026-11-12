@@ -83,6 +83,9 @@ class FasterWhisperAdapter:
         *,
         on_progress: Callable[[float, float], None] | None = None,
         should_cancel: Callable[[], bool] | None = None,
+        on_segment: Callable[[Sentence], None] | None = None,
+        initial_sentences: list[Sentence] | None = None,
+        offset_samples: int = 0,
     ) -> list[Sentence]:
         source = Path(wav_path).expanduser()
         if not source.is_file():
@@ -96,22 +99,37 @@ class FasterWhisperAdapter:
             raise TranscriptionError("beam size must be positive")
         model_path = self._resolve_model()
         engine = self._load_engine(model_path)
+        initial = list(initial_sentences or [])
+        offset = max(0, int(offset_samples))
+        offset_16k = int(offset * SAMPLE_RATE / sample_rate)
+        transcribe_path = source
+        if offset_16k > 0:
+            if offset_16k >= frames:
+                if initial:
+                    return initial
+                raise TranscriptionError("Faster-Whisper resume offset is past the audio.")
+            tail = _tail_wav(source, offset_16k)
+            if tail is not None:
+                transcribe_path = tail
         try:
-            segments, info = engine.transcribe(
-                str(source),
+            segments, _info = engine.transcribe(
+                str(transcribe_path),
                 language=None if self.language == "auto" else self.language,
                 beam_size=self.beam_size,
                 word_timestamps=True,
                 vad_filter=self.vad_filter,
             )
-            duration = float(getattr(info, "duration", 0.0) or 0.0)
+            duration = frames / SAMPLE_RATE if frames > 0 else 0.0
             if duration <= 0:
-                duration = frames / SAMPLE_RATE if frames > 0 else 0.0
+                duration = float(getattr(_info, "duration", 0.0) or 0.0)
             sentences = _sentences(
                 segments,
                 sample_rate,
                 duration=duration,
+                offset_samples=offset,
+                initial_sentences=initial,
                 on_progress=on_progress,
+                on_segment=on_segment,
                 should_cancel=should_cancel,
             )
         except JobCancelledError:
@@ -183,10 +201,13 @@ def _sentences(
     sample_rate: int,
     *,
     duration: float = 0.0,
+    offset_samples: int = 0,
+    initial_sentences: list[Sentence] | None = None,
     on_progress: Callable[[float, float], None] | None = None,
+    on_segment: Callable[[Sentence], None] | None = None,
     should_cancel: Callable[[], bool] | None = None,
 ) -> list[Sentence]:
-    sentences: list[Sentence] = []
+    sentences: list[Sentence] = list(initial_sentences or [])
     for segment in segments:
         if should_cancel is not None and should_cancel():
             raise JobCancelledError("Job cancelled")
@@ -204,8 +225,8 @@ def _sentences(
             if not word:
                 continue
             try:
-                start = _samples(item.start, sample_rate, Rounding.FLOOR)
-                end = _samples(item.end, sample_rate, Rounding.CEIL)
+                start = _samples(item.start, sample_rate, Rounding.FLOOR) + offset_samples
+                end = _samples(item.end, sample_rate, Rounding.CEIL) + offset_samples
             except (AttributeError, TypeError, ValueError) as exc:
                 raise TranscriptionError(
                     f"Faster-Whisper returned an invalid word timestamp for: {_preview(word)}"
@@ -232,15 +253,16 @@ def _sentences(
             raise TranscriptionError(
                 f"Faster-Whisper returned a sentence that ends before it starts: {_preview(text)}"
             )
-        sentences.append(
-            Sentence(
-                id=len(sentences),
-                start_sample=start_sample,
-                end_sample=end_sample,
-                text=text,
-                words=words,
-            )
+        sentence = Sentence(
+            id=len(sentences),
+            start_sample=start_sample,
+            end_sample=end_sample,
+            text=text,
+            words=words,
         )
+        sentences.append(sentence)
+        if on_segment is not None:
+            on_segment(sentence)
         if on_progress is not None:
             elapsed = end_sample / sample_rate
             if duration > 0:
@@ -277,6 +299,29 @@ def _preview(text: str) -> str:
 
 def _is_model_dir(path: Path) -> bool:
     return path.is_dir() and (path / "model.bin").is_file() and (path / "config.json").is_file()
+
+
+def _tail_wav(path: Path, start_frame: int) -> Path | None:
+    """Write a temporary 16 kHz WAV starting at ``start_frame``."""
+
+    try:
+        with wave.open(str(path), "rb") as audio:
+            frames = audio.getnframes()
+            if start_frame <= 0 or start_frame >= frames:
+                return None
+            params = audio.getparams()
+            audio.setpos(start_frame)
+            payload = audio.readframes(frames - start_frame)
+    except (wave.Error, OSError, EOFError):
+        return None
+    target = path.with_name(f"{path.stem}.resume.wav")
+    try:
+        with wave.open(str(target), "wb") as audio:
+            audio.setparams(params)
+            audio.writeframes(payload)
+    except (wave.Error, OSError):
+        return None
+    return target
 
 
 def _require_16k(path: Path) -> int:

@@ -60,3 +60,17 @@ ingest
   → narrative / entities_review / entities.apply
   → decoupage_files / decoupage_review
 ```
+
+## Entity extraction and transcription resume
+
+`entities.extract` reads the context blocks and the edition script, resolves
+single-word names from the script, adds quoted event/object phrases, and accepts
+`known_entities` hints. The deterministic pass writes people, object/location/
+event, and metric arrays with block time ranges; an LLM can refine the same
+manifest without changing the schema.
+
+`transcribe` writes a partial `transcribe.partial.json` after every segment,
+keyed by the PCM digest. If the job stops mid-transcription, the next run loads
+the partial sentences, trims the WAV tail, and resumes with an absolute sample
+offset instead of redoing the entire recording. The partial file is removed on
+success.

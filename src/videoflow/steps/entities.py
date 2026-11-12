@@ -72,6 +72,65 @@ class EntityExtractParams(BaseModel):
     provider_id: str = ""
     max_entities: int = Field(default=200, ge=1, le=2000)
     language: str = Field(default="pt", max_length=20)
+    known_entities: list[str] = Field(default_factory=list, max_length=500)
+
+
+_SINGLE_NAME = re.compile(r"\b[A-ZÀ-Ý][a-zà-ÿ]{2,}\b")
+_QUOTED = re.compile(r"[\"“]([^\"”]{3,90})[\"”]")
+_NAME_STOPWORDS = {
+    "a",
+    "as",
+    "o",
+    "os",
+    "um",
+    "uma",
+    "de",
+    "da",
+    "do",
+    "das",
+    "dos",
+    "em",
+    "no",
+    "na",
+    "nos",
+    "nas",
+    "por",
+    "para",
+    "com",
+    "sem",
+    "que",
+    "se",
+    "e",
+    "ou",
+    "mas",
+    "ao",
+    "aos",
+    "às",
+    "the",
+    "this",
+    "that",
+    "these",
+    "those",
+    "and",
+    "but",
+    "first",
+    "second",
+    "third",
+    "next",
+    "then",
+    "court",
+    "case",
+    "report",
+    "image",
+    "video",
+    "document",
+    "fonte",
+    "caso",
+    "relatório",
+    "imagem",
+    "vídeo",
+    "documento",
+}
 
 
 def _block_items(payload: Any) -> list[dict[str, Any]]:
@@ -80,15 +139,16 @@ def _block_items(payload: Any) -> list[dict[str, Any]]:
 
 
 def _script_names(text: str) -> list[str]:
-    return sorted(
-        {
-            match.group(0).strip()
-            for match in PROPER.finditer(text)
-            if match.group(0).strip()
-        },
-        key=len,
-        reverse=True,
-    )
+    names = {
+        match.group(0).strip()
+        for match in PROPER.finditer(text)
+        if match.group(0).strip()
+    }
+    for match in _SINGLE_NAME.finditer(text):
+        candidate = match.group(0).strip()
+        if candidate and candidate.casefold() not in _NAME_STOPWORDS:
+            names.add(candidate)
+    return sorted(names, key=len, reverse=True)
 
 
 def _canonical_name(raw: str, names: list[str]) -> str:
@@ -303,9 +363,27 @@ class EntityExtractStep(BaseStep):
         except OSError:
             script = ""
         names = _script_names(script)
+        for entity in options.known_entities:
+            value = str(entity).strip()
+            if value and value not in names:
+                names.append(value)
+        names.sort(key=len, reverse=True)
         if not names:
             names = _script_names("\n".join(str(item.get("text") or "") for item in blocks))
         people, objects, metrics = _deterministic_entities(blocks, names)
+        object_hints = [
+            *[_quoted.strip() for _quoted in _QUOTED.findall(script) if _quoted.strip()],
+            *[str(item).strip() for item in options.known_entities if str(item).strip()],
+        ]
+        for phrase in object_hints:
+            name = " ".join(phrase.split())
+            if not name:
+                continue
+            entry = objects.setdefault(name.casefold(), _entry(name, kind="event"))
+            for block in blocks:
+                if name.casefold() in str(block.get("text") or "").casefold():
+                    _add_block_range(entry, block)
+                    break
         if io.llm_client is not None and blocks:
             prompt = (
                 "Extract visually relevant entities from the transcript blocks. "

@@ -25,7 +25,7 @@ def test_entity_extract_builds_three_manifests_with_ranges(tmp_path: Path) -> No
                         "context_block_id": "block_001",
                         "start_sec": 1.0,
                         "end_sec": 4.0,
-                        "text": "Cerveró and the Guarujá triplex, R$ 10 milhões.",
+                        "text": "Lula, Cerveró and the Guarujá triplex, R$ 10 milhões.",
                     },
                     {
                         "context_block_id": "block_002",
@@ -39,7 +39,7 @@ def test_entity_extract_builds_three_manifests_with_ranges(tmp_path: Path) -> No
         encoding="utf-8",
     )
     (output / "script" / "edition.md").write_text(
-        "Nestor Cerveró appears in the Guarujá triplex section.",
+        'Lula and Nestor Cerveró appear in the "Guarujá triplex" section.',
         encoding="utf-8",
     )
     context = PipelineContext(
@@ -57,9 +57,12 @@ def test_entity_extract_builds_three_manifests_with_ranges(tmp_path: Path) -> No
     assert manifest["counts"]["people"] >= 1
     people = {item["canonical_name"]: item for item in manifest["people"]}
     assert "Nestor Cerveró" in people
+    assert "Lula" in people
     assert people["Nestor Cerveró"]["block_ids"] == ["block_001", "block_002"]
     assert people["Nestor Cerveró"]["start_sec"] == 1.0
     assert people["Nestor Cerveró"]["end_sec"] == 8.0
+    events = {item["name"] for item in manifest["objects_locations_events"]}
+    assert "Guarujá triplex" in events
     assert manifest["counts"]["data_metrics"] >= 1
     assert any(
         "10" in item["raw_value"] for item in manifest["data_metrics"]

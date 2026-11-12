@@ -62,3 +62,11 @@ license status, attribution, and source URL. The NLE sidecars include
 
 No paid provider is required. Missing keys simply remove that provider from the
 available chain.
+
+## Expiry
+
+`AssetCandidate.expires_at` is carried through the ledger. An asset whose
+`expires_at` is in the past is a blocker even when its license status is
+`cleared` or it was manually approved. `assets.license_audit`, `assets.review`,
+and `export.nle` therefore stop on expired clearances until the ledger is
+refreshed.

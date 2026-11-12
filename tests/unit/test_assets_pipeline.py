@@ -136,3 +136,30 @@ def test_export_blocks_unapproved_assets(tmp_path: Path) -> None:
     with pytest.raises(ExportError, match="Asset licenses"):
         ExportStep().run(context, ExportParams(require_licenses=True), StepIO())
 
+
+
+def test_expired_asset_license_is_a_blocker(tmp_path: Path) -> None:
+    from videoflow.application.asset_providers import AssetCandidate, write_ledger
+    from videoflow.application.asset_providers.ledger import license_blockers
+
+    output = tmp_path / "out"
+    output.mkdir()
+    write_ledger(
+        output,
+        [
+            AssetCandidate(
+                asset_id="asset-expired",
+                provider="youtube",
+                title="Expired clip",
+                page_url="https://example.test/clip",
+                download_url="https://example.test/clip.mp4",
+                license="YouTube Standard",
+                license_status="cleared",
+                approved=True,
+                expires_at="2020-01-01T00:00:00Z",
+            )
+        ],
+    )
+
+    blockers = license_blockers(output)
+    assert [item["asset_id"] for item in blockers] == ["asset-expired"]

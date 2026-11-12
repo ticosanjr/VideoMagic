@@ -70,3 +70,16 @@ intro.compile
 
 The sample review includes `motion/render-manifest.json`, `motion/intro.json`,
 and `audio/qa.json`.
+
+## Style-guide audio direction
+
+`audio.compose`, `sfx.synthesize`, and `audio.mix` read
+`style/style-guide.json`:
+
+- `audio.bpm` / `audio.tempo_bpm` override the composition tempo;
+- `audio.root_midi` overrides the key;
+- `audio.foley` selects the synthesized Foley kinds;
+- `audio.keyboard_notch_hz` / `audio.keyboard_notch_db` apply the SFX notch
+  unless the mix node overrides it.
+
+This keeps visual and audio direction in one approved style lock.

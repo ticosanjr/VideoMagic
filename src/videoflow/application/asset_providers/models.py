@@ -32,6 +32,7 @@ class AssetCandidate:
     clip_start_sec: float = 0.0
     clip_end_sec: float = 0.0
     fair_use_rationale: str = ""
+    expires_at: str = ""
     downloaded_path: str = ""
     sha256: str = ""
     retrieved_at: str = ""
@@ -62,6 +63,7 @@ class AssetCandidate:
             "clip_start_sec": self.clip_start_sec,
             "clip_end_sec": self.clip_end_sec,
             "fair_use_rationale": self.fair_use_rationale,
+            "expires_at": self.expires_at,
             "downloaded_path": self.downloaded_path,
             "sha256": self.sha256,
             "retrieved_at": self.retrieved_at,
@@ -94,6 +96,7 @@ class AssetCandidate:
             "clip_start_sec",
             "clip_end_sec",
             "fair_use_rationale",
+            "expires_at",
             "downloaded_path",
             "sha256",
             "retrieved_at",

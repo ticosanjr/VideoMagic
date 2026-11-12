@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (2.63.0)
+## Implementation status (2.64.0)
 
 | Area | State |
 | --- | --- |
@@ -35,7 +35,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Plugins | exporter and provider registration, manifest permissions, static sandbox allowlist ([plugins.md](plugins.md)) |
 | UI guidance | naming, tooltips, microcopy, empty states, units ([ui-copy.md](ui-copy.md)) |
 | Error catalog | codes, HTTP status, meaning, next action ([errors.md](errors.md)) |
-| Release gates | 2.63.0 evidence and the two open 3.0 blockers ([3.0-blockers.md](3.0-blockers.md)) |
+| Release gates | 2.64.0 evidence and the two open 3.0 blockers ([3.0-blockers.md](3.0-blockers.md)) |
 | Coverage | per-layer baseline and the remaining gap ([coverage.md](coverage.md)) |
 | Voice cloning | Explicit deferral, consent, and acceptance criteria ([voice-clone.md](voice-clone.md)) |
 | Settings | searchable settings with units, help tips, discard/reset ([settings.md](settings.md)) |
@@ -44,9 +44,9 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Recut and recipe library | Recut Replacement (+ retakes), detailed VAD/cut controls, favorites/recent/tags on the server ([recipes.md](recipes.md)) |
 | Human-in-the-loop | Durable approvals, questions, file handoffs, local/e-mail/Slack/Signal notifications, the Full AI Editor recipe, and the Lamera workspace/inbox ([hilt.md](hilt.md)) |
 | Research and script | Local/SearXNG/Wikipedia/Internet Archive providers, scoped agents, citation validation, consolidation, presenter profile, and dual script ([research.md](research.md)) |
-| Vision and decoupage | Eye-contact green labels, reference XML calibration, frame-accurate speech map, entity corrections ([vision-decoupage.md](vision-decoupage.md)) |
-| Art direction and assets | Style guide, unit storyboard, Pexels/Pixabay/Openverse/Wikimedia/Internet Archive/YouTube discovery, license ledger, and export gating ([assets-licensing.md](assets-licensing.md)) |
-| Motion and audio | JSON scene codegen, FFmpeg motion renderer, procedural music/Foley, final audio mix, and intro compiler ([motion-audio.md](motion-audio.md)) |
+| Vision and decoupage | Eye-contact green labels, reference XML calibration, frame-accurate speech map, entity extraction, phonetic corrections, and single-word/quoted event hints ([vision-decoupage.md](vision-decoupage.md)) |
+| Art direction and assets | Style guide, unit storyboard, Pexels/Pixabay/Openverse/Wikimedia/Internet Archive/YouTube discovery, license ledger with expiry blockers, and export gating ([assets-licensing.md](assets-licensing.md)) |
+| Motion and audio | JSON scene codegen, FFmpeg motion renderer, style-guide-driven music/Foley, final audio mix, notch filtering, and intro compiler ([motion-audio.md](motion-audio.md)) |
 | Fact-check and repair | Claim audit, citation validation, HILT fact-check, voice patch/TTS repair, and final export approval ([factcheck-voice.md](factcheck-voice.md)) |
 | Typed ports | Step inputs/outputs, inspector/edge wiring, branch isolation, input-hash cache ([recipes.md](recipes.md)) |
 | Node IO | Media pickers and output-folder policy inside nodes, Inputs/Config/Outputs layout |
@@ -65,7 +65,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Windows PE | not part of the local Linux release; cross-build separately if needed |
 | CI and Windows | GitHub Actions test workflow and Windows portable artifact workflow |
 | SRT transcript import and LLM retake culling | implemented |
-| Local Faster-Whisper with whisper.cpp fallback, and ASR HTTP | implemented; pinned small model bundled in release builds |
+| Local Faster-Whisper with whisper.cpp fallback, and ASR HTTP | implemented; pinned small model bundled in release builds; partial transcript resume and model/device ETA |
 | Local filesystem browser with allowlisted roots | implemented; no media upload |
 | URL import | implemented via optional yt-dlp; external policy and host allowlist apply |
 | Webhook publishing | implemented; targets, persistent queue, scheduler, metadata generation |

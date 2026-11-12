@@ -7,6 +7,12 @@ from pathlib import Path
 from videoflow.application.audio_synthesis import compose_music, synthesize_foley
 from videoflow.application.motion import build_scenes
 from videoflow.core.context import PipelineContext
+from videoflow.steps.audio_synth import (
+    AudioComposeStep,
+    ComposeParams,
+    SfxSynthParams,
+    SfxSynthStep,
+)
 from videoflow.steps.base import StepIO
 from videoflow.steps.intro import IntroCompileStep, IntroParams
 from videoflow.steps.motion import (
@@ -126,6 +132,48 @@ def test_intro_compile_writes_manifest(tmp_path: Path, monkeypatch) -> None:
     IntroCompileStep().run(context, IntroParams(title="Dossier"), StepIO())
     assert (context.output / "motion" / "intro.json").is_file()
     assert context.metadata["intro"]["duration_sec"] == 8.0
+
+
+def test_compose_and_foley_read_style_audio(tmp_path: Path) -> None:
+    context = _context(tmp_path)
+    style_path = context.output / "style" / "style-guide.json"
+    style = json.loads(style_path.read_text(encoding="utf-8"))
+    style["audio"] = {
+        "bpm": 120,
+        "root_midi": 50,
+        "foley": ["paper_turn"],
+    }
+    style_path.write_text(json.dumps(style), encoding="utf-8")
+
+    AudioComposeStep().run(
+        context,
+        ComposeParams(duration_sec=1.0),
+        StepIO(),
+    )
+    music = json.loads(
+        (context.output / "audio" / "music-plan.json").read_text(encoding="utf-8")
+    )
+    assert music["bpm"] == 120
+
+    (context.output / "motion").mkdir(exist_ok=True)
+    (context.output / "motion" / "render-manifest.json").write_text(
+        json.dumps(
+            {
+                "scenes": [
+                    {"start_sec": 0},
+                    {"start_sec": 1},
+                    {"start_sec": 2},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    SfxSynthStep().run(context, SfxSynthParams(max_cues=3), StepIO())
+    sfx = json.loads(
+        (context.output / "audio" / "sfx-plan.json").read_text(encoding="utf-8")
+    )
+    assert sfx["count"] == 3
+    assert {cue["kind"] for cue in sfx["cues"]} == {"paper_turn"}
 
 
 def test_procedural_music_and_foley(tmp_path: Path) -> None:
