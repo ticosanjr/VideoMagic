@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.65.0] - 2026-11-12
+
+### Added
+
+- **Concurrent scoped research.** Research steps that share the same dependency
+  set now execute as one parallel group. Each agent keeps its own context and
+  checkpoint; the parent merges dossiers, hashes, ports, warnings, and the
+  aggregate agent manifest under a lock. Lamera's four scopes use this path.
+
 ## [2.64.0] - 2026-11-12
 
 ### Added
