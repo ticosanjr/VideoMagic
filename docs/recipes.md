@@ -426,7 +426,9 @@ EBU R128 normalization; captions are written as ASS and burned into the draft.
 The graph has 43 nodes and six phases: briefing/research/script, voice/timing,
 art/storyboard, media/scenes, audio, and QA/delivery. Human gates: brief,
 research master, script/facts, voice, style, units, licenses, rendered scenes,
-QA, and final master.
+QA, and final master. When a `vision` provider with an OpenAI-compatible chat
+endpoint is configured, `qa.vision` sends sampled frames to it; otherwise it
+keeps the deterministic frame, transcript, and loudness checks.
 
 Optional: `uv sync --extra render` and `playwright install chromium` enable the
 headless HTML/CSS/Three.js path. OCR/stock providers are opt-in.

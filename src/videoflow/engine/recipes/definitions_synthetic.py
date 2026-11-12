@@ -152,6 +152,16 @@ _STEPS: list[dict[str, Any]] = [
                     ),
                 },
                 {
+                    "id": "narration_file",
+                    "label": "Narração pronta (opcional)",
+                    "type": "text",
+                    "required": False,
+                    "help": (
+                        "Caminho local de um WAV/MP3 narrado; quando preenchido, "
+                        "o TTS não é chamado."
+                    ),
+                },
+                {
                     "id": "visual_style",
                     "label": "Direção visual",
                     "type": "textarea",

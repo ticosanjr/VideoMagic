@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -102,6 +103,80 @@ class OpenAICompatibleProvider:
             data = _parse_json(content)
         except (KeyError, IndexError, TypeError, ValueError) as exc:
             raise LlmError(f"{self.id} returned unusable JSON") from exc
+        prompt_tokens = int((usage or {}).get("prompt_tokens") or 0)
+        completion_tokens = int((usage or {}).get("completion_tokens") or 0)
+        return ProviderResult(
+            data=data,
+            provider=self.id,
+            model=selected,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            cost_usd=estimate_cost(selected, prompt_tokens, completion_tokens),
+            latency_ms=round((time.perf_counter() - started) * 1000),
+        )
+
+
+    def complete_json_with_images(
+        self,
+        prompt: str,
+        image_paths: list[Any],
+        schema_name: str,
+        *,
+        model: str = "",
+        timeout: float = 120.0,
+        temperature: float = 0.0,
+        max_tokens: int = 0,
+    ) -> ProviderResult:
+        """Ask a vision-capable chat model to audit a small set of frames."""
+
+        selected = model or self.model
+        started = time.perf_counter()
+        content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
+        for value in image_paths:
+            path = Path(value)
+            if not path.is_file():
+                continue
+            suffix = path.suffix.lower()
+            mime = "image/png" if suffix == ".png" else "image/jpeg"
+            encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime};base64,{encoded}"},
+                }
+            )
+        if len(content) == 1:
+            raise LlmError("No readable image was supplied for vision QA")
+        payload: dict[str, Any] = {
+            "model": selected,
+            "temperature": temperature or self.temperature,
+            "stream": False,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": f"{SYSTEM_PROMPT} schema={schema_name}",
+                },
+                {"role": "user", "content": content},
+            ],
+            "response_format": {"type": "json_object"},
+        }
+        limit = max_tokens or self.max_tokens
+        if limit > 0:
+            payload["max_tokens"] = limit
+        response = self._post("/chat/completions", payload, timeout)
+        if response.status_code >= 400:
+            raise LlmError(
+                f"{self.id} returned HTTP {response.status_code}: "
+                f"{response.text[:200].strip()}"
+            )
+        try:
+            body = response.json()
+            usage = body.get("usage")
+            record_usage(selected, usage)
+            content_value = body["choices"][0]["message"]["content"]
+            data = _parse_json(content_value)
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise LlmError(f"{self.id} returned unusable vision JSON") from exc
         prompt_tokens = int((usage or {}).get("prompt_tokens") or 0)
         completion_tokens = int((usage or {}).get("completion_tokens") or 0)
         return ProviderResult(

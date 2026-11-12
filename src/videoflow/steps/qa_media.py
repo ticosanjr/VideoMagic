@@ -77,6 +77,7 @@ class QaFramesStep(BaseStep):
             ]
         except Exception as exc:  # noqa: BLE001 - frame sampling is best effort
             context.warnings.append(f"QA frame sampling skipped: {exc}")
+        issues.extend(_empty_frame_issues(frames, options.sample_fps))
         critical = [item for item in issues if item.get("severity") == "critical"]
         payload = {
             "ok": True,
@@ -107,6 +108,47 @@ class QaFramesStep(BaseStep):
     def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
         path = context.artifacts.get("qa_frames")
         return (Path(path),) if path else ()
+
+
+def _empty_frame_issues(
+    frames: list[str], sample_fps: float
+) -> list[dict[str, Any]]:
+    """Catch near-uniform frames that blackdetect does not report as black."""
+
+    try:
+        from PIL import Image, ImageStat
+    except Exception:
+        return []
+    issues: list[dict[str, Any]] = []
+    for index, frame in enumerate(frames):
+        try:
+            with Image.open(frame) as image:
+                stat = ImageStat.Stat(image.convert("L"))
+        except Exception:
+            continue
+        mean = float(stat.mean[0]) if stat.mean else 0.0
+        stddev = float(stat.stddev[0]) if stat.stddev else 0.0
+        if stddev < 2.0 and mean < 12.0:
+            issues.append(
+                {
+                    "kind": "empty_frame",
+                    "severity": "critical",
+                    "start_sec": round(index / max(0.01, sample_fps), 3),
+                    "end_sec": round((index + 1) / max(0.01, sample_fps), 3),
+                    "message": "Near-uniform dark frame; likely an empty scene.",
+                }
+            )
+        elif stddev < 2.0 and mean > 245.0:
+            issues.append(
+                {
+                    "kind": "empty_frame",
+                    "severity": "warning",
+                    "start_sec": round(index / max(0.01, sample_fps), 3),
+                    "end_sec": round((index + 1) / max(0.01, sample_fps), 3),
+                    "message": "Near-uniform light frame; check the layout.",
+                }
+            )
+    return issues
 
 
 class QaTranscriptParams(BaseModel):

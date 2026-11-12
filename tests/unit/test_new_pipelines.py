@@ -322,3 +322,78 @@ def test_qa_frames_transcript_vision_and_repair(tmp_path: Path, monkeypatch) -> 
 
     QaRepairStep().run(context, QaRepairParams(), StepIO())
     assert context.metadata["qa_repair"]["issues"][0]["unit_id"] == "UNIT-0001"
+
+
+def test_qa_frames_flags_near_empty_layouts(tmp_path: Path, monkeypatch) -> None:
+    pytest.importorskip("PIL")
+    from PIL import Image
+
+    context = _context(tmp_path)
+    video = context.output / "exports" / "master.mp4"
+    video.parent.mkdir(parents=True)
+    video.write_bytes(b"video")
+    context.artifacts["video"] = str(video)
+    frame = tmp_path / "empty.png"
+    Image.new("L", (64, 64), color=2).save(frame)
+    monkeypatch.setattr(
+        "videoflow.steps.qa_media.detect_black", lambda *args, **kwargs: []
+    )
+    monkeypatch.setattr(
+        "videoflow.steps.qa_media.detect_freeze", lambda *args, **kwargs: []
+    )
+    monkeypatch.setattr(
+        "videoflow.steps.qa_media.extract_frames",
+        lambda *args, **kwargs: [frame],
+    )
+
+    QaFramesStep().run(context, QaFramesParams(), StepIO())
+
+    kinds = [item["kind"] for item in context.metadata["qa_frames"]["issues"]]
+    assert "empty_frame" in kinds
+    assert context.metadata["qa_frames"]["passed"] is False
+
+
+def test_vision_qa_uses_a_configured_vision_provider(monkeypatch) -> None:
+    from videoflow.steps import vision_qa
+
+    monkeypatch.setattr(
+        vision_qa,
+        "resolve_chain",
+        lambda capability: [
+            {
+                "id": "vision-test",
+                "kind": "openai_compatible",
+                "base_url": "http://127.0.0.1:9999/v1",
+                "model": "vision-model",
+                "api_key_env": "",
+            }
+        ],
+    )
+    client = vision_qa._vision_client()
+    assert client is not None
+    assert client.id == "vision-test"
+    assert client.model == "vision-model"
+
+
+def test_vision_qa_extracts_structured_issues() -> None:
+    from videoflow.steps.vision_qa import _extract_issues
+
+    assert _extract_issues(
+        {
+            "issues": [
+                {
+                    "kind": "text_clipped",
+                    "severity": "critical",
+                    "message": "Title clipped",
+                    "start_sec": 2.5,
+                }
+            ]
+        }
+    ) == [
+        {
+            "kind": "text_clipped",
+            "severity": "critical",
+            "message": "Title clipped",
+            "start_sec": 2.5,
+        }
+    ]

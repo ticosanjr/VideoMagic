@@ -8,6 +8,11 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.intelligence.providers.openai_compatible import (
+    OpenAICompatibleProvider,
+)
+from videoflow.application.providers import resolve_chain
+from videoflow.application.secrets import get_secret
 from videoflow.core.context import PipelineContext
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload
@@ -39,6 +44,39 @@ def _load(path: Path, default: Any) -> Any:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return default
+
+
+def _vision_client() -> OpenAICompatibleProvider | None:
+    for item in resolve_chain("vision"):
+        if str(item.get("kind") or "openai_compatible") != "openai_compatible":
+            continue
+        base_url = str(item.get("base_url") or "")
+        if not base_url:
+            continue
+        return OpenAICompatibleProvider(
+            provider_id=str(item.get("id") or "vision"),
+            base_url=base_url,
+            model=str(item.get("model") or "gpt-4o-mini"),
+            api_key=get_secret(str(item.get("api_key_env") or "")),
+        )
+    return None
+
+
+def _extract_issues(payload: object) -> list[dict[str, Any]]:
+    raw = payload.get("issues") if isinstance(payload, dict) else []
+    result: list[dict[str, Any]] = []
+    for item in raw if isinstance(raw, list) else []:
+        if not isinstance(item, dict):
+            continue
+        result.append(
+            {
+                "kind": str(item.get("kind") or "review"),
+                "severity": str(item.get("severity") or "warning"),
+                "message": str(item.get("message") or ""),
+                "start_sec": float(item.get("start_sec") or 0.0),
+            }
+        )
+    return result
 
 
 @register_step
@@ -101,42 +139,47 @@ class VisionQaStep(BaseStep):
                     "start_sec": 0.0,
                 }
             )
-        if io.llm_client is not None:
-            prompt = (
-                "Review the QA issues for a rendered video. Return one JSON object: "
-                '{"summary":"","issues":[{"kind":"","severity":"critical|warning",'
-                '"message":"","start_sec":0}]}. Do not invent frame contents.\n\n'
-                + json.dumps(
-                    {
-                        "issues": issues,
-                        "frames": frames.get("frames", [])[:20]
-                        if isinstance(frames, dict)
-                        else [],
-                        "units": [
-                            {"unit_id": item.get("unit_id"), "title": item.get("title")}
-                            for item in units[:40]
-                            if isinstance(item, dict)
-                        ],
-                    },
-                    ensure_ascii=False,
-                )[:20000]
+        prompt = (
+            "Audit these rendered video frames and the deterministic QA issues. "
+            "Return one JSON object: "
+            '{"summary":"","issues":[{"kind":"","severity":"critical|warning",'
+            '"message":"","start_sec":0}]}. Look for clipped text, overlapping '
+            "callouts, empty layouts, and text covering a face. Do not invent "
+            "content that is not visible.\n\n"
+            + json.dumps(
+                {
+                    "issues": issues,
+                    "units": [
+                        {"unit_id": item.get("unit_id"), "title": item.get("title")}
+                        for item in units[:40]
+                        if isinstance(item, dict)
+                    ],
+                },
+                ensure_ascii=False,
+            )[:16000]
+        )
+        frames_for_review = [
+            str(item)
+            for item in (
+                frames.get("frames", [])[:6] if isinstance(frames, dict) else []
             )
+            if Path(str(item)).is_file()
+        ]
+        vision = _vision_client()
+        if vision is not None and frames_for_review:
+            try:
+                reviewed = vision.complete_json_with_images(
+                    prompt, frames_for_review, "videoflow.qa.vision"
+                )
+                issues.extend(_extract_issues(reviewed.data))
+            except Exception as exc:  # noqa: BLE001 - deterministic QA still works
+                context.warnings.append(f"Vision QA provider fallback: {exc}")
+        elif io.llm_client is not None:
             try:
                 payload = io.llm_client.complete_json(
                     prompt, "videoflow.qa.vision"
                 )
-                extra = payload.get("issues") if isinstance(payload, dict) else []
-                if isinstance(extra, list):
-                    for item in extra:
-                        if isinstance(item, dict):
-                            issues.append(
-                                {
-                                    "kind": str(item.get("kind") or "review"),
-                                    "severity": str(item.get("severity") or "warning"),
-                                    "message": str(item.get("message") or ""),
-                                    "start_sec": float(item.get("start_sec") or 0.0),
-                                }
-                            )
+                issues.extend(_extract_issues(payload))
             except Exception as exc:  # noqa: BLE001 - deterministic QA still works
                 context.warnings.append(f"QA model fallback: {exc}")
         critical = [item for item in issues if item.get("severity") == "critical"]
