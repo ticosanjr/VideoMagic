@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.69.0] - 2026-11-12
+
+### Changed
+
+- **Eye-contact analyzers extracted.** MediaPipe, YOLO, OpenCV, cascade loading,
+  and interval merging now live in `application/eye_contact.py`; the step keeps
+  the orchestration and the legacy underscore imports as aliases.
+- **Parallel research reuses run state.** Research groups share the parent's
+  source stamp and Intelligence instance instead of recomputing them for every
+  nested agent runner.
+- **Adaptive Lamera polling.** The workspace polls quickly while a run is active,
+  backs off while queued or waiting on a human gate, pauses in hidden tabs, and
+  never starts a second request while one is in flight.
+
 ## [2.68.0] - 2026-11-12
 
 ### Added
