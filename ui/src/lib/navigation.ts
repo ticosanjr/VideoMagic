@@ -3,6 +3,7 @@ import type { IconName } from "$lib/ui/icons";
 export type AreaId = "produce" | "edit" | "runs" | "library" | "setup";
 
 export type TabId =
+  | "overview"
   | "recipes"
   | "lamera"
   | "assistant"
@@ -30,7 +31,7 @@ export interface AreaMeta {
 }
 
 export const AREAS: AreaMeta[] = [
-  { id: "produce", tabs: ["recipes", "lamera", "assistant"] },
+  { id: "produce", tabs: ["overview", "recipes", "lamera", "assistant"] },
   { id: "edit", tabs: ["timeline"] },
   { id: "runs", tabs: ["jobs", "schedules"] },
   { id: "library", tabs: ["media", "brand"] },
@@ -41,6 +42,7 @@ export const AREAS: AreaMeta[] = [
 ];
 
 export const TABS: TabMeta[] = [
+  { id: "overview", area: "produce", legacy: ["home"] },
   { id: "recipes", area: "produce", legacy: [] },
   { id: "lamera", area: "produce", legacy: ["lamera-video"] },
   { id: "assistant", area: "produce", legacy: ["copilot"] },
@@ -85,7 +87,7 @@ export function defaultTabForArea(area: AreaId): TabId {
 /** Resolve `#tab`, `#area/tab`, or a legacy alias. */
 export function resolveRoute(hash: string): { area: AreaId; tab: TabId } {
   const raw = hash.replace(/^#/, "").trim();
-  if (!raw) return { area: "produce", tab: "recipes" };
+  if (!raw) return { area: "produce", tab: "overview" };
   const [first, second] = raw.split("/");
   if (second && isTabId(second) && areaForTab(second) === first) {
     return { area: first as AreaId, tab: second };
@@ -93,7 +95,7 @@ export function resolveRoute(hash: string): { area: AreaId; tab: TabId } {
   if (isTabId(first)) return { area: areaForTab(first), tab: first };
   const legacy = LEGACY.get(first);
   if (legacy) return { area: areaForTab(legacy), tab: legacy };
-  return { area: "produce", tab: "recipes" };
+  return { area: "produce", tab: "overview" };
 }
 
 export function hashFor(tab: TabId): string {
@@ -126,6 +128,7 @@ export const AREA_ICONS: Record<AreaId, IconName> = {
 };
 
 export const TAB_ICONS: Record<TabId, IconName> = {
+  overview: "sparkles",
   recipes: "list",
   lamera: "grid",
   assistant: "sparkles",

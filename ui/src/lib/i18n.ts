@@ -1,6 +1,8 @@
 const STRINGS: Record<string, Record<string, string>> = {
   en: {
     produce: "Produce",
+    overview: "Overview",
+    overview_hint: "Favorites, pending gates, and recent runs",
     edit: "Edit",
     runs: "Runs",
     setup: "Setup",
@@ -60,6 +62,9 @@ const STRINGS: Record<string, Record<string, string>> = {
     needs_you: "Needs you"
   },
   "pt-BR": {
+    produce: "Produzir",
+    overview: "Visão geral",
+    overview_hint: "Favoritas, gates pendentes e execuções recentes",
     recipes: "Receitas",
     lamera: "Lamera",
     assets: "Assets",

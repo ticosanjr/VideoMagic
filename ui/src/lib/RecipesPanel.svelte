@@ -408,6 +408,11 @@
       }
     };
     window.addEventListener("videoflow:builder-action", onBuilderAction);
+    const onLoadRecipe = (event: Event) => {
+      const recipe = String((event as CustomEvent<unknown>).detail ?? "").trim();
+      if (recipe) void loadRecipe(recipe);
+    };
+    window.addEventListener("videoflow:load-recipe", onLoadRecipe);
     const onBuilderKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       const typing = target
@@ -447,14 +452,22 @@
         recipes = await listRecipes();
         nodePresets = await listNodePresets();
         nodeOptions = await getNodeOptions();
-        const first = recipes[0];
-        if (first) await loadRecipe(first.id);
+        let requested = "";
+        try {
+          requested = sessionStorage.getItem("videoflow:requested-recipe") ?? "";
+          sessionStorage.removeItem("videoflow:requested-recipe");
+        } catch {
+          requested = "";
+        }
+        const target = recipes.find((item) => item.id === requested) ?? recipes[0];
+        if (target) await loadRecipe(target.id);
       } catch (reason) {
         error = errorMessage(reason);
       }
     })();
     return () => {
       window.removeEventListener("videoflow:builder-action", onBuilderAction);
+      window.removeEventListener("videoflow:load-recipe", onLoadRecipe);
       window.removeEventListener("keydown", onBuilderKey);
       window.removeEventListener("focus", refreshNodeOptions);
     };

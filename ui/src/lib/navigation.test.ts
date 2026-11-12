@@ -56,9 +56,9 @@ describe("resolveRoute", () => {
     expect(resolveRoute("#integrations").tab).toBe("connect");
   });
 
-  it("falls back to produce/recipes", () => {
-    expect(resolveRoute("")).toEqual({ area: "produce", tab: "recipes" });
-    expect(resolveRoute("#unknown")).toEqual({ area: "produce", tab: "recipes" });
+  it("falls back to produce/overview", () => {
+    expect(resolveRoute("")).toEqual({ area: "produce", tab: "overview" });
+    expect(resolveRoute("#unknown")).toEqual({ area: "produce", tab: "overview" });
   });
 
   it("builds flat hashes", () => {

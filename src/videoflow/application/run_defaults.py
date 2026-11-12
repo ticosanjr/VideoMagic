@@ -24,12 +24,23 @@ def resolve_run_roots(
             if step.media_override.strip():
                 source_value = step.media_override.strip()
                 break
-    if not source_value:
-        raise RecipeError(
-            "No input media. Set a source on the ingest node in the recipe."
-        )
-    resolved_source = resolve_allowed(Path(source_value), roots)
     output_value = (output or "").strip()
+    if not source_value:
+        if any(step.type == "ingest" for step in recipe.enabled_steps()):
+            raise RecipeError(
+                "No input media. Set a source on the ingest node in the recipe."
+            )
+        # Script-first recipes have no source media. Keep a deterministic
+        # placeholder under the workspace so the runner and cache stay happy.
+        if output_value:
+            resolved_output = resolve_allowed(Path(output_value), roots)
+        else:
+            base = roots[0] if roots else Path.home()
+            resolved_output = resolve_allowed(
+                base / "VideoFlow" / recipe.id, roots
+            )
+        return resolved_output / ".script-source", resolved_output
+    resolved_source = resolve_allowed(Path(source_value), roots)
     if output_value:
         resolved_output = resolve_allowed(Path(output_value), roots)
     else:

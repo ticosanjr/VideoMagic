@@ -343,6 +343,7 @@ test("applies pt-BR, the light theme, and compact density", async ({ page }) => 
   );
   await page.reload();
   await expect(page.getByRole("button", { name: /Atividade/ })).toBeVisible();
+  await page.getByRole("tab", { name: "Receitas" }).click();
   await expect(page.getByRole("heading", { name: "Construtor de receitas" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Adicionar etapa/ })).toBeVisible();
 
@@ -517,6 +518,7 @@ test("keeps five areas translated in pt-BR", async ({ page }) => {
   );
   await page.reload();
   await expect(page.getByRole("tab", { name: "Produzir" })).toBeVisible();
+  await page.getByRole("tab", { name: "Receitas" }).click();
   await expect(page.getByRole("heading", { name: "Construtor de receitas" })).toBeVisible();
 
   await page.getByRole("tab", { name: "Editar" }).click();

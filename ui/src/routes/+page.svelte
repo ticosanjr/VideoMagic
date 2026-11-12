@@ -16,6 +16,7 @@
   import OnboardingCard from "$lib/OnboardingCard.svelte";
   import Modal from "$lib/ui/Modal.svelte";
   import PluginsPanel from "$lib/PluginsPanel.svelte";
+  import ProduceHome from "$lib/ProduceHome.svelte";
   import RecipesPanel from "$lib/RecipesPanel.svelte";
   import ServicesPanel from "$lib/ServicesPanel.svelte";
   import SettingsPanel from "$lib/SettingsPanel.svelte";
@@ -51,6 +52,7 @@ import { noticeCounts } from "$lib/notifications";
   } from "$lib/navigation";
 
   const TAB_HINTS: Record<TabId, string> = {
+    overview: "Favorites, pending gates, and recent runs",
     recipes: "Visual recipe builder and runner",
     lamera: "Dedicated Lamera run console and HITL inbox",
     assistant: "LLM recipe drafts and timeline edit plans",
@@ -68,6 +70,7 @@ import { noticeCounts } from "$lib/notifications";
   };
 
   const TAB_KEYS: Record<string, TabId> = {
+    o: "overview",
     r: "recipes",
     d: "lamera",
     c: "assistant",
@@ -453,6 +456,19 @@ import { noticeCounts } from "$lib/notifications";
       const tabs = parent?.querySelectorAll<HTMLElement>('[role="tab"]');
       tabs?.[next]?.focus();
     });
+  }
+
+  async function editRecipe(recipeId: string) {
+    try {
+      sessionStorage.setItem("videoflow:requested-recipe", recipeId);
+    } catch {
+      // Session storage is best effort; the builder can still be opened.
+    }
+    selectTab("recipes");
+    await tick();
+    window.dispatchEvent(
+      new CustomEvent("videoflow:load-recipe", { detail: recipeId })
+    );
   }
 
   function selectTab(tab: TabId) {
@@ -858,7 +874,13 @@ import { noticeCounts } from "$lib/notifications";
     {/if}
 
     <div id="workspace-content" class="scroll-mt-24">
-      {#if activeTab === "recipes"}
+      {#if activeTab === "overview"}
+        <ProduceHome
+          onedit={(recipeId) => void editRecipe(recipeId)}
+          onreview={() => selectTab("jobs")}
+          onstarted={() => selectTab("jobs")}
+        />
+      {:else if activeTab === "recipes"}
         <RecipesPanel />
       {:else if activeTab === "lamera"}
         <LameraWorkspace />

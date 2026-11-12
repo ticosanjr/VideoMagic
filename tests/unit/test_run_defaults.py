@@ -46,3 +46,28 @@ def test_missing_source_is_actionable(monkeypatch, tmp_path: Path) -> None:
     )
     with pytest.raises(RecipeError, match="No input media"):
         resolve_run_roots(recipe, None, None, [tmp_path])
+
+
+def test_script_first_recipe_gets_a_placeholder_source(tmp_path: Path) -> None:
+    recipe = parse_recipe(
+        {
+            "schema_version": 1,
+            "id": "synthetic",
+            "name": "Synthetic",
+            "steps": [
+                {
+                    "id": "brief",
+                    "type": "human.input",
+                    "params": {
+                        "gate_id": "brief",
+                        "questions": [{"id": "topic", "label": "Topic"}],
+                    },
+                }
+            ],
+        }
+    )
+    source, output = resolve_run_roots(
+        recipe, None, str(tmp_path / "workspace"), [tmp_path]
+    )
+    assert output == (tmp_path / "workspace").resolve()
+    assert source == output / ".script-source"
