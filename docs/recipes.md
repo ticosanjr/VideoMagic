@@ -405,8 +405,9 @@ split into separate nodes:
 The graph has 65 nodes and includes ingest, decoupage calibration, eye-contact
 labels, transcription, retakes, drift correction, entity extraction, art
 direction, licensed asset harvesting, motion/Foley, audio mix, fact-check,
-voice repair, and NLE/video export. The four research nodes are independent in
-the DAG; the current runner still executes DAG branches in series.
+voice repair, and NLE/video export. The four research nodes share the same
+dependency set, so the runner executes them concurrently and merges their
+dossiers, hashes, ports, and warnings. Other DAG branches remain sequential.
 
 `storyboard.units` has a `target_units` option; Lamera uses it to merge the
 script sections into 225 unit groups. The Recipe config modal also edits the

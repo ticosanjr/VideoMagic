@@ -53,3 +53,10 @@ brief (human.input)
 `settings.search.providers`, `local_paths`, `seed_urls`, `searxng_url`,
 `wikipedia_language`, `max_results`, `fetch_pages`, `allow_network`,
 `cache_ttl_hours`. All are editable in Settings → Research providers.
+
+## Concurrent scoped agents
+
+Research steps that share the same `needs` set are executed as one parallel
+group by the recipe runner. Each agent keeps its own context, checkpoint, and
+dossier, while the aggregate `research/agents.json` is merged under a lock.
+This is used by the four Lamera scopes; other DAG branches remain sequential.

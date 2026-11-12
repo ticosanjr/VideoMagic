@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (2.64.0)
+## Implementation status (2.65.0)
 
 | Area | State |
 | --- | --- |
@@ -35,7 +35,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Plugins | exporter and provider registration, manifest permissions, static sandbox allowlist ([plugins.md](plugins.md)) |
 | UI guidance | naming, tooltips, microcopy, empty states, units ([ui-copy.md](ui-copy.md)) |
 | Error catalog | codes, HTTP status, meaning, next action ([errors.md](errors.md)) |
-| Release gates | 2.64.0 evidence and the two open 3.0 blockers ([3.0-blockers.md](3.0-blockers.md)) |
+| Release gates | 2.65.0 evidence and the two open 3.0 blockers ([3.0-blockers.md](3.0-blockers.md)) |
 | Coverage | per-layer baseline and the remaining gap ([coverage.md](coverage.md)) |
 | Voice cloning | Explicit deferral, consent, and acceptance criteria ([voice-clone.md](voice-clone.md)) |
 | Settings | searchable settings with units, help tips, discard/reset ([settings.md](settings.md)) |
@@ -43,7 +43,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Assistant and review | Allowlisted tool-calling with approval/diff/cost, run graph, variant comparison ([projects-assistant.md](manuals/projects-assistant.md)) |
 | Recut and recipe library | Recut Replacement (+ retakes), detailed VAD/cut controls, favorites/recent/tags on the server ([recipes.md](recipes.md)) |
 | Human-in-the-loop | Durable approvals, questions, file handoffs, local/e-mail/Slack/Signal notifications, the Full AI Editor recipe, and the Lamera workspace/inbox ([hilt.md](hilt.md)) |
-| Research and script | Local/SearXNG/Wikipedia/Internet Archive providers, scoped agents, citation validation, consolidation, presenter profile, and dual script ([research.md](research.md)) |
+| Research and script | Local/SearXNG/Wikipedia/Internet Archive providers, scoped agents, concurrent sibling research, citation validation, consolidation, presenter profile, and dual script ([research.md](research.md)) |
 | Vision and decoupage | Eye-contact green labels, reference XML calibration, frame-accurate speech map, entity extraction, phonetic corrections, and single-word/quoted event hints ([vision-decoupage.md](vision-decoupage.md)) |
 | Art direction and assets | Style guide, unit storyboard, Pexels/Pixabay/Openverse/Wikimedia/Internet Archive/YouTube discovery, license ledger with expiry blockers, and export gating ([assets-licensing.md](assets-licensing.md)) |
 | Motion and audio | JSON scene codegen, FFmpeg motion renderer, style-guide-driven music/Foley, final audio mix, notch filtering, and intro compiler ([motion-audio.md](motion-audio.md)) |

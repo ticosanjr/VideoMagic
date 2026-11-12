@@ -298,6 +298,8 @@ class RecipeRunner:
         variables: dict[str, Any] | None = None,
         profile: str | None = None,
         job_id: str = "",
+        seed_metadata: dict[str, Any] | None = None,
+        write_report: bool = True,
     ) -> RecipeRunResult:
         from uuid import uuid4
 
@@ -326,6 +328,8 @@ class RecipeRunner:
                 "profile": profile or "",
             },
         )
+        if seed_metadata:
+            context.metadata.update(seed_metadata)
         order = self._order_through(recipe.topological_order(), through)
         llm = self.llm_client or self._build_llm(log)
         from videoflow.application.intelligence import build_intelligence
@@ -334,8 +338,40 @@ class RecipeRunner:
         step_llms: dict[str, Any] = {}
         total = len(order)
         step_runs: list[StepRun] = []
+        research_groups: dict[tuple[str, ...], list[RecipeStep]] = {}
+        for candidate in order:
+            if candidate.type == "research.multi_agent":
+                key = tuple(sorted(candidate.needs))
+                research_groups.setdefault(key, []).append(candidate)
+        handled_research: set[str] = set()
 
         for index, recipe_step in enumerate(order, start=1):
+            if recipe_step.id in handled_research:
+                continue
+            research_group = research_groups.get(
+                tuple(sorted(recipe_step.needs)), []
+            )
+            if (
+                recipe_step.type == "research.multi_agent"
+                and len(research_group) > 1
+                and recipe_step.id == research_group[0].id
+            ):
+                group_runs = self._run_research_group(
+                    research_group,
+                    context,
+                    source_path=source_path,
+                    output_path=output_path,
+                    llm=llm,
+                    resume=resume,
+                    job_id=job_id,
+                    step_progress=step_progress,
+                    should_cancel=should_cancel,
+                    log=log,
+                    telemetry=telemetry,
+                )
+                step_runs.extend(group_runs)
+                handled_research.update(step.id for step in research_group)
+                continue
             step = get_step(recipe_step.type)
             params = step.validate_params(recipe_step.params)
             step_llm = llm
@@ -630,10 +666,113 @@ class RecipeRunner:
         report["through"] = through
         report["resume"] = resume
         report["hashes"] = dict(context.hashes)
-        write_text(report_path, json.dumps(report, indent=2, sort_keys=True) + "\n")
+        if write_report:
+            write_text(report_path, json.dumps(report, indent=2, sort_keys=True) + "\n")
         if progress is not None:
             progress("done", 100, "Finished")
         return result
+
+    def _run_research_group(
+        self,
+        group: list[RecipeStep],
+        context: PipelineContext,
+        *,
+        source_path: Path,
+        output_path: Path,
+        llm: Any | None,
+        resume: bool,
+        job_id: str,
+        step_progress: Any | None,
+        should_cancel: Any | None,
+        log: Any | None,
+        telemetry: Any | None,
+    ) -> list[StepRun]:
+        """Run independent scoped research agents concurrently.
+
+        Each agent gets its own isolated recipe/context and writes its own
+        checkpoint. The parent context receives the union of their files,
+        hashes, ports, warnings, and agent metadata.
+        """
+
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        def run_one(step: RecipeStep):
+            single = Recipe(
+                schema_version=1,
+                id=f"{self.recipe.id}.{step.id}",
+                name=f"{self.recipe.name} · {step.id}",
+                steps=[
+                    step.model_copy(update={"needs": [], "inputs": {}})
+                ],
+            )
+            runner = RecipeRunner(
+                single,
+                adapter=self.adapter,
+                llm_client=llm,
+                asr_client=self.asr_client,
+                cancel_event=self.cancel_event,
+            )
+            return runner.run(
+                source_path,
+                output_path,
+                step_progress=step_progress,
+                should_cancel=should_cancel,
+                log=log,
+                telemetry=telemetry,
+                resume=resume,
+                job_id=job_id,
+                seed_metadata={
+                    "hilt_answers": context.metadata.get("hilt_answers", {}),
+                    "variables": context.metadata.get("variables", {}),
+                },
+                write_report=False,
+            )
+
+        workers = min(len(group), max(1, min(8, os.cpu_count() or 1)))
+        results = []
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {pool.submit(run_one, step): step for step in group}
+            for future in as_completed(futures):
+                results.append(future.result())
+        by_id = {
+            result.step_runs[0].id: result
+            for result in results
+            if result.step_runs
+        }
+        ordered_runs: list[StepRun] = []
+        combined_agents: list[dict[str, Any]] = []
+        for step in group:
+            result = by_id.get(step.id)
+            if result is None:
+                continue
+            child = result.context
+            context.artifacts.update(child.artifacts)
+            context.port_outputs.update(child.port_outputs)
+            context.port_hashes.update(child.port_hashes)
+            context.hashes.update(child.hashes)
+            context.cache_hits.extend(
+                item for item in child.cache_hits if item not in context.cache_hits
+            )
+            context.cache_misses.extend(
+                item
+                for item in child.cache_misses
+                if item not in context.cache_misses
+            )
+            for warning in child.warnings:
+                if warning not in context.warnings:
+                    context.warnings.append(warning)
+            agents = child.metadata.get("research_agents")
+            if isinstance(agents, list):
+                combined_agents.extend(
+                    item for item in agents if isinstance(item, dict)
+                )
+            ordered_runs.extend(result.step_runs)
+            for run in result.step_runs:
+                context.hashes[run.id] = run.fingerprint
+            context.metadata.setdefault("step_progress", {})[step.id] = 100
+        if combined_agents:
+            context.metadata["research_agents"] = combined_agents
+        return ordered_runs
 
     def _load_checkpoint(
         self,

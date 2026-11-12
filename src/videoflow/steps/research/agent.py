@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,8 @@ from videoflow.steps.research.support import (
     _write_json,
     _write_text,
 )
+
+_AGGREGATE_LOCK = threading.Lock()
 
 
 @register_step
@@ -165,25 +168,26 @@ class ResearchStep(BaseStep):
         context.metadata["research_agents"] = agents
         aggregate_path = context.output / "research" / "agents.json"
         context.artifacts["research_agents"] = str(aggregate_path)
-        existing: list[dict[str, Any]] = []
-        try:
-            payload = json.loads(aggregate_path.read_text(encoding="utf-8"))
-            raw = payload.get("agents") if isinstance(payload, dict) else payload
-            if isinstance(raw, list):
-                existing = [item for item in raw if isinstance(item, dict)]
-        except (OSError, ValueError):
-            existing = []
-        merged = {
-            str(item.get("agent_id")): item
-            for item in existing
-            if item.get("agent_id")
-        }
-        for item in agents:
-            merged[str(item["agent_id"])] = item
-        _write_json(
-            aggregate_path,
-            {"agents": [merged[key] for key in sorted(merged)]},
-        )
+        with _AGGREGATE_LOCK:
+            existing: list[dict[str, Any]] = []
+            try:
+                payload = json.loads(aggregate_path.read_text(encoding="utf-8"))
+                raw = payload.get("agents") if isinstance(payload, dict) else payload
+                if isinstance(raw, list):
+                    existing = [item for item in raw if isinstance(item, dict)]
+            except (OSError, ValueError):
+                existing = []
+            merged = {
+                str(item.get("agent_id")): item
+                for item in existing
+                if item.get("agent_id")
+            }
+            for item in agents:
+                merged[str(item["agent_id"])] = item
+            _write_json(
+                aggregate_path,
+                {"agents": [merged[key] for key in sorted(merged)]},
+            )
         context.hashes["research.multi_agent"] = digest_payload(
             {"agents": [item["agent_id"] for item in agents], "topic": topic}
         )
