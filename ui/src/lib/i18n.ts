@@ -54,7 +54,10 @@ const STRINGS: Record<string, Record<string, string>> = {
     close: "Close",
     open_jobs: "Open the job dashboard",
     command_placeholder: "Type a command…",
-    command_hint: "↑ ↓ to move · Enter to run · Esc to close"
+    command_hint: "↑ ↓ to move · Enter to run · Esc to close",
+    active_runs: "Active runs",
+    open_runs: "Open runs",
+    needs_you: "Needs you"
   },
   "pt-BR": {
     recipes: "Receitas",
@@ -102,7 +105,10 @@ const STRINGS: Record<string, Record<string, string>> = {
     close: "Fechar",
     open_jobs: "Abrir o painel de tarefas",
     command_placeholder: "Digite um comando…",
-    command_hint: "↑ ↓ para mover · Enter para executar · Esc para fechar"
+    command_hint: "↑ ↓ para mover · Enter para executar · Esc para fechar",
+    active_runs: "Execuções ativas",
+    open_runs: "Abrir execuções",
+    needs_you: "Precisa de você"
   }
 };
 

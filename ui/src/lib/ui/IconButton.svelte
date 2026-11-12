@@ -36,7 +36,7 @@
   aria-label={label}
   data-testid={testid || undefined}
   onclick={onclick}
-  class={`inline-flex h-7 w-7 items-center justify-center rounded-lg border transition disabled:cursor-not-allowed disabled:opacity-40 ${variants[variant]} ${className}`}
+  class={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors duration-150 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-40 max-sm:h-10 max-sm:w-10 ${variants[variant]} ${className}`}
 >
-  <Icon name={icon} size={14} />
+  <Icon name={icon} size={15} />
 </button>

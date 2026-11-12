@@ -23,6 +23,7 @@
   import TimelinePanel from "$lib/TimelinePanel.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Logo from "$lib/ui/Logo.svelte";
+  import Progress from "$lib/ui/Progress.svelte";
   import { errorMessage, getSettings, getSystem, listJobs, restartService, retryJob, saveSettings, stopService, type AppSettings, type Job, type SystemInfo } from "$lib/api";
   import type { Command } from "$lib/commandPalette";
   import { recordRecentCommand } from "$lib/commandPalette";
@@ -613,97 +614,25 @@ import { noticeCounts } from "$lib/notifications";
   <div class="vf-backdrop pointer-events-none fixed inset-0 -z-10" aria-hidden="true">
     <div class="absolute -top-48 left-1/2 h-[40rem] w-[70rem] -translate-x-1/2 rounded-full bg-sky-500/[0.07] blur-[130px]"></div>
     <div class="absolute -bottom-64 right-[-12rem] h-[34rem] w-[34rem] rounded-full bg-indigo-500/[0.07] blur-[130px]"></div>
-    <div class="vf-grid absolute inset-0"></div>
+    <div class="vf-ambient absolute inset-0"></div>
   </div>
   <div class="pointer-events-none fixed inset-x-0 top-0 z-50 h-px bg-gradient-to-r from-transparent via-sky-400/70 to-transparent" aria-hidden="true"></div>
   <a href="#workspace-content" class="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[80] focus:rounded-lg focus:bg-sky-500 focus:px-3 focus:py-2 focus:text-sm focus:text-neutral-950">Skip to content</a>
-  <div class={`mx-auto flex min-h-screen flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8 ${activeTab === "recipes" || activeTab === "timeline" ? "max-w-[1800px]" : "max-w-[1600px]"}`}>
-    <header class="flex flex-wrap items-center justify-between gap-4">
-      <div class="flex items-center gap-3">
-        <Logo size={44} />
-        <div>
+  <div class="vf-shell mx-auto min-h-screen px-3 py-4 sm:px-5 lg:px-6">
+    <aside class="rounded-2xl border border-neutral-800 bg-neutral-950/80 p-3 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:p-4">
+      <div class="flex items-center gap-3 lg:flex-col lg:items-start">
+        <Logo size={40} />
+        <div class="min-w-0">
           <div class="flex items-center gap-2">
-            <h1 class="text-xl font-semibold tracking-tight text-white">VideoFlow</h1>
-            <span class="rounded-full border border-sky-400/20 bg-sky-400/[0.06] px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.18em] text-sky-200/80">studio</span>
+            <h1 class="text-[length:var(--vf-text-xl)] font-semibold tracking-tight text-white">VideoFlow</h1>
+            <span class="rounded-full border border-sky-400/20 bg-sky-400/[0.06] px-2 py-0.5 text-[length:var(--vf-text-2xs)] font-medium uppercase tracking-[0.16em] text-sky-200/80">studio</span>
           </div>
-          <p class="mt-1 text-xs text-neutral-400">{t(locale, "subtitle")}</p>
+          <p class="mt-1 text-[length:var(--vf-text-xs)] leading-5 text-neutral-400">{t(locale, "subtitle")}</p>
         </div>
       </div>
-      <div class="flex flex-wrap items-center gap-2 text-xs">
-        <span class="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-mono text-[11px] text-neutral-400" title="Server version">
-          <span
-            class={`mr-1.5 h-1.5 w-1.5 rounded-full ${system ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]" : connecting ? "animate-pulse bg-amber-400" : "bg-rose-400"}`}
-            aria-hidden="true"
-          ></span>
-          server {system?.version ?? (connecting ? "connecting…" : "offline")}
-        </span>
-        <span class="hidden items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-mono text-[11px] text-neutral-500 sm:inline-flex" title="UI bundle version">ui {UI_VERSION}</span>
-        <span class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-500">FFmpeg {system?.ffmpeg ? "ready" : connecting ? "checking…" : "missing"}</span>
-        <button
-          type="button"
-          onclick={() => void cycleTheme()}
-          class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300"
-          title="Cycle theme"
-          aria-label="Theme"
-        ><Icon name="palette" size={12} /><span class="sr-only">Theme</span></button>
-        <button
-          type="button"
-          onclick={() => (onboardingOpen = true)}
-          class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300"
-          title="Open the getting-started guide"
-          aria-label="Guide"
-        ><Icon name="bulb" size={12} class="mr-1" /><span class="sr-only sm:not-sr-only">Guide</span></button>
-        <button
-          type="button"
-          onclick={() => (activityOpen = true)}
-          class="relative rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300"
-          title="Activity drawer (U)"
-        >
-          <Icon name="activity" size={12} class="mr-1" /><span class="sr-only sm:not-sr-only">{t(locale, "activity")}</span>
-          {#if runningJobs.length}
-            <span class={`ml-1 rounded-full bg-sky-500/20 px-1.5 py-0.5 font-mono text-[10px] text-sky-200 ${hasRunningJob ? "animate-pulse" : ""}`}>{runningJobs.length}</span>
-          {/if}
-        </button>
-        <button
-          type="button"
-          onclick={() => (noticesOpen = true)}
-          class="relative rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300"
-          title="Notification center (N)"
-        >
-          <Icon name="info" size={12} class="mr-1" /><span class="sr-only sm:not-sr-only">{t(locale, "notifications")}</span>
-          {#if counts.errors + counts.warnings + attentionJobs.length}
-            <span class={`ml-1 rounded-full px-1.5 py-0.5 font-mono text-[10px] ${counts.errors ? "bg-rose-500/20 text-rose-200" : "bg-amber-400/20 text-amber-200"}`}>{counts.errors + counts.warnings + attentionJobs.length}</span>
-          {/if}
-        </button>
-        <button
-          type="button"
-          onclick={() => (paletteOpen = true)}
-          class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-mono text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300"
-          title="Command palette (Ctrl/Cmd + K)"
-        >⌘K</button>
-        <button
-          type="button"
-          onclick={() => (shortcutsOpen = true)}
-          class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300"
-          aria-label={t(locale, "shortcuts")}
-          title="Keyboard shortcuts (?)"
-        >?</button>
-        {#if serviceStopped}
-          <span class="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-[11px] text-amber-200">Service stopped · close this tab</span>
-        {:else}
-          <button type="button" onclick={() => void restartLocalService()} disabled={Boolean(serviceBusy)} class="hidden rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-neutral-400 transition hover:border-sky-500/50 hover:text-sky-300 disabled:opacity-40 sm:inline-flex">
-            {serviceBusy === "restart" ? "Restarting…" : "Restart service"}
-          </button>
-          <button type="button" onclick={() => void stopLocalService()} disabled={Boolean(serviceBusy)} class="hidden rounded-full border border-rose-500/20 bg-rose-500/[0.04] px-3 py-1 text-[11px] text-rose-300 transition hover:border-rose-400/40 hover:bg-rose-500/10 disabled:opacity-40 sm:inline-flex">
-            {serviceBusy === "stop" ? "Stopping…" : "Stop service"}
-          </button>
-        {/if}
-      </div>
-    </header>
 
-    <nav class="sticky top-0 z-20 -mx-1 rounded-2xl border border-neutral-800 bg-neutral-950/95 p-1 shadow-lg shadow-black/30 backdrop-blur" aria-label={t(locale, "workspace")}>
-      <div class="overflow-x-auto">
-        <div class="flex min-w-max gap-1" role="tablist" aria-label={t(locale, "workspace")}>
+      <nav class="mt-4" aria-label={t(locale, "workspace")}>
+        <div class="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0" role="tablist" aria-label={t(locale, "workspace")}>
           {#each AREAS as area}
             <button
               type="button"
@@ -713,44 +642,149 @@ import { noticeCounts } from "$lib/notifications";
               title={t(locale, `${area.id}_hint`)}
               onclick={() => selectTab(defaultTabForArea(area.id))}
               onkeydown={(event) => onTabKey(event, AREAS.map((item) => item.id), area.id, (id) => selectTab(defaultTabForArea(id as AreaId)))}
-              class={`rounded-xl px-2 py-2 text-[10px] font-medium transition sm:px-3.5 sm:text-xs ${activeArea === area.id ? "bg-sky-500/15 text-sky-200 ring-1 ring-inset ring-sky-400/20" : "text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-200"}`}
+              class={`flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-[length:var(--vf-text-sm)] font-medium transition-colors lg:w-full ${activeArea === area.id ? "bg-sky-500/15 text-sky-100 ring-1 ring-inset ring-sky-400/20" : "text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-100"}`}
             >
-              <Icon name={AREA_ICONS[area.id]} size={14} class="mr-1 sm:mr-1.5" />
-              {t(locale, area.id)}
+              <Icon name={AREA_ICONS[area.id]} size={15} class={activeArea === area.id ? "text-sky-300" : ""} />
+              <span class="whitespace-nowrap">{t(locale, area.id)}</span>
             </button>
           {/each}
         </div>
-      </div>
-      {#if subTabs.length > 1}
-        <div class="mt-1 overflow-x-auto border-t border-neutral-800/70 pt-1">
-          <div class="flex min-w-max gap-1 px-1" role="tablist" aria-label={t(locale, activeArea)}>
-            {#each subTabs as tabId}
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === tabId}
-                aria-label={t(locale, tabId)}
-                title={TAB_HINTS[tabId]}
-                onclick={() => selectTab(tabId)}
-                onkeydown={(event) => onTabKey(event, subTabs, tabId, (id) => selectTab(id as TabId))}
-                class={`rounded-lg px-2.5 py-1 text-[11px] transition ${activeTab === tabId ? "bg-white/[0.06] text-neutral-100" : "text-neutral-500 hover:text-neutral-200"}`}
-              >
-                <Icon name={TAB_ICONS[tabId]} size={12} class="mr-1 sm:mr-1.5" />
-                {t(locale, tabId)}
-              </button>
-            {/each}
+
+        {#if subTabs.length > 1}
+          <div class="mt-3 border-t border-neutral-800 pt-3">
+            <p class="vf-label mb-2 hidden lg:block">{t(locale, activeArea)}</p>
+            <div class="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0" role="tablist" aria-label={t(locale, activeArea)}>
+              {#each subTabs as tabId}
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tabId}
+                  aria-label={t(locale, tabId)}
+                  title={TAB_HINTS[tabId]}
+                  onclick={() => selectTab(tabId)}
+                  onkeydown={(event) => onTabKey(event, subTabs, tabId, (id) => selectTab(id as TabId))}
+                  class={`flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[length:var(--vf-text-xs)] transition-colors lg:w-full ${activeTab === tabId ? "bg-white/[0.07] text-neutral-100" : "text-neutral-500 hover:bg-white/[0.03] hover:text-neutral-200"}`}
+                >
+                  <Icon name={TAB_ICONS[tabId]} size={13} class={activeTab === tabId ? "text-sky-300" : ""} />
+                  <span class="whitespace-nowrap">{t(locale, tabId)}</span>
+                </button>
+              {/each}
+            </div>
           </div>
+        {/if}
+      </nav>
+
+      <div class="mt-4 hidden space-y-2 border-t border-neutral-800 pt-3 lg:block">
+        <span class="inline-flex w-full items-center rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 font-mono text-[length:var(--vf-text-2xs)] text-neutral-400" title="Server version">
+          <span class={`mr-1.5 h-1.5 w-1.5 rounded-full ${system ? "bg-emerald-400" : connecting ? "animate-pulse bg-amber-400" : "bg-rose-400"}`} aria-hidden="true"></span>
+          server {system?.version ?? (connecting ? "connecting…" : "offline")}
+        </span>
+        <div class="flex items-center justify-between gap-2 px-1 text-[length:var(--vf-text-2xs)] text-neutral-500">
+          <span title="UI bundle version">ui {UI_VERSION}</span>
+          <span>FFmpeg {system?.ffmpeg ? "ready" : connecting ? "checking…" : "missing"}</span>
+        </div>
+      </div>
+    </aside>
+
+    <div class="flex min-w-0 flex-col gap-4">
+      <header class="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-neutral-800 bg-neutral-950/80 px-4 py-3">
+        <div class="min-w-0">
+          <div class="flex items-center gap-1.5 text-[length:var(--vf-text-xs)] text-neutral-500">
+            <span>{t(locale, activeArea)}</span>
+            <span aria-hidden="true">/</span>
+            <span class="text-neutral-300">{t(locale, activeTab)}</span>
+          </div>
+          <p class="mt-1 truncate text-[length:var(--vf-text-xl)] font-semibold tracking-tight text-white">{t(locale, activeTab)}</p>
+          <p class="mt-0.5 hidden max-w-2xl truncate text-[length:var(--vf-text-xs)] text-neutral-500 sm:block">{TAB_HINTS[activeTab]}</p>
+        </div>
+        <div class="flex flex-wrap items-center justify-end gap-1.5">
+          <span class="inline-flex items-center rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1 font-mono text-[length:var(--vf-text-2xs)] text-neutral-400 lg:hidden" title="Server status">
+            <span class={`mr-1.5 h-1.5 w-1.5 rounded-full ${system ? "bg-emerald-400" : connecting ? "animate-pulse bg-amber-400" : "bg-rose-400"}`} aria-hidden="true"></span>
+            {system?.version ?? (connecting ? "connecting…" : "offline")}
+          </span>
+          <button
+            type="button"
+            onclick={() => void cycleTheme()}
+            class="inline-flex h-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] px-2.5 text-neutral-400 transition-colors hover:border-sky-500/50 hover:text-sky-200"
+            title="Cycle theme"
+            aria-label="Theme"
+          ><Icon name="palette" size={15} /><span class="sr-only">Theme</span></button>
+          <button
+            type="button"
+            onclick={() => (onboardingOpen = true)}
+            class="inline-flex h-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] px-2.5 text-neutral-400 transition-colors hover:border-sky-500/50 hover:text-sky-200"
+            title="Open the getting-started guide"
+            aria-label="Guide"
+          ><Icon name="bulb" size={15} /><span class="sr-only md:not-sr-only md:ml-1.5">Guide</span></button>
+          <button
+            type="button"
+            onclick={() => (activityOpen = true)}
+            class="relative inline-flex h-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] px-2.5 text-[length:var(--vf-text-xs)] text-neutral-400 transition-colors hover:border-sky-500/50 hover:text-sky-200"
+            title="Activity drawer (U)"
+          >
+            <Icon name="activity" size={14} class="mr-1.5" /><span class="sr-only md:not-sr-only">{t(locale, "activity")}</span>
+            {#if runningJobs.length}
+              <span class={`ml-1.5 rounded-full bg-sky-500/20 px-1.5 py-0.5 font-mono text-[length:var(--vf-text-2xs)] text-sky-200 ${hasRunningJob ? "animate-pulse" : ""}`}>{runningJobs.length}</span>
+            {/if}
+          </button>
+          <button
+            type="button"
+            onclick={() => (noticesOpen = true)}
+            class="relative inline-flex h-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] px-2.5 text-[length:var(--vf-text-xs)] text-neutral-400 transition-colors hover:border-sky-500/50 hover:text-sky-200"
+            title="Notification center (N)"
+          >
+            <Icon name="info" size={14} class="mr-1.5" /><span class="sr-only md:not-sr-only">{t(locale, "notifications")}</span>
+            {#if counts.errors + counts.warnings + attentionJobs.length}
+              <span class={`ml-1.5 rounded-full px-1.5 py-0.5 font-mono text-[length:var(--vf-text-2xs)] ${counts.errors ? "bg-rose-500/20 text-rose-200" : "bg-amber-400/20 text-amber-200"}`}>{counts.errors + counts.warnings + attentionJobs.length}</span>
+            {/if}
+          </button>
+          <button
+            type="button"
+            onclick={() => (paletteOpen = true)}
+            class="hidden h-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] px-2.5 font-mono text-[length:var(--vf-text-xs)] text-neutral-400 transition-colors hover:border-sky-500/50 hover:text-sky-200 sm:inline-flex"
+            title="Command palette (Ctrl/Cmd + K)"
+          >⌘K</button>
+          <button
+            type="button"
+            onclick={() => (shortcutsOpen = true)}
+            class="hidden h-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] px-2.5 text-[length:var(--vf-text-xs)] text-neutral-400 transition-colors hover:border-sky-500/50 hover:text-sky-200 sm:inline-flex"
+            aria-label={t(locale, "shortcuts")}
+            title="Keyboard shortcuts (?)"
+          >?</button>
+          {#if serviceStopped}
+            <span class="rounded-lg border border-amber-400/20 bg-amber-400/10 px-2.5 py-1 text-[length:var(--vf-text-2xs)] text-amber-200">Service stopped · close this tab</span>
+          {:else}
+            <button type="button" onclick={() => void restartLocalService()} disabled={Boolean(serviceBusy)} class="hidden h-9 items-center rounded-lg border border-white/10 bg-white/[0.03] px-2.5 text-[length:var(--vf-text-2xs)] text-neutral-400 transition-colors hover:border-sky-500/50 hover:text-sky-200 disabled:opacity-40 lg:inline-flex">
+              {serviceBusy === "restart" ? "Restarting…" : "Restart service"}
+            </button>
+            <button type="button" onclick={() => void stopLocalService()} disabled={Boolean(serviceBusy)} class="hidden h-9 items-center rounded-lg border border-rose-500/20 bg-rose-500/[0.04] px-2.5 text-[length:var(--vf-text-2xs)] text-rose-300 transition-colors hover:border-rose-400/40 hover:bg-rose-500/10 disabled:opacity-40 lg:inline-flex">
+              {serviceBusy === "stop" ? "Stopping…" : "Stop service"}
+            </button>
+          {/if}
+        </div>
+      </header>
+
+      {#if runningJobs.length || attentionJobs.length}
+        <div class="rounded-xl border border-sky-500/20 bg-sky-950/20 px-3 py-2 text-[length:var(--vf-text-xs)]">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="text-sky-100/80">
+              {runningJobs.length} {t(locale, "running")}
+              {#if attentionJobs.length}· {attentionJobs.length} {t(locale, "needs_you")}{/if}
+            </p>
+            <button type="button" onclick={() => selectTab("jobs")} class="rounded-lg border border-sky-400/20 bg-sky-400/10 px-2.5 py-1 text-sky-100 transition-colors hover:bg-sky-400/15">
+              {t(locale, "open_runs")}
+            </button>
+          </div>
+          {#if runningJobs[0]}
+            <div class="mt-2 flex items-center gap-2">
+              <Progress value={runningJobs[0].progress} label={runningJobs[0].message || runningJobs[0].stage} />
+              <span class="shrink-0 font-mono text-[length:var(--vf-text-2xs)] text-sky-200/70">{runningJobs[0].progress}%</span>
+            </div>
+          {/if}
         </div>
       {/if}
-    </nav>
 
-    <div class="flex items-center gap-1.5 text-[11px] text-neutral-500" aria-label="Breadcrumb">
-      <span class="text-neutral-400">{t(locale, activeArea)}</span>
-      <span aria-hidden="true">/</span>
-      <span class="text-neutral-200">{t(locale, activeTab)}</span>
-      <span class="ml-2 hidden text-neutral-600 sm:inline">{TAB_HINTS[activeTab]}</span>
-    </div>
-    <p class="sr-only" aria-live="polite">{t(locale, activeArea)} · {t(locale, activeTab)}</p>
+      <p class="sr-only" aria-live="polite">{t(locale, activeArea)} · {t(locale, activeTab)}</p>
 
     <ErrorBanner
       message={[serviceError, systemError].filter(Boolean).join(" · ")}
@@ -870,6 +904,7 @@ import { noticeCounts } from "$lib/notifications";
       </p>
       <p class="text-neutral-600">Project state is the timeline source of truth · SQLite indexes jobs, assets, and batches</p>
     </footer>
+    </div>
   </div>
 </div>
 

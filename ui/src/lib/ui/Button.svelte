@@ -35,9 +35,9 @@
     success: "border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20"
   };
   const sizes: Record<string, string> = {
-    xs: "px-1.5 py-0.5 text-[9px] gap-1",
-    sm: "px-2 py-1 text-[10px] gap-1.5",
-    md: "px-3 py-1.5 text-xs gap-1.5"
+    xs: "min-h-7 px-2 py-1 text-[length:var(--vf-text-2xs)] gap-1",
+    sm: "min-h-8 px-2.5 py-1.5 text-[length:var(--vf-text-xs)] gap-1.5",
+    md: "min-h-9 px-3 py-1.5 text-[length:var(--vf-text-sm)] gap-1.5"
   };
 </script>
 
@@ -47,7 +47,7 @@
   {title}
   data-testid={testid || undefined}
   onclick={onclick}
-  class={`inline-flex items-center rounded-lg border font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${variants[variant]} ${sizes[size]} ${className}`}
+  class={`inline-flex items-center justify-center rounded-lg border font-medium transition-colors duration-150 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-40 ${variants[variant]} ${sizes[size]} ${className}`}
 >
   {#if icon}<Icon name={icon} size={size === "xs" ? 11 : size === "sm" ? 12 : 14} />{/if}
   {#if children}{@render children()}{/if}

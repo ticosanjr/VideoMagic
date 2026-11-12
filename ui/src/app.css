@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@xyflow/svelte/dist/style.css";
+@import "./design/tokens.css";
 
 @theme {
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -163,14 +164,6 @@ html:not([data-theme="light"]):not([data-theme="high-contrast"]) .text-neutral-6
 ::selection {
   background: rgba(56, 189, 248, 0.28);
   color: #ffffff;
-}
-
-.vf-grid {
-  background-image:
-    linear-gradient(to right, rgba(148, 163, 184, 0.16) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(148, 163, 184, 0.16) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black, transparent 78%);
 }
 
 @keyframes vf-slide {

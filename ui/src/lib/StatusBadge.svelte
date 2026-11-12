@@ -39,7 +39,7 @@
 </script>
 
 <span
-  class={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide ${TONES[status] ?? TONES.queued}`}
+  class={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[length:var(--vf-text-2xs)] font-semibold uppercase tracking-wide ${TONES[status] ?? TONES.queued}`}
   title={ACTIONS[status] ?? status}
   aria-label={`${status.replaceAll("_", " ")}. ${ACTIONS[status] ?? ""}`}
 >

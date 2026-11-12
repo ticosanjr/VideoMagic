@@ -57,8 +57,8 @@
       >
         <header class="flex items-start justify-between gap-3 border-b border-neutral-800 px-4 py-3">
           <div class="min-w-0">
-            <h3 class="truncate text-sm font-semibold text-white">{title}</h3>
-            {#if description}<p class="mt-0.5 text-[10px] leading-4 text-neutral-500">{description}</p>{/if}
+            <h3 class="truncate text-[length:var(--vf-text-base)] font-semibold text-white">{title}</h3>
+            {#if description}<p class="mt-1 text-[length:var(--vf-text-xs)] leading-5 text-neutral-400">{description}</p>{/if}
           </div>
           <button
             type="button"

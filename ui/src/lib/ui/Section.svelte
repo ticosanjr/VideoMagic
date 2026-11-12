@@ -24,8 +24,8 @@
   let expanded = $state(true);
   const tones: Record<string, string> = {
     neutral: "border-neutral-800 bg-neutral-900/60",
-    input: "border-sky-500/20 bg-sky-950/10",
-    output: "border-emerald-500/15 bg-emerald-950/10",
+    input: "border-sky-500/25 bg-sky-950/15",
+    output: "border-emerald-500/20 bg-emerald-950/15",
     config: "border-neutral-800 bg-neutral-900/60"
   };
   const titleTones: Record<string, string> = {
@@ -40,7 +40,7 @@
   <div class="flex items-center justify-between gap-2">
     <button
       type="button"
-      class={`flex items-center gap-1.5 text-[10px] uppercase tracking-wide ${titleTones[tone]}`}
+      class={`flex min-h-8 items-center gap-2 text-[length:var(--vf-text-xs)] font-semibold uppercase tracking-wide ${titleTones[tone]}`}
       aria-expanded={collapsible ? expanded : undefined}
       onclick={() => { if (collapsible) expanded = !expanded; }}
     >
