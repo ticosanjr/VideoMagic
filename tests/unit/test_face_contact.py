@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 from videoflow.application.timeline_meta import load_meta
 from videoflow.core.context import PipelineContext
@@ -12,6 +14,7 @@ from videoflow.steps.face_contact import (
     FaceContactParams,
     FaceContactStep,
     _analyze_frame,
+    _analyze_mediapipe,
     _merge_intervals,
 )
 
@@ -28,12 +31,46 @@ class FakeEyes:
 
 class FakeCv2:
     COLOR_BGR2GRAY = 0
+    COLOR_BGR2RGB = 1
 
     def cvtColor(self, image, code):
         return image
 
     def imread(self, path):
         return np.zeros((100, 100, 3), dtype=np.uint8)
+
+
+class FakeFaceMesh:
+    def __init__(self) -> None:
+        start = [SimpleNamespace(x=0.5, y=0.5) for _ in range(468)]
+        for index, (x, y) in {
+            33: (0.40, 0.40),
+            133: (0.45, 0.40),
+            159: (0.42, 0.38),
+            145: (0.42, 0.42),
+            362: (0.55, 0.40),
+            263: (0.60, 0.40),
+            386: (0.57, 0.38),
+            374: (0.57, 0.42),
+        }.items():
+            start[index] = SimpleNamespace(x=x, y=y)
+        self.landmarks = start
+
+    def process(self, image):
+        return SimpleNamespace(
+            multi_face_landmarks=[SimpleNamespace(landmark=self.landmarks)]
+        )
+
+    def close(self) -> None:
+        pass
+
+
+class FakeMediaPipe:
+    class solutions:
+        class face_mesh:
+            @staticmethod
+            def FaceMesh(**kwargs):
+                return FakeFaceMesh()
 
 
 class FakeAdapter:
@@ -61,6 +98,42 @@ def test_merge_intervals_keeps_nearby_frames() -> None:
     assert len(spans) == 2
     assert spans[0]["start_sec"] == 1.0
     assert spans[1]["start_sec"] == 10.0
+
+
+def test_mediapipe_eye_contact_and_step(tmp_path: Path, monkeypatch) -> None:
+    ok, confidence, ratio = _analyze_mediapipe(
+        FakeFaceMesh(),
+        FakeCv2(),
+        np.zeros((100, 100, 3), dtype=np.uint8),
+        min_face_ratio=0.1,
+        center_tolerance=0.3,
+        min_eyes=2,
+    )
+    assert ok is True
+    assert confidence > 0.5
+    assert ratio == pytest.approx(0.2)
+
+    monkeypatch.setattr("videoflow.steps.face_contact._cv2", lambda: FakeCv2())
+    monkeypatch.setattr(
+        "videoflow.steps.face_contact._mediapipe", lambda: FakeMediaPipe()
+    )
+    context = PipelineContext(
+        source=tmp_path / "source.mp4",
+        output=tmp_path / "out",
+        work=tmp_path / "out" / "work",
+        exports=tmp_path / "out" / "exports",
+    )
+    FaceContactStep().run(
+        context,
+        FaceContactParams(backend="mediapipe"),
+        StepIO(adapter=FakeAdapter()),
+    )
+    payload = json.loads(
+        (tmp_path / "out" / "vision" / "face-contact.json").read_text()
+    )
+    assert payload["available"] is True
+    assert payload["backend"] == "mediapipe"
+    assert payload["green_label_count"] == 1
 
 
 def test_face_contact_fallback_and_markers(tmp_path: Path, monkeypatch) -> None:

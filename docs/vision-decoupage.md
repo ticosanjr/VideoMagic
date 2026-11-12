@@ -74,3 +74,11 @@ keyed by the PCM digest. If the job stops mid-transcription, the next run loads
 the partial sentences, trims the WAV tail, and resumes with an absolute sample
 offset instead of redoing the entire recording. The partial file is removed on
 success.
+
+
+## Eye-contact backends
+
+`vision.face_contact` prefers MediaPipe Face Mesh when `mediapipe` is installed,
+then falls back to the OpenCV Haar path, and finally to the manual HILT audit.
+Set `backend` to `mediapipe`, `opencv`, `auto`, or `none`. MediaPipe uses eye
+aspect ratio and face centering; OpenCV uses the largest face plus eye cascades.
