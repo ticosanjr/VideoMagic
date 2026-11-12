@@ -3,6 +3,9 @@
   import Button from "$lib/ui/Button.svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
   import HiltPanel from "$lib/HiltPanel.svelte";
+  import DocumentaryOverview from "$lib/DocumentaryOverview.svelte";
+  import FootageOverview from "$lib/FootageOverview.svelte";
+  import SyntheticOverview from "$lib/SyntheticOverview.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Progress from "$lib/ui/Progress.svelte";
   import StatusBadge from "$lib/StatusBadge.svelte";
@@ -42,8 +45,24 @@
   let inFlight = false;
 
   const groups = $derived(recipe?.ui?.groups ?? []);
+  const kind = $derived.by(() => {
+    const id =
+      recipe?.id ||
+      job?.result?.recipe_id ||
+      job?.interaction?.recipe_id ||
+      "";
+    if (id === "synthetic_code_studio") return "synthetic";
+    if (id === "footage_intelligence_edit") return "footage";
+    if (["lamera_video_edit", "full_ai_editor", "deepseek_full_edit"].includes(id)) {
+      return "documentary";
+    }
+    return "generic";
+  });
   const artifacts = $derived(
     Object.entries(job?.result?.artifacts ?? {}) as Array<[string, string]>
+  );
+  const artifactMap = $derived(
+    Object.fromEntries(artifacts) as Record<string, string>
   );
   const terminal = $derived(
     job ? ["succeeded", "failed", "cancelled"].includes(job.status) : false
@@ -266,6 +285,13 @@
               </div>
               <div class="mt-3"><Progress value={job.progress} label={job.stage} /></div>
             </section>
+            {#if kind === "synthetic"}
+              <SyntheticOverview jobId={jobId} artifacts={artifactMap} />
+            {:else if kind === "footage"}
+              <FootageOverview jobId={jobId} />
+            {:else if kind === "documentary"}
+              <DocumentaryOverview jobId={jobId} title={recipe?.name ?? "Documentary pipeline"} />
+            {/if}
             <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
               <p class="vf-label">Recent log</p>
               {#if logs.length}

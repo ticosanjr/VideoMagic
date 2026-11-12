@@ -61,6 +61,49 @@ const job = {
   }
 };
 
+const syntheticJob = {
+  ...job,
+  job_id: "job-synthetic",
+  status: "succeeded",
+  progress: 100,
+  stage: "export_master",
+  message: "Master ready",
+  interaction: null,
+  result: {
+    ok: true,
+    recipe_id: "synthetic_code_studio",
+    artifacts: {
+      script_json: "/out/script/script.json",
+      factcheck: "/out/factcheck/report.json",
+      storyboard_units: "/out/storyboard/units.json",
+      motion_manifest: "/out/motion/render-manifest.json"
+    },
+    step_runs: []
+  }
+};
+
+const footageJob = {
+  ...job,
+  job_id: "job-footage",
+  status: "succeeded",
+  progress: 100,
+  stage: "export_video",
+  message: "Video ready",
+  interaction: null,
+  result: {
+    ok: true,
+    recipe_id: "footage_intelligence_edit",
+    artifacts: {
+      vision_ocr: "/out/vision/ocr.json",
+      vision_tracks: "/out/vision/tracks.json",
+      motion_callouts: "/out/motion/callouts.json",
+      qa_frames: "/out/qa/frames.json",
+      assets_licenses: "/out/assets/ledger.json"
+    },
+    step_runs: []
+  }
+};
+
 const recipe = {
   ...fixture("recipe.json").recipe,
   id: "lamera_video_edit",
@@ -116,6 +159,61 @@ async function mockApi(page: Page) {
     if (path === "/api/v1/recipes/lamera_video_edit") {
       return route.fulfill({ json: { ok: true, recipe } });
     }
+    if (path === "/api/v1/recipes/synthetic_code_studio") {
+      return route.fulfill({
+        json: {
+          ok: true,
+          recipe: { ...recipe, id: "synthetic_code_studio", name: "Synthetic Code Studio" }
+        }
+      });
+    }
+    if (path === "/api/v1/recipes/footage_intelligence_edit") {
+      return route.fulfill({
+        json: {
+          ok: true,
+          recipe: { ...recipe, id: "footage_intelligence_edit", name: "Footage Intelligence Edit" }
+        }
+      });
+    }
+    if (path === "/api/v1/jobs/job-synthetic") {
+      return route.fulfill({ json: { ok: true, job: syntheticJob } });
+    }
+    if (path === "/api/v1/jobs/job-footage") {
+      return route.fulfill({ json: { ok: true, job: footageJob } });
+    }
+    if (path.startsWith("/api/v1/jobs/job-synthetic/logs") || path.startsWith("/api/v1/jobs/job-footage/logs")) {
+      return route.fulfill({ json: { ok: true, logs: [] } });
+    }
+    if (path.endsWith("/interactions")) {
+      return route.fulfill({ json: { ok: true, interactions: [] } });
+    }
+    if (path.endsWith("/artifacts/script_json")) {
+      return route.fulfill({ json: { sections: [{ title: "Opening", narration: "Hello world", visual: "Title card" }] } });
+    }
+    if (path.endsWith("/artifacts/factcheck")) {
+      return route.fulfill({ json: { claims: [], unsupported_count: 0 } });
+    }
+    if (path.endsWith("/artifacts/storyboard_units")) {
+      return route.fulfill({ json: { units: [{ unit_id: "UNIT-0001", title: "Opening", start_sec: 0, end_sec: 4, layout: "full_screen" }] } });
+    }
+    if (path.endsWith("/artifacts/motion_manifest")) {
+      return route.fulfill({ json: { scenes: [{ scene_id: "SCENE-0001", title: "Opening", duration_sec: 4 }] } });
+    }
+    if (path.endsWith("/artifacts/vision_ocr")) {
+      return route.fulfill({ json: { frames: [{ frame: "frame-00001.png", time_sec: 0, boxes: [{ text: "Hello" }] }] } });
+    }
+    if (path.endsWith("/artifacts/vision_tracks")) {
+      return route.fulfill({ json: { tracks: [{ text: "Hello", start_sec: 0, points: [{ time: 0, x: 10, y: 10 }] }] } });
+    }
+    if (path.endsWith("/artifacts/motion_callouts")) {
+      return route.fulfill({ json: { callouts: [{ text: "Hello", start_sec: 0, duration_sec: 3, position_x: 0.1, position_y: 0.7 }] } });
+    }
+    if (path.endsWith("/artifacts/qa_frames")) {
+      return route.fulfill({ json: { issues: [], critical_count: 0 } });
+    }
+    if (path.endsWith("/artifacts/assets_licenses")) {
+      return route.fulfill({ json: { entries: [{ asset: "clip.mp4" }] } });
+    }
     if (path === "/api/v1/hilt/pending") {
       return route.fulfill({
         json: {
@@ -166,4 +264,21 @@ test("renders the workspace directly from a run hash", async ({ page }) => {
   await expect(page.getByText("Research dossier ready")).toBeVisible();
   await page.getByRole("tab", { name: "History" }).click();
   await expect(page.getByText("Research approved").first()).toBeVisible();
+});
+
+
+test("shows the synthetic pipeline panels", async ({ page }) => {
+  await page.goto("/#run/job-synthetic");
+  await expect(page.getByTestId("synthetic-overview")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Script → voice → scenes")).toBeVisible();
+  await expect(page.getByText("Timed storyboard")).toBeVisible();
+  await expect(page.getByText("Opening").first()).toBeVisible();
+});
+
+test("shows the footage pipeline panels", async ({ page }) => {
+  await page.goto("/#run/job-footage");
+  await expect(page.getByTestId("footage-overview")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Footage → anchors → delivery")).toBeVisible();
+  await expect(page.getByText("Vision anchors")).toBeVisible();
+  await expect(page.getByText("Callout cards")).toBeVisible();
 });

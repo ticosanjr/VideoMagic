@@ -802,6 +802,48 @@ export const GLOSSARY: Record<string, string> = {
   "This run is no longer available.": "Esta execução não está mais disponível.",
   "Use Open runs to switch between active runs and gates.":
     "Use Abrir execuções para alternar entre execuções ativas e gates.",
+  "Audio QA": "QA de áudio",
+  "Callout cards": "Cartões de callout",
+  "Callouts": "Callouts",
+  "Callouts appear after the anchor review.":
+    "Callouts aparecem depois da revisão das âncoras.",
+  "Claims": "Alegações",
+  "Fact-check": "Fact-check",
+  "Footage Intelligence Edit": "Footage Intelligence Edit",
+  "Footage → anchors → delivery": "Footage → âncoras → entrega",
+  "Licenses": "Licenças",
+  "Licenses and QA": "Licenças e QA",
+  "Narration": "Narração",
+  "Narration audio appears after synthesis.":
+    "O áudio da narração aparece depois da síntese.",
+  "OCR": "OCR",
+  "OCR frames appear after the vision pass.":
+    "Frames de OCR aparecem depois da passagem de visão.",
+  "Rendered scenes": "Cenas renderizadas",
+  "Review queue": "Fila de revisão",
+  "Scenes appear after rendering.": "Cenas aparecem depois da renderização.",
+  "Script": "Roteiro",
+  "Script and research": "Roteiro e pesquisa",
+  "Script artifacts appear after the script step.":
+    "Artefatos do roteiro aparecem depois da etapa de roteiro.",
+  "Script → voice → scenes": "Roteiro → voz → cenas",
+  "Synthetic Code Studio": "Synthetic Code Studio",
+  "The dual script appears after research approval.":
+    "O roteiro duplo aparece depois da aprovação da pesquisa.",
+  "Timed storyboard": "Storyboard temporizado",
+  "Tracked anchors": "Âncoras rastreadas",
+  "Tracks": "Tracks",
+  "Tracks appear after OCR anchors are approved.":
+    "Tracks aparecem depois da aprovação das âncoras de OCR.",
+  "Unit storyboard": "Storyboard de unidades",
+  "Units": "Unidades",
+  "Units appear after narration alignment.":
+    "Unidades aparecem depois do alinhamento da narração.",
+  "Units appear after the timeline is built.":
+    "Unidades aparecem depois da construção da timeline.",
+  "Vision anchors": "Âncoras visuais",
+  "Voice and timing": "Voz e timing",
+  "Words": "Palavras",
   "Create profile": "Criar perfil",
   "Voice clone": "Clone de voz",
 };
