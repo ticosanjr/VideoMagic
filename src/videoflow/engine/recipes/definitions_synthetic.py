@@ -472,7 +472,7 @@ _STEPS: list[dict[str, Any]] = [
         "id": "audio_mix",
         "type": "audio.mix",
         "needs": ["narration_synthesize", "audio_compose", "sfx_synthesize"],
-        "params": {"music_gain": 0.20, "duck_music": True},
+        "params": {"music_gain": 0.20, "duck_music": True, "target_lufs": -14.0},
     },
     {
         "id": "audio_qa",

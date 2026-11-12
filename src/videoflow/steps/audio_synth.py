@@ -212,6 +212,7 @@ class MixParams(BaseModel):
     duck_ratio: float = Field(default=8.0, ge=1.0, le=20.0)
     duck_attack_ms: int = Field(default=20, ge=1, le=500)
     duck_release_ms: int = Field(default=300, ge=10, le=2000)
+    target_lufs: float = Field(default=0.0, ge=-30.0, le=0.0)
     output_name: str = Field(default="final.wav", max_length=120)
 
 
@@ -326,9 +327,15 @@ class AudioMixStep(BaseStep):
                 f"[{index}:a]{chain},adelay={start_ms}:all=1[sfx{index}]"
             )
             mix_labels.append(f"[sfx{index}]")
+        loudness = (
+            f",loudnorm=I={options.target_lufs}:TP=-1.5:LRA=11"
+            if options.target_lufs < 0
+            else ""
+        )
         filter_parts.append(
             f"{''.join(mix_labels)}amix=inputs={len(mix_labels)}:"
-            "duration=first:dropout_transition=2:normalize=0,alimiter=limit=0.95[mix]"
+            "duration=first:dropout_transition=2:normalize=0,"
+            f"alimiter=limit=0.95{loudness}[mix]"
         )
         command = [
             binary,
