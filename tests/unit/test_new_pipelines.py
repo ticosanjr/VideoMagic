@@ -397,3 +397,46 @@ def test_vision_qa_extracts_structured_issues() -> None:
             "start_sec": 2.5,
         }
     ]
+
+
+def test_scene_codegen_copies_three_js_and_wires_the_camera(tmp_path: Path) -> None:
+    context = _context(tmp_path)
+    (context.output / "storyboard").mkdir(parents=True)
+    (context.output / "storyboard" / "units.json").write_text(
+        json.dumps(
+            {
+                "units": [
+                    {
+                        "unit_id": "UNIT-0001",
+                        "title": "Teste 3D",
+                        "start_sec": 0,
+                        "end_sec": 4,
+                        "duration_sec": 4,
+                        "narration": "texto",
+                        "layout": "full_screen",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    (context.output / "style").mkdir(parents=True)
+    (context.output / "style" / "style-guide.json").write_text(
+        json.dumps({"palette": ["#080B10", "#F8FAFC", "#FF3B30"]}),
+        encoding="utf-8",
+    )
+    three = tmp_path / "three.module.js"
+    three.write_text("export const REVISION = 'test';\n", encoding="utf-8")
+
+    SceneCodegenStep().run(
+        context,
+        SceneCodegenParams(three_js_path=str(three)),
+        StepIO(),
+    )
+
+    assert (context.output / "motion" / "code" / "three.module.js").is_file()
+    html = (
+        context.output / "motion" / "code" / "SCENE-0001.html"
+    ).read_text(encoding="utf-8")
+    assert "threeSetTime" in html
+    assert "import * as THREE" in html

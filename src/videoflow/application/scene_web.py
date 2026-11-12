@@ -31,7 +31,12 @@ def _asset_uri(path: str) -> str:
     return candidate.resolve().as_uri() if candidate.is_file() else ""
 
 
-def scene_html(scene: dict[str, Any], *, title_style: str = "lower_third") -> str:
+def scene_html(
+    scene: dict[str, Any],
+    *,
+    title_style: str = "lower_third",
+    three_js: bool = False,
+) -> str:
     background = _css_color(str(scene.get("background") or ""), "#080B10")
     accent = _css_color(str(scene.get("accent") or ""), "#FF3B30")
     text_color = _css_color(str(scene.get("text_color") or ""), "#F8FAFC")
@@ -70,6 +75,41 @@ def scene_html(scene: dict[str, Any], *, title_style: str = "lower_third") -> st
         if title_style == "lower_third"
         else "fadeIn 0.7s ease-out both"
     )
+    three_script = (
+        """<script type="module">
+import * as THREE from './three.module.js';
+const canvas = document.getElementById('three-canvas');
+const renderer = new THREE.WebGLRenderer({canvas, alpha: true, antialias: true});
+const scene3d = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+camera.position.set(0, 0, 6);
+const geometry = new THREE.PlaneGeometry(4.6, 2.6, 32, 32);
+const material = new THREE.MeshStandardMaterial({color: 0x0f172a, roughness: 0.55, metalness: 0.25, side: THREE.DoubleSide});
+const mesh = new THREE.Mesh(geometry, material);
+scene3d.add(mesh);
+const light = new THREE.DirectionalLight(0xffffff, 2.4);
+light.position.set(3, 4, 5);
+scene3d.add(light);
+scene3d.add(new THREE.AmbientLight(0xffffff, 0.7));
+function resize3d() {
+  renderer.setSize(window.innerWidth, window.innerHeight, false);
+  camera.aspect = window.innerWidth / Math.max(1, window.innerHeight);
+  camera.updateProjectionMatrix();
+}
+window.threeSetTime = (t) => {
+  mesh.rotation.y = Math.sin(t * 0.6) * 0.12;
+  mesh.rotation.x = Math.sin(t * 0.35) * 0.04;
+  camera.position.x = Math.sin(t * 0.35) * 0.25;
+  camera.lookAt(0, 0, 0);
+  renderer.render(scene3d, camera);
+};
+window.addEventListener('resize', resize3d);
+resize3d();
+window.threeSetTime(0);
+</script>"""
+        if three_js
+        else ""
+    )
     return f"""<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -88,6 +128,9 @@ def scene_html(scene: dict[str, Any], *, title_style: str = "lower_third") -> st
   .asset {{
     position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
     opacity: .72; filter: saturate(1.05) contrast(1.05);
+  }}
+  #three-canvas {{
+    position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0;
   }}
   .vignette {{
     position: absolute; inset: 0;
@@ -119,6 +162,7 @@ def scene_html(scene: dict[str, Any], *, title_style: str = "lower_third") -> st
 </head>
 <body>
 <div id="stage">
+  {('<canvas id="three-canvas"></canvas>' if three_js else '')}
   {asset_markup}
   <div class="vignette"></div>
   <div class="plane">
@@ -131,6 +175,9 @@ def scene_html(scene: dict[str, Any], *, title_style: str = "lower_third") -> st
 </div>
 <script>
   window.setTime = (seconds) => {{
+    if (window.threeSetTime) {{
+      try {{ window.threeSetTime(seconds); }} catch (error) {{}}
+    }}
     const video = document.getElementById('asset');
     if (video && video.tagName === 'VIDEO') {{
       try {{ video.currentTime = seconds; }} catch (error) {{}}
@@ -141,17 +188,25 @@ def scene_html(scene: dict[str, Any], *, title_style: str = "lower_third") -> st
     }}
   }};
 </script>
+{three_script}
 </body>
 </html>
 """
 
 
-def write_scene_html(scene: dict[str, Any], directory: Path, *, title_style: str) -> Path:
+def write_scene_html(
+    scene: dict[str, Any],
+    directory: Path,
+    *,
+    title_style: str,
+    three_js: bool = False,
+) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
     scene_id = str(scene.get("scene_id") or "SCENE")
     target = directory / f"{scene_id}.html"
     target.write_text(
-        scene_html(scene, title_style=title_style), encoding="utf-8"
+        scene_html(scene, title_style=title_style, three_js=three_js),
+        encoding="utf-8",
     )
     return target
 
@@ -186,7 +241,13 @@ def render_html_scene(
     frame_count = max(1, round(max(0.5, duration_sec) * fps))
     try:
         with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(headless=True)
+            browser = playwright.chromium.launch(
+                headless=True,
+                args=[
+                    "--allow-file-access-from-files",
+                    "--disable-web-security",
+                ],
+            )
             page = browser.new_page(viewport=viewport)
             page.goto(html_path.resolve().as_uri())
             page.wait_for_timeout(120)

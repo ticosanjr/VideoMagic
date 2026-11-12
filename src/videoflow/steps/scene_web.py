@@ -105,14 +105,19 @@ class SceneCodegenStep(BaseStep):
             raise ExportError("Scene codegen found no timed units.")
         code_dir = context.output / "motion" / "code"
         code_dir.mkdir(parents=True, exist_ok=True)
+        three_js = False
         if options.three_js_path:
             source = Path(options.three_js_path).expanduser()
             if source.is_file():
                 shutil.copy2(source, code_dir / "three.module.js")
+                three_js = True
         for scene in scenes:
             scene["engine"] = options.engine
             write_scene_html(
-                scene, code_dir, title_style=options.title_style
+                scene,
+                code_dir,
+                title_style=options.title_style,
+                three_js=three_js,
             )
         target = context.output / "motion" / "scenes.json"
         target.parent.mkdir(parents=True, exist_ok=True)

@@ -431,7 +431,9 @@ endpoint is configured, `qa.vision` sends sampled frames to it; otherwise it
 keeps the deterministic frame, transcript, and loudness checks.
 
 Optional: `uv sync --extra render` and `playwright install chromium` enable the
-headless HTML/CSS/Three.js path. OCR/stock providers are opt-in.
+headless HTML/CSS path. Set `scene.codegen.three_js_path` to a local
+`three.module.js` to add a WebGL camera and 3D plane; the renderer launches
+Chromium with local file access. OCR/stock providers are opt-in.
 
 ### Footage Intelligence Edit
 
