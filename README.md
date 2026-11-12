@@ -95,11 +95,16 @@ uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper \
 ./dist/videoflow doctor
 ./dist/videoflow recipe run youtube_talking_head ~/Videos/interview.mp4 -o ./interview-edit
 ./dist/videoflow serve --open       # API + MCP HTTP + studio UI, stays running
+./dist/videoflow tray               # tray icon that owns the local service
 ./dist/videoflow status             # PID, URL, and all discovered services
 ./dist/videoflow restart            # stop, then start again
 ./dist/videoflow stop               # stop the local service
 ./dist/videoflow mcp                # MCP over stdio
 ```
+
+`videoflow tray` needs the optional tray extra in a source checkout
+(`uv sync --extra tray`) and a desktop session. The current portable artifacts do
+not bundle it yet; without it, the command falls back to `videoflow serve`.
 
 The local release is the canonical artifact build:
 

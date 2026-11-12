@@ -81,6 +81,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _recipe(args)
         if args.command == "serve":
             return _serve(args)
+        if args.command == "tray":
+            return _tray(args)
         if args.command == "stop":
             return _stop(args)
         if args.command == "cleanup":
@@ -242,6 +244,17 @@ def _parser() -> argparse.ArgumentParser:
         "--open",
         action="store_true",
         help="Open the rack UI in the default browser after startup.",
+    )
+
+    tray = sub.add_parser(
+        "tray", help="Run a tray icon that owns the local VideoFlow service."
+    )
+    tray.add_argument("--host", default="127.0.0.1")
+    tray.add_argument("--port", type=int, default=8765)
+    tray.add_argument(
+        "--no-open",
+        action="store_true",
+        help="Do not open the UI when the tray starts.",
     )
 
     sub.add_parser(
@@ -653,6 +666,31 @@ def _recipe(args: argparse.Namespace) -> int:
         return 0
     print("Use: videoflow recipe {list,steps,show,validate,run,step,cache}", file=sys.stderr)
     return 2
+
+
+def _tray(args: argparse.Namespace) -> int:
+    from videoflow.application import tray as tray_module
+
+    os.environ.setdefault("VIDEOWFLOW_HOME", str(ensure_home()))
+    from videoflow.application.settings import load_settings
+
+    settings = load_settings()
+    host = settings.runtime.host if args.host == "127.0.0.1" else args.host
+    port = settings.runtime.port if args.port == 8765 else args.port
+    if not tray_module.tray_available():
+        print(
+            "No tray backend or display was found. Starting the terminal service "
+            "instead; install the tray extra with: uv sync --extra tray",
+            file=sys.stderr,
+        )
+        return _serve(
+            argparse.Namespace(host=host, port=port, open=not args.no_open)
+        )
+    return tray_module.run_tray(
+        host=host,
+        port=port,
+        open_browser=not args.no_open and settings.runtime.open_browser,
+    )
 
 
 def _serve(args: argparse.Namespace) -> int:

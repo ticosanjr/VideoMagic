@@ -44,6 +44,10 @@ diarization = [
 vision = [
     "opencv-python-headless>=4.10",
 ]
+tray = [
+    "pystray>=0.19",
+    "pillow>=10",
+]
 
 [project.scripts]
 videoflow = "videoflow.cli:main"
