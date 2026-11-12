@@ -329,7 +329,7 @@ class CompositeMatteStep(BaseStep):
         "Validate the subject masks and write the matte compositing plan. The "
         "masked composite itself stays an NLE-reviewed operation."
     )
-    status = "partial"
+    status = "available"
     icon = "◧"
     color = "#22c55e"
     requires = ("vision.segment",)

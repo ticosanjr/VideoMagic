@@ -80,6 +80,21 @@ try:
 except Exception:
     pass
 
+# Optional desktop/vision helpers. They are imported lazily, so PyInstaller
+# needs the package data and submodules explicitly.
+for package in ("PIL", "pystray", "pytesseract"):
+    try:
+        package_datas, package_binaries, package_hidden = collect_all(package)
+        datas += package_datas
+        binaries += package_binaries
+        hiddenimports += package_hidden
+    except Exception:
+        pass
+
+icon = ROOT / "packaging" / "videoflow.png"
+if icon.is_file():
+    datas.append((str(icon), "packaging"))
+
 if os.environ.get("VIDEOWFLOW_WITH_FASTER_WHISPER") == "1":
     for package in ("faster_whisper", "ctranslate2", "tokenizers", "av", "huggingface_hub"):
         try:
