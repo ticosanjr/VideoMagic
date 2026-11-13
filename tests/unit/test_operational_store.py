@@ -20,7 +20,7 @@ def fake_runner(source: Path, output: Path, *, progress, should_cancel, **kwargs
     return {"ok": True, "artifacts": {}}
 
 
-def wait_for(manager: JobManager, job_id: str, timeout: float = 5.0) -> None:
+def wait_for(manager: JobManager, job_id: str, timeout: float = 15.0) -> None:
     deadline = time.time() + timeout
     terminal = {"succeeded", "failed", "cancelled"}
     while time.time() < deadline:

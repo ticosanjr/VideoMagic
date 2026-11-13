@@ -6,6 +6,14 @@
   import RecutCanvas from "$lib/RecutCanvas.svelte";
   import TimelinePlayer from "$lib/TimelinePlayer.svelte";
   import TimelineInspector from "$lib/TimelineInspector.svelte";
+  import TimelineAssetRail from "$lib/timeline/TimelineAssetRail.svelte";
+  import TimelineInactiveSegments from "$lib/timeline/TimelineInactiveSegments.svelte";
+  import TimelineCaptionList from "$lib/timeline/TimelineCaptionList.svelte";
+  import TimelineMarkerList from "$lib/timeline/TimelineMarkerList.svelte";
+  import TimelineVariantCompare from "$lib/timeline/TimelineVariantCompare.svelte";
+  import TimelineRecutSelection from "$lib/timeline/TimelineRecutSelection.svelte";
+  import TimelineSelectedClip from "$lib/timeline/TimelineSelectedClip.svelte";
+  import TimelineClipComments from "$lib/timeline/TimelineClipComments.svelte";
   import Modal from "$lib/ui/Modal.svelte";
   import { fitScrollLeft, fitZoom, followScrollLeft, groupTrimEdits, liveSegments, outputForSource, sourceForOutput } from "$lib/timelineView";
   import { formatSeconds } from "$lib/format";
@@ -1888,125 +1896,51 @@
             {#snippet inspect()}
             {#if timeline}
             
-            <div class="rounded-xl border border-neutral-800 bg-neutral-900/40 p-3">
-              <div class="flex items-center justify-between">
-                <p class="text-[10px] uppercase tracking-wide text-neutral-500">Selected clip</p>
-                <span class="font-mono text-[10px] text-neutral-600">rev {timeline.revision}</span>
-              </div>
-              {#if selectedClip}
-                <p class="mt-1 break-all font-mono text-[11px] text-sky-200">{selectedClip.id}</p>
-                
-                <div class="mt-2 grid grid-cols-2 gap-2">
-                  <label class="text-[10px] text-neutral-400">Timeline in
-                    <input type="number" min="0" step="0.01" bind:value={clipStart} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
-                  </label>
-                  <label class="text-[10px] text-neutral-400">Timeline out
-                    <input type="number" min="0" step="0.01" bind:value={clipEnd} class="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
-                  </label>
-                </div>
-                <div class="mt-2 flex flex-wrap items-end gap-2">
-                  <button type="button" onclick={trimSelected} disabled={editBusy} class="rounded border border-sky-500/40 px-2 py-1 text-[10px] text-sky-300 disabled:opacity-40">Trim</button>
-                  <label class="text-[10px] text-neutral-400">Move (s)
-                    <input type="number" step="0.1" bind:value={clipDelta} class="mt-1 block w-20 rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100" />
-                  </label>
-                  <button type="button" onclick={moveSelected} disabled={editBusy} class="rounded border border-neutral-600 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">Move</button>
-                </div>
-                <p class="mt-2 text-[10px] text-neutral-500">
-                  Transition: {selectedClip.transition ?? "cut"} · keyframes: {selectedClip.keyframes ?? 0} · zoom {selectedClip.zoom?.toFixed(2) ?? "1.00"}
-                </p>
-              {:else}
-                <p class="mt-2 text-[10px] text-neutral-500">Select a clip on the canvas to inspect and edit it.</p>
-              {/if}
-              {#if editStatus}<p class="mt-1 text-[10px] text-amber-300">{editStatus}</p>{/if}
-            </div>
+            <TimelineSelectedClip
+              clip={selectedClip}
+              revision={timeline.revision}
+              bind:start={clipStart}
+              bind:end={clipEnd}
+              bind:delta={clipDelta}
+              {editBusy}
+              {editStatus}
+              onTrim={trimSelected}
+              onMove={moveSelected}
+            />
 
-            <div class="rounded-xl border border-neutral-800 bg-neutral-900/40 p-3" data-testid="inactive-list">
-              <div class="flex items-center justify-between">
-                <p class="text-[10px] uppercase tracking-wide text-neutral-500">Inactive segments</p>
-                <span class="text-[9px] text-neutral-600">{timeline.inactive.length}</span>
-              </div>
-              <div class="mt-2 max-h-32 space-y-1 overflow-auto">
-                {#each timeline.inactive as item (item.id)}
-                  <div class="flex items-center gap-1 rounded bg-neutral-950/60 px-1.5 py-1">
-                    <button type="button" onclick={() => selectRecut("inactive", item.id)} class="min-w-0 flex-1 truncate text-left text-[10px] text-rose-200">{item.id} · {item.reason} · {item.video_start_sec.toFixed(1)}s</button>
-                    <button type="button" onclick={() => void toggleSegment(item.id, true)} class="rounded px-1 text-[10px] text-sky-300 hover:text-white" aria-label={`Activate ${item.id}`}>Activate</button>
-                  </div>
-                {/each}
-                {#if !timeline.inactive.length}<p class="text-[10px] text-neutral-600">Every source segment is active.</p>{/if}
-              </div>
-            </div>
+            <TimelineInactiveSegments
+              inactive={timeline.inactive}
+              onSelect={(id) => selectRecut("inactive", id)}
+              onActivate={(id) => void toggleSegment(id, true)}
+            />
 
-            <div class="rounded-xl border border-neutral-800 bg-neutral-900/40 p-3">
-              <p class="text-[10px] uppercase tracking-wide text-neutral-500">Captions</p>
-              <div class="mt-2 max-h-44 space-y-1 overflow-auto">
-                {#each timeline.captions as caption}
-                  <button
-                    type="button"
-                    onclick={() => editCaption(caption)}
-                    class={`block w-full truncate rounded px-2 py-1 text-left text-[10px] ${selectedCaption === caption.id ? "bg-violet-500/20 text-violet-100" : "text-neutral-400 hover:bg-neutral-800/60"}`}
-                  >
-                    {caption.start_sec.toFixed(1)}s · {caption.text}
-                  </button>
-                {/each}
-                {#if !timeline.captions.length}<p class="text-[10px] text-neutral-600">No captions in this timeline.</p>{/if}
-              </div>
-              {#if selectedCaption !== null}
-                <textarea rows="3" bind:value={captionDraft} class="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100"></textarea>
-                <div class="mt-2 flex items-center gap-2">
-                  <button type="button" onclick={() => void saveCaption()} disabled={captionBusy} class="rounded border border-violet-500/40 px-2 py-1 text-[10px] text-violet-200 disabled:opacity-40">{captionBusy ? "Saving…" : "Save caption"}</button>
-                  {#if captionStatus}<span class="text-[10px] text-neutral-400">{captionStatus}</span>{/if}
-                </div>
-              {/if}
-            </div>
+            <TimelineCaptionList
+              captions={timeline.captions}
+              {selectedCaption}
+              bind:draft={captionDraft}
+              busy={captionBusy}
+              status={captionStatus}
+              onSelect={editCaption}
+              onSave={saveCaption}
+            />
 
-            <div class="rounded-xl border border-neutral-800 bg-neutral-900/40 p-3">
-              <div class="flex items-center justify-between">
-                <p class="text-[10px] uppercase tracking-wide text-neutral-500">Markers</p>
-                <span class="text-[9px] text-neutral-600">{timeline.markers.length}</span>
-              </div>
-              <div class="mt-2 max-h-32 space-y-1 overflow-auto">
-                {#each timeline.markers as marker}
-                  <div class="flex items-center gap-1 rounded bg-neutral-950/60 px-1.5 py-1">
-                    <button type="button" onclick={() => seek(marker.time_sec)} class="min-w-0 flex-1 truncate text-left text-[10px] text-sky-200">{marker.time_sec.toFixed(2)}s · {marker.label || "Marker"}</button>
-                    <button type="button" onclick={() => void removeMarker(marker.id)} class="rounded px-1 text-[10px] text-neutral-500 hover:text-rose-300" aria-label="Remove marker"><Icon name="close" size={11} /></button>
-                  </div>
-                {/each}
-                {#if !timeline.markers.length}<p class="text-[10px] text-neutral-600">No markers.</p>{/if}
-              </div>
-            </div>
+            <TimelineMarkerList
+              markers={timeline.markers}
+              onSeek={seek}
+              onRemove={(id) => void removeMarker(id)}
+            />
 
-            <div class="rounded-xl border border-neutral-800 bg-neutral-900/40 p-3">
-              <div class="flex items-center justify-between">
-                <p class="text-[10px] uppercase tracking-wide text-neutral-500">Clip comments</p>
-                <span class="text-[9px] text-neutral-600">{comments.length}</span>
-              </div>
-              <p class="mt-1 text-[10px] text-neutral-600">{selectedClip ? selectedClip.id : "Select a clip to comment."}</p>
-              <div class="mt-2 max-h-32 space-y-1 overflow-auto">
-                {#each comments as comment}
-                  <div class="flex items-start gap-1 rounded bg-neutral-950/60 px-1.5 py-1">
-                    <p class="min-w-0 flex-1 text-[10px] text-neutral-300">{comment.text}</p>
-                    <button type="button" onclick={() => void removeClipComment(comment.id)} class="rounded px-1 text-[10px] text-neutral-500 hover:text-rose-300" aria-label="Remove comment"><Icon name="close" size={11} /></button>
-                  </div>
-                {/each}
-                {#if !comments.length}<p class="text-[10px] text-neutral-600">No comments for this clip.</p>{/if}
-              </div>
-              <form class="mt-2 flex gap-1" onsubmit={(event) => { event.preventDefault(); void addClipComment(); }}>
-                <input bind:value={commentText} disabled={!selectedClip} placeholder="Add a note…" class="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 text-[10px] text-neutral-200" />
-                <button type="submit" disabled={!selectedClip || commentBusy} class="rounded border border-sky-500/40 px-2 py-0.5 text-[10px] text-sky-200 disabled:opacity-40">Add</button>
-              </form>
-              <div class="mt-3 border-t border-neutral-800 pt-2">
-                <p class="text-[10px] uppercase tracking-wide text-neutral-500">Overlays</p>
-                <div class="mt-1 space-y-1">
-                  {#each overlays as overlay (overlay.overlay_id)}
-                    <div class="flex items-center gap-1 rounded bg-neutral-950/60 px-1.5 py-1">
-                      <p class="min-w-0 flex-1 truncate text-[10px] text-neutral-300">{overlay.path.split("/").pop()} · {(overlay.start_frame / Math.max(1, timeline.fps)).toFixed(2)}s</p>
-                      <button type="button" onclick={() => void removeOverlay(overlay.overlay_id)} class="rounded px-1 text-[10px] text-neutral-500 hover:text-rose-300" aria-label="Remove overlay"><Icon name="close" size={11} /></button>
-                    </div>
-                  {/each}
-                  {#if !overlays.length}<p class="text-[10px] text-neutral-600">Drag an asset from the rail onto the timeline.</p>{/if}
-                </div>
-              </div>
-            </div>
+            <TimelineClipComments
+              {comments}
+              {overlays}
+              clip={selectedClip}
+              fps={timeline.fps}
+              bind:commentText
+              {commentBusy}
+              onAddComment={addClipComment}
+              onRemoveComment={(id) => void removeClipComment(id)}
+              onRemoveOverlay={(id) => void removeOverlay(id)}
+            />
             {/if}
             {/snippet}
             {#snippet effects()}
@@ -2192,26 +2126,7 @@
         </div>
       </div>
 
-      <div class="flex flex-wrap items-center gap-1.5 rounded-xl border border-neutral-800 bg-neutral-900/40 px-2 py-1.5" data-testid="asset-rail">
-        <span class="text-[10px] uppercase tracking-wide text-neutral-500">Assets</span>
-        {#each assets.slice(0, 12) as asset (asset.id)}
-          <span
-            draggable="true"
-            role="button"
-            tabindex="0"
-            title={`Drag ${asset.name} onto the timeline`}
-            class="cursor-grab rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-0.5 text-[10px] text-neutral-300"
-            ondragstart={(event) => {
-              event.dataTransfer?.setData(
-                "application/x-videoflow-asset",
-                JSON.stringify({ id: asset.id, name: asset.name, path: asset.path, kind: asset.kind })
-              );
-              if (event.dataTransfer) event.dataTransfer.effectAllowed = "copy";
-            }}
-          >{asset.name}</span>
-        {/each}
-        {#if !assets.length}<span class="text-[10px] text-neutral-600">Scan assets in the Assets tab to drag them here.</span>{/if}
-      </div>
+      <TimelineAssetRail {assets} />
 
       {#if !timeline.video.length}
         <div class="mx-3 mb-2 rounded-xl border border-amber-400/20 bg-amber-950/20 px-3 py-2 text-[10px] text-amber-200" data-testid="timeline-empty">
@@ -2294,37 +2209,14 @@
       {/if}
 
       {#if viewMode === "recut" && selectedInactive}
-        <div data-testid="recut-selection" class="flex flex-wrap items-center justify-between gap-2 border-t border-neutral-800 px-3 py-2 text-[10px]">
-          <p class="text-rose-200">Inactive <span class="font-mono">{selectedInactive.id}</span> · {selectedInactive.reason}</p>
-          <div class="flex flex-wrap items-center gap-2">
-            <label class="flex items-center gap-1 text-neutral-500">
-              Start
-              <input
-                data-testid="recut-start"
-                type="number"
-                min="0"
-                step="0.01"
-                bind:value={inactiveStart}
-                disabled={editBusy}
-                class="w-20 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 font-mono text-[10px] text-neutral-200"
-              />
-            </label>
-            <label class="flex items-center gap-1 text-neutral-500">
-              End
-              <input
-                data-testid="recut-end"
-                type="number"
-                min="0"
-                step="0.01"
-                bind:value={inactiveEnd}
-                disabled={editBusy}
-                class="w-20 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 font-mono text-[10px] text-neutral-200"
-              />
-            </label>
-            <button type="button" onclick={() => void trimInactiveRange(selectedInactive.id, inactiveStart, inactiveEnd)} disabled={editBusy} class="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1 text-rose-100 disabled:opacity-40">Apply cut</button>
-            <button type="button" onclick={() => void toggleSegment(selectedInactive.id, true)} disabled={editBusy} class="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1 text-sky-200 disabled:opacity-40">Activate</button>
-          </div>
-        </div>
+        <TimelineRecutSelection
+          inactive={selectedInactive}
+          bind:start={inactiveStart}
+          bind:end={inactiveEnd}
+          {editBusy}
+          onApply={trimInactiveRange}
+          onActivate={(id) => void toggleSegment(id, true)}
+        />
       {/if}
 
     </section>
@@ -2526,30 +2418,12 @@
         </div>
       </div>
 
-      <div class="mt-3 rounded-xl border border-neutral-800 bg-neutral-950/50 p-3" data-testid="variant-compare">
-        <div class="flex items-center justify-between gap-2">
-          <p class="text-[10px] uppercase tracking-wide text-neutral-500">Variant comparison</p>
-          <button type="button" onclick={() => void loadVariants()} disabled={variantBusy} class="rounded border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300 disabled:opacity-40">{variantBusy ? "Loading…" : "Compare variants"}</button>
-        </div>
-        {#if variants}
-          {#if variants.items.length}
-            <div class="mt-2 grid gap-2 md:grid-cols-2">
-              {#each variants.items as item (item.id)}
-                <div class={`rounded-lg border p-2 ${variants.winner === item.id || variants.winner === item.name ? "border-emerald-400/40" : "border-neutral-800"}`}>
-                  <div class="flex items-center justify-between gap-2">
-                    <p class="truncate text-[11px] text-neutral-200">{item.name}</p>
-                    <button type="button" onclick={() => void pickWinner(item.name)} class="rounded border border-emerald-500/30 px-1.5 py-0.5 text-[9px] text-emerald-200">Winner</button>
-                  </div>
-                  <p class="mt-1 font-mono text-[9px] text-neutral-500">{item.kind} · {JSON.stringify(item.metrics)}</p>
-                </div>
-              {/each}
-            </div>
-          {:else}
-            <p class="mt-2 text-[10px] text-neutral-600">No variants or Shorts in this run.</p>
-          {/if}
-          {#if variants.winner}<p class="mt-2 text-[10px] text-emerald-300">Selected winner: {variants.winner}</p>{/if}
-        {/if}
-      </div>
+      <TimelineVariantCompare
+        {variants}
+        busy={variantBusy}
+        onLoad={loadVariants}
+        onPick={pickWinner}
+      />
     </section>
   {/if}
 </div>

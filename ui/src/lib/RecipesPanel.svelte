@@ -23,6 +23,11 @@
   import StepNode from "$lib/nodes/StepNode.svelte";
   import { setPath, validateParams } from "$lib/recipeFields";
   import PathPicker from "$lib/PathPicker.svelte";
+  import RecipeInputsForm from "$lib/recipes/RecipeInputsForm.svelte";
+  import RecipeMoreMenu from "$lib/recipes/RecipeMoreMenu.svelte";
+  import RecipeBuilderTour from "$lib/recipes/RecipeBuilderTour.svelte";
+  import RecipeStepList from "$lib/recipes/RecipeStepList.svelte";
+  import { cachedCount, describeRecipeDiff, executedCount, outputValueText, retakeGroups, runDuration } from "$lib/recipePanel";
   import { recipesFor, type RecipeFilter } from "$lib/recipeLibrary";
   import {
     ApiError,
@@ -1602,34 +1607,6 @@
     }
   }
 
-  function outputValueText(value: unknown): string {
-    if (value === undefined) return "";
-    return typeof value === "string" ? value : JSON.stringify(value, null, 2);
-  }
-
-  type RetakeGroupView = {
-    keep: number[];
-    discard: number[];
-    reason: string;
-    keep_text: string[];
-    discard_text: string[];
-    start_sec: number;
-    end_sec: number;
-  };
-
-  function retakeGroups(value: unknown): RetakeGroupView[] {
-    if (!value || typeof value !== "object" || !("groups" in value)) return [];
-    const groups = (value as { groups?: unknown }).groups;
-    if (!Array.isArray(groups)) return [];
-    return groups.filter(
-      (group): group is RetakeGroupView =>
-        Boolean(group) &&
-        typeof group === "object" &&
-        Array.isArray((group as RetakeGroupView).keep) &&
-        Array.isArray((group as RetakeGroupView).discard)
-    );
-  }
-
   async function copyOutputValue() {
     try {
       await navigator.clipboard.writeText(outputValueText(outputsValue));
@@ -2105,50 +2082,6 @@
     } finally {
       versionDiffBusy = false;
     }
-  }
-
-  function describeRecipeDiff(current: Recipe, older: Recipe): string[] {
-    const lines: string[] = [];
-    if (current.name !== older.name) {
-      lines.push(`Name: "${older.name}" → "${current.name}"`);
-    }
-    const currentSteps = new Map(current.steps.map((step) => [step.id, step]));
-    const olderSteps = new Map(older.steps.map((step) => [step.id, step]));
-    for (const id of olderSteps.keys()) {
-      if (!currentSteps.has(id)) lines.push(`Removed step: ${id}`);
-    }
-    for (const id of currentSteps.keys()) {
-      if (!olderSteps.has(id)) lines.push(`Added step: ${id}`);
-    }
-    for (const [id, currentStep] of currentSteps) {
-      const olderStep = olderSteps.get(id);
-      if (!olderStep) continue;
-      if (currentStep.type !== olderStep.type) {
-        lines.push(`${id}: type ${olderStep.type} → ${currentStep.type}`);
-      }
-      if (JSON.stringify(currentStep.needs) !== JSON.stringify(olderStep.needs)) {
-        lines.push(`${id}: needs [${olderStep.needs.join(", ")}] → [${currentStep.needs.join(", ")}]`);
-      }
-      if (JSON.stringify(currentStep.inputs) !== JSON.stringify(olderStep.inputs)) {
-        lines.push(`${id}: wiring changed`);
-      }
-      const keys = new Set([
-        ...Object.keys(olderStep.params),
-        ...Object.keys(currentStep.params)
-      ]);
-      for (const key of keys) {
-        if (
-          JSON.stringify(currentStep.params[key]) !==
-          JSON.stringify(olderStep.params[key])
-        ) {
-          lines.push(`${id}.${key}: ${JSON.stringify(olderStep.params[key])} → ${JSON.stringify(currentStep.params[key])}`);
-        }
-      }
-    }
-    if (current.steps.length !== older.steps.length) {
-      lines.unshift(`Steps: ${older.steps.length} → ${current.steps.length}`);
-    }
-    return lines.length ? lines : ["No recipe changes."];
   }
 
   function nodeValidationErrors(): Record<string, string> {
@@ -2667,23 +2600,6 @@
     compareOpen = true;
   }
 
-  function runDuration(run: Job): string {
-    if (run.duration_ms !== null && run.duration_ms !== undefined) {
-      return `${(run.duration_ms / 1000).toFixed(1)}s`;
-    }
-    return run.result?.elapsed_seconds !== undefined
-      ? `${run.result.elapsed_seconds.toFixed(1)}s`
-      : "—";
-  }
-
-  function cachedCount(run: Job): number {
-    return (run.result?.step_runs ?? []).filter((step) => step.status === "cached").length;
-  }
-
-  function executedCount(run: Job): number {
-    return (run.result?.step_runs ?? []).filter((step) => step.status === "executed").length;
-  }
-
   function watch(jobId: string) {
     clearInterval(poll);
     poll = setInterval(async () => {
@@ -2900,33 +2816,25 @@
           Outputs
         </button>
         <IconButton icon="code" label="Recipe JSON" testid="recipe-json" class="max-sm:hidden" onclick={openRecipeJson} />
-        <div class="relative">
-          <Button icon="more" variant="secondary" size="md" testid="recipe-more" onclick={() => (moreOpen = !moreOpen)}>More</Button>
-          {#if moreOpen}
-            <button type="button" class="fixed inset-0 z-40 cursor-default" aria-label="Close menu" onclick={() => (moreOpen = false)}></button>
-            <div class="absolute right-0 z-50 mt-1 w-56 overflow-hidden rounded-xl border border-neutral-700 bg-neutral-950 p-1 shadow-2xl" role="menu" data-testid="recipe-more-menu">
-              <div class="sm:hidden">
-                <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; void save(); }}><Icon name="save" size={13} />Save recipe</button>
-                <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; void validate(); }}><Icon name="check" size={13} />Validate</button>
-                <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; toggleInspector(); }}><Icon name="panel" size={13} />Inspector</button>
-                <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; void openHistory(); }}><Icon name="activity" size={13} />Runs</button>
-                <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; openStepOutputsPicker(); }}><Icon name="file" size={13} />Outputs</button>
-                <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; openRecipeJson(); }}><Icon name="code" size={13} />Recipe JSON</button>
-                <div class="my-1 border-t border-neutral-800"></div>
-              </div>
-              <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; void dryRun(); }}><Icon name="flask" size={13} />Dry run</button>
-              <button type="button" role="menuitem" data-testid="nle-validate" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" disabled={nleBusy} onclick={() => { moreOpen = false; void openNleValidation(); }}><Icon name="check" size={13} />{nleBusy ? "Validating…" : "Validate NLE exports"}</button>
-              <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; void openBatchHistory(); }}><Icon name="layers" size={13} />Batch history</button>
-              <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; configOpen = true; addOpen = false; }}><Icon name="settings" size={13} />Recipe config</button>
-              <div class="my-1 border-t border-neutral-800"></div>
-              <button type="button" role="menuitem" data-testid="recipe-reset-layout" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; resetLayout(); }}><Icon name="layout" size={13} />Auto layout</button>
-              <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; void saveAs(); }}><Icon name="duplicate" size={13} />Save as</button>
-              <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; downloadRecipe(); }}><Icon name="file" size={13} />Download</button>
-              <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; void openRecipeHistory(); }}><Icon name="clock" size={13} />Version history</button>
-              <button type="button" role="menuitem" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-neutral-300 hover:bg-white/5" onclick={() => { moreOpen = false; tourStep = 0; tourOpen = true; }}><Icon name="bulb" size={13} />Quick tour</button>
-            </div>
-          {/if}
-        </div>
+        <RecipeMoreMenu
+          bind:open={moreOpen}
+          {nleBusy}
+          onSave={save}
+          onValidate={validate}
+          onInspector={toggleInspector}
+          onRuns={openHistory}
+          onOutputs={openStepOutputsPicker}
+          onJson={openRecipeJson}
+          onDryRun={dryRun}
+          onNleValidate={openNleValidation}
+          onBatches={openBatchHistory}
+          onConfig={() => { configOpen = true; addOpen = false; }}
+          onResetLayout={resetLayout}
+          onSaveAs={saveAs}
+          onDownload={downloadRecipe}
+          onHistory={openRecipeHistory}
+          onTour={() => { tourStep = 0; tourOpen = true; }}
+        />
         <button
           type="button"
           data-testid="recipe-library"
@@ -2951,58 +2859,17 @@
     </div>
 
     <div class="p-3 sm:p-4">
-      {#if Object.keys(recipeVariables).length || Object.keys(recipeProfiles).length}
-        <div class="mb-3 rounded-xl border border-neutral-800 bg-neutral-950/50 p-3">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <p class="text-[10px] uppercase tracking-wide text-neutral-500">Recipe inputs</p>
-            {#if Object.keys(recipeProfiles).length}
-              <select bind:value={recipeProfile} class="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-200">
-                <option value="">no profile</option>
-                {#each Object.keys(recipeProfiles) as profile}<option value={profile}>{profile}</option>{/each}
-              </select>
-            {/if}
-          </div>
-          <div class="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {#each Object.entries(recipeVariables) as [name, spec]}
-              <label class="text-[10px] text-neutral-400" title={spec.description ?? ""}>
-                {name}{#if spec.required} *{/if}
-                {#if spec.type === "boolean"}
-                  <input type="checkbox" checked={Boolean(variableValues[name])} onchange={(event) => (variableValues[name] = event.currentTarget.checked)} class="mt-1 block h-4 w-4 rounded border-neutral-700 bg-neutral-950" />
-                {:else if spec.type === "number"}
-                  <input type="number" value={variableValues[name] as number} oninput={(event) => (variableValues[name] = Number(event.currentTarget.value))} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" />
-                {:else if spec.type === "enum" && spec.options?.length}
-                  <select bind:value={variableValues[name]} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100">
-                    {#each spec.options as option}<option value={String(option)}>{String(option)}</option>{/each}
-                  </select>
-                {:else}
-                  <input bind:value={variableValues[name]} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" />
-                {/if}
-              </label>
-            {/each}
-          </div>
-        </div>
-      {/if}
+      <RecipeInputsForm
+        variables={recipeVariables}
+        profiles={recipeProfiles}
+        bind:profile={recipeProfile}
+        values={variableValues}
+      />
 
       <div class="flex flex-col gap-2 xl:flex-row">
         <div class="relative min-w-0 flex-1">
         {#if narrow}
-          <div class="space-y-2 rounded-xl border border-neutral-800 bg-neutral-950 p-3" data-testid="recipe-step-list">
-            <p class="vf-label">Step list</p>
-            <p class="text-[length:var(--vf-text-xs)] text-neutral-500">Tap a step to edit its parameters. The graph editor needs a wider screen.</p>
-            <ol class="space-y-1.5">
-              {#each nodes.filter((node) => node.type === "step") as node (node.id)}
-                <li>
-                  <button type="button" onclick={() => selectNode(node.id)} class={`flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left ${selectedId === node.id ? "border-sky-500/40 bg-sky-500/10" : "border-neutral-800 bg-neutral-900/50"}`}>
-                    <span class="min-w-0">
-                      <span class="block truncate text-[length:var(--vf-text-xs)] font-medium text-neutral-100">{nodeData(node).title}</span>
-                      <span class="block truncate font-mono text-[length:var(--vf-text-2xs)] text-neutral-500">{nodeData(node).type}</span>
-                    </span>
-                    <Icon name="chevron" size={14} class="shrink-0 -rotate-90 text-neutral-500" />
-                  </button>
-                </li>
-              {/each}
-            </ol>
-          </div>
+          <RecipeStepList {nodes} {selectedId} {nodeData} onSelect={selectNode} />
         {/if}
         <div bind:this={canvasEl} class="hidden h-[clamp(360px,58vh,920px)] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950 lg:block sm:h-[clamp(560px,72vh,920px)]">
           <SvelteFlow
@@ -3290,38 +3157,7 @@
     </section>
   {/if}
 
-  {#if tourOpen}
-    <div class="fixed inset-0 z-[110] flex items-center justify-center bg-black/75 p-4" role="presentation"
-      onclick={(event) => { if (event.currentTarget === event.target) tourOpen = false; }}>
-      <div class="w-full max-w-md rounded-2xl border border-sky-500/30 bg-neutral-950 p-5 shadow-2xl" role="dialog" aria-modal="true" aria-label="Builder tour" data-testid="builder-tour">
-        <div class="flex items-center justify-between">
-          <p class="text-[10px] uppercase tracking-wide text-sky-300">Step {tourStep + 1} of 3</p>
-          <button type="button" onclick={() => (tourOpen = false)} class="rounded px-2 text-neutral-500 hover:text-neutral-200" aria-label="Close tour">×</button>
-        </div>
-        {#if tourStep === 0}
-          <h3 class="mt-3 text-base font-semibold text-white">Build the graph</h3>
-          <p class="mt-2 text-xs leading-relaxed text-neutral-400">Use <span class="text-sky-300">Add step</span> to place nodes, then drag from a node's right handle to the next node's input. The More menu holds validation, history, batch, and export actions.</p>
-        {:else if tourStep === 1}
-          <h3 class="mt-3 text-base font-semibold text-white">Inspect and edit</h3>
-          <p class="mt-2 text-xs leading-relaxed text-neutral-400">Click a node to open the inspector. It shows every input, output, preset, and field with help text. Edits autosave; Ctrl/Cmd+Z undoes them.</p>
-        {:else}
-          <h3 class="mt-3 text-base font-semibold text-white">Stay oriented</h3>
-          <p class="mt-2 text-xs leading-relaxed text-neutral-400">Use Find node to dim the rest of the graph, shift-drag to select several nodes, and the selection bar to align, duplicate, delete, or fit them. Ctrl/Cmd+K searches every builder action.</p>
-        {/if}
-        <div class="mt-5 flex items-center justify-between">
-          <button type="button" onclick={() => (tourOpen = false)} class="text-[10px] text-neutral-500 hover:text-neutral-200">Skip</button>
-          <div class="flex gap-1.5">
-            {#if tourStep > 0}<button type="button" onclick={() => (tourStep -= 1)} class="rounded-lg border border-neutral-700 px-2.5 py-1 text-[11px] text-neutral-300">Back</button>{/if}
-            {#if tourStep < 2}
-              <button type="button" onclick={() => (tourStep += 1)} class="rounded-lg bg-sky-500 px-3 py-1 text-[11px] font-medium text-neutral-950">Next</button>
-            {:else}
-              <button type="button" onclick={() => (tourOpen = false)} class="rounded-lg bg-sky-500 px-3 py-1 text-[11px] font-medium text-neutral-950">Done</button>
-            {/if}
-          </div>
-        </div>
-      </div>
-    </div>
-  {/if}
+  <RecipeBuilderTour bind:open={tourOpen} bind:step={tourStep} />
 
   {#if wiring}
     {@const sourceNode = nodes.find((node) => node.id === wiring?.source)}
