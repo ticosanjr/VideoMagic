@@ -1,8 +1,15 @@
 # Accessibility QA checklist
 
 Automated coverage: Playwright keyboard, focus trap, narrow viewport, PT-BR
-locale, reduced motion, and 5-area navigation. A human still signs the manual
-pass before 3.0.
+locale, reduced motion, axe WCAG A/AA, mobile builder, mobile timeline, HITL
+inbox, and both workspace overviews. A human still signs the manual pass before
+3.0.
+
+Latest automated run (2026-11-13): 113 Playwright passed, 1 skipped; 99 Vitest
+passed; svelte-check 0 errors; visual baselines for shell desktop/mobile,
+mobile builder, mobile timeline, HITL inbox, and Synthetic/Footage workspaces.
+The machine has Orca 46.1 on `DISPLAY=:20`. Evidence bundle:
+`docs/qa-evidence/qa-20261113T113812Z.{json,md}`.
 
 ## Environment
 
@@ -33,7 +40,7 @@ pass before 3.0.
 
 - Reviewer:
 - Date:
-- Build: `releases/v2.24.0/videoflow-2.24.0-linux-x86_64`
+- Build: `releases/v2.71.0/videoflow-2.71.0-linux-x86_64`
 - Result: pending
 
 A signed copy is required before 3.0. Fixes for P0/P1 block the release.

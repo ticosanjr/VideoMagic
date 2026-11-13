@@ -61,10 +61,32 @@ The media test `test_kdenlive_project_renders_with_melt` runs this path in CI
 when `melt` is available. MLT may warn about missing optional plugins such as
 `movit`, `qtblend`, or `affine`; those warnings are reported, not hidden.
 
+## Automated evidence (2026-11-13)
+
+`scripts/qa_evidence.py` now collects the reproducible evidence without marking
+the gate as signed:
+
+```bash
+uv run python scripts/qa_evidence.py \
+  --exports build/smoke-appimage/demo/exports \
+  --job-output build/smoke-appimage/demo
+```
+
+Latest report: `docs/qa-evidence/qa-20261113T113812Z.{json,md}`.
+
+- Kdenlive 26.08.3 (Flatpak `org.kde.kdenlive`).
+- Structural validation: FCPXML, XMEML, and Kdenlive all **ok**.
+- MLT render through the Flatpak `melt`: **ok** (`497,550` bytes).
+- The rich NLE fixture in `tests/contract/test_nle_finishing.py` still covers
+  titles, guides, B-roll, colour filters, audio stem, and affine zoom.
+
+The automated evidence proves the project graph resolves and renders. It does
+not replace a human opening the project, checking the UI, and signing below.
+
 ## Manual import checklist
 
-Automated XML checks do not prove that an NLE accepts the project. Run this
-checklist on a machine with the NLE installed:
+Automated XML checks do not prove that an NLE accepts the project interactively.
+Run this checklist on a machine with the NLE installed:
 
 ### Kdenlive
 
@@ -78,24 +100,25 @@ checklist on a machine with the NLE installed:
 
 Record the NLE version, OS, import result, and any relinking needed next to the
 release notes. Manual import status is still **pending** for this host.
-Kdenlive 26.08.2 is installed via Flatpak (`org.kde.kdenlive`).
+Kdenlive 26.08.3 is installed via Flatpak (`org.kde.kdenlive`); the Flatpak
+`melt` binary can render the generated project non-interactively.
 
 ## Manual sign-off (3.0 gate)
 
-Status: **pending**. Kdenlive 26.08.2 is installed via Flatpak
-(`org.kde.kdenlive`) and is the only NLE in the QA plan. `melt` is absent, so
-the optional MLT CLI smoke is skipped. Automated structure
-validation is green, but a human Kdenlive import pass is still required.
+Status: **pending human signature**. Kdenlive 26.08.3 is installed via Flatpak
+(`org.kde.kdenlive`) and is the only NLE in the QA plan. The Flatpak ships
+`/app/bin/melt`; the automated MLT render and structural validation are green.
+A human Kdenlive import and visual pass is still required.
 
 Record:
 
 | NLE | Version | Job id | Export folder | Titles | Colour | Audio | B-roll | Chapters | Transitions | Clicks | Result |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Kdenlive | 26.08.2 | | | | | | | | | | pending |
+| Kdenlive | 26.08.3 | | | | | | | | | | pending |
 
 Sign-off block:
 
 - Reviewer:
 - Date:
-- Build: `releases/v2.24.0/videoflow-2.24.0-linux-x86_64`
+- Build: `releases/v2.71.0/videoflow-2.71.0-linux-x86_64`
 - P0/P1 found: none / list

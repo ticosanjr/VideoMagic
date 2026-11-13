@@ -1,0 +1,111 @@
+{
+  "generated_at": "20261113T113812Z",
+  "exports": "/home/rafael/Documents/ProjetosAI/VideoMagic/build/smoke-appimage/demo/exports",
+  "job_output": "build/smoke-appimage/demo",
+  "nle": {
+    "structural": {
+      "ok": true,
+      "directory": "/home/rafael/Documents/ProjetosAI/VideoMagic/build/smoke-appimage/demo/exports",
+      "exports": {
+        "fcpxml": {
+          "ok": true,
+          "path": "/home/rafael/Documents/ProjetosAI/VideoMagic/build/smoke-appimage/demo/exports/timeline.fcpxml",
+          "errors": [],
+          "warnings": [
+            "no transition elements",
+            "no transform keyframes",
+            "some joins have no transition"
+          ],
+          "clips": 3,
+          "transitions": 0,
+          "keyframes": 0,
+          "titles": 0,
+          "markers": 0,
+          "color_filters": 0,
+          "broll_clips": 0,
+          "audio_stems": 0
+        },
+        "xmeml": {
+          "ok": true,
+          "path": "/home/rafael/Documents/ProjetosAI/VideoMagic/build/smoke-appimage/demo/exports/timeline.xml",
+          "errors": [],
+          "warnings": [
+            "no video transitionitem",
+            "some joins have no transition"
+          ],
+          "clips": 3,
+          "transitions": 0,
+          "effects": 1,
+          "titles": 0,
+          "markers": 0,
+          "color_filters": 1,
+          "video_tracks": 1
+        },
+        "kdenlive": {
+          "ok": true,
+          "path": "/home/rafael/Documents/ProjetosAI/VideoMagic/build/smoke-appimage/demo/exports/timeline.kdenlive",
+          "errors": [],
+          "warnings": [],
+          "clips": 3,
+          "affine_filters": 1,
+          "tractors": 3,
+          "titles": 0,
+          "guides": 0,
+          "overlay_track": 0,
+          "audio_stem": 0,
+          "color_filters": 0
+        }
+      },
+      "problems": []
+    },
+    "kdenlive": {
+      "found": true,
+      "version": "26.08.3"
+    },
+    "melt": {
+      "ok": true,
+      "command": [
+        "flatpak",
+        "run",
+        "--command=melt",
+        "org.kde.kdenlive",
+        "-consumer",
+        "avformat:/home/rafael/.cache/videoflow/qa/kdenlive-melt.mp4",
+        "/home/rafael/Documents/ProjetosAI/VideoMagic/build/smoke-appimage/demo/exports/timeline.kdenlive"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "Gtk-Message: 12:38:11.346: Failed to load module \"xapp-gtk3-module\"\nQt: Session management error: Could not open network socket\nCurrent Frame:          9, percentage:          6\nCurrent Frame:         27, percentage:         19\nCurrent Frame:         44, percentage:         31\nCurrent Frame:         59, percentage:         42\nCurrent Frame:         72, percentage:         52\nCurrent Frame:         80, percentage:         57\nCurrent Frame:         94, percentage:         68\nCurrent Frame:        109, percentage:         78\nCurrent Frame:        124, percentage:         89\n[aac @ 0x60cbb3662280] Could not update timestamps for discarded samples.\nCurrent Frame:        137, percentage:         99\n",
+      "output": "/home/rafael/.cache/videoflow/qa/kdenlive-melt.mp4",
+      "bytes": 497550
+    }
+  },
+  "accessibility": {
+    "os": "linux",
+    "display": ":20",
+    "display_available": true,
+    "orca": "/usr/bin/orca",
+    "orca_version": "46.1",
+    "visual_baselines": [
+      "ui/e2e/a11y.spec.ts-snapshots/recipe-builder-mobile-chromium-linux.png",
+      "ui/e2e/a11y.spec.ts-snapshots/shell-chromium-linux.png",
+      "ui/e2e/a11y.spec.ts-snapshots/shell-mobile-chromium-linux.png",
+      "ui/e2e/timeline.spec.ts-snapshots/timeline-mobile-chromium-linux.png",
+      "ui/e2e/workspace.spec.ts-snapshots/hitl-inbox-chromium-linux.png",
+      "ui/e2e/workspace.spec.ts-snapshots/workspace-footage-chromium-linux.png",
+      "ui/e2e/workspace.spec.ts-snapshots/workspace-synthetic-chromium-linux.png"
+    ],
+    "automated_commands": [
+      "cd ui && npx playwright test e2e/a11y.spec.ts",
+      "cd ui && npm test",
+      "cd ui && npm run check"
+    ]
+  },
+  "signoff": {
+    "nle_reviewer": "",
+    "nle_date": "",
+    "accessibility_reviewer": "",
+    "accessibility_date": "",
+    "status": "pending human review"
+  }
+}

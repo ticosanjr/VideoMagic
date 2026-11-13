@@ -19,7 +19,7 @@ hides the contract. VideoFlow resolves this with two layers:
 | Full tree | **95%** (3.0 target) | **Met**: 95.06% statements (32,361/34,042), 88.1% with branches |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |
-| UI | `npm run check`, `npm test`, `npm run test:e2e`, `npm run build` | Playwright: graph, inspector, schema fields, split-screen source, palette, NLE validation, run history |
+| UI | `npm run check`, `npm test`, `npm run test:e2e`, `npm run build` | Playwright: graph, inspector, schema fields, split-screen source, palette, NLE validation, run history, mobile timeline/builder, HITL, workspaces, visual baselines |
 
 A stub is excluded from coverage only when it is listed in
 `[tool.coverage.run].omit`. `# pragma: no cover` is reserved for platform-only
