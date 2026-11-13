@@ -2,7 +2,7 @@
 
 Status: historical v1. Audience: product, engineering, QA. The product moved
 to a recipes-first UI in 2.0; the rack sections (5.2 and the rack API in 5.11)
-are not normative for 2.60.0. See `README.md`, `docs/ui-spec.md`, and
+are not normative for 2.71.0. See `README.md`, `docs/ui-spec.md`, and
 `docs/3.0-blockers.md` for the current contract.
 
 The original Portuguese brief is archived, non-normative, at
@@ -38,12 +38,14 @@ cached intermediate artifacts, and export files.
 | G-5 | Run on a CPU-only laptop; use CUDA when the operator opts in. |
 | G-6 | Keep the source untouched and every decision inspectable and reversible. |
 
-## 3. Non-goals for v1
+## 3. Non-goals for v1 (historical)
 
 - Multi-user accounts, remote access, or a hosted service.
 - Multi-camera sync.
 - Full colour grading, audio mixing, or VFX.
-- Generative video, voice cloning, or translation.
+- Generative video. Voice cloning and translation were later added as optional
+  providers; see [voice-clone.md](voice-clone.md) and
+  [localization.md](localization.md).
 - A native `.drp` or `.prproj` writer. Interchange formats only.
 - Face tracking for vertical reframing. The parameter exists; the engine does not.
 - Proxy-based analysis. Proxies are preview-only.

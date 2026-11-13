@@ -478,8 +478,9 @@ _add_recipe(
     description=(
         "Autonomous master edit: drift-corrected transcription, deterministic "
         "de-talking, narrative beats and entities, local B-roll planning, audio "
-        "mastering and ducking, XML/MP4 export, and QA. Motion graphics and "
-        "vision QA are phase-2 shells; external APIs are off by default."
+        "mastering and ducking, XML/MP4 export, and QA. Motion graphics are "
+        "rendered by FFmpeg; QA, OCR, and vision analysis run when their "
+        "optional backends are installed. External APIs are off by default."
     ),
     variables={
         "target_aspect_ratio": {

@@ -250,3 +250,270 @@ def test_cli_tray_passes_host_port_and_open(monkeypatch, tmp_path) -> None:
         "port": 9000,
         "open_browser": True,
     }
+
+
+def test_tray_helpers_and_icon(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(tray, "bundle_root", lambda: tmp_path)
+    assert tray._ui_url("0.0.0.0", 9000) == "http://127.0.0.1:9000/"
+    assert tray._browser_url("http://x/") == f"http://x/?v={tray.__version__}"
+    calls = {"n": 0}
+
+    def probe(*args, **kwargs):
+        calls["n"] += 1
+        return {"ok": True} if calls["n"] > 1 else None
+
+    monkeypatch.setattr(tray, "probe_service", probe)
+    assert tray._wait_for_service("127.0.0.1", 1, timeout=1) is True
+
+    image = tray._icon_image()
+    assert image.size == (64, 64)
+
+
+def _fake_pystray(
+    monkeypatch,
+    *,
+    icon_error: Exception | None = None,
+    run_error: Exception | None = None,
+):
+    import sys
+    from types import ModuleType
+
+    class FakeItem:
+        def __init__(self, *args, **kwargs):
+            self.args = args
+            self.kwargs = kwargs
+
+    class FakeMenu:
+        SEPARATOR = object()
+
+        def __init__(self, *items):
+            self.items = items
+
+    class FakeIcon:
+        def __init__(self, *args, **kwargs):
+            if icon_error:
+                raise icon_error
+
+        def run(self):
+            if run_error:
+                raise run_error
+
+        def stop(self):
+            return None
+
+        def update_menu(self):
+            return None
+
+    module = ModuleType("pystray")
+    module.Menu = FakeMenu  # type: ignore[attr-defined]
+    module.MenuItem = FakeItem  # type: ignore[attr-defined]
+    module.Icon = FakeIcon  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "pystray", module)
+    return module
+
+
+def test_run_tray_without_backend(monkeypatch) -> None:
+    import builtins
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "pystray":
+            raise ImportError("no tray")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    assert tray.run_tray(host="127.0.0.1", port=8765, open_browser=False) == 1
+
+
+def test_run_tray_stops_when_start_fails(monkeypatch) -> None:
+    _fake_pystray(monkeypatch)
+
+    class Supervisor:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def start(self):
+            raise tray.TrayError("port busy")
+
+    monkeypatch.setattr(tray, "ServerSupervisor", Supervisor)
+    assert tray.run_tray(host="127.0.0.1", port=8765, open_browser=False) == 1
+
+
+def test_run_tray_icon_creation_failure(monkeypatch) -> None:
+    _fake_pystray(monkeypatch, icon_error=RuntimeError("no desktop"))
+    stopped: list[bool] = []
+
+    class Supervisor:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def start(self):
+            return True
+
+        def stop(self):
+            stopped.append(True)
+
+    monkeypatch.setattr(tray, "ServerSupervisor", Supervisor)
+    assert tray.run_tray(host="127.0.0.1", port=8765, open_browser=False) == 1
+    assert stopped
+
+
+def test_run_tray_backend_run_failure(monkeypatch) -> None:
+    _fake_pystray(monkeypatch, run_error=RuntimeError("backend died"))
+    stopped: list[bool] = []
+
+    class Supervisor:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def start(self):
+            return True
+
+        def stop(self):
+            stopped.append(True)
+
+    monkeypatch.setattr(tray, "ServerSupervisor", Supervisor)
+    assert tray.run_tray(host="127.0.0.1", port=8765, open_browser=False) == 1
+    assert stopped
+
+
+def test_run_tray_success_stops_the_supervisor(monkeypatch) -> None:
+    _fake_pystray(monkeypatch)
+    stopped: list[bool] = []
+
+    class Supervisor:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def start(self):
+            return True
+
+        def stop(self):
+            stopped.append(True)
+
+    monkeypatch.setattr(tray, "ServerSupervisor", Supervisor)
+    assert tray.run_tray(host="127.0.0.1", port=8765, open_browser=False) == 0
+    assert stopped
+
+
+def test_run_action_swallows_errors_and_updates(monkeypatch) -> None:
+    calls: list[str] = []
+
+    class Icon:
+        def update_menu(self):
+            calls.append("menu")
+
+    tray._run_action(Icon(), lambda: (_ for _ in ()).throw(RuntimeError("x")))
+    assert calls == ["menu"]
+
+
+def test_server_factories_and_supervisor_url(home, monkeypatch) -> None:
+    import uvicorn
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    server = tray._uvicorn_server(app, "127.0.0.1", 1, "warning")
+    assert isinstance(server, uvicorn.Server)
+    assert tray._http_app() is not None
+
+    supervisor, _ = _supervisor()
+    assert supervisor.url == "http://127.0.0.1:8765/"
+    monkeypatch.setattr(tray, "probe_service", lambda *args, **kwargs: None)
+    assert tray._wait_for_service("127.0.0.1", 1, timeout=0.05) is False
+
+
+def test_supervisor_start_thread_failure(home, monkeypatch) -> None:
+    class BrokenThread:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def start(self) -> None:
+            raise RuntimeError("cannot start")
+
+        def is_alive(self) -> bool:
+            return False
+
+    monkeypatch.setattr(tray.threading, "Thread", BrokenThread)
+    supervisor, _ = _supervisor()
+    with pytest.raises(tray.TrayError, match="Could not start"):
+        supervisor.start()
+    assert supervisor.running is False
+    assert not (home / "server.pid").exists()
+
+
+def test_supervisor_stop_timeout_and_port_replacement(home, monkeypatch) -> None:
+    class SlowServer:
+        def __init__(self) -> None:
+            self.should_exit = False
+
+        def run(self) -> None:
+            time.sleep(0.4)
+
+    supervisor = tray.ServerSupervisor(
+        "127.0.0.1",
+        8765,
+        server_factory=lambda *args: SlowServer(),
+        app_factory=FakeApp,
+    )
+    assert supervisor.start() is True
+    assert supervisor.stop(timeout=0.05) is True
+    assert "did not stop" in supervisor.last_error
+
+    monkeypatch.setattr(tray, "probe_service", lambda *args, **kwargs: None)
+    monkeypatch.setattr(tray, "port_is_busy", lambda *args, **kwargs: True)
+    monkeypatch.setattr(
+        tray, "stop_services_on_port", lambda *args, **kwargs: {"free": True}
+    )
+    supervisor._clear_port()
+
+
+def test_actions_start_and_signal_handling(monkeypatch) -> None:
+    supervisor = RecordingSupervisor()
+    actions = tray.TrayActions(supervisor)
+    actions.start()
+    assert supervisor.calls == ["start"]
+
+    calls: list[int] = []
+    monkeypatch.setattr(tray.signal, "signal", lambda signum, handler: calls.append(signum))
+    tray._install_signal_handlers(SimpleNamespace(stop=lambda: None))
+    assert calls
+
+    monkeypatch.setattr(
+        tray.signal,
+        "signal",
+        lambda signum, handler: (_ for _ in ()).throw(ValueError("bad")),
+    )
+    tray._install_signal_handlers(SimpleNamespace(stop=lambda: None))
+
+
+def test_tray_available_with_backend(monkeypatch) -> None:
+    _fake_pystray(monkeypatch)
+    monkeypatch.setattr(tray.sys, "platform", "win32")
+    assert tray.tray_available() is True
+    monkeypatch.setattr(tray.sys, "platform", "linux")
+    monkeypatch.setenv("DISPLAY", ":0")
+    assert tray.tray_available() is True
+
+
+def test_run_tray_opens_the_browser_and_quits(monkeypatch) -> None:
+    _fake_pystray(monkeypatch)
+    opened: list[str] = []
+    monkeypatch.setattr(tray.webbrowser, "open", lambda url: opened.append(url))
+    monkeypatch.setattr(tray, "_wait_for_service", lambda *args, **kwargs: True)
+
+    class Supervisor:
+        running = True
+        url = "http://127.0.0.1:8765/"
+
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def start(self) -> bool:
+            return True
+
+        def stop(self) -> bool:
+            return True
+
+    monkeypatch.setattr(tray, "ServerSupervisor", Supervisor)
+    assert tray.run_tray(host="127.0.0.1", port=8765, open_browser=True) == 0
+    assert opened

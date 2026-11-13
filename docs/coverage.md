@@ -10,23 +10,29 @@ uv run python scripts/coverage_layers.py
 The `.coveragerc` used for this report disables the release gate's omit list so
 adapters, exporters, API, jobs, and MCP are visible.
 
-## Current working tree (2.66.0)
+## Current working tree (2.71.0)
+
+Measured after the P0/P1 coverage pass, with the release-gate omit list
+disabled. The full unit/contract run is **2,098 passed, 1 skipped, 1 xfailed**.
 
 | Layer | Hit | Total | Cover |
 | --- | ---: | ---: | ---: |
-| api | 2,698 | 2,875 | 93.84% |
-| jobs | 484 | 509 | 95.09% |
+| api | 2,776 | 2,875 | 96.56% |
+| adapters | 1,260 | 1,295 | 97.30% |
+| application | 14,831 | 15,743 | 94.21% |
+| engine | 1,090 | 1,157 | 94.21% |
 | exporters | 1,211 | 1,261 | 96.03% |
 | mcp | 991 | 1,021 | 97.06% |
-| steps | 6,058 | 6,692 | 90.53% |
-| application | 12,822 | 14,030 | 91.39% |
-| domain | 1,170 | 1,176 | 99.49% |
-| **full tree (statements)** | **28,345** | **30,595** | **92.6%** |
-| **full tree (branch report)** | — | — | **90%** |
+| steps | 7,633 | 8,078 | 94.49% |
+| domain | 1,175 | 1,181 | 99.49% |
+| cli/runtime/core/plugin | 1,110 | 1,143 | 97.11% |
+| **full tree (statements)** | **32,077** | **33,754** | **95.03%** |
+| **full tree (branch report)** | — | — | **88.0%** |
 
-The full-tree 95% target is still open; the configured release gate remains at
-98% on its selected source set. The new research, transcription-resume,
-MediaPipe, and HITL workspace paths are covered by focused tests.
+The full-tree 95% target is **met**. The configured release gate remains at
+98% on its selected source set, which is narrower than this report. The
+remaining misses are concentrated in defensive branches for optional backends,
+offline paths, and platform-specific tray/notifier code.
 
 ## Current working tree (2.58.5)
 

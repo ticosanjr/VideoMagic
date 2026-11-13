@@ -113,3 +113,119 @@ def test_voice_patch_splices_and_updates_the_master(tmp_path: Path, monkeypatch)
     assert "[patch]" in ";".join(commands[0])
     assert Path(context.artifacts["voice_patch"]).is_file()
     assert (context.output / "audio" / "master.wav").read_bytes() == b"RIFF-repaired"
+
+
+def test_voice_patch_missing_master_and_alternative_suffix(
+    tmp_path: Path, monkeypatch
+) -> None:
+    context = _context(tmp_path)
+    context.artifacts.pop("audio_mix", None)
+    VoicePatchStep().run(context, VoicePatchParams(), StepIO())
+    assert any("no final audio" in item for item in context.warnings)
+
+    master = context.output / "audio" / "master.wav"
+    master.parent.mkdir(parents=True, exist_ok=True)
+    master.write_bytes(b"RIFF")
+    context.artifacts["audio_master"] = str(master)
+    patch = context.output / "audio" / "voice-patch.mp3"
+    patch.write_bytes(b"MP3")
+    monkeypatch.setattr(
+        "videoflow.steps.voice_patch.subprocess.run",
+        lambda command, **kwargs: (
+            Path(command[-1]).write_bytes(b"repaired"),
+            SimpleNamespace(returncode=0, stderr=""),
+        )[1],
+    )
+    VoicePatchStep().run(
+        context,
+        VoicePatchParams(start_sec=0, end_sec=1),
+        StepIO(),
+    )
+    assert context.artifacts["voice_patch"]
+
+    monkeypatch.setattr(
+        "videoflow.steps.voice_patch.first_provider",
+        lambda capability: {"base_url": "http://127.0.0.1:1/v1"},
+    )
+    monkeypatch.setattr(
+        "videoflow.steps.voice_patch.OpenAITtsAdapter",
+        lambda **kwargs: SimpleNamespace(
+            synthesize=lambda text, target: (Path(target).write_bytes(b"tts") or target)
+        ),
+    )
+    synth = VoicePatchStep._tts_patch(context, "hello", StepIO())
+    assert synth is not None and synth.is_file()
+
+
+def test_voice_patch_unavailable_tts_and_ffmpeg_errors(
+    tmp_path: Path, monkeypatch
+) -> None:
+    context = _context(tmp_path)
+    monkeypatch.setattr("videoflow.steps.voice_patch.first_provider", lambda capability: None)
+    assert VoicePatchStep._tts_patch(context, "hello", StepIO()) is None
+
+    master = context.output / "audio" / "master.wav"
+    master.parent.mkdir(parents=True, exist_ok=True)
+    master.write_bytes(b"RIFF")
+    context.artifacts["audio_master"] = str(master)
+    patch = context.output / "audio" / "voice-patch.wav"
+    patch.write_bytes(b"RIFF")
+    monkeypatch.setattr("videoflow.steps.voice_patch.find_binary", lambda name: None)
+    import pytest
+
+    with pytest.raises(RuntimeError):
+        VoicePatchStep().run(context, VoicePatchParams(start_sec=0, end_sec=1), StepIO())
+
+    monkeypatch.setattr("videoflow.steps.voice_patch.find_binary", lambda name: "ffmpeg")
+    monkeypatch.setattr(
+        "videoflow.steps.voice_patch.subprocess.run",
+        lambda command, **kwargs: SimpleNamespace(returncode=1, stderr="bad"),
+    )
+    with pytest.raises(RuntimeError, match="Voice repair failed"):
+        VoicePatchStep().run(context, VoicePatchParams(start_sec=0, end_sec=1), StepIO())
+
+
+def test_voice_patch_invalid_segment_and_optional_fallbacks(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from videoflow.domain.state import MediaInfo
+
+    context = _context(tmp_path)
+    context.media = MediaInfo(
+        source_path=str(context.source),
+        duration_frames=0,
+        fps_num=30,
+        fps_den=1,
+        width=1280,
+        height=720,
+        audio_sample_rate=48000,
+    )
+    master = context.output / "audio" / "master.wav"
+    master.parent.mkdir(parents=True, exist_ok=True)
+    master.write_bytes(b"RIFF")
+    context.artifacts["audio_mix"] = str(master)
+    patch = context.output / "audio" / "voice-patch.wav"
+    patch.write_bytes(b"RIFF")
+    VoicePatchStep().run(
+        context, VoicePatchParams(start_sec=1, end_sec=2), StepIO()
+    )
+    assert any("invalid segment" in item for item in context.warnings)
+
+    monkeypatch.setattr(
+        "videoflow.steps.voice_patch.first_provider",
+        lambda capability: {"base_url": ""},
+    )
+    assert VoicePatchStep._tts_patch(context, "hello", StepIO()) is None
+    monkeypatch.setattr(
+        "videoflow.steps.voice_patch.first_provider",
+        lambda capability: {"base_url": "http://127.0.0.1:1/v1"},
+    )
+    monkeypatch.setattr(
+        "videoflow.steps.voice_patch.OpenAITtsAdapter",
+        lambda **kwargs: SimpleNamespace(
+            synthesize=lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("tts down"))
+        ),
+    )
+    assert VoicePatchStep._tts_patch(context, "hello", StepIO()) is None
+    assert any("TTS voice patch fallback" in item for item in context.warnings)
+    assert VoicePatchStep().cache_outputs(context) == ()

@@ -90,3 +90,129 @@ def test_mediapipe_backend_falls_back_when_missing(monkeypatch) -> None:
     )
     assert mode == "motion_tracking"
     assert keyframes[-1]["focus_x"] > 0.3
+
+
+def test_face_centers_with_fake_opencv(monkeypatch) -> None:
+    import sys
+    from types import ModuleType, SimpleNamespace
+
+    from videoflow.application import tracking
+
+    cv2 = ModuleType("cv2")
+    cv2.data = SimpleNamespace(haarcascades="/tmp")
+    cv2.CascadeClassifier = lambda path: SimpleNamespace(
+        detectMultiScale=lambda frame, **kwargs: [
+            [10, 0, 20, 20],
+            [30, 0, 40, 20],
+        ]
+    )
+    monkeypatch.setitem(sys.modules, "cv2", cv2)
+    frames = np.zeros((1, 36, 64), dtype=np.uint8)
+    assert tracking._face_centers(frames) == [(30 + 20) / 64]
+
+
+def test_mediapipe_face_centers(monkeypatch) -> None:
+    import sys
+    from types import ModuleType, SimpleNamespace
+
+    from videoflow.application import tracking
+
+    box = SimpleNamespace(xmin=0.2, width=0.4, height=0.4)
+    detection = SimpleNamespace(location_data=SimpleNamespace(relative_bounding_box=box))
+
+    class Detector:
+        def process(self, rgb):
+            return SimpleNamespace(detections=[detection])
+
+        def close(self):
+            return None
+
+    mediapipe = ModuleType("mediapipe")
+    mediapipe.solutions = SimpleNamespace(  # type: ignore[attr-defined]
+        face_detection=SimpleNamespace(FaceDetection=lambda **kwargs: Detector())
+    )
+    monkeypatch.setitem(sys.modules, "mediapipe", mediapipe)
+    centers = tracking._face_centers_mediapipe(np.zeros((1, 36, 64), dtype=np.uint8))
+    assert centers == [0.4]
+
+
+def test_yolo_face_centers(monkeypatch, tmp_path) -> None:
+    import sys
+    from types import ModuleType, SimpleNamespace
+
+    from videoflow.application import tracking
+
+    monkeypatch.delenv("VIDEOWFLOW_YOLO_MODEL", raising=False)
+    with __import__("pytest").raises(ImportError):
+        tracking._face_centers_yolo(np.zeros((1, 36, 64), dtype=np.uint8))
+
+    model = tmp_path / "model.pt"
+    model.write_bytes(b"model")
+    monkeypatch.setenv("VIDEOWFLOW_YOLO_MODEL", str(model))
+
+    class Box:
+        cls = [0]
+        xyxy = [[10, 0, 20, 20]]
+
+    ultralytics = ModuleType("ultralytics")
+    ultralytics.YOLO = lambda path: SimpleNamespace(  # type: ignore[attr-defined]
+        predict=lambda image, verbose=False: [SimpleNamespace(boxes=[Box()])]
+    )
+    monkeypatch.setitem(sys.modules, "ultralytics", ultralytics)
+    centers = tracking._face_centers_yolo(np.zeros((1, 36, 64), dtype=np.uint8))
+    assert centers == [15 / 64]
+
+
+def test_motion_centers_and_face_focus(monkeypatch) -> None:
+    import sys
+    from types import ModuleType, SimpleNamespace
+
+    from videoflow.application import tracking
+
+    assert tracking._motion_centers(np.zeros((1, 36, 64), dtype=np.uint8)) == [None]
+    frames = np.zeros((2, 36, 64), dtype=np.uint8)
+    frames[1, 10:20, 48:60] = 255
+    assert tracking._motion_centers(frames)[1] > 0.6
+
+    cv2 = ModuleType("cv2")
+    cv2.data = SimpleNamespace(haarcascades="/tmp")
+    cv2.CascadeClassifier = lambda path: SimpleNamespace(
+        detectMultiScale=lambda frame, **kwargs: [[10, 0, 20, 20]]
+    )
+    monkeypatch.setitem(sys.modules, "cv2", cv2)
+    frames = np.zeros((2, 36, 64), dtype=np.uint8)
+    assert tracking._face_focus(frames) == (10 + 10) / 64
+
+
+def test_frames_from_pieces(monkeypatch, tmp_path) -> None:
+    from types import SimpleNamespace
+
+    import pytest
+
+    from videoflow.application import tracking
+    from videoflow.domain.errors import IngestError
+
+    monkeypatch.setattr(tracking, "find_binary", lambda name: None)
+    with pytest.raises(IngestError):
+        tracking.frames_from_pieces(tmp_path / "source.mp4", [(0, 100)], 1000)
+
+    monkeypatch.setattr(tracking, "find_binary", lambda name: "ffmpeg")
+    raw = bytes([10] * (2 * 36 * 64))
+    monkeypatch.setattr(
+        tracking.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout=raw),
+    )
+    frames = tracking.frames_from_pieces(tmp_path / "source.mp4", [(0, 100)], 1000)
+    assert frames.shape == (2, 36, 64)
+
+    monkeypatch.setattr(
+        tracking.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=1, stdout=b""),
+    )
+    assert tracking.frames_from_pieces(tmp_path / "source.mp4", [(0, 100)], 1000).shape == (
+        0,
+        36,
+        64,
+    )

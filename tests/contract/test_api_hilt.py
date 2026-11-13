@@ -325,3 +325,29 @@ def test_upload_with_unknown_file_request_is_rejected(monkeypatch, tmp_path: Pat
         files={"files": ("a.md", b"x", "text/markdown")},
     )
     assert response.status_code == 409
+
+
+def test_hilt_invalid_payloads_and_waiting_guard(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    for path in ("/api/v1/hilt/slack/events", "/api/v1/hilt/email/inbound"):
+        broken = client.post(
+            path,
+            content=b"{not json",
+            headers={"content-type": "application/json"},
+        )
+        assert broken.status_code == 409
+
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    job = manager.start(
+        source,
+        tmp_path / "out",
+        {"mode": "recipe", "recipe": _base_recipe([])},
+        queue=True,
+    )
+    _wait(manager, str(job.job_id), {"succeeded", "failed"})
+    guarded = client.post(
+        f"/api/v1/jobs/{job.job_id}/interactions/missing/respond",
+        json={"action": "submit"},
+    )
+    assert guarded.status_code == 409

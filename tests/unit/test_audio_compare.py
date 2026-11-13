@@ -276,3 +276,107 @@ def test_median_filter_smooths_a_short_series() -> None:
     filtered = _median_filter(values, size=3)
     assert filtered.shape == values.shape
     assert float(filtered[1]) == 0.0
+
+
+def test_audio_compare_error_and_edge_branches(monkeypatch, tmp_path: Path) -> None:
+    import subprocess
+
+    import numpy as np
+    import pytest
+
+    from videoflow.application import audio_compare as module
+    from videoflow.domain.errors import IngestError
+
+    monkeypatch.setattr(module, "find_binary", lambda name: None)
+    with pytest.raises(IngestError, match="FFmpeg"):
+        module.load_pcm(tmp_path / "missing.wav")
+    monkeypatch.setattr(module, "find_binary", lambda name: "ffmpeg")
+    with pytest.raises(IngestError, match="does not exist"):
+        module.load_pcm(tmp_path / "missing.wav")
+    source = tmp_path / "source.wav"
+    source.write_bytes(b"wav")
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("no ffmpeg")),
+    )
+    with pytest.raises(IngestError, match="decode failed"):
+        module.load_pcm(source)
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, b"", b""),
+    )
+    with pytest.raises(IngestError, match="no PCM"):
+        module.load_pcm(source)
+
+    assert module.log_mel(np.zeros((2, 10), dtype=np.float32)).shape[1] == module.N_MELS
+    assert module.log_mel(np.zeros(4, dtype=np.float32)).shape[0] >= 1
+    assert module.frame_rms(np.zeros((2, 10), dtype=np.float32)).size >= 1
+    monkeypatch.setattr(module, "frame_rms", lambda *args, **kwargs: np.zeros(0))
+    assert module.speech_fraction(np.zeros(0, dtype=np.float32)).size == 0
+    monkeypatch.undo()
+    monkeypatch.setattr(module, "find_binary", lambda name: "ffmpeg")
+    with pytest.raises(ValueError):
+        module.window_descriptors(np.zeros(2, dtype=np.float32))
+    with pytest.raises(ValueError):
+        module.dtw_subsequence(np.zeros(2), np.zeros((2, 2)))
+    with pytest.raises(ValueError):
+        module.dtw_symmetric(np.zeros((2, 2)), np.zeros(2))
+    assert module.dtw_subsequence(np.zeros((0, 2)), np.zeros((2, 2))) == ([], 0.0)
+    assert module.dtw_symmetric(np.zeros((0, 2)), np.zeros((2, 2))) == []
+
+    values = np.arange(3)
+    assert module._median_filter(values, size=5) is not values
+    assert module._median_filter(values, size=1) is not values
+
+    assert module.silence_spans(np.zeros(0, dtype=np.float32)) == []
+    assert module.silence_stats([]) == {
+        "total_seconds": 0.0,
+        "max_seconds": 0.0,
+        "events": 0,
+    }
+
+
+def test_loudness_and_spectral_edge_branches(monkeypatch, tmp_path: Path) -> None:
+    import subprocess
+
+    import numpy as np
+
+    from videoflow.application import audio_compare as module
+
+    monkeypatch.setattr(module, "find_binary", lambda name: None)
+    assert module.loudness_stats(tmp_path / "x.wav")["lufs"] is None
+
+    monkeypatch.setattr(module, "find_binary", lambda name: "ffmpeg")
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, b"", b"no json"),
+    )
+    assert module.loudness_stats(tmp_path / "x.wav")["lufs"] is None
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0], 0, b"", b'{"input_i": "bad", "input_tp": 1.0}'
+        ),
+    )
+    stats = module.loudness_stats(tmp_path / "x.wav")
+    assert stats["lufs"] is None and stats["true_peak"] == 1.0
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, b"", b"{bad}"),
+    )
+    assert module.loudness_stats(tmp_path / "x.wav")["lra"] is None
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("down")),
+    )
+    assert module.loudness_stats(tmp_path / "x.wav")["lufs"] is None
+
+    assert module.spectral_correlation(np.zeros(4), np.zeros(4)) == 0.0
+    assert module.spectral_correlation(np.zeros(10), np.zeros(10)) == 0.0
+    assert module.reconstruct(np.zeros(100, dtype=np.float32), []) .size == 0

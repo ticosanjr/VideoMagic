@@ -181,3 +181,243 @@ def test_youtube_search(monkeypatch) -> None:
     assert results[0].provider == "youtube"
     assert results[0].license_status == "fair_use_review"
     assert results[0].duration_sec == 600
+
+
+def test_missing_keys_and_http_errors(monkeypatch) -> None:
+    import pytest
+
+    from videoflow.application.asset_providers import search
+    from videoflow.domain.errors import CapabilityUnavailableError, SearchError
+
+    monkeypatch.delenv("PEXELS_API_KEY", raising=False)
+    monkeypatch.delenv("PIXABAY_API_KEY", raising=False)
+    with pytest.raises(CapabilityUnavailableError):
+        search._pexels(
+            "x",
+            settings=AppSettings(),
+            limit=1,
+            media="all",
+            allow_external_services=True,
+            allowed_external_hosts=(),
+        )
+    with pytest.raises(CapabilityUnavailableError):
+        search._pixabay(
+            "x",
+            settings=AppSettings(),
+            limit=1,
+            media="all",
+            allow_external_services=True,
+            allowed_external_hosts=(),
+        )
+
+    monkeypatch.setenv("PEXELS_API_KEY", "key")
+    monkeypatch.setattr(
+        search.httpx,
+        "get",
+        lambda *args, **kwargs: Response({}, 500),
+    )
+    with pytest.raises(SearchError, match="Pexels video"):
+        search._pexels(
+            "x",
+            settings=AppSettings(),
+            limit=1,
+            media="video",
+            allow_external_services=True,
+            allowed_external_hosts=(),
+        )
+    with pytest.raises(SearchError, match="Wikimedia"):
+        search._wikimedia(
+            "x",
+            limit=1,
+            media="all",
+            allow_external_services=True,
+            allowed_external_hosts=(),
+        )
+    with pytest.raises(SearchError, match="Internet Archive"):
+        search._internet_archive(
+            "x",
+            limit=1,
+            media="all",
+            allow_external_services=True,
+            allowed_external_hosts=(),
+        )
+
+
+def test_openverse_wikimedia_and_archive_skip_bad_items(monkeypatch) -> None:
+    routes = {
+        "/v1/images/": {
+            "results": [
+                {"title": "ok", "url": "https://cdn/i.jpg"},
+            ]
+        },
+        "/w/api.php": {
+            "query": {
+                "pages": {
+                    "1": {"title": "No imageinfo"},
+                    "2": {
+                        "title": "File:Sound.ogg",
+                        "imageinfo": [{"url": "https://cdn/sound.ogg"}],
+                    },
+                    "3": {
+                        "title": "File:Video.mp4",
+                        "imageinfo": [{"url": "https://cdn/video.mp4"}],
+                    },
+                }
+            }
+        },
+        "advancedsearch.php": {
+            "response": {
+                "docs": [
+                    {"title": "No id", "mediatype": "movies"},
+                    {"identifier": "audio-1", "mediatype": "audio"},
+                    {
+                        "identifier": "meta-fail",
+                        "mediatype": "movies",
+                        "title": "Fail",
+                    },
+                    {"identifier": "no-file", "mediatype": "image"},
+                ]
+            }
+        },
+        "/metadata/meta-fail": {},
+        "/metadata/no-file": {"files": [{"name": "file.txt"}]},
+    }
+
+    def get(url, **kwargs):
+        if "advancedsearch.php" in url:
+            return Response(routes["advancedsearch.php"])
+        if "/v1/images/" in url:
+            return Response(routes["/v1/images/"])
+        if "/w/api.php" in url:
+            return Response(routes["/w/api.php"])
+        if "/metadata/meta-fail" in url:
+            return Response({}, 500)
+        if "/metadata/no-file" in url:
+            return Response(routes["/metadata/no-file"])
+        return Response({}, 404)
+
+    monkeypatch.setattr(
+        "videoflow.application.asset_providers.search.httpx.get", get
+    )
+    openverse = search_assets(
+        "x",
+        providers=["openverse"],
+        settings=AppSettings(),
+        media="image",
+        limit=2,
+        allow_external_services=True,
+    )
+    assert [item.provider for item in openverse] == ["openverse"]
+    wikimedia = search_assets(
+        "x",
+        providers=["wikimedia"],
+        settings=AppSettings(),
+        media="all",
+        limit=5,
+        allow_external_services=True,
+    )
+    assert {item.download_url for item in wikimedia} == {
+        "https://cdn/sound.ogg",
+        "https://cdn/video.mp4",
+    }
+    archive = search_assets(
+        "x",
+        providers=["internet_archive"],
+        settings=AppSettings(),
+        media="all",
+        limit=5,
+        allow_external_services=True,
+    )
+    assert archive == []
+
+    monkeypatch.setattr(
+        "videoflow.application.asset_providers.search.httpx.get",
+        lambda *args, **kwargs: Response({"results": []}, 500),
+    )
+    assert (
+        search_assets(
+            "x",
+            providers=["openverse"],
+            settings=AppSettings(),
+            allow_external_services=True,
+        )
+        == []
+    )
+    assert (
+        search_assets(
+            "x",
+            providers=["openverse"],
+            settings=AppSettings(),
+            media="video",
+            allow_external_services=True,
+        )
+        == []
+    )
+
+
+def test_youtube_failures_and_aggregate_errors(monkeypatch) -> None:
+    import pytest
+
+    from videoflow.application.asset_providers import search
+    from videoflow.domain.errors import CapabilityUnavailableError, SearchError
+
+    assert (
+        search._youtube(
+            "x",
+            limit=1,
+            media="image",
+            allow_external_services=True,
+            allowed_external_hosts=(),
+        )
+        == []
+    )
+    monkeypatch.setattr(search, "find_binary", lambda name: None)
+    with pytest.raises(CapabilityUnavailableError):
+        search._youtube(
+            "x",
+            limit=1,
+            media="all",
+            allow_external_services=True,
+            allowed_external_hosts=(),
+        )
+
+    monkeypatch.setattr(search, "find_binary", lambda name: "/bin/yt-dlp")
+    monkeypatch.setattr(
+        search.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=1, stdout="", stderr="bad"),
+    )
+    with pytest.raises(SearchError, match="YouTube search failed"):
+        search._youtube(
+            "x",
+            limit=1,
+            media="all",
+            allow_external_services=True,
+            allowed_external_hosts=(),
+        )
+
+    monkeypatch.setattr(
+        search.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=0,
+            stdout="bad-line\nid\tTitle\tnope\tUploader\n",
+            stderr="",
+        ),
+    )
+    results = search._youtube(
+        "x",
+        limit=1,
+        media="all",
+        allow_external_services=True,
+        allowed_external_hosts=(),
+    )
+    assert results[0].duration_sec == 0.0
+
+    with pytest.raises(SearchError, match="No asset provider"):
+        search_assets(
+            "x",
+            providers=["unknown", "pexels"],
+            settings=AppSettings(),
+            allow_external_services=False,
+        )

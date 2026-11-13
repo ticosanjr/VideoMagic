@@ -6,7 +6,7 @@ recording into an editable timeline: it removes silence and retakes, adds
 J-cuts and punch-ins, proposes vertical Shorts, masters the dialogue bed, and
 exports timelines for DaVinci Resolve, Adobe Premiere Pro, and Kdenlive.
 
-> Status: 2.60.0 local stable. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
+> Status: 2.71.0 local stable. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical Shorts,
 > audio mastering and loudness QA, burned titles, color/LUT grading, analytics
@@ -17,7 +17,10 @@ exports timelines for DaVinci Resolve, Adobe Premiere Pro, and Kdenlive.
 > and human approval gates. The canvas supports multi-select, markers, track
 > mute/solo/lock, clip thumbnails, drag, trim, split, ripple, undo/redo,
 > snapping, waveform, background preview and render queues, and per-clip
-> transitions, fades, and scale. Projects persist atomic, revisioned JSON state
+> transitions, fades, and scale. The 2.7x line adds a favorites-first Produce
+> overview, a global HITL inbox, run workspaces, the Synthetic Code Studio and
+> Footage Intelligence Edit recipes, optional ElevenLabs voice cloning, and a
+> desktop tray. Projects persist atomic, revisioned JSON state
 > under `.videoflow/`; schedules, service definitions, and job/asset indices use
 > SQLite as the operational store for jobs, assets, and batches; settings,
 > providers, secrets, models, plugins, and diagnostics are configurable locally.

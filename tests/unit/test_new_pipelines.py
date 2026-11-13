@@ -488,3 +488,89 @@ def test_qa_frames_flags_clipped_ocr_boxes(tmp_path: Path, monkeypatch) -> None:
 
     kinds = [item["kind"] for item in context.metadata["qa_frames"]["issues"]]
     assert "text_clipped" in kinds
+
+
+def test_motion_helpers_and_callout_with_tracks(tmp_path: Path) -> None:
+    pytest.importorskip("PIL")
+    from videoflow.steps import motion_attach as module
+
+    context = _context(tmp_path)
+    (context.output / "storyboard").mkdir(parents=True)
+    (context.output / "storyboard" / "units.json").write_text(
+        json.dumps(
+            {
+                "units": [
+                    {
+                        "unit_id": "UNIT-0001",
+                        "title": "Opening",
+                        "start_sec": 0,
+                        "end_sec": 4,
+                        "duration_sec": 4,
+                    }
+                ]
+            }
+        )
+    )
+    (context.output / "vision").mkdir(parents=True)
+    (context.output / "vision" / "ocr.json").write_text(
+        json.dumps(
+            {
+                "frames": [
+                    {
+                        "time_sec": 1,
+                        "boxes": [{"text": "Tracked text"}],
+                    }
+                ]
+            }
+        )
+    )
+    (context.output / "vision" / "tracks.json").write_text(
+        json.dumps(
+            {
+                "tracks": [
+                    {
+                        "text": "Tracked text",
+                        "points": [{"time": 0, "x": 640, "y": 540}],
+                    }
+                ]
+            }
+        )
+    )
+    (context.output / "style").mkdir(parents=True)
+    (context.output / "style" / "style-guide.json").write_text(
+        json.dumps({"palette": ["#000000", "#ffffff", "#ff0000"]})
+    )
+    context.media = MediaInfo(
+        source_path=str(context.source),
+        duration_frames=120,
+        fps_num=30,
+        fps_den=1,
+        width=1280,
+        height=720,
+        audio_sample_rate=48000,
+    )
+    callouts = module.MotionCalloutStep()
+    callouts.run(context, module.MotionCalloutParams(), StepIO())
+    payload = json.loads((context.output / "motion" / "callouts.json").read_text())
+    assert payload["callouts"][0]["text"] == "Tracked text"
+    assert payload["callouts"][0]["position_x"] > 0
+    assert module._track_position(
+        [{"text": "other", "points": [{"time": 0, "x": 10, "y": 20}]}],
+        text="tracked",
+        at=0,
+        width=100,
+        height=100,
+    ) == (0.1, 0.2)
+    assert module._track_position([], text="x", at=0, width=0, height=0) is None
+    assert module._style_colors(context, "style/style-guide.json") == (
+        "#ff0000",
+        "#ffffff",
+    )
+
+
+def test_motion_attach_requires_a_timeline(tmp_path: Path) -> None:
+    context = _context(tmp_path)
+    from videoflow.domain.errors import StateNotReadyError
+
+    with pytest.raises(StateNotReadyError):
+        MotionAttachStep().run(context, MotionAttachParams(), StepIO())
