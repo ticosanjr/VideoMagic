@@ -28,6 +28,7 @@ from videoflow.application.clock import now_iso
 from videoflow.application.settings import load_settings
 from videoflow.domain.errors import (
     HiltAttachmentError,
+    HiltExpiredError,
     HiltResponseError,
     RecipeError,
 )
@@ -517,6 +518,10 @@ def respond(
     existing = load_response(output, interaction_id)
     if existing is not None:
         return request, existing
+    if is_expired(request):
+        raise HiltExpiredError(
+            f"Interaction {interaction_id} expired at {request.expires_at}"
+        )
     if request.token_required and channel != "local":
         digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
         if not token or not hmac.compare_digest(digest, request.token_hash):

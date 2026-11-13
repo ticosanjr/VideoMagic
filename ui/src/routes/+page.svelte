@@ -988,6 +988,7 @@ import { noticeCounts } from "$lib/notifications";
     inboxOpen = false;
     openWorkspace(jobId);
   }}
+  onrefresh={() => void refreshHilt()}
 />
 
 <ActivityDrawer

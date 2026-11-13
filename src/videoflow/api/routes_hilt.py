@@ -33,6 +33,16 @@ class HiltSecretRequest(BaseModel):
     value: str = Field(min_length=1, max_length=10000)
 
 
+class BulkApproveItem(BaseModel):
+    job_id: str = Field(min_length=1, max_length=120)
+    interaction_id: str = Field(min_length=1, max_length=200)
+
+
+class BulkApproveRequest(BaseModel):
+    items: list[BulkApproveItem] = Field(min_length=1, max_length=50)
+    comment: str = Field(default="", max_length=4000)
+
+
 _NOTIFICATION_SECRETS = {
     "VIDEOWFLOW_SMTP_PASSWORD",
     "VIDEOWFLOW_IMAP_PASSWORD",
@@ -217,6 +227,50 @@ def register_hilt_routes(app: FastAPI, jobs: JobManager) -> None:
             )
             uploaded.append(attachment.model_dump(mode="json"))
         return {"ok": True, "attachments": uploaded}
+
+    @app.post("/api/v1/hilt/approve")
+    def bulk_approve(request: BulkApproveRequest) -> dict[str, object]:
+        approved: list[dict[str, object]] = []
+        failed: list[dict[str, object]] = []
+        for item in request.items:
+            try:
+                job = _waiting_job(jobs, item.job_id)
+                hilt.find_request(job.output, item.job_id, item.interaction_id)
+                updated, _response = hilt.respond(
+                    job.output,
+                    item.job_id,
+                    item.interaction_id,
+                    action="approve",
+                    comment=request.comment,
+                    responder="bulk",
+                )
+                resumed = jobs.start(
+                    job.source,
+                    job.output,
+                    {**job.options, "resume": True},
+                    queue=True,
+                )
+                hilt.mark_resumed(
+                    job.output, item.interaction_id, str(resumed.job_id)
+                )
+                jobs.mark_answered(item.job_id, str(resumed.job_id))
+                approved.append(
+                    {
+                        "job_id": item.job_id,
+                        "interaction_id": item.interaction_id,
+                        "status": updated.status,
+                        "resumed_job_id": str(resumed.job_id),
+                    }
+                )
+            except VideoFlowError as exc:
+                failed.append(
+                    {
+                        "job_id": item.job_id,
+                        "interaction_id": item.interaction_id,
+                        "error": exc.to_dict(),
+                    }
+                )
+        return {"ok": not failed, "approved": approved, "failed": failed}
 
     @app.post("/api/v1/jobs/{job_id}/interactions/{interaction_id}/cancel")
     def cancel_interaction(job_id: str, interaction_id: str) -> dict[str, object]:

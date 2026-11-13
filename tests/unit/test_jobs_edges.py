@@ -18,6 +18,8 @@ def _wait(job, timeout: float = 5.0):
     deadline = time.monotonic() + timeout
     while job.status not in {"succeeded", "failed", "cancelled"} and time.monotonic() < deadline:
         time.sleep(0.01)
+    # The worker writes the JSON store in its finally block after setting status.
+    time.sleep(0.05)
     return job
 
 

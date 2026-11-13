@@ -724,3 +724,25 @@ def test_apply_attachments_handles_directories_and_replace(
     )
     assert hilt.uploaded_attachments(output, request.interaction_id) == []
     assert hilt.unresolved_files(request, HiltResponse(interaction_id=request.interaction_id)) == []
+
+
+def test_expired_request_cannot_be_answered(tmp_path: Path) -> None:
+    from videoflow.domain.errors import HiltExpiredError
+
+    output = tmp_path / "out"
+    request, _ = _request(output)
+    directory = hilt.interaction_dir(output, request.interaction_id)
+    expired = request.model_copy(
+        update={"expires_at": "2000-01-01T00:00:00+00:00"}
+    )
+    (directory / "request.json").write_text(
+        expired.model_dump_json(), encoding="utf-8"
+    )
+    with pytest.raises(HiltExpiredError):
+        hilt.respond(
+            output,
+            "",
+            request.interaction_id,
+            action="submit",
+            answers={"topic": "x", "tone": "calm"},
+        )

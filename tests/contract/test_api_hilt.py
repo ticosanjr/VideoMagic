@@ -351,3 +351,58 @@ def test_hilt_invalid_payloads_and_waiting_guard(monkeypatch, tmp_path: Path) ->
         json={"action": "submit"},
     )
     assert guarded.status_code == 409
+
+
+def test_bulk_approve_resumes_waiting_jobs(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"x")
+    recipe = _base_recipe(
+        [
+            {
+                "id": "gate",
+                "type": "human.gate",
+                "params": {
+                    "gate_id": "review",
+                    "title": "Review",
+                },
+            }
+        ]
+    )
+    items: list[dict[str, str]] = []
+    for index in range(2):
+        output = tmp_path / f"out-{index}"
+        output.mkdir()
+        job = manager.start(
+            source, output, {"mode": "recipe", "recipe": recipe}, queue=True
+        )
+        waiting = _wait(manager, str(job.job_id), {"waiting_approval", "failed"})
+        assert waiting.status == "waiting_approval", waiting.error
+        interaction = waiting.error["interaction"]
+        items.append(
+            {
+                "job_id": str(job.job_id),
+                "interaction_id": interaction["interaction_id"],
+            }
+        )
+
+    response = client.post(
+        "/api/v1/hilt/approve",
+        json={"items": items, "comment": "bulk ok"},
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["ok"] is True
+    assert len(payload["approved"]) == 2
+    assert payload["failed"] == []
+    for item in payload["approved"]:
+        _wait(manager, item["resumed_job_id"], {"succeeded", "failed", "cancelled"})
+        assert manager.get(item["resumed_job_id"]).status == "succeeded"
+
+    missing = client.post(
+        "/api/v1/hilt/approve",
+        json={"items": [{"job_id": "missing", "interaction_id": "missing"}]},
+    )
+    assert missing.status_code == 200
+    assert missing.json()["ok"] is False
+    assert missing.json()["failed"]

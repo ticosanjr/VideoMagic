@@ -34,3 +34,40 @@ def test_recipe_favorite_recent_and_metadata(monkeypatch, tmp_path) -> None:
 
     missing = client.post("/api/v1/recipes/missing/favorite", json={"favorite": True})
     assert missing.status_code in {404, 422}
+
+
+def test_recipe_preflight_reports_checks(monkeypatch, tmp_path) -> None:
+    client, _manager = _client(monkeypatch, tmp_path)
+    recipe = {
+        "schema_version": 1,
+        "id": "preflight_contract",
+        "name": "Preflight",
+        "steps": [
+            {
+                "id": "voice",
+                "type": "narration.synthesize",
+                "needs": [],
+                "params": {},
+            }
+        ],
+    }
+    response = client.post(
+        "/api/v1/recipes/preflight",
+        json={
+            "recipe": recipe,
+            "output": str(tmp_path / "out"),
+            "variables": {},
+        },
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["ok"] is True
+    assert isinstance(payload["checks"], list)
+    assert payload["ready"] in {True, False}
+
+    missing = client.post(
+        "/api/v1/recipes/preflight",
+        json={"recipe": recipe, "output": str(tmp_path / "out")},
+    )
+    assert missing.status_code == 200
+    assert any(item["id"] == "input.output" for item in missing.json()["checks"])

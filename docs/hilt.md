@@ -47,13 +47,24 @@ POST /api/v1/jobs/{job_id}/interactions/{interaction_id}/files
 POST /api/v1/jobs/{job_id}/interactions/{interaction_id}/cancel
 GET  /api/v1/jobs/{job_id}/interactions/{interaction_id}/artifacts/{artifact_id}
 GET  /api/v1/hilt/pending
+POST /api/v1/hilt/approve
 GET  /api/v1/hilt/channels
 POST /api/v1/hilt/test
 ```
 
 `respond` accepts `action` (`approve`, `reject`, `submit`), `answers`, `comment`,
 and an optional `token` for external channels. `files` is multipart and accepts
-one or more `files` plus an optional `request_id`.
+one or more `files` plus an optional `request_id`. Expired interactions return
+`410 hilt_expired` and are not resumed.
+
+`/api/v1/hilt/approve` accepts `{items: [{job_id, interaction_id}], comment}` and
+approves up to 50 gates in one request. Each item is resumed independently; the
+response reports `approved` and `failed` items so one stale gate does not block
+the rest. The inbox exposes the same action for selected approval cards.
+
+The studio panel keeps answers, comments, and artifact review state in a
+per-interaction local draft, shows upload progress, and offers per-artifact
+review checkboxes. Drafts are cleared after a successful response.
 
 ## Security
 

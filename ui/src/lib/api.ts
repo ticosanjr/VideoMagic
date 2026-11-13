@@ -1673,6 +1673,37 @@ export async function validateRecipe(
   );
 }
 
+export interface PreflightCheck {
+  id: string;
+  category: "recipe" | "input" | "runtime" | "provider" | "optional";
+  status: "ok" | "warning" | "error";
+  label: string;
+  detail: string;
+  fix: string;
+  step_id: string;
+}
+
+export interface PreflightReport {
+  ok: boolean;
+  ready: boolean;
+  errors: number;
+  warnings: number;
+  checks: PreflightCheck[];
+}
+
+export async function preflightRecipe(payload: {
+  source: string;
+  output: string;
+  recipe: Recipe;
+  variables?: Record<string, unknown>;
+  through?: string | null;
+}): Promise<PreflightReport> {
+  return request<PreflightReport>("/api/v1/recipes/preflight", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
 export async function runRecipe(payload: {
   source: string;
   output: string;
@@ -1844,6 +1875,31 @@ export async function uploadInteractionFiles(
     { method: "POST", body: form }
   );
   return response.attachments;
+}
+
+export interface BulkApproveResult {
+  ok: boolean;
+  approved: Array<{
+    job_id: string;
+    interaction_id: string;
+    status: string;
+    resumed_job_id?: string;
+  }>;
+  failed: Array<{
+    job_id: string;
+    interaction_id: string;
+    error: { code: string; message: string };
+  }>;
+}
+
+export async function bulkApproveInteractions(
+  items: Array<{ job_id: string; interaction_id: string }>,
+  comment = ""
+): Promise<BulkApproveResult> {
+  return request<BulkApproveResult>("/api/v1/hilt/approve", {
+    method: "POST",
+    body: JSON.stringify({ items, comment })
+  });
 }
 
 export async function listPendingInteractions(): Promise<HiltPending[]> {

@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from videoflow.application import recipe_meta
 from videoflow.application.jobs import JobManager
+from videoflow.application.preflight import preflight_recipe
 from videoflow.application.run_defaults import resolve_run_roots
 from videoflow.core.recipe import parse_recipe, recipe_to_dict
 from videoflow.domain.errors import RecipeError
@@ -179,6 +180,22 @@ def register_recipe_routes(app: FastAPI, jobs: JobManager) -> None:
             "resolved": recipe_to_dict(resolved),
             "order": [step.id for step in order],
         }
+
+    @app.post("/api/v1/recipes/preflight")
+    def recipe_preflight(request: RecipeRunRequest) -> dict[str, object]:
+        recipe = (
+            parse_recipe(request.recipe)
+            if request.recipe is not None
+            else get_recipe(str(request.recipe_id))
+        )
+        report = preflight_recipe(
+            recipe,
+            source=request.source,
+            output=request.output,
+            variables=request.variables,
+            through=request.through,
+        )
+        return {"ok": True, **report.to_dict()}
 
     @app.post("/api/v1/recipes/dry-run")
     def recipe_dry_run(request: RecipeRunRequest) -> dict[str, object]:

@@ -8,8 +8,10 @@
     errorMessage,
     getRecipe,
     getSystem,
+    preflightRecipe,
     runRecipe,
     type Job,
+    type PreflightReport,
     type Recipe,
     type SystemInfo
   } from "$lib/api";
@@ -37,6 +39,9 @@
   let variables = $state<Record<string, unknown>>({});
   let picker = $state<"" | "source" | "output">("");
   let loadedFor = "";
+  let preflight = $state<PreflightReport | null>(null);
+  let preflightBusy = $state(false);
+  let preflightError = $state("");
 
   const requiresSource = $derived(
     Boolean(recipe?.steps.some((item) => item.type === "ingest"))
@@ -64,8 +69,15 @@
       })
       .map(([key]) => key)
   );
+  const preflightReady = $derived(
+    preflight ? preflight.ready !== false : true
+  );
   const canStart = $derived(
-    Boolean(recipe) && (!requiresSource || source.trim().length > 0) && missingRequired.length === 0
+    Boolean(recipe) &&
+      (!requiresSource || source.trim().length > 0) &&
+      missingRequired.length === 0 &&
+      preflightReady &&
+      !preflightBusy
   );
 
   $effect(() => {
@@ -75,12 +87,45 @@
     void load();
   });
 
+  $effect(() => {
+    if (!open || step !== 2 || !recipe) return;
+    void loadPreflight();
+  });
+
+  async function loadPreflight() {
+    if (!recipe) return;
+    preflightBusy = true;
+    preflightError = "";
+    try {
+      const report = await preflightRecipe({
+        source: requiresSource ? source.trim() : "",
+        output: output.trim(),
+        recipe,
+        variables
+      });
+      preflight = {
+        ...report,
+        ready: report.ready !== false,
+        errors: report.errors ?? 0,
+        warnings: report.warnings ?? 0,
+        checks: report.checks ?? []
+      };
+    } catch (reason) {
+      preflightError = errorMessage(reason);
+      preflight = null;
+    } finally {
+      preflightBusy = false;
+    }
+  }
+
   async function load() {
     loading = true;
     error = "";
     step = 1;
     source = "";
     output = "";
+    preflight = null;
+    preflightError = "";
     try {
       const [loadedRecipe, loadedSystem] = await Promise.all([
         getRecipe(recipeId),
@@ -247,32 +292,69 @@
     {:else}
       <div class="space-y-4">
         <div class="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4">
-          <div class="flex items-center gap-2">
-            <Icon name={system?.ffmpeg ? "check" : "close"} size={16} class={system?.ffmpeg ? "text-emerald-300" : "text-rose-300"} />
-            <p class="text-[length:var(--vf-text-sm)] font-medium text-neutral-100">Preflight</p>
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <Icon name={preflight?.ready === false ? "close" : system?.ffmpeg ? "check" : "close"} size={16} class={preflight?.ready === false || !system?.ffmpeg ? "text-rose-300" : "text-emerald-300"} />
+              <p class="text-[length:var(--vf-text-sm)] font-medium text-neutral-100">Preflight</p>
+              {#if preflight}
+                <span class="rounded-full border border-white/10 px-2 py-0.5 text-[length:var(--vf-text-2xs)] text-neutral-400">
+                  {preflight.errors} error(s) · {preflight.warnings} warning(s)
+                </span>
+              {/if}
+            </div>
+            <button
+              type="button"
+              onclick={() => void loadPreflight()}
+              disabled={preflightBusy}
+              class="rounded-lg border border-neutral-700 px-2.5 py-1 text-[length:var(--vf-text-2xs)] text-neutral-300 disabled:opacity-40"
+            >{preflightBusy ? "Checking…" : "Re-run checks"}</button>
           </div>
-          <ul class="mt-3 space-y-2 text-[length:var(--vf-text-xs)] text-neutral-300">
-            <li class="flex items-center gap-2">
-              <Icon name={system?.ffmpeg ? "check" : "close"} size={13} class={system?.ffmpeg ? "text-emerald-300" : "text-rose-300"} />
-              {system?.ffmpeg ? "FFmpeg is ready" : "FFmpeg is missing"}
-            </li>
-            {#if requiresSource}
+          {#if preflight}
+            <ul class="mt-3 space-y-2 text-[length:var(--vf-text-xs)] text-neutral-300">
+              {#each preflight.checks as check (check.id)}
+                <li class="flex items-start gap-2">
+                  <Icon
+                    name={check.status === "error" ? "close" : check.status === "warning" ? "info" : "check"}
+                    size={13}
+                    class={`mt-0.5 ${check.status === "error" ? "text-rose-300" : check.status === "warning" ? "text-amber-300" : "text-emerald-300"}`}
+                  />
+                  <span class="min-w-0">
+                    <span class="block text-neutral-200">{check.label}</span>
+                    {#if check.detail}<span class="mt-0.5 block text-[length:var(--vf-text-2xs)] text-neutral-500">{check.detail}</span>{/if}
+                    {#if check.fix && check.status !== "ok"}<span class="mt-0.5 block text-[length:var(--vf-text-2xs)] text-neutral-400">{check.fix}</span>{/if}
+                  </span>
+                </li>
+              {/each}
+            </ul>
+          {:else}
+            <ul class="mt-3 space-y-2 text-[length:var(--vf-text-xs)] text-neutral-300">
               <li class="flex items-center gap-2">
-                <Icon name={source.trim() ? "check" : "close"} size={13} class={source.trim() ? "text-emerald-300" : "text-rose-300"} />
-                {source.trim() ? "Source clip selected" : "Choose a source clip"}
+                <Icon name={system?.ffmpeg ? "check" : "close"} size={13} class={system?.ffmpeg ? "text-emerald-300" : "text-rose-300"} />
+                {system?.ffmpeg ? "FFmpeg is ready" : "FFmpeg is missing"}
               </li>
-            {/if}
-            {#if missingRequired.length}
-              <li class="flex items-center gap-2 text-rose-200">
-                <Icon name="close" size={13} />
-                Missing required variables: {missingRequired.join(", ")}
+              {#if requiresSource}
+                <li class="flex items-center gap-2">
+                  <Icon name={source.trim() ? "check" : "close"} size={13} class={source.trim() ? "text-emerald-300" : "text-rose-300"} />
+                  {source.trim() ? "Source clip selected" : "Choose a source clip"}
+                </li>
+              {/if}
+              {#if missingRequired.length}
+                <li class="flex items-center gap-2 text-rose-200">
+                  <Icon name="close" size={13} />
+                  Missing required variables: {missingRequired.join(", ")}
+                </li>
+              {/if}
+              <li class="flex items-center gap-2 text-neutral-400">
+                <Icon name="folder" size={13} />
+                Output: {output.trim() || "recipe workspace default"}
               </li>
-            {/if}
-            <li class="flex items-center gap-2 text-neutral-400">
-              <Icon name="folder" size={13} />
-              Output: {output.trim() || "recipe workspace default"}
-            </li>
-          </ul>
+            </ul>
+          {/if}
+          {#if preflightError}
+            <p class="mt-2 rounded-lg border border-amber-500/30 bg-amber-950/30 px-2 py-1 text-[length:var(--vf-text-2xs)] text-amber-200">
+              Could not run the full preflight: {preflightError}. Local checks still apply.
+            </p>
+          {/if}
         </div>
 
         <div class="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4">

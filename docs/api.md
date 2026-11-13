@@ -10,7 +10,8 @@ Implemented today:
 - `GET /api/v1/capabilities`
 - `GET /api/v1/steps`, `GET /api/v1/recipes`, `GET /api/v1/recipes/{id}`,
   `PUT /api/v1/recipes/{id}`, `POST /api/v1/recipes/validate`,
-  `POST /api/v1/recipes/run`, `POST /api/v1/steps/{step_id}/run`
+  `POST /api/v1/recipes/preflight`, `POST /api/v1/recipes/run`,
+  `POST /api/v1/steps/{step_id}/run`
 - `POST /api/v1/batches`, `GET /api/v1/batches`,
   `GET /api/v1/batches/{id}`, `POST /api/v1/batches/{id}/cancel`
 - `GET /api/v1/runs?output=...&limit=...&offset=...` returns paginated run history
@@ -40,6 +41,7 @@ Implemented today:
   `GET /api/v1/jobs/{id}/events`
 - `GET /api/v1/jobs/{id}/interactions`,
   `POST /api/v1/jobs/{id}/interactions/{interaction_id}/respond`,
+  `POST /api/v1/hilt/approve`,
   `POST /api/v1/jobs/{id}/interactions/{interaction_id}/files`,
   `GET /api/v1/hilt/pending`, `GET /api/v1/hilt/channels`,
   `POST /api/v1/hilt/test`, `POST /api/v1/hilt/slack/events`,

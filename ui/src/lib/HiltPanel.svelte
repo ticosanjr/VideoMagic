@@ -22,16 +22,72 @@
   let answers = $state<Record<string, unknown>>({});
   let comment = $state("");
   let files = $state<Record<string, File[]>>({});
+  let reviewed = $state<Record<string, boolean>>({});
   let busy = $state(false);
   let status = $state("");
   let localError = $state("");
+
+  function draftKey(interactionId: string) {
+    return `videoflow.hilt.${interactionId}`;
+  }
+
+  function loadDraft(interactionId: string) {
+    try {
+      const raw = localStorage.getItem(draftKey(interactionId));
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as {
+        answers?: Record<string, unknown>;
+        comment?: string;
+        reviewed?: Record<string, boolean>;
+      };
+      return parsed && typeof parsed === "object" ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function clearDraft(interactionId: string) {
+    try {
+      localStorage.removeItem(draftKey(interactionId));
+    } catch {
+      /* private mode */
+    }
+  }
 
   $effect(() => {
     const next =
       job.interaction ??
       ((job.error as { interaction?: HiltInteraction } | null)?.interaction ?? null);
-    if (next) interaction = next;
+    if (!next || next.interaction_id === interaction?.interaction_id) return;
+    interaction = next;
+    const draft = loadDraft(next.interaction_id);
+    answers = draft?.answers ?? {};
+    comment = draft?.comment ?? "";
+    reviewed = draft?.reviewed ?? {};
   });
+
+  $effect(() => {
+    if (!interaction) return;
+    try {
+      localStorage.setItem(
+        draftKey(interaction.interaction_id),
+        JSON.stringify({ answers, comment, reviewed })
+      );
+    } catch {
+      /* private mode */
+    }
+  });
+
+  function isExpired(current: HiltInteraction): boolean {
+    if (current.expired) return true;
+    if (!current.expires_at) return false;
+    const deadline = Date.parse(current.expires_at);
+    return Number.isFinite(deadline) && deadline < Date.now();
+  }
+
+  function setReviewed(id: string, value: boolean) {
+    reviewed = { ...reviewed, [id]: value };
+  }
 
   function setAnswer(id: string, value: unknown) {
     answers = { ...answers, [id]: value };
@@ -69,6 +125,14 @@
     localError = "";
     status = "";
     try {
+      if (isExpired(interaction)) {
+        throw new Error("This interaction expired. Ask the operator to create a new gate.");
+      }
+      let uploaded = 0;
+      const fileCount = interaction.files.reduce(
+        (total, request) => total + (files[request.id]?.length ?? 0),
+        0
+      );
       for (const question of interaction.questions) {
         const value = answers[question.id];
         const empty =
@@ -85,15 +149,19 @@
           throw new Error(`${request.label} is required.`);
         }
         if (selected.length > 0) {
+          uploaded += selected.length;
+          status = `Uploading ${request.label} (${uploaded}/${fileCount})…`;
           await uploadInteractionFiles(job.job_id, interaction.interaction_id, selected, request.id);
         }
       }
+      if (fileCount) status = "Files uploaded. Saving the answer…";
       const resumed = await respondToInteraction(job.job_id, interaction.interaction_id, {
         action,
         answers,
         comment
       });
       status = action === "reject" ? "Rejected; the job will record the decision." : "Answer saved. Resuming…";
+      clearDraft(interaction.interaction_id);
       onresumed?.(resumed);
     } catch (reason) {
       fail(errorMessage(reason));
@@ -147,20 +215,29 @@
 
     {#if interaction.artifacts.length}
       <div class="mt-3">
-        <p class="text-[length:var(--vf-text-2xs)] font-semibold uppercase tracking-wide text-amber-300/60">Review artifacts</p>
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-[length:var(--vf-text-2xs)] font-semibold uppercase tracking-wide text-amber-300/60">Review artifacts</p>
+          <span class="text-[length:var(--vf-text-2xs)] text-amber-300/60">
+            {interaction.artifacts.filter((artifact) => reviewed[artifact.id]).length}/{interaction.artifacts.length} reviewed
+          </span>
+        </div>
         <div class="mt-1 grid gap-1">
           {#each interaction.artifacts as artifact (artifact.id)}
-            <a
-              class="flex items-center justify-between gap-2 rounded-lg border border-amber-400/10 bg-black/20 px-2.5 py-1.5 text-[length:var(--vf-text-xs)] text-amber-100 hover:border-amber-400/30"
-              href={artifact.download_url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <span class="truncate">{artifact.label}</span>
-              <span class="shrink-0 text-[length:var(--vf-text-2xs)] text-amber-300/60">
-                {artifact.exists ? `${Math.max(1, Math.round(artifact.size_bytes / 1024))} KB` : "missing"}
-              </span>
-            </a>
+            <div class="flex items-center gap-2 rounded-lg border border-amber-400/10 bg-black/20 px-2.5 py-1.5 text-[length:var(--vf-text-xs)] text-amber-100">
+              <input
+                type="checkbox"
+                checked={reviewed[artifact.id] ?? false}
+                onchange={(event) => setReviewed(artifact.id, event.currentTarget.checked)}
+                aria-label={`Mark ${artifact.label} reviewed`}
+                class="h-3.5 w-3.5 shrink-0"
+              />
+              <a class="flex min-w-0 flex-1 items-center justify-between gap-2 hover:text-amber-50" href={artifact.download_url} target="_blank" rel="noreferrer">
+                <span class="truncate">{artifact.label}</span>
+                <span class="shrink-0 text-[length:var(--vf-text-2xs)] text-amber-300/60">
+                  {artifact.exists ? `${Math.max(1, Math.round(artifact.size_bytes / 1024))} KB` : "missing"}
+                </span>
+              </a>
+            </div>
           {/each}
         </div>
       </div>
@@ -302,25 +379,25 @@
         <button
           type="button"
           onclick={() => void submit("approve")}
-          disabled={busy}
+          disabled={busy || isExpired(interaction)}
           class="min-h-9 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3.5 py-1.5 text-[length:var(--vf-text-xs)] font-medium text-emerald-200 disabled:opacity-40"
         >{interaction.approve_label || "Approve and resume"}</button>
         <button
           type="button"
           onclick={() => void submit("reject")}
-          disabled={busy}
+          disabled={busy || isExpired(interaction)}
           class="min-h-9 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3.5 py-1.5 text-[length:var(--vf-text-xs)] font-medium text-rose-200 disabled:opacity-40"
         >{interaction.reject_label || "Reject"}</button>
       {:else}
         <button
           type="button"
           onclick={() => void submit("submit")}
-          disabled={busy}
+          disabled={busy || isExpired(interaction)}
           class="min-h-9 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3.5 py-1.5 text-[length:var(--vf-text-xs)] font-medium text-sky-200 disabled:opacity-40"
         >{busy ? "Submitting…" : "Submit and resume"}</button>
       {/if}
       <span class="self-center text-[9px] text-amber-100/40">
-        {interaction.channels.join(" · ") || "local"} · expires {interaction.expires_at || "later"}
+        {interaction.channels.join(" · ") || "local"} · {isExpired(interaction) ? "expired" : `expires ${interaction.expires_at || "later"}`}
       </span>
     </div>
   </section>

@@ -229,6 +229,21 @@ async function mockApi(page: Page) {
         }
       });
     }
+    if (path === "/api/v1/hilt/approve") {
+      return route.fulfill({
+        json: {
+          ok: true,
+          approved: [
+            {
+              job_id: jobId,
+              interaction_id: interaction.interaction_id,
+              status: "approved"
+            }
+          ],
+          failed: []
+        }
+      });
+    }
     if (path === `/api/v1/jobs/${jobId}/interactions/${interaction.interaction_id}/respond`) {
       return route.fulfill({ json: { ok: true, job: { ...job, status: "running", interaction: null } } });
     }
@@ -251,6 +266,25 @@ test("opens the global HITL inbox and the run workspace", async ({ page }) => {
   await expect(page.getByTestId("recipe-workspace")).toBeVisible();
   await expect(page.getByText("Research approved")).toBeVisible();
   await expect(page.getByRole("button", { name: "Approve" })).toBeVisible();
+});
+
+test("bulk approves selected gates from the inbox", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByTestId("produce-home")).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId("needs-you").click();
+  const inbox = page.getByTestId("hitl-inbox");
+  await inbox.getByLabel("Select Research approved").check();
+  const requestPromise = page.waitForRequest(
+    (request) =>
+      request.url().endsWith("/api/v1/hilt/approve") &&
+      request.method() === "POST"
+  );
+  await inbox.getByRole("button", { name: /Approve selected/ }).click();
+  const body = (await requestPromise).postDataJSON() as {
+    items: Array<{ interaction_id: string }>;
+  };
+  expect(body.items[0].interaction_id).toBe(interaction.interaction_id);
+  await expect(inbox.getByText("1 gate(s) approved.")).toBeVisible();
 });
 
 test("renders the workspace directly from a run hash", async ({ page }) => {

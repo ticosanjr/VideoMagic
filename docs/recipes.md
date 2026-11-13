@@ -150,6 +150,7 @@ GET  /api/v1/recipes
 GET  /api/v1/recipes/{id}
 PUT  /api/v1/recipes/{id}
 POST /api/v1/recipes/validate
+POST /api/v1/recipes/preflight
 POST /api/v1/recipes/run
 POST /api/v1/steps/{step_id}/run
 POST /api/v1/batches
@@ -157,6 +158,12 @@ GET  /api/v1/batches
 GET  /api/v1/batches/{id}
 POST /api/v1/batches/{id}/cancel
 ```
+
+`POST /api/v1/recipes/preflight` accepts the same run payload and returns
+`{ready, errors, warnings, checks}`. Checks cover graph/port/parameter validity,
+source and workspace paths, required variables, FFmpeg/ffprobe, speech
+recognition, configured providers, optional OCR/Playwright/vision/isolation
+backends, and disk space. Errors block the start; warnings describe fallbacks.
 
 `POST /api/v1/recipes/run` accepts either a complete `recipe` object or a
 `recipe_id`, plus optional `source`, `output`, `through`, `resume`, and
