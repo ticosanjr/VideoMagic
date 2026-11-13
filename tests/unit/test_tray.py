@@ -189,6 +189,10 @@ def test_menu_exposes_lifecycle_actions_and_dynamic_status() -> None:
         "Start service",
         "Stop service",
         "Restart service",
+        "Open runs",
+        "Pause all jobs",
+        "Resume all jobs",
+        "Cancel all jobs",
         "Quit",
     ]
     start = next(item for item in items if item.text == "Start service")
@@ -200,7 +204,16 @@ def test_menu_exposes_lifecycle_actions_and_dynamic_status() -> None:
     assert start.kwargs["enabled"](None) is False
     assert stop.kwargs["enabled"](None) is True
     status = next(item for item in items if callable(item.text))
+    jobs = [item for item in items if callable(item.text)]
     assert status.text(None) == "Status: running"
+    assert jobs[1].text(None) == "Jobs: idle"
+    pause = next(item for item in items if item.text == "Pause all jobs")
+    resume = next(item for item in items if item.text == "Resume all jobs")
+    cancel = next(item for item in items if item.text == "Cancel all jobs")
+    actions.job_stats = {"running": 1, "queued": 1, "paused": 0, "waiting": 1, "total": 3}
+    assert pause.kwargs["enabled"](None) is True
+    assert resume.kwargs["enabled"](None) is False
+    assert cancel.kwargs["enabled"](None) is True
 
 
 def test_tray_available_requires_a_display(monkeypatch) -> None:
@@ -275,6 +288,7 @@ def _fake_pystray(
     icon_error: Exception | None = None,
     run_error: Exception | None = None,
 ):
+    monkeypatch.setattr(tray.TrayActions, "refresh_jobs", lambda self: None)
     import sys
     from types import ModuleType
 
@@ -517,3 +531,99 @@ def test_run_tray_opens_the_browser_and_quits(monkeypatch) -> None:
     monkeypatch.setattr(tray, "ServerSupervisor", Supervisor)
     assert tray.run_tray(host="127.0.0.1", port=8765, open_browser=True) == 0
     assert opened
+
+
+class FakeJobs:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+        self.stats = {"running": 2, "queued": 1, "paused": 1, "waiting": 1, "total": 5}
+
+    def snapshot(self):
+        return dict(self.stats)
+
+    def pause_all(self):
+        self.calls.append("pause")
+        self.stats = {"running": 0, "queued": 0, "paused": 3, "waiting": 1, "total": 5}
+        return {"ok": True}
+
+    def resume_all(self):
+        self.calls.append("resume")
+        self.stats = {"running": 2, "queued": 1, "paused": 0, "waiting": 1, "total": 5}
+        return {"ok": True}
+
+    def cancel_all(self):
+        self.calls.append("cancel")
+        self.stats = {"running": 0, "queued": 0, "paused": 0, "waiting": 0, "total": 0}
+        return {"ok": True}
+
+
+def test_actions_refresh_and_control_jobs() -> None:
+    jobs = FakeJobs()
+    opened: list[str] = []
+    actions = tray.TrayActions(RecordingSupervisor(), opener=opened.append, jobs=jobs)
+    actions.refresh_jobs()
+    assert actions.jobs_label() == "Jobs: 2 running · 1 queued · 1 paused · 1 waiting"
+    actions.pause_jobs()
+    assert actions.jobs_label() == "Jobs: 3 paused · 1 waiting"
+    actions.resume_jobs()
+    assert "running" in actions.jobs_label()
+    actions.cancel_jobs()
+    assert actions.jobs_label() == "Jobs: idle"
+    assert jobs.calls == ["pause", "resume", "cancel"]
+    actions.open_runs()
+    assert opened and opened[-1].endswith("#runs")
+
+
+def test_job_controller_http(monkeypatch) -> None:
+    calls: list[tuple[str, str, dict | None]] = []
+
+    class Response:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            if "/api/v1/jobs?" in calls[-1][1]:
+                return {
+                    "jobs": [
+                        {"status": "running"},
+                        {"status": "queued"},
+                        {"status": "paused"},
+                        {"status": "waiting_input"},
+                        {"status": "succeeded"},
+                    ]
+                }
+            return {"ok": True}
+
+    class Client:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def request(self, method, url, json=None):
+            calls.append((method, url, json))
+            return Response()
+
+    monkeypatch.setattr(tray.httpx, "Client", Client)
+    controller = tray.TrayJobController("http://127.0.0.1:8765/")
+    assert controller.snapshot() == {
+        "running": 1,
+        "queued": 1,
+        "paused": 1,
+        "waiting": 1,
+        "total": 5,
+    }
+    controller.pause_all()
+    controller.resume_all()
+    controller.cancel_all()
+    assert [item[1].split("/api/v1")[-1] for item in calls[1:]] == [
+        "/jobs/pause_all",
+        "/jobs/resume_all",
+        "/jobs/cancel_all?force=true",
+    ]

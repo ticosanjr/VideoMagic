@@ -1068,3 +1068,41 @@ def test_provider_test_uses_the_saved_provider_secret(monkeypatch) -> None:
     assert response.json()["secret_present"] is True
     assert calls
     assert calls[0]["headers"]["Authorization"] == "Bearer secret"
+
+
+def test_pause_all_and_resume_all(monkeypatch, tmp_path: Path) -> None:
+    import threading
+
+    release = threading.Event()
+
+    def runner(source, output, *, progress, should_cancel, **kwargs):
+        release.wait(timeout=5)
+        return {"ok": True}
+
+    monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
+    manager = manager_with_runner(runner, max_active=1)
+    client = TestClient(create_app(jobs=manager))
+    first = start_recipe(manager, tmp_path / "a.mp4", tmp_path / "a", {}, queue=True)
+    second = start_recipe(manager, tmp_path / "b.mp4", tmp_path / "b", {}, queue=True)
+    deadline = time.time() + 5
+    while time.time() < deadline and second.status != "queued":
+        time.sleep(0.01)
+    assert second.status == "queued"
+
+    paused = client.post("/api/v1/jobs/pause_all")
+    assert paused.status_code == 200
+    assert manager.get(str(first.job_id)).status in {"paused", "running"}
+    assert manager.get(str(second.job_id)).status == "paused"
+
+    resumed = client.post("/api/v1/jobs/resume_all")
+    assert resumed.status_code == 200
+    assert manager.get(str(second.job_id)).status in {"queued", "running"}
+    release.set()
+    deadline = time.time() + 5
+    while time.time() < deadline and manager.get(str(second.job_id)).status not in {
+        "succeeded",
+        "failed",
+        "cancelled",
+    }:
+        time.sleep(0.01)
+    assert manager.get(str(second.job_id)).status == "succeeded"

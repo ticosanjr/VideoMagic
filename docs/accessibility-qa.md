@@ -40,7 +40,7 @@ The machine has Orca 46.1 on `DISPLAY=:20`. Evidence bundle:
 
 - Reviewer:
 - Date:
-- Build: `releases/v2.71.0/videoflow-2.71.0-linux-x86_64`
+- Build: `releases/v2.72.0/videoflow-2.72.0-linux-x86_64`
 - Result: pending
 
 A signed copy is required before 3.0. Fixes for P0/P1 block the release.

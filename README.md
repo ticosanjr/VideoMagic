@@ -6,7 +6,7 @@ recording into an editable timeline: it removes silence and retakes, adds
 J-cuts and punch-ins, proposes vertical Shorts, masters the dialogue bed, and
 exports timelines for DaVinci Resolve, Adobe Premiere Pro, and Kdenlive.
 
-> Status: 2.71.0 local stable. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
+> Status: 2.72.0 local stable. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical Shorts,
 > audio mastering and loudness QA, burned titles, color/LUT grading, analytics
@@ -106,8 +106,9 @@ uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper \
 ```
 
 `videoflow tray` needs the optional tray extra in a source checkout
-(`uv sync --extra tray`) and a desktop session. The current portable artifacts do
-not bundle it yet; without it, the command falls back to `videoflow serve`.
+(`uv sync --extra tray`) and a desktop session. The tray owns the local service,
+shows job counts, opens the Runs area, and can pause, resume, or cancel all jobs.
+Without the tray backend, the command falls back to `videoflow serve`.
 
 The local release is the canonical artifact build:
 

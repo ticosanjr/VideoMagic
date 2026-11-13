@@ -65,8 +65,16 @@ def test_sigkill_requeues_the_running_job(tmp_path: Path) -> None:
         stderr=subprocess.PIPE,
         text=True,
     )
+    def marker_ready() -> bool:
+        if not marker.is_file():
+            return False
+        try:
+            return bool(marker.read_text(encoding="utf-8").strip())
+        except OSError:
+            return False
+
     try:
-        wait_for(marker.is_file)
+        wait_for(marker_ready)
         job_id = marker.read_text().strip()
         proc.send_signal(signal.SIGKILL)
         proc.wait(timeout=10)

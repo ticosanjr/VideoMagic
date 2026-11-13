@@ -105,6 +105,22 @@ def register_job_routes(app: FastAPI, jobs: JobManager) -> None:
         except VideoFlowError as exc:
             raise HTTPException(status_code=404, detail=exc.to_dict()) from exc
 
+    @app.post("/api/v1/jobs/pause_all")
+    def pause_all_jobs() -> dict[str, object]:
+        paused: list[dict[str, object]] = []
+        for job in jobs.list():
+            if job.status in {"queued", "running"}:
+                paused.append(jobs.pause(str(job.job_id)).to_dict())
+        return {"ok": True, "jobs": paused}
+
+    @app.post("/api/v1/jobs/resume_all")
+    def resume_all_jobs() -> dict[str, object]:
+        resumed: list[dict[str, object]] = []
+        for job in jobs.list():
+            if job.status == "paused":
+                resumed.append(jobs.unpause(str(job.job_id)).to_dict())
+        return {"ok": True, "jobs": resumed}
+
     @app.post("/api/v1/jobs/{job_id}/pause")
     def pause_job(job_id: str) -> dict[str, object]:
         return {"ok": True, "job": jobs.pause(job_id).to_dict()}

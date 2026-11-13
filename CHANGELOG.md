@@ -1,5 +1,41 @@
 # Changelog
 
+## [2.72.0] - 2026-11-13
+
+### Added
+
+- **Tray execution controls.** The desktop tray now shows running, queued,
+  paused, and waiting counts, opens the Runs area directly, and can pause,
+  resume, or cancel all jobs through new `pause_all`/`resume_all` endpoints.
+- **Recipe preflight.** A structured report covers graph, ports, parameters,
+  paths, variables, FFmpeg, transcription, providers/secrets, optional OCR,
+  Playwright, vision, isolation, yt-dlp, and disk space. Errors block the run;
+  warnings describe fallbacks.
+- **Deeper HITL.** Expiration is enforced, answers/comments/artifact reviews are
+  kept as per-interaction drafts, uploads show progress, and the inbox can
+  approve selected gates in bulk with independent resume.
+- **Mobile timeline fallback.** Below 1024 px the timeline becomes a selectable
+  clip list with seek, activate/deactivate, and inspector-based trim/move.
+- **Scene and callout editors.** Synthetic and Footage workspaces can edit the
+  scene/callout JSON plan and save it through an allowlisted, atomic artifact
+  endpoint with an edit audit log.
+- **QA evidence harness.** `scripts/qa_evidence.py` records NLE structure,
+  Kdenlive/Flatpak version, an MLT `melt` render, Orca/display availability, and
+  the visual baselines without fabricating human sign-off.
+
+### Changed
+
+- Extracted recipe and timeline panels into focused components while keeping
+  testids, markup, and behavior.
+- Added Playwright visual baselines for shell desktop/mobile, mobile builder,
+  mobile timeline, HITL inbox, Synthetic, and Footage workspaces.
+- Full-tree coverage moved above the 95% target while new modules landed.
+
+### Fixed
+
+- Audio composition creates its output directory before writing the music plan.
+- Stabilized job-store tests that raced the worker's final JSON write.
+
 ## [2.71.0] - 2026-11-13
 
 ### Added

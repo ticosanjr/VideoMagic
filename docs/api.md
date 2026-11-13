@@ -37,8 +37,10 @@ Implemented today:
 - `POST /api/v1/config/export`, `POST /api/v1/config/import`
 - Short thumbnail generation and download
 - `POST /api/v1/recipes/run`, `GET /api/v1/jobs`, `GET /api/v1/jobs/{id}`,
-  `POST /api/v1/jobs/{id}/cancel`, `POST /api/v1/jobs/{id}/retry`,
-  `GET /api/v1/jobs/{id}/events`
+  `POST /api/v1/jobs/{id}/cancel`, `POST /api/v1/jobs/cancel_all`,
+  `POST /api/v1/jobs/pause_all`, `POST /api/v1/jobs/resume_all`,
+  `POST /api/v1/jobs/{id}/pause`, `POST /api/v1/jobs/{id}/unpause`,
+  `POST /api/v1/jobs/{id}/retry`, `GET /api/v1/jobs/{id}/events`
 - `GET /api/v1/jobs/{id}/interactions`,
   `POST /api/v1/jobs/{id}/interactions/{interaction_id}/respond`,
   `POST /api/v1/hilt/approve`,

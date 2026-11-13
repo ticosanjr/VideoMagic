@@ -16,6 +16,8 @@ import webbrowser
 from collections.abc import Callable
 from typing import Any
 
+import httpx
+
 from videoflow import __version__
 from videoflow.application.services import (
     append_server_log,
@@ -54,9 +56,10 @@ def _ui_url(host: str, port: int) -> str:
     return f"http://{visible}:{port}/"
 
 
-def _browser_url(url: str) -> str:
+def _browser_url(url: str, fragment: str = "") -> str:
     separator = "&" if "?" in url else "?"
-    return f"{url}{separator}v={__version__}"
+    base = f"{url}{separator}v={__version__}"
+    return f"{base}#{fragment}" if fragment else base
 
 
 def _wait_for_service(host: str, port: int, timeout: float = 10.0) -> bool:
@@ -66,6 +69,61 @@ def _wait_for_service(host: str, port: int, timeout: float = 10.0) -> bool:
             return True
         time.sleep(0.1)
     return False
+
+
+class TrayJobController:
+    """Read and control job execution through the local HTTP API."""
+
+    def __init__(self, base_url: str, *, timeout: float = 4.0) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.timeout = timeout
+
+    def _request(
+        self, method: str, path: str, payload: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        with httpx.Client(timeout=self.timeout) as client:
+            response = client.request(
+                method, f"{self.base_url}{path}", json=payload
+            )
+            response.raise_for_status()
+            data = response.json()
+        return data if isinstance(data, dict) else {}
+
+    def snapshot(self) -> dict[str, int]:
+        payload = self._request(
+            "GET", "/api/v1/jobs?summary=true&limit=100"
+        )
+        jobs = payload.get("jobs")
+        counts = {
+            "running": 0,
+            "queued": 0,
+            "paused": 0,
+            "waiting": 0,
+            "total": 0,
+        }
+        for job in jobs if isinstance(jobs, list) else []:
+            if not isinstance(job, dict):
+                continue
+            counts["total"] += 1
+            status = str(job.get("status") or "")
+            if status in {"running", "rendering"}:
+                counts["running"] += 1
+            elif status == "queued":
+                counts["queued"] += 1
+            elif status == "paused":
+                counts["paused"] += 1
+            elif status in {"waiting_approval", "waiting_input"}:
+                counts["waiting"] += 1
+        return counts
+
+    def pause_all(self) -> dict[str, Any]:
+        return self._request("POST", "/api/v1/jobs/pause_all")
+
+    def resume_all(self) -> dict[str, Any]:
+        return self._request("POST", "/api/v1/jobs/resume_all")
+
+    def cancel_all(self) -> dict[str, Any]:
+        return self._request("POST", "/api/v1/jobs/cancel_all?force=true")
 
 
 class ServerSupervisor:
@@ -197,14 +255,62 @@ class TrayActions:
         supervisor: ServerSupervisor,
         *,
         opener: Callable[[str], Any] | None = None,
+        jobs: TrayJobController | None = None,
     ) -> None:
         self.supervisor = supervisor
         self._opener = opener or webbrowser.open
+        self.jobs = jobs or TrayJobController(getattr(supervisor, "url", ""))
+        self.job_stats: dict[str, int] = {
+            "running": 0,
+            "queued": 0,
+            "paused": 0,
+            "waiting": 0,
+            "total": 0,
+        }
+        self.job_error = ""
 
     def open_ui(self) -> None:
         if not self.supervisor.running:
             self.supervisor.start()
         self._opener(_browser_url(self.supervisor.url))
+
+    def open_runs(self) -> None:
+        if not self.supervisor.running:
+            self.supervisor.start()
+        self._opener(_browser_url(self.supervisor.url, "runs"))
+
+    def refresh_jobs(self) -> None:
+        try:
+            self.job_stats = self.jobs.snapshot()
+            self.job_error = ""
+        except Exception as exc:  # noqa: BLE001 - the tray must stay responsive
+            self.job_error = str(exc)
+
+    def jobs_label(self) -> str:
+        if self.job_error and not any(self.job_stats.values()):
+            return "Jobs: unavailable"
+        parts: list[str] = []
+        if self.job_stats.get("running"):
+            parts.append(f"{self.job_stats['running']} running")
+        if self.job_stats.get("queued"):
+            parts.append(f"{self.job_stats['queued']} queued")
+        if self.job_stats.get("paused"):
+            parts.append(f"{self.job_stats['paused']} paused")
+        if self.job_stats.get("waiting"):
+            parts.append(f"{self.job_stats['waiting']} waiting")
+        return "Jobs: " + (" · ".join(parts) if parts else "idle")
+
+    def pause_jobs(self) -> None:
+        self.jobs.pause_all()
+        self.refresh_jobs()
+
+    def resume_jobs(self) -> None:
+        self.jobs.resume_all()
+        self.refresh_jobs()
+
+    def cancel_jobs(self) -> None:
+        self.jobs.cancel_all()
+        self.refresh_jobs()
 
     def start(self) -> None:
         self.supervisor.start()
@@ -284,6 +390,33 @@ def _menu(pystray: Any, actions: TrayActions, on_quit: Callable[[Any], None]) ->
         ),
         pystray.Menu.SEPARATOR,
         Item(lambda _item: actions.status_label(), None, enabled=False),
+        Item(lambda _item: actions.jobs_label(), None, enabled=False),
+        Item(
+            "Open runs",
+            lambda icon, _item: _run_action(icon, actions.open_runs),
+        ),
+        Item(
+            "Pause all jobs",
+            lambda icon, _item: _run_action(icon, actions.pause_jobs),
+            enabled=lambda _item: bool(
+                actions.job_stats.get("running") or actions.job_stats.get("queued")
+            ),
+        ),
+        Item(
+            "Resume all jobs",
+            lambda icon, _item: _run_action(icon, actions.resume_jobs),
+            enabled=lambda _item: bool(actions.job_stats.get("paused")),
+        ),
+        Item(
+            "Cancel all jobs",
+            lambda icon, _item: _run_action(icon, actions.cancel_jobs),
+            enabled=lambda _item: bool(
+                actions.job_stats.get("running")
+                or actions.job_stats.get("queued")
+                or actions.job_stats.get("paused")
+                or actions.job_stats.get("waiting")
+            ),
+        ),
         pystray.Menu.SEPARATOR,
         Item("Quit", lambda icon, _item: on_quit(icon)),
     )
@@ -316,6 +449,13 @@ def run_tray(*, host: str, port: int, open_browser: bool = True) -> int:
         host, port, log_level=load_settings().runtime.log_level
     )
     actions = TrayActions(supervisor)
+    stop_poller = threading.Event()
+
+    def poll_jobs() -> None:
+        while not stop_poller.is_set():
+            actions.refresh_jobs()
+            stop_poller.wait(5.0)
+
     try:
         supervisor.start()
     except TrayError as exc:
@@ -325,8 +465,12 @@ def run_tray(*, host: str, port: int, open_browser: bool = True) -> int:
         _wait_for_service(host, port)
         with contextlib.suppress(Exception):
             actions.open_ui()
+    threading.Thread(
+        target=poll_jobs, name="videoflow-tray-jobs", daemon=True
+    ).start()
 
     def on_quit(icon: Any) -> None:
+        stop_poller.set()
         supervisor.stop()
         with contextlib.suppress(Exception):
             icon.stop()
@@ -336,6 +480,7 @@ def run_tray(*, host: str, port: int, open_browser: bool = True) -> int:
             "videoflow", _icon_image(), "VideoFlow", _menu(pystray, actions, on_quit)
         )
     except Exception as exc:  # noqa: BLE001 - missing desktop integration
+        stop_poller.set()
         supervisor.stop()
         print(f"Could not create the VideoFlow tray icon: {exc}", file=sys.stderr)
         return 1
@@ -346,6 +491,7 @@ def run_tray(*, host: str, port: int, open_browser: bool = True) -> int:
         print(f"VideoFlow tray stopped: {exc}", file=sys.stderr)
         return 1
     finally:
+        stop_poller.set()
         supervisor.stop()
     return 0
 

@@ -10,23 +10,23 @@ uv run python scripts/coverage_layers.py
 The `.coveragerc` used for this report disables the release gate's omit list so
 adapters, exporters, API, jobs, and MCP are visible.
 
-## Current working tree (2.71.0)
+## Current working tree (2.72.0)
 
 Measured after the P2/P3 work, with the release-gate omit list disabled. The
-full unit/contract run is **2,120 passed, 1 skipped, 1 xfailed**.
+full unit/contract run is **2,123 passed, 1 skipped, 1 xfailed**.
 
 | Layer | Hit | Total | Cover |
 | --- | ---: | ---: | ---: |
-| api | 2,830 | 2,930 | 96.59% |
+| api | 2,844 | 2,944 | 96.60% |
 | adapters | 1,260 | 1,295 | 97.30% |
-| application | 15,060 | 15,976 | 94.27% |
-| engine | 1,091 | 1,157 | 94.30% |
+| application | 15,135 | 16,056 | 94.26% |
+| engine | 1,090 | 1,157 | 94.21% |
 | exporters | 1,211 | 1,261 | 96.03% |
 | mcp | 991 | 1,021 | 97.06% |
 | steps | 7,633 | 8,078 | 94.49% |
 | domain | 1,175 | 1,181 | 99.49% |
 | cli/runtime/core/plugin | 1,110 | 1,143 | 97.11% |
-| **full tree (statements)** | **32,361** | **34,042** | **95.06%** |
+| **full tree (statements)** | **32,449** | **34,136** | **95.06%** |
 | **full tree (branch report)** | — | — | **88.1%** |
 
 The full-tree 95% target remains **met**. The configured release gate remains at
