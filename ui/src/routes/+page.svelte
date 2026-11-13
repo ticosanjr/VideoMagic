@@ -251,16 +251,11 @@ import { noticeCounts } from "$lib/notifications";
               actionLabel: "Open jobs",
               actionId: `job:${job.job_id}`
             });
-          } else if (["succeeded", "failed", "cancelled"].includes(job.status)) {
+          } else if (job.status === "failed") {
             notifications.push({
-              kind: job.status === "failed" ? "warning" : "info",
-              category: "job_finished",
-              title:
-                job.status === "succeeded"
-                  ? "Job finished"
-                  : job.status === "failed"
-                    ? "Job failed"
-                    : "Job cancelled",
+              kind: "error",
+              category: "job_failed",
+              title: "Job failed",
               message: jobDisplayName(job),
               actionLabel: "Open jobs",
               actionId: `job:${job.job_id}`
@@ -313,10 +308,7 @@ import { noticeCounts } from "$lib/notifications";
     else if (command.id.startsWith("retry:")) {
       const jobId = command.id.slice(6);
       void retryJob(jobId)
-        .then(() => {
-          notify("success", "Job retried.", "Job retried");
-          return refreshJobs();
-        })
+        .then(() => refreshJobs())
         .catch((reason) => notify("error", errorMessage(reason), "Could not retry the job"));
     }
   }
@@ -539,7 +531,6 @@ import { noticeCounts } from "$lib/notifications";
       if (!settings) return;
       settings.ui.theme = next;
       await saveSettings(settings);
-      notify("success", `Theme set to ${next}.`, "Theme");
     } catch (reason) {
       notify("error", errorMessage(reason), "Could not save the theme");
     }
@@ -637,7 +628,7 @@ import { noticeCounts } from "$lib/notifications";
         i18n.set(locale);
         applyTheme(settings.ui.theme);
         document.documentElement.dataset.density = settings.ui.density;
-        notifications.setLevel(settings.notifications?.ui_level ?? "minimal");
+        notifications.setLevel(settings.notifications?.ui_level ?? "off");
       })
       .catch(() => {});
     return () => {
@@ -1030,4 +1021,8 @@ import { noticeCounts } from "$lib/notifications";
   open={noticesOpen}
   onclose={() => (noticesOpen = false)}
   onaction={onNoticeAction}
+  onsettings={() => {
+    noticesOpen = false;
+    selectTab("settings");
+  }}
 />

@@ -8,11 +8,12 @@ import os
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.adapters.asr import WhisperHttpAdapter
 from videoflow.adapters.faster_whisper import FasterWhisperAdapter
 from videoflow.adapters.whisper import WhisperCliAdapter
+from videoflow.application.asr_profiles import resolve_asr_plan
 from videoflow.application.secrets import get_secret
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import IngestError, TranscriptionError
@@ -41,11 +42,20 @@ class TranscribeParams(BaseModel):
     model_id: str = ""
     mode: Mode = "auto"
     srt_path: str | None = None
-    model_size: Literal["tiny", "base", "small", "medium", "large-v2", "large-v3"] = "small"
+    model_size: Literal[
+        "tiny", "base", "small", "medium", "large-v2", "large-v3", "large-v3-turbo"
+    ] = "small"
+    quality_profile: Literal[
+        "auto", "custom", "fast", "balanced", "quality", "vulkan", "remote"
+    ] = "auto"
     language: str = "pt"
     device: Literal["cpu", "cuda", "auto"] = "cpu"
     compute_type: str = "int8"
-    vad_filter: bool = False
+    beam_size: int = Field(default=0, ge=0, le=10)
+    cpu_threads: int = Field(default=0, ge=0, le=128)
+    word_timestamps: Literal["auto", "always", "off"] = "auto"
+    condition_on_previous_text: bool | None = None
+    vad_filter: bool | None = None
     base_url: str | None = None
     model: str = "whisper-1"
     api_key_env: str = "VIDEOWFLOW_ASR_API_KEY"
@@ -84,38 +94,39 @@ class TranscribeStep(BaseStep):
             settings = load_settings()
         except Exception:
             settings = None
-        if settings is not None:
-            default_model = settings.models.defaults.get("asr", "")
-            if not options.model_id and default_model:
-                try:
-                    from videoflow.application.models import installed_path
-
-                    if installed_path(str(default_model)) is not None:
-                        options = options.model_copy(
-                            update={"model_id": str(default_model)}
-                        )
-                except Exception:
-                    pass
-            model_size = default_model.split("-")[-1] if default_model else ""
-            if (
-                model_size in {"tiny", "base", "small", "medium", "large-v2", "large-v3"}
-                and options.model_size == "small"
-            ):
-                options = options.model_copy(update={"model_size": model_size})
-            if options.device == "cpu":
-                options = options.model_copy(update={"device": settings.speech.device})
-            if options.compute_type == "int8":
-                options = options.model_copy(
-                    update={"compute_type": settings.speech.compute_type}
-                )
-            if options.language == "pt":
-                options = options.model_copy(
-                    update={"language": settings.speech.language}
-                )
-            if not options.vad_filter:
-                options = options.model_copy(
-                    update={"vad_filter": settings.speech.vad_filter}
-                )
+        if settings is not None and options.language == "pt":
+            options = options.model_copy(
+                update={"language": settings.speech.language}
+            )
+        if (
+            settings is not None
+            and not options.provider_id
+            and options.mode == "auto"
+            and not options.srt_path
+            and not context.transcript
+        ):
+            plan = resolve_asr_plan(settings, options)
+            if plan.fallback_reason:
+                io.emit("warning", plan.fallback_reason, module="transcribe")
+            options = options.model_copy(
+                update={
+                    "mode": plan.mode,
+                    "model_id": plan.model_id or options.model_id,
+                    "model_size": plan.model_size,
+                    "device": plan.device,
+                    "compute_type": plan.compute_type,
+                    "beam_size": plan.beam_size,
+                    "cpu_threads": plan.cpu_threads,
+                    "vad_filter": plan.vad_filter,
+                    "word_timestamps": "always"
+                    if plan.word_timestamps
+                    else "off",
+                    "condition_on_previous_text": plan.condition_on_previous_text,
+                    "base_url": plan.remote_base_url or options.base_url,
+                    "model": plan.remote_model or options.model,
+                    "api_key_env": plan.remote_api_key_env or options.api_key_env,
+                }
+            )
         model_id = options.model_id.strip()
         model_path: Path | None = None
         model_kind = ""
@@ -168,6 +179,7 @@ class TranscribeStep(BaseStep):
                 "medium": 0.80,
                 "large-v2": 1.50,
                 "large-v3": 1.60,
+                "large-v3-turbo": 0.80,
             }
             factor = factors.get(options.model_size, 0.5)
             if options.device == "cuda":
@@ -277,8 +289,13 @@ class TranscribeStep(BaseStep):
             persist_partial(partial_sentences)
 
         io.report(20, "Preparing speech-to-text")
-        large_model = options.model_size in {"large-v2", "large-v3"} or any(
-            size in options.model_id for size in ("large-v2", "large-v3")
+        large_model = options.model_size in {
+            "large-v2",
+            "large-v3",
+            "large-v3-turbo",
+        } or any(
+            size in options.model_id
+            for size in ("large-v2", "large-v3", "large-v3-turbo")
         )
         if mode == "faster_whisper" and options.device == "cpu" and large_model:
             io.emit(
@@ -306,6 +323,10 @@ class TranscribeStep(BaseStep):
                     or options.whisper_model
                     or os.environ.get("VIDEOWFLOW_WHISPER_MODEL"),
                     language=options.language,
+                    threads=options.cpu_threads or None,
+                    beam_size=options.beam_size or 1,
+                    word_timestamps=options.word_timestamps != "off",
+                    vulkan=options.quality_profile == "vulkan",
                     log=lambda level, message: io.emit(level, message, module="transcribe"),
                 )
             else:
@@ -315,7 +336,11 @@ class TranscribeStep(BaseStep):
                     device=options.device,
                     compute_type=options.compute_type,
                     language=options.language,
-                    vad_filter=options.vad_filter,
+                    vad_filter=bool(options.vad_filter),
+                    beam_size=options.beam_size or 1,
+                    threads=options.cpu_threads or None,
+                    word_timestamps=options.word_timestamps != "off",
+                    condition_on_previous_text=bool(options.condition_on_previous_text),
                     log=lambda level, message: io.emit(level, message, module="transcribe"),
                 )
         io.report(45, "Calling speech-to-text")

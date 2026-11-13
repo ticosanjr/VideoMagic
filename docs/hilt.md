@@ -80,10 +80,21 @@ review checkboxes. Drafts are cleared after a successful response.
 
 | Channel | Send | Receive |
 | --- | --- | --- |
-| Local | Studio panel + best-effort desktop notification (`notify-send`/`osascript`) | Studio API |
+| Local | Studio panel + optional desktop notification (`notify-send`/`osascript`) | Studio API |
 | E-mail | SMTP/TLS with the reply token in the subject | IMAP `UNSEEN` polling and attachments |
 | Slack | Webhook or bot `chat.postMessage` | Bot history polling and optional Events API |
 | Signal | `signal-cli` REST `/v2/send` | `/v1/receive` polling and attachment download |
+
+All notifications are off by default. The master switch in
+**Settings → Notifications** must be on, and the local/external channel must be
+enabled, before anything is delivered. The in-app and desktop levels are `off`,
+`required` (human interaction only), `important` (interaction plus failures),
+and `all` (every event). The per-event checkboxes let you keep HITL and job
+failures while dropping finished/cancelled jobs, warnings, and system messages.
+
+`VIDEOWFLOW_NOTIFICATIONS=off` disables every channel; 
+`VIDEOWFLOW_DESKTOP_NOTIFICATIONS=0` disables only the desktop pop-up. The test
+suite sets both, so tests never show a system notification.
 
 External channels are opt-in in Settings. They are best-effort: a failed
 notification is written to `notifications.jsonl` and never fails the job.

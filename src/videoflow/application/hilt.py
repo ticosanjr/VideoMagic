@@ -214,9 +214,66 @@ def build_artifacts(output: Path, specs: Iterable[str]) -> list[HiltArtifact]:
     return result
 
 
-def _desktop_notify(title: str, body: str) -> None:
+_NOTIFICATION_LEVELS = {"off", "required", "important", "all"}
+
+
+def _env_notifications_off() -> bool:
+    return os.environ.get("VIDEOWFLOW_NOTIFICATIONS", "").strip().lower() in {
+        "0",
+        "off",
+        "false",
+        "no",
+    }
+
+
+def _level_allows(level: str, category: str) -> bool:
+    """Return whether a notification level admits this event category."""
+
+    if level not in _NOTIFICATION_LEVELS or level == "off":
+        return False
+    if category == "hilt":
+        return True
+    if level == "required":
+        return False
+    if level == "important":
+        return category == "job_failed"
+    return True
+
+
+def _notifications_enabled(settings: object | None = None) -> bool:
+    if _env_notifications_off():
+        return False
+    try:
+        current = settings or load_settings()
+        return bool(current.notifications.enabled)  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001 - notification must never fail a job
+        return False
+
+
+def _desktop_notify(
+    title: str,
+    body: str,
+    *,
+    category: str = "hilt",
+    settings: object | None = None,
+    force: bool = False,
+) -> None:
     if os.environ.get("VIDEOWFLOW_DESKTOP_NOTIFICATIONS", "1").strip() == "0":
         return
+    if not force:
+        if not _notifications_enabled(settings):
+            return
+        try:
+            current = settings or load_settings()
+            config = current.notifications  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001
+            return
+        if not config.local.enabled or not config.local.desktop:
+            return
+        if not config.notify_hitl and category == "hilt":
+            return
+        if not _level_allows(str(config.desktop_level), category):
+            return
     message = body.strip() or "Open the studio to respond."
     try:
         if sys.platform.startswith("linux"):
@@ -245,21 +302,44 @@ def _desktop_notify(title: str, body: str) -> None:
         return
 
 
-def _notify_local(directory: Path, request: HiltRequest) -> None:
-    payload = {
-        "at": now_iso(),
-        "channel": "local",
-        "ok": True,
-        "title": request.title,
-        "message": request.description,
-    }
-    try:
-        with _notifications_path(directory).open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, sort_keys=True) + "\n")
-    except OSError as exc:
-        logger.warning("could not record HILT notification: %s", exc)
-    _event(directory, "notified", {"channel": "local"})
-    _desktop_notify(f"VideoFlow: {request.title}", request.description)
+def _notify_local(
+    directory: Path,
+    request: HiltRequest,
+    *,
+    settings: object | None = None,
+) -> None:
+    delivered = False
+    if _notifications_enabled(settings):
+        try:
+            current = settings or load_settings()
+            config = current.notifications  # type: ignore[attr-defined]
+            delivered = bool(
+                config.local.enabled
+                and config.notify_hitl
+                and config.enabled
+            )
+        except Exception:  # noqa: BLE001
+            delivered = False
+    if delivered:
+        payload = {
+            "at": now_iso(),
+            "channel": "local",
+            "ok": True,
+            "title": request.title,
+            "message": request.description,
+        }
+        try:
+            with _notifications_path(directory).open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(payload, sort_keys=True) + "\n")
+        except OSError as exc:
+            logger.warning("could not record HILT notification: %s", exc)
+        _desktop_notify(
+            f"VideoFlow: {request.title}",
+            request.description,
+            category="hilt",
+            settings=settings,
+        )
+    _event(directory, "notified", {"channel": "local", "delivered": delivered})
 
 
 def create_request(
@@ -312,7 +392,7 @@ def create_request(
     selected_channels = (
         [str(item) for item in channels if str(item)]
         if channels
-        else list(load_settings().notifications.default_channels or ["local"])
+        else list(load_settings().notifications.default_channels or [])
     )
 
     token = secrets.token_urlsafe(24)
@@ -818,7 +898,12 @@ def channels_status() -> dict[str, object]:
 
 
 def test_local_channel(title: str = "VideoFlow HILT test") -> dict[str, object]:
-    _desktop_notify(title, "Local notifications are working.")
+    _desktop_notify(
+        title,
+        "Local notifications are working.",
+        category="hilt",
+        force=True,
+    )
     return {
         "ok": True,
         "channel": "local",

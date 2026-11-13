@@ -46,6 +46,8 @@ class FasterWhisperAdapter:
         vad_filter: bool = False,
         beam_size: int = 5,
         threads: int | None = None,
+        word_timestamps: bool = True,
+        condition_on_previous_text: bool = False,
         log: Callable[[str, str], None] | None = None,
     ) -> None:
         self.model = Path(model).expanduser() if model is not None else None
@@ -55,7 +57,11 @@ class FasterWhisperAdapter:
         self.language = language
         self.vad_filter = vad_filter
         self.beam_size = beam_size
-        self.threads = threads or max(1, min(4, os.cpu_count() or 1))
+        self.threads = threads or max(
+            1, min(8, (os.cpu_count() or 2) // 2 or 1)
+        )
+        self.word_timestamps = word_timestamps
+        self.condition_on_previous_text = condition_on_previous_text
         self._log = log
         self._engine: Any | None = None
 
@@ -116,8 +122,9 @@ class FasterWhisperAdapter:
                 str(transcribe_path),
                 language=None if self.language == "auto" else self.language,
                 beam_size=self.beam_size,
-                word_timestamps=True,
+                word_timestamps=self.word_timestamps,
                 vad_filter=self.vad_filter,
+                condition_on_previous_text=self.condition_on_previous_text,
             )
             duration = frames / SAMPLE_RATE if frames > 0 else 0.0
             if duration <= 0:
@@ -131,6 +138,7 @@ class FasterWhisperAdapter:
                 on_progress=on_progress,
                 on_segment=on_segment,
                 should_cancel=should_cancel,
+                require_words=self.word_timestamps,
             )
         except JobCancelledError:
             raise
@@ -206,6 +214,7 @@ def _sentences(
     on_progress: Callable[[float, float], None] | None = None,
     on_segment: Callable[[Sentence], None] | None = None,
     should_cancel: Callable[[], bool] | None = None,
+    require_words: bool = True,
 ) -> list[Sentence]:
     sentences: list[Sentence] = list(initial_sentences or [])
     for segment in segments:
@@ -216,6 +225,24 @@ def _sentences(
             continue
         raw_words = getattr(segment, "words", None)
         if not raw_words:
+            if not require_words:
+                start = _samples(segment.start, sample_rate, Rounding.FLOOR) + offset_samples
+                end = _samples(segment.end, sample_rate, Rounding.CEIL) + offset_samples
+                sentence = Sentence(
+                    id=len(sentences),
+                    start_sample=start,
+                    end_sample=max(start, end),
+                    text=text,
+                )
+                sentences.append(sentence)
+                if on_segment is not None:
+                    on_segment(sentence)
+                if on_progress is not None:
+                    elapsed = end / sample_rate
+                    if duration > 0:
+                        elapsed = min(elapsed, duration)
+                    on_progress(elapsed, duration)
+                continue
             raise TranscriptionError(
                 f"Faster-Whisper returned no word timestamps for: {_preview(text)}"
             )

@@ -78,6 +78,17 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("shows backend errors globally with details", async ({ page }) => {
+  await page.route("**/api/v1/settings", (route) =>
+    route.fulfill({
+      json: {
+        settings: {
+          runtime: { locale: "en" },
+          ui: { theme: "dark", density: "comfortable" },
+          notifications: { ui_level: "important" }
+        }
+      }
+    })
+  );
   await page.route("**/api/v1/jobs*", (route) =>
     route.fulfill({
       status: 500,
@@ -91,6 +102,7 @@ test("shows backend errors globally with details", async ({ page }) => {
     })
   );
   await page.goto("/#jobs");
+  await page.reload();
   await page.getByTestId("jobs-refresh").click();
   await page.getByTitle("Notification center (N)").click();
   const center = page.getByTestId("notification-center");
@@ -247,7 +259,7 @@ test("filters the activity drawer", async ({ page }) => {
 test("opens the notification center", async ({ page }) => {
   await page.getByRole("button", { name: /Notifications/ }).click();
   await expect(page.getByTestId("notification-center")).toBeVisible();
-  await expect(page.getByText("Nothing needs your attention.")).toBeVisible();
+  await expect(page.getByText("Notifications are off.")).toBeVisible();
 });
 
 test("filters the job dashboard", async ({ page }) => {
@@ -427,7 +439,7 @@ test("shows intelligence provider settings", async ({ page }) => {
           tts: { provider: "openai_compatible", voice: "alloy", model: "tts-1", format: "mp3", speed: 1 },
           stock: { provider: "local", pexels_key_env: "PEXELS_API_KEY", pixabay_key_env: "PIXABAY_API_KEY", openverse_token_env: "OPENVERSE_TOKEN", asset_dir: "", youtube_fair_use_seconds: 15, youtube_max_per_video: 3, allow_fair_use: true },
           translation: { target_language: "en", source_language: "auto" },
-          notifications: { enabled: true, default_channels: ["local"], base_url: "http://127.0.0.1:8765", email: {}, slack: {}, signal: {}, local: {} },
+          notifications: { enabled: false, ui_level: "off", desktop_level: "off", notify_hitl: true, notify_job_failed: true, notify_job_finished: false, notify_job_cancelled: false, notify_warnings: false, notify_system: false, default_channels: [], base_url: "http://127.0.0.1:8765", email: {}, slack: {}, signal: {}, local: { enabled: false, desktop: false } },
           search: { enabled: true, providers: ["local"], local_paths: [], seed_urls: [], searxng_url: "", wikipedia_language: "pt", max_results: 6, fetch_pages: 3, allow_network: false, timeout_seconds: 20, max_bytes: 2000000, cache_ttl_hours: 24 },
           intelligence: { enabled: true, provider_order: ["opencode_v2", "deepseek"], allow_network: false, budget_usd: 0, cache_enabled: true, default_timeout_seconds: 120, opencode_base_url: "", opencode_token_env: "OPENCODE_TOKEN", opencode_model: "", deepseek_base_url: "https://api.deepseek.com", deepseek_model: "deepseek-chat", deepseek_api_key_env: "DEEPSEEK_API_KEY", tasks: {} }
         },

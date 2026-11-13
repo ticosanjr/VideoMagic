@@ -27,6 +27,7 @@ def _request(tmp_path: Path, channel: str):
 
 def _settings(channel: str) -> AppSettings:
     settings = AppSettings()
+    settings.notifications.enabled = True
     if channel == "email":
         settings.notifications.email.enabled = True
         settings.notifications.email.imap_host = "imap.example.com"
@@ -169,6 +170,7 @@ def test_signal_poller_dispatches_with_attachment(monkeypatch, tmp_path: Path) -
 
 
 def test_notification_failure_is_logged(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("VIDEOWFLOW_NOTIFICATIONS", raising=False)
     job, request, token = _request(tmp_path, "email")
     settings = _settings("email")
     settings.notifications.email.enabled = True

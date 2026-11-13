@@ -57,6 +57,11 @@ an error never hides behind a success. The pure rules live in
 `ui/src/lib/notifications.ts`; the reactive store lives in
 `ui/src/lib/notifications.svelte.ts`.
 
+The default level is `off`. `required` admits only human-in-the-loop requests,
+`important` adds job failures and errors, and `all` also shows finished or
+cancelled jobs, warnings, and system messages. When the level is `off`, the
+notification center explains how to enable it instead of showing an empty list.
+
 The shell banner still surfaces service-level failures. Notices add history and
 actions on top of it.
 

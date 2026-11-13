@@ -9,7 +9,7 @@ import threading
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from videoflow.application.schema_migrations import migrate_settings
 from videoflow.runtime import portable_home
@@ -107,10 +107,20 @@ class SpeechSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     engine: Literal["auto", "faster-whisper", "whisper-cli"] = "auto"
+    quality_profile: Literal[
+        "auto", "custom", "fast", "balanced", "quality", "vulkan", "remote"
+    ] = "balanced"
     language: str = "pt"
     device: Literal["cpu", "cuda", "auto"] = "cpu"
     compute_type: str = "int8"
+    beam_size: int = Field(default=1, ge=1, le=10)
+    cpu_threads: int = Field(default=0, ge=0, le=128)
+    word_timestamps: Literal["auto", "always", "off"] = "auto"
+    condition_on_previous_text: bool = False
     vad_filter: bool = False
+    remote_base_url: str = ""
+    remote_model: str = "whisper-1"
+    remote_api_key_env: str = "VIDEOWFLOW_ASR_API_KEY"
     diarization_model: str = "pyannote-diarization-3.1"
 
 
@@ -147,8 +157,8 @@ class TranslationSettings(BaseModel):
 class LocalNotificationSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    enabled: bool = True
-    desktop: bool = True
+    enabled: bool = False
+    desktop: bool = False
 
 
 class EmailNotificationSettings(BaseModel):
@@ -203,16 +213,37 @@ class SignalNotificationSettings(BaseModel):
 class NotificationSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    enabled: bool = True
-    default_channels: list[str] = Field(default_factory=lambda: ["local"])
+    enabled: bool = False
+    default_channels: list[str] = Field(default_factory=list)
     base_url: str = "http://127.0.0.1:8765"
     interaction_ttl_hours: int = Field(default=168, ge=1, le=24 * 365)
     reminder_hours: int = Field(default=24, ge=1, le=24 * 365)
-    ui_level: Literal["minimal", "standard", "verbose"] = "minimal"
+    ui_level: Literal["off", "required", "important", "all"] = "off"
+    desktop_level: Literal["off", "required", "important", "all"] = "off"
+    notify_hitl: bool = True
+    notify_job_failed: bool = True
+    notify_job_finished: bool = False
+    notify_job_cancelled: bool = False
+    notify_warnings: bool = False
+    notify_system: bool = False
     local: LocalNotificationSettings = Field(default_factory=LocalNotificationSettings)
     email: EmailNotificationSettings = Field(default_factory=EmailNotificationSettings)
     slack: SlackNotificationSettings = Field(default_factory=SlackNotificationSettings)
     signal: SignalNotificationSettings = Field(default_factory=SignalNotificationSettings)
+
+    @field_validator("ui_level", "desktop_level", mode="before")
+    @classmethod
+    def _legacy_level(cls, value: object) -> object:
+        """Map the pre-2.72.2 levels onto the reduced notification levels."""
+
+        if isinstance(value, str):
+            aliases = {
+                "minimal": "required",
+                "standard": "important",
+                "verbose": "all",
+            }
+            return aliases.get(value.strip().lower(), value)
+        return value
 
 
 class SearchSettings(BaseModel):

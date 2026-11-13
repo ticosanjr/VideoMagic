@@ -79,6 +79,10 @@ def notify_request(
     if not token:
         return []
     current = settings or load_settings()
+    if not hilt._notifications_enabled(current):
+        return []
+    if not current.notifications.notify_hitl:
+        return []
     message = message_for(request, token, base_url=current.notifications.base_url)
     results: list[dict[str, object]] = []
     for name in request.channels:

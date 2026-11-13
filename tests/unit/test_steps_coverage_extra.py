@@ -1602,11 +1602,14 @@ def test_transcribe_auto_mode_without_engine_warns(
         "VIDEOWFLOW_ASR_BASE_URL",
     ):
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(
+        "videoflow.application.models.list_models", lambda: []
+    )
     context = make_context(tmp_path, media_info=make_media(tmp_path))
     emitted: list[str] = []
     TranscribeStep().run(
         context,
-        TranscribeParams(mode="auto"),
+        TranscribeParams(mode="auto", quality_profile="custom"),
         StepIO(log=lambda module, level, message: emitted.append(message)),
     )
     assert context.transcript_source == "none"
@@ -1642,6 +1645,12 @@ def test_transcribe_available_mode_detection(
     assert TranscribeStep._available_mode(context, io) == "whisper_cpp"
 
     monkeypatch.delenv("VIDEOWFLOW_WHISPER_MODEL")
+    monkeypatch.setattr(
+        "videoflow.application.models.list_models", lambda: []
+    )
+    monkeypatch.setattr(
+        "videoflow.runtime.find_whisper_binary", lambda: None
+    )
     monkeypatch.setenv("VIDEOWFLOW_ASR_BASE_URL", "http://asr.local/v1")
     assert TranscribeStep._available_mode(context, io) == "http"
 

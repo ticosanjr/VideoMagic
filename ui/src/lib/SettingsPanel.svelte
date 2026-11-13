@@ -265,8 +265,48 @@
 
       <section class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4" data-settings-section>
         <div class="flex flex-wrap items-center justify-between gap-2">
+          <h3 class="text-xs font-semibold text-neutral-100">Notifications</h3>
+          <span class="text-[10px] text-neutral-500">off by default</span>
+        </div>
+        <div class="mt-3 grid gap-2 sm:grid-cols-3">
+          <label class="flex items-end gap-2 pb-1 text-[10px] text-neutral-300">
+            <input type="checkbox" bind:checked={settings.notifications.enabled} class="h-3.5 w-3.5" />
+            Enabled (master)
+          </label>
+          <label class="text-[10px] text-neutral-500">In-app level
+            <select bind:value={settings.notifications.ui_level} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100">
+              {#each ["off", "required", "important", "all"] as level}<option value={level}>{level}</option>{/each}
+            </select>
+          </label>
+          <label class="text-[10px] text-neutral-500">Desktop level
+            <select bind:value={settings.notifications.desktop_level} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100">
+              {#each ["off", "required", "important", "all"] as level}<option value={level}>{level}</option>{/each}
+            </select>
+          </label>
+        </div>
+        <p class="mt-2 text-[10px] leading-4 text-neutral-500">
+          off = nothing, required = only human interaction, important = interaction plus failures,
+          all = every event. The master switch overrides both levels.
+        </p>
+        <div class="mt-3 grid gap-2 sm:grid-cols-2">
+          <label class="flex items-center gap-2 text-[10px] text-neutral-300"><input type="checkbox" bind:checked={settings.notifications.notify_hitl} class="h-3.5 w-3.5" />Human interaction (approval, question, files)</label>
+          <label class="flex items-center gap-2 text-[10px] text-neutral-300"><input type="checkbox" bind:checked={settings.notifications.notify_job_failed} class="h-3.5 w-3.5" />Job failures</label>
+          <label class="flex items-center gap-2 text-[10px] text-neutral-300"><input type="checkbox" bind:checked={settings.notifications.notify_warnings} class="h-3.5 w-3.5" />Warnings</label>
+          <label class="flex items-center gap-2 text-[10px] text-neutral-300"><input type="checkbox" bind:checked={settings.notifications.notify_job_finished} class="h-3.5 w-3.5" />Jobs finished</label>
+          <label class="flex items-center gap-2 text-[10px] text-neutral-300"><input type="checkbox" bind:checked={settings.notifications.notify_job_cancelled} class="h-3.5 w-3.5" />Jobs cancelled</label>
+          <label class="flex items-center gap-2 text-[10px] text-neutral-300"><input type="checkbox" bind:checked={settings.notifications.notify_system} class="h-3.5 w-3.5" />System diagnostics</label>
+        </div>
+        <div class="mt-3 flex flex-wrap items-center gap-3 text-[10px] text-neutral-400">
+          <label class="flex items-center gap-1"><input type="checkbox" bind:checked={settings.notifications.local.enabled} class="h-3.5 w-3.5" />local log</label>
+          <label class="flex items-center gap-1"><input type="checkbox" bind:checked={settings.notifications.local.desktop} class="h-3.5 w-3.5" />desktop notification</label>
+          <button type="button" onclick={() => void testChannel("local")} class="rounded border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-300">Send test notification</button>
+        </div>
+      </section>
+
+      <section class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4" data-settings-section>
+        <div class="flex flex-wrap items-center justify-between gap-2">
           <h3 class="text-xs font-semibold text-neutral-100">Human-in-the-loop channels</h3>
-          <span class="text-[10px] text-neutral-500">local is always the default</span>
+          <span class="text-[10px] text-neutral-500">external delivery for pending requests</span>
         </div>
         <div class="mt-3 grid gap-2">
           <label class="text-[10px] text-neutral-500">Default channels (comma-separated)
@@ -279,11 +319,6 @@
           <label class="text-[10px] text-neutral-500">Public base URL for reply links
             <input bind:value={settings.notifications.base_url} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" />
           </label>
-          <div class="flex flex-wrap gap-3 text-[10px] text-neutral-400">
-            <label class="flex items-center gap-1"><input type="checkbox" bind:checked={settings.notifications.enabled} class="h-3.5 w-3.5" />enabled</label>
-            <label class="flex items-center gap-1"><input type="checkbox" bind:checked={settings.notifications.local.enabled} class="h-3.5 w-3.5" />local</label>
-            <label class="flex items-center gap-1"><input type="checkbox" bind:checked={settings.notifications.local.desktop} class="h-3.5 w-3.5" />desktop</label>
-          </div>
         </div>
 
         <div class="mt-4 rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
@@ -451,7 +486,22 @@
               {#each ["auto", "faster-whisper", "whisper-cli"] as engine}<option value={engine}>{engine}</option>{/each}
             </select>
           </label>
+          <label class="text-[10px] text-neutral-500">ASR profile
+            <select bind:value={settings.speech.quality_profile} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100">
+              {#each ["auto", "custom", "fast", "balanced", "quality", "vulkan", "remote"] as profile}<option value={profile}>{profile}</option>{/each}
+            </select>
+          </label>
           <label class="text-[10px] text-neutral-500">ASR language<input bind:value={settings.speech.language} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">Beam size<input type="number" min="1" max="10" bind:value={settings.speech.beam_size} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">CPU threads (0 = auto)<input type="number" min="0" max="128" bind:value={settings.speech.cpu_threads} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">Word timestamps
+            <select bind:value={settings.speech.word_timestamps} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100">
+              {#each ["auto", "always", "off"] as mode}<option value={mode}>{mode}</option>{/each}
+            </select>
+          </label>
+          <label class="text-[10px] text-neutral-500">Remote ASR URL<input bind:value={settings.speech.remote_base_url} placeholder="http://100.x.x.x:8000/v1" class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">Remote ASR model<input bind:value={settings.speech.remote_model} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
+          <label class="text-[10px] text-neutral-500">Remote ASR key env<input bind:value={settings.speech.remote_api_key_env} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" /></label>
           <label class="text-[10px] text-neutral-500">ASR device
             <select bind:value={settings.speech.device} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100">
               {#each ["cpu", "cuda", "auto"] as device}<option value={device}>{device}</option>{/each}
@@ -460,6 +510,7 @@
           <label class="text-[10px] text-neutral-500">ASR compute<input bind:value={settings.speech.compute_type} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
           <label class="text-[10px] text-neutral-500">Diarization model<input bind:value={settings.speech.diarization_model} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
           <label class="flex items-end gap-2 pb-1 text-[10px] text-neutral-400"><input type="checkbox" bind:checked={settings.speech.vad_filter} class="h-3.5 w-3.5" />ASR VAD filter</label>
+          <label class="flex items-end gap-2 pb-1 text-[10px] text-neutral-400"><input type="checkbox" bind:checked={settings.speech.condition_on_previous_text} class="h-3.5 w-3.5" />Condition on previous text</label>
         </div>
       </section>
 
@@ -537,13 +588,6 @@
             </select>
           </label>
           <label class="flex items-end gap-2 pb-1 text-[10px] text-neutral-400"><input type="checkbox" bind:checked={settings.ui.timeline_snap} class="h-3.5 w-3.5" />timeline snap</label>
-          <label class="text-[10px] text-neutral-500">Notification level
-            <select bind:value={settings.notifications.ui_level} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100">
-              <option value="minimal">minimal</option>
-              <option value="standard">standard</option>
-              <option value="verbose">verbose</option>
-            </select>
-          </label>
         </div>
       </section>
     </div>

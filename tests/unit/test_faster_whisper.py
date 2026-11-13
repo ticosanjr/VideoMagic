@@ -293,3 +293,31 @@ def test_transcribe_honours_the_cancel_predicate(
 
     with pytest.raises(JobCancelledError):
         adapter.transcribe(wav, 16000, should_cancel=lambda: next(checks, True))
+
+
+def test_decoding_options_and_sentence_only_mode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wav = _wav(tmp_path / "source.wav")
+    model = _model(tmp_path / "model")
+    engine = FakeEngine(
+        [SimpleNamespace(text="No words.", words=None, start=0.0, end=1.0)]
+    )
+    adapter = _adapter(
+        model,
+        beam_size=1,
+        threads=6,
+        word_timestamps=False,
+        condition_on_previous_text=False,
+        vad_filter=True,
+    )
+    monkeypatch.setattr(adapter, "_load_engine", lambda path: engine)
+
+    sentences = adapter.transcribe(wav, 16000)
+
+    assert sentences[0].text == "No words."
+    assert sentences[0].words == []
+    assert engine.seen["beam_size"] == 1
+    assert engine.seen["word_timestamps"] is False
+    assert engine.seen["condition_on_previous_text"] is False
+    assert adapter.threads == 6

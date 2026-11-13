@@ -1,5 +1,38 @@
 # Changelog
 
+## [2.72.2] - 2026-11-13
+
+### Added
+
+- **Adaptive ASR profiles.** `balanced` (large-v3-turbo, greedy, VAD, physical
+  cores) is the default; `fast`, `quality`, `vulkan`, `remote`, and `custom`
+  cover the other speed/quality trade-offs. Beam, CPU threads, word timestamps,
+  VAD, and condition-on-previous-text are configurable per run.
+- **Vulkan whisper.cpp build.** `scripts/fetch_whisper.py --vulkan` and
+  `build_portable.py --whisper-vulkan` compile the Vulkan backend when `glslc`
+  is available. The profile falls back when Vulkan only reports llvmpipe.
+- **Remote ASR profile.** Settings and a per-step `remote` profile use the
+  existing HTTP adapter for a LAN/Tailscale GPU host.
+- **ASR benchmark.** `scripts/benchmark_asr.py` reports elapsed time, RTF,
+  model, beam, threads, and word count for one sample.
+
+### Changed
+
+- **Notifications are off by default.** New installations show no in-app toasts,
+  desktop pop-ups, or external channel messages. Settings → Notifications now
+  has a master switch, separate in-app and desktop levels (`off`, `required`,
+  `important`, `all`), per-event checkboxes, local log/desktop toggles, and an
+  explicit test action.
+- Routine job finished/cancelled, pause/resume, retry, copy, and theme notices
+  were removed. HITL requests and actionable job failures remain available when
+  notifications are enabled.
+- `VIDEOWFLOW_NOTIFICATIONS=off` and `VIDEOWFLOW_DESKTOP_NOTIFICATIONS=0`
+  override delivery. The test suite disables both globally.
+- `word_timestamps=off` is supported without a second alignment pass; sentence
+  timings remain available when word-level editing is not required.
+- Faster-Whisper now uses physical cores by default and logs the selected
+  profile/model/beam/threads.
+
 ## [2.72.1] - 2026-11-13
 
 ### Fixed

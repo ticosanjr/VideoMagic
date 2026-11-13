@@ -111,6 +111,13 @@ CATALOG: dict[str, dict[str, Any]] = {
     "faster-whisper-tiny": _faster_entry("tiny", "Systran/faster-whisper-tiny", 75),
     "faster-whisper-base": _faster_entry("base", "Systran/faster-whisper-base", 145),
     "faster-whisper-medium": _faster_entry("medium", "Systran/faster-whisper-medium", 1530),
+    "faster-whisper-large-v3-turbo": _faster_entry(
+        "large-v3-turbo",
+        "dropbox-dash/faster-whisper-large-v3-turbo",
+        1618,
+        vocabulary="vocabulary.json",
+        preprocessor=True,
+    ),
     "faster-whisper-large-v3": _faster_entry(
         "large-v3",
         "Systran/faster-whisper-large-v3",
@@ -121,6 +128,8 @@ CATALOG: dict[str, dict[str, Any]] = {
     "whisper-base": _whisper_entry("base", 142),
     "whisper-small": _whisper_entry("small", 466),
     "whisper-medium": _whisper_entry("medium", 1500),
+    "whisper-large-v3-turbo-q5_0": _whisper_entry("large-v3-turbo-q5_0", 574),
+    "whisper-large-v3-turbo": _whisper_entry("large-v3-turbo", 1625),
     "whisper-tiny": {
         "label": "whisper.cpp tiny",
         "capability": "asr",

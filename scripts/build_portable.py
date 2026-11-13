@@ -84,6 +84,11 @@ def main() -> int:
         help="Force a fresh whisper.cpp/model download.",
     )
     parser.add_argument(
+        "--whisper-vulkan",
+        action="store_true",
+        help="Build whisper.cpp with the Vulkan backend (requires glslc).",
+    )
+    parser.add_argument(
         "--with-silero",
         action="store_true",
         help="Bundle the pinned Silero VAD ONNX model and ONNX Runtime.",
@@ -164,7 +169,12 @@ def main() -> int:
         if present and not args.refresh_whisper:
             print(f"reusing {whisper}")
         else:
-            fetch("windows" if os.name == "nt" else "linux", vendor, refresh=args.refresh_whisper)
+            fetch(
+                "windows" if os.name == "nt" else "linux",
+                vendor,
+                refresh=args.refresh_whisper,
+                vulkan=args.whisper_vulkan,
+            )
 
     if args.with_silero:
         completed = subprocess.run(

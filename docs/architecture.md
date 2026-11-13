@@ -92,7 +92,8 @@ Rules:
 | `modules/` | The eight rack modules (fingerprints live, engines stubbed) |
 | `adapters/ffmpeg.py` | FFprobe ingest, PCM extraction, digest, silencedetect VAD |
 | `adapters/silero.py` | Silero v5.1.2 ONNX inference and speech-window merging |
-| `adapters/faster_whisper.py` | Local Faster-Whisper/CTranslate2 adapter |
+| `adapters/faster_whisper.py` | Local Faster-Whisper/CTranslate2 adapter with adaptive beam/threads/word options |
+| `application/asr_profiles.py` | Faster-Whisper, whisper.cpp Vulkan, remote HTTP, and quality profile resolution |
 | `adapters/whisper.py` | Local whisper.cpp CLI adapter and fallback |
 | `adapters/asr.py` | OpenAI-compatible `/audio/transcriptions` client |
 | `adapters/llm.py` | OpenAI-compatible retake client |

@@ -257,7 +257,7 @@ def _loop(name: str, jobs: Any, interval: int, poll: Any) -> None:
 
 def start_pollers(jobs: Any) -> None:
     settings = load_settings()
-    if not settings.notifications.enabled:
+    if hilt._env_notifications_off() or not settings.notifications.enabled:
         return
     _STOP.clear()
     with _LOCK:

@@ -675,10 +675,25 @@ export interface AppSettings {
   };
   speech: {
     engine: "auto" | "faster-whisper" | "whisper-cli";
+    quality_profile:
+      | "auto"
+      | "custom"
+      | "fast"
+      | "balanced"
+      | "quality"
+      | "vulkan"
+      | "remote";
     language: string;
     device: "cpu" | "cuda" | "auto";
     compute_type: string;
+    beam_size: number;
+    cpu_threads: number;
+    word_timestamps: "auto" | "always" | "off";
+    condition_on_previous_text: boolean;
     vad_filter: boolean;
+    remote_base_url: string;
+    remote_model: string;
+    remote_api_key_env: string;
     diarization_model: string;
   };
   tts: {
@@ -704,7 +719,14 @@ export interface AppSettings {
   };
   notifications: {
     enabled: boolean;
-    ui_level: "minimal" | "standard" | "verbose";
+    ui_level: "off" | "required" | "important" | "all";
+    desktop_level: "off" | "required" | "important" | "all";
+    notify_hitl: boolean;
+    notify_job_failed: boolean;
+    notify_job_finished: boolean;
+    notify_job_cancelled: boolean;
+    notify_warnings: boolean;
+    notify_system: boolean;
     default_channels: string[];
     base_url: string;
     interaction_ttl_hours: number;

@@ -14,9 +14,15 @@ echo "Building VideoFlow ${VERSION} locally"
   npm run build
 )
 
+WHISPER_VULKAN=()
+if command -v glslc >/dev/null 2>&1; then
+  WHISPER_VULKAN=(--whisper-vulkan)
+fi
+
 uv run python scripts/build_portable.py \
   --with-ffmpeg \
   --with-whisper \
+  "${WHISPER_VULKAN[@]}" \
   --with-silero \
   --with-faster-whisper
 

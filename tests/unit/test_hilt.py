@@ -521,22 +521,33 @@ def test_desktop_notification_platforms(monkeypatch) -> None:
     monkeypatch.setattr(hilt.sys, "platform", "linux")
     monkeypatch.setattr(hilt.shutil, "which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr(hilt.subprocess, "run", run)
-    hilt._desktop_notify("Title", "Body")
+    hilt._desktop_notify("Title", "Body", force=True)
     assert calls and calls[0][0].endswith("notify-send")
 
     monkeypatch.setattr(hilt.sys, "platform", "darwin")
-    hilt._desktop_notify("Title", "Body")
+    hilt._desktop_notify("Title", "Body", force=True)
     assert calls[-1][0].endswith("osascript")
 
     monkeypatch.setattr(hilt.shutil, "which", lambda name: None)
-    hilt._desktop_notify("Title", "Body")
+    hilt._desktop_notify("Title", "Body", force=True)
 
     def boom(*args, **kwargs):
         raise OSError("no service")
 
     monkeypatch.setattr(hilt.shutil, "which", lambda name: "/usr/bin/osascript")
     monkeypatch.setattr(hilt.subprocess, "run", boom)
-    hilt._desktop_notify("Title", "Body")
+    hilt._desktop_notify("Title", "Body", force=True)
+
+
+def test_desktop_notification_is_off_by_default(monkeypatch) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.delenv("VIDEOWFLOW_DESKTOP_NOTIFICATIONS", raising=False)
+    monkeypatch.delenv("VIDEOWFLOW_NOTIFICATIONS", raising=False)
+    monkeypatch.setattr(hilt.sys, "platform", "linux")
+    monkeypatch.setattr(hilt.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(hilt.subprocess, "run", lambda command, **kwargs: calls.append(command))
+    hilt._desktop_notify("Title", "Body", settings=hilt.load_settings())
+    assert calls == []
 
 
 def test_load_round_trip_handles_corrupt_payloads(tmp_path: Path) -> None:

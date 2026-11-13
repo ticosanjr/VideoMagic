@@ -1,11 +1,12 @@
 export type NoticeKind = "info" | "success" | "warning" | "error";
 export type NoticeCategory =
   | "hilt"
+  | "job_failed"
   | "job_finished"
   | "blocker"
   | "action"
   | "system";
-export type NoticeLevel = "minimal" | "standard" | "verbose";
+export type NoticeLevel = "off" | "required" | "important" | "all";
 
 export interface Notice {
   id: string;
@@ -41,11 +42,13 @@ const SEVERITY: Record<NoticeKind, number> = {
 };
 
 export function noticeAllowed(level: NoticeLevel, input: NoticeInput): boolean {
-  if (input.kind === "error" || input.kind === "warning") return true;
+  if (level === "off") return false;
   const category = input.category ?? "action";
-  if (level === "verbose") return true;
-  if (level === "standard") return category !== "system";
-  return category === "hilt" || category === "job_finished" || category === "blocker";
+  if (level === "required") return category === "hilt";
+  if (level === "important") {
+    return category === "hilt" || category === "job_failed" || input.kind === "error";
+  }
+  return true;
 }
 
 let counter = 0;

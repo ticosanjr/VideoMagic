@@ -12,6 +12,8 @@ from videoflow.domain.hilt import HiltQuestion
 
 def _settings() -> AppSettings:
     settings = AppSettings()
+    settings.notifications.enabled = True
+    settings.notifications.local.enabled = True
     settings.notifications.email.enabled = True
     settings.notifications.email.smtp_host = "smtp.example.com"
     settings.notifications.email.from_address = "from@example.com"
@@ -130,6 +132,7 @@ def test_ingest_slack_event_and_email_payload(monkeypatch) -> None:
 
 def test_notify_request_logs_external_channels(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("VIDEOWFLOW_DESKTOP_NOTIFICATIONS", "0")
+    monkeypatch.delenv("VIDEOWFLOW_NOTIFICATIONS", raising=False)
     output = tmp_path / "out"
     request, token = hilt.create_request(
         output,

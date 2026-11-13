@@ -10,12 +10,14 @@
     open = false,
     onclose,
     onaction,
-    onclear
+    onclear,
+    onsettings
   }: {
     open?: boolean;
     onclose: () => void;
     onaction?: (actionId: string, notice: Notice) => void;
     onclear?: () => void;
+    onsettings?: () => void;
   } = $props();
 
   const ordered = $derived(sortNotices(notifications.items));
@@ -69,9 +71,23 @@
       </header>
       <div class="flex-1 space-y-2 overflow-auto p-3" aria-live="polite">
         {#if ordered.length === 0}
-          <p class="rounded-xl border border-dashed border-neutral-800 px-3 py-6 text-center text-xs text-neutral-500">
-            {i18n.t("notification_empty")}
-          </p>
+          {#if notifications.level === "off"}
+            <div class="rounded-xl border border-dashed border-neutral-800 px-3 py-6 text-center">
+              <p class="text-xs text-neutral-400">Notifications are off.</p>
+              <p class="mt-1 text-[11px] text-neutral-600">
+                No in-app or system alerts will be shown until you enable them.
+              </p>
+              <button
+                type="button"
+                class="mt-3 rounded-lg border border-white/15 px-3 py-1 text-[11px] text-neutral-300 hover:text-white"
+                onclick={() => onsettings?.()}
+              >Open notification settings</button>
+            </div>
+          {:else}
+            <p class="rounded-xl border border-dashed border-neutral-800 px-3 py-6 text-center text-xs text-neutral-500">
+              {i18n.t("notification_empty")}
+            </p>
+          {/if}
         {/if}
         {#each ordered as notice (notice.id)}
           <article class={`rounded-xl border px-3 py-2.5 text-xs ${tones[notice.kind] ?? tones.info}`}>

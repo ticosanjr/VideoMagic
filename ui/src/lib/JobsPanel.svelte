@@ -127,7 +127,6 @@
     busy = job.job_id;
     try {
       await cancelJob(job.job_id);
-      notifications.push({ kind: "info", title: "Job cancelled", message: jobDisplayName(job) });
       await refresh();
     } catch (reason) {
       error = errorMessage(reason);
@@ -148,7 +147,6 @@
     busy = job.job_id;
     try {
       await deleteJob(job.job_id, true);
-      notifications.push({ kind: "info", title: "Job removed", message: jobDisplayName(job) });
       await refresh();
     } catch (reason) {
       error = errorMessage(reason);
@@ -171,10 +169,8 @@
     try {
       if (previous === "paused") {
         await unpauseJob(job.job_id);
-        notifications.push({ kind: "info", title: "Job resumed" });
       } else {
         await pauseJob(job.job_id);
-        notifications.push({ kind: "info", title: "Job paused" });
       }
       await refresh();
     } catch (reason) {
@@ -200,14 +196,7 @@
   async function retry(job: Job) {
     busy = job.job_id;
     try {
-      const retried = await retryJob(job.job_id);
-      notifications.push({
-        kind: "success",
-        title: "Job retried",
-        message: `New job ${retried.job_id}`,
-        actionLabel: "Open",
-        actionId: `job:${retried.job_id}`
-      });
+      await retryJob(job.job_id);
       await refresh();
     } catch (reason) {
       error = errorMessage(reason);
@@ -219,7 +208,6 @@
   async function copyText(value: string, label: string) {
     try {
       await navigator.clipboard.writeText(value);
-      notifications.push({ kind: "success", title: `${label} copied` });
     } catch {
       notifications.push({
         kind: "error",

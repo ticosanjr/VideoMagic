@@ -19,6 +19,7 @@ from videoflow.domain.hilt import HiltQuestion
 
 def _settings() -> AppSettings:
     settings = AppSettings()
+    settings.notifications.enabled = True
     settings.notifications.email.enabled = True
     settings.notifications.email.smtp_host = "smtp.example.com"
     settings.notifications.email.from_address = "from@example.com"
@@ -258,6 +259,7 @@ def test_outbound_error_branches(monkeypatch) -> None:
 
 
 def test_notify_request_skips_and_logs_unknown_channel(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("VIDEOWFLOW_NOTIFICATIONS", raising=False)
     request, token = hilt.create_request(
         tmp_path / "out",
         step_id="ask",

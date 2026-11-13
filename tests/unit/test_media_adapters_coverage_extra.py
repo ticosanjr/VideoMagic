@@ -1422,6 +1422,7 @@ def test_whisper_success_builds_command_and_logs(
         language="en",
         threads=3,
         timeout=12,
+        word_timestamps=False,
         log=lambda level, message: logs.append((level, message)),
     )
     sentences = adapter.transcribe(wav, 16000)
@@ -1433,13 +1434,16 @@ def test_whisper_success_builds_command_and_logs(
         str(model),
         "-f",
         str(wav),
-        "-osrt",
         "-of",
-        seen["command"][7],
+        seen["command"][6],
         "-l",
         "en",
         "-t",
         "3",
+        "-bs",
+        "1",
+        "-osrt",
+        "-ng",
     ]
     assert seen["timeout"] == 12
     assert logs[0][0] == "debug"
@@ -1494,6 +1498,7 @@ def test_whisper_timeout_failure_and_missing_srt(
     adapter = WhisperCliAdapter(
         binary=binary,
         model=model,
+        word_timestamps=False,
         log=lambda level, message: logs.append((level, message)),
     )
 
@@ -1512,7 +1517,7 @@ def test_whisper_timeout_failure_and_missing_srt(
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(whisper_module.subprocess, "run", ok_without_srt)
-    with pytest.raises(TranscriptionError, match="did not write an SRT"):
+    with pytest.raises(TranscriptionError, match="did not write a transcript"):
         adapter.transcribe(wav, 16000)
 
 

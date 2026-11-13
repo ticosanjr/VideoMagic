@@ -72,15 +72,22 @@ describe("noticeCounts", () => {
 
 
 describe("noticeAllowed", () => {
-  it("keeps HITL, finished jobs, and blockers in minimal mode", () => {
-    expect(noticeAllowed("minimal", { kind: "info", category: "hilt", title: "Review" })).toBe(true);
-    expect(noticeAllowed("minimal", { kind: "info", category: "job_finished", title: "Done" })).toBe(true);
-    expect(noticeAllowed("minimal", { kind: "error", title: "Boom" })).toBe(true);
-    expect(noticeAllowed("minimal", { kind: "success", category: "action", title: "Saved" })).toBe(false);
+  it("sends nothing while notifications are off", () => {
+    expect(noticeAllowed("off", { kind: "info", category: "hilt", title: "Review" })).toBe(false);
+    expect(noticeAllowed("off", { kind: "error", category: "blocker", title: "Boom" })).toBe(false);
   });
 
-  it("adds ordinary actions in standard mode and everything in verbose", () => {
-    expect(noticeAllowed("standard", { kind: "success", category: "action", title: "Saved" })).toBe(true);
-    expect(noticeAllowed("verbose", { kind: "info", category: "system", title: "Ping" })).toBe(true);
+  it("keeps only HITL in required mode", () => {
+    expect(noticeAllowed("required", { kind: "info", category: "hilt", title: "Review" })).toBe(true);
+    expect(noticeAllowed("required", { kind: "info", category: "job_finished", title: "Done" })).toBe(false);
+    expect(noticeAllowed("required", { kind: "error", category: "blocker", title: "Boom" })).toBe(false);
+  });
+
+  it("adds failures in important mode and everything in all", () => {
+    expect(noticeAllowed("important", { kind: "error", category: "blocker", title: "Boom" })).toBe(true);
+    expect(noticeAllowed("important", { kind: "warning", category: "job_failed", title: "Failed" })).toBe(true);
+    expect(noticeAllowed("important", { kind: "info", category: "job_finished", title: "Done" })).toBe(false);
+    expect(noticeAllowed("all", { kind: "info", category: "system", title: "Ping" })).toBe(true);
+    expect(noticeAllowed("all", { kind: "success", category: "action", title: "Saved" })).toBe(true);
   });
 });

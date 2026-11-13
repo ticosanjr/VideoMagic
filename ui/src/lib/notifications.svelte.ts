@@ -8,7 +8,7 @@ import {
 
 let items = $state<Notice[]>([]);
 const MAX_NOTICES = 50;
-let level = $state<NoticeLevel>("minimal");
+let level = $state<NoticeLevel>("off");
 
 
 

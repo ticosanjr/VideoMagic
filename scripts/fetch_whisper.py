@@ -26,14 +26,16 @@ WINDOWS_URL = (
 MODEL_URL = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin"
 
 
-def fetch(platform: str, dest: Path, *, refresh: bool = False) -> Path:
+def fetch(
+    platform: str, dest: Path, *, refresh: bool = False, vulkan: bool = False
+) -> Path:
     target = dest / "whisper"
     target.mkdir(parents=True, exist_ok=True)
     _model(target, refresh=refresh)
     if platform == "windows":
         _windows(target, refresh=refresh)
     else:
-        _linux(target, refresh=refresh)
+        _linux(target, refresh=refresh, vulkan=vulkan)
     total = sum(path.stat().st_size for path in target.iterdir() if path.is_file())
     print(f"whisper ready: {target} ({total / 1_000_000:.1f} MB)")
     return target
@@ -66,13 +68,19 @@ def _windows(target: Path, *, refresh: bool) -> None:
     binary.chmod(0o755)
 
 
-def _linux(target: Path, *, refresh: bool) -> None:
+def _linux(target: Path, *, refresh: bool, vulkan: bool = False) -> None:
     binary = target / "whisper-cli"
-    if binary.is_file() and not refresh:
+    marker = target / "vulkan.flag"
+    if binary.is_file() and not refresh and (not vulkan or marker.is_file()):
         print(f"reusing {binary}")
         return
     if shutil.which("cmake") is None:
         raise SystemExit("cmake is required to build whisper.cpp on Linux")
+    if vulkan and shutil.which("glslc") is None:
+        raise SystemExit(
+            "Vulkan whisper.cpp requires glslc (shaderc). Install glslc or "
+            "run without --vulkan."
+        )
     with tempfile.TemporaryDirectory(prefix="videoflow-whisper-") as temp:
         work = Path(temp)
         archive = work / "whisper.tar.gz"
@@ -83,21 +91,21 @@ def _linux(target: Path, *, refresh: bool) -> None:
             path for path in work.iterdir() if path.is_dir() and "whisper" in path.name
         )
         build = source_dir / "build"
-        _run(
-            [
-                "cmake",
-                "-B",
-                str(build),
-                "-DCMAKE_BUILD_TYPE=Release",
-                "-DBUILD_SHARED_LIBS=OFF",
-                "-DGGML_OPENMP=OFF",
-                "-DCMAKE_EXE_LINKER_FLAGS=-static-libstdc++ -static-libgcc",
-                "-DWHISPER_BUILD_TESTS=OFF",
-                "-DWHISPER_BUILD_EXAMPLES=ON",
-                "-DWHISPER_BUILD_SERVER=OFF",
-            ],
-            cwd=source_dir,
-        )
+        configure = [
+            "cmake",
+            "-B",
+            str(build),
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DBUILD_SHARED_LIBS=OFF",
+            "-DGGML_OPENMP=OFF",
+            "-DCMAKE_EXE_LINKER_FLAGS=-static-libstdc++ -static-libgcc",
+            "-DWHISPER_BUILD_TESTS=OFF",
+            "-DWHISPER_BUILD_EXAMPLES=ON",
+            "-DWHISPER_BUILD_SERVER=OFF",
+        ]
+        if vulkan:
+            configure.insert(4, "-DGGML_VULKAN=ON")
+        _run(configure, cwd=source_dir)
         _run(
             [
                 "cmake",
@@ -118,6 +126,11 @@ def _linux(target: Path, *, refresh: bool) -> None:
         if not built.is_file():
             raise SystemExit(f"whisper.cpp did not produce a CLI: {built}")
         shutil.copy2(built, binary)
+        marker = target / "vulkan.flag"
+        if vulkan:
+            marker.write_text("vulkan\n", encoding="utf-8")
+        else:
+            marker.unlink(missing_ok=True)
     binary.chmod(0o755)
 
 
@@ -143,11 +156,21 @@ def main() -> int:
     )
     parser.add_argument("--dest", default=str(ROOT / "vendor"), help="Vendor directory.")
     parser.add_argument("--refresh", action="store_true", help="Download again.")
+    parser.add_argument(
+        "--vulkan",
+        action="store_true",
+        help="Build whisper.cpp with the Vulkan backend (requires glslc).",
+    )
     args = parser.parse_args()
     platform = args.platform
     if platform == "auto":
         platform = "windows" if os.name == "nt" else "linux"
-    fetch(platform, Path(args.dest).resolve(), refresh=args.refresh)
+    fetch(
+        platform,
+        Path(args.dest).resolve(),
+        refresh=args.refresh,
+        vulkan=args.vulkan,
+    )
     return 0
 
 
