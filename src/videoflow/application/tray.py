@@ -325,6 +325,37 @@ class TrayActions:
         return "Status: running" if self.supervisor.running else "Status: stopped"
 
 
+def _import_pystray() -> Any:
+    """Import pystray, preferring the XEmbed backend on Linux/X11.
+
+    AppIndicator and GTK backends are tried first by pystray. Cinnamon (and
+    several other desktops) expose the legacy XEmbed tray reliably; forcing the
+    xorg backend avoids a backend that imports but never shows an icon. If the
+    forced backend is unavailable, retry with pystray's normal selection.
+    """
+
+    forced = False
+    if (
+        sys.platform.startswith("linux")
+        and os.environ.get("DISPLAY")
+        and not os.environ.get("WAYLAND_DISPLAY")
+        and not os.environ.get("PYSTRAY_BACKEND")
+    ):
+        os.environ["PYSTRAY_BACKEND"] = "xorg"
+        forced = True
+    try:
+        import pystray
+    except Exception:
+        if not forced:
+            raise
+        os.environ.pop("PYSTRAY_BACKEND", None)
+        sys.modules.pop("pystray", None)
+        import pystray
+    if forced:
+        os.environ.pop("PYSTRAY_BACKEND", None)
+    return pystray
+
+
 def tray_available() -> bool:
     """Return True when a tray backend and a display are both available."""
 
@@ -333,11 +364,12 @@ def tray_available() -> bool:
     ):
         return False
     try:
-        import pystray  # noqa: F401
+        pystray = _import_pystray()
         from PIL import Image  # noqa: F401
     except Exception:  # noqa: BLE001 - optional dependency
         return False
-    return True
+    backend = str(getattr(pystray.Icon, "__module__", ""))
+    return bool(pystray.Icon) and not backend.endswith("._dummy")
 
 
 def _icon_image() -> Any:
@@ -439,10 +471,11 @@ def run_tray(*, host: str, port: int, open_browser: bool = True) -> int:
     """Start the owned service and run the tray loop until Quit."""
 
     try:
-        import pystray
+        pystray = _import_pystray()
     except Exception as exc:  # noqa: BLE001 - optional dependency
         print(f"VideoFlow tray backend is unavailable: {exc}", file=sys.stderr)
         return 1
+    append_server_log(f"tray backend={getattr(pystray.Icon, '__module__', 'unknown')}")
     from videoflow.application.settings import load_settings
 
     supervisor = ServerSupervisor(

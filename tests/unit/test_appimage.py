@@ -27,13 +27,16 @@ def test_appdir_contains_launcher_desktop_and_icon(tmp_path: Path) -> None:
     )
     apprun = appdir / "AppRun"
     text = apprun.read_text(encoding="utf-8")
-    assert "serve --open" in text
+    assert '"$HERE/usr/bin/videoflow" tray' in text
+    assert "serve --open" not in text
     assert os.access(apprun, os.X_OK)
     assert (appdir / "usr" / "bin" / "videoflow").is_file()
     assert (appdir / "videoflow.desktop").is_file()
     assert (appdir / "videoflow.png").is_file()
     assert (appdir / "usr/share/icons/hicolor/256x256/apps/videoflow.png").is_file()
-    assert "Exec=videoflow" in (appdir / "videoflow.desktop").read_text(encoding="utf-8")
+    desktop = (appdir / "videoflow.desktop").read_text(encoding="utf-8")
+    assert "Exec=videoflow tray" in desktop
+    assert "Terminal=false" in desktop
 
 
 def test_build_appimage_appdir_only_mode(tmp_path: Path) -> None:

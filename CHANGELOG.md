@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.72.1] - 2026-11-13
+
+### Fixed
+
+- **AppImage now starts the tray.** The no-argument `AppRun` and desktop entry
+  launch `videoflow tray`, so the icon appears and controls the service instead
+  of starting a terminal-only `serve` process.
+- **Frozen tray backend.** The portable build forces the XEmbed (`xorg`)
+  backend on Linux/X11, bundles `Xlib`/`six`/pystray backends explicitly, and
+  records the chosen backend in the server log.
+- Added `scripts/tray_smoke.py`, which verifies the XEmbed icon and the
+  pause/resume/cancel-all controls against a built binary.
+
 ## [2.72.0] - 2026-11-13
 
 ### Added

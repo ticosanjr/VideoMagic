@@ -16,7 +16,7 @@ hides the contract. VideoFlow resolves this with two layers:
 | Scope | Line coverage | Notes |
 | --- | --- | --- |
 | `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 98% gate (2,106 passing, 1 strict xfail, 18 deselected) |
-| Full tree | **95%** (3.0 target) | **Met**: 95.06% statements (32,449/34,136), 88.1% with branches |
+| Full tree | **95%** (3.0 target) | **Met**: 95.06% statements (32,467/34,154), 88.1% with branches |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |
 | UI | `npm run check`, `npm test`, `npm run test:e2e`, `npm run build` | Playwright: graph, inspector, schema fields, split-screen source, palette, NLE validation, run history, mobile timeline/builder, HITL, workspaces, visual baselines |

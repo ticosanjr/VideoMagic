@@ -81,10 +81,8 @@ def build_appdir(binary: Path, work: Path, *, icon: Path | None = None) -> Path:
         'HERE="$(dirname "$(readlink -f "$0")")"\n'
         'cd "$HOME" 2>/dev/null || cd /\n'
         'if [ "$#" -eq 0 ]; then\n'
-        '  echo "VideoFlow: opening http://127.0.0.1:8765/"\n'
-        '  echo "The service stays running in this terminal. Use Restart/Stop in the UI,"\n'
-        '  echo "or run: videoflow stop"\n'
-        '  exec "$HERE/usr/bin/videoflow" serve --open\n'
+        '  echo "VideoFlow: starting the tray and opening http://127.0.0.1:8765/"\n'
+        '  exec "$HERE/usr/bin/videoflow" tray\n'
         "fi\n"
         'exec "$HERE/usr/bin/videoflow" "$@"\n',
         encoding="utf-8",
@@ -95,9 +93,9 @@ def build_appdir(binary: Path, work: Path, *, icon: Path | None = None) -> Path:
 Type=Application
 Name=VideoFlow
 Comment=Local-first, non-destructive video pre-edit studio
-Exec=videoflow
+Exec=videoflow tray
 Icon=videoflow
-Terminal=true
+Terminal=false
 Categories=AudioVideo;Video;
 """
     (appdir / "videoflow.desktop").write_text(desktop, encoding="utf-8")

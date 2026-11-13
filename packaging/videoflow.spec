@@ -82,7 +82,7 @@ except Exception:
 
 # Optional desktop/vision helpers. They are imported lazily, so PyInstaller
 # needs the package data and submodules explicitly.
-for package in ("PIL", "pystray", "pytesseract"):
+for package in ("PIL", "pystray", "pytesseract", "Xlib", "six"):
     try:
         package_datas, package_binaries, package_hidden = collect_all(package)
         datas += package_datas
@@ -90,6 +90,15 @@ for package in ("PIL", "pystray", "pytesseract"):
         hiddenimports += package_hidden
     except Exception:
         pass
+
+hiddenimports += [
+    "pystray._xorg",
+    "pystray._gtk",
+    "pystray._appindicator",
+    "Xlib.display",
+    "Xlib.threaded",
+    "Xlib.XK",
+]
 
 icon = ROOT / "packaging" / "videoflow.png"
 if icon.is_file():
