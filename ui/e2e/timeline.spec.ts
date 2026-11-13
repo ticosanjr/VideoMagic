@@ -139,6 +139,20 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Timeline", exact: true })).toBeVisible();
 });
 
+test("uses the mobile list fallback for clip selection", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  const mobile = page.getByTestId("timeline-mobile");
+  await expect(mobile).toBeVisible();
+  await expect(mobile).toContainText("v1");
+  await expect(mobile).toContainText("v2");
+  await mobile.getByRole("button", { name: "Inspect" }).first().click();
+  await expect(page.getByText("Selected clip")).toBeVisible();
+  await expect(page).toHaveScreenshot("timeline-mobile.png", {
+    animations: "disabled",
+    maxDiffPixelRatio: 0.02
+  });
+});
+
 test("shows full backend render error details", async ({ page }) => {
   await page.route("**/api/v1/jobs/job-1/render", (route) =>
     route.fulfill({

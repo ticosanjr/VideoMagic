@@ -63,6 +63,11 @@ test("keeps the mobile shell and builder fallback accessible", async ({ page }) 
   await mockShell(page);
   await page.goto("/#overview");
   await expect(page.getByTestId("produce-home")).toBeVisible({ timeout: 20_000 });
+  await expect(page).toHaveScreenshot("shell-mobile.png", {
+    animations: "disabled",
+    maxDiffPixelRatio: 0.02,
+    mask: [page.getByTitle("Server version"), page.getByTitle("UI bundle version")]
+  });
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
     .analyze();
@@ -74,4 +79,8 @@ test("keeps the mobile shell and builder fallback accessible", async ({ page }) 
 
   await page.goto("/#recipes");
   await expect(page.getByTestId("recipe-step-list")).toBeVisible({ timeout: 20_000 });
+  await expect(page).toHaveScreenshot("recipe-builder-mobile.png", {
+    animations: "disabled",
+    maxDiffPixelRatio: 0.02
+  });
 });

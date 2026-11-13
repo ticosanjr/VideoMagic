@@ -13,11 +13,11 @@ adapters, exporters, API, jobs, and MCP are visible.
 ## Current working tree (2.71.0)
 
 Measured after the P2/P3 work, with the release-gate omit list disabled. The
-full unit/contract run is **2,119 passed, 1 skipped, 1 xfailed**.
+full unit/contract run is **2,120 passed, 1 skipped, 1 xfailed**.
 
 | Layer | Hit | Total | Cover |
 | --- | ---: | ---: | ---: |
-| api | 2,804 | 2,903 | 96.59% |
+| api | 2,830 | 2,930 | 96.59% |
 | adapters | 1,260 | 1,295 | 97.30% |
 | application | 15,060 | 15,976 | 94.27% |
 | engine | 1,091 | 1,157 | 94.30% |
@@ -26,7 +26,7 @@ full unit/contract run is **2,119 passed, 1 skipped, 1 xfailed**.
 | steps | 7,633 | 8,078 | 94.49% |
 | domain | 1,175 | 1,181 | 99.49% |
 | cli/runtime/core/plugin | 1,110 | 1,143 | 97.11% |
-| **full tree (statements)** | **32,335** | **34,015** | **95.06%** |
+| **full tree (statements)** | **32,361** | **34,042** | **95.06%** |
 | **full tree (branch report)** | — | — | **88.1%** |
 
 The full-tree 95% target remains **met**. The configured release gate remains at

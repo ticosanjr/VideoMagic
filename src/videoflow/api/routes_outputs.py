@@ -21,6 +21,7 @@ from videoflow.application.broll_approval import (
     undo_approval,
 )
 from videoflow.application.caption_ai import apply_llm_emoji
+from videoflow.application.clock import now_iso
 from videoflow.application.deliverables import (
     add_review_comment,
     approve_review,
@@ -88,6 +89,10 @@ class ShortDubbingRequest(BaseModel):
 
 class StepOutputSaveRequest(BaseModel):
     target_dir: str = Field(min_length=1)
+
+
+class ArtifactUpdateRequest(BaseModel):
+    payload: dict[str, Any]
 
 
 class ReviewDecisionRequest(BaseModel):
@@ -820,6 +825,85 @@ def register_output_routes(app: FastAPI, jobs: JobManager) -> None:
                 detail={"ok": False, "code": "artifact_not_found", "message": artifact_name},
             )
         return FileResponse(path, filename=path.name)
+
+    @app.patch("/api/v1/jobs/{job_id}/artifacts/{artifact_name}")
+    def update_job_artifact(
+        job_id: str, artifact_name: str, request: ArtifactUpdateRequest
+    ) -> dict[str, object]:
+        editable = {
+            "motion_scenes": "scenes",
+            "motion_callouts": "callouts",
+            "storyboard_units": "units",
+            "script_json": "sections",
+            "style_guide": "",
+        }
+        if artifact_name not in editable:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "ok": False,
+                    "code": "artifact_not_editable",
+                    "message": f"Artifact {artifact_name} is not editable.",
+                },
+            )
+        job = jobs.get(job_id)
+        artifacts = (job.result or {}).get("artifacts") or {}
+        raw = artifacts.get(artifact_name) if isinstance(artifacts, dict) else None
+        if not raw:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "ok": False,
+                    "code": "artifact_not_found",
+                    "message": artifact_name,
+                },
+            )
+        path = Path(str(raw)).expanduser().resolve()
+        output = job.output.expanduser().resolve()
+        if not path.is_relative_to(output) or not path.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "ok": False,
+                    "code": "artifact_not_found",
+                    "message": artifact_name,
+                },
+            )
+        key = editable[artifact_name]
+        if key and not isinstance(request.payload.get(key), list):
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "ok": False,
+                    "code": "artifact_invalid",
+                    "message": f"Artifact {artifact_name} requires a list at '{key}'.",
+                },
+            )
+        temporary = path.with_name(f".{path.name}.tmp")
+        temporary.write_text(
+            json.dumps(request.payload, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        temporary.replace(path)
+        audit = output / "plan-edits.jsonl"
+        with audit.open("a", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(
+                    {
+                        "at": now_iso(),
+                        "artifact": artifact_name,
+                        "path": str(path),
+                    },
+                    sort_keys=True,
+                )
+                + "\n"
+            )
+        return {
+            "ok": True,
+            "artifact": artifact_name,
+            "path": str(path),
+            "note": "Plan saved. Re-run the affected step or render to apply it.",
+        }
 
     @app.get("/api/v1/jobs/{job_id}/steps/{step_id}/outputs")
     def job_step_outputs(job_id: str, step_id: str) -> dict[str, object]:

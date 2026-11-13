@@ -285,3 +285,39 @@ def test_snapshot_and_overlay_error_routes(monkeypatch, tmp_path: Path) -> None:
     overlay.unlink()
     offline = client.get(f"{base}/overlays/o1/file")
     assert offline.status_code == 409
+
+
+def test_editable_plan_artifacts_are_saved_atomically(monkeypatch, tmp_path: Path) -> None:
+    client, manager = _client(monkeypatch, tmp_path)
+    (tmp_path / "source.mp4").write_bytes(b"source")
+    job = _job(manager, tmp_path)
+    base = f"/api/v1/jobs/{job.job_id}"
+    plan = job.output / "motion" / "scenes.json"
+    plan.parent.mkdir(parents=True, exist_ok=True)
+    plan.write_text('{"scenes": [{"scene_id": "SCENE-0001"}]}\n', encoding="utf-8")
+    job.result["artifacts"] = {"motion_scenes": str(plan)}
+
+    updated = client.patch(
+        f"{base}/artifacts/motion_scenes",
+        json={"payload": {"scenes": [{"scene_id": "SCENE-0001", "title": "New"}]}},
+    )
+    assert updated.status_code == 200, updated.text
+    assert "New" in plan.read_text(encoding="utf-8")
+    assert (job.output / "plan-edits.jsonl").is_file()
+
+    invalid = client.patch(
+        f"{base}/artifacts/motion_scenes", json={"payload": {"scenes": "bad"}}
+    )
+    assert invalid.status_code == 422
+    assert _error(invalid)["code"] == "artifact_invalid"
+
+    blocked = client.patch(
+        f"{base}/artifacts/secret.json", json={"payload": {}}
+    )
+    assert blocked.status_code == 422
+    assert _error(blocked)["code"] == "artifact_not_editable"
+
+    missing = client.patch(
+        f"{base}/artifacts/motion_callouts", json={"payload": {"callouts": []}}
+    )
+    assert missing.status_code == 404

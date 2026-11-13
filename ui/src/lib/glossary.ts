@@ -880,4 +880,13 @@ export const GLOSSARY: Record<string, string> = {
     "Toque em uma etapa para editar os parâmetros. O editor de grafo precisa de uma tela maior.",
   "Create profile": "Criar perfil",
   "Voice clone": "Clone de voz",
+  "Callout editor": "Editor de callout",
+  "Duration (s)": "Duração (s)",
+  "Edit the anchored cards, then re-run motion.callout to apply them.":
+    "Edite os cartões ancorados e execute motion.callout novamente para aplicar.",
+  "Edit the scene plan, then re-run scene codegen/render to apply it.":
+    "Edite o plano de cenas e execute scene codegen/render novamente para aplicar.",
+  "Scene editor": "Editor de cenas",
+  "Text": "Texto",
+  "Timeline list": "Lista da timeline",
 };

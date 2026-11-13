@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import CalloutEditor from "$lib/workspaces/CalloutEditor.svelte";
   import { loadArtifactJson } from "$lib/artifactData";
 
   let {
@@ -112,4 +113,6 @@
       {/if}
     </section>
   </div>
+
+  <CalloutEditor {jobId} />
 </div>

@@ -2851,6 +2851,17 @@ export function jobFrameUrl(jobId: string, timeSec: number): string {
   return `/api/v1/jobs/${encodeURIComponent(jobId)}/frame?time=${Math.max(0, timeSec).toFixed(2)}&t=${Date.now()}`;
 }
 
+export async function updateJobArtifact(
+  jobId: string,
+  artifactName: string,
+  payload: Record<string, unknown>
+): Promise<{ ok: boolean; artifact: string; path: string; note: string }> {
+  return request(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(artifactName)}`,
+    { method: "PATCH", body: JSON.stringify({ payload }) }
+  );
+}
+
 export function jobArtifactUrl(jobId: string, artifactName: string): string {
   return `/api/v1/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(artifactName)}`;
 }

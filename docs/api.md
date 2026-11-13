@@ -517,9 +517,26 @@ live under the job output; otherwise `403 shorts_not_allowed` is returned.
 GET /api/v1/jobs/{job_id}/artifacts/{target}
 ```
 
-`target` is `resolve`, `premiere`, or `kdenlive`. The file must live under the
-job's output directory. Unknown targets return `404 artifact_not_found`; a path
-outside the output returns `403 artifact_not_allowed`.
+`target` is the artifact key from `job.result.artifacts` (for example `mp4`,
+`resolve`, `premiere`, `kdenlive`, or a plan such as `motion_scenes`). The file
+must live under the job's output directory. Unknown targets return
+`404 artifact_not_found`; a path outside the output returns
+`403 artifact_not_allowed`.
+
+### Edit a plan artifact
+
+```http
+PATCH /api/v1/jobs/{job_id}/artifacts/{target}
+{"payload": {"scenes": []}}
+```
+
+Editable keys are `motion_scenes`, `motion_callouts`, `storyboard_units`,
+`script_json`, and `style_guide`. The payload is written atomically to the
+existing artifact inside the job output, and every edit is appended to
+`plan-edits.jsonl`. Edits change the plan only; re-run the affected step or
+render to update the media. Non-editable keys return
+`422 artifact_not_editable`, invalid shapes return `422 artifact_invalid`, and
+missing files return `404 artifact_not_found`.
 
 ### Events
 

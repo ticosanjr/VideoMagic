@@ -1,5 +1,16 @@
 # Recipe studio and timeline UI specification
 
+The Playwright suite keeps visual baselines for the shell (desktop and mobile),
+the mobile recipe builder, the mobile timeline fallback, the HITL inbox, and the
+Synthetic/Footage workspaces. Screenshots disable animations and allow a 2%
+pixel ratio so font rasterisation does not create false failures.
+
+The timeline switches to a list fallback below 1024 px. The list selects active
+and inactive clips, seeks to a clip, activates/deactivates segments, and keeps
+the inspector available for trim/move edits. The scene and callout editors in
+the Synthetic/Footage workspaces save the underlying JSON plan through
+`PATCH /api/v1/jobs/{id}/artifacts/{key}` and show that a re-run is required.
+
 Stack: SvelteKit 2, Svelte 5, Tailwind CSS 4, TypeScript, Konva, and
 wavesurfer.js. English is the default. The shell ships a pt-BR glossary for
 visible static strings; dynamic statuses and API messages remain English until

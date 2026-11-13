@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import SceneEditor from "$lib/workspaces/SceneEditor.svelte";
   import { artifactUrl, loadArtifactJson } from "$lib/artifactData";
 
   let {
@@ -139,6 +140,8 @@
       {/if}
     </section>
   </div>
+
+  <SceneEditor {jobId} />
 
   {#if issues.length || claims.length}
     <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">

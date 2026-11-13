@@ -14,6 +14,7 @@
   import TimelineRecutSelection from "$lib/timeline/TimelineRecutSelection.svelte";
   import TimelineSelectedClip from "$lib/timeline/TimelineSelectedClip.svelte";
   import TimelineClipComments from "$lib/timeline/TimelineClipComments.svelte";
+  import TimelineMobileList from "$lib/timeline/TimelineMobileList.svelte";
   import Modal from "$lib/ui/Modal.svelte";
   import { fitScrollLeft, fitZoom, followScrollLeft, groupTrimEdits, liveSegments, outputForSource, sourceForOutput } from "$lib/timelineView";
   import { formatSeconds } from "$lib/format";
@@ -210,6 +211,7 @@
   let previewHeight = $state(480);
   let previewInspectorWidth = $state(320);
   let viewMode = $state<"normal" | "recut">("normal");
+  let narrow = $state(false);
   let selectedInactiveId = $state("");
   let inactiveStart = $state(0);
   let inactiveEnd = $state(0);
@@ -254,7 +256,13 @@
   );
   const canPreview = $derived(Boolean(liveActive || previewUrl || previewArtifact));
 
+  function updateNarrow() {
+    narrow = window.innerWidth < 1024;
+  }
+
   onMount(() => {
+    updateNarrow();
+    window.addEventListener("resize", updateNarrow);
     try {
       const saved = localStorage.getItem("videoflow.timelineView");
       if (saved === "recut" || saved === "normal") viewMode = saved;
@@ -292,6 +300,7 @@
   onDestroy(() => {
     disposed = true;
     window.removeEventListener("keydown", onKeydown);
+    window.removeEventListener("resize", updateNarrow);
     clearInterval(jobsTimer);
     clearTimeout(liveSourceTimer);
     cancelAnimationFrame(raf);
@@ -2133,7 +2142,19 @@
           The timeline is loaded but has no active video segments. Re-run the timeline step or activate an inactive segment.
         </div>
       {/if}
-      {#if viewMode === "recut"}
+      {#if narrow}
+        <TimelineMobileList
+          video={timeline.video}
+          inactive={timeline.inactive}
+          selectedClipId={selectedClip?.id ?? ""}
+          selectedInactiveId={selectedInactiveId}
+          onSelectClip={(id) =>
+            selectClip(timeline?.video.find((clip) => clip.id === id) ?? null)}
+          onSelectInactive={(id) => selectRecut("inactive", id)}
+          onSeek={seek}
+          onToggle={(id, active) => void toggleSegment(id, active)}
+        />
+      {:else if viewMode === "recut"}
         <RecutCanvas
           {timeline}
           jobId={selected}

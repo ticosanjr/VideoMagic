@@ -199,6 +199,25 @@ async function mockApi(page: Page) {
     if (path.endsWith("/artifacts/motion_manifest")) {
       return route.fulfill({ json: { scenes: [{ scene_id: "SCENE-0001", title: "Opening", duration_sec: 4 }] } });
     }
+    if (path.endsWith("/artifacts/motion_scenes")) {
+      if (route.request().method() === "PATCH") {
+        return route.fulfill({
+          json: {
+            ok: true,
+            artifact: "motion_scenes",
+            path: "/out/motion/scenes.json",
+            note: "Plan saved. Re-run the affected step or render to apply it."
+          }
+        });
+      }
+      return route.fulfill({
+        json: {
+          scenes: [
+            { scene_id: "SCENE-0001", title: "Opening", narration: "Hello", duration_sec: 4 }
+          ]
+        }
+      });
+    }
     if (path.endsWith("/artifacts/vision_ocr")) {
       return route.fulfill({ json: { frames: [{ frame: "frame-00001.png", time_sec: 0, boxes: [{ text: "Hello" }] }] } });
     }
@@ -206,6 +225,16 @@ async function mockApi(page: Page) {
       return route.fulfill({ json: { tracks: [{ text: "Hello", start_sec: 0, points: [{ time: 0, x: 10, y: 10 }] }] } });
     }
     if (path.endsWith("/artifacts/motion_callouts")) {
+      if (route.request().method() === "PATCH") {
+        return route.fulfill({
+          json: {
+            ok: true,
+            artifact: "motion_callouts",
+            path: "/out/motion/callouts.json",
+            note: "Plan saved. Re-run the affected step or render to apply it."
+          }
+        });
+      }
       return route.fulfill({ json: { callouts: [{ text: "Hello", start_sec: 0, duration_sec: 3, position_x: 0.1, position_y: 0.7 }] } });
     }
     if (path.endsWith("/artifacts/qa_frames")) {
@@ -285,6 +314,10 @@ test("bulk approves selected gates from the inbox", async ({ page }) => {
   };
   expect(body.items[0].interaction_id).toBe(interaction.interaction_id);
   await expect(inbox.getByText("1 gate(s) approved.")).toBeVisible();
+  await expect(page).toHaveScreenshot("hitl-inbox.png", {
+    animations: "disabled",
+    maxDiffPixelRatio: 0.02
+  });
 });
 
 test("renders the workspace directly from a run hash", async ({ page }) => {
@@ -307,6 +340,25 @@ test("shows the synthetic pipeline panels", async ({ page }) => {
   await expect(page.getByText("Script → voice → scenes")).toBeVisible();
   await expect(page.getByText("Timed storyboard")).toBeVisible();
   await expect(page.getByText("Opening").first()).toBeVisible();
+
+  const editor = page.getByTestId("scene-editor");
+  await expect(editor).toBeVisible();
+  await editor.getByLabel("Title").fill("Opening title");
+  const saved = page.waitForRequest(
+    (request) =>
+      request.url().endsWith("/artifacts/motion_scenes") &&
+      request.method() === "PATCH"
+  );
+  await editor.getByRole("button", { name: "Save scene plan" }).click();
+  const body = (await saved).postDataJSON() as {
+    payload: { scenes: Array<{ title: string }> };
+  };
+  expect(body.payload.scenes[0].title).toBe("Opening title");
+  await expect(editor.getByText("Plan saved.")).toBeVisible();
+  await expect(page).toHaveScreenshot("workspace-synthetic.png", {
+    animations: "disabled",
+    maxDiffPixelRatio: 0.02
+  });
 });
 
 test("shows the footage pipeline panels", async ({ page }) => {
@@ -315,4 +367,23 @@ test("shows the footage pipeline panels", async ({ page }) => {
   await expect(page.getByText("Footage → anchors → delivery")).toBeVisible();
   await expect(page.getByText("Vision anchors")).toBeVisible();
   await expect(page.getByText("Callout cards")).toBeVisible();
+
+  const editor = page.getByTestId("callout-editor");
+  await expect(editor).toBeVisible();
+  await editor.getByLabel("Text").fill("Updated callout");
+  const saved = page.waitForRequest(
+    (request) =>
+      request.url().endsWith("/artifacts/motion_callouts") &&
+      request.method() === "PATCH"
+  );
+  await editor.getByRole("button", { name: "Save callout plan" }).click();
+  const body = (await saved).postDataJSON() as {
+    payload: { callouts: Array<{ text: string }> };
+  };
+  expect(body.payload.callouts[0].text).toBe("Updated callout");
+  await expect(editor.getByText("Plan saved.")).toBeVisible();
+  await expect(page).toHaveScreenshot("workspace-footage.png", {
+    animations: "disabled",
+    maxDiffPixelRatio: 0.02
+  });
 });
