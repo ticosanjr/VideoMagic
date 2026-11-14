@@ -79,12 +79,22 @@ workflows are manual fallbacks for CI, Windows, and release assets; nothing
 runs on push.
 
 ```bash
-./scripts/release_local.sh 2.0.0
+./scripts/gate_local.sh              # fast: ruff, changed tests, UI unit
+./scripts/gate_local.sh --full       # full: media, coverage, E2E, perf
+./scripts/release_fast.sh 2.0.0      # onedir bundle + tar.zst
+./scripts/release_local.sh 2.0.0     # onefile + AppImage + SBOM
 ```
 
-This builds the UI, the Linux portable binary, the AppImage, the SBOM, and
-writes `releases/v2.0.0/SHA256SUMS` and `manifest.json`. Nothing is pushed or
-published. The three newest release folders are kept.
+`release_fast.sh` is the iteration path: it bumps the version, runs the fast
+gate, reuses the PyInstaller cache, and stages
+`VideoFlow-X.Y.Z-linux-x86_64.tar.zst`. Extract it with
+`tar --zstd -xf ...` and run `./videoflow/videoflow doctor`.
+
+`release_local.sh` is the complete path: full gate, UI, onefile binary,
+AppImage, SBOM, and checksums. Both write `releases/vX.Y.Z/SHA256SUMS` and
+`manifest.json`; nothing is pushed or published. The three newest release
+folders are kept.
+
 
 ## Portable executable
 
@@ -116,9 +126,11 @@ The local release is the canonical artifact build:
 uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper \
   --with-silero --with-faster-whisper                    # Linux
 uv run python scripts/build_appimage.py                  # VideoFlow-X.Y.Z-x86_64.AppImage
-./scripts/release_local.sh 2.0.0                          # UI + Linux + AppImage + SBOM + checksums
-rm -rf build dist .coverage .hypothesis .pytest_cache .mypy_cache .ruff_cache
+./scripts/release_fast.sh 2.0.0                          # fast onedir + tar.zst
+./scripts/release_local.sh 2.0.0                         # onefile + AppImage + SBOM + checksums
 ```
+
+Build caches in `build/`, `dist/`, `vendor/`, `ui/node_modules`, and `build/videoflow-base` are intentionally preserved so the next build is incremental. Nothing deletes them automatically. Use `./scripts/release_local.sh --clean 2.0.0` or `./scripts/release_fast.sh --clean 2.0.0` only after changing dependencies or the PyInstaller spec. `--refresh-runtime` rebuilds the fast runtime without discarding the rest of the cache.
 
 See [docs/manuals/portable.md](docs/manuals/portable.md).
 

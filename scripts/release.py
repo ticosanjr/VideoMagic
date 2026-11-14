@@ -81,6 +81,18 @@ def main() -> int:
         action="store_true",
         help="Fail if a default artifact is missing.",
     )
+    parser.add_argument(
+        "--artifact",
+        type=Path,
+        action="append",
+        default=[],
+        help="Stage an extra artifact (repeatable).",
+    )
+    parser.add_argument(
+        "--no-defaults",
+        action="store_true",
+        help="Stage only --artifact paths, not the onefile/AppImage/SBOM defaults.",
+    )
     args = parser.parse_args()
     if args.keep < 1:
         parser.error("--keep must be at least 1")
@@ -89,7 +101,12 @@ def main() -> int:
     target_dir.mkdir(parents=True, exist_ok=True)
     staged: list[dict[str, object]] = []
     sums: list[str] = []
-    for source, asset_name in default_artifacts(args.version):
+    sources: list[tuple[Path, str]] = []
+    if not args.no_defaults:
+        sources.extend(default_artifacts(args.version))
+    for extra in args.artifact:
+        sources.append((extra, extra.name))
+    for source, asset_name in sources:
         if not source.is_file():
             if args.require_all:
                 print(f"missing artifact: {source}")
@@ -128,7 +145,7 @@ def main() -> int:
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
     )
     notes = target_dir / "release-notes.md"
-    if not notes.exists():
+    if args.force or not notes.exists():
         notes.write_text(_release_notes(args.version, staged), encoding="utf-8")
     removed = _prune_old_releases(RELEASES, keep=args.keep)
     for path in removed:
@@ -142,10 +159,28 @@ def _release_notes(version: str, staged: list[dict[str, object]]) -> str:
 
     listing = "\n".join(f"- `{item['name']}` — SHA-256 `{item['sha256']}`" for item in staged)
     names = {str(item["name"]) for item in staged}
-    linux = next((name for name in names if name.endswith("linux-x86_64")), None)
+    archive = next((name for name in names if name.endswith(".tar.zst")), None)
+    linux = next(
+        (
+            name
+            for name in names
+            if name.endswith("linux-x86_64") and not name.endswith(".tar.zst")
+        ),
+        None,
+    )
     appimage = next((name for name in names if name.endswith(".AppImage")), None)
     windows = next((name for name in names if name.endswith(".exe")), None)
     sections: list[str] = []
+    if archive:
+        sections.append(
+            "Linux portable bundle:\n\n"
+            "```bash\n"
+            f"tar --zstd -xf {archive}\n"
+            "./videoflow/videoflow doctor\n"
+            "./videoflow/videoflow recipe list\n"
+            "./videoflow/videoflow serve --open\n"
+            "```"
+        )
     if linux:
         sections.append(
             "Linux plain binary:\n\n"

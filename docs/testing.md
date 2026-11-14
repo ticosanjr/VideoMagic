@@ -15,8 +15,8 @@ hides the contract. VideoFlow resolves this with two layers:
 
 | Scope | Line coverage | Notes |
 | --- | --- | --- |
-| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 98% gate (2,131 passing, 1 strict xfail, 18 deselected) |
-| Full tree | **95%** (3.0 target) | **Met**: 95.00% statements (32,688/34,407), 88.1% with branches |
+| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 98% gate (2,140 passing, 1 strict xfail, 18 deselected) |
+| Full tree | **95%** (3.0 target) | **Met**: 95.00% statements (32,718/34,440), 88.1% with branches |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |
 | UI | `npm run check`, `npm test`, `npm run test:e2e`, `npm run build` | Playwright: graph, inspector, schema fields, split-screen source, palette, NLE validation, run history, mobile timeline/builder, HITL, workspaces, visual baselines |
@@ -36,7 +36,17 @@ uv run pytest -m manual --no-cov        # prints the manual checklist
 uv run ruff check src tests scripts
 uv run mypy                             # scoped to domain + cache (see pyproject.toml)
 uv run python scripts/build_portable.py --fetch-ffmpeg  # packaging smoke
+
+./scripts/gate_local.sh                 # fast default
+./scripts/gate_local.sh --full          # complete gate
 ```
+
+The fast gate runs ruff, the tests related to the working-tree changes, and
+the UI unit/static checks. It is the default for small edits. The full gate
+adds fault injection, media fixtures, one full coverage run, Playwright, and
+the perf check; use it before a complete onefile/AppImage release or when the
+change touches shared behavior.
+
 
 The default run excludes `media`, `slow`, and `manual`. Use `--no-cov` for a
 subset run so the global coverage gate does not fail on modules that were not

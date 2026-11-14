@@ -119,7 +119,25 @@ def main() -> int:
         action="store_true",
         help="Build a directory bundle instead of a onefile executable.",
     )
-    parser.add_argument("--clean", action="store_true", default=True)
+    parser.add_argument(
+        "--clean",
+        dest="clean",
+        action="store_true",
+        default=False,
+        help="Force a cold PyInstaller build and clear its analysis cache.",
+    )
+    parser.add_argument(
+        "--no-clean",
+        dest="clean",
+        action="store_false",
+        help="Reuse the PyInstaller cache (default).",
+    )
+    parser.add_argument(
+        "--runtime-base",
+        type=Path,
+        default=None,
+        help="After an onedir build, keep a hardlinked runtime at this path.",
+    )
     parser.add_argument(
         "--skip-ui-build",
         action="store_true",
@@ -232,14 +250,22 @@ def main() -> int:
     os.environ["VIDEOWFLOW_BUNDLE_MODELS"] = "1" if args.with_models else "0"
     os.environ["VIDEOWFLOW_ONEDIR"] = "1" if args.onedir else "0"
 
+    suffix = ".exe" if os.name == "nt" else ""
+    output = ROOT / "dist" / (args.name if args.onedir else f"{args.name}{suffix}")
+    if args.onedir and output.is_file():
+        output.unlink()
+    elif not args.onedir and output.is_dir():
+        shutil.rmtree(output)
+
     command = [
         sys.executable,
         "-m",
         "PyInstaller",
         "--noconfirm",
-        "--clean",
-        str(ROOT / "packaging" / "videoflow.spec"),
     ]
+    if args.clean:
+        command.append("--clean")
+    command.append(str(ROOT / "packaging" / "videoflow.spec"))
     print("running:", " ".join(command))
     completed = subprocess.run(command, cwd=ROOT, check=False)
     if completed.returncode != 0:
@@ -251,6 +277,11 @@ def main() -> int:
         if not output.is_dir():
             print(f"expected artifact is missing: {output}", file=sys.stderr)
             return 1
+        if args.runtime_base is not None:
+            if args.runtime_base.exists():
+                shutil.rmtree(args.runtime_base)
+            shutil.copytree(output, args.runtime_base, copy_function=os.link)
+            print(f"runtime base: {args.runtime_base}")
         print(f"built: {output} (onedir)")
     else:
         if not output.is_file():

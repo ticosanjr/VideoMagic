@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.72.3] - 2026-11-14
+
+### Changed
+
+- **Fast release workflow.** `./scripts/release_fast.sh X.Y.Z` now bumps the
+  version, runs the fast gate, overlays the source on a prebuilt onedir
+  runtime, and stages `VideoFlow-X.Y.Z-linux-x86_64.tar.zst`. A warm release
+  takes about 40 seconds instead of ~25 minutes.
+- `./scripts/gate_local.sh` is fast by default: ruff, changed Python tests, and
+  UI unit/static checks. Use `--full` for fault injection, media, one coverage
+  run, Playwright, and the perf check.
+- The PyInstaller spec excludes test-only packages (`pytest`, `sqlalchemy`,
+  `alembic`, `scipy`, `pandas`, `sklearn`, `torchaudio`, `lightning`,
+  `tensorflow`, `grpc`, `mako`) while keeping the runtime dependencies.
+- `release_local.sh` keeps the complete onefile + AppImage + SBOM path and now
+  reuses the UI build instead of running Vite twice.
+- Build caches are preserved between releases (`build/`, `dist/`, `vendor/`,
+  `ui/build`, and `build/videoflow-base`). Cold builds are explicit via
+  `--clean`; the fast runtime can be rebuilt with `--refresh-runtime`.
+
 ## [2.72.2] - 2026-11-13
 
 ### Added

@@ -48,3 +48,23 @@ def test_release_notes_describe_windows_only_when_staged() -> None:
     assert ".\\videoflow-9.9.9-windows-x86_64.exe doctor" in notes
     assert "smoke-tested under Wine" in notes
     assert "Linux plain binary" not in notes
+
+
+def test_release_notes_describe_the_fast_portable_bundle() -> None:
+    notes = _release_notes(
+        "9.9.9",
+        [
+            {
+                "name": "VideoFlow-9.9.9-linux-x86_64.tar.zst",
+                "sha256": "e" * 64,
+            },
+            {"name": "sbom.json", "sha256": "f" * 64},
+        ],
+    )
+
+    assert "Linux portable bundle" in notes
+    assert "tar --zstd -xf VideoFlow-9.9.9-linux-x86_64.tar.zst" in notes
+    assert "./videoflow/videoflow doctor" in notes
+    assert "Linux plain binary" not in notes
+    assert "AppImage" not in notes
+

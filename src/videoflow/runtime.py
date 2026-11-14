@@ -266,6 +266,7 @@ def ui_dir() -> Path | None:
     candidates = [Path(override).expanduser()] if override else []
     candidates.extend(
         (
+            executable_dir() / "ui",
             bundle_root() / "ui",
             Path(__file__).resolve().parents[2] / "ui" / "build",
         )

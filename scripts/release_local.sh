@@ -6,9 +6,25 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-VERSION="${1:-$(uv run python -c 'from videoflow import __version__; print(__version__)')}"
+CLEAN_FLAG="--no-clean"
+VERSION=""
+for arg in "$@"; do
+  case "$arg" in
+    --clean)
+      CLEAN_FLAG="--clean"
+      ;;
+    --no-clean)
+      CLEAN_FLAG="--no-clean"
+      ;;
+    *)
+      VERSION="$arg"
+      ;;
+  esac
+done
+VERSION="${VERSION:-$(uv run python -c 'from videoflow import __version__; print(__version__)')}"
 
 echo "Building VideoFlow ${VERSION} locally"
+echo "PyInstaller cache: ${CLEAN_FLAG#--}"
 (
   cd ui
   npm run build
@@ -24,7 +40,9 @@ uv run python scripts/build_portable.py \
   --with-whisper \
   "${WHISPER_VULKAN[@]}" \
   --with-silero \
-  --with-faster-whisper
+  --with-faster-whisper \
+  --skip-ui-build \
+  "$CLEAN_FLAG"
 
 uv run python scripts/build_appimage.py
 uv run python scripts/generate_sbom.py --output dist/sbom.json

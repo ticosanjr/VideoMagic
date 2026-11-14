@@ -1,0 +1,18 @@
+{
+  "version": "2.72.3",
+  "built_at": "2026-11-14T12:19:55+00:00",
+  "host": "linux-x86_64",
+  "python": "3.12.3",
+  "artifacts": [
+    {
+      "name": "VideoFlow-2.72.3-linux-x86_64.tar.zst",
+      "sha256": "915326def23fc92555a96dc8ddeab6476c8107a3b9e84d2e45a44ffc5e37c578",
+      "size_bytes": 421551661
+    },
+    {
+      "name": "sbom.json",
+      "sha256": "cb3368dd69e78160692fc01f7972dfd17f4943d4dc2ae3afd83f576e9624cc40",
+      "size_bytes": 23378
+    }
+  ]
+}

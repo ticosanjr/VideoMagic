@@ -15,8 +15,21 @@ There is no installer and no Python/Node requirement on the target machine.
 | Platform | Artifact | Minimum |
 | --- | --- | --- |
 | Linux x86_64 | `videoflow-X.Y.Z-linux-x86_64` | glibc from the build host |
+| Linux x86_64 | `VideoFlow-X.Y.Z-linux-x86_64.tar.zst` | zstd, glibc from the build host |
 | Linux x86_64 | `VideoFlow-X.Y.Z-x86_64.AppImage` | FUSE, or `--appimage-extract-and-run` |
 | Windows x86_64 | `videoflow-X.Y.Z-windows-x86_64.exe` | Windows 10/11 x64 |
+
+The `tar.zst` bundle is the fast local artifact: extract it with
+`tar --zstd -xf VideoFlow-X.Y.Z-linux-x86_64.tar.zst` and run
+`./videoflow/videoflow doctor`. The onefile binary and AppImage remain the
+complete release artifacts.
+
+Build caches are kept between runs: `build/videoflow/`, `build/videoflow-base/`,
+`dist/`, `vendor/`, and `ui/node_modules/` are not cleaned automatically.
+Pass `--clean` only when dependencies or the PyInstaller spec change; use
+`--refresh-runtime` to rebuild the fast bundle runtime without deleting the
+other caches.
+
 
 PyInstaller cannot cross-compile in the usual sense. The local release script
 builds Linux and AppImage natively. A Windows PE can be cross-built separately
