@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.72.4] - 2026-11-14
+
+### Fixed
+
+- **Tray menu now opens on click.** Linux uses AppIndicator/GTK when PyGObject
+  is available instead of forcing the xorg backend, which has no menu support.
+  The menu shows the version, service/job status, open/restart/start/stop
+  actions, and **Quit VideoFlow** (stops the service and exits).
+- Tray status refreshes every five seconds through `icon.update_menu()`.
+
 ## [2.72.3] - 2026-11-14
 
 ### Changed

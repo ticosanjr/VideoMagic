@@ -94,6 +94,12 @@ def main() -> int:
     parser.add_argument("--binary", type=Path, default=None)
     parser.add_argument("--port", type=int, default=8891)
     parser.add_argument("--display", default=os.environ.get("DISPLAY", ""))
+    parser.add_argument(
+        "--backend",
+        default="xorg",
+        choices=("xorg", "appindicator", "gtk"),
+        help="pystray backend. xorg verifies the XEmbed icon; appindicator verifies health only.",
+    )
     parser.add_argument("--timeout", type=float, default=20.0)
     args = parser.parse_args()
     binary = (args.binary or _latest_binary())
@@ -106,6 +112,7 @@ def main() -> int:
 
     env = {**os.environ, "DISPLAY": args.display}
     env.pop("PYSTRAY_BACKEND", None)
+    env["PYSTRAY_BACKEND"] = args.backend
     process = subprocess.Popen(
         [
             str(binary),
@@ -128,7 +135,7 @@ def main() -> int:
     try:
         if not _wait_health(args.port, args.timeout):
             error = "server did not answer /health"
-        else:
+        elif args.backend == "xorg":
             deadline = time.time() + 10.0
             while time.time() < deadline and icon is None:
                 icon = _icon_window(args.display)
@@ -146,6 +153,16 @@ def main() -> int:
                         controls[name] = _post(args.port, path)
                     except Exception as exc:  # noqa: BLE001
                         controls[name] = {"ok": False, "error": str(exc)}
+        else:
+            for name, path in (
+                ("pause_all", "/api/v1/jobs/pause_all"),
+                ("resume_all", "/api/v1/jobs/resume_all"),
+                ("cancel_all", "/api/v1/jobs/cancel_all"),
+            ):
+                try:
+                    controls[name] = _post(args.port, path)
+                except Exception as exc:  # noqa: BLE001
+                    controls[name] = {"ok": False, "error": str(exc)}
     finally:
         stderr = ""
         with contextlib.suppress(OSError):
@@ -158,9 +175,10 @@ def main() -> int:
             _, stderr = process.communicate(timeout=10)
 
     payload = {
-        "ok": icon is not None and not error,
+        "ok": (icon is not None or args.backend != "xorg") and not error,
         "binary": str(binary),
         "display": args.display,
+        "backend": args.backend,
         "icon": icon,
         "controls": controls,
         "error": error,

@@ -268,16 +268,30 @@ class TrayActions:
             "total": 0,
         }
         self.job_error = ""
+        self.unreachable = False
 
     def open_ui(self) -> None:
         if not self.supervisor.running:
             self.supervisor.start()
+            self.unreachable = False
         self._opener(_browser_url(self.supervisor.url))
 
     def open_runs(self) -> None:
         if not self.supervisor.running:
             self.supervisor.start()
+            self.unreachable = False
         self._opener(_browser_url(self.supervisor.url, "runs"))
+
+    def refresh_status(self) -> None:
+        if not self.supervisor.running:
+            self.unreachable = False
+            return
+        host = getattr(self.supervisor, "host", "127.0.0.1")
+        port = getattr(self.supervisor, "port", 8765)
+        try:
+            self.unreachable = probe_service(host, port) is None
+        except Exception:  # noqa: BLE001 - the menu must stay responsive
+            self.unreachable = True
 
     def refresh_jobs(self) -> None:
         try:
@@ -314,45 +328,69 @@ class TrayActions:
 
     def start(self) -> None:
         self.supervisor.start()
+        self.unreachable = False
 
     def stop(self) -> None:
         self.supervisor.stop()
+        self.unreachable = False
 
     def restart(self) -> None:
         self.supervisor.restart()
+        self.unreachable = False
 
     def status_label(self) -> str:
-        return "Status: running" if self.supervisor.running else "Status: stopped"
+        if not self.supervisor.running:
+            return "Service: stopped"
+        if self.unreachable:
+            return "Service: unreachable"
+        return "Service: running"
+
+
+@contextlib.contextmanager
+def _system_gi_path():
+    """Temporarily expose Debian/Ubuntu's system PyGObject.
+
+    The whole dist-packages directory must not stay on ``sys.path``: it can
+    shadow newer virtualenv/bundle packages (for example ``websockets`` and
+    break Uvicorn). Import pystray inside this context so its backend and gi
+    bindings load, then restore the path.
+    """
+
+    candidate = "/usr/lib/python3/dist-packages"
+    added = False
+    if (
+        sys.platform.startswith("linux")
+        and os.path.isdir(candidate)
+        and candidate not in sys.path
+    ):
+        sys.path.append(candidate)
+        added = True
+    try:
+        yield
+    finally:
+        if added:
+            with contextlib.suppress(ValueError):
+                sys.path.remove(candidate)
 
 
 def _import_pystray() -> Any:
-    """Import pystray, preferring the XEmbed backend on Linux/X11.
+    """Import pystray, preferring a backend that supports a menu.
 
-    AppIndicator and GTK backends are tried first by pystray. Cinnamon (and
-    several other desktops) expose the legacy XEmbed tray reliably; forcing the
-    xorg backend avoids a backend that imports but never shows an icon. If the
-    forced backend is unavailable, retry with pystray's normal selection.
+    AppIndicator and GTK expose menus; the xorg backend only runs a default
+    action. System PyGObject usually lives outside the virtualenv or frozen
+    bundle, so expose it only while pystray selects and loads its backend.
+    ``VIDEOWFLOW_TRAY_BACKEND`` can force ``appindicator``, ``gtk``, or ``xorg``.
     """
 
-    forced = False
-    if (
-        sys.platform.startswith("linux")
-        and os.environ.get("DISPLAY")
-        and not os.environ.get("WAYLAND_DISPLAY")
-        and not os.environ.get("PYSTRAY_BACKEND")
-    ):
-        os.environ["PYSTRAY_BACKEND"] = "xorg"
-        forced = True
+    requested = os.environ.get("VIDEOWFLOW_TRAY_BACKEND", "").strip()
+    if requested:
+        os.environ["PYSTRAY_BACKEND"] = requested
     try:
-        import pystray
-    except Exception:
-        if not forced:
-            raise
-        os.environ.pop("PYSTRAY_BACKEND", None)
-        sys.modules.pop("pystray", None)
-        import pystray
-    if forced:
-        os.environ.pop("PYSTRAY_BACKEND", None)
+        with _system_gi_path():
+            import pystray
+    finally:
+        if requested:
+            os.environ.pop("PYSTRAY_BACKEND", None)
     return pystray
 
 
@@ -400,10 +438,22 @@ def _menu(pystray: Any, actions: TrayActions, on_quit: Callable[[Any], None]) ->
     Item = pystray.MenuItem
     supervisor = actions.supervisor
     return pystray.Menu(
+        Item(f"VideoFlow {__version__}", None, enabled=False),
+        Item(lambda _item: actions.status_label(), None, enabled=False),
+        Item(lambda _item: actions.jobs_label(), None, enabled=False),
+        pystray.Menu.SEPARATOR,
         Item(
             "Open VideoFlow",
             lambda icon, _item: _run_action(icon, actions.open_ui),
-            default=True,
+        ),
+        Item(
+            "Open runs",
+            lambda icon, _item: _run_action(icon, actions.open_runs),
+        ),
+        pystray.Menu.SEPARATOR,
+        Item(
+            "Restart service",
+            lambda icon, _item: _run_action(icon, actions.restart),
         ),
         Item(
             "Start service",
@@ -415,18 +465,7 @@ def _menu(pystray: Any, actions: TrayActions, on_quit: Callable[[Any], None]) ->
             lambda icon, _item: _run_action(icon, actions.stop),
             enabled=lambda _item: supervisor.running,
         ),
-        Item(
-            "Restart service",
-            lambda icon, _item: _run_action(icon, actions.restart),
-            enabled=lambda _item: supervisor.running,
-        ),
         pystray.Menu.SEPARATOR,
-        Item(lambda _item: actions.status_label(), None, enabled=False),
-        Item(lambda _item: actions.jobs_label(), None, enabled=False),
-        Item(
-            "Open runs",
-            lambda icon, _item: _run_action(icon, actions.open_runs),
-        ),
         Item(
             "Pause all jobs",
             lambda icon, _item: _run_action(icon, actions.pause_jobs),
@@ -450,7 +489,7 @@ def _menu(pystray: Any, actions: TrayActions, on_quit: Callable[[Any], None]) ->
             ),
         ),
         pystray.Menu.SEPARATOR,
-        Item("Quit", lambda icon, _item: on_quit(icon)),
+        Item("Quit VideoFlow", lambda icon, _item: on_quit(icon)),
     )
 
 
@@ -476,6 +515,11 @@ def run_tray(*, host: str, port: int, open_browser: bool = True) -> int:
         print(f"VideoFlow tray backend is unavailable: {exc}", file=sys.stderr)
         return 1
     append_server_log(f"tray backend={getattr(pystray.Icon, '__module__', 'unknown')}")
+    if not getattr(pystray.Icon, "HAS_MENU", True):
+        append_server_log(
+            "tray menu unavailable: install python3-gi and "
+            "gir1.2-ayatanaappindicator3-0.1"
+        )
     from videoflow.application.settings import load_settings
 
     supervisor = ServerSupervisor(
@@ -483,11 +527,6 @@ def run_tray(*, host: str, port: int, open_browser: bool = True) -> int:
     )
     actions = TrayActions(supervisor)
     stop_poller = threading.Event()
-
-    def poll_jobs() -> None:
-        while not stop_poller.is_set():
-            actions.refresh_jobs()
-            stop_poller.wait(5.0)
 
     try:
         supervisor.start()
@@ -498,9 +537,6 @@ def run_tray(*, host: str, port: int, open_browser: bool = True) -> int:
         _wait_for_service(host, port)
         with contextlib.suppress(Exception):
             actions.open_ui()
-    threading.Thread(
-        target=poll_jobs, name="videoflow-tray-jobs", daemon=True
-    ).start()
 
     def on_quit(icon: Any) -> None:
         stop_poller.set()
@@ -517,6 +553,18 @@ def run_tray(*, host: str, port: int, open_browser: bool = True) -> int:
         supervisor.stop()
         print(f"Could not create the VideoFlow tray icon: {exc}", file=sys.stderr)
         return 1
+
+    def poll_status() -> None:
+        while not stop_poller.is_set():
+            actions.refresh_status()
+            actions.refresh_jobs()
+            with contextlib.suppress(Exception):
+                icon.update_menu()
+            stop_poller.wait(5.0)
+
+    threading.Thread(
+        target=poll_status, name="videoflow-tray-jobs", daemon=True
+    ).start()
     _install_signal_handlers(icon)
     try:
         icon.run()

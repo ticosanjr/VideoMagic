@@ -116,9 +116,20 @@ uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper \
 ```
 
 `videoflow tray` needs the optional tray extra in a source checkout
-(`uv sync --extra tray`) and a desktop session. The tray owns the local service,
-shows job counts, opens the Runs area, and can pause, resume, or cancel all jobs.
-Without the tray backend, the command falls back to `videoflow serve`.
+(`uv sync --extra tray`) and a desktop session. The tray owns the local service.
+Clicking the icon opens a menu with the version, service/job status, **Open
+VideoFlow**, **Open runs**, **Restart service**, start/stop, job controls, and
+**Quit VideoFlow** (which stops the service and exits). On Linux the full menu
+needs PyGObject and Ayatana AppIndicator:
+
+```bash
+sudo apt install python3-gi gir1.2-ayatanaappindicator3-0.1
+```
+
+Without them the tray falls back to the xorg backend: the icon appears, but that
+backend can only run a default action and has no menu. Force a backend with
+`VIDEOWFLOW_TRAY_BACKEND=appindicator|gtk|xorg`. Without any tray backend, the
+command falls back to `videoflow serve`.
 
 The local release is the canonical artifact build:
 

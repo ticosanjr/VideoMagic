@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import threading
 import time
 from types import SimpleNamespace
@@ -150,12 +151,12 @@ def test_actions_open_starts_the_service_and_opens_the_versioned_url() -> None:
     opened: list[str] = []
     actions = tray.TrayActions(supervisor, opener=opened.append)
 
-    assert actions.status_label() == "Status: stopped"
+    assert actions.status_label() == "Service: stopped"
     actions.open_ui()
 
     assert supervisor.calls == ["start"]
     assert opened == [f"http://127.0.0.1:8765/?v={tray.__version__}"]
-    assert actions.status_label() == "Status: running"
+    assert actions.status_label() == "Service: running"
 
     actions.stop()
     actions.restart()
@@ -185,27 +186,32 @@ def test_menu_exposes_lifecycle_actions_and_dynamic_status() -> None:
     items = [item for item in menu.items if isinstance(item, FakeItem)]
     labels = [item.text for item in items if isinstance(item.text, str)]
     assert labels == [
+        f"VideoFlow {tray.__version__}",
         "Open VideoFlow",
+        "Open runs",
+        "Restart service",
         "Start service",
         "Stop service",
-        "Restart service",
-        "Open runs",
         "Pause all jobs",
         "Resume all jobs",
         "Cancel all jobs",
-        "Quit",
+        "Quit VideoFlow",
     ]
     start = next(item for item in items if item.text == "Start service")
     stop = next(item for item in items if item.text == "Stop service")
+    restart = next(item for item in items if item.text == "Restart service")
+    version = next(item for item in items if item.text == f"VideoFlow {tray.__version__}")
+    assert version.kwargs["enabled"] is False
     assert start.kwargs["enabled"](None) is True
     assert stop.kwargs["enabled"](None) is False
+    assert "enabled" not in restart.kwargs
 
     supervisor.running = True
     assert start.kwargs["enabled"](None) is False
     assert stop.kwargs["enabled"](None) is True
     status = next(item for item in items if callable(item.text))
     jobs = [item for item in items if callable(item.text)]
-    assert status.text(None) == "Status: running"
+    assert status.text(None) == "Service: running"
     assert jobs[1].text(None) == "Jobs: idle"
     pause = next(item for item in items if item.text == "Pause all jobs")
     resume = next(item for item in items if item.text == "Resume all jobs")
@@ -215,6 +221,18 @@ def test_menu_exposes_lifecycle_actions_and_dynamic_status() -> None:
     assert resume.kwargs["enabled"](None) is False
     assert cancel.kwargs["enabled"](None) is True
 
+    quit_item = next(item for item in items if item.text == "Quit VideoFlow")
+
+    class Icon:
+        stopped = False
+
+        def stop(self) -> None:
+            self.stopped = True
+
+    icon = Icon()
+    quit_item.action(icon, None)
+    assert icon.stopped
+
 
 def test_tray_available_requires_a_display(monkeypatch) -> None:
     monkeypatch.setattr(tray.sys, "platform", "linux")
@@ -222,6 +240,45 @@ def test_tray_available_requires_a_display(monkeypatch) -> None:
     monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
 
     assert tray.tray_available() is False
+
+
+def test_system_gi_path_is_temporary(monkeypatch) -> None:
+    monkeypatch.setattr(tray.sys, "platform", "linux")
+    monkeypatch.setattr(tray.sys, "path", list(tray.sys.path))
+    monkeypatch.setattr(tray.os.path, "isdir", lambda path: True)
+
+    with tray._system_gi_path():
+        assert "/usr/lib/python3/dist-packages" in tray.sys.path
+    assert "/usr/lib/python3/dist-packages" not in tray.sys.path
+
+
+def test_pystray_backend_override_is_temporary(monkeypatch) -> None:
+    from types import ModuleType
+
+    module = ModuleType("pystray")
+    monkeypatch.setitem(sys.modules, "pystray", module)
+    monkeypatch.setenv("VIDEOWFLOW_TRAY_BACKEND", "xorg")
+
+    assert tray._import_pystray() is module
+    assert "PYSTRAY_BACKEND" not in tray.os.environ
+
+
+def test_refresh_status_reports_running_and_unreachable(monkeypatch) -> None:
+    supervisor = RecordingSupervisor()
+    actions = tray.TrayActions(supervisor)
+    supervisor.running = True
+
+    monkeypatch.setattr(tray, "probe_service", lambda *args, **kwargs: {"ok": True})
+    actions.refresh_status()
+    assert actions.status_label() == "Service: running"
+
+    monkeypatch.setattr(tray, "probe_service", lambda *args, **kwargs: None)
+    actions.refresh_status()
+    assert actions.status_label() == "Service: unreachable"
+
+    supervisor.running = False
+    actions.refresh_status()
+    assert actions.status_label() == "Service: stopped"
 
 
 def test_cli_tray_falls_back_when_unavailable(
