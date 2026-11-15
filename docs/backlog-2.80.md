@@ -117,8 +117,9 @@ Implemented in this pass:
 Still required after 2.80.0:
 
 - Wire draft scale/motion blur through every renderer.
-- Replace plan-only paths for cutout, web render, screen capture clips, and NLE
-  apply with rendered output. Audio line patch now synthesizes and crossfades.
+- Cutout and NLE apply still need rendered output. HTML web render now
+  produces frames/video; screen capture supports screenshot and clip capture;
+  audio line patch synthesizes and crossfades.
 - Complete flexibilisations (`retakes.cull`, `audio.vad`, shorts hooks, B-roll
   reference frame, platform LUFS, NLE adjustment layers).
 - Media/performance/security evidence and full gate.

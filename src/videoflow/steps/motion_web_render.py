@@ -8,6 +8,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.web_render import render_html_scene
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import RecipeError
 from videoflow.steps.base import BaseStep, StepIO
@@ -45,15 +46,45 @@ class WebRenderStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = WebRenderParams.model_validate(params)
-        if not options.command.strip():
-            raise RecipeError(
-                "motion.web_render needs a render command (Remotion/Hyperframes/HTML). "
-                "Set `command` with {output}, {project}, {fps}, {width}, {height}."
-            )
         project = (
             Path(options.project_path).expanduser() if options.project_path else context.output
         )
         target = context.work / f"motion-scene.{options.output_format}"
+        if not options.command.strip():
+            entry = project / options.entry if project.is_dir() else project
+            if options.engine in {"auto", "html"} and entry.is_file():
+                rendered = render_html_scene(
+                    project,
+                    options.entry,
+                    target,
+                    duration_sec=options.duration_sec,
+                    fps=options.fps,
+                    width=options.width,
+                    height=options.height,
+                    alpha=options.alpha,
+                    draft_scale=options.draft_scale,
+                )
+                assets = [
+                    {
+                        "kind": "motion",
+                        "path": str(rendered),
+                        "width": int(options.width * options.draft_scale),
+                        "height": int(options.height * options.draft_scale),
+                        "fps": options.fps,
+                        "alpha": options.alpha,
+                        "draft": options.draft_scale < 1.0,
+                        "engine": "html",
+                    }
+                ]
+                context.metadata["motion_assets"] = assets
+                context.artifacts["motion_assets"] = str(rendered)
+                io.report(100, "HTML scene rendered")
+                return
+            raise RecipeError(
+                "motion.web_render needs an HTML entry or a render command "
+                "(Remotion/Hyperframes). Set `command` with {output}, {project}, "
+                "{fps}, {width}, {height}."
+            )
         command = options.command.format(
             output=str(target),
             project=str(project),
