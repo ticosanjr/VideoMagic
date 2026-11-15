@@ -263,7 +263,10 @@ def test_nle_helpers_and_corrupt(tmp_path: Path, monkeypatch) -> None:
     assert nle_sync._seconds("0s") == 0.0
     assert nle_sync._seconds("bad") == 0.0
     path = tmp_path / "x.fcpxml"
-    path.write_text("<fcpxml><clip/><asset-clip/></fcpxml>", encoding="utf-8")
+    path.write_text(
+        "<fcpxml><clip duration='1s'/><asset-clip duration='2s' offset='1s'/></fcpxml>",
+        encoding="utf-8",
+    )
     assert nle_sync._clip_count(path, "fcpxml") == 2
 
 
