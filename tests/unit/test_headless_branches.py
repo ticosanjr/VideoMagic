@@ -233,3 +233,40 @@ def test_pacing_no_media_and_nle_mlt(tmp_path: Path) -> None:
     path = tmp_path / "x.mlt"
     path.write_text("<mlt><playlist><entry in='0' out='9'/></playlist></mlt>", encoding="utf-8")
     assert nle_sync._clip_ranges(path, "mlt", 10.0)
+
+
+def test_tool_audio_and_style_errors(tmp_path: Path, monkeypatch) -> None:
+    tools = _tools(tmp_path, monkeypatch)
+    assert tools["vf_audio_patch_line"](sentence_id=99, text="x", apply=True)["ok"] is False
+    assert tools["vf_audio_patch_line"](text="x", apply=True)["ok"] is False
+    monkeypatch.delenv("VIDEOWFLOW_TTS_BASE_URL", raising=False)
+    assert tools["vf_audio_patch_line"](sentence_id=0, text="x", apply=True)["ok"] is False
+    assert tools["vf_preset_rules"](channel_id="x", action="add", text="")["ok"] is True
+    assert tools["vf_preset_rules"](channel_id="x", action="update")["ok"] is True
+
+
+def test_transcribe_model_kind_validation(tmp_path: Path, monkeypatch) -> None:
+    from videoflow.steps import transcribe as transcribe_module
+
+    context = _context(tmp_path)
+    monkeypatch.setattr(
+        "videoflow.application.models.list_models",
+        lambda: [{"id": "x", "capability": "asr", "kind": "other", "installed": True}],
+    )
+    monkeypatch.setattr("videoflow.application.models.installed_path", lambda _id: tmp_path)
+    with pytest.raises(VideoFlowError):
+        transcribe_module.TranscribeStep().run(
+            context,
+            transcribe_module.TranscribeParams(model_id="x", mode="faster_whisper"),
+            StepIO(),
+        )
+    monkeypatch.setattr(
+        "videoflow.application.models.list_models",
+        lambda: [{"id": "x", "capability": "llm", "kind": "local", "installed": True}],
+    )
+    with pytest.raises(VideoFlowError):
+        transcribe_module.TranscribeStep().run(
+            context,
+            transcribe_module.TranscribeParams(model_id="x", mode="faster_whisper"),
+            StepIO(),
+        )
