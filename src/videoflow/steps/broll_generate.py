@@ -42,6 +42,7 @@ class GenerateBrollParams(BaseModel):
     allow_external_services: bool = False
     allowed_external_hosts: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=lambda: ["generated", "b-roll"])
+    reference_frame_path: str = ""
 
 
 def _prompt_for(context: PipelineContext, explicit: str) -> str:
@@ -90,6 +91,14 @@ class GenerateBrollStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = GenerateBrollParams.model_validate(params)
+        if options.reference_frame_path:
+            reference = Path(options.reference_frame_path).expanduser()
+            if reference.is_file():
+                context.metadata["broll_reference_frame"] = str(reference)
+            else:
+                context.warnings.append(
+                    f"B-roll reference frame not found: {reference}"
+                )
         base_url = options.base_url.strip()
         if options.provider == "openai_compatible" and not base_url:
             context.warnings.append(

@@ -37,6 +37,10 @@ class ExportParams(BaseModel):
     filename_mode: Literal["source_timestamp", "fixed"] = "source_timestamp"
     basename: str = Field(default="timeline", min_length=1, max_length=120)
     require_licenses: bool = True
+    adjustment_layers: bool = False
+    lut_path: str = ""
+    grain_fps: float = Field(default=12.0, ge=1.0, le=60.0)
+    grain_amount: float = Field(default=0.0, ge=0.0, le=1.0)
 
     @field_validator("targets", mode="before")
     @classmethod

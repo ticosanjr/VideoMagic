@@ -31,6 +31,7 @@ class VadParams(BaseModel):
     spike_suppression_ms: int = Field(default=0, ge=0, le=5000)
     merge_gap_ms: int = Field(default=0, ge=0, le=5000)
     apply_pads: bool = False
+    aggressiveness: Literal["conservative", "balanced", "aggressive"] = "balanced"
 
 
 def _silence_spans(spans: list[tuple[int, int]], duration_samples: int) -> list[InactiveSpan]:
@@ -51,6 +52,20 @@ class VadStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = VadParams.model_validate(params)
+        if options.aggressiveness == "aggressive":
+            options = options.model_copy(
+                update={
+                    "min_silence_ms": min(options.min_silence_ms, 500),
+                    "speech_threshold": max(options.speech_threshold, 0.6),
+                }
+            )
+        elif options.aggressiveness == "conservative":
+            options = options.model_copy(
+                update={
+                    "min_silence_ms": max(options.min_silence_ms, 900),
+                    "speech_threshold": min(options.speech_threshold, 0.4),
+                }
+            )
         media = require_media(context)
         adapter = adapter_for(context, io)
         key = cache_key(

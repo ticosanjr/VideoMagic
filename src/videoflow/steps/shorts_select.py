@@ -147,9 +147,15 @@ class ShortsSelectStep(BaseStep):
                 "aspect_ratio": options.aspect_ratio,
                 "width": width,
                 "height": height,
+                "layout": options.layout,
+                "hook_criteria": list(options.hook_criteria),
+                "hook_rewrite": options.hook_rewrite,
             }
             for clip in selected
         ]
+        context.metadata["hook_criteria"] = list(options.hook_criteria)
+        context.metadata["hook_rewrite"] = options.hook_rewrite
+        context.metadata["shorts_layout"] = options.layout
         context.hashes["shorts"] = digest_payload(context.shorts)
         message = (
             f"{len(selected)} shorts selected"

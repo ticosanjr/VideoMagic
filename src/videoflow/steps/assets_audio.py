@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -19,6 +19,7 @@ class BeatParams(BaseModel):
 
     path: str = ""
     tempo_bpm: float = Field(default=120.0, ge=40.0, le=220.0)
+    music_arc: Literal["none", "three_act"] = "none"
 
 @register_step
 class MusicBeatStep(BaseStep):
@@ -58,7 +59,13 @@ class MusicBeatStep(BaseStep):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(
             json.dumps(
-                {"tempo_bpm": bpm, "source": source, "beats": beats}, indent=2
+                {
+                    "tempo_bpm": bpm,
+                    "source": source,
+                    "arc": options.music_arc,
+                    "beats": beats,
+                },
+                indent=2,
             )
             + "\n",
             encoding="utf-8",

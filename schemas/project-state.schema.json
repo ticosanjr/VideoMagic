@@ -1115,6 +1115,20 @@
           "title": "Filler Words",
           "type": "array"
         },
+        "hook_criteria": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Hook Criteria",
+          "type": "array"
+        },
+        "hook_max_chars": {
+          "default": 90,
+          "maximum": 300,
+          "minimum": 20,
+          "title": "Hook Max Chars",
+          "type": "integer"
+        },
         "hook_mode": {
           "default": "off",
           "enum": [
@@ -1124,6 +1138,21 @@
             "reorder"
           ],
           "title": "Hook Mode",
+          "type": "string"
+        },
+        "hook_rewrite": {
+          "default": false,
+          "title": "Hook Rewrite",
+          "type": "boolean"
+        },
+        "layout": {
+          "default": "full_reframe",
+          "enum": [
+            "cutout",
+            "split_screen",
+            "full_reframe"
+          ],
+          "title": "Layout",
           "type": "string"
         },
         "max_clips_to_generate": {

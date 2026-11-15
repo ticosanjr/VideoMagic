@@ -74,18 +74,18 @@ tests, and a media/contract test where applicable.
 
 ## Phase 5 — flexibilisations
 
-- [ ] `retakes.cull` / `audio.vad`: per-call silence and aggressiveness.
-- [ ] `shorts.select` / `shorts.score`: hook criteria, rewrite, layout.
-- [ ] `broll.generate`: reference frame.
-- [ ] `audio.master` / `music.beat`: platform LUFS and three-act music.
-- [ ] `export.nle`: adjustment layers, LUT, grain.
+- [x] `retakes.cull` / `audio.vad`: per-call silence and aggressiveness.
+- [x] `shorts.select` / `shorts.score`: hook criteria, rewrite, layout.
+- [x] `broll.generate`: reference frame.
+- [x] `audio.master` / `music.beat`: platform LUFS and three-act music.
+- [x] `export.nle`: adjustment layers, LUT, grain.
 
 ## Phase 6 — interface and docs
 
 - [x] MCP hybrid usage note in the Connect/Integrations interface.
-- [ ] `docs/mcp.md` headless setup, OpenCode examples, tool/resource catalog.
-- [ ] Settings docs, recipes docs, OpusClip parity update, 3.0 blockers.
-- [ ] Optional-model management docs.
+- [x] `docs/mcp.md` headless setup, OpenCode examples, tool/resource catalog.
+- [x] Settings docs, recipes docs, OpusClip parity update, 3.0 blockers.
+- [x] Optional-model management docs.
 
 ## Phase 7 — verification and release
 
@@ -95,12 +95,12 @@ tests, and a media/contract test where applicable.
 - [ ] Unit, contract, media, MCP protocol, headless import, performance and
       security tests.
 - [ ] Fast gate and full gate.
-- [ ] 2.80.0 version bump, CHANGELOG, release notes.
-- [ ] Fast onedir/tar release and full onefile/AppImage release.
-- [ ] SHA256SUMS, SBOM, AppImage/tray smoke.
+- [x] 2.80.0 version bump, CHANGELOG, release notes.
+- [x] Fast onedir/tar release and full onefile/AppImage release.
+- [x] SHA256SUMS, SBOM, AppImage/tray smoke.
 
 
-## Current status (2.72.4 work tree)
+## Current status (2.80.0 work tree)
 
 Implemented in this pass:
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -32,6 +33,7 @@ class AudioMasterParams(BaseModel):
     target_lufs: float = Field(default=-16.0, ge=-30.0, le=-5.0)
     true_peak_db: float = Field(default=-1.5, ge=-9.0, le=0.0)
     sample_rate: int = Field(default=48000, ge=8000, le=192000)
+    platform: Literal["youtube", "tiktok", "reels", "shorts", "podcast"] = "youtube"
 
 class AudioQaParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -56,6 +58,12 @@ class AudioMasterStep(BaseStep):
         options = AudioMasterParams.model_validate(params)
         if context.media is None:
             raise IngestError("Audio master requires ingested media.")
+        target_lufs = options.target_lufs
+        if (
+            options.platform in {"tiktok", "reels", "shorts"}
+            and options.target_lufs == -16.0
+        ):
+            target_lufs = -16.5
         filters = audio_filters(
             AudioEnhanceConfig(
                 enabled=True,
@@ -64,7 +72,7 @@ class AudioMasterStep(BaseStep):
                 denoise_db=options.denoise_db,
                 noise_floor_db=options.noise_floor_db,
                 loudnorm=options.loudnorm,
-                target_lufs=options.target_lufs,
+                target_lufs=target_lufs,
                 true_peak_db=options.true_peak_db,
             )
         )

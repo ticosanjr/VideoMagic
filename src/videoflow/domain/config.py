@@ -223,6 +223,10 @@ class ShortsConfig(StrictModel):
     subtitles_preset: SubtitlePreset = "tiktok_bold"
     caption_style: CaptionStyle = Field(default_factory=CaptionStyle)
     export_format: ShortsExportFormat = "both"
+    hook_criteria: list[str] = Field(default_factory=list)
+    hook_rewrite: bool = False
+    hook_max_chars: int = Field(default=90, ge=20, le=300)
+    layout: Literal["cutout", "split_screen", "full_reframe"] = "full_reframe"
 
     @model_validator(mode="after")
     def duration_window(self) -> Self:
