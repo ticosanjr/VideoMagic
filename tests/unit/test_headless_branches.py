@@ -43,6 +43,7 @@ def _context(tmp: Path) -> PipelineContext:
 
 def _tools(tmp: Path, monkeypatch) -> dict[str, object]:
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp / "home"))
+    monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp))
     context = _context(tmp)
     job = SimpleNamespace(source=context.source, output=context.output, result={})
     tools: dict[str, object] = {}
@@ -146,3 +147,89 @@ def test_render_gate_without_fcntl(monkeypatch, tmp_path: Path) -> None:
     with gate.hold("test"):
         pass
     assert gate.status()["cross_process"] is False
+
+
+def test_web_render_helpers(tmp_path: Path, monkeypatch) -> None:
+    from videoflow.application import web_render
+
+    monkeypatch.setattr(
+        web_render, "find_binary", lambda name: "/bin/chrome" if name == "google-chrome" else None
+    )
+    assert web_render.browser_binary() == "/bin/chrome"
+
+    class Completed:
+        returncode = 0
+
+    def fake_run(command, **kwargs):
+        target = next(item for item in command if item.startswith("--screenshot="))
+        Path(target.split("=", 1)[1]).write_bytes(b"png")
+        return Completed()
+
+    monkeypatch.setattr(web_render.subprocess, "run", fake_run)
+    target = tmp_path / "shot.png"
+    assert web_render._screenshot("/bin/chrome", "https://x", target, 100, 100, alpha=True) is True
+
+
+def test_audio_patch_errors(tmp_path: Path, monkeypatch) -> None:
+    from videoflow.application import audio_patch
+
+    master = tmp_path / "master.wav"
+    patch = tmp_path / "line.wav"
+    master.write_bytes(b"x")
+    patch.write_bytes(b"y")
+    monkeypatch.setattr(audio_patch, "find_binary", lambda name: None)
+    with pytest.raises(RuntimeError):
+        audio_patch.patch_audio(master, patch, start_sec=0, end_sec=1, output=tmp_path / "o.wav")
+    monkeypatch.setattr(audio_patch, "find_binary", lambda name: f"/bin/{name}")
+
+    class Completed:
+        returncode = 1
+        stderr = "boom"
+        stdout = ""
+
+    monkeypatch.setattr(audio_patch.subprocess, "run", lambda *a, **k: Completed())
+    with pytest.raises(RuntimeError):
+        audio_patch.patch_audio(master, patch, start_sec=0, end_sec=1, output=tmp_path / "o.wav")
+    with pytest.raises(FileNotFoundError):
+        audio_patch.patch_audio(
+            tmp_path / "missing.wav", patch, start_sec=0, end_sec=1, output=tmp_path / "o.wav"
+        )
+
+
+def test_more_tool_errors(tmp_path: Path, monkeypatch) -> None:
+    tools = _tools(tmp_path, monkeypatch)
+    assert tools["vf_preset_rules"](channel_id="x", action="update")["ok"] is True
+    assert tools["vf_preset_rules"](channel_id="x", action="delete", rule_id="none")["ok"] is True
+    assert tools["vf_preview_archetypes"](manifest={})["ok"] is True
+    assert tools["vf_audio_patch_line"](text="x", apply=True)["ok"] is False
+    assert (
+        tools["vf_nle_roundtrip"](target="fcpxml", path=str(tmp_path / "missing.fcpxml"))["ok"]
+        is True
+    )
+
+
+def test_screen_capture_clip_errors(tmp_path: Path, monkeypatch) -> None:
+    from videoflow.steps import assets_screen_capture
+
+    monkeypatch.setattr(assets_screen_capture, "find_binary", lambda name: None)
+    assert (
+        assets_screen_capture.ScreenCaptureStep._capture_clip(
+            "/bin/true",
+            "https://x",
+            tmp_path / "x.mp4",
+            assets_screen_capture.ScreenCaptureParams(),
+        )
+        is False
+    )
+
+
+def test_pacing_no_media_and_nle_mlt(tmp_path: Path) -> None:
+    from videoflow.steps import nle_sync, pacing
+
+    context = _context(tmp_path)
+    context.media = None
+    assert pacing.PacingAuditStep._has_overlay(context, 0, 1) is False
+
+    path = tmp_path / "x.mlt"
+    path.write_text("<mlt><playlist><entry in='0' out='9'/></playlist></mlt>", encoding="utf-8")
+    assert nle_sync._clip_ranges(path, "mlt", 10.0)

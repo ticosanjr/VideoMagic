@@ -461,3 +461,40 @@ def test_web_render_html_branch(tmp_path: Path, monkeypatch) -> None:
         height=240,
     )
     assert target.is_file()
+
+
+def test_nle_sync_apply_updates_timeline(tmp_path: Path, monkeypatch) -> None:
+    from videoflow.domain.state import VideoSegment
+
+    monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
+    context = _context(tmp_path)
+    context.state.video_segments = [
+        VideoSegment(
+            clip_id="a",
+            source_in_frame=0,
+            source_out_frame=100,
+            timeline_in_frame=0,
+            timeline_out_frame=100,
+        ),
+        VideoSegment(
+            clip_id="b",
+            source_in_frame=100,
+            source_out_frame=200,
+            timeline_in_frame=100,
+            timeline_out_frame=200,
+        ),
+    ]
+    path = context.output / "edit.fcpxml"
+    path.write_text(
+        "<fcpxml><clip duration='1s' offset='0s'/><asset-clip duration='2s' offset='1s'/></fcpxml>",
+        encoding="utf-8",
+    )
+    nle_sync.NleSyncStep().run(
+        context,
+        nle_sync.NleSyncParams(format="fcpxml", path=str(path), apply=True),
+        StepIO(),
+    )
+    report = context.metadata["sync_back_report"]
+    assert report["applied"] is True
+    assert report["changed_clips"] == 2
+    assert context.state.video_segments[1].timeline_in_frame == 30
