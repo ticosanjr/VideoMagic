@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -20,6 +21,8 @@ class CutoutParams(BaseModel):
     margin: float = Field(default=0.04, ge=0.0, le=0.3)
     matte_source: str = Field(default="auto", pattern="^(auto|matte|segmentation|none)$")
     transition: str = Field(default="cut", pattern="^(cut|fade|slide)$")
+    render_preview: bool = False
+    preview_seconds: float = Field(default=8.0, gt=0.0, le=60.0)
 
 
 @register_step
@@ -59,4 +62,71 @@ class CutoutLayoutStep(BaseStep):
         path.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
         context.metadata["layout_plan"] = plan
         context.artifacts["layout_plan"] = str(path)
+        if options.render_preview:
+            preview = self._render_preview(context, options)
+            if preview is not None:
+                plan["preview"] = str(preview)
+                context.artifacts["layout_preview"] = str(preview)
         io.report(100, f"Cutout plan for {len(plan['clips'])} clip(s)")
+
+    @staticmethod
+    def _render_preview(context: PipelineContext, options: CutoutParams) -> Path | None:
+        import subprocess
+
+        from videoflow.application.render_gate import render_gate
+        from videoflow.runtime import find_binary
+
+        ffmpeg = find_binary("ffmpeg")
+        if ffmpeg is None:
+            context.warnings.append("layout.cutout preview requires FFmpeg")
+            return None
+        target = context.work / "layout-preview.mp4"
+        if context.media is None:
+            return None
+        background = (
+            "scale=1080:1920:force_original_aspect_ratio=increase,"
+            "crop=1080:1920,boxblur=20:5,eq=brightness=-0.15"
+        )
+        foreground = "scale=900:-2"
+        filter_complex = (
+            f"[0:v]{background}[bg];[0:v]{foreground}[fg];"
+            "[bg][fg]overlay=(W-w)/2:(H-h)/2:shortest=1,"
+            "drawbox=x=90:y=(ih-ih*0.72)/2:w=900:h=ih*0.72:color=white@0.35:t=6[out]"
+        )
+        with render_gate.hold("layout.cutout", str(context.output)):
+            completed = subprocess.run(
+                [
+                    ffmpeg,
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-y",
+                    "-t",
+                    str(options.preview_seconds),
+                    "-i",
+                    str(context.source),
+                    "-filter_complex",
+                    filter_complex,
+                    "-map",
+                    "[out]",
+                    "-c:v",
+                    "libx264",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-crf",
+                    "22",
+                    "-preset",
+                    "veryfast",
+                    "-an",
+                    str(target),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        if completed.returncode != 0:
+            context.warnings.append(
+                f"layout.cutout preview failed: {completed.stderr.strip()[-400:]}"
+            )
+            return None
+        return target
