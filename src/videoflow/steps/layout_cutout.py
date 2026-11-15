@@ -70,7 +70,9 @@ class CutoutLayoutStep(BaseStep):
         io.report(100, f"Cutout plan for {len(plan['clips'])} clip(s)")
 
     @staticmethod
-    def _render_preview(context: PipelineContext, options: CutoutParams) -> Path | None:
+    def _render_preview(  # pragma: no cover - external FFmpeg renderer
+        context: PipelineContext, options: CutoutParams
+    ) -> Path | None:
         import subprocess
 
         from videoflow.application.render_gate import render_gate

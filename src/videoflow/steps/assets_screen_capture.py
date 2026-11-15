@@ -112,7 +112,9 @@ class ScreenCaptureStep(BaseStep):
         io.report(100, f"{len(assets)} screen capture(s)")
 
     @staticmethod
-    def _capture_clip(browser: str, url: str, target: Path, options: ScreenCaptureParams) -> bool:
+    def _capture_clip(  # pragma: no cover - external Chromium/FFmpeg runtime
+        browser: str, url: str, target: Path, options: ScreenCaptureParams
+    ) -> bool:
         ffmpeg = find_binary("ffmpeg")
         if ffmpeg is None:
             return False

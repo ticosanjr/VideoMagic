@@ -21,6 +21,7 @@ class BeatParams(BaseModel):
     tempo_bpm: float = Field(default=120.0, ge=40.0, le=220.0)
     music_arc: Literal["none", "three_act"] = "none"
 
+
 @register_step
 class MusicBeatStep(BaseStep):
     type = "music.beat"
@@ -63,6 +64,15 @@ class MusicBeatStep(BaseStep):
                     "tempo_bpm": bpm,
                     "source": source,
                     "arc": options.music_arc,
+                    "arc_markers": (
+                        {
+                            "hook_end": round(duration * 0.2, 3),
+                            "buildup_end": round(duration * 0.8, 3),
+                            "outro_start": round(duration * 0.8, 3),
+                        }
+                        if options.music_arc == "three_act"
+                        else {}
+                    ),
                     "beats": beats,
                 },
                 indent=2,
@@ -78,11 +88,13 @@ class MusicBeatStep(BaseStep):
         path = context.artifacts.get("beats")
         return (Path(path),) if path else ()
 
+
 class SfxParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     directory: str = ""
     max_per_short: int = Field(default=1, ge=1, le=5)
+
 
 @register_step
 class SfxPlanStep(BaseStep):

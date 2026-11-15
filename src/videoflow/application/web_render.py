@@ -48,7 +48,7 @@ def _screenshot(
     return completed.returncode == 0 and target.is_file()
 
 
-def render_html_scene(
+def render_html_scene(  # pragma: no cover - external Chromium runtime
     project: Path,
     entry: str,
     output: Path,
