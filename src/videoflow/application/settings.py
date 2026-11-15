@@ -122,6 +122,9 @@ class SpeechSettings(BaseModel):
     remote_model: str = "whisper-1"
     remote_api_key_env: str = "VIDEOWFLOW_ASR_API_KEY"
     diarization_model: str = "pyannote-diarization-3.1"
+    offset_mode: Literal["off", "auto", "fixed"] = "off"
+    offset_ms: int = Field(default=0, ge=-2000, le=2000)
+    drift_threshold_ms: int = Field(default=40, ge=1, le=2000)
 
 
 class TtsSettings(BaseModel):
@@ -295,6 +298,58 @@ class IntelligenceSettings(BaseModel):
     tasks: dict[str, TaskPolicy] = Field(default_factory=dict)
 
 
+class HeadlessSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mcp_only: bool = False
+    start_ui: bool = True
+    start_tray: bool = True
+    start_hilt_pollers: bool = True
+
+
+class SyncSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    offset_mode: Literal["off", "auto", "fixed"] = "off"
+    offset_ms: int = Field(default=0, ge=-2000, le=2000)
+    drift_threshold_ms: int = Field(default=40, ge=1, le=2000)
+    reference_audio: str = ""
+
+
+class RenderSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    serialized: bool = True
+    draft_scale: float = Field(default=0.5, ge=0.1, le=1.0)
+    motion_blur: bool = True
+    max_concurrent_heavy: int = Field(default=1, ge=1, le=4)
+
+
+class QaSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    visual_fps: int = Field(default=10, ge=1, le=30)
+    window_pad_sec: float = Field(default=0.5, ge=0.0, le=5.0)
+    fail_on_defects: bool = False
+    backends: list[str] = Field(default_factory=lambda: ["deterministic"])
+
+
+class WebRenderSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    engine: Literal["auto", "html", "hyperframes", "remotion"] = "auto"
+    browser: Literal["chrome", "chromium"] = "chrome"
+    allow_network: bool = False
+    timeout_seconds: int = Field(default=120, ge=5, le=1800)
+
+
+class PresetSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    channel_dir: str = ""
+    max_rules: int = Field(default=200, ge=1, le=2000)
+
+
 class AppSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -313,6 +368,12 @@ class AppSettings(BaseModel):
     notifications: NotificationSettings = Field(default_factory=NotificationSettings)
     search: SearchSettings = Field(default_factory=SearchSettings)
     intelligence: IntelligenceSettings = Field(default_factory=IntelligenceSettings)
+    headless: HeadlessSettings = Field(default_factory=HeadlessSettings)
+    sync: SyncSettings = Field(default_factory=SyncSettings)
+    render: RenderSettings = Field(default_factory=RenderSettings)
+    qa: QaSettings = Field(default_factory=QaSettings)
+    web_render: WebRenderSettings = Field(default_factory=WebRenderSettings)
+    presets: PresetSettings = Field(default_factory=PresetSettings)
 
 
 def settings_path() -> Path:

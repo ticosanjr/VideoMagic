@@ -12,6 +12,7 @@ from typing import Any
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.clock import now_iso as _now
 from videoflow.application.files import read_json_dict, stat_signature, write_json_atomic
+from videoflow.application.render_gate import render_gate
 from videoflow.application.render_inputs import render_inputs as _render_inputs
 from videoflow.application.worker_state import WorkerState
 from videoflow.domain.errors import (
@@ -26,9 +27,7 @@ RENDER_CACHE_VERSION = 1
 
 
 def _state_path(job: Any) -> Path:
-    return Path(
-        str((job.result or {}).get("state_path") or job.output / "project_state.json")
-    )
+    return Path(str((job.result or {}).get("state_path") or job.output / "project_state.json"))
 
 
 def render_key(job: Any) -> str:
@@ -130,7 +129,7 @@ class RenderQueue:
             with self._lock:
                 return item.cancel_requested
 
-        with self._slot:
+        with self._slot, render_gate.hold("timeline", str(job.job_id)):
             with self._lock:
                 item.status = "rendering"
                 item.message = "Starting render"
@@ -138,9 +137,7 @@ class RenderQueue:
                 state_path = _state_path(job)
                 if not state_path.is_file():
                     raise StateNotReadyError("The job has no project_state.json to render.")
-                state = ProjectState.model_validate_json(
-                    state_path.read_text(encoding="utf-8")
-                )
+                state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
                 if cancelled():
                     raise JobCancelledError("Render cancelled")
                 progress(15, "Rendering timeline")

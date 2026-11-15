@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.export_names import timestamped_basename, unique_path
+from videoflow.application.render_gate import render_gate
 from videoflow.application.render_inputs import read_filters
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import ExportError
@@ -38,6 +39,8 @@ class VideoExportParams(BaseModel):
     filename_mode: Literal["source_timestamp", "fixed"] = "source_timestamp"
     filename: str = Field(default="video.mp4", min_length=1, max_length=200)
     audio_source: Literal["timeline", "mix"] = "timeline"
+    draft_scale: float = Field(default=0.0, ge=0.0, le=1.0)
+    motion_blur: bool | None = None
 
 
 @register_step
@@ -56,9 +59,7 @@ class VideoExportStep(BaseStep):
         directory = context.output / options.subdir
         directory.mkdir(parents=True, exist_ok=True)
         if options.filename_mode == "source_timestamp":
-            destination = unique_path(
-                directory, f"{timestamped_basename(context.source)}.mp4"
-            )
+            destination = unique_path(directory, f"{timestamped_basename(context.source)}.mp4")
         else:
             name = Path(options.filename).name
             if not name or name in {".", ".."}:
@@ -83,18 +84,23 @@ class VideoExportStep(BaseStep):
             io.check_cancel()
             io.report(10 + int(max(0, min(100, value)) * 0.85), "Rendering video")
 
-        export_mp4(
-            context.state,
-            destination,
-            adapter=adapter,
-            crf=crf,
-            preset=preset,
-            audio_filters=audio_filters,
-            video_filters=video_filters,
-            ass_path=ass_path if ass_path.is_file() else None,
-            progress=progress,
-            cache_dir=context.output / "render" / "segments",
-        )
+        scale_height = None
+        if options.draft_scale and 0 < options.draft_scale < 1 and context.media is not None:
+            scale_height = max(144, int(context.media.height * options.draft_scale))
+        with render_gate.hold("export.video", str(context.output)):
+            export_mp4(
+                context.state,
+                destination,
+                adapter=adapter,
+                crf=crf,
+                preset=preset,
+                audio_filters=audio_filters,
+                video_filters=video_filters,
+                ass_path=ass_path if ass_path.is_file() else None,
+                progress=progress,
+                scale_height=scale_height,
+                cache_dir=context.output / "render" / "segments",
+            )
         if options.audio_source == "mix":
             mix = context.artifacts.get("audio_mix") or context.output / "audio" / "final.wav"
             mix_path = Path(mix)

@@ -40,6 +40,42 @@ For HTTP:
 }
 ```
 
+## 1.1 Headless mode
+
+Run the daemon without the Svelte UI, tray, or PyGObject:
+
+```bash
+videoflow serve --mcp-only --port 8765
+```
+
+The root returns `ui: false`; `/health`, `/api/v1`, and `/mcp/` stay available.
+Use this mode beside OpenCode or a similar coding agent. The recommended split
+is hybrid: the agent plans, critiques, and repairs; VideoFlow executes
+deterministic media jobs and reports structured artifacts.
+
+### Declarative `vf_*` tools
+
+| Tool | Purpose |
+| --- | --- |
+| `vf_beatmap_execute` | Validate a beat-map manifest and run the matching headless recipe. |
+| `vf_preview_archetypes` | Group scenes by visual archetype for a 1-minute preview. |
+| `vf_web_scene_preview` | Start a tokenised localhost preview for a web scene. |
+| `vf_audio_patch_line` | Plan a surgical voice patch for one line. |
+| `vf_nle_roundtrip` | Run `nle.sync_back` after a push/pull. |
+| `vf_qa_inspect_window` | Run 10 FPS visual and safe-zone QA on a window. |
+| `vf_preset_rules` | Read or mutate a channel rulebook. |
+| `vf_style_clone` | Build a style preset from references. |
+
+Resources:
+
+- `vf://project/{id}/beat_map`
+- `vf://project/{id}/qa_report`
+- `vf://presets/{channel_id}/rulebook`
+- `vf://specs/safezones`
+
+The server exposes **82 tools and 9 resources**; the existing `videoflow_*`
+tools remain compatible.
+
 ## 2. Recipes
 
 Recipe tools use the same `JobManager` as the UI and REST API:
@@ -59,7 +95,7 @@ the same allowlist jail.
 
 ## 2. Tools
 
-All seventy-four tools and five resources execute real work. Recipes are the
+All eighty-two tools and nine resources execute real work. Recipes are the
 execution contract: `videoflow_run_recipe` and `videoflow_run_recipe_inline`
 start real jobs, and the timeline/short tools operate on the completed job.
 `videoflow_load_media` remains a media registration helper.

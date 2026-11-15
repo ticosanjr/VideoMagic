@@ -17,7 +17,7 @@ def test_catalog_lists_both_optional_models(monkeypatch, tmp_path: Path) -> None
         "whisper-tiny",
     }.issubset({item["id"] for item in listed})
     assert all(item["installed"] is False for item in listed)
-    assert {item["capability"] for item in listed} == {"asr", "diarization"}
+    assert {"asr", "diarization"}.issubset({item["capability"] for item in listed})
     assert all("used_by" in item for item in listed)
 
 

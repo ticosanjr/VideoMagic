@@ -15,6 +15,7 @@ from videoflow.adapters.faster_whisper import FasterWhisperAdapter
 from videoflow.adapters.whisper import WhisperCliAdapter
 from videoflow.application.asr_profiles import resolve_asr_plan
 from videoflow.application.secrets import get_secret
+from videoflow.application.sync import onset_offset_ms, report_for, shift_sentences
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import IngestError, TranscriptionError
 from videoflow.domain.state import Sentence
@@ -62,6 +63,9 @@ class TranscribeParams(BaseModel):
     whisper_binary: str | None = None
     whisper_model: str | None = None
     audio_source: Literal["source", "master", "isolated"] = "source"
+    offset_mode: Literal["off", "auto", "fixed"] | None = None
+    offset_ms: int | None = None
+    drift_threshold_ms: int | None = None
 
 
 def _supports_keyword(function: object, name: str) -> bool:
@@ -95,9 +99,7 @@ class TranscribeStep(BaseStep):
         except Exception:
             settings = None
         if settings is not None and options.language == "pt":
-            options = options.model_copy(
-                update={"language": settings.speech.language}
-            )
+            options = options.model_copy(update={"language": settings.speech.language})
         if (
             settings is not None
             and not options.provider_id
@@ -118,9 +120,7 @@ class TranscribeStep(BaseStep):
                     "beam_size": plan.beam_size,
                     "cpu_threads": plan.cpu_threads,
                     "vad_filter": plan.vad_filter,
-                    "word_timestamps": "always"
-                    if plan.word_timestamps
-                    else "off",
+                    "word_timestamps": "always" if plan.word_timestamps else "off",
                     "condition_on_previous_text": plan.condition_on_previous_text,
                     "base_url": plan.remote_base_url or options.base_url,
                     "model": plan.remote_model or options.model,
@@ -140,9 +140,7 @@ class TranscribeStep(BaseStep):
             if info is None:
                 raise TranscriptionError(f"Unknown ASR model: {model_id}")
             if str(info.get("capability") or "") not in {"asr", "other"}:
-                raise TranscriptionError(
-                    f"Model {model_id} is not an ASR model"
-                )
+                raise TranscriptionError(f"Model {model_id} is not an ASR model")
             model_path = installed_path(model_id)
             if model_path is None:
                 raise TranscriptionError(
@@ -159,9 +157,7 @@ class TranscribeStep(BaseStep):
             elif model_kind == "whisper":
                 mode = "whisper_cpp"
             else:
-                raise TranscriptionError(
-                    f"ASR model {model_id} has unsupported kind {model_kind}"
-                )
+                raise TranscriptionError(f"ASR model {model_id} has unsupported kind {model_kind}")
         if mode == "auto":
             if options.srt_path:
                 mode = "srt"
@@ -219,16 +215,22 @@ class TranscribeStep(BaseStep):
             return
 
         source_key = context.pcm_digest
-        key = cache_key(
-            {
-                "kind": "transcript",
-                "source": source_key,
-                "mode": mode,
-                "params": options.model_dump(mode="json"),
-                "env_base_url": os.environ.get("VIDEOWFLOW_ASR_BASE_URL"),
-                "client": type(io.asr_client).__name__ if io.asr_client is not None else "default",
-            }
-        ) if source_key else ""
+        key = (
+            cache_key(
+                {
+                    "kind": "transcript",
+                    "source": source_key,
+                    "mode": mode,
+                    "params": options.model_dump(mode="json"),
+                    "env_base_url": os.environ.get("VIDEOWFLOW_ASR_BASE_URL"),
+                    "client": type(io.asr_client).__name__
+                    if io.asr_client is not None
+                    else "default",
+                }
+            )
+            if source_key
+            else ""
+        )
         if key:
             cached = cache_get("transcript", key)
             if cached is not None:
@@ -253,14 +255,11 @@ class TranscribeStep(BaseStep):
                 partial = json.loads(partial_path.read_text(encoding="utf-8"))
                 if isinstance(partial, dict) and partial.get("source") == source_key:
                     initial_sentences = [
-                        Sentence.model_validate(item)
-                        for item in partial.get("sentences", [])
+                        Sentence.model_validate(item) for item in partial.get("sentences", [])
                     ]
             except (OSError, ValueError, TypeError):
                 initial_sentences = []
-        offset_samples = (
-            initial_sentences[-1].end_sample if initial_sentences else 0
-        )
+        offset_samples = initial_sentences[-1].end_sample if initial_sentences else 0
 
         def persist_partial(sentences: list[Sentence]) -> None:
             if not source_key:
@@ -271,9 +270,7 @@ class TranscribeStep(BaseStep):
                 json.dumps(
                     {
                         "source": source_key,
-                        "sentences": [
-                            sentence.model_dump(mode="json") for sentence in sentences
-                        ],
+                        "sentences": [sentence.model_dump(mode="json") for sentence in sentences],
                     },
                     ensure_ascii=False,
                 )
@@ -293,10 +290,7 @@ class TranscribeStep(BaseStep):
             "large-v2",
             "large-v3",
             "large-v3-turbo",
-        } or any(
-            size in options.model_id
-            for size in ("large-v2", "large-v3", "large-v3-turbo")
-        )
+        } or any(size in options.model_id for size in ("large-v2", "large-v3", "large-v3-turbo"))
         if mode == "faster_whisper" and options.device == "cpu" and large_model:
             io.emit(
                 "warning",
@@ -350,9 +344,7 @@ class TranscribeStep(BaseStep):
             audio_path = Path(context.artifacts.get("audio_master") or context.source)
         elif options.audio_source == "isolated":
             audio_path = Path(context.artifacts.get("audio_isolated") or context.source)
-        wav = adapter.extract_pcm(
-            audio_path, context.work / "transcribe.wav", sample_rate=16000
-        )
+        wav = adapter.extract_pcm(audio_path, context.work / "transcribe.wav", sample_rate=16000)
         next_log = [50]
 
         def on_progress(done: float, total: float) -> None:
@@ -364,8 +356,7 @@ class TranscribeStep(BaseStep):
             if percent >= next_log[0]:
                 io.emit(
                     "info",
-                    f"Transcribing {int(fraction * 100)}% "
-                    f"({done:.0f}s of {total:.0f}s)",
+                    f"Transcribing {int(fraction * 100)}% ({done:.0f}s of {total:.0f}s)",
                     module="transcribe",
                 )
                 next_log[0] = percent + 10
@@ -379,12 +370,55 @@ class TranscribeStep(BaseStep):
             transcribe_kwargs["initial_sentences"] = initial_sentences
         if _supports_keyword(client.transcribe, "offset_samples"):
             transcribe_kwargs["offset_samples"] = offset_samples
-        transcript = client.transcribe(
-            wav, media.audio_sample_rate, **transcribe_kwargs
-        )
+        transcript = client.transcribe(wav, media.audio_sample_rate, **transcribe_kwargs)
         if not transcript:
             raise TranscriptionError("Speech-to-text returned no sentences")
         context.transcript = list(transcript)
+        offset_mode = options.offset_mode or (
+            settings.speech.offset_mode if settings is not None else "off"
+        )
+        fixed_ms = (
+            options.offset_ms
+            if options.offset_ms is not None
+            else (settings.speech.offset_ms if settings is not None else 0)
+        )
+        threshold = (
+            options.drift_threshold_ms
+            if options.drift_threshold_ms is not None
+            else (settings.speech.drift_threshold_ms if settings is not None else 40)
+        )
+        drift_ms = int(context.metadata.get("sync_drift_ms", 0) or 0)
+        measured = (
+            fixed_ms
+            if offset_mode == "fixed"
+            else onset_offset_ms(
+                context.transcript,
+                context.speech_intervals,
+                media.audio_sample_rate,
+            )
+        )
+        if offset_mode == "auto" and measured == 0 and drift_ms:
+            measured = drift_ms
+        sync = report_for(
+            mode=offset_mode,
+            measured_ms=measured,
+            threshold_ms=threshold,
+            drift_ms=drift_ms,
+            sources=[
+                "asr",
+                *(["external_mic"] if context.metadata.get("sync_reference") else []),
+            ],
+        )
+        context.metadata["sync_report"] = sync.model_dump(mode="json")
+        if sync.applied and measured:
+            context.transcript = shift_sentences(
+                context.transcript, measured, media.audio_sample_rate
+            )
+            io.emit(
+                "info",
+                f"Applied {measured} ms speech offset (mode={offset_mode})",
+                module="transcribe",
+            )
         if source_key:
             partial_path.unlink(missing_ok=True)
         context.transcript_source = mode

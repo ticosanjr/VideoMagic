@@ -245,6 +245,21 @@ class StepExecutionError(VideoFlowError):
         return payload
 
 
+class SelfHealRequiredError(VideoFlowError):
+    """A step exhausted its repair attempts and needs external correction."""
+
+    code = "self_heal_required"
+
+    def __init__(self, report: dict[str, object]) -> None:
+        self.report = report
+        super().__init__(str(report.get("message") or "Step needs repair"))
+
+    def to_dict(self) -> dict[str, object]:
+        payload = super().to_dict()
+        payload["report"] = self.report
+        return payload
+
+
 class TranscriptError(VideoFlowError):
     """A subtitle file cannot be parsed as a transcript."""
 

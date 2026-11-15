@@ -91,6 +91,120 @@ class FFmpegAdapter:
             audio_sample_rate=sample_rate,
         )
 
+    def is_vfr(self, path: Path) -> bool:
+        """Whether the container reports a variable frame rate."""
+
+        source = Path(path).expanduser()
+        payload = self._run_json(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-print_format",
+                "json",
+                "-select_streams",
+                "v:0",
+                "-show_streams",
+                str(source),
+            ]
+        )
+        streams = payload.get("streams") or []
+        video = _first_stream(streams, "video", skip_attached_picture=True)
+        if video is None:
+            return False
+        raw = video.get("r_frame_rate")
+        average = video.get("avg_frame_rate")
+        if not isinstance(raw, str) or not isinstance(average, str):
+            return False
+        return _rate_value(raw) != _rate_value(average)
+
+    def normalize_cfr(
+        self,
+        source: Path,
+        destination: Path,
+        *,
+        fps_num: int,
+        fps_den: int,
+    ) -> Path:
+        """Transcode/remux a VFR source to a constant rational frame rate."""
+
+        source_path = Path(source).expanduser()
+        target = Path(destination).expanduser()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary = target.with_name(f"{target.stem}.part{target.suffix}")
+        self._run(
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-i",
+                str(source_path),
+                "-vf",
+                f"fps={fps_num}/{fps_den}",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "18",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-movflags",
+                "+faststart",
+                str(temporary),
+            ]
+        )
+        temporary.replace(target)
+        return target
+
+    def build_proxy(
+        self,
+        source: Path,
+        destination: Path,
+        *,
+        height: int = 540,
+    ) -> Path:
+        """Build a preview-only H.264/AAC proxy."""
+
+        source_path = Path(source).expanduser()
+        target = Path(destination).expanduser()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary = target.with_name(f"{target.stem}.part{target.suffix}")
+        self._run(
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-i",
+                str(source_path),
+                "-vf",
+                f"scale=-2:{max(144, int(height))}",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "23",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "128k",
+                "-movflags",
+                "+faststart",
+                str(temporary),
+            ]
+        )
+        temporary.replace(target)
+        return target
+
     def extract_pcm(
         self,
         source: Path,
@@ -149,14 +263,8 @@ class FFmpegAdapter:
             ],
             timeout=1800,
         )
-        integrated = [
-            float(match)
-            for match in re.findall(r"I:\s*(-?[0-9.]+)\s*LUFS", stderr)
-        ]
-        peaks = [
-            float(match)
-            for match in re.findall(r"Peak:\s*(-?[0-9.]+)\s*dBFS", stderr)
-        ]
+        integrated = [float(match) for match in re.findall(r"I:\s*(-?[0-9.]+)\s*LUFS", stderr)]
+        peaks = [float(match) for match in re.findall(r"Peak:\s*(-?[0-9.]+)\s*dBFS", stderr)]
         if not integrated:
             raise IngestError("Could not measure loudness.")
         return {
@@ -332,8 +440,7 @@ class FFmpegAdapter:
             f"crop={width}:{height},setsar=1,fps=30,setpts=PTS-STARTPTS[v0]"
         )
         filters.append(
-            "[0:a]aformat=sample_rates=48000:channel_layouts=stereo,"
-            "asetpts=PTS-STARTPTS[a0]"
+            "[0:a]aformat=sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS[a0]"
         )
         labels.extend(["[v0]", "[a0]"])
         index = 1
@@ -483,11 +590,7 @@ class FFmpegAdapter:
                 f"fps={rate:.6f},scale={max(64, int(width))}:-2",
                 "-q:v",
                 "3",
-                *(
-                    ["-frames:v", str(max(1, int(max_frames)))]
-                    if max_frames is not None
-                    else []
-                ),
+                *(["-frames:v", str(max(1, int(max_frames)))] if max_frames is not None else []),
                 str(target_dir / "frame-%06d.jpg"),
             ],
             timeout=timeout,
@@ -618,8 +721,7 @@ class FFmpegAdapter:
                                 f"iw/2+(iw/2-ow)*{focus_right}:0,scale={half}:{height}:"
                                 "force_original_aspect_ratio=increase,"
                                 f"crop={half}:{height},setsar=1[right];"
-                                "[left][right]hstack=inputs=2[v]"
-                                + audio_graph
+                                "[left][right]hstack=inputs=2[v]" + audio_graph
                             ),
                             "-map",
                             "[v]",
@@ -653,11 +755,7 @@ class FFmpegAdapter:
                         expression = _crop_expression(piece_keyframes)
                         crop_x = f"'({expression})*(iw-ow)'"
                     else:
-                        focus = (
-                            piece_keyframes[0][1]
-                            if piece_keyframes
-                            else crop_focus_x
-                        )
+                        focus = piece_keyframes[0][1] if piece_keyframes else crop_focus_x
                         crop_x = str(max(0.0, min(1.0, focus)))
                     video_args = [
                         "-vf",
@@ -704,11 +802,7 @@ class FFmpegAdapter:
                         "libmp3lame",
                         "-b:a",
                         "192k",
-                        *(
-                            ["-af", ",".join(audio_filters)]
-                            if audio_filters
-                            else []
-                        ),
+                        *(["-af", ",".join(audio_filters)] if audio_filters else []),
                         str(piece),
                     ]
                 )
@@ -844,8 +938,7 @@ class FFmpegAdapter:
                     for index, (_, start, volume) in enumerate(cues, start=1):
                         delay = round(start * 1000)
                         chains.append(
-                            f"[{index}:a]volume={volume:.3f},"
-                            f"adelay={delay}|{delay}[s{index}]"
+                            f"[{index}:a]volume={volume:.3f},adelay={delay}|{delay}[s{index}]"
                         )
                         labels.append(f"[s{index}]")
                     chains.append(
@@ -1249,6 +1342,19 @@ def _first_stream(
     return None
 
 
+def _rate_value(raw: str) -> float:
+    if "/" in raw:
+        numerator, denominator = raw.split("/", 1)
+        try:
+            return float(numerator) / max(1e-9, float(denominator))
+        except ValueError:
+            return 0.0
+    try:
+        return float(raw)
+    except ValueError:
+        return 0.0
+
+
 def _frame_rate(video: dict[str, Any]) -> tuple[int, int]:
     for key in ("r_frame_rate", "avg_frame_rate"):
         raw = video.get(key)
@@ -1302,11 +1408,7 @@ def _piece_focus(
         return default
     start = start_sample / sample_rate
     end = end_sample / sample_rate
-    values = [
-        focus
-        for time_sec, focus in keyframes
-        if start <= time_sec <= end
-    ]
+    values = [focus for time_sec, focus in keyframes if start <= time_sec <= end]
     if not values:
         nearest = min(keyframes, key=lambda item: abs(item[0] - start))
         values = [nearest[1]]
@@ -1341,8 +1443,7 @@ def _piece_keyframes(
     if selected[-1][0] < duration:
         selected.append((duration, selected[-1][1]))
     selected = [
-        (round(time_sec, 3), round(max(0.05, min(0.95, focus)), 4))
-        for time_sec, focus in selected
+        (round(time_sec, 3), round(max(0.05, min(0.95, focus)), 4)) for time_sec, focus in selected
     ]
     if len(selected) <= max_points:
         return selected

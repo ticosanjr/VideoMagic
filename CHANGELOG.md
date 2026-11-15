@@ -1,5 +1,24 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Headless MCP edition foundation.** `videoflow serve --mcp-only` runs the
+  API/MCP daemon without the Svelte UI or tray. The new `vf_*` tools cover
+  beat maps, archetype previews, web-scene preview, audio line patches, NLE
+  roundtrip, 10 FPS QA windows, channel rulebooks, and style cloning.
+- **14 headless steps** for web motion, cutout layouts, visual/safe-zone QA,
+  pacing audits, gaze, screen capture, reference boards, transformative
+  guards, procedural SFX, style reverse-engineering, preset rules, NLE sync
+  back, intros, and structured self-heal.
+- **Core media reliability.** VFR-to-CFR normalisation, optional ingest proxy,
+  onset/drift diagnostics, a serialized render gate, and optional model entries
+  for Silero, MediaPipe, and Tesseract.
+- **Four OpenCode recipes** and four `vf://` MCP resources.
+- Model update support in the API and Models UI.
+- A headless/hybrid MCP callout in the Integrations interface.
+
 ## [2.72.4] - 2026-11-14
 
 ### Fixed

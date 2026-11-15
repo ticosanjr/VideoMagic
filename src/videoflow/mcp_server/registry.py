@@ -386,6 +386,46 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "Extract a JPEG frame from a job source at a timestamp.",
         "timeline",
     ),
+    ToolSpec(
+        "vf_beatmap_execute",
+        "Validate and execute a headless beat-map manifest in one call.",
+        "headless",
+    ),
+    ToolSpec(
+        "vf_preview_archetypes",
+        "Group timeline units by visual archetype for human preview.",
+        "headless",
+    ),
+    ToolSpec(
+        "vf_web_scene_preview",
+        "Start a tokenised localhost preview for a generated web scene.",
+        "headless",
+    ),
+    ToolSpec(
+        "vf_audio_patch_line",
+        "Plan a surgical voice patch for one line without touching the timeline.",
+        "headless",
+    ),
+    ToolSpec(
+        "vf_nle_roundtrip",
+        "Push or pull an NLE timeline and run nle.sync_back.",
+        "headless",
+    ),
+    ToolSpec(
+        "vf_qa_inspect_window",
+        "Run 10 FPS visual and safe-zone QA on one time window.",
+        "headless",
+    ),
+    ToolSpec(
+        "vf_preset_rules",
+        "Read or mutate a channel preset rulebook.",
+        "headless",
+    ),
+    ToolSpec(
+        "vf_style_clone",
+        "Reverse-engineer a style preset from a reference.",
+        "headless",
+    ),
 )
 
 RESOURCE_SPECS: tuple[ResourceSpec, ...] = (
@@ -397,4 +437,8 @@ RESOURCE_SPECS: tuple[ResourceSpec, ...] = (
         "videoflow://docs/integrations",
         "How to connect VideoFlow MCP to OpenCode or Paperclip with DeepSeek.",
     ),
+    ResourceSpec("vf://project/{id}/beat_map", "Current beat map for a project."),
+    ResourceSpec("vf://project/{id}/qa_report", "Consolidated visual and safe-zone QA report."),
+    ResourceSpec("vf://presets/{channel_id}/rulebook", "Active channel rulebook."),
+    ResourceSpec("vf://specs/safezones", "Platform safe-zone masks."),
 )

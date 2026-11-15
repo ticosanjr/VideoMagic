@@ -13,6 +13,7 @@ from videoflow.application.models import (
     list_models,
     register_local_model,
     remove_model,
+    update_model,
     verify_model,
 )
 from videoflow.application.plugins import (
@@ -66,9 +67,7 @@ def _plugins_payload(items: list[dict[str, object]]) -> dict[str, object]:
     return {
         "ok": True,
         "plugins": items,
-        "panels": [
-            {"id": key, **value} for key, value in plugin_api.PANELS.items()
-        ],
+        "panels": [{"id": key, **value} for key, value in plugin_api.PANELS.items()],
     }
 
 
@@ -84,9 +83,7 @@ def register_admin_routes(app: FastAPI) -> None:
         }
 
     @app.put("/api/v1/services/definitions/{service_id}")
-    def service_definition_save(
-        service_id: str, request: ServiceDefinition
-    ) -> dict[str, object]:
+    def service_definition_save(service_id: str, request: ServiceDefinition) -> dict[str, object]:
         if request.id != service_id:
             raise HTTPException(
                 status_code=422,
@@ -155,9 +152,7 @@ def register_admin_routes(app: FastAPI) -> None:
 
     @app.post("/api/v1/services/{pid}/stop")
     def services_stop(pid: int) -> dict[str, object]:
-        services = {
-            item.pid: item for item in discover_services(current_pid=os.getpid())
-        }
+        services = {item.pid: item for item in discover_services(current_pid=os.getpid())}
         target = services.get(pid)
         if target is None:
             raise HTTPException(
@@ -228,6 +223,16 @@ def register_admin_routes(app: FastAPI) -> None:
             path=request.path,
             kind=request.kind,
             license=request.license,
+        )
+        return {"ok": True, "model": payload}
+
+    @app.post("/api/v1/models/{model_id}/update")
+    def models_update(
+        model_id: str, request: ModelInstallRequest | None = None
+    ) -> dict[str, object]:
+        payload = update_model(
+            model_id,
+            allow_network=bool(request.allow_external_services) if request else True,
         )
         return {"ok": True, "model": payload}
 

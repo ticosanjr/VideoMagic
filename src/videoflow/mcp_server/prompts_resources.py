@@ -7,6 +7,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
+from videoflow.application.preset_rules import load_rulebook
 from videoflow.domain.transcript import format_srt
 from videoflow.mcp_server.context import ToolContext, error
 
@@ -59,10 +60,8 @@ def register_prompts_resources(mcp: Any, ctx: ToolContext) -> None:
         name="videoflow_produce",
         description="Run a recipe end to end and report artifacts.",
     )
-    def produce_prompt(
-        source: str, output: str, recipe_id: str = "youtube_talking_head"
-    ) -> str:
-        """ Produce a project from source media. """
+    def produce_prompt(source: str, output: str, recipe_id: str = "youtube_talking_head") -> str:
+        """Produce a project from source media."""
 
         return (
             "Use the VideoFlow MCP tools. Run recipe "
@@ -75,7 +74,7 @@ def register_prompts_resources(mcp: Any, ctx: ToolContext) -> None:
         description="Review the latest run and apply validated Copilot edits.",
     )
     def review_prompt(job_id: str, instruction: str) -> str:
-        """ Review and improve a finished run. """
+        """Review and improve a finished run."""
 
         return (
             f"Read job {job_id} and its timeline. Propose timeline edits for: "
@@ -88,7 +87,7 @@ def register_prompts_resources(mcp: Any, ctx: ToolContext) -> None:
         description="Build and verify the delivery package.",
     )
     def deliver_prompt(job_id: str) -> str:
-        """ Verify delivery artifacts for a job. """
+        """Verify delivery artifacts for a job."""
 
         return (
             f"For job {job_id}, validate FCPXML/XMEML/Kdenlive, list artifacts and "
@@ -137,10 +136,7 @@ def register_prompts_resources(mcp: Any, ctx: ToolContext) -> None:
                 },
                 "opencode": {
                     "local": "opencode mcp add videoflow -- uv run videoflow-mcp",
-                    "remote": (
-                        "opencode mcp add videoflow --url "
-                        "http://127.0.0.1:8765/mcp/"
-                    ),
+                    "remote": ("opencode mcp add videoflow --url http://127.0.0.1:8765/mcp/"),
                     "model": "deepseek/deepseek-flash",
                 },
                 "paperclip": {
@@ -156,6 +152,66 @@ def register_prompts_resources(mcp: Any, ctx: ToolContext) -> None:
                     "videoflow_validate_exports",
                 ],
                 "docs": "docs/integrations.md",
+            },
+            indent=2,
+        )
+
+    @mcp.resource("vf://project/{id}/beat_map")
+    def vf_beat_map(id: str) -> str:
+        """Current beat map for a project."""
+
+        try:
+            job = ctx.manager.get(id)
+            path = Path(job.output) / "beat_map.json"
+        except Exception:
+            output = last.get("output")
+            path = Path(output) / "beat_map.json" if isinstance(output, Path) else Path()
+        if not path.is_file():
+            return json.dumps(error("beat_map_not_found", "Run vf_beatmap_execute first."))
+        return path.read_text(encoding="utf-8")
+
+    @mcp.resource("vf://project/{id}/qa_report")
+    def vf_qa_report(id: str) -> str:
+        """Consolidated QA report for a project."""
+
+        try:
+            job = ctx.manager.get(id)
+            output = Path(job.output)
+        except Exception:
+            output = last.get("output")
+            if not isinstance(output, Path):
+                return json.dumps(error("qa_not_found", "Run a project first."))
+        payload: dict[str, object] = {"ok": True, "project": id}
+        for name, relative in (
+            ("visual", "work/qa/qa_report.json"),
+            ("safezone", "work/qa/safezone.json"),
+        ):
+            path = output / relative
+            if path.is_file():
+                try:
+                    payload[name] = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    payload[name] = {"error": "unreadable"}
+        if len(payload) == 2:
+            return json.dumps(error("qa_not_found", "No QA report has been written."))
+        return json.dumps(payload, indent=2)
+
+    @mcp.resource("vf://presets/{channel_id}/rulebook")
+    def vf_rulebook(channel_id: str) -> str:
+        """Active rulebook for a channel."""
+
+        return load_rulebook(channel_id).model_dump_json(indent=2)
+
+    @mcp.resource("vf://specs/safezones")
+    def vf_safezones() -> str:
+        """Platform safe-zone masks in normalized coordinates."""
+
+        from videoflow.steps.qa_safezone import SAFE_ZONES
+
+        return json.dumps(
+            {
+                platform: [zone.model_dump(mode="json") for zone in zones]
+                for platform, zones in SAFE_ZONES.items()
             },
             indent=2,
         )

@@ -913,4 +913,6 @@ export const GLOSSARY: Record<string, string> = {
   "Remote ASR key env": "Env da chave do ASR remoto",
   "Remote ASR model": "Modelo do ASR remoto",
   "Word timestamps": "Timestamps por palavra",
+  "Headless + hybrid MCP": "MCP headless + híbrido",
+  "Run the daemon without the Svelte UI or tray. OpenCode or a similar coding agent plans and repairs; VideoFlow executes deterministic media jobs.": "Rode o daemon sem a UI Svelte ou o tray. O OpenCode ou um agente de código similar planeja e corrige; o VideoFlow executa os trabalhos determinísticos de mídia.",
 };

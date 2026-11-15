@@ -13,23 +13,23 @@ adapters, exporters, API, jobs, and MCP are visible.
 ## Current working tree (2.72.4)
 
 Measured after the notification reduction work, with the release-gate omit list
-disabled. The full unit/contract run is **2,160 passed, 1 skipped, 1 xfailed**.
+disabled. The full unit/contract run is **2,216 passed, 1 skipped, 1 xfailed**.
 
 | Layer | Hit | Total | Cover |
 | --- | ---: | ---: | ---: |
-| api | 2,844 | 2,944 | 96.60% |
-| adapters | 1,330 | 1,375 | 96.73% |
-| application | 15,335 | 16,285 | 94.17% |
-| engine | 1,090 | 1,157 | 94.21% |
+| api | 2,849 | 2,951 | 96.54% |
+| adapters | 1,347 | 1,414 | 95.26% |
+| application | 15,589 | 16,554 | 94.17% |
+| engine | 1,097 | 1,164 | 94.24% |
 | exporters | 1,211 | 1,261 | 96.03% |
-| mcp | 991 | 1,021 | 97.06% |
-| steps | 7,629 | 8,071 | 94.52% |
+| mcp | 1,115 | 1,187 | 93.93% |
+| steps | 8,597 | 9,071 | 94.77% |
 | domain | 1,175 | 1,181 | 99.49% |
-| cli/runtime/core/plugin | 1,109 | 1,139 | 97.37% |
-| **full tree (statements)** | **32,748** | **34,471** | **95.00%** |
-| **full tree (branch report)** | — | — | **88.1%** |
+| cli/runtime/core/plugin | 1,118 | 1,149 | 97.30% |
+| **full tree (statements)** | **34,307** | **36,147** | **94.91%** |
+| **full tree (branch report)** | — | — | **87.9%** |
 
-The full-tree 95% target remains **met**. The configured release gate remains at
+The 2.80 headless work is **below the 95% full-tree target**; the new partial/optional bridges are the remaining gap. The configured release gate remains at
 98% on its selected source set, which is narrower than this report. The
 remaining misses are concentrated in defensive branches for optional backends,
 offline paths, and platform-specific tray/notifier code.

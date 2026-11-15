@@ -474,9 +474,7 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
     ),
     "storyboard.timed": (
         (PortSpec("transcript", "Narration transcript", "transcript", "transcript", True),),
-        (
-            PortSpec("units", "Timed units", "json", "artifacts:storyboard_units"),
-        ),
+        (PortSpec("units", "Timed units", "json", "artifacts:storyboard_units"),),
     ),
     "captions.plan": (
         (PortSpec("transcript", "Transcript", "transcript", "transcript", True),),
@@ -497,9 +495,7 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
     ),
     "scene.render": (
         (PortSpec("scenes", "Scene graph", "json", "artifacts:motion_scenes", True),),
-        (
-            PortSpec("manifest", "Render manifest", "json", "artifacts:motion_manifest"),
-        ),
+        (PortSpec("manifest", "Render manifest", "json", "artifacts:motion_manifest"),),
     ),
     "scene.assemble": (
         (
@@ -583,6 +579,66 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         (PortSpec("media", "Media info", "media", "media", True),),
         (PortSpec("labels", "Eye-contact spans", "json", "metadata:eye_contact"),),
     ),
+    "step.self_heal": (
+        (),
+        (PortSpec("report", "Self-heal report", "json", "metadata:self_heal_report"),),
+    ),
+    "qa.safezone": (
+        (PortSpec("timeline", "Timeline state", "timeline", "state", False),),
+        (PortSpec("report", "Safe-zone report", "json", "metadata:safezone_report"),),
+    ),
+    "qa.visual_10fps": (
+        (PortSpec("media", "Media info", "media", "media", False),),
+        (PortSpec("report", "Visual QA report", "json", "metadata:qa_report"),),
+    ),
+    "pacing.visual_audit": (
+        (PortSpec("timeline", "Timeline state", "timeline", "state", False),),
+        (PortSpec("plan", "Pacing plan", "json", "metadata:pacing_plan"),),
+    ),
+    "sfx.procedural": (
+        (),
+        (PortSpec("cues", "SFX cues", "json", "metadata:sfx_cues"),),
+    ),
+    "preset.compile_rule": (
+        (),
+        (PortSpec("rulebook", "Channel rulebook", "json", "metadata:preset_rulebook"),),
+    ),
+    "assets.reference_board": (
+        (),
+        (PortSpec("board", "Reference board", "json", "metadata:reference_board"),),
+    ),
+    "motion.web_render": (
+        (),
+        (PortSpec("motion_assets", "Motion assets", "json", "metadata:motion_assets"),),
+    ),
+    "layout.cutout": (
+        (PortSpec("shorts", "Shorts", "short_list", "shorts", False),),
+        (PortSpec("layout_plan", "Layout plan", "json", "metadata:layout_plan"),),
+    ),
+    "vision.gaze": (
+        (PortSpec("media", "Media info", "media", "media", False),),
+        (PortSpec("gaze_spans", "Gaze spans", "json", "metadata:gaze_spans"),),
+    ),
+    "assets.screen_capture": (
+        (),
+        (PortSpec("captured_assets", "Captured assets", "json", "metadata:captured_assets"),),
+    ),
+    "assets.transformative_guard": (
+        (),
+        (PortSpec("records", "Transformative records", "json", "metadata:transformative_records"),),
+    ),
+    "style.reverse_engineer": (
+        (),
+        (PortSpec("style_preset", "Style preset", "json", "metadata:style_preset"),),
+    ),
+    "nle.sync_back": (
+        (PortSpec("timeline", "Timeline state", "timeline", "state", False),),
+        (PortSpec("sync_back_report", "NLE sync report", "json", "metadata:sync_back_report"),),
+    ),
+    "intro.assemble_last": (
+        (),
+        (PortSpec("intro_plan", "Intro plan", "json", "metadata:intro_plan"),),
+    ),
 }
 
 
@@ -591,9 +647,7 @@ EXTRA_OUTPUTS: dict[str, tuple[PortSpec, ...]] = {
     "analytics.review": (
         PortSpec("weights", "Analytics weights", "dict", "metadata:analytics_weights"),
     ),
-    "assets.index": (
-        PortSpec("index", "Asset index", "dict", "metadata:assets_index"),
-    ),
+    "assets.index": (PortSpec("index", "Asset index", "dict", "metadata:assets_index"),),
     "assets.match": (
         PortSpec("plan", "B-roll plan", "dict", "metadata:broll_plan"),
         PortSpec("licenses", "B-roll licenses", "dict", "metadata:broll_licenses"),
@@ -612,9 +666,7 @@ EXTRA_OUTPUTS: dict[str, tuple[PortSpec, ...]] = {
     "audio.master": (
         PortSpec("filters", "Master filters", "dict", "metadata:audio_master_filters"),
     ),
-    "audio.qa": (
-        PortSpec("qa", "Audio QA", "dict", "metadata:audio_qa"),
-    ),
+    "audio.qa": (PortSpec("qa", "Audio QA", "dict", "metadata:audio_qa"),),
     "audio.vad": (
         PortSpec("pad_before_ms", "Pad before", "integer", "metadata:speech_pad_before_ms"),
         PortSpec("pad_after_ms", "Pad after", "integer", "metadata:speech_pad_after_ms"),
@@ -627,55 +679,29 @@ EXTRA_OUTPUTS: dict[str, tuple[PortSpec, ...]] = {
         ),
         PortSpec("merge_gap_ms", "Merge gap", "integer", "metadata:merge_gap_ms"),
     ),
-    "broll.plan": (
-        PortSpec("artifacts", "B-roll artifacts", "artifact_map", "artifacts"),
-    ),
-    "color.grade": (
-        PortSpec("filters", "Colour filters", "dict", "metadata:color_filters"),
-    ),
+    "broll.plan": (PortSpec("artifacts", "B-roll artifacts", "artifact_map", "artifacts"),),
+    "color.grade": (PortSpec("filters", "Colour filters", "dict", "metadata:color_filters"),),
     "delivery.package": (
         PortSpec("package", "Delivery manifest", "dict", "metadata:delivery_package"),
     ),
     "edit.timeline": (
         PortSpec("speech", "Adjusted speech", "sample_spans", "speech_intervals"),
-        PortSpec(
-            "inactive", "Inactive spans", "inactive_spans", "inactive_spans"
-        ),
+        PortSpec("inactive", "Inactive spans", "inactive_spans", "inactive_spans"),
     ),
-    "flow.conditional": (
-        PortSpec("metadata", "Flow metadata", "dict", "metadata"),
-    ),
-    "flow.loop": (
-        PortSpec("metadata", "Loop metadata", "dict", "metadata"),
-    ),
-    "flow.map": (
-        PortSpec("metadata", "Map metadata", "dict", "metadata"),
-    ),
-    "flow.reduce": (
-        PortSpec("metadata", "Reduce metadata", "dict", "metadata"),
-    ),
-    "human.gate": (
-        PortSpec("metadata", "Gate result", "dict", "metadata"),
-    ),
-    "human.input": (
-        PortSpec("answers", "Human answers", "dict", "metadata:hilt_answers"),
-    ),
-    "human.files": (
-        PortSpec("files", "Received files", "dict", "metadata:hilt_files"),
-    ),
-    "localization.dub": (
-        PortSpec("dubbed", "Dubbed Shorts", "list", "metadata:dubbed_shorts"),
-    ),
+    "flow.conditional": (PortSpec("metadata", "Flow metadata", "dict", "metadata"),),
+    "flow.loop": (PortSpec("metadata", "Loop metadata", "dict", "metadata"),),
+    "flow.map": (PortSpec("metadata", "Map metadata", "dict", "metadata"),),
+    "flow.reduce": (PortSpec("metadata", "Reduce metadata", "dict", "metadata"),),
+    "human.gate": (PortSpec("metadata", "Gate result", "dict", "metadata"),),
+    "human.input": (PortSpec("answers", "Human answers", "dict", "metadata:hilt_answers"),),
+    "human.files": (PortSpec("files", "Received files", "dict", "metadata:hilt_files"),),
+    "localization.dub": (PortSpec("dubbed", "Dubbed Shorts", "list", "metadata:dubbed_shorts"),),
     "music.beat": (
         PortSpec("artifacts", "Beat files", "artifact_map", "artifacts"),
         PortSpec("beats", "Beat list", "list", "metadata:beats"),
     ),
-    "review.queue": (
-        PortSpec("review", "Review queue", "dict", "metadata:review"),
-    ),
-    "sfx.plan": (
-        PortSpec("artifacts", "SFX files", "artifact_map", "artifacts"),
-    ),
+    "review.queue": (PortSpec("review", "Review queue", "dict", "metadata:review"),),
+    "sfx.plan": (PortSpec("artifacts", "SFX files", "artifact_map", "artifacts"),),
     "shorts.ab": (
         PortSpec("selected", "A/B Shorts", "short_list", "selected_shorts"),
         PortSpec("variants", "A/B variants", "list", "metadata:ab_variants"),
@@ -684,28 +710,16 @@ EXTRA_OUTPUTS: dict[str, tuple[PortSpec, ...]] = {
         PortSpec("shorts", "Shorts", "short_list", "shorts"),
         PortSpec("disabled", "Captions disabled", "boolean", "metadata:captions_disabled"),
     ),
-    "shorts.reframe": (
-        PortSpec("selected", "Reframed Shorts", "short_list", "selected_shorts"),
-    ),
-    "shorts.render": (
-        PortSpec("shorts", "Rendered Shorts", "short_list", "shorts"),
-    ),
-    "shorts.score": (
-        PortSpec("selected", "Scored Shorts", "short_list", "selected_shorts"),
-    ),
-    "shorts.select": (
-        PortSpec("selected", "Selected Shorts", "short_list", "selected_shorts"),
-    ),
+    "shorts.reframe": (PortSpec("selected", "Reframed Shorts", "short_list", "selected_shorts"),),
+    "shorts.render": (PortSpec("shorts", "Rendered Shorts", "short_list", "shorts"),),
+    "shorts.score": (PortSpec("selected", "Scored Shorts", "short_list", "selected_shorts"),),
+    "shorts.select": (PortSpec("selected", "Selected Shorts", "short_list", "selected_shorts"),),
     "thumbnail.generate": (
         PortSpec("thumbs", "Thumbnails", "list", "metadata:thumbnails"),
         PortSpec("title", "Thumbnail title", "string", "metadata:thumbnail_title"),
     ),
-    "thumbnail.pack": (
-        PortSpec("pack", "Thumbnail pack", "list", "metadata:thumbnail_pack"),
-    ),
-    "titles.plan": (
-        PortSpec("titles", "Title plan", "dict", "metadata:titles"),
-    ),
+    "thumbnail.pack": (PortSpec("pack", "Thumbnail pack", "list", "metadata:thumbnail_pack"),),
+    "titles.plan": (PortSpec("titles", "Title plan", "dict", "metadata:titles"),),
     "transcript.translate": (
         PortSpec("artifacts", "Translated files", "artifact_map", "artifacts"),
         PortSpec("translation", "Translation report", "dict", "metadata:translation"),
@@ -753,9 +767,7 @@ def validate_recipe_ports(recipe: Any, *, through: str | None = None) -> None:
                 raise RecipeError(f"{step.id}: unknown input port {input_id}")
             source_id, separator, source_port = str(reference).partition(".")
             if not separator or not source_id or not source_port:
-                raise RecipeError(
-                    f"{step.id}.{input_id}: expected node.port, got {reference}"
-                )
+                raise RecipeError(f"{step.id}.{input_id}: expected node.port, got {reference}")
             source = step_by_id.get(source_id)
             if source is None:
                 raise RecipeError(f"{step.id}.{input_id}: unknown node {source_id}")
@@ -771,9 +783,7 @@ def validate_recipe_ports(recipe: Any, *, through: str | None = None) -> None:
                         f"(wiring {source_id}.{source_port} -> "
                         f"{step.id}.{input_id} creates a cycle)"
                     )
-                raise RecipeError(
-                    f"{step.id}.{input_id}: source {source_id} must run earlier"
-                )
+                raise RecipeError(f"{step.id}.{input_id}: source {source_id} must run earlier")
             ancestors: set[str] = set()
             stack = list(step.needs)
             while stack:
@@ -791,13 +801,10 @@ def validate_recipe_ports(recipe: Any, *, through: str | None = None) -> None:
             outputs = {port.id: port for port in _output_ports(source.type)}
             output_port = outputs.get(source_port)
             if output_port is None:
-                raise RecipeError(
-                    f"{step.id}.{input_id}: unknown output {source_id}.{source_port}"
-                )
+                raise RecipeError(f"{step.id}.{input_id}: unknown output {source_id}.{source_port}")
             if not type_compatible(output_port.type, port.type):
                 raise RecipeError(
-                    f"{step.id}.{input_id}: type mismatch "
-                    f"{output_port.type} -> {port.type}"
+                    f"{step.id}.{input_id}: type mismatch {output_port.type} -> {port.type}"
                 )
     from videoflow.domain.paths import resolve_allowed
     from videoflow.runtime import allowed_roots
@@ -807,9 +814,7 @@ def validate_recipe_ports(recipe: Any, *, through: str | None = None) -> None:
             if step.media_override.strip():
                 media = resolve_allowed(Path(step.media_override), allowed_roots())
                 if not media.is_file():
-                    raise RecipeError(
-                        f"{step.id}: media override is not a file: {media}"
-                    )
+                    raise RecipeError(f"{step.id}: media override is not a file: {media}")
             if step.output_mode == "folder":
                 if not step.output_dir.strip():
                     raise RecipeError(f"{step.id}: output folder is required")

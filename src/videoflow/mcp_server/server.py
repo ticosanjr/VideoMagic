@@ -13,6 +13,7 @@ from videoflow.mcp_server.context import ToolContext
 from videoflow.mcp_server.prompts_resources import register_prompts_resources
 from videoflow.mcp_server.registry import TOOL_SPECS
 from videoflow.mcp_server.tools_config import register_config_tools
+from videoflow.mcp_server.tools_headless import register_headless_tools
 from videoflow.mcp_server.tools_jobs import register_job_tools
 from videoflow.mcp_server.tools_media import register_media_tools
 from videoflow.mcp_server.tools_shorts import register_short_tools
@@ -61,6 +62,7 @@ def build_server(
     register_short_tools(tool, ctx)
     register_job_tools(tool, ctx)
     register_timeline_tools(tool, ctx)
+    register_headless_tools(tool, ctx)
     register_prompts_resources(mcp, ctx)
 
     mcp.videoflow_last = ctx.last  # type: ignore[attr-defined]

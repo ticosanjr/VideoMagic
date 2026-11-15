@@ -8,8 +8,8 @@ from videoflow.mcp_server.server import build_server
 def test_registry_names_are_unique_and_prefixed() -> None:
     names = [tool.name for tool in TOOL_SPECS]
     assert len(names) == len(set(names))
-    assert all(name.startswith("videoflow_") for name in names)
-    assert len(RESOURCE_SPECS) == 5
+    assert all(name.startswith(("videoflow_", "vf_")) for name in names)
+    assert len(RESOURCE_SPECS) == 9
 
 
 def test_server_registers_every_public_tool() -> None:

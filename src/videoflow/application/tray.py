@@ -40,9 +40,7 @@ class TrayError(VideoFlowError):
 def _uvicorn_server(app: Any, host: str, port: int, log_level: str) -> Any:
     import uvicorn
 
-    return uvicorn.Server(
-        uvicorn.Config(app, host=host, port=port, log_level=log_level)
-    )
+    return uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level=log_level))
 
 
 def _http_app() -> Any:
@@ -82,17 +80,13 @@ class TrayJobController:
         self, method: str, path: str, payload: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         with httpx.Client(timeout=self.timeout) as client:
-            response = client.request(
-                method, f"{self.base_url}{path}", json=payload
-            )
+            response = client.request(method, f"{self.base_url}{path}", json=payload)
             response.raise_for_status()
             data = response.json()
         return data if isinstance(data, dict) else {}
 
     def snapshot(self) -> dict[str, int]:
-        payload = self._request(
-            "GET", "/api/v1/jobs?summary=true&limit=100"
-        )
+        payload = self._request("GET", "/api/v1/jobs?summary=true&limit=100")
         jobs = payload.get("jobs")
         counts = {
             "running": 0,
@@ -182,18 +176,14 @@ class ServerSupervisor:
             self._server = server
             self._thread = thread
             self._last_error = ""
-            append_server_log(
-                f"tray start host={self.host} port={self.port} pid={os.getpid()}"
-            )
+            append_server_log(f"tray start host={self.host} port={self.port} pid={os.getpid()}")
             try:
                 thread.start()
             except Exception as exc:
                 self._server = None
                 self._thread = None
                 remove_pid_file()
-                raise TrayError(
-                    f"Could not start the VideoFlow server thread: {exc}"
-                ) from exc
+                raise TrayError(f"Could not start the VideoFlow server thread: {exc}") from exc
             return True
 
     def stop(self, timeout: float = 5.0) -> bool:
@@ -228,9 +218,7 @@ class ServerSupervisor:
             return
         result = stop_services_on_port(self.host, self.port)
         if not bool(result.get("free")):
-            raise TrayError(
-                f"Port {self.port} is already in use and could not be freed."
-            )
+            raise TrayError(f"Port {self.port} is already in use and could not be freed.")
         append_server_log(f"tray replaced service on port {self.port}")
 
     def _run_server(self, server: Any) -> None:
@@ -283,7 +271,7 @@ class TrayActions:
         self._opener(_browser_url(self.supervisor.url, "runs"))
 
     def refresh_status(self) -> None:
-        if not self.supervisor.running:
+        if not bool(getattr(self.supervisor, "running", False)):
             self.unreachable = False
             return
         host = getattr(self.supervisor, "host", "127.0.0.1")
@@ -339,7 +327,7 @@ class TrayActions:
         self.unreachable = False
 
     def status_label(self) -> str:
-        if not self.supervisor.running:
+        if not bool(getattr(self.supervisor, "running", False)):
             return "Service: stopped"
         if self.unreachable:
             return "Service: unreachable"
@@ -358,11 +346,7 @@ def _system_gi_path():
 
     candidate = "/usr/lib/python3/dist-packages"
     added = False
-    if (
-        sys.platform.startswith("linux")
-        and os.path.isdir(candidate)
-        and candidate not in sys.path
-    ):
+    if sys.platform.startswith("linux") and os.path.isdir(candidate) and candidate not in sys.path:
         sys.path.append(candidate)
         added = True
     try:
@@ -517,14 +501,11 @@ def run_tray(*, host: str, port: int, open_browser: bool = True) -> int:
     append_server_log(f"tray backend={getattr(pystray.Icon, '__module__', 'unknown')}")
     if not getattr(pystray.Icon, "HAS_MENU", True):
         append_server_log(
-            "tray menu unavailable: install python3-gi and "
-            "gir1.2-ayatanaappindicator3-0.1"
+            "tray menu unavailable: install python3-gi and gir1.2-ayatanaappindicator3-0.1"
         )
     from videoflow.application.settings import load_settings
 
-    supervisor = ServerSupervisor(
-        host, port, log_level=load_settings().runtime.log_level
-    )
+    supervisor = ServerSupervisor(host, port, log_level=load_settings().runtime.log_level)
     actions = TrayActions(supervisor)
     stop_poller = threading.Event()
 
@@ -562,9 +543,7 @@ def run_tray(*, host: str, port: int, open_browser: bool = True) -> int:
                 icon.update_menu()
             stop_poller.wait(5.0)
 
-    threading.Thread(
-        target=poll_status, name="videoflow-tray-jobs", daemon=True
-    ).start()
+    threading.Thread(target=poll_status, name="videoflow-tray-jobs", daemon=True).start()
     _install_signal_handlers(icon)
     try:
         icon.run()

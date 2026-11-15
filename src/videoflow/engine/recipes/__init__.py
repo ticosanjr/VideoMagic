@@ -6,6 +6,7 @@ from videoflow.engine.recipes import definitions_advanced as _advanced  # noqa: 
 from videoflow.engine.recipes import definitions_footage as _footage  # noqa: F401
 from videoflow.engine.recipes import definitions_full_ai_editor as _full_ai_editor  # noqa: F401
 from videoflow.engine.recipes import definitions_lamera as _lamera  # noqa: F401
+from videoflow.engine.recipes import definitions_opencode as _opencode  # noqa: F401
 from videoflow.engine.recipes import definitions_opusclip as _opusclip  # noqa: F401
 from videoflow.engine.recipes import definitions_synthetic as _synthetic  # noqa: F401
 from videoflow.engine.recipes.catalog import (

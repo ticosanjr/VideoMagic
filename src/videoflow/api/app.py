@@ -43,6 +43,7 @@ def create_app(
     with_mcp: bool = False,
     jobs: JobManager | None = None,
     start_publisher: bool = False,
+    start_hilt_pollers: bool = True,
 ) -> FastAPI:
     """Build the loopback app.
 
@@ -91,7 +92,8 @@ def create_app(
 
     @app.on_event("startup")
     def _start_hilt_pollers() -> None:
-        start_pollers(manager)
+        if start_hilt_pollers:
+            start_pollers(manager)
 
     @app.on_event("shutdown")
     def _stop_hilt_pollers() -> None:
@@ -113,8 +115,8 @@ def create_app(
             response.headers["Cache-Control"] = "no-cache"
         return response
 
-
     if start_publisher:
+
         @app.on_event("startup")
         def _start_background_schedulers() -> None:
             if os.environ.get("VIDEOWFLOW_PUBLISH_SCHEDULER", "1") != "0":
@@ -199,14 +201,18 @@ def create_http_app(
     ui: Path | None = None,
     *,
     jobs: JobManager | None = None,
+    headless: bool = False,
 ) -> FastAPI:
     """Loopback app with API routes, MCP HTTP, and an optional static rack UI."""
 
+    settings = load_settings()
+    resolved_ui = None if headless else (ui if ui is not None else ui_dir())
     return create_app(
         with_mcp=True,
-        ui=ui if ui is not None else ui_dir(),
+        ui=resolved_ui,
         jobs=jobs,
         start_publisher=True,
+        start_hilt_pollers=settings.headless.start_hilt_pollers,
     )
 
 

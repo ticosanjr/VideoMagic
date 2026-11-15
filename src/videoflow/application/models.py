@@ -16,12 +16,9 @@ from videoflow.application.capabilities import ensure_external_allowed
 from videoflow.domain.errors import FilesystemError, StateNotReadyError
 from videoflow.runtime import external_home, model_search_dirs, portable_home
 
-_FASTER_WHISPER_SMALL = (
-    "https://huggingface.co/Systran/faster-whisper-small/resolve/main"
-)
-_WHISPER_TINY = (
-    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin"
-)
+_FASTER_WHISPER_SMALL = "https://huggingface.co/Systran/faster-whisper-small/resolve/main"
+_WHISPER_TINY = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin"
+
 
 def _faster_entry(
     size: str,
@@ -130,6 +127,74 @@ CATALOG: dict[str, dict[str, Any]] = {
     "whisper-medium": _whisper_entry("medium", 1500),
     "whisper-large-v3-turbo-q5_0": _whisper_entry("large-v3-turbo-q5_0", 574),
     "whisper-large-v3-turbo": _whisper_entry("large-v3-turbo", 1625),
+    "silero-vad": {
+        "label": "Silero VAD ONNX",
+        "capability": "vad",
+        "used_by": ["audio.vad"],
+        "license": "MIT",
+        "source": "snakers4/silero-vad",
+        "size_mb": 2,
+        "kind": "silero",
+        "target": "silero/silero_vad.onnx",
+        "files": [
+            (
+                "https://github.com/snakers4/silero-vad/raw/master/src/silero_vad/data/silero_vad.onnx",
+                "silero_vad.onnx",
+                None,
+            )
+        ],
+    },
+    "mediapipe-face-landmarker": {
+        "label": "MediaPipe face landmarker",
+        "capability": "vision",
+        "used_by": ["shorts.reframe", "vision.gaze", "qa.visual_10fps"],
+        "license": "Apache-2.0",
+        "source": "google-ai-edge/mediapipe",
+        "size_mb": 4,
+        "kind": "mediapipe",
+        "target": "mediapipe/face_landmarker.task",
+        "files": [
+            (
+                "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+                "face_landmarker.task",
+                None,
+            )
+        ],
+    },
+    "mediapipe-selfie-segmenter": {
+        "label": "MediaPipe selfie segmenter",
+        "capability": "vision",
+        "used_by": ["layout.cutout", "vision.segment"],
+        "license": "Apache-2.0",
+        "source": "google-ai-edge/mediapipe",
+        "size_mb": 1,
+        "kind": "mediapipe",
+        "target": "mediapipe/selfie_segmenter.tflite",
+        "files": [
+            (
+                "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/1/selfie_segmenter.tflite",
+                "selfie_segmenter.tflite",
+                None,
+            )
+        ],
+    },
+    "tesseract-eng": {
+        "label": "Tesseract English data",
+        "capability": "ocr",
+        "used_by": ["vision.ocr", "qa.visual_10fps"],
+        "license": "Apache-2.0",
+        "source": "tesseract-ocr/tessdata_fast",
+        "size_mb": 5,
+        "kind": "tesseract",
+        "target": "tesseract/eng.traineddata",
+        "files": [
+            (
+                "https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata",
+                "eng.traineddata",
+                None,
+            )
+        ],
+    },
     "whisper-tiny": {
         "label": "whisper.cpp tiny",
         "capability": "asr",
@@ -165,11 +230,7 @@ def _local_models() -> dict[str, dict[str, Any]]:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
-    return {
-        str(key): dict(value)
-        for key, value in payload.items()
-        if isinstance(value, dict)
-    }
+    return {str(key): dict(value) for key, value in payload.items() if isinstance(value, dict)}
 
 
 def _entry(model_id: str) -> dict[str, Any]:
@@ -289,9 +350,7 @@ def models_dir() -> Path:
         return directory
     external_override = os.environ.get("VIDEOWFLOW_EXTERNAL_HOME", "")
     external_root = (
-        Path(external_override).expanduser()
-        if external_override
-        else Path.home() / ".videoflow"
+        Path(external_override).expanduser() if external_override else Path.home() / ".videoflow"
     )
     external = external_root / "models"
     try:
@@ -400,9 +459,7 @@ def install_model(
     if entry is None:
         raise StateNotReadyError(f"Unknown model: {model_id}")
     if entry.get("kind") == "local":
-        raise StateNotReadyError(
-            f"Local model is missing at {_target(model_id)}: {model_id}"
-        )
+        raise StateNotReadyError(f"Local model is missing at {_target(model_id)}: {model_id}")
     target = _target(model_id)
     if entry["kind"] == "pyannote":
         if not allow_network:
@@ -450,9 +507,7 @@ def install_model(
             if response.status_code >= 400 and not (
                 resumed or (existing and response.status_code == 416)
             ):
-                raise FilesystemError(
-                    f"Model download returned HTTP {response.status_code}: {url}"
-                )
+                raise FilesystemError(f"Model download returned HTTP {response.status_code}: {url}")
             if existing and not resumed:
                 existing = 0
                 digest = hashlib.sha256()
@@ -471,11 +526,7 @@ def install_model(
                     if total_bytes > 0:
                         fraction = written / total_bytes
                         report(
-                            int(
-                                (file_index + fraction)
-                                / max(1, len(files))
-                                * 100
-                            ),
+                            int((file_index + fraction) / max(1, len(files)) * 100),
                             f"Downloading {name}",
                         )
         if expected and digest.hexdigest() != expected:
@@ -503,3 +554,22 @@ def remove_model(model_id: str) -> None:
             removed = True
     if not removed:
         raise StateNotReadyError(f"Model is not installed: {model_id}")
+
+
+def update_model(
+    model_id: str,
+    *,
+    allow_network: bool = True,
+    progress: Callable[[int, str], None] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
+) -> dict[str, object]:
+    """Reinstall an installed model so it can be refreshed/updated."""
+
+    if installed_path(model_id) is not None:
+        remove_model(model_id)
+    return install_model(
+        model_id,
+        allow_network=allow_network,
+        progress=progress,
+        should_cancel=should_cancel,
+    )

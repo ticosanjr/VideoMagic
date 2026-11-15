@@ -1056,6 +1056,13 @@ export async function verifyLocalModel(
   return response.verification;
 }
 
+export async function updateLocalModel(modelId: string): Promise<void> {
+  await request(`/api/v1/models/${encodeURIComponent(modelId)}/update`, {
+    method: "POST",
+    body: JSON.stringify({ allow_external_services: true })
+  });
+}
+
 export async function removeLocalModel(modelId: string): Promise<void> {
   await request(`/api/v1/models/${encodeURIComponent(modelId)}`, { method: "DELETE" });
 }

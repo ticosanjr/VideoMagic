@@ -9,6 +9,7 @@
     registerLocalModel,
     removeLocalModel,
     startModelDownload,
+    updateLocalModel,
     verifyLocalModel,
     saveSettings,
     type AppSettings,
@@ -122,6 +123,21 @@
     }
   }
 
+  async function update(model: LocalModel) {
+    busy = model.id;
+    error = "";
+    message = "";
+    try {
+      await updateLocalModel(model.id);
+      message = `${model.label} updated.`;
+      await refresh();
+    } catch (reason) {
+      error = String(reason instanceof Error ? reason.message : reason);
+    } finally {
+      busy = "";
+    }
+  }
+
   async function verify(model: LocalModel) {
     try {
       const result = await verifyLocalModel(model.id);
@@ -231,6 +247,9 @@
               </div>
               <div class="flex items-center gap-2">
                 <button type="button" onclick={() => void verify(model)} class="rounded-lg border border-neutral-700 px-2 py-1.5 text-[10px] text-neutral-300">Verify</button>
+                {#if model.installed}
+                  <button type="button" onclick={() => void update(model)} disabled={busy === model.id} class="rounded-lg border border-amber-500/30 px-2 py-1.5 text-[10px] text-amber-200 disabled:opacity-40">Update</button>
+                {/if}
                 {#if activeDownload(model.id)}
                   <button type="button" onclick={() => void cancel(model)} class="rounded-lg border border-rose-500/30 px-2.5 py-1.5 text-[10px] text-rose-200">Cancel</button>
                 {:else}

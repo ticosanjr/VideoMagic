@@ -84,6 +84,15 @@ curl -s -X POST ${origin}/api/v1/jobs/JOB/copilot/timeline \\
     </p>
   </header>
 
+  <section class="rounded-2xl border border-sky-500/25 bg-sky-500/5 p-4">
+    <h3 class="text-xs font-semibold text-sky-100">Headless + hybrid MCP</h3>
+    <p class="mt-1 text-[11px] leading-relaxed text-neutral-300">
+      Run the daemon without the Svelte UI or tray. OpenCode or a similar coding agent plans and repairs; VideoFlow executes deterministic media jobs.
+    </p>
+    <pre class="mt-2 overflow-auto rounded-xl border border-sky-500/20 bg-black/40 p-3 text-[10px] text-sky-100">videoflow serve --mcp-only
+opencode mcp add videoflow --url ${origin}/mcp/</pre>
+  </section>
+
   <div class="grid gap-3 lg:grid-cols-2">
     {#each blocks as block (block.id)}
       <article class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">

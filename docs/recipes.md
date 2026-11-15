@@ -537,3 +537,21 @@ the same organization.
 - `PATCH /api/v1/recipes/{id}/meta` with `{"tags": [...]}`.
 
 `recut_replacement` and `recut_replacement_retakes` are favorites by default.
+
+## Headless OpenCode recipes (2.80)
+
+The `opencode_*` recipes are designed for `videoflow serve --mcp-only` and the
+`vf_*` tools:
+
+- `opencode_longform_studio` — CFR ingest, offset-aware transcribe, gaze and
+  retakes, reference board, archetype gate, motion/web capture, 10 FPS QA, intro,
+  audio master, and NLE/video export.
+- `opencode_reels_from_raw` — CFR ingest, retakes, pacing audit, cutout layout,
+  web motion, safe-zone and visual QA, and a 9:16 render.
+- `opencode_shorts_batch_from_long` — timeline load, open-loop Shorts,
+  reframe/cutout, captions, QA, and batch render.
+- `opencode_clone_style` — style reverse-engineering plus channel rulebook
+  compilation.
+
+Use `vf_preview_archetypes` before the archetype human gate and
+`vf_qa_inspect_window` for targeted QA.

@@ -245,6 +245,13 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Open the rack UI in the default browser after startup.",
     )
+    serve.add_argument(
+        "--mcp-only",
+        "--no-ui",
+        dest="mcp_only",
+        action="store_true",
+        help="Run the API/MCP daemon without the Svelte UI or tray.",
+    )
 
     tray = sub.add_parser(
         "tray", help="Run a tray icon that owns the local VideoFlow service."
@@ -705,7 +712,9 @@ def _serve(args: argparse.Namespace) -> int:
         args.host = settings.runtime.host
     if args.port == 8765:
         args.port = settings.runtime.port
-    if settings.runtime.open_browser:
+    if getattr(args, "mcp_only", False):
+        args.open = False
+    elif settings.runtime.open_browser:
         args.open = True
     if settings.paths.temp_dir:
         os.environ["TMPDIR"] = settings.paths.temp_dir
@@ -733,6 +742,15 @@ def _serve(args: argparse.Namespace) -> int:
         return _serve_locked(args, uvicorn, create_http_app)
     finally:
         lock.release()
+
+
+def _build_http_app(create_http_app, *, jobs=None, headless: bool = False):
+    try:
+        if jobs is None:
+            return create_http_app(headless=headless)
+        return create_http_app(jobs=jobs, headless=headless)
+    except TypeError:
+        return create_http_app(jobs=jobs) if jobs is not None else create_http_app()
 
 
 def _serve_locked(args: argparse.Namespace, uvicorn, create_http_app) -> int:
@@ -785,7 +803,10 @@ def _serve_locked(args: argparse.Namespace, uvicorn, create_http_app) -> int:
     )
     print(f"Log: {server_log_path()}", flush=True)
     append_server_log(f"starting version={__version__} port={args.port}")
-    app = create_http_app()
+    app = _build_http_app(
+        create_http_app,
+        headless=getattr(args, "mcp_only", False) or not getattr(args, "ui", True),
+    )
     app.state.port = args.port
     app.state.host = args.host
     pid_path = _pid_file()
@@ -813,7 +834,12 @@ def _serve_locked(args: argparse.Namespace, uvicorn, create_http_app) -> int:
             if not bool(getattr(app.state, "restart_requested", False)):
                 break
             print("VideoFlow service restarting...")
-            app = create_http_app(jobs=app.state.jobs)
+            app = _build_http_app(
+                create_http_app,
+                jobs=app.state.jobs,
+                headless=getattr(args, "mcp_only", False)
+                or not getattr(args, "ui", True),
+            )
     finally:
         _remove_pid(pid_path)
         append_server_log(f"stopped pid={os.getpid()}")
