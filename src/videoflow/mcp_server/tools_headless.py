@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
+from videoflow.application.audio_patch import patch_audio
 from videoflow.application.preset_rules import load_rulebook, save_rulebook
+from videoflow.application.secrets import get_secret
+from videoflow.application.settings import load_settings
 from videoflow.application.web_preview import preview_server
 from videoflow.core.context import PipelineContext
 from videoflow.domain.headless import BeatMap, PresetRule
@@ -155,26 +159,108 @@ def register_headless_tools(register: Any, ctx: ToolContext) -> None:
         text: str = "",
         voice: str = "",
         crossfade_ms: int = 80,
+        apply: bool = False,
+        provider: str = "",
+        base_url: str = "",
+        model: str = "",
+        binary: str = "",
+        model_path: str = "",
+        api_key_env: str = "VIDEOWFLOW_TTS_API_KEY",
     ) -> dict[str, object]:
-        """Plan a surgical voice patch; audio generation is done by the voice step."""
+        """Replace one spoken line with TTS and crossfade it into the master."""
 
         if not text.strip():
             return error("text_required", "Pass the replacement text.")
-        plan = {
-            "job_id": job_id or ctx.last.get("job_id"),
-            "sentence_id": sentence_id,
-            "start_sec": start_sec,
-            "end_sec": end_sec,
-            "text": text,
-            "voice": voice,
-            "crossfade_ms": max(0, min(1000, crossfade_ms)),
-        }
+        if not apply:
+            plan = {
+                "job_id": job_id or ctx.last.get("job_id"),
+                "sentence_id": sentence_id,
+                "start_sec": start_sec,
+                "end_sec": end_sec,
+                "text": text,
+                "voice": voice,
+                "crossfade_ms": max(0, min(1000, crossfade_ms)),
+                "apply": False,
+            }
+            ctx.last["audio_patch"] = plan
+            return {"ok": True, "patch": plan}
+        try:
+            context = _job_context(ctx, job_id)
+            rate = context.media.audio_sample_rate if context.media is not None else 48000
+            if sentence_id is not None:
+                sentence = next(
+                    (item for item in context.transcript if item.id == sentence_id),
+                    None,
+                )
+                if sentence is None:
+                    return error("sentence_not_found", f"Unknown sentence {sentence_id}")
+                start = sentence.start_sample / rate
+                end = sentence.end_sample / rate
+            elif start_sec is not None and end_sec is not None:
+                start, end = start_sec, end_sec
+            else:
+                return error("range_required", "Pass sentence_id or start_sec/end_sec.")
+            settings = load_settings()
+            kind = provider or settings.tts.provider
+            if kind == "none":
+                return error("tts_not_configured", "Configure a TTS provider first.")
+            patch_dir = context.output / "audio" / "patches"
+            patch_dir.mkdir(parents=True, exist_ok=True)
+            suffix = ".wav" if kind == "piper" else ".mp3"
+            generated = (
+                patch_dir / f"line-{sentence_id if sentence_id is not None else 'range'}{suffix}"
+            )
+            if kind == "piper":
+                from videoflow.adapters.tts import PiperTtsAdapter
+
+                PiperTtsAdapter(
+                    binary=binary or "piper",
+                    model_path=model_path,
+                ).synthesize(text, generated)
+            else:
+                from videoflow.adapters.tts import OpenAITtsAdapter
+
+                endpoint = base_url or os.environ.get("VIDEOWFLOW_TTS_BASE_URL", "")
+                if not endpoint:
+                    return error(
+                        "tts_base_url_required",
+                        "Set VIDEOWFLOW_TTS_BASE_URL or pass base_url.",
+                    )
+                OpenAITtsAdapter(
+                    base_url=endpoint,
+                    model=model or settings.tts.model,
+                    voice=voice or settings.tts.voice,
+                    api_key=get_secret(api_key_env),
+                ).synthesize(text, generated)
+            plan = {
+                "job_id": job_id or ctx.last.get("job_id"),
+                "sentence_id": sentence_id,
+                "start_sec": round(start, 3),
+                "end_sec": round(end, 3),
+                "text": text,
+                "voice": voice or settings.tts.voice,
+                "crossfade_ms": max(0, min(1000, crossfade_ms)),
+                "generated": str(generated),
+            }
+            if apply:
+                master = Path(
+                    context.artifacts.get("audio_master") or context.output / "audio" / "master.wav"
+                )
+                plan["patched"] = patch_audio(
+                    master,
+                    generated,
+                    start_sec=start,
+                    end_sec=end,
+                    output=context.output / "audio" / f"patched-{generated.stem}.wav",
+                    crossfade_ms=max(0, min(1000, crossfade_ms)),
+                    sample_rate=rate,
+                )
+        except Exception as exc:  # noqa: BLE001
+            return (
+                exc.to_dict() if hasattr(exc, "to_dict") else error("audio_patch_failed", str(exc))
+            )
         ctx.last["audio_patch"] = plan
-        return {
-            "ok": True,
-            "patch": plan,
-            "next": "Run voice.patch/voice.clone or apply the returned text in the Short editor.",
-        }
+        return {"ok": True, "patch": plan}
 
     @register
     def vf_nle_roundtrip(

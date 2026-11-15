@@ -114,11 +114,11 @@ Implemented in this pass:
 - Four OpenCode recipes validate end-to-end.
 - Optional model catalog entries and update API/UI button.
 
-Still required before 2.80:
+Still required after 2.80.0:
 
 - Wire draft scale/motion blur through every renderer.
-- Replace plan-only paths for cutout, web render, screen capture, audio line patch,
-  and NLE apply with rendered output.
+- Replace plan-only paths for cutout, web render, screen capture clips, and NLE
+  apply with rendered output. Audio line patch now synthesizes and crossfades.
 - Complete flexibilisations (`retakes.cull`, `audio.vad`, shorts hooks, B-roll
   reference frame, platform LUFS, NLE adjustment layers).
 - Media/performance/security evidence and full gate.
