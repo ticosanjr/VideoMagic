@@ -23,6 +23,7 @@ def generate_image(
     timeout: float = 120.0,
     allow_external_services: bool = False,
     allowed_external_hosts: tuple[str, ...] = (),
+    reference_image: Path | None = None,
 ) -> bytes:
     """Generate one image through an OpenAI-compatible image endpoint."""
 
@@ -35,7 +36,7 @@ def generate_image(
         allow_external_services=allow_external_services,
         allowed_hosts=allowed_external_hosts,
     )
-    headers = {"Content-Type": "application/json"}
+    headers: dict[str, str] = {}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
     payload: dict[str, object] = {
@@ -47,12 +48,29 @@ def generate_image(
     }
     if seed is not None:
         payload["seed"] = seed
-    response = httpx.post(
-        f"{base}/images/generations",
-        headers=headers,
-        json=payload,
-        timeout=timeout,
-    )
+    if reference_image is not None and reference_image.is_file():
+        headers.pop("Content-Type", None)
+        response = httpx.post(
+            f"{base}/images/edits",
+            headers=headers,
+            data={key: str(value) for key, value in payload.items()},
+            files={
+                "image": (
+                    reference_image.name,
+                    reference_image.read_bytes(),
+                    "image/png",
+                )
+            },
+            timeout=timeout,
+        )
+    else:
+        headers["Content-Type"] = "application/json"
+        response = httpx.post(
+            f"{base}/images/generations",
+            headers=headers,
+            json=payload,
+            timeout=timeout,
+        )
     if response.status_code >= 400:
         raise IngestError(
             f"Image generation returned HTTP {response.status_code}: {response.text[:300]}"

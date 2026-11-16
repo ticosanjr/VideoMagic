@@ -96,14 +96,10 @@ class GenerateBrollStep(BaseStep):
             if reference.is_file():
                 context.metadata["broll_reference_frame"] = str(reference)
             else:
-                context.warnings.append(
-                    f"B-roll reference frame not found: {reference}"
-                )
+                context.warnings.append(f"B-roll reference frame not found: {reference}")
         base_url = options.base_url.strip()
         if options.provider == "openai_compatible" and not base_url:
-            context.warnings.append(
-                "B-roll generation skipped: no image endpoint configured."
-            )
+            context.warnings.append("B-roll generation skipped: no image endpoint configured.")
             io.report(100, "B-roll generation skipped")
             return
         prompt = _prompt_for(context, options.prompt)
@@ -134,6 +130,11 @@ class GenerateBrollStep(BaseStep):
                         height=options.height,
                         allow_external_services=options.allow_external_services,
                         allowed_external_hosts=tuple(options.allowed_external_hosts),
+                        reference_image=(
+                            Path(context.metadata["broll_reference_frame"])
+                            if context.metadata.get("broll_reference_frame")
+                            else None
+                        ),
                     )
             except (IngestError, OSError, IntelligenceError) as exc:
                 context.warnings.append(f"B-roll generation failed: {exc}")
@@ -159,19 +160,13 @@ class GenerateBrollStep(BaseStep):
         context.metadata["generated_broll"] = generated
         target = context.output / "assets" / "generated-broll.json"
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(
-            json.dumps({"assets": generated}, indent=2) + "\n", encoding="utf-8"
-        )
+        target.write_text(json.dumps({"assets": generated}, indent=2) + "\n", encoding="utf-8")
         context.artifacts["generated_broll"] = str(target)
         io.report(100, f"{len(generated)} generated B-roll image(s)")
 
-    def _write_ledger(
-        self, output: Path, generated: list[dict[str, object]]
-    ) -> None:
+    def _write_ledger(self, output: Path, generated: list[dict[str, object]]) -> None:
         payload = read_ledger(output)
-        records = [
-            item for item in payload.get("assets", []) if isinstance(item, dict)
-        ]
+        records = [item for item in payload.get("assets", []) if isinstance(item, dict)]
         for item in generated:
             candidate = AssetCandidate(
                 asset_id=f"generated-{str(item['sha256'])[:12]}",
@@ -186,9 +181,7 @@ class GenerateBrollStep(BaseStep):
                 attribution_required=False,
                 sha256=str(item["sha256"]),
                 downloaded_path=str(item["path"]),
-                retrieved_at=time.strftime(
-                    "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
-                ),
+                retrieved_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 metadata={
                     "model": item["model"],
                     "seed": item["seed"],
@@ -200,17 +193,12 @@ class GenerateBrollStep(BaseStep):
             record
             for record in records
             if record.get("license_status") in {"unknown", "cc_review"}
-            or (
-                record.get("license_status") == "fair_use_review"
-                and not record.get("approved")
-            )
+            or (record.get("license_status") == "fair_use_review" and not record.get("approved"))
         ]
         payload["assets"] = records
         payload["blockers"] = blockers
         payload["counts"] = {
-            status: sum(
-                1 for record in records if record.get("license_status") == status
-            )
+            status: sum(1 for record in records if record.get("license_status") == status)
             for status in sorted(
                 {str(record.get("license_status") or "unknown") for record in records}
             )

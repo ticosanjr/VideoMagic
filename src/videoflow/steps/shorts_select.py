@@ -57,9 +57,7 @@ class ShortsSelectStep(BaseStep):
             Fraction(str(options.source_start_sec)), Rounding.NEAREST
         )
         range_end = (
-            timebase.seconds_to_samples(
-                Fraction(str(options.source_end_sec)), Rounding.NEAREST
-            )
+            timebase.seconds_to_samples(Fraction(str(options.source_end_sec)), Rounding.NEAREST)
             if options.source_end_sec is not None
             else context.duration_samples()
         )
@@ -89,9 +87,7 @@ class ShortsSelectStep(BaseStep):
                 warnings.append(f"Scene analysis skipped: {exc.message}")
         if options.audio_energy_boost:
             try:
-                energy = tuple(
-                    detect_audio_energy(Path(context.source), media.audio_sample_rate)
-                )
+                energy = tuple(detect_audio_energy(Path(context.source), media.audio_sample_rate))
             except IngestError as exc:
                 warnings.append(f"Audio energy analysis skipped: {exc.message}")
 
@@ -119,11 +115,7 @@ class ShortsSelectStep(BaseStep):
             weights=profile_weights(options.profile),
         )
         if options.virality_threshold > 0 and selected:
-            above = [
-                clip
-                for clip in selected
-                if clip.virality_score >= options.virality_threshold
-            ]
+            above = [clip for clip in selected if clip.virality_score >= options.virality_threshold]
             if above:
                 selected = above
             else:
@@ -153,6 +145,13 @@ class ShortsSelectStep(BaseStep):
             }
             for clip in selected
         ]
+        for index, entry in enumerate(context.shorts):
+            override = options.hook_overrides.get(str(index)) or options.hook_overrides.get(
+                str(entry.get("title") or "")
+            )
+            if override:
+                entry["original_title"] = entry.get("title", "")
+                entry["title"] = override
         context.metadata["hook_criteria"] = list(options.hook_criteria)
         context.metadata["hook_rewrite"] = options.hook_rewrite
         context.metadata["shorts_layout"] = options.layout

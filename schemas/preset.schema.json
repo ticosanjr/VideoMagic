@@ -809,6 +809,13 @@
           "title": "Hook Mode",
           "type": "string"
         },
+        "hook_overrides": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Hook Overrides",
+          "type": "object"
+        },
         "hook_rewrite": {
           "default": false,
           "title": "Hook Rewrite",

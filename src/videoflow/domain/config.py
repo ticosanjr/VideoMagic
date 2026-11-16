@@ -227,6 +227,7 @@ class ShortsConfig(StrictModel):
     hook_rewrite: bool = False
     hook_max_chars: int = Field(default=90, ge=20, le=300)
     layout: Literal["cutout", "split_screen", "full_reframe"] = "full_reframe"
+    hook_overrides: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def duration_window(self) -> Self:
