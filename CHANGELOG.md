@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.85.1] - 2026-11-16
+
+### Changed
+
+- **Agent MCP refactor.** Shared project/job/resource helpers moved out of the
+  900-line tool module; `ToolContext` now contains only the job manager and
+  batch manager. Legacy process-global context helpers were removed.
+- **Project state v2 hardening.** Version 1 project states migrate to the
+  multi-source schema on load.
+- **Scene cache.** Playwright scene renders are content-addressed.
+- **Draft previews.** Cutout and storyboard previews respect `draft_scale`.
+
 ## [2.85.0] - 2026-11-16
 
 ### Added
