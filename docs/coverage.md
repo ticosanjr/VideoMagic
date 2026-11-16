@@ -19,15 +19,15 @@ Measured with the release-gate omit list disabled. The full unit/contract run is
 | --- | ---: | ---: | ---: |
 | api | 2,849 | 2,951 | 96.54% |
 | adapters | 1,416 | 1,498 | 94.53% |
-| application | 16,209 | 17,187 | 94.31% |
+| application | 16,207 | 17,187 | 94.30% |
 | engine | 1,097 | 1,164 | 94.24% |
 | exporters | 1,253 | 1,334 | 93.93% |
 | mcp | 683 | 726 | 94.08% |
-| steps | 9,435 | 9,897 | 95.33% |
+| steps | 9,433 | 9,897 | 95.31% |
 | domain | 1,434 | 1,450 | 98.90% |
 | cli/runtime/core/plugin | 485 | 505 | 96.04% |
-| **full tree (statements)** | **35,523** | **37,389** | **95.01%** |
-| **full tree (branches)** | **8,910** | **10,350** | **86.09%** |
+| **full tree (statements)** | **35,520** | **37,389** | **95.00%** |
+| **full tree (branches)** | **8,911** | **10,350** | **86.10%** |
 
 The 2.85 agent-profile refactor keeps the full-tree statement target met. The
 configured release gate remains at 98% on its selected source set. Remaining
