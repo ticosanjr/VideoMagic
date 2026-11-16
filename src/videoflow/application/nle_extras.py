@@ -7,7 +7,13 @@ import re
 from pathlib import Path
 
 from videoflow.application.timeline_meta import load_meta
-from videoflow.exporters.extras import NleBroll, NleExtras, NleMarker, NleTitle
+from videoflow.exporters.extras import (
+    NleAdjustment,
+    NleBroll,
+    NleExtras,
+    NleMarker,
+    NleTitle,
+)
 
 ASS_TIME = re.compile(r"^(\d+):(\d{2}):(\d{2})\.(\d{2})$")
 
@@ -191,6 +197,24 @@ def nle_extras_from_output(output: Path) -> NleExtras:
     stems = directory / "audio" / "master.wav"
     colors = _filters(directory / "color" / "filters.json")
     audio = _filters(directory / "audio" / "master-filters.json")
+    adjustments: list[NleAdjustment] = []
+    adjustment_path = directory / "exports" / "adjustment_layers.json"
+    if adjustment_path.is_file():
+        try:
+            payload = json.loads(adjustment_path.read_text(encoding="utf-8"))
+            for item in payload.get("layers", []):
+                adjustments.append(
+                    NleAdjustment(
+                        name=str(item.get("name") or "Adjustment"),
+                        start_sec=float(item.get("start_sec") or 0.0),
+                        end_sec=float(item.get("end_sec") or 0.0),
+                        lut_path=str(item.get("lut_path") or ""),
+                        grain_amount=float(item.get("grain_amount") or 0.0),
+                        grain_fps=float(item.get("grain_fps") or 12.0),
+                    )
+                )
+        except (OSError, ValueError, TypeError):
+            adjustments = []
     return NleExtras(
         markers=markers,
         titles=_titles(directory / "titles.ass"),
@@ -198,4 +222,5 @@ def nle_extras_from_output(output: Path) -> NleExtras:
         color_filters=colors,
         audio_filters=audio,
         audio_stem=str(stems) if stems.is_file() else "",
+        adjustments=tuple(adjustments),
     )

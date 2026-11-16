@@ -32,6 +32,16 @@ class NleBroll:
 
 
 @dataclass(frozen=True, slots=True)
+class NleAdjustment:
+    name: str
+    start_sec: float
+    end_sec: float
+    lut_path: str = ""
+    grain_amount: float = 0.0
+    grain_fps: float = 12.0
+
+
+@dataclass(frozen=True, slots=True)
 class NleExtras:
     markers: tuple[NleMarker, ...] = ()
     titles: tuple[NleTitle, ...] = ()
@@ -39,6 +49,7 @@ class NleExtras:
     color_filters: tuple[str, ...] = ()
     audio_filters: tuple[str, ...] = ()
     audio_stem: str = ""
+    adjustments: tuple[NleAdjustment, ...] = ()
     metadata: dict[str, str] = field(default_factory=dict)
 
 

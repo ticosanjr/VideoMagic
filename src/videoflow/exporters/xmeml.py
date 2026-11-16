@@ -68,6 +68,30 @@ def export_xmeml(
         _append_motion(item, clip)
         if extras.color_filters:
             _append_color_filter(item)
+        for adjustment in extras.adjustments:
+            clip_start = clip.timeline_in_frame / (media.fps_num / media.fps_den)
+            clip_end = clip.timeline_out_frame / (media.fps_num / media.fps_den)
+            if clip_end <= adjustment.start_sec or clip_start >= adjustment.end_sec:
+                continue
+            filter_element = ET.SubElement(item, "filter")
+            effect = ET.SubElement(filter_element, "effect")
+            ET.SubElement(effect, "name").text = "Adjustment Layer"
+            ET.SubElement(effect, "effectid").text = "adjustmentLayer"
+            ET.SubElement(effect, "effectcategory").text = "video"
+            ET.SubElement(effect, "effecttype").text = "filter"
+            ET.SubElement(effect, "mediatype").text = "video"
+            if adjustment.lut_path:
+                parameter = ET.SubElement(effect, "parameter")
+                ET.SubElement(parameter, "parameterid").text = "lut"
+                ET.SubElement(parameter, "name").text = "LUT"
+                ET.SubElement(parameter, "value").text = adjustment.lut_path
+            if adjustment.grain_amount > 0:
+                parameter = ET.SubElement(effect, "parameter")
+                ET.SubElement(parameter, "parameterid").text = "grain"
+                ET.SubElement(parameter, "name").text = "Grain"
+                ET.SubElement(
+                    parameter, "value"
+                ).text = f"{adjustment.grain_amount:.3f}@{adjustment.grain_fps:.1f}fps"
         if clip.transition_out is not None:
             _append_video_transition(
                 video_track,
@@ -316,16 +340,12 @@ def _append_marker(sequence: ET.Element, marker, fps: float) -> None:
 
 def _append_title(video_track: ET.Element, title, media: MediaInfo, *, number: int) -> None:
     duration = max(1, round((title.end_sec - title.start_sec) * (media.fps_num / media.fps_den)))
-    item = ET.SubElement(
-        video_track, "generatoritem", {"id": f"title-{number}"}
-    )
+    item = ET.SubElement(video_track, "generatoritem", {"id": f"title-{number}"})
     ET.SubElement(item, "name").text = title.kind.replace("_", " ").title()
     ET.SubElement(item, "duration").text = str(duration)
     _append_rate(item, media)
     ET.SubElement(item, "start").text = str(round(title.start_sec * media.fps_num / media.fps_den))
-    ET.SubElement(item, "end").text = str(
-        round(title.end_sec * media.fps_num / media.fps_den)
-    )
+    ET.SubElement(item, "end").text = str(round(title.end_sec * media.fps_num / media.fps_den))
     ET.SubElement(item, "in").text = "0"
     ET.SubElement(item, "out").text = str(duration)
     effect = ET.SubElement(item, "effect")

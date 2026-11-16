@@ -38,6 +38,8 @@ class ExportParams(BaseModel):
     basename: str = Field(default="timeline", min_length=1, max_length=120)
     require_licenses: bool = True
     adjustment_layers: bool = False
+    adjustment_start_sec: float = Field(default=0.0, ge=0.0)
+    adjustment_end_sec: float = Field(default=0.0, ge=0.0)
     lut_path: str = ""
     grain_fps: float = Field(default=12.0, ge=1.0, le=60.0)
     grain_amount: float = Field(default=0.0, ge=0.0, le=1.0)
@@ -67,8 +69,7 @@ class ExportStep(BaseStep):
         blockers = license_blockers(context.output) if options.require_licenses else []
         if blockers:
             titles = ", ".join(
-                str(item.get("title") or item.get("asset_id"))
-                for item in blockers[:6]
+                str(item.get("title") or item.get("asset_id")) for item in blockers[:6]
             )
             raise ExportError(
                 "Asset licenses need review before export: "
@@ -76,6 +77,33 @@ class ExportStep(BaseStep):
             )
         destination = context.output / options.subdir
         destination.mkdir(parents=True, exist_ok=True)
+        if options.adjustment_layers:
+            duration_sec = (
+                context.media.duration_frames * context.media.fps_den / context.media.fps_num
+                if context.media is not None
+                else 0.0
+            )
+            end_sec = options.adjustment_end_sec or duration_sec
+            (context.output / "exports").mkdir(parents=True, exist_ok=True)
+            (context.output / "exports" / "adjustment_layers.json").write_text(
+                json.dumps(
+                    {
+                        "layers": [
+                            {
+                                "name": "Finishing",
+                                "start_sec": options.adjustment_start_sec,
+                                "end_sec": end_sec,
+                                "lut_path": options.lut_path,
+                                "grain_amount": options.grain_amount,
+                                "grain_fps": options.grain_fps,
+                            }
+                        ]
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
         if options.filename_mode == "source_timestamp":
             basename = unique_basename(
                 destination,
@@ -94,9 +122,7 @@ class ExportStep(BaseStep):
             nonlocal completed
             io.check_cancel()
             local = max(0, min(100, int(value)))
-            overall = 20 + int(
-                ((completed + local / 100) / target_count) * 75
-            )
+            overall = 20 + int(((completed + local / 100) / target_count) * 75)
             io.report(min(95, overall), f"Exporting {target} ({local}%)")
             if local >= 100:
                 completed += 1
@@ -144,9 +170,7 @@ class ExportStep(BaseStep):
         meta_path = context.output / "timeline_meta.json"
         if meta_path.is_file():
             try:
-                markers = list(
-                    json.loads(meta_path.read_text(encoding="utf-8")).get("markers", [])
-                )
+                markers = list(json.loads(meta_path.read_text(encoding="utf-8")).get("markers", []))
             except (OSError, ValueError):
                 markers = []
         manifest = {

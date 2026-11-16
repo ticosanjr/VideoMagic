@@ -103,6 +103,12 @@ def export_fcpxml(
             "effect",
             {"id": "r3", "name": "Color Correction", "uid": ".../Color Correction"},
         )
+    if extras.adjustments:
+        ET.SubElement(
+            resources,
+            "effect",
+            {"id": "r4", "name": "Adjustment Layer", "uid": ".../Adjustment Layer"},
+        )
     broll_assets: dict[str, str] = {}
     for entry in extras.broll:
         if entry.path in broll_assets:
@@ -136,9 +142,7 @@ def export_fcpxml(
                 "id": "stem1",
                 "name": Path(extras.audio_stem).name,
                 "start": "0s",
-                "duration": format_rational_time(
-                    timebase.frames_to_seconds(duration_frames)
-                ),
+                "duration": format_rational_time(timebase.frames_to_seconds(duration_frames)),
                 "hasAudio": "1",
                 "format": "r1",
                 "audioSources": "1",
@@ -196,9 +200,28 @@ def export_fcpxml(
         _append_transform(element, clip, media)
         _append_audio_fade(element, audio_clip, media)
         if extras.color_filters:
-            ET.SubElement(
-                element, "filter-video", {"ref": "r3", "name": "Color Correction"}
+            ET.SubElement(element, "filter-video", {"ref": "r3", "name": "Color Correction"})
+        for adjustment in extras.adjustments:
+            clip_start = timebase.frames_to_seconds(clip.timeline_in_frame)
+            clip_end = timebase.frames_to_seconds(clip.timeline_out_frame)
+            if clip_end <= adjustment.start_sec or clip_start >= adjustment.end_sec:
+                continue
+            filter_element = ET.SubElement(
+                element, "filter-video", {"ref": "r4", "name": "Adjustment Layer"}
             )
+            if adjustment.lut_path:
+                ET.SubElement(
+                    filter_element, "param", {"name": "LUT", "value": adjustment.lut_path}
+                )
+            if adjustment.grain_amount > 0:
+                ET.SubElement(
+                    filter_element,
+                    "param",
+                    {
+                        "name": "Grain",
+                        "value": f"{adjustment.grain_amount:.3f}@{adjustment.grain_fps:.1f}fps",
+                    },
+                )
         if clip.transition_out is not None:
             ET.SubElement(
                 spine,
@@ -271,9 +294,7 @@ def export_fcpxml(
                 "name": "Audio master",
                 "offset": "0s",
                 "start": "0s",
-                "duration": format_rational_time(
-                    timebase.frames_to_seconds(duration_frames)
-                ),
+                "duration": format_rational_time(timebase.frames_to_seconds(duration_frames)),
                 "srcEnable": "audio",
                 "audioRole": "effects",
             },
