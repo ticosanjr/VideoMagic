@@ -1,23 +1,23 @@
 {
   "version": "2.80.0",
-  "built_at": "2026-11-16T07:47:33+00:00",
+  "built_at": "2026-11-16T09:09:28+00:00",
   "host": "linux-x86_64",
   "python": "3.12.3",
   "artifacts": [
     {
       "name": "videoflow-2.80.0-linux-x86_64",
-      "sha256": "cabdd08309d712b36b6dad9bb2cc057aaf6b12419da1437f0631e275f377ca29",
-      "size_bytes": 398533440
+      "sha256": "67cb4a434bf371ad15f09798efc77d27cdd6f07a2b4057bf0c61ae94258d9e20",
+      "size_bytes": 398541192
     },
     {
       "name": "VideoFlow-2.80.0-x86_64.AppImage",
-      "sha256": "080a95cfa6e3c0e06378c83486db263ac5dd23ba915741bd01dc49800a03fc11",
-      "size_bytes": 396847608
+      "sha256": "278340904f490367518072aa1f6f5321181499e0a85a51b74b2665672dda247b",
+      "size_bytes": 396855800
     },
     {
       "name": "VideoFlow-2.80.0-linux-x86_64.tar.zst",
-      "sha256": "5e858e70f677d521a4805a75617695597980393dfe6d214da839f2099cb4ab0a",
-      "size_bytes": 421600463
+      "sha256": "99769d04ab873c6d6168dc3b54a7c8f8b763b333b10cb931d169799b730eeb9f",
+      "size_bytes": 421603410
     },
     {
       "name": "sbom.json",
