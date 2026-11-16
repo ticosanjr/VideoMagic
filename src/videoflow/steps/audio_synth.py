@@ -6,7 +6,7 @@ import json
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -44,8 +44,7 @@ class AudioComposeStep(BaseStep):
     type = "audio.compose"
     title = "Compose music"
     description = (
-        "Generate a deterministic, copyright-free music bed and stems with "
-        "numpy synthesis."
+        "Generate a deterministic, copyright-free music bed and stems with numpy synthesis."
     )
     status = "available"
     icon = "♫"
@@ -55,9 +54,7 @@ class AudioComposeStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = ComposeParams.model_validate(params)
-        sample_rate = (
-            context.media.audio_sample_rate if context.media is not None else 48000
-        )
+        sample_rate = context.media.audio_sample_rate if context.media is not None else 48000
         audio = _style_audio(context)
         try:
             bpm = float(audio.get("bpm") or audio.get("tempo_bpm") or options.bpm)
@@ -131,8 +128,7 @@ class SfxSynthStep(BaseStep):
     type = "sfx.synthesize"
     title = "Synthesize Foley"
     description = (
-        "Generate copyright-free Foley cues and place them at scene starts or "
-        "at a default cadence."
+        "Generate copyright-free Foley cues and place them at scene starts or at a default cadence."
     )
     status = "available"
     icon = "♪"
@@ -169,13 +165,8 @@ class SfxSynthStep(BaseStep):
         if not cues:
             duration = float(context.metadata.get("narration_duration_sec") or 0.0)
             if duration <= 0.0:
-                duration = (
-                    context.duration_samples()
-                    / (
-                        context.media.audio_sample_rate
-                        if context.media is not None
-                        else 48000
-                    )
+                duration = context.duration_samples() / (
+                    context.media.audio_sample_rate if context.media is not None else 48000
                 )
             current = 0.0
             while current < duration and len(cues) < options.max_cues:
@@ -216,6 +207,9 @@ class MixParams(BaseModel):
     duck_release_ms: int = Field(default=300, ge=10, le=2000)
     target_lufs: float = Field(default=0.0, ge=-30.0, le=0.0)
     output_name: str = Field(default="final.wav", max_length=120)
+    music_arc: Literal["none", "three_act"] = "none"
+    arc_hook_ratio: float = Field(default=0.2, ge=0.05, le=0.5)
+    arc_outro_ratio: float = Field(default=0.8, ge=0.5, le=0.95)
 
 
 @register_step
@@ -235,8 +229,7 @@ class AudioMixStep(BaseStep):
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = MixParams.model_validate(params)
         dialogue = Path(
-            context.artifacts.get("audio_master")
-            or context.output / "audio" / "master.wav"
+            context.artifacts.get("audio_master") or context.output / "audio" / "master.wav"
         )
         if not dialogue.is_file():
             raise ExportError("Audio mix requires the dialogue master.")
@@ -268,8 +261,7 @@ class AudioMixStep(BaseStep):
         if music is not None and music.is_file():
             music_meta = context.metadata.get("audio_music", {})
             looped = (
-                isinstance(music_meta, dict)
-                and float(music_meta.get("loop_seconds") or 0.0) > 0.0
+                isinstance(music_meta, dict) and float(music_meta.get("loop_seconds") or 0.0) > 0.0
             )
             if looped:
                 inputs.extend(["-stream_loop", "-1", "-i", str(music)])
@@ -295,14 +287,23 @@ class AudioMixStep(BaseStep):
         filter_parts = []
         mix_labels = ["[0:a]"]
         if music is not None and music.is_file():
-            chain = (
-                f"volume={options.music_gain},atrim=0,asetpts=PTS-STARTPTS"
-            )
+            volume = f"{options.music_gain}"
+            if options.music_arc == "three_act":
+                duration = context.duration_samples() / max(
+                    1, context.media.audio_sample_rate if context.media else 48000
+                )
+                hook = duration * options.arc_hook_ratio
+                outro = duration * options.arc_outro_ratio
+                quiet = options.music_gain * 0.55
+                loud = min(1.0, options.music_gain * 1.25)
+                volume = (
+                    f"'if(lt(t,{hook:.3f}),{quiet:.4f},"
+                    f"if(lt(t,{outro:.3f}),{loud:.4f},{options.music_gain:.4f}))'"
+                )
+            chain = f"volume={volume}:eval=frame,atrim=0,asetpts=PTS-STARTPTS"
             if options.duck_music:
                 filter_parts.append("[0:a]asplit=2[voice][sidechain]")
-                filter_parts.append(
-                    f"[1:a]{chain}[musicraw]"
-                )
+                filter_parts.append(f"[1:a]{chain}[musicraw]")
                 filter_parts.append(
                     f"[musicraw][sidechain]sidechaincompress="
                     f"threshold={options.duck_threshold}:"
@@ -321,18 +322,11 @@ class AudioMixStep(BaseStep):
             gain = options.sfx_gain * float(cue.get("gain") or 0.35)
             chain = f"volume={gain}"
             if notch_hz > 0 and notch_db != 0:
-                chain += (
-                    f",equalizer=f={notch_hz}:width_type=h:"
-                    f"width=1000:g={notch_db}"
-                )
-            filter_parts.append(
-                f"[{index}:a]{chain},adelay={start_ms}:all=1[sfx{index}]"
-            )
+                chain += f",equalizer=f={notch_hz}:width_type=h:width=1000:g={notch_db}"
+            filter_parts.append(f"[{index}:a]{chain},adelay={start_ms}:all=1[sfx{index}]")
             mix_labels.append(f"[sfx{index}]")
         loudness = (
-            f",loudnorm=I={options.target_lufs}:TP=-1.5:LRA=11"
-            if options.target_lufs < 0
-            else ""
+            f",loudnorm=I={options.target_lufs}:TP=-1.5:LRA=11" if options.target_lufs < 0 else ""
         )
         filter_parts.append(
             f"{''.join(mix_labels)}amix=inputs={len(mix_labels)}:"

@@ -41,6 +41,9 @@ class VideoExportParams(BaseModel):
     audio_source: Literal["timeline", "mix"] = "timeline"
     draft_scale: float = Field(default=0.0, ge=0.0, le=1.0)
     motion_blur: bool | None = None
+    lut_path: str = ""
+    grain_amount: float = Field(default=0.0, ge=0.0, le=1.0)
+    grain_fps: float = Field(default=12.0, ge=1.0, le=60.0)
 
 
 @register_step
@@ -75,7 +78,17 @@ class VideoExportStep(BaseStep):
             else FFmpegAdapter(cancel_event=io.cancel_event)
         )
         audio_filters = read_filters(context.output / "audio" / "master-filters.json")
-        video_filters = read_filters(context.output / "color" / "filters.json")
+        video_filters = list(read_filters(context.output / "color" / "filters.json"))
+        if options.lut_path:
+            lut = Path(options.lut_path).expanduser()
+            if lut.is_file():
+                escaped = str(lut).replace("'", "'")
+                video_filters.append(f"lut3d=file='{escaped}':interp=tetrahedral")
+            else:
+                context.warnings.append(f"LUT not found: {lut}")
+        if options.grain_amount > 0:
+            strength = max(1, min(20, int(options.grain_amount * 20)))
+            video_filters.append(f"noise=alls={strength}:allf=t+u")
         ass_path = context.output / "subtitles.ass"
         if not ass_path.is_file():
             ass_path = context.output / "titles.ass"

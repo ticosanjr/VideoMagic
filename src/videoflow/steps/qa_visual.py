@@ -25,6 +25,9 @@ class VisualQaParams(BaseModel):
             "flash",
             "duplicate_animation",
             "repeated_word",
+            "text_late",
+            "face_obstruction",
+            "lip_sync",
         ]
     )
     fail_on_defects: bool = False
@@ -86,7 +89,132 @@ def windows_for(context: PipelineContext, pad: float, limit: int) -> list[tuple[
     return result
 
 
-def analyze_frames(frames: list[Path]) -> list[tuple[str, float]]:
+def _audio_energy(pcm: Path | None, start_sec: float, duration_sec: float, rate: int) -> float:
+    if pcm is None or not pcm.is_file() or rate <= 0:
+        return 0.0
+    try:
+        import wave
+
+        with wave.open(str(pcm), "rb") as handle:
+            handle.setpos(max(0, int(start_sec * handle.getframerate())))
+            frames = handle.readframes(max(1, int(duration_sec * handle.getframerate())))
+    except (OSError, EOFError, ValueError):
+        return 0.0
+    if not frames:
+        return 0.0
+    values = [
+        int.from_bytes(frames[index : index + 2], "little", signed=True) / 32768.0
+        for index in range(0, len(frames), 2)
+    ]
+    return (sum(value * value for value in values) / max(1, len(values))) ** 0.5
+
+
+def _motion_score(frames: list[Path]) -> float:
+    try:
+        from PIL import Image, ImageStat
+    except ImportError:  # pragma: no cover
+        return 0.0
+    previous: float | None = None
+    scores: list[float] = []
+    for frame in frames:
+        try:
+            with Image.open(frame) as image:
+                luma = ImageStat.Stat(image.convert("L")).mean[0] / 255
+        except OSError:
+            continue
+        if previous is not None:
+            scores.append(abs(luma - previous))
+        previous = luma
+    return sum(scores) / max(1, len(scores))
+
+
+def _overlay_boxes(context: PipelineContext) -> list[tuple[float, float, float, float]]:
+    if context.state is None:
+        return []
+    return [
+        (
+            max(0.0, overlay.position_x - overlay.width_ratio / 2),
+            max(0.0, overlay.position_y - overlay.width_ratio / 2),
+            min(1.0, overlay.position_x + overlay.width_ratio / 2),
+            min(1.0, overlay.position_y + overlay.width_ratio / 2),
+        )
+        for overlay in context.state.overlays
+    ]
+
+
+def _face_obstruction(
+    context: PipelineContext, frames: list[Path], start_sec: float, fps: int
+) -> list[tuple[str, float]]:
+    try:
+        import cv2
+    except ImportError:  # pragma: no cover
+        return []
+    cascade_class = getattr(cv2, "CascadeClassifier", None)
+    data = getattr(cv2, "data", None)
+    root = getattr(data, "haarcascades", "")
+    if cascade_class is None or not root:
+        return []
+    cascade = cascade_class(root + "haarcascade_frontalface_default.xml")
+    boxes = _overlay_boxes(context)
+    if not boxes:
+        return []
+    defects: list[tuple[str, float]] = []
+    for index, frame in enumerate(frames):
+        image = cv2.imread(str(frame))
+        if image is None:
+            continue
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        faces = cascade.detectMultiScale(gray, 1.2, 4)
+        height, width = gray.shape[:2]
+        for x, y, w, h in faces:
+            left, top = x / width, y / height
+            right, bottom = (x + w) / width, (y + h) / height
+            for box in boxes:
+                overlap = max(0.0, min(right, box[2]) - max(left, box[0])) * max(
+                    0.0, min(bottom, box[3]) - max(top, box[1])
+                )
+                if overlap > 0.15:
+                    defects.append(("face_obstruction", start_sec + index / fps))
+                    break
+            else:
+                continue
+            break
+    return defects
+
+
+def _text_late(
+    context: PipelineContext, frames: list[Path], start_sec: float, duration_sec: float, fps: int
+) -> list[tuple[str, float]]:
+    expectations = context.metadata.get("text_expectations")
+    if not isinstance(expectations, list):
+        return []
+    try:
+        import pytesseract
+    except ImportError:  # pragma: no cover
+        return []
+    defects: list[tuple[str, float]] = []
+    for item in expectations:
+        if not isinstance(item, dict):
+            continue
+        expected = float(item.get("start_sec") or 0.0)
+        text = str(item.get("text") or "").strip()
+        if not text or not (start_sec <= expected <= start_sec + duration_sec):
+            continue
+        index = min(len(frames) - 1, max(0, int((expected - start_sec) * fps)))
+        if index < 0:
+            continue
+        try:
+            found = pytesseract.image_to_string(str(frames[index])).strip()
+        except Exception:  # noqa: BLE001
+            continue
+        if text.casefold() not in found.casefold():
+            defects.append(("text_late", expected))
+    return defects
+
+
+def analyze_frames(
+    frames: list[Path], *, checks: list[str] | None = None, fps: int = 10
+) -> list[tuple[str, float]]:
     try:
         from PIL import Image, ImageStat
     except ImportError:  # pragma: no cover - optional dependency
@@ -105,15 +233,16 @@ def analyze_frames(frames: list[Path]) -> list[tuple[str, float]]:
                 luma = ImageStat.Stat(image.convert("L")).mean[0] / 255
         except OSError:
             continue
+        enabled = checks or ["flash", "duplicate_animation"]
         if previous_hash == current_hash:
             duplicate_run += 1
-            if duplicate_run == 3:
-                defects.append(("duplicate_animation", index / 10.0))
+            if duplicate_run == 3 and "duplicate_animation" in enabled:
+                defects.append(("duplicate_animation", index / fps))
         else:
             duplicate_run = 0
         previous_hash = current_hash
-        if previous_luma is not None and abs(luma - previous_luma) > 0.32:
-            defects.append(("flash", index / 10.0))
+        if previous_luma is not None and abs(luma - previous_luma) > 0.32 and "flash" in enabled:
+            defects.append(("flash", index / fps))
         previous_luma = luma
     return defects
 
@@ -144,7 +273,7 @@ class VisualQaStep(BaseStep):
             if not frames:
                 continue
             checked += 1
-            for kind, local in analyze_frames(frames):
+            for kind, local in analyze_frames(frames, checks=options.checks, fps=options.fps):
                 defects.append(
                     VisualQaDefect(
                         kind=kind,
@@ -155,6 +284,48 @@ class VisualQaStep(BaseStep):
                         frame_paths=[str(frames[min(len(frames) - 1, int(local * options.fps))])],
                     )
                 )
+            if "face_obstruction" in options.checks:
+                for kind, local in _face_obstruction(context, frames, start, options.fps):
+                    defects.append(
+                        VisualQaDefect(
+                            kind=kind,
+                            start_sec=local,
+                            end_sec=local + 1 / options.fps,
+                            confidence=0.55,
+                            message="overlay obscures a detected face",
+                        )
+                    )
+            if "text_late" in options.checks:
+                for kind, local in _text_late(context, frames, start, duration, options.fps):
+                    defects.append(
+                        VisualQaDefect(
+                            kind=kind,
+                            start_sec=local,
+                            end_sec=local + 1 / options.fps,
+                            confidence=0.6,
+                            message="expected text was not detected in time",
+                        )
+                    )
+            if "lip_sync" in options.checks and context.media is not None:
+                energy = _audio_energy(
+                    context.pcm_path,
+                    start,
+                    duration,
+                    context.media.audio_sample_rate,
+                )
+                motion = _motion_score(frames)
+                if (energy > 0.08 and motion < 0.01) or (energy < 0.005 and motion > 0.08):
+                    defects.append(
+                        VisualQaDefect(
+                            kind="lip_sync",
+                            start_sec=start,
+                            end_sec=start + duration,
+                            confidence=0.35,
+                            message=(
+                                f"audio/motion mismatch (energy={energy:.3f}, motion={motion:.3f})"
+                            ),
+                        )
+                    )
             if "repeated_word" in options.checks:
                 sentence = self._repeated_word(context, start, start + duration)
                 if sentence is not None:

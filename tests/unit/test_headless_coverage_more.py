@@ -227,7 +227,7 @@ def test_qa_visual_repeated_word_and_fail(tmp_path: Path, monkeypatch) -> None:
         )
     ]
     monkeypatch.setattr(qa_visual, "extract_window", lambda *args: [tmp_path / "f.jpg"])
-    monkeypatch.setattr(qa_visual, "analyze_frames", lambda *args: [])
+    monkeypatch.setattr(qa_visual, "analyze_frames", lambda *args, **kwargs: [])
     with pytest.raises(RecipeError):
         qa_visual.VisualQaStep().run(
             context, qa_visual.VisualQaParams(fail_on_defects=True), StepIO()
