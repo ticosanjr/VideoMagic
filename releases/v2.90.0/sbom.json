@@ -38,6 +38,12 @@
       "version": "26.1.0"
     },
     {
+      "name": "av",
+      "purl": "pkg:pypi/av@18.1.0",
+      "type": "library",
+      "version": "18.1.0"
+    },
+    {
       "name": "certifi",
       "purl": "pkg:pypi/certifi@2026.10.18",
       "type": "library",
@@ -68,16 +74,40 @@
       "version": "50.0.2"
     },
     {
+      "name": "ctranslate2",
+      "purl": "pkg:pypi/ctranslate2@4.8.3",
+      "type": "library",
+      "version": "4.8.3"
+    },
+    {
       "name": "fastapi",
       "purl": "pkg:pypi/fastapi@0.149.0",
       "type": "library",
       "version": "0.149.0"
     },
     {
+      "name": "faster-whisper",
+      "purl": "pkg:pypi/faster-whisper@1.2.1",
+      "type": "library",
+      "version": "1.2.1"
+    },
+    {
+      "name": "filelock",
+      "purl": "pkg:pypi/filelock@4.2.4",
+      "type": "library",
+      "version": "4.2.4"
+    },
+    {
       "name": "flatbuffers",
       "purl": "pkg:pypi/flatbuffers@25.12.19",
       "type": "library",
       "version": "25.12.19"
+    },
+    {
+      "name": "fsspec",
+      "purl": "pkg:pypi/fsspec@2026.9.0",
+      "type": "library",
+      "version": "2026.9.0"
     },
     {
       "name": "greenlet",
@@ -90,6 +120,12 @@
       "purl": "pkg:pypi/h11@0.16.0",
       "type": "library",
       "version": "0.16.0"
+    },
+    {
+      "name": "hf-xet",
+      "purl": "pkg:pypi/hf-xet@1.7.0",
+      "type": "library",
+      "version": "1.7.0"
     },
     {
       "name": "httpcore",
@@ -114,6 +150,12 @@
       "purl": "pkg:pypi/httpx2@2.14.0",
       "type": "library",
       "version": "2.14.0"
+    },
+    {
+      "name": "huggingface_hub",
+      "purl": "pkg:pypi/huggingface_hub@2.2.0",
+      "type": "library",
+      "version": "2.2.0"
     },
     {
       "name": "hypothesis",
@@ -308,6 +350,12 @@
       "version": "0.0.32"
     },
     {
+      "name": "PyYAML",
+      "purl": "pkg:pypi/pyyaml@6.0.3",
+      "type": "library",
+      "version": "6.0.3"
+    },
+    {
       "name": "referencing",
       "purl": "pkg:pypi/referencing@0.37.0",
       "type": "library",
@@ -348,6 +396,18 @@
       "purl": "pkg:pypi/starlette@1.9.0",
       "type": "library",
       "version": "1.9.0"
+    },
+    {
+      "name": "tokenizers",
+      "purl": "pkg:pypi/tokenizers@0.23.3",
+      "type": "library",
+      "version": "0.23.3"
+    },
+    {
+      "name": "tqdm",
+      "purl": "pkg:pypi/tqdm@4.70.1",
+      "type": "library",
+      "version": "4.70.1"
     },
     {
       "name": "truststore",

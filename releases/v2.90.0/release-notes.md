@@ -4,18 +4,18 @@ Portable video pre-edit pipeline with offline whisper.cpp transcription.
 
 ## Artifacts
 
-- `videoflow-2.90.0-linux-x86_64` — SHA-256 `e022f3a36add474e7691681a1765c027df0e40d2eeefdd685e9dbc7449b1ae6b`
-- `VideoFlow-2.90.0-x86_64.AppImage` — SHA-256 `714793330e3256d511e6d9b5947a385f0b3f4fb7fde51d8bd3e2bf8ffb1eb358`
-- `VideoFlow-2.90.0-linux-x86_64.tar.zst` — SHA-256 `90559cec3280463840d070a82324b2ee95a242466b16d32b770843946760c193`
-- `VideoFlow-2.90.0-mcp-servers.tar.zst` — SHA-256 `f26a8a49a8c6c20e806aa9c2c753ef1971c94137ebaf13071be73278345c0a71`
-- `sbom.json` — SHA-256 `e18d87bf7c27d46ca5b8c9fbbad98cb481f7fabcf1c0b6767f960dbe2ffd45b3`
+- `videoflow-2.90.0-linux-x86_64` — SHA-256 `270f381e722ffcf2d43a85d97d3bf49ceacebc18039c25dff61c18e0974f8595`
+- `VideoFlow-2.90.0-x86_64.AppImage` — SHA-256 `c3937a3333d8c18e9943868809b84eba7c3fd4b054bb158f385838b7b67c13b1`
+- `VideoFlow-2.90.0-linux-x86_64.tar.zst` — SHA-256 `cce12de23274461f317252de158a5e9b3c59198f5a75d0b740bd57f6809f65fa`
+- `VideoFlow-2.90.0-mcp-servers.tar.zst` — SHA-256 `25b63c9d2c0b1ae89e34c89be47b05d05ca6819cd60ffdaa306aed9c3fcb5401`
+- `sbom.json` — SHA-256 `66dd768386bf37019dfd0b9f3d6face67b38667971df2edadd8d362f079ab574`
 
 ## Run
 
 Linux portable bundle:
 
 ```bash
-tar --zstd -xf VideoFlow-2.90.0-linux-x86_64.tar.zst
+tar --zstd -xf VideoFlow-2.90.0-mcp-servers.tar.zst
 ./videoflow/videoflow doctor
 ./videoflow/videoflow recipe list
 ./videoflow/videoflow serve --open
