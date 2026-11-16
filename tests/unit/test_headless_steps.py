@@ -118,8 +118,18 @@ def test_preset_rulebook_merges_and_versions(tmp_path: Path, monkeypatch) -> Non
     step.run(context, params, StepIO())
     book = json.loads(Path(context.artifacts["preset_rulebook"]).read_text())
     assert book["version"] == 2
-    assert len(book["rules"]) == 2
-    assert book["rules"][0]["weight"] == 1.25
+    assert len(book["learned_rules"]) == 2
+    assert book["learned_rules"][0]["weight"] == 1.25
+    assert book["hard_constraints"] == {
+        "palette": "",
+        "cut_rhythm_sec": 0.0,
+        "broll_style": "",
+        "jargon": True,
+        "aspect_ratio": "",
+        "caption_preset": "",
+        "lut": "",
+        "music": "",
+    }
 
 
 def test_reference_board_writes_a_contact_sheet(tmp_path: Path) -> None:

@@ -83,7 +83,7 @@ def test_motion_render_handles_disabled_backends_and_failures(tmp_path: Path, mo
         encoding="utf-8",
     )
 
-    def render(scene, directory):  # type: ignore[no-untyped-def]
+    def render(scene, directory, **kwargs):  # type: ignore[no-untyped-def]
         if scene.get("scene_id") == "boom":
             raise RuntimeError("render failed")
         Path(directory).mkdir(parents=True, exist_ok=True)

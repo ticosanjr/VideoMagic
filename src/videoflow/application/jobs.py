@@ -44,12 +44,8 @@ JobStatus = Literal[
     "cancelled",
     "answered",
 ]
-TERMINAL: frozenset[str] = frozenset(
-    {"succeeded", "failed", "cancelled", "answered"}
-)
+TERMINAL: frozenset[str] = frozenset({"succeeded", "failed", "cancelled", "answered"})
 logger = logging.getLogger(__name__)
-
-
 
 
 @dataclass
@@ -77,6 +73,7 @@ class Job:
     telemetry: JobTelemetry = field(default_factory=JobTelemetry)
     step_progress: dict[str, int] = field(default_factory=dict)
     idempotency_key: str = ""
+    project_id: str = ""
     timeline_ready: bool = False
     deleted: bool = False
     cancel_event: threading.Event = field(
@@ -94,6 +91,7 @@ class Job:
             }
         return {
             "job_id": str(self.job_id),
+            "project_id": self.project_id,
             "status": self.status,
             "priority": self.priority,
             "attempts": self.attempts,
@@ -125,14 +123,10 @@ class Job:
         }
 
 
-
-
 def _string_dict(value: object, default: dict[str, str]) -> dict[str, str]:
     if isinstance(value, dict):
         return {
-            str(key).strip(): str(item).strip()
-            for key, item in value.items()
-            if str(key).strip()
+            str(key).strip(): str(item).strip() for key, item in value.items() if str(key).strip()
         }
     if isinstance(value, str):
         parsed: dict[str, str] = {}
@@ -225,6 +219,7 @@ def _caption_style(options: dict[str, object]) -> CaptionStyle:
         brand_vocabulary=_string_dict(options.get("caption_brand_vocabulary"), {}),
     )
 
+
 def _provider_value(capability: str, key: str) -> str:
     try:
         from videoflow.application.providers import first_provider
@@ -272,6 +267,7 @@ class JobManager:
         queue: bool = False,
         priority: int = 0,
         idempotency_key: str | None = None,
+        project_id: str = "",
     ) -> Job:
         key = (idempotency_key or "").strip()
         with self._lock:
@@ -289,9 +285,7 @@ class JobManager:
                     and existing.output == output_path
                 ):
                     raise JobAlreadyRunningError(existing.stage or str(existing.job_id))
-            active = sum(
-                1 for job in self._jobs.values() if job.status in {"running", "queued"}
-            )
+            active = sum(1 for job in self._jobs.values() if job.status in {"running", "queued"})
             if active >= self._max_active and not queue:
                 raise JobQueueFullError(
                     f"{self._max_active} jobs are already active. Wait or cancel one."
@@ -303,6 +297,7 @@ class JobManager:
                 finalizer=finalizer,
                 priority=priority,
                 idempotency_key=key,
+                project_id=str(project_id or (options or {}).get("project_id") or ""),
             )
             job.telemetry.job_id = str(job.job_id)
             self._jobs[str(job.job_id)] = job
@@ -314,6 +309,17 @@ class JobManager:
             else:
                 self._persist_job(job)
                 self._launch(job)
+        return job
+
+    def update_result(self, job_id: str, result: dict[str, Any]) -> Job:
+        """Replace a completed job result and persist it."""
+
+        with self._lock:
+            job = self._jobs.get(str(job_id))
+            if job is None:
+                job = self.get(str(job_id))
+            job.result = dict(result)
+            self._persist_job(job)
         return job
 
     def _ensure_retry_thread(self) -> None:
@@ -338,9 +344,7 @@ class JobManager:
             return False
         job.attempts += 1
         delay = max(0.0, float(job.options.get("retry_backoff_seconds", 5) or 0))
-        job.next_run = (
-            datetime.now(UTC) + timedelta(seconds=delay)
-        ).isoformat(timespec="seconds")
+        job.next_run = (datetime.now(UTC) + timedelta(seconds=delay)).isoformat(timespec="seconds")
         job.status = "queued"
         job.stage = "queued"
         job.message = f"Retry {job.attempts + 1}/{max_attempts} in {delay:g}s"
@@ -558,11 +562,7 @@ class JobManager:
         """Stop every queued or running job."""
 
         with self._lock:
-            ids = [
-                str(job.job_id)
-                for job in self._jobs.values()
-                if job.status not in TERMINAL
-            ]
+            ids = [str(job.job_id) for job in self._jobs.values() if job.status not in TERMINAL]
         stopped: list[Job] = []
         for job_id in ids:
             try:
@@ -572,6 +572,9 @@ class JobManager:
         return stopped
 
     def _work(self, job: Job) -> None:
+        if job.options.get("mode") == "render":
+            self._work_render(job)
+            return
         self._work_recipe(job)
 
     def _work_recipe(self, job: Job) -> None:
@@ -585,14 +588,94 @@ class JobManager:
             ),
         )
 
+    def _work_render(self, job: Job) -> None:
+        self._executor.run(
+            job,
+            self._run_render,
+            JobRunPolicy(write_failure=True, cancel_error=True),
+        )
+
+    def _run_render(self, job: Job, callbacks: Any) -> RunOutcome:
+        from videoflow.adapters.ffmpeg import FFmpegAdapter
+        from videoflow.application.artifacts import qa_artifacts
+        from videoflow.application.projects import get_project, load_project_state
+        from videoflow.application.render_inputs import render_inputs
+        from videoflow.exporters.mp4 import export_mp4
+
+        project_id = str(job.options.get("project_id") or job.project_id or "")
+        if not project_id:
+            raise ProjectStateError("Render job has no project_id")
+        record = get_project(project_id)
+        state = load_project_state(record)
+        if state.media_info is None:
+            raise ProjectStateError("Project has no media")
+        kind = str(job.options.get("kind") or "timeline")
+        destination = (
+            job.output / "render" / f"{kind}.mp4"
+            if kind != "preview"
+            else job.output / "preview" / "preview.mp4"
+        )
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        draft = max(0.1, min(1.0, float(job.options.get("draft_scale", 1.0) or 1.0)))
+        width = int(job.options.get("width") or 0)
+        height = int(job.options.get("height") or 0)
+        if width and not height:
+            height = round(width * state.media_info.height / max(1, state.media_info.width))
+        if height and not width:
+            width = round(height * state.media_info.width / max(1, state.media_info.height))
+        if not height:
+            height = max(64, round(state.media_info.height * draft))
+        if not width:
+            width = max(64, round(state.media_info.width * draft))
+        audio_filters, video_filters, ass_path = render_inputs(job)
+        adapter = FFmpegAdapter(cancel_event=job.cancel_event)
+
+        def progress(percent: int) -> None:
+            callbacks.progress("render", max(1, min(99, percent)), f"Rendering {percent}%")
+
+        export_mp4(
+            state,
+            destination,
+            adapter=adapter,
+            crf=int(job.options.get("crf", 20) or 20),
+            preset=str(job.options.get("preset") or "veryfast"),
+            audio_filters=audio_filters,
+            video_filters=video_filters,
+            ass_path=ass_path if ass_path.is_file() else None,
+            progress=progress,
+            scale_height=height,
+            cache_dir=job.output / "render" / "segments",
+        )
+        info = adapter.probe(destination)
+        loudness: dict[str, float] = {}
+        with contextlib.suppress(Exception):
+            loudness = adapter.measure_loudness(destination)
+        qa = qa_artifacts(job.output)
+        result = {
+            "output_path": str(destination),
+            "kind": kind,
+            "duration_sec": round(
+                info.duration_frames / max(0.001, info.fps_num / info.fps_den), 3
+            ),
+            "width": info.width,
+            "height": info.height,
+            "fps_num": info.fps_num,
+            "fps_den": info.fps_den,
+            "draft_scale": draft,
+            "lufs": loudness.get("integrated_lufs"),
+            "true_peak_db": loudness.get("true_peak_dbfs"),
+            "qa_status": "failed" if qa["defects"] else "passed" if qa["reports"] else "not_run",
+            "artifacts": [str(destination)],
+        }
+        return RunOutcome(result=result)
+
     def _run_recipe(self, job: Job, callbacks: Any) -> RunOutcome:
         from videoflow.core.recipe import Recipe
         from videoflow.engine.runner import RecipeRunner
 
         recipe = Recipe.model_validate(job.options.get("recipe") or {})
         transcript_sentences = [
-            Sentence.model_validate(item)
-            for item in job.options.get("transcript_sentences", [])
+            Sentence.model_validate(item) for item in job.options.get("transcript_sentences", [])
         ]
         from videoflow.adapters.ffmpeg import FFmpegAdapter
 
@@ -758,6 +841,7 @@ def _job_from_dict(payload: dict[str, Any]) -> Job:
         if isinstance(value, (int, float))
     }
     job.idempotency_key = str(payload.get("idempotency_key") or "")
+    job.project_id = str(payload.get("project_id") or "")
     job.timeline_ready = bool(payload.get("timeline_ready", False))
     job.pause_requested = bool(payload.get("pause_requested", False))
     job.priority = int(payload.get("priority", 0))

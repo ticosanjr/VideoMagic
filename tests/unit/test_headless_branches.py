@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import wave
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -13,7 +12,6 @@ from videoflow.application import sync
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import VideoFlowError
 from videoflow.domain.state import MediaInfo
-from videoflow.mcp_server.tools_headless import register_headless_tools
 from videoflow.steps import transcribe as transcribe_module
 from videoflow.steps.base import StepIO
 
@@ -39,50 +37,6 @@ def _context(tmp: Path) -> PipelineContext:
             audio_sample_rate=48000,
         ),
     )
-
-
-def _tools(tmp: Path, monkeypatch) -> dict[str, object]:
-    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp / "home"))
-    monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp))
-    context = _context(tmp)
-    job = SimpleNamespace(source=context.source, output=context.output, result={})
-    tools: dict[str, object] = {}
-
-    class FakeContext:
-        last: dict[str, object] = {}
-        manager = SimpleNamespace()
-
-        @staticmethod
-        def timeline_job(job_id=None):
-            return job
-
-        @staticmethod
-        def state_for_job(_job):
-            return context.state
-
-    def register(func):
-        tools[func.__name__] = func
-        return func
-
-    register_headless_tools(register, FakeContext())
-    return tools
-
-
-def test_headless_tool_error_branches(tmp_path: Path, monkeypatch) -> None:
-    tools = _tools(tmp_path, monkeypatch)
-    assert tools["vf_beatmap_execute"](manifest={"metadata": {}})["ok"] is False
-    assert (
-        tools["vf_beatmap_execute"](
-            manifest={"metadata": {"source": str(tmp_path / "source.mp4")}},
-            recipe_id="missing",
-        )["ok"]
-        is False
-    )
-    assert tools["vf_preview_archetypes"](job_id="missing")["ok"] is False
-    assert tools["vf_web_scene_preview"](root=str(tmp_path / "missing"))["ok"] is False
-    assert tools["vf_audio_patch_line"](text="")["ok"] is False
-    assert tools["vf_preset_rules"](channel_id="x", action="bad")["ok"] is False
-    assert tools["vf_style_clone"](channel_id="x")["ok"] is True
 
 
 def test_supports_keyword_and_available_mode_fallback(tmp_path: Path, monkeypatch) -> None:
@@ -196,17 +150,6 @@ def test_audio_patch_errors(tmp_path: Path, monkeypatch) -> None:
         )
 
 
-def test_more_tool_errors(tmp_path: Path, monkeypatch) -> None:
-    tools = _tools(tmp_path, monkeypatch)
-    assert tools["vf_preset_rules"](channel_id="x", action="update")["ok"] is True
-    assert tools["vf_preset_rules"](channel_id="x", action="delete", rule_id="none")["ok"] is True
-    assert tools["vf_preview_archetypes"](manifest={})["ok"] is True
-    assert tools["vf_audio_patch_line"](text="x", apply=True)["ok"] is False
-    assert (
-        tools["vf_nle_roundtrip"](target="fcpxml", path=str(tmp_path / "missing.fcpxml"))["ok"]
-        is True
-    )
-
 
 def test_screen_capture_clip_errors(tmp_path: Path, monkeypatch) -> None:
     from videoflow.steps import assets_screen_capture
@@ -234,15 +177,6 @@ def test_pacing_no_media_and_nle_mlt(tmp_path: Path) -> None:
     path.write_text("<mlt><playlist><entry in='0' out='9'/></playlist></mlt>", encoding="utf-8")
     assert nle_sync._clip_ranges(path, "mlt", 10.0)
 
-
-def test_tool_audio_and_style_errors(tmp_path: Path, monkeypatch) -> None:
-    tools = _tools(tmp_path, monkeypatch)
-    assert tools["vf_audio_patch_line"](sentence_id=99, text="x", apply=True)["ok"] is False
-    assert tools["vf_audio_patch_line"](text="x", apply=True)["ok"] is False
-    monkeypatch.delenv("VIDEOWFLOW_TTS_BASE_URL", raising=False)
-    assert tools["vf_audio_patch_line"](sentence_id=0, text="x", apply=True)["ok"] is False
-    assert tools["vf_preset_rules"](channel_id="x", action="add", text="")["ok"] is True
-    assert tools["vf_preset_rules"](channel_id="x", action="update")["ok"] is True
 
 
 def test_transcribe_model_kind_validation(tmp_path: Path, monkeypatch) -> None:

@@ -116,12 +116,7 @@ def build_scenes(
 
 
 def _dt(value: str) -> str:
-    return (
-        value.replace("\\", "\\\\")
-        .replace("'", "\\'")
-        .replace(":", "\\:")
-        .replace("%", "\\%")
-    )
+    return value.replace("\\", "\\\\").replace("'", "\\'").replace(":", "\\:").replace("%", "\\%")
 
 
 def _text_file(directory: Path, scene_id: str, name: str, text: str) -> Path:
@@ -135,6 +130,7 @@ def render_scene(
     output_dir: Path,
     *,
     timeout: int = 900,
+    draft_scale: float = 1.0,
 ) -> Path:
     binary = find_binary("ffmpeg")
     if binary is None:
@@ -142,8 +138,8 @@ def render_scene(
     output_dir.mkdir(parents=True, exist_ok=True)
     scene_id = str(scene.get("scene_id") or "SCENE")
     target = output_dir / f"{scene_id}.mp4"
-    width = int(scene.get("width") or 1920)
-    height = int(scene.get("height") or 1080)
+    width = max(16, int(int(scene.get("width") or 1920) * draft_scale))
+    height = max(16, int(int(scene.get("height") or 1080) * draft_scale))
     duration = max(1.0, float(scene.get("duration_sec") or 5.0))
     fps = int(scene.get("fps") or 30)
     background = str(scene.get("background") or "#080B10").lstrip("#")
@@ -173,9 +169,7 @@ def render_scene(
                 f"crop={width}:{height},setsar=1,trim=duration={duration:.3f},"
                 "setpts=PTS-STARTPTS[asset]"
             )
-            filter_parts.append(
-                "[0:v][asset]overlay=0:0:shortest=1:format=auto[base]"
-            )
+            filter_parts.append("[0:v][asset]overlay=0:0:shortest=1:format=auto[base]")
         else:
             filter_parts.append("[0:v]null[base]")
     else:
@@ -246,9 +240,7 @@ def render_scene(
         command, capture_output=True, text=True, timeout=timeout, check=False
     )
     if completed.returncode != 0:
-        raise RuntimeError(
-            f"Motion render failed for {scene_id}: {completed.stderr[-500:]}"
-        )
+        raise RuntimeError(f"Motion render failed for {scene_id}: {completed.stderr[-500:]}")
     return target
 
 

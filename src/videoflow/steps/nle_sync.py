@@ -375,6 +375,7 @@ class NleSyncStep(BaseStep):
             ducking_updates=ducking_updates,
             warnings=warnings,
         )
+        context.work.mkdir(parents=True, exist_ok=True)
         path = context.work / "nle_sync_report.json"
         path.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
         context.metadata["sync_back_report"] = report.model_dump(mode="json")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from pathlib import Path
 
@@ -29,8 +30,17 @@ def load_rulebook(channel_id: str) -> PresetRulebook:
     if not path.is_file():
         return PresetRulebook(channel_id=channel_id)
     try:
-        return PresetRulebook.model_validate_json(path.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
+        return PresetRulebook(channel_id=channel_id)
+    if not isinstance(payload, dict):
+        return PresetRulebook(channel_id=channel_id)
+    if "rules" in payload and "learned_rules" not in payload:
+        payload["learned_rules"] = payload.pop("rules")
+    payload.setdefault("schema_version", 2)
+    try:
+        return PresetRulebook.model_validate(payload)
+    except ValueError:
         return PresetRulebook(channel_id=channel_id)
 
 

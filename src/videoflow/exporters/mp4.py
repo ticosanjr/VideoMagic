@@ -40,10 +40,7 @@ def _zoom_expression(keyframes: Sequence[Any], span: int) -> str:
         start = round(start_at * span)
         end = round(end_at * span)
         width = max(1, end - start)
-        segment = (
-            f"{start_scale:g}+({end_scale:g}-{start_scale:g})"
-            f"*clip((on-{start})/{width},0,1)"
-        )
+        segment = f"{start_scale:g}+({end_scale:g}-{start_scale:g})*clip((on-{start})/{width},0,1)"
         expression = f"if(lt(on,{end}),{segment},{expression})"
     return expression
 
@@ -83,9 +80,7 @@ def _transform_filters(clip: VideoSegment, media: MediaInfo) -> list[str]:
     return filters
 
 
-def _video_filters(
-    clip: VideoSegment, media: MediaInfo, *, offset_frames: int = 0
-) -> list[str]:
+def _video_filters(clip: VideoSegment, media: MediaInfo, *, offset_frames: int = 0) -> list[str]:
     start = max(0, clip.source_in_frame - offset_frames)
     end = max(start + 1, clip.source_out_frame - offset_frames)
     filters = [
@@ -97,9 +92,7 @@ def _video_filters(
     return filters
 
 
-def _audio_filters(
-    clip: AudioSegment, media: MediaInfo, *, offset_samples: int = 0
-) -> list[str]:
+def _audio_filters(clip: AudioSegment, media: MediaInfo, *, offset_samples: int = 0) -> list[str]:
     sample_rate = media.audio_sample_rate
     duration = (clip.source_out_sample - clip.source_in_sample) / sample_rate
     start = max(0, clip.source_in_sample - offset_samples)
@@ -112,9 +105,7 @@ def _audio_filters(
         filters.append(f"afade=t=in:st=0:d={clip.fade_in_samples / sample_rate:.6f}")
     if clip.fade_out_samples > 0:
         start = max(0.0, duration - clip.fade_out_samples / sample_rate)
-        filters.append(
-            f"afade=t=out:st={start:.6f}:d={clip.fade_out_samples / sample_rate:.6f}"
-        )
+        filters.append(f"afade=t=out:st={start:.6f}:d={clip.fade_out_samples / sample_rate:.6f}")
     return filters
 
 
@@ -127,9 +118,7 @@ def build_filter_graph(state: ProjectState) -> tuple[str, str, str]:
     if not video or not audio:
         raise ExportError("Timeline needs both video and audio segments")
     fps = media.fps_num / media.fps_den
-    video_durations = [
-        (clip.timeline_out_frame - clip.timeline_in_frame) / fps for clip in video
-    ]
+    video_durations = [(clip.timeline_out_frame - clip.timeline_in_frame) / fps for clip in video]
     transitions = [clip.transition_out for clip in video[:-1]]
     chains: list[str] = []
     for index, clip in enumerate(video):
@@ -137,33 +126,24 @@ def build_filter_graph(state: ProjectState) -> tuple[str, str, str]:
         previous = transitions[index - 1] if index > 0 else None
         current = transitions[index] if index < len(transitions) else None
         if previous is not None and previous.type == "fade_to_black":
-            filters.append(
-                f"fade=t=in:st=0:d={previous.duration_frames / fps:.6f}"
-            )
+            filters.append(f"fade=t=in:st=0:d={previous.duration_frames / fps:.6f}")
         if current is not None and current.type == "fade_to_black":
             start = max(0.0, video_durations[index] - current.duration_frames / fps)
-            filters.append(
-                f"fade=t=out:st={start:.6f}:d={current.duration_frames / fps:.6f}"
-            )
+            filters.append(f"fade=t=out:st={start:.6f}:d={current.duration_frames / fps:.6f}")
         chains.append(f"[0:v]{','.join(filters)}[v{index}]")
     for index, clip in enumerate(audio):
         filters = _audio_filters(clip, media)
         previous = transitions[index - 1] if index > 0 else None
         current = transitions[index] if index < len(transitions) else None
         if previous is not None and previous.audio and previous.type == "fade_to_black":
-            filters.append(
-                f"afade=t=in:st=0:d={previous.duration_frames / fps:.6f}"
-            )
+            filters.append(f"afade=t=in:st=0:d={previous.duration_frames / fps:.6f}")
         if current is not None and current.audio and current.type == "fade_to_black":
             start = max(
                 0.0,
-                (clip.timeline_out_sample - clip.timeline_in_sample)
-                / media.audio_sample_rate
+                (clip.timeline_out_sample - clip.timeline_in_sample) / media.audio_sample_rate
                 - current.duration_frames / fps,
             )
-            filters.append(
-                f"afade=t=out:st={start:.6f}:d={current.duration_frames / fps:.6f}"
-            )
+            filters.append(f"afade=t=out:st={start:.6f}:d={current.duration_frames / fps:.6f}")
         chains.append(f"[0:a]{','.join(filters)}[a{index}]")
 
     video_inputs = "".join(f"[v{index}]" for index in range(len(video)))
@@ -178,11 +158,16 @@ PRE_ROLL_SECONDS = 1.0
 GROUP_CACHE_VERSION = 2
 
 
+def _is_multi_source(state: ProjectState) -> bool:
+    source_ids = {(clip.source_id or state.primary_source_id) for clip in state.video_segments}
+    source_ids.update((clip.source_id or state.primary_source_id) for clip in state.audio_segments)
+    return len({item for item in source_ids if item}) > 1
+
+
 def _has_crossfade(state: ProjectState) -> bool:
     video = sorted(state.video_segments, key=lambda item: item.timeline_in_frame)
     return any(
-        clip.transition_out is not None
-        and clip.transition_out.type == "crossfade"
+        clip.transition_out is not None and clip.transition_out.type == "crossfade"
         for clip in video[:-1]
     )
 
@@ -191,9 +176,7 @@ def timeline_render_frames(state: ProjectState) -> int:
     """Frames produced after crossfades shorten the packed timeline."""
 
     video = sorted(state.video_segments, key=lambda item: item.timeline_in_frame)
-    total = sum(
-        clip.timeline_out_frame - clip.timeline_in_frame for clip in video
-    )
+    total = sum(clip.timeline_out_frame - clip.timeline_in_frame for clip in video)
     for clip in video[:-1]:
         transition = clip.transition_out
         if transition is not None and transition.type == "crossfade":
@@ -214,10 +197,17 @@ def _audio_graph_inputs(
     inputs: list[str] = []
     chains: list[str] = []
     for index, clip in enumerate(audio):
-        pre_roll = min(clip.source_in_sample, sample_rate)
+        clip_media = state.audio_media(clip) or media
+        clip_rate = clip_media.audio_sample_rate
+        pre_roll = min(clip.source_in_sample, clip_rate)
         seek_sample = clip.source_in_sample - pre_roll
         inputs.extend(
-            ["-ss", f"{seek_sample / sample_rate:.6f}", "-i", str(source)]
+            [
+                "-ss",
+                f"{seek_sample / clip_rate:.6f}",
+                "-i",
+                str(Path(clip_media.source_path).expanduser()),
+            ]
         )
         filters = _audio_filters(clip, media, offset_samples=seek_sample)
         previous = transitions[index - 1] if index > 0 else None
@@ -227,13 +217,10 @@ def _audio_graph_inputs(
         if current is not None and current.audio and current.type == "fade_to_black":
             start = max(
                 0.0,
-                (clip.timeline_out_sample - clip.timeline_in_sample)
-                / sample_rate
+                (clip.timeline_out_sample - clip.timeline_in_sample) / sample_rate
                 - current.duration_frames / fps,
             )
-            filters.append(
-                f"afade=t=out:st={start:.6f}:d={current.duration_frames / fps:.6f}"
-            )
+            filters.append(f"afade=t=out:st={start:.6f}:d={current.duration_frames / fps:.6f}")
         chains.append(f"[{index}:a]{','.join(filters)}[a{index}]")
 
     current_audio = "[a0]"
@@ -241,17 +228,11 @@ def _audio_graph_inputs(
         if transition is not None and transition.type == "crossfade":
             duration = transition.duration_frames / fps
             if transition.audio:
-                chains.append(
-                    f"{current_audio}[a{index}]acrossfade=d={duration:.6f}[ax{index}]"
-                )
+                chains.append(f"{current_audio}[a{index}]acrossfade=d={duration:.6f}[ax{index}]")
             else:
-                chains.append(
-                    f"{current_audio}[a{index}]concat=n=2:v=0:a=1[ax{index}]"
-                )
+                chains.append(f"{current_audio}[a{index}]concat=n=2:v=0:a=1[ax{index}]")
         else:
-            chains.append(
-                f"{current_audio}[a{index}]concat=n=2:v=0:a=1[ax{index}]"
-            )
+            chains.append(f"{current_audio}[a{index}]concat=n=2:v=0:a=1[ax{index}]")
         current_audio = f"[ax{index}]"
     chains.append(f"{current_audio}anull[aout]")
     return inputs, ";".join(chains)
@@ -281,8 +262,10 @@ def _video_segment_filters(
     transitions: Sequence[Any] | None = None,
     offset_frames: int = 0,
 ) -> list[str]:
-    clips = list(video) if video is not None else sorted(
-        state.video_segments, key=lambda item: item.timeline_in_frame
+    clips = (
+        list(video)
+        if video is not None
+        else sorted(state.video_segments, key=lambda item: item.timeline_in_frame)
     )
     clip = clips[index]
     edges = (
@@ -314,19 +297,22 @@ def _group_key(
     scale_height: int | None,
 ) -> str:
     video = sorted(state.video_segments, key=lambda item: item.timeline_in_frame)
-    stat = source.stat()
+    source_signatures = []
+    for index in group:
+        clip_media = state.video_media(video[index]) or media
+        clip_path = Path(clip_media.source_path).expanduser()
+        stat = clip_path.stat()
+        source_signatures.append([str(clip_path.resolve()), stat.st_size, stat.st_mtime_ns])
     payload = {
         "version": GROUP_CACHE_VERSION,
-        "source": [str(source.resolve()), stat.st_size, stat.st_mtime_ns],
+        "sources": source_signatures,
         "fps": [media.fps_num, media.fps_den],
         "crf": crf,
         "preset": preset,
         "scale_height": scale_height,
         "clips": [video[index].model_dump(mode="json") for index in group],
     }
-    return hashlib.sha256(
-        json.dumps(payload, sort_keys=True).encode("utf-8")
-    ).hexdigest()[:24]
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()[:24]
 
 
 def _render_video_group(
@@ -362,11 +348,18 @@ def _render_video_group(
     durations: list[float] = []
     for slot, clip_index in enumerate(group):
         clip = video[clip_index]
-        pre_roll = min(
-            clip.source_in_frame, max(1, int(round(fps * PRE_ROLL_SECONDS)))
-        )
+        pre_roll = min(clip.source_in_frame, max(1, int(round(fps * PRE_ROLL_SECONDS))))
         seek_frame = clip.source_in_frame - pre_roll
-        inputs.extend(["-ss", f"{seek_frame / fps:.6f}", "-i", str(source)])
+        clip_media = state.video_media(clip) or media
+        clip_fps = clip_media.fps_num / clip_media.fps_den
+        inputs.extend(
+            [
+                "-ss",
+                f"{seek_frame / clip_fps:.6f}",
+                "-i",
+                str(Path(clip_media.source_path).expanduser()),
+            ]
+        )
         filters = _video_segment_filters(
             state,
             media,
@@ -376,9 +369,7 @@ def _render_video_group(
             offset_frames=seek_frame,
         )
         chains.append(f"[{slot}:v]{','.join(filters)}[c{slot}]")
-        durations.append(
-            (clip.timeline_out_frame - clip.timeline_in_frame) / fps
-        )
+        durations.append((clip.timeline_out_frame - clip.timeline_in_frame) / fps)
 
     label = "[c0]"
     if len(group) > 1:
@@ -457,15 +448,11 @@ def _export_mp4_segmented(
     renderer = adapter or FFmpegAdapter()
     source = Path(media.source_path).expanduser()
     segments_dir = (
-        Path(cache_dir).expanduser()
-        if cache_dir is not None
-        else destination.parent / "segments"
+        Path(cache_dir).expanduser() if cache_dir is not None else destination.parent / "segments"
     )
     groups = _video_groups(video)
     total_groups = max(1, len(groups))
-    with tempfile.TemporaryDirectory(
-        prefix="videoflow-render-", dir=destination.parent
-    ) as tmp:
+    with tempfile.TemporaryDirectory(prefix="videoflow-render-", dir=destination.parent) as tmp:
         directory = Path(tmp)
         group_files: list[Path] = []
         for group_index, group in enumerate(groups):
@@ -553,11 +540,7 @@ def _export_mp4_segmented(
                 str(combined),
             ]
         )
-        has_video_finishing = (
-            bool(video_filters)
-            or ass_path is not None
-            or bool(state.overlays)
-        )
+        has_video_finishing = bool(video_filters) or ass_path is not None or bool(state.overlays)
         if not has_video_finishing:
             shutil.move(str(combined), str(destination))
             if progress is not None:
@@ -593,6 +576,7 @@ def _export_mp4_segmented(
             ],
             overlays=list(state.overlays),
         )
+
         def wrapped(value: int) -> None:
             if progress is not None:
                 progress(min(100, 60 + int(max(0, min(100, value)) * 0.4)))
@@ -635,7 +619,11 @@ def export_mp4(
     if media is None:
         raise ExportError("Project has no media")
     destination = Path(output_path).expanduser()
-    if len(state.video_segments) > SEGMENT_THRESHOLD or _has_crossfade(state):
+    if (
+        len(state.video_segments) > SEGMENT_THRESHOLD
+        or _has_crossfade(state)
+        or _is_multi_source(state)
+    ):
         return _export_mp4_segmented(
             state,
             destination,
@@ -649,9 +637,7 @@ def export_mp4(
             scale_height=scale_height,
             cache_dir=cache_dir,
         )
-    temporary = destination.with_name(
-        f".{destination.stem}.{uuid4().hex}.part.mp4"
-    )
+    temporary = destination.with_name(f".{destination.stem}.{uuid4().hex}.part.mp4")
     try:
         _render_classic_mp4(
             state,
@@ -714,9 +700,7 @@ def _render_classic_mp4(
         if overlay.kind == "image":
             overlay_inputs.extend(["-loop", "1", "-t", f"{duration:.6f}", "-i", str(path)])
         else:
-            overlay_inputs.extend(
-                ["-stream_loop", "-1", "-t", f"{duration:.6f}", "-i", str(path)]
-            )
+            overlay_inputs.extend(["-stream_loop", "-1", "-t", f"{duration:.6f}", "-i", str(path)])
         overlay_chains.append(
             f"[{input_index}:v]scale=trunc(iw*{overlay.width_ratio:.4f}/2)*2:-2,"
             f"format=rgba,colorchannelmixer=aa={overlay.opacity:.3f},"
@@ -747,32 +731,32 @@ def _render_classic_mp4(
             progress(min(99, max(1, int(frame / total_frames * 100))))
 
     command = [
-            "-i",
-            str(Path(media.source_path).expanduser()),
-            *overlay_inputs,
-            "-filter_complex",
-            graph,
-            "-map",
-            video_label,
-            "-map",
-            audio_label,
-            "-c:v",
-            "libx264",
-            "-preset",
-            preset,
-            "-crf",
-            str(crf),
-            "-pix_fmt",
-            "yuv420p",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
-            "-movflags",
-            "+faststart",
-            "-shortest",
-            str(destination),
-        ]
+        "-i",
+        str(Path(media.source_path).expanduser()),
+        *overlay_inputs,
+        "-filter_complex",
+        graph,
+        "-map",
+        video_label,
+        "-map",
+        audio_label,
+        "-c:v",
+        "libx264",
+        "-preset",
+        preset,
+        "-crf",
+        str(crf),
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-movflags",
+        "+faststart",
+        "-shortest",
+        str(destination),
+    ]
     if progress is not None:
         renderer.render(command, progress=frame_progress)
     else:

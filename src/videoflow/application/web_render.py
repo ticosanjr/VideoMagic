@@ -7,6 +7,8 @@ Node server. Remotion/Hyperframes projects keep using their own CLI command.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import subprocess
 from pathlib import Path
 
@@ -48,6 +50,44 @@ def _screenshot(
     return completed.returncode == 0 and target.is_file()
 
 
+def _scene_cache_key(
+    root: Path,
+    page: Path,
+    *,
+    duration_sec: float,
+    fps: int,
+    width: int,
+    height: int,
+    alpha: bool,
+    draft_scale: float,
+    browser: str,
+) -> str:
+    hasher = hashlib.sha256()
+    files = [page] if page.is_file() else []
+    if root.is_dir():
+        files.extend(path for path in sorted(root.rglob("*")) if path.is_file() and path != page)
+    for path in files:
+        hasher.update(str(path.relative_to(root)).encode("utf-8"))
+        hasher.update(path.read_bytes())
+    browser_stat = Path(browser).stat() if Path(browser).is_file() else None
+    hasher.update(
+        json.dumps(
+            {
+                "duration": round(duration_sec, 4),
+                "fps": fps,
+                "width": width,
+                "height": height,
+                "alpha": alpha,
+                "draft_scale": round(draft_scale, 4),
+                "browser": browser,
+                "browser_mtime": browser_stat.st_mtime_ns if browser_stat else 0,
+            },
+            sort_keys=True,
+        ).encode("utf-8")
+    )
+    return hasher.hexdigest()
+
+
 def render_html_scene(  # pragma: no cover - external Chromium runtime
     project: Path,
     entry: str,
@@ -59,6 +99,7 @@ def render_html_scene(  # pragma: no cover - external Chromium runtime
     height: int = 1080,
     alpha: bool = False,
     draft_scale: float = 1.0,
+    timeout: float = 900.0,
 ) -> Path:
     browser = browser_binary()
     if browser is None:
@@ -71,6 +112,25 @@ def render_html_scene(  # pragma: no cover - external Chromium runtime
     frame_height = max(16, int(height * draft_scale))
     target = Path(output).expanduser()
     target.parent.mkdir(parents=True, exist_ok=True)
+    cache_key = _scene_cache_key(
+        root,
+        page,
+        duration_sec=duration_sec,
+        fps=fps,
+        width=width,
+        height=height,
+        alpha=alpha,
+        draft_scale=draft_scale,
+        browser=browser,
+    )
+    cache_path = target.with_suffix(target.suffix + ".cache.json")
+    if target.is_file() and target.stat().st_size > 0 and cache_path.is_file():
+        try:
+            cached = json.loads(cache_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            cached = {}
+        if isinstance(cached, dict) and cached.get("key") == cache_key:
+            return target
     frames = target.parent / f".{target.stem}-frames"
     if frames.exists():
         for item in frames.iterdir():
@@ -131,6 +191,10 @@ def render_html_scene(  # pragma: no cover - external Chromium runtime
         for item in frames.iterdir():
             item.unlink()
         frames.rmdir()
+    cache_path.write_text(
+        json.dumps({"key": cache_key, "target": str(target)}, indent=2) + "\n",
+        encoding="utf-8",
+    )
     return target
 
 

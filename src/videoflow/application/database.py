@@ -47,11 +47,9 @@ def _create_schema(connection: sqlite3.Connection) -> None:
         "status TEXT, priority INTEGER DEFAULT 0, attempts INTEGER DEFAULT 0, "
         "next_run TEXT, lease_expires TEXT, progress INTEGER DEFAULT 0, "
         "source TEXT, output TEXT, recipe TEXT, variables TEXT, "
-        "created_at TEXT, started_at TEXT, finished_at TEXT)"
+        "project_id TEXT, created_at TEXT, started_at TEXT, finished_at TEXT)"
     )
-    existing = {
-        row[1] for row in connection.execute("PRAGMA table_info(jobs)").fetchall()
-    }
+    existing = {row[1] for row in connection.execute("PRAGMA table_info(jobs)").fetchall()}
     for column, definition in (
         ("status", "TEXT"),
         ("priority", "INTEGER DEFAULT 0"),
@@ -63,6 +61,7 @@ def _create_schema(connection: sqlite3.Connection) -> None:
         ("output", "TEXT"),
         ("recipe", "TEXT"),
         ("variables", "TEXT"),
+        ("project_id", "TEXT"),
         ("created_at", "TEXT"),
         ("started_at", "TEXT"),
         ("finished_at", "TEXT"),
@@ -78,11 +77,13 @@ def _create_schema(connection: sqlite3.Connection) -> None:
         "batch_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)"
     )
     connection.execute(
-        "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+        "CREATE TABLE IF NOT EXISTS projects ("
+        "project_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)"
     )
     connection.execute(
-        "INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', '1')"
+        "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
     )
+    connection.execute("INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', '1')")
 
 
 def connect() -> sqlite3.Connection:
@@ -102,8 +103,6 @@ def connect() -> sqlite3.Connection:
     return connection
 
 
-
-
 def upsert_job(job_id: str, payload: dict[str, Any]) -> None:
     try:
         with contextlib.closing(connect()) as connection:
@@ -111,8 +110,8 @@ def upsert_job(job_id: str, payload: dict[str, Any]) -> None:
                 "INSERT OR REPLACE INTO jobs ("
                 "job_id, payload, updated_at, status, priority, attempts, next_run, "
                 "lease_expires, progress, source, output, recipe, variables, "
-                "created_at, started_at, finished_at"
-                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "project_id, created_at, started_at, finished_at"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     job_id,
                     json.dumps(payload, sort_keys=True),
@@ -127,6 +126,7 @@ def upsert_job(job_id: str, payload: dict[str, Any]) -> None:
                     str(payload.get("output") or ""),
                     str((payload.get("options") or {}).get("recipe_id") or ""),
                     json.dumps(payload.get("options") or {}, sort_keys=True),
+                    str(payload.get("project_id") or ""),
                     str(payload.get("created_at") or ""),
                     str(payload.get("started_at") or ""),
                     str(payload.get("finished_at") or ""),
@@ -137,14 +137,67 @@ def upsert_job(job_id: str, payload: dict[str, Any]) -> None:
         _set_error(f"could not persist job {job_id}: {exc}")
 
 
-def list_jobs() -> list[dict[str, Any]]:
+def upsert_project(project_id: str, payload: dict[str, Any]) -> None:
+    try:
+        with contextlib.closing(connect()) as connection:
+            connection.execute(
+                "INSERT OR REPLACE INTO projects (project_id, payload, updated_at) "
+                "VALUES (?, ?, ?)",
+                (project_id, json.dumps(payload, sort_keys=True), _now()),
+            )
+            connection.commit()
+    except sqlite3.Error as exc:
+        _set_error(f"could not persist project {project_id}: {exc}")
+
+
+def get_project(project_id: str) -> dict[str, Any] | None:
+    if not db_path().is_file():
+        return None
+    try:
+        with contextlib.closing(connect()) as connection:
+            row = connection.execute(
+                "SELECT payload FROM projects WHERE project_id = ?", (project_id,)
+            ).fetchone()
+    except sqlite3.Error as exc:
+        _set_error(f"could not read project {project_id}: {exc}")
+        return None
+    if row is None:
+        return None
+    try:
+        payload = json.loads(str(row[0]))
+    except ValueError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def list_projects() -> list[dict[str, Any]]:
     if not db_path().is_file():
         return []
     try:
         with contextlib.closing(connect()) as connection:
             rows = connection.execute(
-                "SELECT payload FROM jobs ORDER BY updated_at"
+                "SELECT payload FROM projects ORDER BY updated_at DESC"
             ).fetchall()
+    except sqlite3.Error as exc:
+        _set_error(f"could not read projects: {exc}")
+        return []
+    payloads: list[dict[str, Any]] = []
+    for row in rows:
+        try:
+            payload = json.loads(str(row[0]))
+        except ValueError:
+            continue
+        if isinstance(payload, dict):
+            payloads.append(payload)
+    return payloads
+
+
+def list_jobs() -> list[dict[str, Any]]:
+    if not db_path().is_file():
+        return []
+    try:
+        with contextlib.closing(connect()) as connection:
+            rows = connection.execute("SELECT payload FROM jobs ORDER BY updated_at").fetchall()
     except sqlite3.Error as exc:
         _set_error(f"could not read jobs: {exc}")
         return []
@@ -174,8 +227,7 @@ def upsert_assets(items: list[tuple[str, dict[str, Any]]]) -> None:
         with contextlib.closing(connect()) as connection:
             now = _now()
             connection.executemany(
-                "INSERT OR REPLACE INTO assets (asset_id, payload, updated_at) "
-                "VALUES (?, ?, ?)",
+                "INSERT OR REPLACE INTO assets (asset_id, payload, updated_at) VALUES (?, ?, ?)",
                 [
                     (asset_id, json.dumps(payload, sort_keys=True), now)
                     for asset_id, payload in items
@@ -231,9 +283,7 @@ def list_batches() -> list[dict[str, Any]]:
         return []
     try:
         with contextlib.closing(connect()) as connection:
-            rows = connection.execute(
-                "SELECT payload FROM batches ORDER BY updated_at"
-            ).fetchall()
+            rows = connection.execute("SELECT payload FROM batches ORDER BY updated_at").fetchall()
     except sqlite3.Error as exc:
         _set_error(f"could not read batches: {exc}")
         return []
@@ -372,9 +422,7 @@ def migrate_home() -> dict[str, object]:
 
     imported = {"jobs": 0, "assets": 0, "batches": 0}
     jobs_dir = portable_home() / "jobs"
-    known_jobs = {
-        str(payload.get("job_id") or "") for payload in list_jobs()
-    }
+    known_jobs = {str(payload.get("job_id") or "") for payload in list_jobs()}
     if jobs_dir.is_dir():
         for path in jobs_dir.glob("*.json"):
             try:
@@ -398,9 +446,7 @@ def migrate_home() -> dict[str, object]:
         except (OSError, ValueError):
             pass
     batches_dir = portable_home() / "batches"
-    known_batches = {
-        str(payload.get("batch_id") or "") for payload in list_batches()
-    }
+    known_batches = {str(payload.get("batch_id") or "") for payload in list_batches()}
     if batches_dir.is_dir():
         for path in batches_dir.glob("*.json"):
             try:

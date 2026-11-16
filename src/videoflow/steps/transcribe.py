@@ -340,7 +340,10 @@ class TranscribeStep(BaseStep):
         io.report(45, "Calling speech-to-text")
         adapter = adapter_for(context, io)
         audio_path = Path(context.source)
-        if options.audio_source == "master":
+        session_audio = context.metadata.get("session_audio")
+        if options.audio_source == "source" and isinstance(session_audio, str):
+            audio_path = Path(session_audio)
+        elif options.audio_source == "master":
             audio_path = Path(context.artifacts.get("audio_master") or context.source)
         elif options.audio_source == "isolated":
             audio_path = Path(context.artifacts.get("audio_isolated") or context.source)

@@ -1,5 +1,29 @@
 # Changelog
 
+## [2.85.0] - 2026-11-16
+
+### Added
+
+- **Production OpenCode MCP profile.** The public MCP surface is now 22
+  project-scoped `vf_*` tools with explicit `project_id` values, per-project
+  resources, optimistic revision checks, and no process-global active project.
+- **Multi-source projects.** `ProjectState` carries multiple sources and every
+  video/audio segment references a `source_id`. `session.ingest` orders,
+  normalizes, and builds a packed multi-source timeline; `session.cull` applies
+  retakes across file boundaries.
+- **Multicam sync.** `sync.multicam_audio` reports audio offset, drift, and
+  confidence from normalized cross-correlation.
+- **Observability.** `vf_get_step_logs` returns bounded logs, commands, stage
+  timings, and peak RSS. `vf_get_qa_artifacts` returns failed frames as MCP image
+  content for VLM inspection.
+- **Async render contract.** `vf_render_start`, `vf_wait_job`, and
+  `vf_get_artifact` replace blocking render calls.
+- **Preset schema v2.** Hard constraints are separate from learned rules
+  (maximum 15), and channel kits bundle fonts, LUT, music, SFX, captions, and
+  intro/outro assets.
+- **Resolve bridge.** Optional DaVinci Resolve Studio scripting for push, pull,
+  and sync-back with FCPXML fallback.
+
 ## [2.80.0] - 2026-11-15
 
 ### Added

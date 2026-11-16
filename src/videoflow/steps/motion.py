@@ -57,11 +57,7 @@ class MotionCodegenStep(BaseStep):
         units_payload = _read_json(context.output / options.units_path, {})
         style_payload = _read_json(context.output / options.style_path, {})
         assignments_payload = _read_json(context.output / options.assignments_path, {})
-        units = (
-            units_payload.get("units", [])
-            if isinstance(units_payload, dict)
-            else units_payload
-        )
+        units = units_payload.get("units", []) if isinstance(units_payload, dict) else units_payload
         style = style_payload if isinstance(style_payload, dict) else {}
         assignments = (
             assignments_payload.get("assignments", [])
@@ -146,9 +142,7 @@ class MotionRenderStep(BaseStep):
         context.artifacts["motion_plan"] = str(plan_path)
         context.metadata["motion_plan"] = plan
         if not options.render:
-            context.artifacts["motion_manifest"] = str(
-                write_render_manifest(context.output, [])
-            )
+            context.artifacts["motion_manifest"] = str(write_render_manifest(context.output, []))
             io.report(100, "Motion render disabled")
             return
         if options.engine != "ffmpeg":
@@ -160,9 +154,7 @@ class MotionRenderStep(BaseStep):
         scenes = payload.get("scenes") if isinstance(payload, dict) else []
         if not isinstance(scenes, list) or not scenes:
             context.warnings.append("Motion render skipped: no scenes generated.")
-            context.artifacts["motion_manifest"] = str(
-                write_render_manifest(context.output, [])
-            )
+            context.artifacts["motion_manifest"] = str(write_render_manifest(context.output, []))
             io.report(100, "No motion scenes; render skipped")
             return
         rendered: list[dict[str, object]] = []
@@ -175,7 +167,11 @@ class MotionRenderStep(BaseStep):
                 f"Rendering motion scene {index}",
             )
             try:
-                path = render_scene(scene, context.output / "motion" / "rendered")
+                path = render_scene(
+                    scene,
+                    context.output / "motion" / "rendered",
+                    draft_scale=options.draft_scale,
+                )
                 rendered.append(
                     {
                         "scene_id": scene.get("scene_id"),

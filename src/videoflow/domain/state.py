@@ -116,6 +116,7 @@ class Transition(StrictModel):
 
 class VideoSegment(StrictModel):
     clip_id: str = Field(min_length=1)
+    source_id: str = ""
     source_in_frame: int = Field(ge=0)
     source_out_frame: int = Field(ge=0)
     timeline_in_frame: int = Field(ge=0)
@@ -134,6 +135,7 @@ class VideoSegment(StrictModel):
 
 class AudioSegment(StrictModel):
     clip_id: str = Field(min_length=1)
+    source_id: str = ""
     source_in_sample: int = Field(ge=0)
     source_out_sample: int = Field(ge=0)
     timeline_in_sample: int = Field(ge=0)
@@ -209,6 +211,9 @@ class ProjectState(StrictModel):
     project_id: UUID = Field(default_factory=uuid4)
     revision: int = Field(default=1, ge=1)
     media_info: MediaInfo | None = None
+    sources: dict[str, MediaInfo] = Field(default_factory=dict)
+    primary_source_id: str = ""
+    source_offsets: dict[str, int] = Field(default_factory=dict)
     modules_config: ModulesConfig = Field(default_factory=ModulesConfig)
     module_enabled: ModuleEnabled = Field(default_factory=ModuleEnabled)
     cache_hashes: dict[str, str] = Field(default_factory=dict)
@@ -228,7 +233,44 @@ class ProjectState(StrictModel):
         ids = [sentence.id for sentence in self.transcript]
         if len(ids) != len(set(ids)):
             raise ValueError("transcript sentence ids must be unique")
+        if self.sources:
+            if self.primary_source_id and self.primary_source_id not in self.sources:
+                raise ValueError("primary_source_id is not present in sources")
+            if not self.primary_source_id:
+                self.primary_source_id = next(iter(self.sources))
+            if self.media_info is None:
+                self.media_info = self.sources[self.primary_source_id]
+            for segment in self.video_segments:
+                if not segment.source_id:
+                    segment.source_id = self.primary_source_id
+                if segment.source_id not in self.sources:
+                    raise ValueError(f"video segment source_id is unknown: {segment.source_id}")
+            for segment in self.audio_segments:
+                if not segment.source_id:
+                    segment.source_id = self.primary_source_id
+                if segment.source_id not in self.sources:
+                    raise ValueError(f"audio segment source_id is unknown: {segment.source_id}")
         return self
+
+    def source_media(self, source_id: str | None = None) -> MediaInfo | None:
+        """Resolve a source id to media info, falling back to the primary."""
+
+        resolved = source_id or self.primary_source_id
+        if resolved and resolved in self.sources:
+            return self.sources[resolved]
+        return self.media_info
+
+    def video_media(self, clip: VideoSegment) -> MediaInfo | None:
+        return self.source_media(clip.source_id)
+
+    def audio_media(self, clip: AudioSegment) -> MediaInfo | None:
+        return self.source_media(clip.source_id)
+
+    def add_source(self, source_id: str, media: MediaInfo, *, primary: bool = False) -> None:
+        self.sources[source_id] = media
+        if primary or not self.primary_source_id:
+            self.primary_source_id = source_id
+            self.media_info = media
 
 
 class LlmRetakeResponse(StrictModel):

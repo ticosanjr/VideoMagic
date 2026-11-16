@@ -86,6 +86,11 @@
           "title": "Fade Out Samples",
           "type": "integer"
         },
+        "source_id": {
+          "default": "",
+          "title": "Source Id",
+          "type": "string"
+        },
         "source_in_sample": {
           "minimum": 0,
           "title": "Source In Sample",
@@ -1707,6 +1712,11 @@
           "title": "Clip Id",
           "type": "string"
         },
+        "source_id": {
+          "default": "",
+          "title": "Source Id",
+          "type": "string"
+        },
         "source_in_frame": {
           "minimum": 0,
           "title": "Source In Frame",
@@ -1904,6 +1914,11 @@
       "title": "Overlays",
       "type": "array"
     },
+    "primary_source_id": {
+      "default": "",
+      "title": "Primary Source Id",
+      "type": "string"
+    },
     "project_id": {
       "format": "uuid",
       "title": "Project Id",
@@ -1934,6 +1949,20 @@
       "default": 1,
       "title": "Schema Version",
       "type": "integer"
+    },
+    "source_offsets": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Source Offsets",
+      "type": "object"
+    },
+    "sources": {
+      "additionalProperties": {
+        "$ref": "#/$defs/MediaInfo"
+      },
+      "title": "Sources",
+      "type": "object"
     },
     "transcript": {
       "items": {

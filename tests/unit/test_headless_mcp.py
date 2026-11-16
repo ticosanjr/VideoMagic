@@ -40,18 +40,17 @@ def _context(tmp: Path) -> PipelineContext:
     )
 
 
-def test_mcp_surface_has_82_tools_and_9_resources() -> None:
-    assert len(TOOL_SPECS) == 82
-    assert len(RESOURCE_SPECS) == 9
+def test_mcp_surface_has_22_agent_tools_and_9_resources() -> None:
+    assert len(TOOL_SPECS) == 22
+    assert len(RESOURCE_SPECS) == 11
     assert {spec.name for spec in TOOL_SPECS} >= {
-        "vf_beatmap_execute",
-        "vf_preview_archetypes",
-        "vf_web_scene_preview",
-        "vf_audio_patch_line",
+        "vf_project_init",
+        "vf_project_status",
+        "vf_ingest_session",
+        "vf_sync_multicam",
+        "vf_get_qa_artifacts",
+        "vf_render_start",
         "vf_nle_roundtrip",
-        "vf_qa_inspect_window",
-        "vf_preset_rules",
-        "vf_style_clone",
     }
 
 
@@ -75,9 +74,7 @@ def test_beat_map_round_trip() -> None:
     beat_map = BeatMap.model_validate(
         {
             "project_id": "demo",
-            "scenes": [
-                {"id": "s1", "start_sec": 0.0, "end_sec": 2.0, "visual": "hook"}
-            ],
+            "scenes": [{"id": "s1", "start_sec": 0.0, "end_sec": 2.0, "visual": "hook"}],
         }
     )
     assert beat_map.scenes[0].archetype == "talking_head"

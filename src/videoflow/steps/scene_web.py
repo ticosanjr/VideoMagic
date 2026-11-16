@@ -85,11 +85,7 @@ class SceneCodegenStep(BaseStep):
         options = SceneCodegenParams.model_validate(params)
         units_payload = _read_json(context.output / options.units_path, {})
         style_payload = _read_json(context.output / options.style_path, {})
-        units = (
-            units_payload.get("units", [])
-            if isinstance(units_payload, dict)
-            else units_payload
-        )
+        units = units_payload.get("units", []) if isinstance(units_payload, dict) else units_payload
         style = style_payload if isinstance(style_payload, dict) else {}
         assets = _assignments(context, options.assignments_path)
         scenes = build_scenes(
@@ -122,8 +118,7 @@ class SceneCodegenStep(BaseStep):
         target = context.output / "motion" / "scenes.json"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(
-            json.dumps({"scenes": scenes, "count": len(scenes)}, indent=2)
-            + "\n",
+            json.dumps({"scenes": scenes, "count": len(scenes)}, indent=2) + "\n",
             encoding="utf-8",
         )
         manifest = write_manifest(code_dir, scenes)
@@ -203,7 +198,8 @@ class SceneRenderStep(BaseStep):
                 if html_path.is_file():
                     try:
                         rendered_path = render_html_scene(
-                            html_path,
+                            context.output / "motion" / "code",
+                            f"{scene_id}.html",
                             target,
                             duration_sec=duration,
                             fps=options.fps,
@@ -278,9 +274,7 @@ class SceneAssembleStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = SceneAssembleParams.model_validate(params)
-        payload = _read_json(
-            context.output / "motion" / "render-manifest.json", {}
-        )
+        payload = _read_json(context.output / "motion" / "render-manifest.json", {})
         scenes = payload.get("scenes", []) if isinstance(payload, dict) else []
         paths = [
             Path(str(item.get("path")))
@@ -299,9 +293,7 @@ class SceneAssembleStep(BaseStep):
         )
         if not paths:
             raise ExportError("Scene assembly found no rendered clips.")
-        audio_value = context.artifacts.get("audio_mix") or context.artifacts.get(
-            "audio_master"
-        )
+        audio_value = context.artifacts.get("audio_mix") or context.artifacts.get("audio_master")
         audio = Path(audio_value) if audio_value else context.output / "audio" / "final.wav"
         if not audio.is_file() and not options.allow_silent:
             raise ExportError("Scene assembly needs the final audio mix.")
@@ -327,7 +319,6 @@ class SceneAssembleStep(BaseStep):
     def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
         path = context.artifacts.get("video_draft")
         return (Path(path),) if path else ()
-
 
 
 class ExportMasterParams(BaseModel):
@@ -366,9 +357,7 @@ class ExportMasterStep(BaseStep):
             "vision_qa": context.metadata.get("vision_qa", {}),
         }
         report_path = directory / f"{target.stem}.json"
-        report_path.write_text(
-            json.dumps(report, indent=2) + "\n", encoding="utf-8"
-        )
+        report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         context.artifacts["video"] = str(target)
         context.artifacts["video_master"] = str(target)
         context.artifacts["master_report"] = str(report_path)

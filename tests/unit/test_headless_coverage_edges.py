@@ -12,7 +12,6 @@ from videoflow.application.render_gate import RenderGate
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import VideoFlowError
 from videoflow.domain.state import MediaInfo, ProjectState
-from videoflow.mcp_server.tools_headless import register_headless_tools
 from videoflow.steps import (
     assets_screen_capture,
     assets_transformative,
@@ -163,43 +162,6 @@ def test_render_gate_status_and_lock(tmp_path: Path) -> None:
         assert gate.status()["active"] is True
     assert gate.status()["active"] is False
 
-
-def test_headless_tool_error_paths(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
-    context = _context(tmp_path)
-    job = SimpleNamespace(source=context.source, output=context.output, result={})
-    tools: dict[str, object] = {}
-
-    class FakeContext:
-        last: dict[str, object] = {}
-
-        @staticmethod
-        def timeline_job(job_id=None):
-            return job
-
-        @staticmethod
-        def state_for_job(_job):
-            return context.state
-
-        manager = SimpleNamespace()
-
-    def register(func):
-        tools[func.__name__] = func
-        return func
-
-    register_headless_tools(register, FakeContext())
-    assert tools["vf_beatmap_execute"](manifest={})["ok"] is False
-    assert tools["vf_preview_archetypes"](manifest={})["ok"] is True
-    assert tools["vf_web_scene_preview"](root=str(tmp_path / "missing"))["ok"] is False
-    assert tools["vf_audio_patch_line"](text="")["ok"] is False
-    rules = tools["vf_preset_rules"](channel_id="demo", action="add", text="x")
-    rule_id = rules["rulebook"]["rules"][0]["id"]
-    assert (
-        tools["vf_preset_rules"](channel_id="demo", action="delete", rule_id=rule_id)["ok"] is True
-    )
-    assert tools["vf_preset_rules"](channel_id="demo", action="bad")["ok"] is False
-    clone = tools["vf_style_clone"](channel_id="demo")
-    assert clone["ok"] is True
 
 
 def test_ingest_normalises_proxy_and_reference(tmp_path: Path, monkeypatch) -> None:

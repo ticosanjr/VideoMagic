@@ -98,7 +98,7 @@ def test_motion_codegen_and_render_manifest(tmp_path: Path, monkeypatch) -> None
     assert context.metadata["motion_scenes"]
     assert (context.output / "motion" / "scenes.json").is_file()
 
-    def fake_render(scene, directory):
+    def fake_render(scene, directory, **kwargs):
         path = Path(directory) / f"{scene['scene_id']}.mp4"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"mp4")
@@ -106,9 +106,7 @@ def test_motion_codegen_and_render_manifest(tmp_path: Path, monkeypatch) -> None
 
     monkeypatch.setattr("videoflow.steps.motion.render_scene", fake_render)
     MotionRenderStep().run(context, MotionParams(), StepIO())
-    manifest = json.loads(
-        (context.output / "motion" / "render-manifest.json").read_text()
-    )
+    manifest = json.loads((context.output / "motion" / "render-manifest.json").read_text())
     assert manifest["count"] == 1
     assert Path(manifest["scenes"][0]["path"]).is_file()
 
@@ -150,9 +148,7 @@ def test_compose_and_foley_read_style_audio(tmp_path: Path) -> None:
         ComposeParams(duration_sec=1.0),
         StepIO(),
     )
-    music = json.loads(
-        (context.output / "audio" / "music-plan.json").read_text(encoding="utf-8")
-    )
+    music = json.loads((context.output / "audio" / "music-plan.json").read_text(encoding="utf-8"))
     assert music["bpm"] == 120
 
     (context.output / "motion").mkdir(exist_ok=True)
@@ -169,9 +165,7 @@ def test_compose_and_foley_read_style_audio(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     SfxSynthStep().run(context, SfxSynthParams(max_cues=3), StepIO())
-    sfx = json.loads(
-        (context.output / "audio" / "sfx-plan.json").read_text(encoding="utf-8")
-    )
+    sfx = json.loads((context.output / "audio" / "sfx-plan.json").read_text(encoding="utf-8"))
     assert sfx["count"] == 3
     assert {cue["kind"] for cue in sfx["cues"]} == {"paper_turn"}
 

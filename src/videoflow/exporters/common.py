@@ -33,15 +33,19 @@ def require_timeline(
         extra = sorted(set(audio_by_id) - set(video_by_id))
         raise ExportError(f"Audio/video clip mismatch. Missing audio: {missing}. Extra: {extra}.")
 
-    timebase = media.timebase()
-    media_samples = timebase.seconds_to_samples(
-        timebase.frames_to_seconds(media.duration_frames), Rounding.NEAREST
-    )
     for clip in state.video_segments:
-        if clip.source_out_frame > media.duration_frames:
+        clip_media = state.video_media(clip) or media
+        if not Path(clip_media.source_path).is_file():
+            raise ExportError(f"Source media is offline: {clip_media.source_path}")
+        if clip.source_out_frame > clip_media.duration_frames:
             raise ExportError(f"Clip {clip.clip_id} exceeds the media duration")
     for clip in state.audio_segments:
-        if clip.source_out_sample > media_samples:
+        clip_media = state.audio_media(clip) or media
+        clip_samples = clip_media.timebase().seconds_to_samples(
+            clip_media.timebase().frames_to_seconds(clip_media.duration_frames),
+            Rounding.NEAREST,
+        )
+        if clip.source_out_sample > clip_samples:
             raise ExportError(f"Audio clip {clip.clip_id} exceeds the media duration")
 
     video_spans = [
@@ -102,9 +106,7 @@ def xml_document(root: ET.Element, doctype: str) -> str:
     return f'<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE {doctype}>\n{body}\n'
 
 
-def _first_gap(
-    spans: Sequence[tuple[int, int]], *, origin: int = 0
-) -> tuple[int, int] | None:
+def _first_gap(spans: Sequence[tuple[int, int]], *, origin: int = 0) -> tuple[int, int] | None:
     """Return the first missing or invalid span, if any."""
 
     ordered = sorted(spans)

@@ -163,6 +163,65 @@ class FFmpegAdapter:
         temporary.replace(target)
         return target
 
+    def normalize_session_source(
+        self,
+        source: Path,
+        destination: Path,
+        *,
+        width: int,
+        height: int,
+        fps_num: int,
+        fps_den: int,
+        sample_rate: int,
+    ) -> Path:
+        """Normalize one session clip to a common CFR/resolution/audio format."""
+
+        source_path = Path(source).expanduser()
+        target = Path(destination).expanduser()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary = target.with_name(f"{target.stem}.part{target.suffix}")
+        filters = (
+            f"fps={fps_num}/{fps_den},"
+            f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+            f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1"
+        )
+        self._run(
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-i",
+                str(source_path),
+                "-vf",
+                filters,
+                "-af",
+                f"aresample={sample_rate}",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "18",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-ar",
+                str(sample_rate),
+                "-ac",
+                "2",
+                "-movflags",
+                "+faststart",
+                str(temporary),
+            ]
+        )
+        temporary.replace(target)
+        return target
+
     def build_proxy(
         self,
         source: Path,

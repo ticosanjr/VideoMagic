@@ -293,6 +293,16 @@ class VisualQaStep(BaseStep):
                             end_sec=local + 1 / options.fps,
                             confidence=0.55,
                             message="overlay obscures a detected face",
+                            frame_paths=[
+                                str(
+                                    frames[
+                                        min(
+                                            len(frames) - 1,
+                                            max(0, int((local - start) * options.fps)),
+                                        )
+                                    ]
+                                )
+                            ],
                         )
                     )
             if "text_late" in options.checks:
@@ -304,6 +314,16 @@ class VisualQaStep(BaseStep):
                             end_sec=local + 1 / options.fps,
                             confidence=0.6,
                             message="expected text was not detected in time",
+                            frame_paths=[
+                                str(
+                                    frames[
+                                        min(
+                                            len(frames) - 1,
+                                            max(0, int((local - start) * options.fps)),
+                                        )
+                                    ]
+                                )
+                            ],
                         )
                     )
             if "lip_sync" in options.checks and context.media is not None:

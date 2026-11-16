@@ -282,47 +282,6 @@ def test_render_gate_reset(tmp_path: Path) -> None:
     assert gate.status()["queued"] == 0
 
 
-def test_tool_beatmap_execute_starts_a_job(tmp_path: Path, monkeypatch) -> None:
-    from videoflow.mcp_server.tools_headless import register_headless_tools
-
-    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
-    source = tmp_path / "source.mp4"
-    source.write_bytes(b"x")
-    tools: dict[str, object] = {}
-
-    class Job:
-        job_id = "job-1"
-
-        def to_dict(self):
-            return {"job_id": self.job_id}
-
-    class Manager:
-        @staticmethod
-        def start(*args, **kwargs):
-            return Job()
-
-    class FakeContext:
-        last: dict[str, object] = {}
-        manager = Manager()
-
-        @staticmethod
-        def timeline_job(job_id=None):
-            return SimpleNamespace(source=source, output=tmp_path / "out", result={})
-
-    def register(func):
-        tools[func.__name__] = func
-        return func
-
-    register_headless_tools(register, FakeContext())
-    manifest = {
-        "project_id": "p",
-        "metadata": {"source": str(source), "recipe": "opencode_clone_style"},
-        "scenes": [],
-    }
-    result = tools["vf_beatmap_execute"](manifest=manifest)
-    assert result["ok"] is True
-
 
 def test_transcribe_fixed_offset(tmp_path: Path, monkeypatch) -> None:
     from videoflow.steps import transcribe as transcribe_module
@@ -371,63 +330,6 @@ def test_transcribe_fixed_offset(tmp_path: Path, monkeypatch) -> None:
     )
     assert context.metadata["sync_report"]["applied"] is True
 
-
-def test_audio_patch_apply_branch(tmp_path: Path, monkeypatch) -> None:
-    from videoflow.mcp_server import tools_headless
-
-    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
-    context = _context(tmp_path)
-    context.transcript = [
-        Sentence(
-            id=0,
-            start_sample=0,
-            end_sample=24000,
-            text="old",
-            words=[],
-        )
-    ]
-    context.state.transcript = context.transcript
-    (context.output / "audio").mkdir(parents=True, exist_ok=True)
-    (context.output / "audio" / "master.wav").write_bytes(b"master")
-    job = SimpleNamespace(source=context.source, output=context.output, result={})
-    tools: dict[str, object] = {}
-
-    class FakeContext:
-        last: dict[str, object] = {}
-        manager = SimpleNamespace()
-
-        @staticmethod
-        def timeline_job(job_id=None):
-            return job
-
-        @staticmethod
-        def state_for_job(_job):
-            return context.state
-
-    def register(func):
-        tools[func.__name__] = func
-        return func
-
-    class FakeTts:
-        def __init__(self, **kwargs):
-            pass
-
-        def synthesize(self, text, destination):
-            Path(destination).parent.mkdir(parents=True, exist_ok=True)
-            Path(destination).write_bytes(b"tts")
-            return Path(destination)
-
-    monkeypatch.setenv("VIDEOWFLOW_TTS_BASE_URL", "http://tts.local/v1")
-    monkeypatch.setattr("videoflow.adapters.tts.OpenAITtsAdapter", FakeTts)
-    monkeypatch.setattr(
-        tools_headless,
-        "patch_audio",
-        lambda *args, **kwargs: {"path": str(tmp_path / "patched.wav")},
-    )
-    tools_headless.register_headless_tools(register, FakeContext())
-    result = tools["vf_audio_patch_line"](sentence_id=0, text="new line", apply=True)
-    assert result["ok"] is True, result
-    assert result["patch"]["patched"]["path"].endswith("patched.wav")
 
 
 def test_web_render_html_branch(tmp_path: Path, monkeypatch) -> None:

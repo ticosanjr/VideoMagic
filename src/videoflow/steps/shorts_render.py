@@ -58,6 +58,7 @@ class RenderShortsParams(BaseModel):
     cutout_corner_radius: float = Field(default=0.08, ge=0.0, le=0.5)
     cutout_margin: float = Field(default=0.04, ge=0.0, le=0.3)
     cutout_head_overlap: float = Field(default=0.12, ge=0.0, le=0.4)
+    draft_scale: float = Field(default=1.0, ge=0.1, le=1.0)
 
 
 @register_step
@@ -177,6 +178,8 @@ class RenderShortsStep(BaseStep):
                         )
             layout_style = self._layout_for(options.layout, context, index - 1, clip.title)
             cutout = layout_style in {"cutout", "rounded_window"}
+            render_width = max(16, int(width * options.draft_scale))
+            render_height = max(16, int(height * options.draft_scale))
             destination = shorts_dir / f"{slug}.mp4"
             music_path = Path(options.music_path) if options.music_path else None
             second_source_path = (
@@ -216,6 +219,7 @@ class RenderShortsStep(BaseStep):
                         list(clip.crop_keyframes),
                     ],
                     "layout": layout_style,
+                    "draft_scale": options.draft_scale,
                     "cutout": [
                         options.cutout_corner_radius,
                         options.cutout_margin,
@@ -236,8 +240,8 @@ class RenderShortsStep(BaseStep):
                     destination,
                     sample_rate=media.audio_sample_rate,
                     ass_path=ass_path,
-                    width=width,
-                    height=height,
+                    width=render_width,
+                    height=render_height,
                     fontsdir=str(fonts_dir()),
                     audio_filters=tuple(options.audio_filters),
                     overlay_path=Path(options.overlay_path) if options.overlay_path else None,

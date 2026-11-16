@@ -165,11 +165,42 @@ class PresetRule(HeadlessModel):
     created_at: str = ""
 
 
+class PresetHardConstraints(HeadlessModel):
+    model_config = ConfigDict(extra="allow")
+
+    palette: str = ""
+    cut_rhythm_sec: float = 0.0
+    broll_style: str = ""
+    jargon: bool = True
+    aspect_ratio: str = ""
+    caption_preset: str = ""
+    lut: str = ""
+    music: str = ""
+
+
+class ChannelKit(HeadlessModel):
+    fonts: list[str] = Field(default_factory=list)
+    lut: str = ""
+    music: list[str] = Field(default_factory=list)
+    sfx: list[str] = Field(default_factory=list)
+    caption_preset: str = ""
+    intro: str = ""
+    outro: str = ""
+    palette: list[str] = Field(default_factory=list)
+    defaults: dict[str, Any] = Field(default_factory=dict)
+
+
 class PresetRulebook(HeadlessModel):
-    schema_version: int = 1
+    schema_version: int = 2
     channel_id: str = ""
     version: int = 1
-    rules: list[PresetRule] = Field(default_factory=list)
+    hard_constraints: PresetHardConstraints = Field(default_factory=PresetHardConstraints)
+    learned_rules: list[PresetRule] = Field(default_factory=list)
+    channel_kit: ChannelKit = Field(default_factory=ChannelKit)
+
+    @property
+    def rules(self) -> list[PresetRule]:
+        return self.learned_rules
 
 
 class StylePreset(HeadlessModel):

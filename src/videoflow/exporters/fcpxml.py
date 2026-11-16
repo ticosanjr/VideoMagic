@@ -59,30 +59,43 @@ def export_fcpxml(
             "height": str(media.height),
         },
     )
-    asset = ET.SubElement(
-        resources,
-        "asset",
-        {
-            "id": "a1",
-            "name": Path(media.source_path).name,
-            "start": "0s",
-            "duration": format_rational_time(timebase.frames_to_seconds(media.duration_frames)),
-            "hasVideo": "1",
-            "videoSources": "1",
-            "hasAudio": "1",
-            "format": "r1",
-            "audioSources": "1",
-            "audioChannels": "1",
-            "audioRate": str(media.audio_sample_rate),
-        },
+    source_assets: dict[str, str] = {}
+    ordered_sources = []
+    if state.primary_source_id and state.primary_source_id in state.sources:
+        ordered_sources.append(state.primary_source_id)
+    ordered_sources.extend(
+        source_id for source_id in state.sources if source_id not in ordered_sources
     )
-    # FCPXML 1.9 moved the original media URL to media-rep. Resolve rejects the
-    # old asset src form even though it is still valid for FCPXML 1.8.
-    ET.SubElement(
-        asset,
-        "media-rep",
-        {"kind": "original-media", "src": file_uri(media.source_path)},
-    )
+    if not ordered_sources:
+        ordered_sources = [state.primary_source_id or "primary"]
+    for index, source_id in enumerate(ordered_sources, start=1):
+        source_media = state.sources.get(source_id) or media
+        asset_id = f"a{index}"
+        source_assets[source_id] = asset_id
+        asset = ET.SubElement(
+            resources,
+            "asset",
+            {
+                "id": asset_id,
+                "name": Path(source_media.source_path).name,
+                "start": "0s",
+                "duration": format_rational_time(
+                    timebase.frames_to_seconds(source_media.duration_frames)
+                ),
+                "hasVideo": "1",
+                "videoSources": "1",
+                "hasAudio": "1",
+                "format": "r1",
+                "audioSources": "1",
+                "audioChannels": "1",
+                "audioRate": str(source_media.audio_sample_rate),
+            },
+        )
+        ET.SubElement(
+            asset,
+            "media-rep",
+            {"kind": "original-media", "src": file_uri(source_media.source_path)},
+        )
 
     if extras.titles:
         ET.SubElement(
@@ -174,11 +187,12 @@ def export_fcpxml(
 
     for clip in state.video_segments:
         audio_clip = audio[clip.clip_id]
+        clip_source = clip.source_id or state.primary_source_id or "primary"
         element = ET.SubElement(
             spine,
             "asset-clip",
             {
-                "ref": "a1",
+                "ref": source_assets.get(clip_source, "a1"),
                 "name": clip.clip_id,
                 "offset": format_rational_time(timebase.frames_to_seconds(clip.timeline_in_frame)),
                 "start": format_rational_time(timebase.frames_to_seconds(clip.source_in_frame)),

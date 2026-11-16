@@ -142,6 +142,52 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         (PortSpec("timeline", "Timeline state", "timeline", "state", True),),
         (PortSpec("artifacts", "Video artifacts", "artifact_map", "artifacts"),),
     ),
+    "session.ingest": (
+        (),
+        (
+            PortSpec("timeline", "Session timeline", "timeline", "state"),
+            PortSpec("media", "Primary media", "media", "media"),
+            PortSpec(
+                "manifest",
+                "Session manifest",
+                "json",
+                "metadata:session_manifest",
+            ),
+            PortSpec(
+                "audio",
+                "Session audio",
+                "path",
+                "metadata:session_audio",
+            ),
+        ),
+    ),
+    "session.cull": (
+        (
+            PortSpec("timeline", "Timeline state", "timeline", "state", True),
+            PortSpec("transcript", "Transcript", "transcript", "transcript", False),
+        ),
+        (
+            PortSpec("timeline", "Culled timeline", "timeline", "state"),
+            PortSpec(
+                "report",
+                "Cull report",
+                "json",
+                "metadata:session_cull_report",
+            ),
+        ),
+    ),
+    "sync.multicam_audio": (
+        (PortSpec("timeline", "Timeline state", "timeline", "state", True),),
+        (
+            PortSpec("timeline", "Synced timeline", "timeline", "state"),
+            PortSpec(
+                "report",
+                "Multicam report",
+                "json",
+                "metadata:multicam_report",
+            ),
+        ),
+    ),
     "timeline.load": (
         (),
         (
