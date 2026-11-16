@@ -1,0 +1,128 @@
+"""Runtime configuration for the isolated GPU worker."""
+
+from __future__ import annotations
+
+import os
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from pathlib import Path
+
+DEFAULT_HOST = "0.0.0.0"
+DEFAULT_PORT = 8766
+DEFAULT_MAX_UPLOAD_MB = 512
+DEFAULT_MAX_QUEUE = 16
+DEFAULT_MODEL_TTL_SEC = 900.0
+
+
+def default_work_dir() -> Path:
+    """Return the default on-disk home for artifacts, jobs, and the database."""
+
+    return Path.home() / ".videoflow" / "gpu-worker"
+
+
+def _env(environ: Mapping[str, str], name: str) -> str | None:
+    value = environ.get(name)
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
+def _env_int(
+    environ: Mapping[str, str],
+    name: str,
+    default: int,
+    *,
+    minimum: int = 0,
+    maximum: int | None = None,
+) -> int:
+    raw = _env(environ, name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer, got {raw!r}") from exc
+    if value < minimum or (maximum is not None and value > maximum):
+        bounds = f">= {minimum}" if maximum is None else f"between {minimum} and {maximum}"
+        raise ValueError(f"{name} must be {bounds}, got {value}")
+    return value
+
+
+def _env_float(
+    environ: Mapping[str, str],
+    name: str,
+    default: float,
+    *,
+    minimum: float = 0.0,
+) -> float:
+    raw = _env(environ, name)
+    if raw is None:
+        return default
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a number, got {raw!r}") from exc
+    if value < minimum:
+        raise ValueError(f"{name} must be >= {minimum}, got {value}")
+    return value
+
+
+def _env_path(environ: Mapping[str, str], name: str) -> Path | None:
+    raw = _env(environ, name)
+    return Path(raw).expanduser() if raw is not None else None
+
+
+@dataclass(frozen=True, slots=True)
+class Settings:
+    """Immutable worker configuration.
+
+    Units are deliberately flat so the app factory and tests can build settings without
+    touching ``os.environ``.
+    """
+
+    token: str | None = None
+    host: str = DEFAULT_HOST
+    port: int = DEFAULT_PORT
+    work_dir: Path = field(default_factory=default_work_dir)
+    max_upload_mb: int = DEFAULT_MAX_UPLOAD_MB
+    max_queue: int = DEFAULT_MAX_QUEUE
+    model_ttl_sec: float = DEFAULT_MODEL_TTL_SEC
+    shared_root: Path | None = None
+    chatterbox_cmd: str | None = None
+    ace_step_cmd: str | None = None
+    stable_audio_cmd: str | None = None
+    audio_separator_cmd: str | None = None
+    realesrgan_cmd: str | None = None
+    comfyui_url: str | None = None
+
+    @classmethod
+    def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
+        """Build settings from ``VF_*`` variables."""
+
+        values = os.environ if environ is None else environ
+        work_dir = _env_path(values, "VF_GPU_WORK_DIR") or default_work_dir()
+        return cls(
+            token=_env(values, "VF_GPU_TOKEN"),
+            host=_env(values, "VF_GPU_HOST") or DEFAULT_HOST,
+            port=_env_int(values, "VF_GPU_PORT", DEFAULT_PORT, minimum=1, maximum=65535),
+            work_dir=work_dir,
+            max_upload_mb=_env_int(
+                values, "VF_GPU_MAX_UPLOAD_MB", DEFAULT_MAX_UPLOAD_MB, minimum=1
+            ),
+            max_queue=_env_int(values, "VF_GPU_MAX_QUEUE", DEFAULT_MAX_QUEUE, minimum=0),
+            model_ttl_sec=_env_float(
+                values, "VF_GPU_MODEL_TTL_SEC", DEFAULT_MODEL_TTL_SEC, minimum=0.0
+            ),
+            shared_root=_env_path(values, "VF_GPU_SHARED_ROOT"),
+            chatterbox_cmd=_env(values, "VF_CHATTERBOX_CMD"),
+            ace_step_cmd=_env(values, "VF_ACE_STEP_CMD"),
+            stable_audio_cmd=_env(values, "VF_STABLE_AUDIO_CMD"),
+            audio_separator_cmd=_env(values, "VF_AUDIO_SEPARATOR_CMD"),
+            realesrgan_cmd=_env(values, "VF_REALESRGAN_CMD"),
+            comfyui_url=_env(values, "VF_GPU_COMFYUI_URL") or _env(values, "VF_COMFYUI_URL"),
+        )
+
+    @property
+    def max_upload_bytes(self) -> int:
+        return self.max_upload_mb * 1024 * 1024

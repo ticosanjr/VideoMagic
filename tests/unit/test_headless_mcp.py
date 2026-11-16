@@ -40,17 +40,17 @@ def _context(tmp: Path) -> PipelineContext:
     )
 
 
-def test_mcp_surface_has_22_agent_tools_and_9_resources() -> None:
-    assert len(TOOL_SPECS) == 22
+def test_mcp_surface_has_12_core_tools_and_11_resources() -> None:
+    assert len(TOOL_SPECS) == 12
     assert len(RESOURCE_SPECS) == 11
     assert {spec.name for spec in TOOL_SPECS} >= {
-        "vf_project_init",
-        "vf_project_status",
-        "vf_ingest_session",
-        "vf_sync_multicam",
-        "vf_get_qa_artifacts",
-        "vf_render_start",
-        "vf_nle_roundtrip",
+        "vf_project",
+        "vf_catalog_search",
+        "vf_exec",
+        "vf_job",
+        "vf_ingest",
+        "vf_qa",
+        "vf_render",
     }
 
 

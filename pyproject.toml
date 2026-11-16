@@ -1,6 +1,6 @@
 [project]
 name = "videoflow"
-version = "2.85.1"
+version = "2.90.0"
 description = "Local, non-destructive video pre-edit pipeline with a rack UI and MCP server."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -23,7 +23,13 @@ dependencies = [
   "pydantic>=2.6",
   "python-multipart>=0.0.20",
   "uvicorn>=0.32",
+  "vf-contracts",
+  "vf-compute",
 ]
+
+[tool.uv.sources]
+vf-contracts = { path = "packages/vf-contracts", editable = true }
+vf-compute = { path = "packages/vf-compute", editable = true }
 
 [project.optional-dependencies]
 dev = [
@@ -69,7 +75,7 @@ packages = ["src/videoflow"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src", "."]
+pythonpath = ["src", ".", "packages/vf-contracts/src", "packages/vf-compute/src", "packages/mcp-fetch/src", "packages/mcp-audio/src", "packages/mcp-vision/src", "packages/gpu-worker/src"]
 addopts = [
   "-m",
   "not media and not slow and not manual and not packaging",

@@ -754,6 +754,52 @@
       "title": "ModulesConfig",
       "type": "object"
     },
+    "MulticamCut": {
+      "additionalProperties": false,
+      "properties": {
+        "end_frame": {
+          "exclusiveMinimum": 0,
+          "title": "End Frame",
+          "type": "integer"
+        },
+        "source_id": {
+          "minLength": 1,
+          "title": "Source Id",
+          "type": "string"
+        },
+        "start_frame": {
+          "minimum": 0,
+          "title": "Start Frame",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start_frame",
+        "end_frame",
+        "source_id"
+      ],
+      "title": "MulticamCut",
+      "type": "object"
+    },
+    "MulticamPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "cuts": {
+          "items": {
+            "$ref": "#/$defs/MulticamCut"
+          },
+          "title": "Cuts",
+          "type": "array"
+        },
+        "mode": {
+          "default": "manual",
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "title": "MulticamPlan",
+      "type": "object"
+    },
     "MusicConfig": {
       "additionalProperties": false,
       "properties": {
@@ -1906,6 +1952,17 @@
     },
     "modules_config": {
       "$ref": "#/$defs/ModulesConfig"
+    },
+    "multicam": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MulticamPlan"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "overlays": {
       "items": {

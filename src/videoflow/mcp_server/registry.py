@@ -1,8 +1,8 @@
-"""Public MCP surface for the agent profile.
+"""Public MCP surface for the 2.90 core profile.
 
-The agent profile is deliberately small: project-scoped tools, explicit ids, and
-on-demand resources for step/recipe schemas. The old 82-tool UI surface is not
-registered here.
+Twelve tools, explicit project ids, and on-demand resources for the 122+ step
+catalog. Domain capabilities live in the separate vf-fetch, vf-audio, vf-vision,
+and vf-gpu-worker packages.
 """
 
 from __future__ import annotations
@@ -25,13 +25,8 @@ class ResourceSpec:
 
 TOOL_SPECS: tuple[ToolSpec, ...] = (
     ToolSpec(
-        "vf_project_init",
-        "Create or adopt a project and return its stable project_id.",
-        "project",
-    ),
-    ToolSpec(
-        "vf_project_status",
-        "Return project state, jobs, artifacts, and resource links.",
+        "vf_project",
+        "Create, open, or inspect a project workspace.",
         "project",
     ),
     ToolSpec(
@@ -40,99 +35,54 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "system",
     ),
     ToolSpec(
-        "vf_list_recipes",
-        "List built-in recipes.",
+        "vf_catalog_search",
+        "Search steps and recipes without loading their schemas.",
+        "catalog",
+    ),
+    ToolSpec(
+        "vf_exec",
+        "Run a recipe or one catalog step in a project.",
         "recipes",
     ),
     ToolSpec(
-        "vf_get_recipe",
-        "Return one complete recipe document.",
-        "recipes",
-    ),
-    ToolSpec(
-        "vf_validate_recipe",
-        "Validate a recipe DAG and return its execution order.",
-        "recipes",
-    ),
-    ToolSpec(
-        "vf_run_recipe",
-        "Run a named or inline recipe in one project.",
-        "recipes",
-    ),
-    ToolSpec(
-        "vf_get_job",
-        "Return one job with artifacts and QA summary.",
+        "vf_job",
+        "Get, wait, inspect logs, or read QA for a job.",
         "jobs",
     ),
     ToolSpec(
-        "vf_wait_job",
-        "Wait for a job to finish with a bounded timeout.",
-        "jobs",
-    ),
-    ToolSpec(
-        "vf_get_step_logs",
-        "Return bounded step logs, commands, timing, and memory.",
-        "jobs",
-    ),
-    ToolSpec(
-        "vf_get_qa_artifacts",
-        "Return QA defects, frame paths, and optional image content.",
-        "qa",
-    ),
-    ToolSpec(
-        "vf_get_timeline",
-        "Return the canonical timeline with per-clip source ids.",
+        "vf_timeline",
+        "Read or edit the canonical timeline.",
         "timeline",
     ),
     ToolSpec(
-        "vf_edit_timeline",
-        "Edit one clip with optimistic revision concurrency.",
-        "timeline",
-    ),
-    ToolSpec(
-        "vf_get_transcript",
-        "Return the structured transcript and SRT.",
-        "transcript",
-    ),
-    ToolSpec(
-        "vf_get_artifact",
-        "Return artifact metadata and image content when applicable.",
+        "vf_artifact",
+        "List or read project artifacts, including image content.",
         "artifacts",
     ),
     ToolSpec(
-        "vf_edit_short",
-        "Trim, retitle, reframe, and re-render one Short.",
-        "shorts",
+        "vf_render",
+        "Start, inspect, or cancel a render job.",
+        "render",
     ),
     ToolSpec(
-        "vf_nle_roundtrip",
-        "Push or pull cuts and markers through FCPXML/MLT or Resolve.",
+        "vf_exports",
+        "Validate exports or run an NLE roundtrip.",
         "nle",
     ),
     ToolSpec(
-        "vf_validate_exports",
-        "Validate exported FCPXML, XMEML, and Kdenlive files.",
-        "nle",
-    ),
-    ToolSpec(
-        "vf_respond_interaction",
-        "Answer a HITL request and resume the job.",
+        "vf_interaction",
+        "List, read, or answer human-in-the-loop requests.",
         "hitl",
     ),
     ToolSpec(
-        "vf_ingest_session",
-        "Order and normalize a multi-take recording session.",
+        "vf_ingest",
+        "Run session ingest or multicam synchronization.",
         "ingest",
     ),
     ToolSpec(
-        "vf_sync_multicam",
-        "Synchronize two sources by audio cross-correlation.",
-        "ingest",
-    ),
-    ToolSpec(
-        "vf_render_start",
-        "Start a timeline or preview render job.",
-        "render",
+        "vf_qa",
+        "Read QA artifacts or route new QA runs through vf_exec.",
+        "qa",
     ),
 )
 

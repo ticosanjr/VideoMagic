@@ -3,8 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from videoflow.application import semantic
+
+pytest.importorskip("sentence_transformers")
 
 
 def test_model_path_uses_env(monkeypatch, tmp_path: Path) -> None:

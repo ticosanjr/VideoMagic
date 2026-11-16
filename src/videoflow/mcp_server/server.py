@@ -10,8 +10,8 @@ from mcp.types import ToolAnnotations
 from videoflow.application.jobs import JobManager
 from videoflow.engine.batch import BatchManager
 from videoflow.mcp_server.agent_resources import register_agent_resources
-from videoflow.mcp_server.agent_tools import register_agent_tools
 from videoflow.mcp_server.context import ToolContext
+from videoflow.mcp_server.core_tools import register_core_tools
 from videoflow.mcp_server.registry import TOOL_SPECS
 
 SERVER_NAME = "VideoFlow"
@@ -20,12 +20,12 @@ SERVER_NAME = "VideoFlow"
 def _annotations_for(name: str) -> ToolAnnotations:
     action = name.removeprefix("vf_").split("_")[0]
     destructive = ("delete", "remove", "cancel", "stop", "reset", "prune", "clear")
-    read_only = ("project", "capabilities", "list", "get", "validate", "wait")
+    read_only = {"vf_capabilities", "vf_catalog_search"}
     return ToolAnnotations(
-        read_only_hint=action in read_only,
+        read_only_hint=name in read_only,
         destructive_hint=action in destructive,
-        idempotent_hint=action in read_only or action in {"edit", "sync"},
-        open_world_hint=action in {"ingest", "render", "nle"},
+        idempotent_hint=name in read_only or action in {"timeline", "artifact"},
+        open_world_hint=action in {"ingest", "render", "exec", "exports"},
     )
 
 
@@ -54,6 +54,6 @@ def build_server(
             ),
         )(func)
 
-    register_agent_tools(tool, ctx)
+    register_core_tools(tool, ctx)
     register_agent_resources(mcp, ctx)
     return mcp

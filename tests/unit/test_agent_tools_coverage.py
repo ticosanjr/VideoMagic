@@ -463,6 +463,10 @@ def test_agent_helpers_empty_and_corrupt(tmp_path: Path, monkeypatch) -> None:
     empty_record, _ = init_project(output=tmp_path / "helper-empty")
     assert _state(empty_record) is not None
     (Path(empty_record.output) / "project_state.json").unlink()
+    assert _state(empty_record) is not None
+    from vf_contracts.workspace import project_dir
+
+    (project_dir(empty_record.project_id) / "state.json").unlink()
     assert _state(empty_record) is None
     manager = FakeManager(None)
     try:

@@ -6,9 +6,9 @@ from videoflow.mcp_server.registry import RESOURCE_SPECS, TOOL_SPECS
 from videoflow.mcp_server.server import build_server
 
 
-def test_registry_is_the_agent_profile() -> None:
+def test_registry_is_the_core_profile() -> None:
     names = [tool.name for tool in TOOL_SPECS]
-    assert len(names) == 22
+    assert len(names) == 12
     assert len(names) == len(set(names))
     assert all(name.startswith("vf_") for name in names)
     assert len(RESOURCE_SPECS) == 11
@@ -43,7 +43,7 @@ def test_every_tool_has_annotations() -> None:
 
 def test_unknown_project_returns_a_typed_error() -> None:
     async def call() -> object:
-        return await build_server().call_tool("vf_get_timeline", {"project_id": str(uuid.uuid4())})
+        return await build_server().call_tool("vf_timeline", {"project_id": str(uuid.uuid4())})
 
     structured = asyncio.run(call()).structured_content  # type: ignore[attr-defined]
     assert structured["ok"] is False
@@ -87,8 +87,8 @@ def test_tools_carry_behavior_annotations() -> None:
         return {tool.name: tool.annotations for tool in tools}
 
     annotations = asyncio.run(inspect())
-    assert annotations["vf_get_timeline"].read_only_hint is True
-    assert annotations["vf_wait_job"].read_only_hint is True
+    assert annotations["vf_capabilities"].read_only_hint is True
+    assert annotations["vf_catalog_search"].read_only_hint is True
 
 
 def test_mcp_exposes_production_prompts() -> None:

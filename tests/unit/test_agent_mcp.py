@@ -74,16 +74,20 @@ def test_project_isolated_by_explicit_id(monkeypatch, tmp_path: Path) -> None:
     server = build_server()
     first = call(
         server,
-        "vf_project_init",
-        {"output": str(tmp_path / "a"), "sources": [str(source)]},
+        "vf_project",
+        {"action": "init", "output": str(tmp_path / "a"), "sources": [str(source)]},
     )
     second = call(
         server,
-        "vf_project_init",
-        {"output": str(tmp_path / "b"), "sources": [str(source)]},
+        "vf_project",
+        {"action": "init", "output": str(tmp_path / "b"), "sources": [str(source)]},
     )
     assert first["project"]["project_id"] != second["project"]["project_id"]
-    status = call(server, "vf_project_status", {"project_id": first["project"]["project_id"]})
+    status = call(
+        server,
+        "vf_project",
+        {"action": "status", "project_id": first["project"]["project_id"]},
+    )
     assert status["ok"] is True
     assert status["summary"]["sources"][0]["path"] == str(source)
 
@@ -252,11 +256,16 @@ def test_project_render_job_returns_final_metrics(monkeypatch, tmp_path: Path) -
     )
     save_project_state(record, state, bump_revision=False)
     server = build_server()
-    started = call(server, "vf_render_start", {"project_id": record.project_id, "draft_scale": 0.5})
+    started = call(
+        server,
+        "vf_render",
+        {"action": "start", "project_id": record.project_id, "draft_scale": 0.5},
+    )
     waited = call(
         server,
-        "vf_wait_job",
+        "vf_job",
         {
+            "action": "wait",
             "project_id": record.project_id,
             "job_id": started["job"]["job_id"],
             "timeout_sec": 120,
@@ -290,8 +299,12 @@ def test_artifact_images_and_qa_payload(monkeypatch, tmp_path: Path) -> None:
 
     async def artifact():
         result = await server.call_tool(
-            "vf_get_artifact",
-            {"project_id": record.project_id, "artifact": "exports/thumb.png"},
+            "vf_artifact",
+            {
+                "action": "get",
+                "project_id": record.project_id,
+                "artifact": "exports/thumb.png",
+            },
         )
         return result
 
@@ -301,8 +314,8 @@ def test_artifact_images_and_qa_payload(monkeypatch, tmp_path: Path) -> None:
     assert result.content[1].type == "image"
     qa_payload = call(
         server,
-        "vf_get_qa_artifacts",
-        {"project_id": record.project_id, "include_images": True},
+        "vf_qa",
+        {"action": "artifacts", "project_id": record.project_id, "include_images": True},
     )
     # FastMCP exposes list results as text + image content, not structured data.
     assert qa_payload is None or "defects" in str(qa_payload)

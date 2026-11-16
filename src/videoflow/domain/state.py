@@ -204,6 +204,23 @@ class OverlayClip(StrictModel):
     kind: Literal["image", "video"] = "image"
 
 
+class MulticamCut(StrictModel):
+    start_frame: int = Field(ge=0)
+    end_frame: int = Field(gt=0)
+    source_id: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def ordered(self) -> Self:
+        if self.end_frame <= self.start_frame:
+            raise ValueError("multicam cut end must be after start")
+        return self
+
+
+class MulticamPlan(StrictModel):
+    cuts: list[MulticamCut] = Field(default_factory=list)
+    mode: str = "manual"
+
+
 class ProjectState(StrictModel):
     """The single JSON document under ``.videoflow/project_state.json``."""
 
@@ -214,6 +231,7 @@ class ProjectState(StrictModel):
     sources: dict[str, MediaInfo] = Field(default_factory=dict)
     primary_source_id: str = ""
     source_offsets: dict[str, int] = Field(default_factory=dict)
+    multicam: MulticamPlan | None = None
     modules_config: ModulesConfig = Field(default_factory=ModulesConfig)
     module_enabled: ModuleEnabled = Field(default_factory=ModuleEnabled)
     cache_hashes: dict[str, str] = Field(default_factory=dict)

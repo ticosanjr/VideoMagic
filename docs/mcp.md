@@ -1,10 +1,16 @@
 # MCP server — agent profile
 
-VideoFlow 2.85 exposes a **project-scoped, 22-tool MCP surface** for OpenCode and
-similar agents. The server is built on the official Python SDK v2.
+VideoFlow 2.90 exposes a **12-tool core MCP** plus four isolated domain servers:
 
-The agent profile intentionally does not expose the legacy 82-tool UI CRUD
-surface. Step and recipe schemas are loaded on demand through resources.
+```text
+mcp-vf-core      12 tools   project, jobs, timeline, render, exports, ingest
+mcp-vf-media-fetch  4 tools stock B-roll, images, URL segments, SFX
+mcp-vf-audio-studio 5 tools TTS, cleanup, stems, music/SFX, mix
+mcp-vf-vision-fx    5 tools word-aligned captions, rembg, upscale, motion, Ken Burns
+```
+
+The core intentionally does not expose the old 82-tool UI CRUD surface. Step
+and recipe schemas are loaded on demand through resources.
 
 ## Transports
 
@@ -23,7 +29,7 @@ Every project-scoped tool requires an explicit `project_id`. There is no
 process-global "current project" fallback.
 
 ```text
-vf_project_init(output="/projects/interview", sources=["/media/a.mp4"])
+vf_project(action="init", output="/projects/interview", sources=["/media/a.mp4"])
 ```
 
 The call returns a stable `project_id`, the project record, the state summary,
@@ -31,64 +37,73 @@ and resource links. Multiple sub-agents can work on different projects in
 parallel. Writes to the same project are serialized by a project lock and
 `vf_edit_timeline` supports `expected_revision` for conflict detection.
 
-## Tools (22)
+## Core tools (12)
 
-### Project and system
-
-| Tool | Purpose |
-| --- | --- |
-| `vf_project_init` | Create or adopt a project and probe source files. |
-| `vf_project_status` | State, jobs, artifacts, and resource links. |
-| `vf_capabilities` | Backend, model, and external-provider availability. |
-
-### Recipes
+### Project, catalog, and execution
 
 | Tool | Purpose |
 | --- | --- |
-| `vf_list_recipes` | List built-in recipes. |
-| `vf_get_recipe` | Return one recipe document. |
-| `vf_validate_recipe` | Validate a named or inline recipe DAG. |
-| `vf_run_recipe` | Run a named or inline recipe in one project. |
+| `vf_project` | Create/open/status a project workspace. |
+| `vf_capabilities` | Backends, models, GPU worker, and external policy. |
+| `vf_catalog_search` | Search steps/recipes without loading schemas. |
+| `vf_exec` | Run a recipe or one catalog step in a project. |
 
-### Jobs and observability
-
-| Tool | Purpose |
-| --- | --- |
-| `vf_get_job` | Job status, artifacts, and QA summary. |
-| `vf_wait_job` | Bounded wait with MCP progress notifications. |
-| `vf_get_step_logs` | Logs, commands, stages, timing, and peak RSS. |
-| `vf_get_qa_artifacts` | QA defects, frame paths, and optional image content. |
-
-### Timeline and transcript
+### Jobs, timeline, artifacts
 
 | Tool | Purpose |
 | --- | --- |
-| `vf_get_timeline` | Timeline with per-clip `source_id`. |
-| `vf_edit_timeline` | Trim, move, split, delete, or ripple with revision checks. |
-| `vf_get_transcript` | Structured transcript and SRT. |
+| `vf_job` | Get/wait/logs/QA for a job. |
+| `vf_timeline` | Read or edit the canonical timeline. |
+| `vf_artifact` | List or read artifacts, including image content. |
 
-### Artifacts and Shorts
-
-| Tool | Purpose |
-| --- | --- |
-| `vf_get_artifact` | Manifest, checksum, path, and image content. |
-| `vf_edit_short` | Trim, retitle, reframe, and re-render one Short. |
-
-### Ingest and multicam
+### Delivery and operations
 
 | Tool | Purpose |
 | --- | --- |
-| `vf_ingest_session` | Order and normalize a multi-take recording session. |
-| `vf_sync_multicam` | Audio cross-correlation offset, drift, and confidence. |
+| `vf_render` | Start/inspect/cancel a render job. |
+| `vf_exports` | Validate exports or run an NLE roundtrip. |
+| `vf_interaction` | List/read/answer HITL requests. |
+| `vf_ingest` | Session ingest or multicam synchronization. |
+| `vf_qa` | Read QA artifacts or route new QA through `vf_exec`. |
 
-### Render and delivery
+## Domain servers
 
-| Tool | Purpose |
-| --- | --- |
-| `vf_render_start` | Start a timeline or preview render job. |
-| `vf_nle_roundtrip` | Push/pull cuts and markers through FCPXML/MLT or Resolve. |
-| `vf_validate_exports` | Validate FCPXML, XMEML, and Kdenlive artifacts. |
-| `vf_respond_interaction` | Answer a HITL request and resume the job. |
+The domain servers use the same workspace contract and can be enabled per
+OpenCode profile:
+
+```bash
+scripts/install_mcp_servers.sh
+uv run python scripts/generate_mcp_config.py --profile full > mcp.json
+```
+
+Profiles: `core`, `decupagem`, `broll`, `audio`, `vision`, `full`.
+
+Every domain asset is written under:
+
+```text
+$VF_WORKSPACE_ROOT/projects/{project_id}/assets/{voice,broll,images,sfx,music,graphics}/
+```
+
+and gets a `.meta.json` sidecar with source, license, checksum and media
+metadata. A deterministic `params_hash` makes downloads and generations
+idempotent.
+
+## GPU worker and ComputeRouter
+
+The Windows worker is optional. The router chooses remote only when the worker
+is healthy, advertises the capability, has enough VRAM and queue capacity:
+
+```text
+VF_COMPUTE_MODE=auto|local_only|remote_preferred
+VF_GPU_WORKER_URL=http://windows-host:8766
+VF_GPU_WORKER_TOKEN=...
+```
+
+`local_only` never performs network I/O. `auto` falls back to the local CPU/Vulkan
+implementation with a structured reason. The worker exposes `/health`,
+content-addressed `/artifacts`, async `/jobs/{capability}`, status and artifact
+download endpoints, token auth, VRAM/model TTL and an allowlisted handler
+registry.
 
 ## Async render contract
 
@@ -121,7 +136,7 @@ Resources are read-only. Tools perform writes.
 
 ## Channel kits and hard constraints
 
-`vf_project_init(channel_id="canal-rafael")` binds a project to a channel
+`vf_project(action="init", channel_id="canal-rafael")` binds a project to a channel
 rulebook. `vf_run_recipe` merges the channel kit defaults into the recipe and
 then applies inviolable hard constraints (aspect ratio, caption preset, LUT,
 B-roll style). Explicit recipe parameters cannot override a hard constraint.
@@ -153,20 +168,20 @@ writers emit one asset per source. Kdenlive/MLT remains a static export.
 
 ## Observability
 
-`vf_get_step_logs` returns:
+`vf_job(action="logs")` returns:
 
 - stage timings and status;
 - bounded logs and FFmpeg command lines;
 - peak process RSS;
 - a `log_resource` for the persisted job log.
 
-`vf_get_qa_artifacts` returns defects with frame paths and artifact ids. With
+`vf_qa(action="artifacts")` returns defects with frame paths and artifact ids. With
 `include_images=true`, frames are also returned as MCP image content so a VLM
 can inspect the failed frame.
 
 ## NLE roundtrip
 
-`vf_nle_roundtrip` supports:
+`vf_exports(action="roundtrip")` supports:
 
 - `direction=push`: write FCPXML and import it into the NLE;
 - `direction=pull`: read external cuts/markers;
@@ -179,14 +194,14 @@ Resolve or external scripting is unavailable.
 ## Agent flow
 
 ```text
-1. vf_project_init
-2. vf_capabilities / vf_list_recipes
-3. vf_ingest_session (optional)
-4. vf_run_recipe
-5. vf_wait_job
-6. vf_get_step_logs / vf_get_qa_artifacts
-7. vf_get_timeline / vf_edit_timeline
-8. vf_render_start -> vf_wait_job
-9. vf_get_artifact
-10. vf_nle_roundtrip / vf_validate_exports
+1. vf_project(action="init")
+2. vf_capabilities / vf_catalog_search
+3. vf_ingest(action="session") (optional)
+4. vf_exec(action="recipe")
+5. vf_job(action="wait")
+6. vf_job(action="logs") / vf_qa(action="artifacts")
+7. vf_timeline(action="get|edit")
+8. vf_render(action="start") -> vf_job(action="wait")
+9. vf_artifact(action="get")
+10. vf_exports(action="roundtrip|validate")
 ```

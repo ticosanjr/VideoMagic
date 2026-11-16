@@ -79,11 +79,28 @@ def test_default_model_path_is_under_videoflow_home(monkeypatch, tmp_path: Path)
 
 
 def test_score_ast_candidates_uses_noise_labels(monkeypatch) -> None:
+    import sys
     from types import SimpleNamespace
 
-    import torch
-
     from videoflow.application import audio_events
+
+    class Tensor:
+        def __init__(self, values):
+            self.values = values
+
+        def numpy(self):
+            return self.values
+
+    class Torch:
+        @staticmethod
+        def no_grad():
+            from contextlib import nullcontext
+
+            return nullcontext()
+
+        @staticmethod
+        def sigmoid(logits):
+            return Tensor(np.array(logits.values, dtype=float))
 
     class Extractor:
         def __call__(self, clips, sampling_rate, return_tensors):
@@ -91,15 +108,54 @@ def test_score_ast_candidates_uses_noise_labels(monkeypatch) -> None:
 
     class Model:
         def __call__(self, n, **inputs):
-            return SimpleNamespace(logits=torch.tensor([[10.0, -10.0]] * n))
+            return SimpleNamespace(logits=Tensor([[10.0, -10.0]] * n))
 
-    monkeypatch.setattr(
-        audio_events, "_load_ast", lambda: (Extractor(), Model(), [0])
-    )
-    kept = audio_events.score_ast_candidates(
-        _pcm(), [(0, 800)], sample_rate=8000, threshold=0.5
-    )
+    monkeypatch.setitem(sys.modules, "torch", Torch)
+    monkeypatch.setattr(audio_events, "_load_ast", lambda: (Extractor(), Model(), [0]))
+    kept = audio_events.score_ast_candidates(_pcm(), [(0, 800)], sample_rate=8000, threshold=0.5)
     assert kept == [(0, 800)]
+
+
+def test_load_ast_from_local_model(monkeypatch, tmp_path) -> None:
+    import sys
+    from types import SimpleNamespace
+
+    from videoflow.application import audio_events
+
+    model_dir = tmp_path / "ast"
+    model_dir.mkdir()
+    (model_dir / "config.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("VIDEOFLOW_AUDIO_TAGGER", str(model_dir))
+    monkeypatch.setattr(audio_events, "_AST", None)
+    monkeypatch.setattr(audio_events, "_AST_PATH", None)
+
+    class Extractor:
+        @staticmethod
+        def from_pretrained(path):
+            return Extractor()
+
+    class Model:
+        config = SimpleNamespace(id2label={0: "Cough", 1: "Speech"})
+
+        @staticmethod
+        def from_pretrained(path):
+            return Model()
+
+        def eval(self):
+            return self
+
+    monkeypatch.setitem(
+        sys.modules,
+        "transformers",
+        SimpleNamespace(
+            ASTFeatureExtractor=Extractor,
+            ASTForAudioClassification=Model,
+        ),
+    )
+    loaded = audio_events._load_ast()
+    assert loaded is not None
+    assert loaded[2] == [0]
+    assert audio_events._load_ast() is loaded
 
 
 def test_resample_preserves_length() -> None:

@@ -271,9 +271,7 @@ def test_download_youtube_runs_ytdlp(monkeypatch, tmp_path: Path) -> None:
         "videoflow.application.asset_providers.download.find_binary",
         lambda name: "/usr/bin/ffmpeg" if name == "ffmpeg" else "/usr/bin/yt-dlp",
     )
-    monkeypatch.setattr(
-        "videoflow.application.asset_providers.download.subprocess.run", fake_run
-    )
+    monkeypatch.setattr("videoflow.application.asset_providers.download.subprocess.run", fake_run)
     candidate = _candidate(
         provider="youtube",
         duration_sec=600,
@@ -300,9 +298,7 @@ def test_download_youtube_reports_failures(monkeypatch, tmp_path: Path) -> None:
     )
     monkeypatch.setattr(
         "videoflow.application.asset_providers.download.subprocess.run",
-        lambda *args, **kwargs: type(
-            "Completed", (), {"returncode": 1, "stderr": "boom"}
-        )(),
+        lambda *args, **kwargs: type("Completed", (), {"returncode": 1, "stderr": "boom"})(),
     )
     with pytest.raises(IngestError, match="boom"):
         _download_youtube(
@@ -316,9 +312,7 @@ def test_download_youtube_reports_failures(monkeypatch, tmp_path: Path) -> None:
 
     monkeypatch.setattr(
         "videoflow.application.asset_providers.download.subprocess.run",
-        lambda *args, **kwargs: type(
-            "Completed", (), {"returncode": 0, "stderr": ""}
-        )(),
+        lambda *args, **kwargs: type("Completed", (), {"returncode": 0, "stderr": ""})(),
     )
     with pytest.raises(IngestError, match="without a media file"):
         _download_youtube(
@@ -344,3 +338,38 @@ def test_download_youtube_requires_ytdlp(monkeypatch, tmp_path: Path) -> None:
             allowed_external_hosts=(),
             clip_seconds=15,
         )
+
+
+def test_workspace_asset_license_blocks_export(tmp_path: Path, monkeypatch) -> None:
+    from vf_contracts.assets import write_asset
+    from vf_contracts.workspace import ensure_project
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
+    output = tmp_path / "out"
+    output.mkdir()
+    project_id = "11111111-1111-1111-1111-111111111111"
+    ensure_project(project_id, name="License", output=str(output))
+    (output / "project.json").write_text(json.dumps({"project_id": project_id}), encoding="utf-8")
+    write_asset(
+        project_id,
+        "broll",
+        b"asset",
+        {"license": "unknown", "source": "stock", "ext": ".mp4"},
+    )
+    blockers = license_blockers(output)
+    assert len(blockers) == 1
+    assert blockers[0]["license_status"] == "unknown"
+    write_asset(
+        project_id,
+        "broll",
+        b"safe",
+        {"license": "cc0", "source": "local", "ext": ".mp4"},
+    )
+    assert len(license_blockers(output)) == 1
+
+
+def test_license_expiry_parser_edges() -> None:
+    from videoflow.application.asset_providers.ledger import _expired
+
+    assert _expired("not-a-date") is False
+    assert _expired("2020-01-01T00:00:00") is True

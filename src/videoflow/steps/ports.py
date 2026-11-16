@@ -176,6 +176,17 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
             ),
         ),
     ),
+    "multicam.plan": (
+        (PortSpec("timeline", "Timeline state", "timeline", "state", True),),
+        (
+            PortSpec("timeline", "Planned timeline", "timeline", "state"),
+            PortSpec("plan", "Multicam plan", "json", "metadata:multicam_plan"),
+        ),
+    ),
+    "multicam.apply": (
+        (PortSpec("timeline", "Timeline state", "timeline", "state", True),),
+        (PortSpec("timeline", "Applied timeline", "timeline", "state"),),
+    ),
     "sync.multicam_audio": (
         (PortSpec("timeline", "Timeline state", "timeline", "state", True),),
         (

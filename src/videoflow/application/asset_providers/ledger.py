@@ -28,10 +28,7 @@ def _expired(value: object) -> bool:
 def _blocked(record: dict[str, Any]) -> bool:
     return (
         record.get("license_status") in {"unknown", "cc_review"}
-        or (
-            record.get("license_status") == "fair_use_review"
-            and not record.get("approved")
-        )
+        or (record.get("license_status") == "fair_use_review" and not record.get("approved"))
         or _expired(record.get("expires_at"))
     )
 
@@ -56,14 +53,10 @@ def write_ledger(output: Path, candidates: Iterable[AssetCandidate]) -> Path:
     directory = Path(output) / "assets"
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / "licenses.json"
-    path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     lines = ["# Asset licenses", ""]
     for record in payload["assets"]:
-        expiry = (
-            f" — expires {record['expires_at']}" if record.get("expires_at") else ""
-        )
+        expiry = f" — expires {record['expires_at']}" if record.get("expires_at") else ""
         lines.append(
             f"- **{record['title']}** — {record['license_status']} — "
             f"{record['license'] or 'no license metadata'} — {record['page_url']}{expiry}"
@@ -73,15 +66,10 @@ def write_ledger(output: Path, candidates: Iterable[AssetCandidate]) -> Path:
             [
                 "",
                 "## Needs review",
-                *[
-                    f"- {item['title']} ({item['license_status']})"
-                    for item in payload["blockers"]
-                ],
+                *[f"- {item['title']} ({item['license_status']})" for item in payload["blockers"]],
             ]
         )
-    (directory / "licenses.md").write_text(
-        "\n".join(lines).rstrip() + "\n", encoding="utf-8"
-    )
+    (directory / "licenses.md").write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
     return path
 
 
@@ -94,13 +82,45 @@ def read_ledger(output: Path) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {"assets": [], "blockers": []}
 
 
+def _workspace_blockers(output: Path) -> list[dict[str, Any]]:
+    try:
+        from vf_contracts.assets import iter_assets
+        from vf_contracts.workspace import validate_project_id
+
+        record_path = Path(output) / "project.json"
+        payload = json.loads(record_path.read_text(encoding="utf-8"))
+        project_id = validate_project_id(str(payload.get("project_id") or ""))
+    except (OSError, ValueError, TypeError):
+        return []
+    blockers: list[dict[str, Any]] = []
+    for asset in iter_assets(project_id):
+        if asset.license == "unknown":
+            status = "unknown"
+        elif asset.license == "youtube_fair_use":
+            status = "fair_use_review"
+        else:
+            status = "clear"
+        item = {
+            "title": asset.path,
+            "license_status": status,
+            "license": asset.license,
+            "page_url": asset.url,
+            "approved": False,
+            "source": asset.source,
+        }
+        if _blocked(item):
+            blockers.append(item)
+    return blockers
+
+
 def license_blockers(output: Path) -> list[dict[str, Any]]:
     payload = read_ledger(output)
-    return [
+    ledger = [
         record
         for record in payload.get("assets", [])
         if isinstance(record, dict) and _blocked(record)
     ]
+    return [*ledger, *_workspace_blockers(output)]
 
 
 def mark_approved(output: Path, *, approval_id: str, reviewer: str = "") -> Path:
@@ -114,8 +134,7 @@ def mark_approved(output: Path, *, approval_id: str, reviewer: str = "") -> Path
             record["approved"] = True
             record["approval_id"] = approval_id
             record["notes"] = (
-                f"{record.get('notes', '')}\nApproved by "
-                f"{reviewer or 'human'} at {approval_id}."
+                f"{record.get('notes', '')}\nApproved by {reviewer or 'human'} at {approval_id}."
             ).strip()
     payload["blockers"] = [
         record
@@ -123,16 +142,9 @@ def mark_approved(output: Path, *, approval_id: str, reviewer: str = "") -> Path
         if isinstance(record, dict) and _blocked(record)
     ]
     payload["counts"] = {
-        status: sum(
-            1
-            for item in payload.get("assets", [])
-            if item.get("license_status") == status
-        )
+        status: sum(1 for item in payload.get("assets", []) if item.get("license_status") == status)
         for status in sorted(
-            {
-                str(item.get("license_status") or "unknown")
-                for item in payload.get("assets", [])
-            }
+            {str(item.get("license_status") or "unknown") for item in payload.get("assets", [])}
         )
     }
     return write_ledger_from_payload(output, payload)
@@ -141,7 +153,5 @@ def mark_approved(output: Path, *, approval_id: str, reviewer: str = "") -> Path
 def write_ledger_from_payload(output: Path, payload: dict[str, Any]) -> Path:
     path = Path(output) / "assets" / "licenses.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path

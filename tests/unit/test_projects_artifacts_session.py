@@ -66,7 +66,12 @@ def test_project_registry_and_revision_conflict(tmp_path: Path, monkeypatch) -> 
         save_project_state(record, updated, expected_revision=1)
     with pytest.raises(ProjectStateError):
         get_project("missing")
-    missing_state = record.model_copy(update={"output": str(tmp_path / "missing")})
+    missing_state = record.model_copy(
+        update={
+            "project_id": "00000000-0000-0000-0000-000000000000",
+            "output": str(tmp_path / "missing"),
+        }
+    )
     with pytest.raises(StateNotReadyError):
         load_project_state(missing_state)
     assert state_path(record).name == "project_state.json"
@@ -261,3 +266,21 @@ def test_load_project_state_migrates_v1_source(tmp_path: Path, monkeypatch) -> N
     assert state.schema_version == 2
     assert state.primary_source_id == "primary"
     assert state.video_segments[0].source_id == "primary"
+
+
+def test_project_mirrors_state_into_workspace(tmp_path: Path, monkeypatch) -> None:
+    from vf_contracts.workspace import project_dir
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home-ws"))
+    record, state = init_project(name="Workspace", output=tmp_path / "out-ws")
+    folder = project_dir(record.project_id)
+    assert (folder / "project.json").is_file()
+    assert (folder / "state.json").is_file()
+    assert (folder / "assets" / "voice").is_dir()
+    assert (folder / "captions").is_dir()
+    assert (folder / "renders" / "final").is_dir()
+    metadata = json.loads((folder / "project.json").read_text(encoding="utf-8"))
+    assert metadata["name"] == "Workspace"
+    assert metadata["project_id"] == record.project_id
+    assert metadata["state_path"] == str(folder / "state.json")
+    assert state.revision == 1

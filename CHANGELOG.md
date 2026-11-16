@@ -1,5 +1,29 @@
 # Changelog
 
+## [2.90.0] - 2026-11-16
+
+### Added
+
+- **Modular MCP topology.** Core MCP with 12 tools plus isolated
+  `mcp-vf-media-fetch`, `mcp-vf-audio-studio`, `mcp-vf-vision-fx`, and
+  `videoflow-gpu-worker` packages.
+- **Shared Workspace Contract.** `vf-contracts` creates the canonical project
+  tree, content-addressed asset cache, license sidecars, and path-safe access.
+- **Hybrid GPU routing.** `vf-compute` provides `ComputeRouter` with
+  `auto|local_only|remote_preferred`, health caching, circuit breaker, VRAM
+  and queue checks, and a token-authenticated worker client.
+- **Windows GPU worker.** FastAPI daemon with content-addressed artifacts,
+  async jobs, allowlisted capability handlers, model TTL, queueing, and
+  artifact download.
+- **Domain media tools.** Stock/URL/SFX fetch, TTS, cleanup, stems, music/SFX,
+  word-aligned captions, rembg, upscale, Remotion/Manim motion, and Ken Burns.
+- **Multicam angle planning.** `multicam.plan` and `multicam.apply` support
+  manual, speaker, and alternating angle cuts on multi-source projects.
+- **Resolve smoke evidence.** `scripts/resolve_smoke.py` and the manual Resolve
+  gate documented in `docs/resolve.md`.
+- **MCP profiles.** `scripts/generate_mcp_config.py` and
+  `scripts/install_mcp_servers.sh` for OpenCode profiles.
+
 ## [2.85.1] - 2026-11-16
 
 ### Changed

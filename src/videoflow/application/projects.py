@@ -15,6 +15,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+from vf_contracts.workspace import ensure_project, project_dir, write_project
 
 from videoflow.application import database
 from videoflow.domain.errors import ProjectStateError, StateNotReadyError
@@ -88,6 +89,34 @@ def _save_record(record: ProjectRecord) -> ProjectRecord:
     database.upsert_project(record.project_id, record.to_dict())
     _write_json(Path(record.output) / "project.json", record.to_dict())
     return record
+
+
+def _sync_workspace(record: ProjectRecord, state: ProjectState) -> None:
+    """Mirror canonical metadata and state into the shared workspace."""
+
+    folder = project_dir(record.project_id)
+    ensure_project(
+        record.project_id,
+        name=record.name,
+        output=record.output,
+        channel_id=record.channel_id,
+    )
+    paths, primary_path = _source_paths(state)
+    write_project(
+        record.project_id,
+        {
+            "project_id": record.project_id,
+            "name": record.name,
+            "output": record.output,
+            "channel_id": record.channel_id,
+            "sources": paths,
+            "primary_source": primary_path,
+            "state_path": str(folder / "state.json"),
+            "revision": state.revision,
+            "schema_version": state.schema_version,
+        },
+    )
+    _write_json(folder / "state.json", state.model_dump(mode="json"))
 
 
 def get_project(project_id: str) -> ProjectRecord:
@@ -214,7 +243,11 @@ def _refresh_record(record: ProjectRecord, state: ProjectState) -> ProjectRecord
 def load_project_state(record: ProjectRecord) -> ProjectState:
     path = state_path(record)
     if not path.is_file():
-        raise StateNotReadyError("Project has no project_state.json yet")
+        workspace_state = project_dir(record.project_id) / "state.json"
+        if workspace_state.is_file():
+            path = workspace_state
+        else:
+            raise StateNotReadyError("Project has no project_state.json yet")
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
         return ProjectState.model_validate(migrate_project_state(payload))
@@ -243,6 +276,7 @@ def save_project_state(
         if bump_revision:
             state = state.model_copy(update={"revision": state.revision + 1})
         _write_json(state_path(record), state.model_dump(mode="json"))
+        _sync_workspace(record, state)
         paths, primary_path = _source_paths(state)
         updated = record.model_copy(
             update={
