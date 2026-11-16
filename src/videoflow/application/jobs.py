@@ -572,8 +572,12 @@ class JobManager:
         return stopped
 
     def _work(self, job: Job) -> None:
-        if job.options.get("mode") == "render":
+        mode = job.options.get("mode")
+        if mode == "render":
             self._work_render(job)
+            return
+        if mode == "step":
+            self._work_step(job)
             return
         self._work_recipe(job)
 
@@ -594,6 +598,64 @@ class JobManager:
             self._run_render,
             JobRunPolicy(write_failure=True, cancel_error=True),
         )
+
+    def _work_step(self, job: Job) -> None:
+        self._executor.run(
+            job,
+            self._run_step,
+            JobRunPolicy(write_failure=True, cancel_error=True),
+        )
+
+    def _run_step(self, job: Job, callbacks: Any) -> RunOutcome:
+        from videoflow.adapters.ffmpeg import FFmpegAdapter
+        from videoflow.application.projects import (
+            get_project,
+            load_project_state,
+            save_project_state,
+        )
+        from videoflow.core.context import PipelineContext
+        from videoflow.steps.base import StepIO
+        from videoflow.steps.registry import get_step
+
+        project_id = str(job.options.get("project_id") or job.project_id or "")
+        step_type = str(job.options.get("step_type") or "")
+        if not project_id or not step_type:
+            raise ProjectStateError("Step job needs project_id and step_type")
+        record = get_project(project_id)
+        state = load_project_state(record)
+        media = state.media_info
+        source = Path(media.source_path) if media is not None else job.source
+        output = Path(record.output)
+        context = PipelineContext(
+            source=source,
+            output=output,
+            work=output / "work",
+            exports=output / "exports",
+            media=media,
+            state=state,
+            transcript=list(state.transcript),
+            metadata={"project_id": project_id, "job_id": str(job.job_id)},
+        )
+        step = get_step(step_type)
+        params = step.params_model.model_validate(job.options.get("params") or {})
+        io = StepIO(
+            stage=step_type,
+            adapter=FFmpegAdapter(cancel_event=job.cancel_event),
+            progress=callbacks.progress,
+            step_progress=callbacks.step_progress,
+            should_cancel=callbacks.should_cancel,
+            log=callbacks.log,
+        )
+        step.run(context, params, io)
+        if context.state is not None:
+            save_project_state(record, context.state, bump_revision=True)
+        result = {
+            "step_id": step_type,
+            "artifacts": dict(context.artifacts),
+            "warnings": list(context.warnings),
+            "hashes": dict(context.hashes),
+        }
+        return RunOutcome(result=result)
 
     def _run_render(self, job: Job, callbacks: Any) -> RunOutcome:
         from videoflow.adapters.ffmpeg import FFmpegAdapter

@@ -373,3 +373,23 @@ def test_license_expiry_parser_edges() -> None:
 
     assert _expired("not-a-date") is False
     assert _expired("2020-01-01T00:00:00") is True
+
+
+def test_workspace_fair_use_asset_blocks(tmp_path: Path, monkeypatch) -> None:
+    from vf_contracts.assets import write_asset
+    from vf_contracts.workspace import ensure_project
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home-fair"))
+    output = tmp_path / "out-fair"
+    output.mkdir()
+    project_id = "22222222-2222-2222-2222-222222222222"
+    ensure_project(project_id, name="Fair", output=str(output))
+    (output / "project.json").write_text(json.dumps({"project_id": project_id}), encoding="utf-8")
+    write_asset(
+        project_id,
+        "broll",
+        b"fair",
+        {"license": "youtube_fair_use", "source": "youtube", "ext": ".mp4"},
+    )
+    blockers = license_blockers(output)
+    assert blockers[0]["license_status"] == "fair_use_review"

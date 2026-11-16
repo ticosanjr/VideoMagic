@@ -125,37 +125,63 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         profile: str = "",
         wait: bool = False,
         timeout_sec: float = 300.0,
+        short_index: int = 0,
+        short_title: str = "",
+        short_start_sec: float | None = None,
+        short_end_sec: float | None = None,
+        aspect_ratio: str = "",
+        burn_subtitles: bool | None = None,
+        caption_style: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Run a recipe or one step in a project."""
+        """Run a recipe/step, or edit one Short in a project."""
 
         try:
-            get_project(project_id)
+            record = get_project(project_id)
         except VideoFlowError as exc:
             return exc.to_dict()
+        if action == "short":
+            return legacy["vf_edit_short"](
+                project_id=project_id,
+                index=short_index,
+                title=short_title or None,
+                start_sec=short_start_sec,
+                end_sec=short_end_sec,
+                aspect_ratio=aspect_ratio or None,
+                burn_subtitles=burn_subtitles,
+                caption_style=caption_style,
+            )
         if action == "step":
             if not step_id:
                 return error("step_required", "step_id is required")
-            recipe = {
-                "id": f"step-{step_id}",
-                "name": f"Step {step_id}",
-                "steps": [
-                    {
-                        "id": step_id,
-                        "type": step_id,
-                        "needs": [],
-                        "params": dict(params or {}),
-                    }
-                ],
-            }
-            recipe_id = ""
-        response = legacy["vf_run_recipe"](
-            project_id=project_id,
-            recipe_id=recipe_id,
-            recipe=recipe,
-            source=source,
-            variables=variables,
-            profile=profile,
-        )
+            from videoflow.steps.registry import get_step
+
+            try:
+                get_step(step_id)
+            except VideoFlowError as exc:
+                return exc.to_dict()
+            source_path = Path(source or record.primary_source or record.output)
+            job = manager.start(
+                source_path,
+                Path(record.output),
+                {
+                    "mode": "step",
+                    "project_id": record.project_id,
+                    "step_type": step_id,
+                    "params": dict(params or {}),
+                },
+                queue=True,
+                project_id=record.project_id,
+            )
+            response = {"ok": True, "job": job.to_dict(), "project_id": project_id}
+        else:
+            response = legacy["vf_run_recipe"](
+                project_id=project_id,
+                recipe_id=recipe_id,
+                recipe=recipe,
+                source=source,
+                variables=variables,
+                profile=profile,
+            )
         if wait and response.get("ok"):
             job_id = str((response.get("job") or {}).get("job_id") or "")
             if job_id:

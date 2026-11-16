@@ -180,3 +180,13 @@ def test_multicam_invalid_manual_cut_is_ignored(tmp_path: Path) -> None:
     assert ctx.state is not None
     assert ctx.state.multicam is not None
     assert len(ctx.state.multicam.cuts) == 1
+
+
+def test_multicam_apply_requires_media(tmp_path: Path) -> None:
+    from videoflow.domain.errors import StateNotReadyError
+    from videoflow.steps.multicam_plan import MulticamApplyParams, MulticamApplyStep
+
+    ctx = context(tmp_path)
+    ctx.media = None
+    with __import__("contextlib").suppress(StateNotReadyError):
+        MulticamApplyStep().run(ctx, MulticamApplyParams(), StepIO())

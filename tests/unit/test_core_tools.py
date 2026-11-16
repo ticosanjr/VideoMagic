@@ -264,3 +264,17 @@ def test_core_artifact_missing_and_recipe_filter(tmp_path: Path, monkeypatch) ->
     missing = tools["vf_artifact"](action="get", project_id=record.project_id, artifact="missing")
     assert missing[0]["ok"] is False
     assert tools["vf_catalog_search"](query="no-such-recipe", kind="recipes")["recipes"] == []
+
+
+def test_core_exec_short_action(tmp_path: Path, monkeypatch) -> None:
+    tools, record, job = setup(tmp_path, monkeypatch)
+    job.result = {"shorts": [{"title": "One", "pieces": [[0, 1000]], "aspect_ratio": "9:16"}]}
+    monkeypatch.setattr(
+        "videoflow.application.short_editor.edit_short",
+        lambda **kwargs: {"shorts": [{"title": "Edited"}]},
+    )
+    result = tools["vf_exec"](
+        action="short", project_id=record.project_id, short_index=0, short_title="Edited"
+    )
+    assert result["ok"] is True
+    assert result["short"]["title"] == "Edited"
