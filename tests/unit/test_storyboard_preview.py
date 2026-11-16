@@ -91,7 +91,7 @@ def test_preview_handles_malformed_inputs_and_render_failures(tmp_path: Path, mo
     )
     monkeypatch.setattr(
         "videoflow.steps.storyboard_preview.render_scene",
-        lambda scene, directory: (_ for _ in ()).throw(RuntimeError("no gpu")),
+        lambda scene, directory, **kwargs: (_ for _ in ()).throw(RuntimeError("no gpu")),
     )
     StoryboardPreviewStep().run(
         context,

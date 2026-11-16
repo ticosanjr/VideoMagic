@@ -9,6 +9,7 @@ installed, and FFmpeg renders the JSON graph otherwise.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import shutil
 import subprocess
@@ -225,6 +226,35 @@ def render_html_scene(
     binary = find_binary("ffmpeg")
     if binary is None:
         raise RuntimeError("FFmpeg is not available.")
+    try:
+        from importlib.metadata import version as package_version
+
+        playwright_version = package_version("playwright")
+    except Exception:  # noqa: BLE001 - optional metadata
+        playwright_version = ""
+    cache_key = hashlib.sha256(
+        html_path.read_bytes()
+        + json.dumps(
+            {
+                "duration": round(duration_sec, 4),
+                "fps": fps,
+                "width": width,
+                "height": height,
+                "draft_scale": round(draft_scale, 4),
+                "playwright": playwright_version,
+                "ffmpeg": binary,
+            },
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+    cache_path = target.with_suffix(target.suffix + ".cache.json")
+    if target.is_file() and target.stat().st_size > 0 and cache_path.is_file():
+        try:
+            cached = json.loads(cache_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            cached = {}
+        if isinstance(cached, dict) and cached.get("key") == cache_key:
+            return target
     frames_dir = target.with_name(f".{target.stem}-frames")
     if frames_dir.exists():
         shutil.rmtree(frames_dir)
@@ -283,6 +313,10 @@ def render_html_scene(
             "Could not encode the HTML scene: "
             + (completed.stderr.strip() or f"exit {completed.returncode}")
         )
+    cache_path.write_text(
+        json.dumps({"key": cache_key, "target": str(target)}, indent=2) + "\n",
+        encoding="utf-8",
+    )
     return target
 
 

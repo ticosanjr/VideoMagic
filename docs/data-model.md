@@ -15,9 +15,23 @@ by `scripts/export_schemas.py`. A test fails if they drift.
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "project_id": "8d1d4f0e-...",
   "revision": 1,
+  "primary_source_id": "primary",
+  "sources": {
+    "primary": {
+    "source_path": "/media/raw.mp4",
+    "duration_frames": 21614,
+    "fps_num": 30000,
+    "fps_den": 1001,
+    "width": 3840,
+    "height": 2160,
+      "audio_sample_rate": 48000,
+      "start_timecode_frames": 0
+    }
+  },
+  "source_offsets": {},
   "media_info": {
     "source_path": "/media/raw.mp4",
     "duration_frames": 21614,
@@ -53,6 +67,7 @@ by `scripts/export_schemas.py`. A test fails if they drift.
   "video_segments": [
     {
       "clip_id": "c1",
+      "source_id": "primary",
       "source_in_frame": 30,
       "source_out_frame": 210,
       "timeline_in_frame": 0,
@@ -64,6 +79,7 @@ by `scripts/export_schemas.py`. A test fails if they drift.
   "audio_segments": [
     {
       "clip_id": "c1",
+      "source_id": "primary",
       "source_in_sample": 48000,
       "source_out_sample": 336000,
       "timeline_in_sample": 0,
@@ -88,7 +104,10 @@ by `scripts/export_schemas.py`. A test fails if they drift.
 
 ### Invariants
 
-- `schema_version` is `1`.
+- `schema_version` is `2`. Version 1 states are migrated by adding a
+  `primary` source and a `source_id` on every segment.
+- `sources` stores real media per `source_id`; `primary_source_id` selects the
+  timeline/output timebase.
 - `revision` starts at `1` and increases on every accepted write. The matching
   snapshot lives at `.videoflow/revisions/000001.json`, `000002.json`, and so on.
 - Sentence ids are unique within a transcript.

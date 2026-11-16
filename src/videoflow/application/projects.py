@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.application import database
 from videoflow.domain.errors import ProjectStateError, StateNotReadyError
+from videoflow.domain.migrations import migrate_project_state
 from videoflow.domain.state import MediaInfo, ProjectState
 
 
@@ -215,7 +216,8 @@ def load_project_state(record: ProjectRecord) -> ProjectState:
     if not path.is_file():
         raise StateNotReadyError("Project has no project_state.json yet")
     try:
-        return ProjectState.model_validate_json(path.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return ProjectState.model_validate(migrate_project_state(payload))
     except (OSError, ValueError) as exc:
         raise ProjectStateError(f"Could not read project state: {exc}") from exc
 

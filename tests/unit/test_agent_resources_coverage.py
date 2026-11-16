@@ -149,3 +149,24 @@ def test_resource_error_paths(tmp_path: Path, monkeypatch) -> None:
     )
     assert json.loads(mcp.resources["vf://docs/steps/{step_type}"]("missing.step"))["ok"] is False
     assert json.loads(mcp.resources["vf://docs/recipes/{recipe_id}"]("missing"))["ok"] is False
+
+
+def test_layout_preview_artifact_branch(tmp_path: Path) -> None:
+    from videoflow.core.context import PipelineContext
+    from videoflow.steps.base import StepIO
+    from videoflow.steps.layout_cutout import CutoutLayoutStep, CutoutParams
+
+    output = tmp_path / "out"
+    (output / "work").mkdir(parents=True)
+    context = PipelineContext(
+        source=tmp_path / "source.mp4",
+        output=output,
+        work=output / "work",
+        exports=output / "exports",
+    )
+    preview = tmp_path / "preview.mp4"
+    preview.write_bytes(b"mp4")
+    step = CutoutLayoutStep()
+    step._render_preview = lambda context, options: preview  # type: ignore[method-assign]
+    step.run(context, CutoutParams(render_preview=True), StepIO())
+    assert context.artifacts["layout_preview"] == str(preview)

@@ -139,6 +139,7 @@ def test_render_html_scene_cleans_up_on_failure(tmp_path: Path, monkeypatch) -> 
     monkeypatch.setitem(sys.modules, "playwright", ModuleType("playwright"))
     monkeypatch.setitem(sys.modules, "playwright.sync_api", module)
     monkeypatch.setattr(scene_web, "find_binary", lambda name: "ffmpeg")
+    (tmp_path / "scene.html").write_text("<html></html>", encoding="utf-8")
     with pytest.raises(RuntimeError):
         scene_web.render_html_scene(
             tmp_path / "scene.html",

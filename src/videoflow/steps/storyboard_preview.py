@@ -33,6 +33,7 @@ class StoryboardPreviewParams(BaseModel):
     height: int = Field(default=1080, ge=16, le=4320)
     fps: int = Field(default=30, ge=1, le=120)
     render: bool = True
+    draft_scale: float = Field(default=1.0, ge=0.1, le=1.0)
 
 
 def _read_json(path: Path, default: Any) -> Any:
@@ -113,7 +114,9 @@ class StoryboardPreviewStep(BaseStep):
             }
             if options.render:
                 try:
-                    entry["path"] = str(render_scene(scene, output_dir))
+                    entry["path"] = str(
+                        render_scene(scene, output_dir, draft_scale=options.draft_scale)
+                    )
                 except Exception as exc:  # noqa: BLE001 - review can use the manifest
                     context.warnings.append(f"Preview render failed: {exc}")
                     io.emit("warning", f"Preview render failed: {exc}", module="storyboard.preview")

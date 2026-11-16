@@ -66,7 +66,7 @@ cached intermediate artifacts, and export files.
 | Id | Requirement |
 | --- | --- |
 | FR-01 | A project is a directory containing `.videoflow/project_state.json`. |
-| FR-02 | Creating a project assigns a UUID and `schema_version: 1`. |
+| FR-02 | Creating a project assigns a UUID and `schema_version: 2`; multi-source projects carry `sources` and per-segment `source_id`. |
 | FR-03 | Media is registered by path, never copied by default. The path must resolve inside an allowed root. |
 | FR-04 | State is written atomically. Each accepted write also appends a revision snapshot. |
 | FR-05 | One project has at most one active job. A second start is rejected. |

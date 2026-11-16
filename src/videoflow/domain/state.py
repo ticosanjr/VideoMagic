@@ -207,7 +207,7 @@ class OverlayClip(StrictModel):
 class ProjectState(StrictModel):
     """The single JSON document under ``.videoflow/project_state.json``."""
 
-    schema_version: Literal[1] = SCHEMA_VERSION
+    schema_version: Literal[1, 2] = SCHEMA_VERSION
     project_id: UUID = Field(default_factory=uuid4)
     revision: int = Field(default=1, ge=1)
     media_info: MediaInfo | None = None

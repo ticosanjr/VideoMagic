@@ -23,6 +23,7 @@ class CutoutParams(BaseModel):
     transition: str = Field(default="cut", pattern="^(cut|fade|slide)$")
     render_preview: bool = False
     preview_seconds: float = Field(default=8.0, gt=0.0, le=60.0)
+    draft_scale: float = Field(default=1.0, ge=0.1, le=1.0)
 
 
 @register_step
@@ -85,15 +86,20 @@ class CutoutLayoutStep(BaseStep):
         target = context.work / "layout-preview.mp4"
         if context.media is None:
             return None
+        width = max(16, int(1080 * options.draft_scale))
+        height = max(16, int(1920 * options.draft_scale))
+        fg_width = max(16, int(900 * options.draft_scale))
+        box_width = max(16, int(900 * options.draft_scale))
         background = (
-            "scale=1080:1920:force_original_aspect_ratio=increase,"
-            "crop=1080:1920,boxblur=20:5,eq=brightness=-0.15"
+            f"scale={width}:{height}:force_original_aspect_ratio=increase,"
+            f"crop={width}:{height},boxblur=20:5,eq=brightness=-0.15"
         )
-        foreground = "scale=900:-2"
+        foreground = f"scale={fg_width}:-2"
         filter_complex = (
             f"[0:v]{background}[bg];[0:v]{foreground}[fg];"
             "[bg][fg]overlay=(W-w)/2:(H-h)/2:shortest=1,"
-            "drawbox=x=90:y=(ih-ih*0.72)/2:w=900:h=ih*0.72:color=white@0.35:t=6[out]"
+            f"drawbox=x={(width - box_width) // 2}:y=(ih-ih*0.72)/2:"
+            f"w={box_width}:h=ih*0.72:color=white@0.35:t=6[out]"
         )
         with render_gate.hold("layout.cutout", str(context.output)):
             completed = subprocess.run(
