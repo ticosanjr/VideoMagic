@@ -91,6 +91,10 @@ class FakeAdapter:
         broll_duration_sec: float = 2.0,
         broll_clips: object = None,
         sfx_clips: object = None,
+        cutout: bool = False,
+        cutout_corner_radius: float = 0.08,
+        cutout_margin: float = 0.04,
+        cutout_head_overlap: float = 0.12,
     ) -> Path:
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(b"mp4")
@@ -319,7 +323,8 @@ def test_job_manager_runs_recipe_mode(monkeypatch, tmp_path: Path) -> None:
         "steps": [{"id": "ingest", "type": "ingest"}],
     }
     manager = manager_with_runner()
-    job = start_recipe(manager, 
+    job = start_recipe(
+        manager,
         source,
         tmp_path / "out",
         {"mode": "recipe", "recipe": recipe},
@@ -780,7 +785,6 @@ def test_interrupted_job_is_requeued_on_restart(tmp_path: Path) -> None:
     import time
     from uuid import uuid4
 
-
     store = tmp_path / "jobs"
     store.mkdir()
     job_id = uuid4()
@@ -983,9 +987,7 @@ def test_retakes_are_applied_to_the_final_timeline(tmp_path: Path) -> None:
     with_retakes = parse_recipe(base_steps(transcript))
     without_retakes_data = base_steps(transcript)
     without_retakes_data["steps"] = [
-        step
-        for step in without_retakes_data["steps"]
-        if step["id"] != "retakes"
+        step for step in without_retakes_data["steps"] if step["id"] != "retakes"
     ]
     for step in without_retakes_data["steps"]:
         if step["id"] == "timeline":
@@ -1000,14 +1002,9 @@ def test_retakes_are_applied_to_the_final_timeline(tmp_path: Path) -> None:
     )
 
     def duration(state) -> int:
-        return sum(
-            clip.source_out_frame - clip.source_in_frame
-            for clip in state.video_segments
-        )
+        return sum(clip.source_out_frame - clip.source_in_frame for clip in state.video_segments)
 
-    assert duration(with_result.context.state) < duration(
-        without_result.context.state
-    )
+    assert duration(with_result.context.state) < duration(without_result.context.state)
     assert with_result.context.state.retake_culls == [0]
     assert len(with_result.context.state.video_segments) < len(
         without_result.context.state.video_segments
@@ -1020,26 +1017,18 @@ def test_recipe_rebuild_replaces_newer_manual_timeline(tmp_path: Path) -> None:
     transcript = srt(tmp_path / "repeat2.srt", repeat=True)
     output = tmp_path / "shared-out"
     without_data = base_steps(transcript)
-    without_data["steps"] = [
-        step for step in without_data["steps"] if step["id"] != "retakes"
-    ]
+    without_data["steps"] = [step for step in without_data["steps"] if step["id"] != "retakes"]
     for step in without_data["steps"]:
         if step["id"] == "timeline":
             step["needs"] = ["vad"]
             step["inputs"] = {"speech": "vad.speech"}
     without = parse_recipe(without_data)
-    without_result = RecipeRunner(without, adapter=FakeAdapter()).run(
-        source, output, resume=False
-    )
+    without_result = RecipeRunner(without, adapter=FakeAdapter()).run(source, output, resume=False)
     manual = without_result.context.state.model_copy(update={"revision": 10})
-    (output / "project_state.json").write_text(
-        manual.model_dump_json(), encoding="utf-8"
-    )
+    (output / "project_state.json").write_text(manual.model_dump_json(), encoding="utf-8")
 
     with_retakes = parse_recipe(base_steps(transcript))
-    result = RecipeRunner(with_retakes, adapter=FakeAdapter()).run(
-        source, output, resume=False
-    )
+    result = RecipeRunner(with_retakes, adapter=FakeAdapter()).run(source, output, resume=False)
     assert result.context.state.revision == 11
     persisted = json.loads((output / "project_state.json").read_text())
     assert persisted["revision"] == 11
@@ -1061,9 +1050,7 @@ def test_timeline_checkpoint_is_invalidated_by_newer_manual_state(
         encoding="utf-8",
     )
     second = RecipeRunner(recipe, adapter=FakeAdapter()).run(source, output)
-    timeline_run = next(
-        run for run in second.step_runs if run.id == "timeline"
-    )
+    timeline_run = next(run for run in second.step_runs if run.id == "timeline")
     assert timeline_run.status == "executed"
     persisted = json.loads((output / "project_state.json").read_text())
     assert persisted["revision"] == 8

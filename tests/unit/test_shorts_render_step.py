@@ -199,3 +199,53 @@ def test_piece_keyframes_are_relative_and_capped() -> None:
     assert piece[0][0] == 0.0
     assert piece[-1][0] == 8.0
     assert len(piece) <= 12
+
+
+def test_render_applies_layout_plan_cutout(tmp_path: Path) -> None:
+    context, _clip = context_with_short(tmp_path)
+    context.metadata["layout_plan"] = {
+        "clips": [{"index": 0, "title": "One", "layout": "rounded_window"}]
+    }
+    captured: dict[str, object] = {}
+
+    class RecordingAdapter(FakeAdapter):
+        def render_short(self, _source, _pieces, destination, **kwargs):  # type: ignore[no-untyped-def]
+            captured.update(kwargs)
+            return super().render_short(_source, _pieces, destination, **kwargs)
+
+    RenderShortsStep().run(
+        context,
+        RenderShortsParams(cutout_corner_radius=0.2, cutout_margin=0.05),
+        StepIO(adapter=RecordingAdapter()),
+    )
+
+    assert captured["cutout"] is True
+    assert captured["cutout_corner_radius"] == 0.2
+    assert captured["cutout_margin"] == 0.05
+    assert context.shorts[0]["layout"] == "rounded_window"
+
+
+def test_layout_for_ignores_unknown_plan_entries(tmp_path: Path) -> None:
+    context, _clip = context_with_short(tmp_path)
+    step = RenderShortsStep()
+    assert step._layout_for("none", context, 0, "One") == "none"
+    assert step._layout_for("auto", context, 0, "One") == "none"
+    context.metadata["layout_plan"] = {"clips": ["bad", {"index": 0, "layout": "weird"}]}
+    assert step._layout_for("auto", context, 0, "One") == "none"
+
+
+def test_cutout_graph_clamps_and_rounds() -> None:
+    from videoflow.adapters.ffmpeg import _cutout_graph
+
+    graph = _cutout_graph(
+        "scale=1:1",
+        1080,
+        1920,
+        corner_radius=2.0,
+        margin=2.0,
+        head_overlap=2.0,
+    )
+    assert "split=2[bg0][fg0]" in graph
+    assert "boxblur=24:8" in graph
+    assert "geq=" in graph
+    assert "overlay=(W-w)/2" in graph

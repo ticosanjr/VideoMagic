@@ -284,9 +284,9 @@ def test_asset_upload_import_and_config_errors(
     )
     assert bad_template["ok"] is False
     assert bad_template["code"] == "invalid_template"
-    assert call(
-        server, "videoflow_import_config", {"schema_version": 2, "options": {}}
-    )["code"] == ("invalid_config")
+    assert call(server, "videoflow_import_config", {"schema_version": 2, "options": {}})[
+        "code"
+    ] == ("invalid_config")
     assert call(
         server,
         "videoflow_save_brand_template",
@@ -325,22 +325,18 @@ def test_asset_upload_import_and_config_errors(
     assert call(server, "videoflow_list_recipes", {"limit": 0})["ok"] is True
 
 
-
-
-
-
 def test_short_tool_validation_and_job_states(
     harness: Harness, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     server = harness.server
 
     assert call(server, "videoflow_edit_short", {"index": -1})["code"] == "invalid_arguments"
-    assert call(
-        server, "videoflow_edit_short", {"index": 0, "aspect_ratio": "4:3"}
-    )["code"] == ("invalid_arguments")
-    assert call(
-        server, "videoflow_edit_short", {"index": 0, "start_sec": 2, "end_sec": 1}
-    )["code"] == ("invalid_arguments")
+    assert call(server, "videoflow_edit_short", {"index": 0, "aspect_ratio": "4:3"})["code"] == (
+        "invalid_arguments"
+    )
+    assert call(server, "videoflow_edit_short", {"index": 0, "start_sec": 2, "end_sec": 1})[
+        "code"
+    ] == ("invalid_arguments")
 
     for name in [
         "videoflow_edit_short",
@@ -365,12 +361,12 @@ def test_short_tool_validation_and_job_states(
         payload = call(server, name, arguments)
         assert payload["code"] == "job_required", name
 
-    assert call(
-        server, "videoflow_generate_short_metadata", {"index": 0, "platform": "myspace"}
-    )["code"] == ("invalid_arguments")
-    assert call(
-        server, "videoflow_generate_short_metadata", {"index": 0, "tone": "sassy"}
-    )["code"] == ("invalid_arguments")
+    assert call(server, "videoflow_generate_short_metadata", {"index": 0, "platform": "myspace"})[
+        "code"
+    ] == ("invalid_arguments")
+    assert call(server, "videoflow_generate_short_metadata", {"index": 0, "tone": "sassy"})[
+        "code"
+    ] == ("invalid_arguments")
 
     harness.load()
     harness.write_state(transcript=[sentence(0), sentence(1)])
@@ -392,20 +388,20 @@ def test_short_tool_validation_and_job_states(
 
     job.status = "succeeded"
     job.result = {"shorts": []}
-    assert call(
-        server, "videoflow_schedule_short", {"index": 0, "target": "demo"}
-    )["code"] == "state_not_ready"
+    assert (
+        call(server, "videoflow_schedule_short", {"index": 0, "target": "demo"})["code"]
+        == "state_not_ready"
+    )
     job.result = {"shorts": [{}]}
-    assert call(
-        server, "videoflow_schedule_short", {"index": 0, "target": "demo"}
-    )["code"] == "state_not_ready"
+    assert (
+        call(server, "videoflow_schedule_short", {"index": 0, "target": "demo"})["code"]
+        == "state_not_ready"
+    )
 
     short = {"title": "Hook", "path": str(harness.tmp / "short.mp4"), "score": 80}
     job.result = {"shorts": [short], "state_path": str(harness.output / "project_state.json")}
 
-    monkeypatch.setattr(
-        shorts_module, "edit_short_service", lambda **kwargs: {"title": "Edited"}
-    )
+    monkeypatch.setattr(shorts_module, "edit_short_service", lambda **kwargs: {"title": "Edited"})
     assert call(server, "videoflow_edit_short", {"index": 0, "title": "Edited"})["ok"] is True
 
     monkeypatch.setattr(
@@ -436,9 +432,10 @@ def test_short_tool_validation_and_job_states(
     monkeypatch.setattr(
         shorts_module, "generate_short_voiceover", lambda **kwargs: {"path": "voice.mp3"}
     )
-    assert call(
-        server, "videoflow_generate_short_voiceover", {"index": 0, "text": "hello"}
-    )["ok"] is True
+    assert (
+        call(server, "videoflow_generate_short_voiceover", {"index": 0, "text": "hello"})["ok"]
+        is True
+    )
 
     monkeypatch.setattr(
         shorts_module, "generate_short_dubbing", lambda **kwargs: {"path": "dub.mp3"}
@@ -448,16 +445,17 @@ def test_short_tool_validation_and_job_states(
     monkeypatch.setattr(shorts_module, "analyze_short_entry", lambda **kwargs: {"score": 1})
     assert call(server, "videoflow_analyze_short", {"index": 0})["ok"] is True
 
-    monkeypatch.setattr(
-        shorts_module, "analyze_short_llm_entry", lambda **kwargs: {"score": 2}
-    )
+    monkeypatch.setattr(shorts_module, "analyze_short_llm_entry", lambda **kwargs: {"score": 2})
     monkeypatch.delenv("VIDEOWFLOW_VISION_BASE_URL", raising=False)
     assert call(server, "videoflow_analyze_short_llm", {"index": 0})["code"] == ("not_implemented")
-    assert call(
-        server,
-        "videoflow_analyze_short_llm",
-        {"index": 0, "base_url": "http://127.0.0.1:9/v1"},
-    )["ok"] is True
+    assert (
+        call(
+            server,
+            "videoflow_analyze_short_llm",
+            {"index": 0, "base_url": "http://127.0.0.1:9/v1"},
+        )["ok"]
+        is True
+    )
 
 
 def test_schedule_short_metadata_and_publish_errors(
@@ -510,21 +508,15 @@ def test_schedule_short_metadata_and_publish_errors(
     assert call(server, "videoflow_generate_short_thumbnail", {"index": 0})["code"] == (
         "state_not_ready"
     )
-    assert call(
-        server, "videoflow_generate_short_voiceover", {"index": 0, "text": "x"}
-    )["code"] == ("state_not_ready")
+    assert call(server, "videoflow_generate_short_voiceover", {"index": 0, "text": "x"})[
+        "code"
+    ] == ("state_not_ready")
     assert call(server, "videoflow_dub_short", {"index": 0})["code"] == "state_not_ready"
     assert call(server, "videoflow_analyze_short", {"index": 0})["code"] == "state_not_ready"
-    assert call(server, "videoflow_analyze_short_llm", {"index": 0})["code"] == (
-        "state_not_ready"
-    )
+    assert call(server, "videoflow_analyze_short_llm", {"index": 0})["code"] == ("state_not_ready")
 
 
-
-
-def test_timeline_jobs_and_copilot(
-    harness: Harness, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_timeline_jobs_and_copilot(harness: Harness, monkeypatch: pytest.MonkeyPatch) -> None:
     server = harness.server
 
     assert call(server, "videoflow_get_timeline", {})["code"] == "state_not_ready"
@@ -549,9 +541,9 @@ def test_timeline_jobs_and_copilot(
     assert call(server, "videoflow_validate_exports", {"job_id": "missing"})["code"] == (
         "job_not_found"
     )
-    assert call(server, "videoflow_edit_timeline", {"clip_id": "v1", "action": "move"})[
-        "code"
-    ] == ("state_not_ready")
+    assert call(server, "videoflow_edit_timeline", {"clip_id": "v1", "action": "move"})["code"] == (
+        "state_not_ready"
+    )
     assert call(server, "videoflow_approve_broll", {"title": "t", "approved": []})["code"] == (
         "state_not_ready"
     )
@@ -561,17 +553,13 @@ def test_timeline_jobs_and_copilot(
     assert call(server, "videoflow_copilot_timeline", {"prompt": "x"})["code"] == (
         "state_not_ready"
     )
-    assert call(server, "videoflow_render_frame", {"time_sec": 1.0})["code"] == (
-        "state_not_ready"
-    )
+    assert call(server, "videoflow_render_frame", {"time_sec": 1.0})["code"] == ("state_not_ready")
 
     harness.load()
     harness.pipeline()
     harness.write_state(raw="{bad state")
     assert call(server, "videoflow_get_timeline", {})["code"] == "state_not_ready"
-    assert call(server, "videoflow_render_frame", {"time_sec": 1.0})["code"] == (
-        "state_not_ready"
-    )
+    assert call(server, "videoflow_render_frame", {"time_sec": 1.0})["code"] == ("state_not_ready")
     assert call(server, "videoflow_copilot_timeline", {"prompt": "x"})["code"] == (
         "state_not_ready"
     )
@@ -631,9 +619,9 @@ def test_timeline_jobs_and_copilot(
         {"path": str(harness.source), "start_sec": 0.0, "duration_sec": 1.0},
     )["code"] == ("overlay_failed")
 
-    assert call(
-        server, "videoflow_remove_timeline_overlay", {"overlay_id": "missing"}
-    )["code"] == ("state_not_ready")
+    assert call(server, "videoflow_remove_timeline_overlay", {"overlay_id": "missing"})["code"] == (
+        "state_not_ready"
+    )
 
     monkeypatch.setattr(timeline_module, "build_llm", lambda: object())
     monkeypatch.setattr(
@@ -665,9 +653,7 @@ def test_timeline_jobs_and_copilot(
     monkeypatch.setattr(
         timeline_module,
         "propose_timeline_edits",
-        lambda *a, **k: [
-            {"clip_id": "v1", "action": "trim", "start_sec": 0.0, "end_sec": 0.5}
-        ],
+        lambda *a, **k: [{"clip_id": "v1", "action": "trim", "start_sec": 0.0, "end_sec": 0.5}],
     )
     applied = call(server, "videoflow_copilot_timeline", {"prompt": "trim", "apply": True})
     assert applied["ok"] is True
@@ -684,12 +670,8 @@ def test_timeline_jobs_and_copilot(
 
     missing_source = harness.tmp / "gone.mp4"
     state = ProjectState(media_info=media(missing_source), transcript=[sentence(0)])
-    (harness.output / "project_state.json").write_text(
-        state.model_dump_json(), encoding="utf-8"
-    )
-    assert call(server, "videoflow_render_frame", {"time_sec": 1.0})["code"] == (
-        "state_not_ready"
-    )
+    (harness.output / "project_state.json").write_text(state.model_dump_json(), encoding="utf-8")
+    assert call(server, "videoflow_render_frame", {"time_sec": 1.0})["code"] == ("state_not_ready")
 
     harness.source.write_bytes(b"x")
     state = ProjectState(media_info=media(harness.source), transcript=[sentence(0)])
@@ -712,17 +694,15 @@ def test_pipeline_recipe_batch_and_schedule_paths(
 ) -> None:
     server = harness.server
 
-    assert call(server, "videoflow_run_recipe", {"recipe_id": "youtube_talking_head"})[
-        "code"
-    ] == ("source_required")
+    assert call(server, "videoflow_run_recipe", {"recipe_id": "youtube_talking_head"})["code"] == (
+        "source_required"
+    )
     assert call(
         server,
         "videoflow_run_recipe_inline",
         {"recipe": {"schema_version": 1, "id": "x", "name": "x", "steps": []}},
     )["code"] == ("source_required")
-    assert call(server, "videoflow_run_step", {"step_id": "ingest"})["code"] == (
-        "recipe_required"
-    )
+    assert call(server, "videoflow_run_step", {"step_id": "ingest"})["code"] == ("recipe_required")
     assert call(
         server,
         "videoflow_run_step",
@@ -733,9 +713,7 @@ def test_pipeline_recipe_batch_and_schedule_paths(
         },
     )["code"] == ("recipe_required")
     assert call(server, "videoflow_run_batch", {})["code"] == "recipe_required"
-    assert call(server, "videoflow_get_batch", {"batch_id": "missing"})["code"] == (
-        "batch_invalid"
-    )
+    assert call(server, "videoflow_get_batch", {"batch_id": "missing"})["code"] == ("batch_invalid")
     assert call(server, "videoflow_cancel_batch", {"batch_id": "missing"})["code"] == (
         "batch_invalid"
     )
@@ -746,11 +724,14 @@ def test_pipeline_recipe_batch_and_schedule_paths(
         "name": "MCP extra",
         "steps": [{"id": "ingest", "type": "ingest", "params": {}}],
     }
-    assert call(
-        server,
-        "videoflow_run_recipe_inline",
-        {"recipe": recipe, "source": str(harness.source), "output": str(harness.tmp / "o1")},
-    )["ok"] is True
+    assert (
+        call(
+            server,
+            "videoflow_run_recipe_inline",
+            {"recipe": recipe, "source": str(harness.source), "output": str(harness.tmp / "o1")},
+        )["ok"]
+        is True
+    )
     assert call(
         server,
         "videoflow_run_step",
@@ -823,9 +804,9 @@ def test_export_models_backup_and_resources(
     monkeypatch.setattr(
         media_module, "export_timeline", lambda *a, **k: (_ for _ in ()).throw(OSError("io"))
     )
-    assert call(
-        server, "videoflow_export_fcpxml", {"output_path": str(harness.tmp / "x.fcpxml")}
-    )["code"] == ("export_failed")
+    assert call(server, "videoflow_export_fcpxml", {"output_path": str(harness.tmp / "x.fcpxml")})[
+        "code"
+    ] == ("export_failed")
 
     monkeypatch.setattr(
         config_module,
@@ -849,9 +830,10 @@ def test_export_models_backup_and_resources(
     )
     assert call(server, "videoflow_create_backup", {})["code"] == "backup_failed"
 
-    assert call(server, "videoflow_set_plugin_enabled", {"plugin_id": "x", "enabled": True})[
-        "code"
-    ] == "plugin_not_found"
+    assert (
+        call(server, "videoflow_set_plugin_enabled", {"plugin_id": "x", "enabled": True})["code"]
+        == "plugin_not_found"
+    )
 
     artifact = harness.tmp / "timeline.fcpxml"
     artifact.write_text("x", encoding="utf-8")
@@ -860,9 +842,7 @@ def test_export_models_backup_and_resources(
     )
     assert json.loads(read(server, "videoflow://project/exports"))["ok"] is True
     (harness.output / "run.json").write_text("{bad", encoding="utf-8")
-    assert json.loads(read(server, "videoflow://project/exports"))["code"] == (
-        "exports_unreadable"
-    )
+    assert json.loads(read(server, "videoflow://project/exports"))["code"] == ("exports_unreadable")
 
     fresh = Harness(monkeypatch, harness.tmp / "fresh")
     (harness.tmp / "fresh").mkdir(exist_ok=True)
@@ -898,9 +878,17 @@ def test_export_models_backup_and_resources(
         def iterdir(self):
             return [FakeItem("readme.txt"), FakeItem("shipped.json")]
 
-    monkeypatch.setattr(prompts_module, "files", lambda package: type("P", (), {
-        "joinpath": lambda self, name: FakeDir(),
-    })())
+    monkeypatch.setattr(
+        prompts_module,
+        "files",
+        lambda package: type(
+            "P",
+            (),
+            {
+                "joinpath": lambda self, name: FakeDir(),
+            },
+        )(),
+    )
     presets = json.loads(read(fresh.server, "videoflow://presets/list"))
     assert presets["presets"]["shipped.json"]["source"] == "shipped"
 
@@ -940,25 +928,34 @@ def test_asset_upload_success_and_small_tools(
     assert call(server, "videoflow_list_plugins", {})["ok"] is True
     assert call(server, "videoflow_cost_metrics", {})["ok"] is True
     assert call(server, "videoflow_reload_plugins", {})["ok"] is True
-    assert call(server, "videoflow_import_config", {"schema_version": 1, "options": {}})[
-        "ok"
-    ] is True
+    assert (
+        call(server, "videoflow_import_config", {"schema_version": 1, "options": {}})["ok"] is True
+    )
 
-    assert call(
-        server,
-        "videoflow_save_publish_target",
-        {"name": "t", "webhook_url": "http://127.0.0.1:9/hook"},
-    )["ok"] is True
-    assert call(
-        server,
-        "videoflow_save_project_template",
-        {"name": "---", "template": {}},
-    )["code"] == "filesystem_error"
-    assert call(
-        server,
-        "videoflow_save_brand_template",
-        {"name": "---", "template": {}},
-    )["code"] == "filesystem_error"
+    assert (
+        call(
+            server,
+            "videoflow_save_publish_target",
+            {"name": "t", "webhook_url": "http://127.0.0.1:9/hook"},
+        )["ok"]
+        is True
+    )
+    assert (
+        call(
+            server,
+            "videoflow_save_project_template",
+            {"name": "---", "template": {}},
+        )["code"]
+        == "filesystem_error"
+    )
+    assert (
+        call(
+            server,
+            "videoflow_save_brand_template",
+            {"name": "---", "template": {}},
+        )["code"]
+        == "filesystem_error"
+    )
 
     monkeypatch.setattr(config_module, "install_model", lambda model_id, allow_network: {"id": 1})
     monkeypatch.setattr(config_module, "remove_model", lambda model_id: None)
@@ -1037,13 +1034,14 @@ def test_timeline_editing_and_export_success(
     assert comment["ok"] is True
     comment_id = comment["comment"]["id"]
     assert call(server, "videoflow_list_clip_comments", {"clip_id": "v1"})["comments"]
-    assert call(server, "videoflow_remove_clip_comment", {"comment_id": comment_id})[
-        "deleted"
-    ] == comment_id
+    assert (
+        call(server, "videoflow_remove_clip_comment", {"comment_id": comment_id})["deleted"]
+        == comment_id
+    )
 
-    assert call(
-        server, "videoflow_approve_broll", {"title": "Short 1", "approved": [0]}
-    )["ok"] is True
+    assert (
+        call(server, "videoflow_approve_broll", {"title": "Short 1", "approved": [0]})["ok"] is True
+    )
     assert call(server, "videoflow_decide_review", {"approved": True})["ok"] is True
 
     timeline = call(server, "videoflow_get_timeline", {})
@@ -1082,9 +1080,9 @@ def test_timeline_editing_and_export_success(
         "resolve_allowed",
         lambda *a, **k: (_ for _ in ()).throw(VideoFlowError("blocked")),
     )
-    assert call(
-        server, "videoflow_export_fcpxml", {"output_path": str(harness.tmp / "y")}
-    )["code"] == ("videoflow_error")
+    assert call(server, "videoflow_export_fcpxml", {"output_path": str(harness.tmp / "y")})[
+        "code"
+    ] == ("videoflow_error")
 
 
 def test_recipe_pipeline_and_batch_success(
@@ -1097,9 +1095,7 @@ def test_recipe_pipeline_and_batch_success(
         "name": "MCP happy",
         "steps": [{"id": "ingest", "type": "ingest", "params": {}}],
     }
-    assert call(server, "videoflow_get_recipe", {"recipe_id": "youtube_talking_head"})[
-        "ok"
-    ] is True
+    assert call(server, "videoflow_get_recipe", {"recipe_id": "youtube_talking_head"})["ok"] is True
     assert call(server, "videoflow_validate_recipe", {"recipe": recipe})["order"] == ["ingest"]
     assert call(server, "videoflow_save_recipe", {"recipe": recipe})["ok"] is True
     monkeypatch.setattr(
@@ -1112,38 +1108,48 @@ def test_recipe_pipeline_and_batch_success(
     monkeypatch.setattr(FFmpegAdapter, "probe", lambda self, path: media(Path(path)))
     monkeypatch.setenv(ROOTS_ENV, str(harness.tmp))
 
-    assert call(
-        server,
-        "videoflow_run_recipe",
-        {"recipe_id": "youtube_talking_head", "source": str(harness.source)},
-    )["ok"] is True
+    assert (
+        call(
+            server,
+            "videoflow_run_recipe",
+            {"recipe_id": "youtube_talking_head", "source": str(harness.source)},
+        )["ok"]
+        is True
+    )
     assert harness.manager.job.options["mode"] == "recipe"
 
     assert call(
         server,
         "videoflow_run_recipe_inline",
-        {"recipe": {**recipe, "steps": [{"id": "a", "type": "bogus"}]}, "source": str(
-            harness.source
-        )},
+        {
+            "recipe": {**recipe, "steps": [{"id": "a", "type": "bogus"}]},
+            "source": str(harness.source),
+        },
     )["code"] == ("recipe_invalid")
-    assert call(
-        server,
-        "videoflow_run_step",
-        {"step_id": "ingest", "recipe": recipe, "source": str(harness.source)},
-    )["ok"] is True
+    assert (
+        call(
+            server,
+            "videoflow_run_step",
+            {"step_id": "ingest", "recipe": recipe, "source": str(harness.source)},
+        )["ok"]
+        is True
+    )
 
     batch_dir = harness.tmp / "batch-in"
     batch_dir.mkdir()
     (batch_dir / "one.mp4").write_bytes(b"x")
-    assert call(
-        server,
-        "videoflow_run_batch",
-        {
-            "recipe": recipe,
-            "source_dir": str(batch_dir),
-            "output_root": str(harness.tmp / "batch-out"),
-        },
-    )["ok"] is True
+    assert (
+        call(
+            server,
+            "videoflow_run_batch",
+            {
+                "recipe": recipe,
+                "source_dir": str(batch_dir),
+                "output_root": str(harness.tmp / "batch-out"),
+            },
+        )["ok"]
+        is True
+    )
 
     started = harness.pipeline()
     job = call(server, "videoflow_get_job", {"job_id": started["job"]["job_id"]})
@@ -1196,9 +1202,7 @@ def test_resources_prompts_and_whisper_sibling(
     assert state_payload["transcript"][0]["text"] == "From whisper."
     transcript_payload = read(server, "videoflow://project/transcript")
     assert "From whisper." in transcript_payload
-    assert json.loads(read(server, "videoflow://project/exports"))["code"] == (
-        "exports_not_found"
-    )
+    assert json.loads(read(server, "videoflow://project/exports"))["code"] == ("exports_not_found")
     (harness.output / "run.json").write_text(
         json.dumps({"artifacts": {"resolve": str(harness.tmp / "missing.fcpxml")}}),
         encoding="utf-8",
@@ -1220,8 +1224,6 @@ def test_resources_prompts_and_whisper_sibling(
     first = call(server, "videoflow_render_frame", {"time_sec": 0.5})
     second = call(server, "videoflow_render_frame", {"time_sec": 0.5})
     assert first["path"] == second["path"]
-
-
 
 
 def test_mcp_step_and_batch_reject_invalid_port_wiring(harness: Harness) -> None:
@@ -1265,3 +1267,38 @@ def test_mcp_step_and_batch_reject_invalid_port_wiring(harness: Harness) -> None
     )
     assert batch["code"] == "recipe_invalid"
     assert "unknown input port" in batch["message"]
+
+
+def test_vf_resources_read_artifacts_and_fallbacks(harness: Harness) -> None:
+    server = harness.server
+    job = harness.manager.start(harness.source, harness.output)
+    job_id = str(job.job_id)
+
+    beat = json.loads(read(server, f"vf://project/{job_id}/beat_map"))
+    assert beat["code"] == "beat_map_not_found"
+    (harness.output / "beat_map.json").write_text(
+        json.dumps({"ok": True, "scenes": []}), encoding="utf-8"
+    )
+    assert json.loads(read(server, f"vf://project/{job_id}/beat_map"))["ok"] is True
+
+    qa = json.loads(read(server, f"vf://project/{job_id}/qa_report"))
+    assert qa["code"] == "qa_not_found"
+    qa_dir = harness.output / "work" / "qa"
+    qa_dir.mkdir(parents=True)
+    (qa_dir / "qa_report.json").write_text('{"passed": true}', encoding="utf-8")
+    (qa_dir / "safezone.json").write_text("{", encoding="utf-8")
+    payload = json.loads(read(server, f"vf://project/{job_id}/qa_report"))
+    assert payload["visual"]["passed"] is True
+    assert payload["safezone"] == {"error": "unreadable"}
+
+    server.videoflow_last["output"] = harness.output  # type: ignore[attr-defined]
+    harness.manager.job = None
+    assert json.loads(read(server, f"vf://project/{job_id}/beat_map"))["ok"] is True
+    server.videoflow_last.pop("output", None)  # type: ignore[attr-defined]
+    missing = json.loads(read(server, f"vf://project/{job_id}/qa_report"))
+    assert missing["code"] == "qa_not_found"
+
+    rulebook = json.loads(read(server, "vf://presets/demo/rulebook"))
+    assert rulebook["channel_id"] == "demo"
+    safezones = json.loads(read(server, "vf://specs/safezones"))
+    assert "tiktok" in safezones or "reels" in safezones

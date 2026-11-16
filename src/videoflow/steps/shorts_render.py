@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -53,6 +54,10 @@ class RenderShortsParams(BaseModel):
     outro_path: str | None = None
     intro_duration_sec: float = 2.0
     outro_duration_sec: float = 2.0
+    layout: Literal["auto", "none", "cutout", "rounded_window", "full_screen"] = "auto"
+    cutout_corner_radius: float = Field(default=0.08, ge=0.0, le=0.5)
+    cutout_margin: float = Field(default=0.04, ge=0.0, le=0.3)
+    cutout_head_overlap: float = Field(default=0.12, ge=0.0, le=0.4)
 
 
 @register_step
@@ -123,9 +128,7 @@ class RenderShortsStep(BaseStep):
                         ),
                     )
                 else:
-                    events = sentence_events(
-                        kept, clip.pieces, sample_rate=media.audio_sample_rate
-                    )
+                    events = sentence_events(kept, clip.pieces, sample_rate=media.audio_sample_rate)
                     if events:
                         ass_path = shorts_dir / f"{slug}.ass"
                         write_text(
@@ -146,9 +149,7 @@ class RenderShortsStep(BaseStep):
                         continue
                     path = Path(str(cue["path"])).expanduser()
                     if path.is_file():
-                        sfx_clips.append(
-                            (path, float(cue.get("start_sec") or 0.0), 0.9)
-                        )
+                        sfx_clips.append((path, float(cue.get("start_sec") or 0.0), 0.9))
             plan = context.metadata.get("broll_plan")
             if options.broll_enabled and isinstance(plan, dict):
                 broll_entries = plan.get(clip.title)
@@ -157,9 +158,7 @@ class RenderShortsStep(BaseStep):
                 if isinstance(broll_entries, list) and approval is not None:
                     order = approval.get("order") or approval.get("approved") or []
                     broll_entries = [
-                        broll_entries[index]
-                        for index in order
-                        if 0 <= index < len(broll_entries)
+                        broll_entries[index] for index in order if 0 <= index < len(broll_entries)
                     ]
                 if isinstance(broll_entries, list):
                     for item in broll_entries:
@@ -176,6 +175,8 @@ class RenderShortsStep(BaseStep):
                                 float(item.get("duration_sec") or 2.0),
                             )
                         )
+            layout_style = self._layout_for(options.layout, context, index - 1, clip.title)
+            cutout = layout_style in {"cutout", "rounded_window"}
             destination = shorts_dir / f"{slug}.mp4"
             music_path = Path(options.music_path) if options.music_path else None
             second_source_path = (
@@ -198,8 +199,7 @@ class RenderShortsStep(BaseStep):
                     "overlay_width_ratio": options.overlay_width_ratio,
                     "filters": list(options.audio_filters),
                     "broll": [
-                        [str(path), start, duration]
-                        for path, start, duration in broll_clips
+                        [str(path), start, duration] for path, start, duration in broll_clips
                     ],
                     "sfx": [[str(path), start, volume] for path, start, volume in sfx_clips],
                     "music": [
@@ -215,63 +215,79 @@ class RenderShortsStep(BaseStep):
                         clip.crop_focus_y,
                         list(clip.crop_keyframes),
                     ],
+                    "layout": layout_style,
+                    "cutout": [
+                        options.cutout_corner_radius,
+                        options.cutout_margin,
+                        options.cutout_head_overlap,
+                    ],
                 }
             )
             cached = manifest.get(slug)
             skip = bool(
-                isinstance(cached, dict)
-                and cached.get("key") == key
-                and destination.is_file()
+                isinstance(cached, dict) and cached.get("key") == key and destination.is_file()
             )
             if skip:
                 reused += 1
             else:
                 adapter.render_short(
-                Path(context.source),
-                clip.pieces,
-                destination,
-                sample_rate=media.audio_sample_rate,
-                ass_path=ass_path,
-                width=width,
-                height=height,
-                fontsdir=str(fonts_dir()),
-                audio_filters=tuple(options.audio_filters),
-                overlay_path=Path(options.overlay_path) if options.overlay_path else None,
-                overlay_position=options.overlay_position,
-                overlay_margin=options.overlay_margin,
-                overlay_width_ratio=options.overlay_width_ratio,
-                overlay_opacity=options.overlay_opacity,
-                crop_focus_x=clip.crop_focus_x,
-                crop_focus_y=clip.crop_focus_y,
-                **(
-                    {"crop_keyframes": tuple(clip.crop_keyframes)}
-                    if clip.crop_keyframes
-                    else {}
-                ),
-                split_screen=options.split_screen or bool(entry.get("split_screen")),
-                split_screen_zoom=float(entry.get("split_screen_zoom", options.split_screen_zoom)),
-                split_screen_focus_left=float(
-                    entry.get("split_screen_focus_left", options.split_screen_focus_left)
-                ),
-                split_screen_focus_right=float(
-                    entry.get("split_screen_focus_right", options.split_screen_focus_right)
-                ),
-                second_source_path=(
-                    Path(options.second_source_path) if options.second_source_path else None
-                ),
-                mix_second_audio=options.mix_second_audio,
-                broll_clips=broll_clips or None,
-                sfx_clips=sfx_clips or None,
-                music_path=Path(options.music_path) if options.music_path else None,
-                music_volume=options.music_volume,
-                music_ducking=options.music_ducking,
-                music_fade_in_ms=options.music_fade_in_ms,
-                music_fade_out_ms=options.music_fade_out_ms,
-                intro_path=Path(options.intro_path) if options.intro_path else None,
-                outro_path=Path(options.outro_path) if options.outro_path else None,
-                intro_duration_sec=options.intro_duration_sec,
-                outro_duration_sec=options.outro_duration_sec,
-            )
+                    Path(context.source),
+                    clip.pieces,
+                    destination,
+                    sample_rate=media.audio_sample_rate,
+                    ass_path=ass_path,
+                    width=width,
+                    height=height,
+                    fontsdir=str(fonts_dir()),
+                    audio_filters=tuple(options.audio_filters),
+                    overlay_path=Path(options.overlay_path) if options.overlay_path else None,
+                    overlay_position=options.overlay_position,
+                    overlay_margin=options.overlay_margin,
+                    overlay_width_ratio=options.overlay_width_ratio,
+                    overlay_opacity=options.overlay_opacity,
+                    crop_focus_x=clip.crop_focus_x,
+                    crop_focus_y=clip.crop_focus_y,
+                    **(
+                        {"crop_keyframes": tuple(clip.crop_keyframes)}
+                        if clip.crop_keyframes
+                        else {}
+                    ),
+                    split_screen=options.split_screen or bool(entry.get("split_screen")),
+                    split_screen_zoom=float(
+                        entry.get("split_screen_zoom", options.split_screen_zoom)
+                    ),
+                    split_screen_focus_left=float(
+                        entry.get("split_screen_focus_left", options.split_screen_focus_left)
+                    ),
+                    split_screen_focus_right=float(
+                        entry.get("split_screen_focus_right", options.split_screen_focus_right)
+                    ),
+                    second_source_path=(
+                        Path(options.second_source_path) if options.second_source_path else None
+                    ),
+                    mix_second_audio=options.mix_second_audio,
+                    broll_clips=broll_clips or None,
+                    sfx_clips=sfx_clips or None,
+                    music_path=Path(options.music_path) if options.music_path else None,
+                    music_volume=options.music_volume,
+                    music_ducking=options.music_ducking,
+                    music_fade_in_ms=options.music_fade_in_ms,
+                    music_fade_out_ms=options.music_fade_out_ms,
+                    intro_path=Path(options.intro_path) if options.intro_path else None,
+                    outro_path=Path(options.outro_path) if options.outro_path else None,
+                    intro_duration_sec=options.intro_duration_sec,
+                    outro_duration_sec=options.outro_duration_sec,
+                    **(
+                        {
+                            "cutout": True,
+                            "cutout_corner_radius": options.cutout_corner_radius,
+                            "cutout_margin": options.cutout_margin,
+                            "cutout_head_overlap": options.cutout_head_overlap,
+                        }
+                        if cutout
+                        else {}
+                    ),
+                )
             manifest[slug] = {
                 "key": key,
                 "path": str(destination),
@@ -283,6 +299,7 @@ class RenderShortsStep(BaseStep):
             else:
                 entry.pop("subtitles", None)
             entry["aspect_ratio"] = entry.get("aspect_ratio", "9:16")
+            entry["layout"] = layout_style
             rendered.append(entry)
 
         write_text(
@@ -295,12 +312,25 @@ class RenderShortsStep(BaseStep):
                 context.output / "shorts.json",
                 json.dumps({"ok": True, "clips": rendered}, indent=2) + "\n",
             )
-        context.hashes["shorts_render"] = digest_payload(
-            [entry.get("path") for entry in rendered]
-        )
+        context.hashes["shorts_render"] = digest_payload([entry.get("path") for entry in rendered])
         message = f"{len(rendered)} shorts rendered ({reused} reused)"
         io.emit("info", message, module="shorts")
         io.report(100, message)
+
+    @staticmethod
+    def _layout_for(requested: str, context: PipelineContext, index: int, title: str) -> str:
+        if requested != "auto":
+            return requested
+        plan = context.metadata.get("layout_plan")
+        if not isinstance(plan, dict):
+            return "none"
+        for item in plan.get("clips", []):
+            if not isinstance(item, dict):
+                continue
+            if item.get("index") == index or item.get("title") == title:
+                layout = str(item.get("layout") or "none")
+                return layout if layout in {"cutout", "rounded_window", "full_screen"} else "none"
+        return "none"
 
     def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
         outputs = [Path(str(entry["path"])) for entry in context.shorts if entry.get("path")]

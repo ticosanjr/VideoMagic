@@ -12,27 +12,27 @@ adapters, exporters, API, jobs, and MCP are visible.
 
 ## Current working tree (2.80.0)
 
-Measured after the notification reduction work, with the release-gate omit list
-disabled. The full unit/contract run is **2,231 passed, 1 skipped, 1 xfailed**.
+Measured with the release-gate omit list disabled. The full unit/contract run is
+**2,255 passed, 1 skipped, 1 xfailed**.
 
 | Layer | Hit | Total | Cover |
 | --- | ---: | ---: | ---: |
 | api | 2,849 | 2,951 | 96.54% |
-| adapters | 1,347 | 1,414 | 95.26% |
-| application | 15,589 | 16,554 | 94.17% |
-| engine | 1,097 | 1,164 | 94.24% |
-| exporters | 1,211 | 1,261 | 96.03% |
-| mcp | 1,115 | 1,187 | 93.93% |
-| steps | 8,597 | 9,071 | 94.77% |
-| domain | 1,175 | 1,181 | 99.49% |
-| cli/runtime/core/plugin | 1,118 | 1,149 | 97.30% |
-| **full tree (statements)** | **34,487** | **36,345** | **94.89%** |
-| **full tree (branch report)** | — | — | **87.8%** |
+| adapters | 1,358 | 1,427 | 95.16% |
+| application | 15,677 | 16,629 | 94.28% |
+| engine | 1,098 | 1,164 | 94.33% |
+| exporters | 1,223 | 1,304 | 93.79% |
+| mcp | 1,185 | 1,228 | 96.50% |
+| steps | 9,022 | 9,461 | 95.36% |
+| domain | 1,356 | 1,365 | 99.34% |
+| cli/runtime/core/plugin | 486 | 505 | 96.24% |
+| **full tree (statements)** | **34,916** | **36,711** | **95.11%** |
+| **full tree (branches)** | **8,638** | **10,006** | **86.33%** |
 
-The 2.80 headless work is **below the 95% full-tree target**; the new partial/optional bridges are the remaining gap. The configured release gate remains at
-98% on its selected source set, which is narrower than this report. The
-remaining misses are concentrated in defensive branches for optional backends,
-offline paths, and platform-specific tray/notifier code.
+The 2.80 headless work now **meets the 95% full-tree statement target**. The
+configured release gate remains at 98% on its selected source set, which is
+narrower than this report. Remaining misses are defensive branches for optional
+backends, offline providers, and platform-specific tray/notifier code.
 
 ## Current working tree (2.58.5)
 

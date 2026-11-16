@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import re
 import xml.etree.ElementTree as ET
 from fractions import Fraction
 from pathlib import Path
@@ -42,6 +44,196 @@ def _seconds(raw: str) -> float:
         return float(value)
     except ValueError:
         return 0.0
+
+
+_MARKER_KEY = re.compile(r"^vf[\s:]+", re.IGNORECASE)
+
+
+def _timecode_seconds(raw: str) -> float:
+    """Parse ``HH:MM:SS.mmm`` or a plain second count."""
+
+    value = raw.strip()
+    if not value:
+        return 0.0
+    if ":" in value:
+        parts = value.split(":")
+        try:
+            numbers = [float(part.replace(",", ".")) for part in parts]
+        except ValueError:
+            return 0.0
+        total = 0.0
+        for number in numbers:
+            total = total * 60 + number
+        return total
+    return _seconds(value)
+
+
+def _marker_value(node: ET.Element) -> str:
+    for key in ("value", "text", "name", "note"):
+        raw = node.get(key)
+        if raw:
+            return raw
+    return ""
+
+
+def _marker_params(kind: str, raw: str) -> tuple[str, dict[str, str]] | None:
+    text = _MARKER_KEY.sub("", raw.strip())
+    if not text:
+        return None
+    parts = re.split(r"[:\s]+", text, maxsplit=1)
+    name = parts[0].strip().lower()
+    if name not in {"transcript", "broll", "b-roll", "ducking", "duck"}:
+        return None
+    params: dict[str, str] = {}
+    for chunk in re.split(r"[;,\s]+", parts[1] if len(parts) > 1 else ""):
+        if not chunk:
+            continue
+        key, separator, value = chunk.partition("=")
+        if separator:
+            params[key.strip().lower()] = value.strip()
+    if name == "b-roll":
+        name = "broll"
+    if name == "duck":
+        name = "ducking"
+    return name, params
+
+
+def _markers(path: Path, fmt: str) -> list[tuple[str, float, float, dict[str, str]]]:
+    """Read ``vf transcript/broll/ducking`` markers from an NLE timeline.
+
+    FCPXML uses ``<marker start="12s" duration="2s" value="vf:..."/>``.
+    Kdenlive/MLT uses ``<marker in="00:00:12.000" out="00:00:14.000"
+    text="vf:..."/>``.
+    """
+
+    root = ET.parse(path).getroot()
+    markers: list[tuple[str, float, float, dict[str, str]]] = []
+    names = {"marker", "chapter-marker"}
+    for node in root.iter():
+        if node.tag.rsplit("}", 1)[-1].lower() not in names:
+            continue
+        parsed = _marker_params("", _marker_value(node))
+        if parsed is None:
+            continue
+        kind, params = parsed
+        if node.get("start") is not None:
+            start = _seconds(node.get("start", "0s"))
+            duration = _seconds(node.get("duration", "0s"))
+        else:
+            start = _timecode_seconds(node.get("in", "0"))
+            out = _timecode_seconds(node.get("out", "0"))
+            duration = max(0.0, out - start)
+        markers.append((kind, start, duration, params))
+    return markers
+
+
+def _float_param(params: dict[str, str], key: str, default: float) -> float:
+    try:
+        return float(params[key])
+    except (KeyError, TypeError, ValueError):
+        return default
+
+
+def _apply_markers(
+    context: PipelineContext,
+    markers: list[tuple[str, float, float, dict[str, str]]],
+) -> tuple[int, int, int, list[str]]:
+    """Apply transcript shifts, B-roll cues, and ducking levels."""
+
+    transcript_updates = 0
+    broll_updates = 0
+    ducking_updates = 0
+    warnings: list[str] = []
+    rate = context.media.audio_sample_rate if context.media is not None else 48000
+    broll_plan = context.metadata.get("broll_plan")
+    if not isinstance(broll_plan, dict):
+        broll_plan = {}
+    ducking = context.metadata.get("nle_ducking")
+    if not isinstance(ducking, list):
+        ducking = []
+    for kind, start, duration, params in markers:
+        if kind == "transcript":
+            try:
+                shift = float(params.get("shift", params.get("offset", "0")))
+            except (TypeError, ValueError):
+                warnings.append(f"Invalid transcript shift marker at {start:.3f}s")
+                continue
+            if shift == 0:
+                continue
+            shift_samples = int(round(shift * rate))
+            changed = 0
+            for index, sentence in enumerate(context.transcript):
+                if start > 0 and sentence.start_sample / rate < start:
+                    continue
+                words = [
+                    word.model_copy(
+                        update={
+                            "start_sample": max(0, word.start_sample + shift_samples),
+                            "end_sample": max(0, word.end_sample + shift_samples),
+                        }
+                    )
+                    for word in sentence.words
+                ]
+                context.transcript[index] = sentence.model_copy(
+                    update={
+                        "start_sample": max(0, sentence.start_sample + shift_samples),
+                        "end_sample": max(0, sentence.end_sample + shift_samples),
+                        "words": words,
+                    }
+                )
+                changed += 1
+            transcript_updates += changed
+        elif kind == "broll":
+            path = params.get("path", "")
+            if not path:
+                warnings.append(f"B-roll marker at {start:.3f}s has no path")
+                continue
+            title = params.get("title", "")
+            if not title:
+                if context.selected_shorts:
+                    title = str(getattr(context.selected_shorts[0], "title", ""))
+                elif context.shorts:
+                    title = str(context.shorts[0].get("title") or "")
+            entry = {
+                "path": str(Path(path).expanduser()),
+                "start_sec": max(0.0, _float_param(params, "start", start)),
+                "duration_sec": max(0.1, _float_param(params, "duration", duration or 2.0)),
+                "provider": "nle",
+                "source": "nle_marker",
+            }
+            broll_plan.setdefault(title, []).append(entry)
+            broll_updates += 1
+        else:
+            try:
+                level = float(params.get("level", params.get("db", "-12")))
+            except (TypeError, ValueError):
+                warnings.append(f"Invalid ducking level marker at {start:.3f}s")
+                continue
+            end = _float_param(params, "end", start + duration)
+            ducking.append(
+                {
+                    "start_sec": max(0.0, start),
+                    "end_sec": max(start, end),
+                    "level_db": max(-60.0, min(0.0, level)),
+                }
+            )
+            ducking_updates += 1
+    if transcript_updates and context.state is not None:
+        context.state = context.state.model_copy(
+            update={
+                "transcript": context.transcript,
+                "revision": context.state.revision + 1,
+            }
+        )
+    if broll_updates:
+        context.metadata["broll_plan"] = broll_plan
+    if ducking_updates:
+        context.metadata["nle_ducking"] = ducking
+        target = context.output / "audio" / "ducking.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps({"ducking": ducking}, indent=2) + "\n", encoding="utf-8")
+        context.artifacts["nle_ducking"] = str(target)
+    return transcript_updates, broll_updates, ducking_updates, warnings
 
 
 def _clip_count(path: Path, fmt: str) -> int:
@@ -85,7 +277,7 @@ class NleSyncStep(BaseStep):
     icon = "⇄"
     color = "#3b82f6"
     title = "NLE sync back"
-    description = "Read FCPXML/MLT cuts and report/apply transcript, B-roll, and ducking sync."
+    description = "Read FCPXML/MLT cuts and apply transcript, B-roll, and ducking markers."
     requires = ()
     produces = ("sync_back_report",)
     params_model = NleSyncParams
@@ -95,6 +287,9 @@ class NleSyncStep(BaseStep):
         warnings: list[str] = []
         conflicts: list[str] = []
         changed = 0
+        transcript_updates = 0
+        broll_updates = 0
+        ducking_updates = 0
         if not options.path.strip():
             warnings.append("No external NLE path supplied; report only")
         else:
@@ -111,11 +306,13 @@ class NleSyncStep(BaseStep):
                         else 30.0
                     )
                     ranges = _clip_ranges(path, options.format, fps)
+                    markers = _markers(path, options.format)
                     external = len(ranges)
                 except (OSError, ET.ParseError) as exc:
                     warnings.append(f"Could not parse {path.name}: {exc}")
                     external = 0
                     ranges = []
+                    markers = []
                 internal = len(context.state.video_segments) if context.state else 0
                 changed = abs(external - internal)
                 if changed:
@@ -157,14 +354,25 @@ class NleSyncStep(BaseStep):
                             }
                         )
                         changed = len(segments)
-        applied = bool(options.apply and not conflicts and changed)
+                if options.apply and markers:
+                    marker_counts = _apply_markers(context, markers)
+                    transcript_updates += marker_counts[0]
+                    broll_updates += marker_counts[1]
+                    ducking_updates += marker_counts[2]
+                    warnings.extend(marker_counts[3])
+        applied = bool(
+            options.apply
+            and not conflicts
+            and (changed or transcript_updates or broll_updates or ducking_updates)
+        )
         report = NleSyncReport(
             format=options.format,
             applied=applied,
-            changed_clips=changed if applied else 0,
+            changed_clips=changed if applied and not conflicts else 0,
             conflicts=conflicts,
-            transcript_updates=0,
-            broll_updates=0,
+            transcript_updates=transcript_updates,
+            broll_updates=broll_updates,
+            ducking_updates=ducking_updates,
             warnings=warnings,
         )
         path = context.work / "nle_sync_report.json"

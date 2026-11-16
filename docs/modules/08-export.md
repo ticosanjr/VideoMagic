@@ -52,6 +52,24 @@ shorts.
 
 Export never re-runs analysis and never mutates state.
 
+## NLE sync-back
+
+`nle.sync_back` reads FCPXML or Kdenlive/MLT timelines and applies editorial
+markers during the same pass as clip-range sync. Markers use a `vf:` prefix:
+
+```xml
+<marker start="12s" duration="2s" value="vf transcript shift=0.25"/>
+<marker start="20s" duration="3s" value="vf broll path=/media/broll.mp4 duration=2.5"/>
+<marker start="30s" duration="8s" value="vf ducking level=-14"/>
+```
+
+Kdenlive markers use the same value in `text` with `in`/`out` timecodes.
+Transcript shifts update sentence and word samples, B-roll markers append to
+`broll_plan`, and ducking markers write `audio/ducking.json`. The report records
+`transcript_updates`, `broll_updates`, and `ducking_updates`. Clip-count
+conflicts are reported and block clip-range apply, but marker-only changes still
+apply when the clip counts agree.
+
 ## Dialect selection
 
 | Target | Writer |

@@ -189,6 +189,7 @@ class NleSyncReport(HeadlessModel):
     conflicts: list[str] = Field(default_factory=list)
     transcript_updates: int = 0
     broll_updates: int = 0
+    ducking_updates: int = 0
     warnings: list[str] = Field(default_factory=list)
 
 

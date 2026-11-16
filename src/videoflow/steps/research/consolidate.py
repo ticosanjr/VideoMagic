@@ -46,7 +46,7 @@ class ConsolidateStep(BaseStep):
             for raw in payload.get("cases", []):
                 if not isinstance(raw, dict):
                     continue
-                key = re.sub(r"\s+", " ", str(raw.get("title") or "untitled")).casefold()
+                key = re.sub(r"\s+", " ", str(raw.get("title") or "untitled")).strip().casefold()
                 existing = merged.get(key)
                 if existing is None:
                     merged[key] = {
@@ -70,9 +70,7 @@ class ConsolidateStep(BaseStep):
         notes = ""
         generated_by = "deterministic"
         if io.llm_client is not None and cases:
-            prompt = CONSOLIDATE_PROMPT.format(
-                cases=json.dumps(cases, ensure_ascii=False)[:30000]
-            )
+            prompt = CONSOLIDATE_PROMPT.format(cases=json.dumps(cases, ensure_ascii=False)[:30000])
             try:
                 payload = io.llm_client.complete_json(prompt, "videoflow.research.master")
                 raw_cases = payload.get("cases") if isinstance(payload, dict) else []
@@ -99,9 +97,7 @@ class ConsolidateStep(BaseStep):
                 if not any(source.get("url") for source in case.get("sources", []))
             ]
             if missing:
-                warnings.append(
-                    f"{len(missing)} case(s) have no source and need human review."
-                )
+                warnings.append(f"{len(missing)} case(s) have no source and need human review.")
         master = {
             "topic": payloads[0].get("topic", "") if payloads else "",
             "agent_count": len(payloads),
@@ -128,12 +124,8 @@ class ConsolidateStep(BaseStep):
             ),
         )
         context.metadata["research_master"] = master
-        context.artifacts["research_master"] = str(
-            context.output / "research" / "master.md"
-        )
-        context.artifacts["research_master_json"] = str(
-            context.output / "research" / "master.json"
-        )
+        context.artifacts["research_master"] = str(context.output / "research" / "master.md")
+        context.artifacts["research_master_json"] = str(context.output / "research" / "master.json")
         context.hashes["research.consolidate"] = digest_payload(
             {"cases": len(cases), "agents": len(payloads)}
         )
@@ -144,4 +136,3 @@ class ConsolidateStep(BaseStep):
             Path(context.artifacts["research_master"]),
             Path(context.artifacts["research_master_json"]),
         )
-

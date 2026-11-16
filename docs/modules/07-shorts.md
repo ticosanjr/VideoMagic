@@ -123,6 +123,23 @@ focus. Face tracking uses OpenCV when installed and falls back to motion
 tracking. The chosen focus is stored as `crop_focus_x`/`crop_focus_y` in
 `shorts.json`.
 
+## Cutout and rounded-window layout
+
+`layout.cutout` writes `work/layout_plan.json`. `shorts.render` defaults to
+`layout=auto`, reads the plan, and applies a per-clip `cutout`,
+`rounded_window`, or `full_screen` decision. Cutout renders keep the source
+crop as a rounded foreground window over a blurred, darkened background:
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `layout` | `auto` | auto / none / cutout / rounded_window / full_screen |
+| `cutout_corner_radius` | 0.08 | Corner radius as a fraction of window width |
+| `cutout_margin` | 0.04 | Side margin around the foreground window |
+| `cutout_head_overlap` | 0.12 | Vertical headroom trim for presenter framing |
+
+The decision is included in the render cache key and in each `shorts.json`
+entry as `layout`, so changing the plan invalidates only affected clips.
+
 ## Brand templates
 
 A `BrandTemplate` stores a caption style, overlay config, music config, and

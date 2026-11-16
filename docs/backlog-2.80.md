@@ -89,12 +89,12 @@ tests, and a media/contract test where applicable.
 
 ## Phase 7 — verification and release
 
-- [ ] Raise full-tree coverage back to ≥95% for the new partial/optional
+- [x] Raise full-tree coverage back to ≥95% for the new partial/optional
   bridges, or explicitly exclude platform-only code with justification.
 
-- [ ] Unit, contract, media, MCP protocol, headless import, performance and
+- [x] Unit, contract, media, MCP protocol, headless import, performance and
       security tests.
-- [ ] Fast gate and full gate.
+- [x] Fast gate and full gate.
 - [x] 2.80.0 version bump, CHANGELOG, release notes.
 - [x] Fast onedir/tar release and full onefile/AppImage release.
 - [x] SHA256SUMS, SBOM, AppImage/tray smoke.

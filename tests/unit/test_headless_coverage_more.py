@@ -498,3 +498,65 @@ def test_nle_sync_apply_updates_timeline(tmp_path: Path, monkeypatch) -> None:
     assert report["applied"] is True
     assert report["changed_clips"] == 2
     assert context.state.video_segments[1].timeline_in_frame == 30
+
+
+def test_qa_visual_helpers(tmp_path: Path, monkeypatch) -> None:
+    import sys
+    import wave
+    from types import SimpleNamespace
+
+    from videoflow.domain.state import OverlayClip
+    from videoflow.steps import qa_visual
+
+    pcm = tmp_path / "pcm.wav"
+    with wave.open(str(pcm), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(8000)
+        handle.writeframes((10000).to_bytes(2, "little", signed=True) * 8000)
+    assert qa_visual._audio_energy(pcm, 0.0, 0.1, 8000) > 0
+
+    from PIL import Image
+
+    first = tmp_path / "a.jpg"
+    second = tmp_path / "b.jpg"
+    Image.new("RGB", (8, 8), (0, 0, 0)).save(first)
+    Image.new("RGB", (8, 8), (255, 255, 255)).save(second)
+    assert qa_visual._motion_score([first, second]) > 0
+
+    context = _context(tmp_path)
+    context.state.overlays = [
+        OverlayClip(
+            overlay_id="o",
+            path="/tmp/o.png",
+            start_frame=0,
+            duration_frames=10,
+            position_x=0.5,
+            position_y=0.5,
+            width_ratio=0.4,
+        )
+    ]
+    assert qa_visual._overlay_boxes(context)
+
+    fake_cv2 = SimpleNamespace(
+        data=SimpleNamespace(haarcascades="x"),
+        COLOR_BGR2GRAY=1,
+        CascadeClassifier=lambda path: SimpleNamespace(
+            detectMultiScale=lambda gray, a, b: [(30, 30, 40, 40)]
+        ),
+        imread=lambda path: object(),
+        cvtColor=lambda image, code: SimpleNamespace(shape=(100, 100)),
+    )
+    monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
+    assert qa_visual._face_obstruction(context, [first], 0.0, 10)
+
+    fake_ocr = SimpleNamespace(image_to_string=lambda path: "wrong text")
+    monkeypatch.setitem(sys.modules, "pytesseract", fake_ocr)
+    context.metadata["text_expectations"] = [{"start_sec": 0.0, "text": "expected"}]
+    assert qa_visual._text_late(context, [first], 0.0, 1.0, 10)
+
+    context.pcm_path = pcm
+    monkeypatch.setattr(qa_visual, "extract_window", lambda *args: [first])
+    monkeypatch.setattr(qa_visual, "analyze_frames", lambda *args, **kwargs: [])
+    qa_visual.VisualQaStep().run(context, qa_visual.VisualQaParams(checks=["lip_sync"]), StepIO())
+    assert context.metadata["qa_report"]["checked_windows"] >= 1

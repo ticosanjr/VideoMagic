@@ -106,3 +106,60 @@ def test_exported_timeline_can_be_imported(monkeypatch, tmp_path: Path) -> None:
     assert imported["id"] != original["id"]
     _, restored = read_snapshot(imported["id"])
     assert restored.video_segments[0].clip_id == "v1"
+
+
+def test_snapshot_helpers_cover_missing_and_malformed_files(monkeypatch, tmp_path: Path) -> None:
+    import pytest
+
+    from videoflow.application.timeline_snapshots import (
+        _duration_sec,
+        _source_fingerprint,
+        read_snapshot_file,
+        timelines_dir,
+    )
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
+    empty = ProjectState()
+    assert _duration_sec(empty) == 0.0
+    assert _source_fingerprint(empty) == ""
+
+    missing = ProjectState(
+        media_info=MediaInfo(
+            source_path=str(tmp_path / "missing.mp4"),
+            duration_frames=1,
+            fps_num=30,
+            fps_den=1,
+            width=64,
+            height=64,
+            audio_sample_rate=48000,
+        )
+    )
+    assert str(tmp_path / "missing.mp4") in _source_fingerprint(missing)
+
+    directory = timelines_dir()
+    (directory / "broken.json").write_text("{", encoding="utf-8")
+    (directory / "list.json").write_text("[]", encoding="utf-8")
+    (directory / "nostate.json").write_text('{"name": "x"}', encoding="utf-8")
+    assert list_snapshots() == []
+
+    with pytest.raises(ValueError):
+        read_snapshot("bad id")
+    (timelines_dir() / "list.json").write_text("[]", encoding="utf-8")
+    with pytest.raises(ValueError):
+        read_snapshot("list")
+
+    invalid = tmp_path / "invalid.json"
+    invalid.write_text("[]", encoding="utf-8")
+    with pytest.raises(ValueError):
+        read_snapshot_file(invalid)
+
+    exported = tmp_path / "exported.json"
+    exported.write_text(state(tmp_path).model_dump_json() + "\n", encoding="utf-8")
+    metadata, loaded = read_snapshot_file(exported)
+    assert metadata["id"] == "exported"
+    assert metadata["path"] == str(exported)
+    assert loaded.video_segments[0].clip_id == "v1"
+    assert delete_snapshot("missing") is False
+
+    with pytest.raises(ValueError):
+        import_snapshot([])  # type: ignore[arg-type]

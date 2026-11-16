@@ -61,9 +61,7 @@ def test_storyboard_preview_selects_one_unit_per_layout(tmp_path: Path) -> None:
         StepIO(),
     )
 
-    payload = json.loads(
-        (output / "storyboard" / "previews.json").read_text(encoding="utf-8")
-    )
+    payload = json.loads((output / "storyboard" / "previews.json").read_text(encoding="utf-8"))
     assert payload["count"] == 4
     assert [item["layout"] for item in payload["previews"]] == [
         "full_screen",
@@ -74,3 +72,51 @@ def test_storyboard_preview_selects_one_unit_per_layout(tmp_path: Path) -> None:
     assert all(item["duration_sec"] == 12 for item in payload["previews"])
     assert all(item["path"] == "" for item in payload["previews"])
     assert context.artifacts["storyboard_previews"].endswith("storyboard/previews.json")
+
+
+def test_preview_handles_malformed_inputs_and_render_failures(tmp_path: Path, monkeypatch) -> None:
+    output = tmp_path / "out"
+    (output / "storyboard").mkdir(parents=True)
+    (output / "storyboard" / "units.json").write_text(
+        json.dumps({"units": ["bad", {"title": "Unknown", "layout": "custom"}]}),
+        encoding="utf-8",
+    )
+    (output / "style" / "style-guide.json").parent.mkdir(parents=True)
+    (output / "style" / "style-guide.json").write_text("[]", encoding="utf-8")
+    context = PipelineContext(
+        source=tmp_path / "source.mp4",
+        output=output,
+        work=output / "work",
+        exports=output / "exports",
+    )
+    monkeypatch.setattr(
+        "videoflow.steps.storyboard_preview.render_scene",
+        lambda scene, directory: (_ for _ in ()).throw(RuntimeError("no gpu")),
+    )
+    StoryboardPreviewStep().run(
+        context,
+        StoryboardPreviewParams(render=True, duration_sec=12),
+        StepIO(),
+    )
+    assert context.metadata["storyboard_previews"][0]["title"] == "Unknown"
+    assert context.metadata["storyboard_previews"][0]["path"] == ""
+    assert any("no gpu" in warning for warning in context.warnings)
+
+    missing = PipelineContext(
+        source=tmp_path / "missing-source.mp4",
+        output=tmp_path / "empty",
+        work=tmp_path / "empty" / "work",
+        exports=tmp_path / "empty" / "exports",
+    )
+    StoryboardPreviewStep().run(missing, StoryboardPreviewParams(render=False), StepIO())
+    assert (
+        json.loads((missing.output / "storyboard" / "previews.json").read_text(encoding="utf-8"))[
+            "count"
+        ]
+        == 0
+    )
+
+    outputs = StoryboardPreviewStep().cache_outputs(context)
+    assert len(outputs) == 1
+    context.metadata["storyboard_previews"].append({"path": str(output / "clip.mp4")})
+    assert len(StoryboardPreviewStep().cache_outputs(context)) == 2

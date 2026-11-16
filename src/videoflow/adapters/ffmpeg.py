@@ -679,6 +679,10 @@ class FFmpegAdapter:
         broll_duration_sec: float = 2.0,
         broll_clips: Sequence[tuple[Path, float, float]] | None = None,
         sfx_clips: Sequence[tuple[Path, float, float]] | None = None,
+        cutout: bool = False,
+        cutout_corner_radius: float = 0.08,
+        cutout_margin: float = 0.04,
+        cutout_head_overlap: float = 0.12,
     ) -> Path:
         """Render concatenated source pieces as a vertical H.264 short."""
 
@@ -757,13 +761,31 @@ class FFmpegAdapter:
                     else:
                         focus = piece_keyframes[0][1] if piece_keyframes else crop_focus_x
                         crop_x = str(max(0.0, min(1.0, focus)))
-                    video_args = [
-                        "-vf",
+                    base = (
                         f"scale={width}:{height}:force_original_aspect_ratio=increase,"
                         f"crop={width}:{height}:"
                         f"{crop_x}:"
-                        f"(ih-oh)*{max(0.0, min(1.0, crop_focus_y))},setsar=1",
-                    ]
+                        f"(ih-oh)*{max(0.0, min(1.0, crop_focus_y))},setsar=1"
+                    )
+                    if cutout:
+                        graph = _cutout_graph(
+                            base,
+                            width,
+                            height,
+                            corner_radius=cutout_corner_radius,
+                            margin=cutout_margin,
+                            head_overlap=cutout_head_overlap,
+                        )
+                        video_args = [
+                            "-filter_complex",
+                            graph,
+                            "-map",
+                            "[vout]",
+                            "-map",
+                            "0:a?",
+                        ]
+                    else:
+                        video_args = ["-vf", base]
                 self._capture(
                     [
                         "ffmpeg",
@@ -1277,6 +1299,37 @@ class FFmpegAdapter:
                 returncode=process.returncode,
             )
         return stdout, stderr
+
+
+def _cutout_graph(
+    base: str,
+    width: int,
+    height: int,
+    *,
+    corner_radius: float,
+    margin: float,
+    head_overlap: float,
+) -> str:
+    """Build a blurred-background presenter window with rounded corners."""
+
+    margin = max(0.0, min(0.3, margin))
+    head_overlap = max(0.0, min(0.4, head_overlap))
+    fg_w = max(2, int(width * (1 - margin * 2)))
+    fg_h = max(2, int(height * 0.72))
+    radius = max(0, min(fg_w, fg_h, int(fg_w * max(0.0, min(0.5, corner_radius)))))
+    alpha = (
+        "if(lte(hypot(max(0,abs(X-(W-1)/2)-((W-1)/2-"
+        f"{radius})),max(0,abs(Y-(H-1)/2)-((H-1)/2-{radius}))),{radius}),255,0)"
+    )
+    offset = max(0.0, min(1.0, head_overlap)) * 0.15
+    return (
+        f"{base},split=2[bg0][fg0];"
+        "[bg0]boxblur=24:8,eq=brightness=-0.18[bg];"
+        f"[fg0]scale={fg_w}:{fg_h}:force_original_aspect_ratio=increase,"
+        f"crop={fg_w}:{fg_h},format=rgba,"
+        f"geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='{alpha}'[fg];"
+        f"[bg][fg]overlay=(W-w)/2:(H-h)/2-(H*{offset:.4f}):shortest=1[vout]"
+    )
 
 
 def _filter_path(path: Path) -> str:
