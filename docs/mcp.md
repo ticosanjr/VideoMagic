@@ -119,6 +119,14 @@ vf://docs/recipes/{recipe_id}
 
 Resources are read-only. Tools perform writes.
 
+## Channel kits and hard constraints
+
+`vf_project_init(channel_id="canal-rafael")` binds a project to a channel
+rulebook. `vf_run_recipe` merges the channel kit defaults into the recipe and
+then applies inviolable hard constraints (aspect ratio, caption preset, LUT,
+B-roll style). Explicit recipe parameters cannot override a hard constraint.
+Learned rules are capped at 15 and consolidated by `preset.compile_rule`.
+
 ## Multi-source projects
 
 `ProjectState` carries `sources`, `primary_source_id`, `source_offsets`, and
@@ -137,7 +145,8 @@ without rebuilding it, including retakes that span file boundaries.
 
 `sync.multicam_audio` extracts 16 kHz mono PCM, runs normalized cross-correlation,
 reports offset/drift/confidence, and can store a source offset when confidence
-crosses the threshold.
+crosses the threshold. With `compose="pip"` it also adds the secondary source as
+a timed picture-in-picture overlay for facecam + screen compositions.
 
 The MP4 exporter renders each segment from its own source and the FCPXML/XMEML
 writers emit one asset per source. Kdenlive/MLT remains a static export.

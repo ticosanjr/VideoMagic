@@ -10,7 +10,7 @@ import numpy as np
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.domain.errors import IngestError
-from videoflow.domain.state import MediaInfo, ProjectState
+from videoflow.domain.state import MediaInfo, OverlayClip, ProjectState
 
 
 def _read_pcm(path: Path, rate: int = 16000) -> np.ndarray:
@@ -52,6 +52,9 @@ def sync_multicam(
     apply: bool = False,
     min_confidence: float = 0.2,
     sample_rate: int = 16000,
+    compose: str = "none",
+    pip_position: str = "top_right",
+    pip_width_ratio: float = 0.28,
 ) -> dict[str, object]:
     """Measure the audio offset between two project sources."""
 
@@ -107,9 +110,37 @@ def sync_multicam(
         "applied": applied,
         "min_confidence": min_confidence,
     }
-    target = directory / "multicam_manifest.json"
-    target.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     updated = state.model_copy(deep=True)
     if applied:
         updated.source_offsets[secondary] = int(round(offset / 1000 * sample_rate))
+        if compose in {"pip", "screen_face"}:
+            fps = primary_media.fps_num / max(1, primary_media.fps_den)
+            start_frame = max(0, int(round(offset / 1000 * fps)))
+            timeline_end = max(
+                (clip.timeline_out_frame for clip in updated.video_segments),
+                default=primary_media.duration_frames,
+            )
+            duration = max(0, timeline_end - start_frame)
+            if duration > 0:
+                updated.overlays.append(
+                    OverlayClip(
+                        overlay_id=f"multicam-{secondary}",
+                        path=secondary_media.source_path,
+                        start_frame=start_frame,
+                        duration_frames=duration,
+                        position_x=0.82 if "right" in pip_position else 0.18,
+                        position_y=0.18 if "top" in pip_position else 0.82,
+                        width_ratio=max(0.08, min(0.8, pip_width_ratio)),
+                        opacity=1.0,
+                        kind="video",
+                    )
+                )
+                report["composition"] = {
+                    "mode": compose,
+                    "position": pip_position,
+                    "width_ratio": pip_width_ratio,
+                    "start_frame": start_frame,
+                }
+    target = directory / "multicam_manifest.json"
+    target.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     return {"state": updated, "manifest": str(target), **report}

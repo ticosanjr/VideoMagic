@@ -78,3 +78,103 @@ def test_legacy_rulebook_migrates_and_similar_rules_merge(tmp_path: Path, monkey
     assert len(book.learned_rules) == 2
     assert any("please" in rule.text for rule in book.learned_rules)
     assert book.channel_kit.fonts == []
+
+
+def test_channel_kit_mutates_recipe() -> None:
+    from videoflow.application.channel_kit import apply_channel_kit
+    from videoflow.core.recipe import parse_recipe
+    from videoflow.domain.headless import ChannelKit, PresetHardConstraints, PresetRulebook
+
+    recipe = parse_recipe(
+        {
+            "id": "kit",
+            "name": "Kit",
+            "steps": [
+                {
+                    "id": "select",
+                    "type": "shorts.select",
+                    "needs": [],
+                    "params": {"aspect_ratio": "16:9"},
+                },
+                {
+                    "id": "render",
+                    "type": "shorts.render",
+                    "needs": ["select"],
+                    "params": {},
+                },
+                {
+                    "id": "export",
+                    "type": "export.video",
+                    "needs": ["render"],
+                    "params": {},
+                },
+                {
+                    "id": "broll",
+                    "type": "broll.plan",
+                    "needs": ["select"],
+                    "params": {},
+                },
+            ],
+        }
+    )
+    book = PresetRulebook(
+        channel_id="demo",
+        hard_constraints=PresetHardConstraints(
+            aspect_ratio="9:16", caption_preset="tiktok_bold", broll_style="emotional"
+        ),
+        channel_kit=ChannelKit(
+            lut="/assets/look.cube",
+            intro="/assets/intro.png",
+            outro="/assets/outro.png",
+            music=["/assets/music.mp3"],
+            defaults={"shorts.select": {"target_duration_max_sec": 45}},
+        ),
+    )
+    updated = apply_channel_kit(recipe, book)
+    params = {step.id: step.params for step in updated.steps}
+    assert params["select"]["aspect_ratio"] == "9:16"
+    assert params["select"]["target_duration_max_sec"] == 45
+    assert params["render"]["preset"] == "tiktok_bold"
+    assert params["render"]["intro_path"] == "/assets/intro.png"
+    assert params["render"]["music_path"] == "/assets/music.mp3"
+    assert params["export"]["lut_path"] == "/assets/look.cube"
+    assert params["broll"]["query"] == "emotional"
+
+
+def test_channel_kit_ignores_unknown_step_metadata() -> None:
+    from videoflow.application.channel_kit import apply_channel_kit
+    from videoflow.core.recipe import parse_recipe
+    from videoflow.domain.headless import ChannelKit, PresetRulebook
+
+    recipe = parse_recipe(
+        {
+            "id": "unknown-kit",
+            "name": "Unknown",
+            "steps": [{"id": "x", "type": "custom.step", "needs": [], "params": {"a": 1}}],
+        }
+    )
+    updated = apply_channel_kit(
+        recipe,
+        PresetRulebook(
+            channel_id="demo",
+            channel_kit=ChannelKit(defaults={"custom.step": {"b": 2}}),
+        ),
+    )
+    assert updated.steps[0].params == {"a": 1}
+
+    short = parse_recipe(
+        {
+            "id": "caption-kit",
+            "name": "Caption",
+            "steps": [
+                {
+                    "id": "render",
+                    "type": "shorts.render",
+                    "needs": [],
+                    "params": {"caption_style": "bad"},
+                }
+            ],
+        }
+    )
+    fixed = apply_channel_kit(short, PresetRulebook(channel_id="demo"))
+    assert fixed.steps[0].params["caption_style"] == {}

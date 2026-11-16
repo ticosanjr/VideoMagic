@@ -64,18 +64,14 @@ def test_scene_html_supports_assets_and_three(tmp_path: Path) -> None:
 
 
 def test_scene_html_falls_back_to_plain_values(tmp_path: Path) -> None:
-    html = scene_web.scene_html(
-        {"scene_id": "S", "background": "bad", "accent": "", "layers": []}
-    )
+    html = scene_web.scene_html({"scene_id": "S", "background": "bad", "accent": "", "layers": []})
     assert "#080B10" in html
     assert "import * as THREE" not in html
     assert '<canvas id="three-canvas">' not in html
 
 
 def test_write_scene_html_and_manifest(tmp_path: Path) -> None:
-    target = scene_web.write_scene_html(
-        _scene(tmp_path), tmp_path / "code", title_style="center"
-    )
+    target = scene_web.write_scene_html(_scene(tmp_path), tmp_path / "code", title_style="center")
     assert target.is_file()
     manifest = scene_web.write_manifest(tmp_path / "motion", [_scene(tmp_path)])
     assert json.loads(manifest.read_text())["count"] == 1
@@ -125,7 +121,7 @@ def test_render_scene_ffmpeg_delegates(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(
         scene_web,
         "render_scene",
-        lambda scene, output: (Path(output) / "x.mp4"),
+        lambda scene, output, **kwargs: Path(output) / "x.mp4",
     )
     assert scene_web.render_scene_ffmpeg({"scene_id": "S"}, tmp_path) == tmp_path / "x.mp4"
 
@@ -161,7 +157,7 @@ def test_scene_render_falls_back_to_ffmpeg(tmp_path: Path, monkeypatch) -> None:
         json.dumps({"scenes": [_scene(tmp_path)]}), encoding="utf-8"
     )
 
-    def fake_render(scene, output):
+    def fake_render(scene, output, **kwargs):
         target = Path(output) / "SCENE-0001.mp4"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(b"mp4")
@@ -171,9 +167,7 @@ def test_scene_render_falls_back_to_ffmpeg(tmp_path: Path, monkeypatch) -> None:
     SceneRenderStep().run(
         context, SceneRenderParams(engine="ffmpeg", fps=1, max_scenes=1), StepIO()
     )
-    manifest = json.loads(
-        (context.output / "motion" / "render-manifest.json").read_text()
-    )
+    manifest = json.loads((context.output / "motion" / "render-manifest.json").read_text())
     assert manifest["scenes"][0]["scene_id"] == "SCENE-0001"
 
 
@@ -189,7 +183,7 @@ def test_scene_render_tries_playwright_and_warns(tmp_path: Path, monkeypatch) ->
     def fail_html(*args, **kwargs):
         raise RuntimeError("browser missing")
 
-    def fake_render(scene, output):
+    def fake_render(scene, output, **kwargs):
         target = Path(output) / "SCENE-0001.mp4"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(b"mp4")
@@ -197,9 +191,7 @@ def test_scene_render_tries_playwright_and_warns(tmp_path: Path, monkeypatch) ->
 
     monkeypatch.setattr(scene_steps, "render_html_scene", fail_html)
     monkeypatch.setattr(scene_steps, "render_scene_ffmpeg", fake_render)
-    SceneRenderStep().run(
-        context, SceneRenderParams(engine="playwright", fps=1), StepIO()
-    )
+    SceneRenderStep().run(context, SceneRenderParams(engine="playwright", fps=1), StepIO())
     assert any("headless render fallback" in item for item in context.warnings)
 
 
@@ -235,7 +227,7 @@ def test_scene_assemble_and_export_master(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(
         scene_steps,
         "concatenate",
-        lambda paths, target: (Path(target).write_bytes(b"joined") or target),
+        lambda paths, target: Path(target).write_bytes(b"joined") or target,
     )
     monkeypatch.setattr(
         scene_steps,
@@ -392,6 +384,4 @@ def test_scene_helpers_require_ffmpeg(tmp_path: Path, monkeypatch) -> None:
     with pytest.raises(RuntimeError, match="FFmpeg"):
         scene_web.concatenate([tmp_path / "x.mp4"], tmp_path / "out.mp4")
     with pytest.raises(RuntimeError, match="FFmpeg"):
-        scene_web.mux_master(
-            tmp_path / "v.mp4", tmp_path / "a.wav", tmp_path / "m.mp4"
-        )
+        scene_web.mux_master(tmp_path / "v.mp4", tmp_path / "a.wav", tmp_path / "m.mp4")

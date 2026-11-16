@@ -14,7 +14,9 @@ from mcp.server.mcpserver import Context
 
 from videoflow.application import artifacts as artifact_service
 from videoflow.application.capabilities import capability_manifest
+from videoflow.application.channel_kit import apply_channel_kit
 from videoflow.application.hilt import public_payload, respond
+from videoflow.application.preset_rules import load_rulebook
 from videoflow.application.projects import (
     ProjectRecord,
     get_project,
@@ -136,6 +138,7 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
         name: str = "",
         output: str = "",
         sources: list[str] | None = None,
+        channel_id: str = "",
     ) -> dict[str, Any]:
         """Create or adopt a project. Returns the stable project_id and resources."""
 
@@ -149,15 +152,17 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
                     output=output,
                     sources=sources or [],
                     project_id=project_id or None,
+                    channel_id=channel_id,
                 )
             else:
                 state = _state(record)
-                if sources:
+                if sources or channel_id:
                     record, state = init_project(
                         name=record.name,
                         output=record.output,
-                        sources=sources,
+                        sources=sources or [],
                         project_id=record.project_id,
+                        channel_id=channel_id or record.channel_id,
                     )
                 return {
                     "ok": True,
@@ -269,6 +274,8 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
             record = _record(project_id)
             parsed = get_recipe(recipe_id) if recipe_id else parse_recipe(recipe or {})
             parsed = resolve_recipe_paths(parsed, allowed_roots())
+            if record.channel_id:
+                parsed = apply_channel_kit(parsed, load_rulebook(record.channel_id))
             parsed.validate_graph(step_types(), requires_by_type=requirements_by_type())
             validate_recipe_ports(parsed)
             raw_source = (
@@ -789,6 +796,9 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
         secondary_source_id: str = "",
         apply: bool = False,
         min_confidence: float = 0.2,
+        compose: str = "none",
+        pip_position: str = "top_right",
+        pip_width_ratio: float = 0.28,
     ) -> dict[str, Any]:
         """Synchronize two sources by audio cross-correlation."""
 
@@ -804,6 +814,9 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
                 secondary_source_id=secondary_source_id,
                 apply=apply,
                 min_confidence=min_confidence,
+                compose=compose,
+                pip_position=pip_position,
+                pip_width_ratio=pip_width_ratio,
             )
             if apply:
                 save_project_state(record, report["state"], bump_revision=False)

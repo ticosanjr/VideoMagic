@@ -29,6 +29,7 @@ class ProjectRecord(BaseModel):
     output: str
     primary_source: str = ""
     sources: list[str] = Field(default_factory=list)
+    channel_id: str = ""
     created_at: str = Field(default_factory=lambda: _now())
     updated_at: str = Field(default_factory=lambda: _now())
     revision: int = 1
@@ -139,6 +140,7 @@ def init_project(
     output: Path | str,
     sources: list[str] | None = None,
     project_id: str | None = None,
+    channel_id: str = "",
     adapter: Any | None = None,
 ) -> tuple[ProjectRecord, ProjectState]:
     """Create or adopt a project at ``output``."""
@@ -149,6 +151,9 @@ def init_project(
     if existing is not None:
         record = existing
         state = load_project_state(record)
+        if channel_id and channel_id != record.channel_id:
+            record = record.model_copy(update={"channel_id": channel_id})
+            _save_record(record)
         if sources:
             new_sources, primary = _media_for_sources(sources, adapter=adapter)
             for source_id, media in new_sources.items():
@@ -185,6 +190,7 @@ def init_project(
         output=str(output_path),
         primary_source=_source_paths(state)[1],
         sources=_source_paths(state)[0],
+        channel_id=channel_id,
         revision=state.revision,
     )
     _save_record(record)

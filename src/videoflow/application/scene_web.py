@@ -44,11 +44,7 @@ def scene_html(
     width = int(scene.get("width") or 1920)
     layers = [item for item in scene.get("layers") or [] if isinstance(item, dict)]
     asset = next(
-        (
-            item
-            for item in layers
-            if item.get("type") in {"image", "video"} and item.get("path")
-        ),
+        (item for item in layers if item.get("type") in {"image", "video"} and item.get("path")),
         None,
     )
     title = str((asset or {}).get("text") or scene.get("title") or "")
@@ -66,7 +62,7 @@ def scene_html(
                 asset_markup = f'<img id="asset" class="asset" src="{uri}" alt="">'
     panels = "".join(
         f'<div class="panel" style="animation-delay:{float(layer.get("start_sec") or 0.2):.3f}s">'
-        f'{str(layer.get("text") or "")}</div>'
+        f"{str(layer.get('text') or '')}</div>"
         for layer in layers
         if layer.get("type") in {"lower_third", "panel"} and layer.get("text")
     )
@@ -162,7 +158,7 @@ window.threeSetTime(0);
 </head>
 <body>
 <div id="stage">
-  {('<canvas id="three-canvas"></canvas>' if three_js else '')}
+  {('<canvas id="three-canvas"></canvas>' if three_js else "")}
   {asset_markup}
   <div class="vignette"></div>
   <div class="plane">
@@ -280,9 +276,7 @@ def render_html_scene(
         str(fps),
         str(target),
     ]
-    completed = subprocess.run(
-        command, capture_output=True, text=True, timeout=max(30.0, timeout)
-    )
+    completed = subprocess.run(command, capture_output=True, text=True, timeout=max(30.0, timeout))
     shutil.rmtree(frames_dir, ignore_errors=True)
     if completed.returncode != 0:
         raise RuntimeError(
@@ -292,8 +286,10 @@ def render_html_scene(
     return target
 
 
-def render_scene_ffmpeg(scene: dict[str, Any], output_dir: Path) -> Path:
-    return render_scene(scene, output_dir)
+def render_scene_ffmpeg(
+    scene: dict[str, Any], output_dir: Path, *, draft_scale: float = 1.0
+) -> Path:
+    return render_scene(scene, output_dir, draft_scale=draft_scale)
 
 
 def _concat_line(path: Path) -> str:
@@ -393,8 +389,7 @@ def write_manifest(directory: Path, scenes: list[dict[str, Any]]) -> Path:
     target = Path(directory) / "render-manifest.json"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
-        json.dumps({"scenes": scenes, "count": len(scenes)}, indent=2)
-        + "\n",
+        json.dumps({"scenes": scenes, "count": len(scenes)}, indent=2) + "\n",
         encoding="utf-8",
     )
     return target

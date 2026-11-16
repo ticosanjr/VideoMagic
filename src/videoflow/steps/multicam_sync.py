@@ -18,6 +18,11 @@ class MulticamParams(BaseModel):
     secondary_source_id: str = ""
     apply: bool = False
     min_confidence: float = Field(default=0.2, ge=0.0, le=1.0)
+    compose: str = Field(default="none", pattern="^(none|pip|screen_face)$")
+    pip_position: str = Field(
+        default="top_right", pattern="^(top_left|top_right|bottom_left|bottom_right)$"
+    )
+    pip_width_ratio: float = Field(default=0.28, ge=0.08, le=0.8)
 
 
 @register_step
@@ -40,6 +45,9 @@ class MulticamSyncStep(BaseStep):
             secondary_source_id=options.secondary_source_id,
             apply=options.apply,
             min_confidence=options.min_confidence,
+            compose=options.compose,
+            pip_position=options.pip_position,
+            pip_width_ratio=options.pip_width_ratio,
         )
         context.state = report["state"]  # type: ignore[assignment]
         context.metadata["multicam_report"] = report
@@ -47,6 +55,5 @@ class MulticamSyncStep(BaseStep):
         context.hashes["sync.multicam_audio"] = digest_payload(report)
         io.report(
             100,
-            f"Multicam offset {report['offset_ms']}ms "
-            f"(confidence {report['confidence']})",
+            f"Multicam offset {report['offset_ms']}ms (confidence {report['confidence']})",
         )

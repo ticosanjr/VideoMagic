@@ -157,11 +157,21 @@ def test_multicam_reports_offset_and_drift(monkeypatch, tmp_path: Path) -> None:
         secondary_source_id="src002",
         apply=True,
         min_confidence=0.05,
+        compose="pip",
     )
     assert report["confidence"] >= 0.05
     assert report["applied"] is True
+    assert report["composition"]["mode"] == "pip"
+    assert report["state"].overlays
     assert "offset_ms" in report
     assert "drift_ms" in report
+    with __import__("pytest").raises(Exception):
+        sync_multicam(
+            state,
+            tmp_path / "sync-bad",
+            primary_source_id="missing",
+            secondary_source_id="src002",
+        )
 
 
 def test_session_cull_applies_retakes_without_rebuilding(monkeypatch, tmp_path: Path) -> None:

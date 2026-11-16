@@ -213,7 +213,9 @@ class SceneRenderStep(BaseStep):
             if rendered_path is None:
                 try:
                     rendered_path = render_scene_ffmpeg(
-                        scene, context.output / "motion" / "rendered"
+                        scene,
+                        context.output / "motion" / "rendered",
+                        draft_scale=options.draft_scale,
                     )
                 except Exception as exc:  # noqa: BLE001 - keep the remaining scenes
                     warnings.append(f"{scene_id}: {exc}")
