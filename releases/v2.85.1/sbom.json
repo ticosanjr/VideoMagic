@@ -993,9 +993,9 @@
     },
     {
       "name": "videoflow",
-      "purl": "pkg:pypi/videoflow@2.72.4",
+      "purl": "pkg:pypi/videoflow@2.85.1",
       "type": "library",
-      "version": "2.72.4"
+      "version": "2.85.1"
     },
     {
       "name": "yarl",
