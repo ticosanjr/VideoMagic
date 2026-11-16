@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import time
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from vf_contracts.assets import find_cached as find_cached_asset
 from vf_contracts.assets import iter_assets
-from vf_contracts.workspace import ASSET_KINDS
 
 from videoflow.application import artifacts as artifact_service
 from videoflow.application.hilt import list_requests, load_response, public_payload
@@ -29,6 +28,23 @@ def _capture_legacy(register: Any, ctx: Any) -> dict[str, Any]:
 
     register_agent_tools(capture, ctx)
     return tools
+
+
+@lru_cache(maxsize=1)
+def _step_catalog() -> tuple[dict[str, Any], ...]:
+    """Build the static step catalog once per process."""
+
+    return tuple(
+        {
+            "type": step.type,
+            "title": step.title,
+            "description": step.description,
+            "status": step.status,
+            "requires": list(step.requires),
+            "schema_resource": f"vf://docs/steps/{step.type}",
+        }
+        for step in iter_steps()
+    )
 
 
 def _wait(manager: Any, project_id: str, job_id: str, timeout: float) -> dict[str, Any]:
@@ -86,20 +102,11 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         cap = max(1, min(100, int(limit)))
         result: dict[str, Any] = {"ok": True, "query": query, "steps": [], "recipes": []}
         if kind in {"all", "steps"}:
-            for step in iter_steps():
-                haystack = f"{step.type} {step.title} {step.description}".casefold()
+            for step in _step_catalog():
+                haystack = (f"{step['type']} {step['title']} {step['description']}").casefold()
                 if needle and needle not in haystack:
                     continue
-                result["steps"].append(
-                    {
-                        "type": step.type,
-                        "title": step.title,
-                        "description": step.description,
-                        "status": step.status,
-                        "requires": list(step.requires),
-                        "schema_resource": f"vf://docs/steps/{step.type}",
-                    }
-                )
+                result["steps"].append(step)
                 if len(result["steps"]) >= cap:
                     break
         if kind in {"all", "recipes"}:
@@ -208,10 +215,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                 tail_lines=tail_lines,
             )
         if action == "qa":
-            try:
-                return legacy["vf_get_qa_artifacts"](project_id=project_id, include_images=False)[0]
-            except IndexError:
-                return error("qa_not_found", "No QA report")
+            return legacy["vf_get_qa_artifacts"](project_id=project_id, include_images=False)[0]
         if action == "wait":
             try:
                 return _wait(manager, project_id, job_id, timeout_sec)
@@ -269,11 +273,14 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                     *workspace_assets,
                 ],
             }
-        cached = None
-        for kind in ASSET_KINDS:
-            cached = find_cached_asset(project_id, kind, artifact)
-            if cached is not None:
-                break
+        cached = next(
+            (
+                asset
+                for asset in iter_assets(project_id)
+                if artifact in {asset.asset_id, asset.path, Path(asset.path).name}
+            ),
+            None,
+        )
         if cached is not None:
             path = Path(cached.path)
             if not path.is_absolute():

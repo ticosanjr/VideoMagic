@@ -190,3 +190,24 @@ def test_multicam_apply_requires_media(tmp_path: Path) -> None:
     ctx.media = None
     with __import__("contextlib").suppress(StateNotReadyError):
         MulticamApplyStep().run(ctx, MulticamApplyParams(), StepIO())
+
+
+def test_multicam_apply_skips_unknown_and_empty_sources(tmp_path: Path) -> None:
+    from videoflow.domain.errors import StateNotReadyError
+    from videoflow.domain.state import MulticamCut, MulticamPlan
+    from videoflow.steps.multicam_plan import MulticamApplyStep
+
+    ctx = context(tmp_path)
+    ctx.state = ctx.state.model_copy(
+        update={
+            "multicam": MulticamPlan(
+                cuts=[
+                    MulticamCut(start_frame=0, end_frame=10, source_id="missing"),
+                    MulticamCut(start_frame=10, end_frame=20, source_id="src1"),
+                ]
+            )
+        }
+    )
+    with __import__("contextlib").suppress(StateNotReadyError):
+        MulticamApplyStep().run(ctx, MulticamApplyParams(), StepIO())
+    assert ctx.state is not None

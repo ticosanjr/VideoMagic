@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.90.1] - 2026-11-16
+
+### Changed
+
+- Cached the static 124-step catalog for MCP searches.
+- Optimized workspace asset lookup to a single pass over project assets.
+- Removed dead imports and tightened the core MCP surface.
+- Kept the 12-tool core profile and modular domain servers unchanged.
+
 ## [2.90.0] - 2026-11-16
 
 ### Added
