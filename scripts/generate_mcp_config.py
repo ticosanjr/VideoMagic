@@ -72,8 +72,7 @@ def main() -> int:
     )
     args = parser.parse_args()
     servers = {
-        name: server_block(name, prompts=not args.no_prompts)
-        for name in PROFILES[args.profile]
+        name: server_block(name, prompts=not args.no_prompts) for name in PROFILES[args.profile]
     }
     payload = {"mcp": {"servers": servers}}
     text = json.dumps(payload, indent=2) + "\n"

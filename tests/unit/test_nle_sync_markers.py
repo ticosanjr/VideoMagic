@@ -98,6 +98,7 @@ def test_fcpxml_markers_apply_transcript_broll_and_ducking(tmp_path: Path, monke
     assert context.metadata["nle_ducking"][0]["level_db"] == -18
     ducking = context.output / "audio" / "ducking.json"
     assert ducking.is_file()
+    assert (context.output / "captions" / "captions.ass").is_file()
 
 
 def test_mlt_markers_and_invalid_marker_values(tmp_path: Path, monkeypatch) -> None:
@@ -133,6 +134,7 @@ def test_xmeml_clip_ranges_and_markers_roundtrip(tmp_path: Path, monkeypatch) ->
     monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
     context = make_context(tmp_path)
     context.state = ProjectState(
+        media_info=context.media,
         transcript=context.transcript,
         video_segments=[
             VideoSegment(
@@ -223,3 +225,63 @@ def test_nle_sync_parser_edge_cases(tmp_path: Path, monkeypatch) -> None:
         StepIO(),
     )
     assert context.metadata["sync_back_report"]["warnings"]
+
+
+def test_mlt_roundtrip_reads_only_video_playlists(tmp_path: Path, monkeypatch) -> None:
+    from videoflow.domain.state import AudioSegment, VideoSegment
+    from videoflow.exporters.kdenlive import export_kdenlive
+
+    monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
+    context = make_context(tmp_path)
+    context.state = ProjectState(
+        media_info=context.media,
+        transcript=context.transcript,
+        video_segments=[
+            VideoSegment(
+                clip_id="c1",
+                source_in_frame=0,
+                source_out_frame=30,
+                timeline_in_frame=0,
+                timeline_out_frame=30,
+            ),
+            VideoSegment(
+                clip_id="c2",
+                source_in_frame=0,
+                source_out_frame=30,
+                timeline_in_frame=30,
+                timeline_out_frame=60,
+            ),
+        ],
+        audio_segments=[
+            AudioSegment(
+                clip_id="c1",
+                source_in_sample=0,
+                source_out_sample=48000,
+                timeline_in_sample=0,
+                timeline_out_sample=48000,
+            ),
+            AudioSegment(
+                clip_id="c2",
+                source_in_sample=0,
+                source_out_sample=48000,
+                timeline_in_sample=48000,
+                timeline_out_sample=96000,
+            ),
+        ],
+    )
+    path = context.output / "timeline.kdenlive"
+    export_kdenlive(context.state, path)
+
+    ranges = nle_sync._clip_ranges(path, "mlt", 30.0)
+    assert len(ranges) == 2
+    assert ranges[0][0] == 0.0
+    assert ranges[1][0] == 1.0
+
+    nle_sync.NleSyncStep().run(
+        context,
+        nle_sync.NleSyncParams(format="mlt", path=str(path), apply=True),
+        StepIO(),
+    )
+    report = context.metadata["sync_back_report"]
+    assert report["applied"] is True
+    assert context.state.video_segments[1].timeline_in_frame == 30

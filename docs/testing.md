@@ -15,8 +15,8 @@ hides the contract. VideoFlow resolves this with two layers:
 
 | Scope | Line coverage | Notes |
 | --- | --- | --- |
-| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 98% gate (2,380 passing, 1 skipped, 1 strict xfail, 18 deselected) |
-| Full tree | **95%** (3.0 target) | **Met**: 95.07% statements (36,446/38,335), 86.11% with branches |
+| `videoflow.domain`, `application.cache`, `application.timeline_builder` | **95%** now | Current: 98% gate (2,388 passing, 1 skipped, 1 strict xfail, 18 deselected) |
+| Full tree | **95%** (3.0 target) | **Met**: 95.08% statements (36,535/38,425), 86.14% with branches |
 | Domain, runner, cache, exporters | 90% when engines land | Exporters require golden files |
 | Adapters | 80% with fakes | Native libraries are faked in unit tests |
 | UI | `npm run check`, `npm test`, `npm run test:e2e`, `npm run build` | Playwright: graph, inspector, schema fields, split-screen source, palette, NLE validation, run history, mobile timeline/builder, HITL, workspaces, visual baselines |
@@ -36,6 +36,9 @@ uv run pytest -m manual --no-cov        # prints the manual checklist
 uv run ruff check src tests scripts
 uv run mypy                             # scoped to domain + cache (see pyproject.toml)
 uv run python scripts/build_portable.py --fetch-ffmpeg  # packaging smoke
+uv run python scripts/nle_multi_smoke.py --json-out /tmp/nle-smoke.json
+uv run python scripts/gpu_worker_smoke.py --local
+uv run python scripts/gpu_worker_smoke.py --url http://windows-host:8766
 
 ./scripts/gate_local.sh                 # fast default
 ./scripts/gate_local.sh --full          # complete gate

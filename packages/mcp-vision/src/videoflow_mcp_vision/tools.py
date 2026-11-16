@@ -1077,6 +1077,7 @@ def _transcribe_remote(source: Path, language: str) -> list[dict[str, Any]]:
         {
             "input": str(source),
             "language": language,
+            "model": os.environ.get("VF_WHISPER_MODEL", "large-v3"),
             "output_name": "transcript.json",
         },
     )

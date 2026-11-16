@@ -17,7 +17,10 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
+import threading
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -86,6 +89,92 @@ def _run_job(
         "artifacts": status.artifacts,
         "downloaded": downloaded,
     }
+
+
+def run_local_worker(
+    *,
+    token: str,
+    directory: Path,
+    port: int,
+) -> dict[str, object]:
+    """Run the real worker HTTP app in-process with deterministic handlers."""
+
+    import uvicorn
+
+    root = Path(__file__).resolve().parents[1]
+    package_src = root / "packages" / "gpu-worker" / "src"
+    if str(package_src) not in sys.path:
+        sys.path.insert(0, str(package_src))
+    from gpu_worker.app import create_app
+    from gpu_worker.settings import Settings
+
+    app = create_app(
+        Settings(
+            token=token,
+            work_dir=directory / "worker",
+            max_upload_mb=64,
+            max_queue=4,
+        )
+    )
+
+    def asr(params, inputs, work_dir):
+        target = work_dir / str(params.get("output_name") or "transcript.json")
+        target.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "language": str(params.get("language") or "pt"),
+                    "segments": [
+                        {
+                            "start": 0.0,
+                            "end": 1.0,
+                            "text": "smoke local",
+                            "words": [
+                                {"word": "smoke", "start": 0.0, "end": 0.5},
+                                {"word": "local", "start": 0.5, "end": 1.0},
+                            ],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return [target]
+
+    def upscale(params, inputs, work_dir):
+        target = work_dir / str(params.get("output_name") or "upscaled.png")
+        target.write_bytes(b"PNG")
+        return [target]
+
+    app.state.registry.register_handler("asr", asr)
+    app.state.registry.register_handler("upscale", upscale)
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error")
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    url = f"http://127.0.0.1:{port}"
+    try:
+        with GPUWorkerClient(url, token) as client:
+            for _ in range(100):
+                try:
+                    if client.health(timeout=0.5).available:
+                        break
+                except Exception:  # noqa: BLE001 - server is still starting
+                    time.sleep(0.05)
+            else:
+                raise SystemExit("local GPU worker did not start")
+        report = run_smoke(
+            url=url,
+            token=token,
+            directory=directory,
+            check_fallback=True,
+        )
+        report["mode"] = "local"
+        return report
+    finally:
+        server.should_exit = True
+        thread.join(timeout=10.0)
+        app.state.close()
 
 
 def run_smoke(
@@ -158,6 +247,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", default=os.environ.get("VF_GPU_WORKER_URL", ""))
     parser.add_argument("--token", default=os.environ.get("VF_GPU_WORKER_TOKEN", ""))
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Run the worker HTTP app locally with deterministic handlers.",
+    )
+    parser.add_argument("--local-port", type=int, default=8799)
     parser.add_argument("--output", default="")
     parser.add_argument("--json-out", default="")
     parser.add_argument(
@@ -166,20 +261,27 @@ def main(argv: list[str] | None = None) -> int:
         help="Verify the router chooses local when the worker is unreachable.",
     )
     args = parser.parse_args(argv)
-    if not args.url:
-        raise SystemExit("pass --url or set VF_GPU_WORKER_URL")
+    if not args.local and not args.url:
+        raise SystemExit("pass --url, set VF_GPU_WORKER_URL, or use --local")
     directory = (
         Path(args.output).expanduser()
         if args.output
         else Path(tempfile.mkdtemp(prefix="videoflow-gpu-smoke-"))
     )
     directory.mkdir(parents=True, exist_ok=True)
-    report = run_smoke(
-        url=args.url.rstrip("/"),
-        token=args.token,
-        directory=directory,
-        check_fallback=args.check_fallback,
-    )
+    if args.local:
+        report = run_local_worker(
+            token=args.token or "local-smoke",
+            directory=directory,
+            port=args.local_port,
+        )
+    else:
+        report = run_smoke(
+            url=args.url.rstrip("/"),
+            token=args.token,
+            directory=directory,
+            check_fallback=args.check_fallback,
+        )
     text = json.dumps(report, indent=2) + "\n"
     if args.json_out:
         target = Path(args.json_out).expanduser()

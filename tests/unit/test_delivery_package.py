@@ -63,3 +63,58 @@ def test_package_without_a_choice_still_writes_a_manifest(tmp_path: Path) -> Non
     assert manifest["thumbnail"] == ""
     assert manifest["music"] == []
     assert not (context.output / "delivery" / "thumbnail.png").exists()
+
+
+def test_package_can_embed_a_multi_nle_bundle(tmp_path: Path) -> None:
+    from videoflow.domain.state import AudioSegment, MediaInfo, ProjectState, VideoSegment
+
+    context = build_context(tmp_path)
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"source")
+    media = MediaInfo(
+        source_path=str(source),
+        duration_frames=30,
+        fps_num=30,
+        fps_den=1,
+        width=640,
+        height=360,
+        audio_sample_rate=48000,
+    )
+    context.state = ProjectState(
+        media_info=media,
+        video_segments=[
+            VideoSegment(
+                clip_id="c1",
+                source_in_frame=0,
+                source_out_frame=30,
+                timeline_in_frame=0,
+                timeline_out_frame=30,
+            )
+        ],
+        audio_segments=[
+            AudioSegment(
+                clip_id="c1",
+                source_in_sample=0,
+                source_out_sample=48000,
+                timeline_in_sample=0,
+                timeline_out_sample=48000,
+            )
+        ],
+    )
+
+    class FakeAdapter:
+        def render(self, command, progress=None):
+            Path(command[-1]).write_bytes(b"mp4")
+
+    DeliveryPackageStep().run(
+        context,
+        PackageParams(targets=["resolve"]),
+        StepIO(stage="delivery", adapter=FakeAdapter()),
+    )
+
+    manifest = json.loads(
+        (context.output / "delivery" / "package.json").read_text(encoding="utf-8")
+    )
+    assert manifest["ok"] is True
+    assert manifest["nle_bundle"]["files"]["resolve"]["path"].endswith("timeline.fcpxml")
+    assert context.artifacts["delivery_bundle"].endswith("bundle.json")

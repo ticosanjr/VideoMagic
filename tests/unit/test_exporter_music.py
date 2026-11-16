@@ -74,3 +74,11 @@ def test_fcpxml_seconds_helper_and_duplicate_times() -> None:
         )
     )
     assert state_extras.music[0].duck_ranges
+
+
+def test_xmeml_path_url_helpers(tmp_path: Path) -> None:
+    from videoflow.exporters.xmeml import _premiere_path_url
+
+    url = _premiere_path_url(str(tmp_path / "clip one.mp4"))
+    assert url.startswith("file://localhost/")
+    assert "clip%20one.mp4" in url

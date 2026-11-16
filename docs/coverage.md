@@ -13,20 +13,20 @@ adapters, exporters, API, jobs, and MCP are visible.
 ## Current working tree (2.91.0)
 
 Measured with the release-gate omit list disabled. The full unit/contract run is
-**2,380 passed, 1 skipped, 1 xfailed**.
+**2,388 passed, 1 skipped, 1 xfailed**.
 
 | Layer | Hit | Total | Cover |
 | --- | ---: | ---: | ---: |
 | api | 2,849 | 2,951 | 96.54% |
-| exporters | 1,461 | 1,528 | 95.62% |
-| mcp | 765 | 794 | 96.35% |
-| steps | 9,467 | 9,936 | 95.28% |
-| application | 16,807 | 17,828 | 94.27% |
-| engine | 1,097 | 1,164 | 94.24% |
+| exporters | 1,476 | 1,545 | 95.53% |
+| mcp | 768 | 797 | 96.36% |
+| steps | 9,488 | 9,956 | 95.30% |
+| application | 16,856 | 17,878 | 94.28% |
+| engine | 1,098 | 1,164 | 94.33% |
 | domain | 1,434 | 1,450 | 98.90% |
 | cli/runtime/core/plugin | 1,121 | 1,153 | 97.22% |
-| **full tree (statements)** | **36,446** | **38,335** | **95.07%** |
-| **full tree (branches)** | **9,207** | **10,692** | **86.11%** |
+| **full tree (statements)** | **36,535** | **38,425** | **95.08%** |
+| **full tree (branches)** | **9,245** | **10,732** | **86.14%** |
 
 The 2.85 agent-profile refactor keeps the full-tree statement target met. The
 configured release gate remains at 98% on its selected source set. Remaining

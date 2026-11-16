@@ -111,7 +111,10 @@ whisper.cpp Vulkan for `asr`, and the local `audio.diarize` step for `diarize`.
 
 The worker exposes `/health`, content-addressed `/artifacts`, async
 `/jobs/{capability}`, status and artifact download endpoints, token auth,
-VRAM/model TTL and an allowlisted handler registry.
+VRAM/model TTL and an allowlisted handler registry. `scripts/gpu_worker_smoke.py
+--local` starts the real worker app on loopback with deterministic handlers to
+exercise upload, ASR, upscale, and local fallback; the same script with `--url`
+runs the manual Windows GPU smoke.
 
 ## Delivery bundle
 
@@ -134,9 +137,15 @@ vf_exports(action="roundtrip", project_id="...", nle="premiere", path="...")
 ```
 
 `roundtrip` accepts `fcpxml`, `xmeml`/`premiere`, `mlt`/`kdenlive`, and
-`resolve`.
+`resolve`. After a transcript shift, long-form captions are regenerated in
+`captions/captions.ass` and `subtitles.ass`; ducking levels are written to
+`audio/ducking.json`.
 
 ## Declarative timeline edits
+
+`clone_style` samples screenshots, video frames, and measured cut rhythm from a
+reference URL or directory; `learn_rule` merges notes and caps the rulebook at
+15 active rules.
 
 ```text
 vf_timeline(action="apply_beatmap", project_id="...", expected_revision=3,

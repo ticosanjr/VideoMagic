@@ -26,7 +26,7 @@ class ResourceSpec:
 TOOL_SPECS: tuple[ToolSpec, ...] = (
     ToolSpec(
         "vf_project",
-        "Create, open, or inspect a project workspace.",
+        "Create/open/status a project, clone a channel style, or learn a rule.",
         "project",
     ),
     ToolSpec(
@@ -41,7 +41,7 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "vf_exec",
-        "Run a recipe or one catalog step in a project.",
+        "Run a recipe or edit a Short; catalog steps remain an internal path.",
         "recipes",
     ),
     ToolSpec(
@@ -51,7 +51,7 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "vf_timeline",
-        "Read or edit the canonical timeline.",
+        "Read, edit, or atomically apply a beatmap to the canonical timeline.",
         "timeline",
     ),
     ToolSpec(
@@ -66,7 +66,7 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "vf_exports",
-        "Validate exports or run an NLE roundtrip.",
+        "Export a multi-NLE bundle, validate it, or run an NLE roundtrip.",
         "nle",
     ),
     ToolSpec(

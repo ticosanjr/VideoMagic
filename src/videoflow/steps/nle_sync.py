@@ -242,6 +242,7 @@ def _apply_markers(
                 "revision": context.state.revision + 1,
             }
         )
+        _refresh_captions(context, warnings)
     if broll_updates:
         context.metadata["broll_plan"] = broll_plan
     if ducking_updates:
@@ -251,6 +252,21 @@ def _apply_markers(
         target.write_text(json.dumps({"ducking": ducking}, indent=2) + "\n", encoding="utf-8")
         context.artifacts["nle_ducking"] = str(target)
     return transcript_updates, broll_updates, ducking_updates, warnings
+
+
+def _refresh_captions(context: PipelineContext, warnings: list[str]) -> None:
+    """Regenerate ASS/SRT captions after an external NLE shifts the transcript."""
+
+    try:
+        from videoflow.steps.captions import CaptionsPlanParams, CaptionsPlanStep
+
+        CaptionsPlanStep().run(
+            context,
+            CaptionsPlanParams(),
+            StepIO(stage="captions.plan"),
+        )
+    except Exception as exc:  # noqa: BLE001 - caption refresh is advisory
+        warnings.append(f"Could not regenerate captions after sync: {exc}")
 
 
 def _clip_count(path: Path, fmt: str) -> int:
@@ -284,17 +300,33 @@ def _clip_ranges(path: Path, fmt: str, fps: float) -> list[tuple[float, float]]:
             if duration > 0:
                 ranges.append((max(0.0, start / max(1.0, fps)), duration))
         return ranges
-    cursor = 0.0
-    for node in root.iter():
-        if node.tag.rsplit("}", 1)[-1] != "entry":
-            continue
-        start = _seconds(node.get("in", "0"))
-        end = _seconds(node.get("out", "0"))
-        duration = max(0.0, (end - start + 1) / max(1.0, fps))
-        if duration <= 0:
-            continue
-        ranges.append((cursor, duration))
-        cursor += duration
+    playlists = [
+        root.find("./playlist[@id='playlist_v1']"),
+        root.find("./playlist[@id='playlist_v2']"),
+    ]
+    selected = [item for item in playlists if item is not None]
+    if not selected:
+        selected = root.findall("./playlist")
+    for playlist in selected:
+        cursor = 0.0
+        for node in playlist:
+            tag = node.tag.rsplit("}", 1)[-1]
+            if tag == "blank":
+                try:
+                    cursor += int(node.get("length", "0")) / max(1.0, fps)
+                except ValueError:
+                    continue
+                continue
+            if tag != "entry":
+                continue
+            start = _timecode_seconds(node.get("in", "0"))
+            out = _timecode_seconds(node.get("out", "0"))
+            duration = max(0.0, out - start + 1 / max(1.0, fps))
+            if duration <= 0:
+                continue
+            ranges.append((round(cursor, 6), round(duration, 6)))
+            cursor += duration
+    ranges.sort(key=lambda item: item[0])
     return ranges
 
 

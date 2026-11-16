@@ -298,10 +298,15 @@ def test_fcpxml_emits_progressive_zoom_keyframes(tmp_path: Path) -> None:
 def test_xmeml_emits_progressive_zoom_keyframes(tmp_path: Path) -> None:
     output = export_xmeml(progressive_state(tmp_path), tmp_path / "timeline.xml")
     root = ET.parse(output).getroot()
-    keyframes = root.findall(".//effect[effectid='basicmotion']/parameter/keyframe")
+    keyframes = root.findall(
+        ".//effect[effectid='basicmotion']/parameter[parameterid='scale']/keyframe"
+    )
     assert len(keyframes) == 2
     assert keyframes[0].findtext("when") == "0"
     assert keyframes[-1].findtext("value") != keyframes[0].findtext("value")
+    assert (
+        root.find(".//effect[effectid='basicmotion']/parameter[parameterid='center']") is not None
+    )
 
 
 def test_mp4_filter_graph_uses_zoompan_for_keyframes(tmp_path: Path) -> None:

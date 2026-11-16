@@ -66,7 +66,7 @@ def export_xmeml(
         ET.SubElement(item, "in").text = str(clip.source_in_frame)
         ET.SubElement(item, "out").text = str(clip.source_out_frame)
         _append_file(item, clip_media, file_id=f"file-video-{index + 1}")
-        _append_motion(item, clip)
+        _append_motion(item, clip, media)
         if extras.color_filters:
             _append_color_filter(item)
         for adjustment in extras.adjustments:
@@ -286,9 +286,16 @@ def _append_link(
     ET.SubElement(link, "groupindex").text = str(clip_index)
 
 
-def _append_motion(parent: ET.Element, clip: VideoSegment) -> None:
+def _append_motion(parent: ET.Element, clip: VideoSegment, media: MediaInfo) -> None:
     transform = clip.transform
-    if transform.scale == 1.0 and not transform.keyframes:
+    if (
+        transform.scale == 1.0
+        and not transform.keyframes
+        and transform.pos_x == 0.0
+        and transform.pos_y == 0.0
+        and transform.anchor == "upper_third"
+        and transform.pan_direction == "none"
+    ):
         return
     filter_element = ET.SubElement(parent, "filter")
     effect = ET.SubElement(filter_element, "effect")
@@ -297,16 +304,37 @@ def _append_motion(parent: ET.Element, clip: VideoSegment) -> None:
     ET.SubElement(effect, "effectcategory").text = "motion"
     ET.SubElement(effect, "effecttype").text = "motion"
     ET.SubElement(effect, "mediatype").text = "video"
-    parameter = ET.SubElement(effect, "parameter")
-    ET.SubElement(parameter, "parameterid").text = "scale"
-    ET.SubElement(parameter, "name").text = "Scale"
-    ET.SubElement(parameter, "value").text = str(round(transform.scale * 100))
+    scale = ET.SubElement(effect, "parameter")
+    ET.SubElement(scale, "parameterid").text = "scale"
+    ET.SubElement(scale, "name").text = "Scale"
+    ET.SubElement(scale, "value").text = str(round(transform.scale * 100))
+    center = ET.SubElement(effect, "parameter")
+    ET.SubElement(center, "parameterid").text = "center"
+    ET.SubElement(center, "name").text = "Center"
+    ET.SubElement(center, "value").text = _motion_center(transform, media)
     if transform.keyframes:
         duration = max(1, clip.timeline_out_frame - clip.timeline_in_frame)
         for keyframe in transform.keyframes:
-            key = ET.SubElement(parameter, "keyframe")
+            key = ET.SubElement(scale, "keyframe")
             ET.SubElement(key, "when").text = str(round(keyframe.at * duration))
             ET.SubElement(key, "value").text = str(round(keyframe.scale * 100))
+            position = ET.SubElement(center, "keyframe")
+            ET.SubElement(position, "when").text = str(round(keyframe.at * duration))
+            ET.SubElement(position, "value").text = (
+                f"{round(keyframe.pos_x * media.width)} {round(keyframe.pos_y * media.height)}"
+            )
+
+
+def _motion_center(transform, media: MediaInfo) -> str:
+    x = round(transform.pos_x * media.width)
+    y = round(transform.pos_y * media.height)
+    if transform.anchor == "upper_third":
+        y -= media.height // 6
+    if transform.pan_direction == "left_to_right":
+        x -= media.width // 12
+    elif transform.pan_direction == "right_to_left":
+        x += media.width // 12
+    return f"{x} {y}"
 
 
 def _append_music(audio_element: ET.Element, entry, media: MediaInfo, *, number: int) -> None:

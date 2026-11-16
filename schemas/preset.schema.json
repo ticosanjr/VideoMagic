@@ -298,7 +298,7 @@
       "additionalProperties": false,
       "properties": {
         "fcpxml_dialect": {
-          "default": "1.9",
+          "default": "1.10",
           "deprecated": true,
           "enum": [
             "1.9",

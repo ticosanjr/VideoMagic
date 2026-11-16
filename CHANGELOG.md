@@ -25,7 +25,12 @@
 - `capture_web_or_screen` as the sixth vision tool.
 - `vf_project(action="clone_style")` and `vf_project(action="learn_rule")`.
 - `--no-prompts` / `VF_MCP_PROMPTS=0` for the core and generated `mcp.json`.
-- `scripts/nle_multi_smoke.py` and `scripts/gpu_worker_smoke.py`.
+- `scripts/nle_multi_smoke.py` and `scripts/gpu_worker_smoke.py`; the GPU smoke
+  supports `--local` for a real loopback worker run without the Windows host.
+- `clone_style` samples video frames and estimates cut rhythm, not only one
+  screenshot.
+- NLE sync regenerates long-form captions and ASS after transcript shifts.
+- XMEML Basic Motion now carries center/position keyframes for Premiere reframe.
 
 ### Changed
 
@@ -37,6 +42,9 @@
 
 - MP4 delivery reuses `audio/master.wav` instead of remastering twice.
 - Multi-source Kdenlive no longer references a single hardcoded chain.
+- Kdenlive roundtrip reads only the video playlists instead of counting audio,
+  music, and overlay entries as clips.
+- `delivery.package` can bundle a long-form project without a Shorts render.
 
 ## [2.90.1] - 2026-11-16
 

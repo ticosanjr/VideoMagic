@@ -123,13 +123,13 @@ class DeliveryPackageStep(BaseStep):
     type = "delivery.package"
     title = "Delivery package"
     description = (
-        "Bundle the rendered Shorts, the winning thumbnail, metadata, music, SFX, "
-        "and B-roll licenses into one manifest."
+        "Bundle the rendered Shorts, metadata, music, SFX, licenses, and an "
+        "optional multi-NLE delivery set into one manifest."
     )
     status = "available"
     icon = "▣"
     color = "#22c55e"
-    requires = ("shorts.render",)
+    requires = ()
     produces = ("delivery_package",)
     params_model = PackageParams
 

@@ -151,6 +151,8 @@ class ExportStep(BaseStep):
         for relative in (
             "titles.ass",
             "titles.json",
+            "captions/captions.ass",
+            "subtitles.ass",
             "broll.json",
             "timeline_meta.json",
             "audio/master.wav",

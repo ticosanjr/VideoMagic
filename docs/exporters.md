@@ -19,8 +19,8 @@ FCPXML, XMEML, Kdenlive, EDL, and optional MP4 artifacts from one validated stat
 markers, titles, B-roll clips, colour filters, audio filters, the audio master
 stem, and music tracks with ducking envelopes. `application/nle_extras.py` builds them from a job output
 (`timeline_meta.json`, `titles.ass`, `broll.json`, `color/filters.json`,
-`audio/master-filters.json`, `audio/master.wav`, `audio/beatmap.json`,
-`audio/ducking.json`). `export_timeline(...,
+`audio/master-filters.json`, `audio/master.wav`, `audio/beatmap.json`, `audio/ducking.json`,
+`captions/captions.ass`, `subtitles.ass`). `export_timeline(...,
 extras=...)` forwards the same object to every writer, so one job output
 produces equivalent finishing in FCPXML, XMEML, and Kdenlive.
 
