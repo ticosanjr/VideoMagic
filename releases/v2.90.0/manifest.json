@@ -1,6 +1,6 @@
 {
   "version": "2.90.0",
-  "built_at": "2026-11-16T17:29:02+00:00",
+  "built_at": "2026-11-16T17:57:29+00:00",
   "host": "linux-x86_64",
   "python": "3.12.3",
   "artifacts": [
@@ -21,8 +21,8 @@
     },
     {
       "name": "VideoFlow-2.90.0-mcp-servers.tar.zst",
-      "sha256": "38e16a52d08a8cd01340456f3c9b1dcd186c49ef781fe5e30d949214560c6aa9",
-      "size_bytes": 71926
+      "sha256": "f26a8a49a8c6c20e806aa9c2c753ef1971c94137ebaf13071be73278345c0a71",
+      "size_bytes": 138227
     },
     {
       "name": "sbom.json",
