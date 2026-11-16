@@ -73,9 +73,46 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         output: str = "",
         sources: list[str] | None = None,
         channel_id: str = "",
+        reference_url: str = "",
+        reference_dir: str = "",
+        images: list[str] | None = None,
+        notes: list[str] | None = None,
+        mode: str = "merge",
+        max_rules: int = 15,
     ) -> dict[str, Any]:
-        """Create/open/status a project."""
+        """Create/open/status a project, clone a style, or learn channel rules."""
 
+        if action in {"clone_style", "learn_rule"}:
+            from videoflow.application.style_clone import clone_style, learn_rule
+
+            if not channel_id:
+                return error("channel_required", "channel_id is required")
+            try:
+                record = get_project(project_id) if project_id else None
+                base = Path(record.output) if record is not None else Path(output).expanduser()
+                if record is None and not output:
+                    return error(
+                        "output_required",
+                        "Pass project_id or output for style learning",
+                    )
+                if action == "clone_style":
+                    return clone_style(
+                        channel_id,
+                        base,
+                        reference_url=reference_url,
+                        reference_dir=reference_dir,
+                        images=images,
+                        name=name,
+                    )
+                return learn_rule(
+                    channel_id,
+                    base,
+                    notes=notes,
+                    mode=mode,
+                    max_rules=max_rules,
+                )
+            except VideoFlowError as exc:
+                return exc.to_dict()
         if action in {"init", "open"}:
             return legacy["vf_project_init"](
                 project_id=project_id,
@@ -235,9 +272,53 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         delta_sec: float = 0.0,
         split_sec: float | None = None,
         expected_revision: int | None = None,
+        beatmap: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Read or edit the canonical timeline."""
+        """Read, edit, or atomically apply a declarative beatmap."""
 
+        if action == "apply_beatmap":
+            from videoflow.application.beatmap import (
+                BeatmapError,
+                apply_beatmap,
+                write_beatmap_sidecar,
+            )
+            from videoflow.application.projects import save_project_state
+
+            if not beatmap:
+                return error("beatmap_required", "Pass a beatmap manifest")
+            try:
+                record = get_project(project_id)
+                state = load_project_state(record)
+                updated, report, sidecar = apply_beatmap(
+                    state,
+                    Path(record.output),
+                    beatmap,
+                    expected_revision=expected_revision,
+                )
+                saved = save_project_state(
+                    record,
+                    updated,
+                    expected_revision=expected_revision,
+                    bump_revision=True,
+                )
+                sidecar_path = ""
+                if sidecar.get("sfx_events") or sidecar.get("music_tracks"):
+                    sidecar_path = str(write_beatmap_sidecar(Path(record.output), sidecar))
+                return {
+                    "ok": True,
+                    "revision": saved.revision,
+                    "report": report.to_dict(),
+                    "sidecar": sidecar_path,
+                }
+            except BeatmapError as exc:
+                return {
+                    "ok": False,
+                    "code": "beatmap_conflict",
+                    "message": str(exc),
+                    "report": exc.report.to_dict(),
+                }
+            except VideoFlowError as exc:
+                return exc.to_dict()
         if action == "edit":
             return legacy["vf_edit_timeline"](
                 project_id=project_id,
@@ -340,9 +421,41 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         nle: str = "fcpxml",
         path: str = "",
         apply: bool = False,
+        targets: str | list[str] | None = None,
+        dialect: str = "1.10",
+        mp4_profile: str = "youtube_h264",
+        mp4_loudness_lufs: float | None = -16.5,
     ) -> dict[str, Any]:
-        """Validate exports or run an NLE roundtrip."""
+        """Export a multi-target bundle, validate it, or run an NLE roundtrip."""
 
+        if action == "bundle":
+            from videoflow.application.delivery_bundle import (
+                DEFAULT_BUNDLE_TARGETS,
+                DeliveryBundleRequest,
+                build_delivery_bundle,
+            )
+
+            requested = targets or DEFAULT_BUNDLE_TARGETS
+            if isinstance(requested, str):
+                requested = [requested]
+            try:
+                record = get_project(project_id)
+                state = load_project_state(record)
+                if not state.video_segments:
+                    return error("timeline_required", "Project has no built timeline")
+                bundle = build_delivery_bundle(
+                    state,
+                    Path(record.output),
+                    request=DeliveryBundleRequest(
+                        targets=tuple(requested),
+                        dialect=dialect,  # type: ignore[arg-type]
+                        mp4_profile=mp4_profile,
+                        mp4_loudness_lufs=mp4_loudness_lufs,
+                    ),
+                )
+                return {"ok": bool(bundle.get("ok")), "bundle": bundle}
+            except VideoFlowError as exc:
+                return exc.to_dict()
         if action == "roundtrip":
             return legacy["vf_nle_roundtrip"](
                 project_id=project_id,

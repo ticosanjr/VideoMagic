@@ -467,3 +467,125 @@ def test_caption_formatting_helpers() -> None:
     ass = vision_tools.segments_to_ass(segments)
     assert "[Events]" in ass
     assert "Dialogue: 0,0:00:00.00,0:00:01.25,Karaoke" in ass
+
+
+def _fake_chrome(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    script = tmp_path / "fake-chrome"
+    script.write_text(
+        f"#!{sys.executable}\n"
+        "import pathlib, sys\n"
+        "for arg in sys.argv:\n"
+        "    if arg.startswith('--screenshot='):\n"
+        "        target = pathlib.Path(arg.split('=', 1)[1])\n"
+        "        target.parent.mkdir(parents=True, exist_ok=True)\n"
+        "        target.write_bytes(b'PNG')\n",
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+    monkeypatch.setenv("VF_CHROME_BIN", str(script))
+    return script
+
+
+def test_render_html_graphic_uses_sha256_cache(
+    project_root: Path,
+    tmp_path: Path,
+    fake_ffmpeg: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _fake_chrome(tmp_path, monkeypatch)
+    source = tmp_path / "scene"
+    source.mkdir()
+    (source / "index.html").write_text("<html><body>Hello</body></html>", encoding="utf-8")
+
+    result = vision_tools.render_motion_graphic(
+        "proj-html",
+        engine="hyperframes",
+        template_or_code=str(source),
+        duration_sec=0.1,
+    )
+
+    output = Path(result["output"])
+    assert output.is_file()
+    assert output.suffix == ".mp4"
+    payload = json.loads(Path(result["sidecar"]).read_text(encoding="utf-8"))
+    assert payload["metadata"]["engine"] == "hyperframes"
+    assert len(payload["metadata"]["source_sha256"]) == 64
+
+    again = vision_tools.render_motion_graphic(
+        "proj-html",
+        engine="hyperframes",
+        template_or_code=str(source),
+        duration_sec=0.1,
+    )
+    assert again["cached"] is True
+
+
+def test_render_html_graphic_alpha_writes_webm(
+    project_root: Path,
+    tmp_path: Path,
+    fake_ffmpeg: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _fake_chrome(tmp_path, monkeypatch)
+    source = tmp_path / "scene"
+    source.mkdir()
+    (source / "index.html").write_text("<html></html>", encoding="utf-8")
+
+    result = vision_tools.render_motion_graphic(
+        "proj-alpha",
+        engine="html",
+        template_or_code=str(source),
+        duration_sec=0.1,
+        alpha=True,
+        draft_scale=0.5,
+    )
+
+    assert Path(result["output"]).suffix == ".webm"
+    payload = json.loads(Path(result["sidecar"]).read_text(encoding="utf-8"))
+    assert payload["metadata"]["alpha"] is True
+    assert payload["metadata"]["draft_scale"] == 0.5
+
+
+def test_capture_web_or_screen_screenshot_with_crop(
+    project_root: Path,
+    tmp_path: Path,
+    fake_ffmpeg: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _fake_chrome(tmp_path, monkeypatch)
+
+    result = vision_tools.capture_web_or_screen(
+        "proj-capture",
+        "https://example.test/dashboard",
+        mode="screenshot",
+        crop_selector="10,20,300,200",
+        output_name="dashboard",
+    )
+
+    assert Path(result["output"]).name == "dashboard.png"
+    assert Path(result["output"]).is_file()
+    payload = json.loads(Path(result["sidecar"]).read_text(encoding="utf-8"))
+    assert payload["metadata"]["crop_filter"] == "crop=300:200:10:20"
+
+
+def test_capture_web_or_screen_clip(
+    project_root: Path,
+    tmp_path: Path,
+    fake_ffmpeg: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _fake_chrome(tmp_path, monkeypatch)
+
+    result = vision_tools.capture_web_or_screen(
+        "proj-capture",
+        "https://example.test",
+        mode="clip",
+        duration_sec=0.2,
+        fps=5,
+        output_name="scroll",
+    )
+
+    assert Path(result["output"]).name == "scroll.mp4"
+    payload = json.loads(Path(result["sidecar"]).read_text(encoding="utf-8"))
+    assert payload["metadata"]["mode"] == "clip"
+    assert payload["metadata"]["fps"] == 5

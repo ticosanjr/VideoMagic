@@ -32,7 +32,7 @@ def export_fcpxml(
     state: ProjectState,
     output_path: Path,
     *,
-    dialect: Dialect = "1.9",
+    dialect: Dialect = "1.10",
     extras: NleExtras = EMPTY,
 ) -> Path:
     """Write an FCPXML timeline for Resolve and return the artifact path."""
@@ -167,6 +167,32 @@ def export_fcpxml(
             stem,
             "media-rep",
             {"kind": "original-media", "src": file_uri(extras.audio_stem)},
+        )
+    music_assets: dict[str, str] = {}
+    for entry in extras.music:
+        if entry.path in music_assets:
+            continue
+        asset_id = f"m{len(music_assets) + 1}"
+        music_assets[entry.path] = asset_id
+        music = ET.SubElement(
+            resources,
+            "asset",
+            {
+                "id": asset_id,
+                "name": Path(entry.path).name,
+                "start": "0s",
+                "duration": format_rational_time(_seconds(entry.duration_sec)),
+                "hasAudio": "1",
+                "format": "r1",
+                "audioSources": "1",
+                "audioChannels": "1",
+                "audioRate": str(media.audio_sample_rate),
+            },
+        )
+        ET.SubElement(
+            music,
+            "media-rep",
+            {"kind": "original-media", "src": file_uri(entry.path)},
         )
 
     library = ET.SubElement(root, "library")
@@ -314,6 +340,26 @@ def export_fcpxml(
             },
         )
 
+    for entry in extras.music:
+        asset_id = music_assets.get(entry.path)
+        if asset_id is None:
+            continue
+        element = ET.SubElement(
+            spine,
+            "asset-clip",
+            {
+                "ref": asset_id,
+                "lane": "5",
+                "name": Path(entry.path).stem,
+                "offset": format_rational_time(_seconds(entry.start_sec)),
+                "start": "0s",
+                "duration": format_rational_time(_seconds(entry.duration_sec)),
+                "srcEnable": "audio",
+                "audioRole": "music",
+            },
+        )
+        _append_music_volume(element, entry)
+
     for marker in extras.markers:
         ET.SubElement(
             sequence,
@@ -327,6 +373,51 @@ def export_fcpxml(
         )
 
     return write_text(output_path, xml_document(root, "fcpxml"))
+
+
+def _seconds(value: float) -> Fraction:
+    return Fraction(str(max(0.0, value))).limit_denominator(1_000_000)
+
+
+def _append_music_volume(element: ET.Element, entry) -> None:
+    """Write a gain envelope with ducking ramps around each speech range."""
+
+    points: list[tuple[Fraction, float]] = [(Fraction(0), entry.gain_db)]
+    for start, end, level in entry.duck_ranges:
+        local_start = max(0.0, start - entry.start_sec)
+        local_end = min(entry.duration_sec, end - entry.start_sec)
+        if local_end <= local_start:
+            continue
+        ducked = entry.gain_db + level
+        ramp = 0.15
+        points.extend(
+            [
+                (_seconds(local_start), entry.gain_db),
+                (_seconds(min(local_end, local_start + ramp)), ducked),
+                (_seconds(max(local_start, local_end - ramp)), ducked),
+                (_seconds(local_end), entry.gain_db),
+            ]
+        )
+    points.append((_seconds(entry.duration_sec), entry.gain_db))
+    ordered: list[tuple[Fraction, float]] = []
+    for time, value in points:
+        if ordered and ordered[-1][0] == time:
+            ordered[-1] = (time, value)
+        else:
+            ordered.append((time, value))
+    adjustment = ET.SubElement(element, "adjust-volume")
+    parameter = ET.SubElement(adjustment, "param", {"name": "amount"})
+    animation = ET.SubElement(parameter, "keyframeAnimation")
+    for time, value in ordered:
+        ET.SubElement(
+            animation,
+            "keyframe",
+            {
+                "time": format_rational_time(time),
+                "value": f"{value:g}dB",
+                "interp": "linear",
+            },
+        )
 
 
 def _append_audio_fade(element: ET.Element, clip: AudioSegment, media: MediaInfo) -> None:

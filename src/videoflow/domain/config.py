@@ -241,7 +241,7 @@ class ShortsConfig(StrictModel):
 
 
 class ExportConfig(StrictModel):
-    fcpxml_dialect: FcpxmlDialect = Field(default="1.9", deprecated=True)
+    fcpxml_dialect: FcpxmlDialect = Field(default="1.10", deprecated=True)
     write_fcpxml: bool = Field(default=True, deprecated=True)
     write_xmeml: bool = Field(default=True, deprecated=True)
     write_otio: bool = Field(default=True, deprecated=True)

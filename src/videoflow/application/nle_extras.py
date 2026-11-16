@@ -12,6 +12,7 @@ from videoflow.exporters.extras import (
     NleBroll,
     NleExtras,
     NleMarker,
+    NleMusic,
     NleTitle,
 )
 
@@ -116,6 +117,70 @@ def _project_overlays(directory: Path) -> tuple[NleBroll, ...]:
             )
         )
     return tuple(entries)
+
+
+def _timeline_fps(directory: Path) -> float:
+    path = Path(directory) / "project_state.json"
+    if path.is_file():
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            payload = {}
+        media = payload.get("media_info") or {}
+        try:
+            return float(media.get("fps_num") or 30) / max(1.0, float(media.get("fps_den") or 1))
+        except ValueError:
+            return 30.0
+    return 30.0
+
+
+def _duck_ranges(directory: Path) -> tuple[tuple[float, float, float], ...]:
+    path = Path(directory) / "audio" / "ducking.json"
+    if not path.is_file():
+        return ()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ()
+    ranges: list[tuple[float, float, float]] = []
+    for item in payload.get("ducking", []):
+        if not isinstance(item, dict):
+            continue
+        start = float(item.get("start_sec") or 0.0)
+        end = float(item.get("end_sec") or start)
+        if end > start:
+            ranges.append((start, end, float(item.get("level_db") or -12.0)))
+    return tuple(sorted(ranges))
+
+
+def _music(directory: Path) -> tuple[NleMusic, ...]:
+    path = Path(directory) / "audio" / "beatmap.json"
+    if not path.is_file():
+        return ()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ()
+    fps = _timeline_fps(directory)
+    ducking = _duck_ranges(directory)
+    tracks: list[NleMusic] = []
+    for item in payload.get("music_tracks", []):
+        if not isinstance(item, dict) or not item.get("path"):
+            continue
+        start = float(item.get("start_frame") or 0.0) / fps
+        end_frame = float(item.get("end_frame") or 0.0)
+        duration = (end_frame / fps - start) if end_frame > 0 else 0.0
+        ranges = ducking if item.get("duck_under_speech", True) else ()
+        tracks.append(
+            NleMusic(
+                path=str(item["path"]),
+                start_sec=max(0.0, start),
+                duration_sec=max(0.1, duration or 60.0),
+                gain_db=float(item.get("gain_db") or -18.0),
+                duck_ranges=tuple(ranges),
+            )
+        )
+    return tuple(tracks)
 
 
 def _motion(directory: Path) -> tuple[NleBroll, ...]:
@@ -223,4 +288,5 @@ def nle_extras_from_output(output: Path) -> NleExtras:
         audio_filters=audio,
         audio_stem=str(stems) if stems.is_file() else "",
         adjustments=tuple(adjustments),
+        music=_music(directory),
     )

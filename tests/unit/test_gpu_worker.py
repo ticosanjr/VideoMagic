@@ -352,3 +352,29 @@ def test_model_registry_unloads_idle_models(client: TestClient, app) -> None:
     assert expired == ["fake-model"]
     assert unloaded == ["fake-model"]
     assert models.snapshot() == []
+
+
+def test_asr_and_diarize_are_allowlisted_handlers(tmp_path: Path) -> None:
+    from gpu_worker.handlers import BUILTIN_CAPABILITIES, build_default_registry
+
+    assert "asr" in BUILTIN_CAPABILITIES
+    assert "diarize" in BUILTIN_CAPABILITIES
+    settings = Settings(
+        work_dir=tmp_path / "worker",
+        asr_cmd="/bin/true {input} {output}",
+        diarize_cmd="/bin/true {input} {output}",
+    )
+    registry = build_default_registry(settings)
+    assert registry.is_available("asr") is True
+    assert registry.is_available("diarize") is True
+    assert "asr" in registry.available()
+    assert "diarize" in registry.available()
+
+
+def test_asr_and_diarize_report_missing_commands(tmp_path: Path) -> None:
+    from gpu_worker.handlers import build_default_registry
+
+    registry = build_default_registry(Settings(work_dir=tmp_path / "worker"))
+    assert registry.is_available("asr") is False
+    assert "VF_GPU_ASR_CMD" in registry.reason("asr")
+    assert "VF_GPU_DIARIZE_CMD" in registry.reason("diarize")

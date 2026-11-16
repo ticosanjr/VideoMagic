@@ -155,7 +155,51 @@ def build_filter_graph(state: ProjectState) -> tuple[str, str, str]:
 
 SEGMENT_THRESHOLD = 16
 PRE_ROLL_SECONDS = 1.0
-GROUP_CACHE_VERSION = 2
+GROUP_CACHE_VERSION = 3
+
+YOUTUBE_PROFILE = "youtube_h264"
+DEFAULT_AUDIO_BITRATE = "192k"
+YOUTUBE_AUDIO_BITRATE = "320k"
+YOUTUBE_LUFS = -16.5
+YOUTUBE_TRUE_PEAK_DB = -1.0
+
+
+def _video_encode_args(
+    *,
+    crf: int,
+    preset: str,
+    profile: str,
+    fps_num: int,
+    fps_den: int,
+    cfr: bool,
+) -> list[str]:
+    """Return the H.264 encoder flags shared by both render paths."""
+
+    args = [
+        "-c:v",
+        "libx264",
+        "-preset",
+        preset,
+        "-crf",
+        str(crf),
+        "-pix_fmt",
+        "yuv420p",
+    ]
+    if profile == YOUTUBE_PROFILE:
+        args.extend(["-profile:v", "high", "-level", "4.1"])
+    if cfr:
+        args.extend(["-fps_mode", "cfr", "-r", f"{fps_num}/{fps_den}"])
+    return args
+
+
+def _audio_encode_args(*, bitrate: str) -> list[str]:
+    return ["-c:a", "aac", "-b:a", bitrate]
+
+
+def loudnorm_filter(loudness_lufs: float, true_peak_db: float = YOUTUBE_TRUE_PEAK_DB) -> str:
+    """Return the single-pass EBU R128 target used by the social master."""
+
+    return f"loudnorm=I={loudness_lufs:g}:TP={true_peak_db:g}:LRA=11"
 
 
 def _is_multi_source(state: ProjectState) -> bool:
@@ -294,6 +338,7 @@ def _group_key(
     source: Path,
     crf: int,
     preset: str,
+    profile: str,
     scale_height: int | None,
 ) -> str:
     video = sorted(state.video_segments, key=lambda item: item.timeline_in_frame)
@@ -309,6 +354,7 @@ def _group_key(
         "fps": [media.fps_num, media.fps_den],
         "crf": crf,
         "preset": preset,
+        "profile": profile,
         "scale_height": scale_height,
         "clips": [video[index].model_dump(mode="json") for index in group],
     }
@@ -325,6 +371,7 @@ def _render_video_group(
     cache_dir: Path,
     crf: int,
     preset: str,
+    profile: str = "",
     scale_height: int | None = None,
 ) -> Path:
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -335,6 +382,7 @@ def _render_video_group(
         source=source,
         crf=crf,
         preset=preset,
+        profile=profile,
         scale_height=scale_height,
     )
     cached = cache_dir / f"group-{key}.mp4"
@@ -403,16 +451,14 @@ def _render_video_group(
                 "-map",
                 label,
                 "-an",
-                "-c:v",
-                "libx264",
-                "-preset",
-                preset,
-                "-crf",
-                str(crf),
-                "-pix_fmt",
-                "yuv420p",
-                "-r",
-                f"{media.fps_num}/{media.fps_den}",
+                *_video_encode_args(
+                    crf=crf,
+                    preset=preset,
+                    profile=profile,
+                    fps_num=media.fps_num,
+                    fps_den=media.fps_den,
+                    cfr=True,
+                ),
                 "-movflags",
                 "+faststart",
                 str(temporary),
@@ -432,10 +478,16 @@ def _export_mp4_segmented(
     adapter: Any,
     crf: int,
     preset: str,
-    audio_filters: Sequence[str] | None,
-    video_filters: Sequence[str] | None,
-    ass_path: Path | None,
-    progress: Callable[[int], None] | None,
+    profile: str = "",
+    audio_bitrate: str = DEFAULT_AUDIO_BITRATE,
+    loudness_lufs: float | None = None,
+    true_peak_db: float = YOUTUBE_TRUE_PEAK_DB,
+    cfr: bool = False,
+    audio_master: Path | None = None,
+    audio_filters: Sequence[str] | None = None,
+    video_filters: Sequence[str] | None = None,
+    ass_path: Path | None = None,
+    progress: Callable[[int], None] | None = None,
     scale_height: int | None = None,
     cache_dir: Path | None = None,
 ) -> Path:
@@ -466,6 +518,7 @@ def _export_mp4_segmented(
                     cache_dir=segments_dir,
                     crf=crf,
                     preset=preset,
+                    profile=profile,
                     scale_height=scale_height,
                 )
             )
@@ -497,27 +550,42 @@ def _export_mp4_segmented(
             progress(58)
 
         audio_only = directory / "audio.m4a"
-        audio_inputs, audio_graph = _audio_graph_inputs(state, media, source)
-        audio_label = "[aout]"
-        audio_effects = [item for item in (audio_filters or []) if item]
-        if audio_effects:
-            audio_graph += f";{audio_label}{','.join(audio_effects)}[afinal]"
-            audio_label = "[afinal]"
-        renderer.render(
-            [
-                *audio_inputs,
-                "-filter_complex",
-                audio_graph,
-                "-map",
-                audio_label,
-                "-vn",
-                "-c:a",
-                "aac",
-                "-b:a",
-                "192k",
-                str(audio_only),
-            ]
-        )
+        master_file = Path(audio_master).expanduser() if audio_master is not None else None
+        if master_file is not None and not master_file.is_file():
+            master_file = None
+        if master_file is not None:
+            renderer.render(
+                [
+                    "-i",
+                    str(master_file),
+                    "-vn",
+                    *_audio_encode_args(bitrate=audio_bitrate),
+                    "-movflags",
+                    "+faststart",
+                    str(audio_only),
+                ]
+            )
+        else:
+            audio_inputs, audio_graph = _audio_graph_inputs(state, media, source)
+            audio_label = "[aout]"
+            audio_effects = [item for item in (audio_filters or []) if item]
+            if loudness_lufs is not None:
+                audio_effects.append(loudnorm_filter(loudness_lufs, true_peak_db))
+            if audio_effects:
+                audio_graph += f";{audio_label}{','.join(audio_effects)}[afinal]"
+                audio_label = "[afinal]"
+            renderer.render(
+                [
+                    *audio_inputs,
+                    "-filter_complex",
+                    audio_graph,
+                    "-map",
+                    audio_label,
+                    "-vn",
+                    *_audio_encode_args(bitrate=audio_bitrate),
+                    str(audio_only),
+                ]
+            )
         if progress is not None:
             progress(60)
 
@@ -587,6 +655,12 @@ def _export_mp4_segmented(
             adapter=renderer,
             crf=crf,
             preset=preset,
+            profile=profile,
+            audio_bitrate=audio_bitrate,
+            loudness_lufs=None,
+            true_peak_db=true_peak_db,
+            cfr=cfr,
+            audio_master=None,
             audio_filters=None,
             video_filters=video_filters,
             ass_path=ass_path,
@@ -606,6 +680,12 @@ def export_mp4(
     adapter: Any | None = None,
     crf: int = 18,
     preset: str = "medium",
+    profile: str = "",
+    audio_bitrate: str = DEFAULT_AUDIO_BITRATE,
+    loudness_lufs: float | None = None,
+    true_peak_db: float = YOUTUBE_TRUE_PEAK_DB,
+    cfr: bool = False,
+    audio_master: Path | None = None,
     audio_filters: Sequence[str] | None = None,
     video_filters: Sequence[str] | None = None,
     ass_path: Path | None = None,
@@ -630,6 +710,12 @@ def export_mp4(
             adapter=adapter,
             crf=crf,
             preset=preset,
+            profile=profile,
+            audio_bitrate=audio_bitrate,
+            loudness_lufs=loudness_lufs,
+            true_peak_db=true_peak_db,
+            cfr=cfr,
+            audio_master=audio_master,
             audio_filters=audio_filters,
             video_filters=video_filters,
             ass_path=ass_path,
@@ -645,6 +731,12 @@ def export_mp4(
             adapter=adapter,
             crf=crf,
             preset=preset,
+            profile=profile,
+            audio_bitrate=audio_bitrate,
+            loudness_lufs=loudness_lufs,
+            true_peak_db=true_peak_db,
+            cfr=cfr,
+            audio_master=audio_master,
             audio_filters=audio_filters,
             video_filters=video_filters,
             ass_path=ass_path,
@@ -665,6 +757,12 @@ def _render_classic_mp4(
     adapter: Any | None = None,
     crf: int = 18,
     preset: str = "medium",
+    profile: str = "",
+    audio_bitrate: str = DEFAULT_AUDIO_BITRATE,
+    loudness_lufs: float | None = None,
+    true_peak_db: float = YOUTUBE_TRUE_PEAK_DB,
+    cfr: bool = False,
+    audio_master: Path | None = None,
     audio_filters: Sequence[str] | None = None,
     video_filters: Sequence[str] | None = None,
     ass_path: Path | None = None,
@@ -677,10 +775,19 @@ def _render_classic_mp4(
     if media is None:
         raise ExportError("Project has no media")
     graph, video_label, audio_label = build_filter_graph(state)
+    master_file = Path(audio_master).expanduser() if audio_master is not None else None
+    if master_file is not None and not master_file.is_file():
+        master_file = None
     filters = [item for item in (audio_filters or []) if item]
-    if filters:
+    if loudness_lufs is not None and master_file is None:
+        filters.append(loudnorm_filter(loudness_lufs, true_peak_db))
+    if filters and master_file is None:
         graph += f";{audio_label}{','.join(filters)}[amaster]"
         audio_label = "[amaster]"
+    elif master_file is not None:
+        # The mastered WAV replaces the timeline audio; consume the graph output
+        # so FFmpeg does not reject the unconnected concat result.
+        graph += f";{audio_label}anullsink"
     color_filters = [item for item in (video_filters or []) if item]
     if color_filters:
         graph += f";{video_label}{','.join(color_filters)}[vcolor]"
@@ -691,7 +798,7 @@ def _render_classic_mp4(
     fps = media.fps_num / media.fps_den
     overlay_inputs: list[str] = []
     overlay_chains: list[str] = []
-    input_index = 1
+    input_index = 2 if master_file is not None else 1
     for index, overlay in enumerate(state.overlays):
         path = Path(overlay.path).expanduser()
         if not path.is_file():
@@ -733,25 +840,23 @@ def _render_classic_mp4(
     command = [
         "-i",
         str(Path(media.source_path).expanduser()),
+        *(["-i", str(master_file)] if master_file is not None else []),
         *overlay_inputs,
         "-filter_complex",
         graph,
         "-map",
         video_label,
         "-map",
-        audio_label,
-        "-c:v",
-        "libx264",
-        "-preset",
-        preset,
-        "-crf",
-        str(crf),
-        "-pix_fmt",
-        "yuv420p",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "192k",
+        "1:a" if master_file is not None else audio_label,
+        *_video_encode_args(
+            crf=crf,
+            preset=preset,
+            profile=profile,
+            fps_num=media.fps_num,
+            fps_den=media.fps_den,
+            cfr=cfr,
+        ),
+        *_audio_encode_args(bitrate=audio_bitrate),
         "-movflags",
         "+faststart",
         "-shortest",

@@ -1,12 +1,12 @@
 # MCP server — agent profile
 
-VideoFlow 2.90 exposes a **12-tool core MCP** plus four isolated domain servers:
+VideoFlow 2.91 exposes a **12-tool core MCP** plus four isolated domain servers:
 
 ```text
 mcp-vf-core      12 tools   project, jobs, timeline, render, exports, ingest
 mcp-vf-media-fetch  4 tools stock B-roll, images, URL segments, SFX
 mcp-vf-audio-studio 5 tools TTS, cleanup, stems, music/SFX, mix
-mcp-vf-vision-fx    5 tools word-aligned captions, rembg, upscale, motion, Ken Burns
+mcp-vf-vision-fx    6 tools word-aligned captions, rembg, upscale, motion, Ken Burns, capture
 ```
 
 The core intentionally does not expose the old 82-tool UI CRUD surface. Step
@@ -43,17 +43,17 @@ parallel. Writes to the same project are serialized by a project lock and
 
 | Tool | Purpose |
 | --- | --- |
-| `vf_project` | Create/open/status a project workspace. |
+| `vf_project` | Create/open/status a project; `clone_style` and `learn_rule`. |
 | `vf_capabilities` | Backends, models, GPU worker, and external policy. |
 | `vf_catalog_search` | Search steps/recipes without loading schemas. |
-| `vf_exec` | Run a recipe or one catalog step in a project. |
+| `vf_exec` | Run a recipe, a Short edit, or one internal catalog step. |
 
 ### Jobs, timeline, artifacts
 
 | Tool | Purpose |
 | --- | --- |
 | `vf_job` | Get/wait/logs/QA for a job. |
-| `vf_timeline` | Read or edit the canonical timeline. |
+| `vf_timeline` | Read, edit, or `apply_beatmap` the canonical timeline. |
 | `vf_artifact` | List or read artifacts, including image content. |
 
 ### Delivery and operations
@@ -61,7 +61,7 @@ parallel. Writes to the same project are serialized by a project lock and
 | Tool | Purpose |
 | --- | --- |
 | `vf_render` | Start/inspect/cancel a render job. |
-| `vf_exports` | Validate exports or run an NLE roundtrip. |
+| `vf_exports` | `bundle`, `validate`, or `roundtrip` for every NLE. |
 | `vf_interaction` | List/read/answer HITL requests. |
 | `vf_ingest` | Session ingest or multicam synchronization. |
 | `vf_qa` | Read QA artifacts or route new QA through `vf_exec`. |
@@ -78,6 +78,10 @@ uv run python scripts/generate_mcp_config.py --profile full > mcp.json
 
 Profiles: `core`, `decupagem`, `broll`, `audio`, `vision`, `full`.
 
+Pass `--no-prompts` (or `VF_MCP_PROMPTS=0`) to omit the three
+`videoflow_produce/review/deliver` prompts when channel `AGENTS.md` instructions
+are authoritative.
+
 Every domain asset is written under:
 
 ```text
@@ -90,8 +94,10 @@ idempotent.
 
 ## GPU worker and ComputeRouter
 
-The Windows worker is optional. The router chooses remote only when the worker
-is healthy, advertises the capability, has enough VRAM and queue capacity:
+The Windows worker is optional. The allowlisted handlers are `tts`, `music`,
+`sfx`, `stems`, `upscale`, `comfyui`, `asr`, and `diarize`. The router chooses
+remote only when the worker is healthy, advertises the capability, has enough
+VRAM and queue capacity:
 
 ```text
 VF_COMPUTE_MODE=auto|local_only|remote_preferred
@@ -99,11 +105,48 @@ VF_GPU_WORKER_URL=http://windows-host:8766
 VF_GPU_WORKER_TOKEN=...
 ```
 
-`local_only` never performs network I/O. `auto` falls back to the local CPU/Vulkan
-implementation with a structured reason. The worker exposes `/health`,
-content-addressed `/artifacts`, async `/jobs/{capability}`, status and artifact
-download endpoints, token auth, VRAM/model TTL and an allowlisted handler
-registry.
+`local_only` never performs network I/O. `auto` falls back to the local
+CPU/Vulkan implementation with a structured reason: Faster-Whisper or
+whisper.cpp Vulkan for `asr`, and the local `audio.diarize` step for `diarize`.
+
+The worker exposes `/health`, content-addressed `/artifacts`, async
+`/jobs/{capability}`, status and artifact download endpoints, token auth,
+VRAM/model TTL and an allowlisted handler registry.
+
+## Delivery bundle
+
+One call writes the social master and every NLE from the same validated
+timeline:
+
+```text
+vf_exports(action="bundle", project_id="...", targets="all")
+```
+
+Targets accept `mp4_youtube`, `resolve`, `premiere`, `kdenlive`, `edl`, and
+`all`. The MP4 uses H.264 High, AAC 320 kbps, CFR, `+faststart`, and a
+`-16.5 LUFS` / `-1.0 dBTP` target when no mastered `audio/master.wav` exists.
+The manifest lands in `exports/bundle.json` with SHA-256 per artifact and
+media/duration/license validation for every export.
+
+```text
+vf_exports(action="validate", project_id="...")
+vf_exports(action="roundtrip", project_id="...", nle="premiere", path="...")
+```
+
+`roundtrip` accepts `fcpxml`, `xmeml`/`premiere`, `mlt`/`kdenlive`, and
+`resolve`.
+
+## Declarative timeline edits
+
+```text
+vf_timeline(action="apply_beatmap", project_id="...", expected_revision=3,
+            beatmap={"revision": 3, "cuts": [...], "broll": [...],
+                     "overlays": [...], "zoom_keyframes": [...],
+                     "sfx_events": [...], "music_tracks": [...]})
+```
+
+The manifest is validated against a project copy and saved once. Missing or
+license-blocked assets reject the whole edit.
 
 ## Async render contract
 

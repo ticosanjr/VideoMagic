@@ -125,3 +125,101 @@ def test_mlt_markers_and_invalid_marker_values(tmp_path: Path, monkeypatch) -> N
     assert report["ducking_updates"] == 0
     assert report["applied"] is False
     assert len(report["warnings"]) == 3
+
+
+def test_xmeml_clip_ranges_and_markers_roundtrip(tmp_path: Path, monkeypatch) -> None:
+    from videoflow.domain.state import AudioSegment, VideoSegment
+
+    monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
+    context = make_context(tmp_path)
+    context.state = ProjectState(
+        transcript=context.transcript,
+        video_segments=[
+            VideoSegment(
+                clip_id="c1",
+                source_in_frame=0,
+                source_out_frame=30,
+                timeline_in_frame=0,
+                timeline_out_frame=30,
+            ),
+            VideoSegment(
+                clip_id="c2",
+                source_in_frame=0,
+                source_out_frame=30,
+                timeline_in_frame=30,
+                timeline_out_frame=60,
+            ),
+        ],
+        audio_segments=[
+            AudioSegment(
+                clip_id="c1",
+                source_in_sample=0,
+                source_out_sample=48000,
+                timeline_in_sample=0,
+                timeline_out_sample=48000,
+            ),
+            AudioSegment(
+                clip_id="c2",
+                source_in_sample=0,
+                source_out_sample=48000,
+                timeline_in_sample=48000,
+                timeline_out_sample=96000,
+            ),
+        ],
+    )
+    path = context.output / "timeline.xml"
+    path.write_text(
+        "<xmeml><sequence><media><video><track>"
+        "<clipitem><start>0</start><end>30</end></clipitem>"
+        "<clipitem><start>42</start><end>72</end></clipitem>"
+        "</track></video></media>"
+        "<marker><name>vf:transcript shift=0.5</name><in>0</in><out>30</out></marker>"
+        "<marker><name>vf:ducking level=-20</name><in>30</in><out>60</out></marker>"
+        "</sequence></xmeml>",
+        encoding="utf-8",
+    )
+
+    assert nle_sync._clip_ranges(path, "xmeml", 30.0) == [(0.0, 1.0), (1.4, 1.0)]
+    markers = nle_sync._markers(path, "xmeml", 30.0)
+    assert markers[0][0] == "transcript"
+    assert markers[0][1] == 0.0
+    assert markers[1][0] == "ducking"
+    assert markers[1][1] == 1.0
+
+    nle_sync.NleSyncStep().run(
+        context,
+        nle_sync.NleSyncParams(format="xmeml", path=str(path), apply=True),
+        StepIO(),
+    )
+
+    report = context.metadata["sync_back_report"]
+    assert report["format"] == "xmeml"
+    assert report["applied"] is True
+    assert context.state.video_segments[1].timeline_in_frame == 42
+    assert context.transcript[0].start_sample == RATE // 2
+
+
+def test_nle_sync_parser_edge_cases(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
+    context = make_context(tmp_path)
+    assert nle_sync._seconds("bad") == 0.0
+    assert nle_sync._seconds("1/0") > 0.0
+    assert nle_sync._timecode_seconds("") == 0.0
+    assert nle_sync._timecode_seconds("a:b") == 0.0
+
+    malformed = tmp_path / "timeline.xml"
+    malformed.write_text(
+        "<xmeml><sequence><media><video><track>"
+        "<clipitem><start>x</start><end>y</end></clipitem>"
+        "</track></video></media></sequence></xmeml>",
+        encoding="utf-8",
+    )
+    assert nle_sync._clip_ranges(malformed, "xmeml", 30.0) == []
+    assert nle_sync._markers(malformed, "xmeml", 30.0) == []
+
+    nle_sync.NleSyncStep().run(
+        context,
+        nle_sync.NleSyncParams(format="xmeml", path=""),
+        StepIO(),
+    )
+    assert context.metadata["sync_back_report"]["warnings"]

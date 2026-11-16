@@ -94,6 +94,8 @@ class Settings:
     stable_audio_cmd: str | None = None
     audio_separator_cmd: str | None = None
     realesrgan_cmd: str | None = None
+    asr_cmd: str | None = None
+    diarize_cmd: str | None = None
     comfyui_url: str | None = None
 
     @classmethod
@@ -120,6 +122,8 @@ class Settings:
             stable_audio_cmd=_env(values, "VF_STABLE_AUDIO_CMD"),
             audio_separator_cmd=_env(values, "VF_AUDIO_SEPARATOR_CMD"),
             realesrgan_cmd=_env(values, "VF_REALESRGAN_CMD"),
+            asr_cmd=_env(values, "VF_GPU_ASR_CMD"),
+            diarize_cmd=_env(values, "VF_GPU_DIARIZE_CMD"),
             comfyui_url=_env(values, "VF_GPU_COMFYUI_URL") or _env(values, "VF_COMFYUI_URL"),
         )
 

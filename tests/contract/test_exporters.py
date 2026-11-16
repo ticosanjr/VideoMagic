@@ -46,7 +46,7 @@ def test_fcpxml_export_uses_audio_offset_and_transform(tmp_path: Path) -> None:
     output = export_fcpxml(state, tmp_path / "timeline.fcpxml")
     root = ET.parse(output).getroot()
     assert root.tag == "fcpxml"
-    assert root.attrib["version"] == "1.9"
+    assert root.attrib["version"] == "1.10"
     asset = root.find("./resources/asset")
     assert asset is not None
     assert asset.find("media-rep") is not None
@@ -119,9 +119,11 @@ def test_kdenlive_export_is_a_native_mlt_project(tmp_path: Path) -> None:
     assert chain is not None
     resource = chain.find("property[@name='resource']")
     assert resource is not None and resource.text
-    assert len(root.findall("./playlist[@id='playlist_v1']/entry")) + len(
-        root.findall("./playlist[@id='playlist_v2']/entry")
-    ) == 2
+    assert (
+        len(root.findall("./playlist[@id='playlist_v1']/entry"))
+        + len(root.findall("./playlist[@id='playlist_v2']/entry"))
+        == 2
+    )
     assert len(root.findall("./playlist[@id='playlist2']/entry")) == 2
     volume = root.find("./playlist[@id='playlist2']/entry/filter/property[@name='level']")
     assert volume is not None and "-60" in (volume.text or "")
@@ -233,9 +235,7 @@ def test_export_rejects_unpacked_video(tmp_path: Path) -> None:
 
 @pytest.mark.xfail(reason="AC-01: manual NLE import validation is still pending", strict=True)
 def test_every_join_contains_a_fade(tmp_path: Path) -> None:
-    raise AssertionError(
-        "import validation in Resolve, Premiere, and Kdenlive is still pending"
-    )
+    raise AssertionError("import validation in Resolve, Premiere, and Kdenlive is still pending")
 
 
 def test_mp4_export_builds_the_timeline_filter_graph(tmp_path: Path) -> None:
@@ -289,9 +289,7 @@ def progressive_state(tmp_path: Path) -> ProjectState:
 def test_fcpxml_emits_progressive_zoom_keyframes(tmp_path: Path) -> None:
     output = export_fcpxml(progressive_state(tmp_path), tmp_path / "timeline.fcpxml")
     root = ET.parse(output).getroot()
-    keyframes = root.findall(
-        ".//adjust-transform/param[@name='scale']/keyframeAnimation/keyframe"
-    )
+    keyframes = root.findall(".//adjust-transform/param[@name='scale']/keyframeAnimation/keyframe")
     assert len(keyframes) == 2
     assert keyframes[0].attrib["time"] == "0s"
     assert keyframes[-1].attrib["value"] != keyframes[0].attrib["value"]
@@ -374,14 +372,8 @@ def test_kdenlive_applies_transform_and_transition_filters(tmp_path: Path) -> No
         "./playlist[@id='playlist_v2']/entry"
     )
     assert len(video_entries) == 2
-    geometries = [
-        entry.find("filter/property[@name='transition.rect']")
-        for entry in video_entries
-    ]
-    assert any(
-        geometry is not None and ";" in (geometry.text or "")
-        for geometry in geometries
-    )
+    geometries = [entry.find("filter/property[@name='transition.rect']") for entry in video_entries]
+    assert any(geometry is not None and ";" in (geometry.text or "") for geometry in geometries)
     audio = root.find("./playlist[@id='playlist2']/entry/filter/property[@name='level']")
     assert audio is not None and "-60" in (audio.text or "")
 
@@ -419,10 +411,7 @@ def test_kdenlive_crossfade_uses_two_tracks_and_opacity_ramp(tmp_path: Path) -> 
         for tractor in root.findall("tractor")
         if tractor.find("property[@name='kdenlive:clipname']") is not None
     )
-    services = [
-        item.text
-        for item in sequence.findall("transition/property[@name='mlt_service']")
-    ]
+    services = [item.text for item in sequence.findall("transition/property[@name='mlt_service']")]
     assert services.count("qtblend") >= 2
 
 
@@ -433,8 +422,6 @@ def test_kdenlive_handles_progressive_keyframes_and_panning(tmp_path: Path) -> N
     state.video_segments[0].transform.anchor = "upper_third"
     output = export_kdenlive(state, tmp_path / "timeline.kdenlive")
     root = ET.parse(output).getroot()
-    geometries = root.findall(
-        ".//filter/property[@name='transition.rect']"
-    )
+    geometries = root.findall(".//filter/property[@name='transition.rect']")
     assert len(geometries) >= 2
     assert any(";" in (item.text or "") for item in geometries)

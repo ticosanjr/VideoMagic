@@ -32,8 +32,14 @@ def _annotations_for(name: str) -> ToolAnnotations:
 def build_server(
     jobs: JobManager | None = None,
     batches: BatchManager | None = None,
+    *,
+    prompts: bool = True,
 ) -> MCPServer:
-    """Build the agent-facing MCP server."""
+    """Build the agent-facing MCP server.
+
+    ``prompts=False`` keeps the tools and resources but skips the three
+    ``videoflow_*`` prompts so channel instructions stay authoritative.
+    """
 
     manager = jobs or JobManager()
     batch_manager = batches or BatchManager(manager)
@@ -55,5 +61,5 @@ def build_server(
         )(func)
 
     register_core_tools(tool, ctx)
-    register_agent_resources(mcp, ctx)
+    register_agent_resources(mcp, ctx, prompts=prompts)
     return mcp

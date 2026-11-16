@@ -17,12 +17,21 @@ PROFILES = {
 }
 
 
-def server_block(name: str) -> dict[str, object]:
+def server_block(name: str, *, prompts: bool = True) -> dict[str, object]:
+    prompt_flag = [] if prompts else ["--no-prompts"]
+    prompt_env = {} if prompts else {"VF_MCP_PROMPTS": "0"}
     if name == "core":
         return {
             "type": "local",
-            "command": ["uv", "run", "--directory", str(ROOT), "videoflow-mcp"],
-            "environment": {"VF_WORKSPACE_ROOT": "${VF_WORKSPACE_ROOT}"},
+            "command": [
+                "uv",
+                "run",
+                "--directory",
+                str(ROOT),
+                "videoflow-mcp",
+                *prompt_flag,
+            ],
+            "environment": {"VF_WORKSPACE_ROOT": "${VF_WORKSPACE_ROOT}", **prompt_env},
         }
     package = {
         "fetch": "mcp-fetch",
@@ -56,8 +65,16 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile", choices=sorted(PROFILES), default="core")
     parser.add_argument("--output", default="")
+    parser.add_argument(
+        "--no-prompts",
+        action="store_true",
+        help="Do not register the three videoflow_* MCP prompts.",
+    )
     args = parser.parse_args()
-    servers = {name: server_block(name) for name in PROFILES[args.profile]}
+    servers = {
+        name: server_block(name, prompts=not args.no_prompts)
+        for name in PROFILES[args.profile]
+    }
     payload = {"mcp": {"servers": servers}}
     text = json.dumps(payload, indent=2) + "\n"
     if args.output:

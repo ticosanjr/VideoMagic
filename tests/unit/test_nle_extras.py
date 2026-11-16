@@ -146,3 +146,39 @@ def test_nle_extras_merges_markers_and_chapters(
 
     assert [item.name for item in extras.markers] == ["Start", "Intro"]
     assert extras.markers[0].note == "chapter"
+
+
+def test_music_reads_beatmap_and_ducking(tmp_path: Path) -> None:
+    (tmp_path / "project_state.json").write_text(
+        json.dumps({"media_info": {"fps_num": 30, "fps_den": 1}}), encoding="utf-8"
+    )
+    audio = tmp_path / "audio"
+    audio.mkdir()
+    (audio / "beatmap.json").write_text(
+        json.dumps(
+            {
+                "music_tracks": [
+                    {
+                        "path": "/music/track.wav",
+                        "start_frame": 30,
+                        "end_frame": 120,
+                        "gain_db": -20.0,
+                        "duck_under_speech": True,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    (audio / "ducking.json").write_text(
+        json.dumps({"ducking": [{"start_sec": 2.0, "end_sec": 3.0, "level_db": -12.0}]}),
+        encoding="utf-8",
+    )
+
+    tracks = nle_extras._music(tmp_path)
+
+    assert len(tracks) == 1
+    assert tracks[0].start_sec == 1.0
+    assert tracks[0].duration_sec == 3.0
+    assert tracks[0].gain_db == -20.0
+    assert tracks[0].duck_ranges == ((2.0, 3.0, -12.0),)

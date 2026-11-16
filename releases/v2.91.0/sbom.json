@@ -435,21 +435,21 @@
     },
     {
       "name": "vf-compute",
-      "purl": "pkg:pypi/vf-compute@2.90.0",
+      "purl": "pkg:pypi/vf-compute@2.91.0",
       "type": "library",
-      "version": "2.90.0"
+      "version": "2.91.0"
     },
     {
       "name": "vf-contracts",
-      "purl": "pkg:pypi/vf-contracts@2.90.0",
+      "purl": "pkg:pypi/vf-contracts@2.91.0",
       "type": "library",
-      "version": "2.90.0"
+      "version": "2.91.0"
     },
     {
       "name": "videoflow",
-      "purl": "pkg:pypi/videoflow@2.90.1",
+      "purl": "pkg:pypi/videoflow@2.91.0",
       "type": "library",
-      "version": "2.90.1"
+      "version": "2.91.0"
     }
   ],
   "metadata": {

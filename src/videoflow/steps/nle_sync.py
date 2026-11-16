@@ -22,7 +22,7 @@ from videoflow.steps.registry import register_step
 class NleSyncParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    format: str = Field(default="fcpxml", pattern="^(fcpxml|mlt|resolve)$")
+    format: str = Field(default="fcpxml", pattern="^(fcpxml|mlt|xmeml|resolve)$")
     path: str = ""
     apply: bool = False
     conflict_policy: str = Field(
@@ -98,7 +98,9 @@ def _marker_params(kind: str, raw: str) -> tuple[str, dict[str, str]] | None:
     return name, params
 
 
-def _markers(path: Path, fmt: str) -> list[tuple[str, float, float, dict[str, str]]]:
+def _markers(
+    path: Path, fmt: str, fps: float = 30.0
+) -> list[tuple[str, float, float, dict[str, str]]]:
     """Read ``vf transcript/broll/ducking`` markers from an NLE timeline.
 
     FCPXML uses ``<marker start="12s" duration="2s" value="vf:..."/>``.
@@ -108,6 +110,21 @@ def _markers(path: Path, fmt: str) -> list[tuple[str, float, float, dict[str, st
 
     root = ET.parse(path).getroot()
     markers: list[tuple[str, float, float, dict[str, str]]] = []
+    if fmt == "xmeml":
+        for node in root.findall("./sequence/marker"):
+            parsed = _marker_params("", node.findtext("name") or node.findtext("comment") or "")
+            if parsed is None:
+                continue
+            kind, params = parsed
+            try:
+                start_frame = float(node.findtext("in") or 0)
+                out_frame = float(node.findtext("out") or start_frame)
+            except ValueError:
+                start_frame, out_frame = 0.0, 0.0
+            start = start_frame / max(1.0, fps)
+            duration = max(0.0, (out_frame - start_frame) / max(1.0, fps))
+            markers.append((kind, start, duration, params))
+        return markers
     names = {"marker", "chapter-marker"}
     for node in root.iter():
         if node.tag.rsplit("}", 1)[-1].lower() not in names:
@@ -256,6 +273,17 @@ def _clip_ranges(path: Path, fmt: str, fps: float) -> list[tuple[float, float]]:
             offset = _seconds(node.get("offset", "0s"))
             ranges.append((max(0.0, offset), duration))
         return ranges
+    if fmt == "xmeml":
+        for node in root.findall("./sequence/media/video/track/clipitem"):
+            try:
+                start = float(node.findtext("start") or 0)
+                end = float(node.findtext("end") or 0)
+            except ValueError:
+                continue
+            duration = (end - start) / max(1.0, fps)
+            if duration > 0:
+                ranges.append((max(0.0, start / max(1.0, fps)), duration))
+        return ranges
     cursor = 0.0
     for node in root.iter():
         if node.tag.rsplit("}", 1)[-1] != "entry":
@@ -306,7 +334,7 @@ class NleSyncStep(BaseStep):
                         else 30.0
                     )
                     ranges = _clip_ranges(path, options.format, fps)
-                    markers = _markers(path, options.format)
+                    markers = _markers(path, options.format, fps)
                     external = len(ranges)
                 except (OSError, ET.ParseError) as exc:
                     warnings.append(f"Could not parse {path.name}: {exc}")

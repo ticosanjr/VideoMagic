@@ -4,7 +4,7 @@ One timeline model, three NLE dialects, one optional render.
 
 | Target | Artifact | Writer | Status |
 | --- | --- | --- | --- |
-| DaVinci Resolve | FCPXML 1.9 (1.10 optional) | typed XML builder | implemented |
+| DaVinci Resolve | FCPXML 1.10 (1.9 opt-in) | typed XML builder | implemented |
 | Adobe Premiere Pro | FCP 7 XML (`xmeml`) | typed XML builder | implemented |
 | Kdenlive 23.04+ | native `.kdenlive` MLT XML | typed XML builder | implemented |
 | Legacy NLE / archive | CMX 3600 `.edl` | typed text builder | implemented |
@@ -16,10 +16,11 @@ FCPXML, XMEML, Kdenlive, EDL, and optional MP4 artifacts from one validated stat
 ## 0. Native finishing inputs
 
 `exporters/extras.py` defines the finishing inputs shared by the three writers:
-markers, titles, B-roll clips, colour filters, audio filters, and the audio
-master stem. `application/nle_extras.py` builds them from a job output
+markers, titles, B-roll clips, colour filters, audio filters, the audio master
+stem, and music tracks with ducking envelopes. `application/nle_extras.py` builds them from a job output
 (`timeline_meta.json`, `titles.ass`, `broll.json`, `color/filters.json`,
-`audio/master-filters.json`, `audio/master.wav`). `export_timeline(...,
+`audio/master-filters.json`, `audio/master.wav`, `audio/beatmap.json`,
+`audio/ducking.json`). `export_timeline(...,
 extras=...)` forwards the same object to every writer, so one job output
 produces equivalent finishing in FCPXML, XMEML, and Kdenlive.
 
@@ -66,7 +67,7 @@ FCPXML emits keyframed ``adjust-volume`` fades on the composite
 
 ## 3. Resolve — FCPXML
 
-Version 1.9 by default; 1.10 is opt-in.
+Version 1.10 by default; 1.9 stays available for older Resolve builds.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>

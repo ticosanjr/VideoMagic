@@ -22,7 +22,16 @@ if TYPE_CHECKING:
 
 Handler = Callable[[dict[str, Any], list[Path], Path], Sequence[str | Path]]
 
-BUILTIN_CAPABILITIES = ("tts", "music", "sfx", "stems", "upscale", "comfyui")
+BUILTIN_CAPABILITIES = (
+    "tts",
+    "music",
+    "sfx",
+    "stems",
+    "upscale",
+    "comfyui",
+    "asr",
+    "diarize",
+)
 _COMMAND_TIMEOUT_SEC = 3600.0
 _COMFYUI_POLL_SEC = 0.5
 _COMFYUI_MAX_WAIT_SEC = 3600.0
@@ -377,6 +386,28 @@ def build_default_registry(settings: Settings) -> HandlerRegistry:
         env_name="VF_REALESRGAN_CMD",
         factory=lambda spec: _make_command_handler(
             spec, output_name="upscaled.mp4", require_input=True
+        ),
+    )
+    _register_command(
+        registry,
+        capability="asr",
+        spec=settings.asr_cmd,
+        env_name="VF_GPU_ASR_CMD",
+        factory=lambda spec: _make_command_handler(
+            spec,
+            output_name="transcript.json",
+            require_input=True,
+        ),
+    )
+    _register_command(
+        registry,
+        capability="diarize",
+        spec=settings.diarize_cmd,
+        env_name="VF_GPU_DIARIZE_CMD",
+        factory=lambda spec: _make_command_handler(
+            spec,
+            output_name="diarization.json",
+            require_input=True,
         ),
     )
     if settings.comfyui_url:

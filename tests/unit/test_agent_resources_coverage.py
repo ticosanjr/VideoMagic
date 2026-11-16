@@ -130,9 +130,9 @@ def test_project_resources_and_prompts(tmp_path: Path, monkeypatch) -> None:
     recipe = json.loads(mcp.resources["vf://docs/recipes/{recipe_id}"]("youtube_talking_head"))
     assert recipe["id"] == "youtube_talking_head"
 
-    assert "vf_run_recipe" in mcp.prompts["videoflow_produce"]("p", "youtube_talking_head")
-    assert "qa_artifacts" in mcp.prompts["videoflow_review"]("p", "j")
-    assert "validate" in mcp.prompts["videoflow_deliver"]("p", "j").lower()
+    assert "vf_exec" in mcp.prompts["videoflow_produce"]("p", "youtube_talking_head")
+    assert "vf_qa" in mcp.prompts["videoflow_review"]("p", "j")
+    assert "bundle" in mcp.prompts["videoflow_deliver"]("p").lower()
 
 
 def test_resource_error_paths(tmp_path: Path, monkeypatch) -> None:

@@ -28,39 +28,41 @@ def _error(code: str, message: str) -> str:
     return json.dumps({"ok": False, "code": code, "message": message})
 
 
-def register_agent_resources(mcp: Any, ctx: Any) -> None:
+def register_agent_resources(mcp: Any, ctx: Any, *, prompts: bool = True) -> None:
     manager = ctx.manager
 
-    @mcp.prompt(
-        name="videoflow_produce",
-        description="Run a recipe end to end and report artifacts.",
-    )
-    def produce_prompt(project_id: str, recipe_id: str = "opencode_longform_studio") -> str:
-        return (
-            f"Use vf_run_recipe for project {project_id} with recipe {recipe_id}, "
-            "poll with vf_wait_job, then summarize artifacts and QA."
-        )
+    if prompts:
 
-    @mcp.prompt(
-        name="videoflow_review",
-        description="Review QA artifacts and repair the timeline.",
-    )
-    def review_prompt(project_id: str, job_id: str) -> str:
-        return (
-            f"Read vf_get_qa_artifacts and vf_get_step_logs for project {project_id} "
-            f"job {job_id}. Explain each defect, inspect the frames, and apply only "
-            "validated timeline edits."
+        @mcp.prompt(
+            name="videoflow_produce",
+            description="Run a recipe end to end and report artifacts.",
         )
+        def produce_prompt(project_id: str, recipe_id: str = "opencode_longform_studio") -> str:
+            return (
+                f"Use vf_exec(action='recipe') for project {project_id} with recipe {recipe_id}, "
+                "poll with vf_job(action='wait'), then summarize artifacts and QA."
+            )
 
-    @mcp.prompt(
-        name="videoflow_deliver",
-        description="Validate exports and delivery artifacts.",
-    )
-    def deliver_prompt(project_id: str, job_id: str) -> str:
-        return (
-            f"Run vf_validate_exports for project {project_id} job {job_id}, list "
-            "artifacts, and report missing licenses or failed NLE checks."
+        @mcp.prompt(
+            name="videoflow_review",
+            description="Review QA artifacts and repair the timeline.",
         )
+        def review_prompt(project_id: str, job_id: str) -> str:
+            return (
+                f"Read vf_qa and vf_job(action='logs') for project {project_id} "
+                f"job {job_id}. Explain each defect, inspect the frames, and apply only "
+                "validated timeline edits."
+            )
+
+        @mcp.prompt(
+            name="videoflow_deliver",
+            description="Build and validate the multi-NLE delivery bundle.",
+        )
+        def deliver_prompt(project_id: str) -> str:
+            return (
+                f"Run vf_exports(action='bundle', project_id='{project_id}', targets='all'), "
+                "then report the bundle manifest, any missing media, and blocked licenses."
+            )
 
     @mcp.resource("vf://projects")
     def projects_resource() -> str:

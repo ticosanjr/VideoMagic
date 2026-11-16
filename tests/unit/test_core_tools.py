@@ -278,3 +278,151 @@ def test_core_exec_short_action(tmp_path: Path, monkeypatch) -> None:
     )
     assert result["ok"] is True
     assert result["short"]["title"] == "Edited"
+
+
+def test_core_apply_beatmap_is_atomic(tmp_path: Path, monkeypatch) -> None:
+    tools, record, _ = setup(tmp_path, monkeypatch)
+    result = tools["vf_timeline"](
+        action="apply_beatmap",
+        project_id=record.project_id,
+        expected_revision=1,
+        beatmap={
+            "revision": 1,
+            "cuts": [{"start_frame": 5, "end_frame": 20}],
+        },
+    )
+    assert result["ok"] is True
+    assert result["revision"] == 2
+    assert result["report"]["cuts"] == 1
+
+    conflict = tools["vf_timeline"](
+        action="apply_beatmap",
+        project_id=record.project_id,
+        expected_revision=1,
+        beatmap={"revision": 1},
+    )
+    assert conflict["ok"] is False
+    assert conflict["code"] == "beatmap_conflict"
+
+
+def test_core_exports_bundle_without_mp4(tmp_path: Path, monkeypatch) -> None:
+    tools, record, _ = setup(tmp_path, monkeypatch)
+    result = tools["vf_exports"](
+        action="bundle",
+        project_id=record.project_id,
+        targets="resolve",
+    )
+    assert result["ok"] is True
+    assert set(result["bundle"]["files"]) == {"resolve"}
+    assert Path(result["bundle"]["manifest"]).is_file()
+
+
+def test_core_project_style_and_rule_learning(tmp_path: Path, monkeypatch) -> None:
+    tools, record, _ = setup(tmp_path, monkeypatch)
+    image = tmp_path / "reference.png"
+    from PIL import Image
+
+    Image.new("RGB", (16, 16), (20, 40, 60)).save(image)
+    cloned = tools["vf_project"](
+        action="clone_style",
+        project_id=record.project_id,
+        channel_id="canal-teste",
+        images=[str(image)],
+        name="teste",
+    )
+    assert cloned["ok"] is True
+    assert cloned["channel_id"] == "canal-teste"
+
+    learned = tools["vf_project"](
+        action="learn_rule",
+        project_id=record.project_id,
+        channel_id="canal-teste",
+        notes=["sempre usar legendas grandes", "cortes a cada 2 segundos"],
+    )
+    assert learned["ok"] is True
+    assert learned["count"] == 2
+    assert Path(learned["rulebook"]).is_file()
+
+
+def test_core_style_and_beatmap_guards(tmp_path: Path, monkeypatch) -> None:
+    tools, record, _ = setup(tmp_path, monkeypatch)
+    assert tools["vf_project"](action="clone_style")["code"] == "channel_required"
+    assert tools["vf_project"](action="clone_style", channel_id="x")["code"] == "output_required"
+    assert (
+        tools["vf_timeline"](action="apply_beatmap", project_id=record.project_id)["code"]
+        == "beatmap_required"
+    )
+    assert (
+        tools["vf_timeline"](action="apply_beatmap", project_id="missing", beatmap={"cuts": []})[
+            "ok"
+        ]
+        is False
+    )
+    assert tools["vf_exports"](action="bundle", project_id="missing")["ok"] is False
+    assert tools["vf_job"](action="wait", project_id="missing")["ok"] is False
+
+
+def test_core_exec_waits_for_the_recipe_job(tmp_path: Path, monkeypatch) -> None:
+    tools, record, _ = setup(tmp_path, monkeypatch)
+    result = tools["vf_exec"](
+        action="recipe",
+        project_id=record.project_id,
+        recipe={
+            "id": "demo",
+            "name": "Demo",
+            "steps": [
+                {
+                    "id": "one",
+                    "type": "preset.compile_rule",
+                    "needs": [],
+                    "params": {"channel_id": "demo", "review_notes": ["legendas grandes"]},
+                }
+            ],
+        },
+        wait=True,
+    )
+    assert result["ok"] is True
+    assert result["wait"]["ok"] is True
+
+
+def test_core_error_branches_and_roundtrip_formats(tmp_path: Path, monkeypatch) -> None:
+    from videoflow.application.projects import init_project
+    from videoflow.domain.errors import VideoFlowError
+
+    tools, record, _ = setup(tmp_path, monkeypatch)
+    assert (
+        tools["vf_project"](action="clone_style", project_id="missing", channel_id="x")["ok"]
+        is False
+    )
+    assert (
+        tools["vf_exec"](action="step", project_id=record.project_id, step_id="not.a.step")["ok"]
+        is False
+    )
+
+    empty, _ = init_project(output=tmp_path / "empty")
+    assert (
+        tools["vf_exports"](action="bundle", project_id=empty.project_id)["code"]
+        == "timeline_required"
+    )
+
+    monkeypatch.setattr(
+        Manager,
+        "cancel",
+        lambda self, job_id: (_ for _ in ()).throw(VideoFlowError("cancel failed")),
+    )
+    assert (
+        tools["vf_render"](action="cancel", project_id=record.project_id, job_id="job-1")["ok"]
+        is False
+    )
+
+    for nle, suffix in (("premiere", ".xml"), ("kdenlive", ".kdenlive")):
+        target = tmp_path / "out" / "exports" / f"push{suffix}"
+        pushed = tools["vf_exports"](
+            action="roundtrip",
+            project_id=record.project_id,
+            direction="push",
+            nle=nle,
+            path=str(target),
+        )
+        assert pushed["ok"] is True
+        assert target.is_file()

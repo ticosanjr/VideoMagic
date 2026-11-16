@@ -50,7 +50,7 @@ def export_kdenlive(
     )
     _append_profile(root, media)
     _append_black_track(root, duration, duration_frames)
-    _append_source_chain(root, media)
+    chains = _append_source_chains(root, state, media)
 
     entries = _build_video_entries(state, media)
     for track in (1, 2):
@@ -60,6 +60,7 @@ def export_kdenlive(
             [entry for entry in entries if entry["track"] == track],
             media,
             duration_frames,
+            chains=chains,
             color=bool(extras and extras.color_filters),
         )
 
@@ -69,19 +70,23 @@ def export_kdenlive(
         state.audio_segments,
         media,
         video=False,
+        chains=chains,
         transitions=[clip.transition_out for clip in state.video_segments],
     )
     ET.SubElement(root, "playlist", {"id": "playlist3"})
     _append_track_tractor(root, "tractor1", "playlist2", "playlist3", audio=True)
 
     overlay = (
-        _append_overlay_playlist(root, extras, media, duration_frames)
-        if extras is not None
-        else ""
+        _append_overlay_playlist(root, extras, media, duration_frames) if extras is not None else ""
     )
     stem = (
         _append_stem_playlist(root, extras, media, duration_frames)
         if extras is not None and extras.audio_stem
+        else ""
+    )
+    music = (
+        _append_music_playlist(root, extras, media, duration_frames)
+        if extras is not None and extras.music
         else ""
     )
     _append_sequence_tractor(
@@ -94,6 +99,7 @@ def export_kdenlive(
         audio_track="tractor1",
         overlay=overlay,
         overlay_audio=stem,
+        music=music,
     )
     _append_main_bin(
         root,
@@ -102,6 +108,7 @@ def export_kdenlive(
         sequence_uuid=str(sequence_uuid),
         media=media,
         extras=extras,
+        chains=chains,
     )
     _append_final_tractor(root, sequence_id=sequence_id, duration=duration)
 
@@ -149,14 +156,36 @@ def _append_black_track(parent: ET.Element, duration: str, duration_frames: int)
     _property(producer, "set.test_audio", "0")
 
 
-def _append_source_chain(parent: ET.Element, media) -> None:
-    chain = ET.SubElement(parent, "chain", {"id": "chain0"})
-    _property(chain, "resource", str(Path(media.source_path).expanduser().resolve()))
-    _property(chain, "mlt_service", "avformat-novalidate")
-    _property(chain, "kdenlive:clipname", Path(media.source_path).name)
-    _property(chain, "kdenlive:id", "1")
+def _source_order(state, media) -> list[tuple[str, object]]:
+    """Primary source first, then every other source in project order."""
+
+    if not state.sources:
+        return [(state.primary_source_id or "primary", media)]
+    ordered: list[tuple[str, object]] = []
+    primary = state.primary_source_id or next(iter(state.sources))
+    if primary in state.sources:
+        ordered.append((primary, state.sources[primary]))
+    for source_id, source_media in state.sources.items():
+        if source_id != primary:
+            ordered.append((source_id, source_media))
+    return ordered
 
 
+def _append_source_chains(parent: ET.Element, state, media) -> dict[str, str]:
+    """Create one MLT chain per source so multicam edits stay native."""
+
+    chains: dict[str, str] = {}
+    for index, (source_id, source_media) in enumerate(_source_order(state, media)):
+        chain_id = f"chain{index}"
+        chains[source_id] = chain_id
+        chain = ET.SubElement(parent, "chain", {"id": chain_id})
+        path = Path(source_media.source_path).expanduser().resolve()
+        _property(chain, "resource", str(path))
+        _property(chain, "mlt_service", "avformat-novalidate")
+        _property(chain, "kdenlive:clipname", path.name)
+        _property(chain, "kdenlive:id", str(index + 1))
+        _property(chain, "kdenlive:duration", str(source_media.duration_frames))
+    return chains
 
 
 def _build_video_entries(state, media) -> list[dict[str, object]]:
@@ -168,6 +197,7 @@ def _build_video_entries(state, media) -> list[dict[str, object]]:
         entries.append(
             {
                 "clip": clip,
+                "source_id": clip.source_id or state.primary_source_id or "primary",
                 "track": 1 if index % 2 == 0 else 2,
                 "start": clip.timeline_in_frame,
                 "source_in": clip.source_in_frame,
@@ -206,6 +236,7 @@ def _append_video_playlist(
     media,
     duration_frames: int,
     *,
+    chains: dict[str, str],
     color: bool,
 ) -> None:
     playlist = ET.SubElement(parent, "playlist", {"id": playlist_id})
@@ -227,7 +258,10 @@ def _append_video_playlist(
             playlist,
             "entry",
             {
-                "producer": "chain0",
+                "producer": chains.get(
+                    str(entry["source_id"]),
+                    next(iter(chains.values()), "chain0"),
+                ),
                 "in": _timecode(source_in, media.fps_num, media.fps_den),
                 "out": _timecode(source_out - 1, media.fps_num, media.fps_den),
             },
@@ -246,6 +280,7 @@ def _append_video_playlist(
     if cursor < duration_frames:
         ET.SubElement(playlist, "blank", {"length": str(duration_frames - cursor)})
 
+
 def _append_playlist(
     parent: ET.Element,
     playlist_id: str,
@@ -253,6 +288,7 @@ def _append_playlist(
     media,
     *,
     video: bool,
+    chains: dict[str, str],
     transitions: list | None = None,
     color: bool = False,
 ) -> None:
@@ -276,7 +312,10 @@ def _append_playlist(
             playlist,
             "entry",
             {
-                "producer": "chain0",
+                "producer": chains.get(
+                    clip.source_id or getattr(media, "source_id", ""),
+                    next(iter(chains.values()), "chain0"),
+                ),
                 "in": _timecode(source_in, media.fps_num, media.fps_den),
                 "out": _timecode(source_out, media.fps_num, media.fps_den),
             },
@@ -332,8 +371,9 @@ def _append_sequence_tractor(
     audio_track: str,
     overlay: str = "",
     overlay_audio: str = "",
+    music: str = "",
 ) -> None:
-    tracks = 3 + (1 if overlay else 0) + (1 if overlay_audio else 0)
+    tracks = 3 + (1 if overlay else 0) + (1 if overlay_audio else 0) + (1 if music else 0)
     tractor = ET.SubElement(
         parent,
         "tractor",
@@ -369,6 +409,9 @@ def _append_sequence_tractor(
     if overlay_audio:
         ET.SubElement(tractor, "track", {"producer": overlay_audio})
         _append_transition(tractor, "transition-stem", 5, "mix")
+    if music:
+        ET.SubElement(tractor, "track", {"producer": music})
+        _append_transition(tractor, "transition-music", 5 + (1 if overlay_audio else 0), "mix")
 
 
 def _append_transition(
@@ -396,6 +439,7 @@ def _append_main_bin(
     sequence_uuid: str,
     media,
     extras=None,
+    chains: dict[str, str] | None = None,
 ) -> None:
     main_bin = ET.SubElement(parent, "playlist", {"id": "main_bin"})
     if extras is not None:
@@ -418,11 +462,12 @@ def _append_main_bin(
         "entry",
         {"in": "00:00:00.000", "out": "00:00:00.000", "producer": sequence_id},
     )
-    ET.SubElement(
-        main_bin,
-        "entry",
-        {"in": "00:00:00.000", "out": "00:00:00.000", "producer": "chain0"},
-    )
+    for chain_id in (chains or {"": "chain0"}).values():
+        ET.SubElement(
+            main_bin,
+            "entry",
+            {"in": "00:00:00.000", "out": "00:00:00.000", "producer": chain_id},
+        )
 
 
 def _append_final_tractor(parent: ET.Element, *, sequence_id: str, duration: str) -> None:
@@ -503,17 +548,9 @@ def _append_video_filter(
         _append_color_filters(entry)
     transform = clip.transform
     if fade_in is None:
-        fade_in = (
-            previous_transition.duration_frames
-            if previous_transition is not None
-            else 0
-        )
+        fade_in = previous_transition.duration_frames if previous_transition is not None else 0
     if fade_out is None:
-        fade_out = (
-            clip.transition_out.duration_frames
-            if clip.transition_out is not None
-            else 0
-        )
+        fade_out = clip.transition_out.duration_frames if clip.transition_out is not None else 0
     fade_in = min(fade_in, max(0, duration_frames - 1))
     fade_out = min(fade_out, max(0, duration_frames - 1))
     keyframes: dict[int, tuple[int, int, int, int, float]] = {}
@@ -693,9 +730,75 @@ def _append_stem_playlist(parent: ET.Element, extras, media, duration_frames: in
     return "playlist5"
 
 
-def _append_overlay_playlist(
-    parent: ET.Element, extras, media, duration_frames: int
-) -> str:
+def _append_music_playlist(parent: ET.Element, extras, media, duration_frames: int) -> str:
+    playlist = ET.SubElement(parent, "playlist", {"id": "playlist_music"})
+    cursor = 0
+    for index, entry in enumerate(extras.music):
+        producer_id = f"music{index}"
+        producer = ET.SubElement(parent, "producer", {"id": producer_id})
+        _property(producer, "resource", entry.path)
+        _property(producer, "mlt_service", "avformat")
+        _property(producer, "hide", "video")
+        _property(producer, "kdenlive:clipname", Path(entry.path).stem)
+        start = round(entry.start_sec * media.fps_num / media.fps_den)
+        length = max(1, round(entry.duration_sec * media.fps_num / media.fps_den))
+        if start > cursor:
+            ET.SubElement(playlist, "blank", {"length": str(start - cursor)})
+            cursor = start
+        item = ET.SubElement(
+            playlist,
+            "entry",
+            {
+                "producer": producer_id,
+                "in": "00:00:00.000",
+                "out": _timecode(length - 1, media.fps_num, media.fps_den),
+            },
+        )
+        _append_music_volume(item, entry, media, length)
+        cursor += length
+    if cursor < duration_frames:
+        ET.SubElement(playlist, "blank", {"length": str(duration_frames - cursor)})
+    return "playlist_music"
+
+
+def _append_music_volume(entry_element: ET.Element, entry, media, length: int) -> None:
+    points: list[tuple[int, float]] = [(0, entry.gain_db)]
+    fps = media.fps_num / media.fps_den
+    for duck_start, duck_end, level in entry.duck_ranges:
+        local_start = max(0.0, duck_start - entry.start_sec)
+        local_end = min(entry.duration_sec, duck_end - entry.start_sec)
+        if local_end <= local_start:
+            continue
+        ducked = entry.gain_db + level
+        points.extend(
+            [
+                (round(local_start * fps), entry.gain_db),
+                (round(min(local_end, local_start + 0.15) * fps), ducked),
+                (round(max(local_start, local_end - 0.15) * fps), ducked),
+                (round(local_end * fps), entry.gain_db),
+            ]
+        )
+    points.append((max(0, length - 1), entry.gain_db))
+    seen: set[int] = set()
+    ordered: list[str] = []
+    for frame, value in sorted(points):
+        if frame in seen:
+            continue
+        seen.add(frame)
+        ordered.append(f"{frame}={value:g}")
+    filter_element = ET.SubElement(
+        entry_element,
+        "filter",
+        {"id": f"filter-music-{id(entry_element)}"},
+    )
+    _property(filter_element, "window", "75")
+    _property(filter_element, "max_gain", "20dB")
+    _property(filter_element, "mlt_service", "volume")
+    _property(filter_element, "kdenlive_id", "volume")
+    _property(filter_element, "level", ";".join(ordered))
+
+
+def _append_overlay_playlist(parent: ET.Element, extras, media, duration_frames: int) -> str:
     entries: list[tuple[str, int, int]] = []
     for index, title in enumerate(extras.titles):
         producer_id = f"title{index}"

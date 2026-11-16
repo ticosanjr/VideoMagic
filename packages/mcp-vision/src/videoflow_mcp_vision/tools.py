@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from . import commands, storage
 from .errors import (
@@ -23,6 +26,7 @@ from .errors import (
 from .router import RouterBridge
 
 ROUTER = RouterBridge()
+MOTION_ENGINES = {"remotion", "manim", "ffmpeg", "html", "hyperframes"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"}
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
 MOTIONS = {"zoom_in", "zoom_out", "pan_left", "pan_right"}
@@ -65,25 +69,37 @@ def transcribe_word_aligned(
         payload["style"] = style
         return payload
 
-    binary = commands.resolve_binary(
-        "whisper-cli",
-        "whisper-cpp",
-        "whisper",
-        env="VF_WHISPER_BIN",
-    )
-    backend: str
-    if binary:
-        segments = _transcribe_with_whisper(binary, source, language)
-        backend = "local:whisper.cpp"
-    elif _stable_whisper_available():
-        segments = _transcribe_with_stable_whisper(source, language)
-        backend = "local:stable-ts"
-    else:
-        raise MissingCommandError(
-            "whisper.cpp was not found and stable-ts is not installed; "
-            "set VF_WHISPER_BIN or install stable-ts",
-            details={"env": ["VF_WHISPER_BIN", "VF_WHISPER_MODEL"], "capability": "asr"},
+    segments: list[dict[str, Any]] | None = None
+    backend = ""
+    if ROUTER.health("asr"):
+        try:
+            segments = _transcribe_remote(source, language)
+            backend = "remote:asr"
+        except Exception:  # noqa: BLE001 - the local fallback is the contract
+            segments = None
+
+    if segments is None:
+        binary = commands.resolve_binary(
+            "whisper-cli",
+            "whisper-cpp",
+            "whisper",
+            env="VF_WHISPER_BIN",
         )
+        if binary:
+            segments = _transcribe_with_whisper(binary, source, language)
+            backend = "local:whisper.cpp"
+        elif _stable_whisper_available():
+            segments = _transcribe_with_stable_whisper(source, language)
+            backend = "local:stable-ts"
+        else:
+            raise MissingCommandError(
+                "whisper.cpp was not found and stable-ts is not installed; "
+                "set VF_WHISPER_BIN or install stable-ts",
+                details={
+                    "env": ["VF_WHISPER_BIN", "VF_WHISPER_MODEL"],
+                    "capability": "asr",
+                },
+            )
 
     transcript = {
         "version": 1,
@@ -287,14 +303,18 @@ def render_motion_graphic(
     template_or_code: str = "",
     props_json: str = "{}",
     duration_sec: float = 5.0,
+    alpha: bool = False,
+    draft_scale: float = 1.0,
+    width: int = 1920,
+    height: int = 1080,
 ) -> dict[str, Any]:
-    """Render a Remotion or Manim graphic through a configured command template."""
+    """Render a Remotion, Manim, FFmpeg, HTML, or HyperFrames graphic."""
 
     tool = "render_motion_graphic"
     selected = str(engine or "").strip().lower()
-    if selected not in {"remotion", "manim"}:
+    if selected not in MOTION_ENGINES:
         raise InvalidArgumentError(
-            "engine must be 'remotion' or 'manim'",
+            f"engine must be one of: {', '.join(sorted(MOTION_ENGINES))}",
             details={"argument": "engine", "value": engine},
         )
     if not isinstance(template_or_code, str) or not template_or_code.strip():
@@ -315,6 +335,30 @@ def render_motion_graphic(
             details={"argument": "duration_sec", "value": duration_sec},
         )
     props = _parse_props(props_json)
+    if selected in {"html", "hyperframes"}:
+        return _render_web_graphic(
+            project_id,
+            tool=tool,
+            engine=selected,
+            source_value=template_or_code,
+            props=props,
+            duration=duration,
+            alpha=alpha,
+            draft_scale=draft_scale,
+            width=width,
+            height=height,
+        )
+    if selected == "ffmpeg":
+        return _render_ffmpeg_graphic(
+            project_id,
+            tool=tool,
+            graph=template_or_code,
+            duration=duration,
+            alpha=alpha,
+            draft_scale=draft_scale,
+            width=width,
+            height=height,
+        )
 
     env_key = "VF_REMOTION_CMD" if selected == "remotion" else "VF_MANIM_CMD"
     template = os.environ.get(env_key)
@@ -369,6 +413,443 @@ def render_motion_graphic(
         },
     )
     return _payload(tool, project_id, record, mode="local")
+
+
+def _chrome() -> str:
+    browser = commands.resolve_binary(
+        "google-chrome",
+        "chromium",
+        "chromium-browser",
+        "chrome",
+        env="VF_CHROME_BIN",
+    )
+    if browser is None:
+        raise MissingCommandError(
+            "Chrome/Chromium is required for html motion graphics",
+            details={"env": ["VF_CHROME_BIN"], "capability": "html"},
+        )
+    return browser
+
+
+def _scaled_viewport(width: int, height: int, draft_scale: float) -> tuple[int, int]:
+    try:
+        scale = float(draft_scale)
+    except (TypeError, ValueError) as exc:
+        raise InvalidArgumentError(
+            "draft_scale must be a number",
+            details={"argument": "draft_scale", "value": draft_scale},
+        ) from exc
+    if not 0.1 <= scale <= 1.0:
+        raise InvalidArgumentError(
+            "draft_scale must be between 0.1 and 1.0",
+            details={"argument": "draft_scale", "value": draft_scale},
+        )
+    for name, value in (("width", width), ("height", height)):
+        if not isinstance(value, int) or not 64 <= value <= 3840:
+            raise InvalidArgumentError(
+                f"{name} must be between 64 and 3840",
+                details={"argument": name, "value": value},
+            )
+    return (
+        max(2, round(width * scale / 2) * 2),
+        max(2, round(height * scale / 2) * 2),
+    )
+
+
+def _web_source_digest(source: Path) -> str:
+    digest = hashlib.sha256()
+    files = (
+        sorted(path for path in source.rglob("*") if path.is_file())
+        if source.is_dir()
+        else [source]
+    )
+    for path in files:
+        relative = str(path.relative_to(source)) if source.is_dir() else source.name
+        digest.update(relative.encode("utf-8"))
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _encode_frames(
+    frames: Path,
+    target: Path,
+    *,
+    fps: int,
+    duration: float,
+    alpha: bool,
+) -> None:
+    argv = [
+        _ffmpeg(),
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-framerate",
+        str(fps),
+        "-i",
+        str(frames / "frame-%05d.png"),
+        "-t",
+        f"{duration:.3f}",
+    ]
+    if alpha:
+        argv.extend(["-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-b:v", "0", "-crf", "24"])
+    else:
+        argv.extend(["-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p"])
+    argv.append(str(target))
+    commands.run(argv)
+
+
+def _render_web_graphic(
+    project_id: str,
+    *,
+    tool: str,
+    engine: str,
+    source_value: str,
+    props: dict[str, Any],
+    duration: float,
+    alpha: bool,
+    draft_scale: float,
+    width: int,
+    height: int,
+) -> dict[str, Any]:
+    """Render an HTML/CSS/JS directory through headless Chromium."""
+
+    source = Path(source_value).expanduser()
+    if source.is_dir():
+        entry = source / "index.html"
+        if not entry.is_file():
+            raise InputNotFoundError(
+                f"html directory has no index.html: {source}",
+                details={"path": str(source)},
+            )
+    elif source.suffix.lower() in {".html", ".htm"} and source.is_file():
+        entry = source
+    else:
+        raise InputNotFoundError(
+            f"html engine expects a directory or .html file: {source_value}",
+            details={"path": source_value},
+        )
+    browser = _chrome()
+    entry = entry.resolve()
+    viewport_width, viewport_height = _scaled_viewport(width, height, draft_scale)
+    digest = _web_source_digest(source.resolve())
+    key = storage.cache_key(
+        tool,
+        engine,
+        digest,
+        props,
+        duration,
+        alpha,
+        draft_scale,
+        width,
+        height,
+    )
+    slug = _slug(entry.stem or engine)
+    extension = "webm" if alpha else "mp4"
+    relative = f"assets/graphics/{slug}_{key[:8]}.{extension}"
+    cached = storage.cached_asset(project_id, relative, key)
+    if cached is not None:
+        return _payload(tool, project_id, cached, mode="cache")
+
+    target = storage.asset_path(project_id, relative)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fps = 30
+    total = max(1, round(duration * fps))
+    props_query = quote(json.dumps(props, separators=(",", ":")))
+    with tempfile.TemporaryDirectory(prefix="vf-html-") as raw:
+        frames = Path(raw) / "frames"
+        frames.mkdir(parents=True)
+        for index in range(total):
+            moment = index / fps
+            frame = frames / f"frame-{index:05d}.png"
+            separator = "&" if "?" in entry.as_uri() else "?"
+            url = (
+                f"{entry.as_uri()}{separator}vf_frame={index}&vf_time={moment:.4f}"
+                f"&vf_props={props_query}#t={moment:.4f}"
+            )
+            argv = [
+                browser,
+                "--headless=new",
+                "--disable-gpu",
+                "--hide-scrollbars",
+                f"--window-size={viewport_width},{viewport_height}",
+                f"--virtual-time-budget={max(1, round(moment * 1000))}",
+                f"--screenshot={frame}",
+            ]
+            if alpha:
+                argv.append("--default-background-color=00000000")
+            argv.append(url)
+            commands.run(argv, timeout=120)
+            if not frame.is_file():
+                raise OutputNotProducedError(
+                    f"Chromium did not capture frame {index}",
+                    details={"path": str(frame)},
+                )
+        _encode_frames(frames, target, fps=fps, duration=duration, alpha=alpha)
+    _require_output(target)
+    record = storage.write_output(
+        project_id,
+        relative,
+        source_path=target,
+        kind="graphics",
+        license="generated",
+        source=f"local:{engine}",
+        cache_key=key,
+        metadata={
+            "engine": engine,
+            "duration_sec": duration,
+            "alpha": alpha,
+            "draft_scale": draft_scale,
+            "viewport": [viewport_width, viewport_height],
+            "source_sha256": digest,
+            "props": props,
+        },
+    )
+    return _payload(tool, project_id, record, mode="local")
+
+
+def _render_ffmpeg_graphic(
+    project_id: str,
+    *,
+    tool: str,
+    graph: str,
+    duration: float,
+    alpha: bool,
+    draft_scale: float,
+    width: int,
+    height: int,
+) -> dict[str, Any]:
+    """Render a plain FFmpeg filter graph on a transparent colour source."""
+
+    viewport_width, viewport_height = _scaled_viewport(width, height, draft_scale)
+    key = storage.cache_key(tool, "ffmpeg", graph, duration, alpha, draft_scale, width, height)
+    slug = _slug("ffmpeg")
+    extension = "webm" if alpha else "mp4"
+    relative = f"assets/graphics/{slug}_{key[:8]}.{extension}"
+    cached = storage.cached_asset(project_id, relative, key)
+    if cached is not None:
+        return _payload(tool, project_id, cached, mode="cache")
+    target = storage.asset_path(project_id, relative)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    argv = [
+        _ffmpeg(),
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        f"color=c=black@0.0:s={viewport_width}x{viewport_height}:r=30:d={duration:.3f}",
+        "-vf",
+        graph,
+        "-t",
+        f"{duration:.3f}",
+    ]
+    if alpha:
+        argv.extend(["-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-b:v", "0", "-crf", "24"])
+    else:
+        argv.extend(["-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p"])
+    argv.append(str(target))
+    commands.run(argv)
+    _require_output(target)
+    record = storage.write_output(
+        project_id,
+        relative,
+        source_path=target,
+        kind="graphics",
+        license="generated",
+        source="local:ffmpeg",
+        cache_key=key,
+        metadata={"engine": "ffmpeg", "graph": graph, "duration_sec": duration},
+    )
+    return _payload(tool, project_id, record, mode="local")
+
+
+def capture_web_or_screen(
+    project_id: str,
+    url_or_target: str = "",
+    mode: str = "screenshot",
+    duration_sec: float = 3.0,
+    crop_selector: str = "",
+    output_name: str = "",
+    fps: int = 5,
+    viewport_width: int = 1440,
+    viewport_height: int = 900,
+) -> dict[str, Any]:
+    """Capture a URL or screen target as a still or a short B-roll clip."""
+
+    tool = "capture_web_or_screen"
+    target_value = str(url_or_target or "").strip()
+    if not target_value:
+        raise InvalidArgumentError(
+            "url_or_target must not be empty", details={"argument": "url_or_target"}
+        )
+    selected = str(mode or "").strip().lower()
+    if selected not in {"screenshot", "clip"}:
+        raise InvalidArgumentError(
+            "mode must be 'screenshot' or 'clip'",
+            details={"argument": "mode", "value": mode},
+        )
+    try:
+        duration = float(duration_sec)
+    except (TypeError, ValueError) as exc:
+        raise InvalidArgumentError(
+            "duration_sec must be a number",
+            details={"argument": "duration_sec", "value": duration_sec},
+        ) from exc
+    if not 0.1 <= duration <= 120.0:
+        raise InvalidArgumentError(
+            "duration_sec must be between 0.1 and 120",
+            details={"argument": "duration_sec", "value": duration_sec},
+        )
+    if not 1 <= fps <= 30:
+        raise InvalidArgumentError(
+            "fps must be between 1 and 30",
+            details={"argument": "fps", "value": fps},
+        )
+    for name, value in (("viewport_width", viewport_width), ("viewport_height", viewport_height)):
+        if not 320 <= value <= 3840:
+            raise InvalidArgumentError(
+                f"{name} must be between 320 and 3840",
+                details={"argument": name, "value": value},
+            )
+    browser = _chrome()
+    stem = _slug(Path(output_name).stem or Path(url_or_target).stem or "capture")
+    extension = ".mp4" if selected == "clip" else ".png"
+    kind = "broll" if selected == "clip" else "images"
+    relative = f"assets/{kind}/{stem}{extension}"
+    key = storage.cache_key(
+        tool,
+        url_or_target,
+        selected,
+        duration if selected == "clip" else 0,
+        crop_selector,
+        fps if selected == "clip" else 0,
+        viewport_width,
+        viewport_height,
+    )
+    cached = storage.cached_asset(project_id, relative, key)
+    if cached is not None:
+        return _payload(tool, project_id, cached, mode="cache")
+    target = storage.asset_path(project_id, relative)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    crop = _crop_filter(crop_selector, viewport_width, viewport_height)
+
+    if selected == "screenshot":
+        raw = target.with_name(f".{target.stem}.raw.png")
+        argv = [
+            browser,
+            "--headless=new",
+            "--disable-gpu",
+            "--hide-scrollbars",
+            f"--window-size={viewport_width},{viewport_height}",
+            f"--screenshot={raw}",
+            url_or_target,
+        ]
+        try:
+            commands.run(argv, timeout=120)
+            _require_output(raw)
+            if crop:
+                commands.run(
+                    [
+                        _ffmpeg(),
+                        "-hide_banner",
+                        "-loglevel",
+                        "error",
+                        "-y",
+                        "-i",
+                        str(raw),
+                        "-vf",
+                        crop,
+                        str(target),
+                    ]
+                )
+            else:
+                raw.replace(target)
+        finally:
+            raw.unlink(missing_ok=True)
+    else:
+        total = max(1, round(duration * fps))
+        with tempfile.TemporaryDirectory(prefix="vf-capture-") as raw_dir:
+            frames = Path(raw_dir) / "frames"
+            frames.mkdir(parents=True)
+            for index in range(total):
+                moment = index / fps
+                frame = frames / f"frame-{index:05d}.png"
+                argv = [
+                    browser,
+                    "--headless=new",
+                    "--disable-gpu",
+                    "--hide-scrollbars",
+                    f"--window-size={viewport_width},{viewport_height}",
+                    f"--virtual-time-budget={max(1, round(moment * 1000))}",
+                    f"--screenshot={frame}",
+                    f"{url_or_target}{'&' if '?' in url_or_target else '?'}vf_time={moment:.4f}",
+                ]
+                commands.run(argv, timeout=120)
+                if not frame.is_file():
+                    raise OutputNotProducedError(
+                        f"Chromium did not capture frame {index}",
+                        details={"path": str(frame)},
+                    )
+            if crop:
+                for frame in frames.glob("frame-*.png"):
+                    commands.run(
+                        [
+                            _ffmpeg(),
+                            "-hide_banner",
+                            "-loglevel",
+                            "error",
+                            "-y",
+                            "-i",
+                            str(frame),
+                            "-vf",
+                            crop,
+                            str(frame.with_suffix(".crop.png")),
+                        ]
+                    )
+                    frame.with_suffix(".crop.png").replace(frame)
+            _encode_frames(frames, target, fps=fps, duration=duration, alpha=False)
+    _require_output(target)
+    record = storage.write_output(
+        project_id,
+        relative,
+        source_path=target,
+        kind=kind,
+        license="source",
+        source=f"chromium:{Path(url_or_target).name or url_or_target}",
+        cache_key=key,
+        metadata={
+            "mode": selected,
+            "url_or_target": url_or_target,
+            "crop_selector": crop_selector,
+            "crop_filter": crop,
+            "duration_sec": duration if selected == "clip" else 0,
+            "fps": fps if selected == "clip" else 0,
+            "viewport": [viewport_width, viewport_height],
+        },
+    )
+    return _payload(tool, project_id, record, mode="local")
+
+
+def _crop_filter(selector: str, width: int, height: int) -> str:
+    """Interpret ``x,y,w,h`` as a crop; keep CSS selectors in metadata."""
+
+    raw = str(selector or "").strip()
+    if not raw:
+        return ""
+    parts = [part for part in re.split(r"[x,\s]+", raw) if part]
+    if len(parts) == 4:
+        try:
+            x, y, w, h = (int(part) for part in parts)
+        except ValueError:
+            return ""
+        if w > 0 and h > 0:
+            return f"crop={min(w, width)}:{min(h, height)}:{max(0, x)}:{max(0, y)}"
+    return ""
 
 
 def image_to_broll_motion(
@@ -586,6 +1067,39 @@ def _transcribe_with_stable_whisper(audio: Path, language: str) -> list[dict[str
 
 def _stable_whisper_available() -> bool:
     return importlib.util.find_spec("stable_whisper") is not None
+
+
+def _transcribe_remote(source: Path, language: str) -> list[dict[str, Any]]:
+    """Run ASR on the GPU worker and parse its JSON artifact."""
+
+    result = ROUTER.submit(
+        "asr",
+        {
+            "input": str(source),
+            "language": language,
+            "output_name": "transcript.json",
+        },
+    )
+    text = ""
+    if isinstance(result, dict) and result.get("data") is not None:
+        raw = result["data"]
+        text = raw.decode("utf-8") if isinstance(raw, (bytes, bytearray)) else str(raw)
+    else:
+        path = _path_from_value(result)
+        if path is not None and path.is_file():
+            text = path.read_text(encoding="utf-8", errors="replace")
+    if not text.strip():
+        raise RemoteResultError(
+            "remote asr returned no transcript payload",
+            details={"capability": "asr"},
+        )
+    segments = _parse_transcript_payload(json.loads(text))
+    if not segments:
+        raise RemoteResultError(
+            "remote asr returned an empty transcript",
+            details={"capability": "asr"},
+        )
+    return segments
 
 
 def _parse_transcript_payload(payload: Any) -> list[dict[str, Any]]:

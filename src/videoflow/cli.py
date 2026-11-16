@@ -92,7 +92,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "status":
             return _status()
         if args.command == "mcp":
-            return _mcp()
+            return _mcp(args)
     except VideoFlowError as exc:
         print(json.dumps(exc.to_dict(), indent=2), file=sys.stderr)
         return 1
@@ -111,7 +111,6 @@ def _parser() -> argparse.ArgumentParser:
 
     sub.add_parser("version", help="Print the version and exit.")
     sub.add_parser("doctor", help="Check FFmpeg, data directory, UI, and MCP.")
-
 
     shorts = sub.add_parser("shorts", help="Select and render vertical 9:16 clips.")
     shorts.add_argument("source", type=Path)
@@ -253,9 +252,7 @@ def _parser() -> argparse.ArgumentParser:
         help="Run the API/MCP daemon without the Svelte UI or tray.",
     )
 
-    tray = sub.add_parser(
-        "tray", help="Run a tray icon that owns the local VideoFlow service."
-    )
+    tray = sub.add_parser("tray", help="Run a tray icon that owns the local VideoFlow service.")
     tray.add_argument("--host", default="127.0.0.1")
     tray.add_argument("--port", type=int, default=8765)
     tray.add_argument(
@@ -264,16 +261,19 @@ def _parser() -> argparse.ArgumentParser:
         help="Do not open the UI when the tray starts.",
     )
 
-    sub.add_parser(
-        "cleanup", help="Stop every VideoFlow service except the current process."
-    )
+    sub.add_parser("cleanup", help="Stop every VideoFlow service except the current process.")
     stop = sub.add_parser("stop", help="Stop the local VideoFlow service.")
     stop.add_argument("--timeout", type=float, default=5.0)
     restart = sub.add_parser("restart", help="Restart the local service and keep it running.")
     restart.add_argument("--host", default="127.0.0.1")
     restart.add_argument("--port", type=int, default=8765)
     sub.add_parser("status", help="Show whether the local service is running.")
-    sub.add_parser("mcp", help="Run the MCP server over stdio.")
+    mcp = sub.add_parser("mcp", help="Run the MCP server over stdio.")
+    mcp.add_argument(
+        "--no-prompts",
+        action="store_true",
+        help="Skip the videoflow_* MCP prompts.",
+    )
     return parser
 
 
@@ -397,9 +397,7 @@ def _shorts(args: argparse.Namespace) -> int:
         )
     )
     kept = [
-        item
-        for item in kept
-        if item.start_sample >= range_start and item.end_sample <= range_end
+        item for item in kept if item.start_sample >= range_start and item.end_sample <= range_end
     ]
     if not kept:
         print("No sentences remain in the selected source window.", file=sys.stderr)
@@ -417,9 +415,7 @@ def _shorts(args: argparse.Namespace) -> int:
             scene_intervals(detect_scene_changes(source), sample_rate=media.audio_sample_rate)
         )
     previous = (
-        previous_shorts_from_report(output / "shorts.json")
-        if args.prompt_mode == "refine"
-        else []
+        previous_shorts_from_report(output / "shorts.json") if args.prompt_mode == "refine" else []
     )
     clips = select_shorts(
         kept,
@@ -480,9 +476,7 @@ def _shorts(args: argparse.Namespace) -> int:
             width=width,
             height=height,
             fontsdir=str(fonts_dir()),
-            audio_filters=tuple(
-                audio_filters(AudioEnhanceConfig(enabled=args.audio_enhance))
-            ),
+            audio_filters=tuple(audio_filters(AudioEnhanceConfig(enabled=args.audio_enhance))),
             crop_focus_x=clip.crop_focus_x,
             crop_focus_y=clip.crop_focus_y,
         )
@@ -549,9 +543,7 @@ def _recipe(args: argparse.Namespace) -> int:
         output = args.out or args.source_dir / "videoflow-batch"
         jobs = JobManager()
         batches = BatchManager(jobs)
-        extensions = [
-            item.strip() for item in args.extensions.split(",") if item.strip()
-        ]
+        extensions = [item.strip() for item in args.extensions.split(",") if item.strip()]
         batch = batches.start(
             args.source_dir,
             output,
@@ -690,9 +682,7 @@ def _tray(args: argparse.Namespace) -> int:
             "instead; install the tray extra with: uv sync --extra tray",
             file=sys.stderr,
         )
-        return _serve(
-            argparse.Namespace(host=host, port=port, open=not args.no_open)
-        )
+        return _serve(argparse.Namespace(host=host, port=port, open=not args.no_open))
     return tray_module.run_tray(
         host=host,
         port=port,
@@ -774,9 +764,7 @@ def _serve_locked(args: argparse.Namespace, uvicorn, create_http_app) -> int:
             f"stopping it before starting {__version__}.",
             flush=True,
         )
-        append_server_log(
-            f"replacing old service version={version} port={args.port}"
-        )
+        append_server_log(f"replacing old service version={version} port={args.port}")
         result = stop_services_on_port(args.host, args.port)
         append_server_log(f"replacement result={result}")
         if not result["free"]:
@@ -837,8 +825,7 @@ def _serve_locked(args: argparse.Namespace, uvicorn, create_http_app) -> int:
             app = _build_http_app(
                 create_http_app,
                 jobs=app.state.jobs,
-                headless=getattr(args, "mcp_only", False)
-                or not getattr(args, "ui", True),
+                headless=getattr(args, "mcp_only", False) or not getattr(args, "ui", True),
             )
     finally:
         _remove_pid(pid_path)
@@ -975,9 +962,7 @@ def _status() -> int:
     except (TypeError, ValueError):
         pid = 0
     running = pid > 0 and _process_alive(pid)
-    services = [
-        item.to_dict() for item in discover_services() if item.kind != "launcher"
-    ]
+    services = [item.to_dict() for item in discover_services() if item.kind != "launcher"]
     print(
         json.dumps(
             {
@@ -1020,10 +1005,14 @@ def _schedule_browser(url: str) -> None:
     threading.Thread(target=open_when_ready, daemon=True).start()
 
 
-def _mcp() -> int:
+def _mcp(args: argparse.Namespace | None = None) -> int:
+    from videoflow.mcp_server.cli import prompts_enabled
     from videoflow.mcp_server.server import build_server
 
-    build_server().run("stdio")
+    if prompts_enabled(flag=bool(getattr(args, "no_prompts", False))):
+        build_server().run("stdio")
+    else:
+        build_server(prompts=False).run("stdio")
     return 0
 
 

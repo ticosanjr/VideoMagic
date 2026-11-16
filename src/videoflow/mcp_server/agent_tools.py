@@ -543,14 +543,22 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
             target_path = path
             if direction == "push":
                 from videoflow.exporters.fcpxml import export_fcpxml
+                from videoflow.exporters.kdenlive import export_kdenlive
+                from videoflow.exporters.xmeml import export_xmeml
 
                 if context.state is None:
                     raise StateNotReadyError("Project has no timeline")
+                if nle in {"premiere", "xmeml"}:
+                    suffix, exporter = ".xml", export_xmeml
+                elif nle in {"kdenlive", "mlt"}:
+                    suffix, exporter = ".kdenlive", export_kdenlive
+                else:
+                    suffix, exporter = ".fcpxml", export_fcpxml
                 destination = (
-                    Path(path) if path else Path(record.output) / "exports" / "timeline.fcpxml"
+                    Path(path) if path else Path(record.output) / "exports" / f"timeline{suffix}"
                 )
                 destination.parent.mkdir(parents=True, exist_ok=True)
-                export_fcpxml(context.state, destination)
+                exporter(context.state, destination)
                 target_path = str(destination)
             if nle == "resolve":
                 from videoflow.adapters.resolve import resolve_roundtrip
@@ -566,7 +574,13 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
                 step.run(
                     context,
                     NleSyncParams(
-                        format="fcpxml" if nle == "fcpxml" else "mlt",
+                        format=(
+                            "xmeml"
+                            if nle in {"premiere", "xmeml"}
+                            else "mlt"
+                            if nle in {"kdenlive", "mlt"}
+                            else "fcpxml"
+                        ),
                         path=target_path,
                         apply=apply,
                     ),
@@ -582,14 +596,23 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
 
     @register
     def vf_validate_exports(project_id: str, job_id: str = "") -> dict[str, Any]:
-        """Validate exported FCPXML, XMEML, and Kdenlive files."""
+        """Cross-validate FCPXML, XMEML, and Kdenlive against the timeline."""
 
+        from videoflow.application.asset_providers import license_blockers
+        from videoflow.application.delivery_bundle import blocked_paths, timeline_frames
         from videoflow.application.nle_validation import validate_nle_exports
 
         try:
-            _record(project_id)
+            record = _record(project_id)
             job = _job(manager, project_id, job_id)
-            report = validate_nle_exports(Path(job.output) / "exports")
+            output = Path(job.output)
+            state = load_project_state(record)
+            report = validate_nle_exports(
+                output / "exports",
+                timeline_frames=timeline_frames(state) if state.video_segments else None,
+                blocked_paths=blocked_paths(license_blockers(output), output),
+                check_media=True,
+            )
         except VideoFlowError as exc:
             return exc.to_dict()
         return {"ok": bool(report.get("ok")), "report": report}

@@ -42,6 +42,15 @@ class NleAdjustment:
 
 
 @dataclass(frozen=True, slots=True)
+class NleMusic:
+    path: str
+    start_sec: float
+    duration_sec: float
+    gain_db: float = -18.0
+    duck_ranges: tuple[tuple[float, float, float], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class NleExtras:
     markers: tuple[NleMarker, ...] = ()
     titles: tuple[NleTitle, ...] = ()
@@ -50,6 +59,7 @@ class NleExtras:
     audio_filters: tuple[str, ...] = ()
     audio_stem: str = ""
     adjustments: tuple[NleAdjustment, ...] = ()
+    music: tuple[NleMusic, ...] = ()
     metadata: dict[str, str] = field(default_factory=dict)
 
 

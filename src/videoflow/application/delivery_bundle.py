@@ -1,0 +1,300 @@
+"""One validated timeline to the full delivery set.
+
+The bundle is the single entry point behind ``vf_exports(action="bundle")`` and
+the ``delivery.package`` targets. It never re-analyses the timeline: the same
+``ProjectState`` feeds every NLE document and the social master.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from videoflow.application.asset_providers import license_blockers
+from videoflow.application.export_service import (
+    ALL_TARGETS,
+    resolve_targets,
+)
+from videoflow.application.nle_extras import nle_extras_from_output
+from videoflow.application.nle_validation import validate_nle_exports
+from videoflow.domain.errors import ExportError
+from videoflow.domain.state import ProjectState
+from videoflow.domain.timebase import Rounding
+from videoflow.exporters.common import timeline_duration_frames, timeline_duration_samples
+from videoflow.exporters.extras import NleExtras
+from videoflow.exporters.fcpxml import Dialect
+from videoflow.exporters.mp4 import (
+    YOUTUBE_AUDIO_BITRATE,
+    YOUTUBE_LUFS,
+    YOUTUBE_PROFILE,
+    YOUTUBE_TRUE_PEAK_DB,
+    export_mp4,
+)
+
+BUNDLE_SCHEMA_VERSION = 1
+BUNDLE_FILENAME = "bundle.json"
+DEFAULT_BUNDLE_TARGETS: tuple[str, ...] = ("mp4_youtube", "resolve", "premiere", "kdenlive")
+
+
+@dataclass(frozen=True, slots=True)
+class DeliveryBundleRequest:
+    """Options for a multi-target delivery run."""
+
+    targets: tuple[str, ...] = DEFAULT_BUNDLE_TARGETS
+    dialect: Dialect = "1.10"
+    mp4_profile: str = YOUTUBE_PROFILE
+    mp4_audio_bitrate: str = YOUTUBE_AUDIO_BITRATE
+    mp4_loudness_lufs: float | None = YOUTUBE_LUFS
+    mp4_true_peak_db: float = YOUTUBE_TRUE_PEAK_DB
+    mp4_cfr: bool = True
+    require_licenses: bool = True
+    basename: str = "timeline"
+    include_sidecars: bool = True
+    extra_targets: tuple[str, ...] = field(default_factory=tuple)
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def blocked_paths(blockers: Sequence[dict[str, Any]], base: Path) -> set[str]:
+    paths: set[str] = set()
+    for item in blockers:
+        for key in ("path", "title", "local_path", "asset_path"):
+            value = str(item.get(key) or "").strip()
+            if not value:
+                continue
+            candidate = Path(value).expanduser()
+            if not candidate.is_absolute():
+                candidate = Path(base) / candidate
+            paths.add(str(candidate))
+            paths.add(candidate.name)
+    return paths
+
+
+def timeline_frames(state: ProjectState) -> int:
+    media = state.media_info
+    if media is None:
+        return 0
+    samples = timeline_duration_samples(state)
+    audio_frames = media.timebase().sample_to_frame(samples, Rounding.CEIL)
+    return max(timeline_duration_frames(state), audio_frames)
+
+
+def _copy_sidecars(output: Path, destination: Path) -> list[str]:
+    import shutil
+
+    sidecars = destination / "sidecars"
+    sidecars.mkdir(parents=True, exist_ok=True)
+    copied: list[str] = []
+    for relative in (
+        "titles.ass",
+        "titles.json",
+        "broll.json",
+        "timeline_meta.json",
+        "audio/master.wav",
+        "audio/master-filters.json",
+        "audio/ducking.json",
+        "color/filters.json",
+        "assets/licenses.json",
+        "assets/licenses.md",
+        "assets/assignments.json",
+    ):
+        source = output / relative
+        if not source.is_file():
+            continue
+        target = sidecars / Path(relative).name
+        shutil.copy2(source, target)
+        copied.append(target.name)
+    return copied
+
+
+def _mp4_metadata(path: Path) -> dict[str, Any]:
+    """Best-effort probe of the social master without failing the bundle."""
+
+    if not path.is_file():
+        return {"exists": False}
+    try:
+        from videoflow.adapters.ffmpeg import FFmpegAdapter
+
+        media = FFmpegAdapter().probe(path)
+    except Exception as exc:  # noqa: BLE001 - probe is advisory
+        return {"exists": True, "size": path.stat().st_size, "probe_error": str(exc)}
+    return {
+        "exists": True,
+        "size": path.stat().st_size,
+        "duration_frames": media.duration_frames,
+        "width": media.width,
+        "height": media.height,
+        "fps_num": media.fps_num,
+        "fps_den": media.fps_den,
+        "audio_sample_rate": media.audio_sample_rate,
+    }
+
+
+def build_delivery_bundle(
+    state: ProjectState,
+    output: Path,
+    *,
+    request: DeliveryBundleRequest | None = None,
+    extras: NleExtras | None = None,
+    adapter: Any | None = None,
+    cache_dir: Path | None = None,
+    progress: Callable[[str, int], None] | None = None,
+    should_cancel: Callable[[], object] | None = None,
+) -> dict[str, Any]:
+    """Export every requested target and write ``exports/bundle.json``.
+
+    Raises :class:`ExportError` when a required license is still blocked.
+    """
+
+    options = request or DeliveryBundleRequest()
+    output = Path(output).expanduser()
+    exports = output / "exports"
+    exports.mkdir(parents=True, exist_ok=True)
+
+    blockers = license_blockers(output) if options.require_licenses else []
+    if blockers:
+        titles = ", ".join(
+            str(item.get("title") or item.get("asset_id") or "asset") for item in blockers[:6]
+        )
+        raise ExportError(
+            "Asset licenses need review before delivery: "
+            f"{titles}. Approve them at the assets review gate."
+        )
+
+    targets = resolve_targets([*options.targets, *options.extra_targets])
+    if not targets:
+        targets = list(ALL_TARGETS)
+    nle_targets = [target for target in targets if target != "mp4"]
+    requested_mp4 = "mp4" in targets
+    chosen_extras = extras if extras is not None else nle_extras_from_output(output)
+
+    artifacts: dict[str, Path] = {}
+    if nle_targets:
+        from videoflow.application.export_service import export_timeline
+
+        artifacts.update(
+            export_timeline(
+                state,
+                exports,
+                targets=nle_targets,
+                dialect=options.dialect,
+                basename=options.basename,
+                extras=chosen_extras,
+                progress=progress,
+                should_cancel=should_cancel,
+                adapter=adapter,
+                cache_dir=cache_dir,
+            )
+        )
+
+    mp4_path: Path | None = None
+    master_path = output / "audio" / "master.wav"
+    audio_master = master_path if master_path.is_file() else None
+    if requested_mp4:
+        mp4_path = exports / f"{options.basename}.mp4"
+        if progress is not None:
+            progress("mp4", 0)
+        export_mp4(
+            state,
+            mp4_path,
+            adapter=adapter,
+            profile=options.mp4_profile,
+            audio_bitrate=options.mp4_audio_bitrate,
+            loudness_lufs=None if audio_master is not None else options.mp4_loudness_lufs,
+            true_peak_db=options.mp4_true_peak_db,
+            cfr=options.mp4_cfr,
+            audio_master=audio_master,
+            progress=((lambda value: progress("mp4", value)) if progress is not None else None),
+            cache_dir=cache_dir,
+        )
+        artifacts["mp4"] = mp4_path
+        if progress is not None:
+            progress("mp4", 100)
+
+    frames = timeline_frames(state)
+    validation = validate_nle_exports(
+        exports,
+        timeline_frames=frames,
+        blocked_paths=blocked_paths(blockers, output),
+        check_media=True,
+    )
+    format_for_target = {
+        "resolve": "fcpxml",
+        "premiere": "xmeml",
+        "kdenlive": "kdenlive",
+    }
+    requested_formats = {
+        format_for_target[target] for target in nle_targets if target in format_for_target
+    }
+    validation["exports"] = {
+        name: check for name, check in validation["exports"].items() if name in requested_formats
+    }
+    validation["ok"] = all(item["ok"] for item in validation["exports"].values())
+    if mp4_path is not None:
+        mp4_dir = _mp4_metadata(mp4_path)
+        mp4_ok = bool(mp4_dir.get("exists")) and (
+            not mp4_dir.get("duration_frames") or abs(int(mp4_dir["duration_frames"]) - frames) <= 1
+        )
+        validation["exports"]["mp4"] = {
+            "ok": mp4_ok,
+            "path": str(mp4_path),
+            "errors": [] if mp4_ok else ["mp4 duration does not match the timeline"],
+            "warnings": [],
+            **mp4_dir,
+        }
+        validation["ok"] = bool(validation["ok"]) and mp4_ok
+
+    sidecars = _copy_sidecars(output, exports) if options.include_sidecars else []
+    files = {
+        name: {
+            "path": str(path),
+            "sha256": _sha256(path) if Path(path).is_file() else "",
+            "bytes": Path(path).stat().st_size if Path(path).is_file() else 0,
+        }
+        for name, path in artifacts.items()
+    }
+    manifest = {
+        "schema_version": BUNDLE_SCHEMA_VERSION,
+        "project_id": str(state.project_id),
+        "revision": state.revision,
+        "timeline_frames": frames,
+        "targets": list(targets),
+        "dialect": options.dialect,
+        "mp4": {
+            "profile": options.mp4_profile,
+            "audio_bitrate": options.mp4_audio_bitrate,
+            "loudness_lufs": options.mp4_loudness_lufs,
+            "true_peak_db": options.mp4_true_peak_db,
+            "cfr": options.mp4_cfr,
+            "audio_master": str(audio_master) if audio_master is not None else "",
+        },
+        "files": files,
+        "sidecars": sidecars,
+        "validation": validation,
+        "ok": bool(validation.get("ok")),
+    }
+    manifest_path = exports / BUNDLE_FILENAME
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    manifest["manifest"] = str(manifest_path)
+    return manifest
+
+
+__all__ = [
+    "BUNDLE_FILENAME",
+    "BUNDLE_SCHEMA_VERSION",
+    "DEFAULT_BUNDLE_TARGETS",
+    "DeliveryBundleRequest",
+    "blocked_paths",
+    "build_delivery_bundle",
+    "timeline_frames",
+]

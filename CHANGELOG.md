@@ -1,5 +1,43 @@
 # Changelog
 
+## [2.91.0] - 2026-11-16
+
+### Added
+
+- `vf_exports(action="bundle")` and `application/delivery_bundle.py` export the
+  same validated timeline to MP4, Resolve FCPXML, Premiere XMEML, and native
+  Kdenlive MLT in one call, with SHA-256 hashes and `exports/bundle.json`.
+- `delivery.package` accepts `targets` and forwards them to the bundle.
+- YouTube/social MP4 profile: H.264 High, AAC 320 kbps, CFR, `+faststart`, and a
+  configurable `-16.5`/`-14 LUFS` target when no mastered audio exists.
+- Kdenlive multi-source export creates one native MLT chain per source.
+- FCPXML 1.10 is now the default; 1.9 remains opt-in.
+- Cross-validation checks referenced media, timeline duration, and blocked
+  licenses for FCPXML, XMEML, and Kdenlive.
+- XMEML/Premiere roundtrip through `nle.sync_back`.
+- `vf_timeline(action="apply_beatmap")` applies cuts, B-roll, overlays, zoom
+  keyframes, SFX, and music atomically with revision checks.
+- Music tracks with ducking envelopes in FCPXML, XMEML, and Kdenlive.
+- GPU worker `asr` and `diarize` handlers and remote ASR fallback in
+  `transcribe_word_aligned`.
+- `render_motion_graphic` engines `html`, `hyperframes`, and `ffmpeg`, with alpha,
+  draft scale, and SHA-256 source caching.
+- `capture_web_or_screen` as the sixth vision tool.
+- `vf_project(action="clone_style")` and `vf_project(action="learn_rule")`.
+- `--no-prompts` / `VF_MCP_PROMPTS=0` for the core and generated `mcp.json`.
+- `scripts/nle_multi_smoke.py` and `scripts/gpu_worker_smoke.py`.
+
+### Changed
+
+- `vf_exec` documentation now prioritizes recipes and Shorts; `step` remains an
+  internal power path.
+- `deliver` prompt targets the multi-NLE bundle.
+
+### Fixed
+
+- MP4 delivery reuses `audio/master.wav` instead of remastering twice.
+- Multi-source Kdenlive no longer references a single hardcoded chain.
+
 ## [2.90.1] - 2026-11-16
 
 ### Changed

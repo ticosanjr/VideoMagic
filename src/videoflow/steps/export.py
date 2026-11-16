@@ -32,7 +32,7 @@ class ExportParams(BaseModel):
     targets: list[Literal["resolve", "premiere", "kdenlive", "edl"]] = Field(
         default_factory=lambda: ["resolve", "premiere", "kdenlive"]
     )
-    dialect: Dialect = "1.9"
+    dialect: Dialect = "1.10"
     subdir: str = "exports"
     filename_mode: Literal["source_timestamp", "fixed"] = "source_timestamp"
     basename: str = Field(default="timeline", min_length=1, max_length=120)
