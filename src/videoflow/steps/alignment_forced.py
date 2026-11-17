@@ -7,6 +7,7 @@ ASR pass provides word timings without replacing the original text.
 from __future__ import annotations
 
 import json
+from bisect import bisect_left, bisect_right
 from pathlib import Path
 from typing import Any, Literal
 
@@ -125,6 +126,25 @@ def _words_in_range(
     return [item for item in words if start <= (item[1] + item[2]) // 2 <= end]
 
 
+def _word_ranges(
+    words: list[tuple[str, int, int]], sentences: list[Sentence]
+) -> list[tuple[int, int]] | None:
+    """Return contiguous word slices when both sequences are time ordered."""
+
+    if not words or not sentences:
+        return [(0, 0) for _ in sentences]
+    midpoints = [(start + end) // 2 for _word, start, end in words]
+    if any(left > right for left, right in zip(midpoints, midpoints[1:], strict=False)):
+        return None
+    return [
+        (
+            bisect_left(midpoints, sentence.start_sample),
+            bisect_right(midpoints, sentence.end_sample),
+        )
+        for sentence in sentences
+    ]
+
+
 @register_step
 class ForcedAlignmentStep(BaseStep):
     type = "alignment.forced"
@@ -169,8 +189,13 @@ class ForcedAlignmentStep(BaseStep):
             return
         aligned = 0
         updated: list[Sentence] = []
-        for sentence in context.transcript:
-            sentence_words = _words_in_range(words, sentence.start_sample, sentence.end_sample)
+        ranges = _word_ranges(words, context.transcript)
+        for position, sentence in enumerate(context.transcript):
+            if ranges is None:
+                sentence_words = _words_in_range(words, sentence.start_sample, sentence.end_sample)
+            else:
+                start_index, end_index = ranges[position]
+                sentence_words = words[start_index:end_index]
             if len(sentence_words) < options.min_words:
                 updated.append(sentence)
                 continue

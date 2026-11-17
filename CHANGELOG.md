@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.91.5] - 2026-11-17
+
+### Changed
+
+- Focus-gap filling is linear instead of rescanning the list for every sample.
+- Motion centroids are computed in one vectorized pass instead of a Python
+  loop per frame.
+- YOLO models load once per path and process instead of once per Short.
+- Forced alignment uses binary search for ordered ASR words, with the linear
+  filter kept as a fallback for unordered input.
+- Reframe hoists per-run settings, source path, sample rate, and sentence-id
+  sets out of the clip loop.
+- MCP audio/vision cache writer signature introspection.
+
 ## [2.91.4] - 2026-11-17
 
 ### Added

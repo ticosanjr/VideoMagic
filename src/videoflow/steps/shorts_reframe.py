@@ -64,10 +64,9 @@ class ReframeStep(BaseStep):
             return
 
         def with_split(clip, focus: float):
+            sentence_ids = set(clip.sentence_ids)
             speakers = {
-                sentence.speaker
-                for sentence in context.transcript
-                if sentence.id in set(clip.sentence_ids)
+                sentence.speaker for sentence in context.transcript if sentence.id in sentence_ids
             }
             split = options.layout == "split_screen" or (
                 options.layout == "single"
@@ -108,23 +107,25 @@ class ReframeStep(BaseStep):
         tracked = []
         tracking_report: list[dict[str, object]] = []
         total = max(1, len(context.selected_shorts))
+        source_path = Path(context.source)
+        sample_rate = media.audio_sample_rate
+        settings_args = {
+            "yolo_model": getattr(vision, "yolo_model", ""),
+            "yolo_confidence": getattr(vision, "yolo_confidence", 0.35),
+            "mediapipe_model": getattr(vision, "mediapipe_model", 1),
+            "mediapipe_model_path": getattr(vision, "mediapipe_model_path", ""),
+        }
         for index, clip in enumerate(context.selected_shorts):
             io.check_cancel()
             tracking_mode = options.mode
             if options.tracking_backend in {"mediapipe", "yolo", "opencv_haar"}:
                 tracking_mode = "face_tracking"
             keyframes: list[dict[str, float]] = []
-            settings_args = {
-                "yolo_model": getattr(vision, "yolo_model", ""),
-                "yolo_confidence": getattr(vision, "yolo_confidence", 0.35),
-                "mediapipe_model": getattr(vision, "mediapipe_model", 1),
-                "mediapipe_model_path": getattr(vision, "mediapipe_model_path", ""),
-            }
             if options.dynamic_crop:
                 result = track_focus(
-                    Path(context.source),
+                    source_path,
                     clip.pieces,
-                    media.audio_sample_rate,
+                    sample_rate,
                     mode=tracking_mode,
                     smoothing=options.smoothing_factor,
                     fps=getattr(vision, "tracking_sample_fps", 2),
@@ -141,12 +142,11 @@ class ReframeStep(BaseStep):
                 reason = result.reason
                 frames = result.frames
                 detections = result.detections
-                used_mode = result.backend
             else:
                 focus, used_mode = track_focus_x(
-                    Path(context.source),
+                    source_path,
                     clip.pieces,
-                    media.audio_sample_rate,
+                    sample_rate,
                     mode=tracking_mode,
                     backend=options.tracking_backend,
                 )

@@ -125,3 +125,24 @@ def test_forced_alignment_persists_detected_language(tmp_path: Path, monkeypatch
     assert context.transcript_language == "en"
     assert context.language_confidence == pytest.approx(0.93)
     assert context.metadata["forced_alignment"]["language"] == "en"
+
+
+def test_word_ranges_use_bisect_for_ordered_words() -> None:
+    from videoflow.steps.alignment_forced import _word_ranges
+
+    words = [("a", 0, 100), ("b", 100, 200), ("c", 200, 300)]
+    sentences = [
+        Sentence(id=1, start_sample=0, end_sample=100, text="a"),
+        Sentence(id=2, start_sample=100, end_sample=300, text="b c"),
+    ]
+
+    assert _word_ranges(words, sentences) == [(0, 1), (1, 3)]
+
+
+def test_word_ranges_fall_back_for_unordered_words() -> None:
+    from videoflow.steps.alignment_forced import _word_ranges
+
+    words = [("b", 100, 200), ("a", 0, 100)]
+    sentences = [Sentence(id=1, start_sample=0, end_sample=300, text="a b")]
+
+    assert _word_ranges(words, sentences) is None

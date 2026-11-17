@@ -9,6 +9,7 @@ from __future__ import annotations
 import subprocess
 from collections.abc import Sequence
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -136,15 +137,26 @@ def _face_centers_mediapipe(
     return centers
 
 
+@lru_cache(maxsize=2)
+def _load_yolo_model(path: str) -> object:
+    """Load a YOLO model once per resolved path.
+
+    Shorts reframing calls the tracker once per clip; loading the model for
+    every clip would dominate the runtime.
+    """
+
+    from ultralytics import YOLO  # type: ignore[import-not-found]
+
+    return YOLO(path)
+
+
 def _face_centers_yolo(
     frames: np.ndarray, *, model_path: str = "", confidence: float = 0.35
 ) -> list[float | None]:
-    from ultralytics import YOLO  # type: ignore[import-not-found]
-
     resolved = yolo_model_path(model_path)
     if not resolved:
         raise ImportError("Set VIDEOWFLOW_YOLO_MODEL to a local YOLO model file.")
-    model = YOLO(resolved)
+    model = _load_yolo_model(resolved)
     centers: list[float | None] = []
     for frame in frames:
         rgb = frame if frame.ndim == 3 else np.stack([frame] * 3, axis=-1)
@@ -174,16 +186,16 @@ def _motion_centers(frames: np.ndarray) -> list[float | None]:
     values = frames.astype(np.int16)
     difference = np.abs(np.diff(values, axis=0))
     mask = difference > 18
-    centers: list[float | None] = [None]
-    for index in range(mask.shape[0]):
-        weights = mask[index].sum(axis=0).astype(np.float64)
-        if weights.sum() <= 0:
-            centers.append(None)
-            continue
-        x = np.arange(len(weights), dtype=np.float64)
-        centroid = float((weights * x).sum() / weights.sum())
-        centers.append(centroid / max(1, len(weights) - 1))
-    return centers
+    weights = mask.sum(axis=1, dtype=np.float64)
+    totals = weights.sum(axis=1)
+    x = np.arange(weights.shape[1], dtype=np.float64)
+    centroids = np.zeros_like(totals)
+    np.divide(weights @ x, totals, out=centroids, where=totals > 0)
+    scale = max(1, weights.shape[1] - 1)
+    return [None] + [
+        None if total <= 0 else float(centroid) / scale
+        for centroid, total in zip(centroids, totals, strict=True)
+    ]
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,31 +209,26 @@ class TrackingResult:
 
 
 def _fill_gaps(values: list[float | None]) -> list[float]:
-    filled = list(values)
-    for index, value in enumerate(filled):
-        if value is not None:
-            continue
-        previous = next(
-            (filled[i] for i in range(index - 1, -1, -1) if filled[i] is not None),
-            None,
-        )
-        following = next(
-            (filled[i] for i in range(index + 1, len(filled)) if filled[i] is not None),
-            None,
-        )
-        if previous is not None and following is not None:
-            # Linear interpolation between the nearest valid samples.
-            before = max(i for i in range(index) if filled[i] is not None)
-            after = next(i for i in range(index + 1, len(filled)) if filled[i] is not None)
-            ratio = (index - before) / max(1, after - before)
-            filled[index] = float(previous + (following - previous) * ratio)
-        elif previous is not None:
-            filled[index] = float(previous)
-        elif following is not None:
-            filled[index] = float(following)
-        else:
-            filled[index] = 0.5
-    return [float(value) for value in filled]
+    """Fill missing focus samples in one forward and one interpolation pass."""
+
+    valid = [index for index, value in enumerate(values) if value is not None]
+    if not valid:
+        return [0.5 for _ in values]
+    filled = [0.5 if value is None else float(value) for value in values]
+    first, last = valid[0], valid[-1]
+    for index in range(first):
+        filled[index] = filled[first]
+    for index in range(last + 1, len(filled)):
+        filled[index] = filled[last]
+    previous = first
+    for index in valid[1:]:
+        span = index - previous
+        if span > 1:
+            start, end = filled[previous], filled[index]
+            for offset in range(1, span):
+                filled[previous + offset] = start + (end - start) * offset / span
+        previous = index
+    return filled
 
 
 def track_focus(

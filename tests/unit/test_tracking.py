@@ -482,3 +482,42 @@ def test_opencv_tracking_samples_wide_gray_frames(monkeypatch) -> None:
     assert result.backend == "opencv_haar"
     assert result.detections == 2
     assert [item["focus_x"] for item in result.keyframes] == [0.4, 0.6]
+
+
+def test_fill_gaps_handles_leading_and_multiple_gaps() -> None:
+    from videoflow.application.tracking import _fill_gaps
+
+    assert np.allclose(
+        _fill_gaps([None, 0.2, None, None, 0.8, None]),
+        [0.2, 0.2, 0.4, 0.6, 0.8, 0.8],
+    )
+
+
+def test_yolo_model_is_loaded_once_per_path(monkeypatch, tmp_path) -> None:
+    import sys
+    from types import ModuleType, SimpleNamespace
+
+    from videoflow.application import tracking
+
+    model = tmp_path / "model.pt"
+    model.write_bytes(b"model")
+    monkeypatch.setenv("VIDEOWFLOW_YOLO_MODEL", str(model))
+    loaded: list[str] = []
+
+    class Model:
+        def predict(self, image, **kwargs):
+            return [SimpleNamespace(boxes=[])]
+
+    def yolo(path):
+        loaded.append(path)
+        return Model()
+
+    ultralytics = ModuleType("ultralytics")
+    ultralytics.YOLO = yolo  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "ultralytics", ultralytics)
+    tracking._load_yolo_model.cache_clear()
+
+    frames = np.zeros((1, 36, 64), dtype=np.uint8)
+    assert tracking._face_centers_yolo(frames) == [None]
+    assert tracking._face_centers_yolo(frames) == [None]
+    assert loaded == [str(model)]

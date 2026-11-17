@@ -1,6 +1,6 @@
 {
   "name": "videoflow-ui",
-  "version": "2.91.4",
+  "version": "2.91.5",
   "private": true,
   "type": "module",
   "scripts": {

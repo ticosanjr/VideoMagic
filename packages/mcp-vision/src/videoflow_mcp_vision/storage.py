@@ -16,6 +16,7 @@ import re
 import shutil
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -314,10 +315,11 @@ def _write_via_contracts(**values: Any) -> Any | None:
     return None
 
 
-def _signature_parameters(writer: Any) -> list[str]:
+@lru_cache(maxsize=16)
+def _signature_parameters(writer: Any) -> tuple[str, ...]:
     import inspect
 
-    return list(inspect.signature(writer).parameters)
+    return tuple(inspect.signature(writer).parameters)
 
 
 def _keyword_fields(values: dict[str, Any], parameters: set[str]) -> dict[str, Any]:
