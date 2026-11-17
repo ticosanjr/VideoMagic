@@ -63,6 +63,7 @@ if [ "$REFRESH_RUNTIME" = "1" ] || [ ! -x "$RUNTIME_BASE/videoflow" ]; then
     "${WHISPER_VULKAN[@]}" \
     --with-silero \
     --with-faster-whisper \
+    --with-tray \
     --runtime-base "$RUNTIME_BASE"
   mark "runtime base"
 else

@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import contextlib
 import os
+import shutil
 import signal
+import subprocess
 import sys
 import threading
 import time
@@ -52,6 +54,30 @@ def _http_app() -> Any:
 def _ui_url(host: str, port: int) -> str:
     visible = host if host not in {"0.0.0.0", "::"} else "127.0.0.1"
     return f"http://{visible}:{port}/"
+
+
+def _open_url(url: str) -> None:
+    """Open a URL, falling back to the desktop opener used by AppImages."""
+
+    try:
+        if webbrowser.open(url):
+            return
+    except Exception:  # noqa: BLE001 - browser discovery is best effort
+        pass
+    for command in (["xdg-open", url], ["gio", "open", url]):
+        if shutil.which(command[0]) is None:
+            continue
+        try:
+            subprocess.Popen(
+                command,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            return
+        except OSError:
+            continue
+    append_server_log(f"could not open browser for {url}")
 
 
 def _browser_url(url: str, fragment: str = "") -> str:
@@ -202,6 +228,10 @@ class ServerSupervisor:
         if thread is not None and thread.is_alive():
             thread.join(max(0.1, timeout))
             if thread.is_alive():
+                with contextlib.suppress(Exception):
+                    server.force_exit = True
+                thread.join(1.0)
+            if thread.is_alive():
                 self._last_error = "The server did not stop within the timeout."
                 append_server_log(self._last_error)
         remove_pid_file()
@@ -246,7 +276,7 @@ class TrayActions:
         jobs: TrayJobController | None = None,
     ) -> None:
         self.supervisor = supervisor
-        self._opener = opener or webbrowser.open
+        self._opener = opener or _open_url
         self.jobs = jobs or TrayJobController(getattr(supervisor, "url", ""))
         self.job_stats: dict[str, int] = {
             "running": 0,
@@ -258,16 +288,24 @@ class TrayActions:
         self.job_error = ""
         self.unreachable = False
 
+    def _wait_ready(self) -> None:
+        host = getattr(self.supervisor, "host", "")
+        port = getattr(self.supervisor, "port", 0)
+        if host and port:
+            _wait_for_service(str(host), int(port))
+
     def open_ui(self) -> None:
         if not self.supervisor.running:
             self.supervisor.start()
-            self.unreachable = False
+        self._wait_ready()
+        self.unreachable = False
         self._opener(_browser_url(self.supervisor.url))
 
     def open_runs(self) -> None:
         if not self.supervisor.running:
             self.supervisor.start()
-            self.unreachable = False
+        self._wait_ready()
+        self.unreachable = False
         self._opener(_browser_url(self.supervisor.url, "runs"))
 
     def refresh_status(self) -> None:
@@ -316,6 +354,7 @@ class TrayActions:
 
     def start(self) -> None:
         self.supervisor.start()
+        self._wait_ready()
         self.unreachable = False
 
     def stop(self) -> None:
@@ -324,6 +363,7 @@ class TrayActions:
 
     def restart(self) -> None:
         self.supervisor.restart()
+        self._wait_ready()
         self.unreachable = False
 
     def status_label(self) -> str:
@@ -378,20 +418,93 @@ def _import_pystray() -> Any:
     return pystray
 
 
-def tray_available() -> bool:
-    """Return True when a tray backend and a display are both available."""
+def _gi_error() -> str:
+    if not sys.platform.startswith("linux"):
+        return ""
+    try:
+        with _system_gi_path():
+            import gi
 
-    if sys.platform.startswith("linux") and not (
-        os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
-    ):
-        return False
+            gi.require_version("Gtk", "3.0")
+            from gi.repository import Gtk  # noqa: F401
+        return ""
+    except Exception as exc:  # noqa: BLE001 - optional system integration
+        return f"{type(exc).__name__}: {exc}"
+
+
+def _gi_status() -> tuple[bool, bool]:
+    """Return ``(gi_available, appindicator_available)``."""
+
+    if not sys.platform.startswith("linux"):
+        return True, True
+    try:
+        with _system_gi_path():
+            import gi
+
+            gi.require_version("Gtk", "3.0")
+            from gi.repository import Gtk  # noqa: F401
+
+            try:
+                gi.require_version("AyatanaAppIndicator3", "0.1")
+                from gi.repository import AyatanaAppIndicator3  # noqa: F401
+            except (ImportError, ValueError):
+                return True, False
+            return True, True
+    except Exception:  # noqa: BLE001 - optional system integration
+        return False, False
+
+
+def tray_diagnostics() -> dict[str, Any]:
+    """Describe the tray backend, display, and menu availability."""
+
+    display = os.environ.get("DISPLAY", "") or os.environ.get("WAYLAND_DISPLAY", "")
+    payload: dict[str, Any] = {
+        "available": False,
+        "platform": sys.platform,
+        "display": display,
+        "backend": "",
+        "has_menu": False,
+        "gi": False,
+        "appindicator": False,
+        "gi_error": _gi_error(),
+        "reason": "",
+    }
+    if sys.platform.startswith("linux") and not display:
+        payload["reason"] = "no DISPLAY or WAYLAND_DISPLAY"
+        return payload
     try:
         pystray = _import_pystray()
         from PIL import Image  # noqa: F401
-    except Exception:  # noqa: BLE001 - optional dependency
-        return False
+    except Exception as exc:  # noqa: BLE001 - optional dependency
+        payload["reason"] = f"tray dependencies are unavailable: {exc}"
+        return payload
     backend = str(getattr(pystray.Icon, "__module__", ""))
-    return bool(pystray.Icon) and not backend.endswith("._dummy")
+    has_menu = bool(getattr(pystray.Icon, "HAS_MENU", True))
+    gi_available, appindicator = _gi_status()
+    payload.update(
+        {
+            "backend": backend,
+            "has_menu": has_menu,
+            "gi": gi_available,
+            "appindicator": appindicator,
+        }
+    )
+    if not pystray.Icon or backend.endswith("._dummy"):
+        payload["reason"] = "no usable pystray backend"
+        return payload
+    if not has_menu:
+        payload["reason"] = (
+            f"{backend} has no menu; install python3-gi and gir1.2-ayatanaappindicator3-0.1"
+        )
+        return payload
+    payload["available"] = True
+    return payload
+
+
+def tray_available() -> bool:
+    """Return True when a menu-capable tray backend and a display are available."""
+
+    return bool(tray_diagnostics()["available"])
 
 
 def _icon_image() -> Any:

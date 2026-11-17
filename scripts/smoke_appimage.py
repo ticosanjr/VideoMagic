@@ -38,6 +38,8 @@ def main() -> int:
     env = dict(os.environ)
     env["APPIMAGE_EXTRACT_AND_RUN"] = "1"
     _run([str(appimage), "version"], env=env)
+    if env.get("DISPLAY") or env.get("WAYLAND_DISPLAY"):
+        _run([str(appimage), "tray", "--check"], env=env)
 
     process = subprocess.Popen(
         [str(appimage), "serve", "--port", str(args.port)],
@@ -52,7 +54,7 @@ def main() -> int:
             process.wait(timeout=10)
         except subprocess.TimeoutExpired:
             process.kill()
-    print("PASS: AppImage version, doctor, recipes, MCP subcommands, extract-run, and serve")
+    print("PASS: AppImage version, doctor, recipes, MCP subcommands, tray, extract-run, and serve")
     return 0
 
 

@@ -106,7 +106,7 @@ not embedded by default; add `--with-models` for a fully offline artifact.
 
 ```bash
 uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper \
-  --with-silero --with-faster-whisper
+  --with-silero --with-faster-whisper --with-tray
 ./dist/videoflow doctor
 ./dist/videoflow recipe run youtube_talking_head ~/Videos/interview.mp4 -o ./interview-edit
 ./dist/videoflow serve --open       # API + MCP HTTP + studio UI, stays running
@@ -118,7 +118,10 @@ uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper \
 ```
 
 `videoflow tray` needs the optional tray extra in a source checkout
-(`uv sync --extra tray`) and a desktop session. The tray owns the local service.
+(`uv sync --extra tray`) and a desktop session. Release builds include
+`pystray`, Pillow, and `python-xlib` via `--with-tray`. The tray owns the local
+service. Use `videoflow tray --check` to print the backend, display, and whether
+the menu is available.
 Clicking the icon opens a menu with the version, service/job status, **Open
 VideoFlow**, **Open runs**, **Restart service**, start/stop, job controls, and
 **Quit VideoFlow** (which stops the service and exits). On Linux the full menu
@@ -129,9 +132,10 @@ sudo apt install python3-gi gir1.2-ayatanaappindicator3-0.1
 ```
 
 Without them the tray falls back to the xorg backend: the icon appears, but that
-backend can only run a default action and has no menu. Force a backend with
-`VIDEOWFLOW_TRAY_BACKEND=appindicator|gtk|xorg`. Without any tray backend, the
-command falls back to `videoflow serve`.
+backend can only run a default action and has no menu. Because the menu is
+required for restart/quit, `videoflow tray` falls back to `videoflow serve`
+when no menu-capable backend is available. Force a backend with
+`VIDEOWFLOW_TRAY_BACKEND=appindicator|gtk|xorg`.
 
 The local release is the canonical artifact build:
 

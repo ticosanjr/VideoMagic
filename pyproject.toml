@@ -1,6 +1,6 @@
 [project]
 name = "videoflow"
-version = "2.91.8"
+version = "2.91.9"
 description = "Local, non-destructive video pre-edit pipeline with a rack UI and MCP server."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -75,6 +75,7 @@ render = [
 tray = [
     "pystray>=0.19",
     "pillow>=10",
+    "python-xlib>=0.33; sys_platform == 'linux'",
 ]
 
 [project.scripts]

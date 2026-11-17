@@ -101,6 +101,7 @@ for package in ("PIL", "pystray", "pytesseract", "Xlib", "six"):
         pass
 
 hiddenimports += [
+    "optparse",
     "pystray._xorg",
     "pystray._gtk",
     "pystray._appindicator",

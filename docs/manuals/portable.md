@@ -338,12 +338,12 @@ cd ui && npm ci && npm run build && cd ..
 
 # Linux
 uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper \
-  --with-silero --with-faster-whisper
+  --with-silero --with-faster-whisper --with-tray
 ./dist/videoflow version
 
 # Windows (PowerShell)
 uv run python scripts/build_portable.py --fetch-ffmpeg --with-whisper `
-  --with-silero --with-faster-whisper
+  --with-silero --with-faster-whisper --with-tray
 .\\dist\\videoflow.exe version
 ```
 
@@ -375,6 +375,8 @@ with any redistribution. To ship a lean build without local transcription, omit
 
 ### Faster-Whisper bundling
 
+`--with-tray` requires `pystray`, `Pillow`, and `python-xlib` in the build
+environment (`uv sync --extra tray`); it bundles the desktop tray icon and menu.
 `--with-faster-whisper` requires `faster-whisper`, `ctranslate2`, `tokenizers`,
 `av`, and `huggingface_hub` in the build interpreter. Run
 `uv sync --extra faster-whisper` first. The extra pins Faster-Whisper 1.2.1 and

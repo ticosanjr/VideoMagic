@@ -302,6 +302,11 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Do not open the UI when the tray starts.",
     )
+    tray.add_argument(
+        "--check",
+        action="store_true",
+        help="Print tray backend, display, and menu diagnostics without starting it.",
+    )
 
     sub.add_parser("cleanup", help="Stop every VideoFlow service except the current process.")
     stop = sub.add_parser("stop", help="Stop the local VideoFlow service.")
@@ -354,6 +359,12 @@ def _doctor() -> int:
         checks["home_writable"] = False
         checks["home_error"] = str(exc)
         ok = False
+    try:
+        from videoflow.application.tray import tray_diagnostics
+
+        checks["tray"] = tray_diagnostics()
+    except Exception as exc:  # noqa: BLE001 - diagnostics must not break doctor
+        checks["tray"] = {"available": False, "reason": str(exc)}
     checks["ui"] = str(ui_dir()) if ui_dir() else None
     checks["models"] = {
         "dir": str(models_dir()),
@@ -721,10 +732,19 @@ def _tray(args: argparse.Namespace) -> int:
     settings = load_settings()
     host = settings.runtime.host if args.host == "127.0.0.1" else args.host
     port = settings.runtime.port if args.port == 8765 else args.port
+    if getattr(args, "check", False):
+        import json
+
+        diagnostics = tray_module.tray_diagnostics()
+        print(json.dumps(diagnostics, indent=2))
+        return 0 if diagnostics.get("available") else 1
     if not tray_module.tray_available():
+        diagnostics = tray_module.tray_diagnostics()
         print(
-            "No tray backend or display was found. Starting the terminal service "
-            "instead; install the tray extra with: uv sync --extra tray",
+            "Tray backend unavailable: "
+            + str(diagnostics.get("reason") or "no menu-capable backend")
+            + ". Starting the terminal service instead; install with: "
+            "uv sync --extra tray",
             file=sys.stderr,
         )
         return _serve(argparse.Namespace(host=host, port=port, open=not args.no_open))

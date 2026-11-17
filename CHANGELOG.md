@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.91.9] - 2026-11-17
+
+### Added
+
+- `videoflow tray --check` and a `doctor` tray section report the display,
+  backend, menu availability, PyGObject, and AppIndicator status.
+- Release builds bundle `pystray`, Pillow, and `python-xlib` through
+  `--with-tray`.
+
+### Fixed
+
+- The AppImage now includes the tray dependencies, so the icon is created
+  instead of silently falling back to `serve`.
+- Tray startup requires a menu-capable backend; xorg-only sessions get an
+  explicit explanation instead of an icon without Restart/Quit.
+- Open/Restart wait for the local health check; browser opening falls back to
+  `xdg-open`/`gio open`.
+- Stop/Quit force the owned Uvicorn thread to exit and remove the PID file.
+
 ## [2.91.8] - 2026-11-17
 
 ### Changed

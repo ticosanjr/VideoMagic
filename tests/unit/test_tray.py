@@ -93,12 +93,8 @@ def test_supervisor_restart_replaces_the_server(home) -> None:
 
 
 def test_supervisor_refuses_a_port_it_cannot_free(home, monkeypatch) -> None:
-    monkeypatch.setattr(
-        tray, "probe_service", lambda *args, **kwargs: {"service": "videoflow"}
-    )
-    monkeypatch.setattr(
-        tray, "stop_services_on_port", lambda *args, **kwargs: {"free": False}
-    )
+    monkeypatch.setattr(tray, "probe_service", lambda *args, **kwargs: {"service": "videoflow"})
+    monkeypatch.setattr(tray, "stop_services_on_port", lambda *args, **kwargs: {"free": False})
     supervisor, created = _supervisor()
 
     with pytest.raises(tray.TrayError):
@@ -281,9 +277,7 @@ def test_refresh_status_reports_running_and_unreachable(monkeypatch) -> None:
     assert actions.status_label() == "Service: stopped"
 
 
-def test_cli_tray_falls_back_when_unavailable(
-    monkeypatch, tmp_path, capsys
-) -> None:
+def test_cli_tray_falls_back_when_unavailable(monkeypatch, tmp_path, capsys) -> None:
     from videoflow import cli
 
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
@@ -518,7 +512,7 @@ def test_supervisor_stop_timeout_and_port_replacement(home, monkeypatch) -> None
             self.should_exit = False
 
         def run(self) -> None:
-            time.sleep(0.4)
+            time.sleep(1.5)
 
     supervisor = tray.ServerSupervisor(
         "127.0.0.1",
@@ -532,9 +526,7 @@ def test_supervisor_stop_timeout_and_port_replacement(home, monkeypatch) -> None
 
     monkeypatch.setattr(tray, "probe_service", lambda *args, **kwargs: None)
     monkeypatch.setattr(tray, "port_is_busy", lambda *args, **kwargs: True)
-    monkeypatch.setattr(
-        tray, "stop_services_on_port", lambda *args, **kwargs: {"free": True}
-    )
+    monkeypatch.setattr(tray, "stop_services_on_port", lambda *args, **kwargs: {"free": True})
     supervisor._clear_port()
 
 
@@ -684,3 +676,39 @@ def test_job_controller_http(monkeypatch) -> None:
         "/jobs/resume_all",
         "/jobs/cancel_all?force=true",
     ]
+
+
+def test_tray_diagnostics_requires_a_menu_backend(monkeypatch) -> None:
+    module = _fake_pystray(monkeypatch)
+    monkeypatch.setattr(tray.sys, "platform", "win32")
+    monkeypatch.setenv("DISPLAY", ":0")
+    module.Icon.HAS_MENU = True
+
+    diagnostics = tray.tray_diagnostics()
+    assert diagnostics["available"] is True
+    assert diagnostics["backend"]
+    assert diagnostics["has_menu"] is True
+
+    module.Icon.HAS_MENU = False
+    diagnostics = tray.tray_diagnostics()
+    assert diagnostics["available"] is False
+    assert "no menu" in diagnostics["reason"]
+
+
+def test_cli_tray_check_prints_diagnostics(monkeypatch, capsys) -> None:
+    from videoflow import cli
+
+    monkeypatch.setattr(
+        tray,
+        "tray_diagnostics",
+        lambda: {
+            "available": True,
+            "backend": "pystray._appindicator",
+            "has_menu": True,
+            "reason": "",
+        },
+    )
+    assert cli.main(["tray", "--check"]) == 0
+    output = capsys.readouterr().out
+    assert "pystray._appindicator" in output
+    assert '"has_menu": true' in output

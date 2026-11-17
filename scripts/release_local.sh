@@ -41,6 +41,7 @@ uv run python scripts/build_portable.py \
   "${WHISPER_VULKAN[@]}" \
   --with-silero \
   --with-faster-whisper \
+  --with-tray \
   --skip-ui-build \
   "$CLEAN_FLAG"
 

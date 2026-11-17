@@ -18,7 +18,7 @@ TOOL_NAMES = (
 def build_server() -> MCPServer:
     """Build the audio MCP server with the five 2.90 tools."""
 
-    server = MCPServer("VideoFlow Audio", version="2.91.8")
+    server = MCPServer("VideoFlow Audio", version="2.91.9")
     server.tool(
         name="tts_generate",
         description="Generate a voice-over from text with local TTS or a remote tts capability.",

@@ -109,6 +109,11 @@ def main() -> int:
         help="Force a fresh Faster-Whisper small model download.",
     )
     parser.add_argument(
+        "--with-tray",
+        action="store_true",
+        help="Bundle pystray, Pillow, and python-xlib for the desktop tray icon.",
+    )
+    parser.add_argument(
         "--with-models",
         action="store_true",
         help="Bundle speech model weights. Off by default for the lean download.",
@@ -210,6 +215,23 @@ def main() -> int:
         from fetch_silero import fetch as fetch_silero
 
         fetch_silero(vendor, refresh=args.refresh_silero)
+
+    if args.with_tray:
+        missing = [
+            name
+            for name in ("pystray", "PIL", "Xlib")
+            if importlib.util.find_spec(name) is None
+        ]
+        if missing:
+            print(
+                "The tray extra is missing: "
+                + ", ".join(missing)
+                + ". Run `uv sync --extra tray` for this interpreter.",
+                file=sys.stderr,
+            )
+            return 1
+        os.environ["VIDEOWFLOW_WITH_TRAY"] = "1"
+        print("bundling desktop tray dependencies: pystray, Pillow, python-xlib")
 
     if args.with_faster_whisper or args.refresh_faster_whisper:
         missing = [
