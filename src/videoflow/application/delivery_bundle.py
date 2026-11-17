@@ -22,6 +22,7 @@ from videoflow.application.export_service import (
 )
 from videoflow.application.nle_extras import nle_extras_from_output
 from videoflow.application.nle_validation import validate_nle_exports
+from videoflow.application.subtitles import resolve_subtitle_track
 from videoflow.domain.errors import ExportError
 from videoflow.domain.state import ProjectState
 from videoflow.domain.timebase import Rounding
@@ -222,10 +223,8 @@ def build_delivery_bundle(
     mp4_path: Path | None = None
     master_path = output / "audio" / "master.wav"
     audio_master = master_path if master_path.is_file() else None
-    subtitle_path = output / "subtitles.ass"
-    if not subtitle_path.is_file():
-        subtitle_path = output / "titles.ass"
-    ass_path = subtitle_path if options.burn_subtitles and subtitle_path.is_file() else None
+    subtitle_path = resolve_subtitle_track(output)
+    ass_path = subtitle_path if options.burn_subtitles else None
     if requested_mp4:
         mp4_path = exports / BUNDLE_FILENAMES["mp4"]
         if progress is not None:

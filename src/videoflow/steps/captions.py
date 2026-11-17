@@ -15,6 +15,7 @@ from videoflow.application.captions import (
 )
 from videoflow.core.context import PipelineContext
 from videoflow.domain.config import CaptionStyle
+from videoflow.domain.state import ProjectState
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload
 from videoflow.steps.registry import register_step
@@ -42,10 +43,10 @@ def _long_form_style(style: CaptionStyle) -> CaptionStyle:
     )
 
 
-def _timeline_pieces(state: object, fallback_end: int) -> list[tuple[int, int]]:
+def _timeline_pieces(state: ProjectState | None, fallback_end: int) -> list[tuple[int, int]]:
     """Return active source ranges in timeline order for caption mapping."""
 
-    segments = getattr(state, "audio_segments", None)
+    segments = state.audio_segments if state is not None else []
     if not segments:
         return [(0, max(1, fallback_end))]
     pieces = [

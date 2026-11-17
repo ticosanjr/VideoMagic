@@ -13,6 +13,7 @@ from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.export_names import timestamped_basename, unique_path
 from videoflow.application.render_gate import render_gate
 from videoflow.application.render_inputs import read_filters
+from videoflow.application.subtitles import resolve_subtitle_track
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import ExportError
 from videoflow.exporters.mp4 import export_mp4
@@ -89,9 +90,7 @@ class VideoExportStep(BaseStep):
         if options.grain_amount > 0:
             strength = max(1, min(20, int(options.grain_amount * 20)))
             video_filters.append(f"noise=alls={strength}:allf=t+u")
-        ass_path = context.output / "subtitles.ass"
-        if not ass_path.is_file():
-            ass_path = context.output / "titles.ass"
+        ass_path = resolve_subtitle_track(context.output)
 
         def progress(value: int) -> None:
             io.check_cancel()
@@ -109,7 +108,7 @@ class VideoExportStep(BaseStep):
                 preset=preset,
                 audio_filters=audio_filters,
                 video_filters=video_filters,
-                ass_path=ass_path if ass_path.is_file() else None,
+                ass_path=ass_path,
                 progress=progress,
                 scale_height=scale_height,
                 cache_dir=context.output / "render" / "segments",

@@ -282,3 +282,13 @@ def test_bundle_burns_subtitles_by_default(tmp_path: Path, monkeypatch) -> None:
         adapter=FakeAdapter(),
     )
     assert captured["ass_path"] is None
+
+
+def test_resolve_subtitle_track_prefers_merged_captions(tmp_path: Path) -> None:
+    from videoflow.application.subtitles import resolve_subtitle_track
+
+    assert resolve_subtitle_track(tmp_path) is None
+    (tmp_path / "titles.ass").write_text("[Events]\n", encoding="utf-8")
+    assert resolve_subtitle_track(tmp_path) == tmp_path / "titles.ass"
+    (tmp_path / "subtitles.ass").write_text("[Events]\n", encoding="utf-8")
+    assert resolve_subtitle_track(tmp_path) == tmp_path / "subtitles.ass"

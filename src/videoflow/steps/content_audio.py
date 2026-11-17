@@ -96,9 +96,7 @@ class AudioMasterStep(BaseStep):
                 sample_rate=options.sample_rate,
             )
         else:
-            if options.source == "timeline":
-                raise ExportError("Audio master requested the timeline, but it has no audio.")
-            if has_timeline:
+            if has_timeline and options.source == "source":
                 context.warnings.append("Audio master used the source because source='source'.")
             adapter.master_audio(
                 context.source,

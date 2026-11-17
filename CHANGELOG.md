@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.91.8] - 2026-11-17
+
+### Changed
+
+- Video export and delivery bundle share one subtitle-track resolver.
+- Audio-master timeline/source branching and caption timeline typing were
+  simplified without changing behavior.
+
+### Fixed
+
+- MCP job payloads also strip nested recipe variants and relabel internal recipe
+  jobs as step jobs, so no DAG metadata reaches the tools-only surface.
+
 ## [2.91.7] - 2026-11-17
 
 ### Fixed

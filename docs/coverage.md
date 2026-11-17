@@ -10,10 +10,10 @@ uv run python scripts/coverage_layers.py
 The `.coveragerc` used for this report disables the release gate's omit list so
 adapters, exporters, API, jobs, and MCP are visible.
 
-## Current working tree (2.91.7)
+## Current working tree (2.91.8)
 
 Measured with the release-gate omit list disabled. The full unit/contract run is
-**2,515 passed, 1 skipped, 1 xfailed**.
+**2,516 passed, 1 skipped, 1 xfailed**.
 
 | Layer | Hit | Total | Cover |
 | --- | ---: | ---: | ---: |

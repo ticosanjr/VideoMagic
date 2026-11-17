@@ -9,7 +9,12 @@ def test_job_payload_removes_recipe_documents(tmp_path: Path) -> None:
     output.mkdir()
     job = SimpleNamespace(
         output=output,
-        result={"recipe_id": "demo", "artifacts": {"audio": "a.wav"}},
+        result={
+            "recipe_id": "demo",
+            "mode": "recipe",
+            "variants": [{"name": "v1", "summary": {"mode": "recipe"}}],
+            "artifacts": {"audio": "a.wav"},
+        },
         to_dict=lambda: {
             "job_id": "job-1",
             "options": {
@@ -19,7 +24,12 @@ def test_job_payload_removes_recipe_documents(tmp_path: Path) -> None:
                 "profile": "full",
                 "step_type": "audio.mix",
             },
-            "result": {"recipe_id": "demo", "artifacts": {}},
+            "result": {
+                "recipe_id": "demo",
+                "mode": "recipe",
+                "variants": [{"name": "v1"}],
+                "artifacts": {},
+            },
         },
     )
 
@@ -30,3 +40,6 @@ def test_job_payload_removes_recipe_documents(tmp_path: Path) -> None:
     assert "profile" not in payload["options"]
     assert payload["options"]["mode"] == "step"
     assert "recipe_id" not in payload["result"]
+    assert "variants" not in payload["result"]
+    assert payload["result"]["mode"] == "step"
+    assert "variants" not in payload

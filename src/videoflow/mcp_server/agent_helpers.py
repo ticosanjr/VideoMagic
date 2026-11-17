@@ -106,17 +106,19 @@ def _job_payload(job: Any) -> dict[str, Any]:
         cleaned = dict(options)
         for key in ("recipe", "recipe_id", "variables", "profile"):
             cleaned.pop(key, None)
-        if cleaned.get("mode") == "recipe" and cleaned.get("step_type"):
+        if cleaned.get("mode") == "recipe":
             cleaned["mode"] = "step"
         payload["options"] = cleaned
     result = payload.get("result")
     if isinstance(result, dict):
         cleaned_result = dict(result)
-        for key in ("recipe", "recipe_id"):
+        for key in ("recipe", "recipe_id", "variants"):
             cleaned_result.pop(key, None)
+        if cleaned_result.get("mode") == "recipe":
+            cleaned_result["mode"] = "step"
         payload["result"] = cleaned_result
-    payload.pop("recipe", None)
-    payload.pop("recipe_id", None)
+    for key in ("recipe", "recipe_id", "variants"):
+        payload.pop(key, None)
     payload["artifacts"] = artifact_service.list_artifacts(Path(job.output), include_hash=False)
     qa = artifact_service.qa_artifacts(Path(job.output))
     if qa["defects"]:
