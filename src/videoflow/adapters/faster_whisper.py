@@ -57,13 +57,13 @@ class FasterWhisperAdapter:
         self.language = language
         self.vad_filter = vad_filter
         self.beam_size = beam_size
-        self.threads = threads or max(
-            1, min(8, (os.cpu_count() or 2) // 2 or 1)
-        )
+        self.threads = threads or max(1, min(8, (os.cpu_count() or 2) // 2 or 1))
         self.word_timestamps = word_timestamps
         self.condition_on_previous_text = condition_on_previous_text
         self._log = log
         self._engine: Any | None = None
+        self.last_language = ""
+        self.last_language_probability = 0.0
 
     @staticmethod
     def available(
@@ -126,6 +126,16 @@ class FasterWhisperAdapter:
                 vad_filter=self.vad_filter,
                 condition_on_previous_text=self.condition_on_previous_text,
             )
+            detected = str(getattr(_info, "language", "") or "")
+            if not detected and self.language != "auto":
+                detected = self.language
+            self.last_language = detected
+            try:
+                self.last_language_probability = float(
+                    getattr(_info, "language_probability", 0.0) or 0.0
+                )
+            except (TypeError, ValueError):
+                self.last_language_probability = 0.0
             duration = frames / SAMPLE_RATE if frames > 0 else 0.0
             if duration <= 0:
                 duration = float(getattr(_info, "duration", 0.0) or 0.0)

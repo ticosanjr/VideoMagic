@@ -34,6 +34,8 @@ class WhisperHttpAdapter:
         self.language = language
         self.timeout = timeout
         self._transport = transport
+        self.last_language = ""
+        self.last_language_probability = 0.0
 
     def transcribe(self, wav_path: Path, sample_rate: int) -> list[Sentence]:
         source = Path(wav_path).expanduser()
@@ -72,6 +74,12 @@ class WhisperHttpAdapter:
             payload = response.json()
         except ValueError as exc:
             raise TranscriptionError("Transcription endpoint returned invalid JSON") from exc
+        if isinstance(payload, dict):
+            self.last_language = str(payload.get("language") or "")
+            try:
+                self.last_language_probability = float(payload.get("language_probability") or 0.0)
+            except (TypeError, ValueError):
+                self.last_language_probability = 0.0
         return _sentences(payload, sample_rate)
 
     def _endpoint(self) -> str:
@@ -85,9 +93,7 @@ def _sentences(payload: Any, sample_rate: int) -> list[Sentence]:
         raise TranscriptionError("Transcription payload is not an object")
     segments = payload.get("segments")
     if not isinstance(segments, list) or not segments:
-        raise TranscriptionError(
-            "Transcription has no segments. Use response_format=verbose_json."
-        )
+        raise TranscriptionError("Transcription has no segments. Use response_format=verbose_json.")
     sentences: list[Sentence] = []
     for segment in segments:
         if not isinstance(segment, dict):

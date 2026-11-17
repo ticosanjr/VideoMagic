@@ -26,9 +26,7 @@ class ForcedAlignmentParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     backend: Backend = "auto"
-    model_size: Literal["tiny", "base", "small", "medium", "large-v2", "large-v3"] = (
-        "small"
-    )
+    model_size: Literal["tiny", "base", "small", "medium", "large-v2", "large-v3"] = "small"
     language: str = "auto"
     device: Literal["cpu", "cuda", "auto"] = "cpu"
     compute_type: str = "int8"
@@ -41,7 +39,7 @@ def _device(value: str) -> str:
 
 def _whisperx_words(
     source: Path, options: ForcedAlignmentParams, sample_rate: int
-) -> list[tuple[str, int, int]]:
+) -> tuple[list[tuple[str, int, int]], str, float]:
     import whisperx  # type: ignore[import-not-found]
 
     audio = whisperx.load_audio(str(source))
@@ -54,9 +52,7 @@ def _whisperx_words(
     language = None if options.language == "auto" else options.language
     result = model.transcribe(audio, language=language)
     detected = str(result.get("language") or language or "en")
-    align_model, metadata = whisperx.load_align_model(
-        language_code=detected, device=device
-    )
+    align_model, metadata = whisperx.load_align_model(language_code=detected, device=device)
     aligned = whisperx.align(
         result["segments"],
         align_model,
@@ -65,6 +61,7 @@ def _whisperx_words(
         device,
         return_char_alignments=False,
     )
+    probability = float(result.get("language_probability") or 0.0)
     words: list[tuple[str, int, int]] = []
     for segment in aligned.get("segments", []):
         for item in segment.get("words", []):
@@ -74,56 +71,58 @@ def _whisperx_words(
             end = int(round(float(item.get("end") or 0.0) * sample_rate))
             if end > start:
                 words.append((str(item["word"]).strip(), start, end))
-    return words
+    return words, detected, probability
 
 
 def _faster_whisper_words(
     source: Path, options: ForcedAlignmentParams, sample_rate: int
-) -> list[tuple[str, int, int]]:
+) -> tuple[list[tuple[str, int, int]], str, float]:
     if not FasterWhisperAdapter.available(options.model_size):  # type: ignore[arg-type]
-        return []
-    asr = FasterWhisperAdapter(
+        return [], "", 0.0
+    adapter = FasterWhisperAdapter(
         model_size=options.model_size,
         device=options.device,
         compute_type=options.compute_type,
         language=options.language,
         vad_filter=False,
-    ).transcribe(source, sample_rate)
-    return [
+    )
+    asr = adapter.transcribe(source, sample_rate)
+    words = [
         (word.word, word.start_sample, word.end_sample)
         for sentence in asr
         for word in sentence.words
     ]
+    return (
+        words,
+        str(getattr(adapter, "last_language", "") or ""),
+        float(getattr(adapter, "last_language_probability", 0.0) or 0.0),
+    )
 
 
 def _align_words(
     source: Path, options: ForcedAlignmentParams, sample_rate: int, io: StepIO
-) -> tuple[list[tuple[str, int, int]], str]:
+) -> tuple[list[tuple[str, int, int]], str, str, float]:
     if options.backend in {"auto", "whisperx"}:
         try:
             io.report(20, "Aligning words with WhisperX")
-            words = _whisperx_words(source, options, sample_rate)
+            words, language, probability = _whisperx_words(source, options, sample_rate)
             if words:
-                return words, "whisperx"
+                return words, "whisperx", language, probability
         except Exception as exc:  # noqa: BLE001 - optional dependency or model
             if options.backend == "whisperx":
                 io.emit("warning", f"WhisperX alignment failed: {exc}", module="align")
     if options.backend in {"auto", "faster_whisper", "whisperx"}:
         io.report(50, "Aligning words with faster-whisper")
-        words = _faster_whisper_words(source, options, sample_rate)
+        words, language, probability = _faster_whisper_words(source, options, sample_rate)
         if words:
-            return words, "faster_whisper"
-    return [], "none"
+            return words, "faster_whisper", language, probability
+    return [], "none", "", 0.0
 
 
 def _words_in_range(
     words: list[tuple[str, int, int]], start: int, end: int
 ) -> list[tuple[str, int, int]]:
-    return [
-        item
-        for item in words
-        if start <= (item[1] + item[2]) // 2 <= end
-    ]
+    return [item for item in words if start <= (item[1] + item[2]) // 2 <= end]
 
 
 @register_step
@@ -143,6 +142,12 @@ class ForcedAlignmentStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = ForcedAlignmentParams.model_validate(params)
+        if options.language == "auto":
+            preferred = context.transcript_language or (
+                context.state.language if context.state is not None else ""
+            )
+            if preferred:
+                options = options.model_copy(update={"language": preferred})
         if not context.transcript:
             io.report(100, "No transcript; alignment skipped")
             return
@@ -154,10 +159,8 @@ class ForcedAlignmentStep(BaseStep):
             wav = context.work / "alignment.wav"
             FFmpegAdapter().extract_pcm(source, wav, sample_rate=16000)
             source = wav
-        rate = (
-            context.media.audio_sample_rate if context.media is not None else 48000
-        )
-        words, backend = _align_words(source, options, rate, io)
+        rate = context.media.audio_sample_rate if context.media is not None else 48000
+        words, backend, language, probability = _align_words(source, options, rate, io)
         if not words:
             context.warnings.append(
                 "Forced alignment skipped: WhisperX and faster-whisper are unavailable."
@@ -167,9 +170,7 @@ class ForcedAlignmentStep(BaseStep):
         aligned = 0
         updated: list[Sentence] = []
         for sentence in context.transcript:
-            sentence_words = _words_in_range(
-                words, sentence.start_sample, sentence.end_sample
-            )
+            sentence_words = _words_in_range(words, sentence.start_sample, sentence.end_sample)
             if len(sentence_words) < options.min_words:
                 updated.append(sentence)
                 continue
@@ -192,9 +193,24 @@ class ForcedAlignmentStep(BaseStep):
             )
             aligned += 1
         context.transcript = updated
+        detected = language or options.language
+        if detected == "auto":
+            detected = ""
+        if detected:
+            context.transcript_language = detected
+            context.language_confidence = max(0.0, min(1.0, probability))
+            if context.state is not None:
+                context.state = context.state.model_copy(
+                    update={
+                        "language": detected,
+                        "language_confidence": context.language_confidence,
+                    }
+                )
         payload: dict[str, Any] = {
             "backend": backend,
             "model_size": options.model_size,
+            "language": detected,
+            "language_probability": round(max(0.0, min(1.0, probability)), 4),
             "sentences": len(updated),
             "aligned": aligned,
             "words": len(words),

@@ -118,8 +118,9 @@ def test_whisperx_words_with_fake_module(monkeypatch) -> None:
         "segments": [{"words": [{"word": "hello", "start": 0, "end": 1}]}]
     }
     monkeypatch.setitem(sys.modules, "whisperx", module)
-    words = _whisperx_words(Path("a.wav"), ForcedAlignmentParams(), 1000)
+    words, language, _probability = _whisperx_words(Path("a.wav"), ForcedAlignmentParams(), 1000)
     assert words == [("hello", 0, 1000)]
+    assert language == "en"
 
 
 def test_faster_whisper_words_and_align_fallback(monkeypatch) -> None:
@@ -147,11 +148,11 @@ def test_faster_whisper_words_and_align_fallback(monkeypatch) -> None:
             ]
 
     monkeypatch.setattr(alignment_forced, "FasterWhisperAdapter", Adapter)
-    assert _faster_whisper_words(Path("a.wav"), ForcedAlignmentParams(), 1000) == []
-    words, backend = _align_words(
+    assert _faster_whisper_words(Path("a.wav"), ForcedAlignmentParams(), 1000)[0] == []
+    words, backend, language, probability = _align_words(
         Path("a.wav"), ForcedAlignmentParams(backend="none"), 1000, StepIO()
     )
-    assert words == [] and backend == "none"
+    assert words == [] and backend == "none" and language == "" and probability == 0.0
 
 
 def test_forced_alignment_step(tmp_path: Path, monkeypatch) -> None:
@@ -160,13 +161,11 @@ def test_forced_alignment_step(tmp_path: Path, monkeypatch) -> None:
     pcm.parent.mkdir(parents=True, exist_ok=True)
     pcm.write_bytes(b"wav")
     context.pcm_path = pcm
-    context.transcript = [
-        Sentence(id=0, start_sample=0, end_sample=2000, text="hello world")
-    ]
+    context.transcript = [Sentence(id=0, start_sample=0, end_sample=2000, text="hello world")]
     monkeypatch.setattr(
         alignment_forced,
         "_align_words",
-        lambda *args, **kwargs: ([("hello", 0, 1000), ("world", 1000, 2000)], "fake"),
+        lambda *args, **kwargs: ([("hello", 0, 1000), ("world", 1000, 2000)], "fake", "en", 0.9),
     )
     ForcedAlignmentStep().run(context, ForcedAlignmentParams(), StepIO())
     assert context.transcript[0].words
@@ -206,7 +205,7 @@ def test_audio_isolate_rnnoise_backend(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(
         audio_isolate,
         "_run",
-        lambda command, timeout=1800: (Path(command[-1]).write_bytes(b"isolated") or True),
+        lambda command, timeout=1800: Path(command[-1]).write_bytes(b"isolated") or True,
     )
     AudioIsolateStep().run(
         context,

@@ -334,6 +334,19 @@ class QaSettings(BaseModel):
     backends: list[str] = Field(default_factory=lambda: ["deterministic"])
 
 
+class VisionSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tracking_backend: Literal[
+        "auto", "mediapipe", "yolo", "opencv_haar", "motion_tracking"
+    ] = "auto"
+    yolo_model: str = ""
+    yolo_confidence: float = Field(default=0.35, ge=0.0, le=1.0)
+    mediapipe_model: int = Field(default=1, ge=0, le=1)
+    tracking_smoothing: float = Field(default=0.85, ge=0.0, le=0.99)
+    tracking_sample_fps: int = Field(default=2, ge=1, le=30)
+
+
 class WebRenderSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -373,6 +386,7 @@ class AppSettings(BaseModel):
     sync: SyncSettings = Field(default_factory=SyncSettings)
     render: RenderSettings = Field(default_factory=RenderSettings)
     qa: QaSettings = Field(default_factory=QaSettings)
+    vision: VisionSettings = Field(default_factory=VisionSettings)
     web_render: WebRenderSettings = Field(default_factory=WebRenderSettings)
     presets: PresetSettings = Field(default_factory=PresetSettings)
 

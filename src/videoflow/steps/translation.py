@@ -45,7 +45,12 @@ class TranslationStep(BaseStep):
                 )
             if options.source_language == "auto":
                 options = options.model_copy(
-                    update={"source_language": translation.source_language}
+                    update={
+                        "source_language": (
+                            context.transcript_language
+                            or translation.source_language
+                        )
+                    }
                 )
         except Exception:
             pass

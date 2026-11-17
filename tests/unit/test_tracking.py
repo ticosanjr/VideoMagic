@@ -156,7 +156,7 @@ def test_yolo_face_centers(monkeypatch, tmp_path) -> None:
 
     ultralytics = ModuleType("ultralytics")
     ultralytics.YOLO = lambda path: SimpleNamespace(  # type: ignore[attr-defined]
-        predict=lambda image, verbose=False: [SimpleNamespace(boxes=[Box()])]
+        predict=lambda image, **kwargs: [SimpleNamespace(boxes=[Box()])]
     )
     monkeypatch.setitem(sys.modules, "ultralytics", ultralytics)
     centers = tracking._face_centers_yolo(np.zeros((1, 36, 64), dtype=np.uint8))
@@ -216,3 +216,123 @@ def test_frames_from_pieces(monkeypatch, tmp_path) -> None:
         36,
         64,
     )
+
+
+def test_resolve_tracking_backend_prefers_mediapipe_then_yolo_then_opencv(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from videoflow.application import vision_backends
+
+    settings = SimpleNamespace(vision=SimpleNamespace(tracking_backend="auto", yolo_model=""))
+    monkeypatch.setattr(vision_backends, "mediapipe_available", lambda: True)
+    assert (
+        vision_backends.resolve_tracking_backend("auto", "face_tracking", settings=settings)[0]
+        == "mediapipe"
+    )
+
+    monkeypatch.setattr(vision_backends, "mediapipe_available", lambda: False)
+    monkeypatch.setattr(vision_backends, "yolo_available", lambda model="": True)
+    assert (
+        vision_backends.resolve_tracking_backend("auto", "face_tracking", settings=settings)[0]
+        == "yolo"
+    )
+
+    monkeypatch.setattr(vision_backends, "yolo_available", lambda model="": False)
+    monkeypatch.setattr(vision_backends, "opencv_available", lambda: True)
+    assert (
+        vision_backends.resolve_tracking_backend("auto", "face_tracking", settings=settings)[0]
+        == "opencv_haar"
+    )
+
+    monkeypatch.setattr(vision_backends, "opencv_available", lambda: False)
+    backend, reason = vision_backends.resolve_tracking_backend(
+        "auto", "face_tracking", settings=settings
+    )
+    assert backend == "motion_tracking"
+    assert "no face backend" in reason
+
+
+def test_fill_gaps_interpolates_and_clamps() -> None:
+    from videoflow.application.tracking import _fill_gaps
+
+    assert _fill_gaps([0.2, None, 0.8, None]) == [0.2, 0.5, 0.8, 0.8]
+    assert _fill_gaps([None, None]) == [0.5, 0.5]
+
+
+def test_track_focus_reports_mediapipe_backend(monkeypatch) -> None:
+    from pathlib import Path
+
+    from videoflow.application import tracking
+
+    monkeypatch.setattr(
+        tracking, "frames_from_pieces", lambda *a, **k: np.zeros((2, 144, 256), dtype=np.uint8)
+    )
+    monkeypatch.setattr(tracking, "resolve_tracking_backend", lambda *a, **k: ("mediapipe", "ok"))
+    monkeypatch.setattr(tracking, "_face_centers_mediapipe", lambda frames, **kwargs: [0.2, 0.8])
+    result = tracking.track_focus(
+        Path("source.mp4"), [(0, 48000)], 48000, mode="face_tracking", smoothing=0.0
+    )
+    assert result.backend == "mediapipe"
+    assert result.requested == "auto"
+    assert result.detections == 2
+    assert result.keyframes[0]["focus_x"] == 0.2
+
+
+def test_vision_backend_model_and_explicit_fallbacks(monkeypatch, tmp_path) -> None:
+    from videoflow.application import vision_backends
+
+    model = tmp_path / "face.pt"
+    model.write_bytes(b"model")
+    monkeypatch.setenv("VIDEOWFLOW_YOLO_MODEL", str(model))
+    assert vision_backends.yolo_model_path() == str(model)
+    assert vision_backends.mediapipe_model_selection(0) == 0
+    assert vision_backends.mediapipe_model_selection(1) == 1
+
+    monkeypatch.setattr(vision_backends, "mediapipe_available", lambda: False)
+    assert vision_backends.resolve_tracking_backend("mediapipe", "face_tracking")[0] == (
+        "motion_tracking"
+    )
+    monkeypatch.setattr(vision_backends, "yolo_available", lambda model="": False)
+    assert vision_backends.resolve_tracking_backend("yolo", "face_tracking")[0] == (
+        "motion_tracking"
+    )
+    monkeypatch.setattr(vision_backends, "opencv_available", lambda: False)
+    assert vision_backends.resolve_tracking_backend("opencv_haar", "face_tracking")[0] == (
+        "motion_tracking"
+    )
+    assert vision_backends.resolve_tracking_backend("motion", "face_tracking")[0] == (
+        "motion_tracking"
+    )
+    assert vision_backends.resolve_tracking_backend("weird", "face_tracking")[0] == (
+        "motion_tracking"
+    )
+
+
+def test_tracking_face_backends_skip_empty_detections(monkeypatch) -> None:
+    from videoflow.application import tracking
+
+    monkeypatch.setattr(tracking, "resolve_tracking_backend", lambda *a, **k: ("mediapipe", "ok"))
+    monkeypatch.setattr(
+        tracking, "frames_from_pieces", lambda *a, **k: np.zeros((2, 36, 64), dtype=np.uint8)
+    )
+    monkeypatch.setattr(tracking, "_face_centers_mediapipe", lambda *a, **k: [None, None])
+    monkeypatch.setattr(tracking, "_motion_centers", lambda frames: [0.2, 0.8])
+    result = tracking.track_focus(__import__("pathlib").Path("x"), [(0, 1)], 1)
+    assert result.backend == "motion_tracking"
+    assert result.detections == 2
+
+    monkeypatch.setattr(tracking, "resolve_tracking_backend", lambda *a, **k: ("yolo", "ok"))
+    monkeypatch.setattr(
+        tracking,
+        "_face_centers_yolo",
+        lambda *a, **k: (_ for _ in ()).throw(ImportError("missing")),
+    )
+    result = tracking.track_focus(__import__("pathlib").Path("x"), [(0, 1)], 1)
+    assert result.backend == "motion_tracking"
+    assert "yolo failed" in result.reason
+
+
+def test_face_center_helpers_handle_empty_frames(monkeypatch) -> None:
+    from videoflow.application import tracking
+
+    assert tracking._face_centers(np.empty((0, 36, 64), dtype=np.uint8)) == []

@@ -17,8 +17,9 @@ Settings tab adds search, units, help tips, and a discard-changes action.
 | Sync | offset mode, offset ms, drift threshold, reference audio | Applied only above threshold |
 | Render | serialized heavy renders, draft scale, motion blur, concurrency | Draft is for review, not final export |
 | QA | visual FPS, window pad, fail-on-defect, backends | 10 FPS windowed audit |
+| Vision | tracking backend, YOLO model/confidence, MediaPipe model, smoothing, sample FPS | Optional MediaPipe/YOLO tracking; see [vision-decoupage.md](vision-decoupage.md) |
 | Web render | engine, browser, network, timeout | External Node/Chrome runtime |
-| Presets | channel directory, max rules | Rulebooks are versioned JSON |
+| Presets | channel directory, style directory, max rules | Markdown styles are canonical; see [styles.md](styles.md) |
 | TTS, stock, translation, UI | TTS voice/model, stock provider, translation, theme, density, locale | Theme/density are shell-only |
 | Notifications | master switch, in-app/desktop levels, event checkboxes, local log/desktop, HILT delivery channels | Off by default; `required` keeps only human interaction, `important` adds failures, `all` adds routine events |
 

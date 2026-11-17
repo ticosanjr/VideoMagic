@@ -1929,6 +1929,18 @@
       "title": "Inactive Segments",
       "type": "array"
     },
+    "language": {
+      "default": "",
+      "title": "Language",
+      "type": "string"
+    },
+    "language_confidence": {
+      "default": 0.0,
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Language Confidence",
+      "type": "number"
+    },
     "manual_overrides": {
       "items": {
         "$ref": "#/$defs/ManualOverride"

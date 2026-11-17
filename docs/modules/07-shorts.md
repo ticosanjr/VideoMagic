@@ -119,9 +119,11 @@ bonus and expose `energy_peaks`.
 `reframe_mode` can be `center_crop_9_16`, `motion_tracking`, `face_tracking`, or
 the legacy `auto_face_tracking_yolo` label. Motion tracking decodes low-resolution
 gray frames and uses the centroid of frame differences as the horizontal crop
-focus. Face tracking uses OpenCV when installed and falls back to motion
-tracking. The chosen focus is stored as `crop_focus_x`/`crop_focus_y` in
-`shorts.json`.
+focus. Face tracking resolves `tracking_backend="auto"` to MediaPipe, a local
+YOLO model, OpenCV Haar, or motion. Focus gaps are interpolated and the path is
+smoothed. The chosen focus is stored as `crop_focus_x`/`crop_focus_y` in
+`shorts.json`, and `vision/tracking.json` records the concrete backend, frames,
+detections, and fallback reason.
 
 ## Cutout and rounded-window layout
 
@@ -235,7 +237,7 @@ still comes from ASS. The per-Short editor writes a new file under
 | Window crosses a discarded take | Conform, then re-check duration |
 | All windows too short | Return zero clips with a warning; not a failure |
 | FFmpeg absent | Timeline clips still export; MP4 is skipped with a warning |
-| YOLO requested | Fall back to center crop, warn |
+| MediaPipe/YOLO requested | Fall back to OpenCV, then motion, with a reason in `vision/tracking.json` |
 
 ## Tests
 

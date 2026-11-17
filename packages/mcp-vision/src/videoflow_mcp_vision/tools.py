@@ -191,12 +191,213 @@ def remove_background(
     return _payload(tool, project_id, record, mode="local")
 
 
+UPSCALE_MAX_DIM = 8192
+
+
+def _ffprobe() -> str:
+    configured = os.environ.get("VF_FFPROBE")
+    if configured:
+        return configured
+    found = shutil.which("ffprobe")
+    if found:
+        return found
+    raise MissingCommandError(
+        "ffprobe is required for upscale validation",
+        details={"env": ["VF_FFPROBE"], "executable": "ffprobe"},
+    )
+
+
+def _probe_stream(path: Path) -> dict[str, float]:
+    try:
+        probe = _ffprobe()
+        result = commands.run(
+            [
+                probe,
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=width,height,r_frame_rate",
+                "-of",
+                "default=noprint_wrappers=1",
+                str(path),
+            ]
+        )
+    except Exception:  # noqa: BLE001 - probe is advisory
+        return {}
+    values: dict[str, float] = {}
+    for line in result.stdout.splitlines():
+        key, _, raw = line.partition("=")
+        if key in {"width", "height"}:
+            try:
+                values[key] = float(int(raw))
+            except ValueError:
+                continue
+        elif key == "r_frame_rate" and "/" in raw:
+            numerator, denominator = raw.split("/", 1)
+            try:
+                values["fps"] = float(numerator) / max(1e-9, float(denominator))
+            except ValueError:
+                continue
+    return values
+
+
+def _select_upscale_backend(requested: str) -> tuple[str, str]:
+    selected = (requested or "auto").strip().lower()
+    if selected not in {"auto", "remote", "realesrgan", "realesrgan_cmd", "ffmpeg"}:
+        raise InvalidArgumentError(
+            "backend must be auto, remote, realesrgan, realesrgan_cmd, or ffmpeg",
+            details={"argument": "backend", "value": requested},
+        )
+    if selected == "auto":
+        if ROUTER.health("upscale"):
+            return "remote", ""
+        if os.environ.get("VF_REALESRGAN_CMD"):
+            return "realesrgan_cmd", ""
+        if shutil.which("realesrgan-ncnn-vulkan"):
+            return "realesrgan", ""
+        return "ffmpeg", "no upscale backend is installed; using FFmpeg lanczos"
+    if selected == "remote":
+        if ROUTER.health("upscale"):
+            return "remote", ""
+        return "ffmpeg", "remote worker is unavailable; using FFmpeg lanczos"
+    if selected in {"realesrgan", "realesrgan_cmd"}:
+        if selected == "realesrgan_cmd" and os.environ.get("VF_REALESRGAN_CMD"):
+            return "realesrgan_cmd", ""
+        if shutil.which("realesrgan-ncnn-vulkan"):
+            return "realesrgan", ""
+        return "ffmpeg", "Real-ESRGAN is unavailable; using FFmpeg lanczos"
+    return "ffmpeg", ""
+
+
+def _realesrgan_video(
+    source: Path,
+    target: Path,
+    *,
+    binary: str,
+    scale: int,
+) -> None:
+    ffmpeg = _ffmpeg()
+    probe = _probe_stream(source)
+    fps = float(probe.get("fps") or 30.0)
+    with tempfile.TemporaryDirectory(prefix="vf-upscale-") as raw:
+        root = Path(raw)
+        frames = root / "frames"
+        upscaled = root / "upscaled"
+        frames.mkdir()
+        upscaled.mkdir()
+        commands.run(
+            [
+                ffmpeg,
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-i",
+                str(source),
+                "-vsync",
+                "0",
+                str(frames / "frame-%08d.png"),
+            ]
+        )
+        commands.run(
+            [
+                binary,
+                "-i",
+                str(frames),
+                "-o",
+                str(upscaled),
+                "-s",
+                str(scale),
+            ]
+        )
+        commands.run(
+            [
+                ffmpeg,
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-framerate",
+                f"{fps:.6f}",
+                "-i",
+                str(upscaled / "frame-%08d.png"),
+                "-i",
+                str(source),
+                "-map",
+                "0:v:0",
+                "-map",
+                "1:a?",
+                "-c:v",
+                "libx264",
+                "-crf",
+                "18",
+                "-preset",
+                "medium",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-shortest",
+                "-movflags",
+                "+faststart",
+                str(target),
+            ]
+        )
+
+
+def _upscale_ffmpeg(source: Path, target: Path, *, factor: int, is_video: bool) -> None:
+    ffmpeg = _ffmpeg()
+    argv = [
+        ffmpeg,
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        str(source),
+        "-vf",
+        f"scale=iw*{factor}:ih*{factor}:flags=lanczos",
+    ]
+    if is_video:
+        argv.extend(
+            [
+                "-map",
+                "0:v:0",
+                "-map",
+                "0:a?",
+                "-c:v",
+                "libx264",
+                "-crf",
+                "18",
+                "-preset",
+                "medium",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-movflags",
+                "+faststart",
+            ]
+        )
+    else:
+        argv.extend(["-frames:v", "1"])
+    argv.append(str(target))
+    commands.run(argv)
+
+
 def upscale_media(
     project_id: str,
     input_path: str,
     scale: int = 2,
+    backend: str = "auto",
 ) -> dict[str, Any]:
-    """Upscale with remote compute, Real-ESRGAN, or an FFmpeg lanczos fallback."""
+    """Upscale an image or video with remote compute, Real-ESRGAN, or FFmpeg."""
 
     tool = "upscale_media"
     source = _ensure_input(input_path, "input_path")
@@ -214,37 +415,49 @@ def upscale_media(
         )
 
     is_video = source.suffix.lower() in VIDEO_EXTENSIONS
-    if is_video:
-        relative = f"assets/upscaled/{source.stem}_x{factor}.mp4"
-    else:
-        suffix = source.suffix.lower() if source.suffix else ".png"
-        relative = f"assets/upscaled/{source.stem}_x{factor}{suffix}"
-
-    key = storage.cache_key(tool, storage.file_fingerprint(source), factor)
+    suffix = ".mp4" if is_video else (source.suffix.lower() or ".png")
+    relative = f"assets/upscaled/{source.stem}_x{factor}{suffix}"
+    selected, fallback_reason = _select_upscale_backend(backend)
+    key = storage.cache_key(
+        tool,
+        storage.file_fingerprint(source),
+        factor,
+        selected,
+        is_video,
+    )
     cached = storage.cached_asset(project_id, relative, key)
     if cached is not None:
         return _payload(tool, project_id, cached, mode="cache")
 
     target = storage.asset_path(project_id, relative)
     target.parent.mkdir(parents=True, exist_ok=True)
-
-    if ROUTER.health("upscale"):
-        result = ROUTER.submit(
-            "upscale",
-            {"input": str(source), "scale": factor, "is_video": is_video},
-        )
-        record = _materialize_remote(
-            project_id=project_id,
-            relative_path=relative,
-            result=result,
-            capability="upscale",
-            cache_key=key,
-            kind=("broll" if is_video else "images"),
-        )
-        return _payload(tool, project_id, record, mode="remote", fallback=False)
-
-    template = os.environ.get("VF_REALESRGAN_CMD")
-    if template:
+    session, reason = selected, fallback_reason
+    if selected == "remote":
+        try:
+            result = ROUTER.submit(
+                "upscale",
+                {
+                    "input": str(source),
+                    "scale": factor,
+                    "is_video": is_video,
+                    "output_name": f"upscaled{suffix}",
+                },
+            )
+            record = _materialize_remote(
+                project_id=project_id,
+                relative_path=relative,
+                result=result,
+                capability="upscale",
+                cache_key=key,
+                kind=("broll" if is_video else "images"),
+            )
+            _validate_upscale_dimensions(target, factor)
+            return _payload(tool, project_id, record, mode="remote", fallback=False)
+        except Exception as exc:  # noqa: BLE001 - local fallback is the contract
+            session = "ffmpeg"
+            reason = f"remote upscale failed: {exc}; using FFmpeg lanczos"
+    elif selected == "realesrgan_cmd":
+        template = os.environ.get("VF_REALESRGAN_CMD", "")
         commands.run(
             commands.expand_template(
                 template,
@@ -252,49 +465,68 @@ def upscale_media(
                 name="Real-ESRGAN command",
             )
         )
-        fallback = False
-        source_name = "local:realesrgan-cmd"
-    elif shutil.which("realesrgan-ncnn-vulkan"):
-        commands.run(
-            [
-                shutil.which("realesrgan-ncnn-vulkan") or "realesrgan-ncnn-vulkan",
-                "-i",
-                str(source),
-                "-o",
-                str(target),
-                "-s",
-                str(factor),
-            ]
-        )
-        fallback = False
-        source_name = "local:realesrgan-ncnn-vulkan"
-    else:
-        ffmpeg = _ffmpeg()
-        filter_chain = f"scale=iw*{factor}:ih*{factor}:flags=lanczos"
-        argv = [ffmpeg, "-y", "-i", str(source), "-vf", filter_chain]
-        if is_video:
-            argv.extend(
-                ["-c:v", "libx264", "-crf", "18", "-preset", "medium", "-pix_fmt", "yuv420p"]
-            )
+    elif selected == "realesrgan":
+        binary = shutil.which("realesrgan-ncnn-vulkan")
+        if binary is None:
+            session = "ffmpeg"
+            reason = "Real-ESRGAN binary disappeared; using FFmpeg lanczos"
+        elif is_video:
+            _realesrgan_video(source, target, binary=binary, scale=factor)
         else:
-            argv.extend(["-frames:v", "1"])
-        argv.append(str(target))
-        commands.run(argv)
-        fallback = True
-        source_name = "ffmpeg:lanczos"
+            commands.run([binary, "-i", str(source), "-o", str(target), "-s", str(factor)])
+    if session == "ffmpeg" or not target.is_file():
+        _upscale_ffmpeg(source, target, factor=factor, is_video=is_video)
+        session = "ffmpeg"
 
     _require_output(target)
+    if session != selected:
+        fallback_key = storage.cache_key(
+            tool,
+            storage.file_fingerprint(source),
+            factor,
+            session,
+            is_video,
+        )
+        if fallback_key != key:
+            cached = storage.cached_asset(project_id, relative, fallback_key)
+            if cached is not None:
+                return _payload(tool, project_id, cached, mode="cache")
+            key = fallback_key
+    dimensions = _validate_upscale_dimensions(target, factor)
     record = storage.write_output(
         project_id,
         relative,
         source_path=target,
         kind=("broll" if is_video else "images"),
         license="source",
-        source=source_name,
+        source=f"{session}:upscale",
         cache_key=key,
-        metadata={"scale": factor, "fallback": fallback, "is_video": is_video},
+        metadata={
+            "scale": factor,
+            "backend": session,
+            "requested_backend": backend,
+            "fallback": session == "ffmpeg",
+            "fallback_reason": reason,
+            "is_video": is_video,
+            "dimensions": dimensions,
+        },
     )
-    return _payload(tool, project_id, record, mode="local", fallback=fallback)
+    return _payload(tool, project_id, record, mode="local", fallback=session == "ffmpeg")
+
+
+def _validate_upscale_dimensions(path: Path, factor: int) -> dict[str, float]:
+    if not path.is_file():
+        return {}
+    probe = _probe_stream(path)
+    width = int(probe.get("width") or 0)
+    height = int(probe.get("height") or 0)
+    if width > UPSCALE_MAX_DIM or height > UPSCALE_MAX_DIM:
+        path.unlink(missing_ok=True)
+        raise InvalidArgumentError(
+            f"upscaled output exceeds {UPSCALE_MAX_DIM}px: {width}x{height}",
+            details={"width": width, "height": height, "scale": factor},
+        )
+    return {key: value for key, value in probe.items() if key in {"width", "height", "fps"}}
 
 
 def render_motion_graphic(

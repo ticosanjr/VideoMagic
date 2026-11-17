@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from videoflow.application.tracking import track_focus_keyframes, track_focus_x
+from videoflow.application.tracking import track_focus, track_focus_x
 from videoflow.core.context import PipelineContext
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload, require_media
@@ -52,9 +53,16 @@ class ReframeStep(BaseStep):
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = ReframeParams.model_validate(params)
         media = require_media(context)
+        try:
+            from videoflow.application.settings import load_settings
+
+            vision = load_settings().vision
+        except Exception:  # noqa: BLE001 - defaults are safe
+            vision = None
         if not context.selected_shorts:
             io.report(100, "No Shorts to reframe")
             return
+
         def with_split(clip, focus: float):
             speakers = {
                 sentence.speaker
@@ -98,6 +106,7 @@ class ReframeStep(BaseStep):
 
         io.report(10, f"Tracking focus with {options.mode}")
         tracked = []
+        tracking_report: list[dict[str, object]] = []
         total = max(1, len(context.selected_shorts))
         for index, clip in enumerate(context.selected_shorts):
             io.check_cancel()
@@ -105,54 +114,89 @@ class ReframeStep(BaseStep):
             if options.tracking_backend in {"mediapipe", "yolo", "opencv_haar"}:
                 tracking_mode = "face_tracking"
             keyframes: list[dict[str, float]] = []
+            settings_args = {
+                "yolo_model": getattr(vision, "yolo_model", ""),
+                "yolo_confidence": getattr(vision, "yolo_confidence", 0.35),
+                "mediapipe_model": getattr(vision, "mediapipe_model", 1),
+            }
             if options.dynamic_crop:
-                keyframes, used_mode = track_focus_keyframes(
+                result = track_focus(
                     Path(context.source),
                     clip.pieces,
                     media.audio_sample_rate,
                     mode=tracking_mode,
                     smoothing=options.smoothing_factor,
+                    fps=getattr(vision, "tracking_sample_fps", 2),
                     backend=options.tracking_backend,
+                    **settings_args,
                 )
+                keyframes = result.keyframes
+                used_mode = result.backend
                 focus = (
                     sum(item["focus_x"] for item in keyframes) / len(keyframes)
                     if keyframes
                     else 0.5
                 )
+                reason = result.reason
+                frames = result.frames
+                detections = result.detections
+                used_mode = result.backend
             else:
                 focus, used_mode = track_focus_x(
                     Path(context.source),
                     clip.pieces,
                     media.audio_sample_rate,
                     mode=tracking_mode,
+                    backend=options.tracking_backend,
                 )
-            if used_mode != options.mode:
-                context.warnings.append(
-                    f"{options.mode} unavailable; used {used_mode}"
-                )
+                reason = ""
+                frames = detections = 0
+            requested = options.tracking_backend
+            if requested != "auto" and used_mode != requested:
+                context.warnings.append(f"{requested} unavailable; used {used_mode}")
+            elif used_mode == "motion_tracking" and options.mode == "face_tracking":
+                context.warnings.append(f"{options.mode} unavailable; used {used_mode}")
+            tracking_report.append(
+                {
+                    "clip_id": getattr(clip, "clip_id", f"short-{index + 1}"),
+                    "requested": requested,
+                    "backend": used_mode,
+                    "reason": reason,
+                    "frames": frames,
+                    "detections": detections,
+                    "keyframes": len(keyframes),
+                }
+            )
             updated = with_split(clip, focus)
             if keyframes:
                 updated = replace(
                     updated,
-                    crop_keyframes=tuple(
-                        (item["time_sec"], item["focus_x"]) for item in keyframes
-                    ),
+                    crop_keyframes=tuple((item["time_sec"], item["focus_x"]) for item in keyframes),
                 )
             tracked.append(updated)
             if index < len(context.shorts):
                 context.shorts[index]["crop_focus_x"] = round(focus, 4)
+                context.shorts[index]["tracking_backend_used"] = used_mode
                 context.shorts[index]["crop_keyframes"] = [
                     [item["time_sec"], item["focus_x"]] for item in keyframes
                 ]
                 context.shorts[index]["split_screen"] = updated.split_screen
-                context.shorts[index]["split_screen_focus_left"] = (
-                    updated.split_screen_focus_left
-                )
-                context.shorts[index]["split_screen_focus_right"] = (
-                    updated.split_screen_focus_right
-                )
+                context.shorts[index]["split_screen_focus_left"] = updated.split_screen_focus_left
+                context.shorts[index]["split_screen_focus_right"] = updated.split_screen_focus_right
             io.report(int((index + 1) / total * 100), f"Reframed {index + 1}/{total}")
         context.selected_shorts = tracked
+        report_path = context.output / "vision" / "tracking.json"
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(
+            json.dumps(
+                {"backend": options.tracking_backend, "clips": tracking_report},
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        context.metadata["tracking"] = tracking_report
+        context.artifacts["tracking"] = str(report_path)
         context.hashes["reframe"] = digest_payload(
             {"mode": options.mode, "focus": [clip.crop_focus_x for clip in tracked]}
         )

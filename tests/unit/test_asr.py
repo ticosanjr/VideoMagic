@@ -17,16 +17,16 @@ def test_transcribes_verbose_json_segments(tmp_path: Path) -> None:
         return httpx.Response(
             200,
             json={
+                "language": "en",
+                "language_probability": 0.92,
                 "segments": [
                     {
                         "start": 1.0,
                         "end": 2.5,
                         "text": " Hello there. ",
-                        "words": [
-                            {"word": "Hello", "start": 1.0, "end": 1.4, "probability": 0.9}
-                        ],
+                        "words": [{"word": "Hello", "start": 1.0, "end": 1.4, "probability": 0.9}],
                     }
-                ]
+                ],
             },
         )
 
@@ -42,6 +42,8 @@ def test_transcribes_verbose_json_segments(tmp_path: Path) -> None:
     assert sentences[0].end_sample == 120000
     assert sentences[0].text == "Hello there."
     assert sentences[0].words[0].word == "Hello"
+    assert client.last_language == "en"
+    assert client.last_language_probability == pytest.approx(0.92)
 
 
 def test_missing_segments_is_rejected(tmp_path: Path) -> None:

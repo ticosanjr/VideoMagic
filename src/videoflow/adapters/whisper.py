@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import wave
 from collections.abc import Callable
@@ -38,14 +39,14 @@ class WhisperCliAdapter:
         self.binary = Path(binary) if binary else _default_binary()
         self.model = Path(model) if model else _default_model()
         self.language = language
-        self.threads = threads or max(
-            1, min(8, (os.cpu_count() or 2) // 2 or 1)
-        )
+        self.threads = threads or max(1, min(8, (os.cpu_count() or 2) // 2 or 1))
         self.beam_size = max(1, beam_size)
         self.word_timestamps = word_timestamps
         self.vulkan = vulkan
         self.timeout = timeout
         self._log = log
+        self.last_language = ""
+        self.last_language_probability = 0.0
 
     def transcribe(self, wav_path: Path, sample_rate: int) -> list[Sentence]:
         source = Path(wav_path).expanduser()
@@ -105,6 +106,16 @@ class WhisperCliAdapter:
                 if self._log is not None:
                     self._log("error", tail or "whisper-cli failed")
                 raise TranscriptionError(f"whisper-cli failed: {tail or 'unknown error'}")
+            diagnostics = completed.stdout + completed.stderr
+            detected = re.search(r"auto-detected language:\s*([A-Za-z-]{2,12})", diagnostics)
+            if detected:
+                self.last_language = detected.group(1).casefold()
+            probability = re.search(r"auto-detected language:.*?p\s*=\s*([0-9.]+)", diagnostics)
+            if probability:
+                try:
+                    self.last_language_probability = float(probability.group(1))
+                except ValueError:
+                    self.last_language_probability = 0.0
             if self.word_timestamps and words_json.is_file():
                 try:
                     sentences = _parse_json_words(
@@ -116,13 +127,9 @@ class WhisperCliAdapter:
                     ) from exc
             elif srt.is_file():
                 try:
-                    sentences = parse_srt(
-                        srt.read_text(encoding="utf-8-sig"), sample_rate
-                    )
+                    sentences = parse_srt(srt.read_text(encoding="utf-8-sig"), sample_rate)
                 except TranscriptError as exc:
-                    raise TranscriptionError(
-                        f"whisper-cli wrote an invalid SRT: {exc}"
-                    ) from exc
+                    raise TranscriptionError(f"whisper-cli wrote an invalid SRT: {exc}") from exc
             else:
                 raise TranscriptionError("whisper-cli did not write a transcript")
         finally:
@@ -204,10 +211,7 @@ def _parse_json_words(payload: str, sample_rate: int) -> list[Sentence]:
         current_words.append(
             WordTiming(word=value, start_sample=start, end_sample=end, probability=1.0)
         )
-        if (
-            len(current_words) >= 18
-            or value.endswith((".", "!", "?", "…", "。", "！", "？"))
-        ):
+        if len(current_words) >= 18 or value.endswith((".", "!", "?", "…", "。", "！", "？")):
             sentences.append(_sentence_from_words(len(sentences), current_words))
             current_words = []
     if current_words:

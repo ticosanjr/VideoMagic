@@ -78,6 +78,27 @@ success.
 
 ## Eye-contact backends
 
+## Reframe tracking backends
+
+`shorts.reframe` shares the same optional backend policy:
+
+1. MediaPipe when `mediapipe` is installed;
+2. YOLO when `ultralytics` is installed and `yolo_model`/`VIDEOWFLOW_YOLO_MODEL`
+   points to a local model;
+3. OpenCV Haar;
+4. motion centroid.
+
+Set `tracking_backend` in `shorts.reframe` or in `settings.vision`. `auto`
+resolves in that order. The run writes `vision/tracking.json` with the requested
+backend, the concrete backend, frames sampled, detections, and the fallback
+reason. Configure `yolo_confidence`, `tracking_smoothing`, and
+`tracking_sample_fps` in `settings.vision`. Install with:
+
+```bash
+uv sync --extra vision
+uv sync --extra tracking
+```
+
 `vision.face_contact` prefers MediaPipe Face Mesh when `mediapipe` is installed,
 then falls back to YOLO when `yolo_model` points to a local face model, then to
 the OpenCV Haar path, and finally to the manual HILT audit. Set `backend` to

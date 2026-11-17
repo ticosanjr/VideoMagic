@@ -631,3 +631,76 @@ def test_screen_capture_screenshot_and_clip(
         output_name="scroll",
     )
     assert Path(clip["output"]).name == "scroll.mp4"
+
+
+def test_upscale_remote_image_uses_the_source_extension(
+    project_root: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "still.png"
+    source.write_bytes(b"PNG")
+    remote = tmp_path / "remote.png"
+    remote.write_bytes(b"UPSCALED")
+    router = FakeRouter(healthy={"upscale"}, remote_file=remote)
+    monkeypatch.setattr(vision_tools, "ROUTER", VisionRouterBridge(router))
+
+    result = vision_tools.upscale_media("proj-up", str(source), scale=2)
+
+    assert result["mode"] == "remote"
+    assert Path(result["output"]).name == "still_x2.png"
+    assert router.calls[0][1]["output_name"] == "upscaled.png"
+    assert router.calls[0][1]["is_video"] is False
+
+
+def test_upscale_ffmpeg_video_preserves_audio_and_faststart(
+    project_root: Path,
+    tmp_path: Path,
+    fake_ffmpeg: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "clip.mp4"
+    source.write_bytes(b"MP4")
+    captured: list[list[str]] = []
+    original = vision_tools.commands.run
+
+    def fake_run(argv, **kwargs):
+        captured.append([str(item) for item in argv])
+        return original(argv, **kwargs)
+
+    monkeypatch.setattr(vision_tools.commands, "run", fake_run)
+
+    result = vision_tools.upscale_media("proj-up", str(source), scale=2, backend="ffmpeg")
+
+    command = captured[-1]
+    assert result["fallback"] is True
+    assert "-map" in command and "0:a?" in command
+    assert "+faststart" in command
+    assert command[-1].endswith("clip_x2.mp4")
+
+
+def test_realesrgan_video_pipeline_uses_frames_and_audio(
+    tmp_path: Path,
+    fake_ffmpeg: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "clip.mp4"
+    source.write_bytes(b"MP4")
+    target = tmp_path / "out.mp4"
+    captured: list[list[str]] = []
+
+    def fake_run(argv, **kwargs):
+        captured.append([str(item) for item in argv])
+        return None
+
+    monkeypatch.setattr(vision_tools.commands, "run", fake_run)
+
+    vision_tools._realesrgan_video(
+        source, target, binary="/usr/bin/realesrgan-ncnn-vulkan", scale=2
+    )
+
+    assert len(captured) == 3
+    assert "frame-%08d.png" in " ".join(captured[0])
+    assert captured[1][-4:] == ["-o", str(captured[1][-3]), "-s", "2"] or "2" in captured[1]
+    assert "1:a?" in captured[2]
+    assert "+faststart" in captured[2]

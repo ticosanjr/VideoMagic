@@ -98,6 +98,7 @@ def test_word_times_are_exact_source_samples(
     assert engine.seen["word_timestamps"] is True
     assert engine.seen["vad_filter"] is False
     assert engine.seen["language"] == "en"
+    assert adapter.last_language == "en"
 
 
 def test_full_wav_and_vad_filter_are_passed_to_the_engine(

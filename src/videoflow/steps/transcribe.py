@@ -14,6 +14,7 @@ from videoflow.adapters.asr import WhisperHttpAdapter
 from videoflow.adapters.faster_whisper import FasterWhisperAdapter
 from videoflow.adapters.whisper import WhisperCliAdapter
 from videoflow.application.asr_profiles import resolve_asr_plan
+from videoflow.application.language import detect_text_language
 from videoflow.application.secrets import get_secret
 from videoflow.application.sync import onset_offset_ms, report_for, shift_sentences
 from videoflow.core.context import PipelineContext
@@ -66,6 +67,41 @@ class TranscribeParams(BaseModel):
     offset_mode: Literal["off", "auto", "fixed"] | None = None
     offset_ms: int | None = None
     drift_threshold_ms: int | None = None
+
+
+def _record_language(
+    context: PipelineContext,
+    language: str,
+    confidence: float,
+    *,
+    source: str,
+) -> None:
+    detected = (language or "").strip().lower()
+    if not detected and context.transcript:
+        detected, confidence = detect_text_language(
+            " ".join(sentence.text for sentence in context.transcript)
+        )
+        source = f"{source}:text"
+    context.transcript_language = detected
+    context.language_confidence = max(0.0, min(1.0, float(confidence or 0.0)))
+    if context.state is not None and detected:
+        context.state = context.state.model_copy(
+            update={
+                "language": detected,
+                "language_confidence": context.language_confidence,
+            }
+        )
+    payload = {
+        "language": detected,
+        "confidence": round(context.language_confidence, 4),
+        "source": source,
+    }
+    context.metadata["language_detection"] = payload
+    target = context.output / "transcript" / "language.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    context.artifacts["language_detection"] = str(target)
+    context.hashes["language"] = digest_payload(payload)
 
 
 def _supports_keyword(function: object, name: str) -> bool:
@@ -208,6 +244,7 @@ class TranscribeStep(BaseStep):
             context.transcript_source = "srt"
             if not context.transcript:
                 raise TranscriptionError("The subtitle file contains no usable sentences")
+            _record_language(context, "", 0.0, source="srt")
             context.hashes["transcribe"] = digest_payload(
                 [sentence.model_dump(mode="json") for sentence in context.transcript]
             )
@@ -242,6 +279,12 @@ class TranscribeStep(BaseStep):
                     context.transcript = []
                 if context.transcript:
                     context.transcript_source = str(cached.get("source", mode))
+                    context.transcript_language = str(cached.get("language", ""))
+                    context.language_confidence = float(
+                        cached.get("language_confidence", 0.0) or 0.0
+                    )
+                    if not context.transcript_language:
+                        _record_language(context, "", 0.0, source="cache")
                     context.hashes["transcribe"] = key
                     context.cache_hits.append("transcribe")
                     io.emit("info", f"{len(context.transcript)} sentences from cache")
@@ -377,6 +420,13 @@ class TranscribeStep(BaseStep):
         if not transcript:
             raise TranscriptionError("Speech-to-text returned no sentences")
         context.transcript = list(transcript)
+        _record_language(
+            context,
+            str(getattr(client, "last_language", "") or "")
+            or (options.language if options.language != "auto" else ""),
+            float(getattr(client, "last_language_probability", 0.0) or 0.0),
+            source=mode,
+        )
         offset_mode = options.offset_mode or (
             settings.speech.offset_mode if settings is not None else "off"
         )
@@ -435,6 +485,8 @@ class TranscribeStep(BaseStep):
                 {
                     "sentences": [sentence.model_dump(mode="json") for sentence in transcript],
                     "source": mode,
+                    "language": context.transcript_language,
+                    "language_confidence": context.language_confidence,
                 },
             )
         io.emit("info", f"{len(transcript)} sentences from {mode}")

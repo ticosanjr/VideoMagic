@@ -42,6 +42,8 @@ class PipelineContext(BaseModel):
     vad_engine: str = "none"
     transcript: list[Sentence] = Field(default_factory=list)
     transcript_source: str = "none"
+    transcript_language: str = ""
+    language_confidence: float = 0.0
     discard_sentence_ids: list[int] = Field(default_factory=list)
     restored_sentence_ids: list[int] = Field(default_factory=list)
     manual_overrides: list[ManualOverride] = Field(default_factory=list)
@@ -55,12 +57,8 @@ class PipelineContext(BaseModel):
     cache_misses: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
     selected_shorts: list[Any] = Field(default_factory=list, exclude=True, repr=False)
-    port_outputs: dict[str, dict[str, Any]] = Field(
-        default_factory=dict, exclude=True, repr=False
-    )
-    port_hashes: dict[str, dict[str, str]] = Field(
-        default_factory=dict, exclude=True, repr=False
-    )
+    port_outputs: dict[str, dict[str, Any]] = Field(default_factory=dict, exclude=True, repr=False)
+    port_hashes: dict[str, dict[str, str]] = Field(default_factory=dict, exclude=True, repr=False)
     node_output: Path | None = Field(default=None, exclude=True, repr=False)
 
     def artifact_root(self) -> Path:

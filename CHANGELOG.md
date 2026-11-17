@@ -1,5 +1,33 @@
 # Changelog
 
+## [2.91.3] - 2026-11-17
+
+### Added
+
+- Shared optional vision backend discovery for MediaPipe, YOLO, OpenCV, and motion.
+- Automatic reframe tracking resolution: MediaPipe → local YOLO → OpenCV Haar → motion.
+- Focus-gap interpolation, smoothing, and `vision/tracking.json` with the concrete
+  backend, detections, frames, and fallback reason.
+- `settings.vision` with tracking backend, YOLO model/confidence, MediaPipe model,
+  smoothing, and sample FPS.
+- Optional `tracking` and `alignment` extras.
+- Auto language detection for Faster-Whisper, whisper.cpp, and HTTP ASR, with a
+  `langdetect`/stopword fallback for SRT.
+- Detected language persisted in `ProjectState`, pipeline context, metadata, and
+  `transcript/language.json`; translation reuses it.
+- Forced alignment reports detected language/confidence and reuses the project language.
+- `docs/upscale.md` and expanded tracking/language/parity documentation.
+
+### Fixed
+
+- Remote image upscale now uses the source extension instead of `upscaled.mp4`.
+- Real-ESRGAN video upscale extracts frames, preserves original audio, and
+  re-encodes H.264/AAC with faststart.
+- Upscale cache keys include the concrete backend, so Lanczos cannot shadow
+  Real-ESRGAN or remote results.
+- Upscale output is limited to 8192px and metadata records dimensions/fallback.
+- FFmpeg video upscale preserves audio and adds `+faststart`.
+
 ## [2.91.2] - 2026-11-17
 
 ### Changed

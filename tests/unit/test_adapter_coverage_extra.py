@@ -182,9 +182,7 @@ def test_opencode_parses_fenced_and_bare_json(
     monkeypatch.setattr(
         oc_module.subprocess,
         "run",
-        lambda command, **kwargs: subprocess.CompletedProcess(
-            command, 0, stdout=stdout, stderr=""
-        ),
+        lambda command, **kwargs: subprocess.CompletedProcess(command, 0, stdout=stdout, stderr=""),
     )
 
     assert OpenCodeLlm().complete_json("prompt", "schema") == expected
@@ -198,9 +196,7 @@ def test_opencode_rejects_unusable_or_non_object_json(
     monkeypatch.setattr(
         oc_module.subprocess,
         "run",
-        lambda command, **kwargs: subprocess.CompletedProcess(
-            command, 0, stdout=stdout, stderr=""
-        ),
+        lambda command, **kwargs: subprocess.CompletedProcess(command, 0, stdout=stdout, stderr=""),
     )
 
     with pytest.raises(LlmError):
@@ -370,9 +366,7 @@ def test_vision_analyze_parses_fenced_json_content() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"choices": [{"message": {"content": fenced}}]})
 
-    assert _vision_client(httpx.MockTransport(handler)).analyze([], "Prompt") == {
-        "scene": "fenced"
-    }
+    assert _vision_client(httpx.MockTransport(handler)).analyze([], "Prompt") == {"scene": "fenced"}
 
 
 @pytest.mark.parametrize("content", ["not json", "[1, 2]"])
@@ -726,9 +720,7 @@ class _SileroSession:
         self.probabilities = probabilities
         self.calls = 0
 
-    def run(
-        self, output_names: list[str], inputs: dict[str, object]
-    ) -> tuple[np.ndarray, object]:
+    def run(self, output_names: list[str], inputs: dict[str, object]) -> tuple[np.ndarray, object]:
         assert output_names == ["output", "stateN"]
         probability = self.probabilities[self.calls]
         self.calls += 1
@@ -848,9 +840,7 @@ def test_silero_reports_a_missing_model(tmp_path: Path) -> None:
         adapter.detect(_write_wav(tmp_path / "audio.wav"))
 
 
-def test_silero_requires_onnxruntime(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_silero_requires_onnxruntime(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     model = tmp_path / "model.onnx"
     model.write_bytes(b"model")
     monkeypatch.setitem(sys.modules, "onnxruntime", None)
@@ -865,9 +855,7 @@ def test_silero_loads_a_valid_model_and_detects_speech(
 ) -> None:
     model = tmp_path / "model.onnx"
     model.write_bytes(b"model")
-    monkeypatch.setitem(
-        sys.modules, "onnxruntime", _fake_ort(_ort_session([0.1, 0.8, 0.1]))
-    )
+    monkeypatch.setitem(sys.modules, "onnxruntime", _fake_ort(_ort_session([0.1, 0.8, 0.1])))
     adapter = SileroVadAdapter(
         model=model,
         min_silence_ms=0,
@@ -897,9 +885,7 @@ def test_silero_rejects_an_incompatible_model(
         adapter.detect(_write_wav(tmp_path / "audio.wav"))
 
 
-def test_silero_reports_model_load_failure(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_silero_reports_model_load_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     model = tmp_path / "model.onnx"
     model.write_bytes(b"model")
 
@@ -1021,10 +1007,14 @@ def test_track_focus_x_uses_face_tracking_when_available(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setattr(tracking, "frames_from_pieces", lambda *args, **kwargs: _motion_frames())
-    monkeypatch.setattr(tracking, "_face_focus", lambda frames: 0.42)
+    monkeypatch.setattr(tracking, "_face_centers", lambda frames: [0.42] * len(frames))
 
     assert tracking.track_focus_x(
-        tmp_path / "source.mp4", [(0, 16000)], 16000, mode="face_tracking"
+        tmp_path / "source.mp4",
+        [(0, 16000)],
+        16000,
+        mode="face_tracking",
+        backend="opencv_haar",
     ) == (0.42, "face_tracking")
 
 
@@ -1163,9 +1153,7 @@ def _install_fake_cv2(
     return detector_paths
 
 
-def test_face_focus_averages_face_centers(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_face_focus_averages_face_centers(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     paths = _install_fake_cv2(monkeypatch, tmp_path, [(10, 5, 20, 10)])
 
     assert tracking._face_focus(_motion_frames()) == pytest.approx(0.3125)  # noqa: SLF001
@@ -1197,9 +1185,7 @@ class _FakeLlm:
         return {"emojis": {"fire": "🔥", "ok": "✅"}}
 
 
-def _write_project(
-    output: Path, sentences: list[tuple[int, int, str]]
-) -> ProjectState:
+def _write_project(output: Path, sentences: list[tuple[int, int, str]]) -> ProjectState:
     state = ProjectState(
         transcript=[
             Sentence(id=index, start_sample=start, end_sample=end, text=text)
@@ -1427,9 +1413,7 @@ def test_apply_llm_emoji_requires_a_completed_project(tmp_path: Path) -> None:
     "clips",
     [None, "not-a-list", [{"pieces": []}, {"pieces": []}]],
 )
-def test_apply_llm_emoji_validates_the_short_index(
-    tmp_path: Path, clips: object
-) -> None:
+def test_apply_llm_emoji_validates_the_short_index(tmp_path: Path, clips: object) -> None:
     output = tmp_path / "output"
     _write_project(output, [(0, 100, "First")])
     report = {"clips": clips} if clips is not None else {}
@@ -1537,9 +1521,7 @@ def test_sample_frames_uses_duration_and_keeps_successful_frames(
     assert len(commands) == 4
     assert commands[0][0] == "/usr/bin/ffprobe"
     timestamps = [
-        command[command.index("-ss") + 1]
-        for command in commands
-        if command[0] == "/usr/bin/ffmpeg"
+        command[command.index("-ss") + 1] for command in commands if command[0] == "/usr/bin/ffmpeg"
     ]
     assert timestamps == ["7.500", "15.000", "22.500"]
     assert "scale=320:-1" in commands[1]
@@ -1636,9 +1618,7 @@ def test_analyze_short_llm_entry_updates_the_in_memory_and_written_entry(
         return {"scene": "office"}
 
     monkeypatch.setattr(mm_module, "analyze_short_llm", fake_analyze)
-    result: dict[str, object] = {
-        "shorts": [{"path": str(tmp_path / "short.mp4"), "index": 0}]
-    }
+    result: dict[str, object] = {"shorts": [{"path": str(tmp_path / "short.mp4"), "index": 0}]}
 
     analysis = analyze_short_llm_entry(
         output=output,
@@ -1675,9 +1655,7 @@ def test_analyze_short_llm_entry_falls_back_to_the_result_shorts(
     output = tmp_path / "output"
     output.mkdir()
     (output / "shorts.json").write_text(json.dumps({"clips": "invalid"}), encoding="utf-8")
-    monkeypatch.setattr(
-        mm_module, "analyze_short_llm", lambda path, **kwargs: {"scene": "x"}
-    )
+    monkeypatch.setattr(mm_module, "analyze_short_llm", lambda path, **kwargs: {"scene": "x"})
     result: dict[str, object] = {"shorts": [{"path": "/tmp/short.mp4"}]}
 
     analyze_short_llm_entry(
@@ -1698,9 +1676,7 @@ def test_analyze_short_llm_entry_falls_back_to_the_result_shorts(
 def test_analyze_short_llm_entry_requires_a_readable_report(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(
-        mm_module, "analyze_short_llm", lambda path, **kwargs: {"scene": "x"}
-    )
+    monkeypatch.setattr(mm_module, "analyze_short_llm", lambda path, **kwargs: {"scene": "x"})
 
     with pytest.raises(StateNotReadyError, match="Cannot read Shorts report"):
         analyze_short_llm_entry(

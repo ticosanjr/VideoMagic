@@ -33,7 +33,7 @@ drift over an hour.
 | --- | --- | --- |
 | `engine` | `auto` | `auto`, `faster-whisper`, or `whisper.cpp` |
 | `model_size` | `small` | tiny/base/small/medium/large-v3 |
-| `language` | `pt` | pt/it/en/es/auto |
+| `language` | `pt` | MediaLanguage codes or `auto` |
 | `device` | `cpu` | cpu/cuda |
 | `compute_type` | `int8` | int8/float16/float32 |
 | `vad_filter` | `false` | Faster-Whisper's own VAD; keep off when module 02 is enabled |
@@ -50,6 +50,25 @@ a missing package, model, or CUDA runtime fails with an actionable message.
 
 An `asr_base_url` still takes precedence over both local engines. An SRT or a
 project transcript takes precedence over every engine.
+
+### Auto language detection
+
+With `language="auto"`, Faster-Whisper and WhisperX return the detected language
+and probability; whisper.cpp is parsed from its `auto-detected language` line.
+The result is stored in:
+
+- `context.transcript_language` and `context.language_confidence`;
+- `ProjectState.language` and `language_confidence`;
+- `context.metadata["language_detection"]`;
+- `output/transcript/language.json`.
+
+For SRT imports or engines without detection, VideoFlow uses `langdetect` when
+installed and then a conservative stopword hint (`pt`, `en`, `es`, `it`, `fr`,
+`de`). Ambiguous samples stay empty instead of guessing. Translation with
+`source_language="auto"` reuses the detected language.
+
+Forced alignment (`alignment.forced`) also reuses or persists the detected
+language and includes it in `alignment/forced.json`.
 
 ### Local models
 

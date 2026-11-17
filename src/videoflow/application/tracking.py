@@ -8,10 +8,16 @@ from __future__ import annotations
 
 import subprocess
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 
+from videoflow.application.vision_backends import (
+    mediapipe_model_selection,
+    resolve_tracking_backend,
+    yolo_model_path,
+)
 from videoflow.domain.errors import IngestError
 from videoflow.runtime import find_binary
 
@@ -43,18 +49,17 @@ def _face_centers(frames: np.ndarray) -> list[float | None]:
         if not len(faces):
             centers.append(None)
             continue
-        x, _y, width, _height = max(
-            faces, key=lambda item: int(item[2]) * int(item[3])
-        )
+        x, _y, width, _height = max(faces, key=lambda item: int(item[2]) * int(item[3]))
         centers.append((x + width / 2) / max(1, frame.shape[1]))
     return centers
 
 
-def _face_centers_mediapipe(frames: np.ndarray) -> list[float | None]:
+def _face_centers_mediapipe(frames: np.ndarray, *, model_selection: int = 1) -> list[float | None]:
     import mediapipe as mp  # type: ignore[import-not-found]
 
     detector = mp.solutions.face_detection.FaceDetection(
-        model_selection=1, min_detection_confidence=0.4
+        model_selection=mediapipe_model_selection(model_selection),
+        min_detection_confidence=0.4,
     )
     centers: list[float | None] = []
     try:
@@ -67,10 +72,10 @@ def _face_centers_mediapipe(frames: np.ndarray) -> list[float | None]:
                 continue
             best = max(
                 detections,
-                key=lambda item: float(
-                    item.location_data.relative_bounding_box.width
-                )
-                * float(item.location_data.relative_bounding_box.height),
+                key=lambda item: (
+                    float(item.location_data.relative_bounding_box.width)
+                    * float(item.location_data.relative_bounding_box.height)
+                ),
             )
             box = best.location_data.relative_bounding_box
             centers.append(float(box.xmin + box.width / 2))
@@ -79,21 +84,19 @@ def _face_centers_mediapipe(frames: np.ndarray) -> list[float | None]:
     return centers
 
 
-def _face_centers_yolo(frames: np.ndarray) -> list[float | None]:
-    import os
-
+def _face_centers_yolo(
+    frames: np.ndarray, *, model_path: str = "", confidence: float = 0.35
+) -> list[float | None]:
     from ultralytics import YOLO  # type: ignore[import-not-found]
 
-    model_path = os.environ.get("VIDEOWFLOW_YOLO_MODEL", "")
-    if not model_path:
+    resolved = yolo_model_path(model_path)
+    if not resolved:
         raise ImportError("Set VIDEOWFLOW_YOLO_MODEL to a local YOLO model file.")
-    if not Path(model_path).expanduser().is_file():
-        raise ImportError(f"YOLO model does not exist: {model_path}")
-    model = YOLO(str(Path(model_path).expanduser()))
+    model = YOLO(resolved)
     centers: list[float | None] = []
     for frame in frames:
         rgb = np.stack([frame] * 3, axis=-1)
-        results = model.predict(rgb, verbose=False)
+        results = model.predict(rgb, conf=confidence, verbose=False)
         boxes = []
         for result in results:
             for box in getattr(result, "boxes", []) or []:
@@ -128,6 +131,131 @@ def _motion_centers(frames: np.ndarray) -> list[float | None]:
     return centers
 
 
+@dataclass(frozen=True, slots=True)
+class TrackingResult:
+    keyframes: list[dict[str, float]]
+    backend: str
+    requested: str
+    reason: str
+    frames: int
+    detections: int
+
+
+def _fill_gaps(values: list[float | None]) -> list[float]:
+    filled = list(values)
+    for index, value in enumerate(filled):
+        if value is not None:
+            continue
+        previous = next(
+            (filled[i] for i in range(index - 1, -1, -1) if filled[i] is not None),
+            None,
+        )
+        following = next(
+            (filled[i] for i in range(index + 1, len(filled)) if filled[i] is not None),
+            None,
+        )
+        if previous is not None and following is not None:
+            # Linear interpolation between the nearest valid samples.
+            before = max(i for i in range(index) if filled[i] is not None)
+            after = next(i for i in range(index + 1, len(filled)) if filled[i] is not None)
+            ratio = (index - before) / max(1, after - before)
+            filled[index] = float(previous + (following - previous) * ratio)
+        elif previous is not None:
+            filled[index] = float(previous)
+        elif following is not None:
+            filled[index] = float(following)
+        else:
+            filled[index] = 0.5
+    return [float(value) for value in filled]
+
+
+def track_focus(
+    source: Path,
+    pieces: Sequence[tuple[int, int]],
+    sample_rate: int,
+    *,
+    mode: str = "motion_tracking",
+    smoothing: float = 0.85,
+    fps: int = 2,
+    backend: str = "",
+    yolo_model: str = "",
+    yolo_confidence: float = 0.35,
+    mediapipe_model: int = 1,
+) -> TrackingResult:
+    """Return focus keyframes plus the concrete backend and fallback reason."""
+
+    requested = backend or "auto"
+    resolved, reason = resolve_tracking_backend(requested, mode, yolo_model=yolo_model)
+    wide = resolved in {"mediapipe", "yolo"}
+    frames = frames_from_pieces(
+        source,
+        pieces,
+        sample_rate,
+        fps=fps,
+        width=256 if wide else 64,
+        height=144 if wide else 36,
+    )
+    if len(frames) == 0:
+        return TrackingResult(
+            [{"time_sec": 0.0, "focus_x": 0.5}],
+            "motion_tracking",
+            requested,
+            "no frames decoded",
+            0,
+            0,
+        )
+
+    values: list[float | None] = []
+    used = "motion_tracking"
+    if resolved == "mediapipe":
+        try:
+            values = _face_centers_mediapipe(frames, model_selection=mediapipe_model)
+            used = "mediapipe"
+        except Exception as exc:  # noqa: BLE001 - optional dependency
+            reason = f"mediapipe failed: {exc}"
+    elif resolved == "yolo":
+        try:
+            values = _face_centers_yolo(frames, model_path=yolo_model, confidence=yolo_confidence)
+            used = "yolo"
+        except Exception as exc:  # noqa: BLE001 - optional dependency/model
+            reason = f"yolo failed: {exc}"
+    elif resolved == "opencv_haar":
+        try:
+            values = _face_centers(frames)
+            used = "opencv_haar"
+        except Exception as exc:  # noqa: BLE001 - optional dependency
+            reason = f"opencv failed: {exc}"
+
+    detections = sum(1 for value in values if value is not None)
+    if not values or detections == 0:
+        values = _motion_centers(frames)
+        used = "motion_tracking"
+        if resolved != "motion_tracking":
+            reason = reason or "no face detections; used motion"
+        detections = sum(1 for value in values if value is not None)
+
+    filled = _fill_gaps(values)
+    weight = max(0.0, min(0.99, float(smoothing)))
+    smoothed = filled[0] if filled else 0.5
+    keyframes: list[dict[str, float]] = []
+    for index, value in enumerate(filled):
+        smoothed = weight * smoothed + (1.0 - weight) * value
+        keyframes.append(
+            {
+                "time_sec": round(index / max(1, fps), 3),
+                "focus_x": round(max(0.05, min(0.95, smoothed)), 4),
+            }
+        )
+    return TrackingResult(
+        keyframes,
+        used,
+        requested,
+        reason,
+        len(frames),
+        detections,
+    )
+
+
 def track_focus_keyframes(
     source: Path,
     pieces: Sequence[tuple[int, int]],
@@ -138,56 +266,54 @@ def track_focus_keyframes(
     fps: int = 2,
     backend: str = "",
 ) -> tuple[list[dict[str, float]], str]:
-    """Return a smoothed focus path for dynamic reframing."""
+    """Backward-compatible wrapper used by existing callers and tests."""
 
-    wide = backend in {"mediapipe", "yolo"}
-    frames = frames_from_pieces(
+    result = track_focus(
         source,
         pieces,
         sample_rate,
+        mode=mode,
+        smoothing=smoothing,
         fps=fps,
-        width=256 if wide else 64,
-        height=144 if wide else 36,
+        backend=backend,
     )
-    if len(frames) == 0:
-        return [{"time_sec": 0.0, "focus_x": 0.5}], "motion_tracking"
-    values: list[float | None] = []
-    used_mode = "motion_tracking"
-    if backend == "mediapipe":
-        try:
-            values = _face_centers_mediapipe(frames)
-            used_mode = "mediapipe"
-        except ImportError:
-            values = []
-    elif backend == "yolo":
-        try:
-            values = _face_centers_yolo(frames)
-            used_mode = "yolo"
-        except ImportError:
-            values = []
-    elif mode in {"face_tracking", "auto_face_tracking_yolo"}:
-        try:
-            values = _face_centers(frames)
-        except ImportError:
-            values = []
-        if any(value is not None for value in values):
-            used_mode = "face_tracking"
-    if not values or not any(value is not None for value in values):
-        values = _motion_centers(frames)
-        used_mode = "motion_tracking"
-    weight = max(0.0, min(0.99, float(smoothing)))
-    smoothed = 0.5
-    keyframes: list[dict[str, float]] = []
-    for index, value in enumerate(values):
-        target = value if value is not None else smoothed
-        smoothed = weight * smoothed + (1.0 - weight) * target
-        keyframes.append(
-            {
-                "time_sec": round(index / max(1, fps), 3),
-                "focus_x": round(max(0.05, min(0.95, smoothed)), 4),
-            }
-        )
-    return keyframes, used_mode
+    legacy = (
+        "face_tracking"
+        if result.backend in {"opencv_haar", "mediapipe", "yolo"}
+        else "motion_tracking"
+    )
+    return result.keyframes, legacy
+
+
+def track_focus_x_report(
+    source: Path,
+    pieces: Sequence[tuple[int, int]],
+    sample_rate: int,
+    *,
+    mode: str = "motion_tracking",
+    backend: str = "",
+    yolo_model: str = "",
+    yolo_confidence: float = 0.35,
+    mediapipe_model: int = 1,
+) -> tuple[float, TrackingResult]:
+    result = track_focus(
+        source,
+        pieces,
+        sample_rate,
+        mode=mode,
+        smoothing=0.85,
+        fps=2,
+        backend=backend,
+        yolo_model=yolo_model,
+        yolo_confidence=yolo_confidence,
+        mediapipe_model=mediapipe_model,
+    )
+    focus = (
+        sum(item["focus_x"] for item in result.keyframes) / len(result.keyframes)
+        if result.keyframes
+        else 0.5
+    )
+    return focus, result
 
 
 def track_focus_x(
@@ -196,17 +322,15 @@ def track_focus_x(
     sample_rate: int,
     *,
     mode: str = "motion_tracking",
+    backend: str = "",
 ) -> tuple[float, str]:
-    frames = frames_from_pieces(source, pieces, sample_rate)
-    if mode == "face_tracking":
-        try:
-            face_focus = _face_focus(frames)
-        except ImportError:
-            face_focus = None
-        if face_focus is not None:
-            return face_focus, "face_tracking"
-        return focus_x_from_frames(frames), "motion_tracking"
-    return focus_x_from_frames(frames), "motion_tracking"
+    focus, result = track_focus_x_report(source, pieces, sample_rate, mode=mode, backend=backend)
+    legacy = (
+        "face_tracking"
+        if result.backend in {"opencv_haar", "mediapipe", "yolo"}
+        else "motion_tracking"
+    )
+    return focus, legacy
 
 
 def frames_from_pieces(
