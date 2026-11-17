@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.91.7] - 2026-11-17
+
+### Fixed
+
+- Step-state handoff only persists artifacts inside the project output or a
+  configured allowed root.
+- README documents the tools-only MCP surface accurately.
+
 ## [2.91.6] - 2026-11-17
 
 ### Changed

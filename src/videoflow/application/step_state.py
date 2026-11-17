@@ -30,6 +30,23 @@ def _read(path: Path) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _allowed_path(path: Path, output: Path | str) -> bool:
+    """Keep persisted paths inside the project or a configured allowed root."""
+
+    resolved = path.resolve()
+    root = Path(output).expanduser().resolve()
+    if resolved == root or resolved.is_relative_to(root):
+        return True
+    try:
+        from videoflow.domain.paths import resolve_allowed
+        from videoflow.runtime import allowed_roots
+
+        resolve_allowed(path, allowed_roots())
+        return True
+    except Exception:  # noqa: BLE001 - path jail or settings are advisory here
+        return False
+
+
 def _json_safe(value: Any) -> Any:
     try:
         encoded = json.dumps(value, default=str)
@@ -49,7 +66,7 @@ def load_step_state(output: Path | str) -> tuple[dict[str, str], dict[str, Any]]
         if not isinstance(value, str) or not value.strip():
             continue
         path = Path(value).expanduser()
-        if path.is_file():
+        if path.is_file() and _allowed_path(path, output):
             live[str(key)] = str(path)
     return live, dict(metadata)
 
@@ -66,7 +83,7 @@ def save_step_state(
         if not isinstance(value, str) or not value.strip():
             continue
         candidate = Path(value).expanduser()
-        if candidate.is_file():
+        if candidate.is_file() and _allowed_path(candidate, output):
             merged_artifacts[str(key)] = str(candidate)
     merged_metadata = dict(existing_metadata)
     merged_metadata.update(_json_safe(metadata or {}))

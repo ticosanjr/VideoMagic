@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "videoflow-gpu-worker"
-version = "2.91.6"
+version = "2.91.7"
 description = "Isolated GPU inference worker for VideoFlow 2.90."
 readme = "README.md"
 requires-python = ">=3.11"

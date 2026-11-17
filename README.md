@@ -220,10 +220,11 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   audio fades, and the FCPXML output validates against Apple's 1.9 DTD.
 - Pure domain: rational time, cache hashing, planning, retake guard, path jail,
   redaction, schema generation.
-- MCP server with seventy-four live tools and five resources: media ingest,
-  capability discovery, recipe runs, transcript reads, timeline edits, shorts,
-  jobs, NLE export, and project state/preset/export resources. Streamable HTTP
-  is mounted on the local API.
+- MCP server with thirteen core tools and thirteen resources: project setup,
+  node catalog, step execution, jobs, timeline edits, artifacts, render, NLE
+  export, and project state/preset/export resources. Recipes are intentionally
+  not exposed through MCP; the UI, CLI, and REST keep the recipe engine.
+  Streamable HTTP is mounted on the local API.
 - Unified CLI (`version`, `doctor`, `shorts`, `recipe`, `serve`, `status`,
   `restart`, `stop`, `mcp`) and a PyInstaller onefile build for Linux and
   Windows.

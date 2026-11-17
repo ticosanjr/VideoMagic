@@ -59,3 +59,12 @@ def test_step_state_skips_oversized_and_unserializable_metadata(tmp_path: Path) 
 
     save_step_state(output, {}, {"broken": Broken()})
     assert "broken" not in load_step_state(output)[1]
+
+
+def test_step_state_rejects_paths_outside_project_and_allowed_roots(tmp_path: Path) -> None:
+    output = tmp_path / "out"
+    output.mkdir()
+    outside = tmp_path / "outside.wav"
+    outside.write_bytes(b"x")
+    save_step_state(output, {"outside": str(outside)})
+    assert load_step_state(output)[0] == {}
