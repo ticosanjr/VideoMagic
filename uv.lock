@@ -5506,7 +5506,7 @@ wheels = [
 
 [[package]]
 name = "vf-compute"
-version = "2.91.5"
+version = "2.91.6"
 source = { editable = "packages/vf-compute" }
 dependencies = [
     { name = "httpx" },
@@ -5521,7 +5521,7 @@ requires-dist = [
 
 [[package]]
 name = "vf-contracts"
-version = "2.91.5"
+version = "2.91.6"
 source = { editable = "packages/vf-contracts" }
 dependencies = [
     { name = "pydantic" },
@@ -5532,7 +5532,7 @@ requires-dist = [{ name = "pydantic", specifier = ">=2" }]
 
 [[package]]
 name = "videoflow"
-version = "2.91.5"
+version = "2.91.6"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
@@ -5643,7 +5643,7 @@ dev = [{ name = "pyinstaller", specifier = ">=6.10" }]
 
 [[package]]
 name = "videoflow-mcp-audio"
-version = "2.91.5"
+version = "2.91.6"
 source = { editable = "packages/mcp-audio" }
 dependencies = [
     { name = "mcp" },
@@ -5666,7 +5666,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "videoflow-mcp-fetch"
-version = "2.91.5"
+version = "2.91.6"
 source = { editable = "packages/mcp-fetch" }
 dependencies = [
     { name = "httpx" },
@@ -5685,7 +5685,7 @@ requires-dist = [
 
 [[package]]
 name = "videoflow-mcp-vision"
-version = "2.91.5"
+version = "2.91.6"
 source = { editable = "packages/mcp-vision" }
 dependencies = [
     { name = "mcp" },

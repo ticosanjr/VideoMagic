@@ -13,7 +13,7 @@ import pytest
 
 from videoflow.application.shorts import ShortClip
 from videoflow.core.context import PipelineContext
-from videoflow.domain.errors import IngestError, TranscriptionError
+from videoflow.domain.errors import ExportError, IngestError, TranscriptionError
 from videoflow.domain.state import (
     AudioSegment,
     MediaInfo,
@@ -213,9 +213,7 @@ def test_asset_index_skips_without_directory_and_indexes_files(tmp_path: Path) -
     (library / "photo.png").write_bytes(b"x")
     (library / "notes.txt").write_text("ignore", encoding="utf-8")
 
-    AssetIndexStep().run(
-        context, AssetIndexParams(asset_dir=str(library), tags=["doc"]), io
-    )
+    AssetIndexStep().run(context, AssetIndexParams(asset_dir=str(library), tags=["doc"]), io)
     payload = json.loads((context.output / "assets-index.json").read_text(encoding="utf-8"))
     assert payload["ok"] is True
     assert len(payload["assets"]) == 2
@@ -295,9 +293,7 @@ def test_audio_master_and_qa_measure_and_warn(
     def broken_settings() -> object:
         raise RuntimeError("settings exploded")
 
-    monkeypatch.setattr(
-        "videoflow.application.settings.load_settings", broken_settings
-    )
+    monkeypatch.setattr("videoflow.application.settings.load_settings", broken_settings)
     AudioQaStep().run(context, AudioQaParams(), StepIO())
     assert context.artifacts["audio_qa"].endswith("qa.json")
 
@@ -312,13 +308,9 @@ def test_color_grade_lut_validation_and_eq_filters(tmp_path: Path) -> None:
         )
 
     ColorGradeStep().run(context, ColorGradeParams(), StepIO())
-    filters = json.loads(
-        (context.output / "color" / "filters.json").read_text(encoding="utf-8")
-    )
+    filters = json.loads((context.output / "color" / "filters.json").read_text(encoding="utf-8"))
     assert filters == {"filters": [], "lut": ""}
-    assert ColorGradeStep().cache_outputs(context) == (
-        context.output / "color" / "filters.json",
-    )
+    assert ColorGradeStep().cache_outputs(context) == (context.output / "color" / "filters.json",)
 
     lut = tmp_path / "look.cube"
     lut.write_text("LUT", encoding="utf-8")
@@ -327,9 +319,7 @@ def test_color_grade_lut_validation_and_eq_filters(tmp_path: Path) -> None:
         ColorGradeParams(lut_path=str(lut), brightness=0.1, contrast=1.2, gamma=1.1),
         StepIO(),
     )
-    filters = json.loads(
-        (context.output / "color" / "filters.json").read_text(encoding="utf-8")
-    )
+    filters = json.loads((context.output / "color" / "filters.json").read_text(encoding="utf-8"))
     assert filters["filters"][0].startswith("lut3d=")
     assert "eq=brightness=0.1:contrast=1.2" in filters["filters"][1]
     assert filters["lut"] == str(lut)
@@ -397,13 +387,9 @@ def test_thumbnail_variants_use_adapter_and_cache_outputs(
 
     _FakeFFmpeg.thumbnails.clear()
     context.media = make_media(tmp_path)
-    ThumbnailStep().run(
-        context, ThumbnailParams(variants=3, title="Cover"), StepIO()
-    )
+    ThumbnailStep().run(context, ThumbnailParams(variants=3, title="Cover"), StepIO())
     assert len(_FakeFFmpeg.thumbnails) == 3
-    assert context.artifacts["thumbnail"] == str(
-        context.output / "thumbnails" / "thumbnail-1.png"
-    )
+    assert context.artifacts["thumbnail"] == str(context.output / "thumbnails" / "thumbnail-1.png")
     assert len(context.metadata["thumbnails"]) == 3
     assert context.metadata["thumbnail_title"] == "Cover"
     assert len(ThumbnailStep().cache_outputs(context)) == 3
@@ -431,9 +417,7 @@ def test_analytics_import_numeric_averages_and_errors(tmp_path: Path) -> None:
 
     csv_path = tmp_path / "metrics.csv"
     csv_path.write_text(
-        "title,duration_sec,retention\n"
-        "a,10,0.5\n"
-        "b,20,0.7\n",
+        "title,duration_sec,retention\na,10,0.5\nb,20,0.7\n",
         encoding="utf-8",
     )
     AnalyticsStep().run(context, AnalyticsParams(csv_path=str(csv_path)), StepIO())
@@ -701,9 +685,7 @@ def test_nle_qa_writes_a_report(tmp_path: Path) -> None:
 
     context = make_context(tmp_path)
     NleQaStep().run(context, NleQaParams(), StepIO())
-    report = json.loads(
-        (context.output / "exports" / "qa-report.json").read_text(encoding="utf-8")
-    )
+    report = json.loads((context.output / "exports" / "qa-report.json").read_text(encoding="utf-8"))
     assert report["ok"] is False
     assert set(report["exports"]) == {"fcpxml", "xmeml", "kdenlive"}
     assert context.artifacts["nle_qa"].endswith("qa-report.json")
@@ -738,9 +720,7 @@ def test_delivery_package_edges_without_winner_or_music(tmp_path: Path) -> None:
     )
     assert manifest["thumbnail"] == ""
     assert not (context.output / "delivery" / "thumbnail.png").exists()
-    assert manifest["shorts"] == [
-        {"index": 0, "title": "kept", "path": "", "thumbnail": ""}
-    ]
+    assert manifest["shorts"] == [{"index": 0, "title": "kept", "path": "", "thumbnail": ""}]
     assert manifest["music"] == []
     assert manifest["sfx"] == ["/sfx/whoosh.wav"]
     assert context.metadata["delivery_package"] == manifest
@@ -840,12 +820,8 @@ def test_flow_collection_sources(tmp_path: Path) -> None:
     assert len(_collection(context, FlowParams(over="shorts"))) == 1
     context.transcript = [sentence(0)]
     assert len(_collection(context, FlowParams(over="sentences"))) == 1
-    assert len(
-        _collection(context, FlowParams(over="files", glob="**/*.mp4", max_items=10))
-    ) == 2
-    assert len(
-        _collection(context, FlowParams(over="files", glob="*.mp4", max_items=1))
-    ) == 1
+    assert len(_collection(context, FlowParams(over="files", glob="**/*.mp4", max_items=10))) == 2
+    assert len(_collection(context, FlowParams(over="files", glob="*.mp4", max_items=1))) == 1
     assert _collection(context, FlowParams(over="scenes")) == []
     context.state = make_state(tmp_path)
     assert len(_collection(context, FlowParams(over="scenes"))) == 1
@@ -902,9 +878,7 @@ def test_conditional_branches_and_nested_flow(tmp_path: Path) -> None:
     assert "finished" in reports[-1]
 
 
-def test_subflow_runs_inline_and_recipe(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_subflow_runs_inline_and_recipe(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from videoflow.steps import flow
     from videoflow.steps.flow import FlowParams, FlowStepSpec, SubflowStep
 
@@ -912,9 +886,7 @@ def test_subflow_runs_inline_and_recipe(
     SubflowStep().run(context, FlowParams(), StepIO())
     assert context.metadata == {}
 
-    recipe = SimpleNamespace(
-        steps=[SimpleNamespace(type="content.idea", params={})]
-    )
+    recipe = SimpleNamespace(steps=[SimpleNamespace(type="content.idea", params={})])
     monkeypatch.setattr(flow, "_recipe_steps", flow._recipe_steps)
     import videoflow.engine.recipes as recipes
 
@@ -1151,9 +1123,7 @@ def test_flow_file_scanning_survives_relative_path_errors(
     assert len(looped.metadata["loop_runs"]) == 1
 
 
-def test_map_parallel_success_path(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_map_parallel_success_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from videoflow.steps import flow
     from videoflow.steps.flow import FlowParams, FlowStepSpec, MapStep
 
@@ -1172,9 +1142,7 @@ def test_map_parallel_success_path(
             over="assets",
             parallel=2,
             collect="parallel",
-            steps=[
-                FlowStepSpec(type="analytics.import", params={"csv_path": str(metrics)})
-            ],
+            steps=[FlowStepSpec(type="analytics.import", params={"csv_path": str(metrics)})],
         ),
         StepIO(),
     )
@@ -1185,9 +1153,7 @@ def test_map_parallel_success_path(
     assert not any("capped" in warning for warning in context.warnings)
 
 
-def test_map_parallel_failure_propagates(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_map_parallel_failure_propagates(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from videoflow.steps.flow import FlowParams, FlowStepSpec, MapStep
 
     monkeypatch.setenv("VIDEOWFLOW_PROVIDER_CONCURRENCY", "2")
@@ -1478,9 +1444,7 @@ def test_score_llm_rerank_success_and_fallbacks(tmp_path: Path) -> None:
             selected_shorts=list(clips),
         )
         llm = FakeLlm(payload)
-        ShortsScoreStep().run(
-            context, ScoreParams(use_llm=True), StepIO(llm_client=llm)
-        )
+        ShortsScoreStep().run(context, ScoreParams(use_llm=True), StepIO(llm_client=llm))
         titles = [clip.title for clip in context.selected_shorts]
         assert len(titles) == 3
         assert llm.prompts
@@ -1602,9 +1566,7 @@ def test_transcribe_auto_mode_without_engine_warns(
         "VIDEOWFLOW_ASR_BASE_URL",
     ):
         monkeypatch.delenv(name, raising=False)
-    monkeypatch.setattr(
-        "videoflow.application.models.list_models", lambda: []
-    )
+    monkeypatch.setattr("videoflow.application.models.list_models", lambda: [])
     context = make_context(tmp_path, media_info=make_media(tmp_path))
     emitted: list[str] = []
     TranscribeStep().run(
@@ -1645,12 +1607,8 @@ def test_transcribe_available_mode_detection(
     assert TranscribeStep._available_mode(context, io) == "whisper_cpp"
 
     monkeypatch.delenv("VIDEOWFLOW_WHISPER_MODEL")
-    monkeypatch.setattr(
-        "videoflow.application.models.list_models", lambda: []
-    )
-    monkeypatch.setattr(
-        "videoflow.runtime.find_whisper_binary", lambda: None
-    )
+    monkeypatch.setattr("videoflow.application.models.list_models", lambda: [])
+    monkeypatch.setattr("videoflow.runtime.find_whisper_binary", lambda: None)
     monkeypatch.setenv("VIDEOWFLOW_ASR_BASE_URL", "http://asr.local/v1")
     assert TranscribeStep._available_mode(context, io) == "http"
 
@@ -1739,9 +1697,7 @@ def test_transcribe_whisper_and_faster_clients(
     assert cli_context.transcript_source == "whisper_cpp"
 
     monkeypatch.setattr(transcribe_module, "FasterWhisperAdapter", FakeFaster)
-    faster_context = make_context(
-        tmp_path / "faster", media_info=make_media(tmp_path / "faster")
-    )
+    faster_context = make_context(tmp_path / "faster", media_info=make_media(tmp_path / "faster"))
     TranscribeStep().run(
         faster_context,
         TranscribeParams(mode="faster_whisper", model_size="tiny", language="en"),
@@ -1774,9 +1730,7 @@ def test_transcribe_reports_faster_whisper_progress(tmp_path: Path) -> None:
         StepIO(
             adapter=FakePcmAdapter(),
             asr_client=FakeClient(),
-            progress=lambda stage, percent, message: reported.append(
-                (stage, percent, message)
-            ),
+            progress=lambda stage, percent, message: reported.append((stage, percent, message)),
         ),
     )
 
@@ -1794,9 +1748,7 @@ def test_transcribe_resumes_from_a_partial_checkpoint(tmp_path: Path) -> None:
         json.dumps(
             {
                 "source": "digest",
-                "sentences": [
-                    sentence(0, 0, 48000, "head").model_dump(mode="json")
-                ],
+                "sentences": [sentence(0, 0, 48000, "head").model_dump(mode="json")],
             }
         ),
         encoding="utf-8",
@@ -1863,9 +1815,7 @@ def test_transcribe_warns_about_large_models_on_cpu(tmp_path: Path) -> None:
         ),
     )
 
-    assert any(
-        level == "warning" and "slow on CPU" in message for level, message in emitted
-    )
+    assert any(level == "warning" and "slow on CPU" in message for level, message in emitted)
 
 
 def test_transcribe_settings_are_applied_and_errors_ignored(
@@ -1895,9 +1845,7 @@ def test_transcribe_settings_are_applied_and_errors_ignored(
             vad_filter=True,
         ),
     )
-    monkeypatch.setattr(
-        "videoflow.application.settings.load_settings", lambda: settings
-    )
+    monkeypatch.setattr("videoflow.application.settings.load_settings", lambda: settings)
     TranscribeStep().run(context, TranscribeParams(mode="project"), StepIO())
     assert context.transcript_source == "project"
     TranscribeStep().run(
@@ -1942,9 +1890,7 @@ def test_transcribe_cached_sentences_and_invalid_payload(
     assert context.cache_hits == []
 
     payloads["invalid"] = payloads["empty"]
-    empty_context = make_context(
-        tmp_path / "empty", media_info=make_media(tmp_path / "empty")
-    )
+    empty_context = make_context(tmp_path / "empty", media_info=make_media(tmp_path / "empty"))
     empty_context.pcm_digest = "pcm-digest"
     TranscribeStep().run(
         empty_context,
@@ -2052,3 +1998,70 @@ def test_transcribe_rejects_an_uninstalled_model_id(
             TranscribeParams(model_id="faster-whisper-tiny", mode="auto"),
             StepIO(adapter=FakePcmAdapter()),
         )
+
+
+def test_audio_master_renders_the_timeline_when_available(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from videoflow.steps import content_audio
+    from videoflow.steps.content import AudioMasterParams, AudioMasterStep
+
+    context = make_context(tmp_path)
+    media = make_media(tmp_path)
+    context.media = media
+    context.state = ProjectState(
+        sources={"src1": media},
+        audio_segments=[
+            AudioSegment(
+                clip_id="a1",
+                source_id="src1",
+                source_in_sample=0,
+                source_out_sample=48000,
+                timeline_in_sample=0,
+                timeline_out_sample=48000,
+            )
+        ],
+    )
+    calls: list[tuple[ProjectState, Path]] = []
+
+    def fake_export(state, target, **kwargs):
+        calls.append((state, target))
+        Path(target).parent.mkdir(parents=True, exist_ok=True)
+        Path(target).write_bytes(b"timeline-master")
+        return Path(target)
+
+    monkeypatch.setattr(content_audio, "export_timeline_audio", fake_export)
+    AudioMasterStep().run(context, AudioMasterParams(), StepIO())
+
+    assert calls and calls[0][0] is context.state
+    assert (tmp_path / "out" / "audio" / "master.wav").read_bytes() == b"timeline-master"
+
+
+def test_audio_master_timeline_guards_and_source_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from videoflow.steps import content_audio
+    from videoflow.steps.content import AudioMasterParams, AudioMasterStep
+
+    monkeypatch.setattr(content_audio, "FFmpegAdapter", _FakeFFmpeg)
+    context = make_context(tmp_path)
+    context.media = make_media(tmp_path)
+    with pytest.raises(ExportError, match="no timeline exists"):
+        AudioMasterStep().run(context, AudioMasterParams(source="timeline"), StepIO())
+
+    media = context.media
+    context.state = ProjectState(
+        sources={"src1": media},
+        audio_segments=[
+            AudioSegment(
+                clip_id="a1",
+                source_id="src1",
+                source_in_sample=0,
+                source_out_sample=48000,
+                timeline_in_sample=0,
+                timeline_out_sample=48000,
+            )
+        ],
+    )
+    AudioMasterStep().run(context, AudioMasterParams(source="source"), StepIO())
+    assert any("used the source" in item for item in context.warnings)

@@ -49,7 +49,7 @@ class AudioComposeStep(BaseStep):
     status = "available"
     icon = "♫"
     color = "#a78bfa"
-    produces = ("music_bed",)
+    produces = ("audio_music",)
     params_model = ComposeParams
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
@@ -92,7 +92,11 @@ class AudioComposeStep(BaseStep):
         target.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
         files = payload.get("files")
         if isinstance(files, dict):
-            context.artifacts["audio_music"] = str(files.get("mix") or "")
+            music_path = str(files.get("mix") or "")
+            context.artifacts["audio_music"] = music_path
+            # Backward-compatible alias for recipes and clients built on the
+            # old output-port label.
+            context.artifacts["music_bed"] = music_path
         context.artifacts["audio_music_plan"] = str(target)
         context.metadata["audio_music"] = plan
         context.hashes["audio.compose"] = digest_payload(plan)
@@ -207,6 +211,8 @@ class MixParams(BaseModel):
     duck_release_ms: int = Field(default=300, ge=10, le=2000)
     target_lufs: float = Field(default=0.0, ge=-30.0, le=0.0)
     output_name: str = Field(default="final.wav", max_length=120)
+    master_path: str = ""
+    music_path: str = ""
     music_arc: Literal["none", "three_act"] = "none"
     arc_hook_ratio: float = Field(default=0.2, ge=0.05, le=0.5)
     arc_outro_ratio: float = Field(default=0.8, ge=0.5, le=0.95)
@@ -229,12 +235,28 @@ class AudioMixStep(BaseStep):
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = MixParams.model_validate(params)
         dialogue = Path(
-            context.artifacts.get("audio_master") or context.output / "audio" / "master.wav"
-        )
+            options.master_path
+            or context.artifacts.get("audio_master")
+            or context.output / "audio" / "master.wav"
+        ).expanduser()
         if not dialogue.is_file():
             raise ExportError("Audio mix requires the dialogue master.")
-        music_value = context.artifacts.get("audio_music")
-        music = Path(music_value) if music_value else None
+        music_value = (
+            options.music_path
+            or context.artifacts.get("audio_music")
+            or context.artifacts.get("music_bed")
+        )
+        music = Path(music_value).expanduser() if music_value else None
+        if music is not None and not music.is_file():
+            plan_value = context.artifacts.get("audio_music_plan")
+            if plan_value:
+                try:
+                    plan = json.loads(Path(plan_value).read_text(encoding="utf-8"))
+                    candidate = (plan.get("files") or {}).get("mix")
+                    if candidate:
+                        music = Path(str(candidate)).expanduser()
+                except (OSError, ValueError, TypeError):
+                    pass
         cues: list[dict[str, Any]] = []
         sfx_plan = context.artifacts.get("sfx_cues")
         if sfx_plan:
@@ -260,6 +282,13 @@ class AudioMixStep(BaseStep):
         inputs: list[str] = ["-i", str(dialogue)]
         if music is not None and music.is_file():
             music_meta = context.metadata.get("audio_music", {})
+            if not isinstance(music_meta, dict) or not music_meta:
+                plan_value = context.artifacts.get("audio_music_plan")
+                if plan_value:
+                    try:
+                        music_meta = json.loads(Path(plan_value).read_text(encoding="utf-8"))
+                    except (OSError, ValueError):
+                        music_meta = {}
             looped = (
                 isinstance(music_meta, dict) and float(music_meta.get("loop_seconds") or 0.0) > 0.0
             )

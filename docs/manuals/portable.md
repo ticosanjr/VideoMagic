@@ -276,10 +276,10 @@ Speaks MCP over stdin/stdout. Register it in the host:
 }
 ```
 
-Seventy-one tools and five resources are registered, and all of them are live.
-`videoflow_run_recipe`, `videoflow_run_recipe_inline`, and
-`videoflow_run_step` start real jobs; the timeline, Shorts, review, publishing,
-and export tools operate on completed jobs. See
+Thirteen core tools and thirteen resources are registered. The MCP surface is
+tools-only: use `vf_catalog_search`/`vf://docs/steps` to discover nodes and
+`vf_exec(action="step")` to run them. Recipes are available in the UI, CLI, and
+REST API, but are intentionally not exposed through MCP. See
 [the MCP manual](../mcp.md) for the full contract.
 
 ### doctor

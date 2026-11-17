@@ -184,9 +184,7 @@ def test_large_crossfade_timeline_uses_bounded_groups(
     assert any("xfade=transition=fade" in " ".join(command) for command in group_commands)
     assert any("-ss" in command for command in group_commands)
     # Audio crossfades follow the video groups.
-    audio_command = next(
-        command for command in renderer.commands if "[aout]" in " ".join(command)
-    )
+    audio_command = next(command for command in renderer.commands if "[aout]" in " ".join(command))
     assert "acrossfade=d=" in " ".join(audio_command)
 
 
@@ -230,9 +228,7 @@ def test_audio_only_filters_do_not_reencode_video(
 
     video_commands = [command for command in renderer.commands if "-c:v" in command]
     assert len(video_commands) == 17
-    audio_commands = [
-        command for command in renderer.commands if "[afinal]" in " ".join(command)
-    ]
+    audio_commands = [command for command in renderer.commands if "[afinal]" in " ".join(command)]
     assert audio_commands
     assert "volume=0.5" in " ".join(audio_commands[0])
 
@@ -277,7 +273,8 @@ def test_zoom_filters_oversample_and_align_pixels(tmp_path: Path) -> None:
     assert "zoompan=" in chain
     assert "trunc((iw-iw/zoom)/2/2)*2" in chain
     assert f"scale={state.media_info.width * 2}:{state.media_info.height * 2}" in chain
-    assert chain.endswith(f"scale={state.media_info.width}:{state.media_info.height}:flags=lanczos")
+    assert f"scale={state.media_info.width}:{state.media_info.height}:flags=lanczos" in chain
+    assert chain.endswith("setsar=1")
 
 
 def test_punch_in_uses_stable_scale_and_crop(tmp_path: Path) -> None:
@@ -291,3 +288,41 @@ def test_punch_in_uses_stable_scale_and_crop(tmp_path: Path) -> None:
     chain = ",".join(_transform_filters(clip, state.media_info))
     assert "zoompan=" not in chain
     assert "crop=" in chain
+    assert chain.endswith("setsar=1")
+
+    sampled = state.video_segments[0].model_copy(
+        update={"transform": Transform(type="punch_in", scale=1.2)}
+    )
+    chain = ",".join(_transform_filters(sampled, state.media_info))
+    expected_width = round(state.media_info.width * 1.2 / 2) * 2
+    expected_height = round(state.media_info.height * 1.2 / 2) * 2
+    assert f"scale={expected_width}:{expected_height}" in chain
+    assert "crop=" in chain and "setsar=1" in chain
+
+
+def test_export_timeline_audio_uses_the_timeline_graph(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from videoflow.exporters.mp4 import export_timeline_audio
+
+    state = sample_state(tmp_path)
+    renderer = FakeRenderer()
+    target = tmp_path / "timeline.wav"
+    export_timeline_audio(
+        state,
+        target,
+        adapter=renderer,
+        audio_filters=("loudnorm=I=-16",),
+        sample_rate=44100,
+    )
+
+    command = renderer.commands[-1]
+    assert "-filter_complex" in command
+    assert "loudnorm=I=-16" in " ".join(command)
+    assert command[command.index("-ar") + 1] == "44100"
+    assert target.read_bytes() == b"mp4"
+
+    state.video_segments = []
+    state.audio_segments = []
+    with pytest.raises(ExportError, match="clip mismatch|no audio|no video"):
+        export_timeline_audio(state, tmp_path / "empty.wav", adapter=renderer)

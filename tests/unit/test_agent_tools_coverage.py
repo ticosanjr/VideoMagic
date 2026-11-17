@@ -149,8 +149,6 @@ def test_agent_tool_success_paths(tmp_path: Path, monkeypatch) -> None:
     assert tools["vf_project_init"](project_id=record.project_id)["ok"] is True
     assert tools["vf_project_status"](project_id=record.project_id)["ok"] is True
     assert tools["vf_capabilities"]()["ok"] is True
-    assert tools["vf_list_recipes"]()["ok"] is True
-    assert tools["vf_get_recipe"](recipe_id="youtube_talking_head")["ok"] is True
     assert tools["vf_get_job"](project_id=record.project_id, job_id="job-1")["ok"] is True
     assert (
         asyncio.run(tools["vf_wait_job"](project_id=record.project_id, job_id="job-1"))["ok"]
@@ -181,9 +179,6 @@ def test_agent_tool_success_paths(tmp_path: Path, monkeypatch) -> None:
 def test_agent_tool_error_paths(tmp_path: Path, monkeypatch) -> None:
     tools, record, job = _project(tmp_path, monkeypatch)
     assert tools["vf_project_init"]()["code"] == "output_required"
-    assert tools["vf_get_recipe"](recipe_id="missing")["ok"] is False
-    assert tools["vf_validate_recipe"]({})["ok"] is False
-    assert tools["vf_run_recipe"](record.project_id, recipe_id="missing")["ok"] is False
     assert tools["vf_ingest_session"](record.project_id)["ok"] is False
     assert tools["vf_sync_multicam"](record.project_id)["ok"] is False
     assert tools["vf_edit_short"](record.project_id, index=9)["ok"] is False
@@ -209,14 +204,8 @@ def test_agent_tool_project_adoption_and_missing_job(tmp_path: Path, monkeypatch
     assert "report" in tools["vf_nle_roundtrip"](record.project_id, direction="pull", path="")
 
 
-def test_agent_tool_recipe_session_and_edit_short(tmp_path: Path, monkeypatch) -> None:
+def test_agent_tool_session_and_edit_short(tmp_path: Path, monkeypatch) -> None:
     tools, record, job = _project(tmp_path, monkeypatch)
-    started = tools["vf_run_recipe"](
-        record.project_id,
-        recipe_id="youtube_talking_head",
-        source=str(tmp_path / "source.mp4"),
-    )
-    assert started["ok"] is True
     ingested = tools["vf_ingest_session"](record.project_id, sources=[str(tmp_path / "source.mp4")])
     assert ingested["ok"] is True
 
@@ -296,14 +285,6 @@ def test_agent_tool_more_branches(tmp_path: Path, monkeypatch) -> None:
     assert adopted["ok"] is True
 
     assert tools["vf_project_status"]("missing")["ok"] is False
-    assert tools["vf_validate_recipe"](recipe_id="youtube_talking_head")["ok"] is True
-    missing_source = tools["vf_run_recipe"](
-        record.project_id,
-        recipe_id="youtube_talking_head",
-        source=str(tmp_path / "nope.mp4"),
-    )
-    assert missing_source["ok"] is False
-
     job.telemetry.logs = lambda **kwargs: []
     logs = tools["vf_get_step_logs"](record.project_id, "job-1")
     assert logs["ok"] is True
@@ -381,10 +362,6 @@ def test_agent_tool_resolve_errors_and_adoption(tmp_path: Path, monkeypatch) -> 
     _adopt_job(record, job)
 
     empty_record, _ = init_project(output=tmp_path / "empty-two")
-    assert (
-        tools["vf_run_recipe"](empty_record.project_id, recipe_id="youtube_talking_head")["ok"]
-        is False
-    )
     assert tools["vf_project_init"](project_id=empty_record.project_id)["ok"] is True
 
 

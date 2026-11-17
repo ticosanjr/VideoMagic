@@ -80,30 +80,25 @@ result carries a `warning`, run the pipeline again before exporting.
 ## 3. Standard workflow
 
 ```
-load_media(file_path="/media/interview.mp4")
-run_vad(noise_db=-30, min_silence_ms=400)
-transcribe(model="small", language="pt", engine="auto")
-get_transcript(include_word_timestamps=true)
-cull_retakes(discard_sentence_ids=[...])
-configure_zooms(mode="alternate_cuts", scale=1.15)
-apply_jcuts(offset_ms=200, crossfade_ms=20)
-generate_shorts(min_duration=30, max_duration=60, count=3)
-run_pipeline(preset_name="youtube-talking-head",
-             output="/projects/interview-edit")
-get_job(job_id) until status is succeeded or failed
-read job.result.artifacts
-export_fcpxml(output_path="/projects/interview-edit/exports/copy.fcpxml",
-              target_nle="resolve")
+vf_project(action="init", output="/projects/interview-edit",
+           sources=["/media/interview.mp4"], channel_id="youtube-talking-head")
+vf_catalog_search() or read vf://docs/steps
+vf_exec(action="step", step_id="ingest", params={...})
+vf_exec(action="step", step_id="transcribe", params={...})
+vf_exec(action="step", step_id="edit.timeline", params={...})
+vf_job(action="wait") after each step
+vf_timeline(action="get")
+vf_exports(action="bundle")
 ```
 
-Presets:
+Channel kits:
 
 - `youtube-talking-head`: J-cuts and zooms on, 400 ms silence.
 - `shorts-aggressive`: J-cuts and zooms on, 250 ms silence.
 - `lecture-clean`: no J-cuts, no zooms, 700 ms silence.
 
-Order of pipeline options: preset defaults, explicit `overrides`, then staged
-edits for keys the caller did not set. Staged edits clear when the job starts.
+Recipes are not exposed through MCP. Use the UI, `videoflow recipe`, or
+`POST /api/v1/recipes/run` when you need a versioned DAG.
 
 Long jobs are asynchronous. Poll at a human pace (a few seconds), not in a tight
 loop. Cancel with `cancel_job` when the human changes direction. Up to two jobs

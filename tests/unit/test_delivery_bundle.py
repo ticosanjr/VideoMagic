@@ -249,3 +249,36 @@ def test_mp4_metadata_missing_and_probe(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(ffmpeg_module, "FFmpegAdapter", Probe)
     metadata = _mp4_metadata(target)
     assert metadata["duration_frames"] == 60
+
+
+def test_bundle_burns_subtitles_by_default(tmp_path: Path, monkeypatch) -> None:
+    from videoflow.application import delivery_bundle
+
+    state = _state(tmp_path)
+    (tmp_path / "subtitles.ass").write_text("[Events]\n", encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    def fake_export(state, path, **kwargs):
+        captured.update(kwargs)
+        Path(path).write_bytes(b"fake-mp4")
+        return Path(path)
+
+    monkeypatch.setattr(delivery_bundle, "export_mp4", fake_export)
+    result = build_delivery_bundle(
+        state,
+        tmp_path,
+        request=DeliveryBundleRequest(targets=("mp4_youtube",)),
+        adapter=FakeAdapter(),
+    )
+
+    assert result["ok"] is True
+    assert Path(str(captured["ass_path"])) == tmp_path / "subtitles.ass"
+
+    captured.clear()
+    build_delivery_bundle(
+        state,
+        tmp_path,
+        request=DeliveryBundleRequest(targets=("mp4_youtube",), burn_subtitles=False),
+        adapter=FakeAdapter(),
+    )
+    assert captured["ass_path"] is None

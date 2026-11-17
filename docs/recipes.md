@@ -180,19 +180,17 @@ job.
 
 ## MCP
 
-- `videoflow_list_steps`
-- `videoflow_list_recipes`
-- `videoflow_get_recipe`
-- `videoflow_validate_recipe`
-- `videoflow_save_recipe`
-- `videoflow_run_recipe`
-- `videoflow_run_recipe_inline`
-- `videoflow_run_step` — dependencies plus one named step, then stop
-- `videoflow_run_batch` — run a recipe over a folder
-- `videoflow_get_batch` / `videoflow_cancel_batch` — inspect or cancel a folder batch
+The MCP surface is **tools-only**. It does not list, read, validate, or run
+recipes, and it does not accept a recipe DAG.
 
-Agents should call `videoflow_run_recipe` and then poll `videoflow_get_job`.
-The MCP server and the UI share the same `JobManager`.
+- `vf_catalog_search` / `vf://docs/steps` — discover node types
+- `vf://docs/steps/{step_type}` — read one node schema
+- `vf_exec(action="step", ...)` — run one node
+- `vf_job`, `vf_timeline`, `vf_artifact`, `vf_render`, `vf_exports` — operate on the project
+
+Recipes remain available through the UI, CLI (`videoflow recipe`), REST
+(`/api/v1/recipes/*`), the scheduler, and batch manager. The MCP server and the
+UI share the same `JobManager`.
 
 ## LLM router
 

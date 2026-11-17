@@ -10,23 +10,23 @@ uv run python scripts/coverage_layers.py
 The `.coveragerc` used for this report disables the release gate's omit list so
 adapters, exporters, API, jobs, and MCP are visible.
 
-## Current working tree (2.91.5)
+## Current working tree (2.91.6)
 
 Measured with the release-gate omit list disabled. The full unit/contract run is
-**2,492 passed, 1 skipped, 1 xfailed**.
+**2,514 passed, 1 skipped, 1 xfailed**.
 
 | Layer | Hit | Total | Cover |
 | --- | ---: | ---: | ---: |
 | api | 2,934 | 3,039 | 96.54% |
-| exporters | 1,532 | 1,601 | 95.69% |
-| mcp | 825 | 861 | 95.82% |
-| steps | 9,638 | 10,129 | 95.15% |
-| application | 17,536 | 18,591 | 94.33% |
+| exporters | 1,552 | 1,626 | 95.45% |
+| mcp | 786 | 823 | 95.50% |
+| steps | 9,679 | 10,169 | 95.18% |
+| application | 17,614 | 18,677 | 94.31% |
 | engine | 1,097 | 1,164 | 94.24% |
 | domain | 1,502 | 1,518 | 98.95% |
 | cli/runtime/core/plugin | 1,205 | 1,235 | 97.57% |
-| **full tree (statements)** | **37,887** | **39,864** | **95.04%** |
-| **full tree (branches)** | **9,613** | **11,146** | **86.25%** |
+| **full tree (statements)** | **38,006** | **39,997** | **95.02%** |
+| **full tree (branches)** | **9,656** | **11,194** | **86.26%** |
 
 The 2.85 agent-profile refactor keeps the full-tree statement target met. The
 configured release gate remains at 98% on its selected source set. Remaining

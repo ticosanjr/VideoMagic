@@ -9,8 +9,10 @@ mcp-vf-audio-studio 5 tools TTS, cleanup, stems, music/SFX, mix
 mcp-vf-vision-fx    6 tools word-aligned captions, rembg, upscale, motion, Ken Burns, screen/browser capture
 ```
 
-The core intentionally does not expose the old 82-tool UI CRUD surface. Step
-and recipe schemas are loaded on demand through resources.
+The core intentionally does not expose the old 82-tool UI CRUD surface. Node
+schemas are loaded on demand through resources. **Recipes are not exposed via
+MCP**: agents see the step catalog and run individual steps, while UI, CLI, and
+REST keep the recipe engine.
 
 ## Transports
 
@@ -47,8 +49,8 @@ parallel. Writes to the same project are serialized by a project lock and
 | `vf_style` | List/save/sync Markdown styles and learn review rules. |
 | `vf_project` | Create/open/status a project; `clone_style` and `learn_rule`. |
 | `vf_capabilities` | Backends, models, GPU worker, and external policy. |
-| `vf_catalog_search` | Search steps/recipes without loading schemas. |
-| `vf_exec` | Run a recipe, a Short edit, or one internal catalog step. |
+| `vf_catalog_search` | List or search node/tool types with pagination. |
+| `vf_exec` | Run one catalog step or edit a Short. Recipes are not exposed. |
 
 ### Jobs, timeline, artifacts
 
@@ -193,19 +195,24 @@ vf://styles
 vf://styles/{style_id}
 vf://presets/{channel_id}/rulebook
 vf://presets/{channel_id}/kit
+vf://docs/steps
 vf://docs/steps/{step_type}
-vf://docs/recipes/{recipe_id}
 ```
+
+`vf://docs/steps` lists every node/tool type; `vf://docs/steps/{step_type}`
+returns its full parameter schema.
 
 Resources are read-only. Tools perform writes.
 
 ## Channel kits and hard constraints
 
-`vf_project(action="init", channel_id="canal-rafael")` binds a project to a channel
-rulebook. `vf_run_recipe` merges the channel kit defaults into the recipe and
-then applies inviolable hard constraints (aspect ratio, caption preset, LUT,
-B-roll style). Explicit recipe parameters cannot override a hard constraint.
-Learned rules are capped at 15 and consolidated by `preset.compile_rule`.
+`vf_project(action="init", channel_id="youtube-talking-head")` binds a project to
+a shipped channel kit. `<code>style_id</code>` is separate and must reference a
+Markdown style; passing a style id as `channel_id` returns
+`channel_not_found`. Recipe execution (UI/CLI/REST) merges channel kit defaults
+and inviolable hard constraints (aspect ratio, caption preset, LUT, B-roll
+style). Learned rules are capped at 15 and consolidated by
+`preset.compile_rule`.
 
 ## Multi-source projects
 
@@ -262,11 +269,12 @@ Resolve or external scripting is unavailable.
 1. vf_project(action="init")
 2. vf_capabilities / vf_catalog_search
 3. vf_ingest(action="session") (optional)
-4. vf_exec(action="recipe")
-5. vf_job(action="wait")
-6. vf_job(action="logs") / vf_qa(action="artifacts")
-7. vf_timeline(action="get|edit")
-8. vf_render(action="start") -> vf_job(action="wait")
-9. vf_artifact(action="get")
-10. vf_exports(action="roundtrip|validate")
+4. vf_catalog_search / vf://docs/steps -> choose nodes
+5. vf_exec(action="step", step_id=..., params=...) for each node
+6. vf_job(action="wait")
+7. vf_job(action="logs") / vf_qa(action="artifacts")
+8. vf_timeline(action="get|edit")
+9. vf_render(action="start") -> vf_job(action="wait")
+10. vf_artifact(action="get")
+11. vf_exports(action="bundle|roundtrip|validate")
 ```

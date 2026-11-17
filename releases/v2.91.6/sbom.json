@@ -56,6 +56,12 @@
       "version": "2.1.1"
     },
     {
+      "name": "charset-normalizer",
+      "purl": "pkg:pypi/charset-normalizer@3.5.2",
+      "type": "library",
+      "version": "3.5.2"
+    },
+    {
       "name": "click",
       "purl": "pkg:pypi/click@8.5.0",
       "type": "library",
@@ -147,9 +153,9 @@
     },
     {
       "name": "huggingface_hub",
-      "purl": "pkg:pypi/huggingface_hub@2.2.0",
+      "purl": "pkg:pypi/huggingface_hub@0.36.2",
       "type": "library",
-      "version": "2.2.0"
+      "version": "0.36.2"
     },
     {
       "name": "hypothesis",
@@ -225,9 +231,9 @@
     },
     {
       "name": "opencv-python-headless",
-      "purl": "pkg:pypi/opencv-python-headless@5.0.0.93",
+      "purl": "pkg:pypi/opencv-python-headless@4.14.0.94",
       "type": "library",
-      "version": "5.0.0.93"
+      "version": "4.14.0.94"
     },
     {
       "name": "opentelemetry-api",
@@ -350,6 +356,12 @@
       "version": "0.37.0"
     },
     {
+      "name": "requests",
+      "purl": "pkg:pypi/requests@2.34.2",
+      "type": "library",
+      "version": "2.34.2"
+    },
+    {
       "name": "rpds-py",
       "purl": "pkg:pypi/rpds-py@2026.9.1",
       "type": "library",
@@ -387,9 +399,9 @@
     },
     {
       "name": "tokenizers",
-      "purl": "pkg:pypi/tokenizers@0.23.3",
+      "purl": "pkg:pypi/tokenizers@0.22.2",
       "type": "library",
-      "version": "0.23.3"
+      "version": "0.22.2"
     },
     {
       "name": "tqdm",
@@ -416,6 +428,12 @@
       "version": "4.16.0"
     },
     {
+      "name": "urllib3",
+      "purl": "pkg:pypi/urllib3@2.8.0",
+      "type": "library",
+      "version": "2.8.0"
+    },
+    {
       "name": "uvicorn",
       "purl": "pkg:pypi/uvicorn@0.54.0",
       "type": "library",
@@ -423,39 +441,39 @@
     },
     {
       "name": "vf-compute",
-      "purl": "pkg:pypi/vf-compute@2.91.3",
+      "purl": "pkg:pypi/vf-compute@2.91.6",
       "type": "library",
-      "version": "2.91.3"
+      "version": "2.91.6"
     },
     {
       "name": "vf-contracts",
-      "purl": "pkg:pypi/vf-contracts@2.91.3",
+      "purl": "pkg:pypi/vf-contracts@2.91.6",
       "type": "library",
-      "version": "2.91.3"
+      "version": "2.91.6"
     },
     {
       "name": "videoflow",
-      "purl": "pkg:pypi/videoflow@2.91.3",
+      "purl": "pkg:pypi/videoflow@2.91.6",
       "type": "library",
-      "version": "2.91.3"
+      "version": "2.91.6"
     },
     {
       "name": "videoflow-mcp-audio",
-      "purl": "pkg:pypi/videoflow-mcp-audio@2.91.3",
+      "purl": "pkg:pypi/videoflow-mcp-audio@2.91.6",
       "type": "library",
-      "version": "2.91.3"
+      "version": "2.91.6"
     },
     {
       "name": "videoflow-mcp-fetch",
-      "purl": "pkg:pypi/videoflow-mcp-fetch@2.91.3",
+      "purl": "pkg:pypi/videoflow-mcp-fetch@2.91.6",
       "type": "library",
-      "version": "2.91.3"
+      "version": "2.91.6"
     },
     {
       "name": "videoflow-mcp-vision",
-      "purl": "pkg:pypi/videoflow-mcp-vision@2.91.3",
+      "purl": "pkg:pypi/videoflow-mcp-vision@2.91.6",
       "type": "library",
-      "version": "2.91.3"
+      "version": "2.91.6"
     }
   ],
   "metadata": {

@@ -36,7 +36,7 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "vf_catalog_search",
-        "Search steps and recipes without loading their schemas.",
+        "List or search node/tool types without loading their schemas.",
         "catalog",
     ),
     ToolSpec(
@@ -46,8 +46,8 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "vf_exec",
-        "Run a recipe or edit a Short; catalog steps remain an internal path.",
-        "recipes",
+        "Run one catalog step or edit a Short. Recipes are not exposed via MCP.",
+        "steps",
     ),
     ToolSpec(
         "vf_job",
@@ -103,6 +103,6 @@ RESOURCE_SPECS: tuple[ResourceSpec, ...] = (
     ResourceSpec("vf://styles/{style_id}", "One Markdown style and its rules."),
     ResourceSpec("vf://presets/{channel_id}/rulebook", "Active channel rulebook."),
     ResourceSpec("vf://presets/{channel_id}/kit", "Channel asset kit."),
+    ResourceSpec("vf://docs/steps", "Full node/tool catalog."),
     ResourceSpec("vf://docs/steps/{step_type}", "Full step parameter schema."),
-    ResourceSpec("vf://docs/recipes/{recipe_id}", "Complete recipe document."),
 )

@@ -39,7 +39,8 @@ and works fully offline out of the box. A GPU is not required.
 
 ## Recipes
 
-A recipe is a JSON DAG shared by the UI, CLI, REST API, and MCP tools:
+A recipe is a JSON DAG shared by the UI, CLI, REST API, scheduler, and batch
+manager. The MCP surface is tools-only and exposes catalog steps, not recipes:
 
 ```bash
 videoflow recipe list
@@ -47,8 +48,9 @@ videoflow recipe validate recipes/youtube_talking_head.json
 videoflow recipe run recipes/viral_shorts_batch.json /media/source.mp4 -o /media/out
 ```
 
-The same contract is available at `POST /api/v1/recipes/run` and through
-`videoflow_run_recipe_inline`. See `docs/recipes.md` and
+The same contract is available at `POST /api/v1/recipes/run`. Over MCP, create
+a project, discover nodes with `vf_catalog_search`/`vf://docs/steps`, and run
+them with `vf_exec(action="step")`. See `docs/recipes.md` and
 `schemas/recipe.schema.json`.
 
 ## Quick start

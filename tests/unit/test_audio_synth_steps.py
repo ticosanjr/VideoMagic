@@ -53,6 +53,7 @@ def test_compose_uses_narration_duration(tmp_path: Path, monkeypatch) -> None:
     AudioComposeStep().run(context, ComposeParams(), StepIO())
     assert calls == [2.0]
     assert Path(context.artifacts["audio_music"]).is_file()
+    assert context.artifacts["music_bed"] == context.artifacts["audio_music"]
 
 
 def test_sfx_uses_rendered_scenes(tmp_path: Path, monkeypatch) -> None:
@@ -183,17 +184,13 @@ def test_compose_reads_style_audio_and_media_duration(tmp_path: Path, monkeypatc
 def test_compose_ignores_non_dict_files(tmp_path: Path, monkeypatch) -> None:
     context = _context(tmp_path)
     context.metadata["narration_duration_sec"] = 1.0
-    monkeypatch.setattr(
-        audio_synth, "compose_music", lambda directory, **kwargs: {"files": "bad"}
-    )
+    monkeypatch.setattr(audio_synth, "compose_music", lambda directory, **kwargs: {"files": "bad"})
     AudioComposeStep().run(context, ComposeParams(), StepIO())
     assert "audio_music_plan" in context.artifacts
     assert AudioComposeStep().cache_outputs(context)
 
 
-def test_sfx_skips_non_dict_scenes_and_uses_style_kinds(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_sfx_skips_non_dict_scenes_and_uses_style_kinds(tmp_path: Path, monkeypatch) -> None:
     context = _context(tmp_path)
     (context.output / "style").mkdir(parents=True)
     (context.output / "style" / "style-guide.json").write_text(
@@ -229,9 +226,7 @@ def test_mix_reports_missing_dialogue_and_bad_sfx_plan(tmp_path: Path) -> None:
     assert Path(context.artifacts["audio_mix"]).read_bytes() == b"dialogue"
 
 
-def test_mix_without_ffmpeg_or_music_but_with_foley(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_mix_without_ffmpeg_or_music_but_with_foley(tmp_path: Path, monkeypatch) -> None:
     context = _context(tmp_path)
     master = context.output / "audio" / "master.wav"
     master.parent.mkdir(parents=True)
@@ -292,3 +287,78 @@ def test_mix_loops_music_and_applies_notch(tmp_path: Path, monkeypatch) -> None:
     assert "-stream_loop" in commands[-1]
     assert any("equalizer" in item for item in commands[-1])
     assert AudioMixStep().cache_outputs(context)
+
+
+def test_mix_accepts_explicit_paths_and_legacy_music_alias(tmp_path: Path, monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from videoflow.steps import audio_synth
+
+    context = _context(tmp_path)
+    master = tmp_path / "dialogue.wav"
+    master.write_bytes(b"dialogue")
+    music = tmp_path / "bed.wav"
+    music.write_bytes(b"music")
+    commands: list[list[str]] = []
+
+    def run(command, **kwargs):
+        commands.append(command)
+        Path(command[-1]).write_bytes(b"mixed")
+        return SimpleNamespace(returncode=0, stderr="", stdout="")
+
+    monkeypatch.setattr(audio_synth, "find_binary", lambda name: "ffmpeg")
+    monkeypatch.setattr(audio_synth.subprocess, "run", run)
+
+    AudioMixStep().run(
+        context,
+        MixParams(master_path=str(master), music_path=str(music)),
+        StepIO(),
+    )
+
+    assert str(music) in commands[-1]
+    assert Path(context.artifacts["audio_mix"]).read_bytes() == b"mixed"
+
+    (tmp_path / "alias").mkdir()
+    context2 = _context(tmp_path / "alias")
+    context2.artifacts["audio_master"] = str(master)
+    context2.artifacts["music_bed"] = str(music)
+    AudioMixStep().run(context2, MixParams(), StepIO())
+    assert str(music) in commands[-1]
+
+
+def test_mix_recovers_music_from_plan_and_builds_three_act_envelope(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from types import SimpleNamespace
+
+    from videoflow.steps import audio_synth
+
+    context = _context(tmp_path)
+    master = context.output / "audio" / "master.wav"
+    master.parent.mkdir(parents=True)
+    master.write_bytes(b"dialogue")
+    context.artifacts["audio_master"] = str(master)
+    music = context.output / "audio" / "music" / "music-bed.wav"
+    music.parent.mkdir(parents=True)
+    music.write_bytes(b"music")
+    plan = context.output / "audio" / "music-plan.json"
+    plan.write_text(
+        json.dumps({"files": {"mix": str(music)}, "loop_seconds": 5}),
+        encoding="utf-8",
+    )
+    context.artifacts["audio_music"] = str(context.output / "audio" / "missing.wav")
+    context.artifacts["audio_music_plan"] = str(plan)
+    commands: list[list[str]] = []
+
+    def run(command, **kwargs):
+        commands.append(command)
+        Path(command[-1]).write_bytes(b"mixed")
+        return SimpleNamespace(returncode=0, stderr="", stdout="")
+
+    monkeypatch.setattr(audio_synth, "find_binary", lambda name: "ffmpeg")
+    monkeypatch.setattr(audio_synth.subprocess, "run", run)
+
+    AudioMixStep().run(context, MixParams(music_arc="three_act"), StepIO())
+
+    assert str(music) in commands[-1]
+    assert any("if(lt(t," in item for item in commands[-1])

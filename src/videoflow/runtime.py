@@ -30,15 +30,39 @@ def executable_dir() -> Path:
     return Path(sys.executable).resolve().parent
 
 
+def _writable_parent(path: Path) -> bool:
+    """Whether data can be created at ``path`` without touching the AppImage mount."""
+
+    text = str(path)
+    if text.startswith(str(Path.home())):
+        return True
+    if "/.mount_" in text:
+        return False
+    mount = os.environ.get("APPDIR", "").strip()
+    if mount and text.startswith(mount):
+        return False
+    probe = path
+    while not probe.exists() and probe != probe.parent:
+        probe = probe.parent
+    try:
+        return os.access(probe, os.W_OK)
+    except OSError:
+        return False
+
+
 def portable_home() -> Path:
     override = os.environ.get("VIDEOWFLOW_HOME")
     if override:
         return Path(override).expanduser()
+    candidates: list[Path] = []
     appimage = os.environ.get("APPIMAGE")
     if appimage:
-        return Path(appimage).expanduser().resolve().parent / "videoflow-data"
+        candidates.append(Path(appimage).expanduser().resolve().parent / "videoflow-data")
     if is_frozen():
-        return executable_dir() / "videoflow-data"
+        candidates.append(executable_dir() / "videoflow-data")
+    for candidate in candidates:
+        if _writable_parent(candidate):
+            return candidate
     return Path.home() / ".videoflow"
 
 

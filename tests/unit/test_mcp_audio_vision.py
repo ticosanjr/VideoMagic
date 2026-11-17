@@ -219,10 +219,12 @@ def test_mix_and_master_writes_assets(
     output = Path(result["output"])
     assert output.is_file()
     assert output.name == "master.wav"
+    assert output == project_root / "proj-mix" / "assets" / "audio" / "master.wav"
     assert result["ducking"] is True
     assert result["sfx_count"] == 1
     payload = json.loads(Path(result["sidecar"]).read_text(encoding="utf-8"))
     assert payload["source"] == "ffmpeg:mix"
+    assert payload["license"] == "ai_generated"
     assert payload["metadata"]["ducking"] is True
 
 
@@ -751,3 +753,12 @@ def test_vision_write_output_resolves_contracts_copy_when_project_output_differs
     assert record.path == override / "assets/images/still.png"
     assert record.path.read_bytes() == b"PNGdata"
     assert record.sidecar.is_file()
+
+
+def test_generated_assets_use_the_ai_generated_contract_license() -> None:
+    from videoflow_mcp_audio import storage as audio_storage
+    from videoflow_mcp_vision import storage as vision_storage
+
+    assert audio_storage.contract_license("generated") == "ai_generated"
+    assert vision_storage.contract_license("generated") == "ai_generated"
+    assert audio_storage.contract_license("source") == "unknown"

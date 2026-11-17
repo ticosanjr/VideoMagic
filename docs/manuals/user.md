@@ -49,9 +49,10 @@ fallback, or `--transcript` with `--cull-retakes` for retake removal.
 `videoflow recipe run youtube_talking_head input.mp4 -o demo` proves the chain on a real clip.
 
 `videoflow serve` exposes the same run as `POST /api/v1/recipes/run`, with progress at
-`GET /api/v1/jobs/{id}` and `GET /api/v1/jobs/{id}/events`. The MCP tools
-`videoflow_run_recipe`, `videoflow_get_job`, and
-`videoflow_cancel_job` drive it from an agent.
+`GET /api/v1/jobs/{id}` and `GET /api/v1/jobs/{id}/events`. The MCP surface is
+tools-only: agents discover nodes with `vf_catalog_search`/`vf://docs/steps` and
+run them with `vf_exec(action="step")`, then poll `vf_job`. Recipes stay in the
+UI, CLI, and REST API.
 
 ### Rack UI (portable run)
 

@@ -127,7 +127,9 @@ def test_core_project_catalog_exec_job(tmp_path: Path, monkeypatch) -> None:
     assert tools["vf_capabilities"]()["ok"] is True
     catalog = tools["vf_catalog_search"](query="session")
     assert any(step["type"] == "session.ingest" for step in catalog["steps"])
-    assert catalog["recipes"] is not None
+    assert "recipes" not in catalog
+    assert catalog["total"] == len(catalog["steps"])
+    assert catalog["next_offset"] is None
 
     executed = tools["vf_exec"](
         action="step",
@@ -183,11 +185,13 @@ def test_core_catalog_and_project_errors(tmp_path: Path, monkeypatch) -> None:
     tools, record, job = setup(tmp_path, monkeypatch)
     assert tools["vf_project"](action="status")["code"] == "project_required"
     assert tools["vf_catalog_search"](query="nomatch", kind="steps")["steps"] == []
-    recipes = tools["vf_catalog_search"](kind="recipes", limit=1)["recipes"]
-    assert len(recipes) == 1
+    assert tools["vf_catalog_search"](kind="recipes", limit=1)["code"] == "invalid_kind"
     assert tools["vf_catalog_search"](kind="steps", limit=1)["steps"]
+    assert tools["vf_catalog_search"](offset=1, limit=1)["steps"]
     assert tools["vf_exec"](action="step", project_id=record.project_id)["ok"] is False
-    assert tools["vf_exec"](action="recipe", project_id="missing")["ok"] is False
+    assert (
+        tools["vf_exec"](action="recipe", project_id=record.project_id)["code"] == "unknown_action"
+    )
     assert tools["vf_artifact"](action="list", project_id="missing")["ok"] is False
 
 
@@ -259,11 +263,11 @@ def test_core_interaction_and_job_branches(tmp_path: Path, monkeypatch) -> None:
     )
 
 
-def test_core_artifact_missing_and_recipe_filter(tmp_path: Path, monkeypatch) -> None:
+def test_core_artifact_missing_and_catalog_filters(tmp_path: Path, monkeypatch) -> None:
     tools, record, job = setup(tmp_path, monkeypatch)
     missing = tools["vf_artifact"](action="get", project_id=record.project_id, artifact="missing")
     assert missing[0]["ok"] is False
-    assert tools["vf_catalog_search"](query="no-such-recipe", kind="recipes")["recipes"] == []
+    assert tools["vf_catalog_search"](query="no-such-step")["steps"] == []
 
 
 def test_core_exec_short_action(tmp_path: Path, monkeypatch) -> None:
@@ -362,27 +366,37 @@ def test_core_style_and_beatmap_guards(tmp_path: Path, monkeypatch) -> None:
     assert tools["vf_job"](action="wait", project_id="missing")["ok"] is False
 
 
-def test_core_exec_waits_for_the_recipe_job(tmp_path: Path, monkeypatch) -> None:
+def test_core_exec_waits_for_the_step_job(tmp_path: Path, monkeypatch) -> None:
     tools, record, _ = setup(tmp_path, monkeypatch)
     result = tools["vf_exec"](
-        action="recipe",
+        action="step",
         project_id=record.project_id,
-        recipe={
-            "id": "demo",
-            "name": "Demo",
-            "steps": [
-                {
-                    "id": "one",
-                    "type": "preset.compile_rule",
-                    "needs": [],
-                    "params": {"channel_id": "demo", "review_notes": ["legendas grandes"]},
-                }
-            ],
-        },
+        step_id="preset.compile_rule",
+        params={"channel_id": "demo", "review_notes": ["legendas grandes"]},
         wait=True,
     )
     assert result["ok"] is True
     assert result["wait"]["ok"] is True
+
+
+def test_core_project_rejects_style_as_channel_kit(tmp_path: Path, monkeypatch) -> None:
+    tools, record, _ = setup(tmp_path, monkeypatch)
+    rejected = tools["vf_project"](
+        action="init",
+        output=str(tmp_path / "style-project"),
+        channel_id="canal-paula-long",
+    )
+    assert rejected["ok"] is False
+    assert rejected["code"] == "channel_not_found"
+    assert "youtube-talking-head" in rejected["message"]
+
+    accepted = tools["vf_project"](
+        action="init",
+        output=str(tmp_path / "kit-project"),
+        channel_id="youtube-talking-head",
+    )
+    assert accepted["ok"] is True
+    assert accepted["project"]["channel_id"] == "youtube-talking-head"
 
 
 def test_core_error_branches_and_roundtrip_formats(tmp_path: Path, monkeypatch) -> None:

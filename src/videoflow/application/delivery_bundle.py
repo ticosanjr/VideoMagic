@@ -60,6 +60,7 @@ class DeliveryBundleRequest:
     mp4_loudness_lufs: float | None = YOUTUBE_LUFS
     mp4_true_peak_db: float = YOUTUBE_TRUE_PEAK_DB
     mp4_cfr: bool = True
+    burn_subtitles: bool = True
     require_licenses: bool = True
     include_sidecars: bool = True
     extra_targets: tuple[str, ...] = field(default_factory=tuple)
@@ -221,6 +222,10 @@ def build_delivery_bundle(
     mp4_path: Path | None = None
     master_path = output / "audio" / "master.wav"
     audio_master = master_path if master_path.is_file() else None
+    subtitle_path = output / "subtitles.ass"
+    if not subtitle_path.is_file():
+        subtitle_path = output / "titles.ass"
+    ass_path = subtitle_path if options.burn_subtitles and subtitle_path.is_file() else None
     if requested_mp4:
         mp4_path = exports / BUNDLE_FILENAMES["mp4"]
         if progress is not None:
@@ -235,6 +240,7 @@ def build_delivery_bundle(
             true_peak_db=options.mp4_true_peak_db,
             cfr=options.mp4_cfr,
             audio_master=audio_master,
+            ass_path=ass_path,
             progress=((lambda value: progress("mp4", value)) if progress is not None else None),
             cache_dir=cache_dir,
         )

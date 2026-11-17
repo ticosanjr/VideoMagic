@@ -273,3 +273,55 @@ def test_motion_cache_outputs_without_artifacts(tmp_path: Path) -> None:
     assert module.MotionCalloutStep().cache_outputs(context) == ()
     assert module.MotionAttachStep().cache_outputs(context) == ()
     assert module.CompositeMatteStep().cache_outputs(context) == ()
+
+
+def test_captions_plan_maps_transcript_through_timeline_cuts(tmp_path: Path) -> None:
+    from videoflow.domain.state import AudioSegment, ProjectState
+
+    context = _context(tmp_path)
+    rate = 48000
+    context.media = MediaInfo(
+        source_path=str(context.source),
+        duration_frames=300,
+        fps_num=30,
+        fps_den=1,
+        width=1920,
+        height=1080,
+        audio_sample_rate=rate,
+    )
+    context.state = ProjectState(
+        sources={"src1": context.media},
+        audio_segments=[
+            AudioSegment(
+                clip_id="a1",
+                source_id="src1",
+                source_in_sample=2 * rate,
+                source_out_sample=5 * rate,
+                timeline_in_sample=0,
+                timeline_out_sample=3 * rate,
+            ),
+            AudioSegment(
+                clip_id="a2",
+                source_id="src1",
+                source_in_sample=7 * rate,
+                source_out_sample=9 * rate,
+                timeline_in_sample=3 * rate,
+                timeline_out_sample=5 * rate,
+            ),
+        ],
+        transcript=[
+            Sentence(
+                id=0,
+                start_sample=1 * rate,
+                end_sample=6 * rate,
+                text="this sentence spans a cut and must not exceed the kept range",
+            )
+        ],
+    )
+    context.transcript = list(context.state.transcript)
+
+    CaptionsPlanStep().run(context, CaptionsPlanParams(max_chars=120), StepIO())
+
+    srt = (context.output / "captions" / "captions.srt").read_text(encoding="utf-8")
+    assert "00:00:00,000 --> 00:00:03,000" in srt
+    assert "00:00:03,000 --> 00:00:05,000" not in srt

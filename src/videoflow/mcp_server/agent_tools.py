@@ -14,9 +14,7 @@ from mcp.server.mcpserver import Context
 
 from videoflow.application import artifacts as artifact_service
 from videoflow.application.capabilities import capability_manifest
-from videoflow.application.channel_kit import apply_channel_kit
 from videoflow.application.hilt import public_payload, respond
-from videoflow.application.preset_rules import load_rulebook
 from videoflow.application.projects import (
     get_project,
     init_project,
@@ -26,8 +24,7 @@ from videoflow.application.projects import (
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import StateNotReadyError, VideoFlowError
 from videoflow.domain.transcript import format_srt
-from videoflow.engine.recipes import get_recipe, list_recipes
-from videoflow.engine.recipes.catalog import parse_recipe, resolve_recipe_paths
+from videoflow.engine.recipes.catalog import parse_recipe
 from videoflow.mcp_server.agent_helpers import (
     _adopt_job,
     _context,
@@ -42,8 +39,6 @@ from videoflow.mcp_server.agent_helpers import (
 from videoflow.mcp_server.context import error
 from videoflow.runtime import allowed_roots
 from videoflow.steps.base import StepIO
-from videoflow.steps.ports import validate_recipe_ports
-from videoflow.steps.registry import requirements_by_type, step_types
 
 
 def register_agent_tools(register: Any, ctx: Any) -> None:
@@ -138,93 +133,6 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
             "ok": True,
             "capabilities": capability_manifest(allow_external_services=allow_external_services),
         }
-
-    @register
-    def vf_list_recipes() -> dict[str, Any]:
-        """List built-in and operator recipes."""
-
-        return {"ok": True, "recipes": list_recipes()}
-
-    @register
-    def vf_get_recipe(recipe_id: str) -> dict[str, Any]:
-        """Return one complete recipe document."""
-
-        try:
-            recipe = get_recipe(recipe_id)
-        except VideoFlowError as exc:
-            return exc.to_dict()
-        return {"ok": True, "recipe": recipe.model_dump(mode="json")}
-
-    @register
-    def vf_validate_recipe(
-        recipe: dict[str, Any] | None = None, recipe_id: str = ""
-    ) -> dict[str, Any]:
-        """Validate a recipe DAG and return its execution order."""
-
-        try:
-            parsed = get_recipe(recipe_id) if recipe_id else parse_recipe(recipe or {})
-            parsed = resolve_recipe_paths(parsed, allowed_roots())
-            parsed.validate_graph(step_types(), requires_by_type=requirements_by_type())
-            validate_recipe_ports(parsed)
-        except VideoFlowError as exc:
-            return exc.to_dict()
-        return {
-            "ok": True,
-            "recipe_id": parsed.id,
-            "order": parsed.topological_order(),
-            "variables": {
-                name: spec.model_dump(mode="json") for name, spec in parsed.variables.items()
-            },
-        }
-
-    @register
-    def vf_run_recipe(
-        project_id: str,
-        recipe_id: str = "",
-        recipe: dict[str, Any] | None = None,
-        source: str = "",
-        variables: dict[str, Any] | None = None,
-        profile: str = "",
-        resume: bool = True,
-        queue: bool = True,
-    ) -> dict[str, Any]:
-        """Run a recipe in a project and return the new job."""
-
-        try:
-            record = _record(project_id)
-            parsed = get_recipe(recipe_id) if recipe_id else parse_recipe(recipe or {})
-            parsed = resolve_recipe_paths(parsed, allowed_roots())
-            style_key = record.style_id or record.channel_id
-            if style_key:
-                parsed = apply_channel_kit(parsed, load_rulebook(style_key))
-            parsed.validate_graph(step_types(), requires_by_type=requirements_by_type())
-            validate_recipe_ports(parsed)
-            raw_source = (
-                source or record.primary_source or (record.sources[0] if record.sources else "")
-            )
-            if not raw_source:
-                return error("source_required", "Project has no source media")
-            source_path = Path(raw_source).expanduser()
-            if not source_path.is_file():
-                raise StateNotReadyError(f"Source does not exist: {source_path}")
-            job = manager.start(
-                source_path,
-                Path(record.output),
-                {
-                    "mode": "recipe",
-                    "recipe": parsed.model_dump(mode="json"),
-                    "variables": dict(variables or {}),
-                    "profile": profile,
-                    "resume": resume,
-                    "project_id": record.project_id,
-                },
-                queue=queue,
-                project_id=record.project_id,
-                finalizer=lambda finished: _adopt_job(record, finished),
-            )
-        except VideoFlowError as exc:
-            return exc.to_dict()
-        return {"ok": True, "job": job.to_dict(), "project_id": record.project_id}
 
     @register
     def vf_get_job(project_id: str, job_id: str = "") -> dict[str, Any]:
@@ -731,7 +639,7 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
             )
         except VideoFlowError as exc:
             return exc.to_dict()
-        return {"ok": True, "job": job.to_dict(), "project_id": project_id}
+        return {"ok": True, "job": _job_payload(job), "project_id": project_id}
 
     @register
     def vf_sync_multicam(
@@ -809,4 +717,4 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
             )
         except VideoFlowError as exc:
             return exc.to_dict()
-        return {"ok": True, "project_id": project_id, "job": job.to_dict()}
+        return {"ok": True, "project_id": project_id, "job": _job_payload(job)}

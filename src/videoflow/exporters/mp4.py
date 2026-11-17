@@ -64,6 +64,7 @@ def _transform_filters(clip: VideoSegment, media: MediaInfo) -> list[str]:
                 f"d=1:s={width}x{height}:"
                 f"fps={media.fps_num}/{media.fps_den}",
                 f"scale={media.width}:{media.height}:flags=lanczos",
+                "setsar=1",
             ]
         )
         return filters
@@ -77,6 +78,7 @@ def _transform_filters(clip: VideoSegment, media: MediaInfo) -> list[str]:
         x = max(0, min(max_x, round(max_x / 2 + float(transform.pos_x) * media.width)))
         y = max(0, min(max_y, round(max_y / 2 + float(transform.pos_y) * media.height)))
         filters.append(f"crop={media.width}:{media.height}:{x}:{y}")
+    filters.append("setsar=1")
     return filters
 
 
@@ -87,6 +89,7 @@ def _video_filters(clip: VideoSegment, media: MediaInfo, *, offset_frames: int =
         f"trim=start_frame={start}:end_frame={end}",
         "setpts=PTS-STARTPTS",
         *_transform_filters(clip, media),
+        "setsar=1",
         "settb=AVTB",
     ]
     return filters
@@ -282,6 +285,60 @@ def _audio_graph_inputs(
     return inputs, ";".join(chains)
 
 
+def export_timeline_audio(
+    state: ProjectState,
+    output_path: Path,
+    *,
+    adapter: Any | None = None,
+    audio_filters: Sequence[str] | None = None,
+    sample_rate: int | None = None,
+    progress: Callable[[int], None] | None = None,
+) -> Path:
+    """Render only the active timeline audio to a WAV master.
+
+    The filter graph is the same one used by the MP4 exporter, so cuts,
+    trims, fades, crossfades, and multi-source offsets match the picture.
+    """
+
+    media, _, _ = require_timeline(state)
+    if not state.audio_segments:
+        raise ExportError("Timeline has no audio segments")
+    inputs, graph = _audio_graph_inputs(state, media, Path(media.source_path).expanduser())
+    chain = ",".join(item for item in (audio_filters or ()) if item)
+    label = "[aout]"
+    if chain:
+        graph += f";{label}{chain}[amaster]"
+        label = "[amaster]"
+    destination = Path(output_path).expanduser()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(f".{destination.stem}.part.wav")
+    command = [
+        *inputs,
+        "-filter_complex",
+        graph,
+        "-map",
+        label,
+        "-vn",
+        "-ar",
+        str(int(sample_rate or media.audio_sample_rate)),
+        "-ac",
+        "2",
+        "-c:a",
+        "pcm_s16le",
+        str(temporary),
+    ]
+    renderer = adapter or FFmpegAdapter()
+    try:
+        renderer.render(command)
+        temporary.replace(destination)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+    if progress is not None:
+        progress(100)
+    return destination
+
+
 def _video_groups(video: Sequence[VideoSegment]) -> list[list[int]]:
     groups: list[list[int]] = [[0]]
     for index in range(1, len(video)):
@@ -437,7 +494,7 @@ def _render_video_group(
 
     if scale_height is not None:
         height = max(64, min(2160, int(scale_height)))
-        chains.append(f"{label}scale=-2:{height}:flags=lanczos[vout]")
+        chains.append(f"{label}scale=-2:{height}:flags=lanczos,setsar=1[vout]")
         label = "[vout]"
 
     target = cache_dir / f"group-{key}.mp4"
@@ -826,7 +883,7 @@ def _render_classic_mp4(
         graph += ";" + ";".join(overlay_chains)
     if scale_height is not None:
         height = max(64, min(2160, int(scale_height)))
-        graph += f";{video_label}scale=-2:{height}:flags=lanczos[vscale]"
+        graph += f";{video_label}scale=-2:{height}:flags=lanczos,setsar=1[vscale]"
         video_label = "[vscale]"
     destination = Path(output_path).expanduser()
     destination.parent.mkdir(parents=True, exist_ok=True)

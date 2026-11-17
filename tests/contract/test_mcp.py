@@ -101,3 +101,33 @@ def test_mcp_exposes_production_prompts() -> None:
         "videoflow_review",
         "videoflow_deliver",
     ]
+
+
+def test_mcp_surface_has_no_recipe_tools_or_resources() -> None:
+    assert not [spec for spec in TOOL_SPECS if "recipe" in spec.name]
+    assert not [spec for spec in RESOURCE_SPECS if "recipe" in spec.uri]
+
+
+def test_step_catalog_resource_lists_all_nodes() -> None:
+    async def read() -> str:
+        contents = await build_server().read_resource("vf://docs/steps")
+        return next(iter(contents)).content  # type: ignore[attr-defined]
+
+    payload = json.loads(asyncio.run(read()))
+    assert payload["ok"] is True
+    assert len(payload["steps"]) > 100
+    assert any(item["type"] == "session.ingest" for item in payload["steps"])
+
+
+def test_catalog_search_paginates_steps() -> None:
+    async def call(offset: int) -> dict:
+        result = await build_server().call_tool("vf_catalog_search", {"offset": offset, "limit": 5})
+        return result.structured_content  # type: ignore[attr-defined]
+
+    first = asyncio.run(call(0))
+    second = asyncio.run(call(5))
+    assert len(first["steps"]) == 5
+    assert len(second["steps"]) == 5
+    assert first["next_offset"] == 5
+    assert first["steps"][0]["type"] != second["steps"][0]["type"]
+    assert "recipes" not in first

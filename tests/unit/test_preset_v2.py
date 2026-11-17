@@ -178,3 +178,33 @@ def test_channel_kit_ignores_unknown_step_metadata() -> None:
     )
     fixed = apply_channel_kit(short, PresetRulebook(channel_id="demo"))
     assert fixed.steps[0].params["caption_style"] == {}
+
+
+def test_merge_defaults_accepts_list_and_dict_overrides() -> None:
+    from videoflow.application.channel_kit import _merge_defaults
+
+    params = {"targets": [], "safe_zones": {}, "enabled": False, "count": 0}
+    defaults = {
+        "targets": ["resolve", "kdenlive"],
+        "safe_zones": {"top": 0.1},
+        "enabled": True,
+        "count": 5,
+    }
+
+    _merge_defaults(params, defaults)
+
+    assert params["targets"] == ["resolve", "kdenlive"]
+    assert params["safe_zones"] == {"top": 0.1}
+    assert params["enabled"] is False
+    assert params["count"] == 0
+
+
+def test_channel_kit_ids_and_style_rejection() -> None:
+    from videoflow.application.channel_kit import channel_kit_ids, is_channel_kit
+
+    ids = channel_kit_ids()
+    assert "youtube-talking-head" in ids
+    assert "lecture-clean" in ids
+    assert "shorts-aggressive" in ids
+    assert is_channel_kit("youtube-talking-head") is True
+    assert is_channel_kit("canal-paula-long") is False

@@ -613,6 +613,7 @@ class JobManager:
             load_project_state,
             save_project_state,
         )
+        from videoflow.application.step_state import load_step_state, save_step_state
         from videoflow.core.context import PipelineContext
         from videoflow.steps.base import StepIO
         from videoflow.steps.registry import get_step
@@ -626,6 +627,7 @@ class JobManager:
         media = state.media_info
         source = Path(media.source_path) if media is not None else job.source
         output = Path(record.output)
+        artifacts, metadata = load_step_state(output)
         context = PipelineContext(
             source=source,
             output=output,
@@ -634,7 +636,12 @@ class JobManager:
             media=media,
             state=state,
             transcript=list(state.transcript),
-            metadata={"project_id": project_id, "job_id": str(job.job_id)},
+            artifacts=artifacts,
+            metadata={
+                **metadata,
+                "project_id": project_id,
+                "job_id": str(job.job_id),
+            },
         )
         step = get_step(step_type)
         params = step.params_model.model_validate(job.options.get("params") or {})
@@ -649,6 +656,7 @@ class JobManager:
         step.run(context, params, io)
         if context.state is not None:
             save_project_state(record, context.state, bump_revision=True)
+        save_step_state(output, context.artifacts, context.metadata)
         result = {
             "step_id": step_type,
             "artifacts": dict(context.artifacts),

@@ -127,10 +127,11 @@ def test_project_resources_and_prompts(tmp_path: Path, monkeypatch) -> None:
     assert kit["fonts"] == ["Inter"]
     step = json.loads(mcp.resources["vf://docs/steps/{step_type}"]("session.ingest"))
     assert "sources" in step["schema"]["properties"]
-    recipe = json.loads(mcp.resources["vf://docs/recipes/{recipe_id}"]("youtube_talking_head"))
-    assert recipe["id"] == "youtube_talking_head"
+    catalog = json.loads(mcp.resources["vf://docs/steps"]())
+    assert len(catalog["steps"]) > 100
+    assert any(item["type"] == "session.ingest" for item in catalog["steps"])
 
-    assert "vf_exec" in mcp.prompts["videoflow_produce"]("p", "youtube_talking_head")
+    assert "vf_exec" in mcp.prompts["videoflow_produce"]("p", "session.ingest")
     assert "vf_qa" in mcp.prompts["videoflow_review"]("p", "j")
     assert "bundle" in mcp.prompts["videoflow_deliver"]("p").lower()
 
@@ -148,7 +149,6 @@ def test_resource_error_paths(tmp_path: Path, monkeypatch) -> None:
         is False
     )
     assert json.loads(mcp.resources["vf://docs/steps/{step_type}"]("missing.step"))["ok"] is False
-    assert json.loads(mcp.resources["vf://docs/recipes/{recipe_id}"]("missing"))["ok"] is False
 
 
 def test_layout_preview_artifact_branch(tmp_path: Path) -> None:

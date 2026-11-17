@@ -42,9 +42,7 @@ def project_root() -> Path:
 
 @lru_cache(maxsize=1)
 def is_packaged() -> bool:
-    return bool(getattr(sys, "frozen", False)) or not (
-        project_root() / "packages"
-    ).is_dir()
+    return bool(getattr(sys, "frozen", False)) or not (project_root() / "packages").is_dir()
 
 
 def executable() -> str:
@@ -54,6 +52,9 @@ def executable() -> str:
 def _environment(workspace_root: str, *, prompts: bool) -> dict[str, str]:
     environment = {
         "VF_WORKSPACE_ROOT": workspace_root,
+        "VIDEOWFLOW_HOME": str(
+            Path(workspace_root).expanduser().resolve().parent / "videoflow-data"
+        ),
         "VF_COMPUTE_MODE": "${VF_COMPUTE_MODE:-auto}",
         "VF_GPU_WORKER_URL": "${VF_GPU_WORKER_URL:-}",
         "VF_GPU_WORKER_TOKEN": "${VF_GPU_WORKER_TOKEN:-}",
@@ -155,13 +156,7 @@ def global_config_path() -> Path:
         base = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
         return Path(base) / "opencode" / "opencode.json"
     if sys.platform == "darwin":
-        return (
-            Path.home()
-            / "Library"
-            / "Application Support"
-            / "opencode"
-            / "opencode.json"
-        )
+        return Path.home() / "Library" / "Application Support" / "opencode" / "opencode.json"
     base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
     return Path(base) / "opencode" / "opencode.json"
 

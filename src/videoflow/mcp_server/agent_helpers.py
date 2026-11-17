@@ -13,6 +13,7 @@ from videoflow.application.projects import (
     load_project_state,
     save_project_state,
 )
+from videoflow.application.step_state import save_step_state
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import StateNotReadyError, VideoFlowError
 from videoflow.domain.state import ProjectState
@@ -99,6 +100,23 @@ def _context(record: ProjectRecord, job: Any) -> PipelineContext:
 
 def _job_payload(job: Any) -> dict[str, Any]:
     payload = job.to_dict()
+    # The MCP surface exposes steps, never recipe documents or recipe variables.
+    options = payload.get("options")
+    if isinstance(options, dict):
+        cleaned = dict(options)
+        for key in ("recipe", "recipe_id", "variables", "profile"):
+            cleaned.pop(key, None)
+        if cleaned.get("mode") == "recipe" and cleaned.get("step_type"):
+            cleaned["mode"] = "step"
+        payload["options"] = cleaned
+    result = payload.get("result")
+    if isinstance(result, dict):
+        cleaned_result = dict(result)
+        for key in ("recipe", "recipe_id"):
+            cleaned_result.pop(key, None)
+        payload["result"] = cleaned_result
+    payload.pop("recipe", None)
+    payload.pop("recipe_id", None)
     payload["artifacts"] = artifact_service.list_artifacts(Path(job.output), include_hash=False)
     qa = artifact_service.qa_artifacts(Path(job.output))
     if qa["defects"]:
@@ -123,6 +141,13 @@ def _resources(project_id: str) -> dict[str, str]:
 def _adopt_job(record: ProjectRecord, job: Any) -> None:
     """Attach the job output state to the project and preserve sources."""
 
+    result = getattr(job, "result", None)
+    result = result if isinstance(result, dict) else {}
+    save_step_state(
+        Path(job.output),
+        result.get("artifacts") if isinstance(result.get("artifacts"), dict) else {},
+        result.get("metadata") if isinstance(result.get("metadata"), dict) else {},
+    )
     path = Path(job.output) / "project_state.json"
     if not path.is_file():
         return

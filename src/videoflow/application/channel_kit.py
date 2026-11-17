@@ -7,13 +7,39 @@ from typing import Any
 
 from videoflow.core.recipe import Recipe
 from videoflow.domain.headless import PresetRulebook
+from videoflow.domain.presets import SHIPPED_PRESET_NAMES
 from videoflow.steps.registry import get_step
+
+
+def _is_empty(value: Any) -> bool:
+    """Return True for the placeholder values a kit may safely override."""
+
+    return value is None or value == "" or value == [] or value == {}
 
 
 def _merge_defaults(params: dict[str, Any], defaults: dict[str, Any]) -> None:
     for key, value in defaults.items():
-        if key not in params or params[key] in {None, "", [], {}}:
+        if key not in params or _is_empty(params[key]):
             params[key] = deepcopy(value)
+
+
+def channel_kit_ids() -> list[str]:
+    """Return the channel kit ids accepted by ``vf_project``."""
+
+    from videoflow.application.preset_rules import channel_dir
+
+    ids = set(SHIPPED_PRESET_NAMES)
+    try:
+        directory = channel_dir()
+        if directory.is_dir():
+            ids.update(path.stem for path in directory.glob("*.json"))
+    except Exception:  # noqa: BLE001 - settings may be unavailable
+        pass
+    return sorted(ids)
+
+
+def is_channel_kit(channel_id: str) -> bool:
+    return (channel_id or "").strip() in set(channel_kit_ids())
 
 
 def apply_channel_kit(recipe: Recipe, book: PresetRulebook) -> Recipe:
@@ -29,7 +55,7 @@ def apply_channel_kit(recipe: Recipe, book: PresetRulebook) -> Recipe:
             allowed = set(get_step(step.type).params_model.model_fields)
         except Exception:  # noqa: BLE001 - validation reports the unknown step later
             allowed = set()
-        step_defaults = kit.defaults.get(step.type)
+        step_defaults = kit.defaults.get(step.type) if isinstance(kit.defaults, dict) else None
         if isinstance(step_defaults, dict):
             _merge_defaults(
                 params,

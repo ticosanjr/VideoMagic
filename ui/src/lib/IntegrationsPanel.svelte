@@ -51,9 +51,8 @@ export VIDEOWFLOW_ALLOWED_EXTERNAL_HOSTS=api.deepseek.com`
       title: "Paperclip",
       text: `Agent model: DeepSeek adapter (deepseek-chat)
 MCP server: ${origin}/mcp/   (OAuth disabled)
-Workflow: videoflow_list_recipes -> videoflow_run_recipe ->
-videoflow_get_job -> videoflow_get_timeline -> videoflow_copilot_timeline ->
-videoflow_validate_exports`
+Workflow: vf_project -> vf_catalog_search -> vf_exec(action="step") ->
+vf_job -> vf_timeline -> vf_exports`
     },
     {
       id: "api",
@@ -115,7 +114,7 @@ opencode mcp add videoflow --url ${origin}/mcp/</pre>
   <section class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4 text-[11px] text-neutral-400">
     <p class="font-medium text-neutral-200">Suggested agent prompt</p>
     <p class="mt-1">
-      “Use the videoflow MCP tools. List recipes, run the best one for this source, poll until success, read the timeline, apply validated Copilot edits, export, and validate the three NLE documents.”
+      “Use the videoflow MCP tools. Create a project, choose catalog steps, run each with vf_exec(action='step'), poll until success, read the timeline, apply validated edits, then build and validate the delivery bundle.”
     </p>
     <p class="mt-2 text-neutral-500">
       Keep the server on 127.0.0.1. External LLM calls require the provider plus the external-service allowlist. See <span class="font-mono">docs/integrations.md</span> for Paperclip and troubleshooting.

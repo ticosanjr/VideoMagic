@@ -80,18 +80,17 @@ provider is configured separately (below).
 
 ```text
 Use the videoflow MCP tools.
-1. List recipes and pick the best one for a talking-head interview.
-2. Run it over /media/interview.mp4 with output /media/interview-out.
-3. Poll the job until it succeeds, then read the timeline.
-4. Ask videoflow_copilot_timeline to tighten the first clip and remove any
-   sentence with a retake. Apply only edits that validate.
-5. Export and run videoflow_validate_exports; report the revision and paths.
+1. Create the project with vf_project(action="init") for /media/interview-out.
+2. Read vf://docs/steps and choose the nodes you need.
+3. Run each node with vf_exec(action="step", step_id=..., params=...).
+4. Poll vf_job(action="wait") after each step, then read the timeline.
+5. Apply only validated vf_timeline edits.
+6. Run vf_exports(action="bundle") and report the revision, bundle manifest and paths.
 ```
 
-Useful MCP tools: `videoflow_list_recipes`, `videoflow_run_recipe`,
-`videoflow_get_job`, `videoflow_get_timeline`, `videoflow_edit_timeline`,
-`videoflow_copilot_recipe`, `videoflow_copilot_timeline`,
-`videoflow_validate_exports`, `videoflow_cost_metrics`.
+Useful MCP tools: `vf_project`, `vf_capabilities`, `vf_catalog_search`,
+`vf_exec`, `vf_job`, `vf_timeline`, `vf_artifact`, `vf_render`, `vf_exports`,
+`vf_qa`. Recipes are intentionally UI/CLI/REST only.
 
 ## Paperclip
 
@@ -110,7 +109,7 @@ If your Paperclip version exposes MCP servers, add a remote server:
 
 - URL: `http://127.0.0.1:8765/mcp/`
 - OAuth: disabled (no auth on loopback)
-- Tools: the `videoflow_*` list
+- Tools: the `vf_*` core tools (steps, jobs, timeline, render, exports)
 
 If your version does not expose MCP yet, the same agent can call the REST API
 from a task or shell tool:

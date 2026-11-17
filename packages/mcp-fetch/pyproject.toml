@@ -1,6 +1,6 @@
 [project]
 name = "videoflow-mcp-fetch"
-version = "2.91.5"
+version = "2.91.6"
 description = "VideoFlow stock B-roll, image, SFX, and segment-fetch MCP server."
 readme = "README.md"
 requires-python = ">=3.11"

@@ -42,6 +42,20 @@ def _long_form_style(style: CaptionStyle) -> CaptionStyle:
     )
 
 
+def _timeline_pieces(state: object, fallback_end: int) -> list[tuple[int, int]]:
+    """Return active source ranges in timeline order for caption mapping."""
+
+    segments = getattr(state, "audio_segments", None)
+    if not segments:
+        return [(0, max(1, fallback_end))]
+    pieces = [
+        (int(clip.source_in_sample), int(clip.source_out_sample))
+        for clip in sorted(segments, key=lambda item: item.timeline_in_sample)
+        if clip.source_out_sample > clip.source_in_sample
+    ]
+    return pieces or [(0, max(1, fallback_end))]
+
+
 def _split_line(line: CaptionLine, max_chars: int) -> list[CaptionLine]:
     if len(line.text) <= max_chars:
         return [line]
@@ -118,7 +132,7 @@ class CaptionsPlanStep(BaseStep):
             end_sample = max(1, sample_rate)
         lines = caption_lines(
             context.transcript,
-            [(0, end_sample)],
+            _timeline_pieces(context.state, end_sample),
             sample_rate=sample_rate,
             word_timing=options.style.word_timing,
             warnings=context.warnings,

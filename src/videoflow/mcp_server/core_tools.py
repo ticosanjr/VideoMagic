@@ -10,10 +10,11 @@ from typing import Any
 from vf_contracts.assets import iter_assets
 
 from videoflow.application import artifacts as artifact_service
+from videoflow.application.channel_kit import channel_kit_ids, is_channel_kit
 from videoflow.application.hilt import list_requests, load_response, public_payload
 from videoflow.application.projects import get_project, load_project_state
 from videoflow.domain.errors import VideoFlowError
-from videoflow.engine.recipes import list_recipes
+from videoflow.mcp_server.agent_helpers import _job_payload
 from videoflow.mcp_server.agent_tools import register_agent_tools
 from videoflow.mcp_server.context import error
 from videoflow.steps.registry import iter_steps
@@ -41,6 +42,7 @@ def _step_catalog() -> tuple[dict[str, Any], ...]:
             "description": step.description,
             "status": step.status,
             "requires": list(step.requires),
+            "produces": list(step.produces),
             "schema_resource": f"vf://docs/steps/{step.type}",
         }
         for step in iter_steps()
@@ -55,10 +57,10 @@ def _wait(manager: Any, project_id: str, job_id: str, timeout: float) -> dict[st
     deadline = time.monotonic() + max(1.0, min(3600.0, timeout))
     while job.status not in {"succeeded", "failed", "cancelled", "answered"}:
         if time.monotonic() >= deadline:
-            return {"ok": False, "code": "timeout", "job": job.to_dict()}
+            return {"ok": False, "code": "timeout", "job": _job_payload(job)}
         time.sleep(0.25)
         job = manager.get(job_id)
-    return {"ok": job.status == "succeeded", "job": job.to_dict()}
+    return {"ok": job.status == "succeeded", "job": _job_payload(job)}
 
 
 def register_core_tools(register: Any, ctx: Any) -> None:
@@ -214,6 +216,13 @@ def register_core_tools(register: Any, ctx: Any) -> None:
             except VideoFlowError as exc:
                 return exc.to_dict()
         if action in {"init", "open"}:
+            if channel_id and not is_channel_kit(channel_id):
+                return error(
+                    "channel_not_found",
+                    f"Unknown channel kit: {channel_id}. Use one of: "
+                    + ", ".join(channel_kit_ids())
+                    + ". Styles belong in style_id.",
+                )
             if style_id:
                 from videoflow.application.style_catalog import StyleCatalog
 
@@ -240,41 +249,47 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         return legacy["vf_capabilities"](allow_external_services=allow_external_services)
 
     @register
-    def vf_catalog_search(query: str = "", kind: str = "all", limit: int = 20) -> dict[str, Any]:
-        """Search steps and recipes without loading their schemas."""
+    def vf_catalog_search(
+        query: str = "",
+        kind: str = "steps",
+        offset: int = 0,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        """List or search the node/tool catalog without loading schemas."""
 
+        if kind not in {"all", "steps"}:
+            return error(
+                "invalid_kind",
+                "kind must be 'steps' or 'all'; MCP does not expose recipes",
+            )
         needle = query.strip().casefold()
-        cap = max(1, min(100, int(limit)))
-        result: dict[str, Any] = {"ok": True, "query": query, "steps": [], "recipes": []}
-        if kind in {"all", "steps"}:
-            for step in _step_catalog():
-                haystack = (f"{step['type']} {step['title']} {step['description']}").casefold()
-                if needle and needle not in haystack:
-                    continue
-                result["steps"].append(step)
-                if len(result["steps"]) >= cap:
-                    break
-        if kind in {"all", "recipes"}:
-            for recipe in list_recipes():
-                haystack = f"{recipe.get('id', '')} {recipe.get('name', '')}".casefold()
-                if needle and needle not in haystack:
-                    continue
-                result["recipes"].append(recipe)
-                if len(result["recipes"]) >= cap:
-                    break
-        return result
+        cap = max(1, min(200, int(limit)))
+        start = max(0, int(offset))
+        matches = [
+            step
+            for step in _step_catalog()
+            if not needle
+            or needle in f"{step['type']} {step['title']} {step['description']}".casefold()
+        ]
+        page = matches[start : start + cap]
+        next_offset = start + len(page)
+        return {
+            "ok": True,
+            "query": query,
+            "steps": page,
+            "total": len(matches),
+            "offset": start,
+            "limit": cap,
+            "next_offset": next_offset if next_offset < len(matches) else None,
+        }
 
     @register
     def vf_exec(
-        action: str = "recipe",
+        action: str = "step",
         project_id: str = "",
-        recipe_id: str = "",
-        recipe: dict[str, Any] | None = None,
         step_id: str = "",
         params: dict[str, Any] | None = None,
         source: str = "",
-        variables: dict[str, Any] | None = None,
-        profile: str = "",
         wait: bool = False,
         timeout_sec: float = 300.0,
         short_index: int = 0,
@@ -285,7 +300,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         burn_subtitles: bool | None = None,
         caption_style: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Run a recipe/step, or edit one Short in a project."""
+        """Run one catalog step or edit one Short in a project."""
 
         try:
             record = get_project(project_id)
@@ -324,15 +339,11 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                 queue=True,
                 project_id=record.project_id,
             )
-            response = {"ok": True, "job": job.to_dict(), "project_id": project_id}
+            response = {"ok": True, "job": _job_payload(job), "project_id": project_id}
         else:
-            response = legacy["vf_run_recipe"](
-                project_id=project_id,
-                recipe_id=recipe_id,
-                recipe=recipe,
-                source=source,
-                variables=variables,
-                profile=profile,
+            return error(
+                "unknown_action",
+                "vf_exec supports action='step' or action='short'; recipes are not exposed via MCP",
             )
         if wait and response.get("ok"):
             job_id = str((response.get("job") or {}).get("job_id") or "")
@@ -533,6 +544,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         dialect: str = "1.10",
         mp4_profile: str = "youtube_h264",
         mp4_loudness_lufs: float | None = -16.5,
+        burn_subtitles: bool = True,
     ) -> dict[str, Any]:
         """Export a multi-target bundle, validate it, or run an NLE roundtrip."""
 
@@ -568,6 +580,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                         dialect=dialect,  # type: ignore[arg-type]
                         mp4_profile=mp4_profile,
                         mp4_loudness_lufs=mp4_loudness_lufs,
+                        burn_subtitles=burn_subtitles,
                     ),
                 )
                 return {"ok": bool(bundle.get("ok")), "bundle": bundle}

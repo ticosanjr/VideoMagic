@@ -16,7 +16,6 @@ from videoflow.application.projects import (
 )
 from videoflow.domain.errors import VideoFlowError
 from videoflow.domain.transcript import format_srt
-from videoflow.engine.recipes import get_recipe
 from videoflow.steps.registry import get_step
 
 
@@ -35,12 +34,14 @@ def register_agent_resources(mcp: Any, ctx: Any, *, prompts: bool = True) -> Non
 
         @mcp.prompt(
             name="videoflow_produce",
-            description="Run a recipe end to end and report artifacts.",
+            description="Plan and run catalog steps end to end, then report artifacts.",
         )
-        def produce_prompt(project_id: str, recipe_id: str = "opencode_longform_studio") -> str:
+        def produce_prompt(project_id: str, step_ids: str = "") -> str:
             return (
-                f"Use vf_exec(action='recipe') for project {project_id} with recipe {recipe_id}, "
-                "poll with vf_job(action='wait'), then summarize artifacts and QA."
+                f"Use vf_catalog_search (or vf://docs/steps) to choose the nodes for project "
+                f"{project_id}. Run each node with vf_exec(action='step', step_id=..., "
+                "params=...), poll with vf_job(action='wait'), then summarize artifacts and QA. "
+                f"Suggested order: {step_ids or 'choose from the catalog'}."
             )
 
         @mcp.prompt(
@@ -208,6 +209,31 @@ def register_agent_resources(mcp: Any, ctx: Any, *, prompts: bool = True) -> Non
 
         return load_rulebook(channel_id).channel_kit.model_dump_json(indent=2)
 
+    @mcp.resource("vf://docs/steps")
+    def steps_catalog() -> str:
+        """Full catalog of node/tool types."""
+
+        from videoflow.steps.registry import iter_steps
+
+        return json.dumps(
+            {
+                "ok": True,
+                "steps": [
+                    {
+                        "type": step.type,
+                        "title": step.title,
+                        "description": step.description,
+                        "status": step.status,
+                        "requires": list(step.requires),
+                        "produces": list(step.produces),
+                        "schema_resource": f"vf://docs/steps/{step.type}",
+                    }
+                    for step in iter_steps()
+                ],
+            },
+            indent=2,
+        )
+
     @mcp.resource("vf://docs/steps/{step_type}")
     def step_docs(step_type: str) -> str:
         """Full parameter schema for one step type."""
@@ -228,13 +254,3 @@ def register_agent_resources(mcp: Any, ctx: Any, *, prompts: bool = True) -> Non
             },
             indent=2,
         )
-
-    @mcp.resource("vf://docs/recipes/{recipe_id}")
-    def recipe_docs(recipe_id: str) -> str:
-        """Complete recipe document."""
-
-        try:
-            recipe = get_recipe(recipe_id)
-        except VideoFlowError as exc:
-            return _error(exc.code, exc.message)
-        return recipe.model_dump_json(indent=2)

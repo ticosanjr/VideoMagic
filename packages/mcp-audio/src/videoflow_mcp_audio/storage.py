@@ -263,7 +263,7 @@ def write_output(
 def contract_license(license: str, *, ai_generated: bool = False) -> str:
     """Map tool license labels onto the shared contract's license enum."""
 
-    if ai_generated:
+    if ai_generated or license in {"generated", "ai_generated"}:
         return "ai_generated"
     if license in _CONTRACT_LICENSES:
         return license

@@ -1,5 +1,33 @@
 # Changelog
 
+## [2.91.6] - 2026-11-17
+
+### Changed
+
+- The MCP surface is tools-only: recipes are no longer listed, read, validated,
+  run, or accepted as DAG payloads. Use the node catalog and individual steps.
+- Added `vf://docs/steps` with the complete node catalog and paginated
+  `vf_catalog_search` results.
+- Added a project-level step-state ledger so artifacts and metadata survive
+  between `vf_exec(action="step")` jobs.
+- Step jobs now expose `vf_job` payloads without recipe documents or variables.
+
+### Fixed
+
+- Channel-kit merge no longer hashes list/dict placeholders.
+- `vf_project(init)` validates `channel_id` as a shipped/operator kit and keeps
+  `style_id` separate.
+- AppImage/MCP data directories fall back to a writable home instead of the
+  read-only mount; `opencode.json` now sets `VIDEOWFLOW_HOME`.
+- Long-form captions map source transcript timing through the active timeline.
+- `audio.compose`/`audio.mix` share the `audio_music` artifact and support
+  explicit paths for standalone step calls.
+- `audio.master` renders the active timeline when available.
+- Punch-in/scale paths normalize to square pixels (`setsar=1`) before concat.
+- Delivery bundles burn `subtitles.ass` by default.
+- `mix_and_master_track` writes to the project root, not a doubled project path,
+  and generated assets use the `ai_generated` license so bundles are not blocked.
+
 ## [2.91.5] - 2026-11-17
 
 ### Changed

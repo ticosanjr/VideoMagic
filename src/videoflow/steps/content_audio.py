@@ -17,7 +17,8 @@ from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.audio import audio_filters
 from videoflow.core.context import PipelineContext
 from videoflow.domain.config import AudioEnhanceConfig
-from videoflow.domain.errors import IngestError
+from videoflow.domain.errors import ExportError, IngestError
+from videoflow.exporters.mp4 import export_timeline_audio
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.registry import register_step
 
@@ -34,6 +35,8 @@ class AudioMasterParams(BaseModel):
     true_peak_db: float = Field(default=-1.5, ge=-9.0, le=0.0)
     sample_rate: int = Field(default=48000, ge=8000, le=192000)
     platform: Literal["youtube", "tiktok", "reels", "shorts", "podcast"] = "youtube"
+    source: Literal["auto", "timeline", "source"] = "auto"
+
 
 class AudioQaParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -41,6 +44,7 @@ class AudioQaParams(BaseModel):
     target_lufs: float = Field(default=-16.0, ge=-30.0, le=-5.0)
     tolerance_lu: float = Field(default=2.0, ge=0.0, le=10.0)
     max_true_peak_db: float = Field(default=-1.0, ge=-20.0, le=0.0)
+
 
 @register_step
 class AudioMasterStep(BaseStep):
@@ -59,10 +63,7 @@ class AudioMasterStep(BaseStep):
         if context.media is None:
             raise IngestError("Audio master requires ingested media.")
         target_lufs = options.target_lufs
-        if (
-            options.platform in {"tiktok", "reels", "shorts"}
-            and options.target_lufs == -16.0
-        ):
+        if options.platform in {"tiktok", "reels", "shorts"} and options.target_lufs == -16.0:
             target_lufs = -16.5
         filters = audio_filters(
             AudioEnhanceConfig(
@@ -77,24 +78,45 @@ class AudioMasterStep(BaseStep):
             )
         )
         target = context.output / "audio" / "master.wav"
-        FFmpegAdapter().master_audio(
-            context.source,
-            target,
-            filters=filters,
-            sample_rate=options.sample_rate,
+        has_timeline = bool(context.state is not None and context.state.audio_segments)
+        use_timeline = options.source == "timeline" or (options.source == "auto" and has_timeline)
+        if use_timeline and context.state is None:
+            raise ExportError("Audio master requested the timeline, but no timeline exists.")
+        adapter = (
+            io.adapter
+            if getattr(io.adapter, "render", None) is not None
+            else FFmpegAdapter(cancel_event=io.cancel_event)
         )
+        if use_timeline:
+            export_timeline_audio(
+                context.state,  # type: ignore[arg-type]
+                target,
+                adapter=adapter,
+                audio_filters=filters,
+                sample_rate=options.sample_rate,
+            )
+        else:
+            if options.source == "timeline":
+                raise ExportError("Audio master requested the timeline, but it has no audio.")
+            if has_timeline:
+                context.warnings.append("Audio master used the source because source='source'.")
+            adapter.master_audio(
+                context.source,
+                target,
+                filters=filters,
+                sample_rate=options.sample_rate,
+            )
         context.artifacts["audio_master"] = str(target)
         context.metadata["audio_master_filters"] = filters
         filters_path = context.output / "audio" / "master-filters.json"
-        filters_path.write_text(
-            json.dumps({"filters": filters}, indent=2) + "\n", encoding="utf-8"
-        )
+        filters_path.write_text(json.dumps({"filters": filters}, indent=2) + "\n", encoding="utf-8")
         context.artifacts["audio_master_filters"] = str(filters_path)
         io.report(100, "Audio master ready")
 
     def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
         path = context.artifacts.get("audio_master")
         return (Path(path),) if path else ()
+
 
 @register_step
 class AudioQaStep(BaseStep):
@@ -114,19 +136,12 @@ class AudioQaStep(BaseStep):
 
             quality = load_settings().quality
             if options.target_lufs == -16.0:
-                options = options.model_copy(
-                    update={"target_lufs": quality.target_lufs}
-                )
+                options = options.model_copy(update={"target_lufs": quality.target_lufs})
             if options.max_true_peak_db == -1.0:
-                options = options.model_copy(
-                    update={"max_true_peak_db": quality.true_peak_db}
-                )
+                options = options.model_copy(update={"max_true_peak_db": quality.true_peak_db})
         except Exception:
             pass
-        master = (
-            context.artifacts.get("audio_mix")
-            or context.artifacts.get("audio_master")
-        )
+        master = context.artifacts.get("audio_mix") or context.artifacts.get("audio_master")
         source = Path(master) if master else Path(context.source)
         if not source.is_file():
             raise IngestError("Audio QA requires a rendered audio mix or ingested media.")
@@ -152,12 +167,9 @@ class AudioQaStep(BaseStep):
         context.artifacts["audio_qa"] = str(target)
         context.metadata["audio_qa"] = payload
         if not passed:
-            context.warnings.append(
-                f"Audio QA out of spec: {lufs:.1f} LUFS, peak {peak:.1f} dBFS"
-            )
+            context.warnings.append(f"Audio QA out of spec: {lufs:.1f} LUFS, peak {peak:.1f} dBFS")
         io.report(100, f"{lufs:.1f} LUFS · peak {peak:.1f} dBFS")
 
     def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
         path = context.artifacts.get("audio_qa")
         return (Path(path),) if path else ()
-
