@@ -704,3 +704,50 @@ def test_realesrgan_video_pipeline_uses_frames_and_audio(
     assert captured[1][-4:] == ["-o", str(captured[1][-3]), "-s", "2"] or "2" in captured[1]
     assert "1:a?" in captured[2]
     assert "+faststart" in captured[2]
+
+
+def test_write_output_resolves_contracts_copy_when_project_output_differs(
+    project_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """VF_PROJECT_OUTPUT may differ from the shared workspace root."""
+
+    override = tmp_path / "override"
+    monkeypatch.setenv("VF_PROJECT_OUTPUT", str(override))
+
+    record = audio_storage.write_output(
+        "proj-override",
+        "assets/voice/line.wav",
+        data=b"RIFFdata",
+        kind="audio",
+        source="test",
+        license="generated",
+        cache_key="override-key",
+    )
+
+    assert record.path == override / "assets/voice/line.wav"
+    assert record.path.read_bytes() == b"RIFFdata"
+    assert record.sidecar.is_file()
+    assert not (project_root / "proj-override/assets/voice/line.wav").exists()
+
+
+def test_vision_write_output_resolves_contracts_copy_when_project_output_differs(
+    project_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from videoflow_mcp_vision import storage as vision_storage
+
+    override = tmp_path / "override"
+    monkeypatch.setenv("VF_PROJECT_OUTPUT", str(override))
+
+    record = vision_storage.write_output(
+        "proj-override",
+        "assets/images/still.png",
+        data=b"PNGdata",
+        kind="images",
+        source="test",
+        license="generated",
+        cache_key="override-key",
+    )
+
+    assert record.path == override / "assets/images/still.png"
+    assert record.path.read_bytes() == b"PNGdata"
+    assert record.sidecar.is_file()

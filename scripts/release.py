@@ -159,13 +159,12 @@ def _release_notes(version: str, staged: list[dict[str, object]]) -> str:
 
     listing = "\n".join(f"- `{item['name']}` — SHA-256 `{item['sha256']}`" for item in staged)
     names = {str(item["name"]) for item in staged}
-    archive = next((name for name in names if name.endswith(".tar.zst")), None)
+    archive = next(
+        (name for name in names if name.endswith("linux-x86_64.tar.zst")),
+        None,
+    )
     linux = next(
-        (
-            name
-            for name in names
-            if name.endswith("linux-x86_64") and not name.endswith(".tar.zst")
-        ),
+        (name for name in names if name.endswith("linux-x86_64") and not name.endswith(".tar.zst")),
         None,
     )
     appimage = next((name for name in names if name.endswith(".AppImage")), None)

@@ -44,10 +44,12 @@ def test_optional_imports_return_none(monkeypatch) -> None:
     ultralytics = ModuleType("ultralytics")
     ultralytics.YOLO = object()  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "ultralytics", ultralytics)
-    monkeypatch.setitem(sys.modules, "mediapipe", ModuleType("mediapipe"))
+    mediapipe = ModuleType("mediapipe")
+    mediapipe.solutions = object()  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "mediapipe", mediapipe)
     assert face_contact._cv2() is not None
     assert face_contact._yolo() is not None
-    assert face_contact._mediapipe() is not None
+    assert face_contact._mediapipe() is mediapipe
 
 
 def test_unavailable_backends_write_a_plan(tmp_path: Path, monkeypatch) -> None:

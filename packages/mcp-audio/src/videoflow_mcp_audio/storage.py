@@ -365,7 +365,10 @@ def _contract_kind(kind: str) -> str:
 def _absolute_result_path(result: Any, project_id: str, default: Path) -> Path:
     path = _result_path(result, default)
     if not path.is_absolute():
-        path = project_dir(project_id) / path
+        # ``vf_contracts`` always stores under its own workspace project dir,
+        # which may differ from VF_PROJECT_OUTPUT. Resolve relative results
+        # against the writer's root, not the tool's preferred output root.
+        path = (_shared_project_dir(project_id) or project_dir(project_id)) / path
     return path
 
 

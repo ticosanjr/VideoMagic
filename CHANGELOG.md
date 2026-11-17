@@ -1,5 +1,32 @@
 # Changelog
 
+## [2.91.4] - 2026-11-17
+
+### Added
+
+- MediaPipe Tasks face detection for reframe tracking, alongside the legacy
+  Solutions API. Recent MediaPipe wheels are Tasks-only, so tracking now accepts
+  `mediapipe_model_path` / `VIDEOWFLOW_MEDIAPIPE_MODEL` or the
+  `mediapipe-face-detector` model catalog entry.
+- Tracking samples RGB frames for MediaPipe and converts to BGR for YOLO.
+- Regression coverage for divergent `VF_PROJECT_OUTPUT` and workspace roots.
+- Tests for color motion fallback, MediaPipe Tasks detection, and catalog model
+  resolution.
+
+### Fixed
+
+- Motion tracking now reduces color frames to one channel when a face backend
+  falls back, instead of failing on a broadcast error.
+- OpenCV Haar tracking samples 256x144 gray frames instead of 64x36, where a
+  face is too small to detect.
+- MCP audio/vision storage resolves a relative `vf_contracts` result against the
+  contract workspace, so `VF_PROJECT_OUTPUT` overrides work without
+  `OutputNotProducedError`.
+- Eye-contact analysis skips Tasks-only MediaPipe wheels and falls back to
+  YOLO/OpenCV instead of raising on `mediapipe.solutions`.
+- Tracking extra pins `mediapipe<1` and `opencv-contrib-python<5` so MediaPipe
+  cannot replace the OpenCV 4 Haar cascade build with OpenCV 5.
+
 ## [2.91.3] - 2026-11-17
 
 ### Added

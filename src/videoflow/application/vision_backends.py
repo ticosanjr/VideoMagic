@@ -25,6 +25,46 @@ def mediapipe_available() -> bool:
     return _available("mediapipe")
 
 
+def mediapipe_legacy_available() -> bool:
+    """Whether the installed MediaPipe still ships the legacy Solutions API."""
+
+    return _available("mediapipe.python.solutions.face_detection")
+
+
+def mediapipe_model_path(explicit: str = "") -> str:
+    value = (explicit or "").strip()
+    if not value:
+        value = os.environ.get("VIDEOWFLOW_MEDIAPIPE_MODEL", "").strip()
+    if not value:
+        try:
+            from videoflow.application.settings import load_settings
+
+            value = load_settings().vision.mediapipe_model_path.strip()
+        except Exception:  # noqa: BLE001 - settings are advisory
+            value = ""
+    if not value:
+        try:
+            from videoflow.application.models import installed_path
+
+            installed = installed_path("mediapipe-face-detector")
+            if installed is not None:
+                value = str(installed)
+        except Exception:  # noqa: BLE001 - catalog is optional
+            value = ""
+    if not value:
+        return ""
+    path = Path(value).expanduser()
+    return str(path) if path.is_file() else ""
+
+
+def mediapipe_ready(model_path: str = "") -> bool:
+    """MediaPipe is usable with legacy Solutions or a local Tasks model."""
+
+    return mediapipe_available() and (
+        mediapipe_legacy_available() or bool(mediapipe_model_path(model_path))
+    )
+
+
 def opencv_available() -> bool:
     return _available("cv2")
 
@@ -60,6 +100,7 @@ def resolve_tracking_backend(
     mode: str,
     *,
     yolo_model: str = "",
+    mediapipe_model_path: str = "",
     settings: Any | None = None,
 ) -> tuple[str, str]:
     """Return ``(backend, reason)`` where backend is the concrete implementation."""
@@ -76,7 +117,7 @@ def resolve_tracking_backend(
     if preferred == "auto":
         if mode == "motion_tracking":
             return "motion_tracking", "motion mode"
-        if mediapipe_available():
+        if mediapipe_ready(mediapipe_model_path):
             return "mediapipe", "mediapipe detected"
         if yolo_available(yolo_model or (getattr(vision, "yolo_model", "") if vision else "")):
             return "yolo", "yolo model detected"
@@ -85,9 +126,13 @@ def resolve_tracking_backend(
         return "motion_tracking", "no face backend available"
 
     if preferred == "mediapipe":
-        if mediapipe_available():
+        if mediapipe_ready(mediapipe_model_path):
             return "mediapipe", "requested mediapipe"
-        return "motion_tracking", "mediapipe is not installed"
+        if not mediapipe_available():
+            return "motion_tracking", "mediapipe is not installed"
+        return "motion_tracking", (
+            "mediapipe needs a local Tasks face model (set VIDEOWFLOW_MEDIAPIPE_MODEL)"
+        )
     if preferred == "yolo":
         if yolo_available(yolo_model or (getattr(vision, "yolo_model", "") if vision else "")):
             return "yolo", "requested yolo"
@@ -104,7 +149,10 @@ def resolve_tracking_backend(
 __all__ = [
     "TRACKING_BACKENDS",
     "mediapipe_available",
+    "mediapipe_legacy_available",
+    "mediapipe_model_path",
     "mediapipe_model_selection",
+    "mediapipe_ready",
     "opencv_available",
     "resolve_tracking_backend",
     "yolo_available",

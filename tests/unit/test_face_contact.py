@@ -58,9 +58,7 @@ class FakeFaceMesh:
         self.landmarks = start
 
     def process(self, image):
-        return SimpleNamespace(
-            multi_face_landmarks=[SimpleNamespace(landmark=self.landmarks)]
-        )
+        return SimpleNamespace(multi_face_landmarks=[SimpleNamespace(landmark=self.landmarks)])
 
     def close(self) -> None:
         pass
@@ -68,11 +66,7 @@ class FakeFaceMesh:
 
 class FakeYoloModel:
     def predict(self, image, **kwargs):
-        return [
-            SimpleNamespace(
-                boxes=SimpleNamespace(xyxy=[[10, 10, 60, 90]])
-            )
-        ]
+        return [SimpleNamespace(boxes=SimpleNamespace(xyxy=[[10, 10, 60, 90]]))]
 
 
 def FakeYolo(path: str) -> FakeYoloModel:
@@ -128,9 +122,7 @@ def test_mediapipe_eye_contact_and_step(tmp_path: Path, monkeypatch) -> None:
     assert ratio == pytest.approx(0.2)
 
     monkeypatch.setattr("videoflow.steps.face_contact._cv2", lambda: FakeCv2())
-    monkeypatch.setattr(
-        "videoflow.steps.face_contact._mediapipe", lambda: FakeMediaPipe()
-    )
+    monkeypatch.setattr("videoflow.steps.face_contact._mediapipe", lambda: FakeMediaPipe())
     context = PipelineContext(
         source=tmp_path / "source.mp4",
         output=tmp_path / "out",
@@ -142,9 +134,7 @@ def test_mediapipe_eye_contact_and_step(tmp_path: Path, monkeypatch) -> None:
         FaceContactParams(backend="mediapipe"),
         StepIO(adapter=FakeAdapter()),
     )
-    payload = json.loads(
-        (tmp_path / "out" / "vision" / "face-contact.json").read_text()
-    )
+    payload = json.loads((tmp_path / "out" / "vision" / "face-contact.json").read_text())
     assert payload["available"] is True
     assert payload["backend"] == "mediapipe"
     assert payload["green_label_count"] == 1
@@ -174,9 +164,7 @@ def test_yolo_eye_contact_and_step(tmp_path: Path, monkeypatch) -> None:
         FaceContactParams(backend="yolo", yolo_model="fake.pt"),
         StepIO(adapter=FakeAdapter()),
     )
-    payload = json.loads(
-        (tmp_path / "out" / "vision" / "face-contact.json").read_text()
-    )
+    payload = json.loads((tmp_path / "out" / "vision" / "face-contact.json").read_text())
     assert payload["available"] is True
     assert payload["backend"] == "yolo"
     assert payload["green_label_count"] == 1
@@ -211,11 +199,26 @@ def test_face_contact_fallback_and_markers(tmp_path: Path, monkeypatch) -> None:
         FaceContactParams(),
         StepIO(adapter=FakeAdapter()),
     )
-    payload = json.loads(
-        (tmp_path / "out2" / "vision" / "face-contact.json").read_text()
-    )
+    payload = json.loads((tmp_path / "out2" / "vision" / "face-contact.json").read_text())
     assert payload["available"] is True
     assert payload["green_label_count"] == 1
     meta = load_meta(tmp_path / "out2")
     assert meta.markers[0].color == "#00FF66"
     assert meta.markers[0].end_sec >= meta.markers[0].time_sec
+
+
+def test_mediapipe_solutions_gate(monkeypatch) -> None:
+    import sys
+    from types import ModuleType, SimpleNamespace
+
+    from videoflow.steps import face_contact
+
+    tasks_only = ModuleType("mediapipe")
+    tasks_only.tasks = SimpleNamespace()  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "mediapipe", tasks_only)
+    assert face_contact._mediapipe() is None
+
+    legacy = ModuleType("mediapipe")
+    legacy.solutions = SimpleNamespace()  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "mediapipe", legacy)
+    assert face_contact._mediapipe() is legacy

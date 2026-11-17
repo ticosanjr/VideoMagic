@@ -59,23 +59,17 @@ def _yolo() -> Any | None:
         return None
 
 
-
-
 def _mediapipe() -> Any | None:
     try:
         import mediapipe  # type: ignore[import-not-found]
 
+        # Eye contact uses the Face Mesh Solutions API. Recent MediaPipe
+        # wheels are Tasks-only; treat those as unavailable and fall back.
+        if getattr(mediapipe, "solutions", None) is None:
+            return None
         return mediapipe
     except Exception:  # noqa: BLE001 - optional dependency
         return None
-
-
-
-
-
-
-
-
 
 
 @register_step
@@ -101,12 +95,16 @@ class FaceContactStep(BaseStep):
         cv2 = _cv2() if backend != "none" else None
         mediapipe = _mediapipe() if backend in {"auto", "mediapipe"} else None
         yolo = _yolo() if options.yolo_model and backend in {"auto", "yolo"} else None
-        if backend == "none" or cv2 is None or (
-            backend == "mediapipe" and mediapipe is None
-        ) or (backend == "yolo" and (yolo is None or not options.yolo_model)):
+        if (
+            backend == "none"
+            or cv2 is None
+            or (backend == "mediapipe" and mediapipe is None)
+            or (backend == "yolo" and (yolo is None or not options.yolo_model))
+        ):
             reason = (
-                "MediaPipe is not installed. Install the optional vision extra or "
-                "review the decoupage manually at the HILT gate."
+                "MediaPipe Face Mesh (Solutions API) is not installed. Recent "
+                "MediaPipe wheels are Tasks-only; install a legacy vision build "
+                "or review the decoupage manually at the HILT gate."
                 if backend == "mediapipe"
                 else "YOLO requires ultralytics and a local face model path."
                 if backend == "yolo"
@@ -132,9 +130,10 @@ class FaceContactStep(BaseStep):
             return
         use_mediapipe = backend in {"auto", "mediapipe"} and mediapipe is not None
         use_yolo = (
-            backend == "yolo"
-            or (backend == "auto" and not use_mediapipe)
-        ) and yolo is not None and bool(options.yolo_model)
+            (backend == "yolo" or (backend == "auto" and not use_mediapipe))
+            and yolo is not None
+            and bool(options.yolo_model)
+        )
         yolo_model_obj = None
         if use_yolo:
             try:
@@ -151,9 +150,7 @@ class FaceContactStep(BaseStep):
                     self._write(target, payload)
                     context.metadata["eye_contact"] = payload
                     context.artifacts["eye_contact"] = str(target)
-                    context.warnings.append(
-                        f"Eye-contact detection skipped: {payload['reason']}"
-                    )
+                    context.warnings.append(f"Eye-contact detection skipped: {payload['reason']}")
                     io.report(100, "Eye-contact analysis unavailable (YOLO load)")
                     return
                 use_yolo = False
@@ -179,8 +176,7 @@ class FaceContactStep(BaseStep):
         frames_dir = context.output / "vision" / "frames"
         io.report(5, "Extracting face samples")
         duration_seconds = (
-            context.duration_samples()
-            / max(1, context.media.audio_sample_rate)
+            context.duration_samples() / max(1, context.media.audio_sample_rate)
             if context.media is not None
             else 0
         )
@@ -257,9 +253,7 @@ class FaceContactStep(BaseStep):
         finally:
             if mesh is not None:
                 mesh.close()
-        intervals = _merge_intervals(
-            hits, fps=options.sample_fps
-        )
+        intervals = _merge_intervals(hits, fps=options.sample_fps)
         payload = {
             "available": True,
             "backend": backend_name,
@@ -269,8 +263,7 @@ class FaceContactStep(BaseStep):
             "eye_contact_intervals": intervals,
             "green_label_count": len(intervals),
             "green_labels": [
-                {"start_sec": item["start_sec"], "end_sec": item["end_sec"]}
-                for item in intervals
+                {"start_sec": item["start_sec"], "end_sec": item["end_sec"]} for item in intervals
             ],
         }
         self._write(target, payload)

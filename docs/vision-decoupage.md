@@ -82,26 +82,36 @@ success.
 
 `shorts.reframe` shares the same optional backend policy:
 
-1. MediaPipe when `mediapipe` is installed;
+1. MediaPipe when `mediapipe` is installed and usable;
 2. YOLO when `ultralytics` is installed and `yolo_model`/`VIDEOWFLOW_YOLO_MODEL`
    points to a local model;
 3. OpenCV Haar;
 4. motion centroid.
 
+Recent MediaPipe wheels ship the Tasks API only, which needs a local face model.
+Install `mediapipe-face-detector` from the Models catalog, or point
+`mediapipe_model_path` / `VIDEOWFLOW_MEDIAPIPE_MODEL` at
+`blaze_face_short_range.tflite` (or another Tasks face model). Older wheels with
+the legacy Solutions API keep working without a model. `auto` skips MediaPipe
+when no usable face model is configured.
+
 Set `tracking_backend` in `shorts.reframe` or in `settings.vision`. `auto`
 resolves in that order. The run writes `vision/tracking.json` with the requested
 backend, the concrete backend, frames sampled, detections, and the fallback
-reason. Configure `yolo_confidence`, `tracking_smoothing`, and
-`tracking_sample_fps` in `settings.vision`. Install with:
+reason. Configure `yolo_confidence`, `mediapipe_model_path`,
+`tracking_smoothing`, and `tracking_sample_fps` in `settings.vision`. Install
+with:
 
 ```bash
 uv sync --extra vision
 uv sync --extra tracking
 ```
 
-`vision.face_contact` prefers MediaPipe Face Mesh when `mediapipe` is installed,
-then falls back to YOLO when `yolo_model` points to a local face model, then to
-the OpenCV Haar path, and finally to the manual HILT audit. Set `backend` to
+`vision.face_contact` prefers MediaPipe Face Mesh when a MediaPipe build with
+the legacy Solutions API is installed, then falls back to YOLO when `yolo_model`
+points to a local face model, then to the OpenCV Haar path, and finally to the
+manual HILT audit. Tasks-only MediaPipe wheels are skipped, because eye contact
+needs Face Mesh landmarks. Set `backend` to
 `mediapipe`, `yolo`, `opencv`, `auto`, or `none`. MediaPipe uses eye aspect
 ratio and face centering; YOLO uses the largest detected face box and
 `yolo_confidence`; OpenCV uses the largest face plus eye cascades.

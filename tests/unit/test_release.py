@@ -68,3 +68,22 @@ def test_release_notes_describe_the_fast_portable_bundle() -> None:
     assert "Linux plain binary" not in notes
     assert "AppImage" not in notes
 
+
+def test_release_notes_prefer_the_runtime_bundle_over_the_mcp_archive() -> None:
+    notes = _release_notes(
+        "9.9.9",
+        [
+            {
+                "name": "VideoFlow-9.9.9-linux-x86_64.tar.zst",
+                "sha256": "a" * 64,
+            },
+            {
+                "name": "VideoFlow-9.9.9-mcp-servers.tar.zst",
+                "sha256": "b" * 64,
+            },
+        ],
+    )
+
+    assert "tar --zstd -xf VideoFlow-9.9.9-linux-x86_64.tar.zst" in notes
+    assert "./videoflow/videoflow doctor" in notes
+    assert "mcp-servers.tar.zst\n" not in notes.split("## Run", 1)[1].split("Linux", 1)[0]

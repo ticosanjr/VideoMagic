@@ -144,6 +144,23 @@ CATALOG: dict[str, dict[str, Any]] = {
             )
         ],
     },
+    "mediapipe-face-detector": {
+        "label": "MediaPipe face detector (Tasks)",
+        "capability": "vision",
+        "used_by": ["shorts.reframe"],
+        "license": "Apache-2.0",
+        "source": "google-ai-edge/mediapipe",
+        "size_mb": 1,
+        "kind": "mediapipe",
+        "target": "mediapipe/blaze_face_short_range.tflite",
+        "files": [
+            (
+                "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
+                "blaze_face_short_range.tflite",
+                None,
+            )
+        ],
+    },
     "mediapipe-face-landmarker": {
         "label": "MediaPipe face landmarker",
         "capability": "vision",

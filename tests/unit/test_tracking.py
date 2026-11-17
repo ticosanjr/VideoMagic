@@ -224,12 +224,13 @@ def test_resolve_tracking_backend_prefers_mediapipe_then_yolo_then_opencv(monkey
     from videoflow.application import vision_backends
 
     settings = SimpleNamespace(vision=SimpleNamespace(tracking_backend="auto", yolo_model=""))
-    monkeypatch.setattr(vision_backends, "mediapipe_available", lambda: True)
+    monkeypatch.setattr(vision_backends, "mediapipe_ready", lambda model="": True)
     assert (
         vision_backends.resolve_tracking_backend("auto", "face_tracking", settings=settings)[0]
         == "mediapipe"
     )
 
+    monkeypatch.setattr(vision_backends, "mediapipe_ready", lambda model="": False)
     monkeypatch.setattr(vision_backends, "mediapipe_available", lambda: False)
     monkeypatch.setattr(vision_backends, "yolo_available", lambda model="": True)
     assert (
@@ -336,3 +337,148 @@ def test_face_center_helpers_handle_empty_frames(monkeypatch) -> None:
     from videoflow.application import tracking
 
     assert tracking._face_centers(np.empty((0, 36, 64), dtype=np.uint8)) == []
+
+
+def test_mediapipe_model_path_from_env_and_availability(monkeypatch, tmp_path) -> None:
+    from videoflow.application import vision_backends
+
+    model = tmp_path / "face.tflite"
+    model.write_bytes(b"model")
+    monkeypatch.setenv("VIDEOWFLOW_MEDIAPIPE_MODEL", str(model))
+    assert vision_backends.mediapipe_model_path() == str(model)
+
+    monkeypatch.setattr(vision_backends, "mediapipe_available", lambda: True)
+    monkeypatch.setattr(vision_backends, "mediapipe_legacy_available", lambda: False)
+    assert vision_backends.mediapipe_ready() is True
+    backend, reason = vision_backends.resolve_tracking_backend("mediapipe", "face_tracking")
+    assert backend == "mediapipe" and reason == "requested mediapipe"
+
+    monkeypatch.delenv("VIDEOWFLOW_MEDIAPIPE_MODEL")
+    monkeypatch.setattr(
+        vision_backends,
+        "mediapipe_model_path",
+        lambda explicit="": "",
+    )
+    assert vision_backends.mediapipe_ready() is False
+    backend, reason = vision_backends.resolve_tracking_backend("mediapipe", "face_tracking")
+    assert backend == "motion_tracking"
+    assert "Tasks face model" in reason
+
+
+def test_mediapipe_tasks_backend_with_fake_module(monkeypatch, tmp_path) -> None:
+    import sys
+    from types import ModuleType, SimpleNamespace
+
+    from videoflow.application import tracking
+
+    model = tmp_path / "face.tflite"
+    model.write_bytes(b"model")
+
+    class FakeImage:
+        def __init__(self, image_format=None, data=None) -> None:
+            self.image_format = image_format
+            self.data = data
+
+    class FakeDetector:
+        @staticmethod
+        def create_from_options(options):
+            return FakeDetector()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def detect(self, image):
+            assert image.data.ndim == 3
+            return SimpleNamespace(
+                detections=[
+                    SimpleNamespace(
+                        bounding_box=SimpleNamespace(origin_x=10, origin_y=0, width=100, height=50)
+                    )
+                ]
+            )
+
+    mediapipe = ModuleType("mediapipe")
+    mediapipe.Image = FakeImage  # type: ignore[attr-defined]
+    mediapipe.ImageFormat = SimpleNamespace(SRGB="SRGB")  # type: ignore[attr-defined]
+    tasks = ModuleType("mediapipe.tasks")
+    tasks_python = ModuleType("mediapipe.tasks.python")
+    tasks_python.BaseOptions = lambda **kwargs: SimpleNamespace(**kwargs)  # type: ignore[attr-defined]
+    vision = ModuleType("mediapipe.tasks.python.vision")
+    vision.FaceDetectorOptions = lambda **kwargs: SimpleNamespace(**kwargs)  # type: ignore[attr-defined]
+    vision.FaceDetector = FakeDetector  # type: ignore[attr-defined]
+    tasks.python = tasks_python  # type: ignore[attr-defined]
+    tasks_python.vision = vision  # type: ignore[attr-defined]
+    for name, module in {
+        "mediapipe": mediapipe,
+        "mediapipe.tasks": tasks,
+        "mediapipe.tasks.python": tasks_python,
+        "mediapipe.tasks.python.vision": vision,
+    }.items():
+        monkeypatch.setitem(sys.modules, name, module)
+
+    centers = tracking._face_centers_mediapipe(
+        np.zeros((1, 100, 200, 3), dtype=np.uint8), model_path=str(model)
+    )
+    assert centers == [0.3]
+
+
+def test_motion_centers_accept_color_frames() -> None:
+    from videoflow.application import tracking
+
+    frames = np.zeros((3, 36, 64, 3), dtype=np.uint8)
+    frames[:, :, 10:20, :] = 255
+    frames[1:, :, 10:20, :] = 0
+    centers = tracking._motion_centers(frames)
+    assert len(centers) == 3
+    assert centers[0] is None
+    assert centers[1] is not None and 0.0 <= centers[1] <= 1.0
+
+
+def test_mediapipe_model_path_uses_model_catalog(monkeypatch, tmp_path) -> None:
+    from types import SimpleNamespace
+
+    from videoflow.application import models, settings, vision_backends
+
+    model = tmp_path / "blaze_face_short_range.tflite"
+    model.write_bytes(b"model")
+    monkeypatch.delenv("VIDEOWFLOW_MEDIAPIPE_MODEL", raising=False)
+    monkeypatch.setattr(
+        settings,
+        "load_settings",
+        lambda: SimpleNamespace(vision=SimpleNamespace(mediapipe_model_path="")),
+    )
+    monkeypatch.setattr(
+        models,
+        "installed_path",
+        lambda model_id: model if model_id == "mediapipe-face-detector" else None,
+    )
+
+    assert vision_backends.mediapipe_model_path() == str(model)
+
+
+def test_opencv_tracking_samples_wide_gray_frames(monkeypatch) -> None:
+    from pathlib import Path
+
+    from videoflow.application import tracking
+
+    seen: dict[str, object] = {}
+
+    def fake_frames(*args, **kwargs):
+        seen.update(kwargs)
+        return np.zeros((2, 144, 256), dtype=np.uint8)
+
+    monkeypatch.setattr(tracking, "frames_from_pieces", fake_frames)
+    monkeypatch.setattr(tracking, "resolve_tracking_backend", lambda *a, **k: ("opencv_haar", "ok"))
+    monkeypatch.setattr(tracking, "_face_centers", lambda frames: [0.4, 0.6])
+
+    result = tracking.track_focus(Path("x.mp4"), [(0, 1)], 1, smoothing=0.0)
+
+    assert seen["width"] == 256
+    assert seen["height"] == 144
+    assert seen["color"] is False
+    assert result.backend == "opencv_haar"
+    assert result.detections == 2
+    assert [item["focus_x"] for item in result.keyframes] == [0.4, 0.6]

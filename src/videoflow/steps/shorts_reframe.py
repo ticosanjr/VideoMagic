@@ -118,6 +118,7 @@ class ReframeStep(BaseStep):
                 "yolo_model": getattr(vision, "yolo_model", ""),
                 "yolo_confidence": getattr(vision, "yolo_confidence", 0.35),
                 "mediapipe_model": getattr(vision, "mediapipe_model", 1),
+                "mediapipe_model_path": getattr(vision, "mediapipe_model_path", ""),
             }
             if options.dynamic_crop:
                 result = track_focus(

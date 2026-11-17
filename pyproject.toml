@@ -1,6 +1,6 @@
 [project]
 name = "videoflow"
-version = "2.91.3"
+version = "2.91.4"
 description = "Local, non-destructive video pre-edit pipeline with a rack UI and MCP server."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -55,13 +55,14 @@ diarization = [
     "pyannote.audio>=3.3",
 ]
 vision = [
-    "opencv-python-headless>=4.10",
+    "opencv-python-headless>=4.10,<5",
     "pillow>=10",
     "pytesseract>=0.3.13",
 ]
 tracking = [
-    "opencv-python-headless>=4.10",
-    "mediapipe>=0.10",
+    "opencv-python-headless>=4.10,<5",
+    "opencv-contrib-python>=4.10,<5",
+    "mediapipe>=0.10,<1",
     "ultralytics>=8.3",
 ]
 alignment = [

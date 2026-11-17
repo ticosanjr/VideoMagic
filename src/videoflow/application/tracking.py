@@ -14,6 +14,7 @@ from pathlib import Path
 import numpy as np
 
 from videoflow.application.vision_backends import (
+    mediapipe_model_path,
     mediapipe_model_selection,
     resolve_tracking_backend,
     yolo_model_path,
@@ -23,6 +24,8 @@ from videoflow.runtime import find_binary
 
 
 def focus_x_from_frames(frames: np.ndarray) -> float:
+    if frames.ndim == 4:
+        frames = frames.astype(np.float32).mean(axis=-1)
     if frames.ndim != 3 or frames.shape[0] < 2:
         return 0.5
     values = frames.astype(np.int16)
@@ -54,7 +57,9 @@ def _face_centers(frames: np.ndarray) -> list[float | None]:
     return centers
 
 
-def _face_centers_mediapipe(frames: np.ndarray, *, model_selection: int = 1) -> list[float | None]:
+def _face_centers_mediapipe_legacy(
+    frames: np.ndarray, *, model_selection: int = 1
+) -> list[float | None]:
     import mediapipe as mp  # type: ignore[import-not-found]
 
     detector = mp.solutions.face_detection.FaceDetection(
@@ -64,7 +69,7 @@ def _face_centers_mediapipe(frames: np.ndarray, *, model_selection: int = 1) -> 
     centers: list[float | None] = []
     try:
         for frame in frames:
-            rgb = np.stack([frame] * 3, axis=-1)
+            rgb = frame if frame.ndim == 3 else np.stack([frame] * 3, axis=-1)
             result = detector.process(rgb)
             detections = result.detections or []
             if not detections:
@@ -84,6 +89,53 @@ def _face_centers_mediapipe(frames: np.ndarray, *, model_selection: int = 1) -> 
     return centers
 
 
+def _face_centers_mediapipe(
+    frames: np.ndarray,
+    *,
+    model_selection: int = 1,
+    model_path: str = "",
+) -> list[float | None]:
+    import mediapipe as mp  # type: ignore[import-not-found]
+
+    if getattr(mp, "solutions", None) is not None:
+        return _face_centers_mediapipe_legacy(frames, model_selection=model_selection)
+
+    resolved = mediapipe_model_path(model_path)
+    if not resolved:
+        raise ImportError(
+            "MediaPipe Tasks needs a local face model (set VIDEOWFLOW_MEDIAPIPE_MODEL)"
+        )
+    from mediapipe.tasks import python as mp_python  # type: ignore[import-not-found]
+    from mediapipe.tasks.python import vision as mp_vision  # type: ignore[import-not-found]
+
+    base = mp_python.BaseOptions(model_asset_path=resolved)
+    options = mp_vision.FaceDetectorOptions(
+        base_options=base,
+        min_detection_confidence=0.4,
+    )
+    centers: list[float | None] = []
+    with mp_vision.FaceDetector.create_from_options(options) as detector:
+        for frame in frames:
+            rgb = frame if frame.ndim == 3 else np.stack([frame] * 3, axis=-1)
+            image = mp.Image(
+                image_format=mp.ImageFormat.SRGB,
+                data=np.ascontiguousarray(rgb),
+            )
+            result = detector.detect(image)
+            detections = result.detections or []
+            if not detections:
+                centers.append(None)
+                continue
+            best = max(
+                detections,
+                key=lambda item: int(item.bounding_box.width) * int(item.bounding_box.height),
+            )
+            box = best.bounding_box
+            frame_width = max(1, int(rgb.shape[1]))
+            centers.append(float(box.origin_x + box.width / 2) / frame_width)
+    return centers
+
+
 def _face_centers_yolo(
     frames: np.ndarray, *, model_path: str = "", confidence: float = 0.35
 ) -> list[float | None]:
@@ -95,8 +147,8 @@ def _face_centers_yolo(
     model = YOLO(resolved)
     centers: list[float | None] = []
     for frame in frames:
-        rgb = np.stack([frame] * 3, axis=-1)
-        results = model.predict(rgb, conf=confidence, verbose=False)
+        rgb = frame if frame.ndim == 3 else np.stack([frame] * 3, axis=-1)
+        results = model.predict(rgb[:, :, ::-1], conf=confidence, verbose=False)
         boxes = []
         for result in results:
             for box in getattr(result, "boxes", []) or []:
@@ -116,6 +168,9 @@ def _face_centers_yolo(
 def _motion_centers(frames: np.ndarray) -> list[float | None]:
     if len(frames) < 2:
         return [None for _ in range(len(frames))]
+    if frames.ndim == 4:
+        # Face backends sample color frames; motion needs one channel.
+        frames = frames.astype(np.float32).mean(axis=-1).astype(np.uint8)
     values = frames.astype(np.int16)
     difference = np.abs(np.diff(values, axis=0))
     mask = difference > 18
@@ -181,12 +236,21 @@ def track_focus(
     yolo_model: str = "",
     yolo_confidence: float = 0.35,
     mediapipe_model: int = 1,
+    mediapipe_model_path: str = "",
 ) -> TrackingResult:
     """Return focus keyframes plus the concrete backend and fallback reason."""
 
     requested = backend or "auto"
-    resolved, reason = resolve_tracking_backend(requested, mode, yolo_model=yolo_model)
-    wide = resolved in {"mediapipe", "yolo"}
+    resolved, reason = resolve_tracking_backend(
+        requested,
+        mode,
+        yolo_model=yolo_model,
+        mediapipe_model_path=mediapipe_model_path,
+    )
+    # Haar needs more than 64x36 to find a face; only the neural backends
+    # additionally need colour.
+    wide = resolved in {"mediapipe", "yolo", "opencv_haar"}
+    color = resolved in {"mediapipe", "yolo"}
     frames = frames_from_pieces(
         source,
         pieces,
@@ -194,6 +258,7 @@ def track_focus(
         fps=fps,
         width=256 if wide else 64,
         height=144 if wide else 36,
+        color=color,
     )
     if len(frames) == 0:
         return TrackingResult(
@@ -209,7 +274,11 @@ def track_focus(
     used = "motion_tracking"
     if resolved == "mediapipe":
         try:
-            values = _face_centers_mediapipe(frames, model_selection=mediapipe_model)
+            values = _face_centers_mediapipe(
+                frames,
+                model_selection=mediapipe_model,
+                model_path=mediapipe_model_path,
+            )
             used = "mediapipe"
         except Exception as exc:  # noqa: BLE001 - optional dependency
             reason = f"mediapipe failed: {exc}"
@@ -231,7 +300,11 @@ def track_focus(
         values = _motion_centers(frames)
         used = "motion_tracking"
         if resolved != "motion_tracking":
-            reason = reason or "no face detections; used motion"
+            reason = (
+                f"no face detections ({reason}); used motion"
+                if reason
+                else "no face detections; used motion"
+            )
         detections = sum(1 for value in values if value is not None)
 
     filled = _fill_gaps(values)
@@ -341,6 +414,7 @@ def frames_from_pieces(
     width: int = 64,
     height: int = 36,
     fps: int = 2,
+    color: bool = False,
 ) -> np.ndarray:
     binary = find_binary("ffmpeg")
     if binary is None:
@@ -362,11 +436,11 @@ def frames_from_pieces(
             "-i",
             str(source),
             "-vf",
-            f"fps={fps},scale={width}:{height},format=gray",
+            f"fps={fps},scale={width}:{height},format={'rgb24' if color else 'gray'}",
             "-f",
             "rawvideo",
             "-pix_fmt",
-            "gray",
+            "rgb24" if color else "gray",
             "pipe:1",
         ]
         try:
@@ -384,11 +458,13 @@ def frames_from_pieces(
     if not chunks:
         return np.empty((0, height, width), dtype=np.uint8)
     raw = b"".join(chunks)
-    size = width * height
+    size = width * height * (3 if color else 1)
     count = len(raw) // size
+    shape = (0, height, width, 3) if color else (0, height, width)
     if count == 0:
-        return np.empty((0, height, width), dtype=np.uint8)
-    return np.frombuffer(raw[: count * size], dtype=np.uint8).reshape(count, height, width)
+        return np.empty(shape, dtype=np.uint8)
+    reshaped = np.frombuffer(raw[: count * size], dtype=np.uint8)
+    return reshaped.reshape((count, height, width, 3) if color else (count, height, width))
 
 
 def _face_focus(frames: np.ndarray) -> float | None:
