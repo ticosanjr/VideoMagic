@@ -132,3 +132,12 @@ def test_bundle_names_are_discovered_by_validation(tmp_path: Path) -> None:
     assert report["exports"]["fcpxml"]["path"].endswith("timeline_resolve.fcpxml")
     assert report["exports"]["xmeml"]["path"].endswith("timeline_premiere.xml")
     assert report["exports"]["kdenlive"]["path"].endswith("timeline_kdenlive.kdenlive")
+
+
+def test_validation_can_limit_requested_formats(tmp_path: Path) -> None:
+    state = _state(tmp_path)
+    directory = _exports(tmp_path, state)
+
+    report = validate_nle_exports(directory, formats={"fcpxml"})
+
+    assert list(report["exports"]) == ["fcpxml"]

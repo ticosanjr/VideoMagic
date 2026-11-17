@@ -125,6 +125,8 @@ def _write_agents(path: Path, template: str, catalog: StyleCatalog) -> str:
     else:
         updated = existing.rstrip() + "\n\n" + body.strip() + "\n"
         action = "appended"
+    if updated == existing:
+        return "unchanged"
     atomic_write_text(path, updated)
     return action
 

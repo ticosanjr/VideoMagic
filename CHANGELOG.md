@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.91.2] - 2026-11-17
+
+### Changed
+
+- NLE validation parses each export once and can skip formats the bundle did not request.
+- The delivery bundle validates only requested NLE formats and hashes each
+  artifact with one stat call.
+- OpenCode packaged detection and project-root lookup are cached.
+- Style saves are no-ops when the rendered Markdown is unchanged; style sync
+  skips manifest writes when nothing changed.
+- The bootstrap `AGENTS.md` writer reports `unchanged` instead of rewriting the
+  same managed block.
+- Removed the unused bundle `basename` option now that bundle names are fixed.
+
 ## [2.91.1] - 2026-11-17
 
 ### Added

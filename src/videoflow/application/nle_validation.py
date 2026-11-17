@@ -39,6 +39,7 @@ def validate_nle_exports(
     timeline_frames: int | None = None,
     blocked_paths: set[str] | None = None,
     check_media: bool = False,
+    formats: set[str] | None = None,
 ) -> dict[str, Any]:
     """Validate the NLE documents, optionally against the source timeline.
 
@@ -50,6 +51,7 @@ def validate_nle_exports(
     directory = Path(directory).expanduser()
     blocked = {_normalize_path(item) for item in (blocked_paths or set()) if str(item).strip()}
     checks: dict[str, dict[str, Any]] = {}
+    wanted = formats if formats is not None else {"fcpxml", "xmeml", "kdenlive"}
     for name, extension, fixed_names, validator in (
         (
             "fcpxml",
@@ -74,13 +76,24 @@ def validate_nle_exports(
             _validate_kdenlive,
         ),
     ):
+        if name not in wanted:
+            continue
         path = _resolve_export_path(directory, extension, fixed_names)
-        result = validator(path)
+        if not path.is_file():
+            result = _result(path, ["missing file"])
+        else:
+            try:
+                root = ET.parse(path).getroot()
+            except ET.ParseError as exc:
+                result = _result(path, [f"parse error: {exc}"])
+            else:
+                result = validator(path, root)
+                result["nle"] = name
+                if check_media and result.get("ok"):
+                    _apply_media_checks(result, blocked, root)
+                if timeline_frames is not None and result.get("ok"):
+                    _apply_duration_check(result, timeline_frames, root)
         result["nle"] = name
-        if check_media and result.get("ok"):
-            _apply_media_checks(result, blocked)
-        if timeline_frames is not None and result.get("ok"):
-            _apply_duration_check(result, timeline_frames)
         checks[name] = result
     ok = all(item["ok"] for item in checks.values())
     return {"ok": ok, "directory": str(directory), "exports": checks}
@@ -138,9 +151,8 @@ def _resolve_references(root: ET.Element, nle: str) -> list[Path]:
     return resolved
 
 
-def _apply_media_checks(result: dict[str, Any], blocked: set[str]) -> None:
+def _apply_media_checks(result: dict[str, Any], blocked: set[str], root: ET.Element) -> None:
     path = Path(result.get("path", ""))
-    root = ET.parse(path).getroot()
     references = _resolve_references(root, result["nle"])
     missing = sorted(
         {str(item) for item in references if not item.is_file()},
@@ -167,9 +179,7 @@ def _apply_media_checks(result: dict[str, Any], blocked: set[str]) -> None:
     result["ok"] = not result["errors"] and path.is_file()
 
 
-def _apply_duration_check(result: dict[str, Any], expected: int) -> None:
-    path = Path(result.get("path", ""))
-    root = ET.parse(path).getroot()
+def _apply_duration_check(result: dict[str, Any], expected: int, root: ET.Element) -> None:
     actual = _document_frames(root, result["nle"])
     result["duration"] = {"expected_frames": expected, "actual_frames": actual}
     if actual is None:
@@ -274,15 +284,9 @@ def _result(
     }
 
 
-def _validate_fcpxml(path: Path) -> dict[str, Any]:
+def _validate_fcpxml(path: Path, root: ET.Element) -> dict[str, Any]:
     errors: list[str] = []
     warnings: list[str] = []
-    if not path.is_file():
-        return _result(path, ["missing file"])
-    try:
-        root = ET.parse(path).getroot()
-    except ET.ParseError as exc:
-        return _result(path, [f"parse error: {exc}"])
     if root.tag != "fcpxml":
         errors.append("root is not fcpxml")
     clips = root.findall("./library/event/project/sequence/spine/asset-clip")
@@ -318,15 +322,9 @@ def _validate_fcpxml(path: Path) -> dict[str, Any]:
     )
 
 
-def _validate_xmeml(path: Path) -> dict[str, Any]:
+def _validate_xmeml(path: Path, root: ET.Element) -> dict[str, Any]:
     errors: list[str] = []
     warnings: list[str] = []
-    if not path.is_file():
-        return _result(path, ["missing file"])
-    try:
-        root = ET.parse(path).getroot()
-    except ET.ParseError as exc:
-        return _result(path, [f"parse error: {exc}"])
     if root.tag != "xmeml":
         errors.append("root is not xmeml")
     clips = root.findall("./sequence/media/video/track/clipitem")
@@ -358,15 +356,9 @@ def _validate_xmeml(path: Path) -> dict[str, Any]:
     )
 
 
-def _validate_kdenlive(path: Path) -> dict[str, Any]:
+def _validate_kdenlive(path: Path, root: ET.Element) -> dict[str, Any]:
     errors: list[str] = []
     warnings: list[str] = []
-    if not path.is_file():
-        return _result(path, ["missing file"])
-    try:
-        root = ET.parse(path).getroot()
-    except ET.ParseError as exc:
-        return _result(path, [f"parse error: {exc}"])
     if root.tag != "mlt":
         errors.append("root is not mlt")
     if root.find("profile") is None:

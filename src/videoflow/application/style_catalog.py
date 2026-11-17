@@ -426,7 +426,10 @@ class StyleCatalog:
         if path.exists() and not overwrite:
             raise StyleError(f"style already exists: {style.style_id}")
         style = style.model_copy(update={"updated_at": style.updated_at or _now()})
-        atomic_write_text(path, render_style_markdown(style))
+        text = render_style_markdown(style)
+        if path.is_file() and path.read_text(encoding="utf-8", errors="replace") == text:
+            return path
+        atomic_write_text(path, text)
         self._index(style, path)
         self.invalidate()
         return path
@@ -466,6 +469,7 @@ class StyleCatalog:
         copied: list[str] = []
         skipped: list[str] = []
         unchanged: list[str] = []
+        manifest_changed = False
         for style in self.list_styles():
             text = render_style_markdown(style)
             digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -475,11 +479,18 @@ class StyleCatalog:
                 local = hashlib.sha256(target.read_bytes()).hexdigest()
                 if local == digest:
                     unchanged.append(style.style_id)
-                    manifest[style.style_id] = {
-                        "sha256": digest,
-                        "updated_at": style.updated_at,
-                        "synced_at": _now(),
-                    }
+                    previous_entry = manifest.get(style.style_id)
+                    if (
+                        not isinstance(previous_entry, dict)
+                        or previous_entry.get("sha256") != digest
+                        or previous_entry.get("updated_at") != style.updated_at
+                    ):
+                        manifest[style.style_id] = {
+                            "sha256": digest,
+                            "updated_at": style.updated_at,
+                            "synced_at": _now(),
+                        }
+                        manifest_changed = True
                     continue
                 if not overwrite and (not previous or local != previous):
                     skipped.append(style.style_id)
@@ -491,10 +502,12 @@ class StyleCatalog:
                 "updated_at": style.updated_at,
                 "synced_at": _now(),
             }
-        atomic_write_text(
-            manifest_path,
-            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
-        )
+            manifest_changed = True
+        if manifest_changed or not manifest_path.is_file():
+            atomic_write_text(
+                manifest_path,
+                json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+            )
         return {
             "ok": True,
             "directory": str(directory),

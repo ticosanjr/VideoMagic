@@ -61,7 +61,6 @@ class DeliveryBundleRequest:
     mp4_true_peak_db: float = YOUTUBE_TRUE_PEAK_DB
     mp4_cfr: bool = True
     require_licenses: bool = True
-    basename: str = "timeline"
     include_sidecars: bool = True
     extra_targets: tuple[str, ...] = field(default_factory=tuple)
 
@@ -185,6 +184,14 @@ def build_delivery_bundle(
     if not targets:
         targets = list(ALL_TARGETS)
     nle_targets = [target for target in targets if target != "mp4"]
+    format_for_target = {
+        "resolve": "fcpxml",
+        "premiere": "xmeml",
+        "kdenlive": "kdenlive",
+    }
+    requested_formats = {
+        format_for_target[target] for target in nle_targets if target in format_for_target
+    }
     requested_mp4 = "mp4" in targets
     chosen_extras = extras if extras is not None else nle_extras_from_output(output)
 
@@ -198,7 +205,6 @@ def build_delivery_bundle(
                 exports,
                 targets=nle_targets,
                 dialect=options.dialect,
-                basename=options.basename,
                 filenames=BUNDLE_FILENAMES,
                 extras=chosen_extras,
                 progress=progress,
@@ -242,19 +248,8 @@ def build_delivery_bundle(
         timeline_frames=frames,
         blocked_paths=blocked_paths(blockers, output),
         check_media=True,
+        formats=requested_formats,
     )
-    format_for_target = {
-        "resolve": "fcpxml",
-        "premiere": "xmeml",
-        "kdenlive": "kdenlive",
-    }
-    requested_formats = {
-        format_for_target[target] for target in nle_targets if target in format_for_target
-    }
-    validation["exports"] = {
-        name: check for name, check in validation["exports"].items() if name in requested_formats
-    }
-    validation["ok"] = all(item["ok"] for item in validation["exports"].values())
     if mp4_path is not None:
         mp4_dir = _mp4_metadata(mp4_path)
         mp4_ok = bool(mp4_dir.get("exists")) and (
@@ -270,14 +265,15 @@ def build_delivery_bundle(
         validation["ok"] = bool(validation["ok"]) and mp4_ok
 
     sidecars = _copy_sidecars(output, exports) if options.include_sidecars else []
-    files = {
-        name: {
+    files: dict[str, dict[str, object]] = {}
+    for name, raw_path in artifacts.items():
+        path = Path(raw_path)
+        exists = path.is_file()
+        files[name] = {
             "path": str(path),
-            "sha256": _sha256(path) if Path(path).is_file() else "",
-            "bytes": Path(path).stat().st_size if Path(path).is_file() else 0,
+            "sha256": _sha256(path) if exists else "",
+            "bytes": path.stat().st_size if exists else 0,
         }
-        for name, path in artifacts.items()
-    }
     manifest = {
         "schema_version": BUNDLE_SCHEMA_VERSION,
         "project_id": str(state.project_id),

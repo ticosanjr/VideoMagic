@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -34,10 +35,12 @@ _DOMAIN_SUBCOMMANDS = {
 }
 
 
+@lru_cache(maxsize=1)
 def project_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
+@lru_cache(maxsize=1)
 def is_packaged() -> bool:
     return bool(getattr(sys, "frozen", False)) or not (
         project_root() / "packages"
