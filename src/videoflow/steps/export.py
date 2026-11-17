@@ -152,6 +152,7 @@ class ExportStep(BaseStep):
             "titles.ass",
             "titles.json",
             "captions/captions.ass",
+            "captions/captions.srt",
             "subtitles.ass",
             "broll.json",
             "timeline_meta.json",

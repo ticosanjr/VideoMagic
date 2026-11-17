@@ -2024,6 +2024,11 @@
       "title": "Sources",
       "type": "object"
     },
+    "style_id": {
+      "default": "",
+      "title": "Style Id",
+      "type": "string"
+    },
     "transcript": {
       "items": {
         "$ref": "#/$defs/Sentence"

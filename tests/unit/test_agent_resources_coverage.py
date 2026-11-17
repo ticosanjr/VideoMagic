@@ -170,3 +170,19 @@ def test_layout_preview_artifact_branch(tmp_path: Path) -> None:
     step._render_preview = lambda context, options: preview  # type: ignore[method-assign]
     step.run(context, CutoutParams(render_preview=True), StepIO())
     assert context.artifacts["layout_preview"] == str(preview)
+
+
+def test_style_catalog_resources(tmp_path: Path, monkeypatch) -> None:
+    mcp, _record = _setup(tmp_path, monkeypatch)
+
+    styles = json.loads(mcp.resources["vf://styles"]())
+    assert any(item["style_id"] == "canal-paula-reels" for item in styles["styles"])
+
+    document = json.loads(mcp.resources["vf://styles/{style_id}"]("canal-paula-reels"))
+    assert document["ok"] is True
+    assert document["style"]["layout_mode"] == "cutout"
+    assert document["markdown"].startswith("---")
+    assert Path(document["file_path"]).is_file()
+
+    missing = json.loads(mcp.resources["vf://styles/{style_id}"]("missing-style"))
+    assert missing["ok"] is False

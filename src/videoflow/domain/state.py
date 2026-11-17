@@ -226,6 +226,7 @@ class ProjectState(StrictModel):
 
     schema_version: Literal[1, 2] = SCHEMA_VERSION
     project_id: UUID = Field(default_factory=uuid4)
+    style_id: str = ""
     revision: int = Field(default=1, ge=1)
     media_info: MediaInfo | None = None
     sources: dict[str, MediaInfo] = Field(default_factory=dict)

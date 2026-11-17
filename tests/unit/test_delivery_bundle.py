@@ -79,10 +79,14 @@ def test_bundle_writes_every_target_and_manifest(tmp_path: Path) -> None:
 
     assert result["ok"] is True
     assert result["timeline_frames"] == 60
-    assert set(result["files"]) == {"mp4", "resolve", "premiere", "kdenlive"}
+    assert set(result["files"]) == {"mp4", "resolve", "premiere", "kdenlive", "kdenlive_mlt"}
     for entry in result["files"].values():
         assert Path(entry["path"]).is_file()
         assert len(entry["sha256"]) == 64
+    assert Path(result["files"]["resolve"]["path"]).name == "timeline_resolve.fcpxml"
+    assert Path(result["files"]["premiere"]["path"]).name == "timeline_premiere.xml"
+    assert Path(result["files"]["kdenlive"]["path"]).name == "timeline_kdenlive.kdenlive"
+    assert Path(result["files"]["kdenlive_mlt"]["path"]).name == "timeline_kdenlive.mlt"
     assert Path(result["manifest"]).is_file()
     payload = json.loads(Path(result["manifest"]).read_text(encoding="utf-8"))
     assert payload["schema_version"] == 1
@@ -126,7 +130,7 @@ def test_bundle_skips_mp4_when_only_nle_targets(tmp_path: Path) -> None:
         adapter=FakeAdapter(),
     )
 
-    assert set(result["files"]) == {"resolve", "kdenlive"}
+    assert set(result["files"]) == {"resolve", "kdenlive", "kdenlive_mlt"}
     assert "mp4" not in result["validation"]["exports"]
 
 
@@ -190,7 +194,7 @@ def test_bundle_mp4_reuses_master(tmp_path: Path) -> None:
 
     assert result["ok"] is True
     assert ("mp4", 0) in seen
-    assert result["files"]["mp4"]["path"].endswith("timeline.mp4")
+    assert result["files"]["mp4"]["path"].endswith("final_youtube.mp4")
     assert result["validation"]["exports"]["mp4"]["exists"] is True
 
 
@@ -216,7 +220,7 @@ def test_bundle_defaults_to_all_targets_when_empty(tmp_path: Path) -> None:
         adapter=FakeAdapter(),
     )
 
-    assert set(result["files"]) == {"mp4", "resolve", "premiere", "kdenlive"}
+    assert set(result["files"]) == {"mp4", "resolve", "premiere", "kdenlive", "kdenlive_mlt"}
 
 
 def test_mp4_metadata_missing_and_probe(tmp_path: Path, monkeypatch) -> None:

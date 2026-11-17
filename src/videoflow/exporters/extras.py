@@ -60,6 +60,7 @@ class NleExtras:
     audio_stem: str = ""
     adjustments: tuple[NleAdjustment, ...] = ()
     music: tuple[NleMusic, ...] = ()
+    captions: tuple[NleTitle, ...] = ()
     metadata: dict[str, str] = field(default_factory=dict)
 
 

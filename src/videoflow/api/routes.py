@@ -20,6 +20,7 @@ from videoflow.api.routes_providers import register_provider_routes
 from videoflow.api.routes_publish import register_publish_routes
 from videoflow.api.routes_recipes import register_recipe_routes
 from videoflow.api.routes_schedules import register_schedule_routes
+from videoflow.api.routes_styles import register_style_routes
 from videoflow.api.routes_system import register_system_routes
 from videoflow.api.routes_timeline import register_timeline_routes
 from videoflow.application.jobs import JobManager
@@ -39,6 +40,7 @@ def register_routes(
     register_asset_routes(app)
     register_discovery_routes(app)
     register_preset_routes(app)
+    register_style_routes(app)
     register_recipe_routes(app, jobs)
     register_system_routes(app)
     register_admin_routes(app)

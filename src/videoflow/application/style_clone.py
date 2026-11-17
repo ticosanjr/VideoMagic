@@ -10,11 +10,15 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from videoflow.application.preset_rules import load_rulebook, save_rulebook
+from videoflow.application.style_catalog import (
+    catalog as style_catalog,
+)
+from videoflow.application.style_catalog import style_slug
 from videoflow.core.context import PipelineContext
+from videoflow.domain.errors import StyleNotFoundError
+from videoflow.domain.styles import StyleDefinition
 from videoflow.runtime import find_binary
 from videoflow.steps.base import StepIO
-from videoflow.steps.preset_compile import CompileRuleParams, CompileRuleStep
 from videoflow.steps.style_reverse import StyleReverseParams, StyleReverseStep
 
 VIDEO_SUFFIXES = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
@@ -158,6 +162,25 @@ def _context(output: Path) -> PipelineContext:
     )
 
 
+def _style_body(preset: dict[str, Any], reference_url: str) -> str:
+    palette = ", ".join(str(item) for item in preset.get("palette") or []) or "auto"
+    typography = preset.get("typography") or {}
+    rhythm = preset.get("cut_rhythm") or {}
+    lines = [
+        "# Direção Visual & Editorial",
+        "",
+        f"- Paleta: {palette}",
+        f"- Tipografia: {typography.get('family') or 'sans-serif'} "
+        f"({typography.get('weight') or 'bold'}, {typography.get('case') or 'normal'})",
+        "- Ritmo de corte: "
+        f"{rhythm.get('median_cut_sec') or rhythm.get('max_cut_sec') or 'reference'}s",
+        "- Safe zones: reels, tiktok, shorts",
+    ]
+    if reference_url:
+        lines.append(f"- Referência: {reference_url}")
+    return "\n".join(lines)
+
+
 def clone_style(
     channel_id: str,
     output: Path,
@@ -166,6 +189,7 @@ def clone_style(
     reference_dir: str = "",
     images: list[str] | None = None,
     name: str = "",
+    workspace_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     """Extract palette, typography hints, rhythm, and safe zones into a kit."""
 
@@ -211,27 +235,39 @@ def clone_style(
     preset = dict(context.metadata.get("style_preset") or {})
     if rhythm is not None:
         preset["cut_rhythm"] = rhythm
-    book = load_rulebook(channel_id)
-    book.channel_id = channel_id
-    palette = [str(item) for item in preset.get("palette") or []]
-    if palette:
-        book.channel_kit.palette = palette
+    style_id = style_slug(channel_id or name or "style")
+    try:
+        style = style_catalog().get(style_id)
+    except StyleNotFoundError:
+        style = StyleDefinition(style_id=style_id, name=name or channel_id or style_id)
     typography = preset.get("typography") or {}
+    fonts = list(style.fonts)
     family = str(typography.get("family") or "").strip()
-    if family:
-        book.channel_kit.fonts = [family]
-    book.channel_kit.defaults.setdefault("style", {})
-    book.channel_kit.defaults["style"] = {
-        "preset": preset,
-        "safe_zones": preset.get("safe_zones") or {},
-    }
-    path = save_rulebook(book)
+    if family and family not in fonts:
+        fonts = [family, *fonts]
+    style = style.model_copy(
+        update={
+            "name": name or style.name or style_id,
+            "palette": [str(item) for item in preset.get("palette") or []] or style.palette,
+            "fonts": fonts,
+            "cut_rhythm": dict(preset.get("cut_rhythm") or style.cut_rhythm),
+            "safe_zones": dict(preset.get("safe_zones") or style.safe_zones),
+            "body": _style_body(preset, reference_url),
+        }
+    )
+    path = style_catalog().save(style)
+    sync = style_catalog().sync(workspace_dir) if workspace_dir is not None else {}
     return {
         "ok": True,
-        "channel_id": channel_id,
+        "channel_id": style_id,
+        "style_id": style_id,
         "preset": preset,
+        "style": style.model_dump(mode="json"),
         "rulebook": str(path),
-        "resource": f"vf://presets/{channel_id}/kit",
+        "file": str(path),
+        "resource": f"vf://styles/{style_id}",
+        "legacy_resource": f"vf://presets/{style_id}/kit",
+        "sync": sync,
         "warnings": warnings,
         "images": files,
     }
@@ -244,29 +280,33 @@ def learn_rule(
     notes: list[str] | None = None,
     mode: str = "merge",
     max_rules: int = 15,
+    workspace_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     """Compile human review notes into the channel rulebook."""
 
-    context = _context(Path(output))
-    CompileRuleStep().run(
-        context,
-        CompileRuleParams(
-            channel_id=channel_id,
-            review_notes=list(notes or []),
-            mode=mode,  # type: ignore[arg-type]
-            max_rules=max(1, min(15, int(max_rules))),
-        ),
-        StepIO(stage="preset.compile_rule"),
+    style_id = style_slug(channel_id or "style")
+    try:
+        style_catalog().get(style_id)
+    except StyleNotFoundError:
+        style_catalog().save(StyleDefinition(style_id=style_id, name=channel_id or style_id))
+    style = style_catalog().learn_rule(
+        style_id,
+        list(notes or []),
+        mode=mode,
+        max_rules=max(1, min(15, int(max_rules))),
     )
-    book = context.metadata.get("preset_rulebook") or {}
+    sync = style_catalog().sync(workspace_dir) if workspace_dir is not None else {}
     return {
         "ok": True,
-        "channel_id": channel_id,
-        "rulebook": context.artifacts.get("preset_rulebook", ""),
-        "resource": f"vf://presets/{channel_id}/rulebook",
-        "rules": book.get("learned_rules", []),
-        "count": len(book.get("learned_rules", [])),
-        "warnings": list(context.warnings),
+        "channel_id": style_id,
+        "style_id": style_id,
+        "rulebook": str(style_catalog().root / f"{style_id}.md"),
+        "resource": f"vf://styles/{style_id}",
+        "legacy_resource": f"vf://presets/{style_id}/rulebook",
+        "rules": [rule.model_dump(mode="json") for rule in style.learned_rules],
+        "count": len(style.learned_rules),
+        "sync": sync,
+        "warnings": [],
     }
 
 

@@ -999,6 +999,53 @@ export interface LogLine {
 
 export { ApiError, formatBackendDetail, describeError } from "./api/client";
 
+export interface StyleSummary {
+  style_id: string;
+  name: string;
+  aspect_ratio: string;
+  summary: string;
+  file_path: string;
+  updated_at: string;
+}
+
+export async function listStyles(): Promise<StyleSummary[]> {
+  const response = await request<{ ok: boolean; styles: StyleSummary[] }>("/api/v1/styles");
+  return response.styles;
+}
+
+export interface OpenCodeBootstrapRequest {
+  target_dir: string;
+  mcp_profile: "core" | "decupagem" | "broll" | "audio" | "vision" | "full";
+  register_global_opencode?: boolean;
+  overwrite?: boolean;
+  include_sample_project?: boolean;
+  register_root?: boolean;
+  prompts?: boolean;
+}
+
+export interface OpenCodeBootstrapResult {
+  ok: boolean;
+  status: "ok" | "warning";
+  target_dir: string;
+  created_files: string[];
+  skipped_files: string[];
+  copied_styles: string[];
+  mcp_servers: string[];
+  launch_command: string;
+  sample_project: Record<string, unknown>;
+  registered_root: boolean;
+  warnings: string[];
+}
+
+export async function bootstrapOpenCode(
+  payload: OpenCodeBootstrapRequest
+): Promise<OpenCodeBootstrapResult> {
+  return request<OpenCodeBootstrapResult>("/api/v1/system/bootstrap/opencode", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
 export async function listServices(): Promise<ServicesResponse> {
   return request<ServicesResponse>("/api/v1/services");
 }

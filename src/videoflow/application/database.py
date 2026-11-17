@@ -81,6 +81,10 @@ def _create_schema(connection: sqlite3.Connection) -> None:
         "project_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)"
     )
     connection.execute(
+        "CREATE TABLE IF NOT EXISTS styles ("
+        "style_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)"
+    )
+    connection.execute(
         "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
     )
     connection.execute("INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', '1')")
@@ -267,6 +271,48 @@ def list_assets_db(
             rows = connection.execute(sql, params).fetchall()
     except sqlite3.Error as exc:
         _set_error(f"could not read assets: {exc}")
+        return []
+    _set_error("")
+    result: list[dict[str, Any]] = []
+    for (payload,) in rows:
+        try:
+            result.append(json.loads(payload))
+        except ValueError:
+            continue
+    return result
+
+
+def upsert_style(style_id: str, payload: dict[str, Any]) -> None:
+    try:
+        with contextlib.closing(connect()) as connection:
+            connection.execute(
+                "INSERT OR REPLACE INTO styles (style_id, payload, updated_at) VALUES (?, ?, ?)",
+                (style_id, json.dumps(payload, sort_keys=True), _now()),
+            )
+            connection.commit()
+    except sqlite3.Error as exc:
+        _set_error(f"could not persist style {style_id}: {exc}")
+
+
+def delete_style(style_id: str) -> None:
+    try:
+        with contextlib.closing(connect()) as connection:
+            connection.execute("DELETE FROM styles WHERE style_id = ?", (style_id,))
+            connection.commit()
+    except sqlite3.Error as exc:
+        _set_error(f"could not delete style {style_id}: {exc}")
+
+
+def list_styles_db() -> list[dict[str, Any]]:
+    if not db_path().is_file():
+        return []
+    try:
+        with contextlib.closing(connect()) as connection:
+            rows = connection.execute(
+                "SELECT payload FROM styles ORDER BY style_id"
+            ).fetchall()
+    except sqlite3.Error as exc:
+        _set_error(f"could not read styles: {exc}")
         return []
     _set_error("")
     result: list[dict[str, Any]] = []

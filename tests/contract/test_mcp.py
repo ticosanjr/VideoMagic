@@ -8,10 +8,10 @@ from videoflow.mcp_server.server import build_server
 
 def test_registry_is_the_core_profile() -> None:
     names = [tool.name for tool in TOOL_SPECS]
-    assert len(names) == 12
+    assert len(names) == 13
     assert len(names) == len(set(names))
     assert all(name.startswith("vf_") for name in names)
-    assert len(RESOURCE_SPECS) == 11
+    assert len(RESOURCE_SPECS) == 13
 
 
 def test_server_registers_every_public_tool() -> None:

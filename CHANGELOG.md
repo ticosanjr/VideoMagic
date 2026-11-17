@@ -1,5 +1,46 @@
 # Changelog
 
+## [2.91.1] - 2026-11-17
+
+### Added
+
+- Canonical Markdown style catalog under `{data}/styles` with YAML frontmatter,
+  Pydantic validation, SQLite index, mtime cache, three shipped seeds, and
+  workspace sync with SHA-256 manifests.
+- `vf_style` core MCP tool with `list`, `get`, `save`, `learn_rule`, `sync`, and
+  `delete`; resources `vf://styles` and `vf://styles/{style_id}`.
+- `vf_project(style_id=...)` binds a style to the project record and
+  `project_state.json`; recipes apply the style-derived channel kit.
+- `videoflow style list|save|learn|sync`, plus REST `/api/v1/styles*`.
+- OpenCode workspace bootstrap (`videoflow init-opencode` and
+  `POST /api/v1/system/bootstrap/opencode`) generating `opencode.json`,
+  managed `AGENTS.md`, skills, slash commands, `presets/`, `references/`,
+  `projects/`, global config merge, backups, and an optional 10s sample.
+- `Setup → Connect → OpenCode Studio Bootstrap` card with folder picker, profile,
+  style preview, options, result summary, and copyable launch command.
+- Packaged domain MCP servers: `videoflow mcp-fetch`, `mcp-audio`, `mcp-vision`.
+- Delivery bundle fixed names: `final_youtube.mp4`, `timeline_resolve.fcpxml`,
+  `timeline_premiere.xml`, `timeline_kdenlive.kdenlive`, and
+  `timeline_kdenlive.mlt`.
+- Style `export_targets` drives `vf_exports(bundle)` and `delivery.package` when
+  targets are omitted.
+
+### Changed
+
+- Captions, music ducking envelopes, and dedicated caption tracks are exported
+  in all three NLE dialects.
+- Manual clip timing edits in an NLE shift transcript/ducking even without
+  explicit `vf:` markers.
+- Kdenlive roundtrip reads only the two video playlists.
+- `vf_exports` validation recognizes both bundle names and legacy names.
+
+### Fixed
+
+- Premiere XMEML now carries center/position keyframes for reframe.
+- `clone_style` samples video frames and estimates cut rhythm.
+- `delivery.package` works for long-form projects without a Shorts render.
+- AppImage and portable binary include all four MCP servers.
+
 ## [2.91.0] - 2026-11-16
 
 ### Added

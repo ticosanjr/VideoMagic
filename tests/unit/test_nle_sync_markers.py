@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from videoflow.core.context import PipelineContext
@@ -285,3 +286,82 @@ def test_mlt_roundtrip_reads_only_video_playlists(tmp_path: Path, monkeypatch) -
     report = context.metadata["sync_back_report"]
     assert report["applied"] is True
     assert context.state.video_segments[1].timeline_in_frame == 30
+
+
+def test_nle_timing_edit_shifts_transcript_and_ducking(tmp_path: Path, monkeypatch) -> None:
+    from videoflow.domain.state import AudioSegment, VideoSegment
+
+    monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
+    context = make_context(tmp_path)
+    second = Sentence(
+        id=1,
+        start_sample=RATE,
+        end_sample=2 * RATE,
+        text="world",
+        words=[WordTiming(word="world", start_sample=RATE, end_sample=2 * RATE, probability=1.0)],
+    )
+    context.transcript = [*context.transcript, second]
+    context.state = ProjectState(
+        media_info=context.media,
+        transcript=context.transcript,
+        video_segments=[
+            VideoSegment(
+                clip_id="c1",
+                source_in_frame=0,
+                source_out_frame=30,
+                timeline_in_frame=0,
+                timeline_out_frame=30,
+            ),
+            VideoSegment(
+                clip_id="c2",
+                source_in_frame=0,
+                source_out_frame=30,
+                timeline_in_frame=30,
+                timeline_out_frame=60,
+            ),
+        ],
+        audio_segments=[
+            AudioSegment(
+                clip_id="c1",
+                source_in_sample=0,
+                source_out_sample=48000,
+                timeline_in_sample=0,
+                timeline_out_sample=48000,
+            ),
+            AudioSegment(
+                clip_id="c2",
+                source_in_sample=0,
+                source_out_sample=48000,
+                timeline_in_sample=48000,
+                timeline_out_sample=96000,
+            ),
+        ],
+    )
+    audio = context.output / "audio"
+    audio.mkdir(parents=True)
+    (audio / "ducking.json").write_text(
+        json.dumps({"ducking": [{"start_sec": 1.2, "end_sec": 1.8, "level_db": -12.0}]}),
+        encoding="utf-8",
+    )
+    path = context.output / "timeline.xml"
+    path.write_text(
+        "<xmeml><sequence><media><video><track>"
+        "<clipitem><start>0</start><end>30</end></clipitem>"
+        "<clipitem><start>60</start><end>90</end></clipitem>"
+        "</track></video></media></sequence></xmeml>",
+        encoding="utf-8",
+    )
+
+    nle_sync.NleSyncStep().run(
+        context,
+        nle_sync.NleSyncParams(format="xmeml", path=str(path), apply=True),
+        StepIO(),
+    )
+
+    report = context.metadata["sync_back_report"]
+    assert report["applied"] is True
+    assert context.state.video_segments[1].timeline_in_frame == 60
+    assert context.transcript[0].start_sample == 0
+    assert context.transcript[1].start_sample == 2 * RATE
+    assert context.metadata["nle_ducking"][0]["start_sec"] == 2.2
+    assert (context.output / "captions" / "captions.ass").is_file()

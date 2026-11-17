@@ -1,5 +1,6 @@
 <script lang="ts">
   import HelpTip from "$lib/HelpTip.svelte";
+  import OpenCodeStudioBootstrap from "$lib/OpenCodeStudioBootstrap.svelte";
   import { onMount } from "svelte";
 
   let origin = $state("http://127.0.0.1:8765");
@@ -83,6 +84,8 @@ curl -s -X POST ${origin}/api/v1/jobs/JOB/copilot/timeline \\
       Drive VideoFlow from OpenCode or Paperclip through MCP or REST, with DeepSeek as the agent or Copilot model. Everything stays on loopback.
     </p>
   </header>
+
+  <OpenCodeStudioBootstrap />
 
   <section class="rounded-2xl border border-sky-500/25 bg-sky-500/5 p-4">
     <h3 class="text-xs font-semibold text-sky-100">Headless + hybrid MCP</h3>

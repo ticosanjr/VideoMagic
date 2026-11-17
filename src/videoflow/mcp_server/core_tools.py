@@ -1,4 +1,4 @@
-"""Consolidated 12-tool core MCP surface for VideoFlow 2.90."""
+"""Consolidated 13-tool core MCP surface for VideoFlow 2.91."""
 
 from __future__ import annotations
 
@@ -66,6 +66,105 @@ def register_core_tools(register: Any, ctx: Any) -> None:
     manager = ctx.manager
 
     @register
+    def vf_style(
+        action: str = "list",
+        style_id: str = "",
+        name: str = "",
+        markdown_content: str = "",
+        body: str = "",
+        aspect_ratio: str | None = None,
+        target_lufs: float | None = None,
+        max_static_sec: float | None = None,
+        min_silence_ms: int | None = None,
+        layout_mode: str | None = None,
+        caption_preset: str | None = None,
+        motion_engine: str | None = None,
+        export_targets: list[str] | None = None,
+        palette: list[str] | None = None,
+        fonts: list[str] | None = None,
+        cut_rhythm: dict[str, Any] | None = None,
+        safe_zones: dict[str, Any] | None = None,
+        workspace_dir: str = "",
+        overwrite: bool = True,
+        feedback_note: str = "",
+        notes: list[str] | None = None,
+        mode: str = "merge",
+        max_rules: int = 15,
+    ) -> dict[str, Any]:
+        """List, save, sync, or learn rules for the Markdown style catalog."""
+
+        from videoflow.application import style_service
+        from videoflow.domain.paths import resolve_allowed
+        from videoflow.runtime import allowed_roots
+
+        try:
+            if workspace_dir:
+                workspace_dir = str(resolve_allowed(Path(workspace_dir), allowed_roots()))
+            if action == "list":
+                sync = style_service.sync_styles(workspace_dir)["sync"] if workspace_dir else {}
+                return {
+                    "ok": True,
+                    "styles": style_service.list_styles(),
+                    "sync": sync,
+                }
+            if action == "get":
+                return style_service.get_style(style_id)
+            if action == "delete":
+                return style_service.delete_style(style_id)
+            if action == "sync":
+                if not workspace_dir:
+                    return error("workspace_required", "workspace_dir is required")
+                return style_service.sync_styles(workspace_dir, overwrite=overwrite)
+            if action == "learn_rule":
+                if not style_id:
+                    return error("style_required", "style_id is required")
+                rules = [str(item) for item in (notes or []) if str(item).strip()]
+                if feedback_note.strip():
+                    rules.append(feedback_note.strip())
+                return style_service.learn_style(
+                    style_id,
+                    rules,
+                    mode=mode,
+                    max_rules=max_rules,
+                    workspace_dir=workspace_dir or None,
+                )
+            if action != "save":
+                return error("unknown_action", f"Unknown style action: {action}")
+            if not style_id and not markdown_content.strip():
+                return error("style_required", "style_id is required")
+            updates = {
+                key: value
+                for key, value in (
+                    ("body", body or None),
+                    ("aspect_ratio", aspect_ratio),
+                    ("target_lufs", target_lufs),
+                    ("max_static_sec", max_static_sec),
+                    ("min_silence_ms", min_silence_ms),
+                    ("layout_mode", layout_mode),
+                    ("caption_preset", caption_preset),
+                    ("motion_engine", motion_engine),
+                    ("export_targets", export_targets),
+                    ("palette", palette),
+                    ("fonts", fonts),
+                    ("cut_rhythm", cut_rhythm),
+                    ("safe_zones", safe_zones),
+                )
+                if value is not None
+            }
+            return style_service.save_style(
+                style_id=style_id,
+                name=name,
+                markdown_content=markdown_content,
+                updates=updates,
+                overwrite=overwrite,
+                workspace_dir=workspace_dir or None,
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except ValueError as exc:
+            return error("invalid_style", str(exc))
+
+    @register
     def vf_project(
         action: str = "status",
         project_id: str = "",
@@ -73,6 +172,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         output: str = "",
         sources: list[str] | None = None,
         channel_id: str = "",
+        style_id: str = "",
         reference_url: str = "",
         reference_dir: str = "",
         images: list[str] | None = None,
@@ -114,12 +214,20 @@ def register_core_tools(register: Any, ctx: Any) -> None:
             except VideoFlowError as exc:
                 return exc.to_dict()
         if action in {"init", "open"}:
+            if style_id:
+                from videoflow.application.style_catalog import StyleCatalog
+
+                try:
+                    StyleCatalog().get(style_id)
+                except VideoFlowError as exc:
+                    return exc.to_dict()
             return legacy["vf_project_init"](
                 project_id=project_id,
                 name=name,
                 output=output,
                 sources=sources,
                 channel_id=channel_id,
+                style_id=style_id,
             )
         if not project_id:
             return error("project_required", "project_id is required")
@@ -435,14 +543,23 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                 build_delivery_bundle,
             )
 
-            requested = targets or DEFAULT_BUNDLE_TARGETS
-            if isinstance(requested, str):
-                requested = [requested]
+            requested = [targets] if isinstance(targets, str) else targets
             try:
                 record = get_project(project_id)
                 state = load_project_state(record)
                 if not state.video_segments:
                     return error("timeline_required", "Project has no built timeline")
+                if not requested:
+                    style_id = record.style_id or record.channel_id
+                    if style_id:
+                        from videoflow.application.style_catalog import StyleCatalog
+                        from videoflow.domain.errors import StyleNotFoundError
+
+                        try:
+                            requested = StyleCatalog().get(style_id).export_targets
+                        except StyleNotFoundError:
+                            requested = None
+                requested = requested or list(DEFAULT_BUNDLE_TARGETS)
                 bundle = build_delivery_bundle(
                     state,
                     Path(record.output),

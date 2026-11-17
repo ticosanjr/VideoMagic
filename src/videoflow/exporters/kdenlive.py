@@ -89,6 +89,11 @@ def export_kdenlive(
         if extras is not None and extras.music
         else ""
     )
+    captions = (
+        _append_captions_playlist(root, extras, media, duration_frames)
+        if extras is not None and extras.captions
+        else ""
+    )
     _append_sequence_tractor(
         root,
         sequence_id=sequence_id,
@@ -100,6 +105,7 @@ def export_kdenlive(
         overlay=overlay,
         overlay_audio=stem,
         music=music,
+        captions=captions,
     )
     _append_main_bin(
         root,
@@ -372,8 +378,15 @@ def _append_sequence_tractor(
     overlay: str = "",
     overlay_audio: str = "",
     music: str = "",
+    captions: str = "",
 ) -> None:
-    tracks = 3 + (1 if overlay else 0) + (1 if overlay_audio else 0) + (1 if music else 0)
+    tracks = (
+        3
+        + (1 if overlay else 0)
+        + (1 if overlay_audio else 0)
+        + (1 if music else 0)
+        + (1 if captions else 0)
+    )
     tractor = ET.SubElement(
         parent,
         "tractor",
@@ -412,6 +425,14 @@ def _append_sequence_tractor(
     if music:
         ET.SubElement(tractor, "track", {"producer": music})
         _append_transition(tractor, "transition-music", 5 + (1 if overlay_audio else 0), "mix")
+    if captions:
+        ET.SubElement(tractor, "track", {"producer": captions})
+        _append_transition(
+            tractor,
+            "transition-captions",
+            5 + (1 if overlay_audio else 0) + (1 if music else 0),
+            "qtblend",
+        )
 
 
 def _append_transition(
@@ -796,6 +817,39 @@ def _append_music_volume(entry_element: ET.Element, entry, media, length: int) -
     _property(filter_element, "mlt_service", "volume")
     _property(filter_element, "kdenlive_id", "volume")
     _property(filter_element, "level", ";".join(ordered))
+
+
+def _append_captions_playlist(parent: ET.Element, extras, media, duration_frames: int) -> str:
+    playlist = ET.SubElement(parent, "playlist", {"id": "playlist_captions"})
+    cursor = 0
+    for index, caption in enumerate(extras.captions):
+        producer_id = f"caption{index}"
+        start = round(caption.start_sec * media.fps_num / media.fps_den)
+        length = max(
+            1,
+            round((caption.end_sec - caption.start_sec) * media.fps_num / media.fps_den),
+        )
+        producer = ET.SubElement(parent, "producer", {"id": producer_id})
+        _property(producer, "mlt_service", "kdenlivetitle")
+        _property(producer, "kdenlive:duration", str(length))
+        _property(producer, "kdenlive:clipname", "Caption")
+        _property(producer, "xml", _title_xml(caption, media.width, media.height))
+        if start > cursor:
+            ET.SubElement(playlist, "blank", {"length": str(start - cursor)})
+            cursor = start
+        ET.SubElement(
+            playlist,
+            "entry",
+            {
+                "producer": producer_id,
+                "in": "00:00:00.000",
+                "out": _timecode(length - 1, media.fps_num, media.fps_den),
+            },
+        )
+        cursor += length
+    if cursor < duration_frames:
+        ET.SubElement(playlist, "blank", {"length": str(duration_frames - cursor)})
+    return "playlist_captions"
 
 
 def _append_overlay_playlist(parent: ET.Element, extras, media, duration_frames: int) -> str:

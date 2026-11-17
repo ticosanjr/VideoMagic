@@ -1,12 +1,12 @@
 # MCP server — agent profile
 
-VideoFlow 2.91 exposes a **12-tool core MCP** plus four isolated domain servers:
+VideoFlow 2.91 exposes a **13-tool core MCP** plus four isolated domain servers:
 
 ```text
-mcp-vf-core      12 tools   project, jobs, timeline, render, exports, ingest
+mcp-vf-core      13 tools   project, styles, jobs, timeline, render, exports, ingest
 mcp-vf-media-fetch  4 tools stock B-roll, images, URL segments, SFX
 mcp-vf-audio-studio 5 tools TTS, cleanup, stems, music/SFX, mix
-mcp-vf-vision-fx    6 tools word-aligned captions, rembg, upscale, motion, Ken Burns, capture
+mcp-vf-vision-fx    6 tools word-aligned captions, rembg, upscale, motion, Ken Burns, screen/browser capture
 ```
 
 The core intentionally does not expose the old 82-tool UI CRUD surface. Step
@@ -21,7 +21,8 @@ and recipe schemas are loaded on demand through resources.
 | Headless daemon | `videoflow serve --mcp-only --port 8765` |
 
 The server stays on loopback. The stdio process inherits the path allowlist and
-does not start a second API.
+does not start a second API. Packaged builds also expose the domain servers as
+`videoflow mcp-fetch`, `videoflow mcp-audio`, and `videoflow mcp-vision`.
 
 ## Projects
 
@@ -37,12 +38,13 @@ and resource links. Multiple sub-agents can work on different projects in
 parallel. Writes to the same project are serialized by a project lock and
 `vf_edit_timeline` supports `expected_revision` for conflict detection.
 
-## Core tools (12)
+## Core tools (13)
 
 ### Project, catalog, and execution
 
 | Tool | Purpose |
 | --- | --- |
+| `vf_style` | List/save/sync Markdown styles and learn review rules. |
 | `vf_project` | Create/open/status a project; `clone_style` and `learn_rule`. |
 | `vf_capabilities` | Backends, models, GPU worker, and external policy. |
 | `vf_catalog_search` | Search steps/recipes without loading schemas. |
@@ -129,7 +131,12 @@ Targets accept `mp4_youtube`, `resolve`, `premiere`, `kdenlive`, `edl`, and
 `all`. The MP4 uses H.264 High, AAC 320 kbps, CFR, `+faststart`, and a
 `-16.5 LUFS` / `-1.0 dBTP` target when no mastered `audio/master.wav` exists.
 The manifest lands in `exports/bundle.json` with SHA-256 per artifact and
-media/duration/license validation for every export.
+media/duration/license validation for every export. Fixed names are
+`final_youtube.mp4`, `timeline_resolve.fcpxml`, `timeline_premiere.xml`,
+`timeline_kdenlive.kdenlive`, and `timeline_kdenlive.mlt`.
+
+When `targets` is omitted, the project's bound style supplies
+`export_targets`. Pass an explicit target list to override it.
 
 ```text
 vf_exports(action="validate", project_id="...")
@@ -138,8 +145,12 @@ vf_exports(action="roundtrip", project_id="...", nle="premiere", path="...")
 
 `roundtrip` accepts `fcpxml`, `xmeml`/`premiere`, `mlt`/`kdenlive`, and
 `resolve`. After a transcript shift, long-form captions are regenerated in
-`captions/captions.ass` and `subtitles.ass`; ducking levels are written to
-`audio/ducking.json`.
+`captions/captions.ass`, `captions/captions.srt`, and `subtitles.ass`; ducking
+levels are written to `audio/ducking.json`. Manual clip timing edits without
+`vf:` markers also shift transcript and existing ducking ranges.
+
+Captions are exported as their own track: FCPXML lane 6, a second XMEML video
+track, and Kdenlive `playlist_captions`.
 
 ## Declarative timeline edits
 
@@ -178,6 +189,8 @@ vf://projects/{project_id}/transcript
 vf://projects/{project_id}/jobs
 vf://projects/{project_id}/artifacts
 vf://projects/{project_id}/jobs/{job_id}/logs
+vf://styles
+vf://styles/{style_id}
 vf://presets/{channel_id}/rulebook
 vf://presets/{channel_id}/kit
 vf://docs/steps/{step_type}

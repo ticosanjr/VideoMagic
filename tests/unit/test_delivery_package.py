@@ -116,5 +116,5 @@ def test_package_can_embed_a_multi_nle_bundle(tmp_path: Path) -> None:
         (context.output / "delivery" / "package.json").read_text(encoding="utf-8")
     )
     assert manifest["ok"] is True
-    assert manifest["nle_bundle"]["files"]["resolve"]["path"].endswith("timeline.fcpxml")
+    assert manifest["nle_bundle"]["files"]["resolve"]["path"].endswith("timeline_resolve.fcpxml")
     assert context.artifacts["delivery_bundle"].endswith("bundle.json")

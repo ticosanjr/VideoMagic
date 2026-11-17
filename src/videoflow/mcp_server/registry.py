@@ -1,6 +1,6 @@
 """Public MCP surface for the 2.90 core profile.
 
-Twelve tools, explicit project ids, and on-demand resources for the 122+ step
+Thirteen tools, explicit project ids, and on-demand resources for the 122+ step
 catalog. Domain capabilities live in the separate vf-fetch, vf-audio, vf-vision,
 and vf-gpu-worker packages.
 """
@@ -38,6 +38,11 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "vf_catalog_search",
         "Search steps and recipes without loading their schemas.",
         "catalog",
+    ),
+    ToolSpec(
+        "vf_style",
+        "List, save, sync, or learn rules for Markdown channel styles.",
+        "styles",
     ),
     ToolSpec(
         "vf_exec",
@@ -94,6 +99,8 @@ RESOURCE_SPECS: tuple[ResourceSpec, ...] = (
     ResourceSpec("vf://projects/{project_id}/jobs", "Jobs for one project."),
     ResourceSpec("vf://projects/{project_id}/artifacts", "Artifact manifest."),
     ResourceSpec("vf://projects/{project_id}/jobs/{job_id}/logs", "Persisted job log."),
+    ResourceSpec("vf://styles", "Canonical Markdown style catalog."),
+    ResourceSpec("vf://styles/{style_id}", "One Markdown style and its rules."),
     ResourceSpec("vf://presets/{channel_id}/rulebook", "Active channel rulebook."),
     ResourceSpec("vf://presets/{channel_id}/kit", "Channel asset kit."),
     ResourceSpec("vf://docs/steps/{step_type}", "Full step parameter schema."),

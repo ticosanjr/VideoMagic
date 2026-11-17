@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from videoflow.core.context import PipelineContext
@@ -116,11 +115,13 @@ def test_preset_rulebook_merges_and_versions(tmp_path: Path, monkeypatch) -> Non
         review_notes=["Use open loops", "Use open loops", "Avoid long silences"],
     )
     step.run(context, params, StepIO())
-    book = json.loads(Path(context.artifacts["preset_rulebook"]).read_text())
-    assert book["version"] == 2
-    assert len(book["learned_rules"]) == 2
-    assert book["learned_rules"][0]["weight"] == 1.25
-    assert book["hard_constraints"] == {
+    from videoflow.application.preset_rules import load_rulebook
+
+    book = load_rulebook("canal-paula")
+    assert book.version == 2
+    assert len(book.learned_rules) == 2
+    assert book.learned_rules[0].weight == 1.25
+    assert book.hard_constraints.model_dump() == {
         "palette": "",
         "cut_rhythm_sec": 0.0,
         "broll_style": "",

@@ -589,3 +589,45 @@ def test_capture_web_or_screen_clip(
     payload = json.loads(Path(result["sidecar"]).read_text(encoding="utf-8"))
     assert payload["metadata"]["mode"] == "clip"
     assert payload["metadata"]["fps"] == 5
+
+
+def test_screen_target_detection() -> None:
+    assert vision_tools._is_screen_target("screen") is True
+    assert vision_tools._is_screen_target("SCREEN:0") is True
+    assert vision_tools._is_screen_target("https://example.test") is False
+
+
+def test_screen_capture_requires_display(project_root: Path, monkeypatch) -> None:
+    monkeypatch.delenv("DISPLAY", raising=False)
+    with pytest.raises(VisionMissingCommandError) as info:
+        vision_tools.capture_web_or_screen("proj-screen", "screen", mode="screenshot")
+    assert info.value.code == "missing_command"
+
+
+def test_screen_capture_screenshot_and_clip(
+    project_root: Path,
+    tmp_path: Path,
+    fake_ffmpeg: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DISPLAY", ":99")
+
+    shot = vision_tools.capture_web_or_screen(
+        "proj-screen",
+        "screen",
+        mode="screenshot",
+        output_name="desktop",
+    )
+    assert Path(shot["output"]).name == "desktop.png"
+    payload = json.loads(Path(shot["sidecar"]).read_text(encoding="utf-8"))
+    assert payload["source"] == "screen::99"
+
+    clip = vision_tools.capture_web_or_screen(
+        "proj-screen",
+        "screen",
+        mode="clip",
+        duration_sec=0.5,
+        fps=5,
+        output_name="scroll",
+    )
+    assert Path(clip["output"]).name == "scroll.mp4"

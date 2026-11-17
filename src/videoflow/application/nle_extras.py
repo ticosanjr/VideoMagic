@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import replace
 from pathlib import Path
 
 from videoflow.application.timeline_meta import load_meta
@@ -49,6 +50,17 @@ def _titles(path: Path) -> tuple[NleTitle, ...]:
             )
         )
     return tuple(titles)
+
+
+def _captions(directory: Path) -> tuple[NleTitle, ...]:
+    """Read the long-form caption sidecar without duplicating merged titles."""
+
+    for relative in ("captions/captions.ass", "captions.ass"):
+        path = Path(directory) / relative
+        if not path.is_file():
+            continue
+        return tuple(replace(title, kind="caption") for title in _titles(path))
+    return ()
 
 
 def _filters(path: Path) -> tuple[str, ...]:
@@ -289,4 +301,5 @@ def nle_extras_from_output(output: Path) -> NleExtras:
         audio_stem=str(stems) if stems.is_file() else "",
         adjustments=tuple(adjustments),
         music=_music(directory),
+        captions=_captions(directory),
     )

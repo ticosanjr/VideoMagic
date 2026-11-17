@@ -1,6 +1,6 @@
 [project]
 name = "videoflow"
-version = "2.91.0"
+version = "2.91.1"
 description = "Local, non-destructive video pre-edit pipeline with a rack UI and MCP server."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -25,11 +25,18 @@ dependencies = [
   "uvicorn>=0.32",
   "vf-contracts",
   "vf-compute",
+  "videoflow-mcp-fetch",
+  "videoflow-mcp-audio",
+  "videoflow-mcp-vision",
+  "pyyaml>=6",
 ]
 
 [tool.uv.sources]
 vf-contracts = { path = "packages/vf-contracts", editable = true }
 vf-compute = { path = "packages/vf-compute", editable = true }
+videoflow-mcp-fetch = { path = "packages/mcp-fetch", editable = true }
+videoflow-mcp-audio = { path = "packages/mcp-audio", editable = true }
+videoflow-mcp-vision = { path = "packages/mcp-vision", editable = true }
 
 [project.optional-dependencies]
 dev = [

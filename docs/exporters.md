@@ -13,6 +13,23 @@ One timeline model, three NLE dialects, one optional render.
 All exporters live in `src/videoflow/exporters/`. `export_timeline` writes the
 FCPXML, XMEML, Kdenlive, EDL, and optional MP4 artifacts from one validated state.
 
+## Bundle names
+
+The delivery bundle writes fixed upload-ready names:
+
+```text
+exports/final_youtube.mp4
+exports/timeline_resolve.fcpxml
+exports/timeline_premiere.xml
+exports/timeline_kdenlive.kdenlive
+exports/timeline_kdenlive.mlt       # identical MLT copy for interchange
+exports/bundle.json
+```
+
+`timeline_kdenlive.mlt` is a byte-identical copy of the native
+`.kdenlive` project. Validation accepts either name, and `vf_exports(action="bundle")`
+uses the project style `export_targets` when the caller omits `targets`.
+
 ## 0. Native finishing inputs
 
 `exporters/extras.py` defines the finishing inputs shared by the three writers:

@@ -13,13 +13,16 @@ from urllib.parse import unquote, urlparse
 def _resolve_export_path(
     directory: Path,
     extension: str,
-    fixed_name: str,
+    fixed_names: str | tuple[str, ...],
 ) -> Path:
-    """Prefer the fixed legacy name, then the newest timestamped export."""
+    """Prefer bundle names, then legacy fixed names, then timestamped exports."""
 
-    fixed = directory / fixed_name
-    if fixed.is_file():
-        return fixed
+    names = (fixed_names,) if isinstance(fixed_names, str) else fixed_names
+    for name in names:
+        fixed = directory / name
+        if fixed.is_file():
+            return fixed
+    fixed = directory / names[0]
     candidates = [
         path for path in directory.glob(f"*{extension}") if "_VideoFlow_Edited_" in path.name
     ]
@@ -47,13 +50,31 @@ def validate_nle_exports(
     directory = Path(directory).expanduser()
     blocked = {_normalize_path(item) for item in (blocked_paths or set()) if str(item).strip()}
     checks: dict[str, dict[str, Any]] = {}
-    for name, extension, validator in (
-        ("fcpxml", ".fcpxml", _validate_fcpxml),
-        ("xmeml", ".xml", _validate_xmeml),
-        ("kdenlive", ".kdenlive", _validate_kdenlive),
+    for name, extension, fixed_names, validator in (
+        (
+            "fcpxml",
+            ".fcpxml",
+            ("timeline_resolve.fcpxml", "timeline.fcpxml"),
+            _validate_fcpxml,
+        ),
+        (
+            "xmeml",
+            ".xml",
+            ("timeline_premiere.xml", "timeline.xml"),
+            _validate_xmeml,
+        ),
+        (
+            "kdenlive",
+            ".kdenlive",
+            (
+                "timeline_kdenlive.kdenlive",
+                "timeline.kdenlive",
+                "timeline_kdenlive.mlt",
+            ),
+            _validate_kdenlive,
+        ),
     ):
-        fixed_name = "timeline.xml" if name == "xmeml" else f"timeline.{name}"
-        path = _resolve_export_path(directory, extension, fixed_name)
+        path = _resolve_export_path(directory, extension, fixed_names)
         result = validator(path)
         result["nle"] = name
         if check_media and result.get("ok"):

@@ -190,7 +190,16 @@ class DeliveryPackageStep(BaseStep):
             "licenses": context.artifacts.get("broll_licenses", ""),
             "broll": context.artifacts.get("broll_matches", ""),
         }
-        if options.targets:
+        targets = list(options.targets)
+        if not targets and context.state is not None and context.state.style_id:
+            from videoflow.application.style_catalog import StyleCatalog
+            from videoflow.domain.errors import StyleNotFoundError
+
+            try:
+                targets = list(StyleCatalog().get(context.state.style_id).export_targets)
+            except StyleNotFoundError:
+                targets = []
+        if targets:
             from videoflow.application.delivery_bundle import (
                 DeliveryBundleRequest,
                 build_delivery_bundle,
@@ -202,7 +211,7 @@ class DeliveryPackageStep(BaseStep):
                 context.state,
                 context.output,
                 request=DeliveryBundleRequest(
-                    targets=tuple(options.targets),
+                    targets=tuple(targets),
                     dialect=options.dialect,  # type: ignore[arg-type]
                     mp4_profile=options.mp4_profile,
                     mp4_loudness_lufs=options.mp4_loudness_lufs,

@@ -70,9 +70,7 @@ def test_captions_plan_merges_titles(tmp_path: Path) -> None:
         height=1080,
         audio_sample_rate=48000,
     )
-    context.transcript = [
-        Sentence(id=0, start_sample=0, end_sample=48000, text="hello world")
-    ]
+    context.transcript = [Sentence(id=0, start_sample=0, end_sample=48000, text="hello world")]
     (context.output / "titles.ass").write_text(
         "[Script Info]\nScriptType: v4.00+\n\n[V4+ Styles]\n"
         "Format: Name, Fontname, Fontsize\nStyle: Title,Arial,64\n\n"
@@ -87,6 +85,10 @@ def test_captions_plan_merges_titles(tmp_path: Path) -> None:
     subtitles = (context.output / "subtitles.ass").read_text(encoding="utf-8")
     assert "Intro" in subtitles
     assert "hello" in subtitles
+    srt = (context.output / "captions" / "captions.srt").read_text(encoding="utf-8")
+    assert "00:00:00,000 --> " in srt
+    assert "hello" in srt
+    assert any(path.name == "captions.srt" for path in CaptionsPlanStep().cache_outputs(context))
 
 
 def test_word_events_falls_back_to_sentence_tokens() -> None:
@@ -168,9 +170,10 @@ def test_motion_helpers_wrap_and_track_edges(tmp_path: Path) -> None:
             return len(text)
 
     assert len(module._wrap(Draw(), "one two three four five", None, 6)) > 1
-    assert module._track_position(
-        [{"text": "x", "points": []}], text="x", at=0, width=10, height=10
-    ) is None
+    assert (
+        module._track_position([{"text": "x", "points": []}], text="x", at=0, width=10, height=10)
+        is None
+    )
     assert (
         module._track_position(
             [{"text": "a", "points": [{"time": 0, "x": 10, "y": 20}]}],
@@ -191,9 +194,7 @@ def test_motion_helpers_wrap_and_track_edges(tmp_path: Path) -> None:
         monkeypatch.undo()
 
 
-def test_motion_callout_skips_bad_input_and_render_errors(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_motion_callout_skips_bad_input_and_render_errors(tmp_path: Path, monkeypatch) -> None:
     from videoflow.steps import motion_attach as module
 
     context = _context(tmp_path)

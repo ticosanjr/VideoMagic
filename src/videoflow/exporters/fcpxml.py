@@ -97,7 +97,7 @@ def export_fcpxml(
             {"kind": "original-media", "src": file_uri(source_media.source_path)},
         )
 
-    if extras.titles:
+    if extras.titles or extras.captions:
         ET.SubElement(
             resources,
             "effect",
@@ -319,6 +319,35 @@ def export_fcpxml(
             {
                 "font": "Helvetica",
                 "fontSize": "48",
+                "fontColor": "1 1 1 1",
+                "alignment": "center",
+            },
+        )
+
+    for index, caption in enumerate(extras.captions, start=1):
+        element = ET.SubElement(
+            spine,
+            "title",
+            {
+                "ref": "r2",
+                "lane": "6",
+                "name": "Caption",
+                "offset": format_rational_time(_seconds(caption.start_sec)),
+                "duration": format_rational_time(
+                    _seconds(max(0.1, caption.end_sec - caption.start_sec))
+                ),
+            },
+        )
+        style_id = f"cs{index}"
+        text = ET.SubElement(element, "text")
+        ET.SubElement(text, "text-style", {"ref": style_id}).text = caption.text
+        definition = ET.SubElement(element, "text-style-def", {"id": style_id})
+        ET.SubElement(
+            definition,
+            "text-style",
+            {
+                "font": "Helvetica",
+                "fontSize": "42",
                 "fontColor": "1 1 1 1",
                 "alignment": "center",
             },

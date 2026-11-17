@@ -23,7 +23,8 @@ from videoflow.application.providers import list_providers
 from videoflow.application.service_definitions import list_definitions
 from videoflow.application.services import server_log_path
 from videoflow.application.settings import env_overrides, load_settings, settings_error
-from videoflow.domain.errors import PathNotFoundError
+from videoflow.bootstrap import BootstrapRequest
+from videoflow.domain.errors import PathNotFoundError, VideoFlowError
 from videoflow.domain.paths import resolve_allowed
 from videoflow.engine.maintenance import prune_output
 from videoflow.runtime import allowed_roots, find_binary, portable_home
@@ -60,9 +61,7 @@ def register_system_routes(app: FastAPI) -> None:
     def maintenance_prune(request: MaintenancePruneRequest) -> dict[str, object]:
         resolved = resolve_allowed(Path(request.output), allowed_roots())
         if not resolved.is_dir():
-            raise PathNotFoundError(
-                f"Output directory does not exist: {resolved}"
-            )
+            raise PathNotFoundError(f"Output directory does not exist: {resolved}")
         result = prune_output(
             resolved,
             keep_days=request.keep_days,
@@ -112,6 +111,25 @@ def register_system_routes(app: FastAPI) -> None:
         server.should_exit = True
         return {"ok": True, "action": "shutdown"}
 
+    @app.post("/api/v1/system/bootstrap/opencode")
+    def system_bootstrap_opencode(request: BootstrapRequest) -> dict[str, object]:
+        from videoflow.bootstrap import bootstrap_opencode_workspace
+
+        try:
+            result = bootstrap_opencode_workspace(request)
+        except (ValueError, VideoFlowError) as exc:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "ok": False,
+                    "code": "bootstrap_failed",
+                    "message": str(exc),
+                },
+            ) from exc
+        payload = result.model_dump(mode="json")
+        payload["ok"] = True
+        return payload
+
     @app.get("/api/v1/system/doctor")
     def system_doctor() -> dict[str, object]:
         from videoflow.application.models import list_models
@@ -149,12 +167,13 @@ def register_system_routes(app: FastAPI) -> None:
             checks["home_error"] = str(exc)
             ok = False
         cache = cache_dir()
-        checks["cache_bytes"] = sum(
-            item.stat().st_size for item in cache.rglob("*") if item.is_file()
-        ) if cache.is_dir() else 0
+        checks["cache_bytes"] = (
+            sum(item.stat().st_size for item in cache.rglob("*") if item.is_file())
+            if cache.is_dir()
+            else 0
+        )
         checks["models"] = [
-            {"id": item["id"], "installed": item["installed"]}
-            for item in list_models()
+            {"id": item["id"], "installed": item["installed"]} for item in list_models()
         ]
         checks["ui"] = str(ui_dir()) if ui_dir() else None
         try:
@@ -240,22 +259,14 @@ def register_system_routes(app: FastAPI) -> None:
         settings = load_settings().model_dump(mode="json")
         redacted_env = {key: "***" for key in env_overrides()}
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as bundle:
-            bundle.writestr(
-                "doctor.json", json.dumps(system_doctor(), indent=2) + "\n"
-            )
-            bundle.writestr(
-                "settings.json", json.dumps(settings, indent=2) + "\n"
-            )
-            bundle.writestr(
-                "environment.json", json.dumps(redacted_env, indent=2) + "\n"
-            )
+            bundle.writestr("doctor.json", json.dumps(system_doctor(), indent=2) + "\n")
+            bundle.writestr("settings.json", json.dumps(settings, indent=2) + "\n")
+            bundle.writestr("environment.json", json.dumps(redacted_env, indent=2) + "\n")
             bundle.writestr(
                 "providers.json",
                 json.dumps(list_providers(), indent=2) + "\n",
             )
-            bundle.writestr(
-                "models.json", json.dumps(list_models(), indent=2) + "\n"
-            )
+            bundle.writestr("models.json", json.dumps(list_models(), indent=2) + "\n")
             bundle.writestr(
                 "service-definitions.json",
                 json.dumps(
@@ -271,9 +282,7 @@ def register_system_routes(app: FastAPI) -> None:
         return StreamingResponse(
             buffer,
             media_type="application/zip",
-            headers={
-                "Content-Disposition": "attachment; filename=videoflow-support.zip"
-            },
+            headers={"Content-Disposition": "attachment; filename=videoflow-support.zip"},
         )
 
     @app.post("/api/v1/system/restore")

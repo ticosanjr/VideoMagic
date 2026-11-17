@@ -116,3 +116,19 @@ def test_structural_validation_stays_optional(tmp_path: Path) -> None:
 
     assert report["ok"] is True
     assert "media" not in report["exports"]["fcpxml"]
+
+
+def test_bundle_names_are_discovered_by_validation(tmp_path: Path) -> None:
+    state = _state(tmp_path)
+    directory = tmp_path / "exports"
+    directory.mkdir()
+    export_fcpxml(state, directory / "timeline_resolve.fcpxml")
+    export_xmeml(state, directory / "timeline_premiere.xml")
+    export_kdenlive(state, directory / "timeline_kdenlive.kdenlive")
+
+    report = validate_nle_exports(directory, timeline_frames=60, check_media=True)
+
+    assert report["ok"] is True
+    assert report["exports"]["fcpxml"]["path"].endswith("timeline_resolve.fcpxml")
+    assert report["exports"]["xmeml"]["path"].endswith("timeline_premiere.xml")
+    assert report["exports"]["kdenlive"]["path"].endswith("timeline_kdenlive.kdenlive")

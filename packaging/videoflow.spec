@@ -15,7 +15,11 @@ ROOT = Path(SPECPATH).resolve().parent
 VENDOR = Path(os.environ.get("VIDEOWFLOW_VENDOR_DIR", str(ROOT / "vendor")))
 BUNDLE_MODELS = os.environ.get("VIDEOWFLOW_BUNDLE_MODELS") == "1"
 
-datas = [(str(ROOT / "src" / "videoflow" / "presets"), "videoflow/presets")]
+datas = [
+    (str(ROOT / "src" / "videoflow" / "presets"), "videoflow/presets"),
+    (str(ROOT / "src" / "videoflow" / "styles"), "videoflow/styles"),
+    (str(ROOT / "src" / "videoflow" / "templates"), "videoflow/templates"),
+]
 binaries = []
 hiddenimports = [
     "videoflow.api",
@@ -63,6 +67,11 @@ if whisper.is_dir():
             binaries.append((str(candidate), "whisper"))
         else:
             datas.append((str(candidate), "whisper"))
+
+for package in ("mcp_fetch", "videoflow_mcp_audio", "videoflow_mcp_vision"):
+    package_datas = collect_data_files(package)
+    datas += package_datas
+    hiddenimports += collect_submodules(package)
 
 datas += collect_data_files("mcp")
 hiddenimports += collect_submodules("mcp.server")
@@ -133,6 +142,9 @@ for distribution in (
     "tokenizers",
     "av",
     "huggingface-hub",
+    "videoflow-mcp-fetch",
+    "videoflow-mcp-audio",
+    "videoflow-mcp-vision",
 ):
     try:
         datas += copy_metadata(distribution)

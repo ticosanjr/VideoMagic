@@ -32,6 +32,8 @@ def main() -> int:
     _run([str(appimage), "version"])
     _run([str(appimage), "doctor"])
     _run([str(appimage), "recipe", "list"])
+    for command in ("mcp", "mcp-fetch", "mcp-audio", "mcp-vision"):
+        _run([str(appimage), command, "--help"])
 
     env = dict(os.environ)
     env["APPIMAGE_EXTRACT_AND_RUN"] = "1"
@@ -50,7 +52,7 @@ def main() -> int:
             process.wait(timeout=10)
         except subprocess.TimeoutExpired:
             process.kill()
-    print("PASS: AppImage version, doctor, recipe catalog, extract-run, and serve")
+    print("PASS: AppImage version, doctor, recipes, MCP subcommands, extract-run, and serve")
     return 0
 
 

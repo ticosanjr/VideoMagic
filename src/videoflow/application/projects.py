@@ -32,6 +32,7 @@ class ProjectRecord(BaseModel):
     primary_source: str = ""
     sources: list[str] = Field(default_factory=list)
     channel_id: str = ""
+    style_id: str = ""
     created_at: str = Field(default_factory=lambda: _now())
     updated_at: str = Field(default_factory=lambda: _now())
     revision: int = 1
@@ -109,6 +110,7 @@ def _sync_workspace(record: ProjectRecord, state: ProjectState) -> None:
             "name": record.name,
             "output": record.output,
             "channel_id": record.channel_id,
+            "style_id": record.style_id,
             "sources": paths,
             "primary_source": primary_path,
             "state_path": str(folder / "state.json"),
@@ -171,6 +173,7 @@ def init_project(
     sources: list[str] | None = None,
     project_id: str | None = None,
     channel_id: str = "",
+    style_id: str = "",
     adapter: Any | None = None,
 ) -> tuple[ProjectRecord, ProjectState]:
     """Create or adopt a project at ``output``."""
@@ -181,9 +184,18 @@ def init_project(
     if existing is not None:
         record = existing
         state = load_project_state(record)
+        updates: dict[str, Any] = {}
         if channel_id and channel_id != record.channel_id:
-            record = record.model_copy(update={"channel_id": channel_id})
+            updates["channel_id"] = channel_id
+        if style_id and style_id != record.style_id:
+            updates["style_id"] = style_id
+        if updates:
+            record = record.model_copy(update=updates)
             _save_record(record)
+        if style_id and state.style_id != style_id:
+            state = state.model_copy(update={"style_id": style_id})
+            state = save_project_state(record, state, bump_revision=False)
+            record = _refresh_record(record, state)
         if sources:
             new_sources, primary = _media_for_sources(sources, adapter=adapter)
             for source_id, media in new_sources.items():
@@ -206,6 +218,8 @@ def init_project(
             state = ProjectState(project_id=UUID(_project_id(project_id)))
     else:
         state = ProjectState(project_id=UUID(_project_id(project_id)))
+    if style_id and state.style_id != style_id:
+        state = state.model_copy(update={"style_id": style_id})
     source_media: dict[str, MediaInfo] = {}
     primary = state.primary_source_id
     if sources:
@@ -221,6 +235,7 @@ def init_project(
         primary_source=_source_paths(state)[1],
         sources=_source_paths(state)[0],
         channel_id=channel_id,
+        style_id=style_id or state.style_id,
         revision=state.revision,
     )
     _save_record(record)
@@ -236,6 +251,7 @@ def _source_paths(state: ProjectState) -> tuple[list[str], str]:
 
 def _refresh_record(record: ProjectRecord, state: ProjectState) -> ProjectRecord:
     record.revision = state.revision
+    record.style_id = state.style_id or record.style_id
     record.sources, record.primary_source = _source_paths(state)
     return _save_record(record)
 
@@ -281,6 +297,7 @@ def save_project_state(
         updated = record.model_copy(
             update={
                 "revision": state.revision,
+                "style_id": state.style_id or record.style_id,
                 "sources": paths,
                 "primary_source": primary_path,
                 "updated_at": _now(),

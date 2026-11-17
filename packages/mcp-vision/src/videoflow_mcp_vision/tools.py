@@ -668,6 +668,60 @@ def _render_ffmpeg_graphic(
     return _payload(tool, project_id, record, mode="local")
 
 
+def _is_screen_target(value: str) -> bool:
+    text = value.strip().lower()
+    return text in {"screen", "desktop", "display"} or text.startswith("screen:")
+
+
+def _capture_screen(
+    *,
+    target: Path,
+    mode: str,
+    duration: float,
+    fps: int,
+    width: int,
+    height: int,
+) -> None:
+    display = os.environ.get("DISPLAY", "").strip()
+    if not display:
+        raise MissingCommandError(
+            "screen capture requires DISPLAY (X11); use a URL for browser capture",
+            details={"env": ["DISPLAY"], "capability": "screen"},
+        )
+    argv = [
+        _ffmpeg(),
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-f",
+        "x11grab",
+        "-framerate",
+        str(fps),
+        "-video_size",
+        f"{width}x{height}",
+        "-i",
+        display,
+    ]
+    if mode == "screenshot":
+        argv.extend(["-frames:v", "1", str(target)])
+    else:
+        argv.extend(
+            [
+                "-t",
+                f"{duration:.3f}",
+                "-c:v",
+                "libx264",
+                "-crf",
+                "18",
+                "-pix_fmt",
+                "yuv420p",
+                str(target),
+            ]
+        )
+    commands.run(argv, timeout=max(120, int(duration) + 60))
+
+
 def capture_web_or_screen(
     project_id: str,
     url_or_target: str = "",
@@ -716,7 +770,8 @@ def capture_web_or_screen(
                 f"{name} must be between 320 and 3840",
                 details={"argument": name, "value": value},
             )
-    browser = _chrome()
+    screen_target = _is_screen_target(target_value)
+    browser = "" if screen_target else _chrome()
     stem = _slug(Path(output_name).stem or Path(url_or_target).stem or "capture")
     extension = ".mp4" if selected == "clip" else ".png"
     kind = "broll" if selected == "clip" else "images"
@@ -738,7 +793,39 @@ def capture_web_or_screen(
     target.parent.mkdir(parents=True, exist_ok=True)
     crop = _crop_filter(crop_selector, viewport_width, viewport_height)
 
-    if selected == "screenshot":
+    if screen_target:
+        raw = target.with_name(f".{target.stem}.raw{extension}")
+        try:
+            _capture_screen(
+                target=raw,
+                mode=selected,
+                duration=duration,
+                fps=fps,
+                width=viewport_width,
+                height=viewport_height,
+            )
+            _require_output(raw)
+            if crop and selected == "screenshot":
+                commands.run(
+                    [
+                        _ffmpeg(),
+                        "-hide_banner",
+                        "-loglevel",
+                        "error",
+                        "-y",
+                        "-i",
+                        str(raw),
+                        "-vf",
+                        crop,
+                        str(target),
+                    ]
+                )
+                raw.unlink(missing_ok=True)
+            else:
+                raw.replace(target)
+        finally:
+            raw.unlink(missing_ok=True)
+    elif selected == "screenshot":
         raw = target.with_name(f".{target.stem}.raw.png")
         argv = [
             browser,
@@ -820,7 +907,11 @@ def capture_web_or_screen(
         source_path=target,
         kind=kind,
         license="source",
-        source=f"chromium:{Path(url_or_target).name or url_or_target}",
+        source=(
+            f"screen:{os.environ.get('DISPLAY', '')}"
+            if screen_target
+            else f"chromium:{Path(url_or_target).name or url_or_target}"
+        ),
         cache_key=key,
         metadata={
             "mode": selected,

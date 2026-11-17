@@ -82,3 +82,29 @@ def test_xmeml_path_url_helpers(tmp_path: Path) -> None:
     url = _premiere_path_url(str(tmp_path / "clip one.mp4"))
     assert url.startswith("file://localhost/")
     assert "clip%20one.mp4" in url
+
+
+def test_captions_get_a_dedicated_lane_in_every_nle(tmp_path: Path) -> None:
+    from videoflow.exporters.extras import NleTitle
+    from videoflow.exporters.kdenlive import export_kdenlive
+
+    state = sample_state(tmp_path)
+    extras = NleExtras(
+        titles=(NleTitle(text="Title", start_sec=0.0, end_sec=1.0),),
+        captions=(
+            NleTitle(text="Olá", start_sec=1.0, end_sec=2.0, kind="caption"),
+            NleTitle(text="Mundo", start_sec=2.0, end_sec=3.0, kind="caption"),
+        ),
+    )
+
+    fcpxml = ET.parse(export_fcpxml(state, tmp_path / "timeline.fcpxml", extras=extras)).getroot()
+    captions = fcpxml.findall("./library/event/project/sequence/spine/title[@lane='6']")
+    assert len(captions) == 2
+    assert captions[0].findtext("./text/text-style") == "Olá"
+
+    xmeml = ET.parse(export_xmeml(state, tmp_path / "timeline.xml", extras=extras)).getroot()
+    assert len(xmeml.findall("./sequence/media/video/track/generatoritem[@id='caption-1']")) == 1
+
+    mlt = ET.parse(export_kdenlive(state, tmp_path / "timeline.kdenlive", extras=extras)).getroot()
+    assert len(mlt.findall("./playlist[@id='playlist_captions']/entry")) == 2
+    assert mlt.find(".//transition[@id='transition-captions']") is not None

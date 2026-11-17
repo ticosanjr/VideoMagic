@@ -79,6 +79,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _shorts(args)
         if args.command == "recipe":
             return _recipe(args)
+        if args.command == "style":
+            return _style(args)
+        if args.command == "init-opencode":
+            return _init_opencode(args)
         if args.command == "serve":
             return _serve(args)
         if args.command == "tray":
@@ -93,6 +97,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _status()
         if args.command == "mcp":
             return _mcp(args)
+        if args.command in {"mcp-fetch", "mcp-audio", "mcp-vision"}:
+            return _mcp_domain(args.command)
     except VideoFlowError as exc:
         print(json.dumps(exc.to_dict(), indent=2), file=sys.stderr)
         return 1
@@ -236,6 +242,42 @@ def _parser() -> argparse.ArgumentParser:
     cache_prune.add_argument("--dry-run", action="store_true")
     cache_prune.add_argument("--json", action="store_true")
 
+    style = sub.add_parser("style", help="List, save, sync, or teach channel styles.")
+    style_sub = style.add_subparsers(dest="style_command", required=True)
+    style_sub.add_parser("list", help="List the Markdown style catalog.")
+    style_save = style_sub.add_parser("save", help="Save a Markdown style file or slug.")
+    style_save.add_argument("target", help="A .md file or a style_id slug.")
+    style_save.add_argument("--style-id", default="")
+    style_save.add_argument("--name", default="")
+    style_save.add_argument("--body", default="")
+    style_save.add_argument("--workspace", default="")
+    style_save.add_argument("--no-overwrite", action="store_true")
+    style_sync = style_sub.add_parser("sync", help="Copy styles into a workspace presets/ folder.")
+    style_sync.add_argument("--workspace", required=True)
+    style_sync.add_argument("--overwrite", action="store_true")
+    style_learn = style_sub.add_parser("learn", help="Add review notes as permanent rules.")
+    style_learn.add_argument("style_id")
+    style_learn.add_argument("--note", action="append", default=[])
+    style_learn.add_argument("--mode", choices=["merge", "replace"], default="merge")
+    style_learn.add_argument("--max-rules", type=int, default=15)
+    style_learn.add_argument("--workspace", default="")
+
+    init_opencode = sub.add_parser(
+        "init-opencode",
+        help="Create an OpenCode workspace wired to VideoFlow MCP.",
+    )
+    init_opencode.add_argument("target_dir")
+    init_opencode.add_argument(
+        "--profile",
+        choices=["core", "decupagem", "broll", "audio", "vision", "full"],
+        default="full",
+    )
+    init_opencode.add_argument("--global", dest="global_config", action="store_true")
+    init_opencode.add_argument("--overwrite", action="store_true")
+    init_opencode.add_argument("--with-sample", action="store_true")
+    init_opencode.add_argument("--no-register-root", action="store_true")
+    init_opencode.add_argument("--no-prompts", action="store_true")
+
     serve = sub.add_parser("serve", help="Serve the API, MCP HTTP, and rack UI.")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8765)
@@ -268,12 +310,15 @@ def _parser() -> argparse.ArgumentParser:
     restart.add_argument("--host", default="127.0.0.1")
     restart.add_argument("--port", type=int, default=8765)
     sub.add_parser("status", help="Show whether the local service is running.")
-    mcp = sub.add_parser("mcp", help="Run the MCP server over stdio.")
+    mcp = sub.add_parser("mcp", help="Run the core MCP server over stdio.")
     mcp.add_argument(
         "--no-prompts",
         action="store_true",
         help="Skip the videoflow_* MCP prompts.",
     )
+    sub.add_parser("mcp-fetch", help="Run the stock-media MCP server over stdio.")
+    sub.add_parser("mcp-audio", help="Run the audio-studio MCP server over stdio.")
+    sub.add_parser("mcp-vision", help="Run the vision-fx MCP server over stdio.")
     return parser
 
 
@@ -1003,6 +1048,96 @@ def _schedule_browser(url: str) -> None:
         webbrowser.open(_browser_url(url))
 
     threading.Thread(target=open_when_ready, daemon=True).start()
+
+
+def _style(args: argparse.Namespace) -> int:
+    from videoflow.application import style_service
+
+    command = getattr(args, "style_command", "")
+    if command == "list":
+        print(json.dumps({"ok": True, "styles": style_service.list_styles()}, indent=2))
+        return 0
+    if command == "sync":
+        result = style_service.sync_styles(args.workspace, overwrite=args.overwrite)
+        print(json.dumps(result, indent=2))
+        return 0
+    if command == "learn":
+        result = style_service.learn_style(
+            args.style_id,
+            args.note,
+            mode=args.mode,
+            max_rules=args.max_rules,
+            workspace_dir=args.workspace or None,
+        )
+        print(json.dumps(result, indent=2))
+        return 0
+    target = Path(args.target).expanduser()
+    markdown = ""
+    style_id = args.style_id
+    if target.is_file():
+        markdown = target.read_text(encoding="utf-8")
+        if not style_id:
+            from videoflow.application.style_catalog import parse_style_markdown
+
+            style_id = parse_style_markdown(markdown, fallback_id=target.stem).style_id
+    elif not style_id:
+        style_id = args.target
+    result = style_service.save_style(
+        style_id=style_id,
+        name=args.name,
+        markdown_content=markdown,
+        updates={"body": args.body} if args.body else None,
+        overwrite=not args.no_overwrite,
+        workspace_dir=args.workspace or None,
+    )
+    print(json.dumps(result, indent=2))
+    return 0
+
+
+def _init_opencode(args: argparse.Namespace) -> int:
+    from videoflow.bootstrap import BootstrapRequest, bootstrap_opencode_workspace
+
+    try:
+        result = bootstrap_opencode_workspace(
+            BootstrapRequest(
+                target_dir=args.target_dir,
+                mcp_profile=args.profile,
+                register_global_opencode=bool(args.global_config),
+                overwrite=bool(args.overwrite),
+                include_sample_project=bool(args.with_sample),
+                register_root=not args.no_register_root,
+                prompts=not args.no_prompts,
+            )
+        )
+    except (VideoFlowError, ValueError) as exc:
+        if isinstance(exc, VideoFlowError):
+            print(json.dumps(exc.to_dict(), indent=2), file=sys.stderr)
+        else:
+            print(
+                json.dumps(
+                    {"ok": False, "code": "bootstrap_failed", "message": str(exc)},
+                    indent=2,
+                ),
+                file=sys.stderr,
+            )
+        return 1
+    payload = result.model_dump(mode="json")
+    payload["ok"] = True
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
+def _mcp_domain(command: str) -> int:
+    import importlib
+
+    module_name = {
+        "mcp-fetch": "mcp_fetch.server",
+        "mcp-audio": "videoflow_mcp_audio.server",
+        "mcp-vision": "videoflow_mcp_vision.server",
+    }[command]
+    module = importlib.import_module(module_name)
+    module.build_server().run("stdio")
+    return 0
 
 
 def _mcp(args: argparse.Namespace | None = None) -> int:

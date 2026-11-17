@@ -100,16 +100,10 @@ class CaptionsPlanStep(BaseStep):
         options = CaptionsPlanParams.model_validate(params)
         if options.preset:
             options = options.model_copy(
-                update={
-                    "style": apply_preset(
-                        options.preset, _long_form_style(options.style)
-                    )
-                }
+                update={"style": apply_preset(options.preset, _long_form_style(options.style))}
             )
         else:
-            options = options.model_copy(
-                update={"style": _long_form_style(options.style)}
-            )
+            options = options.model_copy(update={"style": _long_form_style(options.style)})
         if not options.enabled:
             context.metadata["captions_disabled"] = True
             io.report(100, "Caption generation disabled")
@@ -118,12 +112,8 @@ class CaptionsPlanStep(BaseStep):
             context.warnings.append("Captions skipped: the transcript is empty.")
             io.report(100, "No transcript; captions skipped")
             return
-        sample_rate = (
-            context.media.audio_sample_rate if context.media is not None else 48000
-        )
-        end_sample = max(
-            (sentence.end_sample for sentence in context.transcript), default=0
-        )
+        sample_rate = context.media.audio_sample_rate if context.media is not None else 48000
+        end_sample = max((sentence.end_sample for sentence in context.transcript), default=0)
         if end_sample <= 0:
             end_sample = max(1, sample_rate)
         lines = caption_lines(
@@ -152,12 +142,13 @@ class CaptionsPlanStep(BaseStep):
             ),
             encoding="utf-8",
         )
+        captions_srt = directory / "captions.srt"
+        captions_srt.write_text(_srt(split), encoding="utf-8")
         merged_path = context.output / "subtitles.ass"
-        merge_ass_files(
-            [context.output / "titles.ass", captions_path], merged_path
-        )
+        merge_ass_files([context.output / "titles.ass", captions_path], merged_path)
         context.artifacts["captions"] = str(captions_path)
         context.artifacts["captions_ass"] = str(captions_path)
+        context.artifacts["captions_srt"] = str(captions_srt)
         context.artifacts["subtitles_ass"] = str(merged_path)
         context.hashes["captions.plan"] = digest_payload(
             {"lines": len(split), "chars": options.max_chars}
@@ -167,9 +158,24 @@ class CaptionsPlanStep(BaseStep):
     def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
         return tuple(
             Path(context.artifacts[key])
-            for key in ("captions_ass", "subtitles_ass")
+            for key in ("captions_ass", "captions_srt", "subtitles_ass")
             if context.artifacts.get(key)
         )
+
+
+def _srt_time(seconds: float) -> str:
+    total = max(0, round(seconds * 1000))
+    hours, remainder = divmod(total, 3_600_000)
+    minutes, remainder = divmod(remainder, 60_000)
+    secs, millis = divmod(remainder, 1000)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+
+
+def _srt(lines: list[CaptionLine]) -> str:
+    blocks = []
+    for index, line in enumerate(lines, start=1):
+        blocks.append(f"{index}\n{_srt_time(line.start)} --> {_srt_time(line.end)}\n{line.text}\n")
+    return "\n".join(blocks)
 
 
 __all__ = ["CaptionsPlanParams", "CaptionsPlanStep"]

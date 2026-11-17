@@ -56,6 +56,7 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
         output: str = "",
         sources: list[str] | None = None,
         channel_id: str = "",
+        style_id: str = "",
     ) -> dict[str, Any]:
         """Create or adopt a project. Returns the stable project_id and resources."""
 
@@ -70,16 +71,18 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
                     sources=sources or [],
                     project_id=project_id or None,
                     channel_id=channel_id,
+                    style_id=style_id,
                 )
             else:
                 state = _state(record)
-                if sources or channel_id:
+                if sources or channel_id or style_id:
                     record, state = init_project(
                         name=record.name,
                         output=record.output,
                         sources=sources or [],
                         project_id=record.project_id,
                         channel_id=channel_id or record.channel_id,
+                        style_id=style_id or record.style_id,
                     )
                 return {
                     "ok": True,
@@ -191,8 +194,9 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
             record = _record(project_id)
             parsed = get_recipe(recipe_id) if recipe_id else parse_recipe(recipe or {})
             parsed = resolve_recipe_paths(parsed, allowed_roots())
-            if record.channel_id:
-                parsed = apply_channel_kit(parsed, load_rulebook(record.channel_id))
+            style_key = record.style_id or record.channel_id
+            if style_key:
+                parsed = apply_channel_kit(parsed, load_rulebook(style_key))
             parsed.validate_graph(step_types(), requires_by_type=requirements_by_type())
             validate_recipe_ports(parsed)
             raw_source = (

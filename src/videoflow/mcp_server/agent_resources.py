@@ -161,6 +161,41 @@ def register_agent_resources(mcp: Any, ctx: Any, *, prompts: bool = True) -> Non
             return _error("logs_not_found", "No job.log has been written yet")
         return path.read_text(encoding="utf-8", errors="replace")
 
+    @mcp.resource("vf://styles")
+    def styles_catalog() -> str:
+        """Canonical Markdown style catalog."""
+
+        from videoflow.application.style_catalog import StyleCatalog
+
+        return json.dumps(
+            {"ok": True, "styles": StyleCatalog().list_payload()},
+            indent=2,
+        )
+
+    @mcp.resource("vf://styles/{style_id}")
+    def style_document(style_id: str) -> str:
+        """One style definition plus its canonical Markdown."""
+
+        from videoflow.application.style_catalog import (
+            StyleCatalog,
+            render_style_markdown,
+        )
+
+        try:
+            catalog = StyleCatalog()
+            style = catalog.get(style_id)
+        except VideoFlowError as exc:
+            return _error(exc.code, exc.message)
+        return json.dumps(
+            {
+                "ok": True,
+                "style": style.model_dump(mode="json"),
+                "markdown": render_style_markdown(style),
+                "file_path": str(catalog.path_for(style.style_id)),
+            },
+            indent=2,
+        )
+
     @mcp.resource("vf://presets/{channel_id}/rulebook")
     def preset_rulebook(channel_id: str) -> str:
         """Active channel rulebook with hard constraints and learned rules."""

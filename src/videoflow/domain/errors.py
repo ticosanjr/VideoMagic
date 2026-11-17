@@ -356,6 +356,27 @@ class WordOverridesNotSupportedError(VideoFlowError):
     code = "word_overrides_not_supported"
 
 
+class StyleError(VideoFlowError):
+    """A style markdown document is invalid or cannot be written."""
+
+    code = "style_error"
+
+
+class StyleNotFoundError(VideoFlowError):
+    """The requested style_id is not in the catalog."""
+
+    code = "style_not_found"
+
+    def __init__(self, style_id: str) -> None:
+        self.style_id = style_id
+        super().__init__(f"Style not found: {style_id}")
+
+    def to_dict(self) -> dict[str, object]:
+        payload = super().to_dict()
+        payload["style_id"] = self.style_id
+        return payload
+
+
 class PresetNotFoundError(VideoFlowError):
     """Unknown shipped or operator preset."""
 

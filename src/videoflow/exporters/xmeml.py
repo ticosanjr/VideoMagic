@@ -154,6 +154,8 @@ def export_xmeml(
 
     for index, title in enumerate(extras.titles, start=1):
         _append_title(video_track, title, media, number=index)
+    if extras.captions:
+        _append_caption_track(video_element, extras, media)
     if extras.broll:
         _append_broll_track(video_element, extras, media)
     if extras.audio_stem:
@@ -320,9 +322,9 @@ def _append_motion(parent: ET.Element, clip: VideoSegment, media: MediaInfo) -> 
             ET.SubElement(key, "value").text = str(round(keyframe.scale * 100))
             position = ET.SubElement(center, "keyframe")
             ET.SubElement(position, "when").text = str(round(keyframe.at * duration))
-            ET.SubElement(position, "value").text = (
-                f"{round(keyframe.pos_x * media.width)} {round(keyframe.pos_y * media.height)}"
-            )
+            ET.SubElement(
+                position, "value"
+            ).text = f"{round(keyframe.pos_x * media.width)} {round(keyframe.pos_y * media.height)}"
 
 
 def _motion_center(transform, media: MediaInfo) -> str:
@@ -451,6 +453,40 @@ def _append_title(video_track: ET.Element, title, media: MediaInfo, *, number: i
     ET.SubElement(parameter, "parameterid").text = "str"
     ET.SubElement(parameter, "name").text = "Text"
     ET.SubElement(parameter, "value").text = title.text
+
+
+def _append_caption_track(
+    video_element: ET.Element,
+    extras: NleExtras,
+    media: MediaInfo,
+) -> None:
+    track = ET.SubElement(video_element, "track")
+    for index, caption in enumerate(extras.captions, start=1):
+        duration = max(
+            1, round((caption.end_sec - caption.start_sec) * (media.fps_num / media.fps_den))
+        )
+        item = ET.SubElement(track, "generatoritem", {"id": f"caption-{index}"})
+        ET.SubElement(item, "name").text = "Caption"
+        ET.SubElement(item, "duration").text = str(duration)
+        _append_rate(item, media)
+        ET.SubElement(item, "start").text = str(
+            round(caption.start_sec * media.fps_num / media.fps_den)
+        )
+        ET.SubElement(item, "end").text = str(
+            round(caption.end_sec * media.fps_num / media.fps_den)
+        )
+        ET.SubElement(item, "in").text = "0"
+        ET.SubElement(item, "out").text = str(duration)
+        effect = ET.SubElement(item, "effect")
+        ET.SubElement(effect, "name").text = "Text"
+        ET.SubElement(effect, "effectid").text = "Text"
+        ET.SubElement(effect, "effectcategory").text = "Text"
+        ET.SubElement(effect, "effecttype").text = "generator"
+        ET.SubElement(effect, "mediatype").text = "video"
+        parameter = ET.SubElement(effect, "parameter")
+        ET.SubElement(parameter, "parameterid").text = "str"
+        ET.SubElement(parameter, "name").text = "Text"
+        ET.SubElement(parameter, "value").text = caption.text
 
 
 def _append_broll_track(

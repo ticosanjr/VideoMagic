@@ -1,4 +1,4 @@
-"""Consolidated 12-tool core profile."""
+"""Consolidated 13-tool core profile."""
 
 from __future__ import annotations
 
@@ -426,3 +426,122 @@ def test_core_error_branches_and_roundtrip_formats(tmp_path: Path, monkeypatch) 
         )
         assert pushed["ok"] is True
         assert target.is_file()
+
+
+def test_core_style_catalog_actions_and_project_binding(tmp_path: Path, monkeypatch) -> None:
+    from videoflow.application.projects import load_project_state
+
+    tools, record, _ = setup(tmp_path, monkeypatch)
+    workspace = tmp_path / "workspace"
+    listed = tools["vf_style"](action="list")
+    assert listed["ok"] is True
+    assert any(item["style_id"] == "canal-paula-reels" for item in listed["styles"])
+
+    saved = tools["vf_style"](
+        action="save",
+        style_id="canal-teste",
+        name="Canal Teste",
+        target_lufs=-14.0,
+        min_silence_ms=300,
+        layout_mode="cutout",
+        caption_preset="kinetic_highlight",
+        motion_engine="hyperframes",
+        export_targets=["mp4_youtube", "resolve"],
+        palette=["#111827", "#f97316"],
+        fonts=["Inter"],
+        workspace_dir=str(workspace),
+    )
+    assert saved["ok"] is True
+    assert Path(saved["file"]).is_file()
+    assert (workspace / "presets" / "canal-teste.md").is_file()
+    assert saved["sync"]["copied"]
+
+    fetched = tools["vf_style"](action="get", style_id="canal-teste")
+    assert fetched["style"]["target_lufs"] == -14.0
+    assert "canal-teste" in fetched["markdown"]
+
+    learned = tools["vf_style"](
+        action="learn_rule",
+        style_id="canal-teste",
+        feedback_note="Cortar antes de 1s",
+    )
+    assert learned["count"] == 1
+    assert learned["rules"][0]["text"] == "Cortar antes de 1s"
+
+    synced = tools["vf_style"](
+        action="sync",
+        workspace_dir=str(workspace),
+        overwrite=True,
+    )
+    assert synced["sync"]["copied"] == ["canal-teste"]
+
+    created = tools["vf_project"](
+        action="init",
+        name="Styled",
+        output=str(tmp_path / "styled-project"),
+        style_id="canal-teste",
+    )
+    assert created["project"]["style_id"] == "canal-teste"
+    state = load_project_state(
+        __import__("videoflow.application.projects", fromlist=["get_project"]).get_project(
+            created["project"]["project_id"]
+        )
+    )
+    assert state.style_id == "canal-teste"
+
+    assert tools["vf_style"](action="delete", style_id="canal-teste")["deleted"] is True
+
+
+def test_core_style_guards_and_markdown_save(tmp_path: Path, monkeypatch) -> None:
+    tools, record, _ = setup(tmp_path, monkeypatch)
+    assert tools["vf_style"](action="save")["code"] == "style_required"
+    assert tools["vf_style"](action="sync")["code"] == "workspace_required"
+    assert tools["vf_style"](action="bogus")["code"] == "unknown_action"
+
+    saved = tools["vf_style"](
+        action="save",
+        markdown_content=(
+            "---\nstyle_id: md-core\nname: Markdown Core\ntarget_lufs: -15\n---\n\n# Corpo\n"
+        ),
+    )
+    assert saved["style_id"] == "md-core"
+    assert saved["style"]["target_lufs"] == -15.0
+
+    updated = tools["vf_project"](
+        action="open",
+        project_id=record.project_id,
+        style_id="canal-paula-reels",
+    )
+    assert updated["project"]["style_id"] == "canal-paula-reels"
+
+    invalid = tools["vf_project"](
+        action="init",
+        output=str(tmp_path / "missing-style-project"),
+        style_id="missing-style",
+    )
+    assert invalid["code"] == "style_not_found"
+
+
+def test_core_bundle_uses_project_style_export_targets(tmp_path: Path, monkeypatch) -> None:
+    from videoflow.application.style_catalog import StyleCatalog
+    from videoflow.domain.styles import StyleDefinition
+
+    tools, record, _ = setup(tmp_path, monkeypatch)
+    StyleCatalog().save(
+        StyleDefinition(
+            style_id="export-min",
+            name="Export Minimal",
+            export_targets=["resolve"],
+        )
+    )
+    tools["vf_project"](
+        action="open",
+        project_id=record.project_id,
+        style_id="export-min",
+    )
+
+    result = tools["vf_exports"](action="bundle", project_id=record.project_id)
+
+    assert result["ok"] is True
+    assert set(result["bundle"]["files"]) == {"resolve"}
+    assert result["bundle"]["targets"] == ["resolve"]

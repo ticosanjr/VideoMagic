@@ -347,6 +347,7 @@ class PresetSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     channel_dir: str = ""
+    style_dir: str = ""
     max_rules: int = Field(default=200, ge=1, le=2000)
 
 

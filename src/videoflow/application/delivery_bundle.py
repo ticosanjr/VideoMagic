@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -37,6 +38,14 @@ from videoflow.exporters.mp4 import (
 
 BUNDLE_SCHEMA_VERSION = 1
 BUNDLE_FILENAME = "bundle.json"
+BUNDLE_FILENAMES: dict[str, str] = {
+    "mp4": "final_youtube.mp4",
+    "resolve": "timeline_resolve.fcpxml",
+    "premiere": "timeline_premiere.xml",
+    "kdenlive": "timeline_kdenlive.kdenlive",
+    "kdenlive_mlt": "timeline_kdenlive.mlt",
+    "edl": "timeline.edl",
+}
 DEFAULT_BUNDLE_TARGETS: tuple[str, ...] = ("mp4_youtube", "resolve", "premiere", "kdenlive")
 
 
@@ -90,8 +99,6 @@ def timeline_frames(state: ProjectState) -> int:
 
 
 def _copy_sidecars(output: Path, destination: Path) -> list[str]:
-    import shutil
-
     sidecars = destination / "sidecars"
     sidecars.mkdir(parents=True, exist_ok=True)
     copied: list[str] = []
@@ -99,6 +106,7 @@ def _copy_sidecars(output: Path, destination: Path) -> list[str]:
         "titles.ass",
         "titles.json",
         "captions/captions.ass",
+        "captions/captions.srt",
         "subtitles.ass",
         "broll.json",
         "timeline_meta.json",
@@ -191,6 +199,7 @@ def build_delivery_bundle(
                 targets=nle_targets,
                 dialect=options.dialect,
                 basename=options.basename,
+                filenames=BUNDLE_FILENAMES,
                 extras=chosen_extras,
                 progress=progress,
                 should_cancel=should_cancel,
@@ -198,12 +207,16 @@ def build_delivery_bundle(
                 cache_dir=cache_dir,
             )
         )
+        if "kdenlive" in artifacts:
+            mlt_path = exports / BUNDLE_FILENAMES["kdenlive_mlt"]
+            shutil.copy2(artifacts["kdenlive"], mlt_path)
+            artifacts["kdenlive_mlt"] = mlt_path
 
     mp4_path: Path | None = None
     master_path = output / "audio" / "master.wav"
     audio_master = master_path if master_path.is_file() else None
     if requested_mp4:
-        mp4_path = exports / f"{options.basename}.mp4"
+        mp4_path = exports / BUNDLE_FILENAMES["mp4"]
         if progress is not None:
             progress("mp4", 0)
         export_mp4(
@@ -293,6 +306,7 @@ def build_delivery_bundle(
 
 __all__ = [
     "BUNDLE_FILENAME",
+    "BUNDLE_FILENAMES",
     "BUNDLE_SCHEMA_VERSION",
     "DEFAULT_BUNDLE_TARGETS",
     "DeliveryBundleRequest",

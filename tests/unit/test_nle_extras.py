@@ -182,3 +182,18 @@ def test_music_reads_beatmap_and_ducking(tmp_path: Path) -> None:
     assert tracks[0].duration_sec == 3.0
     assert tracks[0].gain_db == -20.0
     assert tracks[0].duck_ranges == ((2.0, 3.0, -12.0),)
+
+
+def test_captions_sidecar_is_read_separately(tmp_path: Path) -> None:
+    captions = tmp_path / "captions"
+    captions.mkdir()
+    (captions / "captions.ass").write_text(
+        "Dialogue: 0,0:00:01.00,0:00:02.50,Default,,0,0,0,,Olá mundo\n",
+        encoding="utf-8",
+    )
+
+    entries = nle_extras._captions(tmp_path)
+
+    assert len(entries) == 1
+    assert entries[0].kind == "caption"
+    assert entries[0].text == "Olá mundo"

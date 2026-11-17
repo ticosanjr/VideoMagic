@@ -254,6 +254,118 @@ def _apply_markers(
     return transcript_updates, broll_updates, ducking_updates, warnings
 
 
+def _segment_deltas(
+    segments,
+    ranges: list[tuple[float, float]],
+    timebase,
+) -> list[tuple[int, int, int]]:
+    deltas: list[tuple[int, int, int]] = []
+    for segment, (start, _duration) in zip(segments, ranges, strict=False):
+        new_start = timebase.seconds_to_frames(Fraction(str(start)), Rounding.NEAREST)
+        deltas.append(
+            (
+                segment.timeline_in_frame,
+                segment.timeline_out_frame,
+                new_start - segment.timeline_in_frame,
+            )
+        )
+    return deltas
+
+
+def _apply_timing_shift(
+    context: PipelineContext,
+    previous_segments,
+    ranges: list[tuple[float, float]],
+    timebase,
+    warnings: list[str],
+) -> tuple[int, int]:
+    """Shift transcript and ducking when the NLE moved clip timing."""
+
+    if context.media is None:
+        return 0, 0
+    fps = context.media.fps_num / context.media.fps_den
+    rate = context.media.audio_sample_rate
+    deltas = _segment_deltas(previous_segments, ranges, timebase)
+    if not any(delta for _start, _end, delta in deltas):
+        return 0, 0
+
+    def delta_for_frame(frame: int) -> int:
+        for start, end, delta in deltas:
+            if start <= frame < end:
+                return delta
+        return 0
+
+    shifted = 0
+    updated = []
+    for sentence in context.transcript:
+        frame = round(sentence.start_sample / rate * fps)
+        delta_frames = delta_for_frame(frame)
+        if delta_frames == 0:
+            updated.append(sentence)
+            continue
+        shift = round(delta_frames / fps * rate)
+        words = [
+            word.model_copy(
+                update={
+                    "start_sample": max(0, word.start_sample + shift),
+                    "end_sample": max(0, word.end_sample + shift),
+                }
+            )
+            for word in sentence.words
+        ]
+        updated.append(
+            sentence.model_copy(
+                update={
+                    "start_sample": max(0, sentence.start_sample + shift),
+                    "end_sample": max(0, sentence.end_sample + shift),
+                    "words": words,
+                }
+            )
+        )
+        shifted += 1
+    if shifted:
+        context.transcript = updated
+        if context.state is not None:
+            context.state = context.state.model_copy(
+                update={
+                    "transcript": updated,
+                    "revision": context.state.revision + 1,
+                }
+            )
+        _refresh_captions(context, warnings)
+
+    ducking = context.metadata.get("nle_ducking")
+    if not isinstance(ducking, list):
+        ducking = []
+        target = context.output / "audio" / "ducking.json"
+        if target.is_file():
+            try:
+                payload = json.loads(target.read_text(encoding="utf-8"))
+                ducking = list(payload.get("ducking", []))
+            except (OSError, ValueError):
+                ducking = []
+    ducking_updates = 0
+    if ducking:
+        for entry in ducking:
+            if not isinstance(entry, dict):
+                continue
+            frame = round(float(entry.get("start_sec") or 0.0) * fps)
+            delta_frames = delta_for_frame(frame)
+            if delta_frames == 0:
+                continue
+            shift = delta_frames / fps
+            entry["start_sec"] = max(0.0, float(entry.get("start_sec") or 0.0) + shift)
+            entry["end_sec"] = max(entry["start_sec"], float(entry.get("end_sec") or 0.0) + shift)
+            ducking_updates += 1
+        if ducking_updates:
+            context.metadata["nle_ducking"] = ducking
+            target = context.output / "audio" / "ducking.json"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(json.dumps({"ducking": ducking}, indent=2) + "\n", encoding="utf-8")
+            context.artifacts["nle_ducking"] = str(target)
+    return shifted, ducking_updates
+
+
 def _refresh_captions(context: PipelineContext, warnings: list[str]) -> None:
     """Regenerate ASS/SRT captions after an external NLE shifts the transcript."""
 
@@ -407,6 +519,7 @@ class NleSyncStep(BaseStep):
                             )
                         )
                     if segments and not conflicts:
+                        previous_segments = list(context.state.video_segments)
                         context.state = context.state.model_copy(
                             update={
                                 "video_segments": segments,
@@ -414,6 +527,16 @@ class NleSyncStep(BaseStep):
                             }
                         )
                         changed = len(segments)
+                        if not markers:
+                            shifted, ducked = _apply_timing_shift(
+                                context,
+                                previous_segments,
+                                ranges,
+                                timebase,
+                                warnings,
+                            )
+                            transcript_updates += shifted
+                            ducking_updates += ducked
                 if options.apply and markers:
                     marker_counts = _apply_markers(context, markers)
                     transcript_updates += marker_counts[0]

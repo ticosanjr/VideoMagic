@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from PIL import Image
@@ -78,8 +77,10 @@ def test_learn_rule_merge_and_replace(tmp_path: Path, monkeypatch) -> None:
         mode="replace",
     )
     assert replaced["count"] == 1
-    payload = json.loads(Path(replaced["rulebook"]).read_text(encoding="utf-8"))
-    assert payload["learned_rules"][0]["text"] == "nova regra"
+    from videoflow.application.style_catalog import StyleCatalog
+
+    style = StyleCatalog().get("canal-paula")
+    assert style.learned_rules[0].text == "nova regra"
 
 
 def test_clone_style_captures_url_and_records_font(tmp_path: Path, monkeypatch) -> None:

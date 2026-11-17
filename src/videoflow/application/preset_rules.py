@@ -1,31 +1,47 @@
-"""Channel preset rulebooks shared by steps, MCP, and the API."""
+"""Channel preset rulebooks backed by the canonical Markdown style catalog."""
 
 from __future__ import annotations
 
-import hashlib
 import json
-import re
 from pathlib import Path
 
 from videoflow.application.settings import load_settings
+from videoflow.application.style_catalog import (
+    catalog as style_catalog,
+)
+from videoflow.application.style_catalog import (
+    normal,
+    rule_id,
+    rulebook_from_style,
+    style_from_rulebook,
+    styles_dir,
+)
+from videoflow.domain.errors import StyleNotFoundError
 from videoflow.domain.headless import PresetRulebook
 from videoflow.runtime import portable_home
 
+__all__ = [
+    "channel_dir",
+    "load_rulebook",
+    "normal",
+    "rule_id",
+    "save_rulebook",
+    "style_dir",
+]
+
+
+def style_dir() -> Path:
+    return styles_dir()
+
 
 def channel_dir() -> Path:
+    """Legacy JSON rulebook directory kept only for migration reads."""
+
     configured = load_settings().presets.channel_dir.strip()
     return Path(configured).expanduser() if configured else portable_home() / "channels"
 
 
-def rule_id(text: str) -> str:
-    return "rule-" + hashlib.sha256(text.casefold().encode("utf-8")).hexdigest()[:12]
-
-
-def normal(text: str) -> str:
-    return re.sub(r"\s+", " ", text.strip().casefold())
-
-
-def load_rulebook(channel_id: str) -> PresetRulebook:
+def _load_legacy(channel_id: str) -> PresetRulebook:
     path = channel_dir() / f"{channel_id}.json"
     if not path.is_file():
         return PresetRulebook(channel_id=channel_id)
@@ -44,10 +60,19 @@ def load_rulebook(channel_id: str) -> PresetRulebook:
         return PresetRulebook(channel_id=channel_id)
 
 
+def load_rulebook(channel_id: str) -> PresetRulebook:
+    try:
+        return rulebook_from_style(style_catalog().get(channel_id))
+    except StyleNotFoundError:
+        return _load_legacy(channel_id)
+
+
 def save_rulebook(book: PresetRulebook) -> Path:
-    directory = channel_dir()
-    directory.mkdir(parents=True, exist_ok=True)
-    path = directory / f"{book.channel_id}.json"
     book.version += 1
-    path.write_text(book.model_dump_json(indent=2) + "\n", encoding="utf-8")
-    return path
+    style_id = book.channel_id or "default"
+    try:
+        existing = style_catalog().get(style_id)
+    except StyleNotFoundError:
+        existing = None
+    style = style_from_rulebook(book, existing=existing, style_id=style_id)
+    return style_catalog().save(style)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal
 
@@ -83,6 +83,7 @@ def export_timeline(
     should_cancel: Callable[[], object] | None = None,
     adapter: Any | None = None,
     cache_dir: Path | None = None,
+    filenames: Mapping[str, str] | None = None,
     mp4_profile: str = "",
     mp4_audio_bitrate: str = "192k",
     mp4_loudness_lufs: float | None = None,
@@ -112,11 +113,14 @@ def export_timeline(
             if progress is not None:
                 progress(target, 100)
             continue
-        destination = (
-            directory / f"{basename}{SUFFIXES[target]}"
-            if basename is not None and target in SUFFIXES
-            else directory / FILENAMES[target]
-        )
+        if filenames is not None and target in filenames:
+            destination = directory / filenames[target]
+        else:
+            destination = (
+                directory / f"{basename}{SUFFIXES[target]}"
+                if basename is not None and target in SUFFIXES
+                else directory / FILENAMES[target]
+            )
         if target == "resolve":
             artifacts[target] = export_fcpxml(state, destination, dialect=dialect, extras=extras)
         elif target == "premiere":
