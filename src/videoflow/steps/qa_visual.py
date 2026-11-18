@@ -129,16 +129,15 @@ def _motion_score(frames: list[Path]) -> float:
 
 
 def _overlay_boxes(context: PipelineContext) -> list[tuple[float, float, float, float]]:
-    if context.state is None:
+    if context.state is None or context.media is None:
         return []
+    from videoflow.application.overlay_geometry import layout_for
+
+    width = context.media.width
+    height = context.media.height
     return [
-        (
-            max(0.0, overlay.position_x - overlay.width_ratio / 2),
-            max(0.0, overlay.position_y - overlay.width_ratio / 2),
-            min(1.0, overlay.position_x + overlay.width_ratio / 2),
-            min(1.0, overlay.position_y + overlay.width_ratio / 2),
-        )
-        for overlay in context.state.overlays
+        item.box.normalised(width, height)
+        for item in layout_for(context.state, width, height)
     ]
 
 

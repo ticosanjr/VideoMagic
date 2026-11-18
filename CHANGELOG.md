@@ -1,5 +1,36 @@
 # Changelog
 
+## [3.2.0] - 2026-11-18
+
+### Added
+
+- Overlay geometry with explicit anchors, pixel margins, z-index, real asset
+  dimensions, collision detection, auto-packing, `vf_overlay_preview`,
+  `vf_layout`, `vf_caption_preview`, and `vf_qa_autofix`.
+- Caption `effect` model (`static`, `karaoke_switch`, `karaoke_sweep`, `pop`),
+  stable 4-6 word blocks, proportional word fallback, caption QA, and
+  before/during/after visual previews.
+- Strict MP4 integrity gate (±1 frame, frame count, last-sentence guard),
+  explicit `-t` muxing, and a 500 ms tail guard persisted in the timeline.
+- `needs_review` job status, granular step progress/ETA, heartbeat renewal,
+  and real queued `vf_shorts_batch` jobs.
+- `transcript.dedupe`, low-confidence word flags, `transcript_clean.json`, and
+  word-level slicing.
+- `shorts.tighten` with VAD edge trimming, internal-silence removal, and
+  speech-density rejection.
+- Final MP4 QA with loudness/true-peak policy, audio silence detection,
+  overlay/caption collisions, word fidelity via Faster-Whisper, contact sheet,
+  and waveform. `publish.release_kit` and channel brand kits.
+- 32-tool core MCP surface.
+
+### Changed
+
+- Project state schema is 4. Legacy schemas and deprecated fields are rejected.
+- Caption `animation`, beatmap `cuts`, overlay `position_x/position_y`, and
+  isolated final `-shortest` muxing were removed.
+- `vf_shorts_batch` now returns a job and supports `wait=True`.
+- Unknown caption effects, layouts, presets, and fonts fail explicitly.
+
 ## [3.1.0] - 2026-11-18
 
 ### Added

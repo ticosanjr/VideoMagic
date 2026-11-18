@@ -204,6 +204,21 @@ class MotionCalloutStep(BaseStep):
             width_ratio = max(0.28, min(0.62, len(text) / 46.0))
             x = position[0] if position else 0.08
             y = position[1] if position else 0.68
+            anchor = (
+                "top_left"
+                if x < 0.33 and y < 0.33
+                else "top_center"
+                if y < 0.33
+                else "top_right"
+                if x > 0.67 and y < 0.33
+                else "bottom_left"
+                if x < 0.33 and y > 0.67
+                else "bottom_center"
+                if y > 0.67
+                else "bottom_right"
+                if x > 0.67
+                else "center"
+            )
             callouts.append(
                 {
                     "callout_id": f"CALLOUT-{len(callouts) + 1:04d}",
@@ -212,8 +227,10 @@ class MotionCalloutStep(BaseStep):
                     "path": str(target),
                     "start_sec": round(start, 3),
                     "duration_sec": round(duration, 3),
-                    "position_x": round(max(0.02, min(0.9 - width_ratio, x)), 3),
-                    "position_y": round(max(0.02, min(0.9, y)), 3),
+                    "anchor": anchor,
+                    "margin_x": 0,
+                    "margin_y": 0,
+                    "z": 20,
                     "width_ratio": round(width_ratio, 3),
                 }
             )
@@ -291,8 +308,10 @@ class MotionAttachStep(BaseStep):
                 path=str(path),
                 start_frame=start_frame,
                 duration_frames=duration,
-                position_x=float(callout.get("position_x") or 0.08),
-                position_y=float(callout.get("position_y") or 0.68),
+                anchor=str(callout.get("anchor") or "bottom_left"),  # type: ignore[arg-type]
+                margin_x=int(callout.get("margin_x") or 0),
+                margin_y=int(callout.get("margin_y") or 0),
+                z=int(callout.get("z") or 20),
                 width_ratio=float(callout.get("width_ratio") or 0.4),
                 opacity=options.opacity,
                 kind="image",

@@ -374,6 +374,30 @@ def concatenate(paths: list[Path], target: Path) -> Path:
     return target
 
 
+def _duration_seconds(path: Path) -> float:
+    probe = find_binary("ffprobe")
+    if probe is None:
+        raise RuntimeError("FFprobe is not available.")
+    completed = subprocess.run(
+        [
+            probe,
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=nw=1:nk=1",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    try:
+        return max(0.0, float(completed.stdout.strip()))
+    except ValueError as exc:
+        raise RuntimeError("Could not read the master video duration.") from exc
+
+
 def mux_master(
     video: Path,
     audio: Path,
@@ -385,6 +409,7 @@ def mux_master(
     if binary is None:
         raise RuntimeError("FFmpeg is not available.")
     target.parent.mkdir(parents=True, exist_ok=True)
+    duration = _duration_seconds(video)
     command = [binary, "-hide_banner", "-loglevel", "error", "-y", "-i", str(video)]
     if audio.is_file():
         command.extend(["-i", str(audio)])
@@ -396,7 +421,18 @@ def mux_master(
         command.extend(["-vf", ",".join(filters)])
     command.extend(["-map", "0:v:0"])
     if audio.is_file():
-        command.extend(["-map", "1:a:0", "-c:a", "aac", "-b:a", "192k", "-shortest"])
+        command.extend(
+            [
+                "-map",
+                "1:a:0",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-t",
+                f"{duration:.6f}",
+            ]
+        )
     command.extend(
         [
             "-c:v",

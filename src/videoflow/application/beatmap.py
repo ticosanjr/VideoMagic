@@ -65,8 +65,10 @@ class BeatmapOverlay(BaseModel):
     kind: Literal["image", "video"] = "video"
     overlay_id: str = ""
     width_ratio: float = Field(default=1.0, gt=0.0, le=1.0)
-    position_x: float = Field(default=0.5, ge=0.0, le=1.0)
-    position_y: float = Field(default=0.5, ge=0.0, le=1.0)
+    anchor: str = "top_center"
+    margin_x: int = Field(default=0, ge=0)
+    margin_y: int = Field(default=0, ge=0)
+    z: int = Field(default=20, ge=0, le=1000)
     opacity: float = Field(default=1.0, ge=0.0, le=1.0)
     layout: Literal[
         "fullscreen",
@@ -107,9 +109,11 @@ class BeatmapGraphic(BaseModel):
     duration_frames: int = Field(gt=0)
     engine: str = ""
     alpha: bool = True
-    position_x: float = Field(default=0.5, ge=0.0, le=1.0)
-    position_y: float = Field(default=0.5, ge=0.0, le=1.0)
+    anchor: str = "top_center"
+    margin_x: int = Field(default=0, ge=0)
+    margin_y: int = Field(default=0, ge=0)
     width_ratio: float = Field(default=0.6, gt=0.0, le=1.0)
+    z: int = Field(default=20, ge=0, le=1000)
     opacity: float = Field(default=1.0, ge=0.0, le=1.0)
 
 
@@ -154,7 +158,6 @@ class Beatmap(BaseModel):
 
     revision: int | None = Field(default=None, ge=1)
     time_basis: Literal["timeline", "source"] = "timeline"
-    cuts: list[BeatmapCut] = Field(default_factory=list)
     keep_ranges: list[BeatmapRange] = Field(default_factory=list)
     remove_ranges: list[BeatmapRange] = Field(default_factory=list)
     broll: list[BeatmapOverlay] = Field(default_factory=list)
@@ -322,22 +325,28 @@ def _cut_audio(
 
 
 def _overlay_from(entry: BeatmapOverlay, index: int, path: Path) -> OverlayClip:
-    width, x, y = entry.width_ratio, entry.position_x, entry.position_y
+    width = entry.width_ratio
+    anchor = entry.anchor
+    margin_x = entry.margin_x
+    margin_y = entry.margin_y
+    z = entry.z
     if entry.layout == "pip_top_right":
-        width, x, y = 0.32, 0.82, 0.18
+        width, anchor, margin_x, margin_y, z = 0.32, "top_right", 32, 32, 30
     elif entry.layout == "split_screen":
-        width, x, y = 1.0, 0.5, 0.25
+        width, anchor, margin_x, margin_y, z = 1.0, "top_center", 0, 0, 10
     elif entry.layout == "cutout_overlay":
-        width, x, y = 0.6, 0.5, 0.72
+        width, anchor, margin_x, margin_y, z = 0.6, "bottom_center", 0, 80, 20
     elif entry.layout in {"ken_burns", "transformative_crop"}:
-        width, x, y = max(0.75, width), 0.5, 0.5
+        width, anchor, margin_x, margin_y, z = max(0.75, width), "center", 0, 0, 10
     return OverlayClip(
         overlay_id=entry.overlay_id or f"beatmap-{index + 1}",
         path=str(path),
         start_frame=entry.start_frame,
         duration_frames=entry.duration_frames,
-        position_x=x,
-        position_y=y,
+        anchor=anchor,  # type: ignore[arg-type]
+        margin_x=margin_x,
+        margin_y=margin_y,
+        z=z,
         width_ratio=width,
         opacity=entry.opacity,
         kind=entry.kind,
@@ -356,8 +365,9 @@ def _seconds_to_frames(state: ProjectState, seconds: float) -> tuple[int, int]:
     if media is None:
         return 0, 0
     timebase = media.timebase()
-    start = timebase.seconds_to_frames(Fraction(str(max(0.0, seconds))), Rounding.FLOOR)
-    end = timebase.seconds_to_frames(Fraction(str(max(0.0, seconds))), Rounding.CEIL)
+    value = Fraction(str(max(0.0, seconds))).limit_denominator(1_000_000)
+    start = timebase.seconds_to_frames(value, Rounding.FLOOR)
+    end = timebase.seconds_to_frames(value, Rounding.CEIL)
     return start, end
 
 
@@ -374,8 +384,12 @@ def _ranges_to_frames(
                 if media is None:
                     continue
                 timebase = media.timebase()
-                start = timebase.seconds_to_frames(Fraction(str(start_sec)), Rounding.FLOOR)
-                end = timebase.seconds_to_frames(Fraction(str(end_sec)), Rounding.CEIL)
+                start = timebase.seconds_to_frames(
+                    Fraction(str(start_sec)).limit_denominator(1_000_000), Rounding.FLOOR
+                )
+                end = timebase.seconds_to_frames(
+                    Fraction(str(end_sec)).limit_denominator(1_000_000), Rounding.CEIL
+                )
                 if end > start:
                     cuts.append(BeatmapCut(start_frame=start, end_frame=end))
         else:
@@ -383,8 +397,12 @@ def _ranges_to_frames(
             if media is None:
                 continue
             timebase = media.timebase()
-            start = timebase.seconds_to_frames(Fraction(str(item.start_sec)), Rounding.FLOOR)
-            end = timebase.seconds_to_frames(Fraction(str(item.end_sec)), Rounding.CEIL)
+            start = timebase.seconds_to_frames(
+                Fraction(str(item.start_sec)).limit_denominator(1_000_000), Rounding.FLOOR
+            )
+            end = timebase.seconds_to_frames(
+                Fraction(str(item.end_sec)).limit_denominator(1_000_000), Rounding.CEIL
+            )
             if end > start:
                 cuts.append(BeatmapCut(start_frame=start, end_frame=end))
     return cuts
@@ -442,8 +460,7 @@ def apply_beatmap(
 ) -> tuple[ProjectState, BeatmapReport, dict[str, Any]]:
     """Apply a beatmap and return ``(new_state, report, sidecar_manifest)``.
 
-    New ``keep_ranges`` and ``remove_ranges`` are seconds in ``time_basis``.
-    ``cuts`` remains a timeline-frame keep-list alias for 3.0 compatibility.
+    ``keep_ranges`` and ``remove_ranges`` are seconds in ``time_basis``.
     """
 
     options = beatmap if isinstance(beatmap, Beatmap) else Beatmap.model_validate(beatmap)
@@ -469,18 +486,7 @@ def apply_beatmap(
     fps = state.media_info.fps_num / state.media_info.fps_den
     before_sec = duration / fps if fps else 0.0
 
-    legacy_cuts = list(options.cuts)
-    for previous_cut, current_cut in zip(
-        sorted(legacy_cuts, key=lambda item: item.start_frame),
-        sorted(legacy_cuts, key=lambda item: item.start_frame)[1:],
-        strict=False,
-    ):
-        if current_cut.start_frame < previous_cut.end_frame:
-            report.conflicts.append(
-                f"overlapping cuts {previous_cut.start_frame}-{previous_cut.end_frame} "
-                f"and {current_cut.start_frame}-{current_cut.end_frame}"
-            )
-    keep_cuts = list(legacy_cuts)
+    keep_cuts: list[BeatmapCut] = []
     if options.keep_ranges:
         keep_cuts.extend(_ranges_to_frames(state, options.keep_ranges, basis))
     if options.remove_ranges:
@@ -491,14 +497,7 @@ def apply_beatmap(
             else _complement(removed, duration)
         )
     keep_cuts = _merge_ranges(keep_cuts)
-    cut_requested = bool(options.cuts or options.keep_ranges or options.remove_ranges)
-    if legacy_cuts:
-        report.warnings.append(
-            "cuts is deprecated and is interpreted as a timeline-frame keep-list; "
-            "use keep_ranges or remove_ranges"
-        )
-    if options.cuts and basis == "source":
-        report.warnings.append("legacy cuts always use timeline frames; time_basis was ignored")
+    cut_requested = bool(options.keep_ranges or options.remove_ranges)
 
     if cut_requested:
         for cut in keep_cuts:
@@ -631,8 +630,10 @@ def apply_beatmap(
                     path=str(path),
                     start_frame=entry.start_frame,
                     duration_frames=entry.duration_frames,
-                    position_x=entry.position_x,
-                    position_y=entry.position_y,
+                    anchor=entry.anchor,  # type: ignore[arg-type]
+                    margin_x=entry.margin_x,
+                    margin_y=entry.margin_y,
+                    z=entry.z,
                     width_ratio=entry.width_ratio,
                     opacity=entry.opacity,
                     kind="image",

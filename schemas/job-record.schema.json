@@ -1,26 +1,9 @@
 {
   "additionalProperties": false,
   "properties": {
-    "active_module": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Active Module"
-    },
     "job_id": {
       "format": "uuid",
       "title": "Job Id",
-      "type": "string"
-    },
-    "message": {
-      "default": "",
-      "title": "Message",
       "type": "string"
     },
     "project_id": {
@@ -37,6 +20,23 @@
         "failed"
       ],
       "title": "Status",
+      "type": "string"
+    },
+    "active_module": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Active Module"
+    },
+    "message": {
+      "default": "",
+      "title": "Message",
       "type": "string"
     }
   },

@@ -12,6 +12,7 @@ from videoflow.application.captions import build_ass_lines, caption_lines
 from videoflow.application.fonts import fonts_dir
 from videoflow.application.projects import get_project, load_project_state
 from videoflow.application.shorts import short_dimensions, slugify
+from videoflow.application.shorts_tighten import tighten_clip
 from videoflow.application.style_catalog import StyleCatalog
 from videoflow.domain.config import CaptionStyle
 from videoflow.domain.errors import ExportError
@@ -59,6 +60,23 @@ def run_shorts_batch(
             raise ExportError(f"Shorts batch clip {index} has an invalid range")
         start_sample = round(start * rate)
         end_sample = round(end * rate)
+        words = [
+            word
+            for sentence in kept
+            for word in sentence.words
+        ]
+        tightened = tighten_clip(
+            start_sample=start_sample,
+            end_sample=end_sample,
+            speech_intervals=state.pipeline.speech_intervals,
+            words=words,
+            sample_rate=rate,
+            start_pad_ms=int(entry.get("start_pad_ms") or 80),
+            end_pad_ms=int(entry.get("end_pad_ms") or 150),
+            max_internal_silence_ms=int(entry.get("max_internal_silence_ms") or 500),
+        )
+        start_sample = tightened.start_sample
+        end_sample = tightened.end_sample
         title = str(entry.get("title") or f"Short {index}")
         style = _style_for(
             str(entry.get("style_id") or ""),
@@ -101,7 +119,7 @@ def run_shorts_batch(
         context_source = _source_path(state, record)
         renderer.render_short(
             Path(context_source),
-            [(start_sample, end_sample)],
+            list(tightened.pieces),
             target,
             sample_rate=rate,
             width=width,
@@ -123,8 +141,9 @@ def run_shorts_batch(
                 "aspect_ratio": aspect,
                 "layout": layout,
                 "style_id": getattr(style, "style_id", ""),
-                "start_sec": round(start, 3),
-                "end_sec": round(end, 3),
+                "start_sec": round(start_sample / rate, 3),
+                "end_sec": round(end_sample / rate, 3),
+                "metrics": tightened.metrics,
                 "source": str(context_source),
                 "fps": round(fps, 6),
             }

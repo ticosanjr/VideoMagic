@@ -29,6 +29,12 @@ class NleBroll:
     duration_sec: float
     name: str = ""
     kind: str = "video"
+    anchor: str = ""
+    margin_x: int = 0
+    margin_y: int = 0
+    width_ratio: float = 1.0
+    opacity: float = 1.0
+    z: int = 10
 
 
 @dataclass(frozen=True, slots=True)

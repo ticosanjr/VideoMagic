@@ -58,7 +58,7 @@ def test_apply_cuts_ripples_video_and_audio(tmp_path: Path) -> None:
     updated, report, _ = apply_beatmap(
         state,
         tmp_path,
-        {"revision": 1, "cuts": [{"start_frame": 10, "end_frame": 40}]},
+        {"revision": 1, "keep_ranges": [{"start_sec": 10/30, "end_sec": 40/30}]},
     )
 
     assert report.ok is True
@@ -136,22 +136,15 @@ def test_beatmap_rejects_missing_asset(tmp_path: Path) -> None:
     assert any("missing asset" in item for item in info.value.report.conflicts)
 
 
-def test_beatmap_rejects_overlapping_cuts(tmp_path: Path) -> None:
+def test_beatmap_rejects_invalid_range(tmp_path: Path) -> None:
     state = _state(tmp_path)
 
-    with pytest.raises(BeatmapError) as info:
+    with pytest.raises(ValueError):
         apply_beatmap(
             state,
             tmp_path,
-            {
-                "cuts": [
-                    {"start_frame": 0, "end_frame": 20},
-                    {"start_frame": 10, "end_frame": 30},
-                ]
-            },
+            {"keep_ranges": [{"start_sec": 1.0, "end_sec": 0.5}]},
         )
-
-    assert any("overlapping cuts" in item for item in info.value.report.conflicts)
 
 
 def test_beatmap_keeps_existing_overlays(tmp_path: Path) -> None:
@@ -174,7 +167,11 @@ def test_beatmap_keeps_existing_overlays(tmp_path: Path) -> None:
 def test_beatmap_rejects_invalid_cut_and_unknown_zoom(tmp_path: Path) -> None:
     state = _state(tmp_path)
     with pytest.raises(ValueError):
-        apply_beatmap(state, tmp_path, {"cuts": [{"start_frame": 10, "end_frame": 10}]})
+        apply_beatmap(
+            state,
+            tmp_path,
+            {"keep_ranges": [{"start_sec": 1.0, "end_sec": 1.0}]},
+        )
     with pytest.raises(BeatmapError) as info:
         apply_beatmap(
             state,
@@ -187,7 +184,11 @@ def test_beatmap_rejects_invalid_cut_and_unknown_zoom(tmp_path: Path) -> None:
 def test_beatmap_rejects_cut_past_timeline_and_no_media(tmp_path: Path) -> None:
     state = _state(tmp_path)
     with pytest.raises(BeatmapError) as info:
-        apply_beatmap(state, tmp_path, {"cuts": [{"start_frame": 0, "end_frame": 999}]})
+        apply_beatmap(
+            state,
+            tmp_path,
+            {"keep_ranges": [{"start_sec": 0.0, "end_sec": 99.0}]},
+        )
     assert any("exceeds timeline" in item for item in info.value.report.conflicts)
 
     empty = ProjectState()

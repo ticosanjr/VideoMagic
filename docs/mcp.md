@@ -1,6 +1,6 @@
 # MCP server — agent profile
 
-VideoFlow 3.1.0 exposes a **28-tool core MCP** plus four isolated domain servers:
+VideoFlow 3.2.0 exposes a **32-tool core MCP** plus four isolated domain servers:
 
 ```text
 mcp-vf-core      13 tools   project, styles, jobs, timeline, render, exports, ingest
@@ -42,7 +42,7 @@ metadata, time map, and step checkpoints; `projects/{id}/state.json` mirrors it.
 parallel. Writes to the same project are serialized by a project lock and
 `vf_edit_timeline` supports `expected_revision` for conflict detection.
 
-## Core tools (28)
+## Core tools (32)
 
 ### Project, catalog, and execution
 
@@ -70,6 +70,10 @@ parallel. Writes to the same project are serialized by a project lock and
 | `vf_timeline` | Read, edit, or `apply_beatmap` the canonical timeline. |
 | `vf_beatmap_plan` | Generate a structured beat-map draft from transcript + style. |
 | `vf_overlay` | Insert an image/video overlay by source or timeline time. |
+| `vf_overlay_preview` | Render one frame with overlay boxes, captions, safe zones, and labels. |
+| `vf_layout` | Auto-pack overlay margins and write `layout.json`. |
+| `vf_caption_preview` | Render before/during/after frames for the active caption. |
+| `vf_qa_autofix` | Resolve overlay/caption collisions and persist the layout. |
 | `vf_artifact` | List or read artifacts, including image content. |
 
 ### Delivery and operations

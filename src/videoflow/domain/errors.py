@@ -61,6 +61,21 @@ class ModuleBypassedError(VideoFlowError):
         super().__init__(f"Module {module} is bypassed. Enable it before running it.")
 
 
+class NeedsReviewError(VideoFlowError):
+    """The deliverable exists but failed a hard QA criterion."""
+
+    code = "needs_review"
+
+    def __init__(self, message: str, *, report: dict[str, object] | None = None) -> None:
+        super().__init__(message)
+        self.report = report or {}
+
+    def to_dict(self) -> dict[str, object]:
+        payload = super().to_dict()
+        payload["report"] = self.report
+        return payload
+
+
 class JobAlreadyRunningError(VideoFlowError):
     """One project may have only one active job."""
 

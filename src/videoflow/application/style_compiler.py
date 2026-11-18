@@ -115,10 +115,16 @@ def apply_style(
             "Style validation failed: "
             + "; ".join(item["message"] for item in validation["errors"])
         )
+    from videoflow.application.brand_kit import load_brand_kit
+
     record = get_project(project_id)
     state = load_project_state(record)
     params = compile_style(style)
     params["timeline"]["project_id"] = project_id
+    brand = load_brand_kit(record.channel_id or style.style_id)
+    params["brand_kit"] = brand
+    if brand.get("lut") and not params.get("lut_path"):
+        params["lut_path"] = str(brand["lut"])
     applied = state.model_copy(
         update={
             "style_id": style.style_id,
@@ -164,6 +170,7 @@ def apply_style(
         },
         "validation": validation,
         "plan": plan,
+        "brand_kit": params.get("brand_kit", {}),
     }
 
 

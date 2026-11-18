@@ -206,9 +206,24 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
             PortSpec("media", "Media info", "media", "media"),
         ),
     ),
+    "curation.prepare": (
+        (PortSpec("artifacts", "Project artifacts", "artifact_map", "artifacts", True),),
+        (PortSpec("artifacts", "Curation manifest", "artifact_map", "artifacts"),),
+    ),
+    "transcript.dedupe": (
+        (PortSpec("transcript", "Transcript", "transcript", "transcript", True),),
+        (
+            PortSpec("transcript", "Clean transcript", "transcript", "transcript"),
+            PortSpec("artifacts", "Transcript artifacts", "artifact_map", "artifacts"),
+        ),
+    ),
     "shorts.select": (
         (PortSpec("transcript", "Transcript", "transcript", "transcript", True),),
         (PortSpec("shorts", "Selected Shorts", "short_list", "shorts"),),
+    ),
+    "shorts.tighten": (
+        (PortSpec("shorts", "Selected Shorts", "short_list", "shorts", True),),
+        (PortSpec("shorts", "Tightened Shorts", "short_list", "shorts"),),
     ),
     "shorts.score": (
         (PortSpec("shorts", "Shorts", "short_list", "shorts", True),),
@@ -340,6 +355,14 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
     "delivery.package": (
         (PortSpec("artifacts", "Short files", "artifact_map", "artifacts", True),),
         (PortSpec("artifacts", "Delivery package", "artifact_map", "artifacts"),),
+    ),
+    "qa.final": (
+        (PortSpec("timeline", "Timeline state", "timeline", "state", True),),
+        (PortSpec("artifacts", "QA report", "artifact_map", "artifacts"),),
+    ),
+    "publish.release_kit": (
+        (PortSpec("artifacts", "Delivery artifacts", "artifact_map", "artifacts", True),),
+        (PortSpec("artifacts", "Release kit", "artifact_map", "artifacts"),),
     ),
     "shorts.ab": (
         (PortSpec("shorts", "Shorts", "short_list", "shorts", True),),

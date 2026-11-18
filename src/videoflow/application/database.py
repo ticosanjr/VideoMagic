@@ -48,7 +48,8 @@ def _create_schema(connection: sqlite3.Connection) -> None:
         "next_run TEXT, lease_expires TEXT, progress INTEGER DEFAULT 0, "
         "source TEXT, output TEXT, recipe TEXT, variables TEXT, "
         "project_id TEXT, created_at TEXT, started_at TEXT, finished_at TEXT, "
-        "cancel_requested INTEGER DEFAULT 0)"
+        "cancel_requested INTEGER DEFAULT 0, current_step TEXT, step_index INTEGER DEFAULT 0, "
+        "total_steps INTEGER DEFAULT 0, eta_sec REAL DEFAULT 0)"
     )
     existing = {row[1] for row in connection.execute("PRAGMA table_info(jobs)").fetchall()}
     for column, definition in (
@@ -68,6 +69,10 @@ def _create_schema(connection: sqlite3.Connection) -> None:
         ("started_at", "TEXT"),
         ("finished_at", "TEXT"),
         ("cancel_requested", "INTEGER DEFAULT 0"),
+        ("current_step", "TEXT"),
+        ("step_index", "INTEGER DEFAULT 0"),
+        ("total_steps", "INTEGER DEFAULT 0"),
+        ("eta_sec", "REAL DEFAULT 0"),
     ):
         if column not in existing:
             connection.execute(f"ALTER TABLE jobs ADD COLUMN {column} {definition}")
@@ -124,8 +129,9 @@ def upsert_job(job_id: str, payload: dict[str, Any]) -> None:
                 "INSERT OR REPLACE INTO jobs ("
                 "job_id, payload, updated_at, status, priority, attempts, next_run, "
                 "lease_expires, progress, source, output, recipe, variables, "
-                "project_id, created_at, started_at, finished_at, cancel_requested"
-                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "project_id, created_at, started_at, finished_at, cancel_requested, "
+                "current_step, step_index, total_steps, eta_sec"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     job_id,
                     json.dumps(payload, sort_keys=True),
@@ -145,6 +151,10 @@ def upsert_job(job_id: str, payload: dict[str, Any]) -> None:
                     str(payload.get("started_at") or ""),
                     str(payload.get("finished_at") or ""),
                     1 if payload.get("cancel_requested") else 0,
+                    str(payload.get("current_step") or ""),
+                    int(payload.get("step_index") or 0),
+                    int(payload.get("total_steps") or 0),
+                    float(payload.get("eta_sec") or 0.0),
                 ),
             )
             connection.commit()

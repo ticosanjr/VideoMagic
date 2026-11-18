@@ -179,4 +179,4 @@ def test_state_round_trips_json() -> None:
     state = ProjectState()
     restored = ProjectState.model_validate_json(state.model_dump_json())
     assert restored.project_id == state.project_id
-    assert restored.schema_version == 3
+    assert restored.schema_version == 4

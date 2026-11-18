@@ -221,52 +221,24 @@ def test_project_file_adoption_and_corruption(tmp_path: Path, monkeypatch) -> No
     assert project_for_output(out) is None
 
 
-def test_load_project_state_migrates_v1_source(tmp_path: Path, monkeypatch) -> None:
-    from videoflow.application.projects import ProjectRecord
+def test_load_project_state_rejects_v1_source(tmp_path: Path, monkeypatch) -> None:
+    from videoflow.application.projects import ProjectRecord, load_project_state
+    from videoflow.domain.errors import ProjectStateError
 
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home-v1"))
     output = tmp_path / "v1"
     output.mkdir()
-    source = tmp_path / "source.mp4"
-    source.write_bytes(b"x")
-    payload = {
-        "schema_version": 1,
-        "project_id": "8d1d4f0e-8b1e-4d7a-9e6f-5b2d1c0a3f11",
-        "media_info": {
-            "source_path": str(source),
-            "duration_frames": 30,
-            "fps_num": 30,
-            "fps_den": 1,
-            "width": 320,
-            "height": 240,
-            "audio_sample_rate": 48000,
-        },
-        "video_segments": [
-            {
-                "clip_id": "v1",
-                "source_in_frame": 0,
-                "source_out_frame": 30,
-                "timeline_in_frame": 0,
-                "timeline_out_frame": 30,
-            }
-        ],
-        "audio_segments": [
-            {
-                "clip_id": "v1",
-                "source_in_sample": 0,
-                "source_out_sample": 48000,
-                "timeline_in_sample": 0,
-                "timeline_out_sample": 48000,
-            }
-        ],
-    }
-    (output / "project_state.json").write_text(json.dumps(payload), encoding="utf-8")
-    record = ProjectRecord(project_id=payload["project_id"], name="v1", output=str(output))
-    state = load_project_state(record)
-    assert state.schema_version == 3
-    assert state.primary_source_id == "primary"
-    assert state.video_segments[0].source_id == "primary"
-
+    (output / "project_state.json").write_text(
+        '{"schema_version": 1, "project_id": "8d1d4f0e-8b1e-4d7a-9e6f-5b2d1c0a3f11"}',
+        encoding="utf-8",
+    )
+    record = ProjectRecord(
+        project_id="8d1d4f0e-8b1e-4d7a-9e6f-5b2d1c0a3f11",
+        name="v1",
+        output=str(output),
+    )
+    with pytest.raises(ProjectStateError):
+        load_project_state(record)
 
 def test_project_mirrors_state_into_workspace(tmp_path: Path, monkeypatch) -> None:
     from vf_contracts.workspace import project_dir

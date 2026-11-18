@@ -1,9 +1,20 @@
 {
   "additionalProperties": false,
   "properties": {
+    "ok": {
+      "const": false,
+      "default": false,
+      "title": "Ok",
+      "type": "boolean"
+    },
     "code": {
       "minLength": 1,
       "title": "Code",
+      "type": "string"
+    },
+    "message": {
+      "minLength": 1,
+      "title": "Message",
       "type": "string"
     },
     "details": {
@@ -12,17 +23,6 @@
       },
       "title": "Details",
       "type": "object"
-    },
-    "message": {
-      "minLength": 1,
-      "title": "Message",
-      "type": "string"
-    },
-    "ok": {
-      "const": false,
-      "default": false,
-      "title": "Ok",
-      "type": "boolean"
     }
   },
   "required": [

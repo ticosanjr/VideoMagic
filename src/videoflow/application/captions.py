@@ -117,10 +117,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         override = f"{{\\an{caption.alignment}\\pos({x},{y})"
         if caption.speaker_colors and line.speaker < len(caption.speaker_colors):
             override += f"\\c{_ass_color(caption.speaker_colors[line.speaker])}"
-        if caption.animation == "pop":
+        if caption.effect == "pop":
             override += "\\t(0,100,\\fscx110\\fscy110)\\t(100,220,\\fscx100\\fscy100)"
         override += "}"
-        if line.words and caption.word_timing != "sentence":
+        if caption.effect != "static":
             text = _karaoke_text(line, caption)
         else:
             text = _sentence_text(line.text, caption)
@@ -146,7 +146,8 @@ def caption_lines(
     pieces: Sequence[tuple[int, int]],
     *,
     sample_rate: int,
-    word_timing: str = "engine",
+    word_timing: str = "word",
+    max_words: int = 6,
     warnings: list[str] | None = None,
 ) -> list[CaptionLine]:
     """Map sentences and word timings onto the concatenated short timeline."""
@@ -189,22 +190,68 @@ def caption_lines(
             else:
                 words = ()
                 text = sentence.text
-                if word_timing in {"word", "engine"} and not warned:
+                if word_timing == "word" and not warned:
                     notes.append(
                         "Captions fell back to sentence timing because the transcript has no word timings"
                     )
                     warned = True
-            lines.append(
-                CaptionLine(
-                    start=output_start,
-                    end=output_end,
-                    text=text,
-                    words=words,
-                    speaker=sentence.speaker,
+            lines.extend(
+                _split_caption_blocks(
+                    CaptionLine(
+                        start=output_start,
+                        end=output_end,
+                        text=text,
+                        words=words,
+                        speaker=sentence.speaker,
+                    ),
+                    max_words,
                 )
             )
         cursor += piece_duration
     return _merge_caption_lines(lines)
+
+
+def _split_caption_blocks(line: CaptionLine, max_words: int) -> list[CaptionLine]:
+    """Split one timed sentence into stable 4-6 word caption blocks."""
+
+    limit = max(0, int(max_words))
+    if limit <= 0:
+        return [line]
+    tokens = [item[2] for item in line.words] if line.words else line.text.split()
+    if len(tokens) <= limit:
+        return [line]
+    blocks: list[CaptionLine] = []
+    if line.words:
+        for start_index in range(0, len(line.words), limit):
+            chunk = line.words[start_index : start_index + limit]
+            if not chunk:
+                continue
+            blocks.append(
+                CaptionLine(
+                    start=chunk[0][0],
+                    end=chunk[-1][1],
+                    text=" ".join(item[2] for item in chunk),
+                    words=chunk,
+                    speaker=line.speaker,
+                )
+            )
+        return blocks
+    chunks = [tokens[index : index + limit] for index in range(0, len(tokens), limit)]
+    weights = [max(1, len(" ".join(chunk))) for chunk in chunks]
+    total = sum(weights)
+    cursor = line.start
+    for index, (chunk, weight) in enumerate(zip(chunks, weights, strict=True)):
+        end = line.end if index == len(chunks) - 1 else cursor + (line.end - line.start) * weight / total
+        blocks.append(
+            CaptionLine(
+                start=cursor,
+                end=end,
+                text=" ".join(chunk),
+                speaker=line.speaker,
+            )
+        )
+        cursor = end
+    return blocks
 
 
 def _merge_caption_lines(lines: Sequence[CaptionLine]) -> list[CaptionLine]:
@@ -373,8 +420,8 @@ def _censor_text(text: str, style: CaptionStyle) -> str:
 
 
 def _karaoke_text(line: CaptionLine, style: CaptionStyle) -> str:
-    tag = "kf" if style.animation == "sweep" else "k"
-    words = line.words
+    tag = "kf" if style.effect == "karaoke_sweep" else "k"
+    words = line.words or _proportional_words(line.text, line.start, line.end)
     parts: list[str] = []
     if words and words[0][0] > line.start:
         gap = max(1, round((words[0][0] - line.start) * 100))

@@ -19,10 +19,11 @@ from videoflow.domain.errors import (
     ApprovalRequiredError,
     HumanInputRequiredError,
     JobCancelledError,
+    NeedsReviewError,
     VideoFlowError,
 )
 
-TERMINAL = frozenset({"succeeded", "failed", "cancelled", "answered"})
+TERMINAL = frozenset({"succeeded", "failed", "cancelled", "answered", "needs_review"})
 
 
 @dataclass(frozen=True)
@@ -187,6 +188,13 @@ class JobExecutor:
                 job.message = exc.message
                 job.error = exc.to_dict()
                 job.progress = max(1, min(99, job.progress))
+        except NeedsReviewError as exc:
+            with host._lock:
+                job.status = "needs_review"
+                job.stage = "needs_review"
+                job.message = exc.message
+                job.error = exc.to_dict()
+                job.progress = 100
         except JobCancelledError as exc:
             if policy.cancel_error:
                 job.telemetry.fail_running(str(exc))

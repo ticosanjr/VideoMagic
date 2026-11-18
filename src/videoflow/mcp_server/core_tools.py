@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import time
 from functools import lru_cache
 from pathlib import Path
@@ -66,9 +67,14 @@ def _wait(manager: Any, project_id: str, job_id: str, timeout: float) -> dict[st
     if getattr(job, "project_id", "") not in {"", record.project_id}:
         return error("job_mismatch", "Job does not belong to this project")
     deadline = time.monotonic() + max(1.0, min(3600.0, timeout))
-    while job.status not in {"succeeded", "failed", "cancelled", "answered"}:
+    terminal = {"succeeded", "failed", "cancelled", "answered", "needs_review"}
+    while job.status not in terminal:
         if time.monotonic() >= deadline:
             return {"ok": False, "code": "timeout", "job": _job_payload(job)}
+        heartbeat = getattr(manager, "heartbeat", None)
+        if callable(heartbeat):
+            with contextlib.suppress(Exception):
+                heartbeat(job_id)
         time.sleep(0.5)
         job = manager.get(job_id)
     return {"ok": job.status == "succeeded", "job": _job_payload(job)}
@@ -382,9 +388,11 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         at_source_sec: float | None = None,
         at_timeline_sec: float | None = None,
         duration_sec: float = 3.0,
-        x: float = 0.5,
-        y: float = 0.5,
+        anchor: str = "top_center",
+        margin_x: int = 0,
+        margin_y: int = 0,
         scale: float = 0.25,
+        z: int = 20,
         opacity: float = 1.0,
         transition_in: str = "fade",
         transition_out: str = "fade",
@@ -400,9 +408,11 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                 at_source_sec=at_source_sec,
                 at_timeline_sec=at_timeline_sec,
                 duration_sec=duration_sec,
-                x=x,
-                y=y,
+                anchor=anchor,
+                margin_x=margin_x,
+                margin_y=margin_y,
                 scale=scale,
+                z=z,
                 opacity=opacity,
                 transition_in=transition_in,
                 transition_out=transition_out,
@@ -413,6 +423,70 @@ def register_core_tools(register: Any, ctx: Any) -> None:
             return error("overlay_failed", str(exc))
 
     @register
+    def vf_overlay_preview(
+        project_id: str,
+        time_sec: float = 0.0,
+        platform: str = "youtube_16_9",
+    ) -> dict[str, Any]:
+        """Render one frame with overlay boxes, captions, safe zones, and labels."""
+
+        from videoflow.application.overlay_preview import render_overlay_preview
+
+        try:
+            record = get_project(project_id)
+            state = load_project_state(record)
+            result = render_overlay_preview(
+                state, Path(record.output), time_sec=time_sec, platform=platform
+            )
+        except (VideoFlowError, OSError) as exc:
+            return error("overlay_preview_failed", str(exc))
+        return {"ok": True, "project_id": project_id, "preview": result}
+
+    @register
+    def vf_layout(
+        project_id: str,
+        platform: str = "youtube_16_9",
+        apply: bool = True,
+    ) -> dict[str, Any]:
+        """Auto-pack overlays away from the caption band and write layout.json."""
+
+        from videoflow.application.layout import pack_project_layout
+
+        try:
+            result = pack_project_layout(project_id, platform=platform, apply=apply)
+        except (VideoFlowError, OSError) as exc:
+            return error("layout_failed", str(exc))
+        return result
+
+    @register
+    def vf_caption_preview(project_id: str, time_sec: float = 0.0) -> dict[str, Any]:
+        """Render before/during/after frames for the active caption."""
+
+        from videoflow.application.caption_preview import render_caption_preview
+
+        try:
+            record = get_project(project_id)
+            state = load_project_state(record)
+            result = render_caption_preview(
+                state, Path(record.output), time_sec=time_sec
+            )
+        except (VideoFlowError, OSError) as exc:
+            return error("caption_preview_failed", str(exc))
+        return {"ok": True, "project_id": project_id, "preview": result}
+
+    @register
+    def vf_qa_autofix(project_id: str, apply: bool = True) -> dict[str, Any]:
+        """Resolve overlay/caption collisions by repacking margins."""
+
+        from videoflow.application.layout import pack_project_layout
+
+        try:
+            result = pack_project_layout(project_id, apply=apply)
+        except (VideoFlowError, OSError) as exc:
+            return error("qa_autofix_failed", str(exc))
+        return result
+
+    @register
     def vf_shorts_batch(
         project_id: str,
         clips: list[dict[str, Any]],
@@ -420,16 +494,29 @@ def register_core_tools(register: Any, ctx: Any) -> None:
     ) -> dict[str, Any]:
         """Render several Shorts in one batch with per-clip settings."""
 
-        from videoflow.application.shorts_batch import run_shorts_batch
-
         try:
-            result = run_shorts_batch(project_id, clips)
+            record = get_project(project_id)
         except VideoFlowError as exc:
             return exc.to_dict()
-        except ValueError as exc:
-            return error("shorts_batch_failed", str(exc))
-        result["wait"] = wait
-        return result
+        job = manager.start(
+            Path(record.primary_source or record.output),
+            Path(record.output),
+            {
+                "mode": "shorts_batch",
+                "project_id": record.project_id,
+                "clips": clips,
+            },
+            queue=True,
+            project_id=record.project_id,
+        )
+        response: dict[str, Any] = {
+            "ok": True,
+            "project_id": project_id,
+            "job": _job_payload(job),
+        }
+        if wait:
+            response["wait"] = _wait(manager, project_id, str(job.job_id), 1800.0)
+        return response
 
     @register
     def vf_qa_final(
@@ -1167,7 +1254,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                 except StyleNotFoundError:
                     requested = None
         requested = requested or list(DEFAULT_BUNDLE_TARGETS)
-        return build_delivery_bundle(
+        bundle = build_delivery_bundle(
             state,
             Path(record.output),
             request=DeliveryBundleRequest(
@@ -1181,6 +1268,21 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                 mp4_draft=draft,
             ),
         )
+        if not draft:
+            from videoflow.application.qa_final import audit_final
+
+            mp4 = (bundle.get("files") or {}).get("mp4") or {}
+            path = Path(str(mp4.get("path") or ""))
+            if path.is_file():
+                report = audit_final(
+                    path,
+                    output=Path(record.output),
+                    state=state,
+                    strict=True,
+                )
+                bundle["qa_final"] = report
+                bundle["ok"] = bool(bundle.get("ok")) and bool(report.get("ok"))
+        return bundle
 
     @register
     def vf_export(
@@ -1190,6 +1292,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         audio_source: str = "mix",
         captions: bool = True,
         draft: bool = False,
+        release_kit: bool = False,
     ) -> dict[str, Any]:
         """Render the canonical master and every requested NLE target."""
 
@@ -1206,12 +1309,20 @@ def register_core_tools(register: Any, ctx: Any) -> None:
             )
         except VideoFlowError as exc:
             return exc.to_dict()
-        return {
+        response = {
             "ok": bool(bundle.get("ok")),
             "project_id": project_id,
             "targets": list(bundle.get("targets") or []),
             "bundle": bundle,
         }
+        if release_kit:
+            from videoflow.application.release_kit import build_release_kit
+
+            try:
+                response["release_kit"] = build_release_kit(project_id)
+            except (VideoFlowError, OSError) as exc:
+                response["release_kit_error"] = str(exc)
+        return response
 
     @register
     def vf_crop_preview(
@@ -1316,7 +1427,13 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                 channel=channel,
                 token=token,
             )
-        jobs = [manager.get(job_id)] if job_id else manager.list()
+        if job_id:
+            try:
+                jobs = [manager.get(job_id)]
+            except VideoFlowError as exc:
+                return exc.to_dict()
+        else:
+            jobs = manager.list()
         items: list[dict[str, Any]] = []
         for job in jobs:
             try:

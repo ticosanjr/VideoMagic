@@ -151,7 +151,7 @@ def test_karaoke_ass_uses_word_timings_and_style() -> None:
             highlight_color="#FFD400",
             background_color="#112233",
             background_opacity=0.5,
-            animation="sweep",
+            effect="karaoke_sweep",
             position_x=0.5,
             position_y=0.8,
         ),

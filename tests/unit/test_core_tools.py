@@ -292,7 +292,7 @@ def test_core_apply_beatmap_is_atomic(tmp_path: Path, monkeypatch) -> None:
         expected_revision=1,
         beatmap={
             "revision": 1,
-            "cuts": [{"start_frame": 5, "end_frame": 20}],
+            "keep_ranges": [{"start_sec": 5/30, "end_sec": 20/30}],
         },
     )
     assert result["ok"] is True

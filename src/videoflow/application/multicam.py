@@ -128,8 +128,18 @@ def sync_multicam(
                         path=secondary_media.source_path,
                         start_frame=start_frame,
                         duration_frames=duration,
-                        position_x=0.82 if "right" in pip_position else 0.18,
-                        position_y=0.18 if "top" in pip_position else 0.82,
+                        anchor=(
+                            "top_right"
+                            if "right" in pip_position and "top" in pip_position
+                            else "bottom_right"
+                            if "right" in pip_position
+                            else "top_left"
+                            if "top" in pip_position
+                            else "bottom_left"
+                        ),
+                        margin_x=32,
+                        margin_y=32,
+                        z=30,
                         width_ratio=max(0.08, min(0.8, pip_width_ratio)),
                         opacity=1.0,
                         kind="video",

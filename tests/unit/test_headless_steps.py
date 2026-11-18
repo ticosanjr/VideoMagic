@@ -59,9 +59,11 @@ def _state() -> ProjectState:
                 path=str(Path("/tmp/overlay.png")),
                 start_frame=0,
                 duration_frames=30,
-                position_x=0.5,
-                position_y=0.9,
+                anchor="bottom_center",
+                margin_x=0,
+                margin_y=20,
                 width_ratio=0.3,
+                z=20,
             )
         ],
     )

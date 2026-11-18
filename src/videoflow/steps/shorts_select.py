@@ -15,6 +15,7 @@ from videoflow.application.shorts import (
     select_shorts,
     short_dimensions,
 )
+from videoflow.application.shorts_tighten import passes_metrics, tighten_clip
 from videoflow.application.video_analysis import scene_intervals
 from videoflow.core.context import PipelineContext
 from videoflow.domain.config import ShortsConfig
@@ -131,6 +132,35 @@ class ShortsSelectStep(BaseStep):
                 "reframe_mode is handled by the shorts.reframe step; "
                 "shorts.select no longer tracks faces"
             )
+        if selected:
+            words = [
+                word
+                for sentence in kept
+                if sentence.id not in discard
+                for word in sentence.words
+            ]
+            ranked = []
+            for clip in selected:
+                metrics = tighten_clip(
+                    start_sample=clip.start_sample,
+                    end_sample=clip.end_sample,
+                    speech_intervals=context.speech_intervals,
+                    words=words,
+                    sample_rate=media.audio_sample_rate,
+                    start_pad_ms=0,
+                    end_pad_ms=0,
+                    max_internal_silence_ms=500,
+                ).metrics
+                from dataclasses import replace as dataclass_replace
+
+                clip = dataclass_replace(clip, metrics=metrics)
+                if passes_metrics(metrics):
+                    ranked.append(clip)
+                else:
+                    warnings.append(
+                        f"Dropped short '{clip.title}' for weak speech density: {metrics}"
+                    )
+            selected = ranked or selected[:1]
 
         context.selected_shorts = list(selected)
         context.shorts = [

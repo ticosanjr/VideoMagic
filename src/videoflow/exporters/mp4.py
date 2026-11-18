@@ -14,12 +14,13 @@ from uuid import uuid4
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.disk import ensure_free_space
 from videoflow.application.fonts import fonts_dir
-from videoflow.application.media_integrity import validate_duration
+from videoflow.application.media_integrity import validate_integrity
 from videoflow.domain.errors import ExportError
 from videoflow.domain.state import AudioSegment, MediaInfo, ProjectState, VideoSegment
 from videoflow.exporters.common import (
     require_timeline,
     timeline_duration_frames,
+    timeline_duration_samples,
 )
 
 
@@ -258,6 +259,25 @@ def _expected_seconds(state: ProjectState) -> float:
         return 0.0
     fps = media.fps_num / media.fps_den
     return timeline_render_frames(state) / fps if fps else 0.0
+
+
+def _last_sentence_end_sec(state: ProjectState) -> float | None:
+    from videoflow.application.time_map import last_speech_timeline_sec
+
+    return last_speech_timeline_sec(state)
+
+
+def _integrity_report(state: ProjectState, path: Path):
+    media = state.media_info
+    fps = (media.fps_num / media.fps_den) if media is not None and media.fps_den else 0.0
+    return validate_integrity(
+        path,
+        _expected_seconds(state),
+        expected_frames=timeline_render_frames(state),
+        expected_samples=timeline_duration_samples(state) if state.audio_segments else 0,
+        fps=fps,
+        last_sentence_end_sec=_last_sentence_end_sec(state),
+    )
 
 
 def _audio_graph_inputs(
@@ -705,6 +725,7 @@ def _export_mp4_segmented(
             progress(60)
 
         combined = directory / "combined.mp4"
+        expected = _expected_seconds(state)
         renderer.render(
             [
                 "-i",
@@ -717,14 +738,14 @@ def _export_mp4_segmented(
                 "1:a",
                 "-c",
                 "copy",
-                "-shortest",
+                "-t",
+                f"{expected:.6f}",
                 "-movflags",
                 "+faststart",
                 str(combined),
             ]
         )
-        expected = _expected_seconds(state)
-        report = validate_duration(combined, expected) if _duration_gate_enabled(adapter) else None
+        report = _integrity_report(state, combined) if _duration_gate_enabled(adapter) else None
         if report is not None and not report.ok:
             repaired = directory / "combined-cfr.mp4"
             renderer.render(
@@ -762,7 +783,7 @@ def _export_mp4_segmented(
                     str(repaired),
                 ]
             )
-            report = validate_duration(repaired, expected)
+            report = _integrity_report(state, repaired)
             if not report.ok:
                 raise ExportError(
                     f"{destination.name} failed the duration gate after CFR repair: {report.reason}"
@@ -904,8 +925,7 @@ def export_mp4(
             progress=progress,
             scale_height=scale_height,
         )
-        expected = _expected_seconds(state)
-        report = validate_duration(temporary, expected) if _duration_gate_enabled(adapter) else None
+        report = _integrity_report(state, temporary) if _duration_gate_enabled(adapter) else None
         if report is not None and not report.ok:
             temporary.unlink(missing_ok=True)
             _render_classic_mp4(
@@ -927,7 +947,7 @@ def export_mp4(
                 scale_height=scale_height,
             )
             report = (
-                validate_duration(temporary, expected) if _duration_gate_enabled(adapter) else None
+                _integrity_report(state, temporary) if _duration_gate_enabled(adapter) else None
             )
         if report is not None and not report.ok:
             raise ExportError(f"{destination.name} failed the duration gate: {report.reason}")
@@ -980,58 +1000,78 @@ def _render_classic_mp4(
     if color_filters:
         graph += f";{video_label}{','.join(color_filters)}[vcolor]"
         video_label = "[vcolor]"
+    fps = media.fps_num / media.fps_den
+    overlay_inputs: list[str] = []
+    input_index = 2 if master_file is not None else 1
+
+    def apply_overlays(overlays: Sequence[Any]) -> None:
+        nonlocal video_label, input_index
+        from videoflow.application.overlay_geometry import overlay_box
+
+        for overlay in sorted(overlays, key=lambda item: (item.z, item.start_frame)):
+            path = Path(overlay.path).expanduser()
+            if not path.is_file():
+                continue
+            duration = overlay.duration_frames / fps
+            if overlay.kind == "image":
+                overlay_inputs.extend(
+                    ["-loop", "1", "-t", f"{duration:.6f}", "-i", str(path)]
+                )
+            else:
+                overlay_inputs.extend(
+                    ["-stream_loop", "-1", "-t", f"{duration:.6f}", "-i", str(path)]
+                )
+            overlay_filters: list[str] = []
+            if overlay.transformative_crop:
+                overlay_filters.append("crop=trunc(iw*0.9/2)*2:trunc(ih*0.9/2)*2")
+            overlay_filters.append(f"scale=trunc(iw*{overlay.width_ratio:.4f}/2)*2:-2")
+            if overlay.ken_burns:
+                overlay_filters.append(
+                    "zoompan=z='min(zoom+0.0004,1.08)':d=1:"
+                    "x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+                )
+            overlay_filters.extend(
+                ["format=rgba", f"colorchannelmixer=aa={overlay.opacity:.3f}"]
+            )
+            fade_seconds = max(0.0, overlay.transition_frames / fps)
+            if fade_seconds > 0 and overlay.transition_in in {"fade", "crossfade"}:
+                overlay_filters.append(
+                    f"fade=t=in:st=0:d={min(fade_seconds, duration):.6f}:alpha=1"
+                )
+            if fade_seconds > 0 and overlay.transition_out in {"fade", "crossfade"}:
+                overlay_filters.append(
+                    f"fade=t=out:st={max(0.0, duration - fade_seconds):.6f}:"
+                    f"d={min(fade_seconds, duration):.6f}:alpha=1"
+                )
+            overlay_filters.append("setpts=PTS-STARTPTS")
+            label = f"ov{input_index}"
+            overlay_chains = [
+                f"[{input_index}:v]{','.join(overlay_filters)}[{label}]"
+            ]
+            box = overlay_box(overlay, media.width, media.height)
+            x = max(0, min(max(0, media.width - box.width), box.x))
+            y = max(0, min(max(0, media.height - box.height), box.y))
+            start = overlay.start_frame / fps
+            end = start + duration
+            overlay_chains.append(
+                f"{video_label}[{label}]overlay="
+                f"x={x}:y={y}:"
+                f"enable='between(t,{start:.6f},{end:.6f})'[v{label}]"
+            )
+            graph_segments.append(";".join(overlay_chains))
+            video_label = f"[v{label}]"
+            input_index += 1
+
+    graph_segments: list[str] = []
+    apply_overlays([overlay for overlay in state.overlays if overlay.z < 40])
     if ass_path is not None:
         ass_filter = f"ass='{_filter_path(Path(ass_path))}'"
         ass_filter += f":fontsdir='{_filter_path(fonts_dir())}'"
-        graph += f";{video_label}{ass_filter}[vtitle]"
+        graph_segments.append(f"{video_label}{ass_filter}[vtitle]")
         video_label = "[vtitle]"
-    fps = media.fps_num / media.fps_den
-    overlay_inputs: list[str] = []
-    overlay_chains: list[str] = []
-    input_index = 2 if master_file is not None else 1
-    for index, overlay in enumerate(state.overlays):
-        path = Path(overlay.path).expanduser()
-        if not path.is_file():
-            continue
-        duration = overlay.duration_frames / fps
-        if overlay.kind == "image":
-            overlay_inputs.extend(["-loop", "1", "-t", f"{duration:.6f}", "-i", str(path)])
-        else:
-            overlay_inputs.extend(["-stream_loop", "-1", "-t", f"{duration:.6f}", "-i", str(path)])
-        overlay_filters: list[str] = []
-        if overlay.transformative_crop:
-            overlay_filters.append("crop=trunc(iw*0.9/2)*2:trunc(ih*0.9/2)*2")
-        overlay_filters.append(f"scale=trunc(iw*{overlay.width_ratio:.4f}/2)*2:-2")
-        if overlay.ken_burns:
-            overlay_filters.append(
-                "zoompan=z='min(zoom+0.0004,1.08)':d=1:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
-            )
-        overlay_filters.extend(
-            ["format=rgba", f"colorchannelmixer=aa={overlay.opacity:.3f}"]
-        )
-        fade_seconds = max(0.0, overlay.transition_frames / fps)
-        if fade_seconds > 0 and overlay.transition_in in {"fade", "crossfade"}:
-            overlay_filters.append(
-                f"fade=t=in:st=0:d={min(fade_seconds, duration):.6f}:alpha=1"
-            )
-        if fade_seconds > 0 and overlay.transition_out in {"fade", "crossfade"}:
-            overlay_filters.append(
-                f"fade=t=out:st={max(0.0, duration - fade_seconds):.6f}:"
-                f"d={min(fade_seconds, duration):.6f}:alpha=1"
-            )
-        overlay_filters.append("setpts=PTS-STARTPTS")
-        overlay_chains.append(f"[{input_index}:v]{','.join(overlay_filters)}[ov{index}]")
-        start = overlay.start_frame / fps
-        end = start + duration
-        overlay_chains.append(
-            f"{video_label}[ov{index}]overlay="
-            f"x=(W-w)*{overlay.position_x:.4f}:y=(H-h)*{overlay.position_y:.4f}:"
-            f"enable='between(t,{start:.6f},{end:.6f})'[vov{index}]"
-        )
-        video_label = f"[vov{index}]"
-        input_index += 1
-    if overlay_chains:
-        graph += ";" + ";".join(overlay_chains)
+    apply_overlays([overlay for overlay in state.overlays if overlay.z >= 40])
+    if graph_segments:
+        graph += ";" + ";".join(graph_segments)
     if scale_height is not None:
         height = max(64, min(2160, int(scale_height)))
         graph += f";{video_label}scale=-2:{height}:flags=lanczos,setsar=1[vscale]"
@@ -1065,9 +1105,10 @@ def _render_classic_mp4(
             cfr=cfr,
         ),
         *_audio_encode_args(bitrate=audio_bitrate),
+        "-t",
+        f"{_expected_seconds(state):.6f}",
         "-movflags",
         "+faststart",
-        "-shortest",
         str(destination),
     ]
     if progress is not None:

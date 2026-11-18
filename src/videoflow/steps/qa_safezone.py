@@ -36,6 +36,22 @@ SAFE_ZONES: dict[str, tuple[SafeZoneBox, ...]] = {
             platform="youtube", x=0.0, y=0.88, width=1.0, height=0.12, reason="progress bar"
         ),
     ),
+    "youtube_16_9": (
+        SafeZoneBox(
+            platform="youtube_16_9", x=0.0, y=0.90, width=1.0, height=0.10, reason="progress bar"
+        ),
+        SafeZoneBox(
+            platform="youtube_16_9", x=0.0, y=0.0, width=1.0, height=0.06, reason="top chrome"
+        ),
+    ),
+    "feed_4_5": (
+        SafeZoneBox(
+            platform="feed_4_5", x=0.0, y=0.86, width=1.0, height=0.14, reason="caption band"
+        ),
+        SafeZoneBox(
+            platform="feed_4_5", x=0.0, y=0.0, width=1.0, height=0.07, reason="top chrome"
+        ),
+    ),
 }
 
 
@@ -102,33 +118,19 @@ class SafeZoneStep(BaseStep):
         collisions: list[SafeZoneCollision] = []
         platforms = [item for item in options.platforms if item in SAFE_ZONES]
         io.report(10, "Checking platform safe zones")
-        if options.include_overlays and context.state is not None:
-            for overlay in context.state.overlays:
-                element = _box(
-                    overlay.position_x - overlay.width_ratio / 2,
-                    overlay.position_y - overlay.width_ratio / 2,
-                    overlay.width_ratio,
-                    overlay.width_ratio,
-                )
-                fps = context.media.timebase() if context.media else None
-                start = (
-                    fps.frames_to_seconds(overlay.start_frame)
-                    if fps is not None
-                    else float(overlay.start_frame)
-                )
-                end = (
-                    fps.frames_to_seconds(overlay.start_frame + overlay.duration_frames)
-                    if fps is not None
-                    else float(overlay.start_frame + overlay.duration_frames)
-                )
+        if options.include_overlays and context.state is not None and context.media is not None:
+            from videoflow.application.overlay_geometry import layout_for
+
+            for item in layout_for(context.state, context.media.width, context.media.height):
+                element = item.box.normalised(context.media.width, context.media.height)
                 for platform in platforms:
                     found = _collision(
                         platform,
-                        overlay.overlay_id,
+                        item.overlay_id,
                         "overlay",
                         element,
-                        start,
-                        end,
+                        item.start_sec,
+                        item.end_sec,
                     )
                     if found:
                         collisions.append(found)

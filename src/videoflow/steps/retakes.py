@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -192,6 +193,20 @@ class RetakesStep(BaseStep):
                 ),
             }
         )
+        transcript_dir = context.output / "transcript"
+        transcript_dir.mkdir(parents=True, exist_ok=True)
+        kept = [item for item in context.transcript if item.id not in discard]
+        clean_path = transcript_dir / "transcript_clean.json"
+        clean_path.write_text(
+            json.dumps(
+                [item.model_dump(mode="json") for item in kept],
+                indent=2,
+                ensure_ascii=False,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        context.artifacts["transcript_clean"] = str(clean_path)
         report = context.metadata.get("retakes_report") or {
             "discard_sentence_ids": discard,
             "restored_sentence_ids": restored,

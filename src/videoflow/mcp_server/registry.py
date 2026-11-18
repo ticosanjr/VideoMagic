@@ -65,6 +65,26 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "timeline",
     ),
     ToolSpec(
+        "vf_overlay_preview",
+        "Render one frame with overlay boxes, captions, safe zones, and labels.",
+        "timeline",
+    ),
+    ToolSpec(
+        "vf_layout",
+        "Auto-pack overlay margins and write an auditable layout.json.",
+        "timeline",
+    ),
+    ToolSpec(
+        "vf_caption_preview",
+        "Render before/during/after frames for the active caption.",
+        "qa",
+    ),
+    ToolSpec(
+        "vf_qa_autofix",
+        "Resolve overlay/caption collisions and persist the corrected layout.",
+        "qa",
+    ),
+    ToolSpec(
         "vf_shorts_batch",
         "Render multiple Shorts with per-clip style, crop, intro, and music.",
         "shorts",

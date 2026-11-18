@@ -9,7 +9,8 @@ export type JobStatus =
   | "succeeded"
   | "failed"
   | "cancelled"
-  | "answered";
+  | "answered"
+  | "needs_review";
 export type StageStatus = "pending" | "running" | "succeeded" | "failed" | "cancelled";
 
 export interface SystemInfo {
@@ -2390,9 +2391,11 @@ export interface TimelineOverlay {
   path: string;
   start_frame: number;
   duration_frames: number;
-  position_x: number;
-  position_y: number;
+  anchor: string;
+  margin_x: number;
+  margin_y: number;
   width_ratio: number;
+  z: number;
   opacity: number;
   kind: "image" | "video";
 }
@@ -2544,9 +2547,11 @@ export async function addTimelineOverlay(
     path: string;
     start_sec: number;
     duration_sec: number;
-    position_x?: number;
-    position_y?: number;
+    anchor?: string;
+    margin_x?: number;
+    margin_y?: number;
     width_ratio?: number;
+    z?: number;
     opacity?: number;
     kind?: "image" | "video";
   }

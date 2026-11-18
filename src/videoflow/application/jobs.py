@@ -43,8 +43,11 @@ JobStatus = Literal[
     "failed",
     "cancelled",
     "answered",
+    "needs_review",
 ]
-TERMINAL: frozenset[str] = frozenset({"succeeded", "failed", "cancelled", "answered"})
+TERMINAL: frozenset[str] = frozenset(
+    {"succeeded", "failed", "cancelled", "answered", "needs_review"}
+)
 logger = logging.getLogger(__name__)
 
 
@@ -58,6 +61,10 @@ class Job:
     progress: int = 0
     stage: str = "queued"
     message: str = "Waiting for a worker"
+    current_step: str = ""
+    step_index: int = 0
+    total_steps: int = 0
+    eta_sec: float = 0.0
     result: dict[str, Any] | None = None
     error: dict[str, Any] | None = None
     cancel_requested: bool = False
@@ -101,6 +108,10 @@ class Job:
             "progress": self.progress,
             "stage": self.stage,
             "message": self.message,
+            "current_step": self.current_step,
+            "step_index": self.step_index,
+            "total_steps": self.total_steps,
+            "eta_sec": round(self.eta_sec, 3),
             "source": str(self.source),
             "output": str(self.output),
             "options": options,
@@ -216,8 +227,8 @@ def _caption_style(options: dict[str, object]) -> CaptionStyle:
         position_x=float(options.get("caption_position_x", 0.5)),
         position_y=float(options.get("caption_position_y", 0.78)),
         max_width=float(options.get("caption_max_width", 0.9)),
-        animation=str(options.get("caption_animation", "none")),  # type: ignore[arg-type]
-        word_timing=str(options.get("caption_word_timing", "engine")),  # type: ignore[arg-type]
+        effect=str(options.get("caption_effect", "static")),  # type: ignore[arg-type]
+        word_timing=str(options.get("caption_word_timing", "word")),  # type: ignore[arg-type]
         censor_enabled=bool(options.get("caption_censor_enabled", False)),
         censor_words=_string_list(
             options.get("caption_censor_words"),
@@ -326,6 +337,28 @@ class JobManager:
                 self._persist_job(job)
                 self._launch(job)
         return job
+
+    def heartbeat(self, job_id: str) -> Job:
+        """Renew the lease of a running job without changing its progress."""
+
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                job = self.get(job_id)
+            if job.status == "running":
+                expiry = datetime.now(UTC) + timedelta(seconds=300)
+                current = job.lease_expires_at
+                renew = True
+                if current:
+                    with contextlib.suppress(ValueError):
+                        existing = datetime.fromisoformat(current)
+                        if existing.tzinfo is None:
+                            existing = existing.replace(tzinfo=UTC)
+                        renew = (expiry - existing).total_seconds() < 240
+                if renew:
+                    job.lease_expires_at = expiry.isoformat(timespec="seconds")
+                    self._persist_job(job)
+            return job
 
     def update_result(self, job_id: str, result: dict[str, Any]) -> Job:
         """Replace a completed job result and persist it."""
@@ -623,6 +656,9 @@ class JobManager:
         if mode == "run":
             self._work_chain(job)
             return
+        if mode == "shorts_batch":
+            self._work_shorts_batch(job)
+            return
         self._work_recipe(job)
 
     def _work_recipe(self, job: Job) -> None:
@@ -656,6 +692,25 @@ class JobManager:
             self._run_chain,
             JobRunPolicy(write_failure=True, cancel_error=True),
         )
+
+    def _work_shorts_batch(self, job: Job) -> None:
+        self._executor.run(
+            job,
+            self._run_shorts_batch,
+            JobRunPolicy(write_failure=True, cancel_error=True),
+        )
+
+    def _run_shorts_batch(self, job: Job, callbacks: Any) -> RunOutcome:
+        from videoflow.application.shorts_batch import run_shorts_batch
+
+        project_id = str(job.options.get("project_id") or job.project_id or "")
+        clips = job.options.get("clips") or []
+        if not project_id or not isinstance(clips, list):
+            raise ProjectStateError("Shorts batch needs project_id and clips")
+        callbacks.progress("shorts.batch", 5, "Preparing Short batch")
+        result = run_shorts_batch(project_id, clips)
+        callbacks.progress("shorts.batch", 100, "Short batch complete")
+        return RunOutcome(result=result)
 
     def _build_context(self, job: Job, project_id: str, record: Any) -> Any:
         from videoflow.application.pipeline_state import context_from_pipeline
@@ -799,7 +854,18 @@ class JobManager:
         }
         results: list[dict[str, Any]] = []
         total = max(1, len(steps))
+        started = time.monotonic()
         for index, step_type in enumerate(steps, start=1):
+            elapsed = max(0.0, time.monotonic() - started)
+            completed_steps = max(1, index - 1)
+            job.current_step = step_type
+            job.step_index = index
+            job.total_steps = total
+            job.eta_sec = (
+                (elapsed / completed_steps) * max(0, total - completed_steps)
+                if index > 1
+                else 0.0
+            )
             io = StepIO(
                 stage=step_type,
                 index=index,
@@ -910,6 +976,28 @@ class JobManager:
         loudness: dict[str, float] = {}
         with contextlib.suppress(Exception):
             loudness = adapter.measure_loudness(destination)
+        final_qa: dict[str, Any] = {}
+        if kind != "preview":
+            from videoflow.application.qa_final import audit_final
+
+            final_qa = audit_final(
+                destination,
+                output=job.output,
+                state=state,
+                strict=False,
+            )
+            if not final_qa.get("ok"):
+                from videoflow.domain.errors import NeedsReviewError
+
+                raise NeedsReviewError(
+                    "Final render needs review: "
+                    + "; ".join(
+                        str(item.get("message") or item.get("kind"))
+                        for item in final_qa.get("issues", [])
+                        if item.get("severity") == "critical"
+                    )[:1000],
+                    report=final_qa,
+                )
         qa = qa_artifacts(job.output)
         result = {
             "output_path": str(destination),
@@ -925,6 +1013,7 @@ class JobManager:
             "lufs": loudness.get("integrated_lufs"),
             "true_peak_db": loudness.get("true_peak_dbfs"),
             "qa_status": "failed" if qa["defects"] else "passed" if qa["reports"] else "not_run",
+            "final_qa": final_qa,
             "artifacts": [str(destination)],
         }
         return RunOutcome(result=result)
@@ -1095,6 +1184,10 @@ def _job_from_dict(payload: dict[str, Any]) -> Job:
     job.progress = int(payload.get("progress", 0))
     job.stage = str(payload.get("stage", "queued"))
     job.message = str(payload.get("message", ""))
+    job.current_step = str(payload.get("current_step") or "")
+    job.step_index = int(payload.get("step_index") or 0)
+    job.total_steps = int(payload.get("total_steps") or 0)
+    job.eta_sec = float(payload.get("eta_sec") or 0.0)
     job.result = payload.get("result") if isinstance(payload.get("result"), dict) else None
     job.error = payload.get("error") if isinstance(payload.get("error"), dict) else None
     job.created_at = str(payload.get("created_at", _now()))

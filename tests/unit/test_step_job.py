@@ -32,8 +32,9 @@ def test_step_job_runs_against_project_state(tmp_path: Path, monkeypatch) -> Non
                 path=str(tmp_path / "logo.png"),
                 start_frame=0,
                 duration_frames=30,
-                position_x=0.95,
-                position_y=0.5,
+                anchor="top_right",
+                margin_x=0,
+                margin_y=0,
                 width_ratio=0.2,
             )
         ],

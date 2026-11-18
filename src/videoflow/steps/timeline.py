@@ -61,6 +61,7 @@ class TimelineParams(BaseModel):
     pad_after_ms: int | None = Field(default=40, ge=0)
     head_guard_ms: int = Field(default=80, ge=0, le=500)
     tail_guard_ms: int = Field(default=200, ge=0, le=800)
+    final_tail_guard_ms: int = Field(default=500, ge=400, le=800)
     guard_energy_threshold: int = Field(default=800, ge=0)
     max_internal_gap_ms: int = Field(default=150, ge=0, le=2000)
     internal_gap_mode: Literal["smart", "all", "silence"] = "smart"
@@ -483,6 +484,7 @@ class TimelineStep(BaseStep):
             zooms=zooms,
             transition_frames=options.transition_frames,
             transition_type=options.transition_type,
+            final_tail_guard_ms=options.final_tail_guard_ms,
         )
         inactive = build_inactive_segments(
             media,

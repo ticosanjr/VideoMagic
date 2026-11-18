@@ -59,6 +59,7 @@ class WordTiming(StrictModel):
     start_sample: int = Field(ge=0)
     end_sample: int = Field(ge=0)
     probability: float = Field(ge=0.0, le=1.0)
+    low_confidence: bool = False
 
     @model_validator(mode="after")
     def exclusive_end(self) -> Self:
@@ -200,16 +201,29 @@ class VerticalClip(StrictModel):
         return self
 
 
+OverlayAnchor = Literal[
+    "top_left",
+    "top_center",
+    "top_right",
+    "bottom_left",
+    "bottom_center",
+    "bottom_right",
+    "center",
+]
+
+
 class OverlayClip(StrictModel):
     overlay_id: str = Field(min_length=1)
     asset_id: str = ""
     path: str = Field(min_length=1)
     start_frame: int = Field(ge=0)
     duration_frames: int = Field(gt=0)
-    position_x: float = Field(default=0.5, ge=0.0, le=1.0)
-    position_y: float = Field(default=0.5, ge=0.0, le=1.0)
+    anchor: OverlayAnchor = "top_center"
+    margin_x: int = Field(default=0, ge=0)
+    margin_y: int = Field(default=0, ge=0)
     width_ratio: float = Field(default=0.25, gt=0.0, le=1.0)
     opacity: float = Field(default=1.0, ge=0.0, le=1.0)
+    z: int = Field(default=20, ge=0, le=1000)
     kind: Literal["image", "video"] = "image"
     layout: str = "fullscreen"
     ken_burns: bool = False
@@ -307,7 +321,7 @@ class PipelineState(StrictModel):
 class ProjectState(StrictModel):
     """The single JSON document under ``.videoflow/project_state.json``."""
 
-    schema_version: Literal[1, 2, 3] = SCHEMA_VERSION
+    schema_version: Literal[4] = SCHEMA_VERSION
     project_id: UUID = Field(default_factory=uuid4)
     style_id: str = ""
     language: str = ""

@@ -6,34 +6,21 @@ from typing import Any
 
 from videoflow.domain.errors import ProjectStateError, RecipeError
 
-PROJECT_STATE_SCHEMA_VERSION = 3
+PROJECT_STATE_SCHEMA_VERSION = 4
 RECIPE_SCHEMA_VERSION = 1
 
 
 def migrate_project_state(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ProjectStateError("Project state root must be a JSON object.")
-    version = int(payload.get("schema_version", 1))
-    if version > PROJECT_STATE_SCHEMA_VERSION:
+    version = int(payload.get("schema_version", 4))
+    if version != PROJECT_STATE_SCHEMA_VERSION:
         raise ProjectStateError(
             f"Unsupported project state schema_version {version}; "
-            f"expected {PROJECT_STATE_SCHEMA_VERSION}."
+            f"this build requires schema {PROJECT_STATE_SCHEMA_VERSION}."
         )
     migrated = dict(payload)
-    if version < 2:
-        media = migrated.get("media_info")
-        sources = migrated.get("sources")
-        if isinstance(media, dict) and not sources:
-            migrated["sources"] = {"primary": media}
-            migrated["primary_source_id"] = "primary"
-            for key in ("video_segments", "audio_segments"):
-                for segment in migrated.get(key, []) if isinstance(migrated.get(key), list) else []:
-                    if isinstance(segment, dict):
-                        segment.setdefault("source_id", "primary")
-        migrated.setdefault("source_offsets", {})
-    if version < 3:
-        migrated.setdefault("pipeline", {})
-    migrated["schema_version"] = PROJECT_STATE_SCHEMA_VERSION
+    migrated.setdefault("schema_version", PROJECT_STATE_SCHEMA_VERSION)
     return migrated
 
 

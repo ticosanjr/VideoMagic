@@ -232,8 +232,9 @@ def test_qa_final_advisory(monkeypatch, tmp_path: Path) -> None:
                     path=str(tmp_path / "logo.png"),
                     start_frame=0,
                     duration_frames=10,
-                    position_x=0.98,
-                    position_y=0.02,
+                    anchor="top_right",
+                    margin_x=0,
+                    margin_y=0,
                     width_ratio=0.2,
                 )
             ]
@@ -242,8 +243,8 @@ def test_qa_final_advisory(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr("videoflow.application.qa_final.detect_black", lambda path: [])
     monkeypatch.setattr("videoflow.application.qa_final.detect_freeze", lambda path: [])
     monkeypatch.setattr(
-        "videoflow.application.qa_final.validate_duration",
-        lambda path, expected: type("R", (), {"ok": True, "to_dict": lambda self: {"ok": True}})(),
+        "videoflow.application.qa_final.validate_integrity",
+        lambda *args, **kwargs: type("R", (), {"ok": True, "to_dict": lambda self: {"ok": True}})(),
     )
     monkeypatch.setattr(
         "videoflow.adapters.ffmpeg.FFmpegAdapter.measure_loudness",
@@ -394,7 +395,7 @@ def test_segmented_repair_path(tmp_path: Path, monkeypatch) -> None:
     good = type("Report", (), {"ok": True, "reason": ""})()
     reports = iter([bad, good])
     monkeypatch.setattr(mp4, "_duration_gate_enabled", lambda adapter: True)
-    monkeypatch.setattr(mp4, "validate_duration", lambda *args, **kwargs: next(reports))
+    monkeypatch.setattr(mp4, "_integrity_report", lambda *args, **kwargs: next(reports))
     result = mp4.export_mp4(state, tmp_path / "repaired.mp4", adapter=FakeRenderer())
     assert result.is_file()
 
@@ -481,7 +482,15 @@ def test_core_new_tool_value_errors(tmp_path: Path, monkeypatch) -> None:
         "videoflow.application.shorts_batch.run_shorts_batch",
         lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("bad batch")),
     )
-    assert tools["vf_shorts_batch"](project_id=record.project_id, clips=[])["ok"] is False
+    batch = tools["vf_shorts_batch"](project_id=record.project_id, clips=[])
+    assert batch["ok"] is True
+    waited = tools["vf_job"](
+        action="wait",
+        project_id=record.project_id,
+        job_id=batch["job"]["job_id"],
+        timeout_sec=10,
+    )
+    assert waited["ok"] is False
 
 
 def test_vf_crop_preview_success_and_failure(tmp_path: Path, monkeypatch) -> None:
@@ -626,7 +635,7 @@ def test_pool_missing_source_and_qa_loudness_error(tmp_path: Path, monkeypatch) 
     monkeypatch.setattr(qa_final, "detect_freeze", lambda path: [])
     monkeypatch.setattr(
         qa_final,
-        "validate_duration",
+        "validate_integrity",
         lambda *args, **kwargs: type("R", (), {"ok": True, "to_dict": lambda self: {"ok": True}})(),
     )
     monkeypatch.setattr(

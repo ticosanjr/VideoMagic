@@ -433,8 +433,10 @@ def test_qa_visual_helpers(tmp_path: Path, monkeypatch) -> None:
             path="/tmp/o.png",
             start_frame=0,
             duration_frames=10,
-            position_x=0.5,
-            position_y=0.5,
+            anchor="center",
+            margin_x=0,
+            margin_y=0,
+            z=20,
             width_ratio=0.4,
         )
     ]

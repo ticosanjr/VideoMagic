@@ -157,7 +157,8 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
         deadline = time.monotonic() + max(1.0, min(3600.0, timeout_sec))
         try:
             job = _job(manager, project_id, job_id)
-            while job.status not in {"succeeded", "failed", "cancelled", "answered"}:
+            terminal = {"succeeded", "failed", "cancelled", "answered", "needs_review"}
+            while job.status not in terminal:
                 if ctx is not None:
                     with contextlib.suppress(Exception):
                         await ctx.report_progress(
@@ -172,6 +173,10 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
                         "message": f"Job still {job.status} after {timeout_sec:.0f}s",
                         "job": _job_payload(job),
                     }
+                heartbeat = getattr(manager, "heartbeat", None)
+                if callable(heartbeat):
+                    with contextlib.suppress(Exception):
+                        heartbeat(str(job.job_id))
                 await asyncio.sleep(max(0.1, min(5.0, poll_sec)))
                 job = manager.get(str(job.job_id))
         except VideoFlowError as exc:

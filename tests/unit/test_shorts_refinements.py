@@ -392,7 +392,7 @@ def test_karaoke_text_adds_lead_gap_and_sweep_tag() -> None:
         words=((1.2, 2.0, "hi"), (2.0, 3.0, "there")),
     )
     default = shorts._karaoke_text(line, CaptionStyle())
-    sweep = shorts._karaoke_text(line, CaptionStyle(animation="sweep"))
+    sweep = shorts._karaoke_text(line, CaptionStyle(effect="karaoke_sweep"))
 
     assert default.startswith("{\\k20}")
     assert sweep.startswith("{\\kf20}")

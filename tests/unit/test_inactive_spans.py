@@ -111,7 +111,7 @@ def test_timeline_creates_inactive_segments_with_reasons(tmp_path: Path) -> None
             item.reason,
         )
         for item in ctx.state.inactive_segments
-    ] == [(0, 30, "manual"), (60, 90, "silence")]
+    ] == [(0, 30, "manual"), (75, 90, "silence")]
     assert [span.reason for span in ctx.inactive_spans] == ["manual", "silence"]
 
 

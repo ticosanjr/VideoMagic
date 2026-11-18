@@ -136,6 +136,7 @@ class CaptionsPlanStep(BaseStep):
             _timeline_pieces(context.state, end_sample),
             sample_rate=sample_rate,
             word_timing=options.style.word_timing,
+            max_words=0,
             warnings=context.warnings,
         )
         split: list[CaptionLine] = []

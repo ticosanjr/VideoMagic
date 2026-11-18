@@ -520,6 +520,7 @@ def build_timeline(
     zooms: ZoomsConfig,
     transition_frames: int = 0,
     transition_type: str = "crossfade",
+    final_tail_guard_ms: int = 0,
     on_audio_done: Callable[[], None] | None = None,
 ) -> TimelineBuildResult:
     """Build the editable picture and dialogue tracks.
@@ -536,6 +537,10 @@ def build_timeline(
     spans = _normalize_spans(kept_spans, media_samples)
     if not spans:
         raise InvalidTimeError("cannot build a timeline with no kept speech")
+    if final_tail_guard_ms > 0:
+        guard = max(0, round(final_tail_guard_ms * media.audio_sample_rate / 1000))
+        last_start, last_end = spans[-1]
+        spans[-1] = (last_start, min(media_samples, last_end + guard))
 
     warnings: list[str] = []
     clips: list[_Clip] = []

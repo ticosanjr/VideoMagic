@@ -100,7 +100,7 @@ def apply_brand_options(options: dict[str, Any], name: str) -> dict[str, Any]:
             "caption_position_x": style.position_x,
             "caption_position_y": style.position_y,
             "caption_max_width": style.max_width,
-            "caption_animation": style.animation,
+            "caption_effect": style.effect,
             "caption_word_timing": style.word_timing,
             "caption_censor_enabled": style.censor_enabled,
             "caption_censor_words": style.censor_words,

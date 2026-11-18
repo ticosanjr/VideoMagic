@@ -126,6 +126,12 @@ def _project_overlays(directory: Path) -> tuple[NleBroll, ...]:
                 duration_sec=max(0.1, float(overlay.get("duration_frames") or 1) / fps),
                 name=Path(str(overlay["path"])).stem,
                 kind=str(overlay.get("kind") or "image"),
+                anchor=str(overlay.get("anchor") or "top_center"),
+                margin_x=int(overlay.get("margin_x") or 0),
+                margin_y=int(overlay.get("margin_y") or 0),
+                width_ratio=float(overlay.get("width_ratio") or 1.0),
+                opacity=float(overlay.get("opacity") or 1.0),
+                z=int(overlay.get("z") or 20),
             )
         )
     return tuple(entries)

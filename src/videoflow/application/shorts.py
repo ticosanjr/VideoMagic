@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from videoflow.adapters import LlmClient
@@ -133,6 +133,7 @@ class ShortClip:
     split_screen_zoom: float = 1.0
     split_screen_focus_left: float = 0.5
     split_screen_focus_right: float = 0.5
+    metrics: dict[str, object] = field(default_factory=dict)
 
     @property
     def duration_samples(self) -> int:
@@ -162,6 +163,7 @@ class ShortClip:
             "crop_focus_x": round(self.crop_focus_x, 4),
             "crop_focus_y": round(self.crop_focus_y, 4),
             "crop_keyframes": [[round(t, 3), round(x, 4)] for t, x in self.crop_keyframes],
+            "metrics": dict(self.metrics),
             "energy_peaks": self.energy_peaks,
             "scene_changes": self.scene_changes,
             "split_screen": self.split_screen,

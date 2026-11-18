@@ -267,25 +267,6 @@ def test_video_export_errors(tmp_path: Path, monkeypatch) -> None:
         )
 
 
-def test_replace_audio_errors(tmp_path: Path, monkeypatch) -> None:
-    video = tmp_path / "v.mp4"
-    video.write_bytes(b"v")
-    audio = tmp_path / "a.wav"
-    audio.write_bytes(b"a")
-    monkeypatch.setattr(video_export, "find_binary", lambda name: None)
-    with pytest.raises(ExportError, match="FFmpeg"):
-        video_export._replace_audio(video, audio)
-
-    monkeypatch.setattr(video_export, "find_binary", lambda name: "ffmpeg")
-    monkeypatch.setattr(
-        video_export.subprocess,
-        "run",
-        lambda *args, **kwargs: SimpleNamespace(returncode=1, stderr="bad"),
-    )
-    with pytest.raises(ExportError, match="replace"):
-        video_export._replace_audio(video, audio)
-
-
 def test_audio_isolate_backend_paths(tmp_path: Path, monkeypatch) -> None:
     context = _context(tmp_path)
     source = context.output / "audio" / "master.wav"

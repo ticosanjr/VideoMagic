@@ -83,6 +83,8 @@ def test_concatenate_and_mux_commands(tmp_path: Path, monkeypatch) -> None:
 
     def fake_run(command, **kwargs):
         commands.append(command)
+        if "-show_entries" in command:
+            return SimpleNamespace(returncode=0, stderr="", stdout="1.0\n")
         target = Path(command[-1])
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(b"media")

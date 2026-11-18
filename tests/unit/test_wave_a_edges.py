@@ -243,10 +243,10 @@ def test_beatmap_keep_ranges_source_basis_and_captions_dry_run(tmp_path: Path) -
     _, warn_report, _ = apply_beatmap(
         state,
         tmp_path,
-        {"cuts": [{"start_frame": 0, "end_frame": 300}]},
+        {"keep_ranges": [{"start_sec": 0.0, "end_sec": 10.0}]},
         force=True,
     )
-    assert any("deprecated" in item for item in warn_report.warnings)
+    assert warn_report.ok is True
 
 
 def test_project_lifecycle_and_database_edges(tmp_path: Path) -> None:
@@ -537,7 +537,7 @@ def test_init_existing_project_and_corrupt_state(tmp_path: Path) -> None:
     (bad / "project_state.json").write_text("{not json", encoding="utf-8")
     recovered, recovered_state = init_project(name="Corrupt", output=bad)
     assert recovered.project_id
-    assert recovered_state.schema_version == 3
+    assert recovered_state.schema_version == 4
 
 
 def test_job_chain_failure_and_skipped_through(tmp_path: Path) -> None:

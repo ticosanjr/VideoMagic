@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 from typing import Literal
-from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -17,7 +15,6 @@ from videoflow.application.render_inputs import read_filters
 from videoflow.application.subtitles import resolve_subtitle_track
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import ExportError
-from videoflow.runtime import find_binary
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload
 from videoflow.steps.registry import register_step
@@ -136,45 +133,3 @@ class VideoExportStep(BaseStep):
     def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:
         path = context.artifacts.get("video")
         return (Path(path),) if path else ()
-
-
-def _replace_audio(video: Path, audio: Path) -> None:
-    """Swap the rendered timeline audio for the approved final mix."""
-
-    binary = find_binary("ffmpeg")
-    if binary is None:
-        raise ExportError("FFmpeg is required to mux the final audio mix.")
-    temporary = video.with_name(f".{video.stem}.{uuid4().hex}.mix.mp4")
-    command = [
-        binary,
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-y",
-        "-i",
-        str(video),
-        "-i",
-        str(audio),
-        "-map",
-        "0:v:0",
-        "-map",
-        "1:a:0",
-        "-c:v",
-        "copy",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "192k",
-        "-shortest",
-        "-movflags",
-        "+faststart",
-        str(temporary),
-    ]
-    completed = subprocess.run(command, capture_output=True, text=True, check=False)
-    if completed.returncode != 0:
-        temporary.unlink(missing_ok=True)
-        raise ExportError(
-            "Could not replace the video audio: "
-            + (completed.stderr.strip() or f"exit {completed.returncode}")
-        )
-    temporary.replace(video)

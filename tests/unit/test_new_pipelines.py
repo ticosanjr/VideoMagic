@@ -553,7 +553,7 @@ def test_motion_helpers_and_callout_with_tracks(tmp_path: Path) -> None:
     callouts.run(context, module.MotionCalloutParams(), StepIO())
     payload = json.loads((context.output / "motion" / "callouts.json").read_text())
     assert payload["callouts"][0]["text"] == "Tracked text"
-    assert payload["callouts"][0]["position_x"] > 0
+    assert payload["callouts"][0]["anchor"]
     assert module._track_position(
         [{"text": "other", "points": [{"time": 0, "x": 10, "y": 20}]}],
         text="tracked",

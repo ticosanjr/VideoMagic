@@ -4,7 +4,8 @@
   import {
     jobOverlayFileUrl,
     jobSourceFileUrl,
-    type TimelineData
+    type TimelineData,
+    type TimelineOverlay
   } from "$lib/api";
   import { liveOutputDuration, liveSegments, type LiveSegment } from "$lib/timelineView";
 
@@ -79,6 +80,28 @@
   const videoMuted = $derived(
     Boolean(timeline.tracks?.video?.muted && !timeline.tracks?.video?.solo)
   );
+  function overlayStyle(overlay: TimelineOverlay): string {
+    const width = `width:${overlay.width_ratio * 100}%;opacity:${overlay.opacity};`;
+    const mx = `${Math.max(0, overlay.margin_x ?? 0)}px`;
+    const my = `${Math.max(0, overlay.margin_y ?? 0)}px`;
+    switch (overlay.anchor ?? "top_center") {
+      case "top_left":
+        return `${width}left:${mx};top:${my};`;
+      case "top_right":
+        return `${width}right:${mx};top:${my};`;
+      case "bottom_left":
+        return `${width}left:${mx};bottom:${my};`;
+      case "bottom_right":
+        return `${width}right:${mx};bottom:${my};`;
+      case "bottom_center":
+        return `${width}left:calc(50% + ${mx});bottom:${my};transform:translateX(-50%);`;
+      case "center":
+        return `${width}left:calc(50% + ${mx});top:calc(50% + ${my});transform:translate(-50%,-50%);`;
+      default:
+        return `${width}left:calc(50% + ${mx});top:${my};transform:translateX(-50%);`;
+    }
+  }
+
   const overlays = $derived(
     (timeline.overlays ?? []).filter((overlay) => {
       const start = overlay.start_frame / Math.max(1, timeline.fps);
@@ -629,7 +652,7 @@
             src={jobOverlayFileUrl(jobId, overlay.overlay_id)}
             alt=""
             class="absolute object-contain"
-            style={`left:${overlay.position_x * 100}%;top:${overlay.position_y * 100}%;width:${overlay.width_ratio * 100}%;opacity:${overlay.opacity};transform:translate(-50%,-50%)`}
+            style={overlayStyle(overlay)}
           />
         {:else}
           <video
@@ -639,7 +662,7 @@
             loop
             playsinline
             class="absolute object-contain"
-            style={`left:${overlay.position_x * 100}%;top:${overlay.position_y * 100}%;width:${overlay.width_ratio * 100}%;opacity:${overlay.opacity};transform:translate(-50%,-50%)`}
+            style={overlayStyle(overlay)}
           >
             <track kind="captions" src="data:text/vtt;charset=utf-8,WEBVTT%0A%0A" />
           </video>

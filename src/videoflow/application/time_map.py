@@ -155,3 +155,24 @@ __all__ = [
     "source_to_timeline_sec",
     "timeline_to_source_sec",
 ]
+
+
+def last_speech_timeline_sec(state: ProjectState) -> float | None:
+    """Return the last kept speech timestamp on the edited timeline."""
+
+    media = state.media_info
+    if media is None or not state.transcript:
+        return None
+    discard = set(state.pipeline.discard_sentence_ids)
+    ends: list[float] = []
+    for sentence in state.transcript:
+        if sentence.id in discard:
+            continue
+        samples = [word.end_sample for word in sentence.words] or [sentence.end_sample]
+        for sample in samples:
+            source_sec = sample / max(1, media.audio_sample_rate)
+            try:
+                ends.append(source_to_timeline_sec(state, source_sec))
+            except TimeMapError:
+                continue
+    return max(ends) if ends else None
