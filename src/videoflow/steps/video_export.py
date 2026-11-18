@@ -11,12 +11,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.export_names import timestamped_basename, unique_path
+from videoflow.application.master_export import MasterLook, render_master
 from videoflow.application.render_gate import render_gate
 from videoflow.application.render_inputs import read_filters
 from videoflow.application.subtitles import resolve_subtitle_track
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import ExportError
-from videoflow.exporters.mp4 import export_mp4
 from videoflow.runtime import find_binary
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload
@@ -82,15 +82,20 @@ class VideoExportStep(BaseStep):
         video_filters = list(read_filters(context.output / "color" / "filters.json"))
         if options.lut_path:
             lut = Path(options.lut_path).expanduser()
-            if lut.is_file():
-                escaped = str(lut).replace("'", "'")
-                video_filters.append(f"lut3d=file='{escaped}':interp=tetrahedral")
-            else:
+            if not lut.is_file():
                 context.warnings.append(f"LUT not found: {lut}")
-        if options.grain_amount > 0:
-            strength = max(1, min(20, int(options.grain_amount * 20)))
-            video_filters.append(f"noise=alls={strength}:allf=t+u")
         ass_path = resolve_subtitle_track(context.output)
+        if options.audio_source == "mix":
+            mix = Path(context.artifacts.get("audio_mix") or context.output / "audio" / "final.wav")
+            if not mix.is_file():
+                raise ExportError("Video export requested the mix, but no mixed audio exists.")
+        look = MasterLook(
+            lut_path=options.lut_path,
+            grain_amount=options.grain_amount,
+            grain_fps=options.grain_fps,
+            video_filters=tuple(video_filters),
+            audio_filters=tuple(audio_filters),
+        )
 
         def progress(value: int) -> None:
             io.check_cancel()
@@ -100,25 +105,20 @@ class VideoExportStep(BaseStep):
         if options.draft_scale and 0 < options.draft_scale < 1 and context.media is not None:
             scale_height = max(144, int(context.media.height * options.draft_scale))
         with render_gate.hold("export.video", str(context.output)):
-            export_mp4(
+            render_master(
                 context.state,
                 destination,
+                output=context.output,
                 adapter=adapter,
+                audio_source=options.audio_source,
+                ass_path=ass_path,
+                look=look,
                 crf=crf,
                 preset=preset,
-                audio_filters=audio_filters,
-                video_filters=video_filters,
-                ass_path=ass_path,
                 progress=progress,
                 scale_height=scale_height,
                 cache_dir=context.output / "render" / "segments",
             )
-        if options.audio_source == "mix":
-            mix = context.artifacts.get("audio_mix") or context.output / "audio" / "final.wav"
-            mix_path = Path(mix)
-            if not mix_path.is_file():
-                raise ExportError("Video export requested the mix, but no mixed audio exists.")
-            _replace_audio(destination, mix_path)
         context.artifacts["video"] = str(destination)
         context.hashes["export.video"] = digest_payload(
             {

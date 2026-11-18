@@ -814,17 +814,19 @@ class FFmpegAdapter:
                         end,
                         sample_rate,
                     )
+                    from videoflow.application.crop import crop_filter
+
                     if len(piece_keyframes) > 1:
                         expression = _crop_expression(piece_keyframes)
-                        crop_x = f"'({expression})*(iw-ow)'"
+                        crop_x = f"round(({expression})*(iw-ow))"
+                        crop_y = f"round((ih-oh)*{max(0.0, min(1.0, crop_focus_y)):.6f})"
+                        crop = f"crop={width}:{height}:{crop_x}:{crop_y}"
                     else:
                         focus = piece_keyframes[0][1] if piece_keyframes else crop_focus_x
-                        crop_x = str(max(0.0, min(1.0, focus)))
+                        crop = crop_filter(width, height, fx=focus, fy=crop_focus_y)
                     base = (
                         f"scale={width}:{height}:force_original_aspect_ratio=increase,"
-                        f"crop={width}:{height}:"
-                        f"{crop_x}:"
-                        f"(ih-oh)*{max(0.0, min(1.0, crop_focus_y))},setsar=1"
+                        f"{crop},setsar=1"
                     )
                     if cutout:
                         graph = _cutout_graph(
@@ -1051,7 +1053,20 @@ class FFmpegAdapter:
                     final = with_sfx
             if ass_path is not None:
                 final = work / "final.mp4"
-                ass_filter = f"ass='{_filter_path(ass_path)}'"
+                burn_path = Path(ass_path)
+                if (
+                    intro_path is not None
+                    and intro_duration_sec > 0
+                    and burn_path.is_file()
+                ):
+                    from videoflow.application.captions import shift_ass_file
+
+                    burn_path = shift_ass_file(
+                        burn_path,
+                        max(0.0, float(intro_duration_sec)),
+                        work / "captions-with-intro.ass",
+                    )
+                ass_filter = f"ass='{_filter_path(burn_path)}'"
                 if fontsdir:
                     ass_filter += f":fontsdir='{_filter_path(Path(fontsdir))}'"
                 self._capture(

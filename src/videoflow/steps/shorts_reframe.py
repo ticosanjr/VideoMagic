@@ -81,12 +81,27 @@ class ReframeStep(BaseStep):
                 split_screen_focus_right=max(0.0, min(1.0, focus + 0.2)),
             )
 
+        sample_rate = media.audio_sample_rate
+
+        def with_static_keyframes(clip, focus: float):
+            if clip.crop_keyframes:
+                return clip
+            duration = clip.duration_samples / sample_rate if sample_rate else 0.0
+            return replace(
+                clip,
+                crop_keyframes=((0.0, focus), (round(duration, 3), focus)),
+            )
+
         if options.mode == "center_crop_9_16":
             for index, clip in enumerate(context.selected_shorts):
-                updated = with_split(clip, 0.5)
+                updated = with_static_keyframes(with_split(clip, 0.5), 0.5)
                 context.selected_shorts[index] = updated
                 if index < len(context.shorts):
                     context.shorts[index]["crop_focus_x"] = 0.5
+                    context.shorts[index]["crop_keyframes"] = [
+                        [0.0, 0.5],
+                        [round(updated.duration_samples / sample_rate, 3), 0.5],
+                    ]
                     context.shorts[index]["split_screen"] = updated.split_screen
                     context.shorts[index]["split_screen_focus_left"] = (
                         updated.split_screen_focus_left
@@ -108,7 +123,6 @@ class ReframeStep(BaseStep):
         tracking_report: list[dict[str, object]] = []
         total = max(1, len(context.selected_shorts))
         source_path = Path(context.source)
-        sample_rate = media.audio_sample_rate
         settings_args = {
             "yolo_model": getattr(vision, "yolo_model", ""),
             "yolo_confidence": getattr(vision, "yolo_confidence", 0.35),
@@ -174,13 +188,20 @@ class ReframeStep(BaseStep):
                     updated,
                     crop_keyframes=tuple((item["time_sec"], item["focus_x"]) for item in keyframes),
                 )
+            else:
+                updated = with_static_keyframes(updated, focus)
             tracked.append(updated)
             if index < len(context.shorts):
                 context.shorts[index]["crop_focus_x"] = round(focus, 4)
                 context.shorts[index]["tracking_backend_used"] = used_mode
-                context.shorts[index]["crop_keyframes"] = [
-                    [item["time_sec"], item["focus_x"]] for item in keyframes
-                ]
+                context.shorts[index]["crop_keyframes"] = (
+                    [[item["time_sec"], item["focus_x"]] for item in keyframes]
+                    if keyframes
+                    else [
+                        [0.0, round(focus, 4)],
+                        [round(updated.duration_samples / sample_rate, 3), round(focus, 4)],
+                    ]
+                )
                 context.shorts[index]["split_screen"] = updated.split_screen
                 context.shorts[index]["split_screen_focus_left"] = updated.split_screen_focus_left
                 context.shorts[index]["split_screen_focus_right"] = updated.split_screen_focus_right

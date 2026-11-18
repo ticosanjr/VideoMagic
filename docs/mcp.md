@@ -1,6 +1,6 @@
 # MCP server — agent profile
 
-VideoFlow 3.0.4+ exposes a **19-tool core MCP** plus four isolated domain servers:
+VideoFlow 3.0.4+ exposes a **21-tool core MCP** plus four isolated domain servers:
 
 ```text
 mcp-vf-core      13 tools   project, styles, jobs, timeline, render, exports, ingest
@@ -42,7 +42,7 @@ metadata, time map, and step checkpoints; `projects/{id}/state.json` mirrors it.
 parallel. Writes to the same project are serialized by a project lock and
 `vf_edit_timeline` supports `expected_revision` for conflict detection.
 
-## Core tools (19)
+## Core tools (21)
 
 ### Project, catalog, and execution
 
@@ -73,6 +73,8 @@ parallel. Writes to the same project are serialized by a project lock and
 | Tool | Purpose |
 | --- | --- |
 | `vf_render` | Start/inspect/cancel a render job. |
+| `vf_export` | Canonical master render plus `resolve`, `premiere`, and `kdenlive`. |
+| `vf_crop_preview` | Frame with the normalized crop box and rule-of-thirds grid. |
 | `vf_exports` | `bundle`, `validate`, or `roundtrip` for every NLE. |
 | `vf_interaction` | List/read/answer HITL requests. |
 | `vf_ingest` | Session ingest or multicam synchronization. |
@@ -90,6 +92,10 @@ vf_run(project_id="p1", steps=["ingest", "transcribe", "edit.timeline"], wait=Tr
 
 `vf_jobs` reads the shared SQLite queue used by MCP, REST, and the tray. Cancels
 are written as a `cancel_requested` flag and picked up by the worker heartbeat.
+
+`vf_export` is the canonical delivery entry point. Its MP4 uses the same
+`master_export` path as `export.video` and the bundle (same grade, LUT, grain,
+overlays, captions, and audio), and delivery sidecars are PCM 24-bit.
 
 `vf_project` also supports `list`, `clone`, `archive`, `unarchive`, `delete`,
 `history`, `undo`, and `restore`. Deleting a non-empty output requires

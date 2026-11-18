@@ -263,7 +263,7 @@ def test_bundle_burns_subtitles_by_default(tmp_path: Path, monkeypatch) -> None:
         Path(path).write_bytes(b"fake-mp4")
         return Path(path)
 
-    monkeypatch.setattr(delivery_bundle, "export_mp4", fake_export)
+    monkeypatch.setattr(delivery_bundle, "render_master", fake_export)
     result = build_delivery_bundle(
         state,
         tmp_path,

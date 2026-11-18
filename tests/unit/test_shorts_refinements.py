@@ -376,7 +376,8 @@ def test_keyword_highlight_and_emoji_mapping() -> None:
     value = shorts._sentence_text("resultado final", style)
 
     assert "\\c&H" in value
-    assert "resultado 🚀" in value.casefold()
+    assert "resultado" in value.casefold()
+    assert "🚀" in value
     auto = shorts._sentence_text("resultado resultado final", CaptionStyle(
         keyword_highlight_enabled=True
     ))

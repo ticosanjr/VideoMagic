@@ -18,7 +18,7 @@ def test_video_export_uses_ultrafast_by_default(tmp_path: Path, monkeypatch) -> 
         Path(destination).write_bytes(b"video")
         return Path(destination)
 
-    monkeypatch.setattr(video_export, "export_mp4", fake_export)
+    monkeypatch.setattr(video_export, "render_master", fake_export)
     context = PipelineContext(
         source=tmp_path / "source.mp4",
         output=tmp_path / "out",
@@ -51,7 +51,7 @@ def test_video_export_fixed_filename_mode(tmp_path: Path, monkeypatch) -> None:
         Path(destination).write_bytes(b"video")
         return Path(destination)
 
-    monkeypatch.setattr(video_export, "export_mp4", fake_export)
+    monkeypatch.setattr(video_export, "render_master", fake_export)
     context = PipelineContext(
         source=tmp_path / "source.mp4",
         output=tmp_path / "out",

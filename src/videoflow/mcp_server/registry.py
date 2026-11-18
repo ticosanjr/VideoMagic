@@ -100,6 +100,16 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "render",
     ),
     ToolSpec(
+        "vf_export",
+        "Render the canonical MP4 master and requested NLE delivery targets.",
+        "nle",
+    ),
+    ToolSpec(
+        "vf_crop_preview",
+        "Extract a frame with the normalized crop rectangle and thirds grid.",
+        "timeline",
+    ),
+    ToolSpec(
         "vf_exports",
         "Export a multi-NLE bundle, validate it, or run an NLE roundtrip.",
         "nle",

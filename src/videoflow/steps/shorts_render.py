@@ -253,7 +253,7 @@ class RenderShortsStep(BaseStep):
                     crop_focus_y=clip.crop_focus_y,
                     **(
                         {"crop_keyframes": tuple(clip.crop_keyframes)}
-                        if clip.crop_keyframes
+                        if len({focus for _time, focus in clip.crop_keyframes}) > 1
                         else {}
                     ),
                     split_screen=options.split_screen or bool(entry.get("split_screen")),

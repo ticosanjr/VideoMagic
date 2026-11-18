@@ -325,8 +325,9 @@
           "type": "boolean"
         },
         "word_timing": {
-          "default": "engine",
+          "default": "word",
           "enum": [
+            "word",
             "engine",
             "proportional",
             "sentence"

@@ -962,6 +962,124 @@ def register_core_tools(register: Any, ctx: Any) -> None:
             return {"ok": True, "job_id": job_id}
         return legacy["vf_get_job"](project_id=project_id, job_id=job_id)
 
+    def _run_bundle(
+        project_id: str,
+        *,
+        targets: str | list[str] | None = None,
+        look: dict[str, Any] | None = None,
+        audio_source: str = "master",
+        captions: bool = True,
+        draft: bool = False,
+        dialect: str = "1.10",
+        mp4_profile: str = "youtube_h264",
+        mp4_loudness_lufs: float | None = -16.5,
+    ) -> dict[str, Any]:
+        from videoflow.application.delivery_bundle import (
+            DEFAULT_BUNDLE_TARGETS,
+            DeliveryBundleRequest,
+            build_delivery_bundle,
+        )
+
+        requested = [targets] if isinstance(targets, str) else targets
+        record = get_project(project_id)
+        state = load_project_state(record)
+        if not state.video_segments:
+            from videoflow.application.delivery_bundle import TimelineRequiredError
+
+            raise TimelineRequiredError("Project has no built timeline")
+        if not requested:
+            style_id = record.style_id or record.channel_id
+            if style_id:
+                from videoflow.application.style_catalog import StyleCatalog
+                from videoflow.domain.errors import StyleNotFoundError
+
+                try:
+                    requested = StyleCatalog().get(style_id).export_targets
+                except StyleNotFoundError:
+                    requested = None
+        requested = requested or list(DEFAULT_BUNDLE_TARGETS)
+        return build_delivery_bundle(
+            state,
+            Path(record.output),
+            request=DeliveryBundleRequest(
+                targets=tuple(requested),
+                dialect=dialect,  # type: ignore[arg-type]
+                mp4_profile=mp4_profile,
+                mp4_loudness_lufs=mp4_loudness_lufs,
+                burn_subtitles=captions,
+                audio_source=audio_source,
+                look=look,
+                mp4_draft=draft,
+            ),
+        )
+
+    @register
+    def vf_export(
+        project_id: str,
+        targets: str | list[str] | None = None,
+        look: dict[str, Any] | None = None,
+        audio_source: str = "mix",
+        captions: bool = True,
+        draft: bool = False,
+    ) -> dict[str, Any]:
+        """Render the canonical master and every requested NLE target."""
+
+        if audio_source not in {"mix", "master", "timeline"}:
+            return error("invalid_audio_source", "audio_source must be mix, master, or timeline")
+        try:
+            bundle = _run_bundle(
+                project_id,
+                targets=targets,
+                look=look,
+                audio_source=audio_source,
+                captions=captions,
+                draft=draft,
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {
+            "ok": bool(bundle.get("ok")),
+            "project_id": project_id,
+            "targets": list(bundle.get("targets") or []),
+            "bundle": bundle,
+        }
+
+    @register
+    def vf_crop_preview(
+        project_id: str,
+        time_sec: float = 0.0,
+        aspect: str = "9:16",
+        fx: float = 0.5,
+        fy: float = 0.5,
+    ) -> dict[str, Any]:
+        """Extract one frame with the crop rectangle and rule-of-thirds grid."""
+
+        from videoflow.application.crop_preview import render_crop_preview
+
+        try:
+            record = get_project(project_id)
+            state = load_project_state(record)
+            source = Path(
+                state.media_info.source_path
+                if state.media_info is not None
+                else record.primary_source
+            )
+            if not source.is_file():
+                return error("source_not_found", f"Project source is missing: {source}")
+            result = render_crop_preview(
+                source,
+                Path(record.output),
+                time_sec=time_sec,
+                aspect=aspect,
+                fx=fx,
+                fy=fy,
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except ValueError as exc:
+            return error("invalid_crop", str(exc))
+        return {"ok": True, "project_id": project_id, "preview": result}
+
     @register
     def vf_exports(
         action: str = "validate",
@@ -980,39 +1098,15 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         """Export a multi-target bundle, validate it, or run an NLE roundtrip."""
 
         if action == "bundle":
-            from videoflow.application.delivery_bundle import (
-                DEFAULT_BUNDLE_TARGETS,
-                DeliveryBundleRequest,
-                build_delivery_bundle,
-            )
-
-            requested = [targets] if isinstance(targets, str) else targets
             try:
-                record = get_project(project_id)
-                state = load_project_state(record)
-                if not state.video_segments:
-                    return error("timeline_required", "Project has no built timeline")
-                if not requested:
-                    style_id = record.style_id or record.channel_id
-                    if style_id:
-                        from videoflow.application.style_catalog import StyleCatalog
-                        from videoflow.domain.errors import StyleNotFoundError
-
-                        try:
-                            requested = StyleCatalog().get(style_id).export_targets
-                        except StyleNotFoundError:
-                            requested = None
-                requested = requested or list(DEFAULT_BUNDLE_TARGETS)
-                bundle = build_delivery_bundle(
-                    state,
-                    Path(record.output),
-                    request=DeliveryBundleRequest(
-                        targets=tuple(requested),
-                        dialect=dialect,  # type: ignore[arg-type]
-                        mp4_profile=mp4_profile,
-                        mp4_loudness_lufs=mp4_loudness_lufs,
-                        burn_subtitles=burn_subtitles,
-                    ),
+                bundle = _run_bundle(
+                    project_id,
+                    targets=targets,
+                    audio_source="master",
+                    captions=burn_subtitles,
+                    dialect=dialect,
+                    mp4_profile=mp4_profile,
+                    mp4_loudness_lufs=mp4_loudness_lufs,
                 )
                 return {"ok": bool(bundle.get("ok")), "bundle": bundle}
             except VideoFlowError as exc:

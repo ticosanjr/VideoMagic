@@ -223,25 +223,22 @@ def test_video_export_fixed_and_mix(tmp_path: Path, monkeypatch) -> None:
     mix.write_bytes(b"wav")
     context.artifacts["audio_mix"] = str(mix)
 
+    captured: dict[str, object] = {}
+
     def fake_export(state, destination, **kwargs):
+        captured.update(kwargs)
         Path(destination).parent.mkdir(parents=True, exist_ok=True)
         Path(destination).write_bytes(b"video")
         return Path(destination)
 
-    monkeypatch.setattr(video_export, "export_mp4", fake_export)
-    replaced: list[Path] = []
-    monkeypatch.setattr(
-        video_export,
-        "_replace_audio",
-        lambda video, audio: replaced.append(Path(video)),
-    )
+    monkeypatch.setattr(video_export, "render_master", fake_export)
     VideoExportStep().run(
         context,
         VideoExportParams(filename_mode="fixed", filename="out.mp4", audio_source="mix"),
         StepIO(),
     )
     assert Path(context.artifacts["video"]).read_bytes() == b"video"
-    assert replaced
+    assert captured["audio_source"] == "mix"
 
 
 def test_video_export_errors(tmp_path: Path, monkeypatch) -> None:
@@ -259,7 +256,7 @@ def test_video_export_errors(tmp_path: Path, monkeypatch) -> None:
 
     monkeypatch.setattr(
         video_export,
-        "export_mp4",
+        "render_master",
         lambda state, destination, **kwargs: Path(destination).write_bytes(b"v"),
     )
     with pytest.raises(ExportError, match="mixed audio"):

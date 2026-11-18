@@ -54,10 +54,21 @@ Every exporter runs the same checks before writing:
 6. The output directory exists or is created, and the write is atomic (temp file,
    then replace).
 
-Long timelines render video in groups: hard cuts are one clip per group and
-contiguous crossfades are one bounded `xfade` group. Audio is rendered from
-seeked per-clip inputs, then muxed and finished. Outputs are written to a
-temporary file and replaced only on success.
+Long timelines render video in groups: contiguous crossfades are one bounded
+`xfade` group; hard cuts are currently one clip per group and are grouped into
+macro-blocks in the 3.1 performance pass. Audio is rendered from seeked
+per-clip inputs, then muxed and finished. Outputs are written to a temporary
+file and replaced only on success.
+
+Every real MP4 goes through a duration gate with `ffprobe`: timeline, format,
+video-stream, and audio-stream durations must stay within **100 ms**. A `-c copy`
+concat that drifts is re-encoded with CFR (`-fps_mode cfr`,
+`aresample=async=1`) before the file is accepted.
+
+`export.video`, `vf_export`, and the delivery bundle share `master_export`, so
+the social master is byte-for-byte produced by the same look pipeline. Delivery
+sidecars transcode the audio master to `pcm_s24le`; internal intermediates stay
+smaller and are never used as the delivery sidecar.
 
 Failure is an `export_failed` error, not a partially valid file.
 

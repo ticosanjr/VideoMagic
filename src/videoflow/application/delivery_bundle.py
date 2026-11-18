@@ -20,6 +20,7 @@ from videoflow.application.export_service import (
     ALL_TARGETS,
     resolve_targets,
 )
+from videoflow.application.master_export import look_from_mapping, render_master
 from videoflow.application.nle_extras import nle_extras_from_output
 from videoflow.application.nle_validation import validate_nle_exports
 from videoflow.application.subtitles import resolve_subtitle_track
@@ -34,8 +35,14 @@ from videoflow.exporters.mp4 import (
     YOUTUBE_LUFS,
     YOUTUBE_PROFILE,
     YOUTUBE_TRUE_PEAK_DB,
-    export_mp4,
 )
+
+
+class TimelineRequiredError(ExportError):
+    """The project has no validated timeline to deliver."""
+
+    code = "timeline_required"
+
 
 BUNDLE_SCHEMA_VERSION = 1
 BUNDLE_FILENAME = "bundle.json"
@@ -68,6 +75,11 @@ class DeliveryBundleRequest:
     mp4_loudness_lufs: float | None = YOUTUBE_LUFS
     mp4_true_peak_db: float = YOUTUBE_TRUE_PEAK_DB
     mp4_cfr: bool = True
+    mp4_crf: int = 18
+    mp4_preset: str = "medium"
+    mp4_draft: bool = False
+    audio_source: str = "master"
+    look: dict[str, Any] | None = None
     burn_subtitles: bool = True
     require_licenses: bool = True
     include_sidecars: bool = True
@@ -106,6 +118,34 @@ def timeline_frames(state: ProjectState) -> int:
     return max(timeline_duration_frames(state), audio_frames)
 
 
+def _copy_audio_24bit(source: Path, target: Path) -> bool:
+    from videoflow.runtime import find_binary
+
+    binary = find_binary("ffmpeg")
+    if binary is None:
+        return False
+    import subprocess
+
+    completed = subprocess.run(
+        [
+            binary,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            str(source),
+            "-c:a",
+            "pcm_s24le",
+            str(target),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return completed.returncode == 0 and target.is_file()
+
+
 def _copy_sidecars(output: Path, destination: Path) -> list[str]:
     sidecars = destination / "sidecars"
     sidecars.mkdir(parents=True, exist_ok=True)
@@ -130,6 +170,9 @@ def _copy_sidecars(output: Path, destination: Path) -> list[str]:
         if not source.is_file():
             continue
         target = sidecars / Path(relative).name
+        if relative == "audio/master.wav" and _copy_audio_24bit(source, target):
+            copied.append(target.name)
+            continue
         shutil.copy2(source, target)
         copied.append(target.name)
     return copied
@@ -228,25 +271,29 @@ def build_delivery_bundle(
             artifacts["kdenlive_mlt"] = mlt_path
 
     mp4_path: Path | None = None
-    master_path = output / "audio" / "master.wav"
-    audio_master = master_path if master_path.is_file() else None
     subtitle_path = resolve_subtitle_track(output)
     ass_path = subtitle_path if options.burn_subtitles else None
     if requested_mp4:
         mp4_path = exports / BUNDLE_FILENAMES["mp4"]
         if progress is not None:
             progress("mp4", 0)
-        export_mp4(
+        crf = 30 if options.mp4_draft else options.mp4_crf
+        preset = "veryfast" if options.mp4_draft else options.mp4_preset
+        render_master(
             state,
             mp4_path,
+            output=output,
             adapter=adapter,
+            audio_source=options.audio_source,
+            ass_path=ass_path,
+            look=look_from_mapping(output, options.look),
+            crf=crf,
+            preset=preset,
             profile=options.mp4_profile,
             audio_bitrate=options.mp4_audio_bitrate,
-            loudness_lufs=None if audio_master is not None else options.mp4_loudness_lufs,
+            loudness_lufs=options.mp4_loudness_lufs,
             true_peak_db=options.mp4_true_peak_db,
             cfr=options.mp4_cfr,
-            audio_master=audio_master,
-            ass_path=ass_path,
             progress=((lambda value: progress("mp4", value)) if progress is not None else None),
             cache_dir=cache_dir,
         )
@@ -299,7 +346,12 @@ def build_delivery_bundle(
             "loudness_lufs": options.mp4_loudness_lufs,
             "true_peak_db": options.mp4_true_peak_db,
             "cfr": options.mp4_cfr,
-            "audio_master": str(audio_master) if audio_master is not None else "",
+            "audio_source": options.audio_source,
+            "audio_master": (
+                str(output / "audio" / "master.wav")
+                if (output / "audio" / "master.wav").is_file()
+                else ""
+            ),
         },
         "files": files,
         "sidecars": sidecars,

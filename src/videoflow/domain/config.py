@@ -73,7 +73,7 @@ ShortsResolution = Literal[1080, 1440, 2160]
 ShortsPromptMode = Literal["replace", "refine"]
 ShortsHookMode = Literal["off", "metadata", "repeat", "reorder"]
 CaptionAnimation = Literal["none", "pop", "sweep"]
-CaptionWordTiming = Literal["engine", "proportional", "sentence"]
+CaptionWordTiming = Literal["word", "engine", "proportional", "sentence"]
 FadeCurve = Literal["linear", "logarithmic"]
 FcpxmlDialect = Literal["1.9", "1.10"]
 
@@ -170,7 +170,7 @@ class CaptionStyle(StrictModel):
     position_y: float = Field(default=0.78, ge=0.0, le=1.0)
     max_width: float = Field(default=0.9, ge=0.2, le=1.0)
     animation: CaptionAnimation = "none"
-    word_timing: CaptionWordTiming = "engine"
+    word_timing: CaptionWordTiming = "word"
     censor_enabled: bool = False
     censor_words: list[str] = Field(
         default_factory=lambda: [

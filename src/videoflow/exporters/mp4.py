@@ -12,6 +12,8 @@ from typing import Any
 from uuid import uuid4
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application.fonts import fonts_dir
+from videoflow.application.media_integrity import validate_duration
 from videoflow.domain.errors import ExportError
 from videoflow.domain.state import AudioSegment, MediaInfo, ProjectState, VideoSegment
 from videoflow.exporters.common import (
@@ -241,6 +243,20 @@ def timeline_render_frames(state: ProjectState) -> int:
         if _is_xfade(transition):
             total -= transition.duration_frames
     return max(1, total)
+
+
+def _duration_gate_enabled(adapter: Any | None) -> bool:
+    """Fakes used in unit tests do not write decodable MP4 files."""
+
+    return adapter is None or isinstance(adapter, FFmpegAdapter)
+
+
+def _expected_seconds(state: ProjectState) -> float:
+    media = state.media_info
+    if media is None:
+        return 0.0
+    fps = media.fps_num / media.fps_den
+    return timeline_render_frames(state) / fps if fps else 0.0
 
 
 def _audio_graph_inputs(
@@ -678,6 +694,51 @@ def _export_mp4_segmented(
                 str(combined),
             ]
         )
+        expected = _expected_seconds(state)
+        report = validate_duration(combined, expected) if _duration_gate_enabled(adapter) else None
+        if report is not None and not report.ok:
+            repaired = directory / "combined-cfr.mp4"
+            renderer.render(
+                [
+                    "-i",
+                    str(video_only),
+                    "-i",
+                    str(audio_only),
+                    "-map",
+                    "0:v:0",
+                    "-map",
+                    "1:a:0",
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    preset,
+                    "-crf",
+                    str(crf),
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-c:a",
+                    "aac",
+                    "-b:a",
+                    audio_bitrate,
+                    "-fps_mode",
+                    "cfr",
+                    "-r",
+                    f"{media.fps_num}/{media.fps_den}",
+                    "-af",
+                    "aresample=async=1,apad",
+                    "-t",
+                    f"{expected:.6f}",
+                    "-movflags",
+                    "+faststart",
+                    str(repaired),
+                ]
+            )
+            report = validate_duration(repaired, expected)
+            if not report.ok:
+                raise ExportError(
+                    f"{destination.name} failed the duration gate after CFR repair: {report.reason}"
+                )
+            combined = repaired
         has_video_finishing = bool(video_filters) or ass_path is not None or bool(state.overlays)
         if not has_video_finishing:
             shutil.move(str(combined), str(destination))
@@ -813,6 +874,33 @@ def export_mp4(
             progress=progress,
             scale_height=scale_height,
         )
+        expected = _expected_seconds(state)
+        report = validate_duration(temporary, expected) if _duration_gate_enabled(adapter) else None
+        if report is not None and not report.ok:
+            temporary.unlink(missing_ok=True)
+            _render_classic_mp4(
+                state,
+                temporary,
+                adapter=adapter,
+                crf=crf,
+                preset=preset,
+                profile=profile,
+                audio_bitrate=audio_bitrate,
+                loudness_lufs=loudness_lufs,
+                true_peak_db=true_peak_db,
+                cfr=True,
+                audio_master=audio_master,
+                audio_filters=audio_filters,
+                video_filters=video_filters,
+                ass_path=ass_path,
+                progress=progress,
+                scale_height=scale_height,
+            )
+            report = (
+                validate_duration(temporary, expected) if _duration_gate_enabled(adapter) else None
+            )
+        if report is not None and not report.ok:
+            raise ExportError(f"{destination.name} failed the duration gate: {report.reason}")
         temporary.replace(destination)
     except BaseException:
         temporary.unlink(missing_ok=True)
@@ -863,7 +951,9 @@ def _render_classic_mp4(
         graph += f";{video_label}{','.join(color_filters)}[vcolor]"
         video_label = "[vcolor]"
     if ass_path is not None:
-        graph += f";{video_label}ass='{_filter_path(Path(ass_path))}'[vtitle]"
+        ass_filter = f"ass='{_filter_path(Path(ass_path))}'"
+        ass_filter += f":fontsdir='{_filter_path(fonts_dir())}'"
+        graph += f";{video_label}{ass_filter}[vtitle]"
         video_label = "[vtitle]"
     fps = media.fps_num / media.fps_den
     overlay_inputs: list[str] = []

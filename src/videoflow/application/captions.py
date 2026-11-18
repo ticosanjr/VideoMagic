@@ -13,10 +13,44 @@ from videoflow.domain.config import CaptionStyle
 from videoflow.domain.state import Sentence
 
 _STOPWORDS = {
-    "a", "an", "and", "are", "as", "at", "be", "by", "com", "da", "das", "de",
-    "do", "dos", "e", "em", "for", "from", "in", "is", "it", "na", "nas", "no",
-    "nos", "o", "of", "on", "or", "os", "para", "por", "que", "the", "to",
-    "um", "uma", "with",
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "com",
+    "da",
+    "das",
+    "de",
+    "do",
+    "dos",
+    "e",
+    "em",
+    "for",
+    "from",
+    "in",
+    "is",
+    "it",
+    "na",
+    "nas",
+    "no",
+    "nos",
+    "o",
+    "of",
+    "on",
+    "or",
+    "os",
+    "para",
+    "por",
+    "que",
+    "the",
+    "to",
+    "um",
+    "uma",
+    "with",
 }
 
 
@@ -27,6 +61,7 @@ class CaptionLine:
     text: str
     words: tuple[tuple[float, float, str], ...] = ()
     speaker: int = 0
+
 
 def build_ass(
     events: Sequence[tuple[float, float, str]],
@@ -39,6 +74,7 @@ def build_ass(
         CaptionLine(start=start, end=end, text=text) for start, end, text in events if end > start
     ]
     return build_ass_lines(lines, style=style, width=width, height=height)
+
 
 def build_ass_lines(
     lines: Sequence[CaptionLine],
@@ -62,7 +98,8 @@ def build_ass_lines(
 ScriptType: v4.00+
 PlayResX: {width}
 PlayResY: {height}
-WrapStyle: 2
+WrapStyle: 0
+ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
@@ -86,11 +123,23 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         if line.words and caption.word_timing != "sentence":
             text = _karaoke_text(line, caption)
         else:
-            text = _ass_text(_sentence_text(line.text, caption))
+            text = _sentence_text(line.text, caption)
+        text = _wrap_ass_markup(text, caption, width)
         rows.append(
             f"Dialogue: 0,{_ass_time(line.start)},{_ass_time(line.end)},Default,,0,0,0,,{override}{text}"
         )
-    return header + "\n".join(rows) + "\n"
+    seen: set[tuple[str, str, str]] = set()
+    unique: list[str] = []
+    for row in rows:
+        parts = row.split(",", 9)
+        key = (parts[1], parts[2], parts[9]) if len(parts) >= 10 else ()
+        if key and key in seen:
+            continue
+        if key:
+            seen.add(key)
+        unique.append(row)
+    return header + "\n".join(unique) + "\n"
+
 
 def caption_lines(
     sentences: Sequence[Sentence],
@@ -140,7 +189,7 @@ def caption_lines(
             else:
                 words = ()
                 text = sentence.text
-                if word_timing == "engine" and not warned:
+                if word_timing in {"word", "engine"} and not warned:
                     notes.append(
                         "Captions fell back to sentence timing because the transcript has no word timings"
                     )
@@ -155,7 +204,35 @@ def caption_lines(
                 )
             )
         cursor += piece_duration
-    return lines
+    return _merge_caption_lines(lines)
+
+
+def _merge_caption_lines(lines: Sequence[CaptionLine]) -> list[CaptionLine]:
+    """Merge adjacent duplicate text created when a sentence crosses a cut."""
+
+    merged: list[CaptionLine] = []
+    for line in lines:
+        if line.end <= line.start:
+            continue
+        if (
+            merged
+            and merged[-1].text.strip() == line.text.strip()
+            and line.start <= merged[-1].end + 0.08
+        ):
+            previous = merged[-1]
+            merged[-1] = CaptionLine(
+                start=previous.start,
+                end=max(previous.end, line.end),
+                text=previous.text,
+                words=previous.words or line.words,
+                speaker=previous.speaker,
+            )
+            continue
+        if merged and merged[-1].end > line.start and merged[-1].text.strip() == line.text.strip():
+            continue
+        merged.append(line)
+    return merged
+
 
 def sentence_events(
     sentences: Sequence[Sentence],
@@ -179,9 +256,11 @@ def sentence_events(
         cursor += piece_end - piece_start
     return events
 
+
 def slugify(value: str, index: int) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", value.casefold()).strip("-")
     return f"{index:02d}-{slug[:40] or 'short'}"
+
 
 def _proportional_words(
     text: str,
@@ -201,6 +280,7 @@ def _proportional_words(
         cursor = word_end
     return tuple(words)
 
+
 def _ass_time(seconds: float) -> str:
     centiseconds = max(0, int(round(seconds * 100)))
     hours, remainder = divmod(centiseconds, 360000)
@@ -208,8 +288,10 @@ def _ass_time(seconds: float) -> str:
     whole, centis = divmod(remainder, 100)
     return f"{hours}:{minutes:02d}:{whole:02d}.{centis:02d}"
 
+
 def _ass_text(text: str) -> str:
     return text.replace("\\", "\\\\").replace("{", "(").replace("}", ")").replace("\n", "\\N")
+
 
 def _display_text(text: str, style: CaptionStyle) -> str:
     value = text
@@ -224,20 +306,9 @@ def _display_text(text: str, style: CaptionStyle) -> str:
     value = value.upper() if style.uppercase else value
     return _censor_text(value, style)
 
+
 def _sentence_text(text: str, style: CaptionStyle) -> str:
     value = _display_text(text, style)
-    if style.keyword_highlight_enabled:
-        keywords = style.keyword_words or _auto_keywords(value)
-        if keywords:
-            pattern = re.compile(
-                r"\b(" + "|".join(re.escape(word) for word in keywords) + r")\b",
-                re.IGNORECASE,
-            )
-            value = pattern.sub(
-                lambda match: f"{{\\c&H{_ass_rgb(style.keyword_color)}&}}"
-                f"{match.group(0)}{{\\c&H{_ass_rgb(style.primary_color)}&}}",
-                value,
-            )
     if style.emoji_enabled and style.emoji_map:
         for word, emoji in sorted(style.emoji_map.items(), key=lambda item: -len(item[0])):
             if word.strip():
@@ -248,7 +319,28 @@ def _sentence_text(text: str, style: CaptionStyle) -> str:
                     count=1,
                     flags=re.IGNORECASE,
                 )
-    return value
+    if not style.keyword_highlight_enabled:
+        return _ass_text(value)
+    keywords = style.keyword_words or _auto_keywords(value)
+    if not keywords:
+        return _ass_text(value)
+    pattern = re.compile(
+        r"\b(" + "|".join(re.escape(word) for word in keywords) + r")\b",
+        re.IGNORECASE,
+    )
+    parts: list[str] = []
+    cursor = 0
+    for match in pattern.finditer(value):
+        parts.append(_ass_text(value[cursor : match.start()]))
+        parts.append(
+            f"{{\\c&H{_ass_rgb(style.keyword_color)}&}}"
+            f"{_ass_text(match.group(0))}"
+            f"{{\\c&H{_ass_rgb(style.primary_color)}&}}"
+        )
+        cursor = match.end()
+    parts.append(_ass_text(value[cursor:]))
+    return "".join(parts)
+
 
 def _auto_keywords(text: str) -> list[str]:
     words = [
@@ -258,11 +350,13 @@ def _auto_keywords(text: str) -> list[str]:
     ]
     return [word for word, _count in Counter(words).most_common(3)]
 
+
 def _ass_rgb(value: str) -> str:
     red = value[1:3]
     green = value[3:5]
     blue = value[5:7]
     return f"{blue}{green}{red}".upper()
+
 
 def _censor_text(text: str, style: CaptionStyle) -> str:
     if not style.censor_enabled or not style.censor_words:
@@ -276,6 +370,7 @@ def _censor_text(text: str, style: CaptionStyle) -> str:
         return text
     pattern = re.compile(r"\b(" + "|".join(terms) + r")\b", re.IGNORECASE)
     return pattern.sub(style.censor_replacement, text)
+
 
 def _karaoke_text(line: CaptionLine, style: CaptionStyle) -> str:
     tag = "kf" if style.animation == "sweep" else "k"
@@ -291,12 +386,85 @@ def _karaoke_text(line: CaptionLine, style: CaptionStyle) -> str:
         parts.append(f"{{\\{tag}{duration}}}{_ass_text(_display_text(word, style))}{suffix}")
     return "".join(parts)
 
+
 def _ass_color(value: str, opacity: float = 1.0) -> str:
     red = int(value[1:3], 16)
     green = int(value[3:5], 16)
     blue = int(value[5:7], 16)
     alpha = round((1.0 - max(0.0, min(1.0, opacity))) * 255)
     return f"&H{alpha:02X}{blue:02X}{green:02X}{red:02X}"
+
+
+def _wrap_ass_markup(text: str, style: CaptionStyle, width: int) -> str:
+    """Insert smart line breaks outside ASS override tags."""
+
+    max_chars = max(8, int(style.max_width * width / max(1.0, style.font_size * 0.55)))
+    output: list[str] = []
+    line_chars = 0
+    last_space: tuple[int, int] | None = None
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char == "{":
+            close = text.find("}", index)
+            if close == -1:
+                output.append(text[index:])
+                break
+            output.append(text[index : close + 1])
+            index = close + 1
+            continue
+        if char in " \t":
+            last_space = (len(output), line_chars)
+            output.append(char)
+            line_chars += 1
+            index += 1
+            if line_chars > max_chars and last_space is not None:
+                slot, before = last_space
+                output[slot] = "\\N"
+                line_chars = line_chars - before - 1
+                last_space = None
+            continue
+        output.append(char)
+        line_chars += 1
+        index += 1
+    return "".join(output)
+
+
+def shift_ass_text(text: str, offset_sec: float) -> str:
+    """Shift every Dialogue timestamp by ``offset_sec`` seconds."""
+
+    if abs(offset_sec) < 1e-6:
+        return text
+    pattern = re.compile(
+        r"^(Dialogue:\s*[^,]*,\s*)(\d+:\d{2}:\d{2}\.\d{2})(\s*,\s*)(\d+:\d{2}:\d{2}\.\d{2})"
+    )
+
+    def repl(match: re.Match[str]) -> str:
+        start = _ass_seconds(match.group(2)) + offset_sec
+        end = _ass_seconds(match.group(4)) + offset_sec
+        return f"{match.group(1)}{_ass_time(start)}{match.group(3)}{_ass_time(end)}"
+
+    return "\n".join(pattern.sub(repl, line) for line in text.splitlines()) + (
+        "\n" if text.endswith("\n") else ""
+    )
+
+
+def shift_ass_file(path: Path, offset_sec: float, target: Path | None = None) -> Path:
+    source = Path(path)
+    destination = (
+        Path(target) if target is not None else source.with_name(f"{source.stem}.shifted.ass")
+    )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(
+        shift_ass_text(source.read_text(encoding="utf-8", errors="replace"), offset_sec),
+        encoding="utf-8",
+    )
+    return destination
+
+
+def _ass_seconds(value: str) -> float:
+    hours, minutes, seconds = value.split(":")
+    return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
 
 
 def merge_ass_files(paths: Sequence[Path], target: Path) -> Path:

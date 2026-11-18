@@ -194,7 +194,7 @@ def test_video_export_draft_scale(tmp_path: Path, monkeypatch) -> None:
         captured.update(kwargs)
         Path(destination).write_bytes(b"mp4")
 
-    monkeypatch.setattr(video_export, "export_mp4", fake_export)
+    monkeypatch.setattr(video_export, "render_master", fake_export)
     video_export.VideoExportStep().run(
         context, video_export.VideoExportParams(draft_scale=0.5), StepIO()
     )
