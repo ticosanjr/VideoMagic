@@ -211,6 +211,9 @@ class OverlayClip(StrictModel):
     width_ratio: float = Field(default=0.25, gt=0.0, le=1.0)
     opacity: float = Field(default=1.0, ge=0.0, le=1.0)
     kind: Literal["image", "video"] = "image"
+    layout: str = "fullscreen"
+    ken_burns: bool = False
+    transformative_crop: bool = False
 
 
 class MulticamCut(StrictModel):

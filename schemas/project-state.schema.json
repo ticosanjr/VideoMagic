@@ -856,6 +856,11 @@
           "title": "Duration Frames",
           "type": "integer"
         },
+        "ken_burns": {
+          "default": false,
+          "title": "Ken Burns",
+          "type": "boolean"
+        },
         "kind": {
           "default": "image",
           "enum": [
@@ -863,6 +868,11 @@
             "video"
           ],
           "title": "Kind",
+          "type": "string"
+        },
+        "layout": {
+          "default": "fullscreen",
+          "title": "Layout",
           "type": "string"
         },
         "opacity": {
@@ -900,6 +910,11 @@
           "minimum": 0,
           "title": "Start Frame",
           "type": "integer"
+        },
+        "transformative_crop": {
+          "default": false,
+          "title": "Transformative Crop",
+          "type": "boolean"
         },
         "width_ratio": {
           "default": 0.25,

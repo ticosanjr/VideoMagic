@@ -878,11 +878,18 @@ def _render_classic_mp4(
             overlay_inputs.extend(["-loop", "1", "-t", f"{duration:.6f}", "-i", str(path)])
         else:
             overlay_inputs.extend(["-stream_loop", "-1", "-t", f"{duration:.6f}", "-i", str(path)])
-        overlay_chains.append(
-            f"[{input_index}:v]scale=trunc(iw*{overlay.width_ratio:.4f}/2)*2:-2,"
-            f"format=rgba,colorchannelmixer=aa={overlay.opacity:.3f},"
-            f"setpts=PTS-STARTPTS[ov{index}]"
+        overlay_filters: list[str] = []
+        if overlay.transformative_crop:
+            overlay_filters.append("crop=trunc(iw*0.9/2)*2:trunc(ih*0.9/2)*2")
+        overlay_filters.append(f"scale=trunc(iw*{overlay.width_ratio:.4f}/2)*2:-2")
+        if overlay.ken_burns:
+            overlay_filters.append(
+                "zoompan=z='min(zoom+0.0004,1.08)':d=1:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+            )
+        overlay_filters.extend(
+            ["format=rgba", f"colorchannelmixer=aa={overlay.opacity:.3f}", "setpts=PTS-STARTPTS"]
         )
+        overlay_chains.append(f"[{input_index}:v]{','.join(overlay_filters)}[ov{index}]")
         start = overlay.start_frame / fps
         end = start + duration
         overlay_chains.append(

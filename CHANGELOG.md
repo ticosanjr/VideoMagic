@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.0.2] - 2026-11-18
+
+### Changed
+
+- B-roll overlays persist `ken_burns`, `transformative_crop`, and `layout`.
+- Export overlays apply transformative crop and a slow Ken Burns zoom before
+  scaling, while preserving the existing overlay positioning.
+- Schema exports refreshed for the new overlay fields.
+
 ## [3.0.1] - 2026-11-18
 
 ### Added

@@ -310,6 +310,9 @@ def _overlay_from(entry: BeatmapOverlay, index: int, path: Path) -> OverlayClip:
         width_ratio=width,
         opacity=entry.opacity,
         kind=entry.kind,
+        layout=entry.layout,
+        ken_burns=entry.ken_burns,
+        transformative_crop=entry.transformative_crop,
     )
 
 
@@ -458,6 +461,7 @@ def apply_beatmap(
                     width_ratio=entry.width_ratio,
                     opacity=entry.opacity,
                     kind="image",
+                    layout="fullscreen",
                 )
             )
         updates["overlays"] = overlays
