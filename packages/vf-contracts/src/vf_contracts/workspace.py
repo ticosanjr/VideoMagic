@@ -79,9 +79,17 @@ def workspace_root() -> Path:
 
 
 def project_dir(project_id: str) -> Path:
-    """Return the directory for ``project_id`` without creating it."""
+    """Return the directory for ``project_id`` without creating it.
 
-    return workspace_root() / "projects" / validate_project_id(project_id)
+    ``VF_WORKSPACE_ROOT`` has historically been pointed either at the workspace
+    parent or directly at its ``projects`` directory. Accept both forms so callers
+    never produce ``projects/projects/{id}``.
+    """
+
+    root = workspace_root()
+    if root.name == "projects":
+        return root / validate_project_id(project_id)
+    return root / "projects" / validate_project_id(project_id)
 
 
 def _atomic_write_json(path: Path, payload: Mapping[str, Any]) -> None:

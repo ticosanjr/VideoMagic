@@ -88,7 +88,10 @@ def project_dir(project_id: str) -> Path:
         return shared
     root = os.environ.get("VF_PROJECTS_ROOT")
     if root:
-        return (Path(root).expanduser() / project_id).resolve()
+        base = Path(root).expanduser()
+        if base.name != "projects":
+            base = base / "projects"
+        return (base / project_id).resolve()
     return (Path.home() / ".videoflow" / "projects" / project_id).resolve()
 
 

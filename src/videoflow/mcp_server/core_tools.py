@@ -445,8 +445,10 @@ def register_core_tools(register: Any, ctx: Any) -> None:
             state = load_project_state(record)
             default = Path(record.output) / "exports" / "youtube_master.mp4"
             fallback = Path(record.output) / "exports" / "final_youtube.mp4"
-            video = Path(video_path).expanduser() if video_path else (
-                default if default.is_file() else fallback
+            video = (
+                Path(video_path).expanduser()
+                if video_path
+                else (default if default.is_file() else fallback)
             )
             report = audit_final(video, output=Path(record.output), state=state)
         except (VideoFlowError, OSError) as exc:
@@ -1357,11 +1359,15 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         compose: str = "none",
         pip_position: str = "top_right",
         pip_width_ratio: float = 0.28,
+        wait: bool = False,
+        timeout_sec: float = 1800.0,
     ) -> dict[str, Any]:
         """Run session ingest or multicam synchronization."""
 
-        if action == "multicam":
-            return legacy["vf_sync_multicam"](
+        mode = "multicam" if action == "multicam" else "session"
+        step_type = "sync.multicam_audio" if mode == "multicam" else "session.ingest"
+        if mode == "multicam":
+            response = legacy["vf_sync_multicam"](
                 project_id=project_id,
                 primary_source_id=primary_source_id,
                 secondary_source_id=secondary_source_id,
@@ -1371,16 +1377,46 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                 pip_position=pip_position,
                 pip_width_ratio=pip_width_ratio,
             )
-        return legacy["vf_ingest_session"](
-            project_id=project_id,
-            sources=sources,
-            raw_dir=raw_dir,
-            order=order,
-            target_fps=target_fps,
-            target_width=target_width,
-            target_height=target_height,
-            normalize=normalize,
-        )
+        else:
+            response = legacy["vf_ingest_session"](
+                project_id=project_id,
+                sources=sources,
+                raw_dir=raw_dir,
+                order=order,
+                target_fps=target_fps,
+                target_width=target_width,
+                target_height=target_height,
+                normalize=normalize,
+            )
+            if wait and response.get("ok"):
+                job_id = str((response.get("job") or {}).get("job_id") or "")
+                if job_id:
+                    response["wait"] = _wait(manager, project_id, job_id, timeout_sec)
+        if not response.get("ok"):
+            return response
+        response["mode"] = mode
+        response["step_type"] = step_type
+        try:
+            state = load_project_state(get_project(project_id))
+            media = state.media_info
+            if media is not None and media.fps_num:
+                response["source_duration_sec"] = round(
+                    media.duration_frames / (media.fps_num / media.fps_den), 6
+                )
+                response["cfr_fps"] = round(media.fps_num / media.fps_den, 6)
+            else:
+                response["source_duration_sec"] = 0.0
+                response["cfr_fps"] = 0.0
+            response["pcm_path"] = state.pipeline.pcm_path
+            offset_samples = state.source_offsets.get(state.primary_source_id, 0)
+            rate = media.audio_sample_rate if media is not None else 48000
+            response["audio_offset_ms"] = round(offset_samples / max(1, rate) * 1000, 3)
+        except VideoFlowError:
+            response.setdefault("source_duration_sec", 0.0)
+            response.setdefault("cfr_fps", 0.0)
+            response.setdefault("pcm_path", "")
+            response.setdefault("audio_offset_ms", 0.0)
+        return response
 
     @register
     def vf_qa(

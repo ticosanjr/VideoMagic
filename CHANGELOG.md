@@ -1,5 +1,53 @@
 # Changelog
 
+## [3.1.0] - 2026-11-18
+
+### Added
+
+- Stateful tools-only MCP runs: `vf_run`, a complete `PipelineContext` inside
+  `project_state.json`, per-step checkpoints, `resume`, and `through`.
+- Unified SQLite job queue for MCP, REST, and the tray, with WAL, busy timeout,
+  cross-process cancellation, and `vf_jobs`.
+- Bidirectional source/timeline time mapping, `keep_ranges`/`remove_ranges`,
+  `dry_run`, destructive-edit guard, and revision history/undo/restore.
+- Normalized crop math, `vf_crop_preview`, ASS smart wrapping, single-slash
+  override tags, caption dedup, word timing, intro offset, and mandatory
+  `fontsdir`.
+- Duration gate (`ffprobe`, 100 ms), CFR repair, one `master_export` engine for
+  `export.video`/`vf_export`/delivery bundle, and PCM 24-bit sidecars.
+- Cached rounded-window masks, hard-cut macro-blocks, and
+  `-filter_complex_script` for large graphs.
+- Content-addressed analysis cache, hardlinked media pool, disk preflight, and
+  render-segment pruning.
+- Model discovery in `~/.videoflow/models`, expanded capabilities, style
+  validation/compilation, beat-map planning, overlays, Shorts batch, final MP4
+  QA, and font management.
+- New MCP tools: `vf_run`, `vf_jobs`, `vf_export`, `vf_crop_preview`,
+  `vf_style_validate`, `vf_style_apply`, `vf_beatmap_plan`, `vf_overlay`,
+  `vf_shorts_batch`, `vf_qa_final`, and `vf_font`.
+
+### Changed
+
+- Project state schema v3 adds the `pipeline` block; workspace `state.json` is
+  a mirror of `project_state.json`.
+- `cut`-style beatmap `cuts` is deprecated in favor of `keep_ranges` and
+  `remove_ranges`.
+- Caption default is `word_timing="word"` with an explicit fallback warning.
+- Unknown caption presets fail explicitly instead of silently falling back.
+- `vf_ingest` returns normalized mode, step type, duration, CFR fps, PCM path,
+  and audio offset.
+- Audio three-act mixing uses timeline duration, and `audio.compose` reports
+  generated/loop metadata.
+
+### Fixed
+
+- Static crop no longer interprets a normalized focus as a pixel offset.
+- Segment concat duration drift is detected and repaired before delivery.
+- Intro prepends no longer desynchronize burned captions.
+- `VF_WORKSPACE_ROOT`/`VF_PROJECTS_ROOT` no longer produce
+  `projects/projects/{id}`.
+- Repeated Short analysis reads scene/energy data from the content cache.
+
 ## [3.0.4] - 2026-11-18
 
 ### Added

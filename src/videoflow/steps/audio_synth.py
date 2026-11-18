@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from videoflow.application.audio_synthesis import compose_music, synthesize_foley
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import ExportError
+from videoflow.exporters.common import timeline_duration_samples
 from videoflow.runtime import find_binary
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload
@@ -318,9 +319,9 @@ class AudioMixStep(BaseStep):
         if music is not None and music.is_file():
             volume = f"{options.music_gain}"
             if options.music_arc == "three_act":
-                duration = context.duration_samples() / max(
-                    1, context.media.audio_sample_rate if context.media else 48000
-                )
+                rate = context.media.audio_sample_rate if context.media else 48000
+                samples = timeline_duration_samples(context.state) if context.state else 0
+                duration = (samples or context.duration_samples()) / max(1, rate)
                 hook = duration * options.arc_hook_ratio
                 outro = duration * options.arc_outro_ratio
                 quiet = options.music_gain * 0.55

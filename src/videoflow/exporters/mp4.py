@@ -390,12 +390,9 @@ def _video_groups(
             if has_xfade:
                 group.append(index)
                 continue
-            pair = [previous_index for previous_index in group if previous_index == index - 1]
-            if not pair:
-                pair = [index - 1]
             if group and group[-1] == index - 1:
                 group.pop()
-            groups.append([*pair, index])
+            groups.append([index - 1, index])
             continue
         if not has_xfade and same_source and same_transform and len(group) < max_block:
             group.append(index)

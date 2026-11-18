@@ -148,8 +148,10 @@ def compose_music(
     return {
         "bpm": bpm,
         "duration_sec": duration,
+        "generated_sec": duration,
         "requested_duration_sec": requested,
         "loop_seconds": duration if looped else 0.0,
+        "auto_looped": looped,
         "sample_rate": sample_rate,
         "files": {key: str(value) for key, value in paths.items()},
     }
