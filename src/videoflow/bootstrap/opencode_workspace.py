@@ -21,6 +21,7 @@ from videoflow.application.opencode_config import (
 from videoflow.application.settings import load_settings, save_settings
 from videoflow.application.storage import atomic_write_text
 from videoflow.application.style_catalog import StyleCatalog
+from videoflow.application.workflow_catalog import WorkflowCatalog
 from videoflow.runtime import find_binary
 
 _MANAGED_START = "<!-- videoflow:opencode:start -->"
@@ -35,12 +36,16 @@ class BootstrapRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     target_dir: str = Field(min_length=1)
-    mcp_profile: Literal["core", "decupagem", "broll", "audio", "vision", "full"] = "full"
+    mcp_profile: Literal["opencode", "core", "decupagem", "broll", "audio", "vision", "full"] = (
+        "opencode"
+    )
     register_global_opencode: bool = False
     overwrite: bool = False
     include_sample_project: bool = False
     register_root: bool = True
-    prompts: bool = True
+    prompts: bool = False
+    workflow_ids: list[str] = Field(default_factory=list)
+    style_ids: list[str] = Field(default_factory=list)
 
 
 class BootstrapResult(BaseModel):
@@ -49,6 +54,7 @@ class BootstrapResult(BaseModel):
     created_files: list[str] = Field(default_factory=list)
     skipped_files: list[str] = Field(default_factory=list)
     copied_styles: list[str] = Field(default_factory=list)
+    copied_workflows: list[str] = Field(default_factory=list)
     mcp_servers: list[str] = Field(default_factory=list)
     launch_command: str = ""
     sample_project: dict[str, object] = Field(default_factory=dict)
@@ -112,9 +118,23 @@ def _style_list(catalog: StyleCatalog) -> str:
     return "\n".join(lines) or "- Nenhum estilo cadastrado."
 
 
-def _write_agents(path: Path, template: str, catalog: StyleCatalog) -> str:
+def _workflow_list(catalog: WorkflowCatalog) -> str:
+    lines = []
+    for item in catalog.list_payload():
+        lines.append(
+            f"- `{item['workflow_id']}` — {item['name']} "
+            f"({item['aspect_ratio'] or 'auto'}) — "
+            f"`./.opencode/workflows/{item['workflow_id']}.md`"
+        )
+    return "\n".join(lines) or "- Nenhum workflow cadastrado."
+
+
+def _write_agents(
+    path: Path, template: str, catalog: StyleCatalog, workflows: WorkflowCatalog
+) -> str:
     body = template.replace("{{VERSION}}", __version__).replace("{{TARGET_DIR}}", str(path.parent))
     body = body.replace("{{STYLE_LIST}}", _style_list(catalog))
+    body = body.replace("{{WORKFLOW_LIST}}", _workflow_list(workflows))
     if not path.is_file():
         atomic_write_text(path, body if body.endswith("\n") else body + "\n")
         return "created"
@@ -266,8 +286,9 @@ def bootstrap_opencode_workspace(request: BootstrapRequest) -> BootstrapResult:
         )
 
     catalog = StyleCatalog()
+    workflows = WorkflowCatalog()
     template = (templates_dir() / "AGENTS.md").read_text(encoding="utf-8")
-    action = _write_agents(target / "AGENTS.md", template, catalog)
+    action = _write_agents(target / "AGENTS.md", template, catalog, workflows)
     created.append(f"{target / 'AGENTS.md'} ({action})")
 
     _copy_template_dir(
@@ -285,6 +306,14 @@ def bootstrap_opencode_workspace(request: BootstrapRequest) -> BootstrapResult:
         skipped=skipped,
     )
     sync = catalog.sync(target, overwrite=request.overwrite)
+    if request.style_ids:
+        selected = set(request.style_ids)
+        sync["copied"] = [item for item in sync.get("copied", []) if Path(item).stem in selected]
+    workflow_sync = workflows.sync(
+        target,
+        overwrite=request.overwrite,
+        workflow_ids=request.workflow_ids or None,
+    )
 
     sample: dict[str, object] = {}
     if request.include_sample_project:
@@ -297,6 +326,7 @@ def bootstrap_opencode_workspace(request: BootstrapRequest) -> BootstrapResult:
         created_files=created,
         skipped_files=skipped,
         copied_styles=list(sync.get("copied", [])),
+        copied_workflows=list(workflow_sync.get("copied", [])),
         mcp_servers=sorted(
             (config.get("mcp", {}).get("servers") or {}).keys()  # type: ignore[union-attr]
         ),

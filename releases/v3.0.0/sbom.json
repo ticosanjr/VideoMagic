@@ -320,6 +320,12 @@
       "version": "2.15.1"
     },
     {
+      "name": "pystray",
+      "purl": "pkg:pypi/pystray@0.19.5",
+      "type": "library",
+      "version": "0.19.5"
+    },
+    {
       "name": "pytesseract",
       "purl": "pkg:pypi/pytesseract@0.3.13",
       "type": "library",
@@ -342,6 +348,12 @@
       "purl": "pkg:pypi/python-multipart@0.0.32",
       "type": "library",
       "version": "0.0.32"
+    },
+    {
+      "name": "python-xlib",
+      "purl": "pkg:pypi/python-xlib@0.33",
+      "type": "library",
+      "version": "0.33"
     },
     {
       "name": "PyYAML",
@@ -378,6 +390,12 @@
       "purl": "pkg:pypi/setuptools@84.1.0",
       "type": "library",
       "version": "84.1.0"
+    },
+    {
+      "name": "six",
+      "purl": "pkg:pypi/six@1.17.0",
+      "type": "library",
+      "version": "1.17.0"
     },
     {
       "name": "sortedcontainers",
@@ -441,39 +459,39 @@
     },
     {
       "name": "vf-compute",
-      "purl": "pkg:pypi/vf-compute@2.91.7",
+      "purl": "pkg:pypi/vf-compute@3.0.0",
       "type": "library",
-      "version": "2.91.7"
+      "version": "3.0.0"
     },
     {
       "name": "vf-contracts",
-      "purl": "pkg:pypi/vf-contracts@2.91.7",
+      "purl": "pkg:pypi/vf-contracts@3.0.0",
       "type": "library",
-      "version": "2.91.7"
+      "version": "3.0.0"
     },
     {
       "name": "videoflow",
-      "purl": "pkg:pypi/videoflow@2.91.7",
+      "purl": "pkg:pypi/videoflow@3.0.0",
       "type": "library",
-      "version": "2.91.7"
+      "version": "3.0.0"
     },
     {
       "name": "videoflow-mcp-audio",
-      "purl": "pkg:pypi/videoflow-mcp-audio@2.91.7",
+      "purl": "pkg:pypi/videoflow-mcp-audio@3.0.0",
       "type": "library",
-      "version": "2.91.7"
+      "version": "3.0.0"
     },
     {
       "name": "videoflow-mcp-fetch",
-      "purl": "pkg:pypi/videoflow-mcp-fetch@2.91.7",
+      "purl": "pkg:pypi/videoflow-mcp-fetch@3.0.0",
       "type": "library",
-      "version": "2.91.7"
+      "version": "3.0.0"
     },
     {
       "name": "videoflow-mcp-vision",
-      "purl": "pkg:pypi/videoflow-mcp-vision@2.91.7",
+      "purl": "pkg:pypi/videoflow-mcp-vision@3.0.0",
       "type": "library",
-      "version": "2.91.7"
+      "version": "3.0.0"
     }
   ],
   "metadata": {

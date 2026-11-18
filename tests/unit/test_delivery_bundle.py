@@ -83,10 +83,10 @@ def test_bundle_writes_every_target_and_manifest(tmp_path: Path) -> None:
     for entry in result["files"].values():
         assert Path(entry["path"]).is_file()
         assert len(entry["sha256"]) == 64
-    assert Path(result["files"]["resolve"]["path"]).name == "timeline_resolve.fcpxml"
-    assert Path(result["files"]["premiere"]["path"]).name == "timeline_premiere.xml"
-    assert Path(result["files"]["kdenlive"]["path"]).name == "timeline_kdenlive.kdenlive"
-    assert Path(result["files"]["kdenlive_mlt"]["path"]).name == "timeline_kdenlive.mlt"
+    assert Path(result["files"]["resolve"]["path"]).name == "resolve_timeline.fcpxml"
+    assert Path(result["files"]["premiere"]["path"]).name == "premiere_timeline.xml"
+    assert Path(result["files"]["kdenlive"]["path"]).name == "kdenlive_project.kdenlive"
+    assert Path(result["files"]["kdenlive_mlt"]["path"]).name == "kdenlive_project.mlt"
     assert Path(result["manifest"]).is_file()
     payload = json.loads(Path(result["manifest"]).read_text(encoding="utf-8"))
     assert payload["schema_version"] == 1
@@ -194,7 +194,7 @@ def test_bundle_mp4_reuses_master(tmp_path: Path) -> None:
 
     assert result["ok"] is True
     assert ("mp4", 0) in seen
-    assert result["files"]["mp4"]["path"].endswith("final_youtube.mp4")
+    assert result["files"]["mp4"]["path"].endswith("youtube_master.mp4")
     assert result["validation"]["exports"]["mp4"]["exists"] is True
 
 

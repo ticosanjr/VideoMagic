@@ -362,6 +362,7 @@ class PresetSettings(BaseModel):
 
     channel_dir: str = ""
     style_dir: str = ""
+    workflow_dir: str = ""
     max_rules: int = Field(default=200, ge=1, le=2000)
 
 

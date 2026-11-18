@@ -537,10 +537,14 @@ def render_motion_graphic(
     duration_sec: float = 5.0,
     alpha: bool = False,
     draft_scale: float = 1.0,
+    draft: bool = False,
     width: int = 1920,
     height: int = 1080,
 ) -> dict[str, Any]:
     """Render a Remotion, Manim, FFmpeg, HTML, or HyperFrames graphic."""
+
+    if draft:
+        draft_scale = 0.5
 
     tool = "render_motion_graphic"
     selected = str(engine or "").strip().lower()
@@ -960,6 +964,8 @@ def capture_web_or_screen(
     mode: str = "screenshot",
     duration_sec: float = 3.0,
     crop_selector: str = "",
+    css_selector: str = "",
+    scroll_animation: str = "",
     output_name: str = "",
     fps: int = 5,
     viewport_width: int = 1440,
@@ -968,6 +974,7 @@ def capture_web_or_screen(
     """Capture a URL or screen target as a still or a short B-roll clip."""
 
     tool = "capture_web_or_screen"
+    crop_selector = css_selector or crop_selector
     target_value = str(url_or_target or "").strip()
     if not target_value:
         raise InvalidArgumentError(
@@ -1014,6 +1021,7 @@ def capture_web_or_screen(
         selected,
         duration if selected == "clip" else 0,
         crop_selector,
+        scroll_animation,
         fps if selected == "clip" else 0,
         viewport_width,
         viewport_height,
@@ -1106,7 +1114,8 @@ def capture_web_or_screen(
                     f"--window-size={viewport_width},{viewport_height}",
                     f"--virtual-time-budget={max(1, round(moment * 1000))}",
                     f"--screenshot={frame}",
-                    f"{url_or_target}{'&' if '?' in url_or_target else '?'}vf_time={moment:.4f}",
+                    f"{url_or_target}{'&' if '?' in url_or_target else '?'}vf_time={moment:.4f}"
+                    + (f"&vf_scroll={scroll_animation}" if scroll_animation else ""),
                 ]
                 commands.run(argv, timeout=120)
                 if not frame.is_file():

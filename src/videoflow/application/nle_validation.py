@@ -56,20 +56,22 @@ def validate_nle_exports(
         (
             "fcpxml",
             ".fcpxml",
-            ("timeline_resolve.fcpxml", "timeline.fcpxml"),
+            ("resolve_timeline.fcpxml", "timeline_resolve.fcpxml", "timeline.fcpxml"),
             _validate_fcpxml,
         ),
         (
             "xmeml",
             ".xml",
-            ("timeline_premiere.xml", "timeline.xml"),
+            ("premiere_timeline.xml", "timeline_premiere.xml", "timeline.xml"),
             _validate_xmeml,
         ),
         (
             "kdenlive",
             ".kdenlive",
             (
+                "kdenlive_project.kdenlive",
                 "timeline_kdenlive.kdenlive",
+                "kdenlive_project.mlt",
                 "timeline.kdenlive",
                 "timeline_kdenlive.mlt",
             ),

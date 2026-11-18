@@ -1,5 +1,37 @@
 # Changelog
 
+## [3.0.0] - 2026-11-18
+
+### Added
+
+- Workflow Markdown catalog with five seeds and CRUD/sync APIs.
+- OpenCode Studio Manager UI with AGENTS.md, Workflows, and Styles tabs.
+- OpenCode `opencode` MCP profile; prompts are off by default.
+- Style schema v2: platforms, beatmap defaults, sound design, hook/intro
+  strategy, new layout/motion enums.
+- Five Longform and ten Shorts/Reels seed styles for YouTube, Shorts, Reels,
+  Instagram, X, and Facebook.
+- `apply_beatmap` v2: transitions (`wipe_left`, `wipe_right`, `slide_up`,
+  `zoom_in`, `whip_pan`, `glitch`), linked SFX, graphics, B-roll layouts, and
+  beatmap captions.
+- `render_motion_graphic(draft=true)` shorthand and
+  `capture_web_or_screen(css_selector, scroll_animation)`.
+- v3.0.0 export names: `youtube_master.mp4`, `resolve_timeline.fcpxml`,
+  `premiere_timeline.xml`, `kdenlive_project.mlt`.
+
+### Changed
+
+- Bootstrap defaults to `opencode`, copies workflows, and generates the six
+  Diretor Lego commands.
+- AGENTS.md requires choosing both a Style and a Workflow before editing.
+- Delivery bundle and NLE validation accept v2 names plus legacy aliases.
+
+### Fixed
+
+- Style frontmatter round-trips the v2 fields.
+- Bootstrap reports `copied_workflows` in API/UI.
+- Beatmap transitions preserve typed `Transition` models and linked SFX.
+
 ## [2.91.9] - 2026-11-17
 
 ### Added

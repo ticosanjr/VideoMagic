@@ -1,0 +1,145 @@
+{
+  "$defs": {
+    "WorkflowStep": {
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "node": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Node",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": true,
+          "title": "Params",
+          "type": "object"
+        },
+        "purpose": {
+          "default": "",
+          "title": "Purpose",
+          "type": "string"
+        },
+        "requires_approval": {
+          "default": false,
+          "title": "Requires Approval",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "node"
+      ],
+      "title": "WorkflowStep",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "One workflow file under ``{data}/workflows/<workflow_id>.md``.",
+  "properties": {
+    "approvals": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Approvals",
+      "type": "array"
+    },
+    "aspect_ratio": {
+      "default": "16:9",
+      "maxLength": 20,
+      "title": "Aspect Ratio",
+      "type": "string"
+    },
+    "body": {
+      "default": "",
+      "title": "Body",
+      "type": "string"
+    },
+    "compatible_styles": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Compatible Styles",
+      "type": "array"
+    },
+    "default_style": {
+      "default": "",
+      "title": "Default Style",
+      "type": "string"
+    },
+    "description": {
+      "default": "",
+      "title": "Description",
+      "type": "string"
+    },
+    "export_targets": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Export Targets",
+      "type": "array"
+    },
+    "inputs": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Inputs",
+      "type": "array"
+    },
+    "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "platforms": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Platforms",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": 1,
+      "maximum": 1,
+      "minimum": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/WorkflowStep"
+      },
+      "title": "Steps",
+      "type": "array"
+    },
+    "updated_at": {
+      "default": "",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "version": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "workflow_id": {
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Workflow Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workflow_id",
+    "name"
+  ],
+  "title": "WorkflowDefinition",
+  "type": "object"
+}

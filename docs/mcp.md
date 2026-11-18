@@ -134,8 +134,8 @@ Targets accept `mp4_youtube`, `resolve`, `premiere`, `kdenlive`, `edl`, and
 `-16.5 LUFS` / `-1.0 dBTP` target when no mastered `audio/master.wav` exists.
 The manifest lands in `exports/bundle.json` with SHA-256 per artifact and
 media/duration/license validation for every export. Fixed names are
-`final_youtube.mp4`, `timeline_resolve.fcpxml`, `timeline_premiere.xml`,
-`timeline_kdenlive.kdenlive`, and `timeline_kdenlive.mlt`.
+`youtube_master.mp4`, `resolve_timeline.fcpxml`, `premiere_timeline.xml`,
+`kdenlive_project.kdenlive`, and `kdenlive_project.mlt`.
 
 When `targets` is omitted, the project's bound style supplies
 `export_targets`. Pass an explicit target list to override it.

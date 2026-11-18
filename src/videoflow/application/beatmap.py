@@ -8,6 +8,7 @@ partial failure never leaves the timeline half-edited.
 from __future__ import annotations
 
 import json
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -15,11 +16,13 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from videoflow.application.asset_providers import license_blockers
+from videoflow.application.captions import CaptionLine, build_ass_lines
 from videoflow.domain.state import (
     AudioSegment,
     OverlayClip,
     ProjectState,
     TransformKeyframe,
+    Transition,
     VideoSegment,
 )
 
@@ -49,6 +52,59 @@ class BeatmapOverlay(BaseModel):
     position_x: float = Field(default=0.5, ge=0.0, le=1.0)
     position_y: float = Field(default=0.5, ge=0.0, le=1.0)
     opacity: float = Field(default=1.0, ge=0.0, le=1.0)
+    layout: Literal[
+        "fullscreen",
+        "pip_top_right",
+        "split_screen",
+        "cutout_overlay",
+        "ken_burns",
+        "transformative_crop",
+    ] = "fullscreen"
+    ken_burns: bool = False
+    transformative_crop: bool = False
+
+
+class BeatmapTransition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    clip_id: str = Field(min_length=1)
+    type: Literal[
+        "crossfade",
+        "fade_to_black",
+        "wipe_left",
+        "wipe_right",
+        "slide_up",
+        "zoom_in",
+        "whip_pan",
+        "glitch",
+    ] = "crossfade"
+    duration_frames: int = Field(default=6, ge=1, le=120)
+    audio: bool = True
+    linked_sfx: str = ""
+
+
+class BeatmapGraphic(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    path: str = Field(min_length=1)
+    start_frame: int = Field(ge=0)
+    duration_frames: int = Field(gt=0)
+    engine: str = ""
+    alpha: bool = True
+    position_x: float = Field(default=0.5, ge=0.0, le=1.0)
+    position_y: float = Field(default=0.5, ge=0.0, le=1.0)
+    width_ratio: float = Field(default=0.6, gt=0.0, le=1.0)
+    opacity: float = Field(default=1.0, ge=0.0, le=1.0)
+
+
+class BeatmapCaption(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = Field(min_length=1)
+    start_frame: int = Field(ge=0)
+    end_frame: int = Field(gt=0)
+    preset: str = ""
+    safe_zone: str = ""
 
 
 class BeatmapZoom(BaseModel):
@@ -87,6 +143,9 @@ class Beatmap(BaseModel):
     zoom_keyframes: list[BeatmapZoom] = Field(default_factory=list)
     sfx_events: list[BeatmapSfx] = Field(default_factory=list)
     music_tracks: list[BeatmapMusic] = Field(default_factory=list)
+    transitions: list[BeatmapTransition] = Field(default_factory=list)
+    graphics: list[BeatmapGraphic] = Field(default_factory=list)
+    captions: list[BeatmapCaption] = Field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -97,6 +156,9 @@ class BeatmapReport:
     zooms: int = 0
     sfx_events: int = 0
     music_tracks: int = 0
+    transitions: int = 0
+    graphics: int = 0
+    captions: int = 0
     conflicts: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -108,6 +170,9 @@ class BeatmapReport:
             "zooms": self.zooms,
             "sfx_events": self.sfx_events,
             "music_tracks": self.music_tracks,
+            "transitions": self.transitions,
+            "graphics": self.graphics,
+            "captions": self.captions,
             "conflicts": list(self.conflicts),
             "warnings": list(self.warnings),
         }
@@ -226,14 +291,23 @@ def _cut_audio(
 
 
 def _overlay_from(entry: BeatmapOverlay, index: int, path: Path) -> OverlayClip:
+    width, x, y = entry.width_ratio, entry.position_x, entry.position_y
+    if entry.layout == "pip_top_right":
+        width, x, y = 0.32, 0.82, 0.18
+    elif entry.layout == "split_screen":
+        width, x, y = 1.0, 0.5, 0.25
+    elif entry.layout == "cutout_overlay":
+        width, x, y = 0.6, 0.5, 0.72
+    elif entry.layout in {"ken_burns", "transformative_crop"}:
+        width, x, y = max(0.75, width), 0.5, 0.5
     return OverlayClip(
         overlay_id=entry.overlay_id or f"beatmap-{index + 1}",
         path=str(path),
         start_frame=entry.start_frame,
         duration_frames=entry.duration_frames,
-        position_x=entry.position_x,
-        position_y=entry.position_y,
-        width_ratio=entry.width_ratio,
+        position_x=x,
+        position_y=y,
+        width_ratio=width,
         opacity=entry.opacity,
         kind=entry.kind,
     )
@@ -342,8 +416,62 @@ def apply_beatmap(
         updates["video_segments"] = segments
         report.zooms = len(options.zoom_keyframes)
 
+    if options.transitions:
+        working = list(updates.get("video_segments", state.video_segments))
+        for item in options.transitions:
+            matches = [
+                clip
+                for clip in working
+                if clip.clip_id == item.clip_id or clip.clip_id.startswith(f"{item.clip_id}-cut")
+            ]
+            if not matches:
+                report.conflicts.append(f"unknown clip for transition: {item.clip_id}")
+                continue
+            target = sorted(matches, key=lambda clip: clip.timeline_in_frame)[-1]
+            updated_clip = target.model_copy(
+                update={
+                    "transition_out": Transition(
+                        type=item.type,
+                        duration_frames=item.duration_frames,
+                        audio=item.audio,
+                    )
+                }
+            )
+            working = [updated_clip if clip.clip_id == target.clip_id else clip for clip in working]
+        updates["video_segments"] = working
+        report.transitions = len(options.transitions)
+
+    if options.graphics:
+        overlays = list(updates.get("overlays", state.overlays))
+        for entry in options.graphics:
+            path = _validate_asset(entry.path, output, blocked, report)
+            if not path.is_file():
+                continue
+            overlays.append(
+                OverlayClip(
+                    overlay_id=f"graphic-{len(overlays) + 1}",
+                    path=str(path),
+                    start_frame=entry.start_frame,
+                    duration_frames=entry.duration_frames,
+                    position_x=entry.position_x,
+                    position_y=entry.position_y,
+                    width_ratio=entry.width_ratio,
+                    opacity=entry.opacity,
+                    kind="image",
+                )
+            )
+        updates["overlays"] = overlays
+        report.graphics = len(options.graphics)
+
+    if report.conflicts:
+        report.ok = False
+        raise BeatmapError("; ".join(report.conflicts), report=report)
+
     sidecar: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
+        "transitions": [item.model_dump(mode="json") for item in options.transitions],
+        "graphics": [item.model_dump(mode="json") for item in options.graphics],
+        "captions": [item.model_dump(mode="json") for item in options.captions],
         "sfx_events": [],
         "music_tracks": [],
     }
@@ -356,6 +484,34 @@ def apply_beatmap(
                     "start_frame": cue.start_frame,
                     "duration_frames": cue.duration_frames,
                     "gain_db": cue.gain_db,
+                }
+            )
+    for transition in options.transitions:
+        if not transition.linked_sfx:
+            continue
+        path = _validate_asset(transition.linked_sfx, output, blocked, report)
+        if path.is_file():
+            matches = [
+                clip
+                for clip in updates.get("video_segments", state.video_segments)
+                if clip.clip_id == transition.clip_id
+                or clip.clip_id.startswith(f"{transition.clip_id}-cut")
+            ]
+            target = (
+                sorted(matches, key=lambda clip: clip.timeline_in_frame)[-1] if matches else None
+            )
+            start = (
+                max(0, target.timeline_out_frame - transition.duration_frames)
+                if target is not None
+                else 0
+            )
+            sidecar["sfx_events"].append(
+                {
+                    "path": str(path),
+                    "start_frame": start,
+                    "duration_frames": transition.duration_frames,
+                    "gain_db": 0.0,
+                    "linked_transition": transition.type,
                 }
             )
     for track in options.music_tracks:
@@ -375,6 +531,27 @@ def apply_beatmap(
     if report.conflicts:
         report.ok = False
         raise BeatmapError("; ".join(report.conflicts), report=report)
+
+    if options.captions:
+        fps = state.media_info.fps_num / state.media_info.fps_den
+        lines = [
+            CaptionLine(
+                start=item.start_frame / max(1e-9, fps),
+                end=item.end_frame / max(1e-9, fps),
+                text=item.text,
+            )
+            for item in options.captions
+            if item.end_frame > item.start_frame
+        ]
+        directory = output / "captions"
+        directory.mkdir(parents=True, exist_ok=True)
+        captions_path = directory / "beatmap.ass"
+        captions_path.write_text(build_ass_lines(lines, width=1920, height=1080), encoding="utf-8")
+        subtitles = output / "subtitles.ass"
+        if not subtitles.exists():
+            shutil.copy2(captions_path, subtitles)
+        sidecar["captions_file"] = str(captions_path)
+        report.captions = len(lines)
 
     updated = state.model_copy(update=updates)
     return updated, report, sidecar

@@ -18,6 +18,7 @@ BUNDLE_MODELS = os.environ.get("VIDEOWFLOW_BUNDLE_MODELS") == "1"
 datas = [
     (str(ROOT / "src" / "videoflow" / "presets"), "videoflow/presets"),
     (str(ROOT / "src" / "videoflow" / "styles"), "videoflow/styles"),
+    (str(ROOT / "src" / "videoflow" / "workflows"), "videoflow/workflows"),
     (str(ROOT / "src" / "videoflow" / "templates"), "videoflow/templates"),
 ]
 binaries = []

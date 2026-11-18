@@ -10,6 +10,9 @@ async function mockConnect(page: Page) {
     const path = new URL(route.request().url()).pathname;
     if (path === "/api/v1/system") return route.fulfill({ json: fixture("system.json") });
     if (path === "/api/v1/jobs") return route.fulfill({ json: { ok: true, jobs: [] } });
+    if (path === "/api/v1/system/opencode/workflows") {
+      return route.fulfill({ json: { ok: true, workflows: [] } });
+    }
     if (path === "/api/v1/styles") {
       return route.fulfill({
         json: {

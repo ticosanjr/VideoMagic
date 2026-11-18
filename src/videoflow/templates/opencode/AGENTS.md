@@ -5,12 +5,14 @@ Este workspace foi preparado pelo VideoFlow {{VERSION}}.
 
 ## Protocolo obrigatório
 
-1. **Escolha de estilo antes de editar**: antes de decupar, gerar beatmap,
-   renderizar gráficos ou alterar qualquer vídeo, liste `./presets/*.md` e
-   chame `vf_style(action="list")`.
-2. **Pergunte explicitamente** qual estilo existente deve ser aplicado. Se o
-   usuário quiser um novo, clone/extraia a referência e salve com
-   `vf_style(action="save", workspace_dir="{{TARGET_DIR}}")` antes de continuar.
+1. **Escolha obrigatória de estilo e workflow**: antes de decupar, gerar
+   beatmap, renderizar gráficos ou alterar qualquer vídeo, liste
+   `./presets/*.md` e `./.opencode/workflows/*.md`, chame
+   `vf_style(action="list")` e **pergunte explicitamente ao usuário**, em lista
+   numerada, qual Estilo e qual Workflow devem ser usados.
+2. **Não comece sem as duas respostas.** Se o usuário quiser um novo estilo,
+   clone/extraia a referência e salve com
+   `vf_style(action="save", workspace_dir="{{TARGET_DIR}}")`.
 3. **Nunca escreva scripts FFmpeg manuais no bash.** Use as tools MCP do
    VideoFlow para ingest, transcrição, beatmap, motion, captura, QA e export.
 4. **Fluxo determinístico em 5 etapas**:
@@ -34,6 +36,10 @@ Este workspace foi preparado pelo VideoFlow {{VERSION}}.
 ## Estilos disponíveis no catálogo
 
 {{STYLE_LIST}}
+
+## Workflows disponíveis
+
+{{WORKFLOW_LIST}}
 
 ## Comandos
 

@@ -269,14 +269,15 @@ def _parser() -> argparse.ArgumentParser:
     init_opencode.add_argument("target_dir")
     init_opencode.add_argument(
         "--profile",
-        choices=["core", "decupagem", "broll", "audio", "vision", "full"],
-        default="full",
+        choices=["opencode", "core", "decupagem", "broll", "audio", "vision", "full"],
+        default="opencode",
     )
     init_opencode.add_argument("--global", dest="global_config", action="store_true")
     init_opencode.add_argument("--overwrite", action="store_true")
     init_opencode.add_argument("--with-sample", action="store_true")
     init_opencode.add_argument("--no-register-root", action="store_true")
     init_opencode.add_argument("--no-prompts", action="store_true")
+    init_opencode.add_argument("--prompts", action="store_true")
 
     serve = sub.add_parser("serve", help="Serve the API, MCP HTTP, and rack UI.")
     serve.add_argument("--host", default="127.0.0.1")
@@ -1126,7 +1127,8 @@ def _init_opencode(args: argparse.Namespace) -> int:
                 overwrite=bool(args.overwrite),
                 include_sample_project=bool(args.with_sample),
                 register_root=not args.no_register_root,
-                prompts=not args.no_prompts,
+                prompts=bool(getattr(args, "prompts", False))
+                and not bool(getattr(args, "no_prompts", False)),
             )
         )
     except (VideoFlowError, ValueError) as exc:

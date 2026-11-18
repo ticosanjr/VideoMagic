@@ -211,12 +211,24 @@ def _is_multi_source(state: ProjectState) -> bool:
     return len({item for item in source_ids if item}) > 1
 
 
+XFADE_TRANSITIONS: dict[str, str] = {
+    "crossfade": "fade",
+    "wipe_left": "wipeleft",
+    "wipe_right": "wiperight",
+    "slide_up": "slideup",
+    "zoom_in": "zoomin",
+    "whip_pan": "slideleft",
+    "glitch": "pixelize",
+}
+
+
+def _is_xfade(transition: Any | None) -> bool:
+    return transition is not None and transition.type in XFADE_TRANSITIONS
+
+
 def _has_crossfade(state: ProjectState) -> bool:
     video = sorted(state.video_segments, key=lambda item: item.timeline_in_frame)
-    return any(
-        clip.transition_out is not None and clip.transition_out.type == "crossfade"
-        for clip in video[:-1]
-    )
+    return any(_is_xfade(clip.transition_out) for clip in video[:-1])
 
 
 def timeline_render_frames(state: ProjectState) -> int:
@@ -226,7 +238,7 @@ def timeline_render_frames(state: ProjectState) -> int:
     total = sum(clip.timeline_out_frame - clip.timeline_in_frame for clip in video)
     for clip in video[:-1]:
         transition = clip.transition_out
-        if transition is not None and transition.type == "crossfade":
+        if _is_xfade(transition):
             total -= transition.duration_frames
     return max(1, total)
 
@@ -343,7 +355,7 @@ def _video_groups(video: Sequence[VideoSegment]) -> list[list[int]]:
     groups: list[list[int]] = [[0]]
     for index in range(1, len(video)):
         transition = video[index - 1].transition_out
-        if transition is not None and transition.type == "crossfade":
+        if _is_xfade(transition):
             groups[-1].append(index)
         else:
             groups.append([index])
@@ -481,12 +493,13 @@ def _render_video_group(
         cumulative = durations[0]
         for offset_index in range(1, len(group)):
             transition = video[group[offset_index - 1]].transition_out
-            if transition is None or transition.type != "crossfade":
-                raise ExportError("Crossfade group has a non-crossfade transition")
+            if not _is_xfade(transition):
+                raise ExportError("Transition group has a non-xfade transition")
             seconds = transition.duration_frames / fps
             offset = max(0.0, cumulative - seconds)
+            effect = XFADE_TRANSITIONS.get(transition.type, "fade") if transition else "fade"
             chains.append(
-                f"{label}[c{offset_index}]xfade=transition=fade:"
+                f"{label}[c{offset_index}]xfade=transition={effect}:"
                 f"duration={seconds:.6f}:offset={offset:.6f}[x{offset_index}]"
             )
             label = f"[x{offset_index}]"

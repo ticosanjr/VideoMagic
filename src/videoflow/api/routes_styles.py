@@ -25,6 +25,11 @@ class StyleSaveRequest(BaseModel):
     layout_mode: str | None = None
     caption_preset: str | None = None
     motion_engine: str | None = None
+    platforms: list[str] | None = None
+    beatmap_defaults: dict[str, Any] | None = None
+    sound_design: dict[str, Any] | None = None
+    hook_strategy: str | None = None
+    intro_strategy: str | None = None
     export_targets: list[str] | None = None
     palette: list[str] | None = None
     fonts: list[str] | None = None
@@ -65,6 +70,11 @@ def _updates(request: StyleSaveRequest) -> dict[str, Any]:
             ("layout_mode", request.layout_mode),
             ("caption_preset", request.caption_preset),
             ("motion_engine", request.motion_engine),
+            ("platforms", request.platforms),
+            ("beatmap_defaults", request.beatmap_defaults),
+            ("sound_design", request.sound_design),
+            ("hook_strategy", request.hook_strategy),
+            ("intro_strategy", request.intro_strategy),
             ("export_targets", request.export_targets),
             ("palette", request.palette),
             ("fonts", request.fonts),

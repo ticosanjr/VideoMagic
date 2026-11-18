@@ -11,7 +11,7 @@ from videoflow.application.opencode_config import PROFILES, build_config
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--profile", choices=sorted(PROFILES), default="core")
+    parser.add_argument("--profile", choices=sorted(PROFILES), default="opencode")
     parser.add_argument("--output", default="")
     parser.add_argument(
         "--workspace-root",

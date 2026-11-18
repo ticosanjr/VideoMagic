@@ -23,6 +23,7 @@ from videoflow.api.routes_schedules import register_schedule_routes
 from videoflow.api.routes_styles import register_style_routes
 from videoflow.api.routes_system import register_system_routes
 from videoflow.api.routes_timeline import register_timeline_routes
+from videoflow.api.routes_workflows import register_workflow_routes
 from videoflow.application.jobs import JobManager
 from videoflow.engine.batch import BatchManager
 
@@ -41,6 +42,7 @@ def register_routes(
     register_discovery_routes(app)
     register_preset_routes(app)
     register_style_routes(app)
+    register_workflow_routes(app)
     register_recipe_routes(app, jobs)
     register_system_routes(app)
     register_admin_routes(app)

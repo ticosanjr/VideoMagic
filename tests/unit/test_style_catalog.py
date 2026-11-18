@@ -301,3 +301,36 @@ def test_learn_rule_consolidates_similar_rules(tmp_path: Path) -> None:
     style = catalog.get("canal-similar")
     assert len(style.learned_rules) == 1
     assert style.learned_rules[0].text == "Cortar antes de 1s sempre"
+
+
+def test_style_v2_fields_roundtrip_and_validation() -> None:
+    import pytest
+
+    from videoflow.application.style_catalog import (
+        parse_style_markdown,
+        render_style_markdown,
+    )
+    from videoflow.domain.styles import StyleDefinition
+
+    style = StyleDefinition(
+        style_id="v2-test",
+        name="V2 Test",
+        layout_mode="multicam_auto",
+        motion_engine="ffmpeg+hyperframes",
+        platforms=["youtube", "x"],
+        beatmap_defaults={"linked_sfx": True},
+        sound_design={"music_arc": "three_act"},
+        hook_strategy="hook",
+        intro_strategy="intro",
+    )
+    rendered = render_style_markdown(style)
+    assert "platforms:" in rendered
+    assert "beatmap_defaults:" in rendered
+    parsed = parse_style_markdown(rendered)
+    assert parsed.platforms == ["youtube", "x"]
+    assert parsed.beatmap_defaults["linked_sfx"] is True
+
+    with pytest.raises(ValueError, match="layout_mode"):
+        StyleDefinition(style_id="bad-layout", name="Bad", layout_mode="unknown")
+    with pytest.raises(ValueError, match="motion_engine"):
+        StyleDefinition(style_id="bad-motion", name="Bad", motion_engine="unknown")

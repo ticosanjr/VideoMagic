@@ -7,11 +7,11 @@ import {
 } from "./opencodeStudio";
 
 describe("opencode studio form", () => {
-  it("starts in full profile with root registration and prompts", () => {
+  it("starts in opencode profile without prompts", () => {
     const form = defaultStudioForm();
-    expect(form.profile).toBe("full");
+    expect(form.profile).toBe("opencode");
     expect(form.registerRoot).toBe(true);
-    expect(form.prompts).toBe(true);
+    expect(form.prompts).toBe(false);
     expect(canBootstrap(form)).toBe(false);
   });
 
@@ -29,6 +29,8 @@ describe("opencode studio form", () => {
     expect(canBootstrap(form)).toBe(true);
     expect(bootstrapPayload(form)).toEqual({
       target_dir: "/tmp/workspace",
+      workflow_ids: [],
+      style_ids: [],
       mcp_profile: "core",
       register_global_opencode: true,
       overwrite: true,

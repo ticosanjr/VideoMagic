@@ -263,3 +263,66 @@ def test_beatmap_music_sidecar_and_writer(tmp_path: Path) -> None:
     path = write_beatmap_sidecar(tmp_path, sidecar)
     assert path.is_file()
     assert updated.video_segments
+
+
+def test_beatmap_v2_transitions_graphics_and_captions(tmp_path: Path) -> None:
+    state = _state(tmp_path)
+    state.video_segments.append(
+        VideoSegment(
+            clip_id="c2",
+            source_in_frame=0,
+            source_out_frame=30,
+            timeline_in_frame=60,
+            timeline_out_frame=90,
+        )
+    )
+    state.audio_segments.append(
+        AudioSegment(
+            clip_id="c2",
+            source_in_sample=0,
+            source_out_sample=48000,
+            timeline_in_sample=96000,
+            timeline_out_sample=144000,
+        )
+    )
+    graphic = tmp_path / "assets" / "graphics" / "card.mov"
+    graphic.parent.mkdir(parents=True)
+    graphic.write_bytes(b"graphic")
+    sfx = tmp_path / "assets" / "sfx" / "whoosh.wav"
+    sfx.parent.mkdir(parents=True)
+    sfx.write_bytes(b"sfx")
+
+    updated, report, sidecar = apply_beatmap(
+        state,
+        tmp_path,
+        {
+            "transitions": [
+                {
+                    "clip_id": "c1",
+                    "type": "wipe_left",
+                    "duration_frames": 8,
+                    "linked_sfx": str(sfx),
+                }
+            ],
+            "graphics": [
+                {
+                    "path": str(graphic),
+                    "start_frame": 10,
+                    "duration_frames": 20,
+                    "engine": "hyperframes",
+                }
+            ],
+            "captions": [{"text": "primeira frase", "start_frame": 0, "end_frame": 30}],
+        },
+    )
+
+    assert report.transitions == 1
+    assert report.graphics == 1
+    assert report.captions == 1
+    transition = updated.video_segments[0].transition_out
+    assert transition is not None and transition.type == "wipe_left"
+    assert any(item.path.endswith("card.mov") for item in updated.overlays)
+    assert (tmp_path / "captions" / "beatmap.ass").is_file()
+    assert (tmp_path / "subtitles.ass").is_file()
+    assert sidecar["schema_version"] == 2
+    assert sidecar["sfx_events"][0]["linked_transition"] == "wipe_left"

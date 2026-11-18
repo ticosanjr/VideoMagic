@@ -40,12 +40,19 @@ from videoflow.exporters.mp4 import (
 BUNDLE_SCHEMA_VERSION = 1
 BUNDLE_FILENAME = "bundle.json"
 BUNDLE_FILENAMES: dict[str, str] = {
+    "mp4": "youtube_master.mp4",
+    "resolve": "resolve_timeline.fcpxml",
+    "premiere": "premiere_timeline.xml",
+    "kdenlive": "kdenlive_project.kdenlive",
+    "kdenlive_mlt": "kdenlive_project.mlt",
+    "edl": "timeline.edl",
+}
+LEGACY_BUNDLE_FILENAMES: dict[str, str] = {
     "mp4": "final_youtube.mp4",
     "resolve": "timeline_resolve.fcpxml",
     "premiere": "timeline_premiere.xml",
     "kdenlive": "timeline_kdenlive.kdenlive",
     "kdenlive_mlt": "timeline_kdenlive.mlt",
-    "edl": "timeline.edl",
 }
 DEFAULT_BUNDLE_TARGETS: tuple[str, ...] = ("mp4_youtube", "resolve", "premiere", "kdenlive")
 

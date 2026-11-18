@@ -18,15 +18,15 @@ FCPXML, XMEML, Kdenlive, EDL, and optional MP4 artifacts from one validated stat
 The delivery bundle writes fixed upload-ready names:
 
 ```text
-exports/final_youtube.mp4
-exports/timeline_resolve.fcpxml
-exports/timeline_premiere.xml
-exports/timeline_kdenlive.kdenlive
-exports/timeline_kdenlive.mlt       # identical MLT copy for interchange
+exports/youtube_master.mp4
+exports/resolve_timeline.fcpxml
+exports/premiere_timeline.xml
+exports/kdenlive_project.kdenlive
+exports/kdenlive_project.mlt       # identical MLT copy for interchange
 exports/bundle.json
 ```
 
-`timeline_kdenlive.mlt` is a byte-identical copy of the native
+`kdenlive_project.mlt` is a byte-identical copy of the native
 `.kdenlive` project. Validation accepts either name, and `vf_exports(action="bundle")`
 uses the project style `export_targets` when the caller omits `targets`.
 

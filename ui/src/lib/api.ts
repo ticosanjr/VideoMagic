@@ -1010,17 +1010,139 @@ export interface StyleSummary {
 
 export async function listStyles(): Promise<StyleSummary[]> {
   const response = await request<{ ok: boolean; styles: StyleSummary[] }>("/api/v1/styles");
-  return response.styles;
+  return response.styles ?? [];
+}
+
+export interface WorkflowSummary {
+  workflow_id: string;
+  name: string;
+  description: string;
+  aspect_ratio: string;
+  platforms: string[];
+  steps: number;
+  file_path: string;
+  updated_at: string;
+}
+
+export interface WorkflowDetail {
+  ok: boolean;
+  workflow: Record<string, unknown>;
+  markdown: string;
+  file: string;
+}
+
+export interface StyleDetail {
+  ok: boolean;
+  style: Record<string, unknown>;
+  markdown: string;
+  file: string;
+}
+
+export async function listWorkflows(): Promise<WorkflowSummary[]> {
+  const response = await request<{ ok: boolean; workflows: WorkflowSummary[] }>(
+    "/api/v1/system/opencode/workflows"
+  );
+  return response.workflows ?? [];
+}
+
+export async function getWorkflow(workflowId: string): Promise<WorkflowDetail> {
+  return request<WorkflowDetail>(
+    `/api/v1/system/opencode/workflows/${encodeURIComponent(workflowId)}`
+  );
+}
+
+export async function saveWorkflow(payload: {
+  workflow_id?: string;
+  name?: string;
+  markdown_content?: string;
+  workspace_dir?: string;
+  overwrite?: boolean;
+}): Promise<{ ok: boolean; workflow_id: string }> {
+  return request("/api/v1/system/opencode/workflows", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function deleteWorkflow(workflowId: string): Promise<{ ok: boolean }> {
+  return request(`/api/v1/system/opencode/workflows/${encodeURIComponent(workflowId)}`, {
+    method: "DELETE"
+  });
+}
+
+export async function duplicateWorkflow(
+  workflowId: string,
+  payload: { new_id?: string; name?: string }
+): Promise<{ ok: boolean; workflow_id: string }> {
+  return request(
+    `/api/v1/system/opencode/workflows/${encodeURIComponent(workflowId)}/duplicate`,
+    { method: "POST", body: JSON.stringify(payload) }
+  );
+}
+
+export async function restoreWorkflow(workflowId: string): Promise<{ ok: boolean }> {
+  return request(
+    `/api/v1/system/opencode/workflows/${encodeURIComponent(workflowId)}/restore`,
+    { method: "POST" }
+  );
+}
+
+export async function getStyle(styleId: string): Promise<StyleDetail> {
+  return request<StyleDetail>(`/api/v1/styles/${encodeURIComponent(styleId)}`);
+}
+
+export async function saveStyleMarkdown(payload: {
+  style_id?: string;
+  name?: string;
+  markdown_content?: string;
+  workspace_dir?: string;
+  overwrite?: boolean;
+}): Promise<{ ok: boolean; style_id: string }> {
+  return request("/api/v1/styles", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function deleteStyle(styleId: string): Promise<{ ok: boolean }> {
+  return request(`/api/v1/styles/${encodeURIComponent(styleId)}`, { method: "DELETE" });
+}
+
+export async function getAgentsFile(workspaceDir: string): Promise<{ ok: boolean; content: string; path: string }> {
+  return request(
+    `/api/v1/system/opencode/agents?workspace_dir=${encodeURIComponent(workspaceDir)}`
+  );
+}
+
+export async function saveAgentsFile(
+  workspaceDir: string,
+  content: string
+): Promise<{ ok: boolean; path: string }> {
+  return request("/api/v1/system/opencode/agents", {
+    method: "PUT",
+    body: JSON.stringify({ workspace_dir: workspaceDir, content })
+  });
+}
+
+export async function restoreAgentsFile(
+  workspaceDir: string
+): Promise<{ ok: boolean; path: string; content: string }> {
+  return request("/api/v1/system/opencode/agents/restore", {
+    method: "POST",
+    body: JSON.stringify({ workspace_dir: workspaceDir, content: "" })
+  });
 }
 
 export interface OpenCodeBootstrapRequest {
   target_dir: string;
-  mcp_profile: "core" | "decupagem" | "broll" | "audio" | "vision" | "full";
+  mcp_profile: "opencode" | "core" | "decupagem" | "broll" | "audio" | "vision" | "full";
   register_global_opencode?: boolean;
   overwrite?: boolean;
   include_sample_project?: boolean;
   register_root?: boolean;
   prompts?: boolean;
+  workflow_ids?: string[];
+  style_ids?: string[];
 }
 
 export interface OpenCodeBootstrapResult {
@@ -1030,6 +1152,7 @@ export interface OpenCodeBootstrapResult {
   created_files: string[];
   skipped_files: string[];
   copied_styles: string[];
+  copied_workflows?: string[];
   mcp_servers: string[];
   launch_command: string;
   sample_project: Record<string, unknown>;

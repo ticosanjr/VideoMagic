@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 PROFILES: dict[str, list[str]] = {
+    "opencode": ["core", "fetch", "audio", "vision"],
     "core": ["core"],
     "decupagem": ["core"],
     "broll": ["core", "fetch"],

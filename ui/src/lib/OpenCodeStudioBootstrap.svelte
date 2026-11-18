@@ -4,8 +4,10 @@
     bootstrapOpenCode,
     errorMessage,
     listStyles,
+    listWorkflows,
     type OpenCodeBootstrapResult,
-    type StyleSummary
+    type StyleSummary,
+    type WorkflowSummary
   } from "$lib/api";
   import {
     bootstrapHighlights,
@@ -19,6 +21,8 @@
 
   let form = $state(defaultStudioForm());
   let styles = $state<StyleSummary[]>([]);
+  let workflows = $state<WorkflowSummary[]>([]);
+  let selectedWorkflows = $state<string[]>([]);
   let stylesError = $state("");
   let picker = $state(false);
   let busy = $state(false);
@@ -28,6 +32,7 @@
 
   onMount(() => {
     void loadStyles();
+    void loadWorkflows();
   });
 
   async function loadStyles() {
@@ -39,7 +44,17 @@
     }
   }
 
+  async function loadWorkflows() {
+    try {
+      workflows = await listWorkflows();
+      selectedWorkflows = workflows.map((item) => item.workflow_id);
+    } catch (reason) {
+      stylesError = errorMessage(reason);
+    }
+  }
+
   async function bootstrap() {
+    form.workflowIds = [...selectedWorkflows];
     busy = true;
     error = "";
     result = null;
@@ -136,6 +151,33 @@
       </div>
     {:else}
       <p class="mt-1 text-[10px] text-neutral-500">No styles loaded yet.</p>
+    {/if}
+  </div>
+
+  <div class="rounded-xl border border-neutral-800 bg-black/20 p-2.5">
+    <p class="text-[10px] font-medium uppercase tracking-wide text-neutral-400">
+      Workflows that will be copied
+    </p>
+    {#if workflows.length}
+      <div class="mt-1.5 grid gap-1 sm:grid-cols-2">
+        {#each workflows as workflow (workflow.workflow_id)}
+          <label class="flex items-center gap-1.5 text-[10px] text-neutral-300">
+            <input
+              type="checkbox"
+              checked={selectedWorkflows.includes(workflow.workflow_id)}
+              onchange={(event) => {
+                const checked = (event.currentTarget as HTMLInputElement).checked;
+                selectedWorkflows = checked
+                  ? [...selectedWorkflows, workflow.workflow_id]
+                  : selectedWorkflows.filter((id) => id !== workflow.workflow_id);
+              }}
+            />
+            <span class="font-mono">{workflow.workflow_id}</span>
+          </label>
+        {/each}
+      </div>
+    {:else}
+      <p class="mt-1 text-[10px] text-neutral-500">No workflows loaded yet.</p>
     {/if}
   </div>
 

@@ -109,7 +109,16 @@ class Transform(StrictModel):
 
 
 class Transition(StrictModel):
-    type: Literal["crossfade", "fade_to_black"] = "crossfade"
+    type: Literal[
+        "crossfade",
+        "fade_to_black",
+        "wipe_left",
+        "wipe_right",
+        "slide_up",
+        "zoom_in",
+        "whip_pan",
+        "glitch",
+    ] = "crossfade"
     duration_frames: int = Field(default=6, ge=1, le=120)
     audio: bool = True
 

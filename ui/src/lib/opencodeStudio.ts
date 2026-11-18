@@ -4,6 +4,7 @@ import type {
 } from "$lib/api";
 
 export type McpProfile =
+  | "opencode"
   | "core"
   | "decupagem"
   | "broll"
@@ -12,6 +13,7 @@ export type McpProfile =
   | "full";
 
 export const MCP_PROFILES: Array<{ id: McpProfile; label: string }> = [
+  { id: "opencode", label: "OpenCode Diretor Lego (core + fetch + audio + vision)" },
   { id: "full", label: "Full (core + fetch + audio + vision)" },
   { id: "core", label: "Core" },
   { id: "decupagem", label: "Decupagem" },
@@ -28,17 +30,21 @@ export interface OpenCodeStudioForm {
   withSample: boolean;
   registerRoot: boolean;
   prompts: boolean;
+  workflowIds: string[];
+  styleIds: string[];
 }
 
 export function defaultStudioForm(): OpenCodeStudioForm {
   return {
     targetDir: "",
-    profile: "full",
+    profile: "opencode",
     globalConfig: false,
     overwrite: false,
     withSample: false,
     registerRoot: true,
-    prompts: true
+    prompts: false,
+    workflowIds: [],
+    styleIds: []
   };
 }
 
@@ -56,7 +62,9 @@ export function bootstrapPayload(
     overwrite: form.overwrite,
     include_sample_project: form.withSample,
     register_root: form.registerRoot,
-    prompts: form.prompts
+    prompts: form.prompts,
+    workflow_ids: form.workflowIds,
+    style_ids: form.styleIds
   };
 }
 
@@ -68,6 +76,9 @@ export function bootstrapHighlights(
     `${result.copied_styles.length} style(s) synced`,
     `MCP: ${result.mcp_servers.join(", ") || "none"}`
   ];
+  if (result.copied_workflows?.length) {
+    lines.splice(1, 0, `${result.copied_workflows.length} workflow(s) synced`);
+  }
   if (result.skipped_files.length) {
     lines.push(`${result.skipped_files.length} file(s) kept`);
   }

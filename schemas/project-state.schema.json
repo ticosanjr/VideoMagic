@@ -1572,7 +1572,13 @@
           "default": "crossfade",
           "enum": [
             "crossfade",
-            "fade_to_black"
+            "fade_to_black",
+            "wipe_left",
+            "wipe_right",
+            "slide_up",
+            "zoom_in",
+            "whip_pan",
+            "glitch"
           ],
           "title": "Type",
           "type": "string"

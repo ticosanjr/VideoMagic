@@ -6,7 +6,7 @@ recording into an editable timeline: it removes silence and retakes, adds
 J-cuts and punch-ins, proposes vertical Shorts, masters the dialogue bed, and
 exports timelines for DaVinci Resolve, Adobe Premiere Pro, and Kdenlive.
 
-> Status: 2.72.1 local stable. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
+> Status: 3.0.0 local stable. Diretor Lego workflows, OpenCode Studio Manager, 18 styles, and multi-NLE delivery. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical Shorts,
 > audio mastering and loudness QA, burned titles, color/LUT grading, analytics
@@ -226,8 +226,9 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   redaction, schema generation.
 - MCP server with thirteen core tools and thirteen resources: project setup,
   node catalog, step execution, jobs, timeline edits, artifacts, render, NLE
-  export, and project state/preset/export resources. Recipes are intentionally
-  not exposed through MCP; the UI, CLI, and REST keep the recipe engine.
+  export, and project state/preset/export resources. The `opencode` profile is
+  the default; recipes and generic prompts are not exposed. OpenCode direction
+  lives in AGENTS.md, workflows, and the 18-style catalog.
   Streamable HTTP is mounted on the local API.
 - Unified CLI (`version`, `doctor`, `shorts`, `recipe`, `serve`, `status`,
   `restart`, `stop`, `mcp`) and a PyInstaller onefile build for Linux and

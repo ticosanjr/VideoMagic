@@ -34,7 +34,7 @@ def _bootstrap(tmp_path: Path, **updates):
 def test_templates_are_packaged() -> None:
     assert (templates_dir() / "AGENTS.md").is_file()
     assert len(list((templates_dir() / "skills").glob("*.md"))) == 3
-    assert len(list((templates_dir() / "commands").glob("*.md"))) == 4
+    assert len(list((templates_dir() / "commands").glob("*.md"))) == 7
 
 
 def test_bootstrap_creates_workspace_and_syncs_styles(tmp_path: Path) -> None:
@@ -46,6 +46,7 @@ def test_bootstrap_creates_workspace_and_syncs_styles(tmp_path: Path) -> None:
     assert result.mcp_servers == ["audio", "core", "fetch", "vision"]
     assert result.launch_command == f'cd "{target}" && opencode'
     assert result.copied_styles
+    assert len(result.copied_workflows) == 5
 
     config = json.loads((target / "opencode.json").read_text(encoding="utf-8"))
     assert set(config["mcp"]["servers"]) == {"core", "fetch", "audio", "vision"}
@@ -62,7 +63,8 @@ def test_bootstrap_creates_workspace_and_syncs_styles(tmp_path: Path) -> None:
     assert str(target) in agents
 
     assert len(list((target / ".opencode" / "skills").glob("*.md"))) == 3
-    assert len(list((target / ".opencode" / "commands").glob("*.md"))) == 4
+    assert len(list((target / ".opencode" / "commands").glob("*.md"))) == 7
+    assert len(list((target / ".opencode" / "workflows").glob("*.md"))) == 5
     assert (target / "presets" / "canal-paula-reels.md").is_file()
     assert (target / "presets" / ".videoflow-styles.json").is_file()
     assert (target / "references").is_dir()

@@ -12,11 +12,9 @@ rules, and the OpenCode workspace presets.
 
 Built-in seeds ship inside the package at `src/videoflow/styles/`:
 
-```text
-canal-rafael-tech.md
-canal-paula-long.md
-canal-paula-reels.md
-```
+- 3 base channel styles (`canal-*`);
+- 5 Longform styles (`lf-*`);
+- 10 Shorts/Reels styles (`sr-*`).
 
 A user file overrides a seed with the same `style_id`. The legacy
 `~/.videoflow/channels/*.json` rulebook is read only as a migration fallback.
@@ -25,7 +23,7 @@ A user file overrides a seed with the same `style_id`. The legacy
 
 ```markdown
 ---
-schema_version: 1
+schema_version: 2
 style_id: canal-paula-reels
 name: "Canal Paula — Reels"
 aspect_ratio: "9:16"
@@ -35,6 +33,11 @@ min_silence_ms: 260
 layout_mode: cutout
 caption_preset: kinetic_highlight
 motion_engine: hyperframes
+platforms: [reels, tiktok, shorts]
+beatmap_defaults: {caption_safe_zone: true, linked_sfx: true}
+sound_design: {music_arc: three_act, ducking: true}
+hook_strategy: "Gancho visual em 2 s."
+intro_strategy: "Cutout + prova visual."
 export_targets: [mp4_youtube, resolve, premiere, kdenlive]
 palette: ["#f97316", "#111827"]
 fonts: [Inter]
