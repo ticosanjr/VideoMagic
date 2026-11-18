@@ -1,6 +1,6 @@
 # MCP server — agent profile
 
-VideoFlow 3.0.4+ exposes a **21-tool core MCP** plus four isolated domain servers:
+VideoFlow 3.0.4+ exposes a **28-tool core MCP** plus four isolated domain servers:
 
 ```text
 mcp-vf-core      13 tools   project, styles, jobs, timeline, render, exports, ingest
@@ -42,7 +42,7 @@ metadata, time map, and step checkpoints; `projects/{id}/state.json` mirrors it.
 parallel. Writes to the same project are serialized by a project lock and
 `vf_edit_timeline` supports `expected_revision` for conflict detection.
 
-## Core tools (21)
+## Core tools (28)
 
 ### Project, catalog, and execution
 
@@ -52,6 +52,8 @@ parallel. Writes to the same project are serialized by a project lock and
 | `vf_style_list` | List styles (explicit alias). |
 | `vf_style_save` | Save/update one style and sync `presets/`. |
 | `vf_style_learn_rule` | Append review rules, capped at 15. |
+| `vf_style_validate` | Validate presets, layouts, engines, and fonts. |
+| `vf_style_apply` | Compile style params, a beat-map draft, and a revision diff. |
 | `analyze_reference_style` | Analyze a reference and return a candidate without saving. |
 | `vf_project` | Init/open/status, list, clone, archive, delete, and revision undo/history/restore. |
 | `vf_capabilities` | Backends, models, GPU worker, and external policy. |
@@ -66,6 +68,8 @@ parallel. Writes to the same project are serialized by a project lock and
 | --- | --- |
 | `vf_job` | Get/wait/logs/QA for a project job. |
 | `vf_timeline` | Read, edit, or `apply_beatmap` the canonical timeline. |
+| `vf_beatmap_plan` | Generate a structured beat-map draft from transcript + style. |
+| `vf_overlay` | Insert an image/video overlay by source or timeline time. |
 | `vf_artifact` | List or read artifacts, including image content. |
 
 ### Delivery and operations
@@ -75,6 +79,9 @@ parallel. Writes to the same project are serialized by a project lock and
 | `vf_render` | Start/inspect/cancel a render job. |
 | `vf_export` | Canonical master render plus `resolve`, `premiere`, and `kdenlive`. |
 | `vf_crop_preview` | Frame with the normalized crop box and rule-of-thirds grid. |
+| `vf_shorts_batch` | Render multiple Shorts with per-clip style, crop, intro, and music. |
+| `vf_qa_final` | Audit the delivered MP4, loudness, safe zones, and contact sheet. |
+| `vf_font` | List, register, or install TTF/OTF fonts. |
 | `vf_exports` | `bundle`, `validate`, or `roundtrip` for every NLE. |
 | `vf_interaction` | List/read/answer HITL requests. |
 | `vf_ingest` | Session ingest or multicam synchronization. |

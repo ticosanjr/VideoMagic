@@ -590,3 +590,52 @@ def update_model(
         progress=progress,
         should_cancel=should_cancel,
     )
+
+
+_MODEL_SUFFIXES = {".bin", ".onnx", ".gguf", ".pt", ".pth", ".safetensors", ".ckpt"}
+
+
+def discover_model_files(*, limit: int = 200) -> list[dict[str, Any]]:
+    """Scan known model roots for ASR/TTS/vision weights without downloading."""
+
+    found: list[dict[str, Any]] = []
+    seen: set[Path] = set()
+    for root in model_search_dirs():
+        if not root.is_dir():
+            continue
+        for path in root.rglob("*"):
+            if len(found) >= limit:
+                return found
+            if not path.is_file() or path.suffix.casefold() not in _MODEL_SUFFIXES:
+                continue
+            resolved = path.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            try:
+                size = path.stat().st_size
+            except OSError:
+                size = 0
+            found.append(
+                {
+                    "name": path.name,
+                    "path": str(path),
+                    "root": str(root),
+                    "suffix": path.suffix.casefold(),
+                    "size_bytes": size,
+                }
+            )
+    return found
+
+
+def model_diagnostics() -> dict[str, Any]:
+    return {
+        "catalog": list_models(),
+        "installed_paths": [
+            {"id": item["id"], "path": str(item["path"])}
+            for item in list_models()
+            if item.get("installed")
+        ],
+        "detected_files": discover_model_files(),
+        "search_paths": [str(path) for path in model_search_dirs()],
+    }

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from videoflow.application.audio_analysis import detect_audio_energy
+from videoflow.application.analysis_cache import cached_audio_energy, cached_scene_changes
 from videoflow.application.retakes import cull_intervals
 from videoflow.application.scoring import profile_weights
 from videoflow.application.shorts import (
@@ -15,7 +15,7 @@ from videoflow.application.shorts import (
     select_shorts,
     short_dimensions,
 )
-from videoflow.application.video_analysis import detect_scene_changes, scene_intervals
+from videoflow.application.video_analysis import scene_intervals
 from videoflow.core.context import PipelineContext
 from videoflow.domain.config import ShortsConfig
 from videoflow.domain.errors import IngestError
@@ -79,7 +79,7 @@ class ShortsSelectStep(BaseStep):
             try:
                 scenes = tuple(
                     scene_intervals(
-                        detect_scene_changes(Path(context.source)),
+                        cached_scene_changes(Path(context.source)),
                         sample_rate=media.audio_sample_rate,
                     )
                 )
@@ -87,7 +87,7 @@ class ShortsSelectStep(BaseStep):
                 warnings.append(f"Scene analysis skipped: {exc.message}")
         if options.audio_energy_boost:
             try:
-                energy = tuple(detect_audio_energy(Path(context.source), media.audio_sample_rate))
+                energy = tuple(cached_audio_energy(Path(context.source), media.audio_sample_rate))
             except IngestError as exc:
                 warnings.append(f"Audio energy analysis skipped: {exc.message}")
 

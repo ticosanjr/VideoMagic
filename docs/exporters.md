@@ -55,8 +55,9 @@ Every exporter runs the same checks before writing:
    then replace).
 
 Long timelines render video in groups: contiguous crossfades are one bounded
-`xfade` group; hard cuts are currently one clip per group and are grouped into
-macro-blocks in the 3.1 performance pass. Audio is rendered from seeked
+`xfade` group; contiguous hard cuts sharing the same source and transform are
+packed into macro-blocks of up to 12 clips. Large filter graphs are written to
+`-filter_complex_script` to avoid the OS argument limit. Audio is rendered from seeked
 per-clip inputs, then muxed and finished. Outputs are written to a temporary
 file and replaced only on success.
 

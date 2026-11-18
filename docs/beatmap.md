@@ -60,6 +60,17 @@ atomically. A validation error leaves the timeline untouched.
   `vf_project(action="history" | "undo" | "restore")` operates on those
   revisions.
 
+## Planning and overlays
+
+`vf_beatmap_plan(project_id, style_id, instructions="")` writes a
+non-destructive `beat_map.json` draft from the transcript and style. It never
+applies cuts by itself.
+
+`vf_overlay(project_id, asset_path, at_source_sec=... | at_timeline_sec=...,
+duration_sec=..., x=..., y=..., scale=..., opacity=...)` inserts an image or
+video overlay, maps source time through the canonical time table, and supports
+alpha fades at the in/out edges.
+
 ## Transitions
 
 - `crossfade`

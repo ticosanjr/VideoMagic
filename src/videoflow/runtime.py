@@ -101,6 +101,7 @@ def model_search_dirs() -> list[Path]:
         (
             external_home() / "models",
             portable_home() / "models",
+            Path.home() / ".videoflow" / "models",
             bundle_root() / "models",
             executable_dir() / "models",
         )
@@ -111,6 +112,23 @@ def model_search_dirs() -> list[Path]:
         if candidate not in unique:
             unique.append(candidate)
     return unique
+
+
+def cache_root() -> Path:
+    """Cache root for masks, analysis, and render intermediates."""
+
+    raw = os.environ.get("VF_CACHE_DIR", "").strip()
+    if raw:
+        return Path(raw).expanduser()
+    try:
+        from videoflow.application.settings import load_settings
+
+        configured = load_settings().paths.cache_dir.strip()
+        if configured:
+            return Path(configured).expanduser()
+    except Exception:  # noqa: BLE001 - settings are optional during bootstrap
+        pass
+    return portable_home() / "cache"
 
 
 def ensure_home() -> Path:

@@ -15,6 +15,7 @@ import re
 import shutil
 import signal
 import subprocess
+import tempfile
 import threading
 import time
 from collections.abc import Callable, Sequence
@@ -758,6 +759,7 @@ class FFmpegAdapter:
                 piece = work / f"piece-{index:02d}.mp4"
                 duration = (end - start) / sample_rate
                 second = Path(second_source_path).expanduser() if second_source_path else None
+                mask_input: list[str] = []
                 if split_screen:
                     half = max(2, width // 2)
                     zoom = max(1.0, min(2.0, float(split_screen_zoom)))
@@ -828,7 +830,18 @@ class FFmpegAdapter:
                         f"scale={width}:{height}:force_original_aspect_ratio=increase,"
                         f"{crop},setsar=1"
                     )
+                    mask_input: list[str] = []
                     if cutout:
+                        from videoflow.application.masks import ensure_rounded_mask
+
+                        margin = max(0.0, min(0.3, cutout_margin))
+                        fg_w = max(2, int(width * (1 - margin * 2)))
+                        fg_h = max(2, int(height * 0.72))
+                        radius = max(
+                            0,
+                            min(fg_w, fg_h, int(fg_w * max(0.0, min(0.5, cutout_corner_radius)))),
+                        )
+                        mask_path = ensure_rounded_mask(fg_w, fg_h, radius)
                         graph = _cutout_graph(
                             base,
                             width,
@@ -836,7 +849,11 @@ class FFmpegAdapter:
                             corner_radius=cutout_corner_radius,
                             margin=cutout_margin,
                             head_overlap=cutout_head_overlap,
+                            mask_path=mask_path,
+                            mask_index=1,
                         )
+                        if mask_path is not None:
+                            mask_input = ["-loop", "1", "-i", str(mask_path)]
                         video_args = [
                             "-filter_complex",
                             graph,
@@ -846,6 +863,7 @@ class FFmpegAdapter:
                             "0:a?",
                         ]
                     else:
+                        mask_input = []
                         video_args = ["-vf", base]
                 self._capture(
                     [
@@ -872,6 +890,7 @@ class FFmpegAdapter:
                             if split_screen and second is not None
                             else []
                         ),
+                        *mask_input,
                         *video_args,
                         "-c:v",
                         "libx264",
@@ -1054,11 +1073,7 @@ class FFmpegAdapter:
             if ass_path is not None:
                 final = work / "final.mp4"
                 burn_path = Path(ass_path)
-                if (
-                    intro_path is not None
-                    and intro_duration_sec > 0
-                    and burn_path.is_file()
-                ):
+                if intro_path is not None and intro_duration_sec > 0 and burn_path.is_file():
                     from videoflow.application.captions import shift_ass_file
 
                     burn_path = shift_ass_file(
@@ -1321,58 +1336,93 @@ class FFmpegAdapter:
     def _capture(
         self, args: list[str], *, timeout: int = DEFAULT_TIMEOUT_SECONDS
     ) -> tuple[str, str]:
-        binary = find_binary(args[0])
-        if binary is None:
-            raise IngestError(f"{args[0]} is not available. Place it next to the executable.")
-        if self.cancel_event is not None and self.cancel_event.is_set():
-            raise JobCancelledError("Cancelled")
-        self._emit("debug", "$ " + " ".join([Path(binary).name, *args[1:]]))
-        process = subprocess.Popen(
-            [binary, *args[1:]],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            start_new_session=True,
-        )
-        deadline = time.monotonic() + max(1, timeout)
-        while True:
-            try:
-                stdout, stderr = process.communicate(timeout=0.15)
-                break
-            except subprocess.TimeoutExpired:
-                if self.cancel_event is not None and self.cancel_event.is_set():
-                    self._terminate(process)
-                    raise JobCancelledError("Cancelled") from None
-                if time.monotonic() >= deadline:
-                    self._terminate(process)
-                    raise IngestError(f"{args[0]} timed out after {timeout}s") from None
-        if process.returncode != 0:
-            tail = stderr.strip().splitlines()[-50:]
-            command = " ".join([Path(binary).name, *args[1:]])
-            if tail:
-                summary = " ".join(tail[-3:])
-                message = f"{args[0]} failed: {summary}"
-            elif process.returncode < 0:
-                signum = -process.returncode
-                try:
-                    name = signal.Signals(signum).name
-                except ValueError:
-                    name = f"signal {signum}"
-                message = (
-                    f"{args[0]} was killed by {name}; "
-                    "this usually means the render ran out of memory or was "
-                    "terminated by the system"
+        run_args, script_dir = _filter_script_args(args)
+        try:
+            binary = find_binary(run_args[0])
+            if binary is None:
+                raise IngestError(
+                    f"{run_args[0]} is not available. Place it next to the executable."
                 )
-            else:
-                message = f"{args[0]} failed with exit code {process.returncode}"
-            self._emit("error", "\n".join(tail) or message)
-            raise IngestError(
-                message,
-                command=command,
-                stderr=stderr,
-                returncode=process.returncode,
+            if self.cancel_event is not None and self.cancel_event.is_set():
+                raise JobCancelledError("Cancelled")
+            self._emit("debug", "$ " + " ".join([Path(binary).name, *run_args[1:]]))
+            process = subprocess.Popen(
+                [binary, *run_args[1:]],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                start_new_session=True,
             )
-        return stdout, stderr
+            deadline = time.monotonic() + max(1, timeout)
+            while True:
+                try:
+                    stdout, stderr = process.communicate(timeout=0.15)
+                    break
+                except subprocess.TimeoutExpired:
+                    if self.cancel_event is not None and self.cancel_event.is_set():
+                        self._terminate(process)
+                        raise JobCancelledError("Cancelled") from None
+                    if time.monotonic() >= deadline:
+                        self._terminate(process)
+                        raise IngestError(f"{run_args[0]} timed out after {timeout}s") from None
+            if process.returncode != 0:
+                tail = stderr.strip().splitlines()[-50:]
+                command = " ".join([Path(binary).name, *run_args[1:]])
+                if tail:
+                    summary = " ".join(tail[-3:])
+                    message = f"{run_args[0]} failed: {summary}"
+                elif process.returncode < 0:
+                    signum = -process.returncode
+                    try:
+                        name = signal.Signals(signum).name
+                    except ValueError:
+                        name = f"signal {signum}"
+                    message = (
+                        f"{run_args[0]} was killed by {name}; "
+                        "this usually means the render ran out of memory or was "
+                        "terminated by the system"
+                    )
+                else:
+                    message = f"{run_args[0]} failed with exit code {process.returncode}"
+                self._emit("error", "\n".join(tail) or message)
+                raise IngestError(
+                    message,
+                    command=command,
+                    stderr=stderr,
+                    returncode=process.returncode,
+                )
+            return stdout, stderr
+        finally:
+            if script_dir is not None:
+                shutil.rmtree(script_dir, ignore_errors=True)
+
+
+def _filter_script_args(args: list[str]) -> tuple[list[str], Path | None]:
+    """Move a large filter graph to ``-filter_complex_script``.
+
+    Linux ``ARG_MAX`` is easy to exceed with a thousand-clip graph. Keeping the
+    graph in a temporary file also makes FFmpeg error messages readable.
+    """
+
+    try:
+        index = args.index("-filter_complex")
+    except ValueError:
+        return args, None
+    if index + 1 >= len(args):
+        return args, None
+    graph = args[index + 1]
+    if len(graph) <= 4096:
+        return args, None
+    directory = Path(tempfile.mkdtemp(prefix="vf-filter-"))
+    path = directory / "graph.txt"
+    path.write_text(graph, encoding="utf-8")
+    updated = [
+        *args[:index],
+        "-filter_complex_script",
+        str(path),
+        *args[index + 2 :],
+    ]
+    return updated, directory
 
 
 def _cutout_graph(
@@ -1383,6 +1433,8 @@ def _cutout_graph(
     corner_radius: float,
     margin: float,
     head_overlap: float,
+    mask_path: Path | None = None,
+    mask_index: int = 1,
 ) -> str:
     """Build a blurred-background presenter window with rounded corners."""
 
@@ -1391,17 +1443,28 @@ def _cutout_graph(
     fg_w = max(2, int(width * (1 - margin * 2)))
     fg_h = max(2, int(height * 0.72))
     radius = max(0, min(fg_w, fg_h, int(fg_w * max(0.0, min(0.5, corner_radius)))))
-    alpha = (
-        "if(lte(hypot(max(0,abs(X-(W-1)/2)-((W-1)/2-"
-        f"{radius})),max(0,abs(Y-(H-1)/2)-((H-1)/2-{radius}))),{radius}),255,0)"
-    )
     offset = max(0.0, min(1.0, head_overlap)) * 0.15
+    if mask_path is not None:
+        foreground = (
+            f"[fg0]scale={fg_w}:{fg_h}:force_original_aspect_ratio=increase,"
+            f"crop={fg_w}:{fg_h},format=rgba[fgraw];"
+            f"[{mask_index}:v]format=gray,loop=loop=-1:size=1:start=0[mask];"
+            "[fgraw][mask]alphamerge[fg];"
+        )
+    else:
+        alpha = (
+            "if(lte(hypot(max(0,abs(X-(W-1)/2)-((W-1)/2-"
+            f"{radius})),max(0,abs(Y-(H-1)/2)-((H-1)/2-{radius}))),{radius}),255,0)"
+        )
+        foreground = (
+            f"[fg0]scale={fg_w}:{fg_h}:force_original_aspect_ratio=increase,"
+            f"crop={fg_w}:{fg_h},format=rgba,"
+            f"geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='{alpha}'[fg];"
+        )
     return (
         f"{base},split=2[bg0][fg0];"
         "[bg0]boxblur=24:8,eq=brightness=-0.18[bg];"
-        f"[fg0]scale={fg_w}:{fg_h}:force_original_aspect_ratio=increase,"
-        f"crop={fg_w}:{fg_h},format=rgba,"
-        f"geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='{alpha}'[fg];"
+        f"{foreground}"
         f"[bg][fg]overlay=(W-w)/2:(H-h)/2-(H*{offset:.4f}):shortest=1[vout]"
     )
 

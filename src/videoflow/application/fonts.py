@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import re
+import shutil
 import struct
+import subprocess
 from pathlib import Path
 
 from videoflow.domain.errors import AssetNotFoundError, FilesystemError
@@ -122,3 +124,37 @@ def delete_fonts(name: str) -> None:
     if target.parent != fonts_dir() or not target.is_file():
         raise AssetNotFoundError(f"Unknown fonts asset: {name}")
     target.unlink()
+
+
+def font_available(family: str) -> bool:
+    """Check a registered font or the system fontconfig catalog."""
+
+    name = str(family or "").strip()
+    if not name:
+        return True
+    for item in list_fonts():
+        if str(item.get("family") or "").casefold() == name.casefold():
+            return True
+    binary = shutil.which("fc-match")
+    if binary is None:
+        return False
+    try:
+        completed = subprocess.run(
+            [binary, "-f", "%{family}", name],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return completed.returncode == 0 and name.casefold() in (completed.stdout or "").casefold()
+
+
+def register_font(path: Path, *, name: str = "") -> dict[str, object]:
+    """Copy a TTF/OTF into the managed font store and return its record."""
+
+    source = Path(path).expanduser()
+    if not source.is_file():
+        raise FilesystemError(f"Font does not exist: {source}")
+    return save_font(name or source.name, source.read_bytes())

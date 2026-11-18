@@ -42,7 +42,7 @@ def test_select_handles_failed_analysis_and_best_effort_threshold(
         virality_score=12.0,
     )
 
-    monkeypatch.setattr(shorts_select, "detect_scene_changes", lambda *args: [])
+    monkeypatch.setattr(shorts_select, "cached_scene_changes", lambda *args: [])
     monkeypatch.setattr(
         shorts_select,
         "scene_intervals",
@@ -50,7 +50,7 @@ def test_select_handles_failed_analysis_and_best_effort_threshold(
     )
     monkeypatch.setattr(
         shorts_select,
-        "detect_audio_energy",
+        "cached_audio_energy",
         lambda *args: (_ for _ in ()).throw(IngestError("energy failed")),
     )
     monkeypatch.setattr(shorts_select, "select_shorts", lambda *args, **kwargs: [clip])

@@ -45,6 +45,41 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "styles",
     ),
     ToolSpec(
+        "vf_style_validate",
+        "Validate caption presets, layouts, motion engines, and fonts in a style.",
+        "styles",
+    ),
+    ToolSpec(
+        "vf_style_apply",
+        "Compile a style into pipeline parameters, a beat-map draft, and a diff.",
+        "styles",
+    ),
+    ToolSpec(
+        "vf_beatmap_plan",
+        "Build a structured beat-map draft from the transcript and a style.",
+        "timeline",
+    ),
+    ToolSpec(
+        "vf_overlay",
+        "Insert an image or video overlay by source or timeline time.",
+        "timeline",
+    ),
+    ToolSpec(
+        "vf_shorts_batch",
+        "Render multiple Shorts with per-clip style, crop, intro, and music.",
+        "shorts",
+    ),
+    ToolSpec(
+        "vf_qa_final",
+        "Audit the deliverable MP4, safe zones, loudness, and contact sheet.",
+        "qa",
+    ),
+    ToolSpec(
+        "vf_font",
+        "List, register, or install TTF/OTF fonts.",
+        "assets",
+    ),
+    ToolSpec(
         "vf_project",
         "Create/open/status a project, clone a channel style, or learn a rule.",
         "project",

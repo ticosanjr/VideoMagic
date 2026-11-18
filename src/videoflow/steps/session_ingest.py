@@ -11,6 +11,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.media_pool import pool_file
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import IngestError
 from videoflow.domain.paths import resolve_allowed
@@ -168,23 +169,29 @@ class SessionIngestStep(BaseStep):
             material = path
             if options.normalize or mismatch:
                 io.report(10 + int(index / max(1, len(paths)) * 55), f"Normalizing clip {index}")
-                material = adapter.normalize_session_source(
-                    path,
-                    session_dir / f"src{index:03d}.mp4",
-                    width=target_width,
-                    height=target_height,
-                    fps_num=fps_num,
-                    fps_den=fps_den,
-                    sample_rate=target_rate,
+                material = pool_file(
+                    adapter.normalize_session_source(
+                        path,
+                        session_dir / f"src{index:03d}.mp4",
+                        width=target_width,
+                        height=target_height,
+                        fps_num=fps_num,
+                        fps_den=fps_den,
+                        sample_rate=target_rate,
+                    ),
+                    kind="proxy",
                 )
                 info = adapter.probe(material)
             source_id = f"src{index:03d}"
             sources[source_id] = info
             if options.extract_audio:
-                pcm = adapter.extract_pcm(
-                    material,
-                    session_dir / f"src{index:03d}.wav",
-                    sample_rate=16000,
+                pcm = pool_file(
+                    adapter.extract_pcm(
+                        material,
+                        session_dir / f"src{index:03d}.wav",
+                        sample_rate=16000,
+                    ),
+                    kind="pcm16",
                 )
                 pcm_files.append(pcm)
             manifest_clips.append(
@@ -256,7 +263,10 @@ class SessionIngestStep(BaseStep):
         context.source = Path(sources[state.primary_source_id].source_path)
         session_audio = None
         if pcm_files:
-            session_audio = _concat_pcm(pcm_files, session_dir / "session_audio.wav")
+            session_audio = pool_file(
+                _concat_pcm(pcm_files, session_dir / "session_audio.wav"),
+                kind="session-pcm",
+            )
             context.pcm_path = session_audio
             context.pcm_digest = _sha256(session_audio)
         manifest = {

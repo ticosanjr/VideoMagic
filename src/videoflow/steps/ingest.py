@@ -6,6 +6,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.media_pool import pool_file
 from videoflow.application.sync import detect_drift_ms
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import MediaNotFoundError
@@ -83,10 +84,13 @@ class IngestStep(BaseStep):
             context.metadata["proxy"] = str(proxy)
         if options.extract_pcm:
             io.report(55, "Extracting analysis audio")
-            wav = adapter.extract_pcm(
-                context.source,
-                context.work / "source.wav",
-                sample_rate=media.audio_sample_rate,
+            wav = pool_file(
+                adapter.extract_pcm(
+                    context.source,
+                    context.work / "source.wav",
+                    sample_rate=media.audio_sample_rate,
+                ),
+                kind="pcm",
             )
             context.pcm_path = Path(wav)
             context.pcm_digest = adapter.pcm_digest(wav)

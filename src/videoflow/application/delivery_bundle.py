@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from videoflow.application.asset_providers import license_blockers
+from videoflow.application.disk import ensure_free_space, prune_render_segments
 from videoflow.application.export_service import (
     ALL_TARGETS,
     resolve_targets,
@@ -219,6 +220,7 @@ def build_delivery_bundle(
 
     options = request or DeliveryBundleRequest()
     output = Path(output).expanduser()
+    ensure_free_space(output)
     exports = output / "exports"
     exports.mkdir(parents=True, exist_ok=True)
 
@@ -361,6 +363,8 @@ def build_delivery_bundle(
     manifest_path = exports / BUNDLE_FILENAME
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     manifest["manifest"] = str(manifest_path)
+    if manifest.get("ok"):
+        manifest["pruned"] = [str(path) for path in prune_render_segments(output)]
     return manifest
 
 

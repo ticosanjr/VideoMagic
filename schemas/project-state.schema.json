@@ -950,6 +950,23 @@
           "title": "Transformative Crop",
           "type": "boolean"
         },
+        "transition_frames": {
+          "default": 6,
+          "maximum": 120,
+          "minimum": 0,
+          "title": "Transition Frames",
+          "type": "integer"
+        },
+        "transition_in": {
+          "default": "",
+          "title": "Transition In",
+          "type": "string"
+        },
+        "transition_out": {
+          "default": "",
+          "title": "Transition Out",
+          "type": "string"
+        },
         "width_ratio": {
           "default": 0.25,
           "exclusiveMinimum": 0.0,

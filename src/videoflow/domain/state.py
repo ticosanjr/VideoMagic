@@ -214,6 +214,9 @@ class OverlayClip(StrictModel):
     layout: str = "fullscreen"
     ken_burns: bool = False
     transformative_crop: bool = False
+    transition_in: str = ""
+    transition_out: str = ""
+    transition_frames: int = Field(default=6, ge=0, le=120)
 
 
 class MulticamCut(StrictModel):

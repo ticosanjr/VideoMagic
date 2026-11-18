@@ -68,7 +68,7 @@ def test_unchanged_groups_are_reused(tmp_path: Path) -> None:
     destination = tmp_path / "out.mp4"
 
     export_mp4(payload, destination, adapter=first_adapter)
-    assert len(group_commands(first_adapter.commands)) == 20
+    assert len(group_commands(first_adapter.commands)) == 2
     assert (tmp_path / "segments").is_dir()
 
     second_adapter = RecordingAdapter()
@@ -90,7 +90,7 @@ def test_scale_changes_invalidate_the_group_cache(tmp_path: Path) -> None:
         scale_height=240,
     )
 
-    assert len(group_commands(scaled_adapter.commands)) == 20
+    assert len(group_commands(scaled_adapter.commands)) == 2
     graphs = [
         command[command.index("-filter_complex") + 1]
         for command in group_commands(scaled_adapter.commands)

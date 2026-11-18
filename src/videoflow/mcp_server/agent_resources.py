@@ -242,6 +242,29 @@ def register_agent_resources(mcp: Any, ctx: Any, *, prompts: bool = True) -> Non
             step = get_step(step_type)
         except VideoFlowError as exc:
             return _error(exc.code, exc.message)
+        schema = step.params_model.model_json_schema()
+        properties = schema.get("properties") or {}
+        defaults = {
+            key: value["default"]
+            for key, value in properties.items()
+            if isinstance(value, dict) and "default" in value
+        }
+        example = dict(defaults)
+        for key in schema.get("required") or []:
+            if key not in example:
+                value = properties.get(key) or {}
+                kind = value.get("type")
+                example[key] = (
+                    ""
+                    if kind == "string"
+                    else 0
+                    if kind in {"integer", "number"}
+                    else False
+                    if kind == "boolean"
+                    else []
+                    if kind == "array"
+                    else {}
+                )
         return json.dumps(
             {
                 "type": step.type,
@@ -250,7 +273,9 @@ def register_agent_resources(mcp: Any, ctx: Any, *, prompts: bool = True) -> Non
                 "status": step.status,
                 "requires": list(step.requires),
                 "produces": list(step.produces),
-                "schema": step.params_model.model_json_schema(),
+                "schema": schema,
+                "defaults": defaults,
+                "example": example,
             },
             indent=2,
         )

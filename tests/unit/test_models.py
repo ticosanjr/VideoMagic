@@ -9,6 +9,7 @@ from videoflow.application import models
 
 def test_catalog_lists_both_optional_models(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
+    monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("VIDEOWFLOW_MODELS_DIR", str(tmp_path / "models"))
     listed = models.list_models()
     assert {

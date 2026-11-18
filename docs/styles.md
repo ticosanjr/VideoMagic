@@ -19,6 +19,16 @@ Built-in seeds ship inside the package at `src/videoflow/styles/`:
 A user file overrides a seed with the same `style_id`. The legacy
 `~/.videoflow/channels/*.json` rulebook is read only as a migration fallback.
 
+## Compiler
+
+`vf_style_validate(style_id)` checks every referenced caption preset, layout
+mode, motion engine, and font. Unknown presets no longer fall back silently.
+
+`vf_style_apply(project_id, style_id)` compiles the Markdown metadata into
+timeline, audio, caption, layout, and motion parameters, writes a
+non-destructive `beat_map.json` draft, and returns a revision diff without
+rewriting the timeline.
+
 ## Format
 
 ```markdown

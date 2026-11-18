@@ -313,6 +313,169 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         )
 
     @register
+    def vf_style_validate(style_id: str) -> dict[str, Any]:
+        """Validate one style without mutating its project."""
+
+        from videoflow.application.style_catalog import StyleCatalog
+        from videoflow.application.style_compiler import validate_style
+
+        try:
+            style = StyleCatalog().get(style_id)
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {"ok": True, "style_id": style_id, "validation": validate_style(style)}
+
+    @register
+    def vf_style_apply(
+        project_id: str,
+        style_id: str,
+        generate_beatmap: bool = True,
+    ) -> dict[str, Any]:
+        """Compile a style into parameters and a non-destructive beat-map draft."""
+
+        from videoflow.application.style_compiler import apply_style
+
+        try:
+            return apply_style(
+                project_id,
+                style_id,
+                generate_beatmap=generate_beatmap,
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except ValueError as exc:
+            return error("style_validation_failed", str(exc))
+
+    @register
+    def vf_beatmap_plan(
+        project_id: str,
+        style_id: str = "",
+        instructions: str = "",
+    ) -> dict[str, Any]:
+        """Build a beat-map draft from the transcript and one style."""
+
+        from videoflow.application.beatmap_plan import build_beatmap_plan, write_beatmap_plan
+        from videoflow.application.style_catalog import StyleCatalog
+        from videoflow.domain.styles import StyleDefinition
+
+        try:
+            record = get_project(project_id)
+            state = load_project_state(record)
+            identifier = style_id or record.style_id or state.style_id
+            style = (
+                StyleCatalog().get(identifier)
+                if identifier
+                else StyleDefinition(style_id="default", name="Default")
+            )
+            plan = build_beatmap_plan(state, style, instructions=instructions)
+            path = write_beatmap_plan(Path(record.output), plan)
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except ValueError as exc:
+            return error("beatmap_plan_failed", str(exc))
+        return {"ok": True, "project_id": project_id, "path": str(path), "plan": plan}
+
+    @register
+    def vf_overlay(
+        project_id: str,
+        asset_path: str,
+        at_source_sec: float | None = None,
+        at_timeline_sec: float | None = None,
+        duration_sec: float = 3.0,
+        x: float = 0.5,
+        y: float = 0.5,
+        scale: float = 0.25,
+        opacity: float = 1.0,
+        transition_in: str = "fade",
+        transition_out: str = "fade",
+    ) -> dict[str, Any]:
+        """Insert an image/video overlay at source or timeline time."""
+
+        from videoflow.application.overlays import add_overlay
+
+        try:
+            return add_overlay(
+                project_id,
+                asset_path,
+                at_source_sec=at_source_sec,
+                at_timeline_sec=at_timeline_sec,
+                duration_sec=duration_sec,
+                x=x,
+                y=y,
+                scale=scale,
+                opacity=opacity,
+                transition_in=transition_in,
+                transition_out=transition_out,
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except ValueError as exc:
+            return error("overlay_failed", str(exc))
+
+    @register
+    def vf_shorts_batch(
+        project_id: str,
+        clips: list[dict[str, Any]],
+        wait: bool = True,
+    ) -> dict[str, Any]:
+        """Render several Shorts in one batch with per-clip settings."""
+
+        from videoflow.application.shorts_batch import run_shorts_batch
+
+        try:
+            result = run_shorts_batch(project_id, clips)
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except ValueError as exc:
+            return error("shorts_batch_failed", str(exc))
+        result["wait"] = wait
+        return result
+
+    @register
+    def vf_qa_final(
+        project_id: str,
+        video_path: str = "",
+    ) -> dict[str, Any]:
+        """Audit the deliverable MP4 and write a contact sheet."""
+
+        from videoflow.application.qa_final import audit_final
+
+        try:
+            record = get_project(project_id)
+            state = load_project_state(record)
+            default = Path(record.output) / "exports" / "youtube_master.mp4"
+            fallback = Path(record.output) / "exports" / "final_youtube.mp4"
+            video = Path(video_path).expanduser() if video_path else (
+                default if default.is_file() else fallback
+            )
+            report = audit_final(video, output=Path(record.output), state=state)
+        except (VideoFlowError, OSError) as exc:
+            return error("qa_final_failed", str(exc))
+        return {"ok": bool(report.get("ok")), "report": report}
+
+    @register
+    def vf_font(
+        action: str = "list",
+        font_path: str = "",
+        name: str = "",
+    ) -> dict[str, Any]:
+        """List, register, or install fonts in the managed font store."""
+
+        from videoflow.application.fonts import list_fonts, register_font
+
+        if action == "list":
+            return {"ok": True, "fonts": list_fonts()}
+        if action not in {"register", "install"}:
+            return error("unknown_action", "vf_font supports list, register, or install")
+        if not font_path:
+            return error("font_required", "font_path is required")
+        try:
+            record = register_font(Path(font_path), name=name)
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        return {"ok": True, "action": action, "font": record}
+
+    @register
     def vf_project(
         action: str = "status",
         project_id: str = "",
@@ -494,7 +657,11 @@ def register_core_tools(register: Any, ctx: Any) -> None:
     def vf_capabilities(allow_external_services: bool = False) -> dict[str, Any]:
         """Backends, models, and external-provider policy."""
 
-        return legacy["vf_capabilities"](allow_external_services=allow_external_services)
+        payload = legacy["vf_capabilities"](allow_external_services=allow_external_services)
+        from videoflow.application.models import model_diagnostics
+
+        payload["models"] = model_diagnostics()
+        return payload
 
     @register
     def vf_catalog_search(

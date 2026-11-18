@@ -58,5 +58,9 @@ Every asset is content-addressed and has a `.meta.json` sidecar:
   tools-only context: transcript, selected Shorts, captions, analysis spans,
   artifacts, metadata, `time_map`, and step checkpoints. `state.json` mirrors
   the same document.
+- Extracted PCM and normalized proxies are hardlinked into
+  `{VF_WORKSPACE_ROOT}/_pool/{sha256}/` when the filesystem supports it.
+- `VF_CACHE_DIR` (or `paths.cache_dir`) holds analysis, rounded masks, and
+  throwaway render caches; validated deliveries prune segment caches.
 
 Domain servers use only `vf_contracts` and never import the core package.

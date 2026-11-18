@@ -12,6 +12,7 @@ from typing import Any
 from uuid import uuid4
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application.disk import ensure_free_space
 from videoflow.application.fonts import fonts_dir
 from videoflow.application.media_integrity import validate_duration
 from videoflow.domain.errors import ExportError
@@ -367,15 +368,40 @@ def export_timeline_audio(
     return destination
 
 
-def _video_groups(video: Sequence[VideoSegment]) -> list[list[int]]:
+def _video_groups(
+    video: Sequence[VideoSegment],
+    *,
+    max_block: int = 12,
+) -> list[list[int]]:
+    """Group xfades separately and pack contiguous hard cuts into macro-blocks."""
+
+    if not video:
+        return []
     groups: list[list[int]] = [[0]]
     for index in range(1, len(video)):
-        transition = video[index - 1].transition_out
+        previous = video[index - 1]
+        current = video[index]
+        transition = previous.transition_out
+        group = groups[-1]
+        has_xfade = any(_is_xfade(video[item].transition_out) for item in group[:-1])
+        same_source = (previous.source_id or "") == (current.source_id or "")
+        same_transform = previous.transform == current.transform
         if _is_xfade(transition):
-            groups[-1].append(index)
+            if has_xfade:
+                group.append(index)
+                continue
+            pair = [previous_index for previous_index in group if previous_index == index - 1]
+            if not pair:
+                pair = [index - 1]
+            if group and group[-1] == index - 1:
+                group.pop()
+            groups.append([*pair, index])
+            continue
+        if not has_xfade and same_source and same_transform and len(group) < max_block:
+            group.append(index)
         else:
             groups.append([index])
-    return groups
+    return [group for group in groups if group]
 
 
 def _concat_line(path: Path) -> str:
@@ -506,20 +532,26 @@ def _render_video_group(
 
     label = "[c0]"
     if len(group) > 1:
-        cumulative = durations[0]
-        for offset_index in range(1, len(group)):
-            transition = video[group[offset_index - 1]].transition_out
-            if not _is_xfade(transition):
-                raise ExportError("Transition group has a non-xfade transition")
-            seconds = transition.duration_frames / fps
-            offset = max(0.0, cumulative - seconds)
-            effect = XFADE_TRANSITIONS.get(transition.type, "fade") if transition else "fade"
-            chains.append(
-                f"{label}[c{offset_index}]xfade=transition={effect}:"
-                f"duration={seconds:.6f}:offset={offset:.6f}[x{offset_index}]"
-            )
-            label = f"[x{offset_index}]"
-            cumulative += durations[offset_index] - seconds
+        transitions = [video[group[offset - 1]].transition_out for offset in range(1, len(group))]
+        if any(_is_xfade(item) for item in transitions):
+            cumulative = durations[0]
+            for offset_index in range(1, len(group)):
+                transition = video[group[offset_index - 1]].transition_out
+                if not _is_xfade(transition):
+                    raise ExportError("Transition group has a non-xfade transition")
+                seconds = transition.duration_frames / fps
+                offset = max(0.0, cumulative - seconds)
+                effect = XFADE_TRANSITIONS.get(transition.type, "fade") if transition else "fade"
+                chains.append(
+                    f"{label}[c{offset_index}]xfade=transition={effect}:"
+                    f"duration={seconds:.6f}:offset={offset:.6f}[x{offset_index}]"
+                )
+                label = f"[x{offset_index}]"
+                cumulative += durations[offset_index] - seconds
+        else:
+            chain_inputs = "".join(f"[c{index}]" for index in range(len(group)))
+            chains.append(f"{chain_inputs}concat=n={len(group)}:v=1:a=0[vgroup]")
+            label = "[vgroup]"
 
     if scale_height is not None:
         height = max(64, min(2160, int(scale_height)))
@@ -830,6 +862,7 @@ def export_mp4(
     if media is None:
         raise ExportError("Project has no media")
     destination = Path(output_path).expanduser()
+    ensure_free_space(destination.parent)
     if (
         len(state.video_segments) > SEGMENT_THRESHOLD
         or _has_crossfade(state)
@@ -977,8 +1010,19 @@ def _render_classic_mp4(
                 "zoompan=z='min(zoom+0.0004,1.08)':d=1:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
             )
         overlay_filters.extend(
-            ["format=rgba", f"colorchannelmixer=aa={overlay.opacity:.3f}", "setpts=PTS-STARTPTS"]
+            ["format=rgba", f"colorchannelmixer=aa={overlay.opacity:.3f}"]
         )
+        fade_seconds = max(0.0, overlay.transition_frames / fps)
+        if fade_seconds > 0 and overlay.transition_in in {"fade", "crossfade"}:
+            overlay_filters.append(
+                f"fade=t=in:st=0:d={min(fade_seconds, duration):.6f}:alpha=1"
+            )
+        if fade_seconds > 0 and overlay.transition_out in {"fade", "crossfade"}:
+            overlay_filters.append(
+                f"fade=t=out:st={max(0.0, duration - fade_seconds):.6f}:"
+                f"d={min(fade_seconds, duration):.6f}:alpha=1"
+            )
+        overlay_filters.append("setpts=PTS-STARTPTS")
         overlay_chains.append(f"[{input_index}:v]{','.join(overlay_filters)}[ov{index}]")
         start = overlay.start_frame / fps
         end = start + duration

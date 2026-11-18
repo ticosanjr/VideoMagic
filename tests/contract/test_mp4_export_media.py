@@ -107,7 +107,7 @@ def test_long_hard_cut_timeline_exports_without_a_giant_graph(tmp_path: Path) ->
     for command in adapter.commands:
         if "-filter_complex" in command:
             graph = command[command.index("-filter_complex") + 1]
-            assert graph.count("trim=start_frame") <= 1
+            assert graph.count("trim=start_frame") <= 12
     rendered = FFmpegAdapter().probe(result)
     assert abs(rendered.duration_frames - 120) <= 2
     assert rendered.audio_sample_rate == 48000
