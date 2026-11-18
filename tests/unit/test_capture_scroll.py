@@ -17,7 +17,12 @@ def test_cdp_scroll_capture_drives_chromium(monkeypatch) -> None:
             method = message.get("method")
             if method == "Runtime.evaluate":
                 expression = str((message.get("params") or {}).get("expression", ""))
-                value = "complete" if "readyState" in expression else True
+                if "getBoundingClientRect" in expression:
+                    value = {"x": 1, "y": 2, "width": 10, "height": 20}
+                elif "readyState" in expression:
+                    value = "complete"
+                else:
+                    value = True
                 return json.dumps({"id": message["id"], "result": {"result": {"value": value}}})
             if method == "Page.captureScreenshot":
                 return json.dumps(
@@ -74,6 +79,7 @@ def test_cdp_scroll_capture_drives_chromium(monkeypatch) -> None:
         height=360,
         selector="#target",
         scroll_animation="bottom",
+        clip_selector="#target",
     ) as capture:
         assert capture(0.5) == b"PNG"
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.0.4] - 2026-11-18
+
+### Added
+
+- CSS-selector element capture for `capture_web_or_screen`: the screenshot or
+  clip is clipped to the selected DOM element via Chromium CDP.
+
+### Changed
+
+- Scroll capture and element capture share one CDP session.
+
 ## [3.0.3] - 2026-11-18
 
 ### Added

@@ -918,6 +918,7 @@ def _cdp_scroll_capture(
     height: int,
     selector: str = "",
     scroll_animation: str = "",
+    clip_selector: str = "",
 ):
     """Drive Chromium through CDP so URL captures can actually scroll."""
 
@@ -1020,6 +1021,24 @@ def _cdp_scroll_capture(
                 break
             time.sleep(0.1)
 
+        def clip_rect() -> dict[str, float] | None:
+            if not clip_selector:
+                return None
+            expression = (
+                "(() => { const e = document.querySelector("
+                + json.dumps(clip_selector)
+                + "); if (!e) return null;"
+                " const r = e.getBoundingClientRect();"
+                " return {x: r.x + window.scrollX, y: r.y + window.scrollY,"
+                " width: r.width, height: r.height}; })()"
+            )
+            result = command(
+                "Runtime.evaluate",
+                {"expression": expression, "returnByValue": True},
+            )
+            value = (result.get("result") or {}).get("value")
+            return value if isinstance(value, dict) else None
+
         def capture(progress: float) -> bytes:
             ratio = max(0.0, min(1.0, float(progress)))
             if selector:
@@ -1035,10 +1054,17 @@ def _cdp_scroll_capture(
                 )
             command("Runtime.evaluate", {"expression": script})
             time.sleep(0.05)
-            result = command(
-                "Page.captureScreenshot",
-                {"format": "png", "fromSurface": True},
-            )
+            params: dict[str, Any] = {"format": "png", "fromSurface": True}
+            rect = clip_rect()
+            if rect and rect.get("width") and rect.get("height"):
+                params["clip"] = {
+                    "x": max(0.0, float(rect["x"])),
+                    "y": max(0.0, float(rect["y"])),
+                    "width": float(rect["width"]),
+                    "height": float(rect["height"]),
+                    "scale": 1,
+                }
+            result = command("Page.captureScreenshot", params)
             return base64.b64decode(result.get("data", ""))
 
         yield capture
@@ -1214,13 +1240,15 @@ def capture_web_or_screen(
             raw.unlink(missing_ok=True)
     elif selected == "screenshot":
         raw = target.with_name(f".{target.stem}.raw.png")
-        if scroll_animation:
+        css_crop = crop_selector if _is_css_selector(crop_selector) else ""
+        if scroll_animation or css_crop:
             with _cdp_scroll_capture(
                 url_or_target,
                 width=viewport_width,
                 height=viewport_height,
-                selector=crop_selector,
+                selector=crop_selector if scroll_animation else "",
                 scroll_animation=scroll_animation,
+                clip_selector=css_crop,
             ) as capture:
                 raw.write_bytes(capture(1.0))
             _require_output(raw)
@@ -1287,7 +1315,8 @@ def capture_web_or_screen(
             raw.unlink(missing_ok=True)
     else:
         total = max(1, round(duration * fps))
-        if scroll_animation:
+        css_crop = crop_selector if _is_css_selector(crop_selector) else ""
+        if scroll_animation or css_crop:
             with tempfile.TemporaryDirectory(prefix="vf-capture-") as raw_dir:
                 frames = Path(raw_dir) / "frames"
                 frames.mkdir(parents=True)
@@ -1295,8 +1324,9 @@ def capture_web_or_screen(
                     url_or_target,
                     width=viewport_width,
                     height=viewport_height,
-                    selector=crop_selector,
+                    selector=crop_selector if scroll_animation else "",
                     scroll_animation=scroll_animation,
+                    clip_selector=css_crop,
                 ) as capture:
                     for index in range(total):
                         progress = index / max(1, total - 1)
@@ -1386,6 +1416,15 @@ def capture_web_or_screen(
         },
     )
     return _payload(tool, project_id, record, mode="local")
+
+
+def _is_css_selector(value: str) -> bool:
+    raw = str(value or "").strip()
+    if not raw:
+        return False
+    if raw.startswith(("#", ".", "[", "*", ":")):
+        return True
+    return bool(re.search(r"[>\s]", raw)) or bool(re.search(r"[A-Za-z]", raw))
 
 
 def _crop_filter(selector: str, width: int, height: int) -> str:
