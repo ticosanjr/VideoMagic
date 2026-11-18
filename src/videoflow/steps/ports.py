@@ -356,6 +356,14 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         (PortSpec("artifacts", "Short files", "artifact_map", "artifacts", True),),
         (PortSpec("artifacts", "Delivery package", "artifact_map", "artifacts"),),
     ),
+    "qa.caption_effect": (
+        (PortSpec("artifacts", "Caption artifacts", "artifact_map", "artifacts", True),),
+        (PortSpec("artifacts", "Caption QA report", "artifact_map", "artifacts"),),
+    ),
+    "qa.overlay_bounds": (
+        (PortSpec("timeline", "Timeline state", "timeline", "state", True),),
+        (PortSpec("artifacts", "Overlay bounds report", "artifact_map", "artifacts"),),
+    ),
     "qa.final": (
         (PortSpec("timeline", "Timeline state", "timeline", "state", True),),
         (PortSpec("artifacts", "QA report", "artifact_map", "artifacts"),),

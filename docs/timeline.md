@@ -215,14 +215,18 @@ onto the canvas and the panel posts:
   "path": "/media/logo.png",
   "start_sec": 4.2,
   "duration_sec": 3,
-  "position_x": 0.5,
-  "position_y": 0.5,
+  "anchor": "top_center",
+  "margin_x": 0,
+  "margin_y": 0,
   "width_ratio": 0.25,
+  "z": 30,
   "opacity": 1.0,
   "kind": "image"
 }
 ```
 
+Every MP4 render writes `layout.json` beside the deliverable with the exact
+overlay and caption rectangles, z-order, and collision report.
 `POST /api/v1/jobs/{id}/timeline/overlays` stores an `OverlayClip` in
 `ProjectState.overlays` with frame-based timing and records one undo entry;
 `DELETE .../overlays/{id}` removes it. The MP4 exporter adds each overlay as an

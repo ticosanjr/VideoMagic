@@ -61,6 +61,7 @@ class CaptionLine:
     text: str
     words: tuple[tuple[float, float, str], ...] = ()
     speaker: int = 0
+    effect_fallback: bool = False
 
 
 def build_ass(
@@ -147,6 +148,7 @@ def caption_lines(
     *,
     sample_rate: int,
     word_timing: str = "word",
+    effect: str = "static",
     max_words: int = 6,
     warnings: list[str] | None = None,
 ) -> list[CaptionLine]:
@@ -170,9 +172,11 @@ def caption_lines(
                 for word in sentence.words
                 if word.end_sample > piece_start and word.start_sample < piece_end
             ]
+            requires_words = effect != "static"
+            fallback = False
             if word_timing == "sentence":
                 raw_words = []
-            if raw_words:
+            if raw_words and word_timing != "sentence":
                 words = tuple(
                     (
                         (cursor + (max(piece_start, word.start_sample) - piece_start))
@@ -184,6 +188,15 @@ def caption_lines(
                     if min(piece_end, word.end_sample) > max(piece_start, word.start_sample)
                 )
                 text = " ".join(word[2] for word in words)
+            elif requires_words:
+                words = _proportional_words(sentence.text, output_start, output_end)
+                text = " ".join(word[2] for word in words)
+                fallback = True
+                if not warned:
+                    notes.append(
+                        "Captions used proportional word timings for the requested effect"
+                    )
+                    warned = True
             elif word_timing == "proportional":
                 words = _proportional_words(sentence.text, output_start, output_end)
                 text = " ".join(word[2] for word in words)
@@ -203,6 +216,7 @@ def caption_lines(
                         text=text,
                         words=words,
                         speaker=sentence.speaker,
+                        effect_fallback=fallback,
                     ),
                     max_words,
                 )
@@ -220,26 +234,38 @@ def _split_caption_blocks(line: CaptionLine, max_words: int) -> list[CaptionLine
     tokens = [item[2] for item in line.words] if line.words else line.text.split()
     if len(tokens) <= limit:
         return [line]
-    blocks: list[CaptionLine] = []
     if line.words:
-        for start_index in range(0, len(line.words), limit):
-            chunk = line.words[start_index : start_index + limit]
-            if not chunk:
-                continue
-            blocks.append(
-                CaptionLine(
-                    start=chunk[0][0],
-                    end=chunk[-1][1],
-                    text=" ".join(item[2] for item in chunk),
-                    words=chunk,
-                    speaker=line.speaker,
-                )
+        chunks = [
+            list(line.words[index : index + limit])
+            for index in range(0, len(line.words), limit)
+        ]
+        if len(chunks) > 1 and len(chunks[-1]) < 4:
+            take = min(4 - len(chunks[-1]), max(0, len(chunks[-2]) - 4))
+            if take:
+                chunks[-1] = chunks[-2][-take:] + chunks[-1]
+                chunks[-2] = chunks[-2][:-take]
+        return [
+            CaptionLine(
+                start=chunk[0][0],
+                end=chunk[-1][1],
+                text=" ".join(item[2] for item in chunk),
+                words=tuple(chunk),
+                speaker=line.speaker,
+                effect_fallback=line.effect_fallback,
             )
-        return blocks
+            for chunk in chunks
+            if chunk
+        ]
     chunks = [tokens[index : index + limit] for index in range(0, len(tokens), limit)]
+    if len(chunks) > 1 and len(chunks[-1]) < 4:
+        take = min(4 - len(chunks[-1]), max(0, len(chunks[-2]) - 4))
+        if take:
+            chunks[-1] = chunks[-2][-take:] + chunks[-1]
+            chunks[-2] = chunks[-2][:-take]
     weights = [max(1, len(" ".join(chunk))) for chunk in chunks]
     total = sum(weights)
     cursor = line.start
+    blocks: list[CaptionLine] = []
     for index, (chunk, weight) in enumerate(zip(chunks, weights, strict=True)):
         end = line.end if index == len(chunks) - 1 else cursor + (line.end - line.start) * weight / total
         blocks.append(
@@ -248,6 +274,7 @@ def _split_caption_blocks(line: CaptionLine, max_words: int) -> list[CaptionLine
                 end=end,
                 text=" ".join(chunk),
                 speaker=line.speaker,
+                effect_fallback=line.effect_fallback,
             )
         )
         cursor = end
@@ -264,7 +291,7 @@ def _merge_caption_lines(lines: Sequence[CaptionLine]) -> list[CaptionLine]:
         if (
             merged
             and merged[-1].text.strip() == line.text.strip()
-            and line.start <= merged[-1].end + 0.08
+            and line.start <= merged[-1].end + 0.10
         ):
             previous = merged[-1]
             merged[-1] = CaptionLine(
@@ -273,6 +300,7 @@ def _merge_caption_lines(lines: Sequence[CaptionLine]) -> list[CaptionLine]:
                 text=previous.text,
                 words=previous.words or line.words,
                 speaker=previous.speaker,
+                effect_fallback=previous.effect_fallback or line.effect_fallback,
             )
             continue
         if merged and merged[-1].end > line.start and merged[-1].text.strip() == line.text.strip():

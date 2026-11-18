@@ -1,5 +1,31 @@
 # Changelog
 
+## [3.2.1] - 2026-11-18
+
+### Added
+
+- Four cinematic/retention styles in the central catalog:
+  `lf-depth-title-cinema`, `lf-3d-web-showcase`, `lf-parallax-25d-doc`, and
+  `sr-depth-3d-viral`.
+- NLE overlay transforms and z-order lanes for FCPXML, XMEML, and Kdenlive.
+- Automatic `layout.json` beside every MP4 deliverable.
+- `qa.overlay_bounds`, `qa.caption_effect`, `qa.final`, `curation.prepare`,
+  `transcript.dedupe`, and `shorts.tighten` step coverage.
+- Curation previews with ducked music candidates, B-roll contact sheet, 10 s
+  SFX demo, and one-minute sample.
+- Channel brand kits under `brands/{channel_id}/`, auto-created on project init.
+- `effect_fallback` and 4–6 word stable caption blocks.
+- 15 ms Short join crossfades and word-boundary guard.
+- `needs_review` rerender autofix using cached video groups.
+
+### Changed
+
+- `vf_export` applies a brand-kit LUT when no explicit LUT is supplied.
+- `vf_qa_autofix` can re-render the master and run final QA.
+- Master recipes now run `qa.final` after `export.video`.
+- `AGENTS.md` documents the advanced depth/3D/parallax recipes and the
+  `videoflow/templates/opencode/AGENTS.md` bootstrap template mirrors it.
+
 ## [3.2.0] - 2026-11-18
 
 ### Added

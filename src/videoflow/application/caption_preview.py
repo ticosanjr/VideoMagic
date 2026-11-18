@@ -51,6 +51,7 @@ def render_caption_preview(
         pieces,
         sample_rate=sample_rate,
         word_timing=style.word_timing,
+        effect=style.effect,
     )
     if not lines:
         raise ExportError("Project has no caption lines to preview")
@@ -117,6 +118,7 @@ def render_caption_preview(
             "text": active.text,
             "effect": style.effect,
             "words": len(active.words),
+            "effect_fallback": active.effect_fallback,
         },
         "ass_path": str(ass_path),
         "frames": frames,

@@ -41,6 +41,12 @@ _FILLERS = {
     "hum",
     "uh",
     "um",
+    "é",
+    "ne",
+    "né",
+    "tipo",
+    "entao",
+    "então",
 }
 
 _PRIORITY = {
@@ -75,6 +81,7 @@ class WordRef:
     text: str
     norm: str
     protected: bool
+    low_confidence: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,7 +120,7 @@ def _flatten(
             continue
         for word in sentence.words:
             norm = _normalise(word.word)
-            if not norm:
+            if not norm or word.low_confidence:
                 continue
             words.append(
                 WordRef(
@@ -124,6 +131,7 @@ def _flatten(
                     text=word.word,
                     norm=norm,
                     protected=_protected(word.word),
+                    low_confidence=word.low_confidence,
                 )
             )
     words.sort(key=lambda item: (item.start_sample, item.end_sample))

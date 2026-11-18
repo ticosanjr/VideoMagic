@@ -211,7 +211,21 @@ class ShortsConfig(StrictModel):
     scene_change_boost: bool = False
     remove_fillers: bool = False
     filler_words: list[str] = Field(
-        default_factory=lambda: ["hum", "hmm", "uh", "um", "ah", "eh", "erm", "er"]
+        default_factory=lambda: [
+            "hum",
+            "hmm",
+            "uh",
+            "um",
+            "ah",
+            "eh",
+            "erm",
+            "er",
+            "é",
+            "né",
+            "tipo",
+            "então",
+            "entao",
+        ]
     )
     virality_threshold: float = Field(default=0.0, ge=0.0, le=100.0)
     reframe_mode: ReframeMode = "center_crop_9_16"

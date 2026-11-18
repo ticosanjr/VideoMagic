@@ -744,6 +744,7 @@ class FFmpegAdapter:
         cutout_corner_radius: float = 0.08,
         cutout_margin: float = 0.04,
         cutout_head_overlap: float = 0.12,
+        crossfade_ms: int = 15,
     ) -> Path:
         """Render concatenated source pieces as a vertical H.264 short."""
 
@@ -913,33 +914,101 @@ class FFmpegAdapter:
             if len(rendered) == 1:
                 combined = rendered[0]
             else:
-                list_file = work / "concat.txt"
-                list_file.write_text(
-                    "\n".join(
-                        f"file '{str(item.resolve()).replace(chr(92), '/')}'" for item in rendered
+                crossfade = max(0.0, min(0.1, float(crossfade_ms) / 1000.0))
+                durations = [
+                    max(0.0, (end - start) / sample_rate) for start, end in pieces
+                ]
+                if crossfade <= 0:
+                    list_file = work / "concat.txt"
+                    list_file.write_text(
+                        "\n".join(
+                            f"file '{str(item.resolve()).replace(chr(92), '/')}'"
+                            for item in rendered
+                        )
+                        + "\n",
+                        encoding="utf-8",
                     )
-                    + "\n",
-                    encoding="utf-8",
-                )
-                combined = work / "combined.mp4"
-                self._capture(
-                    [
-                        "ffmpeg",
-                        "-hide_banner",
-                        "-loglevel",
-                        "error",
-                        "-y",
-                        "-f",
-                        "concat",
-                        "-safe",
-                        "0",
-                        "-i",
-                        str(list_file),
-                        "-c",
-                        "copy",
-                        str(combined),
-                    ]
-                )
+                    combined = work / "combined.mp4"
+                    self._capture(
+                        [
+                            "ffmpeg",
+                            "-hide_banner",
+                            "-loglevel",
+                            "error",
+                            "-y",
+                            "-f",
+                            "concat",
+                            "-safe",
+                            "0",
+                            "-i",
+                            str(list_file),
+                            "-c",
+                            "copy",
+                            str(combined),
+                        ]
+                    )
+                else:
+                    inputs: list[str] = []
+                    chains: list[str] = []
+                    for index, item in enumerate(rendered):
+                        inputs.extend(["-i", str(item)])
+                        trim = durations[index] if index < len(durations) else 0.0
+                        chains.append(
+                            f"[{index}:v]trim=duration={trim:.6f},"
+                            f"setpts=PTS-STARTPTS,format=yuv420p[v{index}]"
+                        )
+                        chains.append(
+                            f"[{index}:a]atrim=duration={trim:.6f},"
+                            f"asetpts=PTS-STARTPTS[a{index}]"
+                        )
+                    video_label = "[v0]"
+                    audio_label = "[a0]"
+                    current = durations[0]
+                    for index in range(1, len(rendered)):
+                        offset = max(
+                            0.0,
+                            current - max(crossfade, 1.0 / 30.0 + 0.001),
+                        )
+                        chains.append(
+                            f"{video_label}[v{index}]xfade=transition=fade:"
+                            f"duration={crossfade:.3f}:offset={offset:.6f}[vx{index}]"
+                        )
+                        chains.append(
+                            f"{audio_label}[a{index}]acrossfade=d={crossfade:.3f}[ax{index}]"
+                        )
+                        video_label = f"[vx{index}]"
+                        audio_label = f"[ax{index}]"
+                        current += durations[index] - crossfade
+                    combined = work / "combined.mp4"
+                    self._capture(
+                        [
+                            "ffmpeg",
+                            "-hide_banner",
+                            "-loglevel",
+                            "error",
+                            "-y",
+                            *inputs,
+                            "-filter_complex",
+                            ";".join(chains),
+                            "-map",
+                            video_label,
+                            "-map",
+                            audio_label,
+                            "-c:v",
+                            "libx264",
+                            "-preset",
+                            "veryfast",
+                            "-crf",
+                            "20",
+                            "-pix_fmt",
+                            "yuv420p",
+                            "-c:a",
+                            "aac",
+                            "-b:a",
+                            "192k",
+                            str(combined),
+                        ]
+                    )
             final = combined
             clips: list[tuple[Path, float, float]] = []
             if broll_clips:

@@ -422,6 +422,12 @@ _add_recipe(
             },
         },
         {
+            "id": "final_qa",
+            "type": "qa.final",
+            "needs": ["export_video"],
+            "params": {"strict": True},
+        },
+        {
             "id": "nle_qa",
             "type": "nle.qa",
             "needs": ["export_nle"],

@@ -106,6 +106,12 @@ _add_recipe(
             "needs": ["timeline", "audio_master"],
             "params": {"preset": "ultrafast"},
         },
+        {
+            "id": "final_qa",
+            "type": "qa.final",
+            "needs": ["export_master"],
+            "params": {"strict": True},
+        },
     ],
     description=(
         "CFR ingest, gaze/retakes, reference board, archetype gate, motion, "

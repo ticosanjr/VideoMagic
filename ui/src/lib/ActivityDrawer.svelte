@@ -46,7 +46,7 @@
       .slice(0, 4)
   );
   const finished = $derived(
-    filtered.filter((job) => ["succeeded", "failed", "cancelled"].includes(job.status))
+    filtered.filter((job) => ["succeeded", "failed", "cancelled", "needs_review"].includes(job.status))
   );
 
   const sections = $derived([

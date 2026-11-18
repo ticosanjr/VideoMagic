@@ -78,9 +78,11 @@ def _mix_preview(voice: Path, bed: Path, target: Path) -> None:
         "-i",
         str(bed),
         "-filter_complex",
-        "[0:a]atrim=0:15,asetpts=PTS-STARTPTS[voice];"
-        "[1:a]volume=0.16,atrim=0:15,asetpts=PTS-STARTPTS[music];"
-        "[voice][music]amix=inputs=2:duration=first:dropout_transition=2[a]",
+        "[0:a]atrim=0:15,asetpts=PTS-STARTPTS,asplit=2[voice][side];"
+        "[1:a]volume=0.22,atrim=0:15,asetpts=PTS-STARTPTS[music];"
+        "[music][side]sidechaincompress=threshold=0.03:ratio=8:"
+        "attack=20:release=250[ducked];"
+        "[voice][ducked]amix=inputs=2:duration=first:dropout_transition=2[a]",
         "-map",
         "[a]",
         "-c:a",
@@ -170,7 +172,50 @@ def build_sfx_demo(project_id: str) -> dict[str, Any]:
         {"kind": "click", "start_sec": 6.0, "gain": 0.3},
     ]
     payload = synthesize_foley(directory, cues)
-    return {"ok": True, **payload, "preview": str(directory / "001-whoosh.wav")}
+    files = [Path(str(item["path"])) for item in payload.get("cues", []) if item.get("path")]
+    preview = directory / "sfx-demo-10s.wav"
+    if files:
+        inputs: list[str] = []
+        chains: list[str] = []
+        for index, item in enumerate(files):
+            inputs.extend(["-i", str(item)])
+            delay = int(cues[index]["start_sec"] * 1000) if index < len(cues) else index * 3000
+            chains.append(f"[{index}:a]adelay={delay}|{delay}[s{index}]")
+        mix_inputs = "".join(f"[s{index}]" for index in range(len(files)))
+        chains.append(
+            f"{mix_inputs}amix=inputs={len(files)}:duration=longest,"
+            "atrim=0:10,apad=whole_dur=10,asetpts=PTS-STARTPTS[a]"
+        )
+        completed = subprocess.run(
+            [
+                _ffmpeg(),
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                *inputs,
+                "-filter_complex",
+                ";".join(chains),
+                "-map",
+                "[a]",
+                "-c:a",
+                "pcm_s24le",
+                str(preview),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if completed.returncode != 0:
+            preview = files[0]
+    else:
+        preview = directory / "sfx-demo-10s.wav"
+    return {
+        "ok": True,
+        **payload,
+        "preview": str(preview),
+        "duration_sec": 10.0,
+    }
 
 
 def build_minute_sample(project_id: str) -> dict[str, Any]:
@@ -178,7 +223,10 @@ def build_minute_sample(project_id: str) -> dict[str, Any]:
     state = load_project_state(record)
     if state.media_info is None:
         raise ExportError("Project has no media")
-    source = Path(state.media_info.source_path).expanduser()
+    delivered = Path(record.output) / "exports" / "youtube_master.mp4"
+    if not delivered.is_file():
+        delivered = Path(record.output) / "exports" / "final_youtube.mp4"
+    source = delivered if delivered.is_file() else Path(state.media_info.source_path).expanduser()
     target = Path(record.output) / "curation" / "sample-1min.mp4"
     target.parent.mkdir(parents=True, exist_ok=True)
     completed = subprocess.run(

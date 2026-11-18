@@ -73,7 +73,7 @@ parallel. Writes to the same project are serialized by a project lock and
 | `vf_overlay_preview` | Render one frame with overlay boxes, captions, safe zones, and labels. |
 | `vf_layout` | Auto-pack overlay margins and write `layout.json`. |
 | `vf_caption_preview` | Render before/during/after frames for the active caption. |
-| `vf_qa_autofix` | Resolve overlay/caption collisions and persist the layout. |
+| `vf_qa_autofix` | Resolve overlay/caption collisions, persist the layout, and optionally re-render from the segment cache. |
 | `vf_artifact` | List or read artifacts, including image content. |
 
 ### Delivery and operations
@@ -84,10 +84,10 @@ parallel. Writes to the same project are serialized by a project lock and
 | `vf_export` | Canonical master render plus `resolve`, `premiere`, and `kdenlive`. |
 | `vf_crop_preview` | Frame with the normalized crop box and rule-of-thirds grid. |
 | `vf_shorts_batch` | Render multiple Shorts with per-clip style, crop, intro, and music. |
-| `vf_qa_final` | Audit the delivered MP4, loudness, safe zones, and contact sheet. |
+| `vf_qa_final` | Audit the delivered MP4, loudness, silence, safe zones, captions, word fidelity, contact sheet, and waveform. |
 | `vf_font` | List, register, or install TTF/OTF fonts. |
 | `vf_exports` | `bundle`, `validate`, or `roundtrip` for every NLE. |
-| `vf_interaction` | List/read/answer HITL requests. |
+| `vf_interaction` | List/read/answer HITL requests, including curation previews. |
 | `vf_ingest` | Session ingest or multicam synchronization. |
 | `vf_qa` | Read QA artifacts or route new QA through `vf_exec`. |
 

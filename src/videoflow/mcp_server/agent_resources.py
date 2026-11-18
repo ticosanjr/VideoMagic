@@ -205,9 +205,13 @@ def register_agent_resources(mcp: Any, ctx: Any, *, prompts: bool = True) -> Non
 
     @mcp.resource("vf://presets/{channel_id}/kit")
     def channel_kit(channel_id: str) -> str:
-        """Channel asset kit."""
+        """Channel asset kit plus the optional brands/{channel_id} bundle."""
 
-        return load_rulebook(channel_id).channel_kit.model_dump_json(indent=2)
+        from videoflow.application.brand_kit import load_brand_kit
+
+        payload = load_rulebook(channel_id).channel_kit.model_dump(mode="json")
+        payload["brand_kit"] = load_brand_kit(channel_id)
+        return json.dumps(payload, indent=2)
 
     @mcp.resource("vf://docs/steps")
     def steps_catalog() -> str:

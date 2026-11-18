@@ -852,6 +852,18 @@ def _append_captions_playlist(parent: ET.Element, extras, media, duration_frames
     return "playlist_captions"
 
 
+def _append_broll_geometry(producer: ET.Element, entry, media) -> None:
+    if not (entry.width and entry.height):
+        return
+    geometry = ET.SubElement(producer, "filter", {"id": f"{producer.get('id')}-geometry"})
+    _property(geometry, "mlt_service", "qtblend")
+    _property(geometry, "rect", f"{entry.x} {entry.y} {entry.width} {entry.height} 1")
+    _property(geometry, "compositing", "0")
+    _property(geometry, "distort", "0")
+    if entry.opacity < 1:
+        _property(geometry, "opacity", f"{entry.opacity:.3f}")
+
+
 def _append_overlay_playlist(parent: ET.Element, extras, media, duration_frames: int) -> str:
     entries: list[tuple[str, int, int]] = []
     for index, title in enumerate(extras.titles):
@@ -881,6 +893,7 @@ def _append_overlay_playlist(parent: ET.Element, extras, media, duration_frames:
             _property(producer, "length", str(max(1, length)))
             _property(producer, "eof", "continue")
         _property(producer, "kdenlive:clipname", entry.name or "B-roll")
+        _append_broll_geometry(producer, entry, media)
         entries.append((producer_id, start, length))
     if not entries:
         return ""

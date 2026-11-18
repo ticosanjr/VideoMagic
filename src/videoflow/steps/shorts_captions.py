@@ -74,6 +74,7 @@ class CaptionsStep(BaseStep):
                 clip.pieces,
                 sample_rate=media.audio_sample_rate,
                 word_timing=options.caption_style.word_timing,
+                effect=options.caption_style.effect,
                 warnings=context.warnings,
             )
             if lines:

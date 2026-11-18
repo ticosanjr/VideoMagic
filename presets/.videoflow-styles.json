@@ -1,0 +1,112 @@
+{
+  "canal-paula-long": {
+    "sha256": "17b5c811e5d1db00918ea5316c1df774f5aebf67b2c90497c4a7e9c1861ad620",
+    "synced_at": "2026-11-18T16:22:27+00:00",
+    "updated_at": "2026-11-16T21:00:00Z"
+  },
+  "canal-paula-reels": {
+    "sha256": "e78b55f86c922b5ef5aeeae23cae6948f77f4693a9192cc230fad75dd00f788c",
+    "synced_at": "2026-11-18T16:22:27+00:00",
+    "updated_at": "2026-11-16T21:00:00Z"
+  },
+  "canal-rafael-tech": {
+    "sha256": "9d0bcb0844423449965d42a2d19ce94424df90283375db60dd85e24683436988",
+    "synced_at": "2026-11-18T16:22:27+00:00",
+    "updated_at": "2026-11-16T21:00:00Z"
+  },
+  "lf-25d-documentary": {
+    "sha256": "c90c5f88a8b7ebde793152f4081aba8a81a66d8f4e5f15b17003131b328d4426",
+    "synced_at": "2026-11-18T16:22:27+00:00",
+    "updated_at": "2026-11-18T00:00:00Z"
+  },
+  "lf-3d-web-showcase": {
+    "sha256": "ce1afbda864c5ba3380e9e0661bf22da67a32afd6be40dc0e8c4225c10be8edf",
+    "synced_at": "2026-11-18T16:23:18+00:00",
+    "updated_at": "2026-11-18T16:22:27+00:00"
+  },
+  "lf-depth-title-cinema": {
+    "sha256": "3da501805f28eb750e7810c8c00438a46d07821a1a1b555cffc89572829ad036",
+    "synced_at": "2026-11-18T16:23:18+00:00",
+    "updated_at": "2026-11-18T16:22:27+00:00"
+  },
+  "lf-faceless-news-story": {
+    "sha256": "b803e7c18ee7394c1202f81332380e65940340874bf5b9079bd3709404f5a770",
+    "synced_at": "2026-11-18T16:22:27+00:00",
+    "updated_at": "2026-11-18T00:00:00Z"
+  },
+  "lf-investigative-dossier": {
+    "sha256": "939a24325fa163da202f385971b405462d0b548931735b9cfbca98484c58796e",
+    "synced_at": "2026-11-18T16:22:27+00:00",
+    "updated_at": "2026-11-18T00:00:00Z"
+  },
+  "lf-liquid-glass-tutorial": {
+    "sha256": "8eaa3dd4c6d093abb796e8f21820f79cc75d951ce3ed740784cbac3e8361d7d6",
+    "synced_at": "2026-11-18T16:22:27+00:00",
+    "updated_at": "2026-11-18T00:00:00Z"
+  },
+  "lf-multicam-podcast-retention": {
+    "sha256": "196a0c7b0c84d04761920b04406286992f90c2562e4fa21aa4e55937d90319e3",
+    "synced_at": "2026-11-18T16:22:27+00:00",
+    "updated_at": "2026-11-18T00:00:00Z"
+  },
+  "lf-parallax-25d-doc": {
+    "sha256": "c09240093c1feaf25316447b43209e6e05cd37f73ab4ebc80551e0cb87d21dbb",
+    "synced_at": "2026-11-18T16:23:19+00:00",
+    "updated_at": "2026-11-18T16:22:27+00:00"
+  },
+  "sr-ad-ugc-direct-response": {
+    "sha256": "88bd8bd5dd0d3960ed1d290325791a822f929885aca9c0d15ad0c54baa1fb621",
+    "synced_at": "2026-11-18T16:22:27+00:00",
+    "updated_at": "2026-11-18T00:00:00Z"
+  },
+  "sr-callaway-cutout": {
+    "sha256": "967bcfd3f852e58adc51ceb946f65aa54d6214ab7ff200021f302a25c8e9c2b1",
+    "synced_at": "2026-11-18T16:22:27+00:00",
+    "updated_at": "2026-11-18T00:00:00Z"
+  },
+  "sr-depth-3d-viral": {
+    "sha256": "ed448d4122502c07bbbf167ee353b5c2dc3be6d54338560cb1cf3a573866f3c5",
+    "synced_at": "2026-11-18T16:23:19+00:00",
+    "updated_at": "2026-11-18T16:22:27+00:00"
+  },
+  "sr-faceless-micro-doc": {
+    "sha256": "975f7ae27f7d7f2a1910d65806dca66111a5202822cd1237d53600109da103df",
+    "synced_at": "2026-11-18T16:22:27+00:00",
+    "updated_at": "2026-11-18T00:00:00Z"
+  },
+  "sr-founder-rant-raw": {
+    "sha256": "9cc0226038e6309a9992333c1e43bc378c74d7030deac9833ecc12f3085d1080",
+    "synced_at": "2026-11-18T16:22:27+00:00",
+    "updated_at": "2026-11-18T00:00:00Z"
+  },
+  "sr-kinetic-3beat-explainer": {
+    "sha256": "ae14eaf9ce79b30f252b5b444326dd0749b1bbca50d60587ab5da738eb7b9b9d",
+    "synced_at": "2026-11-18T16:22:27+00:00",
+    "updated_at": "2026-11-18T00:00:00Z"
+  },
+  "sr-narrative-story-arc": {
+    "sha256": "495addd327569a9c87934ac6aa8a591e7f82ecdef6b17d8df33818a0d6aab8e4",
+    "synced_at": "2026-11-18T16:22:27+00:00",
+    "updated_at": "2026-11-18T00:00:00Z"
+  },
+  "sr-podcast-viral-clip": {
+    "sha256": "edc3b93eceb7773b4c39af3f4c71ae32565d9e1e0ee602588e2fa69681ac1e1d",
+    "synced_at": "2026-11-18T16:22:27+00:00",
+    "updated_at": "2026-11-18T00:00:00Z"
+  },
+  "sr-screen-demo-saas": {
+    "sha256": "bdf71cf13099dcd37a8b3a4c5f78a034399fee3015dbc67df0592410c9692971",
+    "synced_at": "2026-11-18T16:22:27+00:00",
+    "updated_at": "2026-11-18T00:00:00Z"
+  },
+  "sr-splitscreen-reaction": {
+    "sha256": "771657412ec3fd44ecdf2da827cbb1b355699cf143d33500b9dc5ffb4feb6164",
+    "synced_at": "2026-11-18T16:22:27+00:00",
+    "updated_at": "2026-11-18T00:00:00Z"
+  },
+  "sr-x-native-video-card": {
+    "sha256": "7f09edca91b862e684d4f5254c906c24d82ddb9a09021028dee3e5d0c6ae761b",
+    "synced_at": "2026-11-18T16:22:27+00:00",
+    "updated_at": "2026-11-18T00:00:00Z"
+  }
+}

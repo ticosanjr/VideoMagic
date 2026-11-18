@@ -2624,7 +2624,7 @@
             });
           }
         }
-        if (["succeeded", "failed", "cancelled", "waiting_approval", "waiting_input"].includes(job.status)) {
+        if (["succeeded", "failed", "cancelled", "needs_review", "waiting_approval", "waiting_input"].includes(job.status)) {
           clearInterval(poll);
           if (job.status !== "waiting_approval" && job.status !== "waiting_input") void loadPrevious(job);
         }
@@ -2720,7 +2720,7 @@
       if (document.hidden) return;
       try {
         batch = await getBatch(batchId);
-        if (["succeeded", "failed", "cancelled"].includes(batch.status)) {
+        if (["succeeded", "failed", "cancelled", "needs_review"].includes(batch.status)) {
           clearInterval(batchPoll);
         }
       } catch (reason) {

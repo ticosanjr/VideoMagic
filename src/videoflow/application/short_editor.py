@@ -128,6 +128,7 @@ def edit_short(
             trimmed,
             sample_rate=rate,
             word_timing=style.word_timing,
+            effect=style.effect,
         )
         if lines:
             ass_path = edited_dir / f"{slug}-{stamp}.ass"

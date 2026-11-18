@@ -46,10 +46,14 @@ Find self-contained moments in the transcript and turn them into vertical clips.
 | `source_end_sec` | none | > start; sentences must end at or before it |
 | `reframe_mode` | `center_crop_9_16` | center_crop_9_16 / auto_face_tracking_yolo |
 | `burn_subtitles` | `true` | |
-| `caption_style` | defaults | font, size, colors, outline, shadow, box, position, animation, word timing |
+| `caption_style` | defaults | font, size, colors, outline, shadow, box, position, effect, word timing |
 | `export_format` | `both` | fcpxml_timeline/standalone_mp4/both |
 
 ## Algorithm
+
+`shorts.tighten` trims edges to the first/last word, removes internal gaps
+longer than 500 ms, preserves 120–180 ms of breath, applies a 15 ms join
+crossfade, and rejects clips below the speech-density thresholds.
 
 1. Rank candidates by hook, impact, emotion, concrete numbers, contrast, and
    diversity. A prompt adds topic terms to the heuristic score and an explicit
@@ -209,8 +213,12 @@ latest thumbnail is exposed as `thumbnail`; every generated variant is kept in
 Caption style is a full `CaptionStyle` model: font family, size, weight, italic,
 uppercase, primary/highlight/outline colors, outline width, shadow color/offset/
 opacity, background box color/opacity/padding, alignment, normalized position,
-max width, animation, word-timing fallback, keyword highlight, emoji map, brand
+max width, effect, word-timing fallback, keyword highlight, emoji map, brand
 vocabulary, and censor word list/replacement.
+
+`effect` is explicit: `static`, `karaoke_switch`, `karaoke_sweep`, or `pop`.
+When word timings are unavailable, proportional timings are used and the line
+is marked `effect_fallback=true` instead of silently becoming static.
 
 Keyword highlighting colors matching words in sentence captions. If the keyword
 list is empty, the renderer auto-selects frequent content words. Emojis are

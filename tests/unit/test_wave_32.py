@@ -427,3 +427,4 @@ def test_mp4_overlay_z_order(tmp_path: Path, monkeypatch) -> None:
     mp4.export_mp4(state, tmp_path / "out.mp4", adapter=FakeRenderer(), ass_path=ass)
     graph = calls[0][calls[0].index("-filter_complex") + 1]
     assert graph.index("overlay=") < graph.index("ass=") < graph.rindex("overlay=")
+    assert (tmp_path / "layout.json").is_file()

@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from videoflow.application.master_export import render_master
 from videoflow.application.overlay_geometry import (
     auto_pack,
     caption_box,
@@ -21,6 +22,8 @@ def pack_project_layout(
     *,
     platform: str = "youtube_16_9",
     apply: bool = True,
+    rerender: bool = False,
+    video_path: str = "",
 ) -> dict[str, Any]:
     record = get_project(project_id)
     state = load_project_state(record)
@@ -57,6 +60,33 @@ def pack_project_layout(
     layout_path = write_layout(
         state, Path(record.output), media.width, media.height, caption=caption
     )
+    rerendered: dict[str, Any] = {}
+    if rerender and apply:
+        from videoflow.application.qa_final import audit_final
+        from videoflow.application.subtitles import resolve_subtitle_track
+
+        destination = (
+            Path(video_path).expanduser()
+            if video_path
+            else Path(record.output) / "exports" / "youtube_master.mp4"
+        )
+        render_master(
+            state,
+            destination,
+            output=Path(record.output),
+            audio_source="master",
+            ass_path=resolve_subtitle_track(Path(record.output)),
+            loudness_lufs=-16.5,
+            true_peak_db=-1.0,
+            cfr=True,
+            cache_dir=Path(record.output) / "render" / "segments",
+        )
+        rerendered = audit_final(
+            destination,
+            output=Path(record.output),
+            state=state,
+            strict=True,
+        )
     return {
         "ok": True,
         "project_id": project_id,
@@ -66,6 +96,7 @@ def pack_project_layout(
         "layout_path": str(layout_path),
         "layout": layout_payload(state, media.width, media.height, caption=caption),
         "revision": state.revision,
+        "rerendered": rerendered,
     }
 
 

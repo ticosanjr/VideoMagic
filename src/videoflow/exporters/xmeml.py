@@ -152,12 +152,14 @@ def export_xmeml(
                 number=index + 1,
             )
 
+    if extras.broll:
+        _append_broll_track(video_element, extras, media, max_z=39)
     for index, title in enumerate(extras.titles, start=1):
         _append_title(video_track, title, media, number=index)
     if extras.captions:
         _append_caption_track(video_element, extras, media)
     if extras.broll:
-        _append_broll_track(video_element, extras, media)
+        _append_broll_track(video_element, extras, media, min_z=40)
     if extras.audio_stem:
         _append_audio_stem(audio_element, extras, media, duration)
     for index, entry in enumerate(extras.music, start=1):
@@ -493,26 +495,72 @@ def _append_broll_track(
     video_element: ET.Element,
     extras: NleExtras,
     media: MediaInfo,
+    *,
+    min_z: int | None = None,
+    max_z: int | None = None,
 ) -> None:
-    track = ET.SubElement(video_element, "track")
-    for index, entry in enumerate(extras.broll, start=1):
-        start = round(entry.start_sec * media.fps_num / media.fps_den)
-        end = round((entry.start_sec + entry.duration_sec) * media.fps_num / media.fps_den)
-        item = ET.SubElement(track, "clipitem", {"id": f"broll-{index}"})
-        ET.SubElement(item, "name").text = entry.name or Path(entry.path).stem
-        ET.SubElement(item, "duration").text = str(max(1, end - start))
-        _append_rate(item, media)
-        ET.SubElement(item, "start").text = str(start)
-        ET.SubElement(item, "end").text = str(end)
-        ET.SubElement(item, "in").text = "0"
-        ET.SubElement(item, "out").text = str(max(1, end - start))
-        if entry.kind == "image":
-            ET.SubElement(item, "stillframe").text = "TRUE"
-        file_element = ET.SubElement(item, "file", {"id": f"file-broll-{index}"})
-        ET.SubElement(file_element, "name").text = Path(entry.path).name
-        ET.SubElement(file_element, "pathurl").text = _premiere_path_url(entry.path)
-        _append_rate(file_element, media)
-        ET.SubElement(file_element, "duration").text = str(max(1, end - start))
+    entries = [
+        entry
+        for entry in extras.broll
+        if (min_z is None or entry.z >= min_z)
+        and (max_z is None or entry.z <= max_z)
+    ]
+    grouped: dict[int, list] = {}
+    for entry in entries:
+        lane = 2
+        if entry.z >= 50:
+            lane = 7
+        elif entry.z >= 40:
+            lane = 5
+        elif entry.z >= 30:
+            lane = 4
+        elif entry.z >= 20:
+            lane = 3
+        grouped.setdefault(lane, []).append(entry)
+    for lane in sorted(grouped):
+        track = ET.SubElement(video_element, "track")
+        ET.SubElement(track, "name").text = f"Overlay z{lane}"
+        for index, entry in enumerate(grouped[lane], start=1):
+            start = round(entry.start_sec * media.fps_num / media.fps_den)
+            end = round((entry.start_sec + entry.duration_sec) * media.fps_num / media.fps_den)
+            item = ET.SubElement(track, "clipitem", {"id": f"broll-{lane}-{index}"})
+            ET.SubElement(item, "name").text = entry.name or Path(entry.path).stem
+            ET.SubElement(item, "duration").text = str(max(1, end - start))
+            _append_rate(item, media)
+            ET.SubElement(item, "start").text = str(start)
+            ET.SubElement(item, "end").text = str(end)
+            ET.SubElement(item, "in").text = "0"
+            ET.SubElement(item, "out").text = str(max(1, end - start))
+            if entry.kind == "image":
+                ET.SubElement(item, "stillframe").text = "TRUE"
+            file_element = ET.SubElement(item, "file", {"id": f"file-broll-{lane}-{index}"})
+            ET.SubElement(file_element, "name").text = Path(entry.path).name
+            ET.SubElement(file_element, "pathurl").text = _premiere_path_url(entry.path)
+            _append_rate(file_element, media)
+            ET.SubElement(file_element, "duration").text = str(max(1, end - start))
+            _append_basic_motion(item, entry, media)
+
+
+def _append_basic_motion(item: ET.Element, entry, media: MediaInfo) -> None:
+    if not (entry.width and entry.height and entry.source_width and entry.source_height):
+        return
+    effect = ET.SubElement(item, "filter")
+    effect_element = ET.SubElement(effect, "effect")
+    ET.SubElement(effect_element, "name").text = "Basic Motion"
+    ET.SubElement(effect_element, "effectid").text = "basic"
+    ET.SubElement(effect_element, "effectcategory").text = "motion"
+    ET.SubElement(effect_element, "effecttype").text = "motion"
+    ET.SubElement(effect_element, "mediatype").text = "video"
+    scale = ET.SubElement(effect_element, "parameter")
+    ET.SubElement(scale, "parameterid").text = "scale"
+    ET.SubElement(scale, "name").text = "Scale"
+    ET.SubElement(scale, "value").text = f"{entry.width / entry.source_width * 100:.3f}"
+    center = ET.SubElement(effect_element, "parameter")
+    ET.SubElement(center, "parameterid").text = "center"
+    ET.SubElement(center, "name").text = "Center"
+    value = ET.SubElement(center, "value")
+    ET.SubElement(value, "horiz").text = f"{entry.x + entry.width / 2 - media.width / 2:.3f}"
+    ET.SubElement(value, "vert").text = f"{entry.y + entry.height / 2 - media.height / 2:.3f}"
 
 
 def _append_audio_stem(

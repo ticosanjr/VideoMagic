@@ -195,6 +195,10 @@ def init_project(
         if updates:
             record = record.model_copy(update=updates)
             _save_record(record)
+            if channel_id:
+                from videoflow.application.brand_kit import brand_kit_root
+
+                brand_kit_root(channel_id).mkdir(parents=True, exist_ok=True)
         if style_id and state.style_id != style_id:
             state = state.model_copy(update={"style_id": style_id})
             state = save_project_state(record, state, bump_revision=False)
@@ -244,6 +248,10 @@ def init_project(
         revision=state.revision,
     )
     _save_record(record)
+    if channel_id:
+        from videoflow.application.brand_kit import brand_kit_root
+
+        brand_kit_root(channel_id).mkdir(parents=True, exist_ok=True)
     save_project_state(record, state, bump_revision=False)
     return record, state
 

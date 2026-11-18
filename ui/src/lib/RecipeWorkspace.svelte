@@ -66,7 +66,7 @@
     Object.fromEntries(artifacts) as Record<string, string>
   );
   const terminal = $derived(
-    job ? ["succeeded", "failed", "cancelled"].includes(job.status) : false
+    job ? ["succeeded", "failed", "cancelled", "needs_review"].includes(job.status) : false
   );
 
   onMount(() => {

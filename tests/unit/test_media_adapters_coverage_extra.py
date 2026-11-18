@@ -731,7 +731,10 @@ def test_render_short_full_chain_with_split_screen_and_sfx(
     )
     assert target.read_bytes() == b"rendered"
     joined = [" ".join(command) for command in commands]
-    assert any(" -f concat -safe 0 " in item for item in joined)
+    assert any(
+        " -f concat -safe 0 " in item or "xfade=transition=fade" in item
+        for item in joined
+    )
     split = next(item for item in joined if "hstack=inputs=2[v]" in item)
     assert "crop=trunc(iw/(2*2.0)/2)*2" in split
     assert "(iw-ow)*0.0" in split

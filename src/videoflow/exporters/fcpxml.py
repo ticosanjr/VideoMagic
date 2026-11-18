@@ -282,12 +282,21 @@ def export_fcpxml(
         asset_id = broll_assets.get(entry.path)
         if asset_id is None:
             continue
-        ET.SubElement(
+        lane = 2
+        if entry.z >= 50:
+            lane = 7
+        elif entry.z >= 40:
+            lane = 5
+        elif entry.z >= 30:
+            lane = 4
+        elif entry.z >= 20:
+            lane = 3
+        clip = ET.SubElement(
             spine,
             "asset-clip",
             {
                 "ref": asset_id,
-                "lane": "2",
+                "lane": str(lane),
                 "name": entry.name or Path(entry.path).stem,
                 "offset": format_rational_time(entry.start_sec),
                 "start": "0s",
@@ -296,6 +305,23 @@ def export_fcpxml(
                 "videoRole": "B-roll",
             },
         )
+        if entry.width and entry.height and entry.source_width and entry.source_height:
+            center_x = entry.x + entry.width / 2
+            center_y = entry.y + entry.height / 2
+            position_x = round(center_x - media.width / 2, 3)
+            position_y = round(media.height / 2 - center_y, 3)
+            ET.SubElement(
+                clip,
+                "adjust-transform",
+                {
+                    "position": f"{position_x:g} {position_y:g}",
+                    "scale": (
+                        f"{entry.width / entry.source_width:.6f} "
+                        f"{entry.height / entry.source_height:.6f}"
+                    ),
+                    "anchor": "0 0",
+                },
+            )
 
     for index, title in enumerate(extras.titles, start=1):
         element = ET.SubElement(

@@ -16,6 +16,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from videoflow.application.fonts import fonts_dir
 from videoflow.application.motion import render_scene
 from videoflow.runtime import find_binary
 
@@ -416,7 +417,8 @@ def mux_master(
     filters: list[str] = []
     if subtitles is not None and subtitles.is_file():
         escaped = str(subtitles).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
-        filters.append(f"ass='{escaped}'")
+        font_dir = str(fonts_dir()).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
+        filters.append(f"ass='{escaped}':fontsdir='{font_dir}'")
     if filters:
         command.extend(["-vf", ",".join(filters)])
     command.extend(["-map", "0:v:0"])

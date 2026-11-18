@@ -35,6 +35,12 @@ class NleBroll:
     width_ratio: float = 1.0
     opacity: float = 1.0
     z: int = 10
+    x: int = 0
+    y: int = 0
+    width: int = 0
+    height: int = 0
+    source_width: int = 0
+    source_height: int = 0
 
 
 @dataclass(frozen=True, slots=True)

@@ -433,7 +433,7 @@
                   <button type="button" class="rounded-lg border border-rose-500/20 px-2.5 py-1 text-[11px] text-rose-300 hover:border-rose-400/40" onclick={() => (confirmCancel = job.job_id)}>{i18n.t("cancel")}</button>
                 {/if}
                 <button type="button" disabled={busy === job.job_id} class="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-[11px] text-rose-200 disabled:opacity-40" onclick={() => void remove(job)}>Force stop</button>
-              {:else if ["succeeded", "failed", "cancelled"].includes(job.status)}
+              {:else if ["succeeded", "failed", "cancelled", "needs_review"].includes(job.status)}
                 <button type="button" disabled={busy === job.job_id} class="rounded-lg border border-white/10 px-2.5 py-1 text-[11px] text-neutral-400 disabled:opacity-40" onclick={() => void remove(job)}>{i18n.t("dismiss")}</button>
               {/if}
             </div>

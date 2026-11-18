@@ -233,7 +233,7 @@ vertical-only output.
 - **Reframe** is center crop in v1.
 - **Karaoke captions**: font family, size, weight, italic, uppercase, text/
   highlight/outline colors, outline width, shadow color/offset/opacity, box
-  color/opacity/padding, alignment, position, max width, animation, and word
+  color/opacity/padding, alignment, position, max width, effect, and word
   timing are configurable in the recipe, API, and MCP.
 - **Caption preview**: the Shorts tab shows a live approximation in the selected
   aspect. The burned-in result still comes from ASS.

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.application.brand_kit import load_brand_kit
 from videoflow.application.caption_presets import apply_preset
 from videoflow.application.captions import build_ass_lines, caption_lines
 from videoflow.application.fonts import fonts_dir
@@ -48,6 +49,7 @@ def run_shorts_batch(
     discard = set(state.pipeline.discard_sentence_ids)
     kept = [item for item in state.transcript if item.id not in discard]
     renderer = adapter or FFmpegAdapter()
+    brand = load_brand_kit(record.channel_id or state.style_id)
     directory = Path(record.output) / "shorts" / "batch"
     directory.mkdir(parents=True, exist_ok=True)
     rendered: list[dict[str, Any]] = []
@@ -97,6 +99,7 @@ def run_shorts_batch(
                 [(start_sample, end_sample)],
                 sample_rate=rate,
                 word_timing=caption_style.word_timing,
+                effect=caption_style.effect,
             )
             if lines:
                 ass_path = directory / f"{slugify(title, index)}.ass"
@@ -110,12 +113,20 @@ def run_shorts_batch(
             if isinstance(item, (list, tuple)) and len(item) >= 2
         ]
         focus = keyframes[len(keyframes) // 2][1] if keyframes else 0.5
+        if not keyframes:
+            duration = (
+                sum(piece_end - piece_start for piece_start, piece_end in tightened.pieces)
+                / rate
+            )
+            keyframes = [(0.0, focus), (round(duration, 3), focus)]
         layout = str(entry.get("layout_mode") or (style.layout_mode if style else "auto"))
         if layout not in LAYOUTS:
             layout = "auto"
         target = directory / f"{slugify(title, index)}.mp4"
-        intro = entry.get("intro_path")
-        music = entry.get("music_path")
+        intro = entry.get("intro_path") or brand.get("cta") or ""
+        music = entry.get("music_path") or brand.get("music") or ""
+        if intro and Path(str(intro)).suffix.casefold() not in {".mp4", ".mov", ".webm", ".m4v"}:
+            intro = ""
         context_source = _source_path(state, record)
         renderer.render_short(
             Path(context_source),
@@ -132,6 +143,7 @@ def run_shorts_batch(
             cutout=layout in {"cutout", "rounded_window"},
             intro_path=Path(intro).expanduser() if intro else None,
             music_path=Path(music).expanduser() if music else None,
+            crossfade_ms=int(tightened.metrics.get("crossfade_ms") or 15),
         )
         rendered.append(
             {
@@ -144,6 +156,8 @@ def run_shorts_batch(
                 "start_sec": round(start_sample / rate, 3),
                 "end_sec": round(end_sample / rate, 3),
                 "metrics": tightened.metrics,
+                "pieces": [list(piece) for piece in tightened.pieces],
+                "crop_keyframes": [[round(t, 3), round(x, 4)] for t, x in keyframes],
                 "source": str(context_source),
                 "fps": round(fps, 6),
             }

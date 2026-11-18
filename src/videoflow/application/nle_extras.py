@@ -115,10 +115,23 @@ def _project_overlays(directory: Path) -> tuple[NleBroll, ...]:
     fps_num = float(media.get("fps_num") or 30)
     fps_den = float(media.get("fps_den") or 1)
     fps = fps_num / max(0.001, fps_den)
+    canvas_w = int(media.get("width") or 0)
+    canvas_h = int(media.get("height") or 0)
     entries: list[NleBroll] = []
     for overlay in payload.get("overlays", []):
         if not isinstance(overlay, dict) or not overlay.get("path"):
             continue
+        from videoflow.application.overlay_geometry import asset_dimensions, overlay_box
+        from videoflow.domain.state import OverlayClip
+
+        try:
+            clip = OverlayClip.model_validate(overlay)
+            box = overlay_box(clip, canvas_w, canvas_h) if canvas_w and canvas_h else None
+            source_w, source_h = asset_dimensions(Path(clip.path), clip.kind)
+        except Exception:  # noqa: BLE001 - keep the NLE export usable without geometry
+            clip = None
+            box = None
+            source_w = source_h = 0
         entries.append(
             NleBroll(
                 path=str(overlay["path"]),
@@ -132,6 +145,12 @@ def _project_overlays(directory: Path) -> tuple[NleBroll, ...]:
                 width_ratio=float(overlay.get("width_ratio") or 1.0),
                 opacity=float(overlay.get("opacity") or 1.0),
                 z=int(overlay.get("z") or 20),
+                x=box.x if box is not None else 0,
+                y=box.y if box is not None else 0,
+                width=box.width if box is not None else 0,
+                height=box.height if box is not None else 0,
+                source_width=source_w,
+                source_height=source_h,
             )
         )
     return tuple(entries)

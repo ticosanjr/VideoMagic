@@ -822,3 +822,345 @@ def test_last_three_coverage_statements(tmp_path: Path, monkeypatch) -> None:
     ]
     assert overlay_geometry.collisions(state, 640, 360) == []
     assert overlay_geometry.auto_pack(state, 640, 360, caption=None) == []
+
+
+def test_overlay_bounds_step_and_nle_geometry(tmp_path: Path) -> None:
+    import xml.etree.ElementTree as ET
+
+    from tests.contract.test_exporters import sample_state
+    from videoflow.core.context import PipelineContext
+    from videoflow.exporters.extras import NleBroll, NleExtras
+    from videoflow.exporters.fcpxml import export_fcpxml
+    from videoflow.exporters.kdenlive import export_kdenlive
+    from videoflow.exporters.xmeml import export_xmeml
+    from videoflow.steps.base import StepIO
+    from videoflow.steps.qa_overlay_bounds import OverlayBoundsParams, OverlayBoundsStep
+
+    state = _state(tmp_path)
+    image = tmp_path / "nle.png"
+    Image.new("RGB", (100, 50), "red").save(image)
+    state.overlays = [
+        OverlayClip(
+            overlay_id="nle",
+            path=str(image),
+            start_frame=0,
+            duration_frames=30,
+            anchor="top_center",
+            width_ratio=0.2,
+            z=30,
+        )
+    ]
+    context = PipelineContext(
+        source=Path(state.media_info.source_path),
+        output=tmp_path / "bounds",
+        work=tmp_path / "bounds" / "work",
+        exports=tmp_path / "bounds" / "exports",
+        media=state.media_info,
+        state=state,
+    )
+    OverlayBoundsStep().run(context, OverlayBoundsParams(strict=False), StepIO())
+    assert context.artifacts["overlay_bounds"]
+
+    base = sample_state(tmp_path)
+    extras = NleExtras(
+        broll=(
+            NleBroll(
+                path=str(image),
+                start_sec=0.0,
+                duration_sec=1.0,
+                anchor="top_center",
+                width_ratio=0.2,
+                z=50,
+                x=100,
+                y=0,
+                width=128,
+                height=72,
+                source_width=100,
+                source_height=50,
+            ),
+        )
+    )
+    fcpxml = export_fcpxml(base, tmp_path / "t.fcpxml", extras=extras)
+    assert ET.parse(fcpxml).getroot().find(".//asset-clip/adjust-transform") is not None
+    xmeml = export_xmeml(base, tmp_path / "t.xml", extras=extras)
+    assert (
+        ET.parse(xmeml)
+        .getroot()
+        .find(".//clipitem/filter/effect[name='Basic Motion']")
+        is not None
+    )
+    kdenlive = export_kdenlive(base, tmp_path / "t.kdenlive", extras=extras)
+    assert "rect" in kdenlive.read_text(encoding="utf-8")
+
+
+def test_layout_autofix_rerender_branch(tmp_path: Path, monkeypatch) -> None:
+    from videoflow.application import layout
+    from videoflow.application.projects import init_project, save_project_state
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home11"))
+    record, _ = init_project(name="Autofix", output=tmp_path / "autofix")
+    state = _state(tmp_path)
+    image = tmp_path / "low2.png"
+    Image.new("RGB", (100, 50), "red").save(image)
+    state.overlays = [
+        OverlayClip(
+            overlay_id="low",
+            path=str(image),
+            start_frame=0,
+            duration_frames=30,
+            anchor="bottom_left",
+            width_ratio=0.5,
+        )
+    ]
+    save_project_state(record, state, bump_revision=False)
+    monkeypatch.setattr(
+        "videoflow.application.layout.render_master",
+        lambda state, destination, **kwargs: (
+            Path(destination).parent.mkdir(parents=True, exist_ok=True)
+            or Path(destination).write_bytes(b"mp4")
+            or destination
+        ),
+    )
+    monkeypatch.setattr(
+        "videoflow.application.qa_final.audit_final",
+        lambda *args, **kwargs: {"ok": True, "status": "succeeded"},
+    )
+    result = layout.pack_project_layout(
+        record.project_id,
+        apply=True,
+        rerender=True,
+    )
+    assert result["rerendered"]["ok"] is True
+
+
+def test_sfx_demo_mixes_cues(tmp_path: Path, monkeypatch) -> None:
+    from videoflow.application import curation
+    from videoflow.application.curation import build_sfx_demo
+    from videoflow.application.projects import init_project, save_project_state
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home12"))
+    record, _ = init_project(name="SFX", output=tmp_path / "sfx")
+    save_project_state(record, _state(tmp_path), bump_revision=False)
+    monkeypatch.setattr(curation, "_ffmpeg", lambda: "ffmpeg")
+
+    def fake_foley(directory, cues, **kwargs):
+        Path(directory).mkdir(parents=True, exist_ok=True)
+        written = []
+        for index, cue in enumerate(cues, start=1):
+            path = Path(directory) / f"{index:03d}-{cue['kind']}.wav"
+            path.write_bytes(b"wav")
+            written.append({"path": str(path), "kind": cue["kind"]})
+        return {"cues": written, "count": len(written)}
+
+    def fake_run(command, **kwargs):
+        Path(command[-1]).write_bytes(b"demo")
+        return SimpleNamespace(returncode=0, stderr="", stdout="")
+
+    monkeypatch.setattr(curation, "synthesize_foley", fake_foley)
+    monkeypatch.setattr(curation.subprocess, "run", fake_run)
+    result = build_sfx_demo(record.project_id)
+    assert result["ok"] is True
+    assert Path(result["preview"]).name == "sfx-demo-10s.wav"
+    assert result["duration_sec"] == 10.0
+    monkeypatch.setattr(
+        curation.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=1, stderr="bad", stdout=""),
+    )
+    failed = build_sfx_demo(record.project_id)
+    assert Path(failed["preview"]).name != "sfx-demo-10s.wav"
+
+
+def test_qa_steps_skip_and_strict(tmp_path: Path) -> None:
+    from videoflow.core.context import PipelineContext
+    from videoflow.domain.errors import RecipeError, StateNotReadyError
+    from videoflow.steps.base import StepIO
+    from videoflow.steps.qa_caption import CaptionEffectParams, CaptionEffectStep
+    from videoflow.steps.qa_overlay_bounds import OverlayBoundsParams, OverlayBoundsStep
+
+    context = PipelineContext(
+        source=tmp_path / "s.mp4",
+        output=tmp_path / "out",
+        work=tmp_path / "out" / "work",
+        exports=tmp_path / "out" / "exports",
+    )
+    with pytest.raises(StateNotReadyError):
+        OverlayBoundsStep().run(context, OverlayBoundsParams(), StepIO())
+    context.media = _state(tmp_path).media_info
+    caption_dir = context.output / "captions"
+    caption_dir.mkdir(parents=True)
+    (caption_dir / "captions.ass").write_text(
+        "Dialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,plain\n",
+        encoding="utf-8",
+    )
+    CaptionEffectStep().run(
+        context,
+        CaptionEffectParams(effect="karaoke_sweep", strict=False),
+        StepIO(),
+    )
+    assert context.metadata["caption_effect"]["ok"] is False
+    context.state = _state(tmp_path)
+    context.state.overlays = [
+        OverlayClip(
+            overlay_id="edge",
+            path=str(tmp_path / "edge.png"),
+            start_frame=0,
+            duration_frames=30,
+            anchor="bottom_right",
+            width_ratio=0.5,
+        )
+    ]
+    Image.new("RGB", (100, 50), "red").save(tmp_path / "edge.png")
+    with pytest.raises(RecipeError):
+        OverlayBoundsStep().run(
+            context,
+            OverlayBoundsParams(strict=True, platforms=["shorts"]),
+            StepIO(),
+        )
+
+
+def test_minute_sample_prefers_delivered_master(tmp_path: Path, monkeypatch) -> None:
+    from videoflow.application import curation
+    from videoflow.application.projects import init_project, save_project_state
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home13"))
+    record, _ = init_project(name="Sample", output=tmp_path / "sample")
+    save_project_state(record, _state(tmp_path), bump_revision=False)
+    delivered = Path(record.output) / "exports" / "youtube_master.mp4"
+    delivered.parent.mkdir(parents=True)
+    delivered.write_bytes(b"master")
+    monkeypatch.setattr(curation, "_ffmpeg", lambda: "ffmpeg")
+
+    def fake_run(command, **kwargs):
+        target = Path(command[-1])
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"sample")
+        return SimpleNamespace(returncode=0, stderr="", stdout="")
+
+    monkeypatch.setattr(curation.subprocess, "run", fake_run)
+    result = build_minute_sample(record.project_id)
+    assert result["ok"] is True
+    assert Path(result["path"]).is_file()
+
+
+def test_layout_partial_and_qa_fallbacks(tmp_path: Path, monkeypatch) -> None:
+    from videoflow.application import caption_preview, layout
+    from videoflow.application.projects import init_project, save_project_state
+    from videoflow.core.context import PipelineContext
+    from videoflow.steps.base import StepIO
+    from videoflow.steps.qa_caption import CaptionEffectParams, CaptionEffectStep
+    from videoflow.steps.qa_overlay_bounds import OverlayBoundsParams, OverlayBoundsStep
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home14"))
+    record, _ = init_project(name="Partial", output=tmp_path / "partial")
+    state = _state(tmp_path)
+    image = tmp_path / "partial.png"
+    Image.new("RGB", (100, 50), "red").save(image)
+    state.overlays = [
+        OverlayClip(
+            overlay_id="collides",
+            path=str(image),
+            start_frame=0,
+            duration_frames=30,
+            anchor="bottom_left",
+            width_ratio=0.5,
+        ),
+        OverlayClip(
+            overlay_id="clear",
+            path=str(image),
+            start_frame=0,
+            duration_frames=30,
+            anchor="top_left",
+            width_ratio=0.1,
+        ),
+    ]
+    save_project_state(record, state, bump_revision=False)
+    result = layout.pack_project_layout(record.project_id, apply=True)
+    assert result["layout"]["overlays"]
+
+    context = PipelineContext(
+        source=Path(state.media_info.source_path),
+        output=tmp_path / "qa-fallback",
+        work=tmp_path / "qa-fallback" / "work",
+        exports=tmp_path / "qa-fallback" / "exports",
+        media=state.media_info,
+        state=state,
+    )
+    CaptionEffectStep().run(context, CaptionEffectParams(strict=False), StepIO())
+    assert context.metadata["caption_effect"]["skipped"] is True
+    OverlayBoundsStep().run(context, OverlayBoundsParams(strict=False), StepIO())
+    with pytest.raises(ExportError):
+        caption_preview.render_caption_preview(state, tmp_path, time_sec=0.0)
+
+
+def test_overlay_preview_safe_zone_failure(tmp_path: Path, monkeypatch) -> None:
+    import sys
+    from types import ModuleType
+
+    from videoflow.application import overlay_preview
+
+    state = _state(tmp_path)
+    state.overlays = [
+        OverlayClip(
+            overlay_id="o",
+            path=str(tmp_path / "missing.png"),
+            start_frame=0,
+            duration_frames=10,
+        )
+    ]
+
+    def fake_run(command, **kwargs):
+        target = Path(command[-1])
+        target.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (640, 360), "red").save(target, format="JPEG")
+        return SimpleNamespace(returncode=0, stderr="", stdout="")
+
+    monkeypatch.setattr(overlay_preview.subprocess, "run", fake_run)
+    broken = ModuleType("videoflow.steps.qa_safezone")
+
+    def _raise(name):
+        raise RuntimeError("broken safe zones")
+
+    broken.__getattr__ = _raise  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "videoflow.steps.qa_safezone", broken)
+    result = overlay_preview.render_overlay_preview(state, tmp_path)
+    assert result["ok"] is True
+
+
+def test_word_fidelity_backend_error(tmp_path: Path, monkeypatch) -> None:
+    from videoflow.application.qa_word_fidelity import verify_word_fidelity
+    from videoflow.domain.state import Sentence
+
+    monkeypatch.setattr(
+        "videoflow.adapters.faster_whisper.FasterWhisperAdapter.available",
+        staticmethod(lambda *args, **kwargs: True),
+    )
+    monkeypatch.setattr(
+        "videoflow.adapters.ffmpeg.FFmpegAdapter.extract_pcm",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("bad backend")),
+    )
+    result = verify_word_fidelity(
+        tmp_path / "x.mp4",
+        [Sentence(id=0, start_sample=0, end_sample=1, text="hello")],
+        work=tmp_path,
+    )
+    assert result["status"] == "unavailable"
+    assert result["passed"] is True
+
+
+def test_minute_sample_failure_branch(tmp_path: Path, monkeypatch) -> None:
+    from videoflow.application import curation
+    from videoflow.application.projects import init_project, save_project_state
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home15"))
+    record, _ = init_project(name="Sample fail", output=tmp_path / "sample-fail")
+    state = _state(tmp_path)
+    save_project_state(record, state, bump_revision=False)
+    monkeypatch.setattr(curation, "_ffmpeg", lambda: "ffmpeg")
+    monkeypatch.setattr(
+        curation.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=1, stderr="bad", stdout=""),
+    )
+    with pytest.raises(ExportError):
+        build_minute_sample(record.project_id)

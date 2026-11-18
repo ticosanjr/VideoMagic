@@ -44,6 +44,15 @@ def tighten_clip(
 ) -> TightenedClip:
     start = max(0, int(start_sample))
     end = max(start + 1, int(end_sample))
+    # Word boundary guard: never cut through a spoken word. Move a cut that
+    # lands inside a word to the nearest free edge before measuring the clip.
+    for word in words:
+        word_start = int(word.start_sample)
+        word_end = int(word.end_sample)
+        if word_start < start < word_end:
+            start = word_start
+        if word_start < end < word_end:
+            end = word_end
     word_starts = [
         int(word.start_sample)
         for word in words
@@ -60,8 +69,11 @@ def tighten_clip(
     padded_end = min(end, last_word + round(end_pad_ms * sample_rate / 1000))
     slots = _clip_intervals(speech_intervals, start, end)
     if slots:
-        padded_start = max(padded_start, min(item[0] for item in slots))
-        padded_end = min(padded_end, max(item[1] for item in slots))
+        slot_start = min(item[0] for item in slots)
+        slot_end = max(item[1] for item in slots)
+        # Keep a complete word even when the VAD interval starts/ends inside it.
+        padded_start = min(padded_start, slot_start)
+        padded_end = max(padded_end, slot_end)
     pieces: list[tuple[int, int]] = []
     maximum_gap = round(max_internal_silence_ms * sample_rate / 1000)
     for item_start, item_end in slots:
@@ -81,6 +93,9 @@ def tighten_clip(
     if not pieces:
         pieces = [(padded_start, padded_end)]
         slots = pieces
+    else:
+        pieces[0] = (min(pieces[0][0], padded_start), pieces[0][1])
+        pieces[-1] = (pieces[-1][0], max(pieces[-1][1], padded_end))
     total = max(1, sum(item_end - item_start for item_start, item_end in pieces))
     speech_total = sum(
         max(0, min(item_end, end) - max(item_start, start))

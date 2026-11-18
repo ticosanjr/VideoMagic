@@ -280,6 +280,17 @@ def _integrity_report(state: ProjectState, path: Path):
     )
 
 
+def _write_export_layout(state: ProjectState, destination: Path) -> None:
+    media = state.media_info
+    if media is None:
+        return
+    from videoflow.application.overlay_geometry import caption_box, write_layout
+
+    style = state.modules_config.shorts.caption_style
+    caption = caption_box(style, media.width, media.height)
+    write_layout(state, destination.parent, media.width, media.height, caption=caption)
+
+
 def _audio_graph_inputs(
     state: ProjectState, media: MediaInfo, source: Path
 ) -> tuple[list[str], str]:
@@ -792,6 +803,7 @@ def _export_mp4_segmented(
         has_video_finishing = bool(video_filters) or ass_path is not None or bool(state.overlays)
         if not has_video_finishing:
             shutil.move(str(combined), str(destination))
+            _write_export_layout(state, destination)
             if progress is not None:
                 progress(100)
             return destination
@@ -952,6 +964,7 @@ def export_mp4(
         if report is not None and not report.ok:
             raise ExportError(f"{destination.name} failed the duration gate: {report.reason}")
         temporary.replace(destination)
+        _write_export_layout(state, destination)
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise

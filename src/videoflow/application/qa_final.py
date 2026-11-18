@@ -114,7 +114,15 @@ def audit_final(
     for item in silence:
         item.setdefault("kind", "audio_silence")
         duration = float(item.get("duration_sec") or 0.0)
-        if duration > 0.7:
+        start = float(item.get("start_sec") or 0.0)
+        end = float(item.get("end_sec") or 0.0)
+        if start <= 0.05 and duration > 0.3:
+            item["severity"] = "critical"
+            item["message"] = "Initial edge silence longer than 300 ms."
+        elif expected > 0 and expected - end <= 0.05 and duration > 0.4:
+            item["severity"] = "critical"
+            item["message"] = "Final edge silence longer than 400 ms."
+        elif duration > 0.7:
             item["severity"] = "critical"
             item["message"] = "Internal dead air longer than 700 ms."
         issues.append(item)

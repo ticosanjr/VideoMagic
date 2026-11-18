@@ -475,13 +475,23 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         return {"ok": True, "project_id": project_id, "preview": result}
 
     @register
-    def vf_qa_autofix(project_id: str, apply: bool = True) -> dict[str, Any]:
-        """Resolve overlay/caption collisions by repacking margins."""
+    def vf_qa_autofix(
+        project_id: str,
+        apply: bool = True,
+        rerender: bool = False,
+        video_path: str = "",
+    ) -> dict[str, Any]:
+        """Resolve overlay/caption collisions, optionally re-render the master."""
 
         from videoflow.application.layout import pack_project_layout
 
         try:
-            result = pack_project_layout(project_id, apply=apply)
+            result = pack_project_layout(
+                project_id,
+                apply=apply,
+                rerender=rerender,
+                video_path=video_path,
+            )
         except (VideoFlowError, OSError) as exc:
             return error("qa_autofix_failed", str(exc))
         return result
@@ -522,6 +532,8 @@ def register_core_tools(register: Any, ctx: Any) -> None:
     def vf_qa_final(
         project_id: str,
         video_path: str = "",
+        strict: bool = True,
+        platforms: list[str] | None = None,
     ) -> dict[str, Any]:
         """Audit the deliverable MP4 and write a contact sheet."""
 
@@ -537,7 +549,13 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                 if video_path
                 else (default if default.is_file() else fallback)
             )
-            report = audit_final(video, output=Path(record.output), state=state)
+            report = audit_final(
+                video,
+                output=Path(record.output),
+                state=state,
+                strict=strict,
+                platforms=platforms,
+            )
         except (VideoFlowError, OSError) as exc:
             return error("qa_final_failed", str(exc))
         return {"ok": bool(report.get("ok")), "report": report}
@@ -1254,6 +1272,14 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                 except StyleNotFoundError:
                     requested = None
         requested = requested or list(DEFAULT_BUNDLE_TARGETS)
+        if record.channel_id:
+            from videoflow.application.brand_kit import load_brand_kit
+
+            brand = load_brand_kit(record.channel_id)
+            if brand.get("lut"):
+                merged = dict(look or {})
+                merged.setdefault("lut_path", str(brand["lut"]))
+                look = merged
         bundle = build_delivery_bundle(
             state,
             Path(record.output),
