@@ -3,6 +3,8 @@
   import {
     deleteStyle,
     deleteWorkflow,
+    duplicateStyle,
+    restoreStyle,
     duplicateWorkflow,
     errorMessage,
     getAgentsFile,
@@ -219,6 +221,31 @@
     }
   }
 
+  async function duplicateCurrentStyle() {
+    if (!selectedStyle) return;
+    const newId = window.prompt("Novo style_id", `${selectedStyle}-copy`)?.trim();
+    if (!newId) return;
+    try {
+      await duplicateStyle(selectedStyle, { new_id: newId });
+      await reload();
+      await openStyle(newId);
+      status = `Estilo duplicado: ${newId}`;
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
+  async function restoreCurrentStyle() {
+    if (!selectedStyle) return;
+    try {
+      await restoreStyle(selectedStyle);
+      await openStyle(selectedStyle);
+      status = "Estilo restaurado do seed";
+    } catch (reason) {
+      error = errorMessage(reason);
+    }
+  }
+
   async function removeCurrentStyle() {
     if (!selectedStyle) return;
     try {
@@ -315,6 +342,8 @@
         <div class="flex flex-wrap gap-2">
           <button type="button" class="rounded-lg border border-white/10 px-2 py-1 text-[10px] text-neutral-300" onclick={() => void newStyle()}>Novo</button>
           <button type="button" class="rounded-lg border border-violet-400/30 px-2 py-1 text-[10px] text-violet-100" onclick={() => void saveCurrentStyle()} disabled={!selectedStyle || busy}>Salvar</button>
+          <button type="button" class="rounded-lg border border-white/10 px-2 py-1 text-[10px] text-neutral-300" onclick={() => void duplicateCurrentStyle()} disabled={!selectedStyle}>Duplicar</button>
+          <button type="button" class="rounded-lg border border-white/10 px-2 py-1 text-[10px] text-neutral-300" onclick={() => void restoreCurrentStyle()} disabled={!selectedStyle}>Restaurar seed</button>
           <button type="button" class="rounded-lg border border-rose-500/30 px-2 py-1 text-[10px] text-rose-200" onclick={() => void removeCurrentStyle()} disabled={!selectedStyle}>Excluir</button>
         </div>
         <textarea class="h-72 w-full rounded-xl border border-neutral-700 bg-black/50 p-3 font-mono text-[11px] text-neutral-100" bind:value={styleMarkdown} spellcheck="false" data-testid="opencode-style-editor"></textarea>

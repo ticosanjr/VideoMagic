@@ -111,6 +111,26 @@ def sync_styles(
     return {"ok": True, "sync": active.sync(workspace_dir, overwrite=overwrite)}
 
 
+def duplicate_style(
+    style_id: str,
+    *,
+    new_id: str = "",
+    name: str = "",
+    catalog: StyleCatalog | None = None,
+) -> dict[str, Any]:
+    from videoflow.application.style_catalog import style_slug
+
+    active = catalog or StyleCatalog()
+    target = new_id or style_slug(f"{style_id}-copy")
+    path = active.duplicate(style_id, target, name=name)
+    return {"ok": True, "style_id": target, "file": str(path)}
+
+
+def restore_style(style_id: str, catalog: StyleCatalog | None = None) -> dict[str, Any]:
+    path = (catalog or StyleCatalog()).restore_seed(style_id)
+    return {"ok": True, "style_id": style_id, "file": str(path)}
+
+
 def delete_style(style_id: str, catalog: StyleCatalog | None = None) -> dict[str, Any]:
     active = catalog or StyleCatalog()
     return {"ok": True, "deleted": active.delete(style_id)}
@@ -118,6 +138,8 @@ def delete_style(style_id: str, catalog: StyleCatalog | None = None) -> dict[str
 
 __all__ = [
     "delete_style",
+    "duplicate_style",
+    "restore_style",
     "get_style",
     "learn_style",
     "list_styles",

@@ -25,6 +25,26 @@ class ResourceSpec:
 
 TOOL_SPECS: tuple[ToolSpec, ...] = (
     ToolSpec(
+        "vf_style_list",
+        "List the Markdown style catalog and optional workspace sync.",
+        "styles",
+    ),
+    ToolSpec(
+        "vf_style_save",
+        "Create or update one Markdown style and sync presets/.",
+        "styles",
+    ),
+    ToolSpec(
+        "vf_style_learn_rule",
+        "Append review rules to one style, capped at 15 consolidated rules.",
+        "styles",
+    ),
+    ToolSpec(
+        "analyze_reference_style",
+        "Analyze a reference and return a style candidate without saving.",
+        "styles",
+    ),
+    ToolSpec(
         "vf_project",
         "Create/open/status a project, clone a channel style, or learn a rule.",
         "project",

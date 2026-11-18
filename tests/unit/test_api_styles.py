@@ -76,3 +76,25 @@ def test_style_routes_errors(tmp_path, monkeypatch) -> None:
     assert missing.json()["code"] == "style_not_found"
 
     assert client.delete("/api/v1/styles/missing").json()["deleted"] is False
+
+
+def test_style_duplicate_restore_and_errors(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
+    client = TestClient(create_app())
+
+    duplicated = client.post(
+        "/api/v1/styles/canal-paula-reels/duplicate",
+        json={"new_id": "canal-paula-copy", "name": "Cópia"},
+    )
+    assert duplicated.status_code == 200
+    assert duplicated.json()["ok"] is True
+    assert (tmp_path / "home" / "styles" / "canal-paula-copy.md").is_file()
+
+    restored = client.post("/api/v1/styles/canal-paula-reels/restore")
+    assert restored.json()["ok"] is True
+
+    assert (
+        client.post("/api/v1/styles/missing/duplicate", json={"new_id": "x"}).json()["ok"] is False
+    )
+    assert client.post("/api/v1/styles/missing/restore").json()["ok"] is False

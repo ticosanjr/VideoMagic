@@ -1,6 +1,6 @@
 # MCP server — agent profile
 
-VideoFlow 2.91 exposes a **13-tool core MCP** plus four isolated domain servers:
+VideoFlow 3.0.1 exposes a **17-tool core MCP** plus four isolated domain servers:
 
 ```text
 mcp-vf-core      13 tools   project, styles, jobs, timeline, render, exports, ingest
@@ -40,13 +40,17 @@ and resource links. Multiple sub-agents can work on different projects in
 parallel. Writes to the same project are serialized by a project lock and
 `vf_edit_timeline` supports `expected_revision` for conflict detection.
 
-## Core tools (13)
+## Core tools (17)
 
 ### Project, catalog, and execution
 
 | Tool | Purpose |
 | --- | --- |
 | `vf_style` | List/save/sync Markdown styles and learn review rules. |
+| `vf_style_list` | List styles (explicit alias). |
+| `vf_style_save` | Save/update one style and sync `presets/`. |
+| `vf_style_learn_rule` | Append review rules, capped at 15. |
+| `analyze_reference_style` | Analyze a reference and return a candidate without saving. |
 | `vf_project` | Create/open/status a project; `clone_style` and `learn_rule`. |
 | `vf_capabilities` | Backends, models, GPU worker, and external policy. |
 | `vf_catalog_search` | List or search node/tool types with pagination. |

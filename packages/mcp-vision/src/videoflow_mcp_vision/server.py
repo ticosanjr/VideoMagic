@@ -19,7 +19,7 @@ TOOL_NAMES = (
 def build_server() -> MCPServer:
     """Build the vision MCP server with the five 2.90 tools."""
 
-    server = MCPServer("VideoFlow Vision", version="3.0.0")
+    server = MCPServer("VideoFlow Vision", version="3.0.1")
     server.tool(
         name="transcribe_word_aligned",
         description="Transcribe word-aligned captions to JSON, SRT, and ASS.",

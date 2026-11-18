@@ -1104,6 +1104,22 @@ export async function saveStyleMarkdown(payload: {
   });
 }
 
+export async function duplicateStyle(
+  styleId: string,
+  payload: { new_id?: string; name?: string }
+): Promise<{ ok: boolean; style_id: string }> {
+  return request(`/api/v1/styles/${encodeURIComponent(styleId)}/duplicate`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function restoreStyle(styleId: string): Promise<{ ok: boolean }> {
+  return request(`/api/v1/styles/${encodeURIComponent(styleId)}/restore`, {
+    method: "POST"
+  });
+}
+
 export async function deleteStyle(styleId: string): Promise<{ ok: boolean }> {
   return request(`/api/v1/styles/${encodeURIComponent(styleId)}`, { method: "DELETE" });
 }

@@ -81,11 +81,19 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         layout_mode: str | None = None,
         caption_preset: str | None = None,
         motion_engine: str | None = None,
+        platforms: list[str] | None = None,
+        beatmap_defaults: dict[str, Any] | None = None,
+        sound_design: dict[str, Any] | None = None,
+        hook_strategy: str | None = None,
+        intro_strategy: str | None = None,
         export_targets: list[str] | None = None,
         palette: list[str] | None = None,
         fonts: list[str] | None = None,
         cut_rhythm: dict[str, Any] | None = None,
         safe_zones: dict[str, Any] | None = None,
+        reference_url: str = "",
+        reference_dir: str = "",
+        images: list[str] | None = None,
         workspace_dir: str = "",
         overwrite: bool = True,
         feedback_note: str = "",
@@ -109,6 +117,25 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                     "styles": style_service.list_styles(),
                     "sync": sync,
                 }
+            if action == "analyze":
+                if not (reference_url or reference_dir or images):
+                    return error(
+                        "reference_required",
+                        "reference_url, reference_dir, or images is required",
+                    )
+                from videoflow.application.style_clone import clone_style
+                from videoflow.runtime import portable_home
+
+                output = Path(workspace_dir) if workspace_dir else portable_home()
+                return clone_style(
+                    style_id or name or "reference",
+                    output,
+                    reference_url=reference_url,
+                    reference_dir=reference_dir,
+                    images=images,
+                    name=name,
+                    save=False,
+                )
             if action == "get":
                 return style_service.get_style(style_id)
             if action == "delete":
@@ -145,6 +172,11 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                     ("layout_mode", layout_mode),
                     ("caption_preset", caption_preset),
                     ("motion_engine", motion_engine),
+                    ("platforms", platforms),
+                    ("beatmap_defaults", beatmap_defaults),
+                    ("sound_design", sound_design),
+                    ("hook_strategy", hook_strategy),
+                    ("intro_strategy", intro_strategy),
                     ("export_targets", export_targets),
                     ("palette", palette),
                     ("fonts", fonts),
@@ -165,6 +197,109 @@ def register_core_tools(register: Any, ctx: Any) -> None:
             return exc.to_dict()
         except ValueError as exc:
             return error("invalid_style", str(exc))
+
+    @register
+    def vf_style_list(workspace_dir: str = "") -> dict[str, Any]:
+        """List the Markdown style catalog."""
+
+        return vf_style(action="list", workspace_dir=workspace_dir)
+
+    @register
+    def vf_style_save(
+        style_id: str = "",
+        name: str = "",
+        markdown_content: str = "",
+        body: str = "",
+        aspect_ratio: str | None = None,
+        target_lufs: float | None = None,
+        max_static_sec: float | None = None,
+        min_silence_ms: int | None = None,
+        layout_mode: str | None = None,
+        caption_preset: str | None = None,
+        motion_engine: str | None = None,
+        platforms: list[str] | None = None,
+        beatmap_defaults: dict[str, Any] | None = None,
+        sound_design: dict[str, Any] | None = None,
+        hook_strategy: str | None = None,
+        intro_strategy: str | None = None,
+        export_targets: list[str] | None = None,
+        palette: list[str] | None = None,
+        fonts: list[str] | None = None,
+        cut_rhythm: dict[str, Any] | None = None,
+        safe_zones: dict[str, Any] | None = None,
+        workspace_dir: str = "",
+        overwrite: bool = True,
+    ) -> dict[str, Any]:
+        """Create or update one Markdown style and sync presets/."""
+
+        return vf_style(
+            action="save",
+            style_id=style_id,
+            name=name,
+            markdown_content=markdown_content,
+            body=body,
+            aspect_ratio=aspect_ratio,
+            target_lufs=target_lufs,
+            max_static_sec=max_static_sec,
+            min_silence_ms=min_silence_ms,
+            layout_mode=layout_mode,
+            caption_preset=caption_preset,
+            motion_engine=motion_engine,
+            platforms=platforms,
+            beatmap_defaults=beatmap_defaults,
+            sound_design=sound_design,
+            hook_strategy=hook_strategy,
+            intro_strategy=intro_strategy,
+            export_targets=export_targets,
+            palette=palette,
+            fonts=fonts,
+            cut_rhythm=cut_rhythm,
+            safe_zones=safe_zones,
+            workspace_dir=workspace_dir,
+            overwrite=overwrite,
+        )
+
+    @register
+    def vf_style_learn_rule(
+        style_id: str,
+        feedback_note: str = "",
+        notes: list[str] | None = None,
+        mode: str = "merge",
+        max_rules: int = 15,
+        workspace_dir: str = "",
+    ) -> dict[str, Any]:
+        """Append review notes to one style, capped at 15 consolidated rules."""
+
+        return vf_style(
+            action="learn_rule",
+            style_id=style_id,
+            feedback_note=feedback_note,
+            notes=notes,
+            mode=mode,
+            max_rules=max_rules,
+            workspace_dir=workspace_dir,
+        )
+
+    @register
+    def analyze_reference_style(
+        style_id: str = "",
+        name: str = "",
+        reference_url: str = "",
+        reference_dir: str = "",
+        images: list[str] | None = None,
+        workspace_dir: str = "",
+    ) -> dict[str, Any]:
+        """Analyze a URL, folder, or images and return a style candidate without saving."""
+
+        return vf_style(
+            action="analyze",
+            style_id=style_id,
+            name=name,
+            reference_url=reference_url,
+            reference_dir=reference_dir,
+            images=images,
+            workspace_dir=workspace_dir,
+        )
 
     @register
     def vf_project(

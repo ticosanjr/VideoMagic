@@ -334,3 +334,24 @@ def test_style_v2_fields_roundtrip_and_validation() -> None:
         StyleDefinition(style_id="bad-layout", name="Bad", layout_mode="unknown")
     with pytest.raises(ValueError, match="motion_engine"):
         StyleDefinition(style_id="bad-motion", name="Bad", motion_engine="unknown")
+
+
+def test_style_duplicate_and_restore_seed(tmp_path: Path) -> None:
+    from videoflow.application import style_service
+    from videoflow.application.style_catalog import StyleCatalog
+
+    catalog = StyleCatalog(tmp_path / "styles")
+    style_service.save_style(
+        style_id="custom-style",
+        name="Custom",
+        catalog=catalog,
+    )
+    duplicated = style_service.duplicate_style(
+        "custom-style", new_id="custom-copy", catalog=catalog
+    )
+    assert duplicated["ok"] is True
+    assert (tmp_path / "styles" / "custom-copy.md").is_file()
+
+    restored = style_service.restore_style("canal-rafael-tech", catalog=catalog)
+    assert restored["ok"] is True
+    assert (tmp_path / "styles" / "canal-rafael-tech.md").is_file()

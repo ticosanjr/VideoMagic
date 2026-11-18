@@ -559,3 +559,42 @@ def test_core_bundle_uses_project_style_export_targets(tmp_path: Path, monkeypat
     assert result["ok"] is True
     assert set(result["bundle"]["files"]) == {"resolve"}
     assert result["bundle"]["targets"] == ["resolve"]
+
+
+def test_core_style_analyze_returns_candidate(tmp_path: Path, monkeypatch) -> None:
+    tools, record, _ = setup(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        "videoflow.application.style_clone.clone_style",
+        lambda *args, **kwargs: {"ok": True, "saved": kwargs.get("save"), "style_id": "candidate"},
+    )
+    result = tools["vf_style"](
+        action="analyze",
+        style_id="candidate",
+        reference_url="https://example.com",
+        workspace_dir=str(tmp_path),
+    )
+    alias = tools["analyze_reference_style"](
+        style_id="candidate",
+        reference_url="https://example.com",
+        workspace_dir=str(tmp_path),
+    )
+    assert alias["ok"] is True
+    assert result["ok"] is True
+    assert result["saved"] is False
+
+
+def test_core_style_aliases(tmp_path: Path, monkeypatch) -> None:
+    tools, record, _ = setup(tmp_path, monkeypatch)
+    assert tools["vf_style_list"]()["ok"] is True
+    saved = tools["vf_style_save"](
+        style_id="alias-style",
+        name="Alias",
+        platforms=["youtube"],
+        workspace_dir=str(tmp_path / "workspace"),
+    )
+    assert saved["ok"] is True
+    learned = tools["vf_style_learn_rule"](
+        style_id="alias-style",
+        feedback_note="Cortar antes de 1s",
+    )
+    assert learned["ok"] is True

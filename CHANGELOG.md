@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.0.1] - 2026-11-18
+
+### Added
+
+- `analyze_reference_style` MCP tool and `vf_style(action="analyze")` candidate
+  analysis without saving.
+- `vf_style_list`, `vf_style_save`, and `vf_style_learn_rule` MCP aliases.
+- Style duplicate and restore-seed APIs/UI.
+- `capture_web_or_screen(mode="video_clip")` alias.
+
+### Fixed
+
+- Style API exposes the v2 platform, beatmap, sound, hook, and intro fields.
+- OpenCode Studio exposes style duplicate/restore actions.
+
 ## [3.0.0] - 2026-11-18
 
 ### Added

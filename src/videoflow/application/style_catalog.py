@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shutil
 import threading
 from pathlib import Path
 from typing import Any
@@ -441,6 +442,27 @@ class StyleCatalog:
             return path
         atomic_write_text(path, text)
         self._index(style, path)
+        self.invalidate()
+        return path
+
+    def duplicate(self, style_id: str, new_id: str, *, name: str = "") -> Path:
+        style = self.get(style_id)
+        candidate = style.model_copy(
+            update={
+                "style_id": new_id,
+                "name": name or f"{style.name} (cópia)",
+                "version": 1,
+            }
+        )
+        return self.save(candidate, overwrite=False)
+
+    def restore_seed(self, style_id: str) -> Path:
+        seed = seed_styles_dir() / f"{style_id}.md"
+        if not seed.is_file():
+            raise StyleNotFoundError(style_id)
+        self.root.mkdir(parents=True, exist_ok=True)
+        path = self.root / seed.name
+        shutil.copy2(seed, path)
         self.invalidate()
         return path
 

@@ -190,6 +190,7 @@ def clone_style(
     images: list[str] | None = None,
     name: str = "",
     workspace_dir: str | Path | None = None,
+    save: bool = True,
 ) -> dict[str, Any]:
     """Extract palette, typography hints, rhythm, and safe zones into a kit."""
 

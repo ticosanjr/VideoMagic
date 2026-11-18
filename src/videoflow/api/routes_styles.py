@@ -40,6 +40,11 @@ class StyleSaveRequest(BaseModel):
     overwrite: bool = True
 
 
+class StyleDuplicateRequest(BaseModel):
+    new_id: str = ""
+    name: str = ""
+
+
 class StyleLearnRequest(BaseModel):
     notes: list[str] = Field(default_factory=list)
     mode: str = "merge"
@@ -114,6 +119,20 @@ def register_style_routes(app: FastAPI) -> None:
             if isinstance(exc, VideoFlowError):
                 return exc.to_dict()
             return {"ok": False, "code": "invalid_style", "message": str(exc)}
+
+    @app.post("/api/v1/styles/{style_id}/duplicate")
+    def styles_duplicate(style_id: str, request: StyleDuplicateRequest) -> dict[str, object]:
+        try:
+            return style_service.duplicate_style(style_id, new_id=request.new_id, name=request.name)
+        except VideoFlowError as exc:
+            return exc.to_dict()
+
+    @app.post("/api/v1/styles/{style_id}/restore")
+    def styles_restore(style_id: str) -> dict[str, object]:
+        try:
+            return style_service.restore_style(style_id)
+        except VideoFlowError as exc:
+            return exc.to_dict()
 
     @app.delete("/api/v1/styles/{style_id}")
     def styles_delete(style_id: str) -> dict[str, object]:

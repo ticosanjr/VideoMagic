@@ -981,9 +981,11 @@ def capture_web_or_screen(
             "url_or_target must not be empty", details={"argument": "url_or_target"}
         )
     selected = str(mode or "").strip().lower()
+    if selected == "video_clip":
+        selected = "clip"
     if selected not in {"screenshot", "clip"}:
         raise InvalidArgumentError(
-            "mode must be 'screenshot' or 'clip'",
+            "mode must be 'screenshot', 'clip', or 'video_clip'",
             details={"argument": "mode", "value": mode},
         )
     try:
