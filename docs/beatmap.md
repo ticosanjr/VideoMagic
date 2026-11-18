@@ -65,6 +65,11 @@ fade filters. Every video chain is normalized to `setsar=1`.
 - `ken_burns`
 - `transformative_crop`
 
+## Overlay motion
+
+B-roll overlays carry `ken_burns` and `transformative_crop`. The MP4 exporter
+applies a slow zoom/crop before scaling and positioning, and normalizes SAR.
+
 ## Captions and audio
 
 Beatmap captions are written to `captions/beatmap.ass`; if `subtitles.ass` does

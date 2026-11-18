@@ -685,7 +685,7 @@ def build_server(service: FetchService | None = None) -> MCPServer:
 
     mcp = MCPServer(
         SERVER_NAME,
-        version="3.0.2",
+        version="3.0.3",
         instructions=(
             "Project-scoped stock media acquisition. Every asset lands under the "
             "project workspace with metadata and license sidecars."

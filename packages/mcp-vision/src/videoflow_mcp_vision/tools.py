@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import importlib.util
 import json
@@ -909,6 +910,150 @@ def _is_screen_target(value: str) -> bool:
     return text in {"screen", "desktop", "display"} or text.startswith("screen:")
 
 
+@contextlib.contextmanager
+def _cdp_scroll_capture(
+    url: str,
+    *,
+    width: int,
+    height: int,
+    selector: str = "",
+    scroll_animation: str = "",
+):
+    """Drive Chromium through CDP so URL captures can actually scroll."""
+
+    import base64
+    import contextlib as _contextlib
+    import socket
+    import subprocess
+    import time
+    import urllib.request
+
+    try:
+        import websocket  # type: ignore[import-not-found]
+    except Exception as exc:  # noqa: BLE001 - optional automation dependency
+        raise MissingCommandError(
+            "scroll_animation requires websocket-client",
+            details={"env": ["VF_CHROME_BIN"], "capability": "scroll"},
+        ) from exc
+
+    browser = _chrome()
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = int(sock.getsockname()[1])
+    profile = tempfile.mkdtemp(prefix="vf-cdp-")
+    process = subprocess.Popen(
+        [
+            browser,
+            "--headless=new",
+            "--disable-gpu",
+            "--hide-scrollbars",
+            f"--window-size={width},{height}",
+            f"--remote-debugging-port={port}",
+            f"--user-data-dir={profile}",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "about:blank",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    socket_connection = None
+    try:
+        for _ in range(120):
+            try:
+                with urllib.request.urlopen(
+                    f"http://127.0.0.1:{port}/json/version", timeout=0.5
+                ) as response:
+                    if response.status == 200:
+                        break
+            except OSError:
+                time.sleep(0.1)
+        else:
+            raise OutputNotProducedError(
+                "Chromium did not expose its debugging endpoint",
+                details={"url": url},
+            )
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=2) as response:
+            targets = json.loads(response.read().decode("utf-8"))
+        page = next(
+            (item for item in targets if item.get("type") == "page"),
+            None,
+        )
+        if page is None or not page.get("webSocketDebuggerUrl"):
+            raise OutputNotProducedError(
+                "Chromium did not expose a page target",
+                details={"url": url},
+            )
+        socket_connection = websocket.create_connection(page["webSocketDebuggerUrl"], timeout=20)
+        counter = 0
+
+        def command(method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+            nonlocal counter
+            counter += 1
+            socket_connection.send(
+                json.dumps({"id": counter, "method": method, "params": params or {}})
+            )
+            while True:
+                message = json.loads(socket_connection.recv())
+                if message.get("id") != counter:
+                    continue
+                if message.get("error"):
+                    raise OutputNotProducedError(
+                        f"Chromium CDP error: {message['error']}",
+                        details={"method": method},
+                    )
+                return message.get("result") or {}
+
+        command("Page.enable")
+        command("Runtime.enable")
+        command("Page.navigate", {"url": url})
+        for _ in range(120):
+            state = command(
+                "Runtime.evaluate",
+                {
+                    "expression": "document.readyState",
+                    "returnByValue": True,
+                },
+            )
+            if (state.get("result") or {}).get("value") == "complete":
+                break
+            time.sleep(0.1)
+
+        def capture(progress: float) -> bytes:
+            ratio = max(0.0, min(1.0, float(progress)))
+            if selector:
+                script = (
+                    f"const e = document.querySelector({json.dumps(selector)});"
+                    "if (e) e.scrollIntoView({block: 'start', behavior: 'instant'});"
+                )
+            else:
+                script = (
+                    "window.scrollTo({top:"
+                    "(document.documentElement.scrollHeight - window.innerHeight)"
+                    f"*{ratio}, behavior:'instant'}});"
+                )
+            command("Runtime.evaluate", {"expression": script})
+            time.sleep(0.05)
+            result = command(
+                "Page.captureScreenshot",
+                {"format": "png", "fromSurface": True},
+            )
+            return base64.b64decode(result.get("data", ""))
+
+        yield capture
+    finally:
+        if socket_connection is not None:
+            with _contextlib.suppress(Exception):
+                socket_connection.close()
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+        shutil.rmtree(profile, ignore_errors=True)
+
+
 def _capture_screen(
     *,
     target: Path,
@@ -1069,6 +1214,46 @@ def capture_web_or_screen(
             raw.unlink(missing_ok=True)
     elif selected == "screenshot":
         raw = target.with_name(f".{target.stem}.raw.png")
+        if scroll_animation:
+            with _cdp_scroll_capture(
+                url_or_target,
+                width=viewport_width,
+                height=viewport_height,
+                selector=crop_selector,
+                scroll_animation=scroll_animation,
+            ) as capture:
+                raw.write_bytes(capture(1.0))
+            _require_output(raw)
+            if crop:
+                commands.run(
+                    [
+                        _ffmpeg(),
+                        "-hide_banner",
+                        "-loglevel",
+                        "error",
+                        "-y",
+                        "-i",
+                        str(raw),
+                        "-vf",
+                        crop,
+                        str(target),
+                    ]
+                )
+            else:
+                raw.replace(target)
+            raw.unlink(missing_ok=True)
+            _require_output(target)
+            record = storage.write_output(
+                project_id,
+                relative,
+                source_path=target,
+                kind=kind,
+                license="source",
+                source=f"chromium:{Path(url_or_target).name or url_or_target}",
+                cache_key=key,
+                metadata={"scroll_animation": scroll_animation, "selector": crop_selector},
+            )
+            return _payload(tool, project_id, record, mode="local")
         argv = [
             browser,
             "--headless=new",
@@ -1102,47 +1287,81 @@ def capture_web_or_screen(
             raw.unlink(missing_ok=True)
     else:
         total = max(1, round(duration * fps))
-        with tempfile.TemporaryDirectory(prefix="vf-capture-") as raw_dir:
-            frames = Path(raw_dir) / "frames"
-            frames.mkdir(parents=True)
-            for index in range(total):
-                moment = index / fps
-                frame = frames / f"frame-{index:05d}.png"
-                argv = [
-                    browser,
-                    "--headless=new",
-                    "--disable-gpu",
-                    "--hide-scrollbars",
-                    f"--window-size={viewport_width},{viewport_height}",
-                    f"--virtual-time-budget={max(1, round(moment * 1000))}",
-                    f"--screenshot={frame}",
-                    f"{url_or_target}{'&' if '?' in url_or_target else '?'}vf_time={moment:.4f}"
-                    + (f"&vf_scroll={scroll_animation}" if scroll_animation else ""),
-                ]
-                commands.run(argv, timeout=120)
-                if not frame.is_file():
-                    raise OutputNotProducedError(
-                        f"Chromium did not capture frame {index}",
-                        details={"path": str(frame)},
-                    )
-            if crop:
-                for frame in frames.glob("frame-*.png"):
-                    commands.run(
-                        [
-                            _ffmpeg(),
-                            "-hide_banner",
-                            "-loglevel",
-                            "error",
-                            "-y",
-                            "-i",
-                            str(frame),
-                            "-vf",
-                            crop,
-                            str(frame.with_suffix(".crop.png")),
-                        ]
-                    )
-                    frame.with_suffix(".crop.png").replace(frame)
-            _encode_frames(frames, target, fps=fps, duration=duration, alpha=False)
+        if scroll_animation:
+            with tempfile.TemporaryDirectory(prefix="vf-capture-") as raw_dir:
+                frames = Path(raw_dir) / "frames"
+                frames.mkdir(parents=True)
+                with _cdp_scroll_capture(
+                    url_or_target,
+                    width=viewport_width,
+                    height=viewport_height,
+                    selector=crop_selector,
+                    scroll_animation=scroll_animation,
+                ) as capture:
+                    for index in range(total):
+                        progress = index / max(1, total - 1)
+                        frame = frames / f"frame-{index:05d}.png"
+                        frame.write_bytes(capture(progress))
+                if crop:
+                    for frame in frames.glob("frame-*.png"):
+                        commands.run(
+                            [
+                                _ffmpeg(),
+                                "-hide_banner",
+                                "-loglevel",
+                                "error",
+                                "-y",
+                                "-i",
+                                str(frame),
+                                "-vf",
+                                crop,
+                                str(frame.with_suffix(".crop.png")),
+                            ]
+                        )
+                        frame.with_suffix(".crop.png").replace(frame)
+                _encode_frames(frames, target, fps=fps, duration=duration, alpha=False)
+        else:
+            with tempfile.TemporaryDirectory(prefix="vf-capture-") as raw_dir:
+                frames = Path(raw_dir) / "frames"
+                frames.mkdir(parents=True)
+                for index in range(total):
+                    moment = index / fps
+                    frame = frames / f"frame-{index:05d}.png"
+                    argv = [
+                        browser,
+                        "--headless=new",
+                        "--disable-gpu",
+                        "--hide-scrollbars",
+                        f"--window-size={viewport_width},{viewport_height}",
+                        f"--virtual-time-budget={max(1, round(moment * 1000))}",
+                        f"--screenshot={frame}",
+                        f"{url_or_target}{'&' if '?' in url_or_target else '?'}vf_time={moment:.4f}"
+                        + (f"&vf_scroll={scroll_animation}" if scroll_animation else ""),
+                    ]
+                    commands.run(argv, timeout=120)
+                    if not frame.is_file():
+                        raise OutputNotProducedError(
+                            f"Chromium did not capture frame {index}",
+                            details={"path": str(frame)},
+                        )
+                if crop:
+                    for frame in frames.glob("frame-*.png"):
+                        commands.run(
+                            [
+                                _ffmpeg(),
+                                "-hide_banner",
+                                "-loglevel",
+                                "error",
+                                "-y",
+                                "-i",
+                                str(frame),
+                                "-vf",
+                                crop,
+                                str(frame.with_suffix(".crop.png")),
+                            ]
+                        )
+                        frame.with_suffix(".crop.png").replace(frame)
+                _encode_frames(frames, target, fps=fps, duration=duration, alpha=False)
     _require_output(target)
     record = storage.write_output(
         project_id,

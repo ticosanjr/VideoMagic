@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.0.3] - 2026-11-18
+
+### Added
+
+- Real browser scroll capture for `capture_web_or_screen` via Chromium CDP
+  (`scroll_animation` for screenshot and clip modes).
+- `websocket-client` dependency for the vision MCP package.
+
+### Changed
+
+- Documented B-roll Ken Burns/transformative crop and browser scroll capture.
+
 ## [3.0.2] - 2026-11-18
 
 ### Changed

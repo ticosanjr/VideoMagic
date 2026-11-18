@@ -1,6 +1,6 @@
 [project]
 name = "videoflow-mcp-vision"
-version = "3.0.2"
+version = "3.0.3"
 description = "VideoFlow 2.90 vision MCP tools: captions, mattes, upscale, motion graphics, B-roll."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -9,6 +9,7 @@ dependencies = [
   "mcp>=1.20",
   "vf-compute",
   "vf-contracts",
+  "websocket-client>=1.8",
 ]
 
 [project.optional-dependencies]
