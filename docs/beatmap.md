@@ -8,6 +8,9 @@ atomically. A validation error leaves the timeline untouched.
 ```json
 {
   "revision": 1,
+  "time_basis": "timeline",
+  "keep_ranges": [{"start_sec": 0, "end_sec": 30}],
+  "remove_ranges": [{"start_sec": 45, "end_sec": 50}],
   "cuts": [{"start_frame": 10, "end_frame": 40}],
   "transitions": [
     {
@@ -41,6 +44,21 @@ atomically. A validation error leaves the timeline untouched.
   "music_tracks": []
 }
 ```
+
+## Ranges and safety
+
+- `keep_ranges` and `remove_ranges` are seconds in `time_basis`
+  (`timeline` by default, or `source`).
+- `cuts` is still accepted as a timeline-frame keep-list for 3.0
+  compatibility, with a warning. New callers should use `keep_ranges` or
+  `remove_ranges`.
+- `dry_run=true` returns `before_duration_sec`, `after_duration_sec`,
+  `delta_sec`, `delta_pct`, and `affected_clips` without saving.
+- An edit that removes more than 50% of the timeline aborts unless
+  `force=true`.
+- Every saved beatmap edit creates a `history/rev_NNN.json` snapshot;
+  `vf_project(action="history" | "undo" | "restore")` operates on those
+  revisions.
 
 ## Transitions
 

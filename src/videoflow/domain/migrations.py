@@ -6,7 +6,7 @@ from typing import Any
 
 from videoflow.domain.errors import ProjectStateError, RecipeError
 
-PROJECT_STATE_SCHEMA_VERSION = 2
+PROJECT_STATE_SCHEMA_VERSION = 3
 RECIPE_SCHEMA_VERSION = 1
 
 
@@ -31,6 +31,8 @@ def migrate_project_state(payload: dict[str, Any]) -> dict[str, Any]:
                     if isinstance(segment, dict):
                         segment.setdefault("source_id", "primary")
         migrated.setdefault("source_offsets", {})
+    if version < 3:
+        migrated.setdefault("pipeline", {})
     migrated["schema_version"] = PROJECT_STATE_SCHEMA_VERSION
     return migrated
 

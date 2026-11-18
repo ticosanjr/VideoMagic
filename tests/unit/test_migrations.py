@@ -26,7 +26,7 @@ def test_future_recipe_version_is_rejected() -> None:
 
 def test_project_state_without_version_is_migrated() -> None:
     payload = migrate_project_state({"project_id": "00000000-0000-0000-0000-000000000000"})
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
 
 
 def test_project_state_v1_is_migrated_to_multi_source() -> None:
@@ -53,7 +53,7 @@ def test_project_state_v1_is_migrated_to_multi_source() -> None:
             ],
         }
     )
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     assert payload["primary_source_id"] == "primary"
     assert payload["video_segments"][0]["source_id"] == "primary"
 

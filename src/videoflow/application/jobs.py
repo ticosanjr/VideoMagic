@@ -112,6 +112,7 @@ class Job:
             "duration_ms": _duration_ms(self.started_at, self.finished_at),
             "step_progress": dict(self.step_progress),
             "idempotency_key": self.idempotency_key,
+            "cancel_requested": self.cancel_requested,
             "timeline_ready": self.timeline_ready,
             "log_count": self.telemetry.log_count(),
             "stages": self.telemetry.stages(),
@@ -121,6 +122,18 @@ class Job:
                 else None
             ),
         }
+
+
+def _lease_is_active(job: Job) -> bool:
+    if job.status != "running" or not job.lease_owner or not job.lease_expires_at:
+        return False
+    try:
+        expiry = datetime.fromisoformat(job.lease_expires_at)
+    except ValueError:
+        return False
+    if expiry.tzinfo is None:
+        expiry = expiry.replace(tzinfo=UTC)
+    return expiry > datetime.now(UTC)
 
 
 def _string_dict(value: object, default: dict[str, str]) -> dict[str, str]:
@@ -246,6 +259,8 @@ class JobManager:
         self._store_dir = Path(store_dir).expanduser() if store_dir is not None else None
         self._jobs: dict[str, Job] = {}
         self._pending: list[str] = []
+        self._local_ids: set[str] = set()
+        self._worker_id = f"videoflow-{uuid4().hex[:8]}"
         self._lock = threading.Lock()
         self._retry_thread: threading.Thread | None = None
         self._executor = JobExecutor(
@@ -301,6 +316,7 @@ class JobManager:
             )
             job.telemetry.job_id = str(job.job_id)
             self._jobs[str(job.job_id)] = job
+            self._local_ids.add(str(job.job_id))
             if active >= self._max_active:
                 job.status = "queued"
                 job.message = "Queued for the next worker slot"
@@ -386,8 +402,33 @@ class JobManager:
             for job_id in eligible:
                 if running >= self._max_active:
                     break
-                self._pending.remove(job_id)
                 job = self._jobs[job_id]
+                if job_id not in self._local_ids:
+                    # A job loaded from the shared store may already belong to
+                    # another MCP/API process. Claim it atomically before launch.
+                    from videoflow.application.queue_claim import claim_next
+
+                    claim = claim_next(self._worker_id, lease_seconds=300)
+                    if claim is None:
+                        break
+                    claimed = self._jobs.get(claim.job_id)
+                    if claimed is None:
+                        try:
+                            claimed = _job_from_dict(claim.payload)
+                        except (KeyError, TypeError, ValueError):
+                            claimed = None
+                    if claimed is None or claimed.status not in {"queued", "running"}:
+                        continue
+                    claimed.status = "queued"
+                    self._jobs[claim.job_id] = claimed
+                    job = claimed
+                    job_id = claim.job_id
+                    job.lease_owner = claim.worker_id
+                    job.lease_expires_at = claim.lease_expires_at
+                    with contextlib.suppress(ValueError):
+                        self._pending.remove(job_id)
+                else:
+                    self._pending.remove(job_id)
                 job.message = "Starting"
                 job.next_run = ""
                 launch.append(job)
@@ -579,6 +620,9 @@ class JobManager:
         if mode == "step":
             self._work_step(job)
             return
+        if mode == "run":
+            self._work_chain(job)
+            return
         self._work_recipe(job)
 
     def _work_recipe(self, job: Job) -> None:
@@ -606,23 +650,19 @@ class JobManager:
             JobRunPolicy(write_failure=True, cancel_error=True),
         )
 
-    def _run_step(self, job: Job, callbacks: Any) -> RunOutcome:
-        from videoflow.adapters.ffmpeg import FFmpegAdapter
-        from videoflow.application.projects import (
-            get_project,
-            load_project_state,
-            save_project_state,
+    def _work_chain(self, job: Job) -> None:
+        self._executor.run(
+            job,
+            self._run_chain,
+            JobRunPolicy(write_failure=True, cancel_error=True),
         )
-        from videoflow.application.step_state import load_step_state, save_step_state
-        from videoflow.core.context import PipelineContext
-        from videoflow.steps.base import StepIO
-        from videoflow.steps.registry import get_step
 
-        project_id = str(job.options.get("project_id") or job.project_id or "")
-        step_type = str(job.options.get("step_type") or "")
-        if not project_id or not step_type:
-            raise ProjectStateError("Step job needs project_id and step_type")
-        record = get_project(project_id)
+    def _build_context(self, job: Job, project_id: str, record: Any) -> Any:
+        from videoflow.application.pipeline_state import context_from_pipeline
+        from videoflow.application.projects import load_project_state
+        from videoflow.application.step_state import load_step_state
+        from videoflow.core.context import PipelineContext
+
         state = load_project_state(record)
         media = state.media_info
         source = Path(media.source_path) if media is not None else job.source
@@ -636,13 +676,68 @@ class JobManager:
             media=media,
             state=state,
             transcript=list(state.transcript),
-            artifacts=artifacts,
-            metadata={
-                **metadata,
-                "project_id": project_id,
-                "job_id": str(job.job_id),
-            },
         )
+        context = context_from_pipeline(
+            context,
+            state,
+            project_id=project_id,
+            job_id=str(job.job_id),
+        )
+        context.artifacts.update(artifacts)
+        context.metadata.update(metadata)
+        context.metadata["project_id"] = project_id
+        context.metadata["job_id"] = str(job.job_id)
+        return context
+
+    def _persist_context(
+        self,
+        job: Job,
+        record: Any,
+        context: Any,
+        *,
+        step: str,
+        status: str = "completed",
+        message: str = "",
+        snapshot: bool = True,
+    ) -> Any:
+        from videoflow.application.pipeline_state import update_pipeline_from_context
+        from videoflow.application.projects import load_project_state, save_project_state
+        from videoflow.application.step_state import save_step_state
+
+        state = context.state or load_project_state(record)
+        state = update_pipeline_from_context(
+            state,
+            context,
+            step=step,
+            status=status,
+            message=message,
+            run_id=str(job.job_id),
+            revision=state.revision,
+        )
+        saved = save_project_state(
+            record,
+            state,
+            bump_revision=True,
+            snapshot=snapshot,
+            snapshot_reason=f"{status}:{step}",
+            snapshot_step=step,
+        )
+        context.state = saved
+        save_step_state(Path(record.output), context.artifacts, context.metadata)
+        return saved
+
+    def _run_step(self, job: Job, callbacks: Any) -> RunOutcome:
+        from videoflow.adapters.ffmpeg import FFmpegAdapter
+        from videoflow.application.projects import get_project
+        from videoflow.steps.base import StepIO
+        from videoflow.steps.registry import get_step
+
+        project_id = str(job.options.get("project_id") or job.project_id or "")
+        step_type = str(job.options.get("step_type") or "")
+        if not project_id or not step_type:
+            raise ProjectStateError("Step job needs project_id and step_type")
+        record = get_project(project_id)
+        context = self._build_context(job, project_id, record)
         step = get_step(step_type)
         params = step.params_model.model_validate(job.options.get("params") or {})
         io = StepIO(
@@ -653,17 +748,112 @@ class JobManager:
             should_cancel=callbacks.should_cancel,
             log=callbacks.log,
         )
-        step.run(context, params, io)
-        if context.state is not None:
-            save_project_state(record, context.state, bump_revision=True)
-        save_step_state(output, context.artifacts, context.metadata)
+        try:
+            step.run(context, params, io)
+        except BaseException as exc:
+            with contextlib.suppress(Exception):
+                self._persist_context(
+                    job,
+                    record,
+                    context,
+                    step=step_type,
+                    status="failed",
+                    message=str(exc),
+                    snapshot=False,
+                )
+            raise
+        self._persist_context(job, record, context, step=step_type)
         result = {
             "step_id": step_type,
             "artifacts": dict(context.artifacts),
             "warnings": list(context.warnings),
             "hashes": dict(context.hashes),
+            "revision": context.state.revision if context.state is not None else 0,
         }
         return RunOutcome(result=result)
+
+    def _run_chain(self, job: Job, callbacks: Any) -> RunOutcome:
+        from videoflow.adapters.ffmpeg import FFmpegAdapter
+        from videoflow.application.projects import get_project
+        from videoflow.steps.base import StepIO
+        from videoflow.steps.registry import get_step
+
+        project_id = str(job.options.get("project_id") or job.project_id or "")
+        raw_steps = job.options.get("steps") or []
+        if isinstance(raw_steps, str):
+            raw_steps = [item.strip() for item in raw_steps.split(",") if item.strip()]
+        steps = [str(item).strip() for item in raw_steps if str(item).strip()]
+        if not project_id or not steps:
+            raise ProjectStateError("Run job needs project_id and at least one step")
+        through = str(job.options.get("through") or "").strip()
+        resume = bool(job.options.get("resume", True))
+        common_params = job.options.get("params") or {}
+        if not isinstance(common_params, dict):
+            common_params = {}
+        record = get_project(project_id)
+        context = self._build_context(job, project_id, record)
+        completed = {
+            checkpoint.step
+            for checkpoint in (context.state.pipeline.checkpoints if context.state else [])
+            if checkpoint.status == "completed"
+        }
+        results: list[dict[str, Any]] = []
+        total = max(1, len(steps))
+        for index, step_type in enumerate(steps, start=1):
+            io = StepIO(
+                stage=step_type,
+                index=index,
+                total=total,
+                adapter=FFmpegAdapter(cancel_event=job.cancel_event),
+                progress=callbacks.progress,
+                step_progress=callbacks.step_progress,
+                should_cancel=callbacks.should_cancel,
+                log=callbacks.log,
+            )
+            if resume and step_type in completed and step_type not in common_params:
+                results.append({"step": step_type, "status": "skipped"})
+                io.report(int(index / total * 100), f"{step_type} already completed")
+                if through and step_type == through:
+                    break
+                continue
+            step = get_step(step_type)
+            raw = common_params.get(step_type, common_params)
+            params = step.params_model.model_validate(raw if isinstance(raw, dict) else {})
+            io.report(int((index - 1) / total * 100), f"Running {step_type}")
+            try:
+                step.run(context, params, io)
+            except BaseException as exc:
+                with contextlib.suppress(Exception):
+                    self._persist_context(
+                        job,
+                        record,
+                        context,
+                        step=step_type,
+                        status="failed",
+                        message=str(exc),
+                        snapshot=False,
+                    )
+                raise
+            saved = self._persist_context(job, record, context, step=step_type)
+            results.append(
+                {
+                    "step": step_type,
+                    "status": "completed",
+                    "revision": saved.revision,
+                }
+            )
+            if through and step_type == through:
+                break
+        artifacts = dict(context.artifacts)
+        warnings = list(context.warnings)
+        return RunOutcome(
+            result={
+                "steps": results,
+                "artifacts": artifacts,
+                "warnings": warnings,
+                "revision": context.state.revision if context.state is not None else 0,
+            }
+        )
 
     def _run_render(self, job: Job, callbacks: Any) -> RunOutcome:
         from videoflow.adapters.ffmpeg import FFmpegAdapter
@@ -847,6 +1037,8 @@ class JobManager:
                 job = _job_from_dict(payload)
                 job.telemetry.job_id = str(job.job_id)
                 self._jobs[str(job.job_id)] = job
+                if _lease_is_active(job):
+                    continue
                 if job.status in {"queued", "running"}:
                     job.status = "queued"
                     job.stage = "queued"
@@ -865,6 +1057,9 @@ class JobManager:
             except (OSError, ValueError, KeyError, TypeError):
                 continue
             if str(job.job_id) in self._jobs:
+                continue
+            if _lease_is_active(job):
+                self._jobs[str(job.job_id)] = job
                 continue
             if job.status in {"queued", "running"}:
                 job.status = "queued"

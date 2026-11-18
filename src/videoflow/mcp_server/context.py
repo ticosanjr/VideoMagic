@@ -16,5 +16,8 @@ class ToolContext:
     batch_manager: BatchManager
 
 
-def error(code: str, message: str) -> dict[str, object]:
-    return {"ok": False, "code": code, "message": message}
+def error(code: str, message: str, **details: object) -> dict[str, object]:
+    payload: dict[str, object] = {"ok": False, "code": code, "message": message}
+    if details:
+        payload["details"] = details
+    return payload

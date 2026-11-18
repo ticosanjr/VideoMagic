@@ -43,7 +43,7 @@ def claim_next(
         connection.execute("BEGIN IMMEDIATE")
         row = connection.execute(
             "SELECT job_id, payload FROM jobs "
-            "WHERE status IN ('queued', 'paused') "
+            "WHERE status IN ('queued', 'paused') AND cancel_requested = 0 "
             "AND (next_run IS NULL OR next_run = '' OR next_run <= ?) "
             "ORDER BY priority DESC, created_at ASC LIMIT 1",
             (_iso(moment),),
@@ -116,6 +116,19 @@ def recover_expired(*, now: datetime | None = None) -> list[str]:
         raise
     finally:
         connection.close()
+
+
+def cancel_requested(job_id: str) -> bool:
+    """Whether another process asked the shared store to cancel ``job_id``."""
+
+    connection = connect()
+    try:
+        row = connection.execute(
+            "SELECT cancel_requested FROM jobs WHERE job_id = ?", (job_id,)
+        ).fetchone()
+    finally:
+        connection.close()
+    return bool(row and row[0])
 
 
 def heartbeat(

@@ -7,6 +7,7 @@ module instead of two near-identical methods on ``JobManager``.
 
 from __future__ import annotations
 
+import contextlib
 import time
 import traceback
 from collections.abc import Callable
@@ -132,8 +133,24 @@ class JobExecutor:
         def log(module: str, level: str, message: str) -> None:
             job.telemetry.log(module, level, message)
 
+        last_remote_check = 0.0
+
         def should_cancel() -> bool:
-            return job.cancel_requested or job.cancel_event.is_set()
+            nonlocal last_remote_check
+            if job.cancel_requested or job.cancel_event.is_set():
+                return True
+            now = time.monotonic()
+            if now - last_remote_check < 2.0:
+                return False
+            last_remote_check = now
+            with contextlib.suppress(Exception):
+                from videoflow.application.queue_claim import cancel_requested
+
+                if cancel_requested(str(job.job_id)):
+                    job.cancel_requested = True
+                    job.cancel_event.set()
+                    return True
+            return False
 
         callbacks = JobCallbacks(progress, step_progress, log, should_cancel)
         try:

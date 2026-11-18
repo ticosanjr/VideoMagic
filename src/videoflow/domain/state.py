@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, Self
+from typing import Any, Literal, Self
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -233,10 +233,78 @@ class MulticamPlan(StrictModel):
     mode: str = "manual"
 
 
+class TimeMapEntry(StrictModel):
+    """One contiguous source-to-timeline mapping segment."""
+
+    source_id: str = ""
+    source_in_sample: int = Field(ge=0)
+    source_out_sample: int = Field(ge=0)
+    timeline_in_sample: int = Field(ge=0)
+    timeline_out_sample: int = Field(ge=0)
+    source_in_frame: int = Field(ge=0)
+    source_out_frame: int = Field(ge=0)
+    timeline_in_frame: int = Field(ge=0)
+    timeline_out_frame: int = Field(ge=0)
+    fps_num: int = Field(default=30, gt=0)
+    fps_den: int = Field(default=1, gt=0)
+    sample_rate: int = Field(default=48000, gt=0)
+
+
+class PipelineCheckpoint(StrictModel):
+    """One completed, skipped, or failed step in a tools-only run."""
+
+    step: str = Field(min_length=1)
+    status: Literal["completed", "failed", "skipped"] = "completed"
+    started_at: str = ""
+    finished_at: str = ""
+    params_hash: str = ""
+    revision: int = Field(default=0, ge=0)
+    message: str = ""
+
+
+class PipelineState(StrictModel):
+    """Serializable bridge between tools-only MCP calls.
+
+    The canonical timeline remains in :class:`ProjectState`; this block keeps
+    the rest of :class:`PipelineContext` so a later tool call can resume without
+    re-sending transcript, shorts, captions, artifacts, or analysis spans.
+    """
+
+    schema_version: Literal[1] = 1
+    run_id: str = ""
+    step: str = ""
+    applied_style_id: str = ""
+    artifacts: dict[str, str] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    pcm_path: str = ""
+    pcm_digest: str = ""
+    speech_intervals: list[tuple[int, int]] = Field(default_factory=list)
+    silence_spans: list[InactiveSpan] = Field(default_factory=list)
+    retake_spans: list[InactiveSpan] = Field(default_factory=list)
+    retake_overlap_cuts: list[tuple[int, int]] = Field(default_factory=list)
+    inactive_spans: list[InactiveSpan] = Field(default_factory=list)
+    vad_engine: str = "none"
+    transcript_source: str = "none"
+    transcript_language: str = ""
+    language_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    discard_sentence_ids: list[int] = Field(default_factory=list)
+    restored_sentence_ids: list[int] = Field(default_factory=list)
+    manual_overrides: list[ManualOverride] = Field(default_factory=list)
+    shorts: list[dict[str, Any]] = Field(default_factory=list)
+    selected_shorts: list[dict[str, Any]] = Field(default_factory=list)
+    short_captions: dict[str, str] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+    hashes: dict[str, str] = Field(default_factory=dict)
+    cache_hits: list[str] = Field(default_factory=list)
+    cache_misses: list[str] = Field(default_factory=list)
+    time_map: list[TimeMapEntry] = Field(default_factory=list)
+    checkpoints: list[PipelineCheckpoint] = Field(default_factory=list)
+
+
 class ProjectState(StrictModel):
     """The single JSON document under ``.videoflow/project_state.json``."""
 
-    schema_version: Literal[1, 2] = SCHEMA_VERSION
+    schema_version: Literal[1, 2, 3] = SCHEMA_VERSION
     project_id: UUID = Field(default_factory=uuid4)
     style_id: str = ""
     language: str = ""
@@ -260,6 +328,7 @@ class ProjectState(StrictModel):
     inactive_segments: list[InactiveSegment] = Field(default_factory=list)
     vertical_clips: list[VerticalClip] = Field(default_factory=list)
     overlays: list[OverlayClip] = Field(default_factory=list)
+    pipeline: PipelineState = Field(default_factory=PipelineState)
 
     @model_validator(mode="after")
     def unique_sentence_ids(self) -> Self:

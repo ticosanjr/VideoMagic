@@ -20,7 +20,7 @@ SERVER_NAME = "VideoFlow"
 def _annotations_for(name: str) -> ToolAnnotations:
     action = name.removeprefix("vf_").split("_")[0]
     destructive = ("delete", "remove", "cancel", "stop", "reset", "prune", "clear")
-    read_only = {"vf_capabilities", "vf_catalog_search", "vf_style_list"}
+    read_only = {"vf_capabilities", "vf_catalog_search", "vf_style_list", "vf_jobs"}
     return ToolAnnotations(
         read_only_hint=name in read_only,
         destructive_hint=action in destructive,

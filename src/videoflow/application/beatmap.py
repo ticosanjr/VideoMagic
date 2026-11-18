@@ -10,13 +10,15 @@ from __future__ import annotations
 import json
 import shutil
 from dataclasses import dataclass, field
+from fractions import Fraction
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from videoflow.application.asset_providers import license_blockers
 from videoflow.application.captions import CaptionLine, build_ass_lines
+from videoflow.application.time_map import refresh_time_map, source_range_to_timeline
 from videoflow.domain.state import (
     AudioSegment,
     OverlayClip,
@@ -25,6 +27,7 @@ from videoflow.domain.state import (
     Transition,
     VideoSegment,
 )
+from videoflow.domain.timebase import Rounding
 
 
 class BeatmapCut(BaseModel):
@@ -37,6 +40,19 @@ class BeatmapCut(BaseModel):
     def ordered(self) -> BeatmapCut:
         if self.end_frame <= self.start_frame:
             raise ValueError("cut end_frame must be greater than start_frame")
+        return self
+
+
+class BeatmapRange(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    start_sec: float = Field(ge=0.0)
+    end_sec: float = Field(gt=0.0)
+
+    @model_validator(mode="after")
+    def ordered(self) -> Self:
+        if self.end_sec <= self.start_sec:
+            raise ValueError("range end_sec must be greater than start_sec")
         return self
 
 
@@ -137,7 +153,10 @@ class Beatmap(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     revision: int | None = Field(default=None, ge=1)
+    time_basis: Literal["timeline", "source"] = "timeline"
     cuts: list[BeatmapCut] = Field(default_factory=list)
+    keep_ranges: list[BeatmapRange] = Field(default_factory=list)
+    remove_ranges: list[BeatmapRange] = Field(default_factory=list)
     broll: list[BeatmapOverlay] = Field(default_factory=list)
     overlays: list[BeatmapOverlay] = Field(default_factory=list)
     zoom_keyframes: list[BeatmapZoom] = Field(default_factory=list)
@@ -159,6 +178,12 @@ class BeatmapReport:
     transitions: int = 0
     graphics: int = 0
     captions: int = 0
+    before_duration_sec: float = 0.0
+    after_duration_sec: float = 0.0
+    delta_sec: float = 0.0
+    delta_pct: float = 0.0
+    affected_clips: int = 0
+    dry_run: bool = False
     conflicts: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -173,6 +198,12 @@ class BeatmapReport:
             "transitions": self.transitions,
             "graphics": self.graphics,
             "captions": self.captions,
+            "before_duration_sec": round(self.before_duration_sec, 3),
+            "after_duration_sec": round(self.after_duration_sec, 3),
+            "delta_sec": round(self.delta_sec, 3),
+            "delta_pct": round(self.delta_pct, 3),
+            "affected_clips": self.affected_clips,
+            "dry_run": self.dry_run,
             "conflicts": list(self.conflicts),
             "warnings": list(self.warnings),
         }
@@ -316,17 +347,107 @@ def _overlay_from(entry: BeatmapOverlay, index: int, path: Path) -> OverlayClip:
     )
 
 
+def _timeline_duration_frames(state: ProjectState) -> int:
+    return max((clip.timeline_out_frame for clip in state.video_segments), default=0)
+
+
+def _seconds_to_frames(state: ProjectState, seconds: float) -> tuple[int, int]:
+    media = state.media_info
+    if media is None:
+        return 0, 0
+    timebase = media.timebase()
+    start = timebase.seconds_to_frames(Fraction(str(max(0.0, seconds))), Rounding.FLOOR)
+    end = timebase.seconds_to_frames(Fraction(str(max(0.0, seconds))), Rounding.CEIL)
+    return start, end
+
+
+def _ranges_to_frames(
+    state: ProjectState,
+    ranges: list[BeatmapRange],
+    basis: str,
+) -> list[BeatmapCut]:
+    cuts: list[BeatmapCut] = []
+    for item in ranges:
+        if basis == "source":
+            for start_sec, end_sec in source_range_to_timeline(state, item.start_sec, item.end_sec):
+                media = state.media_info
+                if media is None:
+                    continue
+                timebase = media.timebase()
+                start = timebase.seconds_to_frames(Fraction(str(start_sec)), Rounding.FLOOR)
+                end = timebase.seconds_to_frames(Fraction(str(end_sec)), Rounding.CEIL)
+                if end > start:
+                    cuts.append(BeatmapCut(start_frame=start, end_frame=end))
+        else:
+            media = state.media_info
+            if media is None:
+                continue
+            timebase = media.timebase()
+            start = timebase.seconds_to_frames(Fraction(str(item.start_sec)), Rounding.FLOOR)
+            end = timebase.seconds_to_frames(Fraction(str(item.end_sec)), Rounding.CEIL)
+            if end > start:
+                cuts.append(BeatmapCut(start_frame=start, end_frame=end))
+    return cuts
+
+
+def _merge_ranges(cuts: list[BeatmapCut]) -> list[BeatmapCut]:
+    merged: list[BeatmapCut] = []
+    for cut in sorted(cuts, key=lambda item: (item.start_frame, item.end_frame)):
+        if merged and cut.start_frame <= merged[-1].end_frame:
+            merged[-1] = BeatmapCut(
+                start_frame=merged[-1].start_frame,
+                end_frame=max(merged[-1].end_frame, cut.end_frame),
+            )
+        else:
+            merged.append(cut)
+    return merged
+
+
+def _complement(cuts: list[BeatmapCut], duration: int) -> list[BeatmapCut]:
+    """Return the kept ranges outside ``cuts`` over ``[0, duration)``."""
+
+    result: list[BeatmapCut] = []
+    cursor = 0
+    for cut in _merge_ranges(cuts):
+        start = max(0, min(duration, cut.start_frame))
+        end = max(0, min(duration, cut.end_frame))
+        if start > cursor:
+            result.append(BeatmapCut(start_frame=cursor, end_frame=start))
+        cursor = max(cursor, end)
+    if cursor < duration:
+        result.append(BeatmapCut(start_frame=cursor, end_frame=duration))
+    return result
+
+
+def _intersect(left: list[BeatmapCut], right: list[BeatmapCut]) -> list[BeatmapCut]:
+    result: list[BeatmapCut] = []
+    for first in _merge_ranges(left):
+        for second in _merge_ranges(right):
+            start = max(first.start_frame, second.start_frame)
+            end = min(first.end_frame, second.end_frame)
+            if end > start:
+                result.append(BeatmapCut(start_frame=start, end_frame=end))
+    return _merge_ranges(result)
+
+
 def apply_beatmap(
     state: ProjectState,
     output: Path,
     beatmap: Beatmap | dict[str, Any],
     *,
     expected_revision: int | None = None,
+    time_basis: Literal["timeline", "source"] | None = None,
+    dry_run: bool = False,
+    force: bool = False,
 ) -> tuple[ProjectState, BeatmapReport, dict[str, Any]]:
-    """Apply a beatmap and return ``(new_state, report, sidecar_manifest)``."""
+    """Apply a beatmap and return ``(new_state, report, sidecar_manifest)``.
+
+    New ``keep_ranges`` and ``remove_ranges`` are seconds in ``time_basis``.
+    ``cuts`` remains a timeline-frame keep-list alias for 3.0 compatibility.
+    """
 
     options = beatmap if isinstance(beatmap, Beatmap) else Beatmap.model_validate(beatmap)
-    report = BeatmapReport()
+    report = BeatmapReport(dry_run=dry_run)
     output = Path(output).expanduser()
     if expected_revision is None:
         expected_revision = options.revision
@@ -341,33 +462,87 @@ def apply_beatmap(
         report.conflicts.append("project has no media")
         raise BeatmapError("project has no media", report=report)
 
+    basis = time_basis or options.time_basis
     blocked = _blocked(output)
     updates: dict[str, Any] = {}
+    duration = _timeline_duration_frames(state)
+    fps = state.media_info.fps_num / state.media_info.fps_den
+    before_sec = duration / fps if fps else 0.0
 
-    if options.cuts:
-        duration = max((clip.timeline_out_frame for clip in state.video_segments), default=0)
-        for cut in options.cuts:
+    legacy_cuts = list(options.cuts)
+    for previous_cut, current_cut in zip(
+        sorted(legacy_cuts, key=lambda item: item.start_frame),
+        sorted(legacy_cuts, key=lambda item: item.start_frame)[1:],
+        strict=False,
+    ):
+        if current_cut.start_frame < previous_cut.end_frame:
+            report.conflicts.append(
+                f"overlapping cuts {previous_cut.start_frame}-{previous_cut.end_frame} "
+                f"and {current_cut.start_frame}-{current_cut.end_frame}"
+            )
+    keep_cuts = list(legacy_cuts)
+    if options.keep_ranges:
+        keep_cuts.extend(_ranges_to_frames(state, options.keep_ranges, basis))
+    if options.remove_ranges:
+        removed = _ranges_to_frames(state, options.remove_ranges, basis)
+        keep_cuts = (
+            _intersect(keep_cuts, _complement(removed, duration))
+            if keep_cuts
+            else _complement(removed, duration)
+        )
+    keep_cuts = _merge_ranges(keep_cuts)
+    cut_requested = bool(options.cuts or options.keep_ranges or options.remove_ranges)
+    if legacy_cuts:
+        report.warnings.append(
+            "cuts is deprecated and is interpreted as a timeline-frame keep-list; "
+            "use keep_ranges or remove_ranges"
+        )
+    if options.cuts and basis == "source":
+        report.warnings.append("legacy cuts always use timeline frames; time_basis was ignored")
+
+    if cut_requested:
+        for cut in keep_cuts:
             if cut.end_frame > duration:
                 report.conflicts.append(
                     f"cut {cut.start_frame}-{cut.end_frame} exceeds timeline {duration}"
                 )
-        ordered = sorted(options.cuts, key=lambda item: item.start_frame)
-        for previous, current in zip(ordered, ordered[1:], strict=False):
-            if current.start_frame < previous.end_frame:
-                report.conflicts.append(
-                    f"overlapping cuts {previous.start_frame}-{previous.end_frame} "
-                    f"and {current.start_frame}-{current.end_frame}"
-                )
         if not report.conflicts:
             media = state.media_info
-            updates["video_segments"] = _cut_video(state.video_segments, ordered)
+            previous = state.video_segments
+            updates["video_segments"] = _cut_video(state.video_segments, keep_cuts)
             updates["audio_segments"] = _cut_audio(
                 state.audio_segments,
-                ordered,
+                keep_cuts,
                 (media.fps_num, media.fps_den),
                 media.audio_sample_rate,
             )
-            report.cuts = len(ordered)
+            report.cuts = len(keep_cuts)
+            report.affected_clips = sum(
+                1
+                for clip in previous
+                if any(
+                    min(clip.timeline_out_frame, cut.end_frame)
+                    > max(clip.timeline_in_frame, cut.start_frame)
+                    for cut in keep_cuts
+                )
+            )
+    if not report.conflicts and cut_requested:
+        after_frames = max(
+            (clip.timeline_out_frame for clip in updates.get("video_segments", [])),
+            default=0,
+        )
+        after_sec = after_frames / fps if fps else 0.0
+        report.before_duration_sec = before_sec
+        report.after_duration_sec = after_sec
+        report.delta_sec = after_sec - before_sec
+        report.delta_pct = (report.delta_sec / before_sec * 100.0) if before_sec > 0 else 0.0
+        if report.delta_pct < -50.0 and not force and not dry_run:
+            report.ok = False
+            report.conflicts.append(
+                f"planned edit removes {abs(report.delta_pct):.1f}% of the timeline; "
+                "pass force=true to confirm"
+            )
+            raise BeatmapError("destructive edit requires force=true", report=report)
 
     overlays = list(state.overlays)
     for entry in [*options.broll, *options.overlays]:
@@ -547,17 +722,20 @@ def apply_beatmap(
             for item in options.captions
             if item.end_frame > item.start_frame
         ]
-        directory = output / "captions"
-        directory.mkdir(parents=True, exist_ok=True)
-        captions_path = directory / "beatmap.ass"
-        captions_path.write_text(build_ass_lines(lines, width=1920, height=1080), encoding="utf-8")
-        subtitles = output / "subtitles.ass"
-        if not subtitles.exists():
-            shutil.copy2(captions_path, subtitles)
-        sidecar["captions_file"] = str(captions_path)
+        if not dry_run:
+            directory = output / "captions"
+            directory.mkdir(parents=True, exist_ok=True)
+            captions_path = directory / "beatmap.ass"
+            captions_path.write_text(
+                build_ass_lines(lines, width=1920, height=1080), encoding="utf-8"
+            )
+            subtitles = output / "subtitles.ass"
+            if not subtitles.exists():
+                shutil.copy2(captions_path, subtitles)
+            sidecar["captions_file"] = str(captions_path)
         report.captions = len(lines)
 
-    updated = state.model_copy(update=updates)
+    updated = refresh_time_map(state.model_copy(update=updates))
     return updated, report, sidecar
 
 

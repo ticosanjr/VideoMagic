@@ -54,5 +54,9 @@ Every asset is content-addressed and has a `.meta.json` sidecar:
 - Absolute paths and traversal outside the project are rejected.
 - The core mirrors the project state into `state.json`; API/UI keep their
   existing output path for compatibility.
+- `project_state.json` is canonical. Its `pipeline` block persists the
+  tools-only context: transcript, selected Shorts, captions, analysis spans,
+  artifacts, metadata, `time_map`, and step checkpoints. `state.json` mirrors
+  the same document.
 
 Domain servers use only `vf_contracts` and never import the core package.

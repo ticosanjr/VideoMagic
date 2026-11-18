@@ -6,12 +6,13 @@ import contextlib
 import fcntl
 import json
 import os
+import shutil
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -36,6 +37,8 @@ class ProjectRecord(BaseModel):
     created_at: str = Field(default_factory=lambda: _now())
     updated_at: str = Field(default_factory=lambda: _now())
     revision: int = 1
+    status: Literal["active", "archived"] = "active"
+    archived_at: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return self.model_dump(mode="json")
@@ -215,6 +218,8 @@ def init_project(
             state = ProjectState.model_validate_json(state_file.read_text(encoding="utf-8"))
             state_id = str(state.project_id)
         except (OSError, ValueError):
+            with contextlib.suppress(OSError):
+                state_file.replace(state_file.with_name(f"{state_file.name}.corrupt"))
             state = ProjectState(project_id=UUID(_project_id(project_id)))
     else:
         state = ProjectState(project_id=UUID(_project_id(project_id)))
@@ -277,6 +282,9 @@ def save_project_state(
     *,
     expected_revision: int | None = None,
     bump_revision: bool = True,
+    snapshot: bool = False,
+    snapshot_reason: str = "",
+    snapshot_step: str = "",
 ) -> ProjectState:
     output = Path(record.output).expanduser()
     with project_lock(output):
@@ -288,6 +296,15 @@ def save_project_state(
         ):
             raise ProjectStateError(
                 f"Revision conflict: expected {expected_revision}, current {current.revision}"
+            )
+        if snapshot and current is not None:
+            from videoflow.application.revisions import create_snapshot
+
+            create_snapshot(
+                output,
+                current,
+                reason=snapshot_reason,
+                step=snapshot_step,
             )
         if bump_revision:
             state = state.model_copy(update={"revision": state.revision + 1})
@@ -305,3 +322,106 @@ def save_project_state(
         )
         _save_record(updated)
         return state
+
+
+def project_disk_size(record: ProjectRecord) -> int:
+    """Best-effort recursive size for lifecycle listings."""
+
+    root = Path(record.output).expanduser()
+    if not root.is_dir():
+        return 0
+    total = 0
+    for path in root.rglob("*"):
+        if path.is_file():
+            with contextlib.suppress(OSError):
+                total += path.stat().st_size
+    return total
+
+
+def archive_project(record: ProjectRecord, *, archived: bool = True) -> ProjectRecord:
+    status: Literal["active", "archived"] = "archived" if archived else "active"
+    updated = record.model_copy(
+        update={
+            "status": status,
+            "archived_at": _now() if archived else "",
+            "updated_at": _now(),
+        }
+    )
+    return _save_record(updated)
+
+
+def delete_project(record: ProjectRecord, *, force: bool = False) -> dict[str, Any]:
+    """Remove the project output and its registry/workspace entries."""
+
+    root = Path(record.output).expanduser()
+    if root.exists() and not force:
+        raise ProjectStateError("Project output is not empty; pass force=true to delete it")
+    if root == Path(root.anchor) or root == Path.home():
+        raise ProjectStateError("Refusing to delete an unsafe project path")
+    if root.exists():
+        shutil.rmtree(root)
+    database.delete_project(record.project_id)
+    workspace = project_dir(record.project_id)
+    if workspace.exists():
+        shutil.rmtree(workspace)
+    return {"project_id": record.project_id, "output": str(root), "deleted": True}
+
+
+def clone_project(
+    record: ProjectRecord,
+    *,
+    name: str = "",
+    output: str = "",
+) -> tuple[ProjectRecord, ProjectState]:
+    """Clone decoded state without copying or re-analysing the source media."""
+
+    source_state = load_project_state(record)
+    target = Path(output).expanduser() if output else Path(record.output).expanduser()
+    if not output:
+        target = target.with_name(f"{target.name}-copy")
+    if target.exists() and any(target.iterdir()):
+        raise ProjectStateError(f"Clone output is not empty: {target}")
+    target.mkdir(parents=True, exist_ok=True)
+    project_id = str(uuid.uuid4())
+    state = source_state.model_copy(
+        update={
+            "project_id": UUID(project_id),
+            "revision": 1,
+            "pipeline": source_state.pipeline.model_copy(
+                update={
+                    "run_id": "",
+                    "step": "",
+                    "checkpoints": [],
+                }
+            ),
+        }
+    )
+    cloned = ProjectRecord(
+        project_id=project_id,
+        name=name or f"{record.name} (copy)",
+        output=str(target),
+        primary_source=record.primary_source,
+        sources=list(record.sources),
+        channel_id=record.channel_id,
+        style_id=record.style_id,
+        revision=1,
+    )
+    saved = save_project_state(cloned, state, bump_revision=False)
+    return get_project(project_id), saved
+
+
+__all__ = [
+    "ProjectRecord",
+    "archive_project",
+    "clone_project",
+    "delete_project",
+    "get_project",
+    "init_project",
+    "list_projects",
+    "load_project_state",
+    "project_disk_size",
+    "project_for_output",
+    "project_lock",
+    "save_project_state",
+    "state_path",
+]

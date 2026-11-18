@@ -325,6 +325,9 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
                 updated,
                 expected_revision=expected_revision,
                 bump_revision=True,
+                snapshot=True,
+                snapshot_reason=f"timeline_edit:{action}",
+                snapshot_step="timeline_edit",
             )
         except VideoFlowError as exc:
             return exc.to_dict()

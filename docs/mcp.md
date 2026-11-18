@@ -1,6 +1,6 @@
 # MCP server — agent profile
 
-VideoFlow 3.0.4 exposes a **17-tool core MCP** plus four isolated domain servers:
+VideoFlow 3.0.4+ exposes a **19-tool core MCP** plus four isolated domain servers:
 
 ```text
 mcp-vf-core      13 tools   project, styles, jobs, timeline, render, exports, ingest
@@ -36,11 +36,13 @@ vf_project(action="init", output="/projects/interview", sources=["/media/a.mp4"]
 ```
 
 The call returns a stable `project_id`, the project record, the state summary,
-and resource links. Multiple sub-agents can work on different projects in
+and resource links. The canonical `project_state.json` now carries a `pipeline`
+block with transcript, selected Shorts, captions, analysis spans, artifacts,
+metadata, time map, and step checkpoints; `projects/{id}/state.json` mirrors it. Multiple sub-agents can work on different projects in
 parallel. Writes to the same project are serialized by a project lock and
 `vf_edit_timeline` supports `expected_revision` for conflict detection.
 
-## Core tools (17)
+## Core tools (19)
 
 ### Project, catalog, and execution
 
@@ -51,16 +53,18 @@ parallel. Writes to the same project are serialized by a project lock and
 | `vf_style_save` | Save/update one style and sync `presets/`. |
 | `vf_style_learn_rule` | Append review rules, capped at 15. |
 | `analyze_reference_style` | Analyze a reference and return a candidate without saving. |
-| `vf_project` | Create/open/status a project; `clone_style` and `learn_rule`. |
+| `vf_project` | Init/open/status, list, clone, archive, delete, and revision undo/history/restore. |
 | `vf_capabilities` | Backends, models, GPU worker, and external policy. |
 | `vf_catalog_search` | List or search node/tool types with pagination. |
 | `vf_exec` | Run one catalog step or edit a Short. Recipes are not exposed. |
+| `vf_run` | Run an ordered, linear chain of steps with persisted checkpoints. |
+| `vf_jobs` | List, inspect, or cancel jobs in the shared SQLite queue. |
 
 ### Jobs, timeline, artifacts
 
 | Tool | Purpose |
 | --- | --- |
-| `vf_job` | Get/wait/logs/QA for a job. |
+| `vf_job` | Get/wait/logs/QA for a project job. |
 | `vf_timeline` | Read, edit, or `apply_beatmap` the canonical timeline. |
 | `vf_artifact` | List or read artifacts, including image content. |
 
@@ -73,6 +77,23 @@ parallel. Writes to the same project are serialized by a project lock and
 | `vf_interaction` | List/read/answer HITL requests. |
 | `vf_ingest` | Session ingest or multicam synchronization. |
 | `vf_qa` | Read QA artifacts or route new QA through `vf_exec`. |
+
+### Stateful runs and the shared queue
+
+`vf_run` accepts an ordered, linear list of step types or a workflow id whose
+nodes are all catalog steps. It shares one `PipelineContext`, writes a
+checkpoint after every step, and supports `through`, `resume`, and `wait`.
+
+```text
+vf_run(project_id="p1", steps=["ingest", "transcribe", "edit.timeline"], wait=True)
+```
+
+`vf_jobs` reads the shared SQLite queue used by MCP, REST, and the tray. Cancels
+are written as a `cancel_requested` flag and picked up by the worker heartbeat.
+
+`vf_project` also supports `list`, `clone`, `archive`, `unarchive`, `delete`,
+`history`, `undo`, and `restore`. Deleting a non-empty output requires
+`force=true`.
 
 ## Domain servers
 

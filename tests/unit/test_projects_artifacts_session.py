@@ -263,7 +263,7 @@ def test_load_project_state_migrates_v1_source(tmp_path: Path, monkeypatch) -> N
     (output / "project_state.json").write_text(json.dumps(payload), encoding="utf-8")
     record = ProjectRecord(project_id=payload["project_id"], name="v1", output=str(output))
     state = load_project_state(record)
-    assert state.schema_version == 2
+    assert state.schema_version == 3
     assert state.primary_source_id == "primary"
     assert state.video_segments[0].source_id == "primary"
 

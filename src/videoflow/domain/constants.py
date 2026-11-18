@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-SCHEMA_VERSION: Literal[2] = 2
+SCHEMA_VERSION: Literal[3] = 3
 
 MODULE_ORDER: tuple[str, ...] = (
     "ingest",

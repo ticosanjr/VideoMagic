@@ -47,10 +47,12 @@ def _create_schema(connection: sqlite3.Connection) -> None:
         "status TEXT, priority INTEGER DEFAULT 0, attempts INTEGER DEFAULT 0, "
         "next_run TEXT, lease_expires TEXT, progress INTEGER DEFAULT 0, "
         "source TEXT, output TEXT, recipe TEXT, variables TEXT, "
-        "project_id TEXT, created_at TEXT, started_at TEXT, finished_at TEXT)"
+        "project_id TEXT, created_at TEXT, started_at TEXT, finished_at TEXT, "
+        "cancel_requested INTEGER DEFAULT 0)"
     )
     existing = {row[1] for row in connection.execute("PRAGMA table_info(jobs)").fetchall()}
     for column, definition in (
+        ("updated_at", "TEXT"),
         ("status", "TEXT"),
         ("priority", "INTEGER DEFAULT 0"),
         ("attempts", "INTEGER DEFAULT 0"),
@@ -65,9 +67,14 @@ def _create_schema(connection: sqlite3.Connection) -> None:
         ("created_at", "TEXT"),
         ("started_at", "TEXT"),
         ("finished_at", "TEXT"),
+        ("cancel_requested", "INTEGER DEFAULT 0"),
     ):
         if column not in existing:
             connection.execute(f"ALTER TABLE jobs ADD COLUMN {column} {definition}")
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_jobs_project ON jobs(project_id, updated_at)"
+    )
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, updated_at)")
     connection.execute(
         "CREATE TABLE IF NOT EXISTS assets ("
         "asset_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)"
@@ -95,13 +102,16 @@ def connect() -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     fresh = not path.is_file()
     key = str(path.resolve())
-    connection = sqlite3.connect(path, timeout=10.0)
+    connection = sqlite3.connect(path, timeout=15.0)
+    connection.execute("PRAGMA busy_timeout=15000")
     connection.execute("PRAGMA synchronous=NORMAL")
     with _init_lock:
         if fresh or key not in _initialized:
             connection.execute("PRAGMA journal_mode=WAL")
             _create_schema(connection)
             _initialized.add(key)
+        else:
+            connection.execute("PRAGMA journal_mode=WAL")
     connection.commit()
     _set_error("")
     return connection
@@ -114,8 +124,8 @@ def upsert_job(job_id: str, payload: dict[str, Any]) -> None:
                 "INSERT OR REPLACE INTO jobs ("
                 "job_id, payload, updated_at, status, priority, attempts, next_run, "
                 "lease_expires, progress, source, output, recipe, variables, "
-                "project_id, created_at, started_at, finished_at"
-                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "project_id, created_at, started_at, finished_at, cancel_requested"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     job_id,
                     json.dumps(payload, sort_keys=True),
@@ -134,6 +144,7 @@ def upsert_job(job_id: str, payload: dict[str, Any]) -> None:
                     str(payload.get("created_at") or ""),
                     str(payload.get("started_at") or ""),
                     str(payload.get("finished_at") or ""),
+                    1 if payload.get("cancel_requested") else 0,
                 ),
             )
             connection.commit()
@@ -174,6 +185,15 @@ def get_project(project_id: str) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
+def delete_project(project_id: str) -> None:
+    try:
+        with contextlib.closing(connect()) as connection:
+            connection.execute("DELETE FROM projects WHERE project_id = ?", (project_id,))
+            connection.commit()
+    except sqlite3.Error as exc:
+        _set_error(f"could not delete project {project_id}: {exc}")
+
+
 def list_projects() -> list[dict[str, Any]]:
     if not db_path().is_file():
         return []
@@ -196,12 +216,34 @@ def list_projects() -> list[dict[str, Any]]:
     return payloads
 
 
-def list_jobs() -> list[dict[str, Any]]:
+def list_jobs(
+    *,
+    status: str = "",
+    project_id: str = "",
+    job_id: str = "",
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
     if not db_path().is_file():
         return []
+    clauses: list[str] = []
+    values: list[Any] = []
+    if status:
+        clauses.append("status = ?")
+        values.append(status)
+    if project_id:
+        clauses.append("project_id = ?")
+        values.append(project_id)
+    if job_id:
+        clauses.append("job_id = ?")
+        values.append(job_id)
+    where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+    query = f"SELECT payload FROM jobs{where} ORDER BY updated_at DESC"
+    if limit is not None:
+        query += " LIMIT ?"
+        values.append(max(0, int(limit)))
     try:
         with contextlib.closing(connect()) as connection:
-            rows = connection.execute("SELECT payload FROM jobs ORDER BY updated_at").fetchall()
+            rows = connection.execute(query, values).fetchall()
     except sqlite3.Error as exc:
         _set_error(f"could not read jobs: {exc}")
         return []
@@ -213,6 +255,56 @@ def list_jobs() -> list[dict[str, Any]]:
         except ValueError:
             continue
     return result
+
+
+def request_job_cancel(job_id: str, *, force: bool = False) -> dict[str, Any] | None:
+    """Mark a job as cancellation-requested in the shared store."""
+
+    try:
+        with contextlib.closing(connect()) as connection:
+            row = connection.execute(
+                "SELECT payload FROM jobs WHERE job_id = ?", (job_id,)
+            ).fetchone()
+            if row is None:
+                return None
+            payload = json.loads(str(row[0]))
+            if not isinstance(payload, dict):
+                return None
+            payload["cancel_requested"] = True
+            if force or payload.get("status") in {"queued", "paused"}:
+                payload["status"] = "cancelled"
+                payload["stage"] = "cancelled"
+                payload["message"] = "Cancelled"
+            else:
+                payload["message"] = "Cancellation requested"
+            connection.execute(
+                "UPDATE jobs SET payload = ?, cancel_requested = 1, status = ?, updated_at = ? "
+                "WHERE job_id = ?",
+                (
+                    json.dumps(payload, sort_keys=True),
+                    str(payload.get("status") or ""),
+                    _now(),
+                    job_id,
+                ),
+            )
+            connection.commit()
+            return payload
+    except (sqlite3.Error, ValueError) as exc:
+        _set_error(f"could not cancel job {job_id}: {exc}")
+        return None
+
+
+def job_cancel_requested(job_id: str) -> bool:
+    if not db_path().is_file():
+        return False
+    try:
+        with contextlib.closing(connect()) as connection:
+            row = connection.execute(
+                "SELECT cancel_requested FROM jobs WHERE job_id = ?", (job_id,)
+            ).fetchone()
+    except sqlite3.Error:
+        return False
+    return bool(row and row[0])
 
 
 def delete_job(job_id: str) -> None:

@@ -12,7 +12,7 @@ from vf_contracts.assets import iter_assets
 from videoflow.application import artifacts as artifact_service
 from videoflow.application.channel_kit import channel_kit_ids, is_channel_kit
 from videoflow.application.hilt import list_requests, load_response, public_payload
-from videoflow.application.projects import get_project, load_project_state
+from videoflow.application.projects import get_project, list_projects, load_project_state
 from videoflow.domain.errors import VideoFlowError
 from videoflow.mcp_server.agent_helpers import _job_payload
 from videoflow.mcp_server.agent_tools import register_agent_tools
@@ -49,6 +49,17 @@ def _step_catalog() -> tuple[dict[str, Any], ...]:
     )
 
 
+def _is_step(step_type: str) -> bool:
+    from videoflow.domain.errors import VideoFlowError
+    from videoflow.steps.registry import get_step
+
+    try:
+        get_step(step_type)
+        return True
+    except VideoFlowError:
+        return False
+
+
 def _wait(manager: Any, project_id: str, job_id: str, timeout: float) -> dict[str, Any]:
     record = get_project(project_id)
     job = manager.get(job_id)
@@ -58,7 +69,7 @@ def _wait(manager: Any, project_id: str, job_id: str, timeout: float) -> dict[st
     while job.status not in {"succeeded", "failed", "cancelled", "answered"}:
         if time.monotonic() >= deadline:
             return {"ok": False, "code": "timeout", "job": _job_payload(job)}
-        time.sleep(0.25)
+        time.sleep(0.5)
         job = manager.get(job_id)
     return {"ok": job.status == "succeeded", "job": _job_payload(job)}
 
@@ -316,9 +327,111 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         notes: list[str] | None = None,
         mode: str = "merge",
         max_rules: int = 15,
+        revision_id: str = "",
+        force: bool = False,
+        status: str = "",
+        include_archived: bool = False,
     ) -> dict[str, Any]:
-        """Create/open/status a project, clone a style, or learn channel rules."""
+        """Create/open/status a project, manage lifecycle, or undo revisions."""
 
+        if action == "list":
+            from videoflow.application.projects import project_disk_size
+
+            items = []
+            for item in list_projects():
+                if not include_archived and item.status == "archived":
+                    continue
+                if status and item.status != status:
+                    continue
+                items.append({**item.to_dict(), "size_bytes": project_disk_size(item)})
+            return {"ok": True, "projects": items}
+        if action in {"archive", "unarchive"}:
+            from videoflow.application.projects import archive_project
+
+            try:
+                item = archive_project(get_project(project_id), archived=action == "archive")
+            except VideoFlowError as exc:
+                return exc.to_dict()
+            return {"ok": True, "project": item.to_dict()}
+        if action == "delete":
+            from videoflow.application.projects import delete_project
+
+            try:
+                record = get_project(project_id)
+                active = [
+                    job
+                    for job in manager.list()
+                    if job.project_id == record.project_id
+                    and job.status
+                    not in {
+                        "succeeded",
+                        "failed",
+                        "cancelled",
+                        "answered",
+                    }
+                ]
+                if active:
+                    return error(
+                        "project_busy",
+                        "Cancel active jobs before deleting the project",
+                        jobs=[str(job.job_id) for job in active],
+                    )
+                report = delete_project(record, force=force)
+            except VideoFlowError as exc:
+                return exc.to_dict()
+            return {"ok": True, **report}
+        if action in {"history", "undo", "restore"}:
+            from videoflow.application import revisions
+            from videoflow.application.projects import save_project_state
+
+            try:
+                record = get_project(project_id)
+                if action == "history":
+                    return {
+                        "ok": True,
+                        "revisions": revisions.list_snapshots(record.output),
+                        "current_revision": record.revision,
+                    }
+                identifier = revision_id or revisions.latest_snapshot(record.output)
+                restored = revisions.load_snapshot(record.output, identifier).model_copy(
+                    update={"revision": record.revision}
+                )
+                saved = save_project_state(
+                    record,
+                    restored,
+                    bump_revision=True,
+                    snapshot=True,
+                    snapshot_reason=f"before_{action}",
+                    snapshot_step=action,
+                )
+            except VideoFlowError as exc:
+                return exc.to_dict()
+            return {
+                "ok": True,
+                "project_id": project_id,
+                "revision_id": identifier,
+                "revision": saved.revision,
+                "resources": {
+                    "state": f"vf://projects/{project_id}/state",
+                    "timeline": f"vf://projects/{project_id}/timeline",
+                },
+            }
+        if action == "clone":
+            from videoflow.application.projects import clone_project
+
+            try:
+                cloned, state = clone_project(get_project(project_id), name=name, output=output)
+            except VideoFlowError as exc:
+                return exc.to_dict()
+            return {
+                "ok": True,
+                "project": cloned.to_dict(),
+                "revision": state.revision,
+                "resources": {
+                    "state": f"vf://projects/{cloned.project_id}/state",
+                    "timeline": f"vf://projects/{cloned.project_id}/timeline",
+                },
+            }
         if action in {"clone_style", "learn_rule"}:
             from videoflow.application.style_clone import clone_style, learn_rule
 
@@ -488,6 +601,136 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         return response
 
     @register
+    def vf_run(
+        project_id: str,
+        steps: list[str] | str,
+        through: str | None = None,
+        params: dict[str, Any] | None = None,
+        resume: bool = True,
+        wait: bool = True,
+        timeout_sec: float = 1800.0,
+    ) -> dict[str, Any]:
+        """Run an ordered linear chain of catalog steps sharing one context."""
+
+        try:
+            record = get_project(project_id)
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        requested: list[str] = []
+        if isinstance(steps, str):
+            raw = [item.strip() for item in steps.split(",") if item.strip()]
+            if len(raw) == 1 and not _is_step(raw[0]):
+                from videoflow.application.workflow_catalog import WorkflowCatalog
+
+                try:
+                    workflow = WorkflowCatalog().get(raw[0])
+                except VideoFlowError as exc:
+                    return exc.to_dict()
+                requested = [step.node for step in workflow.steps]
+            else:
+                requested = raw
+        else:
+            requested = [str(item).strip() for item in steps if str(item).strip()]
+        if not requested:
+            return error("steps_required", "Pass at least one step type")
+        missing = [item for item in requested if not _is_step(item)]
+        if missing:
+            return error(
+                "unknown_step",
+                "Unknown or non-linear nodes: " + ", ".join(missing),
+                steps=missing,
+            )
+        if through and through not in requested:
+            return error("through_not_in_steps", "through must be one of the requested steps")
+        job = manager.start(
+            Path(record.primary_source or record.output),
+            Path(record.output),
+            {
+                "mode": "run",
+                "project_id": record.project_id,
+                "steps": requested,
+                "through": through or "",
+                "params": dict(params or {}),
+                "resume": bool(resume),
+            },
+            queue=True,
+            project_id=record.project_id,
+        )
+        response: dict[str, Any] = {
+            "ok": True,
+            "project_id": project_id,
+            "steps": requested,
+            "job": _job_payload(job),
+        }
+        if wait:
+            response["wait"] = _wait(manager, project_id, str(job.job_id), timeout_sec)
+        return response
+
+    @register
+    def vf_jobs(
+        action: str = "list",
+        project_id: str = "",
+        status: str = "",
+        job_id: str = "",
+        limit: int = 20,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        """List, inspect, or cancel jobs in the shared queue."""
+
+        from videoflow.application import database
+
+        cap = max(1, min(200, int(limit)))
+        if action == "list":
+            stored = database.list_jobs(
+                status=status,
+                project_id=project_id,
+                limit=cap,
+            )
+            local = [
+                job.to_dict(summary=True)
+                for job in manager.list(limit=cap)
+                if (not project_id or job.project_id == project_id)
+                and (not status or job.status == status)
+            ]
+            merged: dict[str, dict[str, Any]] = {
+                str(item.get("job_id")): item for item in stored if item.get("job_id")
+            }
+            for item in local:
+                merged.setdefault(str(item.get("job_id")), item)
+            jobs = sorted(
+                merged.values(),
+                key=lambda item: str(item.get("updated_at") or item.get("created_at") or ""),
+                reverse=True,
+            )[:cap]
+            return {"ok": True, "jobs": jobs, "total": len(merged)}
+        if not job_id:
+            return error("job_required", "job_id is required")
+        if action == "cancel":
+            stored = []
+            try:
+                stored = database.list_jobs(job_id=job_id, limit=1)
+            except Exception:  # noqa: BLE001 - DB is advisory for local jobs
+                stored = []
+            try:
+                job = manager.cancel(job_id, force=force)
+                payload = job.to_dict(summary=True)
+            except VideoFlowError:
+                payload = stored[0] if stored else {}
+            database.request_job_cancel(job_id, force=force)
+            if not payload:
+                return error("job_not_found", f"Unknown job: {job_id}")
+            return {"ok": True, "job": payload, "cancelled": True}
+        if action != "status":
+            return error("unknown_action", "vf_jobs supports list, status, or cancel")
+        try:
+            return {"ok": True, "job": _job_payload(manager.get(job_id))}
+        except VideoFlowError:
+            stored = database.list_jobs(job_id=job_id, limit=1)
+            if not stored:
+                return error("job_not_found", f"Unknown job: {job_id}")
+            return {"ok": True, "job": stored[0]}
+
+    @register
     def vf_job(
         action: str = "get",
         project_id: str = "",
@@ -527,6 +770,11 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         split_sec: float | None = None,
         expected_revision: int | None = None,
         beatmap: dict[str, Any] | None = None,
+        time_basis: str = "timeline",
+        keep_ranges: list[dict[str, Any]] | None = None,
+        remove_ranges: list[dict[str, Any]] | None = None,
+        dry_run: bool = False,
+        force: bool = False,
     ) -> dict[str, Any]:
         """Read, edit, or atomically apply a declarative beatmap."""
 
@@ -538,22 +786,44 @@ def register_core_tools(register: Any, ctx: Any) -> None:
             )
             from videoflow.application.projects import save_project_state
 
-            if not beatmap:
-                return error("beatmap_required", "Pass a beatmap manifest")
+            if not beatmap and not keep_ranges and not remove_ranges:
+                return error("beatmap_required", "Pass a beatmap manifest or ranges")
+            if time_basis not in {"timeline", "source"}:
+                return error("invalid_time_basis", "time_basis must be timeline or source")
+            manifest = dict(beatmap or {})
+            if keep_ranges is not None:
+                manifest["keep_ranges"] = keep_ranges
+            if remove_ranges is not None:
+                manifest["remove_ranges"] = remove_ranges
+            manifest["time_basis"] = time_basis
             try:
                 record = get_project(project_id)
                 state = load_project_state(record)
                 updated, report, sidecar = apply_beatmap(
                     state,
                     Path(record.output),
-                    beatmap,
+                    manifest,
                     expected_revision=expected_revision,
+                    time_basis=time_basis,  # type: ignore[arg-type]
+                    dry_run=dry_run,
+                    force=force,
                 )
+                if dry_run:
+                    return {
+                        "ok": True,
+                        "dry_run": True,
+                        "revision": state.revision,
+                        "report": report.to_dict(),
+                        "sidecar": "",
+                    }
                 saved = save_project_state(
                     record,
                     updated,
                     expected_revision=expected_revision,
                     bump_revision=True,
+                    snapshot=True,
+                    snapshot_reason="apply_beatmap",
+                    snapshot_step="apply_beatmap",
                 )
                 sidecar_path = ""
                 if sidecar.get("sfx_events") or sidecar.get("music_tracks"):
@@ -571,9 +841,28 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                     "message": str(exc),
                     "report": exc.report.to_dict(),
                 }
+            except ValueError as exc:
+                return error("invalid_beatmap_range", str(exc))
             except VideoFlowError as exc:
                 return exc.to_dict()
         if action == "edit":
+            if time_basis == "source":
+                from videoflow.application.time_map import source_to_timeline_sec
+
+                try:
+                    state = load_project_state(get_project(project_id))
+                    if start_sec is not None:
+                        start_sec = source_to_timeline_sec(state, start_sec)
+                    if end_sec is not None:
+                        end_sec = source_to_timeline_sec(state, end_sec)
+                    if split_sec is not None:
+                        split_sec = source_to_timeline_sec(state, split_sec)
+                except VideoFlowError as exc:
+                    return exc.to_dict()
+                except ValueError as exc:
+                    return error("time_outside_timeline", str(exc))
+            elif time_basis != "timeline":
+                return error("invalid_time_basis", "time_basis must be timeline or source")
             return legacy["vf_edit_timeline"](
                 project_id=project_id,
                 clip_id=clip_id,
@@ -645,11 +934,13 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         width: int = 0,
         height: int = 0,
         draft_scale: float = 1.0,
+        wait: bool = False,
+        timeout_sec: float = 1800.0,
     ) -> dict[str, Any]:
         """Start, inspect, or cancel a render job."""
 
         if action == "start":
-            return legacy["vf_render_start"](
+            response = legacy["vf_render_start"](
                 project_id=project_id,
                 kind=kind,
                 crf=crf,
@@ -658,6 +949,11 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                 height=height,
                 draft_scale=draft_scale,
             )
+            if wait and response.get("ok"):
+                job_id = str((response.get("job") or {}).get("job_id") or "")
+                if job_id:
+                    response["wait"] = _wait(manager, project_id, job_id, timeout_sec)
+            return response
         if action == "cancel":
             try:
                 manager.cancel(job_id)

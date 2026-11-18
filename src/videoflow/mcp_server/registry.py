@@ -70,6 +70,16 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "steps",
     ),
     ToolSpec(
+        "vf_run",
+        "Run an ordered, linear chain of catalog steps with persisted checkpoints.",
+        "steps",
+    ),
+    ToolSpec(
+        "vf_jobs",
+        "List, inspect, or cancel jobs in the shared SQLite queue.",
+        "jobs",
+    ),
+    ToolSpec(
         "vf_job",
         "Get, wait, inspect logs, or read QA for a job.",
         "jobs",

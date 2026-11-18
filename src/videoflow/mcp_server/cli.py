@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import os
 
+from videoflow.application.jobs import JobManager
 from videoflow.mcp_server.server import build_server
+from videoflow.runtime import portable_home
 
 
 def prompts_enabled(*, flag: bool = False) -> bool:
@@ -25,7 +27,11 @@ def main(argv: list[str] | None = None) -> None:
         help="Register tools and resources without the videoflow_* prompts.",
     )
     args = parser.parse_args(argv)
-    build_server(prompts=prompts_enabled(flag=args.no_prompts)).run("stdio")
+    manager = JobManager(store_dir=portable_home() / "jobs")
+    build_server(
+        manager,
+        prompts=prompts_enabled(flag=args.no_prompts),
+    ).run("stdio")
 
 
 if __name__ == "__main__":

@@ -31,7 +31,7 @@ def test_main_forwards_prompt_flag(monkeypatch, argv, expected) -> None:
     captured: dict[str, object] = {}
     server = FakeServer()
 
-    def fake_build(*, prompts: bool = True) -> FakeServer:
+    def fake_build(*args, prompts: bool = True) -> FakeServer:
         captured["prompts"] = prompts
         return server
 
