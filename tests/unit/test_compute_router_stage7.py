@@ -6,7 +6,7 @@ from vf_compute.models import JobStatus, WorkerHealth
 from vf_compute.router import ComputeRouter
 
 from videoflow.application.capabilities import capability_manifest
-from videoflow.application.compute import compute_status, execute_capability
+from videoflow.application.compute import compute_status, execute_batch, execute_capability
 
 
 class FakeClient:
@@ -181,3 +181,46 @@ def test_execute_capability_uses_router(monkeypatch) -> None:
     result = execute_capability("asr", lambda: "remote", lambda: "local")
     assert result["value"] == "local"
     assert result["fallback_reason"] == "test"
+
+
+def test_execute_batch_keeps_going_after_worker_failure(monkeypatch) -> None:
+    class Client:
+        def __init__(self) -> None:
+            self.health_calls = 0
+
+        def health(self, timeout: float | None = None) -> WorkerHealth:
+            self.health_calls += 1
+            return WorkerHealth(
+                available=self.health_calls == 1,
+                worker_id="worker-1",
+                vram_free_mb=8192,
+                capabilities=["asr"],
+            )
+
+    client = Client()
+    router = ComputeRouter(client=client, min_vram_mb=0)
+    monkeypatch.setattr(
+        "videoflow.application.compute.router_from_settings",
+        lambda settings=None: router,
+    )
+
+    def remote(index: int) -> str:
+        if index >= 2:
+            raise RuntimeError("worker dropped")
+        return f"remote-{index}"
+
+    results = execute_batch(
+        "asr",
+        list(range(5)),
+        remote,
+        lambda index: f"local-{index}",
+    )
+    assert [item["value"] for item in results] == [
+        "remote-0",
+        "remote-1",
+        "local-2",
+        "local-3",
+        "local-4",
+    ]
+    assert sum(item["remote"] for item in results) == 2
+    assert results[-1]["fallback_reason"]

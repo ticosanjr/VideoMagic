@@ -103,4 +103,35 @@ def execute_capability(
     )
 
 
-__all__ = ["compute_status", "execute_capability", "router_from_settings"]
+def execute_batch(
+    capability: str,
+    items: list[Any],
+    remote_fn: Any,
+    local_fn: Any,
+    *,
+    required_vram_mb: int = 0,
+    settings: Any | None = None,
+) -> list[dict[str, Any]]:
+    """Route independent items, falling back locally after the circuit opens."""
+
+    router = router_from_settings(settings)
+    results: list[dict[str, Any]] = []
+    for item in items:
+        results.append(
+            router.execute(
+                capability,
+                lambda item=item: remote_fn(item),
+                lambda item=item: local_fn(item),
+                required_vram_mb=required_vram_mb,
+                fallback_local=router.fallback_local,
+            )
+        )
+    return results
+
+
+__all__ = [
+    "compute_status",
+    "execute_batch",
+    "execute_capability",
+    "router_from_settings",
+]

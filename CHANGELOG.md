@@ -30,6 +30,9 @@
   memory release.
 - GPU status routes and a header pill for ready, busy, local, and offline
   states.
+- `scripts/gpu_acceptance.py` and the 3.4.0 acceptance/performance docs. The
+  release remains blocked until real Windows/NVIDIA ASR, NVENC, and matte
+  measurements pass.
 
 ## [3.3.0] - 2026-11-19
 

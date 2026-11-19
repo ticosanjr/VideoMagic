@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import socket
 import sys
 import time
 from pathlib import Path
@@ -38,6 +40,28 @@ def test_discovery_ingests_peers_and_expires_them() -> None:
     peer = discovery._peers["worker-1"]
     peer.seen_at = time.time() - 10
     assert discovery.peers() == []
+
+
+def test_gpu_discovery_receives_a_real_udp_beacon() -> None:
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    discovery = GpuDiscovery(port=port, ttl_sec=5)
+    discovery.start()
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sender:
+            sender.sendto(json.dumps(PAYLOAD).encode("utf-8"), ("127.0.0.1", port))
+        deadline = time.monotonic() + 2.0
+        seen: list[dict[str, object]] = []
+        while time.monotonic() < deadline:
+            seen = discovery.peers()
+            if seen:
+                break
+            time.sleep(0.05)
+        assert seen and seen[0]["worker_id"] == "worker-1"
+        assert seen[0]["url"] == "http://192.168.1.20:8766"
+    finally:
+        discovery.stop()
 
 
 def test_worker_beacon_payload(monkeypatch) -> None:

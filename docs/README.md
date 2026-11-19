@@ -54,7 +54,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Voice clone | Optional ElevenLabs synthesis, consent metadata, profile/sample API, and TTS/patch fallback |
 | Integrations | OpenCode and Paperclip over MCP/REST with DeepSeek, prompts, config, and troubleshooting ([integrations.md](integrations.md)) |
 | Hardening | fault injection, log rotation, scheduled backups, AA keyboard/focus/reduced-motion, 1,000-clip writer stress ([hardening.md](hardening.md)) |
-| Hybrid GPU | `ComputeRouter` local/remote placement, VRAM estimates, circuit fallback, and worker status in `vf_capabilities` ([gpu-worker.md](gpu-worker.md)); [Windows kit](windows-worker.md) |
+| Hybrid GPU | `ComputeRouter` local/remote placement, VRAM estimates, circuit fallback, and worker status in `vf_capabilities` ([gpu-worker.md](gpu-worker.md)); [Windows kit](windows-worker.md); [acceptance](performance-3.4.md) |
 | Cancellation | FFmpeg runs in its own process group; render and preview cancel within one poll and delete partial output |
 | Queue claim | SQLite `BEGIN IMMEDIATE` claim with lease ownership, heartbeat, and expired-lease recovery |
 | Frame cache | Per-revision, per-height JPEG frames under `preview/frames/<revision>/` |
