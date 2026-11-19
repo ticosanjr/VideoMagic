@@ -88,9 +88,13 @@ With `VF_GPU_BUILTIN_HANDLERS=1` the worker registers Python handlers for:
 | Capability | Backend | Output |
 | --- | --- | --- |
 | `asr` | faster-whisper float16 CUDA | `transcript.json` with word timings |
+| `forced_align` | faster-whisper word timestamps | `alignment.json` |
 | `render_nvenc` | FFmpeg `h264_nvenc` | MP4 with optional burned ASS |
 | `segment_matte` | rembg | PNG or WebM with alpha |
 | `face_track` | OpenCV Haar | normalized `tracking.json` keyframes |
+| `vision_blur` | OpenCV Laplacian | `blur.json` frame scores |
+| `scene_analyze` | PySceneDetect/FFmpeg + OpenCV | `scenes_manifest.json` + `scene_keyframes.zip` |
+| `short_render` | FFmpeg NVENC | final 1080x1920 MP4 |
 
 `tts`, `music`, `sfx`, `stems`, `upscale`, `diarize`, and `comfyui` remain
 available through their configured command/HTTP handlers. Missing dependencies

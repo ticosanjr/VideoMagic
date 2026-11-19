@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     shared_inputs TEXT NOT NULL,
     shared_outputs TEXT NOT NULL DEFAULT '[]',
     shared_artifacts TEXT NOT NULL DEFAULT '[]',
+    shared_error TEXT,
     error TEXT,
     artifacts TEXT NOT NULL DEFAULT '[]',
     created_at REAL NOT NULL,
@@ -63,6 +64,7 @@ class JobRecord:
     shared_inputs: list[str] = field(default_factory=list)
     shared_outputs: list[str] = field(default_factory=list)
     shared_artifacts: list[str] = field(default_factory=list)
+    shared_error: str | None = None
     error: str | None = None
     artifacts: list[str] = field(default_factory=list)
     created_at: float = 0.0
@@ -79,6 +81,7 @@ class JobRecord:
             "shared_inputs": self.shared_inputs,
             "shared_outputs": self.shared_outputs,
             "shared_artifacts": self.shared_artifacts,
+            "shared_error": self.shared_error,
             "error": self.error,
             "artifacts": self.artifacts,
             "created_at": self.created_at,
@@ -120,6 +123,10 @@ class JobStore:
             if "shared_artifacts" not in columns:
                 connection.execute(
                     "ALTER TABLE jobs ADD COLUMN shared_artifacts TEXT NOT NULL DEFAULT '[]'"
+                )
+            if "shared_error" not in columns:
+                connection.execute(
+                    "ALTER TABLE jobs ADD COLUMN shared_error TEXT"
                 )
 
     # Artifacts -----------------------------------------------------------------
@@ -206,18 +213,20 @@ class JobStore:
         error: str | None = None,
         artifacts: Sequence[str] = (),
         shared_artifacts: Sequence[str] = (),
+        shared_error: str | None = None,
     ) -> bool:
         if status not in TERMINAL_STATUSES:
             raise ValueError(f"invalid terminal status: {status}")
         with self._lock, self._connection() as connection:
             cursor = connection.execute(
                 "UPDATE jobs SET status = ?, error = ?, artifacts = ?, "
-                "shared_artifacts = ?, finished_at = ? WHERE id = ?",
+                "shared_artifacts = ?, shared_error = ?, finished_at = ? WHERE id = ?",
                 (
                     status,
                     error,
                     json.dumps(list(artifacts)),
                     json.dumps(list(shared_artifacts)),
+                    shared_error,
                     time.time(),
                     job_id,
                 ),
@@ -277,6 +286,7 @@ def _row_to_job(row: sqlite3.Row | None) -> JobRecord | None:
         shared_inputs=_json_list(row["shared_inputs"]),
         shared_outputs=_json_list(row["shared_outputs"]),
         shared_artifacts=_json_list(row["shared_artifacts"]),
+        shared_error=row["shared_error"],
         error=row["error"],
         artifacts=_json_list(row["artifacts"]),
         created_at=row["created_at"],

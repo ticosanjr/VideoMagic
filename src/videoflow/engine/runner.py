@@ -389,6 +389,7 @@ class RecipeRunner:
                     "transcribe": "asr",
                     "localization.dub": "tts",
                     "retakes.cull": "llm",
+                    "decupage.llm": "llm",
                     "llm.cleanup": "llm",
                     "llm.timeline": "llm",
                     "llm.zoom": "llm",

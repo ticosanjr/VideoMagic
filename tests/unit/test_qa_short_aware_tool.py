@@ -12,7 +12,6 @@ from videoflow.domain.state import (
     Sentence,
     VideoSegment,
 )
-from videoflow.engine.batch import BatchManager
 from videoflow.mcp_server.context import ToolContext
 from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -88,7 +87,7 @@ def _tools(tmp_path: Path, monkeypatch):
     tools: dict[str, object] = {}
     register_core_tools(
         lambda func: tools.setdefault(func.__name__, func),
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),
+        ToolContext(manager=manager),
     )
     return tools, record, short
 

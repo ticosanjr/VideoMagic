@@ -296,7 +296,6 @@ def test_project_lifecycle_and_revision_tools(tmp_path: Path) -> None:
     assert not Path(clone.output).exists()
 
     from videoflow.application.jobs import JobManager
-    from videoflow.engine.batch import BatchManager
     from videoflow.mcp_server.context import ToolContext
     from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -306,7 +305,6 @@ def test_project_lifecycle_and_revision_tools(tmp_path: Path) -> None:
         lambda func: tools.setdefault(func.__name__, func),
         ToolContext(
             manager=manager,
-            batch_manager=BatchManager(manager),
         ),
     )
     history = tools["vf_project"](action="history", project_id=record.project_id)
@@ -320,10 +318,9 @@ def test_project_lifecycle_and_revision_tools(tmp_path: Path) -> None:
     assert any(item["project_id"] == record.project_id for item in listing["projects"])
 
 
-def test_vf_jobs_lists_and_cancels_shared_store(tmp_path: Path) -> None:
+def test_vf_job_lists_and_cancels_shared_store(tmp_path: Path) -> None:
     from videoflow.application import database
     from videoflow.application.jobs import JobManager
-    from videoflow.engine.batch import BatchManager
     from videoflow.mcp_server.context import ToolContext
     from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -343,21 +340,20 @@ def test_vf_jobs_lists_and_cancels_shared_store(tmp_path: Path) -> None:
     tools: dict[str, object] = {}
     register_core_tools(
         lambda func: tools.setdefault(func.__name__, func),
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),
+        ToolContext(manager=manager),
     )
-    listed = tools["vf_jobs"](action="list", project_id="project-wave-a")
+    listed = tools["vf_job"](action="list", project_id="project-wave-a")
     assert listed["ok"] is True
     assert listed["jobs"][0]["job_id"] == "job-wave-a"
-    cancelled = tools["vf_jobs"](action="cancel", job_id="job-wave-a", force=True)
+    cancelled = tools["vf_job"](action="cancel", job_id="job-wave-a", force=True)
     assert cancelled["ok"] is True
     assert database.job_cancel_requested("job-wave-a") is True
-    status = tools["vf_jobs"](action="status", job_id="job-wave-a")
+    status = tools["vf_job"](action="status", job_id="job-wave-a")
     assert status["job"]["status"] == "cancelled"
 
 
 def test_vf_timeline_dry_run_and_time_basis(tmp_path: Path) -> None:
     from videoflow.application.jobs import JobManager
-    from videoflow.engine.batch import BatchManager
     from videoflow.mcp_server.context import ToolContext
     from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -368,7 +364,7 @@ def test_vf_timeline_dry_run_and_time_basis(tmp_path: Path) -> None:
     tools: dict[str, object] = {}
     register_core_tools(
         lambda func: tools.setdefault(func.__name__, func),
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),
+        ToolContext(manager=manager),
     )
     dry = tools["vf_timeline"](
         action="apply_beatmap",
@@ -384,7 +380,6 @@ def test_vf_timeline_dry_run_and_time_basis(tmp_path: Path) -> None:
 
 def test_vf_run_tool_executes_linear_chain(tmp_path: Path) -> None:
     from videoflow.application.jobs import JobManager
-    from videoflow.engine.batch import BatchManager
     from videoflow.mcp_server.context import ToolContext
     from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -404,7 +399,7 @@ def test_vf_run_tool_executes_linear_chain(tmp_path: Path) -> None:
     tools: dict[str, object] = {}
     register_core_tools(
         lambda func: tools.setdefault(func.__name__, func),
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),
+        ToolContext(manager=manager),
     )
     response = tools["vf_run"](
         project_id=record.project_id,

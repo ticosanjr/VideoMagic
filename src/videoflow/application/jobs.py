@@ -863,6 +863,10 @@ class JobManager:
             "hashes": dict(context.hashes),
             "revision": context.state.revision if context.state is not None else 0,
         }
+        if "decupage_llm" in context.metadata:
+            result["llm"] = context.metadata["decupage_llm"]
+        if "asr_execution" in context.metadata:
+            result["execution"] = context.metadata["asr_execution"]
         return RunOutcome(result=result)
 
     def _run_chain(self, job: Job, callbacks: Any) -> RunOutcome:

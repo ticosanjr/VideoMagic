@@ -18,6 +18,11 @@
 
   const CAPABILITIES = [
     ["asr", "Transcription (Whisper)"],
+    ["forced_align", "Forced alignment"],
+    ["scene_analyze", "Scene intelligence"],
+    ["short_render", "Dynamic Short render"],
+    ["audio_events", "Acoustic event tagging"],
+    ["vision_blur", "Visual blur audit"],
     ["render_nvenc", "NVENC master render"],
     ["segment_matte", "Background matte"],
     ["face_track", "Face tracking"],

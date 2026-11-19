@@ -4,10 +4,8 @@ import json
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
 
 from tests.recipe_jobs import MINIMAL_RECIPE, manager_with_runner, start_recipe
-from videoflow.api.app import create_app
 from videoflow.core.recipe import parse_recipe
 from videoflow.domain.errors import RecipeError
 from videoflow.domain.state import MediaInfo
@@ -264,33 +262,6 @@ def test_recipe_runner_requires_transcript_for_shorts(tmp_path: Path) -> None:
     recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
     with pytest.raises(Exception, match="transcript"):
         RecipeRunner(recipe, adapter=FakeAdapter()).run(source, tmp_path / "out")
-
-
-def test_recipe_api_lists_steps_and_validates() -> None:
-    client = TestClient(create_app())
-    steps = client.get("/api/v1/steps")
-    assert steps.status_code == 200
-    step_types_payload = {item["type"] for item in steps.json()["steps"]}
-    assert {"ingest", "shorts.reframe", "shorts.captions", "shorts.render"} <= step_types_payload
-    recipes = client.get("/api/v1/recipes")
-    assert recipes.status_code == 200
-    assert {item["id"] for item in recipes.json()["recipes"]} >= {
-        "youtube_talking_head",
-        "viral_shorts_batch",
-    }
-    invalid = client.post(
-        "/api/v1/recipes/validate",
-        json={
-            "id": "cycle",
-            "name": "Cycle",
-            "steps": [
-                {"id": "a", "type": "ingest", "needs": ["b"]},
-                {"id": "b", "type": "ingest", "needs": ["a"]},
-            ],
-        },
-    )
-    assert invalid.status_code == 422
-    assert invalid.json()["detail"]["code"] == "recipe_invalid"
 
 
 def test_job_manager_runs_recipe_mode(monkeypatch, tmp_path: Path) -> None:
@@ -594,38 +565,6 @@ def test_recipe_rejects_missing_upstream_step_type(tmp_path: Path) -> None:
     )
     with pytest.raises(RecipeError, match="audio.vad"):
         recipe.validate_graph(step_types(), requires_by_type=requirements_by_type())
-
-
-def test_step_api_starts_a_through_job(tmp_path: Path) -> None:
-    from videoflow.application.jobs import Job
-
-    class FakeJobs:
-        def __init__(self) -> None:
-            self.calls: list[dict] = []
-
-        def start(self, source, output, options=None, **kwargs):
-            self.calls.append({"source": source, "output": output, "options": options})
-            return Job(source=source, output=output, options=options or {})
-
-    home = tmp_path / "videoflow-home"
-    home.mkdir(parents=True)
-    source = home / "source.mp4"
-    source.write_bytes(b"fixture")
-    output = home / "out"
-    jobs = FakeJobs()
-    client = TestClient(create_app(jobs=jobs))
-    recipe = base_steps(srt(home / "subs.srt"))
-    response = client.post(
-        "/api/v1/steps/vad/run",
-        json={
-            "source": str(source),
-            "output": str(output),
-            "recipe": recipe,
-        },
-    )
-    assert response.status_code == 202
-    assert jobs.calls[0]["options"]["through"] == "vad"
-    assert jobs.calls[0]["options"]["resume"] is True
 
 
 def test_second_shorts_run_reuses_checkpoints_and_selected_clips(tmp_path: Path) -> None:

@@ -129,14 +129,20 @@ def clean_editorial(
     )
 
     semantic_discards: list[dict[str, Any]] = []
+    semantic_candidates: list[dict[str, Any]] = []
     semantic_status = "skipped"
     semantic_windows = 0
     if semantic:
         if client is None:
-            semantic_status = "unavailable"
+            semantic_status = "delegated"
+            semantic_candidates, semantic_windows = _semantic_candidates(
+                working,
+                block_size=semantic_block,
+                overlap=semantic_overlap,
+            )
             warnings.append(
-                "Semantic retake pass requested but no LLM client is configured; "
-                "deterministic passes only."
+                "Semantic retake pass delegated to OpenCode; "
+                f"{len(semantic_candidates)} candidate pair(s) returned."
             )
         else:
             semantic_discards, semantic_windows, semantic_error = _semantic_sentence_discards(
@@ -201,6 +207,7 @@ def clean_editorial(
         "stutter_sentences": stutter_report["sentences_changed"],
         "fuzzy_discards": fuzzy_groups,
         "semantic_discards": semantic_discards,
+        "semantic_candidates": semantic_candidates,
         "semantic_status": semantic_status,
         "semantic_windows": semantic_windows,
         "discarded_sentence_ids": sorted(discarded),
@@ -394,6 +401,50 @@ def _fuzzy_sentence_discards(
             break
     limited = _limit_discards(sentences, discarded, max_discard_ratio=max_discard_ratio)
     return sorted(limited), [group for group in groups if group["sentence_id"] in limited]
+
+
+def _semantic_candidates(
+    sentences: Sequence[Sentence],
+    *,
+    block_size: int,
+    overlap: int,
+) -> tuple[list[dict[str, Any]], int]:
+    """Return adjacent retake candidates for an external model to judge."""
+
+    ordered = sorted(sentences, key=lambda item: (item.start_sample, item.id))
+    size = max(2, min(32, int(block_size)))
+    step = max(1, min(size - 1, int(overlap) or 1))
+    blocks = [ordered[index : index + size] for index in range(0, len(ordered), step)]
+    candidates: list[dict[str, Any]] = []
+    seen: set[tuple[int, int]] = set()
+    inspected = 0
+    for block in blocks:
+        if len(block) < 2:
+            continue
+        inspected += 1
+        for index, left in enumerate(block):
+            for right in block[index + 1 :]:
+                if right.start_sample <= left.start_sample:
+                    continue
+                similarity, _overlap, prefix = _sentence_similarity(left, right)
+                if similarity < 0.3 and prefix < 0.5:
+                    continue
+                key = (left.id, right.id)
+                if key in seen:
+                    continue
+                seen.add(key)
+                candidates.append(
+                    {
+                        "sentence_id": left.id,
+                        "keeper_id": right.id,
+                        "similarity": round(similarity, 4),
+                        "prefix_similarity": round(prefix, 4),
+                        "text": left.text,
+                        "keeper_text": right.text,
+                        "reason": "semantic_retake_candidate",
+                    }
+                )
+    return candidates[:50], inspected
 
 
 def _semantic_sentence_discards(

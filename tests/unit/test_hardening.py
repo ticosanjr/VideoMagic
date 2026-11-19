@@ -114,35 +114,6 @@ def test_job_fails_cleanly_when_the_output_is_not_writable(
         os.chmod(blocked, 0o700)
 
 
-def test_api_timeline_rejects_a_corrupt_state(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    from fastapi.testclient import TestClient
-
-    from videoflow.api.app import create_app
-
-    def runner(source: Path, output: Path, **kwargs):
-        output.mkdir(parents=True, exist_ok=True)
-        (output / "project_state.json").write_text("{broken", encoding="utf-8")
-        return {"ok": True, "state_path": str(output / "project_state.json")}
-
-    monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
-    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
-    manager = manager_with_runner(runner)
-    client = TestClient(create_app(jobs=manager))
-    job = start_recipe(manager, tmp_path / "source.mp4", tmp_path / "out", {})
-    for _ in range(200):
-        if job.status in {"succeeded", "failed"}:
-            break
-        import time
-
-        time.sleep(0.01)
-
-    response = client.get(f"/api/v1/jobs/{job.job_id}/timeline")
-
-    assert response.status_code in {422, 500}
-
-
 def test_disk_full_fails_an_export_without_a_success_marker(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

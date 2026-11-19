@@ -300,32 +300,6 @@ def test_job_queue_waits_for_a_slot(tmp_path: Path) -> None:
     assert second.status == "succeeded"
 
 
-def test_scheduler_syncs_job_status(tmp_path: Path, monkeypatch) -> None:
-    from types import SimpleNamespace
-
-    from videoflow.application import schedules
-
-    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
-    schedule = schedules.RecipeSchedule(
-        id="sync",
-        kind="interval",
-        recipe_id="youtube_talking_head",
-        source=str(tmp_path / "source.mp4"),
-        output=str(tmp_path / "out"),
-    )
-    schedule.runs = [{"job_id": "j1", "status": "queued", "finished_at": ""}]
-
-    class Jobs:
-        def get(self, job_id: str):
-            return SimpleNamespace(
-                status="succeeded", finished_at="2026-10-24T00:00:00+00:00", error=None
-            )
-
-    assert schedules._sync_runs(Jobs(), schedule) is True
-    assert schedule.runs[0]["status"] == "succeeded"
-    assert schedule.status == "succeeded"
-
-
 def test_analytics_weights_affect_scoring(tmp_path: Path) -> None:
     from videoflow.steps.base import StepIO
 

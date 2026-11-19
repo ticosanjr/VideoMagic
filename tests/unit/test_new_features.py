@@ -468,36 +468,6 @@ def test_timeline_batch_and_ripple_trim(tmp_path: Path) -> None:
     assert trimmed.video_segments[1].timeline_in_frame == 12
 
 
-def test_schedule_retry_and_sqlite_store(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.application import schedules
-
-    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
-    monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
-    source = tmp_path / "source.mp4"
-    source.write_bytes(b"x")
-
-    class FailingJobs:
-        def start(self, *args, **kwargs):
-            raise RuntimeError("queue unavailable")
-
-    schedule = schedules.RecipeSchedule(
-        id="retry-one",
-        kind="interval",
-        recipe_id="youtube_talking_head",
-        source=str(source),
-        output=str(tmp_path / "out"),
-        interval_seconds=60,
-    )
-    schedules.upsert_schedule(schedule)
-    loaded = schedules.load_schedules()
-    assert loaded[0].id == "retry-one"
-    assert (tmp_path / "videoflow.db").is_file()
-    result = schedules.run_schedule(FailingJobs(), loaded[0])
-    assert result.attempts == 1
-    assert result.status.startswith("retry in")
-    assert result.runs[-1]["status"] == "failed"
-
-
 def test_secret_storage_fallback(tmp_path: Path, monkeypatch) -> None:
     from videoflow.application import secrets
 

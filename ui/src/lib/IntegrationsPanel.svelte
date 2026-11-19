@@ -1,7 +1,5 @@
 <script lang="ts">
   import HelpTip from "$lib/HelpTip.svelte";
-  import OpenCodeStudioBootstrap from "$lib/OpenCodeStudioBootstrap.svelte";
-  import OpenCodeStudioManager from "$lib/OpenCodeStudioManager.svelte";
   import { onMount } from "svelte";
 
   let origin = $state("http://127.0.0.1:8765");
@@ -53,16 +51,7 @@ export VIDEOWFLOW_ALLOWED_EXTERNAL_HOSTS=api.deepseek.com`
       text: `Agent model: DeepSeek adapter (deepseek-chat)
 MCP server: ${origin}/mcp/   (OAuth disabled)
 Workflow: vf_project -> vf_catalog_search -> vf_exec(action="step") ->
-vf_job -> vf_timeline -> vf_exports`
-    },
-    {
-      id: "api",
-      title: "REST API",
-      text: `curl -s ${origin}/api/v1/recipes | jq '.recipes[].id'
-
-curl -s -X POST ${origin}/api/v1/jobs/JOB/copilot/timeline \\
-  -H 'content-type: application/json' \\
-  -d '{"prompt":"Tighten the intro and remove the last clip","apply":true}'`
+vf_job -> vf_timeline -> vf_export`
     }
   ]);
 
@@ -78,49 +67,35 @@ curl -s -X POST ${origin}/api/v1/jobs/JOB/copilot/timeline \\
 </script>
 
 <section class="space-y-4" data-testid="integrations-panel">
-  <header>
-    <div class="flex items-center gap-1.5"><h2 class="text-lg font-semibold text-white">Integrations</h2> <HelpTip label="Connect" body="MCP and REST entry points for OpenCode and Paperclip, with DeepSeek as the model. Everything is loopback." doc="docs/integrations.md" /></div>
-    <p class="mt-1 text-xs text-neutral-500">
-      Drive VideoFlow from OpenCode or Paperclip through MCP or REST, with DeepSeek as the agent or Copilot model. Everything stays on loopback.
-    </p>
-  </header>
+  <div class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <p class="vf-label text-sky-300/80">MCP</p>
+        <h2 class="mt-1 text-[length:var(--vf-text-lg)] font-semibold text-white">Connect an MCP client</h2>
+        <p class="mt-1 max-w-2xl text-[length:var(--vf-text-xs)] text-neutral-500">
+          VideoFlow is controlled through MCP. Copy one block into OpenCode, Paperclip, or another MCP client.
+        </p>
+      </div>
+      <HelpTip
+        label="Transport"
+        body="The server stays on loopback. Use stdio for a single local client or HTTP for several agents."
+      />
+    </div>
+  </div>
 
-  <OpenCodeStudioBootstrap />
-
-  <OpenCodeStudioManager />
-
-  <section class="rounded-2xl border border-sky-500/25 bg-sky-500/5 p-4">
-    <h3 class="text-xs font-semibold text-sky-100">Headless + hybrid MCP</h3>
-    <p class="mt-1 text-[11px] leading-relaxed text-neutral-300">
-      Run the daemon without the Svelte UI or tray. OpenCode or a similar coding agent plans and repairs; VideoFlow executes deterministic media jobs.
-    </p>
-    <pre class="mt-2 overflow-auto rounded-xl border border-sky-500/20 bg-black/40 p-3 text-[10px] text-sky-100">videoflow serve --mcp-only
-opencode mcp add videoflow --url ${origin}/mcp/</pre>
-  </section>
-
-  <div class="grid gap-3 lg:grid-cols-2">
+  <div class="grid gap-3">
     {#each blocks as block (block.id)}
-      <article class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
-        <div class="flex items-center justify-between gap-2">
-          <h3 class="text-xs font-semibold text-neutral-100">{block.title}</h3>
+      <article class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
+        <div class="flex items-center justify-between gap-3">
+          <h3 class="text-[length:var(--vf-text-sm)] font-semibold text-neutral-100">{block.title}</h3>
           <button
             type="button"
-            class="rounded-lg border border-white/10 px-2 py-0.5 text-[10px] text-neutral-400 hover:text-sky-200"
             onclick={() => void copy(block.id, block.text)}
+            class="rounded-lg border border-white/10 px-2.5 py-1 text-[length:var(--vf-text-xs)] text-neutral-300 hover:border-sky-500/40"
           >{copied === block.id ? "Copied" : "Copy"}</button>
         </div>
-        <pre class="mt-2 max-h-56 overflow-auto rounded-xl border border-neutral-800 bg-black/50 p-3 text-[10px] leading-relaxed text-neutral-300">{block.text}</pre>
+        <pre class="mt-3 overflow-x-auto rounded-xl bg-black/40 p-3 font-mono text-[length:var(--vf-text-xs)] leading-5 text-neutral-300">{block.text}</pre>
       </article>
     {/each}
   </div>
-
-  <section class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4 text-[11px] text-neutral-400">
-    <p class="font-medium text-neutral-200">Suggested agent prompt</p>
-    <p class="mt-1">
-      “Use the videoflow MCP tools. Create a project, choose catalog steps, run each with vf_exec(action='step'), poll until success, read the timeline, apply validated edits, then build and validate the delivery bundle.”
-    </p>
-    <p class="mt-2 text-neutral-500">
-      Keep the server on 127.0.0.1. External LLM calls require the provider plus the external-service allowlist. See <span class="font-mono">docs/integrations.md</span> for Paperclip and troubleshooting.
-    </p>
-  </section>
 </section>

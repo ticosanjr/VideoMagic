@@ -88,7 +88,7 @@ vf_exec(action="step", step_id="transcribe", params={...})
 vf_exec(action="step", step_id="edit.timeline", params={...})
 vf_job(action="wait") after each step
 vf_timeline(action="get")
-vf_exports(action="bundle")
+vf_export()
 ```
 
 Channel kits:

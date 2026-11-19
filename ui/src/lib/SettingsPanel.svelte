@@ -460,12 +460,8 @@
       </section>
 
       <section class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
-        <h3 class="text-xs font-semibold text-neutral-100">Automation and quality</h3>
+        <h3 class="text-xs font-semibold text-neutral-100">Quality</h3>
         <div class="mt-3 grid gap-2 sm:grid-cols-2">
-          <label class="text-[10px] text-neutral-500">Scheduler interval (s)<input type="number" min="5" bind:value={settings.automation.scheduler_interval_seconds} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
-          <label class="text-[10px] text-neutral-500">Max retries<input type="number" min="0" max="20" bind:value={settings.automation.max_retries} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
-          <label class="text-[10px] text-neutral-500">Backoff (s)<input type="number" min="5" bind:value={settings.automation.retry_backoff_seconds} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
-          <label class="flex items-end gap-2 pb-1 text-[10px] text-neutral-400"><input type="checkbox" bind:checked={settings.automation.enabled} class="h-3.5 w-3.5" />scheduler enabled</label>
           <label class="text-[10px] text-neutral-500">Target LUFS (integrated)<input type="number" step="0.5" bind:value={settings.quality.target_lufs} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
           <label class="text-[10px] text-neutral-500">True peak (dBTP)<input type="number" step="0.5" bind:value={settings.quality.true_peak_db} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
           <label class="text-[10px] text-neutral-500">VMAF threshold (0–100)<input type="number" min="0" max="100" bind:value={settings.quality.vmaf_threshold} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100" /></label>
@@ -587,7 +583,6 @@
               <option value="comfortable">comfortable</option><option value="compact">compact</option>
             </select>
           </label>
-          <label class="flex items-end gap-2 pb-1 text-[10px] text-neutral-400"><input type="checkbox" bind:checked={settings.ui.timeline_snap} class="h-3.5 w-3.5" />timeline snap</label>
         </div>
       </section>
     </div>

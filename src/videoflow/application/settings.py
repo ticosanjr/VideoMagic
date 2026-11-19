@@ -372,10 +372,16 @@ class GpuSettings(BaseModel):
     mode: Literal["auto", "local_only", "remote_preferred"] = "auto"
     worker_url: str = ""
     worker_id: str = ""
+    transport: Literal["auto", "http", "shared"] = "auto"
     worker_token_secret: str = "VF_GPU_WORKER_TOKEN"
     capabilities: dict[str, bool] = Field(
         default_factory=lambda: {
             "asr": True,
+            "forced_align": True,
+            "scene_analyze": True,
+            "short_render": True,
+            "audio_events": False,
+            "vision_blur": True,
             "render_nvenc": True,
             "segment_matte": True,
             "face_track": True,

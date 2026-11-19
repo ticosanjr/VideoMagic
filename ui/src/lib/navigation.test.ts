@@ -16,29 +16,22 @@ describe("navigation areas", () => {
     expect(tabs.sort()).toEqual(TABS.map((tab) => tab.id).sort());
   });
 
-  it("keeps the workflow order", () => {
-    expect(AREAS.map((area) => area.id)).toEqual([
-      "produce",
-      "edit",
-      "runs",
-      "library",
-      "setup"
-    ]);
-    expect(areaTabs("runs")).toEqual(["jobs", "schedules"]);
+  it("keeps the MCP control order", () => {
+    expect(AREAS.map((area) => area.id)).toEqual(["runs", "setup"]);
+    expect(areaTabs("runs")).toEqual(["overview", "jobs"]);
     expect(defaultTabForArea("setup")).toBe("models");
   });
 
   it("maps tabs to areas", () => {
-    expect(areaForTab("assistant")).toBe("produce");
-    expect(areaForTab("timeline")).toBe("edit");
-    expect(areaForTab("media")).toBe("library");
+    expect(areaForTab("jobs")).toBe("runs");
     expect(areaForTab("connect")).toBe("setup");
+    expect(areaForTab("gpu")).toBe("setup");
   });
 });
 
 describe("resolveRoute", () => {
   it("reads flat hashes", () => {
-    expect(resolveRoute("#timeline")).toEqual({ area: "edit", tab: "timeline" });
+    expect(resolveRoute("#jobs")).toEqual({ area: "runs", tab: "jobs" });
   });
 
   it("reads area/tab hashes", () => {
@@ -48,20 +41,17 @@ describe("resolveRoute", () => {
   });
 
   it("redirects legacy aliases", () => {
-    expect(resolveRoute("#assets").tab).toBe("media");
-    expect(resolveRoute("#automation").tab).toBe("schedules");
-    expect(resolveRoute("#copilot").tab).toBe("assistant");
-    expect(resolveRoute("#library").tab).toBe("brand");
     expect(resolveRoute("#plugins").tab).toBe("extensions");
     expect(resolveRoute("#integrations").tab).toBe("connect");
+    expect(resolveRoute("#home").tab).toBe("overview");
   });
 
-  it("falls back to produce/overview", () => {
-    expect(resolveRoute("")).toEqual({ area: "produce", tab: "overview" });
-    expect(resolveRoute("#unknown")).toEqual({ area: "produce", tab: "overview" });
+  it("falls back to runs/overview", () => {
+    expect(resolveRoute("")).toEqual({ area: "runs", tab: "overview" });
+    expect(resolveRoute("#unknown")).toEqual({ area: "runs", tab: "overview" });
   });
 
   it("builds flat hashes", () => {
-    expect(hashFor("brand")).toBe("#brand");
+    expect(hashFor("gpu")).toBe("#gpu");
   });
 });

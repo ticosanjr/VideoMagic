@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "name": "decupage-self-test",
+  "generated_at": "2026-11-19T18:53:36+00:00",
+  "status": "synthetic",
+  "physical_acceptance_pending": true,
+  "thresholds": {
+    "retake_recall": 0.95,
+    "noise_recall": 0.92,
+    "false_positive_ratio": 0.01
+  },
+  "metrics": {
+    "retake_recall": 1.0,
+    "noise_recall": 1.0,
+    "false_positive_ratio": 0.0,
+    "removed": 4,
+    "keep_expected": 1,
+    "active_spans": 1,
+    "cuts": 4,
+    "duration_sec": 0.4,
+    "reduction_pct": 98.667,
+    "frame_quantized": true,
+    "runtime_sec": 0.0003,
+    "clipped_syllables": null,
+    "audio_clicks": null,
+    "av_drift_frames": null
+  },
+  "failures": [],
+  "summary": {
+    "asus_before": 5,
+    "asus_after": 1,
+    "removed": 4,
+    "trimmed": 0,
+    "review_flags": 0,
+    "cuts": 4
+  },
+  "plan": {
+    "schema_version": 1,
+    "sample_rate": 16000,
+    "fps_num": 30,
+    "fps_den": 1,
+    "source_duration_samples": 480000,
+    "active_spans": [
+      {
+        "start_sample": 8533,
+        "end_sample": 14933,
+        "start_sec": 0.533,
+        "end_sec": 0.933
+      }
+    ],
+    "cuts": [
+      {
+        "start_sample": 0,
+        "end_sample": 1500,
+        "reason": "decupage_remove",
+        "asu_id": "ASU_0001",
+        "needs_broll_or_punch_in": false
+      },
+      {
+        "start_sample": 2000,
+        "end_sample": 5000,
+        "reason": "decupage_remove",
+        "asu_id": "ASU_0002",
+        "needs_broll_or_punch_in": false
+      },
+      {
+        "start_sample": 5500,
+        "end_sample": 6500,
+        "reason": "decupage_remove",
+        "asu_id": "ASU_0003",
+        "needs_broll_or_punch_in": false
+      },
+      {
+        "start_sample": 7000,
+        "end_sample": 9000,
+        "reason": "decupage_remove",
+        "asu_id": "ASU_0004",
+        "needs_broll_or_punch_in": false
+      }
+    ],
+    "joins": [],
+    "review_flags": [],
+    "metrics": {
+      "source_duration_sec": 30.0,
+      "final_duration_sec": 0.4,
+      "removed_sec": 29.6,
+      "reduction_pct": 98.667,
+      "active_spans": 1,
+      "cuts": 4,
+      "joins": 0,
+      "review_flags": 0,
+      "crossfade_ms": 18.0
+    }
+  }
+}

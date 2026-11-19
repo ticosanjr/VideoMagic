@@ -10,5 +10,5 @@ description: Edit long-form interviews with VideoFlow MCP tools and a selected s
 3. `vf_ingest` → `transcribe_word_aligned` → `session.cull`.
 4. Build `beat_map.json` from the style and request approval.
 5. `vf_timeline(action="apply_beatmap")`, motion, B-roll, captions.
-6. `vf_qa(action="inspect")` and fix defects.
-7. `vf_exports(action="bundle", targets="all")` and report the manifest.
+6. `vf_job(action="qa")` and fix defects.
+7. `vf_export(targets="all")` and report the manifest.

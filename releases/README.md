@@ -5,14 +5,11 @@ the manifest, checksums, and notes are tracked. GitHub Actions is not used.
 
 ## Current
 
-- `v2.60.0`: durable HILT approvals/questions/files with local, e-mail, Slack,
-  and Signal channels; the 53-step Full AI Editor; research/script, vision,
-  licensed assets, motion, procedural audio, fact-check, and voice repair.
-- `v2.59.4`: legacy job API and portable execution removed; recipe-only jobs,
-  domain-split API routes, hardened MCP registry, and concurrent history fixes.
-- `v2.59.3`: premium studio shell and branding, PWA metadata, mobile
-  navigation and builder fixes, branded empty states, and the shared
-  `shorts_project`/`worker_state`/text primitives.
+- `v3.7.0`: decupage acoustic phase, Scene Intelligence, Dynamic Shorts
+  compositor, `vf_scenes`, 34 MCP tools, FCPXML V1/V2/A1/A2, and phase 7
+  benchmark evidence.
+- `v3.6.0`: distribution and GPU-worker hardening.
+- `v3.5.0`: MCP-first surface and stateful step chains.
 
 Older folders are pruned by the three-release rule.
 

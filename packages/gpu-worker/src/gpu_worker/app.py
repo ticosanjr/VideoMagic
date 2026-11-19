@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
+import re
 import secrets
 import shutil
 import socket
 import threading
+import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -14,7 +17,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -23,6 +26,7 @@ from gpu_worker.artifacts import ArtifactStore, ArtifactTooLarge
 from gpu_worker.discovery import DiscoveryBeacon
 from gpu_worker.gpu import detect_gpu
 from gpu_worker.handlers import HandlerRegistry, build_default_registry
+from gpu_worker.handlers_gpu import nvenc_available
 from gpu_worker.models import ModelRegistry
 from gpu_worker.security import (
     UnsafePathError,
@@ -34,6 +38,7 @@ from gpu_worker.security import (
 )
 from gpu_worker.settings import Settings
 from gpu_worker.store import JobRecord, JobStore
+from gpu_worker.uploads import UploadStore
 from gpu_worker.vram import VramBudget
 from gpu_worker.worker import JobRunner
 
@@ -49,6 +54,61 @@ def _local_ip() -> str:
             return str(probe.getsockname()[0])
     except OSError:
         return "127.0.0.1"
+
+
+_SHA_CACHE: dict[tuple[str, int, int], str] = {}
+_SHA_LOCK = threading.Lock()
+
+
+def _sha256_cached(path: Path) -> str:
+    stat = path.stat()
+    key = (str(path), stat.st_size, stat.st_mtime_ns)
+    with _SHA_LOCK:
+        cached = _SHA_CACHE.get(key)
+    if cached is not None:
+        return cached
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    value = digest.hexdigest()
+    with _SHA_LOCK:
+        _SHA_CACHE[key] = value
+    return value
+
+
+def _parse_range(value: str, size: int) -> tuple[int, int] | None:
+    text = str(value or "").strip()
+    if not text.lower().startswith("bytes="):
+        return None
+    spec = text[6:].split(",", 1)[0].strip()
+    if "-" not in spec:
+        return None
+    start_text, end_text = spec.split("-", 1)
+    try:
+        if start_text:
+            start = int(start_text)
+            end = int(end_text) if end_text else size - 1
+        else:
+            suffix = int(end_text)
+            if suffix <= 0:
+                return None
+            start = max(0, size - suffix)
+            end = size - 1
+    except ValueError:
+        return None
+    if start < 0 or end < start or start >= size:
+        return None
+    return start, min(end, size - 1)
+
+
+class UploadInit(BaseModel):
+    """Request body for a resumable upload."""
+
+    filename: str = "upload.bin"
+    size: int = Field(ge=0)
+    sha256: str = ""
+    chunk_size: int = Field(default=8 * 1024 * 1024, ge=1, le=64 * 1024 * 1024)
 
 
 class JobSubmission(BaseModel):
@@ -86,6 +146,12 @@ def create_app(
         shutil.rmtree(work_dir / "jobs" / stale_job, ignore_errors=True)
 
     artifacts = ArtifactStore(work_dir / "artifacts", store, max_bytes=config.max_upload_bytes)
+    uploads = UploadStore(
+        work_dir / "uploads",
+        artifacts,
+        max_bytes=config.max_upload_bytes,
+    )
+    uploads.cleanup_stale()
     models = ModelRegistry(config.model_ttl_sec)
     vram = VramBudget(
         max_vram_mb=config.max_vram_mb,
@@ -132,6 +198,7 @@ def create_app(
     app.state.shared_root = shared_root
     app.state.store = store
     app.state.artifacts = artifacts
+    app.state.uploads = uploads
     app.state.models = models
     app.state.vram = vram
     app.state.registry = handlers
@@ -203,6 +270,39 @@ def create_app(
             "queue_depth": store.queue_depth(),
         }
 
+    @app.post("/probe")
+    def probe() -> dict[str, Any]:
+        started = time.perf_counter()
+        gpu = detect_gpu()
+        ffmpeg = config.ffmpeg_cmd or "ffmpeg"
+        nvenc = nvenc_available(ffmpeg)
+        ct2_devices = 0
+        try:
+            import ctranslate2
+
+            ct2_devices = int(ctranslate2.get_cuda_device_count())
+        except Exception:  # noqa: BLE001 - optional runtime
+            ct2_devices = 0
+        providers: list[str] = []
+        try:
+            import onnxruntime
+
+            providers = [str(item) for item in onnxruntime.get_available_providers()]
+        except Exception:  # noqa: BLE001 - optional runtime
+            providers = []
+        return {
+            "ok": bool(gpu.available and nvenc),
+            "cuda": bool(gpu.available),
+            "nvenc": bool(nvenc),
+            "asr": bool(gpu.available and ct2_devices > 0),
+            "matte": "CUDAExecutionProvider" in providers,
+            "gpu_name": gpu.name,
+            "vram_free_mb": gpu.vram_free_mb,
+            "ct2_devices": ct2_devices,
+            "providers": providers,
+            "latency_ms": round((time.perf_counter() - started) * 1000, 1),
+        }
+
     @app.post("/artifacts")
     async def upload_artifact(
         file: Annotated[UploadFile, File()],
@@ -216,6 +316,92 @@ def create_app(
         finally:
             await file.close()
         return {"artifact_id": record.id, "sha256": record.id, "bytes": record.size}
+
+    @app.post("/artifacts/init")
+    def init_artifact(body: UploadInit) -> dict[str, Any]:
+        try:
+            session = uploads.create(
+                filename=body.filename,
+                size=body.size,
+                sha256=body.sha256,
+                chunk_size=body.chunk_size,
+            )
+        except ArtifactTooLarge as exc:
+            raise HTTPException(status_code=413, detail=str(exc)) from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "upload_id": session.id,
+            "offset": session.received,
+            "size": session.size,
+            "chunk_size": session.chunk_size,
+            "sha256": session.sha256,
+        }
+
+    @app.patch("/artifacts/{upload_id}")
+    async def append_artifact(upload_id: str, request: Request) -> dict[str, Any]:
+        session = uploads.get(upload_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail="upload session not found")
+        content_range = request.headers.get("content-range", "")
+        match = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+)", content_range.strip())
+        if match is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Content-Range must be 'bytes start-end/total'",
+            )
+        start, end, total = (int(part) for part in match.groups())
+        if total != session.size:
+            raise HTTPException(status_code=400, detail="Content-Range total mismatch")
+        if end < start or end >= session.size:
+            raise HTTPException(status_code=400, detail="Content-Range is outside the upload")
+        data = await request.body()
+        if len(data) != end - start + 1:
+            raise HTTPException(
+                status_code=400,
+                detail="Content-Range length does not match the request body",
+            )
+        try:
+            updated = await run_in_threadpool(uploads.append, upload_id, start, data)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "upload_id": updated.id,
+            "received": updated.received,
+            "size": updated.size,
+        }
+
+    @app.post("/artifacts/{upload_id}/complete")
+    async def complete_artifact(upload_id: str) -> dict[str, Any]:
+        try:
+            record = await run_in_threadpool(uploads.complete, upload_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ArtifactTooLarge as exc:
+            raise HTTPException(status_code=413, detail=str(exc)) from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "artifact_id": record.id,
+            "sha256": record.id,
+            "bytes": record.size,
+            "filename": record.filename,
+        }
+
+    @app.get("/artifacts/{upload_id}/status")
+    def artifact_upload_status(upload_id: str) -> dict[str, Any]:
+        session = uploads.get(upload_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail="upload session not found")
+        return {
+            "upload_id": session.id,
+            "received": session.received,
+            "size": session.size,
+            "chunk_size": session.chunk_size,
+            "sha256": session.sha256,
+        }
 
     @app.post("/jobs/{capability}")
     def submit_job(capability: str, body: JobSubmission) -> dict[str, Any]:
@@ -291,20 +477,105 @@ def create_app(
             raise HTTPException(status_code=503, detail="worker is shutting down")
         return {"job_id": job_id, "status": "queued"}
 
-    @app.get("/jobs/{job_id}")
-    def get_job(job_id: str) -> dict[str, Any]:
-        return require_job(job_id).as_dict()
-
-    @app.get("/jobs/{job_id}/artifact/{name}")
-    def download_artifact(job_id: str, name: str) -> FileResponse:
-        job = require_job(job_id)
+    def artifact_path(job: JobRecord, name: str) -> Path:
         if name not in job.artifacts:
             raise HTTPException(status_code=404, detail="artifact not found")
         directory = (work_dir / "jobs" / job.id / "artifacts").resolve()
         path = (directory / name).resolve()
         if path.parent != directory or not path.is_file():
             raise HTTPException(status_code=404, detail="artifact not found")
-        return FileResponse(path, media_type="application/octet-stream", filename=name)
+        return path
+
+    @app.get("/jobs/{job_id}")
+    def get_job(job_id: str) -> dict[str, Any]:
+        return require_job(job_id).as_dict()
+
+    @app.get("/jobs/{job_id}/artifacts")
+    def list_job_artifacts(job_id: str) -> dict[str, Any]:
+        job = require_job(job_id)
+        items: list[dict[str, Any]] = []
+        for name in job.artifacts:
+            try:
+                path = artifact_path(job, name)
+            except HTTPException:
+                continue
+            items.append(
+                {
+                    "name": name,
+                    "size": path.stat().st_size,
+                    "sha256": _sha256_cached(path),
+                }
+            )
+        return {"job_id": job.id, "artifacts": items}
+
+    @app.head("/jobs/{job_id}/artifact/{name}")
+    def head_artifact(job_id: str, name: str) -> Response:
+        job = require_job(job_id)
+        path = artifact_path(job, name)
+        digest = _sha256_cached(path)
+        headers = {
+            "Content-Length": str(path.stat().st_size),
+            "Accept-Ranges": "bytes",
+            "X-VF-Sha256": digest,
+            "ETag": f'"{digest}"',
+        }
+        return Response(
+            status_code=200,
+            media_type="application/octet-stream",
+            headers=headers,
+        )
+
+    @app.get("/jobs/{job_id}/artifact/{name}")
+    def download_artifact(job_id: str, name: str, request: Request) -> Response:
+        job = require_job(job_id)
+        path = artifact_path(job, name)
+        size = path.stat().st_size
+        digest = _sha256_cached(path)
+        range_header = request.headers.get("range", "")
+        if not range_header:
+            return FileResponse(
+                path,
+                media_type="application/octet-stream",
+                filename=name,
+                headers={
+                    "Accept-Ranges": "bytes",
+                    "X-VF-Sha256": digest,
+                    "ETag": f'"{digest}"',
+                },
+            )
+        parsed = _parse_range(range_header, size)
+        if parsed is None:
+            return Response(
+                status_code=416,
+                headers={"Content-Range": f"bytes */{size}"},
+            )
+        start, end = parsed
+        length = end - start + 1
+
+        def chunks() -> Any:
+            with path.open("rb") as handle:
+                handle.seek(start)
+                remaining = length
+                while remaining > 0:
+                    chunk = handle.read(min(1024 * 1024, remaining))
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+                    yield chunk
+
+        headers = {
+            "Content-Range": f"bytes {start}-{end}/{size}",
+            "Content-Length": str(length),
+            "Accept-Ranges": "bytes",
+            "X-VF-Sha256": digest,
+            "ETag": f'"{digest}"',
+        }
+        return StreamingResponse(
+            chunks(),
+            status_code=206,
+            media_type="application/octet-stream",
+            headers=headers,
+        )
 
     @app.delete("/jobs/{job_id}")
     def delete_job(job_id: str) -> dict[str, Any]:

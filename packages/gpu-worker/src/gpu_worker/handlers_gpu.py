@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -75,10 +76,34 @@ def nvenc_available(ffmpeg: str = "ffmpeg") -> bool:
             check=False,
             timeout=10,
         )
+        if completed.returncode != 0 or "h264_nvenc" not in completed.stdout:
+            _NVENC_CACHE[key] = False
+            return False
+        probe = subprocess.run(
+            [
+                ffmpeg,
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=c=black:s=128x72:d=0.1",
+                "-c:v",
+                "h264_nvenc",
+                "-f",
+                "null",
+                "-",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=20,
+        )
     except (FileNotFoundError, OSError, subprocess.SubprocessError):
         _NVENC_CACHE[key] = False
         return False
-    available = completed.returncode == 0 and "h264_nvenc" in completed.stdout
+    available = probe.returncode == 0
     _NVENC_CACHE[key] = available
     return available
 
@@ -139,6 +164,14 @@ def make_asr_handler(
                 beam_size=beam_size,
                 word_timestamps=word_timestamps,
                 vad_filter=bool(params.get("vad_filter", True)),
+                condition_on_previous_text=bool(
+                    params.get("condition_on_previous_text", False)
+                ),
+                no_speech_threshold=float(params.get("no_speech_threshold", 0.6)),
+                compression_ratio_threshold=float(
+                    params.get("compression_ratio_threshold", 2.2)
+                ),
+                repetition_penalty=float(params.get("repetition_penalty", 1.1)),
             )
             payload = {
                 "schema_version": 1,
@@ -173,6 +206,91 @@ def make_asr_handler(
         except Exception as exc:  # noqa: BLE001 - runtime backend failure
             raise HandlerError(f"faster-whisper failed: {exc}") from exc
         target = work_dir / "transcript.json"
+        target.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return [target]
+
+    return handler
+
+
+def make_forced_align_handler(settings: Settings) -> Handler:
+    """Word-level alignment using the worker ASR model.
+
+    WhisperX is not part of the base Windows runtime, so faster-whisper word
+    timestamps are the portable worker backend. The payload keeps the same
+    ``segments`` contract as the ASR handler.
+    """
+
+    inner = make_asr_handler(settings)
+
+    def handler(
+        params: dict[str, Any], input_paths: list[Path], work_dir: Path
+    ) -> list[Path]:
+        options = dict(params)
+        options.setdefault("beam_size", 1)
+        options.setdefault("vad_filter", False)
+        options.setdefault("word_timestamps", True)
+        options.setdefault("condition_on_previous_text", False)
+        outputs = inner(options, input_paths, work_dir)
+        if not outputs:
+            raise HandlerError("forced_align produced no transcript")
+        target = work_dir / "alignment.json"
+        Path(outputs[0]).replace(target)
+        return [target]
+
+    return handler
+
+
+def make_vision_blur_handler(settings: Settings) -> Handler:
+    """Sample frames and report Laplacian-variance blur scores."""
+
+    def handler(
+        params: dict[str, Any], input_paths: list[Path], work_dir: Path
+    ) -> list[Path]:
+        work_dir.mkdir(parents=True, exist_ok=True)
+        if not input_paths:
+            raise HandlerError("vision_blur requires a video artifact")
+        try:
+            import cv2
+        except Exception as exc:  # noqa: BLE001 - optional dependency
+            raise HandlerError(f"OpenCV is not installed: {exc}") from exc
+        capture = cv2.VideoCapture(str(input_paths[0]))
+        if not capture.isOpened():
+            raise HandlerError(f"cannot open video: {input_paths[0]}")
+        fps = float(capture.get(cv2.CAP_PROP_FPS) or 30.0)
+        sample = max(1, round(fps / max(0.2, float(params.get("fps") or 1.0))))
+        frames: list[dict[str, Any]] = []
+        index = 0
+        try:
+            while True:
+                ok, frame = capture.read()
+                if not ok:
+                    break
+                if index % sample:
+                    index += 1
+                    continue
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+                frames.append(
+                    {
+                        "frame": index,
+                        "time": round(index / fps, 4),
+                        "score": round(score, 3),
+                        "blurry": score < float(params.get("threshold") or 80.0),
+                    }
+                )
+                index += 1
+        finally:
+            capture.release()
+        payload = {
+            "schema_version": 1,
+            "fps": round(fps, 3),
+            "sampled": len(frames),
+            "frames": frames,
+        }
+        target = work_dir / "blur.json"
         target.write_text(
             json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
@@ -405,13 +523,589 @@ def make_face_track_handler(settings: Settings) -> Handler:
     return handler
 
 
+def _scene_median(values: list[float], default: float = 0.0) -> float:
+    import statistics
+
+    return round(statistics.median(values), 6) if values else default
+
+
+def _scene_sample_times(
+    start: float,
+    end: float,
+    *,
+    max_frames: int = 20,
+    interval: float = 0.5,
+) -> list[float]:
+    duration = max(0.0, end - start)
+    if duration <= 0:
+        return [start]
+    count = max(3, min(max_frames, int(duration / max(0.1, interval)) + 1))
+    return [
+        min(end - 1e-4, start + duration * (index + 0.5) / count)
+        for index in range(count)
+    ]
+
+
+def _scene_ffmpeg_times(
+    source: Path,
+    *,
+    ffmpeg: str,
+    threshold: float,
+) -> list[float]:
+    import re
+
+    mapped = max(0.05, min(0.95, float(threshold) / 8.0))
+    completed = subprocess.run(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            "info",
+            "-i",
+            str(source),
+            "-vf",
+            f"select='gt(scene,{mapped})',showinfo",
+            "-an",
+            "-f",
+            "null",
+            "-",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=1800,
+    )
+    if completed.returncode != 0:
+        tail = (completed.stderr or "").strip().splitlines()
+        raise HandlerError(
+            f"ffmpeg scene detection failed: {tail[-1][:300] if tail else 'no stderr'}"
+        )
+    pattern = re.compile(r"pts_time:([0-9]+(?:\.[0-9]+)?)")
+    return sorted({float(match.group(1)) for match in pattern.finditer(completed.stderr)})
+
+
+def _scene_detect_times(
+    proxy: Path,
+    *,
+    ffmpeg: str,
+    fps: float,
+    threshold: float,
+    min_scene_len_sec: float,
+) -> list[float]:
+    try:
+        from scenedetect import SceneManager, open_video
+        from scenedetect.detectors import AdaptiveDetector
+
+        video = open_video(str(proxy))
+        manager = SceneManager()
+        manager.add_detector(
+            AdaptiveDetector(
+                adaptive_threshold=max(0.1, float(threshold)),
+                min_scene_len=max(1, round(fps * max(0.1, min_scene_len_sec))),
+                window_width=2,
+            )
+        )
+        manager.detect_scenes(
+            video,
+            show_progress=False,
+            frame_skip=max(0, round(fps / 10)),
+        )
+        return [
+            float(getattr(scene[0], "seconds", 0.0))
+            if hasattr(scene[0], "seconds")
+            else scene[0].get_seconds()
+            for scene in manager.get_scene_list()
+        ]
+    except Exception:  # noqa: BLE001 - optional dependency
+        return _scene_ffmpeg_times(proxy, ffmpeg=ffmpeg, threshold=threshold)
+
+
+def _scene_face_backend(cv2: Any) -> Any:
+    try:
+        import mediapipe as mp  # type: ignore[import-not-found]
+
+        detector = mp.solutions.face_detection.FaceDetection(
+            model_selection=1,
+            min_detection_confidence=0.60,
+        )
+
+        def detect(frame: Any) -> tuple[int, float, float, float, float] | None:
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            result = detector.process(rgb)
+            if not result.detections:
+                return None
+            detection = max(
+                result.detections,
+                key=lambda item: item.location_data.relative_bounding_box.width
+                * item.location_data.relative_bounding_box.height,
+            )
+            box = detection.location_data.relative_bounding_box
+            return (
+                1,
+                float(box.xmin + box.width / 2),
+                float(box.ymin + box.height / 2),
+                float(box.width),
+                float(box.height),
+            )
+
+        return detect
+    except Exception:  # noqa: BLE001 - Haar fallback
+        try:
+            cascade = cv2.CascadeClassifier(
+                str(
+                    Path(cv2.data.haarcascades)
+                    / "haarcascade_frontalface_default.xml"
+                )
+            )
+        except Exception:  # noqa: BLE001 - OpenCV build without Haar support
+            return lambda frame: None
+        if cascade.empty():
+            return lambda frame: None
+
+        def detect_haar(frame: Any) -> tuple[int, float, float, float, float] | None:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+            if not len(faces):
+                return None
+            height, width = gray.shape[:2]
+            x, y, w, h = max(faces, key=lambda item: int(item[2]) * int(item[3]))
+            return (
+                len(faces),
+                (float(x) + float(w) / 2) / max(1, width),
+                (float(y) + float(h) / 2) / max(1, height),
+                float(w) / max(1, width),
+                float(h) / max(1, height),
+            )
+
+        return detect_haar
+
+
+def _scene_visuals(
+    proxy: Path,
+    spans: list[tuple[float, float]],
+    *,
+    topology: str,
+    max_frames: int = 20,
+) -> list[dict[str, Any]]:
+    import cv2
+
+    capture = cv2.VideoCapture(str(proxy))
+    if not capture.isOpened():
+        raise HandlerError(f"cannot open scene proxy: {proxy}")
+    detect = _scene_face_backend(cv2)
+    results: list[dict[str, Any]] = []
+    try:
+        for start, end in spans:
+            faces: list[tuple[int, float, float, float, float]] = []
+            edges: list[float] = []
+            sharp: list[float] = []
+            for timestamp in _scene_sample_times(start, end, max_frames=max_frames):
+                capture.set(cv2.CAP_PROP_POS_MSEC, timestamp * 1000.0)
+                ok, frame = capture.read()
+                if not ok:
+                    continue
+                if topology == "dual_canvas":
+                    half = frame.shape[1] // 2
+                    cam, screen = frame[:, half:], frame[:, :half]
+                else:
+                    cam = screen = frame
+                face = detect(cam)
+                if face is not None:
+                    faces.append(face)
+                gray = cv2.cvtColor(screen, cv2.COLOR_BGR2GRAY)
+                edges.append(float(cv2.Canny(gray, 80, 180).mean()) / 255.0)
+                crop = gray
+                if face is not None:
+                    _count, cx, cy, fw, fh = face
+                    height, width = gray.shape[:2]
+                    x0 = max(0, int((cx - fw / 2) * width))
+                    x1 = min(width, int((cx + fw / 2) * width))
+                    y0 = max(0, int((cy - fh / 2) * height))
+                    y1 = min(height, int((cy + fh / 2) * height))
+                    if x1 > x0 and y1 > y0:
+                        crop = gray[y0:y1, x0:x1]
+                sharp.append(float(cv2.Laplacian(crop, cv2.CV_64F).var()))
+            if faces:
+                count = max(item[0] for item in faces)
+                cx = _scene_median([item[1] for item in faces])
+                cy = _scene_median([item[2] for item in faces])
+                fw = _scene_median([item[3] for item in faces])
+                fh = _scene_median([item[4] for item in faces])
+                area = fw * fh
+            else:
+                count = 0
+                cx = cy = fw = fh = area = 0.0
+            results.append(
+                {
+                    "face_count": count,
+                    "face_cx": cx if count else None,
+                    "face_cy": cy if count else None,
+                    "face_w": fw if count else None,
+                    "face_h": fh if count else None,
+                    "face_area_ratio": round(area, 6),
+                    "edge_density": _scene_median(edges),
+                    "sharpness_laplacian": _scene_median(sharp),
+                }
+            )
+    finally:
+        capture.release()
+    return results
+
+
+def _scene_layout(visual: dict[str, Any], width: int, height: int, topology: str) -> str:
+    if topology == "dual_canvas" or (width == 3840 and height == 1080):
+        return "DUAL_CANVAS_OBS"
+    if visual["face_count"] >= 1 and visual["face_area_ratio"] >= 0.055:
+        return "TALKING_HEAD"
+    if visual["face_count"] >= 1:
+        return "SCREEN_SHARE_PIP"
+    if visual["edge_density"] >= 0.08:
+        return "SCREEN_SHARE_FULL"
+    return "BROLL_OR_FOOTAGE"
+
+
+def _scene_hints(
+    layout: str,
+    duration: float,
+    visual: dict[str, Any],
+    previous: str | None,
+) -> list[str]:
+    hints: list[str] = []
+    if layout == "TALKING_HEAD" and duration >= 12.0:
+        hints.append("LONG_STATIC_SHOT")
+    if previous is not None and layout != previous:
+        hints.append("SCENE_TYPE_SWITCH")
+    protected = layout in {"SCREEN_SHARE_PIP", "SCREEN_SHARE_FULL", "DUAL_CANVAS_OBS"}
+    if protected and visual["edge_density"] >= 0.05:
+        hints.append("PROTECT_FROM_BROLL")
+    if layout == "TALKING_HEAD" and visual["sharpness_laplacian"] < 60.0:
+        hints.append("LOW_SHARPNESS_WARNING")
+    if layout == "TALKING_HEAD" and "PROTECT_FROM_BROLL" not in hints:
+        hints.append("SAFE_FOR_BROLL")
+    if layout == "DUAL_CANVAS_OBS":
+        hints.append("DUAL_CANVAS_READY")
+    return hints
+
+
+def _scene_keyframes(
+    source: Path,
+    spans: list[tuple[float, float]],
+    directory: Path,
+    *,
+    size: int,
+) -> list[str]:
+    import cv2
+
+    directory.mkdir(parents=True, exist_ok=True)
+    capture = cv2.VideoCapture(str(source))
+    if not capture.isOpened():
+        raise HandlerError(f"cannot open video for keyframes: {source}")
+    paths: list[str] = []
+    try:
+        for index, (start, end) in enumerate(spans):
+            scene_id = f"SC_{index + 1:04d}"
+            target = directory / f"{scene_id}.jpg"
+            capture.set(cv2.CAP_PROP_POS_MSEC, (start + max(0.0, end - start) / 2.0) * 1000.0)
+            ok, frame = capture.read()
+            if not ok:
+                paths.append("")
+                continue
+            height, width = frame.shape[:2]
+            scale = min(1.0, float(size) / max(1, max(width, height)))
+            if scale < 1.0:
+                frame = cv2.resize(
+                    frame,
+                    (max(1, round(width * scale)), max(1, round(height * scale))),
+                    interpolation=cv2.INTER_AREA,
+                )
+            cv2.imwrite(str(target), frame, [int(cv2.IMWRITE_JPEG_QUALITY), 78])
+            paths.append(f"keyframes/{scene_id}.jpg")
+    finally:
+        capture.release()
+    return paths
+
+
+def make_scene_analyze_handler(settings: Settings) -> Handler:
+    """Detect scenes, classify layouts, and return keyframes as a zip."""
+
+    def handler(
+        params: dict[str, Any], input_paths: list[Path], work_dir: Path
+    ) -> list[Path]:
+        import shutil
+        import zipfile
+
+        work_dir.mkdir(parents=True, exist_ok=True)
+        if not input_paths:
+            raise HandlerError("scene_analyze requires a video artifact")
+        if not _available("cv2"):
+            raise HandlerError("OpenCV is not installed on the worker")
+        source = input_paths[0]
+        width = max(1, int(params.get("width") or 1920))
+        height = max(1, int(params.get("height") or 1080))
+        fps = max(1.0, float(params.get("fps") or 30.0))
+        sample_rate = max(1, int(params.get("sample_rate") or 48_000))
+        duration = max(0.001, float(params.get("duration_sec") or 0.0))
+        threshold = float(params.get("threshold") or 3.0)
+        min_scene_len_sec = float(params.get("min_scene_len_sec") or 1.5)
+        topology = str(params.get("source_topology") or "single_16x9")
+        keyframe_size = max(128, min(1080, int(params.get("keyframe_size") or 544)))
+        if topology == "auto":
+            ratio = width / max(1, height)
+            topology = "dual_canvas" if abs(ratio - 3.55) < 0.15 else "single_16x9"
+        ffmpeg = _ffmpeg(settings)
+        proxy = work_dir / "proxy_360.mp4"
+        _run(
+            [
+                ffmpeg,
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-i",
+                str(source),
+                "-vf",
+                "scale=-2:360",
+                "-an",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "23",
+                str(proxy),
+            ]
+        )
+        times = _scene_detect_times(
+            proxy,
+            ffmpeg=ffmpeg,
+            fps=fps,
+            threshold=threshold,
+            min_scene_len_sec=min_scene_len_sec,
+        )
+        boundaries = sorted(
+            {
+                0.0,
+                *[t for t in times if 0 < t < duration],
+                *[
+                    float(item)
+                    for item in params.get("decupage_boundaries") or []
+                    if 0 < float(item) < duration
+                ],
+                round(duration, 6),
+            }
+        )
+        jumps = {
+            round(float(item), 6)
+            for item in params.get("decupage_jumps") or []
+            if 0 < float(item) < duration
+        }
+        minimum = max(0.1, min_scene_len_sec)
+        merged = [0.0]
+        for value in boundaries:
+            if value <= 0 or value >= duration:
+                continue
+            if value - merged[-1] >= minimum:
+                merged.append(value)
+        if duration - merged[-1] < minimum and len(merged) > 1:
+            merged.pop()
+        merged.append(duration)
+        spans = [
+            (merged[index], merged[index + 1])
+            for index in range(len(merged) - 1)
+        ]
+        if not spans:
+            spans = [(0.0, duration)]
+        visuals = _scene_visuals(proxy, spans, topology=topology)
+        paths = _scene_keyframes(source, spans, work_dir / "keyframes", size=keyframe_size)
+        scenes: list[dict[str, Any]] = []
+        previous: str | None = None
+        for index, ((start, end), visual) in enumerate(zip(spans, visuals, strict=False)):
+            layout = _scene_layout(visual, width, height, topology)
+            face = None
+            if visual["face_count"] >= 1 and None not in (
+                visual["face_cx"],
+                visual["face_cy"],
+                visual["face_w"],
+                visual["face_h"],
+            ):
+                face = {
+                    "cx": min(1.0, max(0.0, float(visual["face_cx"]))),
+                    "cy": min(1.0, max(0.0, float(visual["face_cy"]))),
+                    "w": min(1.0, max(0.001, float(visual["face_w"]))),
+                    "h": min(1.0, max(0.001, float(visual["face_h"]))),
+                }
+            scenes.append(
+                {
+                    "scene_id": f"SC_{index + 1:04d}",
+                    "start_sample": max(0, round(start * sample_rate)),
+                    "end_sample": max(1, round(min(end, duration) * sample_rate)),
+                    "start_sec": round(start, 6),
+                    "end_sec": round(end, 6),
+                    "transition_source": "DECUPAGEM_JUMP"
+                    if round(start, 6) in jumps
+                    else "VISUAL_CUT",
+                    "layout_type": layout,
+                    "face_count": int(visual["face_count"]),
+                    "face_bbox_norm": face,
+                    "face_area_ratio": min(1.0, max(0.0, visual["face_area_ratio"])),
+                    "edge_density": min(1.0, max(0.0, visual["edge_density"])),
+                    "sharpness_laplacian": max(0.0, visual["sharpness_laplacian"]),
+                    "keyframe_path": paths[index] if index < len(paths) else "",
+                    "editing_hints": _scene_hints(
+                        layout, end - start, visual, previous
+                    ),
+                }
+            )
+            previous = layout
+        manifest = {
+            "schema_version": 1,
+            "video_id": str(params.get("video_id") or ""),
+            "source_topology": topology,
+            "resolution": {"w": width, "h": height},
+            "fps_num": int(params.get("fps_num") or round(fps)),
+            "fps_den": int(params.get("fps_den") or 1),
+            "scenes": scenes,
+        }
+        target = work_dir / "scenes_manifest.json"
+        target.write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        archive = work_dir / "scene_keyframes.zip"
+        with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
+            for directory, _dirs, files in os.walk(work_dir / "keyframes"):
+                for name in files:
+                    path = Path(directory) / name
+                    bundle.write(path, path.relative_to(work_dir).as_posix())
+        shutil.rmtree(work_dir / "keyframes", ignore_errors=True)
+        proxy.unlink(missing_ok=True)
+        return [target, archive]
+
+    return handler
+
+
+def _binary_available(binary: str) -> bool:
+    candidate = shutil.which(binary)
+    if candidate:
+        return True
+    return Path(binary).expanduser().is_file()
+
+
+def make_short_render_handler(settings: Settings) -> Handler:
+    """Execute tokenised micro-clip/concat/final FFmpeg commands."""
+
+    def handler(
+        params: dict[str, Any], input_paths: list[Path], work_dir: Path
+    ) -> list[Path]:
+        work_dir.mkdir(parents=True, exist_ok=True)
+        if not input_paths:
+            raise HandlerError("short_render requires input artifacts")
+        tokens = {
+            f"__IN{index}__": str(path) for index, path in enumerate(input_paths)
+        }
+
+        def replace(value: str) -> str:
+            for token, path in tokens.items():
+                value = value.replace(token, path)
+            return value
+
+        def replace_filter(value: str) -> str:
+            for token, path in tokens.items():
+                value = value.replace(token, _escape_filter_path(Path(path)))
+            return value
+
+        ffmpeg = _ffmpeg(settings)
+        for index, segment in enumerate(params.get("segments") or [], start=1):
+            if not isinstance(segment, dict):
+                raise HandlerError("short_render segment must be an object")
+            script = work_dir / f"segment_{index:04d}.ffscript"
+            script.write_text(
+                replace_filter(str(segment.get("filter") or "")), encoding="utf-8"
+            )
+            argv = [str(item) for item in segment.get("argv") or []]
+            if not argv:
+                raise HandlerError("short_render segment has no command")
+            argv[0] = ffmpeg
+            argv = [
+                replace(item).replace(f"__SCRIPT_{index}__", str(script))
+                for item in argv
+            ]
+            if any("__IN" in item or "__SCRIPT" in item for item in argv):
+                raise HandlerError("short_render left an unresolved placeholder")
+            _run_in(argv, work_dir)
+            segment_output = work_dir / str(segment.get("output") or "")
+            if not segment_output.is_file() or segment_output.stat().st_size == 0:
+                raise HandlerError(
+                    f"short_render segment {index} produced no output"
+                )
+        names = [str(item) for item in params.get("concat_names") or []]
+        if not names:
+            raise HandlerError("short_render produced no micro-clips")
+        concat = work_dir / "concat.txt"
+        concat.write_text(
+            "\n".join(f"file '{name}'" for name in names) + "\n",
+            encoding="utf-8",
+        )
+        final_script = work_dir / "final.ffscript"
+        final_script.write_text(
+            replace_filter(str(params.get("final_filter") or "")), encoding="utf-8"
+        )
+        final_argv = [str(item) for item in params.get("final_argv") or []]
+        if not final_argv:
+            raise HandlerError("short_render has no final command")
+        final_argv[0] = ffmpeg
+        final_argv = [
+            replace(item)
+            .replace("__CONCAT__", str(concat))
+            .replace("__SCRIPT_FINAL__", str(final_script))
+            for item in final_argv
+        ]
+        if any("__IN" in item or "__SCRIPT" in item or "__CONCAT__" in item for item in final_argv):
+            raise HandlerError("short_render left an unresolved placeholder")
+        _run_in(final_argv, work_dir)
+        output = work_dir / str(params.get("output_name") or "short.mp4")
+        if not output.is_file():
+            raise HandlerError("short_render finished without an output file")
+        return [output]
+
+    return handler
+
+
+def _run_in(tokens: list[str], cwd: Path, *, timeout: float = 3600.0) -> None:
+    try:
+        completed = subprocess.run(
+            tokens,
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout,
+        )
+    except FileNotFoundError as exc:
+        raise HandlerError(f"command not found: {tokens[0]}") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise HandlerError(f"command timed out after {timeout:.0f}s") from exc
+    if completed.returncode != 0:
+        tail = (completed.stderr or completed.stdout or "").strip().splitlines()
+        raise HandlerError(
+            f"command exited with status {completed.returncode}: "
+            f"{tail[-1][:300] if tail else 'no stderr'}"
+        )
+
+
 def register_builtin_handlers(registry: HandlerRegistry, settings: Settings) -> None:
     """Register optional Python handlers, marking missing dependencies."""
 
     if _available("faster_whisper"):
         registry.register_handler("asr", make_asr_handler(settings, registry))
+        registry.register_handler(
+            "forced_align", make_forced_align_handler(settings)
+        )
     else:
         registry.mark_unavailable("asr", "faster-whisper is not installed")
+        registry.mark_unavailable(
+            "forced_align", "faster-whisper is not installed"
+        )
     if nvenc_available(_ffmpeg(settings)):
         registry.register_handler("render_nvenc", make_render_nvenc_handler(settings))
     else:
@@ -424,15 +1118,36 @@ def register_builtin_handlers(registry: HandlerRegistry, settings: Settings) -> 
         registry.mark_unavailable("segment_matte", "rembg is not installed")
     if _available("cv2"):
         registry.register_handler("face_track", make_face_track_handler(settings))
+        registry.register_handler(
+            "vision_blur", make_vision_blur_handler(settings)
+        )
+        registry.register_handler(
+            "scene_analyze", make_scene_analyze_handler(settings)
+        )
     else:
         registry.mark_unavailable("face_track", "OpenCV is not installed")
+        registry.mark_unavailable("vision_blur", "OpenCV is not installed")
+        registry.mark_unavailable("scene_analyze", "OpenCV is not installed")
+    if _binary_available(_ffmpeg(settings)):
+        registry.register_handler(
+            "short_render", make_short_render_handler(settings)
+        )
+    else:
+        registry.mark_unavailable("short_render", "FFmpeg is not available")
+    registry.mark_unavailable(
+        "audio_events", "YAMNet ONNX model is not configured on the worker"
+    )
 
 
 __all__ = [
     "make_asr_handler",
     "make_face_track_handler",
+    "make_forced_align_handler",
     "make_render_nvenc_handler",
+    "make_scene_analyze_handler",
+    "make_short_render_handler",
     "make_segment_matte_handler",
+    "make_vision_blur_handler",
     "nvenc_available",
     "register_builtin_handlers",
 ]

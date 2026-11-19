@@ -199,7 +199,6 @@ def test_compositor_tools_are_registered_and_guard_errors(
     tmp_path: Path, monkeypatch
 ) -> None:
     from videoflow.application.jobs import JobManager
-    from videoflow.engine.batch import BatchManager
     from videoflow.mcp_server.context import ToolContext
     from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -219,7 +218,7 @@ def test_compositor_tools_are_registered_and_guard_errors(
     tools: dict[str, object] = {}
     register_core_tools(
         lambda func: tools.setdefault(func.__name__, func),
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),
+        ToolContext(manager=manager),
     )
 
     assert tools["vf_depth_composite"](

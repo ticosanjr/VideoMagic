@@ -10,6 +10,8 @@ from typing import Any
 
 from vf_compute.capabilities import vram_cost
 from vf_compute.client import GPUWorkerClient
+from vf_compute.config import load_gpu_config
+from vf_compute.execution import ExecutionRecord, now_iso
 from vf_compute.models import WorkerDecision, WorkerHealth
 
 COMPUTE_MODES = ("auto", "local_only", "remote_preferred")
@@ -47,6 +49,19 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _valid_shared_file(path: Path) -> bool:
+    """Wait briefly for SMB metadata and require a non-empty file."""
+
+    for _attempt in range(3):
+        try:
+            if path.is_file() and path.stat().st_size > 0:
+                return True
+        except OSError:
+            pass
+        time.sleep(0.25)
+    return False
+
+
 def _local(reason: str, capability: str) -> WorkerDecision:
     return WorkerDecision(
         mode="local",
@@ -71,6 +86,7 @@ class ComputeRouter:
         mode: str = _DEFAULT_MODE,
         worker_url: str = "",
         token: str = "",
+        transport: str = "auto",
         health_ttl: float = _DEFAULT_HEALTH_TTL,
         health_timeout: float = _DEFAULT_HEALTH_TIMEOUT,
         min_vram_mb: int = _DEFAULT_MIN_VRAM_MB,
@@ -86,6 +102,9 @@ class ComputeRouter:
         self.mode = normalized_mode
         self.worker_url = worker_url.strip().rstrip("/")
         self.token = token
+        self.transport = str(transport or "auto").strip().lower()
+        if self.transport not in {"auto", "http", "shared"}:
+            self.transport = "auto"
         self.health_ttl = max(float(health_ttl), 0.0)
         self.health_timeout = max(float(health_timeout), 0.0)
         self.min_vram_mb = max(int(min_vram_mb), 0)
@@ -105,12 +124,14 @@ class ComputeRouter:
 
     @classmethod
     def from_env(cls, *, client: GPUWorkerClient | None = None) -> ComputeRouter:
-        """Build a router from ``VF_*`` environment variables."""
+        """Build a router from env + the shared ``gpu.json`` config."""
 
+        config = load_gpu_config()
         return cls(
-            mode=_env_str("VF_COMPUTE_MODE", _DEFAULT_MODE),
-            worker_url=_env_str("VF_GPU_WORKER_URL"),
-            token=_env_str("VF_GPU_WORKER_TOKEN"),
+            mode=config.mode,
+            worker_url=config.worker_url,
+            token=config.token,
+            transport=config.transport,
             health_ttl=_env_float("VF_GPU_HEALTH_TTL_SEC", _DEFAULT_HEALTH_TTL),
             health_timeout=_env_float("VF_GPU_HEALTH_TIMEOUT_SEC", _DEFAULT_HEALTH_TIMEOUT),
             min_vram_mb=_env_int("VF_GPU_MIN_VRAM_MB", _DEFAULT_MIN_VRAM_MB),
@@ -273,6 +294,7 @@ class ComputeRouter:
         """
 
         decision = self.decide(capability, required_vram_mb)
+        started_at = now_iso()
         if decision.is_remote:
             started = time.perf_counter()
             try:
@@ -283,24 +305,113 @@ class ComputeRouter:
                     raise
                 reason = f"remote failed: {exc}"
             else:
+                elapsed = time.perf_counter() - started
+                execution = ExecutionRecord(
+                    run_id="",
+                    capability=capability,
+                    execution_node=decision.execution_node,
+                    device="remote_gpu",
+                    degraded=False,
+                    started_at=started_at,
+                    finished_at=now_iso(),
+                    elapsed_sec=elapsed,
+                )
                 return {
                     "value": value,
                     "execution_node": decision.execution_node,
                     "fallback_reason": "",
                     "remote": True,
-                    "elapsed_sec": round(time.perf_counter() - started, 4),
+                    "degraded": False,
+                    "degraded_reason": "",
+                    "elapsed_sec": round(elapsed, 4),
+                    "execution": execution.to_dict(),
                 }
         else:
             reason = decision.reason
         started = time.perf_counter()
         value = local_fn()
+        elapsed = time.perf_counter() - started
+        degraded = self.mode != "local_only"
+        execution = ExecutionRecord(
+            run_id="",
+            capability=capability,
+            execution_node="local",
+            device="cpu",
+            degraded=degraded,
+            degraded_reason=reason,
+            started_at=started_at,
+            finished_at=now_iso(),
+            elapsed_sec=elapsed,
+        )
         return {
             "value": value,
             "execution_node": "local",
             "fallback_reason": reason,
             "remote": False,
-            "elapsed_sec": round(time.perf_counter() - started, 4),
+            "degraded": degraded,
+            "degraded_reason": reason,
+            "elapsed_sec": round(elapsed, 4),
+            "execution": execution.to_dict(),
         }
+
+    def _prepare_remote_inputs(self, inputs: list[str]) -> list[str]:
+        upload = getattr(self.client, "upload_artifact", None)
+        if not callable(upload):
+            return inputs
+        prepared: list[str] = []
+        for item in inputs:
+            try:
+                path = Path(item).expanduser()
+                if path.is_file():
+                    prepared.append(str(upload(path)))
+                    continue
+            except OSError:
+                pass
+            prepared.append(item)
+        return prepared
+
+    def _prepare_remote_params(
+        self,
+        params: dict[str, Any],
+        inputs: list[str],
+    ) -> dict[str, Any]:
+        """Upload local files referenced by params and replace them by placeholders.
+
+        The worker rewrites ``__VF_INPUT_n__`` to the materialized input path
+        before calling the handler, so command templates and Python handlers see
+        a real local path on the GPU machine.
+        """
+
+        upload = getattr(self.client, "upload_artifact", None)
+        if not callable(upload):
+            return params
+        cache: dict[str, str] = {}
+
+        def walk(value: Any) -> Any:
+            if isinstance(value, str):
+                try:
+                    path = Path(value).expanduser()
+                    if not path.is_file():
+                        return value
+                    resolved = str(path.resolve())
+                except OSError:
+                    return value
+                placeholder = cache.get(resolved)
+                if placeholder is not None:
+                    return placeholder
+                artifact_id = str(upload(path))
+                index = len(inputs)
+                inputs.append(artifact_id)
+                placeholder = f"__VF_INPUT_{index}__"
+                cache[resolved] = placeholder
+                return placeholder
+            if isinstance(value, dict):
+                return {str(key): walk(item) for key, item in value.items()}
+            if isinstance(value, (list, tuple)):
+                return [walk(item) for item in value]
+            return value
+
+        return walk(params)
 
     def submit(
         self,
@@ -309,13 +420,16 @@ class ComputeRouter:
         *,
         timeout: float = 300.0,
     ) -> dict[str, Any]:
-        """Submit a capability job, wait, and download its first artifact.
+        """Submit a capability job, wait, and fetch its artifacts.
 
-        This is the small-job path. Large artifacts should use the shared
-        mount path added in the transport stage.
+        Shared mount is preferred when configured, but a failed or empty shared
+        output falls back to HTTP automatically. The result always reports the
+        transport and whether the job was degraded.
         """
 
         body = dict(payload or {})
+        started_at = now_iso()
+        started = time.perf_counter()
         decision = self.decide(capability, int(body.get("required_vram_mb") or 0))
         if not decision.is_remote:
             raise RuntimeError(decision.reason)
@@ -327,15 +441,18 @@ class ComputeRouter:
                 if key not in {"inputs", "shared_inputs", "timeout_sec"}
             }
         inputs = [str(item) for item in body.get("inputs", []) or []]
+        inputs = self._prepare_remote_inputs(inputs)
+        params = self._prepare_remote_params(params, inputs)
         shared_inputs = [str(item) for item in body.get("shared_inputs", []) or []]
         shared_outputs = [str(item) for item in body.get("shared_outputs", []) or []]
+        shared_root = str(body.get("shared_root") or "") or ""
         job_id = self.client.submit(
             capability,
             params=params,
             inputs=inputs,
             shared_inputs=shared_inputs,
             shared_outputs=shared_outputs,
-            shared_root=str(body.get("shared_root") or "") or None,
+            shared_root=shared_root or None,
         )
         status = self.client.wait(
             job_id,
@@ -347,27 +464,93 @@ class ComputeRouter:
             )
         if not status.artifacts:
             raise RuntimeError(f"remote job {job_id} returned no artifacts")
-        if status.shared_artifacts and body.get("shared_root"):
-            shared_path = Path(str(body["shared_root"])) / status.shared_artifacts[0]
-            if shared_path.is_file():
+
+        degraded = False
+        degraded_reason = ""
+        if (
+            shared_root
+            and status.shared_artifacts
+            and len(status.shared_artifacts) == len(shared_outputs)
+        ):
+            shared_paths = [
+                Path(shared_root) / relative
+                for relative in status.shared_artifacts
+            ]
+            if all(_valid_shared_file(path) for path in shared_paths):
+                elapsed = time.perf_counter() - started
+                execution = ExecutionRecord(
+                    run_id=job_id,
+                    capability=capability,
+                    execution_node=decision.execution_node,
+                    device="remote_gpu",
+                    degraded=False,
+                    started_at=started_at,
+                    finished_at=now_iso(),
+                    elapsed_sec=elapsed,
+                )
                 return {
-                    "path": str(shared_path),
+                    "path": str(shared_paths[0]),
+                    "paths": [str(path) for path in shared_paths],
                     "job_id": job_id,
                     "execution_node": decision.execution_node,
                     "artifacts": list(status.artifacts),
                     "shared_artifacts": list(status.shared_artifacts),
                     "transport": "shared_mount",
+                    "degraded": False,
+                    "degraded_reason": "",
+                    "execution": execution.to_dict(),
                 }
-        name = status.artifacts[0]
-        target = Path(tempfile.mkdtemp(prefix="vf-remote-")) / Path(name).name
-        self.client.download(job_id, name, target)
+            degraded = True
+            degraded_reason = "shared artifact missing or empty; downloaded over HTTP"
+        elif shared_root and shared_outputs:
+            degraded = True
+            degraded_reason = status.shared_error or "shared output was not produced"
+        elif status.shared_error:
+            degraded = True
+            degraded_reason = status.shared_error
+
+        manifest: list[dict[str, Any]] = []
+        manifest_reader = getattr(self.client, "artifact_manifest", None)
+        if callable(manifest_reader):
+            try:
+                manifest = manifest_reader(job_id)
+            except Exception:  # noqa: BLE001 - manifest is an optimization
+                manifest = []
+        target_dir = Path(tempfile.mkdtemp(prefix="vf-remote-"))
+        download_all = getattr(self.client, "download_all", None)
+        if callable(download_all):
+            paths = download_all(
+                job_id,
+                list(status.artifacts),
+                target_dir,
+                manifest=manifest,
+            )
+        else:
+            name = status.artifacts[0]
+            paths = [self.client.download(job_id, name, target_dir / Path(name).name)]
+        elapsed = time.perf_counter() - started
+        execution = ExecutionRecord(
+            run_id=job_id,
+            capability=capability,
+            execution_node=decision.execution_node,
+            device="remote_gpu",
+            degraded=degraded,
+            degraded_reason=degraded_reason,
+            started_at=started_at,
+            finished_at=now_iso(),
+            elapsed_sec=elapsed,
+        )
         return {
-            "path": str(target),
+            "path": str(paths[0]),
+            "paths": [str(path) for path in paths],
             "job_id": job_id,
             "execution_node": decision.execution_node,
             "artifacts": list(status.artifacts),
             "shared_artifacts": list(status.shared_artifacts),
-            "transport": "lan_stream",
+            "transport": "http_fallback" if degraded else "http",
+            "degraded": degraded,
+            "degraded_reason": degraded_reason,
+            "execution": execution.to_dict(),
         }
 
 

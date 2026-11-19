@@ -30,6 +30,8 @@ def test_windows_kit_contains_scripts_env_and_readme(tmp_path: Path) -> None:
         "worker.env",
         "VideoFlowGPU.ps1",
         "VideoFlowGPU.bat",
+        "requirements-windows.txt",
+        "checksums.txt",
         "expected_version.txt",
         "LEIA-ME.txt",
     } <= names
@@ -43,8 +45,10 @@ def test_windows_kit_contains_scripts_env_and_readme(tmp_path: Path) -> None:
     assert "VF_GPU_DISCOVERY=1" in env
     assert r"VF_GPU_SHARED_ROOT=Z:\videoflow" in env
     for token in (
-        "uv pip install --python",
-        'Join-Path $Root "worker"',
+        "Invoke-MenuAction",
+        "install-state.json",
+        "--no-index",
+        "sitecustomize.py",
         "videoflow-gpu-worker.exe",
         "nvidia-smi.exe",
         "h264_nvenc",
@@ -52,12 +56,18 @@ def test_windows_kit_contains_scripts_env_and_readme(tmp_path: Path) -> None:
         "Supervisor",
         "worker.env.bak",
         "--reinstall",
+        "taskkill.exe",
+        "Tls12",
+        "Read-Host",
+        "requirements-windows.txt",
     ):
         assert token in ps1
     assert "VideoFlowGPU.ps1" in bat and "--silent" in bat
+    assert "goto run" in bat and "pause" in bat
     assert "ONE FILE" in readme
     assert "Self-healing" in readme
     assert "Do not publish" in readme
+    assert "offline" in readme.lower()
 
 
 def test_windows_kit_includes_ffmpeg_when_provided(tmp_path: Path) -> None:
@@ -80,7 +90,18 @@ def test_windows_kit_includes_prebuilt_worker_wheel(tmp_path: Path) -> None:
     assert any(name.startswith("wheels/videoflow_gpu_worker-") for name in names)
 
 
-def test_windows_kit_includes_worker_source_by_default(tmp_path: Path) -> None:
+def test_windows_kit_includes_offline_worker_dependencies(tmp_path: Path) -> None:
+    result = build_worker_kit(output=tmp_path, include_worker_source=False)
+    names = _names(result.path)
+    assert "wheels/pydantic_core-2.50.1-cp311-cp311-win_amd64.whl" in names
+    assert "wheels/fastapi-0.149.0-py3-none-any.whl" in names
+    with zipfile.ZipFile(result.path) as archive:
+        checksums = archive.read("checksums.txt").decode("utf-8")
+    assert "videoflow_gpu_worker-" in checksums
+    assert "pydantic_core-" in checksums
+
+
+def test_windows_kit_includes_worker_source_when_requested(tmp_path: Path) -> None:
     result = build_worker_kit(output=tmp_path, include_worker_source=True)
     names = _names(result.path)
     assert "worker/pyproject.toml" in names

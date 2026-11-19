@@ -106,6 +106,9 @@ def audit_final(
     selected_mode = str(mode or "full").strip().lower()
     if selected_mode not in {"fast", "full"}:
         raise ValueError("mode must be 'fast' or 'full'")
+    collision_mode = str(collision_mode or "visual").strip().lower()
+    if collision_mode not in {"visual", "bbox", "rectangle"}:
+        raise ValueError("collision_mode must be 'visual', 'bbox', or 'rectangle'")
     video = Path(video).expanduser()
     if not video.is_file():
         raise FileNotFoundError(f"Final video does not exist: {video}")
@@ -175,8 +178,8 @@ def audit_final(
             item["severity"] = "critical"
             item["message"] = "Internal dead air longer than 700 ms."
         issues.append(item)
-    loudness: dict[str, Any] = {"skipped": selected_mode != "full"}
-    if selected_mode == "full":
+    loudness: dict[str, Any] = {"skipped": True}
+    if expected > 0:
         try:
             from videoflow.adapters.ffmpeg import FFmpegAdapter
 
@@ -186,6 +189,7 @@ def audit_final(
                 loudness.get("true_peak_dbfs", loudness.get("true_peak_db", 99.0)) or 99.0
             )
             loudness["passed"] = abs(integrated + 16.0) <= 1.0 and peak <= -1.0
+            loudness["skipped"] = False
             if strict and not loudness["passed"]:
                 issues.append(
                     {
@@ -197,8 +201,20 @@ def audit_final(
                         ),
                     }
                 )
-        except Exception as exc:  # noqa: BLE001 - optional measurement
-            loudness = {"error": str(exc), "passed": True}
+        except Exception as exc:  # noqa: BLE001 - keep the failure visible
+            loudness = {
+                "error": str(exc),
+                "passed": False,
+                "skipped": True,
+                "unmeasured": True,
+            }
+            issues.append(
+                {
+                    "kind": "loudness_unmeasured",
+                    "severity": "warning",
+                    "message": f"loudness could not be measured: {exc}",
+                }
+            )
     qa_state = state
     if window_sec is not None and source_fps:
         start_frame = round(window_sec[0] * source_fps)
@@ -249,6 +265,9 @@ def audit_final(
                 for overlay in qa_state.overlays:
                     from videoflow.application.overlay_geometry import overlay_box
 
+                    if overlay.anchor == "top_center" and int(overlay.margin_y) == 0:
+                        # Explicit top chrome is intentional; do not flag it.
+                        continue
                     box = overlay_box(overlay, width, height)
                     if _overlaps(box.normalised(width, height), zone_box):
                         issues.append(
@@ -274,7 +293,7 @@ def audit_final(
                     )
     caption_path = caption_path or _caption_path(Path(output))
     caption_qa: dict[str, Any] = {"ok": True, "skipped": True}
-    if selected_mode == "full" and caption_path is not None:
+    if caption_path is not None:
         style = state.modules_config.shorts.caption_style
         caption_qa = audit_ass(
             caption_path,
@@ -378,7 +397,13 @@ def audit_final(
     }
     report_path = qa_dir / "final_qa.json"
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    report["report"] = str(report_path)
+    from videoflow.application.qa_store import QaStore
+
+    reference = QaStore(output).write(video, report)
+    report["report"] = reference["report_path"]
+    report["report_id"] = reference["run_id"]
+    report["report_latest"] = reference["latest_path"]
+    report["artifact_sha256"] = reference["artifact_sha256"]
     return report
 
 

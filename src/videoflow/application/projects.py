@@ -19,7 +19,11 @@ from pydantic import BaseModel, ConfigDict, Field
 from vf_contracts.workspace import ensure_project, project_dir, write_project
 
 from videoflow.application import database
-from videoflow.domain.errors import ProjectStateError, StateNotReadyError
+from videoflow.domain.errors import (
+    ProjectStateError,
+    StateNotReadyError,
+    TimelineConflict,
+)
 from videoflow.domain.migrations import migrate_project_state
 from videoflow.domain.state import MediaInfo, ProjectState
 
@@ -298,6 +302,7 @@ def save_project_state(
     snapshot: bool = False,
     snapshot_reason: str = "",
     snapshot_step: str = "",
+    reset: bool = False,
 ) -> ProjectState:
     output = Path(record.output).expanduser()
     with project_lock(output):
@@ -307,8 +312,18 @@ def save_project_state(
             and current is not None
             and current.revision != expected_revision
         ):
-            raise ProjectStateError(
-                f"Revision conflict: expected {expected_revision}, current {current.revision}"
+            if not reset:
+                raise TimelineConflict(
+                    "Revision conflict: expected "
+                    f"{expected_revision}, current {current.revision}"
+                )
+            from videoflow.application.revisions import create_snapshot
+
+            create_snapshot(
+                output,
+                current,
+                reason=snapshot_reason or "before_reset",
+                step=snapshot_step or "reset",
             )
         if snapshot and current is not None:
             from videoflow.application.revisions import create_snapshot

@@ -23,15 +23,26 @@ Este workspace foi preparado pelo VideoFlow {{VERSION}}.
    3. Montagem atômica com `vf_timeline(action="apply_beatmap")`,
       `render_motion_graphic` (`draft_scale=0.5`) e `capture_web_or_screen`
       ou `mcp-vf-media-fetch`.
-   4. Auditoria visual obrigatória com `vf_qa(action="inspect")` e correção
+   4. Auditoria visual obrigatória com `vf_job(action="qa")` e correção
       antes de mostrar o rascunho.
-   5. Exportar com `vf_exports(action="bundle", targets="all")` para
+   5. Exportar com `vf_export(targets="all")` para
       YouTube MP4, Resolve `.fcpxml`, Premiere `.xml` e Kdenlive MLT; registrar
       feedback com `vf_style(action="learn_rule")`.
 5. **Persistência de estilo**: qualquer estilo novo ou clonado deve ser salvo no
    catálogo e sincronizado em `./presets/<style_id>.md`.
 6. **Segurança**: não grave tokens/API keys em arquivos do workspace. Use
    variáveis de ambiente (`VF_GPU_WORKER_TOKEN`, etc.).
+7. **Resultado em uma pasta só (conveniência)**: ao concluir, quando o usuário
+   não pedir outro destino, rode
+   `vf_exec(action="step", step_id="delivery.collect", params={"mode":"copy"})`
+   para consolidar vídeos e exports em
+   `./VideoFlow_Output/{videos,exports,shorts,scenes}` na raiz do workspace.
+   Isso não é requisito de validação: o MCP aceita qualquer caminho e nunca
+   bloqueia uma entrega porque as saídas estão em outra pasta.
+8. **Offload pesado**: use `compute_policy="auto"` ou `"remote"` para ASR,
+   alinhamento forçado, matte, render NVENC, scene analysis e Short render
+   quando o worker Windows estiver disponível; reporte `degraded` se houver
+   fallback local.
 
 ## Estilos disponíveis no catálogo
 

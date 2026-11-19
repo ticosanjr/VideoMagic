@@ -21,14 +21,11 @@ from videoflow.application.database import migrate_home
 from videoflow.application.hilt_channels import start_pollers, stop_pollers
 from videoflow.application.jobs import JobManager
 from videoflow.application.plugins import load_plugins
-from videoflow.application.publishing import start_scheduler, stop_scheduler
-from videoflow.application.schedules import start_recipe_scheduler, stop_recipe_scheduler
 from videoflow.application.service_definitions import autostart
 from videoflow.application.service_definitions import stop_all as stop_managed_services
 from videoflow.application.settings import load_settings
 from videoflow.domain.constants import DEFAULT_API_HOST, DEFAULT_API_PORT
 from videoflow.domain.errors import VideoFlowError
-from videoflow.engine.batch import BatchManager
 from videoflow.runtime import portable_home, ui_dir
 
 UI_ORIGINS = (
@@ -63,13 +60,12 @@ def create_app(
         max_active=settings.runtime.max_jobs,
         history=settings.runtime.history,
     )
-    batches = BatchManager(manager, store_dir=portable_home() / "batches")
     mcp_app = None
     lifespan = None
     if with_mcp:
         from videoflow.mcp_server.server import build_server
 
-        mcp = build_server(manager, batches)
+        mcp = build_server(manager)
         mcp_app = mcp.streamable_http_app(streamable_http_path="/")
 
         @asynccontextmanager
@@ -88,7 +84,6 @@ def create_app(
     _install_common(app)
     install_openapi(app)
     app.state.jobs = manager
-    app.state.batches = batches
 
     @app.on_event("startup")
     def _start_hilt_pollers() -> None:
@@ -118,31 +113,19 @@ def create_app(
     if start_publisher:
 
         @app.on_event("startup")
-        def _start_background_schedulers() -> None:
-            if os.environ.get("VIDEOWFLOW_PUBLISH_SCHEDULER", "1") != "0":
-                start_scheduler()
-            if (
-                os.environ.get("VIDEOWFLOW_RECIPE_SCHEDULER", "1") != "0"
-                and settings.automation.enabled
-            ):
-                start_recipe_scheduler(
-                    manager,
-                    interval=settings.automation.scheduler_interval_seconds,
-                )
+        def _start_background_services() -> None:
             if os.environ.get("VIDEOWFLOW_SERVICE_AUTOSTART", "1") != "0":
                 autostart()
 
         @app.on_event("shutdown")
-        def _stop_background_schedulers() -> None:
-            stop_scheduler()
-            stop_recipe_scheduler()
+        def _stop_background_services() -> None:
             stop_managed_services()
 
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok", "service": "videoflow", "version": __version__}
 
-    register_routes(app, manager, batches)
+    register_routes(app, manager)
 
     if mcp_app is not None:
         app.mount("/mcp", mcp_app)

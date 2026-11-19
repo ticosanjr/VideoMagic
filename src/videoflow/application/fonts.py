@@ -7,6 +7,7 @@ import re
 import shutil
 import struct
 import subprocess
+from functools import lru_cache
 from pathlib import Path
 
 from videoflow.domain.errors import AssetNotFoundError, FilesystemError
@@ -40,6 +41,61 @@ def list_fonts() -> list[dict[str, object]]:
             }
         )
     return fonts
+
+
+def system_font_dirs() -> list[Path]:
+    candidates = [
+        Path("/usr/share/fonts"),
+        Path("/usr/local/share/fonts"),
+        Path.home() / ".fonts",
+        Path.home() / ".local" / "share" / "fonts",
+        Path("C:/Windows/Fonts"),
+        Path.home() / "AppData" / "Local" / "Microsoft" / "Windows" / "Fonts",
+        Path("/System/Library/Fonts"),
+        Path("/Library/Fonts"),
+        Path.home() / "Library" / "Fonts",
+    ]
+    return [path for path in candidates if path.is_dir()]
+
+
+@lru_cache(maxsize=1)
+def list_system_fonts() -> list[dict[str, object]]:
+    """List installed system fonts, capped to keep startup bounded."""
+
+    fonts: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for directory in system_font_dirs():
+        try:
+            paths = sorted(directory.rglob("*"))
+        except OSError:
+            continue
+        for path in paths:
+            if len(fonts) >= 500:
+                return fonts
+            if not path.is_file() or path.suffix.casefold() not in {".ttf", ".otf"}:
+                continue
+            key = str(path.resolve())
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                family = font_family(path.read_bytes())
+            except (FilesystemError, OSError):
+                family = path.stem
+            fonts.append(
+                {
+                    "file": str(path),
+                    "name": path.name,
+                    "family": family,
+                    "size_bytes": path.stat().st_size,
+                    "source": "system",
+                }
+            )
+    return fonts
+
+
+def font_aliases() -> dict[str, str]:
+    return dict(_METRIC_ALIASES)
 
 
 def save_font(filename: str, data: bytes) -> dict[str, object]:
@@ -144,6 +200,10 @@ def resolve_font_family(family: str) -> str | None:
     if not name:
         return None
     for item in list_fonts():
+        candidate = str(item.get("family") or "").strip()
+        if candidate.casefold() == name.casefold():
+            return candidate
+    for item in list_system_fonts():
         candidate = str(item.get("family") or "").strip()
         if candidate.casefold() == name.casefold():
             return candidate

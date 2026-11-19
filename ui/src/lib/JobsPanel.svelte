@@ -31,12 +31,10 @@
 
   let {
     onreview,
-    onopen,
-    onopentimeline
+    onopen
   }: {
     onreview?: (job: Job) => void;
     onopen?: (job: Job) => void;
-    onopentimeline?: (job: Job) => void;
   } = $props();
 
   let jobs = $state<Job[]>([]);
@@ -220,7 +218,7 @@
 <section class="space-y-4">
   <header class="flex flex-wrap items-end justify-between gap-3">
     <div>
-      <div class="flex items-center gap-1.5"><h2 class="text-lg font-semibold text-white">{i18n.t("jobs_title")}</h2> <HelpTip label="Runs" body="Every recipe or pipeline run. Filters narrow by state; Next tells you what to do." doc="docs/shell.md" /></div>
+      <div class="flex items-center gap-1.5"><h2 class="text-lg font-semibold text-white">{i18n.t("jobs_title")}</h2> <HelpTip label="Runs" body="Every job started by an MCP tool. Filters narrow by state; Next tells you what to do." doc="docs/mcp.md" /></div>
       <p class="mt-1 text-xs text-neutral-500">{i18n.t("jobs_subtitle")}</p>
     </div>
     <div class="flex items-center gap-2">
@@ -301,7 +299,7 @@
       {/each}
     </div>
   {:else if visible.length === 0}
-    <EmptyState title={i18n.t("no_jobs")} description="Run a recipe from Produce, or clear the filters." action="Open Produce" icon="activity" hint="Shortcut: G then J" onaction={() => (window.location.hash = "#recipes")} />
+    <EmptyState title={i18n.t("no_jobs")} description="Start a step from your MCP client, or clear the filters." action="Open overview" icon="activity" onaction={() => (window.location.hash = "#overview")} />
   {:else}
     <ul class="space-y-2" data-testid="job-list">
       {#each visible as job (job.job_id)}
@@ -311,9 +309,7 @@
               <div class="flex flex-wrap items-center gap-2">
                 <p class="truncate text-sm font-medium text-neutral-100">{jobDisplayName(job)}</p>
                 <StatusBadge status={job.status} />
-                {#if job.result?.recipe_id}
-                  <span class="rounded-full border border-white/10 px-2 py-0.5 font-mono text-[10px] text-neutral-400">{job.result.recipe_id}</span>
-                {/if}
+
               </div>
               <div class="mt-1 flex flex-wrap items-center gap-2">
                 <p class="truncate font-mono text-[10px] text-neutral-600">{job.job_id}</p>
@@ -404,8 +400,6 @@
                 <button type="button" disabled={busy === job.job_id} class="rounded-lg bg-sky-500/15 px-2.5 py-1 text-[11px] font-medium text-sky-200 ring-1 ring-inset ring-sky-400/25 hover:bg-sky-500/20 disabled:opacity-40" onclick={() => void retry(job)}>
                   {busy === job.job_id ? "…" : i18n.t("retry")}
                 </button>
-              {:else if job.status === "succeeded" || job.timeline_ready}
-                <button type="button" class="rounded-lg border border-white/10 px-2.5 py-1 text-[11px] text-neutral-300 hover:text-sky-200" onclick={() => onopentimeline?.(job)}>Open in Timeline</button>
               {/if}
               <label class="flex items-center gap-1 text-[10px] text-neutral-500">
                 {i18n.t("priority")}

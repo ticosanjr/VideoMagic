@@ -293,6 +293,10 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         (PortSpec("media", "Media info", "media", "media", True),),
         (PortSpec("artifacts", "Audio master", "artifact_map", "artifacts"),),
     ),
+    "audio.events": (
+        (PortSpec("media", "Media info", "media", "media", True),),
+        (PortSpec("events", "Acoustic events", "json", "metadata:audio_events"),),
+    ),
     "audio.isolate": (
         (PortSpec("master", "Audio master", "audio", "artifacts:audio_master", False),),
         (PortSpec("isolated", "Isolated voice", "audio", "artifacts:audio_isolated"),),
@@ -331,6 +335,174 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
         (
             PortSpec("transcript", "Word-aligned transcript", "transcript", "transcript"),
             PortSpec("report", "Alignment report", "json", "metadata:forced_alignment"),
+        ),
+    ),
+    "speech.asu": (
+        (
+            PortSpec("transcript", "Word-aligned transcript", "transcript", "transcript", True),
+        ),
+        (
+            PortSpec("asus", "Atomic speech units", "json", "metadata:asus"),
+            PortSpec("report", "ASU report", "json", "metadata:asu_report"),
+        ),
+    ),
+    "decupage.prefilter": (
+        (PortSpec("asus", "Atomic speech units", "json", "metadata:asus", True),),
+        (
+            PortSpec("asus", "Tagged ASUs", "json", "metadata:asus"),
+            PortSpec("prefilter", "Prefilter report", "json", "metadata:decupage_prefilter"),
+        ),
+    ),
+    "decupage.llm": (
+        (PortSpec("asus", "Tagged ASUs", "json", "metadata:asus", True),),
+        (
+            PortSpec("contract", "LLM contract", "json", "metadata:decupage_llm"),
+            PortSpec(
+                "decisions",
+                "LLM decisions",
+                "json",
+                "metadata:decupage_decisions",
+                False,
+            ),
+        ),
+    ),
+    "decupage.apply": (
+        (PortSpec("asus", "Tagged ASUs", "json", "metadata:asus", True),),
+        (
+            PortSpec("state", "Decupage state", "json", "metadata:decupage_state"),
+            PortSpec("cuts", "Decupage cuts", "json", "metadata:decupage_cuts"),
+        ),
+    ),
+    "decupage.snap": (
+        (PortSpec("asus", "Tagged ASUs", "json", "metadata:asus", True),),
+        (
+            PortSpec("plan", "Acoustic plan", "json", "metadata:decupage_plan"),
+            PortSpec("report", "Decupage report", "artifact_map", "artifacts"),
+        ),
+    ),
+    "decupage.timeline": (
+        (PortSpec("plan", "Acoustic plan", "json", "metadata:decupage_plan", True),),
+        (
+            PortSpec("timeline", "Canonical timeline", "timeline", "state"),
+            PortSpec("summary", "Timeline summary", "json", "metadata:decupage_timeline"),
+        ),
+    ),
+    "delivery.collect": (
+        (),
+        (
+            PortSpec(
+                "manifest",
+                "Delivery manifest",
+                "json",
+                "metadata:delivery_collect",
+            ),
+        ),
+    ),
+    "scene.analyze": (
+        (PortSpec("media", "Media info", "media", "media", True),),
+        (
+            PortSpec("manifest", "Scene manifest", "json", "metadata:scenes_manifest"),
+            PortSpec(
+                "supercontext",
+                "Timeline supercontext",
+                "json",
+                "metadata:scenes_supercontext",
+            ),
+            PortSpec("keyframes", "Scene keyframes", "artifact_map", "artifacts"),
+        ),
+    ),
+    "short.plan": (
+        (
+            PortSpec("manifest", "Scene manifest", "json", "metadata:scenes_manifest", True),
+            PortSpec(
+                "supercontext",
+                "Timeline supercontext",
+                "json",
+                "metadata:scenes_supercontext",
+            ),
+        ),
+        (
+            PortSpec("plan", "Short plan", "json", "metadata:short_plan"),
+            PortSpec("report", "Plan report", "json", "metadata:short_plan_report"),
+        ),
+    ),
+    "short.validate": (
+        (
+            PortSpec("plan", "Short plan", "json", "metadata:short_plan", True),
+            PortSpec(
+                "manifest",
+                "Scene manifest",
+                "json",
+                "metadata:scenes_manifest",
+                True,
+            ),
+        ),
+        (
+            PortSpec(
+                "validation",
+                "Plan validation",
+                "json",
+                "metadata:short_validation",
+            ),
+        ),
+    ),
+    "short.captions": (
+        (
+            PortSpec("plan", "Short plan", "json", "metadata:short_plan", True),
+            PortSpec(
+                "manifest",
+                "Scene manifest",
+                "json",
+                "metadata:scenes_manifest",
+                True,
+            ),
+        ),
+        (
+            PortSpec("captions", "Caption blocks", "json", "metadata:short_captions"),
+            PortSpec("cues", "Caption/SFX cues", "json", "metadata:short_cues"),
+        ),
+    ),
+    "short.render": (
+        (
+            PortSpec("plan", "Short plan", "json", "metadata:short_plan", True),
+            PortSpec(
+                "manifest",
+                "Scene manifest",
+                "json",
+                "metadata:scenes_manifest",
+                True,
+            ),
+            PortSpec("cues", "Caption/SFX cues", "json", "metadata:short_cues"),
+        ),
+        (
+            PortSpec("render", "Rendered Short", "json", "metadata:short_render"),
+        ),
+    ),
+    "short.export": (
+        (
+            PortSpec("plan", "Short plan", "json", "metadata:short_plan", True),
+            PortSpec(
+                "manifest",
+                "Scene manifest",
+                "json",
+                "metadata:scenes_manifest",
+                True,
+            ),
+            PortSpec("render", "Rendered Short", "json", "metadata:short_render"),
+        ),
+        (
+            PortSpec("fcpxml", "Short FCPXML", "artifact_map", "artifacts"),
+            PortSpec("report", "Export report", "json", "metadata:short_export"),
+        ),
+    ),
+    "short.qa": (
+        (
+            PortSpec("plan", "Short plan", "json", "metadata:short_plan", True),
+            PortSpec("render", "Rendered Short", "json", "metadata:short_render", True),
+            PortSpec("report", "Export report", "json", "metadata:short_export"),
+        ),
+        (
+            PortSpec("qa", "Short QA", "json", "metadata:short_qa"),
         ),
     ),
     "localization.dub": (
@@ -531,6 +703,10 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
     "audio.mix": (
         (PortSpec("master", "Audio master", "audio", "artifacts:audio_master", True),),
         (PortSpec("mix", "Final mix", "audio", "artifacts:audio_mix"),),
+    ),
+    "audio.finalize": (
+        (PortSpec("media", "Media info", "media", "media", True),),
+        (PortSpec("final", "Final mix", "audio", "artifacts:audio_final"),),
     ),
     "factcheck.audit": (
         (),
@@ -788,6 +964,41 @@ EXTRA_OUTPUTS: dict[str, tuple[PortSpec, ...]] = {
         PortSpec("filters", "Master filters", "dict", "metadata:audio_master_filters"),
     ),
     "audio.qa": (PortSpec("qa", "Audio QA", "dict", "metadata:audio_qa"),),
+    "audio.events": (
+        PortSpec("events", "Acoustic events", "json", "metadata:audio_events"),
+        PortSpec("report", "Event report", "json", "metadata:audio_events_report"),
+    ),
+    "speech.asu": (
+        PortSpec("asus", "Atomic speech units", "json", "metadata:asus"),
+        PortSpec("report", "ASU report", "json", "metadata:asu_report"),
+    ),
+    "decupage.prefilter": (
+        PortSpec("asus", "Tagged ASUs", "json", "metadata:asus"),
+        PortSpec("prefilter", "Prefilter report", "json", "metadata:decupage_prefilter"),
+    ),
+    "decupage.llm": (
+        PortSpec("contract", "LLM contract", "json", "metadata:decupage_llm"),
+        PortSpec("decisions", "LLM decisions", "json", "metadata:decupage_decisions"),
+    ),
+    "decupage.apply": (
+        PortSpec("state", "Decupage state", "json", "metadata:decupage_state"),
+        PortSpec("cuts", "Decupage cuts", "json", "metadata:decupage_cuts"),
+        PortSpec("review", "Review flags", "json", "metadata:decupage_review_flags"),
+    ),
+    "decupage.snap": (
+        PortSpec("plan", "Acoustic plan", "json", "metadata:decupage_plan"),
+        PortSpec("report", "Decupage report", "artifact_map", "artifacts"),
+    ),
+    "decupage.timeline": (
+        PortSpec("timeline", "Canonical timeline", "timeline", "state"),
+        PortSpec("summary", "Timeline summary", "json", "metadata:decupage_timeline"),
+    ),
+    "delivery.collect": (
+        PortSpec("manifest", "Delivery manifest", "json", "metadata:delivery_collect"),
+    ),
+    "scene.analyze": (
+        PortSpec("summary", "Scene summary", "json", "metadata:scenes_summary"),
+    ),
     "audio.vad": (
         PortSpec("pad_before_ms", "Pad before", "integer", "metadata:speech_pad_before_ms"),
         PortSpec("pad_after_ms", "Pad after", "integer", "metadata:speech_pad_after_ms"),

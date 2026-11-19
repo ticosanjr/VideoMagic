@@ -38,6 +38,7 @@ def detect_speech(
     min_silence_ms: int = 400,
     min_speech_ms: int = 100,
     speech_threshold: float = 0.5,
+    neg_threshold: float | None = None,
     speech_pad_before_ms: int = 120,
     speech_pad_after_ms: int = 150,
     duration_samples: int | None = None,
@@ -67,6 +68,7 @@ def detect_speech(
         if SileroVadAdapter.available():
             silero = SileroVadAdapter(
                 threshold=speech_threshold,
+                neg_threshold=neg_threshold,
                 min_silence_ms=min_silence_ms,
                 min_speech_ms=min_speech_ms,
                 log=log,

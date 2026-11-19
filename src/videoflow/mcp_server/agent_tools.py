@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
-import asyncio
-import contextlib
 import resource
-import time
 from pathlib import Path
 from typing import Any
-
-from mcp.server.mcpserver import Context
 
 from videoflow.application import artifacts as artifact_service
 from videoflow.application.capabilities import capability_manifest
@@ -23,7 +18,6 @@ from videoflow.application.projects import (
 )
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import StateNotReadyError, VideoFlowError
-from videoflow.domain.transcript import format_srt
 from videoflow.engine.recipes.catalog import parse_recipe
 from videoflow.mcp_server.agent_helpers import (
     _adopt_job,
@@ -150,47 +144,6 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
         except VideoFlowError as exc:
             return exc.to_dict()
         return {"ok": True, "job": _job_payload(job)}
-
-    @register
-    async def vf_wait_job(
-        project_id: str,
-        job_id: str = "",
-        timeout_sec: float = 300.0,
-        poll_sec: float = 0.5,
-        ctx: Context | None = None,
-    ) -> dict[str, Any]:
-        """Wait for a job to finish, bounded by timeout_sec."""
-
-        deadline = time.monotonic() + max(1.0, min(3600.0, timeout_sec))
-        try:
-            job = _job(manager, project_id, job_id)
-            terminal = {"succeeded", "failed", "cancelled", "answered", "needs_review"}
-            while job.status not in terminal:
-                if ctx is not None:
-                    with contextlib.suppress(Exception):
-                        await ctx.report_progress(
-                            max(0, min(100, job.progress)),
-                            100,
-                            job.message or job.stage,
-                        )
-                if time.monotonic() >= deadline:
-                    return {
-                        "ok": False,
-                        "code": "timeout",
-                        "message": f"Job still {job.status} after {timeout_sec:.0f}s",
-                        "job": _job_payload(job),
-                    }
-                heartbeat = getattr(manager, "heartbeat", None)
-                if callable(heartbeat):
-                    with contextlib.suppress(Exception):
-                        heartbeat(str(job.job_id))
-                await asyncio.sleep(max(0.1, min(5.0, poll_sec)))
-                job = manager.get(str(job.job_id))
-        except VideoFlowError as exc:
-            return exc.to_dict()
-        payload = _job_payload(job)
-        payload["result"] = payload.get("result") or {}
-        return {"ok": job.status == "succeeded", "job": payload}
 
     @register
     def vf_get_step_logs(
@@ -344,39 +297,6 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
         except VideoFlowError as exc:
             return exc.to_dict()
         return {"ok": True, "revision": state.revision, "can_undo": history.can_undo}
-
-    @register
-    def vf_get_transcript(
-        project_id: str,
-        job_id: str = "",
-        include_words: bool = True,
-    ) -> dict[str, Any]:
-        """Return structured transcript and SRT."""
-
-        try:
-            record = _record(project_id)
-            state = _state(record)
-            if state is None or not state.transcript:
-                raise StateNotReadyError("Project has no transcript")
-        except VideoFlowError as exc:
-            return exc.to_dict()
-        rate = state.media_info.audio_sample_rate if state.media_info is not None else 48000
-        return {
-            "ok": True,
-            "project_id": project_id,
-            "srt": format_srt(state.transcript, rate),
-            "sentences": [
-                {
-                    **sentence.model_dump(
-                        mode="json",
-                        exclude={"words"} if not include_words else set(),
-                    ),
-                    "start_sec": round(sentence.start_sample / rate, 3),
-                    "end_sec": round(sentence.end_sample / rate, 3),
-                }
-                for sentence in state.transcript
-            ],
-        }
 
     @register
     def vf_get_artifact(

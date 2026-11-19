@@ -220,8 +220,9 @@ def test_semantic_pass_without_client_is_a_warning() -> None:
         sentence(1, "Segunda tentativa do texto.", 3000, 5000),
     ]
     result = clean_editorial(items, client=None, semantic=True)
-    assert result.report["semantic_status"] == "unavailable"
-    assert any("no LLM client" in warning for warning in result.report["warnings"])
+    assert result.report["semantic_status"] == "delegated"
+    assert "semantic_candidates" in result.report
+    assert any("delegated to OpenCode" in warning for warning in result.report["warnings"])
 
 
 def test_unknown_semantic_ids_are_ignored() -> None:

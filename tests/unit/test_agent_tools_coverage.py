@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
 from videoflow.application.projects import init_project, save_project_state
@@ -13,7 +12,6 @@ from videoflow.domain.state import (
     Sentence,
     VideoSegment,
 )
-from videoflow.engine.batch import BatchManager
 from videoflow.mcp_server.agent_tools import register_agent_tools
 from videoflow.mcp_server.context import ToolContext
 
@@ -139,7 +137,7 @@ def _project(tmp_path: Path, monkeypatch) -> tuple:
     manager = FakeManager(job)
     register_agent_tools(
         register,
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),  # type: ignore[arg-type]
+        ToolContext(manager=manager),  # type: ignore[arg-type]
     )
     return tools, record, job
 
@@ -150,15 +148,10 @@ def test_agent_tool_success_paths(tmp_path: Path, monkeypatch) -> None:
     assert tools["vf_project_status"](project_id=record.project_id)["ok"] is True
     assert tools["vf_capabilities"]()["ok"] is True
     assert tools["vf_get_job"](project_id=record.project_id, job_id="job-1")["ok"] is True
-    assert (
-        asyncio.run(tools["vf_wait_job"](project_id=record.project_id, job_id="job-1"))["ok"]
-        is True
-    )
     logs = tools["vf_get_step_logs"](project_id=record.project_id, job_id="job-1", step_id="render")
     assert logs["commands"]
     assert tools["vf_get_qa_artifacts"](project_id=record.project_id)[0]["ok"] is True
     assert tools["vf_get_timeline"](project_id=record.project_id)["ok"] is True
-    assert tools["vf_get_transcript"](project_id=record.project_id)["ok"] is True
     artifact = tools["vf_get_artifact"](project_id=record.project_id, artifact="exports/note.txt")
     assert artifact[0]["text"] == "ok"
     assert tools["vf_validate_exports"](project_id=record.project_id)["ok"] in {True, False}
@@ -188,11 +181,6 @@ def test_agent_tool_error_paths(tmp_path: Path, monkeypatch) -> None:
         tools["vf_edit_timeline"](record.project_id, "missing", "trim", expected_revision=999)["ok"]
         is False
     )
-    job.status = "running"
-    timeout = asyncio.run(
-        tools["vf_wait_job"](record.project_id, "job-1", timeout_sec=0.2, poll_sec=0.1)
-    )
-    assert timeout["code"] == "timeout"
 
 
 def test_agent_tool_project_adoption_and_missing_job(tmp_path: Path, monkeypatch) -> None:
@@ -309,7 +297,6 @@ def test_agent_tool_more_branches(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home2"))
     empty_record, _ = init_project(output=empty)
     assert tools["vf_get_timeline"](empty_record.project_id)["ok"] is True
-    assert tools["vf_get_transcript"](empty_record.project_id)["ok"] is False
 
 
 def test_adopt_job_and_qa_images(tmp_path: Path, monkeypatch) -> None:
@@ -374,7 +361,6 @@ def test_agent_tool_remaining_branches(tmp_path: Path, monkeypatch) -> None:
     tools, record, job = _project(tmp_path, monkeypatch)
     assert tools["vf_project_status"]("missing")["ok"] is False
     assert tools["vf_get_job"](record.project_id, "missing")["ok"] is False
-    assert asyncio.run(tools["vf_wait_job"](record.project_id, "missing"))["ok"] is False
     assert tools["vf_get_step_logs"](record.project_id, "missing")["ok"] is False
     assert tools["vf_project_init"](project_id="missing")["ok"] is False
 

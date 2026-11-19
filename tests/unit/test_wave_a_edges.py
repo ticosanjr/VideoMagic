@@ -347,7 +347,6 @@ def test_job_chain_through_resume_and_failure(tmp_path: Path) -> None:
 
 
 def test_vf_run_and_jobs_error_paths(tmp_path: Path) -> None:
-    from videoflow.engine.batch import BatchManager
     from videoflow.mcp_server.context import ToolContext
     from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -356,7 +355,7 @@ def test_vf_run_and_jobs_error_paths(tmp_path: Path) -> None:
     tools: dict[str, object] = {}
     register_core_tools(
         lambda func: tools.setdefault(func.__name__, func),
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),
+        ToolContext(manager=manager),
     )
     assert tools["vf_run"](project_id="missing", steps=["ingest"])["ok"] is False
     assert tools["vf_run"](project_id=record.project_id, steps=[])["ok"] is False
@@ -369,14 +368,13 @@ def test_vf_run_and_jobs_error_paths(tmp_path: Path) -> None:
         )["ok"]
         is False
     )
-    assert tools["vf_jobs"](action="status", job_id="missing")["ok"] is False
-    assert tools["vf_jobs"](action="cancel", job_id="missing")["ok"] is False
-    assert tools["vf_jobs"](action="unknown")["ok"] is False
-    assert tools["vf_jobs"](action="list", limit=0)["ok"] is True
+    assert tools["vf_job"](action="status", job_id="missing")["ok"] is False
+    assert tools["vf_job"](action="cancel", job_id="missing")["ok"] is False
+    assert tools["vf_job"](action="unknown")["ok"] is False
+    assert tools["vf_job"](action="list", limit=0)["ok"] is True
 
 
 def test_vf_timeline_and_project_error_paths(tmp_path: Path) -> None:
-    from videoflow.engine.batch import BatchManager
     from videoflow.mcp_server.context import ToolContext
     from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -387,7 +385,7 @@ def test_vf_timeline_and_project_error_paths(tmp_path: Path) -> None:
     tools: dict[str, object] = {}
     register_core_tools(
         lambda func: tools.setdefault(func.__name__, func),
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),
+        ToolContext(manager=manager),
     )
     assert (
         tools["vf_timeline"](
@@ -600,7 +598,6 @@ def test_queue_cancel_flag(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_project_tool_archive_clone_delete(tmp_path: Path) -> None:
-    from videoflow.engine.batch import BatchManager
     from videoflow.mcp_server.context import ToolContext
     from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -609,7 +606,7 @@ def test_project_tool_archive_clone_delete(tmp_path: Path) -> None:
     tools: dict[str, object] = {}
     register_core_tools(
         lambda func: tools.setdefault(func.__name__, func),
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),
+        ToolContext(manager=manager),
     )
     archived = tools["vf_project"](action="archive", project_id=record.project_id)
     assert archived["project"]["status"] == "archived"
@@ -633,7 +630,6 @@ def test_project_tool_archive_clone_delete(tmp_path: Path) -> None:
 
 
 def test_run_tool_accepts_string_and_timeline_applies_snapshot(tmp_path: Path) -> None:
-    from videoflow.engine.batch import BatchManager
     from videoflow.mcp_server.context import ToolContext
     from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -642,7 +638,7 @@ def test_run_tool_accepts_string_and_timeline_applies_snapshot(tmp_path: Path) -
     tools: dict[str, object] = {}
     register_core_tools(
         lambda func: tools.setdefault(func.__name__, func),
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),
+        ToolContext(manager=manager),
     )
     response = tools["vf_run"](
         project_id=record.project_id,
@@ -716,7 +712,6 @@ def test_beatmap_graphics_transitions_zoom_branches(tmp_path: Path) -> None:
 
 def test_project_tool_status_filter_and_workflow_branch(tmp_path: Path) -> None:
     from videoflow.application.projects import archive_project
-    from videoflow.engine.batch import BatchManager
     from videoflow.mcp_server.context import ToolContext
     from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -726,7 +721,7 @@ def test_project_tool_status_filter_and_workflow_branch(tmp_path: Path) -> None:
     tools: dict[str, object] = {}
     register_core_tools(
         lambda func: tools.setdefault(func.__name__, func),
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),
+        ToolContext(manager=manager),
     )
     active_only = tools["vf_project"](action="list")
     assert all(item["status"] != "archived" for item in active_only["projects"])

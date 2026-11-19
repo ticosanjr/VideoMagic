@@ -74,6 +74,31 @@ def test_silero_returns_no_spans_below_threshold(
     assert adapter.detect(write_wav(tmp_path / "audio.wav")) == []
 
 
+def test_silero_uses_negative_threshold_hysteresis(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    probabilities = [0.0, 0.9, 0.4, 0.3, 0.5] + [0.0] * 27
+    adapter = adapter_with(
+        monkeypatch,
+        probabilities,
+        threshold=0.5,
+        neg_threshold=0.35,
+        min_silence_ms=500,
+        min_speech_ms=0,
+    )
+    assert adapter.detect(write_wav(tmp_path / "audio.wav")) == [
+        (1 * WINDOW_SAMPLES, 5 * WINDOW_SAMPLES)
+    ]
+
+
+def test_silero_rejects_negative_threshold_above_threshold(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    adapter = adapter_with(monkeypatch, [0.0] * 4, threshold=0.5, neg_threshold=0.6)
+    with pytest.raises(IngestError, match="negative threshold"):
+        adapter.detect(write_wav(tmp_path / "audio.wav"))
+
+
 def test_silero_requires_16khz_mono_pcm(tmp_path: Path) -> None:
     with pytest.raises(IngestError, match="16000"):
         SileroVadAdapter(model=tmp_path / "missing.onnx").detect(

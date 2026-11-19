@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.brand_kit import load_brand_kit
@@ -42,6 +44,63 @@ LAYOUT_ALIASES = {
 }
 
 
+class ShortsClipSpec(BaseModel):
+    """Strict schema for one ``vf_shorts_batch`` clip.
+
+    Unknown keys are rejected on purpose: a typo such as ``margin_top`` used to
+    be ignored silently and produced a render with the wrong layout.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    start_sec: float = Field(default=0.0, ge=0.0)
+    end_sec: float = Field(default=0.0, ge=0.0)
+    time_basis: Literal["timeline", "source"] = "timeline"
+    source_id: str = ""
+    title: str = ""
+    style_id: str = ""
+    aspect_ratio: str = "9:16"
+    fps: int = Field(default=30, ge=15, le=60)
+    layout: str = "auto"
+    layout_mode: str = ""
+    effect: str = ""
+    headline_text: str = ""
+    intro_path: str = ""
+    intro_duration_sec: float = Field(default=2.0, ge=0.0, le=30.0)
+    outro_path: str = ""
+    outro_duration_sec: float = Field(default=2.0, ge=0.0, le=30.0)
+    corner_radius: int = Field(default=0, ge=0)
+    crop_keyframes: list[tuple[float, float]] = Field(default_factory=list)
+    face_center_lock: bool = False
+    caption_preset: str = ""
+    music_path: str = ""
+    overlay_path: str = ""
+    visual_path: str = ""
+    broll_path: str = ""
+    second_source_path: str = ""
+    punch_in_scale: float = Field(default=1.06, ge=1.0, le=1.10)
+    overlay_width_ratio: float = Field(default=0.28, ge=0.05, le=1.0)
+    overlay_position: str = "bottom_right"
+    overlay_opacity: float = Field(default=0.9, ge=0.0, le=1.0)
+    thought_boundary: bool = True
+    thought_boundary_max_adjust_sec: float = Field(default=4.0, ge=0.0, le=30.0)
+    start_pad_ms: int = Field(default=80, ge=0, le=5000)
+    end_pad_ms: int = Field(default=150, ge=0, le=5000)
+    max_internal_silence_ms: int = Field(default=500, ge=0, le=10000)
+    crossfade_ms: int = Field(default=15, ge=0, le=1000)
+    min_sec: float = Field(default=0.0, ge=0.0)
+    max_sec: float = Field(default=0.0, ge=0.0)
+
+    @field_validator("layout", "layout_mode")
+    @classmethod
+    def _normalize_layout(cls, value: str) -> str:
+        text = str(value or "").strip()
+        return LAYOUT_ALIASES.get(text, text)
+
+    def resolved_layout(self, fallback: str = "auto") -> str:
+        return self.layout_mode or self.layout or fallback
+
+
 def _style_for(style_id: str, fallback: str) -> Any:
     catalog = StyleCatalog()
     for identifier in (style_id, fallback):
@@ -66,7 +125,6 @@ def run_shorts_batch(
     if media is None:
         raise ExportError("Project has no media")
     rate = media.audio_sample_rate
-    fps = media.fps_num / media.fps_den
     discard = set(state.pipeline.discard_sentence_ids)
     kept = [item for item in state.transcript if item.id not in discard]
     renderer = adapter or FFmpegAdapter()
@@ -77,8 +135,20 @@ def run_shorts_batch(
     for index, entry in enumerate(clips, start=1):
         if not isinstance(entry, dict):
             continue
-        start = max(0.0, float(entry.get("start_sec") or 0.0))
-        end = float(entry.get("end_sec") or 0.0)
+        spec = ShortsClipSpec.model_validate(entry)
+        entry = spec.model_dump(mode="python")
+        start = max(0.0, float(spec.start_sec))
+        end = float(spec.end_sec)
+        if spec.time_basis == "source":
+            from videoflow.application.time_map import TimeMapError, source_to_timeline_sec
+
+            try:
+                start = source_to_timeline_sec(state, start, source_id=spec.source_id)
+                end = source_to_timeline_sec(state, end, source_id=spec.source_id)
+            except TimeMapError as exc:
+                raise ExportError(
+                    f"Shorts batch clip {index} source range is invalid: {exc}"
+                ) from exc
         if end <= start:
             raise ExportError(f"Shorts batch clip {index} has an invalid range")
         start_sample = round(start * rate)
@@ -163,24 +233,37 @@ def run_shorts_batch(
             )
         target = directory / f"{slugify(title, index)}.mp4"
         intro = entry.get("intro_path") or brand.get("cta") or ""
+        intro_path: Path | None = None
+        if intro:
+            candidate = Path(str(intro)).expanduser()
+            if not candidate.is_file():
+                raise ExportError(f"asset_not_found: intro {candidate}")
+            if candidate.suffix.casefold() not in {
+                ".mp4",
+                ".mov",
+                ".webm",
+                ".m4v",
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".webp",
+            }:
+                raise ExportError(f"Unsupported intro asset: {candidate}")
+            intro_path = candidate
+        outro = entry.get("outro_path") or ""
+        outro_path: Path | None = None
+        if outro:
+            candidate = Path(str(outro)).expanduser()
+            if not candidate.is_file():
+                raise ExportError(f"asset_not_found: outro {candidate}")
+            outro_path = candidate
         music = entry.get("music_path") or brand.get("music") or ""
-        if intro and Path(str(intro)).suffix.casefold() not in {
-            ".mp4",
-            ".mov",
-            ".webm",
-            ".m4v",
-            ".png",
-            ".jpg",
-            ".jpeg",
-            ".webp",
-        }:
-            intro = ""
         overlay = entry.get("overlay_path") or ""
         visual = entry.get("visual_path") or entry.get("broll_path") or ""
         headline = ""
         if layout == "headline_card":
             headline = str(entry.get("headline_text") or entry.get("title") or "")
-        context_source = _source_path(state, record)
+        context_source = _source_path(state, record, spec.source_id)
         renderer.render_short(
             Path(context_source),
             list(tightened.pieces),
@@ -205,13 +288,48 @@ def run_shorts_batch(
             visual_path=Path(visual).expanduser() if visual else None,
             headline_text=headline,
             overlay_path=Path(overlay).expanduser() if overlay else None,
-            overlay_position="bottom_right",
+            overlay_position=str(entry.get("overlay_position") or "bottom_right"),
+            overlay_opacity=float(entry.get("overlay_opacity") or 0.9),
             overlay_width_ratio=float(entry.get("overlay_width_ratio") or 0.28),
-            intro_path=Path(intro).expanduser() if intro else None,
+            intro_path=intro_path,
             intro_duration_sec=float(entry.get("intro_duration_sec") or 2.0),
+            outro_path=outro_path,
+            outro_duration_sec=float(entry.get("outro_duration_sec") or 2.0),
             music_path=Path(music).expanduser() if music else None,
             crossfade_ms=int(tightened.metrics.get("crossfade_ms") or 15),
+            fps=int(spec.fps),
         )
+        clip_seconds = sum(end - start for start, end in tightened.pieces) / rate
+        expected_duration = clip_seconds
+        if intro_path is not None:
+            expected_duration += float(entry.get("intro_duration_sec") or 2.0)
+        if outro_path is not None:
+            expected_duration += float(entry.get("outro_duration_sec") or 2.0)
+        if spec.min_sec and expected_duration < spec.min_sec:
+            raise ExportError(
+                f"Shorts batch clip {index} is {expected_duration:.3f}s, "
+                f"below min_sec={spec.min_sec:.3f}"
+            )
+        if spec.max_sec and expected_duration > spec.max_sec:
+            raise ExportError(
+                f"Shorts batch clip {index} is {expected_duration:.3f}s, "
+                f"above max_sec={spec.max_sec:.3f}"
+            )
+        warnings: list[str] = []
+        probe = getattr(renderer, "probe", None)
+        if callable(probe):
+            try:
+                probed = probe(target)
+                expected_frames = round(expected_duration * spec.fps)
+                if abs(int(probed.duration_frames) - expected_frames) > 1:
+                    raise ExportError(
+                        f"Shorts batch clip {index} rendered "
+                        f"{probed.duration_frames} frames, expected {expected_frames}"
+                    )
+            except ExportError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - probe is advisory for fakes
+                warnings.append(f"duration probe failed: {exc}")
         rendered.append(
             {
                 "title": title,
@@ -220,13 +338,16 @@ def run_shorts_batch(
                 "aspect_ratio": aspect,
                 "layout": layout,
                 "style_id": getattr(style, "style_id", ""),
+                "source_id": spec.source_id,
                 "start_sec": round(start_sample / rate, 3),
                 "end_sec": round(end_sample / rate, 3),
+                "expected_duration_sec": round(expected_duration, 3),
                 "metrics": tightened.metrics,
                 "pieces": [list(piece) for piece in tightened.pieces],
                 "crop_keyframes": [[round(t, 3), round(x, 4)] for t, x in keyframes],
                 "source": str(context_source),
-                "fps": round(fps, 6),
+                "fps": int(spec.fps),
+                "warnings": warnings,
             }
         )
     report = directory.parent / "shorts_batch.json"
@@ -237,8 +358,8 @@ def run_shorts_batch(
     return {"ok": True, "clips": rendered, "manifest": str(report)}
 
 
-def _source_path(state: Any, record: Any) -> str:
-    media = state.media_info
+def _source_path(state: Any, record: Any, source_id: str = "") -> str:
+    media = state.source_media(source_id) if source_id else state.media_info
     return str(media.source_path if media is not None else record.primary_source)
 
 

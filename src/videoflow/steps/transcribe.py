@@ -6,7 +6,7 @@ import inspect
 import json
 import os
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -58,6 +58,11 @@ class TranscribeParams(BaseModel):
     word_timestamps: Literal["auto", "always", "off"] = "auto"
     condition_on_previous_text: bool | None = None
     vad_filter: bool | None = None
+    compute_policy: Literal["auto", "local", "remote", "remote_only"] = "auto"
+    anti_hallucination: bool = True
+    no_speech_threshold: float = Field(default=0.6, ge=0.0, le=1.0)
+    compression_ratio_threshold: float = Field(default=2.2, ge=1.0, le=10.0)
+    repetition_penalty: float = Field(default=1.1, ge=1.0, le=2.0)
     base_url: str | None = None
     model: str = "whisper-1"
     api_key_env: str = "VIDEOWFLOW_ASR_API_KEY"
@@ -161,6 +166,13 @@ class TranscribeStep(BaseStep):
                     "base_url": plan.remote_base_url or options.base_url,
                     "model": plan.remote_model or options.model,
                     "api_key_env": plan.remote_api_key_env or options.api_key_env,
+                }
+            )
+        if options.anti_hallucination:
+            options = options.model_copy(
+                update={
+                    "condition_on_previous_text": False,
+                    "vad_filter": True if options.vad_filter is None else options.vad_filter,
                 }
             )
         model_id = options.model_id.strip()
@@ -341,20 +353,21 @@ class TranscribeStep(BaseStep):
                 "model, or a CUDA device.",
                 module="transcribe",
             )
-        client = io.asr_client
-        if client is None:
+        def local_client() -> Any:
+            if io.asr_client is not None:
+                return io.asr_client
             if mode == "http":
                 base_url = options.base_url or os.environ.get("VIDEOWFLOW_ASR_BASE_URL")
                 if not base_url:
                     raise TranscriptionError("HTTP transcription requires base_url")
-                client = WhisperHttpAdapter(
+                return WhisperHttpAdapter(
                     base_url=base_url,
                     model=options.model,
                     api_key=get_secret(options.api_key_env),
                     language=options.language,
                 )
-            elif mode == "whisper_cpp":
-                client = WhisperCliAdapter(
+            if mode == "whisper_cpp":
+                return WhisperCliAdapter(
                     binary=options.whisper_binary or os.environ.get("VIDEOWFLOW_WHISPER_BIN"),
                     model=model_path
                     or options.whisper_model
@@ -366,20 +379,63 @@ class TranscribeStep(BaseStep):
                     vulkan=options.quality_profile == "vulkan",
                     log=lambda level, message: io.emit(level, message, module="transcribe"),
                 )
-            else:
-                client = FasterWhisperAdapter(
-                    model=model_path,
-                    model_size=options.model_size,
-                    device=options.device,
-                    compute_type=options.compute_type,
-                    language=options.language,
-                    vad_filter=bool(options.vad_filter),
-                    beam_size=options.beam_size or 1,
-                    threads=options.cpu_threads or None,
-                    word_timestamps=options.word_timestamps != "off",
-                    condition_on_previous_text=bool(options.condition_on_previous_text),
-                    log=lambda level, message: io.emit(level, message, module="transcribe"),
-                )
+            return FasterWhisperAdapter(
+                model=model_path,
+                model_size=options.model_size,
+                device=options.device,
+                compute_type=options.compute_type,
+                language=options.language,
+                vad_filter=bool(options.vad_filter),
+                beam_size=options.beam_size or 1,
+                threads=options.cpu_threads or None,
+                word_timestamps=options.word_timestamps != "off",
+                condition_on_previous_text=bool(options.condition_on_previous_text),
+                no_speech_threshold=options.no_speech_threshold,
+                compression_ratio_threshold=options.compression_ratio_threshold,
+                repetition_penalty=options.repetition_penalty,
+                log=lambda level, message: io.emit(level, message, module="transcribe"),
+            )
+
+        remote_client: Any | None = None
+        if (
+            io.asr_client is None
+            and mode in {"faster_whisper", "whisper_cpp"}
+            and options.compute_policy != "local"
+        ):
+            try:
+                from videoflow.application.asr_remote import RemoteAsrClient
+                from videoflow.application.compute import router_from_settings
+
+                router = router_from_settings(settings)
+                decision = router.decide("asr")
+                if decision.is_remote:
+                    remote_model = (
+                        options.model_id
+                        if options.model_id and "faster-whisper" not in options.model_id
+                        else options.model_size
+                    )
+                    remote_client = RemoteAsrClient(
+                        router,
+                        language=options.language,
+                        model=remote_model,
+                        beam_size=options.beam_size or 1,
+                        word_timestamps=options.word_timestamps != "off",
+                        vad_filter=bool(options.vad_filter),
+                        no_speech_threshold=options.no_speech_threshold,
+                        compression_ratio_threshold=options.compression_ratio_threshold,
+                        repetition_penalty=options.repetition_penalty,
+                    )
+                elif options.compute_policy == "remote_only":
+                    raise TranscriptionError(
+                        f"Remote ASR requested but unavailable: {decision.reason}"
+                    )
+            except TranscriptionError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - fallback is the contract
+                if options.compute_policy == "remote_only":
+                    raise TranscriptionError(f"Remote ASR unavailable: {exc}") from exc
+                context.warnings.append(f"Remote ASR skipped: {exc}")
+        client = remote_client or local_client()
         io.report(45, "Calling speech-to-text")
         adapter = adapter_for(context, io)
         audio_path = Path(context.source)
@@ -416,9 +472,23 @@ class TranscribeStep(BaseStep):
             transcribe_kwargs["initial_sentences"] = initial_sentences
         if _supports_keyword(client.transcribe, "offset_samples"):
             transcribe_kwargs["offset_samples"] = offset_samples
-        transcript = client.transcribe(wav, media.audio_sample_rate, **transcribe_kwargs)
+        try:
+            transcript = client.transcribe(
+                wav, media.audio_sample_rate, **transcribe_kwargs
+            )
+        except Exception as exc:
+            if remote_client is None or options.compute_policy == "remote_only":
+                raise
+            context.warnings.append(f"Remote ASR failed; using local fallback: {exc}")
+            client = local_client()
+            transcript = client.transcribe(
+                wav, media.audio_sample_rate, **transcribe_kwargs
+            )
         if not transcript:
             raise TranscriptionError("Speech-to-text returned no sentences")
+        if remote_client is not None and client is remote_client:
+            context.metadata["asr_execution"] = dict(remote_client.execution)
+            context.metadata["asr_engine"] = "remote_asr"
         context.transcript = list(transcript)
         _record_language(
             context,

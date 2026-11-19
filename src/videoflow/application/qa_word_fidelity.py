@@ -16,6 +16,11 @@ _WORD = re.compile(r"[0-9A-Za-zÀ-ÿ']+")
 _DEFAULT_ALIASES = {
     "hwang": "huang",
     "invidia": "nvidia",
+    "envidia": "nvidia",
+    "clodi": "claude",
+    "emecepe": "mcp",
+    "opencodi": "opencode",
+    "uisper": "whisper",
     "micro$oft": "microsoft",
     "open ai": "openai",
     "open-ai": "openai",

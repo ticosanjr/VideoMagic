@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from tests.contract.test_api_timeline import _client
+from tests.contract.api_helpers import _client
 
 
 def _wait(job):

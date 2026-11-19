@@ -137,6 +137,7 @@ def _resources(project_id: str) -> dict[str, str]:
         "transcript": f"vf://projects/{project_id}/transcript",
         "jobs": f"vf://projects/{project_id}/jobs",
         "artifacts": f"vf://projects/{project_id}/artifacts",
+        "scenes": f"vf://projects/{project_id}/scenes",
     }
 
 

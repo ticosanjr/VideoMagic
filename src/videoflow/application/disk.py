@@ -37,12 +37,57 @@ def ensure_free_space(path: Path | str, *, min_free_gb: float | None = None) -> 
     return free
 
 
+def estimate_export_gb(state: object) -> float:
+    """Estimate the working space for one export from duration and sources."""
+
+    media = getattr(state, "media_info", None)
+    if media is None or not getattr(media, "fps_den", 0):
+        return 2.0
+    fps = float(media.fps_num) / float(media.fps_den)
+    duration_min = (
+        float(media.duration_frames) / fps / 60.0 if fps > 0 else 0.0
+    )
+    source_bytes = 0
+    for item in (getattr(state, "sources", {}) or {}).values():
+        path = Path(getattr(item, "source_path", "")).expanduser()
+        try:
+            source_bytes += path.stat().st_size
+        except OSError:
+            continue
+    estimate = max(2.0, duration_min * 0.25 + source_bytes / (1024**3) * 0.25)
+    return round(estimate, 2)
+
+
+def ensure_free_space_for_export(
+    path: Path | str,
+    state: object,
+    *,
+    extra_gb: float = 2.0,
+) -> float:
+    """Require estimated working space plus a safety margin."""
+
+    required = estimate_export_gb(state) + max(0.0, float(extra_gb))
+    free = free_gb(path)
+    if free < required:
+        raise FilesystemError(
+            f"Only {free:.1f} GB free at {path}; "
+            f"{required:.1f} GB is required for this export"
+        )
+    return free
+
+
 def prune_render_segments(output: Path | str) -> list[Path]:
-    """Remove disposable segment caches after a validated delivery."""
+    """Remove disposable segment and alpha caches after a validated delivery."""
 
     root = Path(output).expanduser()
     removed: list[Path] = []
-    for relative in ("render/segments", "work/segments"):
+    for relative in (
+        "render/segments",
+        "work/segments",
+        "exports/.alpha",
+        "work/.alpha",
+        ".alpha",
+    ):
         target = root / relative
         if target.is_dir():
             shutil.rmtree(target, ignore_errors=True)
@@ -53,6 +98,8 @@ def prune_render_segments(output: Path | str) -> list[Path]:
 __all__ = [
     "DEFAULT_MIN_FREE_GB",
     "ensure_free_space",
+    "ensure_free_space_for_export",
+    "estimate_export_gb",
     "free_gb",
     "prune_render_segments",
 ]

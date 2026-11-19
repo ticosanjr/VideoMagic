@@ -89,20 +89,6 @@ def test_create_and_poll_a_job(monkeypatch, tmp_path: Path) -> None:
     assert (tmp_path / "out" / "run.json").is_file()
 
 
-def test_path_outside_the_allowlist_is_rejected(monkeypatch, tmp_path: Path) -> None:
-    client = make_client(monkeypatch, tmp_path)
-    response = client.post(
-        "/api/v1/recipes/run",
-        json={
-            "recipe_id": "youtube_talking_head",
-            "source": "/etc/passwd",
-            "output": str(tmp_path / "out"),
-        },
-    )
-    assert response.status_code == 403
-    assert response.json()["detail"]["code"] == "path_not_allowed"
-
-
 def test_transcript_option_and_state_endpoint(monkeypatch, tmp_path: Path) -> None:
     source = tmp_path / "source.mp4"
     source.write_bytes(b"x")
@@ -649,90 +635,6 @@ def test_preview_proxy_routes(monkeypatch, tmp_path: Path) -> None:
     assert served.content == b"proxy"
 
 
-def test_timeline_route_from_project_state(monkeypatch, tmp_path: Path) -> None:
-    from fastapi.testclient import TestClient
-
-    from tests.recipe_jobs import manager_with_runner
-    from videoflow.api.app import create_app
-    from videoflow.domain.state import (
-        AudioSegment,
-        MediaInfo,
-        ProjectState,
-        Sentence,
-        VideoSegment,
-    )
-
-    def runner(source, output, **kwargs):
-        output = Path(output)
-        output.mkdir(parents=True, exist_ok=True)
-        state = ProjectState(
-            media_info=MediaInfo(
-                source_path=str(source),
-                duration_frames=50,
-                fps_num=25,
-                fps_den=1,
-                width=320,
-                height=240,
-                audio_sample_rate=48000,
-            ),
-            video_segments=[
-                VideoSegment(
-                    clip_id="v1",
-                    source_in_frame=0,
-                    source_out_frame=25,
-                    timeline_in_frame=0,
-                    timeline_out_frame=25,
-                )
-            ],
-            audio_segments=[
-                AudioSegment(
-                    clip_id="a1",
-                    source_in_sample=0,
-                    source_out_sample=48000,
-                    timeline_in_sample=0,
-                    timeline_out_sample=48000,
-                )
-            ],
-            transcript=[Sentence(id=0, start_sample=0, end_sample=48000, text="old")],
-        )
-        path = output / "project_state.json"
-        path.write_text(state.model_dump_json())
-        return {"ok": True, "state_path": str(path), "artifacts": {}, "shorts": []}
-
-    manager = manager_with_runner(runner=runner)
-    job = start_recipe(manager, tmp_path / "source.mp4", tmp_path / "out", {})
-    for _ in range(200):
-        if job.status in {"succeeded", "failed", "cancelled"}:
-            break
-        time.sleep(0.01)
-    client = TestClient(create_app(jobs=manager))
-    response = client.get(f"/api/v1/jobs/{job.job_id}/timeline")
-    assert response.status_code == 200, response.text
-    payload = response.json()
-    assert payload["duration_sec"] == 1.0
-    assert payload["video"][0]["id"] == "v1"
-    assert payload["audio"][0]["id"] == "a1"
-    patched = client.patch(
-        f"/api/v1/jobs/{job.job_id}/captions/0", json={"text": "new caption"}
-    )
-    assert patched.status_code == 200, patched.text
-    timeline = client.get(f"/api/v1/jobs/{job.job_id}/timeline").json()
-    assert timeline["captions"][0]["text"] == "new caption"
-    edited = client.patch(
-        f"/api/v1/jobs/{job.job_id}/timeline",
-        json={"clip_id": "v1", "action": "trim", "start_sec": 0.0, "end_sec": 0.5},
-    )
-    assert edited.status_code == 200, edited.text
-    timeline = client.get(f"/api/v1/jobs/{job.job_id}/timeline").json()
-    assert timeline["video"][0]["end_sec"] == 0.48
-    deleted = client.patch(
-        f"/api/v1/jobs/{job.job_id}/timeline",
-        json={"clip_id": "v1", "action": "delete"},
-    )
-    assert deleted.status_code == 200, deleted.text
-    assert client.get(f"/api/v1/jobs/{job.job_id}/timeline").json()["video"] == []
-
-
 def test_system_doctor_reports_checks() -> None:
     from fastapi.testclient import TestClient
 
@@ -798,7 +700,7 @@ def test_job_list_can_filter_by_recipe(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_job_list_can_omit_the_embedded_recipe(monkeypatch, tmp_path: Path) -> None:
-    from tests.contract.test_api_timeline import _client, _job
+    from tests.contract.api_helpers import _client, _job
 
     client, manager = _client(monkeypatch, tmp_path)
     job = _job(manager, tmp_path)

@@ -127,7 +127,6 @@ def test_audio_mix_three_act_uses_timeline_duration(tmp_path: Path, monkeypatch)
 def test_vf_ingest_payload_shape(tmp_path: Path, monkeypatch) -> None:
     from videoflow.application.jobs import JobManager
     from videoflow.application.projects import init_project, save_project_state
-    from videoflow.engine.batch import BatchManager
     from videoflow.mcp_server.context import ToolContext
     from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -160,7 +159,7 @@ def test_vf_ingest_payload_shape(tmp_path: Path, monkeypatch) -> None:
     tools: dict[str, object] = {}
     register_core_tools(
         lambda func: tools.setdefault(func.__name__, func),
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),
+        ToolContext(manager=manager),
     )
     assert tools["vf_ingest"](action="multicam", project_id="missing")["ok"] is False
 

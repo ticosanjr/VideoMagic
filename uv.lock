@@ -3466,6 +3466,15 @@ wheels = [
 ]
 
 [[package]]
+name = "platformdirs"
+version = "4.14.7"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a6/2c/ec57eede0db493e61443c76ac7b4d24e94a24050afb3d598bf3678487f75/platformdirs-4.14.7.tar.gz", hash = "sha256:5472257c1cf97a14658af52997011c7e59e4aebf3a24950b973c11b579e1b074", size = 75132, upload-time = "2026-11-17T20:03:32.656Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f8/46/3737af9f971f3934794103256d7f1ed6200a62be0c7b7ff09ac4cf6b3422/platformdirs-4.14.7-py3-none-any.whl", hash = "sha256:391513b74707c42335fff3ea17eaac657a7ee9ffcadd809634d34ea594d0122c", size = 89658, upload-time = "2026-11-17T20:03:31.16Z" },
+]
+
+[[package]]
 name = "playwright"
 version = "1.65.1"
 source = { registry = "https://pypi.org/simple" }
@@ -4657,6 +4666,23 @@ wheels = [
 ]
 
 [[package]]
+name = "scenedetect"
+version = "0.7.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "opencv-python" },
+    { name = "platformdirs" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/10/8b/53ba2573a4daf9697d9e5c7892d10cfce0c189063ab4df7fd74286ee029d/scenedetect-0.7.3.tar.gz", hash = "sha256:14c0bd6872fb4fd284817d77187f8164dc79ef403067840d5337660f3e9aa9fa", size = 326861, upload-time = "2026-11-08T22:44:54.928Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f1/e2/e7f5d68da12b0909793b4cf6ab411a5984575f480f64673a334c94eaae35/scenedetect-0.7.3-py3-none-any.whl", hash = "sha256:74b92aac271c712facae35b816c8e1b953e8138ef5b302272da15b1ab72c036b", size = 159513, upload-time = "2026-11-08T22:44:51.529Z" },
+]
+
+[[package]]
 name = "scikit-learn"
 version = "1.9.1"
 source = { registry = "https://pypi.org/simple" }
@@ -5506,7 +5532,7 @@ wheels = [
 
 [[package]]
 name = "vf-compute"
-version = "3.4.1"
+version = "3.7.0"
 source = { editable = "packages/vf-compute" }
 dependencies = [
     { name = "httpx" },
@@ -5521,7 +5547,7 @@ requires-dist = [
 
 [[package]]
 name = "vf-contracts"
-version = "3.4.1"
+version = "3.7.0"
 source = { editable = "packages/vf-contracts" }
 dependencies = [
     { name = "pydantic" },
@@ -5532,7 +5558,7 @@ requires-dist = [{ name = "pydantic", specifier = ">=2" }]
 
 [[package]]
 name = "videoflow"
-version = "3.4.1"
+version = "3.7.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
@@ -5576,6 +5602,16 @@ render = [
     { name = "pillow" },
     { name = "playwright" },
 ]
+scene = [
+    { name = "mediapipe" },
+    { name = "opencv-python-headless" },
+    { name = "scenedetect" },
+]
+shorts = [
+    { name = "mediapipe" },
+    { name = "opencv-python-headless" },
+    { name = "pillow" },
+]
 tracking = [
     { name = "mediapipe" },
     { name = "opencv-contrib-python" },
@@ -5607,15 +5643,20 @@ requires-dist = [
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.100" },
     { name = "mcp", specifier = ">=1.20" },
+    { name = "mediapipe", marker = "extra == 'scene'", specifier = ">=0.10,<1" },
+    { name = "mediapipe", marker = "extra == 'shorts'", specifier = ">=0.10,<1" },
     { name = "mediapipe", marker = "extra == 'tracking'", specifier = ">=0.10,<1" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "onnxruntime", specifier = ">=1.20" },
     { name = "opencv-contrib-python", marker = "extra == 'tracking'", specifier = ">=4.10,<5" },
+    { name = "opencv-python-headless", marker = "extra == 'scene'", specifier = ">=4.10,<5" },
+    { name = "opencv-python-headless", marker = "extra == 'shorts'", specifier = ">=4.10,<5" },
     { name = "opencv-python-headless", marker = "extra == 'tracking'", specifier = ">=4.10,<5" },
     { name = "opencv-python-headless", marker = "extra == 'vision'", specifier = ">=4.10,<5" },
     { name = "opentimelineio", specifier = ">=0.18.1" },
     { name = "pillow", marker = "extra == 'render'", specifier = ">=10" },
+    { name = "pillow", marker = "extra == 'shorts'", specifier = ">=10" },
     { name = "pillow", marker = "extra == 'tray'", specifier = ">=10" },
     { name = "pillow", marker = "extra == 'vision'", specifier = ">=10" },
     { name = "playwright", marker = "extra == 'render'", specifier = ">=1.45" },
@@ -5629,6 +5670,7 @@ requires-dist = [
     { name = "python-xlib", marker = "sys_platform == 'linux' and extra == 'tray'", specifier = ">=0.33" },
     { name = "pyyaml", specifier = ">=6" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9" },
+    { name = "scenedetect", marker = "extra == 'scene'", specifier = ">=0.6.5,<1" },
     { name = "ultralytics", marker = "extra == 'tracking'", specifier = ">=8.3" },
     { name = "uvicorn", specifier = ">=0.32" },
     { name = "vf-compute", editable = "packages/vf-compute" },
@@ -5638,14 +5680,14 @@ requires-dist = [
     { name = "videoflow-mcp-vision", editable = "packages/mcp-vision" },
     { name = "whisperx", marker = "extra == 'alignment'", specifier = ">=3.2" },
 ]
-provides-extras = ["dev", "faster-whisper", "diarization", "vision", "tracking", "alignment", "render", "tray"]
+provides-extras = ["dev", "faster-whisper", "diarization", "vision", "tracking", "alignment", "scene", "shorts", "render", "tray"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pyinstaller", specifier = ">=6.10" }]
 
 [[package]]
 name = "videoflow-mcp-audio"
-version = "3.4.1"
+version = "3.7.0"
 source = { editable = "packages/mcp-audio" }
 dependencies = [
     { name = "mcp" },
@@ -5668,7 +5710,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "videoflow-mcp-fetch"
-version = "3.4.1"
+version = "3.7.0"
 source = { editable = "packages/mcp-fetch" }
 dependencies = [
     { name = "httpx" },
@@ -5687,7 +5729,7 @@ requires-dist = [
 
 [[package]]
 name = "videoflow-mcp-vision"
-version = "3.4.1"
+version = "3.7.0"
 source = { editable = "packages/mcp-vision" }
 dependencies = [
     { name = "mcp" },

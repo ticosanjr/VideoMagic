@@ -84,6 +84,10 @@ def _env_file(
         "VF_GPU_BUILTIN_HANDLERS=1",
         "VF_GPU_DISCOVERY=1",
         "VF_GPU_ADVERTISE_PORT=8767",
+        "VF_GPU_MAX_UPLOAD_MB=8192",
+        "VF_GPU_ASR_MODEL=large-v3-turbo",
+        "VF_GPU_ASR_DEVICE=cuda",
+        "VF_GPU_ASR_COMPUTE_TYPE=float16",
     ]
     if shared_windows_path.strip():
         lines.append(f"VF_GPU_SHARED_ROOT={shared_windows_path.strip()}")
@@ -100,6 +104,7 @@ def _windows_scripts(version: str) -> dict[str, bytes]:
     return {
         "VideoFlowGPU.ps1": _crlf(ps1.replace("__VERSION__", version)),
         "VideoFlowGPU.bat": _crlf((scripts / "VideoFlowGPU.bat").read_text(encoding="utf-8")),
+        "requirements-windows.txt": (scripts / "requirements-windows.txt").read_bytes(),
         "expected_version.txt": (version + "\n").encode("utf-8"),
     }
 
@@ -117,25 +122,40 @@ Worker id: {worker_id}
 
 ONE FILE: double-click VideoFlowGPU.bat.
 It opens a menu for install/repair, start, stop, status, doctor, logs,
-autostart, and uninstall. The same script supports command-line actions.
+autostart, benchmark, and uninstall. It never closes on an error: the error
+panel stays on screen and the menu returns.
 
 First run:
 1. Extract this zip to a short path, for example C:\\VideoFlowGPU.
-2. Run VideoFlowGPU.bat and choose Install / update / repair.
-3. The script installs uv, Python 3.11, the worker, CUDA PyTorch,
+2. Run VideoFlowGPU.bat and choose "Instalar / reparar tudo".
+3. The script installs uv, a private Python 3.11, the worker, CUDA PyTorch,
    faster-whisper, rembg, OpenCV, FFmpeg with NVENC, and the firewall rule.
-4. Start the worker from the menu.
+4. Choose "Iniciar worker".
 5. In VideoFlow on Linux, use Setup -> GPU acceleration with this machine's
    LAN IP, port 8766, and the token from worker.env.
+
+Offline worker install:
+- wheels\\ contains the worker and its Python dependencies.
+- The worker is installed with --no-index, so a PyPI/TLS failure cannot break
+  the first step.
+- If uv fails, the installer falls back to the venv's pip.
+- The heavy CUDA runtime (PyTorch, CTranslate2, ONNX Runtime) is downloaded
+  from the network after the worker is already installed.
 
 Self-healing:
 - Broken .venv is removed and rebuilt.
 - Wrong/missing worker version is reinstalled.
-- Missing CUDA/Python packages are reinstalled.
+- Missing CUDA/Python packages are reinstalled only when needed.
 - Missing FFmpeg/NVENC is downloaded or reported clearly.
-- Shared mount failure falls back to HTTP.
-- The supervisor restarts the worker after a crash.
+- Shared mount failure falls back to HTTP automatically.
+- The supervisor restarts the worker after a crash or a health timeout.
 - The token is restored from worker.env.bak when possible.
+
+Error capture:
+- Every command writes stdout, stderr, exit code, and the exact command to
+  logs\\install-*.log.
+- The last error is also written to logs\\last-error.json.
+- "Diagnostico completo" creates a zip with logs and environment data.
 
 {ffmpeg_line}
 
@@ -148,8 +168,8 @@ Security:
   to the Windows path of the same folder mounted on Linux.
 
 Troubleshooting:
-- VideoFlowGPU.bat -> Status / Doctor / Show logs.
-- The logs are in logs/bootstrap.log and logs/worker-error.log.
+- VideoFlowGPU.bat -> Status / Doctor / Show logs / Diagnostico.
+- The logs are in logs\\bootstrap.log and logs\\worker-error.log.
 - If NVIDIA driver/nvidia-smi is missing, install the NVIDIA driver and reboot.
 """
 
@@ -192,6 +212,30 @@ def _wheel_paths() -> list[Path]:
     return candidates
 
 
+def _worker_wheel() -> Path | None:
+    candidates = _wheel_paths()
+    version = _kit_version()
+    for path in candidates:
+        if version in path.name:
+            return path
+    return candidates[-1] if candidates else None
+
+
+def _runtime_wheels() -> list[Path]:
+    root = _templates_root() / "wheels" / "win"
+    if not root.is_dir():
+        return []
+    return sorted(root.glob("*.whl"))
+
+
+def _checksums(wheels: list[Path]) -> bytes:
+    lines = [
+        f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}"
+        for path in wheels
+    ]
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
 def _kit_version() -> str:
     from videoflow import __version__
 
@@ -205,7 +249,7 @@ def build_worker_kit(
     worker_id: str = "",
     shared_windows_path: str = "",
     ffmpeg_path: Path | None = None,
-    include_worker_source: bool = True,
+    include_worker_source: bool = False,
 ) -> KitResult:
     """Build a personal Windows worker zip and return its metadata."""
 
@@ -222,6 +266,12 @@ def build_worker_kit(
     files: list[str] = []
     ffmpeg = Path(ffmpeg_path).expanduser() if ffmpeg_path is not None else None
     has_ffmpeg = bool(ffmpeg and ffmpeg.is_file())
+    worker_wheel = _worker_wheel()
+    wheels = ([worker_wheel] if worker_wheel is not None else []) + _runtime_wheels()
+    unique: dict[str, Path] = {}
+    for wheel in wheels:
+        unique.setdefault(wheel.name, wheel)
+    wheels = list(unique.values())
     with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         entries = {
             "worker.env": _env_file(
@@ -233,6 +283,7 @@ def build_worker_kit(
                 worker_id=resolved_worker,
                 has_ffmpeg=has_ffmpeg,
             ).encode("utf-8"),
+            "checksums.txt": _checksums(wheels),
             **_windows_scripts(_kit_version()),
         }
         for name, data in entries.items():
@@ -245,8 +296,7 @@ def build_worker_kit(
             if probe.is_file():
                 _zip_write(zf, "bin/ffprobe.exe", probe.read_bytes())
                 files.append("bin/ffprobe.exe")
-        wheels = _wheel_paths()
-        for wheel in wheels[:1]:
+        for wheel in wheels:
             _zip_write(zf, f"wheels/{wheel.name}", wheel.read_bytes())
             files.append(f"wheels/{wheel.name}")
         if include_worker_source:

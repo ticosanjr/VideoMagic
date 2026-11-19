@@ -13,7 +13,6 @@ from pydantic import BaseModel, Field, model_validator
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.api.errors import status_for
-from videoflow.api.routes_timeline import _timeline_state_path
 from videoflow.application.broll_approval import (
     load_approvals,
     redo_approval,
@@ -34,7 +33,7 @@ from videoflow.application.deliverables import (
 )
 from videoflow.application.dubbing import generate_short_dubbing
 from videoflow.application.intelligence import build_intelligence
-from videoflow.application.jobs import JobManager
+from videoflow.application.jobs import Job, JobManager
 from videoflow.application.live_source import live_sources
 from videoflow.application.multimodal import analyze_short_entry
 from videoflow.application.multimodal_llm import analyze_short_llm_entry
@@ -70,6 +69,12 @@ from videoflow.domain.errors import (
 from videoflow.domain.paths import resolve_allowed
 from videoflow.domain.state import ProjectState
 from videoflow.runtime import allowed_roots
+
+
+def _timeline_state_path(job: Job) -> Path:
+    return Path(
+        str((job.result or {}).get("state_path") or job.output / "project_state.json")
+    )
 
 
 class ShortDubbingRequest(BaseModel):

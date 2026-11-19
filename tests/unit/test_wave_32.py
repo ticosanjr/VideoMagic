@@ -313,6 +313,8 @@ def test_release_kit_brand_and_curation(tmp_path: Path, monkeypatch) -> None:
     )
     kit = build_release_kit(record.project_id)
     assert kit["titles"] and kit["description"]
+    assert all(35 <= len(title) <= 70 for title in kit["titles"])
+    assert kit["source"] == "transcript"
     root = brand_kit_root("chan")
     root.mkdir(parents=True)
     (root / "logo.png").write_bytes(b"logo")

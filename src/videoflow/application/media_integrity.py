@@ -56,24 +56,26 @@ class IntegrityReport:
         }
 
 
-def probe_media(path: Path) -> dict[str, Any]:
-    """Return format and stream metadata, including a real frame count."""
+def probe_media(path: Path, *, count_frames: bool = True) -> dict[str, Any]:
+    """Return format and stream metadata, optionally with a real frame count."""
 
     binary = find_binary("ffprobe")
     if binary is None:
         raise ExportError("ffprobe is required for the export integrity gate")
-    completed = subprocess.run(
+    command = [binary, "-v", "error"]
+    if count_frames:
+        command.append("-count_frames")
+    command.extend(
         [
-            binary,
-            "-v",
-            "error",
-            "-count_frames",
             "-print_format",
             "json",
             "-show_format",
             "-show_streams",
             str(Path(path).expanduser()),
-        ],
+        ]
+    )
+    completed = subprocess.run(
+        command,
         capture_output=True,
         text=True,
         check=False,

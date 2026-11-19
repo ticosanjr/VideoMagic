@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Measure a real Windows/NVIDIA GPU worker for the 3.4.0 acceptance gate.
+"""Measure a real Windows/NVIDIA GPU worker for the 3.6.0 acceptance gate.
 
 The script never fabricates a speedup. Missing media or an unreachable worker
 produces ``blocked``; a measured threshold miss produces ``failed``.
@@ -11,8 +11,8 @@ Usage:
       --asr-audio samples/25min.wav \
       --nvenc-video samples/11min.mp4 \
       --matte-input samples/matte-3s.mp4 \
-      --json-out docs/qa-evidence/3.4.0-gpu.json \
-      --markdown-out docs/performance-3.4.md
+      --json-out docs/qa-evidence/3.6.0-gpu.json \
+      --markdown-out docs/performance-3.5.md
 """
 
 from __future__ import annotations
@@ -29,6 +29,14 @@ from typing import Any
 
 from vf_compute import GPUWorkerClient
 from vf_compute.discovery import discover_workers
+
+
+def _videoflow_version() -> str:
+    try:
+        from videoflow import __version__
+    except Exception:  # noqa: BLE001 - acceptance must report, not crash
+        return "unknown"
+    return __version__
 
 
 def _duration_sec(path: Path) -> float:
@@ -148,7 +156,7 @@ def _matte_check(client: GPUWorkerClient, media: Path | None) -> dict[str, Any]:
 def _markdown(payload: dict[str, Any]) -> str:
     worker = payload.get("worker", {})
     lines = [
-        "# GPU acceptance — 3.4.0",
+        f"# GPU acceptance — {payload['version']}",
         "",
         f"Generated: {payload['generated_at']}",
         f"Status: **{payload['status']}**",
@@ -195,7 +203,7 @@ def main() -> int:
 
     payload: dict[str, Any] = {
         "schema_version": 1,
-        "version": "3.4.0",
+        "version": _videoflow_version(),
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "worker_url": args.worker_url,
         "worker": {},

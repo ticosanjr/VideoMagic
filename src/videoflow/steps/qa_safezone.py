@@ -25,11 +25,25 @@ SAFE_ZONES: dict[str, tuple[SafeZoneBox, ...]] = {
         SafeZoneBox(platform="tiktok", x=0.0, y=0.0, width=1.0, height=0.10, reason="top chrome"),
     ),
     "shorts": (
-        SafeZoneBox(platform="shorts", x=0.0, y=0.84, width=1.0, height=0.16, reason="bottom UI"),
         SafeZoneBox(
-            platform="shorts", x=0.86, y=0.0, width=0.14, height=1.0, reason="right action rail"
+            platform="shorts",
+            x=0.0,
+            y=1540 / 1920,
+            width=1.0,
+            height=380 / 1920,
+            reason="bottom UI",
         ),
-        SafeZoneBox(platform="shorts", x=0.0, y=0.0, width=1.0, height=0.08, reason="top chrome"),
+        SafeZoneBox(
+            platform="shorts",
+            x=940 / 1080,
+            y=0.0,
+            width=140 / 1080,
+            height=1.0,
+            reason="right action rail",
+        ),
+        SafeZoneBox(
+            platform="shorts", x=0.0, y=0.0, width=1.0, height=0.06, reason="top chrome"
+        ),
     ),
     "youtube": (
         SafeZoneBox(
@@ -134,10 +148,51 @@ class SafeZoneStep(BaseStep):
                     )
                     if found:
                         collisions.append(found)
-        if options.include_captions and context.short_captions:
+        cues = context.metadata.get("short_cues")
+        captions = cues.get("captions") if isinstance(cues, dict) else None
+        if options.include_captions and isinstance(captions, list) and captions:
+            from videoflow.application.short_composition.geometry import caption_region
+
+            for index, block in enumerate(captions):
+                if not isinstance(block, dict):
+                    continue
+                layout = str(block.get("layout") or "FULL_FACE")
+                lines = block.get("lines") or ["x"]
+                region = caption_region(layout, lines=len(lines))
+                element = _box(
+                    region.x / 1080,
+                    region.y / 1920,
+                    region.width / 1080,
+                    region.height / 1920,
+                )
+                for platform in platforms:
+                    found = _collision(
+                        platform,
+                        f"caption_{index}",
+                        "captions",
+                        element,
+                        float(block.get("start") or 0.0),
+                        float(block.get("end") or 0.0),
+                    )
+                    if found:
+                        collisions.append(found)
+        elif options.include_captions and context.short_captions:
             caption = options.caption_box
-            element = _box(caption[0], caption[1], caption[2], caption[3])
             for platform in platforms:
+                box = caption
+                if platform == "shorts":
+                    from videoflow.application.short_composition.geometry import (
+                        caption_region,
+                    )
+
+                    region = caption_region("FULL_FACE")
+                    box = [
+                        region.x / 1080,
+                        region.y / 1920,
+                        region.width / 1080,
+                        region.height / 1920,
+                    ]
+                element = _box(box[0], box[1], box[2], box[3])
                 found = _collision(platform, "captions", "captions", element, 0.0, 0.0)
                 if found:
                     collisions.append(found)

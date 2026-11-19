@@ -1,8 +1,8 @@
-"""Public MCP surface for the 2.90 core profile.
+"""Public MCP surface for the 3.5 core profile.
 
-Thirteen tools, explicit project ids, and on-demand resources for the 122+ step
-catalog. Domain capabilities live in the separate vf-fetch, vf-audio, vf-vision,
-and vf-gpu-worker packages.
+One tool per workflow area with explicit ``action`` values, stable project ids,
+and on-demand resources for the step catalog. Domain capabilities live in the
+separate vf-fetch, vf-audio, vf-vision, and vf-gpu-worker packages.
 """
 
 from __future__ import annotations
@@ -25,26 +25,6 @@ class ResourceSpec:
 
 TOOL_SPECS: tuple[ToolSpec, ...] = (
     ToolSpec(
-        "vf_style_list",
-        "List the Markdown style catalog and optional workspace sync.",
-        "styles",
-    ),
-    ToolSpec(
-        "vf_style_save",
-        "Create or update one Markdown style and sync presets/.",
-        "styles",
-    ),
-    ToolSpec(
-        "vf_style_learn_rule",
-        "Append review rules to one style, capped at 15 consolidated rules.",
-        "styles",
-    ),
-    ToolSpec(
-        "analyze_reference_style",
-        "Analyze a reference and return a style candidate without saving.",
-        "styles",
-    ),
-    ToolSpec(
         "vf_style_validate",
         "Validate caption presets, layouts, motion engines, and fonts in a style.",
         "styles",
@@ -66,7 +46,7 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "vf_overlay_preview",
-        "Render one frame with overlay boxes, captions, safe zones, and labels.",
+        "Render overlay boxes or a crop rectangle preview frame.",
         "timeline",
     ),
     ToolSpec(
@@ -110,28 +90,58 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "shorts",
     ),
     ToolSpec(
+        "vf_scenes",
+        "Analyze scenes or read the cached manifest, keyframe metadata, supercontext, and cache.",
+        "scenes",
+    ),
+    ToolSpec(
         "vf_qa_final",
         "Audit the deliverable MP4, safe zones, loudness, and contact sheet.",
         "qa",
     ),
     ToolSpec(
-        "vf_assets",
-        "List, approve, or quarantine project assets and their licenses.",
-        "assets",
+        "vf_qa_compare",
+        "Compare two immutable QA reports for regressions.",
+        "qa",
     ),
     ToolSpec(
-        "vf_font",
-        "List, register, or install TTF/OTF fonts.",
+        "vf_transcript_query",
+        "Search or page through the cleaned transcript without dumping it.",
+        "transcript",
+    ),
+    ToolSpec(
+        "vf_glossary",
+        "List, update, or apply a channel glossary of technical terms.",
+        "transcript",
+    ),
+    ToolSpec(
+        "vf_storyboard_strip",
+        "Render one contact-sheet PNG for a timeline or source range.",
+        "qa",
+    ),
+    ToolSpec(
+        "vf_preflight_plan",
+        "Validate schema, dependencies, licenses, disk, GPU, and cost.",
+        "system",
+    ),
+    ToolSpec(
+        "vf_assets",
+        "List assets, licenses, or fonts; approve, quarantine, or register fonts.",
         "assets",
     ),
     ToolSpec(
         "vf_project",
-        "Create/open/status a project, clone a channel style, or learn a rule.",
+        "Create/open/status a project, brief the session, and manage checkpoints.",
         "project",
     ),
     ToolSpec(
         "vf_capabilities",
         "Return backend, model, and external-provider availability.",
+        "system",
+    ),
+    ToolSpec(
+        "vf_gpu_preflight",
+        "Validate the Windows GPU worker before a long job.",
         "system",
     ),
     ToolSpec(
@@ -141,7 +151,7 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "vf_style",
-        "List, save, sync, or learn rules for Markdown channel styles.",
+        "List, get, save, sync, analyze, delete, or learn rules for Markdown styles.",
         "styles",
     ),
     ToolSpec(
@@ -155,13 +165,8 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "steps",
     ),
     ToolSpec(
-        "vf_jobs",
-        "List, inspect, or cancel jobs in the shared SQLite queue.",
-        "jobs",
-    ),
-    ToolSpec(
         "vf_job",
-        "Get, wait, inspect logs, or read QA for a job.",
+        "List, cancel, get, wait, inspect logs, or read QA for a job.",
         "jobs",
     ),
     ToolSpec(
@@ -175,23 +180,8 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "artifacts",
     ),
     ToolSpec(
-        "vf_render",
-        "Start, inspect, or cancel a render job.",
-        "render",
-    ),
-    ToolSpec(
         "vf_export",
-        "Render the canonical MP4 master and requested NLE delivery targets.",
-        "nle",
-    ),
-    ToolSpec(
-        "vf_crop_preview",
-        "Extract a frame with the normalized crop rectangle and thirds grid.",
-        "timeline",
-    ),
-    ToolSpec(
-        "vf_exports",
-        "Export a multi-NLE bundle, validate it, or run an NLE roundtrip.",
+        "Bundle, draft-render, validate, or NLE-roundtrip exports.",
         "nle",
     ),
     ToolSpec(
@@ -201,13 +191,8 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "vf_ingest",
-        "Run session ingest or multicam synchronization.",
+        "Run session ingest, multicam synchronization, or audio diagnosis.",
         "ingest",
-    ),
-    ToolSpec(
-        "vf_qa",
-        "Read QA artifacts or route new QA runs through vf_exec.",
-        "qa",
     ),
 )
 
@@ -218,6 +203,11 @@ RESOURCE_SPECS: tuple[ResourceSpec, ...] = (
     ResourceSpec("vf://projects/{project_id}/transcript", "Project transcript SRT."),
     ResourceSpec("vf://projects/{project_id}/jobs", "Jobs for one project."),
     ResourceSpec("vf://projects/{project_id}/artifacts", "Artifact manifest."),
+    ResourceSpec("vf://projects/{project_id}/scenes", "Cached scene manifest."),
+    ResourceSpec(
+        "vf://projects/{project_id}/scenes/{scene_id}/keyframe",
+        "Scene keyframe metadata and file path.",
+    ),
     ResourceSpec("vf://projects/{project_id}/jobs/{job_id}/logs", "Persisted job log."),
     ResourceSpec("vf://styles", "Canonical Markdown style catalog."),
     ResourceSpec("vf://styles/{style_id}", "One Markdown style and its rules."),
@@ -225,4 +215,5 @@ RESOURCE_SPECS: tuple[ResourceSpec, ...] = (
     ResourceSpec("vf://presets/{channel_id}/kit", "Channel asset kit."),
     ResourceSpec("vf://docs/steps", "Full node/tool catalog."),
     ResourceSpec("vf://docs/steps/{step_type}", "Full step parameter schema."),
+    ResourceSpec("vf://docs/contracts/{name}", "One short media/QA contract document."),
 )

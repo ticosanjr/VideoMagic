@@ -5,9 +5,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from fastapi.testclient import TestClient
 
-from videoflow.api.app import create_app
 from videoflow.domain.errors import BatchError
 from videoflow.engine.batch import BatchManager
 
@@ -79,36 +77,6 @@ def test_batch_manager_rejects_an_empty_folder(tmp_path: Path) -> None:
             tmp_path / "out",
             {"id": "batch", "name": "Batch", "steps": [{"id": "ingest", "type": "ingest"}]},
         )
-
-
-def test_batch_api_returns_a_batch(tmp_path: Path) -> None:
-    home = tmp_path / "videoflow-home"
-    source = home / "in"
-    source.mkdir(parents=True)
-    (source / "a.mp4").write_bytes(b"a")
-    jobs = FakeJobs()
-    client = TestClient(create_app(jobs=jobs))  # type: ignore[arg-type]
-    response = client.post(
-        "/api/v1/batches",
-        json={
-            "source_dir": str(source),
-            "output_root": str(home / "out"),
-            "recipe": {
-                "id": "batch",
-                "name": "Batch",
-                "steps": [{"id": "ingest", "type": "ingest"}],
-            },
-        },
-    )
-    assert response.status_code == 202
-    batch_id = response.json()["batch"]["batch_id"]
-    for _ in range(200):
-        current = client.get(f"/api/v1/batches/{batch_id}")
-        assert current.status_code == 200
-        if current.json()["batch"]["status"] in {"succeeded", "failed", "cancelled"}:
-            break
-        time.sleep(0.01)
-    assert current.json()["batch"]["status"] == "succeeded"
 
 
 def test_batch_history_survives_restart(tmp_path: Path) -> None:

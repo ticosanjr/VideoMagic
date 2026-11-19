@@ -27,7 +27,7 @@ exports/bundle.json
 ```
 
 `kdenlive_project.mlt` is a byte-identical copy of the native
-`.kdenlive` project. Validation accepts either name, and `vf_exports(action="bundle")`
+`.kdenlive` project. Validation accepts either name, and `vf_export()`
 uses the project style `export_targets` when the caller omits `targets`.
 
 ## 0. Native finishing inputs

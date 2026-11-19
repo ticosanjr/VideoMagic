@@ -96,8 +96,15 @@ values genuinely shared by multiple nodes or profiles.
 | Type | Requires | Produces |
 | --- | --- | --- |
 | `ingest` | — | media, PCM, digest |
-| `audio.vad` | `ingest` | speech intervals, silence spans, VAD engine |
+| `audio.vad` | `ingest` | speech intervals, silence spans, VAD engine, RMS map |
+| `audio.events` | `ingest` | acoustic events (cough, throat clear, sneeze, transient) |
 | `transcribe` | `ingest` | transcript (SRT, project, Faster-Whisper, whisper.cpp, HTTP, or none) |
+| `speech.asu` | `transcribe`, `audio.vad` | atomic speech units with pauses, RMS, speech rate, and word indexes |
+| `decupage.prefilter` | `speech.asu` | retake groups, stutter candidates, noise quarantine |
+| `decupage.llm` | `speech.asu` | explicit caller/videoflow/none semantic contract |
+| `decupage.apply` | `speech.asu`, decisions | validated cuts, trim words, review flags |
+| `decupage.snap` | `speech.asu`, decisions | RMS snap, pads, merge, frame-quantised plan |
+| `decupage.timeline` | `decupage.snap` | canonical timeline with inactive segments |
 | `speech.editorial_clean` | `transcribe` | stutter/false-start and retake cleanup, exact source cuts, `transcript_clean.json` |
 | `retakes.cull` | `audio.vad`, `transcribe` | discard/restore decisions, retake/manual spans, updated speech; runs editorial cleanup when absent |
 | `audio.diarize` | `transcribe` | heuristic or pyannote speaker ids for captions |
@@ -187,7 +194,7 @@ recipes, and it does not accept a recipe DAG.
 - `vf_catalog_search` / `vf://docs/steps` — discover node types
 - `vf://docs/steps/{step_type}` — read one node schema
 - `vf_exec(action="step", ...)` — run one node
-- `vf_job`, `vf_timeline`, `vf_artifact`, `vf_render`, `vf_exports` — operate on the project
+- `vf_job`, `vf_timeline`, `vf_artifact`, `vf_export` — operate on the project
 
 Recipes remain available through the UI, CLI (`videoflow recipe`), REST
 (`/api/v1/recipes/*`), the scheduler, and batch manager. The MCP server and the

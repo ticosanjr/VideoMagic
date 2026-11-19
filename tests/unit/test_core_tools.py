@@ -12,7 +12,6 @@ from videoflow.domain.state import (
     Sentence,
     VideoSegment,
 )
-from videoflow.engine.batch import BatchManager
 from videoflow.mcp_server.context import ToolContext
 from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -58,7 +57,7 @@ class Manager:
     def start(self, *args, **kwargs):
         return self.job
 
-    def cancel(self, job_id):
+    def cancel(self, job_id, *, force: bool = False):
         return self.job
 
     def update_result(self, job_id, result):
@@ -116,7 +115,7 @@ def setup(tmp_path: Path, monkeypatch):
 
     register_core_tools(
         register,
-        ToolContext(manager=Manager(job), batch_manager=BatchManager(Manager(job))),  # type: ignore[arg-type]
+        ToolContext(manager=Manager(job)),  # type: ignore[arg-type]
     )
     return tools, record, job
 
@@ -164,16 +163,16 @@ def test_core_timeline_artifact_render_exports(tmp_path: Path, monkeypatch) -> N
         action="get", project_id=record.project_id, artifact="exports/note.txt"
     )
     assert artifact[0]["text"] == "ok"
-    assert tools["vf_render"](action="start", project_id=record.project_id)["ok"] is True
+    assert tools["vf_export"](action="render", project_id=record.project_id)["ok"] is True
     assert (
-        tools["vf_render"](action="cancel", project_id=record.project_id, job_id="job-1")["ok"]
+        tools["vf_job"](action="cancel", project_id=record.project_id, job_id="job-1")["ok"]
         is True
     )
-    assert tools["vf_exports"](action="validate", project_id=record.project_id)["ok"] in {
+    assert tools["vf_export"](action="validate", project_id=record.project_id)["ok"] in {
         True,
         False,
     }
-    assert tools["vf_qa"](action="artifacts", project_id=record.project_id)[0]["ok"] is True
+    assert tools["vf_job"](action="qa", project_id=record.project_id)["ok"] is True
 
 
 def test_core_ingest_interaction_and_errors(tmp_path: Path, monkeypatch) -> None:
@@ -181,7 +180,7 @@ def test_core_ingest_interaction_and_errors(tmp_path: Path, monkeypatch) -> None
     assert tools["vf_ingest"](action="multicam", project_id=record.project_id)["ok"] is False
     assert tools["vf_project"](action="status", project_id="missing")["ok"] is False
     assert tools["vf_interaction"](action="list", project_id=record.project_id)["ok"] is True
-    assert tools["vf_qa"](action="inspect", project_id=record.project_id)["ok"] is True
+    assert tools["vf_job"](action="qa", project_id=record.project_id)["ok"] is True
 
 
 def test_core_catalog_and_project_errors(tmp_path: Path, monkeypatch) -> None:
@@ -203,16 +202,16 @@ def test_core_job_wait_and_render_status(tmp_path: Path, monkeypatch) -> None:
     waited = tools["vf_job"](action="wait", project_id=record.project_id, job_id="job-1")
     assert waited["ok"] is True
     assert (
-        tools["vf_render"](action="status", project_id=record.project_id, job_id="job-1")["ok"]
+        tools["vf_job"](action="status", project_id=record.project_id, job_id="job-1")["ok"]
         is True
     )
     assert (
-        tools["vf_exports"](action="roundtrip", project_id=record.project_id, direction="push")[
+        tools["vf_export"](action="roundtrip", project_id=record.project_id, direction="push")[
             "ok"
         ]
         is True
     )
-    assert tools["vf_qa"](action="inspect", project_id="missing")["ok"] is False
+    assert tools["vf_job"](action="qa", project_id="missing")["ok"] is False
     job.status = "running"
     assert (
         tools["vf_job"](action="wait", project_id=record.project_id, job_id="job-1", timeout_sec=1)[
@@ -314,9 +313,7 @@ def test_core_apply_beatmap_is_atomic(tmp_path: Path, monkeypatch) -> None:
 
 def test_core_exports_bundle_without_mp4(tmp_path: Path, monkeypatch) -> None:
     tools, record, _ = setup(tmp_path, monkeypatch)
-    result = tools["vf_exports"](
-        action="bundle",
-        project_id=record.project_id,
+    result = tools["vf_export"](project_id=record.project_id,
         targets="resolve",
     )
     assert result["ok"] is True
@@ -365,7 +362,7 @@ def test_core_style_and_beatmap_guards(tmp_path: Path, monkeypatch) -> None:
         ]
         is False
     )
-    assert tools["vf_exports"](action="bundle", project_id="missing")["ok"] is False
+    assert tools["vf_export"](project_id="missing")["ok"] is False
     assert tools["vf_job"](action="wait", project_id="missing")["ok"] is False
 
 
@@ -418,23 +415,25 @@ def test_core_error_branches_and_roundtrip_formats(tmp_path: Path, monkeypatch) 
 
     empty, _ = init_project(output=tmp_path / "empty")
     assert (
-        tools["vf_exports"](action="bundle", project_id=empty.project_id)["code"]
+        tools["vf_export"](project_id=empty.project_id)["code"]
         == "timeline_required"
     )
 
     monkeypatch.setattr(
         Manager,
         "cancel",
-        lambda self, job_id: (_ for _ in ()).throw(VideoFlowError("cancel failed")),
+        lambda self, job_id, force=False: (_ for _ in ()).throw(
+            VideoFlowError("cancel failed")
+        ),
     )
     assert (
-        tools["vf_render"](action="cancel", project_id=record.project_id, job_id="job-1")["ok"]
+        tools["vf_job"](action="cancel", project_id=record.project_id, job_id="job-1")["ok"]
         is False
     )
 
     for nle, suffix in (("premiere", ".xml"), ("kdenlive", ".kdenlive")):
         target = tmp_path / "out" / "exports" / f"push{suffix}"
-        pushed = tools["vf_exports"](
+        pushed = tools["vf_export"](
             action="roundtrip",
             project_id=record.project_id,
             direction="push",
@@ -557,7 +556,7 @@ def test_core_bundle_uses_project_style_export_targets(tmp_path: Path, monkeypat
         style_id="export-min",
     )
 
-    result = tools["vf_exports"](action="bundle", project_id=record.project_id)
+    result = tools["vf_export"](project_id=record.project_id)
 
     assert result["ok"] is True
     assert set(result["bundle"]["files"]) == {"resolve"}
@@ -576,27 +575,23 @@ def test_core_style_analyze_returns_candidate(tmp_path: Path, monkeypatch) -> No
         reference_url="https://example.com",
         workspace_dir=str(tmp_path),
     )
-    alias = tools["analyze_reference_style"](
-        style_id="candidate",
-        reference_url="https://example.com",
-        workspace_dir=str(tmp_path),
-    )
-    assert alias["ok"] is True
     assert result["ok"] is True
     assert result["saved"] is False
 
 
-def test_core_style_aliases(tmp_path: Path, monkeypatch) -> None:
+def test_core_style_actions(tmp_path: Path, monkeypatch) -> None:
     tools, record, _ = setup(tmp_path, monkeypatch)
-    assert tools["vf_style_list"]()["ok"] is True
-    saved = tools["vf_style_save"](
+    assert tools["vf_style"](action="list")["ok"] is True
+    saved = tools["vf_style"](
+        action="save",
         style_id="alias-style",
         name="Alias",
         platforms=["youtube"],
         workspace_dir=str(tmp_path / "workspace"),
     )
     assert saved["ok"] is True
-    learned = tools["vf_style_learn_rule"](
+    learned = tools["vf_style"](
+        action="learn_rule",
         style_id="alias-style",
         feedback_note="Cortar antes de 1s",
     )

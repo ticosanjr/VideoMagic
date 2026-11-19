@@ -229,6 +229,9 @@ class FFmpegAdapter:
         destination: Path,
         *,
         height: int = 540,
+        preset: str = "veryfast",
+        crf: int = 23,
+        audio: bool = True,
     ) -> Path:
         """Build a preview-only H.264/AAC proxy."""
 
@@ -236,32 +239,29 @@ class FFmpegAdapter:
         target = Path(destination).expanduser()
         target.parent.mkdir(parents=True, exist_ok=True)
         temporary = target.with_name(f"{target.stem}.part{target.suffix}")
-        self._run(
-            [
-                "ffmpeg",
-                "-hide_banner",
-                "-loglevel",
-                "error",
-                "-y",
-                "-i",
-                str(source_path),
-                "-vf",
-                f"scale=-2:{max(144, int(height))}",
-                "-c:v",
-                "libx264",
-                "-preset",
-                "veryfast",
-                "-crf",
-                "23",
-                "-c:a",
-                "aac",
-                "-b:a",
-                "128k",
-                "-movflags",
-                "+faststart",
-                str(temporary),
-            ]
-        )
+        command = [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            str(source_path),
+            "-vf",
+            f"scale=-2:{max(144, int(height))}",
+            "-c:v",
+            "libx264",
+            "-preset",
+            preset,
+            "-crf",
+            str(max(0, min(51, int(crf)))),
+        ]
+        if audio:
+            command.extend(["-c:a", "aac", "-b:a", "128k"])
+        else:
+            command.append("-an")
+        command.extend(["-movflags", "+faststart", str(temporary)])
+        self._run(command)
         temporary.replace(target)
         return target
 
@@ -484,6 +484,7 @@ class FFmpegAdapter:
         intro_duration: float,
         outro_duration: float,
         work: Path,
+        fps: int = 30,
     ) -> Path:
         command = [
             "ffmpeg",
@@ -498,7 +499,8 @@ class FFmpegAdapter:
         labels: list[str] = []
         filters.append(
             f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
-            f"crop={width}:{height},setsar=1,fps=30,setpts=PTS-STARTPTS[v0]"
+            f"crop={width}:{height},setsar=1,fps={max(1, int(fps))},"
+            "setpts=PTS-STARTPTS[v0]"
         )
         filters.append(
             "[0:a]aformat=sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS[a0]"
@@ -530,8 +532,8 @@ class FFmpegAdapter:
             )
             filters.append(
                 f"[{video_index}:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
-                f"crop={width}:{height},setsar=1,fps=30,trim=duration={duration:.3f},"
-                f"setpts=PTS-STARTPTS[v{index}]"
+                f"crop={width}:{height},setsar=1,fps={max(1, int(fps))},"
+                f"trim=duration={duration:.3f},setpts=PTS-STARTPTS[v{index}]"
             )
             filters.append(
                 f"[{audio_index}:a]atrim=0:{duration:.3f},asetpts=PTS-STARTPTS[a{index}]"
@@ -658,6 +660,48 @@ class FFmpegAdapter:
         )
         return sorted(target_dir.glob("frame-*.jpg"))
 
+    def extract_keyframe(
+        self,
+        source: Path,
+        destination: Path,
+        *,
+        time_sec: float,
+        max_size: int = 544,
+        quality: int = 78,
+    ) -> Path:
+        """Extract one JPEG keyframe bounded by ``max_size`` on its long edge."""
+
+        if time_sec < 0:
+            raise IngestError("Keyframe time must be non-negative")
+        source_path = Path(source).expanduser()
+        target = Path(destination).expanduser()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        limit = max(64, int(max_size))
+        qscale = max(2, min(31, round(31 - (max(1, min(100, quality)) * 0.29))))
+        command = [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-ss",
+            f"{time_sec:.6f}",
+            "-i",
+            str(source_path),
+            "-frames:v",
+            "1",
+            "-vf",
+            (
+                f"scale='if(gt(iw,ih),{limit},-2)':"
+                f"'if(gt(iw,ih),-2,{limit})':flags=lanczos"
+            ),
+            "-q:v",
+            str(qscale),
+            str(target),
+        ]
+        self._capture(command)
+        return target
+
     def render_thumbnail(
         self,
         source: Path,
@@ -749,6 +793,7 @@ class FFmpegAdapter:
         punch_in_scale: float = 1.06,
         visual_path: Path | None = None,
         headline_text: str = "",
+        fps: int = 30,
     ) -> Path:
         """Render concatenated source pieces as a vertical H.264 short."""
 
@@ -864,7 +909,7 @@ class FFmpegAdapter:
                         base += (
                             f",zoompan=z='min(1+0.0006*on,{scale:.4f})':"
                             "x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
-                            f"d=1:s={width}x{height}:fps=30"
+                            f"d=1:s={width}x{height}:fps={max(1, int(fps))}"
                         )
                     mask_input: list[str] = []
                     if cutout:
@@ -965,6 +1010,8 @@ class FFmpegAdapter:
                         "libmp3lame",
                         "-b:a",
                         "192k",
+                        "-r",
+                        str(max(1, int(fps))),
                         *(["-af", ",".join(audio_filters)] if audio_filters else []),
                         str(piece),
                     ]
@@ -1026,7 +1073,7 @@ class FFmpegAdapter:
                     for index in range(1, len(rendered)):
                         offset = max(
                             0.0,
-                            current - max(crossfade, 1.0 / 30.0 + 0.001),
+                            current - max(crossfade, 1.0 / max(1, int(fps)) + 0.001),
                         )
                         chains.append(
                             f"{video_label}[v{index}]xfade=transition=fade:"
@@ -1393,6 +1440,7 @@ class FFmpegAdapter:
                     intro_duration=intro_duration_sec,
                     outro_duration=outro_duration_sec,
                     work=work,
+                    fps=fps,
                 )
             shutil.move(str(final), target)
         finally:

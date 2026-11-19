@@ -194,25 +194,17 @@ def test_cache_and_version_headers(tmp_path: Path) -> None:
     assert chunk.headers["cache-control"] == "no-cache"
 
 
-def test_start_publisher_schedulers(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_start_background_services(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     calls: list[str] = []
-    monkeypatch.setenv("VIDEOWFLOW_PUBLISH_SCHEDULER", "1")
-    monkeypatch.setenv("VIDEOWFLOW_RECIPE_SCHEDULER", "1")
     monkeypatch.setenv("VIDEOWFLOW_SERVICE_AUTOSTART", "1")
-    monkeypatch.setattr(app_module, "start_scheduler", lambda: calls.append("publish"))
-    monkeypatch.setattr(
-        app_module, "start_recipe_scheduler", lambda *_a, **_k: calls.append("recipe")
-    )
     monkeypatch.setattr(app_module, "autostart", lambda: calls.append("services"))
-    monkeypatch.setattr(app_module, "stop_scheduler", lambda: calls.append("stop"))
-    monkeypatch.setattr(app_module, "stop_recipe_scheduler", lambda: calls.append("stop-recipe"))
     monkeypatch.setattr(app_module, "stop_managed_services", lambda: calls.append("stop-services"))
 
     app = create_app(ui=None, start_publisher=True)
     with TestClient(app):
         pass
 
-    assert {"publish", "recipe", "services"} <= set(calls)
+    assert {"services", "stop-services"} <= set(calls)
 
 
 def test_writable_parent_guard(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

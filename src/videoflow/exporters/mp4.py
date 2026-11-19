@@ -15,7 +15,7 @@ from typing import Any
 from uuid import uuid4
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
-from videoflow.application.disk import ensure_free_space
+from videoflow.application.disk import ensure_free_space_for_export
 from videoflow.application.fonts import fonts_dir
 from videoflow.application.media_integrity import validate_integrity
 from videoflow.domain.errors import ExportError
@@ -988,7 +988,7 @@ def export_mp4(
     if media is None:
         raise ExportError("Project has no media")
     destination = Path(output_path).expanduser()
-    ensure_free_space(destination.parent)
+    ensure_free_space_for_export(destination.parent, state)
     if (
         len(state.video_segments) > SEGMENT_THRESHOLD
         or _has_crossfade(state)

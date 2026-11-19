@@ -26,6 +26,7 @@ class SileroVadAdapter:
         model: str | Path | None = None,
         *,
         threshold: float = 0.5,
+        neg_threshold: float | None = None,
         min_silence_ms: int = 400,
         min_speech_ms: int = 100,
         threads: int | None = None,
@@ -33,6 +34,9 @@ class SileroVadAdapter:
     ) -> None:
         self.model = Path(model) if model is not None else _default_model()
         self.threshold = threshold
+        self.neg_threshold = (
+            min(0.35, threshold) if neg_threshold is None else neg_threshold
+        )
         self.min_silence_ms = min_silence_ms
         self.min_speech_ms = min_speech_ms
         self.threads = threads or max(1, min(4, os.cpu_count() or 1))
@@ -56,6 +60,8 @@ class SileroVadAdapter:
 
         if not 0.1 <= self.threshold <= 0.9:
             raise IngestError("Silero speech threshold must be between 0.1 and 0.9")
+        if not 0.0 <= self.neg_threshold <= self.threshold:
+            raise IngestError("Silero negative threshold must be between 0 and threshold")
         if min(self.min_silence_ms, self.min_speech_ms) < 0:
             raise IngestError("Silero VAD durations must not be negative")
         samples = _read_wave(Path(wav_path).expanduser())
@@ -70,6 +76,8 @@ class SileroVadAdapter:
         state = np.zeros((2, 1, 128), dtype=np.float32)
         sample_rate = np.array(SAMPLE_RATE, dtype=np.int64)
         active: list[tuple[int, int]] = []
+        active_start: int | None = None
+        active_end = 0
         total = int(samples.size)
         for start in range(0, total, WINDOW_SAMPLES):
             end = min(start + WINDOW_SAMPLES, total)
@@ -88,10 +96,19 @@ class SileroVadAdapter:
             except Exception as exc:  # pragma: no cover - runtime/model failure
                 raise IngestError(f"Silero VAD inference failed: {exc}") from exc
             probability = float(output[0][0])
-            if probability >= self.threshold:
-                active.append((start, end))
+            if active_start is None:
+                if probability >= self.threshold:
+                    active_start = start
+                    active_end = end
+            elif probability >= self.neg_threshold:
+                active_end = end
+            else:
+                active.append((active_start, active_end))
+                active_start = None
             if self._log is not None and start % (WINDOW_SAMPLES * 200) == 0:
                 self._log("debug", f"Silero VAD {end}/{total} samples")
+        if active_start is not None:
+            active.append((active_start, active_end))
 
         merged = _merge(active, self._gap_samples(self.min_silence_ms))
         minimum = self._gap_samples(self.min_speech_ms)

@@ -1,4 +1,8 @@
-"""Consolidated 13-tool core MCP surface for VideoFlow 2.91."""
+"""Consolidated core MCP surface for VideoFlow.
+
+Each tool owns one workflow area and exposes explicit ``action`` values. Legacy
+single-purpose wrappers live only in the internal agent tool layer.
+"""
 
 from __future__ import annotations
 
@@ -18,6 +22,7 @@ from videoflow.domain.errors import VideoFlowError
 from videoflow.mcp_server.agent_helpers import _job_payload
 from videoflow.mcp_server.agent_tools import register_agent_tools
 from videoflow.mcp_server.context import error
+from videoflow.mcp_server.scene_tools import register_scene_tools
 from videoflow.steps.registry import iter_steps
 
 
@@ -255,109 +260,6 @@ def register_core_tools(register: Any, ctx: Any) -> None:
             return error("invalid_style", str(exc))
 
     @register
-    def vf_style_list(workspace_dir: str = "") -> dict[str, Any]:
-        """List the Markdown style catalog."""
-
-        return vf_style(action="list", workspace_dir=workspace_dir)
-
-    @register
-    def vf_style_save(
-        style_id: str = "",
-        name: str = "",
-        markdown_content: str = "",
-        body: str = "",
-        aspect_ratio: str | None = None,
-        target_lufs: float | None = None,
-        max_static_sec: float | None = None,
-        min_silence_ms: int | None = None,
-        layout_mode: str | None = None,
-        caption_preset: str | None = None,
-        motion_engine: str | None = None,
-        platforms: list[str] | None = None,
-        beatmap_defaults: dict[str, Any] | None = None,
-        sound_design: dict[str, Any] | None = None,
-        hook_strategy: str | None = None,
-        intro_strategy: str | None = None,
-        export_targets: list[str] | None = None,
-        palette: list[str] | None = None,
-        fonts: list[str] | None = None,
-        cut_rhythm: dict[str, Any] | None = None,
-        safe_zones: dict[str, Any] | None = None,
-        workspace_dir: str = "",
-        overwrite: bool = True,
-    ) -> dict[str, Any]:
-        """Create or update one Markdown style and sync presets/."""
-
-        return vf_style(
-            action="save",
-            style_id=style_id,
-            name=name,
-            markdown_content=markdown_content,
-            body=body,
-            aspect_ratio=aspect_ratio,
-            target_lufs=target_lufs,
-            max_static_sec=max_static_sec,
-            min_silence_ms=min_silence_ms,
-            layout_mode=layout_mode,
-            caption_preset=caption_preset,
-            motion_engine=motion_engine,
-            platforms=platforms,
-            beatmap_defaults=beatmap_defaults,
-            sound_design=sound_design,
-            hook_strategy=hook_strategy,
-            intro_strategy=intro_strategy,
-            export_targets=export_targets,
-            palette=palette,
-            fonts=fonts,
-            cut_rhythm=cut_rhythm,
-            safe_zones=safe_zones,
-            workspace_dir=workspace_dir,
-            overwrite=overwrite,
-        )
-
-    @register
-    def vf_style_learn_rule(
-        style_id: str,
-        feedback_note: str = "",
-        notes: list[str] | None = None,
-        mode: str = "merge",
-        max_rules: int = 15,
-        workspace_dir: str = "",
-    ) -> dict[str, Any]:
-        """Append review notes to one style, capped at 15 consolidated rules."""
-
-        return vf_style(
-            action="learn_rule",
-            style_id=style_id,
-            feedback_note=feedback_note,
-            notes=notes,
-            mode=mode,
-            max_rules=max_rules,
-            workspace_dir=workspace_dir,
-        )
-
-    @register
-    def analyze_reference_style(
-        style_id: str = "",
-        name: str = "",
-        reference_url: str = "",
-        reference_dir: str = "",
-        images: list[str] | None = None,
-        workspace_dir: str = "",
-    ) -> dict[str, Any]:
-        """Analyze a URL, folder, or images and return a style candidate without saving."""
-
-        return vf_style(
-            action="analyze",
-            style_id=style_id,
-            name=name,
-            reference_url=reference_url,
-            reference_dir=reference_dir,
-            images=images,
-            workspace_dir=workspace_dir,
-        )
-
-    @register
     def vf_style_validate(style_id: str) -> dict[str, Any]:
         """Validate one style without mutating its project."""
 
@@ -423,38 +325,70 @@ def register_core_tools(register: Any, ctx: Any) -> None:
     @register
     def vf_overlay(
         project_id: str,
-        asset_path: str,
+        asset_path: str = "",
         at_source_sec: float | None = None,
         at_timeline_sec: float | None = None,
-        duration_sec: float = 3.0,
-        anchor: str = "top_center",
-        margin_x: int = 0,
-        margin_y: int = 0,
-        scale: float = 0.25,
-        z: int = 20,
-        opacity: float = 1.0,
-        transition_in: str = "fade",
-        transition_out: str = "fade",
+        duration_sec: float | None = None,
+        anchor: str | None = None,
+        margin_x: int | None = None,
+        margin_y: int | None = None,
+        scale: float | None = None,
+        z: int | None = None,
+        opacity: float | None = None,
+        transition_in: str | None = None,
+        transition_out: str | None = None,
+        action: str = "add",
+        overlay_id: str = "",
     ) -> dict[str, Any]:
-        """Insert an image/video overlay at source or timeline time."""
+        """Insert, update, remove, or list image/video overlays."""
 
-        from videoflow.application.overlays import add_overlay
+        from videoflow.application.overlays import (
+            add_overlay,
+            list_overlays,
+            remove_overlay,
+            update_overlay,
+        )
 
         try:
+            if action == "list":
+                return list_overlays(project_id)
+            if action == "remove":
+                return remove_overlay(project_id, overlay_id)
+            if action == "update":
+                return update_overlay(
+                    project_id,
+                    overlay_id,
+                    asset_path=asset_path,
+                    at_timeline_sec=at_timeline_sec,
+                    duration_sec=duration_sec,
+                    anchor=anchor,
+                    margin_x=margin_x,
+                    margin_y=margin_y,
+                    scale=scale,
+                    z=z,
+                    opacity=opacity,
+                    transition_in=transition_in,
+                    transition_out=transition_out,
+                )
+            if action != "add":
+                return error(
+                    "unknown_action",
+                    "vf_overlay supports add, update, remove, or list",
+                )
             return add_overlay(
                 project_id,
                 asset_path,
                 at_source_sec=at_source_sec,
                 at_timeline_sec=at_timeline_sec,
-                duration_sec=duration_sec,
-                anchor=anchor,
-                margin_x=margin_x,
-                margin_y=margin_y,
-                scale=scale,
-                z=z,
-                opacity=opacity,
-                transition_in=transition_in,
-                transition_out=transition_out,
+                duration_sec=duration_sec if duration_sec is not None else 3.0,
+                anchor=anchor or "top_center",
+                margin_x=margin_x or 0,
+                margin_y=margin_y or 0,
+                scale=scale if scale is not None else 0.25,
+                z=z if z is not None else 20,
+                opacity=opacity if opacity is not None else 1.0,
+                transition_in=transition_in or "fade",
+                transition_out=transition_out or "fade",
             )
         except VideoFlowError as exc:
             return exc.to_dict()
@@ -466,9 +400,41 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         project_id: str,
         time_sec: float = 0.0,
         platform: str = "youtube_16_9",
+        action: str = "overlay",
+        aspect: str = "9:16",
+        fx: float = 0.5,
+        fy: float = 0.5,
+        face_center_lock: bool = False,
     ) -> dict[str, Any]:
-        """Render one frame with overlay boxes, captions, safe zones, and labels."""
+        """Render overlay boxes or a crop rectangle preview frame."""
 
+        if action == "crop":
+            from videoflow.application.crop_preview import render_crop_preview
+
+            try:
+                record = get_project(project_id)
+                state = load_project_state(record)
+                source = Path(
+                    state.media_info.source_path
+                    if state.media_info is not None
+                    else record.primary_source
+                )
+                if not source.is_file():
+                    return error("source_not_found", f"Project source is missing: {source}")
+                result = render_crop_preview(
+                    source,
+                    Path(record.output),
+                    time_sec=time_sec,
+                    aspect=aspect,
+                    fx=fx,
+                    fy=fy,
+                    face_center_lock=face_center_lock,
+                )
+            except VideoFlowError as exc:
+                return exc.to_dict()
+            except ValueError as exc:
+                return error("invalid_crop", str(exc))
+            return {"ok": True, "project_id": project_id, "preview": result}
         from videoflow.application.overlay_preview import render_overlay_preview
 
         try:
@@ -780,6 +746,266 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         return {"ok": bool(report.get("ok")), "report": report}
 
     @register
+    def vf_qa_compare(
+        project_id: str,
+        report_a: str,
+        report_b: str,
+    ) -> dict[str, Any]:
+        """Compare two immutable QA reports for regressions."""
+
+        from videoflow.application.qa_store import QaStore
+
+        if not report_a or not report_b:
+            return error("qa_reports_required", "report_a and report_b are required")
+        try:
+            record = get_project(project_id)
+            output = Path(record.output)
+
+            def resolve(value: str) -> Path:
+                path = Path(value).expanduser()
+                return path if path.is_absolute() else output / path
+
+            return QaStore(output).compare(resolve(report_a), resolve(report_b))
+        except VideoFlowError as exc:
+            return exc.to_dict()
+
+    @register
+    def vf_glossary(
+        action: str = "list",
+        channel_id: str = "",
+        terms: list[dict[str, Any]] | None = None,
+        text: str = "",
+    ) -> dict[str, Any]:
+        """List, update, or apply a channel glossary of technical terms."""
+
+        from videoflow.application.glossary import (
+            apply_glossary,
+            load_glossary,
+            upsert_glossary,
+        )
+
+        try:
+            if action == "list":
+                return load_glossary(channel_id)
+            if action == "upsert":
+                return upsert_glossary(channel_id, list(terms or []))
+            if action == "apply":
+                corrected, count = apply_glossary(
+                    text, load_glossary(channel_id)["terms"]
+                )
+                return {
+                    "ok": True,
+                    "channel_id": channel_id,
+                    "text": corrected,
+                    "applied": count,
+                }
+            return error(
+                "unknown_action",
+                "vf_glossary supports list, upsert, or apply",
+            )
+        except (OSError, ValueError) as exc:
+            return error("glossary_failed", str(exc))
+
+    @register
+    def vf_preflight_plan(
+        project_id: str,
+        operation: str,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Validate schema, dependencies, licenses, disk, GPU, and cost."""
+
+        from videoflow.application.preflight_plan import build_preflight_plan
+
+        try:
+            return build_preflight_plan(project_id, operation, params)
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except (OSError, ValueError) as exc:
+            return error("preflight_failed", str(exc))
+
+    @register
+    def vf_transcript_query(
+        project_id: str,
+        query: str = "",
+        source_id: str = "",
+        start_sec: float = 0.0,
+        end_sec: float = 0.0,
+        sentence_range: str = "",
+        include_words: bool = False,
+        limit: int = 50,
+        cursor: int = 0,
+    ) -> dict[str, Any]:
+        """Search or page through the cleaned transcript without dumping it."""
+
+        try:
+            record = get_project(project_id)
+            state = load_project_state(record)
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        rate = (
+            state.media_info.audio_sample_rate
+            if state.media_info is not None
+            else 48000
+        )
+        start_sample = round(max(0.0, float(start_sec)) * rate) if start_sec else 0
+        end_sample = round(max(0.0, float(end_sec)) * rate) if end_sec else 0
+        range_start = range_end = None
+        if sentence_range:
+            try:
+                left, right = sentence_range.replace(":", "-").split("-", 1)
+                range_start = int(left)
+                range_end = int(right)
+            except (TypeError, ValueError):
+                return error(
+                    "invalid_sentence_range",
+                    "sentence_range must look like '30-50'",
+                )
+        text_query = str(query or "").strip().casefold()
+        discarded = set(state.pipeline.discard_sentence_ids)
+        selected = []
+        for sentence in state.transcript:
+            if sentence.id in discarded:
+                continue
+            if range_start is not None and not (range_start <= sentence.id <= range_end):
+                continue
+            if start_sample and sentence.end_sample <= start_sample:
+                continue
+            if end_sample and sentence.start_sample >= end_sample:
+                continue
+            if text_query and text_query not in sentence.text.casefold():
+                continue
+            selected.append(sentence)
+        page_size = max(1, min(int(limit), 200))
+        offset = max(0, int(cursor))
+        page = selected[offset : offset + page_size]
+        items = []
+        for sentence in page:
+            item: dict[str, Any] = {
+                "id": sentence.id,
+                "start": round(sentence.start_sample / rate, 3),
+                "end": round(sentence.end_sample / rate, 3),
+                "text": sentence.text,
+                "speaker": sentence.speaker,
+            }
+            if include_words:
+                item["words"] = [
+                    {
+                        "word": word.word,
+                        "start": round(word.start_sample / rate, 3),
+                        "end": round(word.end_sample / rate, 3),
+                        "probability": round(word.probability, 3),
+                    }
+                    for word in sentence.words
+                ]
+            items.append(item)
+        next_cursor = offset + page_size if offset + page_size < len(selected) else None
+        result: dict[str, Any] = {
+            "ok": True,
+            "project_id": project_id,
+            "count": len(selected),
+            "returned": len(items),
+            "cursor": offset,
+            "next_cursor": next_cursor,
+            "sentences": items,
+        }
+        if source_id:
+            result["warning"] = "source_id is not attached to transcript sentences yet"
+        return result
+
+    @register
+    def vf_storyboard_strip(
+        project_id: str,
+        source_id: str = "",
+        start_sec: float = 0.0,
+        end_sec: float = 0.0,
+        cols: int = 5,
+        annotate: bool = True,
+    ) -> dict[str, Any]:
+        """Render a 5x2 contact sheet of one timeline/source range."""
+
+        from videoflow.application.storyboard_strip import build_storyboard_strip
+
+        try:
+            record = get_project(project_id)
+            state = load_project_state(record)
+            media = state.source_media(source_id) if source_id else state.media_info
+            source = Path(
+                media.source_path if media is not None else record.primary_source
+            )
+            if not source.is_file():
+                return error("source_not_found", f"Source is missing: {source}")
+            result = build_storyboard_strip(
+                source,
+                record.output,
+                start_sec=start_sec,
+                end_sec=end_sec,
+                cols=cols,
+                annotate=annotate,
+            )
+            return {"ok": True, "project_id": project_id, "storyboard": result}
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except (OSError, ValueError) as exc:
+            return error("storyboard_failed", str(exc))
+
+    @register
+    def vf_gpu_preflight(require_gpu: bool = False) -> dict[str, Any]:
+        """Validate the Windows GPU worker before a long job."""
+
+        from videoflow.application.compute import router_from_settings
+        from videoflow.application.settings import load_settings
+
+        try:
+            settings = load_settings()
+            router = router_from_settings(settings)
+            health = router.health(force=True)
+            probe: dict[str, Any] = {}
+            if health.available:
+                try:
+                    probe = router.client.probe()
+                except Exception:  # noqa: BLE001 - probe is advisory
+                    probe = {}
+            if not health.available and require_gpu:
+                return error(
+                    "gpu_worker_unreachable",
+                    "Windows GPU worker is not reachable.",
+                    fix_hint="Start the worker on Windows or switch compute mode to local.",
+                    worker_url=router.worker_url,
+                    health=health.model_dump(mode="json"),
+                )
+            return {
+                "ok": True,
+                "remote_available": bool(health.available),
+                "degraded": not bool(health.available),
+                "degraded_reason": (
+                    "" if health.available else "windows_gpu_offline_fallback_cpu"
+                ),
+                "mode": router.mode,
+                "transport": getattr(router, "transport", "auto"),
+                "worker_url": router.worker_url,
+                "health": health.model_dump(mode="json"),
+                "probe": probe,
+            }
+        except Exception as exc:  # noqa: BLE001 - preflight must return a payload
+            if require_gpu:
+                return error(
+                    "gpu_worker_unreachable",
+                    str(exc),
+                    fix_hint="Check the GPU settings and worker status.",
+                )
+            return {
+                "ok": True,
+                "remote_available": False,
+                "degraded": True,
+                "degraded_reason": f"gpu_preflight_failed: {exc}",
+                "mode": "local",
+                "transport": "auto",
+                "worker_url": "",
+                "health": {},
+                "probe": {},
+            }
+
+    @register
     def vf_assets(
         action: str = "list",
         project_id: str = "",
@@ -787,14 +1013,43 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         license: str = "",
         attribution: str = "",
         reason: str = "",
+        font_path: str = "",
+        name: str = "",
     ) -> dict[str, Any]:
-        """List, approve, or quarantine project assets and their licenses."""
+        """List assets, licenses, or fonts; approve, quarantine, or register fonts."""
 
         from videoflow.application.assets_service import (
             asset_records,
             review_assets,
         )
 
+        if action in {"fonts", "register_font", "install_font"}:
+            from videoflow.application.fonts import (
+                font_aliases,
+                list_fonts,
+                list_system_fonts,
+                register_font,
+            )
+
+            if action == "fonts":
+                return {
+                    "ok": True,
+                    "fonts": list_fonts(),
+                    "system": list_system_fonts(),
+                    "aliases": font_aliases(),
+                }
+            if not font_path:
+                return error("font_required", "font_path is required")
+            try:
+                record = register_font(Path(font_path), name=name)
+            except VideoFlowError as exc:
+                return exc.to_dict()
+            return {"ok": True, "action": action, "font": record}
+        if action not in {"list", "approve", "quarantine"}:
+            return error(
+                "unknown_action",
+                "vf_assets supports list, approve, quarantine, fonts, or register_font",
+            )
         if not project_id:
             return error("project_required", "project_id is required")
         try:
@@ -806,7 +1061,18 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                     project_id=record.project_id,
                     state=state,
                 )
-                return {"ok": True, "assets": records, "count": len(records)}
+                used = [item for item in records if item.get("referenced")]
+                unused = [item for item in records if not item.get("referenced")]
+                return {
+                    "ok": True,
+                    "assets": records,
+                    "used_assets": used,
+                    "unused_workspace_files": unused,
+                    "count": len(records),
+                    "blocking": [
+                        item for item in used if item.get("blocked")
+                    ],
+                }
             if action in {"approve", "quarantine"}:
                 result = review_assets(
                     Path(record.output),
@@ -823,31 +1089,12 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                     state=state,
                 )
                 return result
-            return error("unknown_action", "vf_assets supports list, approve, or quarantine")
+            return error(
+                "unknown_action",
+                "vf_assets supports list, approve, quarantine, fonts, or register_font",
+            )
         except VideoFlowError as exc:
             return exc.to_dict()
-
-    @register
-    def vf_font(
-        action: str = "list",
-        font_path: str = "",
-        name: str = "",
-    ) -> dict[str, Any]:
-        """List, register, or install fonts in the managed font store."""
-
-        from videoflow.application.fonts import list_fonts, register_font
-
-        if action == "list":
-            return {"ok": True, "fonts": list_fonts()}
-        if action not in {"register", "install"}:
-            return error("unknown_action", "vf_font supports list, register, or install")
-        if not font_path:
-            return error("font_required", "font_path is required")
-        try:
-            record = register_font(Path(font_path), name=name)
-        except VideoFlowError as exc:
-            return exc.to_dict()
-        return {"ok": True, "action": action, "font": record}
 
     @register
     def vf_project(
@@ -865,6 +1112,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         mode: str = "merge",
         max_rules: int = 15,
         revision_id: str = "",
+        label: str = "",
         force: bool = False,
         status: str = "",
         include_archived: bool = False,
@@ -872,6 +1120,28 @@ def register_core_tools(register: Any, ctx: Any) -> None:
     ) -> dict[str, Any]:
         """Create/open/status a project, manage lifecycle, or undo revisions."""
 
+        if action == "session_brief":
+            from videoflow.application.session_brief import build_session_brief
+
+            try:
+                return build_session_brief(project_id)
+            except VideoFlowError as exc:
+                return exc.to_dict()
+        if action in {"checkpoint", "checkpoints", "restore_checkpoint"}:
+            from videoflow.application.session_brief import (
+                create_checkpoint,
+                list_checkpoints,
+                restore_checkpoint,
+            )
+
+            try:
+                if action == "checkpoint":
+                    return create_checkpoint(project_id, label)
+                if action == "checkpoints":
+                    return list_checkpoints(project_id)
+                return restore_checkpoint(project_id, label)
+            except VideoFlowError as exc:
+                return exc.to_dict()
         if action == "list":
             from videoflow.application.projects import project_disk_size
 
@@ -1216,20 +1486,24 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         return response
 
     @register
-    def vf_jobs(
-        action: str = "list",
+    def vf_job(
+        action: str = "get",
         project_id: str = "",
-        status: str = "",
         job_id: str = "",
+        step_id: str = "",
+        tail_lines: int = 100,
+        timeout_sec: float = 300.0,
         limit: int = 20,
         force: bool = False,
+        status: str = "",
+        include_images: bool = False,
     ) -> dict[str, Any]:
-        """List, inspect, or cancel jobs in the shared queue."""
+        """List, cancel, get, wait, inspect logs, or read QA for a job."""
 
         from videoflow.application import database
 
-        cap = max(1, min(200, int(limit)))
         if action == "list":
+            cap = max(1, min(200, int(limit)))
             stored = database.list_jobs(
                 status=status,
                 project_id=project_id,
@@ -1252,9 +1526,9 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                 reverse=True,
             )[:cap]
             return {"ok": True, "jobs": jobs, "total": len(merged)}
-        if not job_id:
-            return error("job_required", "job_id is required")
         if action == "cancel":
+            if not job_id:
+                return error("job_required", "job_id is required")
             stored = []
             try:
                 stored = database.list_jobs(job_id=job_id, limit=1)
@@ -1269,27 +1543,6 @@ def register_core_tools(register: Any, ctx: Any) -> None:
             if not payload:
                 return error("job_not_found", f"Unknown job: {job_id}")
             return {"ok": True, "job": payload, "cancelled": True}
-        if action != "status":
-            return error("unknown_action", "vf_jobs supports list, status, or cancel")
-        try:
-            return {"ok": True, "job": _job_payload(manager.get(job_id))}
-        except VideoFlowError:
-            stored = database.list_jobs(job_id=job_id, limit=1)
-            if not stored:
-                return error("job_not_found", f"Unknown job: {job_id}")
-            return {"ok": True, "job": stored[0]}
-
-    @register
-    def vf_job(
-        action: str = "get",
-        project_id: str = "",
-        job_id: str = "",
-        step_id: str = "",
-        tail_lines: int = 100,
-        timeout_sec: float = 300.0,
-    ) -> dict[str, Any]:
-        """Get, wait, inspect logs, or read QA for a job."""
-
         if action == "logs":
             return legacy["vf_get_step_logs"](
                 project_id=project_id,
@@ -1298,13 +1551,28 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                 tail_lines=tail_lines,
             )
         if action == "qa":
-            return legacy["vf_get_qa_artifacts"](project_id=project_id, include_images=False)[0]
+            return legacy["vf_get_qa_artifacts"](
+                project_id=project_id, include_images=include_images
+            )[0]
         if action == "wait":
             try:
                 return _wait(manager, project_id, job_id, timeout_sec)
             except VideoFlowError as exc:
                 return exc.to_dict()
-        return legacy["vf_get_job"](project_id=project_id, job_id=job_id)
+        if action == "status":
+            try:
+                return {"ok": True, "job": _job_payload(manager.get(job_id))}
+            except VideoFlowError:
+                stored = database.list_jobs(job_id=job_id, limit=1)
+                if not stored:
+                    return error("job_not_found", f"Unknown job: {job_id}")
+                return {"ok": True, "job": stored[0]}
+        if action == "get":
+            return legacy["vf_get_job"](project_id=project_id, job_id=job_id)
+        return error(
+            "unknown_action",
+            "vf_job supports list, cancel, get, status, wait, logs, or qa",
+        )
 
     @register
     def vf_timeline(
@@ -1322,11 +1590,46 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         time_basis: str = "timeline",
         keep_ranges: list[dict[str, Any]] | None = None,
         remove_ranges: list[dict[str, Any]] | None = None,
+        sentence_ids: list[int] | None = None,
         dry_run: bool = False,
         force: bool = False,
     ) -> dict[str, Any]:
-        """Read, edit, or atomically apply a declarative beatmap."""
+        """Read, edit, discard sentences, or apply a declarative beatmap."""
 
+        if action == "discard_sentences":
+            if not sentence_ids:
+                return error("sentence_ids_required", "sentence_ids is required")
+            from videoflow.application.projects import save_project_state
+
+            try:
+                record = get_project(project_id)
+                state = load_project_state(record)
+                discarded = set(state.pipeline.discard_sentence_ids)
+                discarded.update(int(item) for item in sentence_ids)
+                updated = state.model_copy(
+                    update={
+                        "pipeline": state.pipeline.model_copy(
+                            update={"discard_sentence_ids": sorted(discarded)}
+                        )
+                    }
+                )
+                saved = save_project_state(
+                    record,
+                    updated,
+                    expected_revision=expected_revision,
+                    bump_revision=True,
+                    snapshot=True,
+                    snapshot_reason="discard_sentences",
+                    snapshot_step="discard_sentences",
+                )
+                return {
+                    "ok": True,
+                    "project_id": project_id,
+                    "discarded_sentence_ids": sorted(discarded),
+                    "revision": saved.revision,
+                }
+            except VideoFlowError as exc:
+                return exc.to_dict()
         if action == "apply_beatmap":
             from videoflow.application.beatmap import (
                 BeatmapError,
@@ -1472,45 +1775,6 @@ def register_core_tools(register: Any, ctx: Any) -> None:
             include_content=include_content,
         )
 
-    @register
-    def vf_render(
-        action: str = "start",
-        project_id: str = "",
-        job_id: str = "",
-        kind: str = "timeline",
-        crf: int = 20,
-        preset: str = "veryfast",
-        width: int = 0,
-        height: int = 0,
-        draft_scale: float = 1.0,
-        wait: bool = False,
-        timeout_sec: float = 1800.0,
-    ) -> dict[str, Any]:
-        """Start, inspect, or cancel a render job."""
-
-        if action == "start":
-            response = legacy["vf_render_start"](
-                project_id=project_id,
-                kind=kind,
-                crf=crf,
-                preset=preset,
-                width=width,
-                height=height,
-                draft_scale=draft_scale,
-            )
-            if wait and response.get("ok"):
-                job_id = str((response.get("job") or {}).get("job_id") or "")
-                if job_id:
-                    response["wait"] = _wait(manager, project_id, job_id, timeout_sec)
-            return response
-        if action == "cancel":
-            try:
-                manager.cancel(job_id)
-            except VideoFlowError as exc:
-                return exc.to_dict()
-            return {"ok": True, "job_id": job_id}
-        return legacy["vf_get_job"](project_id=project_id, job_id=job_id)
-
     def _run_bundle(
         project_id: str,
         *,
@@ -1612,7 +1876,9 @@ def register_core_tools(register: Any, ctx: Any) -> None:
 
     @register
     def vf_export(
-        project_id: str,
+        action: str = "bundle",
+        project_id: str = "",
+        job_id: str = "",
         targets: str | list[str] | None = None,
         look: dict[str, Any] | None = None,
         audio_source: str = "mix",
@@ -1622,9 +1888,56 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         fps: int | str = 30,
         qa_mode: str = "fast",
         preset: str = "veryfast",
+        kind: str = "timeline",
+        crf: int = 20,
+        width: int = 0,
+        height: int = 0,
+        draft_scale: float = 1.0,
+        wait: bool = False,
+        timeout_sec: float = 1800.0,
+        direction: str = "pull",
+        nle: str = "fcpxml",
+        path: str = "",
+        apply: bool = False,
+        dialect: str = "1.10",
+        mp4_profile: str = "youtube_h264",
+        mp4_loudness_lufs: float | None = -16.5,
+        burn_subtitles: bool | None = None,
     ) -> dict[str, Any]:
-        """Render the canonical master and every requested NLE target."""
+        """Render a bundle, start a draft render, validate exports, or run an NLE roundtrip."""
 
+        if burn_subtitles is not None:
+            captions = burn_subtitles
+        if action == "render":
+            response = legacy["vf_render_start"](
+                project_id=project_id,
+                kind=kind,
+                crf=crf,
+                preset=preset,
+                width=width,
+                height=height,
+                draft_scale=draft_scale,
+            )
+            if wait and response.get("ok"):
+                new_job_id = str((response.get("job") or {}).get("job_id") or "")
+                if new_job_id:
+                    response["wait"] = _wait(manager, project_id, new_job_id, timeout_sec)
+            return response
+        if action == "validate":
+            return legacy["vf_validate_exports"](project_id=project_id, job_id=job_id)
+        if action == "roundtrip":
+            return legacy["vf_nle_roundtrip"](
+                project_id=project_id,
+                direction=direction,
+                nle=nle,
+                path=path,
+                apply=apply,
+            )
+        if action != "bundle":
+            return error(
+                "unknown_action",
+                "vf_export supports bundle, render, validate, or roundtrip",
+            )
         if audio_source not in {"mix", "master", "timeline"}:
             return error("invalid_audio_source", "audio_source must be mix, master, or timeline")
         if qa_mode not in {"fast", "full", "off"}:
@@ -1637,6 +1950,9 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                 audio_source=audio_source,
                 captions=captions,
                 draft=draft,
+                dialect=dialect,
+                mp4_profile=mp4_profile,
+                mp4_loudness_lufs=mp4_loudness_lufs,
                 fps=fps,
                 qa_mode=qa_mode,
                 mp4_preset=preset,
@@ -1657,83 +1973,6 @@ def register_core_tools(register: Any, ctx: Any) -> None:
             except (VideoFlowError, OSError) as exc:
                 response["release_kit_error"] = str(exc)
         return response
-
-    @register
-    def vf_crop_preview(
-        project_id: str,
-        time_sec: float = 0.0,
-        aspect: str = "9:16",
-        fx: float = 0.5,
-        fy: float = 0.5,
-    ) -> dict[str, Any]:
-        """Extract one frame with the crop rectangle and rule-of-thirds grid."""
-
-        from videoflow.application.crop_preview import render_crop_preview
-
-        try:
-            record = get_project(project_id)
-            state = load_project_state(record)
-            source = Path(
-                state.media_info.source_path
-                if state.media_info is not None
-                else record.primary_source
-            )
-            if not source.is_file():
-                return error("source_not_found", f"Project source is missing: {source}")
-            result = render_crop_preview(
-                source,
-                Path(record.output),
-                time_sec=time_sec,
-                aspect=aspect,
-                fx=fx,
-                fy=fy,
-            )
-        except VideoFlowError as exc:
-            return exc.to_dict()
-        except ValueError as exc:
-            return error("invalid_crop", str(exc))
-        return {"ok": True, "project_id": project_id, "preview": result}
-
-    @register
-    def vf_exports(
-        action: str = "validate",
-        project_id: str = "",
-        job_id: str = "",
-        direction: str = "pull",
-        nle: str = "fcpxml",
-        path: str = "",
-        apply: bool = False,
-        targets: str | list[str] | None = None,
-        dialect: str = "1.10",
-        mp4_profile: str = "youtube_h264",
-        mp4_loudness_lufs: float | None = -16.5,
-        burn_subtitles: bool = True,
-    ) -> dict[str, Any]:
-        """Export a multi-target bundle, validate it, or run an NLE roundtrip."""
-
-        if action == "bundle":
-            try:
-                bundle = _run_bundle(
-                    project_id,
-                    targets=targets,
-                    audio_source="master",
-                    captions=burn_subtitles,
-                    dialect=dialect,
-                    mp4_profile=mp4_profile,
-                    mp4_loudness_lufs=mp4_loudness_lufs,
-                )
-                return {"ok": bool(bundle.get("ok")), "bundle": bundle}
-            except VideoFlowError as exc:
-                return exc.to_dict()
-        if action == "roundtrip":
-            return legacy["vf_nle_roundtrip"](
-                project_id=project_id,
-                direction=direction,
-                nle=nle,
-                path=path,
-                apply=apply,
-            )
-        return legacy["vf_validate_exports"](project_id=project_id, job_id=job_id)
 
     @register
     def vf_interaction(
@@ -1813,8 +2052,27 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         wait: bool = False,
         timeout_sec: float = 1800.0,
     ) -> dict[str, Any]:
-        """Run session ingest or multicam synchronization."""
+        """Run session ingest, multicam synchronization, or audio diagnosis."""
 
+        if action == "diagnose":
+            from videoflow.application.audio_diagnosis import diagnose_audio
+
+            try:
+                record = get_project(project_id)
+                state = load_project_state(record)
+                media = state.media_info
+                source = Path(
+                    media.source_path if media is not None else record.primary_source
+                )
+                if not source.is_file():
+                    return error("source_not_found", f"Source is missing: {source}")
+                return {
+                    "ok": True,
+                    "project_id": project_id,
+                    "audio_diagnosis": diagnose_audio(source, media),
+                }
+            except VideoFlowError as exc:
+                return exc.to_dict()
         mode = "multicam" if action == "multicam" else "session"
         step_type = "sync.multicam_audio" if mode == "multicam" else "session.ingest"
         if mode == "multicam":
@@ -1862,6 +2120,18 @@ def register_core_tools(register: Any, ctx: Any) -> None:
             offset_samples = state.source_offsets.get(state.primary_source_id, 0)
             rate = media.audio_sample_rate if media is not None else 48000
             response["audio_offset_ms"] = round(offset_samples / max(1, rate) * 1000, 3)
+            if media is not None:
+                from videoflow.application.audio_diagnosis import diagnose_audio
+
+                try:
+                    response["audio_diagnosis"] = diagnose_audio(
+                        media.source_path, media
+                    )
+                except Exception as exc:  # noqa: BLE001 - diagnosis is advisory
+                    response["audio_diagnosis"] = {
+                        "ok": False,
+                        "error": str(exc),
+                    }
         except VideoFlowError:
             response.setdefault("source_duration_sec", 0.0)
             response.setdefault("cfr_fps", 0.0)
@@ -1869,25 +2139,4 @@ def register_core_tools(register: Any, ctx: Any) -> None:
             response.setdefault("audio_offset_ms", 0.0)
         return response
 
-    @register
-    def vf_qa(
-        action: str = "artifacts",
-        project_id: str = "",
-        include_images: bool = False,
-    ) -> Any:
-        """Read QA artifacts or run project QA later through vf_exec."""
-
-        if action == "artifacts":
-            return legacy["vf_get_qa_artifacts"](
-                project_id=project_id, include_images=include_images
-            )
-        try:
-            state = load_project_state(get_project(project_id))
-        except VideoFlowError as exc:
-            return exc.to_dict()
-        return {
-            "ok": True,
-            "action": action,
-            "revision": state.revision,
-            "message": "Use vf_exec with qa.visual_10fps or qa.safezone for new QA runs.",
-        }
+    register_scene_tools(register, ctx, wait_fn=_wait)

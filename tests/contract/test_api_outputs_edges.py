@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from tests.contract.test_api_timeline import _client, _job
+from tests.contract.api_helpers import _client, _job
 
 
 def _error(response) -> dict:
@@ -150,141 +149,6 @@ def test_step_outputs_validation_edges(monkeypatch, tmp_path: Path) -> None:
         client.post(f"{good}/save", json={"target_dir": str(tmp_path)}).status_code
         == 404
     )
-
-
-def test_timeline_helper_functions(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.api import routes_timeline as module
-    from videoflow.domain.state import (
-        AudioSegment,
-        MediaInfo,
-        ProjectState,
-        VideoSegment,
-    )
-
-    body = module.LenientJsonBody.decode_body('{"a": 1}')
-    assert body == {"a": 1}
-    for value in ["[]", "{bad"]:
-        try:
-            module.LenientJsonBody.decode_body(value)
-        except ValueError as exc:
-            assert "JSON object" in str(exc)
-        else:  # pragma: no cover - defensive
-            raise AssertionError("expected ValueError")
-
-    output = tmp_path / "out"
-    output.mkdir()
-    (output / "titles.ass").write_text("x", encoding="utf-8")
-    assert module._live_titles(output) == ([], False)
-    (output / "titles.json").write_text("{bad", encoding="utf-8")
-    assert module._live_titles(output) == ([], False)
-    (output / "titles.json").write_text(
-        json.dumps(
-            {
-                "title_cards": [
-                    "bad",
-                    {"kind": "short", "text": "skip"},
-                    {"text": "", "start_sec": 0},
-                    {"text": "Title", "start_sec": 1, "duration_sec": 1},
-                ],
-                "lower_thirds": [
-                    "bad",
-                    {"text": "", "start_sec": 0},
-                    {"text": "Lower", "start_sec": 2, "end_sec": 4},
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-    cues, ready = module._live_titles(output)
-    assert ready is True
-    assert [cue["text"] for cue in cues] == ["Title", "Lower"]
-
-    assert module._live_playback(ProjectState(), None) == (False, "no media info")
-    state = ProjectState(
-        media_info=MediaInfo(
-            source_path=str(tmp_path / "gone.mp4"),
-            duration_frames=10,
-            fps_num=30,
-            fps_den=1,
-            width=10,
-            height=10,
-            audio_sample_rate=48000,
-        )
-    )
-    assert module._live_playback(state, None) == (False, "source media is offline")
-
-    source = tmp_path / "source.mp4"
-    source.write_bytes(b"source")
-    state.media_info = state.media_info.model_copy(update={"source_path": str(source)})
-    state.video_segments = [
-        VideoSegment(
-            clip_id="v1",
-            source_in_frame=0,
-            source_out_frame=10,
-            timeline_in_frame=0,
-            timeline_out_frame=10,
-        )
-    ]
-    assert module._live_playback(state, None) == (
-        False,
-        "audio/video segments are not paired",
-    )
-    state.audio_segments = [
-        AudioSegment(
-            clip_id="v1",
-            source_in_sample=0,
-            source_out_sample=10,
-            timeline_in_sample=0,
-            timeline_out_sample=10,
-        )
-    ]
-    assert module._live_playback(state, None)[0] is True
-    state.video_segments[0].transform = state.video_segments[0].transform.model_copy(
-        update={"scale": 1.2}
-    )
-    assert module._live_playback(state, None) == (
-        False,
-        "clip transforms require the rendered preview",
-    )
-
-
-def test_snapshot_and_overlay_error_routes(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.domain.state import OverlayClip, ProjectState
-
-    client, manager = _client(monkeypatch, tmp_path)
-    (tmp_path / "source.mp4").write_bytes(b"source")
-    job = _job(manager, tmp_path)
-    base = f"/api/v1/jobs/{job.job_id}"
-
-    assert client.get("/api/v1/timelines/bad..id/file").status_code == 422
-    assert client.get("/api/v1/timelines/missing/file").status_code == 404
-    assert client.delete("/api/v1/timelines/bad..id").status_code == 422
-    assert client.delete("/api/v1/timelines/missing").status_code == 404
-    assert client.post("/api/v1/timelines/import", json={"payload": []}).status_code == 422
-
-    unknown = client.get(f"{base}/overlays/missing/file")
-    assert unknown.status_code == 409
-    assert _error(unknown)["code"] == "state_not_ready"
-
-    state_path = Path(job.result["state_path"])
-    state = ProjectState.model_validate_json(state_path.read_text(encoding="utf-8"))
-    overlay = tmp_path / "overlay.png"
-    overlay.write_bytes(b"png")
-    state.overlays.append(
-        OverlayClip(
-            overlay_id="o1",
-            path=str(overlay),
-            start_frame=0,
-            duration_frames=10,
-        )
-    )
-    state_path.write_text(state.model_dump_json(), encoding="utf-8")
-    served = client.get(f"{base}/overlays/o1/file")
-    assert served.status_code == 200
-    assert served.content == b"png"
-    overlay.unlink()
-    offline = client.get(f"{base}/overlays/o1/file")
-    assert offline.status_code == 409
 
 
 def test_editable_plan_artifacts_are_saved_atomically(monkeypatch, tmp_path: Path) -> None:

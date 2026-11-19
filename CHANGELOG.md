@@ -1,5 +1,163 @@
 # Changelog
 
+## [3.7.0] - 2026-11-19
+
+### Added
+
+- Decupage acoustic phase: `audio.events` with optional YAMNet ONNX,
+  heuristic/AST fallback, and explicit event reports.
+- Silero VAD hysteresis with `neg_threshold` plus a 10 ms RMS envelope at the
+  project audio rate.
+- ASR anti-hallucination profile, remote worker routing with local fallback,
+  configurable `compute_policy`, and `RemoteAsrClient`.
+- Forced alignment over the existing transcript with WhisperX, stable-ts,
+  faster-whisper, and a remote worker fallback.
+- `speech.asu` Atomic Speech Units with pauses, RMS, word probabilities, speech
+  rate, and indexed words.
+- `decupage.prefilter` deterministic retake grouping, stutter candidates, noise
+  quarantine, and protected CTA/link/price content.
+- `decupage.llm` with explicit `caller`, `videoflow`, and `none` policies,
+  sliding windows, ID-only prompts, and a caller request/apply handshake.
+- `decupage.apply` for validated remove/trim/restore/review decisions.
+- `decupage.snap` with RMS valley snap, asymmetric pads, micro-cut merge, frame
+  quantisation, and crossfade intent.
+- `decupage.timeline` with revision guard, inactive segments, quarantine
+  sidecar, and colored NLE markers.
+- Worker capabilities `forced_align` and `vision_blur`, plus capability maps,
+  settings, and GPU panel entries for the decupage workloads.
+- `vf_preflight_plan(operation="decupage")` now reports per-stage compute
+  placement and degradation.
+- Deterministic decupage benchmark harness, synthetic evidence, and golden
+  video procedure.
+- `scene.analyze` Module A: 360p analysis proxy, PySceneDetect adaptive cuts
+  fused with decupage jumps, MediaPipe/Haar face metrics, Canny/Laplacian
+  layout classification, deterministic editing hints, 544 px keyframes, and a
+  SHA-256 cache with `scenes_manifest.json` plus `timeline_supercontext.json`.
+- `vf_scenes` MCP tool with `analyze`, `manifest`, `keyframe`, `supercontext`,
+  and `cache` actions, plus read-only scene and keyframe resources.
+- `short.plan` with scene-anchored drafts, deterministic `llm_policy=none`
+  planning, caller/videoflow LLM contracts, gap/overlap resolution, minimum
+  segment merging, safe-zone geometry, scene-median crops, and B-roll/upscale
+  fallbacks.
+- `short.validate` rejects gaps, short segments, protected B-roll, missing
+  assets, unsafe captions, and excessive split-screen upscale before render.
+- `short.captions` generates 3–4 word ASS blocks per layout, sanitizes overlaps,
+  snaps layout cuts to caption/ASU boundaries, emits layout-change SFX cues, and
+  computes 350 ms end padding plus an 80 ms fade.
+- `short.render` composes per-segment filter scripts, micro-clips, concat,
+  ASS burn, SFX mix, loudness normalization, NVENC on the worker, and local
+  libx264 fallback with explicit degradation.
+- `short.export` writes FCPXML with V1 base, V2 face panels, A1 voice, A2 SFX,
+  editable captions, layout markers, and offline-media validation.
+- `short.qa` audits the final Short and FCPXML; `qa.safezone` now uses the exact
+  380 px bottom and 140 px right Shorts masks.
+- Phase 7 `scripts/shorts_benchmark.py` with synthetic 10-minute scene F1,
+  detection throughput, left/right crop accuracy, plan composition, caption
+  safe zones, padding/fade, and evidence JSON/Markdown.
+- Batched keyframe extraction, parallel visual sampling, FPS-proportional scene
+  frame skipping, and cached scene timings.
+- `delivery.collect` optionally groups final videos, exports, Shorts, and scene
+  assets under `VideoFlow_Output/`; custom output paths remain fully valid.
+
+### Changed
+
+- `transcribe` and `alignment.forced` can run remotely or locally according to
+  availability and explicit policy.
+- The worker ASR handler now forwards no-speech, compression, repetition, and
+  previous-text controls.
+- Benchmark self-test is part of the MCP gate and enforces recall/false-positive
+  thresholds.
+
+### Fixed
+
+- Prevented acoustic padding from crossing noise/cough boundaries.
+- Prevented remote ASR from silently continuing after `remote_only` failures.
+- Preserved prior pass-1 decisions when applying the continuity audit.
+- Normalized remote ASR model names before submitting worker jobs.
+- Added missing export/API cleanup fixes from the MCP-first transition.
+
+### Known limitations
+
+- Physical Windows/NVIDIA ASR, NVENC, and matte certification is pending; no
+  speedup is claimed.
+- `audio_events` remains local until a YAMNet worker handler is configured.
+- FCPXML/OTIO V2/A2 quarantine tracks are represented by markers and
+  `quarantine.json`; dedicated tracks remain future work.
+- Legacy MCP aliases remain registered until the next cleanup.
+
+## [3.6.0] - 2026-11-19
+
+### Changed
+
+- VideoFlow is now MCP-first. The local UI is a control panel for jobs and
+  setup only: models, providers, services, extensions, connections, GPU, and
+  runtime settings. The recipe studio, canvas timeline, Lamera workspace,
+  assistant, schedules, media library, brand/publish screens, and their tests
+  were removed.
+- Removed the REST routes that only served those screens: recipes, batches,
+  copilot, discovery extras, library, media, presets, publishing, schedules,
+  styles, timeline, workflows, and assets.
+- Removed the copilot, assistant, and schedule application modules after their
+  routes and screens were deleted.
+- The MCP runtime no longer depends on `BatchManager`; `ToolContext` carries
+  only the job manager. The unused legacy `vf_wait_job` and
+  `vf_get_transcript` helpers were removed.
+- `./scripts/gate_mcp.sh` now enforces **80% coverage** on
+  `src/videoflow/mcp_server` (current: 85%).
+
+### Removed
+
+- Legacy UI components and their Vitest/Playwright suites.
+- API contract suites for the removed REST domains.
+
+## [3.5.0] - 2026-11-19
+
+## [3.5.0] - 2026-11-19
+
+### Added
+
+- Media contract for 48 kHz/24-bit audio, alpha overlays, exact rational frame
+  rates, color metadata, and one-frame duration checks.
+- `audio.finalize` with two-pass linear loudness, mono repair, music ducking,
+  Foley mix, and 48 kHz/24-bit output.
+- Immutable per-artifact QA reports and `vf_qa_compare`.
+- `gpu.json` cross-process GPU configuration, `vf_gpu_preflight`, and a real
+  worker `/probe` for CUDA/NVENC/ASR/matte.
+- Multi-source ingest, source-aware Shorts, strict `ShortsClipSpec`, intro/outro
+  validation, CFR FPS, and duration checks.
+- OpenCode ergonomics: `session_brief`, named checkpoints,
+  `vf_transcript_query`, `vf_glossary`, `vf_storyboard_strip`, and
+  `vf_preflight_plan`.
+- HTTP-first resumable uploads/downloads with SHA-256, range resume, artifact
+  manifests, and automatic shared-mount fallback.
+- Real NVENC probe in the worker kit, offline worker dependency wheels, full
+  traceback capture, and a never-closing Windows menu.
+- Overlay update/remove/list, system font discovery, transcript-derived release
+  titles, alpha/color validation, and semantic retake delegation.
+- Export disk estimate plus 2 GB safety margin and `.alpha`/segment cleanup.
+- Eight short contract documents under `docs/contracts/`, exposed as
+  `vf://docs/contracts/*`.
+
+### Changed
+
+- The core MCP surface is consolidated from 43 to 33 tools. Style wrappers,
+  `vf_jobs`, `vf_render`, `vf_exports`, `vf_qa`, `vf_crop_preview`, and
+  `vf_font` now live behind `vf_style`, `vf_job`, `vf_export`, and `vf_assets`
+  actions.
+- `vf_export` now owns `bundle`, `render`, `validate`, and `roundtrip`;
+  `vf_job` owns `list`, `status`, `cancel`, `logs`, and `qa`; `vf_assets` owns
+  font listing and registration; `vf_overlay_preview` owns `action="crop"`.
+- `qa_mode="fast"` now always checks loudness and caption syntax in addition to
+  duration/frames.
+- `opencode.json` no longer stores literal GPU URL/token placeholders.
+- Windows kit installs the worker from bundled wheels before downloading the
+  CUDA runtime.
+
+### Known limitations
+
+- Physical ASR/NVENC/matte speed certification on Windows/NVIDIA hardware is
+  still pending; no speedup is claimed without that evidence.
+
 ## [3.4.1] - 2026-11-19
 
 ### Fixed

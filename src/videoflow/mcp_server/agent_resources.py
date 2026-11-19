@@ -14,6 +14,7 @@ from videoflow.application.projects import (
     list_projects,
     load_project_state,
 )
+from videoflow.application.scene_intel.store import latest_scene_snapshot
 from videoflow.domain.errors import VideoFlowError
 from videoflow.domain.transcript import format_srt
 from videoflow.steps.registry import get_step
@@ -25,6 +26,21 @@ def _state(record: ProjectRecord):
 
 def _error(code: str, message: str) -> str:
     return json.dumps({"ok": False, "code": code, "message": message})
+
+
+def contracts_dir() -> Path:
+    import sys
+
+    bundled = getattr(sys, "_MEIPASS", None)
+    if bundled:
+        return Path(bundled) / "docs" / "contracts"
+    repo = Path(__file__).resolve().parents[3]
+    installed = Path(__file__).resolve().parents[1] / "contracts"
+    if (repo / "docs" / "contracts").is_dir():
+        return repo / "docs" / "contracts"
+    if installed.is_dir():
+        return installed
+    return repo / "docs" / "contracts"
 
 
 def register_agent_resources(mcp: Any, ctx: Any, *, prompts: bool = True) -> None:
@@ -50,7 +66,7 @@ def register_agent_resources(mcp: Any, ctx: Any, *, prompts: bool = True) -> Non
         )
         def review_prompt(project_id: str, job_id: str) -> str:
             return (
-                f"Read vf_qa and vf_job(action='logs') for project {project_id} "
+                f"Read vf_job(action='qa') and vf_job(action='logs') for project {project_id} "
                 f"job {job_id}. Explain each defect, inspect the frames, and apply only "
                 "validated timeline edits."
             )
@@ -61,8 +77,14 @@ def register_agent_resources(mcp: Any, ctx: Any, *, prompts: bool = True) -> Non
         )
         def deliver_prompt(project_id: str) -> str:
             return (
-                f"Run vf_exports(action='bundle', project_id='{project_id}', targets='all'), "
-                "then report the bundle manifest, any missing media, and blocked licenses."
+                f"Run vf_export(project_id='{project_id}', targets='all'), "
+                "then optionally run vf_exec(action='step', "
+                "step_id='delivery.collect', params={'mode':'copy'}) to group "
+                "final videos and exports under VideoFlow_Output when the user "
+                "did not choose another destination. Never treat that folder as "
+                "a validation requirement; the MCP accepts any output path. "
+                "Report the bundle manifest, any missing media, any degraded "
+                "heavy-compute fallback, and blocked licenses."
             )
 
     @mcp.resource("vf://projects")
@@ -145,6 +167,48 @@ def register_agent_resources(mcp: Any, ctx: Any, *, prompts: bool = True) -> Non
             return _error(exc.code, exc.message)
         return json.dumps(
             {"ok": True, "artifacts": list_artifacts(Path(record.output))},
+            indent=2,
+        )
+
+    @mcp.resource("vf://projects/{project_id}/scenes")
+    def project_scenes(project_id: str) -> str:
+        """Cached scene manifest with keyframe paths."""
+
+        try:
+            record = get_project(project_id)
+        except VideoFlowError as exc:
+            return _error(exc.code, exc.message)
+        snapshot = latest_scene_snapshot(Path(record.output))
+        if snapshot is None:
+            return _error(
+                "scenes_missing",
+                "Run vf_scenes(action='analyze') to build the scene manifest",
+            )
+        return json.dumps(
+            {
+                "ok": True,
+                "summary": snapshot.summary(),
+                "manifest": snapshot.manifest.model_dump(mode="json"),
+            },
+            indent=2,
+        )
+
+    @mcp.resource("vf://projects/{project_id}/scenes/{scene_id}/keyframe")
+    def project_scene_keyframe(project_id: str, scene_id: str) -> str:
+        """Keyframe metadata and path; image bytes stay out of the resource."""
+
+        try:
+            record = get_project(project_id)
+        except VideoFlowError as exc:
+            return _error(exc.code, exc.message)
+        snapshot = latest_scene_snapshot(Path(record.output))
+        if snapshot is None:
+            return _error("scenes_missing", "No cached scene manifest")
+        item = snapshot.keyframe(scene_id)
+        if item is None:
+            return _error("scene_not_found", f"Scene {scene_id} is not cached")
+        return json.dumps(
+            {"ok": True, **item, "image_returned": False},
             indent=2,
         )
 
@@ -283,3 +347,15 @@ def register_agent_resources(mcp: Any, ctx: Any, *, prompts: bool = True) -> Non
             },
             indent=2,
         )
+
+    @mcp.resource("vf://docs/contracts/{name}")
+    def contract_docs(name: str) -> str:
+        """One short contract document from docs/contracts."""
+
+        root = contracts_dir().resolve()
+        candidate = (root / f"{Path(str(name)).name}.md").resolve()
+        if root not in candidate.parents:
+            return _error("invalid_contract", "contract name escapes docs/contracts")
+        if not candidate.is_file():
+            return _error("contract_not_found", f"Unknown contract: {name}")
+        return candidate.read_text(encoding="utf-8", errors="replace")

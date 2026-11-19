@@ -519,14 +519,20 @@ def preflight_recipe(
         )
 
     if "alignment.forced" in step_types_used:
-        ok = _module_available("whisperx") or _module_available("faster_whisper")
+        ok = (
+            _module_available("whisperx")
+            or _module_available("stable_whisper")
+            or _module_available("faster_whisper")
+        )
         checks.append(
             PreflightCheck(
                 "optional.alignment",
                 "optional",
                 "ok" if ok else "warning",
                 "Forced alignment is available" if ok else "Forced alignment will be skipped",
-                detail="" if ok else "WhisperX and faster-whisper are not installed",
+                detail=""
+                if ok
+                else "WhisperX, stable-ts, and faster-whisper are not installed",
             )
         )
 

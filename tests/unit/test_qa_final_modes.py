@@ -68,6 +68,16 @@ def _patch(monkeypatch, *, wer: float = 0.04) -> list[str]:
     monkeypatch.setattr(qa_final, "verify_word_fidelity", fidelity)
     monkeypatch.setattr(qa_final, "_contact_sheet", lambda *a, **k: None)
     monkeypatch.setattr(qa_final, "render_waveform", lambda *a, **k: None)
+    from videoflow.adapters.ffmpeg import FFmpegAdapter
+
+    monkeypatch.setattr(
+        FFmpegAdapter,
+        "measure_loudness",
+        lambda self, path: {
+            "integrated_lufs": -16.0,
+            "true_peak_dbfs": -1.5,
+        },
+    )
     return calls
 
 
@@ -91,8 +101,71 @@ def test_fast_mode_skips_expensive_full_checks(
     assert report["mode"] == "fast"
     assert report["word_fidelity"]["skipped"] is True
     assert report["caption_qa"]["skipped"] is True
-    assert report["loudness"]["skipped"] is True
+    assert report["loudness"]["skipped"] is False
+    assert report["loudness"]["passed"] is True
     assert "fidelity" not in calls
+
+
+def test_fast_mode_ignores_intentional_top_chrome_overlay(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from PIL import Image
+
+    video = tmp_path / "deliverable.mp4"
+    video.write_bytes(b"mp4")
+    image = tmp_path / "top.png"
+    Image.new("RGBA", (100, 100), (255, 0, 0, 255)).save(image)
+    state = _state(tmp_path)
+    state.overlays.append(
+        OverlayClip(
+            overlay_id="top-chrome",
+            path=str(image),
+            start_frame=0,
+            duration_frames=1800,
+            anchor="top_center",
+            margin_y=0,
+            width_ratio=0.5,
+        )
+    )
+    _patch(monkeypatch)
+    report = qa_final.audit_final(
+        video,
+        output=tmp_path,
+        state=state,
+        mode="fast",
+        platforms=["shorts"],
+        width=1080,
+        height=1920,
+    )
+    assert not any(
+        item.get("kind") == "safe_zone"
+        and item.get("overlay_id") == "top-chrome"
+        for item in report["issues"]
+    )
+
+
+def test_fast_mode_still_checks_caption_syntax(tmp_path: Path, monkeypatch) -> None:
+    video = tmp_path / "deliverable.mp4"
+    video.write_bytes(b"mp4")
+    captions = tmp_path / "captions.ass"
+    captions.write_text(
+        "[Events]\n"
+        "Dialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,"
+        "literal \\c&H00FF00& text\n",
+        encoding="utf-8",
+    )
+    _patch(monkeypatch)
+    report = qa_final.audit_final(
+        video,
+        output=tmp_path,
+        state=_state(tmp_path),
+        mode="fast",
+        width=320,
+        height=240,
+        caption_path=captions,
+    )
+    assert report["caption_qa"]["skipped"] is False
+    assert any(item["kind"] == "caption_escape" for item in report["issues"])
 
 
 def test_full_mode_reports_wer_warning_and_critical(
@@ -279,3 +352,4 @@ def test_word_fidelity_normalizes_names() -> None:
         "Hwang e Invidia"
     )
     assert normalize_wer_text("Ação") == "acao"
+    assert normalize_wer_text("clódi e emecêpê") == "claude e mcp"

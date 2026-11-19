@@ -984,4 +984,34 @@ export const GLOSSARY: Record<string, string> = {
   "Shared mount is writable.": "A pasta compartilhada aceita escrita.",
   "Saved.": "Salvo.",
   "Local execution is always the fallback.": "A execução local é sempre o fallback.",
+  "MCP": "MCP",
+  "Local video pipeline controlled by MCP tools.":
+    "Pipeline de vídeo local controlado por ferramentas MCP.",
+  "Local pipeline, agent-controlled": "Pipeline local, controlado por agente",
+  "VideoFlow exposes its production surface through MCP. Use OpenCode, Paperclip, or any MCP client to create projects, run steps, inspect jobs, and export masters. This panel only configures and observes the local service.":
+    "O VideoFlow expõe sua superfície de produção via MCP. Use OpenCode, Paperclip ou qualquer cliente MCP para criar projetos, executar etapas, inspecionar jobs e exportar masters. Este painel apenas configura e observa o serviço local.",
+  "Transport": "Transporte",
+  "Running": "Executando",
+  "Recent jobs": "Jobs recentes",
+  "MCP activity": "Atividade MCP",
+  "Open jobs": "Abrir jobs",
+  "No jobs yet. Start one from your MCP client.":
+    "Ainda não há jobs. Inicie um pelo seu cliente MCP.",
+  "Stage": "Etapa",
+  "Local-first · MCP is the production interface":
+    "Local-first · MCP é a interface de produção",
+  "Project state is the timeline source of truth":
+    "O estado do projeto é a fonte da verdade da timeline",
+  "VideoFlow — MCP control panel": "VideoFlow — painel de controle MCP",
+  "stdio · /mcp/": "stdio · /mcp/",
+  "Control panel": "Painel de controle",
+  "Areas": "Áreas",
+  "The local service reported a problem": "O serviço local reportou um problema",
+  "Could not reach the local service.": "Não foi possível acessar o serviço local.",
+  "Start VideoFlow again or run videoflow restart.":
+    "Inicie o VideoFlow novamente ou execute videoflow restart.",
+  "Connect an MCP client": "Conecte um cliente MCP",
+  "VideoFlow is controlled through MCP. Copy one block into OpenCode, Paperclip, or another MCP client.":
+    "O VideoFlow é controlado via MCP. Copie um bloco para o OpenCode, Paperclip ou outro cliente MCP.",
+  "Copied": "Copiado",
 };

@@ -48,6 +48,9 @@ class FasterWhisperAdapter:
         threads: int | None = None,
         word_timestamps: bool = True,
         condition_on_previous_text: bool = False,
+        no_speech_threshold: float = 0.6,
+        compression_ratio_threshold: float = 2.2,
+        repetition_penalty: float = 1.1,
         log: Callable[[str, str], None] | None = None,
     ) -> None:
         self.model = Path(model).expanduser() if model is not None else None
@@ -60,6 +63,9 @@ class FasterWhisperAdapter:
         self.threads = threads or max(1, min(8, (os.cpu_count() or 2) // 2 or 1))
         self.word_timestamps = word_timestamps
         self.condition_on_previous_text = condition_on_previous_text
+        self.no_speech_threshold = no_speech_threshold
+        self.compression_ratio_threshold = compression_ratio_threshold
+        self.repetition_penalty = repetition_penalty
         self._log = log
         self._engine: Any | None = None
         self.last_language = ""
@@ -125,6 +131,9 @@ class FasterWhisperAdapter:
                 word_timestamps=self.word_timestamps,
                 vad_filter=self.vad_filter,
                 condition_on_previous_text=self.condition_on_previous_text,
+                no_speech_threshold=self.no_speech_threshold,
+                compression_ratio_threshold=self.compression_ratio_threshold,
+                repetition_penalty=self.repetition_penalty,
             )
             detected = str(getattr(_info, "language", "") or "")
             if not detected and self.language != "auto":

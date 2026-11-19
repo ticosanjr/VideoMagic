@@ -1,29 +1,24 @@
 # VideoFlow
 
-Local, non-destructive video pre-edit studio with a recipe DAG editor, a
-canvas timeline, and an MCP server. VideoFlow turns a raw talking-head
-recording into an editable timeline: it removes silence and retakes, adds
-J-cuts and punch-ins, proposes vertical Shorts, masters the dialogue bed, and
-exports timelines for DaVinci Resolve, Adobe Premiere Pro, and Kdenlive.
+Local, non-destructive video pre-edit pipeline controlled through MCP.
+VideoFlow turns a raw talking-head recording into an editable timeline: it
+removes silence and retakes, adds J-cuts and punch-ins, proposes vertical
+Shorts, masters the dialogue bed, and exports timelines for DaVinci Resolve,
+Adobe Premiere Pro, and Kdenlive.
 
-> Status: 3.4.1 local stable. Diretor Lego workflows, OpenCode Studio Manager, 37 MCP tools, 22 styles, stateful step chains, multi-NLE delivery, and opt-in Windows GPU offload with a self-healing worker kit. GPU speed certification awaits Windows/NVIDIA hardware. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
-> quality transcription with a whisper.cpp fallback, SRT/ASR paths,
-> transcript-driven retake culling, deterministic cuts, vertical Shorts,
-> audio mastering and loudness QA, burned titles, color/LUT grading, analytics
-> import, review approval, thumbnail A/B, translation, and three NLE exports.
-> The recipe studio, canvas timeline, automation schedules, and provider
-> settings execute against the local API and MCP server. Recipes now support
-> typed variables, expressions, profiles, variants, map/reduce, error policies,
-> and human approval gates. The canvas supports multi-select, markers, track
-> mute/solo/lock, clip thumbnails, drag, trim, split, ripple, undo/redo,
-> snapping, waveform, background preview and render queues, and per-clip
-> transitions, fades, and scale. The 2.7x line adds a favorites-first Produce
-> overview, a global HITL inbox, run workspaces, the Synthetic Code Studio and
-> Footage Intelligence Edit recipes, optional ElevenLabs voice cloning, and a
-> desktop tray. Projects persist atomic, revisioned JSON state
-> under `.videoflow/`; schedules, service definitions, and job/asset indices use
-> SQLite as the operational store for jobs, assets, and batches; settings,
-> providers, secrets, models, plugins, and diagnostics are configurable locally.
+> Status: 3.7.0 local stable. **34 MCP tools**, 22 styles, stateful step
+> chains, multi-NLE delivery, and opt-in Windows GPU offload with a
+> self-healing worker kit. GPU speed certification awaits Windows/NVIDIA
+> hardware. The local Linux binary and AppImage run ingest, Silero VAD with an
+> FFmpeg fallback, local Faster-Whisper quality transcription with a
+> whisper.cpp fallback, SRT/ASR paths, transcript-driven retake culling,
+> deterministic cuts, vertical Shorts, audio mastering and loudness QA, burned
+> titles, color/LUT grading, review approval, thumbnail A/B, translation, and
+> three NLE exports. The local UI is limited to MCP configuration and
+> observability: jobs, models, providers, services, extensions, connections,
+> GPU, and settings. Projects persist atomic, revisioned JSON state under
+> `.videoflow/`; SQLite indexes jobs and assets; settings, providers, secrets,
+> models, plugins, and diagnostics are configurable locally.
 
 ## Requirements
 
@@ -37,21 +32,22 @@ Faster-Whisper runtimes but not their large weights; download the small model
 from the Models tab when needed. A build with `--with-models` embeds the weights
 and works fully offline out of the box. A GPU is not required.
 
-## Recipes
+## MCP usage
 
-A recipe is a JSON DAG shared by the UI, CLI, REST API, scheduler, and batch
-manager. The MCP surface is tools-only and exposes catalog steps, not recipes:
+Create a project, discover nodes with `vf_catalog_search` or
+`vf://docs/steps`, run them with `vf_exec(action="step")`, then inspect the
+job and export the delivery bundle:
 
-```bash
-videoflow recipe list
-videoflow recipe validate recipes/youtube_talking_head.json
-videoflow recipe run recipes/viral_shorts_batch.json /media/source.mp4 -o /media/out
+```text
+vf_project(action="init", output="/projects/interview", sources=["/media/a.mp4"])
+vf_exec(action="step", step_id="ingest", params={"sources": ["/media/a.mp4"]})
+vf_exec(action="step", step_id="transcribe", params={"language": "pt"})
+vf_exec(action="step", step_id="edit.timeline", params={})
+vf_export(project_id="...", targets="all")
 ```
 
-The same contract is available at `POST /api/v1/recipes/run`. Over MCP, create
-a project, discover nodes with `vf_catalog_search`/`vf://docs/steps`, and run
-them with `vf_exec(action="step")`. See `docs/recipes.md` and
-`schemas/recipe.schema.json`.
+The local UI only configures models, providers, services, plugins, MCP
+connections, the GPU worker, and runtime settings. See [docs/mcp.md](docs/mcp.md).
 
 ## Quick start
 

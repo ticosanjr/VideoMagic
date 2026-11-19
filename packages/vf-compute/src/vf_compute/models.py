@@ -167,6 +167,7 @@ class JobStatus(BaseModel):
     message: str = ""
     artifacts: list[str] = Field(default_factory=list)
     shared_artifacts: list[str] = Field(default_factory=list)
+    shared_error: str | None = None
     error: str | None = None
 
     @model_validator(mode="before")
@@ -208,6 +209,11 @@ class JobStatus(BaseModel):
             artifacts=_as_str_list(artifacts),
             shared_artifacts=_as_str_list(
                 data.get("shared_artifacts", data.get("shared_outputs"))
+            ),
+            shared_error=(
+                str(data["shared_error"])
+                if data.get("shared_error") is not None
+                else None
             ),
             error=str(error) if error is not None else None,
         )

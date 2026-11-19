@@ -9,6 +9,7 @@ from videoflow.domain.config import CaptionStyle
 
 def test_font_alias_resolves_without_fontconfig(monkeypatch) -> None:
     monkeypatch.setattr(fonts, "list_fonts", lambda: [])
+    monkeypatch.setattr(fonts, "list_system_fonts", lambda: [])
     monkeypatch.setattr(fonts.shutil, "which", lambda name: None)
     assert fonts.resolve_font_family("Arial") == "Liberation Sans"
     assert fonts.font_available("Arial") is True
@@ -27,6 +28,7 @@ def test_resolve_font_family_prefers_registered_family(monkeypatch) -> None:
 
 def test_resolve_font_family_survives_a_broken_fontconfig(monkeypatch) -> None:
     monkeypatch.setattr(fonts, "list_fonts", lambda: [])
+    monkeypatch.setattr(fonts, "list_system_fonts", lambda: [])
     monkeypatch.setattr(fonts.shutil, "which", lambda name: "/usr/bin/fc-match")
 
     def fail(command, **kwargs):
@@ -38,6 +40,7 @@ def test_resolve_font_family_survives_a_broken_fontconfig(monkeypatch) -> None:
 
 def test_fontconfig_match_resolves_metric_compatible_family(monkeypatch) -> None:
     monkeypatch.setattr(fonts, "list_fonts", lambda: [])
+    monkeypatch.setattr(fonts, "list_system_fonts", lambda: [])
     monkeypatch.setattr(fonts.shutil, "which", lambda name: "/usr/bin/fc-match")
 
     def fake_run(command, **kwargs):
@@ -52,6 +55,7 @@ def test_fontconfig_match_resolves_metric_compatible_family(monkeypatch) -> None
 
 def test_caption_ass_uses_resolved_alias(monkeypatch) -> None:
     monkeypatch.setattr(fonts, "list_fonts", lambda: [])
+    monkeypatch.setattr(fonts, "list_system_fonts", lambda: [])
     monkeypatch.setattr(fonts.shutil, "which", lambda name: None)
     ass = build_ass_lines(
         [CaptionLine(0, 1, "texto")],

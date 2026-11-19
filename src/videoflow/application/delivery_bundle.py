@@ -1,6 +1,6 @@
 """One validated timeline to the full delivery set.
 
-The bundle is the single entry point behind ``vf_exports(action="bundle")`` and
+The bundle is the single entry point behind ``vf_export()`` and
 the ``delivery.package`` targets. It never re-analyses the timeline: the same
 ``ProjectState`` feeds every NLE document and the social master.
 """
@@ -16,7 +16,10 @@ from pathlib import Path
 from typing import Any
 
 from videoflow.application.asset_providers import license_blockers
-from videoflow.application.disk import ensure_free_space, prune_render_segments
+from videoflow.application.disk import (
+    ensure_free_space_for_export,
+    prune_render_segments,
+)
 from videoflow.application.export_service import (
     ALL_TARGETS,
     resolve_targets,
@@ -234,7 +237,7 @@ def build_delivery_bundle(
 
     options = request or DeliveryBundleRequest()
     output = Path(output).expanduser()
-    ensure_free_space(output)
+    ensure_free_space_for_export(output, state)
     exports = output / "exports"
     exports.mkdir(parents=True, exist_ok=True)
 

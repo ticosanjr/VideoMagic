@@ -53,7 +53,9 @@ def test_bootstrap_creates_workspace_and_syncs_styles(tmp_path: Path) -> None:
     core = config["mcp"]["servers"]["core"]
     assert core["environment"]["VF_WORKSPACE_ROOT"] == str(target / "projects")
     assert core["environment"]["VIDEOWFLOW_HOME"] == str(target / "videoflow-data")
-    assert core["environment"]["VF_GPU_WORKER_TOKEN"] == "${VF_GPU_WORKER_TOKEN:-}"
+    assert "VF_GPU_WORKER_TOKEN" not in core["environment"]
+    assert "VF_GPU_WORKER_URL" not in core["environment"]
+    assert "VF_COMPUTE_MODE" not in core["environment"]
     assert "videoflow-mcp" in core["command"]
 
     agents = (target / "AGENTS.md").read_text(encoding="utf-8")

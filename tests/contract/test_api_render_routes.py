@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tests.contract.test_api_timeline import _client, _job
+from tests.contract.api_helpers import _client, _job
 from videoflow.application.previews import (
     PreviewState,
     preview_key,

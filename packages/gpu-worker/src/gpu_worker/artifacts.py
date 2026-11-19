@@ -18,6 +18,19 @@ class ArtifactTooLarge(ValueError):
     """Raised when an upload exceeds the configured per-artifact limit."""
 
 
+def _digest_file(path: Path) -> tuple[str, int]:
+    digest = hashlib.sha256()
+    total = 0
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(_CHUNK_SIZE)
+            if not chunk:
+                break
+            total += len(chunk)
+            digest.update(chunk)
+    return digest.hexdigest(), total
+
+
 class ArtifactStore:
     """Store uploads by SHA-256 digest under a constrained object root."""
 
@@ -46,6 +59,49 @@ class ArtifactStore:
         return ArtifactRecord(
             id=record.id, filename=record.filename, size=record.size, path=resolved
         )
+
+    def save_path(
+        self,
+        source: Path,
+        filename: str | None,
+        *,
+        sha256: str = "",
+        size: int | None = None,
+    ) -> ArtifactRecord:
+        """Adopt an already-written file into the content-addressed store."""
+
+        path = Path(source).expanduser()
+        if not path.is_file():
+            raise FileNotFoundError(f"artifact source does not exist: {path}")
+        name = safe_filename(filename)
+        suffix = safe_extension(filename)
+        digest = sha256.strip().lower()
+        total = int(size) if size is not None else -1
+        if not digest or total < 0:
+            computed, measured = _digest_file(path)
+            digest = digest or computed
+            total = total if total >= 0 else measured
+        if total > self.max_bytes:
+            raise ArtifactTooLarge(
+                f"upload exceeds the {self.max_bytes} byte artifact limit"
+            )
+        existing = self.get(digest)
+        if existing is not None:
+            path.unlink(missing_ok=True)
+            return existing
+        destination = self.objects / digest[:2] / f"{digest}{suffix}"
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.replace(path, destination)
+        except OSError:
+            import shutil
+
+            shutil.move(str(path), str(destination))
+        record = ArtifactRecord(id=digest, filename=name, size=total, path=destination)
+        stored = self._store.add_artifact(record)
+        if stored.path.resolve() != destination.resolve():
+            destination.unlink(missing_ok=True)
+        return stored
 
     def save_upload(self, source: BinaryIO, filename: str | None) -> ArtifactRecord:
         """Stream an upload to disk, hashing it and deduplicating by digest."""

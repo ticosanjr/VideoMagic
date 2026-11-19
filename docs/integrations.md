@@ -85,12 +85,12 @@ Use the videoflow MCP tools.
 3. Run each node with vf_exec(action="step", step_id=..., params=...).
 4. Poll vf_job(action="wait") after each step, then read the timeline.
 5. Apply only validated vf_timeline edits.
-6. Run vf_exports(action="bundle") and report the revision, bundle manifest and paths.
+6. Run vf_export() and report the revision, bundle manifest and paths.
 ```
 
 Useful MCP tools: `vf_project`, `vf_capabilities`, `vf_catalog_search`,
-`vf_exec`, `vf_job`, `vf_timeline`, `vf_artifact`, `vf_render`, `vf_exports`,
-`vf_qa`. Recipes are intentionally UI/CLI/REST only.
+`vf_exec`, `vf_job`, `vf_timeline`, `vf_artifact`, `vf_export`,
+`vf_qa_final`. Recipes are intentionally UI/CLI/REST only.
 
 ## Paperclip
 

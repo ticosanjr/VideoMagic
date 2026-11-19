@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+from vf_compute.config import clear_gpu_config, save_gpu_config
 
 from videoflow.application.compute import compute_status, router_from_settings
 from videoflow.application.secrets import get_secret, set_secret
@@ -19,10 +20,12 @@ class GpuConnectRequest(BaseModel):
     token: str = ""
     worker_id: str = ""
     mode: Literal["auto", "remote_preferred", "local_only"] = "auto"
+    transport: Literal["auto", "http", "shared"] = "auto"
 
 
 class GpuSettingsPatch(BaseModel):
     mode: Literal["auto", "remote_preferred", "local_only"] | None = None
+    transport: Literal["auto", "http", "shared"] | None = None
     capabilities: dict[str, bool] | None = None
     shared_mount_enabled: bool | None = None
     shared_linux_path: str | None = None
@@ -136,9 +139,17 @@ def register_gpu_routes(app: FastAPI) -> None:
                 "worker_url": url,
                 "worker_id": payload.worker_id.strip(),
                 "mode": payload.mode,
+                "transport": payload.transport,
             }
         )
         updated = _save_gpu(settings, gpu)
+        save_gpu_config(
+            mode=gpu.mode,
+            worker_url=url,
+            token=token or get_secret(gpu.worker_token_secret),
+            worker_id=gpu.worker_id,
+            transport=gpu.transport,
+        )
         router = router_from_settings(updated)
         health = router.health(force=True)
         return {
@@ -152,8 +163,16 @@ def register_gpu_routes(app: FastAPI) -> None:
         settings = _current()
         updated = _save_gpu(
             settings,
-            settings.gpu.model_copy(update={"worker_url": "", "worker_id": "", "mode": "auto"}),
+            settings.gpu.model_copy(
+                update={
+                    "worker_url": "",
+                    "worker_id": "",
+                    "mode": "auto",
+                    "transport": "auto",
+                }
+            ),
         )
+        clear_gpu_config()
         return {
             "ok": True,
             "status": compute_status(settings=updated),
@@ -179,6 +198,14 @@ def register_gpu_routes(app: FastAPI) -> None:
             settings,
             settings.gpu.model_copy(update=updates),
         )
+        if updated.gpu.worker_url:
+            save_gpu_config(
+                mode=updated.gpu.mode,
+                worker_url=updated.gpu.worker_url,
+                token=get_secret(updated.gpu.worker_token_secret),
+                worker_id=updated.gpu.worker_id,
+                transport=updated.gpu.transport,
+            )
         return {
             "ok": True,
             "gpu": updated.gpu.model_dump(mode="json"),

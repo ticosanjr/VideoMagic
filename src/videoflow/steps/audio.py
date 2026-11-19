@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from videoflow.adapters.silero import SileroVadAdapter
+from videoflow.application.rms import build_rms_profile
 from videoflow.application.vad import complement_spans, detect_speech
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import IngestError
-from videoflow.domain.state import InactiveSpan
+from videoflow.domain.state import InactiveSpan, MediaInfo
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.cache import cache_get, cache_key, cache_put
 from videoflow.steps.common import adapter_for, digest_payload, require_media
@@ -26,6 +28,7 @@ class VadParams(BaseModel):
     min_silence_ms: int = Field(default=400, ge=0, le=10_000)
     min_speech_ms: int = Field(default=100, ge=0, le=5_000)
     speech_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
+    neg_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
     pad_before_ms: int = Field(default=120, ge=0, le=5_000)
     pad_after_ms: int = Field(default=150, ge=0, le=5_000)
     spike_suppression_ms: int = Field(default=0, ge=0, le=5000)
@@ -33,12 +36,52 @@ class VadParams(BaseModel):
     apply_pads: bool = False
     aggressiveness: Literal["conservative", "balanced", "aggressive"] = "balanced"
 
+    @model_validator(mode="after")
+    def validate_hysteresis(self) -> VadParams:
+        if self.neg_threshold is not None and self.neg_threshold > self.speech_threshold:
+            raise ValueError("neg_threshold must be less than or equal to speech_threshold")
+        return self
+
 
 def _silence_spans(spans: list[tuple[int, int]], duration_samples: int) -> list[InactiveSpan]:
     return [
         InactiveSpan(start_sample=start, end_sample=end, reason="silence")
         for start, end in complement_spans(spans, duration_samples)
     ]
+
+
+def _persist_rms(context: PipelineContext, media: MediaInfo, io: StepIO) -> None:
+    """Write the 10 ms RMS envelope used by the later acoustic snap."""
+
+    pcm = context.pcm_path
+    if pcm is None or not pcm.is_file():
+        candidate = context.work / "source.wav"
+        pcm = candidate if candidate.is_file() else None
+    if pcm is None:
+        return
+    sample_rate = getattr(media, "audio_sample_rate", 48_000)
+    try:
+        profile = build_rms_profile(
+            pcm,
+            sample_rate=sample_rate,
+            frame_ms=10,
+            window_ms=25,
+        )
+    except (OSError, ValueError) as exc:
+        context.warnings.append(f"RMS profile unavailable: {exc}")
+        return
+    target = context.work / "vad_rms.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(profile, ensure_ascii=False) + "\n", encoding="utf-8")
+    context.metadata["vad_rms"] = {
+        "path": str(target),
+        "sample_rate": sample_rate,
+        "frame_ms": 10,
+        "window_ms": 25,
+        "count": profile.get("count", 0),
+    }
+    context.artifacts["vad_rms"] = str(target)
+    io.emit("debug", f"RMS profile: {profile.get('count', 0)} hops", module="vad")
 
 
 @register_step
@@ -57,6 +100,7 @@ class VadStep(BaseStep):
                 update={
                     "min_silence_ms": min(options.min_silence_ms, 500),
                     "speech_threshold": max(options.speech_threshold, 0.6),
+                    "neg_threshold": max(options.neg_threshold or 0.0, 0.4),
                 }
             )
         elif options.aggressiveness == "conservative":
@@ -64,6 +108,7 @@ class VadStep(BaseStep):
                 update={
                     "min_silence_ms": max(options.min_silence_ms, 900),
                     "speech_threshold": min(options.speech_threshold, 0.4),
+                    "neg_threshold": min(options.neg_threshold or 0.35, 0.3),
                 }
             )
         media = require_media(context)
@@ -92,6 +137,7 @@ class VadStep(BaseStep):
                 context.metadata["merge_gap_ms"] = options.merge_gap_ms
                 context.hashes["vad"] = key
                 context.cache_hits.append("audio.vad")
+                _persist_rms(context, media, io)
                 io.emit("info", f"{len(spans)} speech intervals (cached)")
                 io.report(100, "Speech intervals loaded from cache")
                 return
@@ -107,6 +153,7 @@ class VadStep(BaseStep):
             min_silence_ms=options.min_silence_ms,
             min_speech_ms=options.min_speech_ms,
             speech_threshold=options.speech_threshold,
+            neg_threshold=options.neg_threshold,
             speech_pad_before_ms=options.pad_before_ms,
             speech_pad_after_ms=options.pad_after_ms,
             duration_samples=context.duration_samples(),
@@ -137,5 +184,6 @@ class VadStep(BaseStep):
             key,
             {"spans": detection.spans, "engine": detection.engine},
         )
+        _persist_rms(context, media, io)
         io.emit("info", f"{len(detection.spans)} speech intervals ({detection.engine})")
         io.report(100, "Speech intervals ready")

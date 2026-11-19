@@ -319,7 +319,7 @@ def collisions(
 
     layouts = layout_for(state, canvas_w, canvas_h)
     boxes: dict[str, PixelBox | None] = {}
-    if mode == "visual":
+    if mode in {"visual", "bbox"}:
         for overlay in state.overlays:
             boxes[overlay.overlay_id] = visual_overlay_box(
                 overlay, canvas_w, canvas_h

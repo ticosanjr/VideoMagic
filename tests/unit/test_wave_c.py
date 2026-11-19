@@ -273,7 +273,6 @@ def test_model_and_font_diagnostics(tmp_path: Path) -> None:
 def test_wave_c_mcp_tools(tmp_path: Path, monkeypatch) -> None:
     from videoflow.application.jobs import JobManager
     from videoflow.application.projects import init_project, save_project_state
-    from videoflow.engine.batch import BatchManager
     from videoflow.mcp_server.context import ToolContext
     from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -293,7 +292,7 @@ def test_wave_c_mcp_tools(tmp_path: Path, monkeypatch) -> None:
     tools: dict[str, object] = {}
     register_core_tools(
         lambda func: tools.setdefault(func.__name__, func),
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),
+        ToolContext(manager=manager),
     )
     assert tools["vf_style_validate"](style_id=style.style_id)["ok"] is True
     assert (
@@ -322,16 +321,15 @@ def test_wave_c_mcp_tools(tmp_path: Path, monkeypatch) -> None:
         lambda *args, **kwargs: {"ok": True, "issues": []},
     )
     assert tools["vf_qa_final"](project_id=record.project_id)["ok"] is True
-    assert tools["vf_font"](action="list")["ok"] is True
-    assert tools["vf_font"](action="unknown")["ok"] is False
-    assert tools["vf_font"](action="register")["ok"] is False
+    assert tools["vf_assets"](action="fonts")["ok"] is True
+    assert tools["vf_assets"](action="unknown")["ok"] is False
+    assert tools["vf_assets"](action="register_font")["ok"] is False
     assert tools["vf_capabilities"]()["ok"] is True
 
 
 def test_core_new_tool_error_branches(tmp_path: Path) -> None:
     from videoflow.application.jobs import JobManager
     from videoflow.application.projects import init_project
-    from videoflow.engine.batch import BatchManager
     from videoflow.mcp_server.context import ToolContext
     from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -340,7 +338,7 @@ def test_core_new_tool_error_branches(tmp_path: Path) -> None:
     tools: dict[str, object] = {}
     register_core_tools(
         lambda func: tools.setdefault(func.__name__, func),
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),
+        ToolContext(manager=manager),
     )
     assert tools["vf_style_validate"](style_id="missing")["ok"] is False
     assert tools["vf_style_apply"](project_id="missing", style_id="missing")["ok"] is False
@@ -348,8 +346,8 @@ def test_core_new_tool_error_branches(tmp_path: Path) -> None:
     assert tools["vf_overlay"](project_id="missing", asset_path="missing")["ok"] is False
     assert tools["vf_shorts_batch"](project_id="missing", clips=[])["ok"] is False
     assert tools["vf_qa_final"](project_id=record.project_id)["ok"] is False
-    assert tools["vf_font"](action="register")["ok"] is False
-    assert tools["vf_font"](action="register", font_path="missing")["ok"] is False
+    assert tools["vf_assets"](action="register_font")["ok"] is False
+    assert tools["vf_assets"](action="register_font", font_path="missing")["ok"] is False
     assert tools["vf_capabilities"]()["ok"] is True
 
 
@@ -450,7 +448,6 @@ def test_contact_sheet_optional(monkeypatch, tmp_path: Path) -> None:
 def test_core_new_tool_value_errors(tmp_path: Path, monkeypatch) -> None:
     from videoflow.application.jobs import JobManager
     from videoflow.application.projects import init_project, save_project_state
-    from videoflow.engine.batch import BatchManager
     from videoflow.mcp_server.context import ToolContext
     from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -461,7 +458,7 @@ def test_core_new_tool_value_errors(tmp_path: Path, monkeypatch) -> None:
     tools: dict[str, object] = {}
     register_core_tools(
         lambda func: tools.setdefault(func.__name__, func),
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),
+        ToolContext(manager=manager),
     )
     monkeypatch.setattr(
         "videoflow.application.style_compiler.apply_style",
@@ -493,10 +490,9 @@ def test_core_new_tool_value_errors(tmp_path: Path, monkeypatch) -> None:
     assert waited["ok"] is False
 
 
-def test_vf_crop_preview_success_and_failure(tmp_path: Path, monkeypatch) -> None:
+def test_vf_overlay_preview_crop_success_and_failure(tmp_path: Path, monkeypatch) -> None:
     from videoflow.application.jobs import JobManager
     from videoflow.application.projects import init_project, save_project_state
-    from videoflow.engine.batch import BatchManager
     from videoflow.mcp_server.context import ToolContext
     from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -506,23 +502,22 @@ def test_vf_crop_preview_success_and_failure(tmp_path: Path, monkeypatch) -> Non
     tools: dict[str, object] = {}
     register_core_tools(
         lambda func: tools.setdefault(func.__name__, func),
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),
+        ToolContext(manager=manager),
     )
     monkeypatch.setattr(
         "videoflow.application.crop_preview.render_crop_preview",
         lambda *args, **kwargs: {"ok": True, "path": str(tmp_path / "preview.jpg")},
     )
-    assert tools["vf_crop_preview"](project_id=record.project_id)["ok"] is True
+    assert tools["vf_overlay_preview"](action="crop", project_id=record.project_id)["ok"] is True
     monkeypatch.setattr(
         "videoflow.application.crop_preview.render_crop_preview",
         lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("bad crop")),
     )
-    assert tools["vf_crop_preview"](project_id=record.project_id)["ok"] is False
+    assert tools["vf_overlay_preview"](action="crop", project_id=record.project_id)["ok"] is False
 
 
 def test_vf_export_error_branches(tmp_path: Path) -> None:
     from videoflow.application.jobs import JobManager
-    from videoflow.engine.batch import BatchManager
     from videoflow.mcp_server.context import ToolContext
     from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -530,7 +525,7 @@ def test_vf_export_error_branches(tmp_path: Path) -> None:
     tools: dict[str, object] = {}
     register_core_tools(
         lambda func: tools.setdefault(func.__name__, func),
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),
+        ToolContext(manager=manager),
     )
     assert tools["vf_export"](project_id="missing")["ok"] is False
 
@@ -538,7 +533,6 @@ def test_vf_export_error_branches(tmp_path: Path) -> None:
 def test_core_export_success_font_and_list_filter(tmp_path: Path, monkeypatch) -> None:
     from videoflow.application.jobs import JobManager
     from videoflow.application.projects import init_project, save_project_state
-    from videoflow.engine.batch import BatchManager
     from videoflow.mcp_server.context import ToolContext
     from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -548,7 +542,7 @@ def test_core_export_success_font_and_list_filter(tmp_path: Path, monkeypatch) -
     tools: dict[str, object] = {}
     register_core_tools(
         lambda func: tools.setdefault(func.__name__, func),
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),
+        ToolContext(manager=manager),
     )
     monkeypatch.setattr(
         "videoflow.application.delivery_bundle.build_delivery_bundle",
@@ -566,7 +560,7 @@ def test_core_export_success_font_and_list_filter(tmp_path: Path, monkeypatch) -
 
     font = Path("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf")
     if font.is_file():
-        registered = tools["vf_font"](action="register", font_path=str(font))
+        registered = tools["vf_assets"](action="register_font", font_path=str(font))
         assert registered["ok"] is True
 
 

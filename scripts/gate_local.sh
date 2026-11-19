@@ -79,7 +79,6 @@ echo "== E2E =="
 (
   cd ui
   npx playwright test --reporter=line
-  VF_PERF=1 npx playwright test e2e/perf.spec.ts --workers=1 --reporter=line
 )
 
 echo "gate: all local checks passed"

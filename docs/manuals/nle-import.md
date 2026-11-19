@@ -22,6 +22,18 @@ Minimum: 18.6. Newer 19/20 releases are preferred for FCPXML 1.10.
    - no red offline media.
 8. Play each join with headphones. There must be no click.
 
+### Dynamic Shorts
+
+`short.export` writes `shorts/<short_id>/short.fcpxml`. Import it the same way,
+then check:
+
+- V1 is the rendered Short base.
+- V2 contains one face-panel clip per segment, aligned to its layout panel.
+- A1 carries the source voice; A2 carries the SFX cues.
+- Captions are editable titles; layout changes are sequence markers.
+- No red offline media. Run
+  `uv run python scripts/fcpxml_smoke.py <file.fcpxml>` first.
+
 If the file is rejected:
 
 - confirm the FCPXML version (1.9 for older Resolve);

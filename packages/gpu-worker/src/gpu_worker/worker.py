@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 import queue
+import re
 import shutil
 import threading
+import time
 from pathlib import Path
 
 from gpu_worker.artifacts import ArtifactStore
@@ -13,6 +16,7 @@ from gpu_worker.capabilities import vram_cost
 from gpu_worker.handlers import HandlerError, HandlerRegistry
 from gpu_worker.models import ModelRegistry
 from gpu_worker.security import (
+    UnsafePathError,
     resolve_shared_output,
     resolve_shared_path,
     safe_filename,
@@ -22,6 +26,25 @@ from gpu_worker.store import JobRecord, JobStore
 from gpu_worker.vram import VramBudget, VramError
 
 _SENTINEL = "__stop__"
+_INPUT_PLACEHOLDER = re.compile(r"^__VF_INPUT_(\d+)__$")
+
+
+def _materialize_params(value: object, input_paths: list[Path]) -> object:
+    """Replace ``__VF_INPUT_n__`` placeholders with materialized local paths."""
+
+    if isinstance(value, str):
+        match = _INPUT_PLACEHOLDER.fullmatch(value)
+        if match is None:
+            return value
+        index = int(match.group(1))
+        if 0 <= index < len(input_paths):
+            return str(input_paths[index])
+        return value
+    if isinstance(value, dict):
+        return {str(key): _materialize_params(item, input_paths) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_materialize_params(item, input_paths) for item in value]
+    return value
 
 
 class JobRunner:
@@ -94,7 +117,7 @@ class JobRunner:
         if not self._store.mark_running(job_id):
             return
         try:
-            names, shared = self._execute(job)
+            names, shared, shared_error = self._execute(job)
         except Exception as exc:
             self._store.finish_job(job_id, "failed", error=_error_text(exc))
             return
@@ -103,9 +126,10 @@ class JobRunner:
             "succeeded",
             artifacts=names,
             shared_artifacts=shared,
+            shared_error=shared_error,
         )
 
-    def _execute(self, job: JobRecord) -> tuple[list[str], list[str]]:
+    def _execute(self, job: JobRecord) -> tuple[list[str], list[str], str | None]:
         job_dir = self._work_dir / "jobs" / job.id
         inputs_dir = job_dir / "inputs"
         artifacts_dir = job_dir / "artifacts"
@@ -129,19 +153,21 @@ class JobRunner:
                 self._vram.ensure(vram_cost(job.capability), self._models)
             except VramError as exc:
                 raise HandlerError(str(exc)) from exc
-        results = handler(job.params, input_paths, job_dir) or []
+        materialized = _materialize_params(job.params, input_paths)
+        params = materialized if isinstance(materialized, dict) else job.params
+        results = handler(params, input_paths, job_dir) or []
         names = self._collect_artifacts(job_dir, artifacts_dir, results)
-        shared = self._write_shared_outputs(job, artifacts_dir, names)
-        return names, shared
+        shared, shared_error = self._write_shared_outputs(job, artifacts_dir, names)
+        return names, shared, shared_error
 
     def _write_shared_outputs(
         self,
         job: JobRecord,
         artifacts_dir: Path,
         names: list[str],
-    ) -> list[str]:
+    ) -> tuple[list[str], str | None]:
         if not job.shared_outputs:
-            return []
+            return [], None
         if self._shared_root is None:
             raise HandlerError("shared outputs are not configured")
         if len(job.shared_outputs) > len(names):
@@ -150,13 +176,35 @@ class JobRunner:
                 f"({len(job.shared_outputs)} > {len(names)})"
             )
         written: list[str] = []
+        errors: list[str] = []
         for relative, name in zip(job.shared_outputs, names, strict=False):
-            target = resolve_shared_output(self._shared_root, relative)
+            try:
+                target = resolve_shared_output(self._shared_root, relative)
+            except (OSError, UnsafePathError) as exc:
+                errors.append(f"{relative}: {exc}")
+                continue
             temporary = target.with_name(f".{target.name}.part")
-            shutil.copyfile(artifacts_dir / name, temporary)
-            os.replace(temporary, target)
-            written.append(relative)
-        return written
+            last_error: OSError | None = None
+            for _attempt in range(5):
+                try:
+                    shutil.copyfile(artifacts_dir / name, temporary)
+                    with temporary.open("rb+") as handle:
+                        handle.flush()
+                        os.fsync(handle.fileno())
+                    os.replace(temporary, target)
+                    if target.stat().st_size <= 0:
+                        raise OSError("shared output is empty after write")
+                    written.append(relative)
+                    last_error = None
+                    break
+                except OSError as exc:
+                    last_error = exc
+                    time.sleep(0.2)
+            if last_error is not None:
+                with contextlib.suppress(OSError):
+                    temporary.unlink(missing_ok=True)
+                errors.append(f"{relative}: {last_error}")
+        return written, ("; ".join(errors) if errors else None)
 
     def _materialize_inputs(self, job: JobRecord, inputs_dir: Path) -> list[Path]:
         paths: list[Path] = []

@@ -271,6 +271,12 @@ class BatchError(VideoFlowError):
     code = "batch_invalid"
 
 
+class ShortPlanError(VideoFlowError):
+    """A Short composition plan is invalid or cannot be resolved."""
+
+    code = "short_plan_invalid"
+
+
 class StepExecutionError(VideoFlowError):
     """A named recipe step failed."""
 
@@ -331,6 +337,12 @@ class ProjectStateError(VideoFlowError):
     """A project state or registry file is unreadable or inconsistent."""
 
     code = "project_state_invalid"
+
+
+class TimelineConflict(ProjectStateError):
+    """A recipe or tool tried to overwrite a newer manual timeline revision."""
+
+    code = "timeline_conflict"
 
 
 class ProjectExistsError(VideoFlowError):

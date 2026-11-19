@@ -56,9 +56,6 @@ def _environment(workspace_root: str, *, prompts: bool) -> dict[str, str]:
         "VIDEOWFLOW_HOME": str(
             Path(workspace_root).expanduser().resolve().parent / "videoflow-data"
         ),
-        "VF_COMPUTE_MODE": "${VF_COMPUTE_MODE:-auto}",
-        "VF_GPU_WORKER_URL": "${VF_GPU_WORKER_URL:-}",
-        "VF_GPU_WORKER_TOKEN": "${VF_GPU_WORKER_TOKEN:-}",
     }
     if not prompts:
         environment["VF_MCP_PROMPTS"] = "0"

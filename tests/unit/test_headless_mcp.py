@@ -40,9 +40,9 @@ def _context(tmp: Path) -> PipelineContext:
     )
 
 
-def test_mcp_surface_has_13_core_tools_and_13_resources() -> None:
-    assert len(TOOL_SPECS) == 37
-    assert len(RESOURCE_SPECS) == 13
+def test_mcp_surface_has_33_core_tools_and_14_resources() -> None:
+    assert len(TOOL_SPECS) == 34
+    assert len(RESOURCE_SPECS) == 16
     assert {spec.name for spec in TOOL_SPECS} >= {
         "vf_assets",
         "vf_depth_composite",
@@ -55,8 +55,8 @@ def test_mcp_surface_has_13_core_tools_and_13_resources() -> None:
         "vf_exec",
         "vf_job",
         "vf_ingest",
-        "vf_qa",
-        "vf_render",
+        "vf_qa_final",
+        "vf_export",
     }
 
 

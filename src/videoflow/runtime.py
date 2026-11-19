@@ -233,6 +233,24 @@ def find_whisper_model() -> Path | None:
     return None
 
 
+def find_yamnet_model() -> Path | None:
+    override = os.environ.get("VIDEOWFLOW_YAMNET_MODEL")
+    if override:
+        path = Path(override).expanduser()
+        return path if path.is_file() else None
+    candidates = (
+        bundle_root() / "yamnet" / "yamnet.onnx",
+        bundle_root() / "vendor" / "yamnet" / "yamnet.onnx",
+        executable_dir() / "yamnet" / "yamnet.onnx",
+        executable_dir() / "yamnet.onnx",
+        *(root / "yamnet" / "yamnet.onnx" for root in model_search_dirs()),
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def find_silero_model() -> Path | None:
     override = os.environ.get("VIDEOWFLOW_SILERO_MODEL")
     if override:

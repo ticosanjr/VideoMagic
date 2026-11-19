@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +27,7 @@ def build_release_kit(project_id: str) -> dict[str, Any]:
     platform = "youtube"
     metadata = generate_metadata(
         text,
-        title=record.name,
+        title="",
         platform=platform,
     )
     meta = load_meta(Path(record.output))
@@ -38,11 +39,18 @@ def build_release_kit(project_id: str) -> dict[str, Any]:
         }
         for marker in meta.markers
     ]
-    titles = [
+    candidates = [
         metadata.title,
         f"{metadata.title} | passo a passo",
         f"Como {metadata.title.lower()}",
-    ][:3]
+    ]
+    titles: list[str] = []
+    for candidate in candidates:
+        fitted = _fit_title(candidate, text)
+        if fitted not in titles:
+            titles.append(fitted)
+        if len(titles) == 3:
+            break
     directory = Path(record.output) / "delivery" / "release_kit"
     directory.mkdir(parents=True, exist_ok=True)
     thumbnails = _thumbnails(record.output, state, titles[0], directory)
@@ -55,11 +63,32 @@ def build_release_kit(project_id: str) -> dict[str, Any]:
         "chapters": chapters,
         "thumbnails": thumbnails,
         "platform": platform,
+        "source": "transcript",
     }
     target = directory / "release_kit.json"
     target.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     payload["path"] = str(target)
     return payload
+
+
+def _fit_title(value: str, text: str) -> str:
+    """Keep every publish title inside the 35-70 character window."""
+
+    title = " ".join(str(value or "").split()).strip(" -|")
+    if len(title) < 35:
+        words = [
+            word
+            for word in re.findall(r"[A-Za-zÀ-ÿ0-9]{4,}", text)
+            if word.casefold() not in {"para", "como", "este", "esta", "isso", "that"}
+        ][:5]
+        suffix = " ".join(dict.fromkeys(words))
+        if suffix:
+            title = f"{title} — {suffix}".strip(" —")
+    if len(title) < 35:
+        title = f"{title} — dicas, análise e conteúdo completo".strip(" —")
+    if len(title) > 70:
+        title = title[:69].rsplit(" ", 1)[0].rstrip(" ,.;:") + "…"
+    return title
 
 
 def _thumbnails(

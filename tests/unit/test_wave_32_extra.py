@@ -75,7 +75,6 @@ def _state(tmp_path: Path) -> ProjectState:
 def _tools(tmp_path: Path, monkeypatch):
     from videoflow.application.jobs import JobManager
     from videoflow.application.projects import init_project, save_project_state
-    from videoflow.engine.batch import BatchManager
     from videoflow.mcp_server.context import ToolContext
     from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -86,7 +85,7 @@ def _tools(tmp_path: Path, monkeypatch):
     tools: dict[str, object] = {}
     register_core_tools(
         lambda func: tools.setdefault(func.__name__, func),
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),
+        ToolContext(manager=manager),
     )
     return tools, record, manager
 
@@ -108,8 +107,8 @@ def test_new_mcp_tools_error_paths(tmp_path: Path, monkeypatch) -> None:
         )["ok"]
         is False
     )
-    assert tools["vf_font"](action="bogus")["ok"] is False
-    assert tools["vf_font"](action="install")["ok"] is False
+    assert tools["vf_assets"](action="bogus")["ok"] is False
+    assert tools["vf_assets"](action="install_font")["ok"] is False
     assert (
         tools["vf_overlay"](
             project_id=record.project_id,
@@ -486,7 +485,7 @@ def test_core_tool_exception_branches(tmp_path: Path, monkeypatch) -> None:
         monkeypatch.setattr(target, lambda *a, **k: (_ for _ in ()).throw(OSError("x")))
         assert tools[name](project_id=record.project_id)["ok"] is False
     assert tools["vf_export"](project_id="missing")["ok"] is False
-    assert tools["vf_exports"](action="validate", project_id="missing")["ok"] is False
+    assert tools["vf_export"](action="validate", project_id="missing")["ok"] is False
     assert tools["vf_job"](action="wait", project_id="missing", job_id="x")["ok"] is False
 
 
@@ -531,8 +530,8 @@ def test_core_tool_misc_branches(tmp_path: Path, monkeypatch) -> None:
     assert tools["vf_project"](action="list", status="active")["projects"]
     assert tools["vf_exec"](action="step", project_id="missing")["ok"] is False
     assert tools["vf_run"](project_id=record.project_id, steps=["no-such-step"])["ok"] is False
-    assert tools["vf_jobs"](action="cancel", job_id="missing")["ok"] is False
-    assert tools["vf_jobs"](action="bogus", job_id="x")["ok"] is False
+    assert tools["vf_job"](action="cancel", job_id="missing")["ok"] is False
+    assert tools["vf_job"](action="bogus", job_id="x")["ok"] is False
     assert (
         tools["vf_timeline"](
             action="apply_beatmap",
@@ -550,7 +549,7 @@ def test_core_tool_misc_branches(tmp_path: Path, monkeypatch) -> None:
         )["ok"]
         is False
     )
-    assert tools["vf_exports"](action="bundle", project_id="missing")["ok"] is False
+    assert tools["vf_export"](project_id="missing")["ok"] is False
     assert tools["vf_interaction"](action="list", job_id="missing")["ok"] is False
     assert tools["vf_ingest"](action="session", project_id="missing")["ok"] is False
 

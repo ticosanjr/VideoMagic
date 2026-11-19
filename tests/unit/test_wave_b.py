@@ -193,7 +193,6 @@ def test_duration_gate_detects_drift(monkeypatch, tmp_path: Path) -> None:
 def test_crop_preview_tool_missing_source_and_invalid_aspect(tmp_path: Path) -> None:
     from videoflow.application.jobs import JobManager
     from videoflow.application.projects import init_project
-    from videoflow.engine.batch import BatchManager
     from videoflow.mcp_server.context import ToolContext
     from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -202,11 +201,12 @@ def test_crop_preview_tool_missing_source_and_invalid_aspect(tmp_path: Path) -> 
     tools: dict[str, object] = {}
     register_core_tools(
         lambda func: tools.setdefault(func.__name__, func),
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),
+        ToolContext(manager=manager),
     )
-    assert tools["vf_crop_preview"](project_id=record.project_id)["ok"] is False
+    assert tools["vf_overlay_preview"](action="crop", project_id=record.project_id)["ok"] is False
     assert (
-        tools["vf_crop_preview"](
+        tools["vf_overlay_preview"](
+            action="crop",
             project_id=record.project_id,
             aspect="bad",
         )["ok"]
@@ -218,7 +218,6 @@ def test_crop_preview_tool_missing_source_and_invalid_aspect(tmp_path: Path) -> 
 def test_vf_export_delegates_to_bundle(tmp_path: Path, monkeypatch) -> None:
     from videoflow.application.jobs import JobManager
     from videoflow.application.projects import init_project, save_project_state
-    from videoflow.engine.batch import BatchManager
     from videoflow.mcp_server.context import ToolContext
     from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -273,7 +272,7 @@ def test_vf_export_delegates_to_bundle(tmp_path: Path, monkeypatch) -> None:
     tools: dict[str, object] = {}
     register_core_tools(
         lambda func: tools.setdefault(func.__name__, func),
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),
+        ToolContext(manager=manager),
     )
     result = tools["vf_export"](project_id=record.project_id, targets=["resolve"])
     assert result["ok"] is True

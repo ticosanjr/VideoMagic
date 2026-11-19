@@ -218,7 +218,6 @@ def test_asset_records_tolerates_bad_ledger_and_workspace(
 def test_vf_assets_tool_lists_approves_and_quarantines(tmp_path: Path) -> None:
     from videoflow.application.jobs import JobManager
     from videoflow.application.projects import init_project
-    from videoflow.engine.batch import BatchManager
     from videoflow.mcp_server.context import ToolContext
     from videoflow.mcp_server.core_tools import register_core_tools
 
@@ -249,7 +248,7 @@ def test_vf_assets_tool_lists_approves_and_quarantines(tmp_path: Path) -> None:
     tools: dict[str, object] = {}
     register_core_tools(
         lambda func: tools.setdefault(func.__name__, func),
-        ToolContext(manager=manager, batch_manager=BatchManager(manager)),
+        ToolContext(manager=manager),
     )
 
     missing = tools["vf_assets"]()

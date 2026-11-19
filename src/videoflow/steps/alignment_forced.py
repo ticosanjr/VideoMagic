@@ -20,17 +20,20 @@ from videoflow.domain.state import Sentence, WordTiming
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.registry import register_step
 
-Backend = Literal["auto", "whisperx", "faster_whisper", "none"]
+Backend = Literal["auto", "whisperx", "stable_ts", "faster_whisper", "none"]
 
 
 class ForcedAlignmentParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     backend: Backend = "auto"
-    model_size: Literal["tiny", "base", "small", "medium", "large-v2", "large-v3"] = "small"
+    model_size: Literal[
+        "tiny", "base", "small", "medium", "large-v2", "large-v3", "large-v3-turbo"
+    ] = "small"
     language: str = "auto"
     device: Literal["cpu", "cuda", "auto"] = "cpu"
     compute_type: str = "int8"
+    compute_policy: Literal["auto", "local", "remote", "remote_only"] = "auto"
     min_words: int = Field(default=1, ge=0, le=100)
 
 
@@ -38,41 +41,96 @@ def _device(value: str) -> str:
     return "cuda" if value == "cuda" else "cpu"
 
 
-def _whisperx_words(
-    source: Path, options: ForcedAlignmentParams, sample_rate: int
-) -> tuple[list[tuple[str, int, int]], str, float]:
-    import whisperx  # type: ignore[import-not-found]
-
-    audio = whisperx.load_audio(str(source))
-    device = _device(options.device)
-    model = whisperx.load_model(
-        options.model_size,
-        device,
-        compute_type=options.compute_type,
-    )
-    language = None if options.language == "auto" else options.language
-    result = model.transcribe(audio, language=language)
-    detected = str(result.get("language") or language or "en")
-    align_model, metadata = whisperx.load_align_model(language_code=detected, device=device)
-    aligned = whisperx.align(
-        result["segments"],
-        align_model,
-        metadata,
-        audio,
-        device,
-        return_char_alignments=False,
-    )
-    probability = float(result.get("language_probability") or 0.0)
+def _words_from_payload(
+    payload: dict[str, Any],
+    sample_rate: int,
+) -> list[tuple[str, int, int]]:
     words: list[tuple[str, int, int]] = []
-    for segment in aligned.get("segments", []):
-        for item in segment.get("words", []):
+    for segment in payload.get("segments", []) or []:
+        if not isinstance(segment, dict):
+            continue
+        for item in segment.get("words", []) or []:
             if not isinstance(item, dict) or not item.get("word"):
                 continue
             start = int(round(float(item.get("start") or 0.0) * sample_rate))
             end = int(round(float(item.get("end") or 0.0) * sample_rate))
             if end > start:
                 words.append((str(item["word"]).strip(), start, end))
-    return words, detected, probability
+    if words:
+        return words
+    # Some stable-ts payloads expose words at the top level.
+    for item in payload.get("words", []) or []:
+        if not isinstance(item, dict) or not item.get("word"):
+            continue
+        start = int(round(float(item.get("start") or 0.0) * sample_rate))
+        end = int(round(float(item.get("end") or 0.0) * sample_rate))
+        if end > start:
+            words.append((str(item["word"]).strip(), start, end))
+    return words
+
+
+def _whisperx_words(
+    source: Path,
+    options: ForcedAlignmentParams,
+    sample_rate: int,
+    sentences: list[Sentence] | None = None,
+) -> tuple[list[tuple[str, int, int]], str, float]:
+    import whisperx  # type: ignore[import-not-found]
+
+    audio = whisperx.load_audio(str(source))
+    device = _device(options.device)
+    language = None if options.language == "auto" else options.language
+    if sentences:
+        segments = [
+            {
+                "start": sentence.start_sample / sample_rate,
+                "end": sentence.end_sample / sample_rate,
+                "text": sentence.text,
+            }
+            for sentence in sentences
+        ]
+        detected = options.language if options.language != "auto" else "en"
+        probability = 0.0
+    else:
+        model = whisperx.load_model(
+            options.model_size,
+            device,
+            compute_type=options.compute_type,
+        )
+        result = model.transcribe(audio, language=language)
+        segments = result["segments"]
+        detected = str(result.get("language") or language or "en")
+        probability = float(result.get("language_probability") or 0.0)
+    align_model, metadata = whisperx.load_align_model(language_code=detected, device=device)
+    aligned = whisperx.align(
+        segments,
+        align_model,
+        metadata,
+        audio,
+        device,
+        return_char_alignments=False,
+    )
+    return _words_from_payload(aligned, sample_rate), detected, probability
+
+
+def _stable_ts_words(
+    source: Path,
+    options: ForcedAlignmentParams,
+    sample_rate: int,
+    sentences: list[Sentence] | None = None,
+) -> tuple[list[tuple[str, int, int]], str, float]:
+    import stable_whisper  # type: ignore[import-not-found]
+
+    model = stable_whisper.load_model(options.model_size)
+    language = None if options.language == "auto" else options.language
+    payload: dict[str, Any]
+    if sentences:
+        text = " ".join(sentence.text for sentence in sentences if sentence.text.strip())
+        result = model.align(str(source), text, language=language)
+    else:
+        result = model.transcribe(str(source), language=language, word_timestamps=True)
+    payload = result.to_dict() if hasattr(result, "to_dict") else result
+    return _words_from_payload(payload, sample_rate), options.language, 0.0
 
 
 def _faster_whisper_words(
@@ -101,23 +159,91 @@ def _faster_whisper_words(
 
 
 def _align_words(
-    source: Path, options: ForcedAlignmentParams, sample_rate: int, io: StepIO
+    source: Path,
+    options: ForcedAlignmentParams,
+    sample_rate: int,
+    io: StepIO,
+    sentences: list[Sentence] | None = None,
 ) -> tuple[list[tuple[str, int, int]], str, str, float]:
     if options.backend in {"auto", "whisperx"}:
         try:
             io.report(20, "Aligning words with WhisperX")
-            words, language, probability = _whisperx_words(source, options, sample_rate)
+            words, language, probability = _whisperx_words(
+                source, options, sample_rate, sentences
+            )
             if words:
                 return words, "whisperx", language, probability
         except Exception as exc:  # noqa: BLE001 - optional dependency or model
             if options.backend == "whisperx":
                 io.emit("warning", f"WhisperX alignment failed: {exc}", module="align")
-    if options.backend in {"auto", "faster_whisper", "whisperx"}:
+    if options.backend in {"auto", "stable_ts"}:
+        try:
+            io.report(35, "Aligning words with stable-ts")
+            words, language, probability = _stable_ts_words(
+                source, options, sample_rate, sentences
+            )
+            if words:
+                return words, "stable_ts", language, probability
+        except Exception as exc:  # noqa: BLE001 - optional dependency or model
+            if options.backend == "stable_ts":
+                io.emit("warning", f"stable-ts alignment failed: {exc}", module="align")
+    if options.backend in {"auto", "faster_whisper", "whisperx", "stable_ts"}:
         io.report(50, "Aligning words with faster-whisper")
         words, language, probability = _faster_whisper_words(source, options, sample_rate)
         if words:
             return words, "faster_whisper", language, probability
     return [], "none", "", 0.0
+
+
+def _remote_words(
+    source: Path,
+    options: ForcedAlignmentParams,
+    sample_rate: int,
+    io: StepIO,
+) -> tuple[list[tuple[str, int, int]], str, float, dict[str, Any]]:
+    from videoflow.application.asr_remote import RemoteAsrClient
+    from videoflow.application.compute import router_from_settings
+
+    router = router_from_settings()
+    decision = router.decide("asr")
+    if not decision.is_remote:
+        if options.compute_policy == "remote_only":
+            raise RuntimeError(f"remote alignment requested but unavailable: {decision.reason}")
+        return [], "", 0.0, {}
+    io.report(65, "Aligning words with the remote worker")
+    client = RemoteAsrClient(
+        router,
+        language=options.language,
+        model=options.model_size,
+        beam_size=1,
+        word_timestamps=True,
+        vad_filter=False,
+        capability="forced_align",
+    )
+    try:
+        sentences = client.transcribe(source, sample_rate)
+    except Exception:
+        client = RemoteAsrClient(
+            router,
+            language=options.language,
+            model=options.model_size,
+            beam_size=1,
+            word_timestamps=True,
+            vad_filter=False,
+            capability="asr",
+        )
+        sentences = client.transcribe(source, sample_rate)
+    words = [
+        (word.word, word.start_sample, word.end_sample)
+        for sentence in sentences
+        for word in sentence.words
+    ]
+    return (
+        words,
+        str(client.last_language or ""),
+        float(client.last_language_probability or 0.0),
+        dict(client.execution),
+    )
 
 
 def _words_in_range(
@@ -180,10 +306,39 @@ class ForcedAlignmentStep(BaseStep):
             FFmpegAdapter().extract_pcm(source, wav, sample_rate=16000)
             source = wav
         rate = context.media.audio_sample_rate if context.media is not None else 48000
-        words, backend, language, probability = _align_words(source, options, rate, io)
+        execution: dict[str, Any] = {}
+        words: list[tuple[str, int, int]] = []
+        backend = "none"
+        language = ""
+        probability = 0.0
+        if options.compute_policy in {"remote", "remote_only"}:
+            try:
+                words, language, probability, execution = _remote_words(
+                    source, options, rate, io
+                )
+                if words:
+                    backend = "remote_asr"
+            except Exception as exc:  # noqa: BLE001 - policy may require remote
+                if options.compute_policy == "remote_only":
+                    raise
+                context.warnings.append(f"Remote alignment unavailable: {exc}")
+        if not words:
+            words, backend, language, probability = _align_words(
+                source, options, rate, io, context.transcript
+            )
+        if not words and options.compute_policy == "auto":
+            try:
+                words, language, probability, execution = _remote_words(
+                    source, options, rate, io
+                )
+                if words:
+                    backend = "remote_asr"
+            except Exception as exc:  # noqa: BLE001 - optional remote fallback
+                context.warnings.append(f"Remote alignment unavailable: {exc}")
         if not words:
             context.warnings.append(
-                "Forced alignment skipped: WhisperX and faster-whisper are unavailable."
+                "Forced alignment skipped: WhisperX, stable-ts, faster-whisper, "
+                "and the remote ASR worker are unavailable."
             )
             io.report(100, "Forced alignment unavailable")
             return
@@ -240,6 +395,8 @@ class ForcedAlignmentStep(BaseStep):
             "aligned": aligned,
             "words": len(words),
         }
+        if execution:
+            payload["execution"] = execution
         context.metadata["forced_alignment"] = payload
         target = context.output / "alignment" / "forced.json"
         target.parent.mkdir(parents=True, exist_ok=True)

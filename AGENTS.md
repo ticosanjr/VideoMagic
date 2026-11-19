@@ -1,6 +1,6 @@
 # VideoFlow × OpenCode
 
-Este workspace foi preparado pelo VideoFlow 3.2.x.
+Este workspace foi preparado pelo VideoFlow 3.7.0.
 
 ## Protocolo obrigatório
 
@@ -10,10 +10,28 @@ Este workspace foi preparado pelo VideoFlow 3.2.x.
 2. Nunca escreva scripts FFmpeg manuais. Use as tools MCP atômicas do
    VideoFlow para ingest, transcrição, timeline, motion, captura, QA e export.
 3. Estilos novos ou alterados devem ser salvos com
-   `vf_style_save(workspace_dir="<workspace>")`, sincronizando `./presets/`.
+   `vf_style(action="save", workspace_dir="<workspace>")`, sincronizando `./presets/`.
 4. Exporte com `vf_export` e rode `vf_qa_final` antes de considerar a entrega
    aprovada. `needs_review` não é sucesso.
 5. Não grave tokens ou API keys no workspace; use variáveis de ambiente.
+6. Quando um step exigir LLM, isso deve ser explícito: use
+   `decupage.llm` com `llm_policy="caller"` para receber o request e decidir
+   como a LLM chamadora, ou `llm_policy="videoflow"` para delegar ao provider
+   configurado. `none` é sempre registrado como degradado. Nunca envie
+   timestamps para a LLM; use `asu_id` e índices de palavras.
+7. **Entrega em uma pasta só (conveniência, não requisito):** ao concluir,
+   quando o usuário não indicar outro destino, rode
+   `vf_exec(action="step", step_id="delivery.collect",
+   params={"mode":"copy"})` para consolidar vídeos e exports em
+   `./VideoFlow_Output/{videos,exports,shorts,scenes}` na raiz do workspace.
+   O MCP é flexível por contrato: aceita qualquer caminho de saída e nunca deve
+   bloquear, falhar ou limitar um projeto porque os arquivos estão em outra
+   pasta. Se a única cópia de uma entrega estiver em `work/`, apenas avise.
+8. **Offload de processamento pesado:** ASR, alinhamento, matte, render NVENC,
+   scene analysis e Short render devem usar `compute_policy="auto"` ou
+   `"remote"` quando o worker Windows estiver configurado. Não force execução
+   local sem motivo; se o worker cair, aceite fallback somente com
+   `degraded=true` explícito e reporte o motivo.
 
 ## Receitas Técnicas de Efeitos Visuais Avançados
 

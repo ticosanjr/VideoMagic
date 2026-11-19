@@ -20,6 +20,7 @@ datas = [
     (str(ROOT / "src" / "videoflow" / "styles"), "videoflow/styles"),
     (str(ROOT / "src" / "videoflow" / "workflows"), "videoflow/workflows"),
     (str(ROOT / "src" / "videoflow" / "templates"), "videoflow/templates"),
+    (str(ROOT / "docs" / "contracts"), "docs/contracts"),
 ]
 binaries = []
 hiddenimports = [

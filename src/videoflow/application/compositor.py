@@ -145,6 +145,8 @@ def _trim_clip(
     state: ProjectState,
     start_sec: float,
     end_sec: float,
+    *,
+    fps: int = 30,
 ) -> Path:
     """Cut only the requested range from the primary source."""
 
@@ -171,6 +173,7 @@ def _trim_clip(
         source.stat().st_mtime_ns,
         round(source_start, 4),
         round(duration, 4),
+        max(1, int(fps)),
     ).with_suffix(".mp4")
     if target.is_file():
         return target
@@ -196,6 +199,8 @@ def _trim_clip(
             "18",
             "-pix_fmt",
             "yuv420p",
+            "-r",
+            str(max(1, int(fps))),
             str(target),
         ],
         what="depth composite trim",
@@ -457,7 +462,7 @@ def depth_composite(
         )
         graphic_path = Path(str(graphic["output"]))
 
-    trimmed = _trim_clip(project_id, state, start, end)
+    trimmed = _trim_clip(project_id, state, start, end, fps=30)
     matte = _remove_background(project_id, trimmed, is_video=True)
     matted_path = Path(str(matte["output"]))
     created = _append_overlays(
