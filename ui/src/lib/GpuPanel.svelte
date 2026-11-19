@@ -1,0 +1,351 @@
+<script lang="ts">
+  import { onMount } from "svelte";
+  import {
+    benchmarkGpu,
+    connectGpuWorker,
+    disconnectGpuWorker,
+    discoverGpuWorkers,
+    downloadGpuWorkerKit,
+    getGpuStatus,
+    patchGpuSettings,
+    unloadGpuModels,
+    validateGpuShared,
+    type GpuBenchmark,
+    type GpuDiscoveredWorker,
+    type GpuWorkerStatus
+  } from "$lib/api";
+  import { formatGb, vramLabel } from "$lib/gpuStatus";
+
+  const CAPABILITIES = [
+    ["asr", "Transcription (Whisper)"],
+    ["render_nvenc", "NVENC master render"],
+    ["segment_matte", "Background matte"],
+    ["face_track", "Face tracking"],
+    ["stems", "Stem separation"],
+    ["upscale", "Upscale"],
+    ["tts", "Text to speech"],
+    ["comfyui", "ComfyUI"]
+  ] as const;
+
+  let status = $state<GpuWorkerStatus | null>(null);
+  let capabilities = $state<Record<string, boolean>>({});
+  let sharedEnabled = $state(false);
+  let sharedPath = $state("");
+  let maxVram = $state(10240);
+  let fallback = $state(true);
+  let discoveryEnabled = $state(true);
+  let workerUrl = $state("");
+  let manualUrl = $state("");
+  let manualToken = $state("");
+  let manualWorkerId = $state("");
+  let discovered = $state<GpuDiscoveredWorker[]>([]);
+  let benchmark = $state<GpuBenchmark | null>(null);
+  let busy = $state("");
+  let error = $state("");
+  let notice = $state("");
+  let loading = $state(true);
+
+  function applyStatus(next: GpuWorkerStatus) {
+    status = next;
+    workerUrl = next.worker_url || "";
+    capabilities = { ...(next.capabilities_enabled ?? capabilities) };
+    sharedEnabled = Boolean(next.shared_mount_enabled);
+    sharedPath = next.shared_windows_path || "";
+    maxVram = next.max_vram_mb ?? maxVram;
+    fallback = next.fallback_local ?? true;
+    discoveryEnabled = next.discovery_enabled ?? true;
+  }
+
+  async function refresh() {
+    try {
+      const payload = await getGpuStatus();
+      applyStatus(payload.status);
+      error = "";
+    } catch (reason) {
+      error = reason instanceof Error ? reason.message : String(reason);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function patch(patch: Record<string, unknown>, label: string) {
+    busy = label;
+    try {
+      const payload = await patchGpuSettings(patch);
+      applyStatus(payload.status);
+      notice = "Saved.";
+      error = "";
+    } catch (reason) {
+      error = reason instanceof Error ? reason.message : String(reason);
+    } finally {
+      busy = "";
+    }
+  }
+
+  async function connect(url = manualUrl, workerId = manualWorkerId) {
+    const target = url.trim();
+    if (!target) {
+      error = "Enter the Windows worker URL first.";
+      return;
+    }
+    busy = "connect";
+    try {
+      const payload = await connectGpuWorker({
+        worker_url: target,
+        token: manualToken.trim(),
+        worker_id: workerId.trim(),
+        mode: "auto"
+      });
+      applyStatus(payload.status);
+      notice = payload.connected ? "Worker connected." : "Worker saved but not reachable.";
+      error = "";
+      manualToken = "";
+    } catch (reason) {
+      error = reason instanceof Error ? reason.message : String(reason);
+    } finally {
+      busy = "";
+    }
+  }
+
+  async function disconnect() {
+    busy = "disconnect";
+    try {
+      const payload = await disconnectGpuWorker();
+      applyStatus(payload.status);
+      notice = "Worker disconnected.";
+      error = "";
+    } catch (reason) {
+      error = reason instanceof Error ? reason.message : String(reason);
+    } finally {
+      busy = "";
+    }
+  }
+
+  async function discover() {
+    busy = "discover";
+    try {
+      const payload = await discoverGpuWorkers();
+      discovered = payload.workers;
+      notice = payload.workers.length
+        ? `${payload.workers.length} worker(s) found.`
+        : "No worker beacon found on the LAN.";
+      error = "";
+    } catch (reason) {
+      error = reason instanceof Error ? reason.message : String(reason);
+    } finally {
+      busy = "";
+    }
+  }
+
+  async function runBenchmark() {
+    busy = "benchmark";
+    try {
+      benchmark = await benchmarkGpu();
+      error = benchmark.ok ? "" : "Worker did not answer.";
+    } catch (reason) {
+      error = reason instanceof Error ? reason.message : String(reason);
+    } finally {
+      busy = "";
+    }
+  }
+
+  async function downloadKit() {
+    busy = "kit";
+    try {
+      const blob = await downloadGpuWorkerKit({
+        worker_id: manualWorkerId.trim(),
+        shared_windows_path: sharedEnabled ? sharedPath : ""
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "videoflow-windows-gpu-worker.zip";
+      link.click();
+      URL.revokeObjectURL(url);
+      notice = "Windows kit downloaded.";
+      error = "";
+    } catch (reason) {
+      error = reason instanceof Error ? reason.message : String(reason);
+    } finally {
+      busy = "";
+    }
+  }
+
+  async function unload() {
+    busy = "unload";
+    try {
+      const payload = await unloadGpuModels();
+      const unloaded = Array.isArray(payload.result.unloaded)
+        ? payload.result.unloaded.length
+        : 0;
+      notice = `Freed ${unloaded} model(s).`;
+      error = "";
+      await refresh();
+    } catch (reason) {
+      error = reason instanceof Error ? reason.message : String(reason);
+    } finally {
+      busy = "";
+    }
+  }
+
+  async function validateShared() {
+    busy = "shared";
+    try {
+      await validateGpuShared("videoflow-probe.txt");
+      notice = "Shared mount is writable.";
+      error = "";
+    } catch (reason) {
+      error = reason instanceof Error ? reason.message : String(reason);
+    } finally {
+      busy = "";
+    }
+  }
+
+  async function setCapability(key: string, value: boolean) {
+    capabilities = { ...capabilities, [key]: value };
+    await patch({ capabilities: { [key]: value } }, "capability");
+  }
+
+  onMount(() => {
+    void refresh();
+  });
+</script>
+
+<section class="space-y-4" data-testid="gpu-panel">
+  <div class="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <p class="text-[length:var(--vf-text-2xs)] uppercase tracking-wide text-neutral-500">Setup · GPU</p>
+        <h2 class="mt-1 text-[length:var(--vf-text-xl)] font-semibold text-white">GPU acceleration</h2>
+        <p class="mt-1 max-w-3xl text-[length:var(--vf-text-xs)] text-neutral-400">
+          Keep editing on this machine and send only the heavy capabilities to a Windows NVIDIA worker. Local execution is always the fallback.
+        </p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span
+          class={`h-2 w-2 rounded-full ${status?.available ? "bg-emerald-400" : "bg-neutral-600"}`}
+          aria-hidden="true"
+        ></span>
+        <span class="text-[length:var(--vf-text-xs)] text-neutral-300" data-testid="gpu-status-line">
+          {status?.available
+            ? `${status.gpu_name || "GPU"} · ${formatGb(status.vram_free_mb)} / ${formatGb(status.vram_total_mb)} GB`
+            : loading
+              ? "Checking worker…"
+              : status?.mode === "local_only"
+                ? "Local mode"
+                : "No worker connected"}
+        </span>
+      </div>
+    </div>
+
+    {#if error}
+      <p class="mt-3 rounded-lg border border-rose-400/20 bg-rose-950/30 px-3 py-2 text-[length:var(--vf-text-xs)] text-rose-200" role="alert" data-testid="gpu-error">{error}</p>
+    {/if}
+    {#if notice}
+      <p class="mt-3 rounded-lg border border-emerald-400/20 bg-emerald-950/30 px-3 py-2 text-[length:var(--vf-text-xs)] text-emerald-200" role="status" data-testid="gpu-notice">{notice}</p>
+    {/if}
+  </div>
+
+  <div class="grid gap-4 xl:grid-cols-2">
+    <article class="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4" data-testid="gpu-pairing-card">
+      <h3 class="text-[length:var(--vf-text-sm)] font-semibold text-neutral-100">Pairing</h3>
+      <p class="mt-1 text-[length:var(--vf-text-xs)] text-neutral-500">Scan the LAN or enter the Windows address and token manually.</p>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button type="button" data-testid="gpu-discover" disabled={busy !== ""} onclick={() => void discover()} class="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[length:var(--vf-text-xs)] text-neutral-200 disabled:opacity-40">
+          {busy === "discover" ? "Scanning…" : "Scan LAN"}
+        </button>
+        <button type="button" data-testid="gpu-download-kit" disabled={busy !== ""} onclick={() => void downloadKit()} class="rounded-lg border border-sky-400/25 bg-sky-500/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-sky-100 disabled:opacity-40">
+          {busy === "kit" ? "Building kit…" : "Download Windows kit (.zip)"}
+        </button>
+      </div>
+      {#if discovered.length}
+        <ul class="mt-3 space-y-1.5" data-testid="gpu-discovered-list">
+          {#each discovered as peer}
+            <li class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 px-2.5 py-2">
+              <span class="text-[length:var(--vf-text-xs)] text-neutral-200">
+                {peer.hostname || peer.worker_id} · {peer.gpu_name || "unknown GPU"} · {formatGb(peer.vram_free_mb)} GB free
+              </span>
+              <button type="button" class="rounded border border-sky-400/30 px-2 py-1 text-[11px] text-sky-200" onclick={() => void connect(peer.url, peer.worker_id)}>Connect</button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+      <div class="mt-4 grid gap-2">
+        <label class="text-[11px] text-neutral-500" for="gpu-worker-url">Worker URL</label>
+        <input id="gpu-worker-url" data-testid="gpu-manual-url" bind:value={manualUrl} placeholder="http://192.168.1.45:8766" class="rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 font-mono text-[length:var(--vf-text-xs)] text-neutral-100" />
+        <label class="text-[11px] text-neutral-500" for="gpu-worker-token">Pairing token</label>
+        <input id="gpu-worker-token" data-testid="gpu-manual-token" type="password" bind:value={manualToken} placeholder="token from worker.env" class="rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 font-mono text-[length:var(--vf-text-xs)] text-neutral-100" />
+        <label class="text-[11px] text-neutral-500" for="gpu-worker-id">Worker id (optional)</label>
+        <input id="gpu-worker-id" data-testid="gpu-manual-worker-id" bind:value={manualWorkerId} placeholder="BERNA-WIN-SERVE" class="rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 font-mono text-[length:var(--vf-text-xs)] text-neutral-100" />
+        <div class="flex flex-wrap gap-2 pt-1">
+          <button type="button" data-testid="gpu-connect" disabled={busy !== ""} onclick={() => void connect()} class="rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-emerald-100 disabled:opacity-40">Connect</button>
+          <button type="button" data-testid="gpu-disconnect" disabled={busy !== "" || !workerUrl} onclick={() => void disconnect()} class="rounded-lg border border-white/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-neutral-300 disabled:opacity-40">Disconnect</button>
+        </div>
+      </div>
+    </article>
+
+    <article class="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4" data-testid="gpu-capabilities-card">
+      <h3 class="text-[length:var(--vf-text-sm)] font-semibold text-neutral-100">What runs on the GPU</h3>
+      <p class="mt-1 text-[length:var(--vf-text-xs)] text-neutral-500">Light editing stays local. Enable only the capabilities you want to offload.</p>
+      <div class="mt-3 grid gap-1.5 sm:grid-cols-2">
+        {#each CAPABILITIES as [key, label]}
+          <label class="flex items-center justify-between gap-2 rounded-lg border border-white/5 px-2.5 py-2 text-[length:var(--vf-text-xs)] text-neutral-300">
+            <span>{label}</span>
+            <input
+              type="checkbox"
+              data-testid={`gpu-cap-${key}`}
+              checked={capabilities[key] ?? false}
+              disabled={busy !== ""}
+              onchange={(event) => void setCapability(key, event.currentTarget.checked)}
+            />
+          </label>
+        {/each}
+      </div>
+      <div class="mt-4 rounded-lg border border-white/5 p-3">
+        <p class="text-[11px] uppercase tracking-wide text-neutral-500">Benchmark</p>
+        <div class="mt-2 flex flex-wrap items-center gap-2">
+          <button type="button" data-testid="gpu-benchmark" disabled={busy !== "" || !workerUrl} onclick={() => void runBenchmark()} class="rounded-lg border border-sky-400/25 bg-sky-500/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-sky-100 disabled:opacity-40">
+            {busy === "benchmark" ? "Testing…" : "Test connectivity"}
+          </button>
+          {#if benchmark}
+            <span data-testid="gpu-benchmark-result" class="text-[length:var(--vf-text-xs)] text-neutral-400">
+              {benchmark.latency_ms} ms · {benchmark.kind}
+            </span>
+          {/if}
+        </div>
+      </div>
+    </article>
+
+    <article class="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4" data-testid="gpu-shared-card">
+      <h3 class="text-[length:var(--vf-text-sm)] font-semibold text-neutral-100">Shared folder</h3>
+      <p class="mt-1 text-[length:var(--vf-text-xs)] text-neutral-500">Zero-copy for longform masters. Short clips can use HTTP streaming.</p>
+      <label class="mt-3 flex items-center gap-2 text-[length:var(--vf-text-xs)] text-neutral-300">
+        <input type="checkbox" data-testid="gpu-shared-toggle" checked={sharedEnabled} disabled={busy !== ""} onchange={(event) => void patch({ shared_mount_enabled: event.currentTarget.checked }, "shared")} />
+        Use a shared mount
+      </label>
+      <input data-testid="gpu-shared-path" bind:value={sharedPath} onchange={() => void patch({ shared_windows_path: sharedPath }, "shared")} placeholder="Z:\videoflow" class="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 font-mono text-[length:var(--vf-text-xs)] text-neutral-100" />
+      <button type="button" data-testid="gpu-shared-validate" disabled={busy !== "" || !workerUrl} onclick={() => void validateShared()} class="mt-2 rounded-lg border border-white/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-neutral-300 disabled:opacity-40">Validate read/write</button>
+    </article>
+
+    <article class="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4" data-testid="gpu-resources-card">
+      <h3 class="text-[length:var(--vf-text-sm)] font-semibold text-neutral-100">Resources</h3>
+      <p class="mt-1 text-[length:var(--vf-text-xs)] text-neutral-500">VRAM cap, fallback, and loaded models.</p>
+      <label class="mt-3 block text-[11px] text-neutral-500" for="gpu-vram">Maximum VRAM: {vramLabel(maxVram)}</label>
+      <input id="gpu-vram" data-testid="gpu-vram-slider" type="range" min="4096" max="11264" step="512" bind:value={maxVram} onchange={() => void patch({ max_vram_mb: maxVram }, "vram")} class="mt-1 w-full" />
+      <label class="mt-3 flex items-center gap-2 text-[length:var(--vf-text-xs)] text-neutral-300">
+        <input type="checkbox" data-testid="gpu-fallback" checked={fallback} disabled={busy !== ""} onchange={(event) => void patch({ fallback_local: event.currentTarget.checked }, "fallback")} />
+        Fall back to local when the worker fails
+      </label>
+      <label class="mt-2 flex items-center gap-2 text-[length:var(--vf-text-xs)] text-neutral-300">
+        <input type="checkbox" data-testid="gpu-discovery" checked={discoveryEnabled} disabled={busy !== ""} onchange={(event) => void patch({ discovery_enabled: event.currentTarget.checked }, "discovery")} />
+        Listen for LAN worker beacons
+      </label>
+      <div class="mt-3 flex flex-wrap items-center gap-2">
+        <button type="button" data-testid="gpu-unload" disabled={busy !== "" || !workerUrl} onclick={() => void unload()} class="rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-amber-100 disabled:opacity-40">Free GPU memory</button>
+        {#if status?.available}
+          <span class="text-[length:var(--vf-text-xs)] text-neutral-500">{status.models.length} model(s) loaded · queue {status.queue_depth}</span>
+        {/if}
+      </div>
+    </article>
+  </div>
+</section>

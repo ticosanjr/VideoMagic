@@ -7,11 +7,39 @@ from typing import Any
 from vf_compute import ComputeRouter
 
 
-def compute_status(router: ComputeRouter | None = None) -> dict[str, Any]:
+def router_from_settings(settings: Any | None = None) -> ComputeRouter:
+    """Build a router from persisted ``GpuSettings`` and the secret store."""
+
+    if settings is None:
+        from videoflow.application.settings import load_settings
+
+        settings = load_settings()
+    gpu = settings.gpu
+    token = ""
+    try:
+        from videoflow.application.secrets import get_secret
+
+        token = get_secret(gpu.worker_token_secret)
+    except Exception:  # noqa: BLE001 - a missing secret means local fallback
+        token = ""
+    return ComputeRouter(
+        mode=gpu.mode,
+        worker_url=gpu.worker_url,
+        token=token,
+        min_vram_mb=2048,
+        max_queue=2,
+        fallback_local=gpu.fallback_local,
+    )
+
+
+def compute_status(
+    router: ComputeRouter | None = None,
+    settings: Any | None = None,
+) -> dict[str, Any]:
     """Return local/remote placement details without failing the caller."""
 
     try:
-        resolved = router or ComputeRouter.from_env()
+        resolved = router or router_from_settings(settings)
     except Exception as exc:  # noqa: BLE001 - status must never break capabilities
         return {
             "ok": False,
@@ -51,6 +79,7 @@ def compute_status(router: ComputeRouter | None = None) -> dict[str, Any]:
         "models": list(health.models_loaded),
         "queue_depth": health.queue_depth,
         "message": health.message,
+        "fallback_local": resolved.fallback_local,
     }
 
 
@@ -60,16 +89,18 @@ def execute_capability(
     local_fn: Any,
     *,
     required_vram_mb: int = 0,
+    settings: Any | None = None,
 ) -> dict[str, Any]:
     """Route one capability with a guaranteed local fallback."""
 
-    router = ComputeRouter.from_env()
+    router = router_from_settings(settings)
     return router.execute(
         capability,
         remote_fn,
         local_fn,
         required_vram_mb=required_vram_mb,
+        fallback_local=router.fallback_local,
     )
 
 
-__all__ = ["compute_status", "execute_capability"]
+__all__ = ["compute_status", "execute_capability", "router_from_settings"]

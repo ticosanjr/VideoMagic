@@ -213,6 +213,26 @@ class GPUWorkerClient:
         response = self._request("GET", f"/jobs/{quote(clean_id, safe='')}")
         return JobStatus.from_payload(_json_object(response), job_id=clean_id)
 
+    def unload_models(self, name: str = "") -> dict[str, Any]:
+        """Ask the worker to free one model or every loaded model."""
+
+        response = self._request(
+            "POST",
+            "/models/unload",
+            json={"name": str(name or "")},
+        )
+        return _json_object(response)
+
+    def validate_shared(self, path: str) -> dict[str, Any]:
+        """Ask the worker to validate one shared write path."""
+
+        response = self._request(
+            "POST",
+            "/shared/validate",
+            json={"path": str(path or "")},
+        )
+        return _json_object(response)
+
     def wait(self, job_id: str, timeout: float = 300.0, poll: float = 0.5) -> JobStatus:
         """Poll until a job reaches a terminal state or ``timeout`` elapses."""
 

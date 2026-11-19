@@ -23,6 +23,13 @@
 - Personal Windows worker kit generator with `worker.env`, bootstrap,
   autostart, stop/status scripts, optional FFmpeg/wheel payloads, API download,
   and `videoflow export-win-worker`.
+- GPU settings (`GpuSettings`) persisted with the app settings; worker tokens
+  stay in the secret store.
+- Setup → GPU acceleration tab with pairing, LAN discovery, per-capability
+  toggles, shared-mount validation, VRAM/fallback controls, benchmark, and
+  memory release.
+- GPU status routes and a header pill for ready, busy, local, and offline
+  states.
 
 ## [3.3.0] - 2026-11-19
 

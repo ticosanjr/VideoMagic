@@ -630,6 +630,12 @@ Project state is created by recipe runs and edited through the job timeline API.
 - `GET/PUT /api/v1/settings`, `POST /api/v1/settings/reset`,
   `GET /api/v1/settings/export`, `POST /api/v1/settings/import`
 - `GET /api/v1/system/doctor`, `GET /api/v1/system/support-bundle`
+- `GET /api/v1/gpu/status`, `GET /api/v1/gpu/discovery`,
+  `GET /api/v1/gpu/workers`, `POST /api/v1/gpu/connect`,
+  `POST /api/v1/gpu/disconnect`, `PATCH /api/v1/gpu/settings`,
+  `POST /api/v1/gpu/unload`, `POST /api/v1/gpu/shared/validate`,
+  `POST /api/v1/gpu/benchmark`
+- `POST /api/v1/gpu-worker/package`, `GET /api/v1/gpu-worker/package/info`
 - `GET/PUT/DELETE /api/v1/services/definitions`,
   `POST /api/v1/services/definitions/{id}/start|stop`,
   `GET /api/v1/services/definitions/{id}/status|logs`

@@ -76,6 +76,7 @@ class ComputeRouter:
         min_vram_mb: int = _DEFAULT_MIN_VRAM_MB,
         max_queue: int = _DEFAULT_MAX_QUEUE,
         circuit_sec: float = _DEFAULT_CIRCUIT_SEC,
+        fallback_local: bool = True,
         client: GPUWorkerClient | None = None,
     ) -> None:
         normalized_mode = (mode or _DEFAULT_MODE).strip().lower()
@@ -89,6 +90,7 @@ class ComputeRouter:
         self.min_vram_mb = max(int(min_vram_mb), 0)
         self.max_queue = max(int(max_queue), 0)
         self.circuit_sec = max(float(circuit_sec), 0.0)
+        self.fallback_local = bool(fallback_local)
         self._client = client
         self._health: WorkerHealth | None = None
         self._worker_id = ""
@@ -250,6 +252,7 @@ class ComputeRouter:
         local_fn: Any,
         *,
         required_vram_mb: int = 0,
+        fallback_local: bool = True,
     ) -> dict[str, Any]:
         """Run remotely when possible, falling back locally on any failure.
 
@@ -264,6 +267,8 @@ class ComputeRouter:
                 value = remote_fn()
             except Exception as exc:  # noqa: BLE001 - fallback is the contract
                 self.invalidate()
+                if not fallback_local:
+                    raise
                 reason = f"remote failed: {exc}"
             else:
                 return {

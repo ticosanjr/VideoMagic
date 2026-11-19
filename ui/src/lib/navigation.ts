@@ -17,6 +17,7 @@ export type TabId =
   | "services"
   | "extensions"
   | "connect"
+  | "gpu"
   | "settings";
 
 export interface TabMeta {
@@ -37,7 +38,7 @@ export const AREAS: AreaMeta[] = [
   { id: "library", tabs: ["media", "brand"] },
   {
     id: "setup",
-    tabs: ["models", "providers", "services", "extensions", "connect", "settings"]
+    tabs: ["models", "providers", "services", "extensions", "connect", "gpu", "settings"]
   }
 ];
 
@@ -56,6 +57,7 @@ export const TABS: TabMeta[] = [
   { id: "services", area: "setup", legacy: [] },
   { id: "extensions", area: "setup", legacy: ["plugins"] },
   { id: "connect", area: "setup", legacy: ["integrations"] },
+  { id: "gpu", area: "setup", legacy: ["gpu-offload", "acceleration"] },
   { id: "settings", area: "setup", legacy: [] }
 ];
 
@@ -142,5 +144,6 @@ export const TAB_ICONS: Record<TabId, IconName> = {
   services: "server",
   extensions: "puzzle",
   connect: "link",
+  gpu: "gpu",
   settings: "settings"
 };

@@ -366,6 +366,34 @@ class PresetSettings(BaseModel):
     max_rules: int = Field(default=200, ge=1, le=2000)
 
 
+class GpuSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["auto", "local_only", "remote_preferred"] = "auto"
+    worker_url: str = ""
+    worker_id: str = ""
+    worker_token_secret: str = "VF_GPU_WORKER_TOKEN"
+    capabilities: dict[str, bool] = Field(
+        default_factory=lambda: {
+            "asr": True,
+            "render_nvenc": True,
+            "segment_matte": True,
+            "face_track": True,
+            "stems": False,
+            "upscale": True,
+            "tts": False,
+            "comfyui": False,
+        }
+    )
+    shared_mount_enabled: bool = False
+    shared_linux_path: str = ""
+    shared_windows_path: str = ""
+    max_vram_mb: int = Field(default=10_240, ge=4096, le=24_576)
+    model_unload_ttl_sec: int = Field(default=300, ge=30, le=86_400)
+    fallback_local: bool = True
+    discovery_enabled: bool = True
+
+
 class AppSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -391,6 +419,7 @@ class AppSettings(BaseModel):
     vision: VisionSettings = Field(default_factory=VisionSettings)
     web_render: WebRenderSettings = Field(default_factory=WebRenderSettings)
     presets: PresetSettings = Field(default_factory=PresetSettings)
+    gpu: GpuSettings = Field(default_factory=GpuSettings)
 
 
 def settings_path() -> Path:

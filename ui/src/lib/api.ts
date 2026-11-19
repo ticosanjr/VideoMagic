@@ -803,6 +803,20 @@ export interface AppSettings {
     max_bytes: number;
     cache_ttl_hours: number;
   };
+  gpu: {
+    mode: "auto" | "local_only" | "remote_preferred";
+    worker_url: string;
+    worker_id: string;
+    worker_token_secret: string;
+    capabilities: Record<string, boolean>;
+    shared_mount_enabled: boolean;
+    shared_linux_path: string;
+    shared_windows_path: string;
+    max_vram_mb: number;
+    model_unload_ttl_sec: number;
+    fallback_local: boolean;
+    discovery_enabled: boolean;
+  };
 }
 
 export interface ServiceDefinition {
@@ -1743,6 +1757,137 @@ export async function resetSettings(): Promise<AppSettings> {
     { method: "POST" }
   );
   return response.settings;
+}
+
+export interface GpuWorkerStatus {
+  ok: boolean;
+  mode: "auto" | "local_only" | "remote_preferred";
+  worker_url: string;
+  execution_node: string;
+  available: boolean;
+  worker_id: string;
+  hostname: string;
+  ip_local: string;
+  port: number;
+  gpu_name: string;
+  vram_free_mb: number;
+  vram_total_mb: number;
+  vram_used_mb: number;
+  gpu_utilization: number;
+  temperature_c: number;
+  capabilities: string[];
+  models: string[];
+  queue_depth: number;
+  message: string;
+  fallback_local?: boolean;
+  shared_mount_enabled?: boolean;
+  shared_linux_path?: string;
+  shared_windows_path?: string;
+  discovery_enabled?: boolean;
+  capabilities_enabled?: Record<string, boolean>;
+  max_vram_mb?: number;
+  model_unload_ttl_sec?: number;
+}
+
+export interface GpuDiscoveredWorker {
+  worker_id: string;
+  hostname: string;
+  ip_local: string;
+  port: number;
+  url: string;
+  gpu_name: string;
+  vram_total_mb: number;
+  vram_free_mb: number;
+  status: string;
+  queue_depth: number;
+  capabilities: string[];
+  version: string;
+  seen_at: number;
+}
+
+export interface GpuBenchmark {
+  ok: boolean;
+  kind: string;
+  latency_ms: number;
+  speedup: number | null;
+  worker: Record<string, unknown>;
+}
+
+export async function getGpuStatus(): Promise<{ ok: boolean; status: GpuWorkerStatus }> {
+  return request("/api/v1/gpu/status");
+}
+
+export async function discoverGpuWorkers(timeoutSec = 1.5): Promise<{
+  ok: boolean;
+  enabled: boolean;
+  workers: GpuDiscoveredWorker[];
+}> {
+  return request(`/api/v1/gpu/discovery?timeout_sec=${timeoutSec}`);
+}
+
+export async function connectGpuWorker(payload: {
+  worker_url: string;
+  token?: string;
+  worker_id?: string;
+  mode?: "auto" | "local_only" | "remote_preferred";
+}): Promise<{ ok: boolean; connected: boolean; status: GpuWorkerStatus }> {
+  return request("/api/v1/gpu/connect", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function disconnectGpuWorker(): Promise<{ ok: boolean; status: GpuWorkerStatus }> {
+  return request("/api/v1/gpu/disconnect", { method: "POST" });
+}
+
+export async function patchGpuSettings(patch: Record<string, unknown>): Promise<{
+  ok: boolean;
+  gpu: AppSettings["gpu"];
+  status: GpuWorkerStatus;
+}> {
+  return request("/api/v1/gpu/settings", {
+    method: "PATCH",
+    body: JSON.stringify(patch)
+  });
+}
+
+export async function unloadGpuModels(name = ""): Promise<{ ok: boolean; result: Record<string, unknown> }> {
+  return request("/api/v1/gpu/unload", {
+    method: "POST",
+    body: JSON.stringify({ name })
+  });
+}
+
+export async function validateGpuShared(path: string): Promise<{
+  ok: boolean;
+  result: Record<string, unknown>;
+}> {
+  return request("/api/v1/gpu/shared/validate", {
+    method: "POST",
+    body: JSON.stringify({ path })
+  });
+}
+
+export async function benchmarkGpu(): Promise<GpuBenchmark> {
+  return request("/api/v1/gpu/benchmark", { method: "POST" });
+}
+
+export async function downloadGpuWorkerKit(payload: {
+  token?: string;
+  worker_id?: string;
+  shared_windows_path?: string;
+}): Promise<Blob> {
+  const response = await fetch("/api/v1/gpu-worker/package", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}));
+    throw new Error(String(detail?.detail?.message ?? "Could not build the Windows kit."));
+  }
+  return response.blob();
 }
 
 export async function listServiceDefinitions(): Promise<{

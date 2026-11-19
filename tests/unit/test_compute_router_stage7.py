@@ -131,8 +131,8 @@ def test_compute_status_handles_router_failures(monkeypatch) -> None:
         raise RuntimeError("no router")
 
     monkeypatch.setattr(
-        "videoflow.application.compute.ComputeRouter.from_env",
-        classmethod(lambda cls: broken()),
+        "videoflow.application.compute.router_from_settings",
+        lambda settings=None: broken(),
     )
     status = compute_status()
     assert status["ok"] is False
@@ -147,8 +147,8 @@ def test_compute_status_handles_router_failures(monkeypatch) -> None:
             raise RuntimeError("down")
 
     monkeypatch.setattr(
-        "videoflow.application.compute.ComputeRouter.from_env",
-        classmethod(lambda cls: Unhealthy()),
+        "videoflow.application.compute.router_from_settings",
+        lambda settings=None: Unhealthy(),
     )
     status = compute_status()
     assert status["ok"] is False
@@ -157,7 +157,17 @@ def test_compute_status_handles_router_failures(monkeypatch) -> None:
 
 def test_execute_capability_uses_router(monkeypatch) -> None:
     class Router:
-        def execute(self, capability, remote_fn, local_fn, *, required_vram_mb=0):
+        fallback_local = True
+
+        def execute(
+            self,
+            capability,
+            remote_fn,
+            local_fn,
+            *,
+            required_vram_mb=0,
+            fallback_local=True,
+        ):
             return {
                 "value": local_fn(),
                 "execution_node": "local",
@@ -165,8 +175,8 @@ def test_execute_capability_uses_router(monkeypatch) -> None:
             }
 
     monkeypatch.setattr(
-        "videoflow.application.compute.ComputeRouter.from_env",
-        classmethod(lambda cls: Router()),
+        "videoflow.application.compute.router_from_settings",
+        lambda settings=None: Router(),
     )
     result = execute_capability("asr", lambda: "remote", lambda: "local")
     assert result["value"] == "local"

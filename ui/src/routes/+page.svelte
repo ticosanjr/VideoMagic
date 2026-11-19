@@ -9,6 +9,8 @@
   import CopilotPanel from "$lib/CopilotPanel.svelte";
   import IntegrationsPanel from "$lib/IntegrationsPanel.svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
+  import GpuPanel from "$lib/GpuPanel.svelte";
+  import GpuStatusPill from "$lib/GpuStatusPill.svelte";
   import JobsPanel from "$lib/JobsPanel.svelte";
   import LibraryPanel from "$lib/LibraryPanel.svelte";
   import ModelsPanel from "$lib/ModelsPanel.svelte";
@@ -68,6 +70,7 @@ import { noticeCounts } from "$lib/notifications";
     services: "Inspect, stop, and restart local VideoFlow processes",
     extensions: "Local plugin packages, sandbox status, and panels",
     connect: "MCP and REST setup for OpenCode, Paperclip, and DeepSeek",
+    gpu: "Pair a Windows GPU worker, choose capabilities, and validate the shared mount",
     settings: "Local runtime, paths, models, speech, TTS, and quality"
   };
 
@@ -86,6 +89,7 @@ import { noticeCounts } from "$lib/notifications";
     p: "providers",
     e: "extensions",
     i: "connect",
+    g: "gpu",
     s: "settings"
   };
 
@@ -742,6 +746,7 @@ import { noticeCounts } from "$lib/notifications";
             <span class={`mr-1.5 h-1.5 w-1.5 rounded-full ${system ? "bg-emerald-400" : connecting ? "animate-pulse bg-amber-400" : "bg-rose-400"}`} aria-hidden="true"></span>
             {system?.version ?? (connecting ? "connecting…" : "offline")}
           </span>
+          <GpuStatusPill onopen={() => selectTab("gpu")} />
           <button
             type="button"
             onclick={() => void cycleTheme()}
@@ -955,6 +960,8 @@ import { noticeCounts } from "$lib/notifications";
         <PluginsPanel />
       {:else if activeTab === "connect"}
         <IntegrationsPanel />
+      {:else if activeTab === "gpu"}
+        <GpuPanel />
       {:else if activeTab === "settings"}
         <SettingsPanel />
       {/if}

@@ -63,6 +63,24 @@ hostname, LAN address, port, GPU, VRAM, queue, capabilities, and version.
 `vf_compute.discovery.GpuDiscovery` keeps a 10-second TTL peer table, and
 `ComputeRouter.discover()` listens briefly and returns peers.
 
+## Setup → GPU acceleration
+
+The Setup tab pairs a worker, downloads the Windows kit, and configures
+placement. It has four cards:
+
+1. **Pairing** — LAN scan, manual URL/token, connect/disconnect, and the
+   personal Windows kit download.
+2. **What runs on the GPU** — per-capability toggles, including ASR, NVENC,
+   matte, face tracking, stems, upscale, TTS, and ComfyUI.
+3. **Shared folder** — enable the mount, set the Windows path, and validate
+   read/write.
+4. **Resources** — VRAM cap, local fallback, discovery, loaded models, queue,
+   and “Free GPU memory”.
+
+The header pill has three live states: ready, busy, and local/offline. Its
+popover switches between automatic placement and forced local mode and links to
+the Setup tab.
+
 ## Worker capabilities
 
 With `VF_GPU_BUILTIN_HANDLERS=1` the worker registers Python handlers for:
