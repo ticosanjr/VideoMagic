@@ -9,6 +9,7 @@ from videoflow.api.routes_assets import register_asset_routes
 from videoflow.api.routes_batches import register_batch_routes
 from videoflow.api.routes_copilot import register_copilot_routes
 from videoflow.api.routes_discovery import register_discovery_routes
+from videoflow.api.routes_gpu_worker import register_gpu_worker_routes
 from videoflow.api.routes_hilt import register_hilt_routes
 from videoflow.api.routes_intelligence import register_intelligence_routes
 from videoflow.api.routes_jobs import register_job_routes
@@ -40,6 +41,7 @@ def register_routes(
     register_batch_routes(app, batch_manager)
     register_asset_routes(app)
     register_discovery_routes(app)
+    register_gpu_worker_routes(app)
     register_preset_routes(app)
     register_style_routes(app)
     register_workflow_routes(app)

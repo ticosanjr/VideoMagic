@@ -83,6 +83,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _style(args)
         if args.command == "init-opencode":
             return _init_opencode(args)
+        if args.command == "export-win-worker":
+            return _export_win_worker(args)
         if args.command == "serve":
             return _serve(args)
         if args.command == "tray":
@@ -278,6 +280,17 @@ def _parser() -> argparse.ArgumentParser:
     init_opencode.add_argument("--no-register-root", action="store_true")
     init_opencode.add_argument("--no-prompts", action="store_true")
     init_opencode.add_argument("--prompts", action="store_true")
+
+    export_win = sub.add_parser(
+        "export-win-worker",
+        help="Build the personal Windows GPU worker zip.",
+    )
+    export_win.add_argument("--output", default="")
+    export_win.add_argument("--token", default="")
+    export_win.add_argument("--worker-id", default="")
+    export_win.add_argument("--shared-windows", default="")
+    export_win.add_argument("--ffmpeg", default="")
+    export_win.add_argument("--show-token", action="store_true")
 
     serve = sub.add_parser("serve", help="Serve the API, MCP HTTP, and rack UI.")
     serve.add_argument("--host", default="127.0.0.1")
@@ -1112,6 +1125,35 @@ def _style(args: argparse.Namespace) -> int:
         workspace_dir=args.workspace or None,
     )
     print(json.dumps(result, indent=2))
+    return 0
+
+
+def _export_win_worker(args: argparse.Namespace) -> int:
+    from videoflow.application.win_worker_kit import build_worker_kit
+
+    try:
+        result = build_worker_kit(
+            output=Path(args.output).expanduser() if args.output else None,
+            token=args.token,
+            worker_id=args.worker_id,
+            shared_windows_path=args.shared_windows,
+            ffmpeg_path=Path(args.ffmpeg).expanduser() if args.ffmpeg else None,
+        )
+    except (OSError, ValueError) as exc:
+        print(
+            json.dumps(
+                {"ok": False, "code": "win_kit_failed", "message": str(exc)},
+                indent=2,
+            ),
+            file=sys.stderr,
+        )
+        return 1
+    print(json.dumps(result.to_dict(include_token=bool(args.show_token)), indent=2))
+    if not args.show_token:
+        print(
+            "token omitted; open worker.env inside the zip or rerun with --show-token",
+            file=sys.stderr,
+        )
     return 0
 
 

@@ -1,7 +1,8 @@
 # Hybrid compute and GPU worker
 
 VideoFlow can place selected capabilities on a Windows GPU worker over the LAN.
-The local pipeline remains the default and always owns project state.
+The local pipeline remains the default and always owns project state. The
+Windows bootstrap is described in [windows-worker.md](windows-worker.md).
 
 ## Placement
 

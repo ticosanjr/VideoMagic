@@ -20,6 +20,9 @@
 - Shared-mount outputs (`shared_outputs`) with atomic writes and path
   validation, plus chunked HTTP uploads instead of `read_bytes()`.
 - UDP discovery beacon and a TTL-scoped peer listener (`ComputeRouter.discover`).
+- Personal Windows worker kit generator with `worker.env`, bootstrap,
+  autostart, stop/status scripts, optional FFmpeg/wheel payloads, API download,
+  and `videoflow export-win-worker`.
 
 ## [3.3.0] - 2026-11-19
 
