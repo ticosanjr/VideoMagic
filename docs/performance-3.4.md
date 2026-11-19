@@ -1,11 +1,13 @@
 # Performance acceptance — 3.4.0 GPU offload
 
-Status: **blocked on physical Windows/NVIDIA hardware**.
+Status: **automated paths pass; physical Windows/NVIDIA speed certification is
+pending**.
 
-The router, worker handlers, VRAM budget, shared mount, discovery, kit, API,
-and UI are implemented and covered by automated tests. A release of 3.4.0 must
-not claim the speed thresholds until `scripts/gpu_acceptance.py` runs on the
-reference Windows machine.
+3.4.0 ships GPU offload as an opt-in feature. The router, worker handlers, VRAM
+budget, shared mount, discovery, kit, API, and UI are implemented and covered by
+automated tests. The speed thresholds below remain unverified until
+`scripts/gpu_acceptance.py` runs on the reference Windows machine, so release
+notes must not claim them.
 
 ## Required measurements
 

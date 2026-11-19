@@ -29,6 +29,9 @@ def router_from_settings(settings: Any | None = None) -> ComputeRouter:
         min_vram_mb=2048,
         max_queue=2,
         fallback_local=gpu.fallback_local,
+        allowed_capabilities={
+            capability for capability, enabled in gpu.capabilities.items() if enabled
+        },
     )
 
 
@@ -80,6 +83,11 @@ def compute_status(
         "queue_depth": health.queue_depth,
         "message": health.message,
         "fallback_local": resolved.fallback_local,
+        "allowed_capabilities": (
+            sorted(getattr(resolved, "allowed_capabilities", None))
+            if getattr(resolved, "allowed_capabilities", None) is not None
+            else []
+        ),
     }
 
 

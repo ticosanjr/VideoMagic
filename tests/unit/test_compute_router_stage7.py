@@ -58,6 +58,19 @@ def test_router_uses_capability_vram_costs() -> None:
     assert router.decide("asr").execution_node == "local"
 
 
+def test_router_respects_capability_settings() -> None:
+    client = FakeClient(free=8192)
+    router = ComputeRouter(
+        client=client,
+        min_vram_mb=0,
+        allowed_capabilities={"asr"},
+    )
+    assert router.decide("asr").mode == "remote"
+    disabled = router.decide("render_nvenc")
+    assert disabled.mode == "local"
+    assert "disabled" in disabled.reason
+
+
 def test_router_execute_remote_and_local_fallback() -> None:
     client = FakeClient()
     router = ComputeRouter(client=client, min_vram_mb=0)

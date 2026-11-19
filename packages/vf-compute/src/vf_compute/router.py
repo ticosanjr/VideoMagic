@@ -77,6 +77,7 @@ class ComputeRouter:
         max_queue: int = _DEFAULT_MAX_QUEUE,
         circuit_sec: float = _DEFAULT_CIRCUIT_SEC,
         fallback_local: bool = True,
+        allowed_capabilities: set[str] | None = None,
         client: GPUWorkerClient | None = None,
     ) -> None:
         normalized_mode = (mode or _DEFAULT_MODE).strip().lower()
@@ -91,6 +92,11 @@ class ComputeRouter:
         self.max_queue = max(int(max_queue), 0)
         self.circuit_sec = max(float(circuit_sec), 0.0)
         self.fallback_local = bool(fallback_local)
+        self.allowed_capabilities = (
+            {str(item).lower() for item in allowed_capabilities}
+            if allowed_capabilities is not None
+            else None
+        )
         self._client = client
         self._health: WorkerHealth | None = None
         self._worker_id = ""
@@ -212,6 +218,12 @@ class ComputeRouter:
         if not health.available:
             detail = f": {health.message}" if health.message else ""
             return f"remote worker unavailable{detail}"
+        if (
+            capability
+            and self.allowed_capabilities is not None
+            and capability.lower() not in self.allowed_capabilities
+        ):
+            return f"capability disabled in GPU settings: {capability}"
         if capability:
             offered = {item.lower() for item in health.capabilities}
             if capability.lower() not in offered:

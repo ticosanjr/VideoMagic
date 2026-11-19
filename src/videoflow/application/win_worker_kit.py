@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import secrets
 import uuid
 import zipfile
@@ -52,6 +53,18 @@ class KitResult:
 
 def _crlf(text: str) -> bytes:
     return text.replace("\n", "\r\n").encode("utf-8")
+
+
+def _safe_worker_id(value: str) -> str:
+    text = re.sub(r"[^A-Za-z0-9._-]+", "-", str(value or "")).strip(".-_")
+    return text[:64] or f"vf-gpu-{uuid.uuid4().hex[:12]}"
+
+
+def _single_line(value: str, field: str) -> str:
+    text = str(value or "").strip()
+    if "\r" in text or "\n" in text:
+        raise ValueError(f"{field} must be a single line")
+    return text
 
 
 def _env_file(
@@ -285,8 +298,9 @@ def build_worker_kit(
 ) -> KitResult:
     """Build a personal Windows worker zip and return its metadata."""
 
-    resolved_token = (token or "").strip() or secrets.token_urlsafe(32)
-    resolved_worker = (worker_id or "").strip() or f"vf-gpu-{uuid.uuid4().hex[:12]}"
+    resolved_token = _single_line(token, "token") or secrets.token_urlsafe(32)
+    resolved_worker = _safe_worker_id(worker_id)
+    shared_windows_path = _single_line(shared_windows_path, "shared_windows_path")
     target_dir = (
         Path(output).expanduser()
         if output is not None
@@ -340,8 +354,9 @@ def build_worker_kit(
         worker_id=resolved_worker,
         files=files,
     )
-    metadata = result.to_dict(include_token=True)
+    metadata = result.to_dict(include_token=False)
     metadata["path"] = str(target)
+    metadata["token_location"] = "worker.env inside the zip"
     (target_dir / "last.json").write_text(
         json.dumps(metadata, indent=2) + "\n",
         encoding="utf-8",

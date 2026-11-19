@@ -1,6 +1,10 @@
 # Changelog
 
-## [Unreleased]
+## [3.4.0] - 2026-11-19
+
+GPU offload is opt-in. The automated gate is green; physical ASR/NVENC/matte
+speed certification on Windows/NVIDIA hardware is still pending and is not
+claimed by this release.
 
 ### Added
 

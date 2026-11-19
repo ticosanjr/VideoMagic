@@ -4,6 +4,7 @@ import json
 import zipfile
 from pathlib import Path
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -89,7 +90,8 @@ def test_kit_info_reads_last_metadata(tmp_path: Path, monkeypatch) -> None:
     assert info is not None
     assert info["worker_id"] == "w-1"
     assert info["sha256"] == result.sha256
-    assert info["token"] == "token-1"
+    assert "token" not in info
+    assert info["token_location"] == "worker.env inside the zip"
 
 
 def test_windows_kit_routes_download_and_info(tmp_path: Path, monkeypatch) -> None:
@@ -112,8 +114,26 @@ def test_windows_kit_routes_download_and_info(tmp_path: Path, monkeypatch) -> No
     assert info.status_code == 200
     payload = info.json()
     assert payload["worker_id"] == "route-worker"
-    assert payload["token"] == "route-token"
+    assert "token" not in payload
     assert payload["token_included"] is True
+    assert payload["token_location"] == "worker.env inside the zip"
+
+
+def test_windows_kit_sanitizes_ids_and_rejects_newlines(tmp_path: Path) -> None:
+    result = build_worker_kit(
+        output=tmp_path,
+        worker_id="../../evil name",
+        include_worker_source=False,
+    )
+    assert ".." not in result.path.name
+    assert "/" not in result.path.name
+    assert result.worker_id == "evil-name"
+    with pytest.raises(ValueError, match="single line"):
+        build_worker_kit(
+            output=tmp_path / "bad",
+            token="line1\nline2",
+            include_worker_source=False,
+        )
 
 
 def test_export_win_worker_cli(tmp_path: Path, capsys) -> None:
