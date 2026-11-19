@@ -376,6 +376,55 @@ def test_image_to_broll_writes_assets_with_fake_ffmpeg(
     assert again["cached"] is True
 
 
+def test_image_to_broll_uses_aspect_and_project_canvas(
+    project_root: Path,
+    fake_ffmpeg: Path,
+    tmp_path: Path,
+) -> None:
+    image = tmp_path / "frame.png"
+    image.write_bytes(b"PNG")
+    project = project_root / "proj-broll-aspect"
+    project.mkdir(parents=True)
+    (project / "project_state.json").write_text(
+        json.dumps(
+            {
+                "media_info": {
+                    "width": 1080,
+                    "height": 1920,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = vision_tools.image_to_broll_motion(
+        "proj-broll-aspect",
+        str(image),
+        duration_sec=1.0,
+        motion="zoom_in",
+        aspect_ratio="4:5",
+    )
+    payload = json.loads(Path(result["sidecar"]).read_text(encoding="utf-8"))
+    assert (payload["metadata"]["width"], payload["metadata"]["height"]) == (1080, 1350)
+    assert "1080x1350" in Path(result["output"]).name
+
+    with pytest.raises(VisionInvalidArgumentError):
+        vision_tools.image_to_broll_motion(
+            "proj-broll-aspect",
+            str(image),
+            aspect_ratio="bad",
+        )
+
+
+def test_graphic_dimensions_follow_a_vertical_project(project_root: Path) -> None:
+    project = project_root / "proj-vertical"
+    project.mkdir(parents=True)
+    (project / "project_state.json").write_text(
+        json.dumps({"media_info": {"width": 1080, "height": 1920}}),
+        encoding="utf-8",
+    )
+    assert vision_tools._graphic_dimensions("proj-vertical", 0, 0) == (1080, 1920)
+
+
 def test_upscale_ffmpeg_fallback_is_marked(
     project_root: Path,
     fake_ffmpeg: Path,

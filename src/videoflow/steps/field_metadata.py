@@ -292,6 +292,23 @@ _STEP_DESCRIPTIONS: dict[str, dict[str, str]] = {
         "silence_frame_ms": "Frame size for audio silence detection.",
         "min_clip_ms": "Discard resulting pieces shorter than this.",
     },
+    "speech.editorial_clean": {
+        "normalize": "Normalize overlapping ASR windows before the editorial passes.",
+        "semantic": (
+            "Run the optional LLM semantic-retake pass after the deterministic "
+            "stutter and fuzzy passes."
+        ),
+        "semantic_block": "Consecutive sentences sent to the semantic retake model.",
+        "semantic_overlap": "Sentence overlap between semantic retake blocks.",
+        "fuzzy_similarity": "Token similarity required to treat two sentences as a retake.",
+        "prefix_similarity": "Prefix similarity required for a fuzzy sentence retake.",
+        "max_discard_ratio": "Maximum share of sentences the editorial passes may discard.",
+        "stutter_gap_sec": "Maximum pause inside an immediate word repetition.",
+        "snap_ms": "Search window used to snap cut edges to an energy valley.",
+        "pad_before_ms": "Phonetic margin kept before the first word of a segment.",
+        "pad_after_ms": "Phonetic margin kept after the last word of a segment.",
+        "crossfade_ms": "Micro-crossfade applied at every internal speech seam.",
+    },
     "retakes.cull": {
         "single_pass": (
             "Send the full transcript in one request instead of sentence windows. "
@@ -304,6 +321,11 @@ _STEP_DESCRIPTIONS: dict[str, dict[str, str]] = {
             "Fall back to deterministic near-duplicate groups when the LLM tries "
             "to discard more than this share of sentences."
         ),
+        "editorial_clean": (
+            "Run the shared editorial stutter/retake cleanup before culling when "
+            "the recipe did not run speech.editorial_clean explicitly."
+        ),
+        "editorial_semantic": "Run the optional LLM semantic-retake pass.",
     },
     "llm.timeline": {
         "provider_id": "Configured LLM provider that proposes timeline edits.",

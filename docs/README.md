@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (3.2.1)
+## Implementation status (3.3.0)
 
 | Area | State |
 | --- | --- |
@@ -12,7 +12,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Silero VAD via ONNX Runtime with FFmpeg `silencedetect` fallback | implemented |
 | Deterministic timeline, J/L-cuts, fades, punch-ins | implemented |
 | FCPXML 1.9/1.10, xmeml v4, native Kdenlive MLT export | implemented |
-| Portable artifacts | 3.2.1 lean Linux binary and AppImage; speech weights are optional downloads from the Models tab |
+| Portable artifacts | 3.3.0 lean Linux binary, AppImage, and MCP server bundle; speech weights are optional downloads from the Models tab |
 | Run history | persisted in `work/run-history.json`, including failed runs, paginated by `GET /api/v1/runs` |
 | Diagnostics | doctor covers FFmpeg capabilities, CUDA/ONNX, SQLite, providers, services, models, disk, and settings; support bundle ZIP |
 | NLE validation | `scripts/validate_nle.py` and `POST /api/v1/exports/validate` |
@@ -35,7 +35,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Plugins | exporter and provider registration, manifest permissions, static sandbox allowlist ([plugins.md](plugins.md)) |
 | UI guidance | naming, tooltips, microcopy, empty states, units ([ui-copy.md](ui-copy.md)) |
 | Error catalog | codes, HTTP status, meaning, next action ([errors.md](errors.md)) |
-| Release gates | 3.2.1 evidence and the two open 3.0 blockers ([3.0-blockers.md](3.0-blockers.md)) |
+| Release gates | 3.3.0 evidence and the two open 3.0 blockers ([3.0-blockers.md](3.0-blockers.md)) |
 | Coverage | per-layer baseline and the remaining gap ([coverage.md](coverage.md)) |
 | Voice cloning | Optional ElevenLabs provider, consent, profile/sample API, and TTS/patch fallback ([voice-clone.md](voice-clone.md)) |
 | Settings | searchable settings with units, help tips, discard/reset ([settings.md](settings.md)) |
@@ -57,6 +57,10 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Cancellation | FFmpeg runs in its own process group; render and preview cancel within one poll and delete partial output |
 | Queue claim | SQLite `BEGIN IMMEDIATE` claim with lease ownership, heartbeat, and expired-lease recovery |
 | Frame cache | Per-revision, per-height JPEG frames under `preview/frames/<revision>/` |
+| Export performance | 30 fps social masters, optional `h264_nvenc`, persistent video-group cache, fast export QA, and full QA dispatched as a background job |
+| Asset review | `vf_assets` lists, approves, and quarantines assets; export licensing is scoped to assets actually used by the timeline |
+| Compositors | `vf_depth_composite`, `vf_pip`, `vf_parallax`, and `vf_style_preview` build depth, PiP, 2.5D, and style cards with explicit layers |
+| Fonts | fontconfig lookup plus metric-compatible aliases (`Arial`→`Liberation Sans`) written into ASS captions |
 | Incremental render | One segmented renderer with a persistent video-group cache shared by preview and render; crossfades render in bounded groups |
 | Batch resume | resume failed/cancelled batches and skip completed items |
 | Preview | synced MP4 preview plus waveform; background 540p proxy with titles, color, and audio-master filters |
@@ -64,6 +68,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Recipe UI | inline node fields, array JSON, undo/redo, cycle prevention, saved layout, per-step progress, NLE validation, canvas group editor |
 | Windows PE | not part of the local Linux release; cross-build separately if needed |
 | CI and Windows | GitHub Actions test workflow and Windows portable artifact workflow |
+| Editorial cleanup and retakes | `speech.editorial_clean` removes word stutters, false starts, fuzzy/semantic retakes, snaps cuts to energy valleys, and runs inside `retakes.cull` when absent |
 | SRT transcript import and LLM retake culling | implemented |
 | Local Faster-Whisper with whisper.cpp fallback, and ASR HTTP | implemented; pinned small model bundled in release builds; partial transcript resume and model/device ETA |
 | Local filesystem browser with allowlisted roots | implemented; no media upload |
@@ -81,7 +86,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | MCP: 13 core tools + 14 domain tools | implemented; modular fetch/audio/vision servers, explicit project ids, workspace contract, multi-source ingest, multicam, logs, QA images, async render, NLE roundtrip |
 | Rack UI driving real portable and recipe jobs | implemented; Recipes (first tab), Speech/Edit/Shorts/Studio/Export/Models/Services/Providers, logs, overrides, path picker |
 | Project-scoped routes, revisions, transcript API, presets | implemented; per-module rerun is typed 501 |
-| Shorts selection/rendering and API download | implemented; prompt/reprompt, explainable virality score, auto hook, filler cuts, censor, 9:16, 1:1, 16:9, optional source window |
+| Shorts selection/rendering and API download | implemented; prompt/reprompt, explainable virality score, auto hook, filler cuts, censor, complete-thought endings, 9:16/4:5/3:4/2:3/1:1/16:9, image or video intros, and dedicated headline/PiP/split/punch-in layouts |
 | Social metadata | implemented; deterministic title, description, and hashtags for YouTube, TikTok, Instagram, LinkedIn |
 | Caption branding | implemented; keyword highlight, LLM emoji map, brand vocabulary, profanity mask, 30 language codes, and custom font assets |
 | Short thumbnails | implemented; frame extraction plus caption-style title overlay |

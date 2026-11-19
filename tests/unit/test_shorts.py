@@ -206,9 +206,13 @@ def test_short_dimensions_cover_supported_aspects() -> None:
     from videoflow.application.shorts import short_dimensions
 
     assert short_dimensions("9:16") == (1080, 1920)
+    assert short_dimensions("4:5") == (1080, 1350)
+    assert short_dimensions("3:4") == (1080, 1440)
+    assert short_dimensions("2:3") == (1080, 1620)
     assert short_dimensions("1:1") == (1080, 1080)
     assert short_dimensions("16:9") == (1920, 1080)
-    assert short_dimensions("unknown") == (1080, 1920)
+    with pytest.raises(ValueError, match="unsupported Short aspect ratio"):
+        short_dimensions("unknown")
     assert short_dimensions("9:16", 2160) == (2160, 3840)
     assert short_dimensions("1:1", 1440) == (1440, 1440)
     assert short_dimensions("16:9", 2160) == (3840, 2160)

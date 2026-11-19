@@ -198,10 +198,14 @@ def test_artifact_kinds_and_unreadable_qa(tmp_path: Path) -> None:
 
 
 def test_project_id_helper() -> None:
-    from videoflow.application.projects import _project_id
+    from videoflow.application.projects import project_uuid
 
-    assert _project_id("fixed") == "fixed"
-    assert _project_id()
+    assert str(project_uuid("fixed")) == str(project_uuid("fixed"))
+    assert project_uuid("fixed") != project_uuid("other")
+    assert project_uuid("6f0d5c4e-2b6c-4a3f-9d8f-3b7e7f2d1a10") == project_uuid(
+        "6f0d5c4e-2b6c-4a3f-9d8f-3b7e7f2d1a10"
+    )
+    assert project_uuid()
 
 
 def test_project_file_adoption_and_corruption(tmp_path: Path, monkeypatch) -> None:

@@ -41,9 +41,14 @@ def _context(tmp: Path) -> PipelineContext:
 
 
 def test_mcp_surface_has_13_core_tools_and_13_resources() -> None:
-    assert len(TOOL_SPECS) == 32
+    assert len(TOOL_SPECS) == 37
     assert len(RESOURCE_SPECS) == 13
     assert {spec.name for spec in TOOL_SPECS} >= {
+        "vf_assets",
+        "vf_depth_composite",
+        "vf_pip",
+        "vf_parallax",
+        "vf_style_preview",
         "vf_project",
         "vf_style",
         "vf_catalog_search",

@@ -6,6 +6,7 @@ tracking is optional and only activates when OpenCV is installed.
 
 from __future__ import annotations
 
+import statistics
 import subprocess
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -389,7 +390,7 @@ def track_focus_x_report(
         mediapipe_model=mediapipe_model,
     )
     focus = (
-        sum(item["focus_x"] for item in result.keyframes) / len(result.keyframes)
+        float(statistics.median(item["focus_x"] for item in result.keyframes))
         if result.keyframes
         else 0.5
     )

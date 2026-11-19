@@ -6,7 +6,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from videoflow.domain.config import CaptionStyle
@@ -77,6 +77,56 @@ def build_ass(
     return build_ass_lines(lines, style=style, width=width, height=height)
 
 
+def _adaptive_margin_v(caption: CaptionStyle, width: int, height: int) -> int:
+    """Keep captions above social chrome and near the lower third in 16:9."""
+
+    if height > width:
+        return max(0, round(height * 0.22))
+    if width > height:
+        return max(0, round(height * 0.045))
+    return max(0, round(height * 0.10))
+
+
+def _same_caption_text(left: str, right: str) -> bool:
+    return " ".join(left.casefold().split()) == " ".join(right.casefold().split())
+
+
+def _normalize_caption_lines(lines: Sequence[CaptionLine]) -> list[CaptionLine]:
+    """Sort events and guarantee that two captions never overlap.
+
+    A repeated adjacent event is merged; any other overlap trims the earlier
+    event 15 ms before the next one starts.
+    """
+
+    ordered = sorted(
+        (line for line in lines if line.end > line.start),
+        key=lambda line: (line.start, line.end),
+    )
+    result: list[CaptionLine] = []
+    for line in ordered:
+        if not result:
+            result.append(line)
+            continue
+        previous = result[-1]
+        if _same_caption_text(previous.text, line.text) and (
+            line.start <= previous.end + 0.05
+        ):
+            result[-1] = replace(previous, end=max(previous.end, line.end))
+            continue
+        if line.start >= previous.end:
+            result.append(line)
+            continue
+        if line.start <= previous.start:
+            if line.end > previous.end:
+                result[-1] = line
+            continue
+        end = line.start - 0.015
+        if end > previous.start:
+            result[-1] = replace(previous, end=end)
+        result.append(line)
+    return result
+
+
 def build_ass_lines(
     lines: Sequence[CaptionLine],
     *,
@@ -85,6 +135,11 @@ def build_ass_lines(
     height: int = 1920,
 ) -> str:
     caption = style or CaptionStyle()
+    lines = _normalize_caption_lines(lines)
+    margin_v = _adaptive_margin_v(caption, width, height)
+    from videoflow.application.fonts import resolve_font_family
+
+    font_family = resolve_font_family(caption.font_family) or caption.font_family
     bold = -1 if caption.font_weight == "bold" else 0
     italic = -1 if caption.italic else 0
     border_style = 3 if caption.background_opacity > 0 else 1
@@ -104,7 +159,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{caption.font_family},{caption.font_size},{_ass_color(caption.primary_color)},{_ass_color(caption.highlight_color)},{_ass_color(caption.outline_color)},{back_color},{bold},{italic},0,0,100,100,0,0,{border_style},{outline},{shadow},{caption.alignment},{margin_lr},{margin_lr},0,1
+Style: Default,{font_family},{caption.font_size},{_ass_color(caption.primary_color)},{_ass_color(caption.highlight_color)},{_ass_color(caption.outline_color)},{back_color},{bold},{italic},0,0,100,100,0,0,{border_style},{outline},{shadow},{caption.alignment},{margin_lr},{margin_lr},{margin_v},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -112,10 +167,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     rows: list[str] = []
     x = round(caption.position_x * width)
     y = round(caption.position_y * height)
+    custom_position = (
+        abs(caption.position_x - 0.5) > 1e-6
+        or abs(caption.position_y - 0.78) > 1e-6
+    )
     for line in lines:
         if line.end <= line.start:
             continue
-        override = f"{{\\an{caption.alignment}\\pos({x},{y})"
+        override = f"{{\\an{caption.alignment}"
+        if custom_position:
+            override += f"\\pos({x},{y})"
         if caption.speaker_colors and line.speaker < len(caption.speaker_colors):
             override += f"\\c{_ass_color(caption.speaker_colors[line.speaker])}"
         if caption.effect == "pop":

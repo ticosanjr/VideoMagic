@@ -359,7 +359,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "Short aspect ratios",
             "shorts",
             "available",
-            "Render 9:16, 1:1, or 16:9 vertical/social clips.",
+            "Render 9:16, 4:5, 3:4, 2:3, 1:1, or 16:9 social clips.",
             "POST /api/v1/recipes/run",
             "vf_exec",
             requires=["ffmpeg"],

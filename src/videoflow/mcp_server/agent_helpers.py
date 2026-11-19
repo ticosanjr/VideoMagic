@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
-from uuid import UUID
 
 from videoflow.application import artifacts as artifact_service
 from videoflow.application.projects import (
     ProjectRecord,
     get_project,
     load_project_state,
+    project_uuid,
     save_project_state,
 )
 from videoflow.application.step_state import save_step_state
@@ -164,7 +164,7 @@ def _adopt_job(record: ProjectRecord, job: Any) -> None:
         state.primary_source_id = previous.primary_source_id or state.primary_source_id
         state.media_info = state.sources.get(state.primary_source_id) or state.media_info
     try:
-        state = state.model_copy(update={"project_id": UUID(record.project_id)})
+        state = state.model_copy(update={"project_id": project_uuid(record.project_id)})
         save_project_state(record, state, bump_revision=False)
     except (ValueError, VideoFlowError):
         return

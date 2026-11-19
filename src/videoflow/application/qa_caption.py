@@ -22,6 +22,7 @@ def audit_ass(path: Path, *, effect: str = "static", max_chars: int = 0) -> dict
             "issues": [{"kind": "missing_ass", "message": f"ASS file not found: {source}"}],
         }
     lines = source.read_text(encoding="utf-8", errors="replace").splitlines()
+    spans: list[tuple[float, float]] = []
     for line in lines:
         if not line.startswith("Dialogue:"):
             continue
@@ -31,6 +32,7 @@ def audit_ass(path: Path, *, effect: str = "static", max_chars: int = 0) -> dict
         start = _ass_seconds(parts[1])
         end = _ass_seconds(parts[2])
         text = parts[9]
+        spans.append((start, end))
         if effect != "static":
             tags = re.findall(r"\{[^}]*\\kf?(\d+)[^}]*\}", text)
             if not tags:
@@ -71,12 +73,33 @@ def audit_ass(path: Path, *, effect: str = "static", max_chars: int = 0) -> dict
                 }
             )
         plain = re.sub(r"\{[^}]*\}", "", text).replace("\\N", " ").strip()
+        if re.search(r"(?<!\\)\\[cCkK]", plain):
+            issues.append(
+                {
+                    "kind": "caption_escape",
+                    "message": "caption contains an ASS tag outside an override block",
+                    "start_sec": round(start, 3),
+                }
+            )
         if max_chars > 0 and len(plain) > max_chars:
             issues.append(
                 {
                     "kind": "caption_width",
                     "message": f"caption line has {len(plain)} chars (max {max_chars})",
                     "start_sec": round(start, 3),
+                }
+            )
+    spans.sort()
+    for previous, current in zip(spans, spans[1:], strict=False):
+        if current[0] < previous[1] - 0.001:
+            issues.append(
+                {
+                    "kind": "caption_overlap",
+                    "message": (
+                        f"caption starts at {current[0]:.2f}s before the previous "
+                        f"line ends at {previous[1]:.2f}s"
+                    ),
+                    "start_sec": round(current[0], 3),
                 }
             )
     return {"ok": not issues, "issues": issues, "path": str(source)}

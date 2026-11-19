@@ -1,6 +1,6 @@
 [project]
 name = "vf-contracts"
-version = "3.2.1"
+version = "3.3.0"
 description = "Workspace and asset contracts for VideoFlow 2.90."
 requires-python = ">=3.11"
 license = { text = "License not yet chosen" }

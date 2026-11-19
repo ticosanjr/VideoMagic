@@ -31,6 +31,7 @@ def test_recut_retakes_variant_adds_transcription_and_culling() -> None:
         "ingest",
         "vad",
         "transcribe",
+        "editorial",
         "retakes",
         "timeline",
         "export",

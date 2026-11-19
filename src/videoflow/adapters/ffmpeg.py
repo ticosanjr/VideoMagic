@@ -745,6 +745,10 @@ class FFmpegAdapter:
         cutout_margin: float = 0.04,
         cutout_head_overlap: float = 0.12,
         crossfade_ms: int = 15,
+        layout_mode: str = "",
+        punch_in_scale: float = 1.06,
+        visual_path: Path | None = None,
+        headline_text: str = "",
     ) -> Path:
         """Render concatenated source pieces as a vertical H.264 short."""
 
@@ -761,6 +765,7 @@ class FFmpegAdapter:
                 piece = work / f"piece-{index:02d}.mp4"
                 duration = (end - start) / sample_rate
                 second = Path(second_source_path).expanduser() if second_source_path else None
+                visual = Path(visual_path).expanduser() if visual_path else None
                 mask_input: list[str] = []
                 if split_screen:
                     half = max(2, width // 2)
@@ -811,6 +816,26 @@ class FFmpegAdapter:
                                 "[left][right]hstack=inputs=2"
                             ),
                         ]
+                elif layout_mode == "split_top_visual" and visual is not None:
+                    if not visual.is_file():
+                        raise IngestError(f"Top visual does not exist: {visual}")
+                    half_height = max(2, height // 2)
+                    video_args = [
+                        "-filter_complex",
+                        (
+                            f"[0:v]scale={width}:{half_height}:"
+                            "force_original_aspect_ratio=increase,"
+                            f"crop={width}:{half_height},setsar=1[presenter];"
+                            f"[1:v]scale={width}:{half_height}:"
+                            "force_original_aspect_ratio=increase,"
+                            f"crop={width}:{half_height},setsar=1[visual];"
+                            "[visual][presenter]vstack=inputs=2[v]"
+                        ),
+                        "-map",
+                        "[v]",
+                        "-map",
+                        "0:a?",
+                    ]
                 else:
                     piece_keyframes = _piece_keyframes(
                         crop_keyframes,
@@ -822,7 +847,9 @@ class FFmpegAdapter:
 
                     if len(piece_keyframes) > 1:
                         expression = _crop_expression(piece_keyframes)
-                        crop_x = f"round(({expression})*(iw-ow))"
+                        # The expression contains commas from if()/lerp(); quote the
+                        # whole x value so FFmpeg does not split it into filters.
+                        crop_x = f"'round(({expression})*(iw-ow))'"
                         crop_y = f"round((ih-oh)*{max(0.0, min(1.0, crop_focus_y)):.6f})"
                         crop = f"crop={width}:{height}:{crop_x}:{crop_y}"
                     else:
@@ -832,6 +859,13 @@ class FFmpegAdapter:
                         f"scale={width}:{height}:force_original_aspect_ratio=increase,"
                         f"{crop},setsar=1"
                     )
+                    if layout_mode == "fullscreen_punchin":
+                        scale = max(1.01, min(1.10, float(punch_in_scale)))
+                        base += (
+                            f",zoompan=z='min(1+0.0006*on,{scale:.4f})':"
+                            "x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+                            f"d=1:s={width}x{height}:fps=30"
+                        )
                     mask_input: list[str] = []
                     if cutout:
                         from videoflow.application.masks import ensure_rounded_mask
@@ -867,6 +901,30 @@ class FFmpegAdapter:
                     else:
                         mask_input = []
                         video_args = ["-vf", base]
+                visual_input: list[str] = []
+                if (
+                    layout_mode == "split_top_visual"
+                    and visual is not None
+                    and not split_screen
+                ):
+                    if visual.suffix.casefold() in {".png", ".jpg", ".jpeg", ".webp"}:
+                        visual_input = [
+                            "-loop",
+                            "1",
+                            "-t",
+                            f"{duration:.6f}",
+                            "-i",
+                            str(visual),
+                        ]
+                    else:
+                        visual_input = [
+                            "-stream_loop",
+                            "-1",
+                            "-t",
+                            f"{duration:.6f}",
+                            "-i",
+                            str(visual),
+                        ]
                 self._capture(
                     [
                         "ffmpeg",
@@ -892,6 +950,7 @@ class FFmpegAdapter:
                             if split_screen and second is not None
                             else []
                         ),
+                        *visual_input,
                         *mask_input,
                         *video_args,
                         "-c:v",
@@ -1142,12 +1201,49 @@ class FFmpegAdapter:
                     self._capture(command)
                     combined = with_sfx
                     final = with_sfx
-            if ass_path is not None:
-                final = work / "final.mp4"
-                burn_path = Path(ass_path)
-                if intro_path is not None and intro_duration_sec > 0 and burn_path.is_file():
-                    from videoflow.application.captions import shift_ass_file
+            headline_path: Path | None = None
+            if headline_text.strip():
+                from videoflow.application.captions import build_ass
+                from videoflow.domain.config import CaptionStyle
 
+                caption_duration = sum(
+                    end - start for start, end in pieces
+                ) / sample_rate
+                headline_style = CaptionStyle(
+                    font_size=max(36, round(height * 0.065)),
+                    uppercase=True,
+                    alignment=8,
+                    position_y=0.18,
+                    outline_width=6,
+                    effect="static",
+                )
+                headline_path = work / "headline.ass"
+                headline_path.write_text(
+                    build_ass(
+                        [(0.0, max(0.1, caption_duration), headline_text.strip())],
+                        style=headline_style,
+                        width=width,
+                        height=height,
+                    ),
+                    encoding="utf-8",
+                )
+            if ass_path is not None or headline_path is not None:
+                from videoflow.application.captions import (
+                    merge_ass_files,
+                    shift_ass_file,
+                )
+
+                final = work / "final.mp4"
+                sources = [
+                    Path(path)
+                    for path in (ass_path, headline_path)
+                    if path is not None and Path(path).is_file()
+                ]
+                burn_path = merge_ass_files(
+                    sources,
+                    work / "captions-merged.ass",
+                )
+                if intro_path is not None and intro_duration_sec > 0 and burn_path.is_file():
                     burn_path = shift_ass_file(
                         burn_path,
                         max(0.0, float(intro_duration_sec)),
@@ -1203,6 +1299,11 @@ class FFmpegAdapter:
                     f"colorchannelmixer=aa={opacity}[logo];"
                     f"[0:v][logo]overlay={position}:format=auto[v]"
                 )
+                overlay_input = (
+                    ["-c:v", "libvpx-vp9", "-stream_loop", "-1", "-i", str(overlay)]
+                    if overlay.suffix.casefold() == ".webm"
+                    else ["-loop", "1", "-i", str(overlay)]
+                )
                 self._capture(
                     [
                         "ffmpeg",
@@ -1212,10 +1313,7 @@ class FFmpegAdapter:
                         "-y",
                         "-i",
                         str(final),
-                        "-loop",
-                        "1",
-                        "-i",
-                        str(overlay),
+                        *overlay_input,
                         "-filter_complex",
                         filter_complex,
                         "-map",
@@ -1707,8 +1805,13 @@ def _piece_keyframes(
     if selected[-1][0] < duration:
         selected.append((duration, selected[-1][1]))
     selected = [
-        (round(time_sec, 3), round(max(0.05, min(0.95, focus)), 4)) for time_sec, focus in selected
+        (round(time_sec, 3), round(max(0.05, min(0.95, focus)), 4))
+        for time_sec, focus in selected
     ]
+    if selected and max(focus for _time, focus in selected) - min(
+        focus for _time, focus in selected
+    ) < 0.01:
+        return [(0.0, selected[0][1])]
     if len(selected) <= max_points:
         return selected
     step = (len(selected) - 1) / (max_points - 1)

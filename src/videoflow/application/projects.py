@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field
 from vf_contracts.workspace import ensure_project, project_dir, write_project
@@ -48,10 +48,15 @@ def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="milliseconds")
 
 
-def _project_id(value: str | None = None) -> str:
-    if value:
-        return value
-    return str(uuid.uuid4())
+def project_uuid(value: str | None = None) -> UUID:
+    """Map a slug or UUID to the UUID stored inside ``ProjectState``."""
+
+    if not value:
+        return uuid.uuid4()
+    try:
+        return UUID(str(value))
+    except ValueError:
+        return uuid5(NAMESPACE_URL, f"videoflow:{value}")
 
 
 def _lock_path(output: Path) -> Path:
@@ -224,9 +229,9 @@ def init_project(
         except (OSError, ValueError):
             with contextlib.suppress(OSError):
                 state_file.replace(state_file.with_name(f"{state_file.name}.corrupt"))
-            state = ProjectState(project_id=UUID(_project_id(project_id)))
+            state = ProjectState(project_id=project_uuid(project_id))
     else:
-        state = ProjectState(project_id=UUID(_project_id(project_id)))
+        state = ProjectState(project_id=project_uuid(project_id))
     if style_id and state.style_id != style_id:
         state = state.model_copy(update={"style_id": style_id})
     source_media: dict[str, MediaInfo] = {}
@@ -238,7 +243,7 @@ def init_project(
         state.primary_source_id = primary
         state.media_info = state.sources[primary]
     record = ProjectRecord(
-        project_id=state_id or str(state.project_id),
+        project_id=project_id or state_id or str(state.project_id),
         name=name or output_path.name,
         output=str(output_path),
         primary_source=_source_paths(state)[1],
@@ -380,6 +385,7 @@ def clone_project(
     *,
     name: str = "",
     output: str = "",
+    project_id: str = "",
 ) -> tuple[ProjectRecord, ProjectState]:
     """Clone decoded state without copying or re-analysing the source media."""
 
@@ -390,10 +396,10 @@ def clone_project(
     if target.exists() and any(target.iterdir()):
         raise ProjectStateError(f"Clone output is not empty: {target}")
     target.mkdir(parents=True, exist_ok=True)
-    project_id = str(uuid.uuid4())
+    project_id = project_id or str(uuid.uuid4())
     state = source_state.model_copy(
         update={
-            "project_id": UUID(project_id),
+            "project_id": project_uuid(project_id),
             "revision": 1,
             "pipeline": source_state.pipeline.model_copy(
                 update={
@@ -430,6 +436,7 @@ __all__ = [
     "project_disk_size",
     "project_for_output",
     "project_lock",
+    "project_uuid",
     "save_project_state",
     "state_path",
 ]

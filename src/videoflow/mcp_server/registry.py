@@ -85,6 +85,26 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "qa",
     ),
     ToolSpec(
+        "vf_depth_composite",
+        "Place text or graphics behind a matted presenter in one time range.",
+        "compositor",
+    ),
+    ToolSpec(
+        "vf_pip",
+        "Add a rounded-window picture-in-picture overlay.",
+        "compositor",
+    ),
+    ToolSpec(
+        "vf_parallax",
+        "Animate a still as background plus subject 2.5D parallax.",
+        "compositor",
+    ),
+    ToolSpec(
+        "vf_style_preview",
+        "Render a short style card with palette, font, layout, and caption.",
+        "compositor",
+    ),
+    ToolSpec(
         "vf_shorts_batch",
         "Render multiple Shorts with per-clip style, crop, intro, and music.",
         "shorts",
@@ -93,6 +113,11 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "vf_qa_final",
         "Audit the deliverable MP4, safe zones, loudness, and contact sheet.",
         "qa",
+    ),
+    ToolSpec(
+        "vf_assets",
+        "List, approve, or quarantine project assets and their licenses.",
+        "assets",
     ),
     ToolSpec(
         "vf_font",

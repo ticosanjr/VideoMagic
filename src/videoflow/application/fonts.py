@@ -126,29 +126,55 @@ def delete_fonts(name: str) -> None:
     target.unlink()
 
 
-def font_available(family: str) -> bool:
-    """Check a registered font or the system fontconfig catalog."""
+_METRIC_ALIASES = {
+    "arial": "Liberation Sans",
+    "helvetica": "Liberation Sans",
+    "times new roman": "Liberation Serif",
+    "times": "Liberation Serif",
+    "courier new": "Liberation Mono",
+    "courier": "Liberation Mono",
+    "segoe ui": "DejaVu Sans",
+}
+
+
+def resolve_font_family(family: str) -> str | None:
+    """Return a registered/system family, including metric-compatible aliases."""
 
     name = str(family or "").strip()
     if not name:
-        return True
+        return None
     for item in list_fonts():
-        if str(item.get("family") or "").casefold() == name.casefold():
-            return True
+        candidate = str(item.get("family") or "").strip()
+        if candidate.casefold() == name.casefold():
+            return candidate
     binary = shutil.which("fc-match")
-    if binary is None:
-        return False
-    try:
-        completed = subprocess.run(
-            [binary, "-f", "%{family}", name],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=5,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return False
-    return completed.returncode == 0 and name.casefold() in (completed.stdout or "").casefold()
+    if binary is not None:
+        try:
+            completed = subprocess.run(
+                [binary, "-f", "%{family}", name],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            completed = None
+        if completed is not None and completed.returncode == 0:
+            resolved = (completed.stdout or "").split(",", 1)[0].split(":", 1)[0].strip()
+            if resolved and name.casefold() in resolved.casefold():
+                return resolved
+            alias = _METRIC_ALIASES.get(name.casefold())
+            if alias and alias.casefold() in resolved.casefold():
+                return alias
+    return _METRIC_ALIASES.get(name.casefold())
+
+
+def font_available(family: str) -> bool:
+    """Check a registered font, fontconfig, or a known metric alias."""
+
+    if not str(family or "").strip():
+        return True
+    return resolve_font_family(family) is not None
 
 
 def register_font(path: Path, *, name: str = "") -> dict[str, object]:

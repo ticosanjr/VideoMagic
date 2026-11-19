@@ -108,6 +108,75 @@ def asset_dimensions(path: Path, kind: str = "image") -> tuple[int, int]:
         return 1, 1
 
 
+_ALPHA_BBOX_CACHE: dict[tuple[str, int, int], tuple[int, int, int, int] | None] = {}
+
+
+def asset_alpha_bbox(
+    path: Path,
+    kind: str = "image",
+    *,
+    threshold: int = 16,
+) -> tuple[int, int, int, int] | None:
+    """Return the non-transparent area in source pixels, cached by mtime."""
+
+    source = Path(path).expanduser()
+    try:
+        stat = source.stat()
+    except OSError:
+        return None
+    key = (str(source.resolve()), stat.st_size, stat.st_mtime_ns)
+    if key in _ALPHA_BBOX_CACHE:
+        return _ALPHA_BBOX_CACHE[key]
+    try:
+        from PIL import Image
+    except Exception:  # noqa: BLE001 - Pillow is optional
+        return None
+    image: Any = None
+    temporary: Path | None = None
+    try:
+        if kind == "image":
+            image = Image.open(source)
+        else:
+            binary = find_binary("ffmpeg")
+            if binary is None:
+                return None
+            temporary = source.with_name(f".{source.stem}.alpha-probe.png")
+            completed = subprocess.run(
+                [
+                    binary,
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-y",
+                    "-i",
+                    str(source),
+                    "-frames:v",
+                    "1",
+                    str(temporary),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=30,
+            )
+            if completed.returncode != 0 or not temporary.is_file():
+                return None
+            image = Image.open(temporary)
+        image = image.convert("RGBA")
+        alpha = image.getchannel("A").point(lambda value: 255 if value > threshold else 0)
+        bbox = alpha.getbbox()
+        _ALPHA_BBOX_CACHE[key] = bbox
+        return bbox
+    except Exception:  # noqa: BLE001 - optional image backend
+        _ALPHA_BBOX_CACHE[key] = None
+        return None
+    finally:
+        if image is not None:
+            image.close()
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
 def overlay_box(
     overlay: OverlayClip,
     canvas_w: int,
@@ -139,6 +208,32 @@ def overlay_box(
             (canvas_h - height) / 2
         ) + margin_y
     return PixelBox(x=x, y=y, width=width, height=height, z=overlay.z)
+
+
+def visual_overlay_box(
+    overlay: OverlayClip,
+    canvas_w: int,
+    canvas_h: int,
+    *,
+    threshold: int = 16,
+) -> PixelBox | None:
+    """Bounding box of the non-transparent pixels after scaling to canvas."""
+
+    full = overlay_box(overlay, canvas_w, canvas_h)
+    bbox = asset_alpha_bbox(Path(overlay.path), overlay.kind, threshold=threshold)
+    if bbox is None:
+        return full
+    source_w, source_h = asset_dimensions(Path(overlay.path), overlay.kind)
+    if source_w <= 0 or source_h <= 0:
+        return full
+    left, top, right, bottom = bbox
+    x = full.x + round(left / source_w * full.width)
+    y = full.y + round(top / source_h * full.height)
+    width = max(2, round((right - left) / source_w * full.width))
+    height = max(2, round((bottom - top) / source_h * full.height))
+    width = min(width, max(2, canvas_w - x))
+    height = min(height, max(2, canvas_h - y))
+    return PixelBox(x=x, y=y, width=width, height=height, z=full.z)
 
 
 def caption_box(
@@ -214,33 +309,52 @@ def collisions(
     canvas_h: int,
     *,
     caption: PixelBox | None = None,
+    mode: str = "visual",
 ) -> list[dict[str, Any]]:
-    """Return real spatial collisions between overlays and/or captions."""
+    """Return real spatial collisions between overlays and/or captions.
+
+    ``visual`` uses only the non-transparent pixels; ``rectangle`` keeps the
+    legacy full bounding box and is available by explicit request.
+    """
 
     layouts = layout_for(state, canvas_w, canvas_h)
+    boxes: dict[str, PixelBox | None] = {}
+    if mode == "visual":
+        for overlay in state.overlays:
+            boxes[overlay.overlay_id] = visual_overlay_box(
+                overlay, canvas_w, canvas_h
+            )
+    else:
+        boxes = {layout.overlay_id: layout.box for layout in layouts}
     issues: list[dict[str, Any]] = []
     for index, left in enumerate(layouts):
+        left_box = boxes.get(left.overlay_id)
+        if left_box is None:
+            continue
         for right in layouts[index + 1 :]:
+            right_box = boxes.get(right.overlay_id)
+            if right_box is None:
+                continue
             window = _temporal_overlap(left, right)
-            if window is None or not overlap(left.box, right.box):
+            if window is None or not overlap(left_box, right_box):
                 continue
             issues.append(
                 {
                     "kind": "overlay_overlap",
                     "item_a": left.overlay_id,
                     "item_b": right.overlay_id,
-                    "overlap_px": overlap_pixels(left.box, right.box),
+                    "overlap_px": overlap_pixels(left_box, right_box),
                     "start_sec": round(window[0], 3),
                     "end_sec": round(window[1], 3),
                 }
             )
-        if caption is not None and overlap(left.box, caption):
+        if caption is not None and overlap(left_box, caption):
             issues.append(
                 {
                     "kind": "caption_overlap",
                     "item_a": left.overlay_id,
                     "item_b": "captions",
-                    "overlap_px": overlap_pixels(left.box, caption),
+                    "overlap_px": overlap_pixels(left_box, caption),
                     "start_sec": round(left.start_sec, 3),
                     "end_sec": round(left.end_sec, 3),
                 }

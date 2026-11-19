@@ -36,11 +36,21 @@ _TRANSLATE = {
     "needs": ["transcribe"],
     "params": {"target_language": "en"},
 }
+_EDITORIAL = {
+    "id": "editorial",
+    "type": "speech.editorial_clean",
+    "needs": ["transcribe"],
+    "params": {"semantic": True},
+}
 _RETAKES = {
     "id": "retakes",
     "type": "retakes.cull",
     "needs": ["vad", "transcribe"],
     "params": {"enabled": True},
+}
+_RETAKES_AFTER_EDITORIAL = {
+    **_RETAKES,
+    "needs": ["vad", "transcribe", "editorial"],
 }
 _TIMELINE = {
     "id": "timeline",
@@ -107,7 +117,8 @@ def _shorts(
         {**_INGEST},
         {**_VAD},
         {**_TRANSCRIBE},
-        {**_RETAKES},
+        {**_EDITORIAL},
+        {**_RETAKES_AFTER_EDITORIAL},
         {
             "id": "shorts",
             "type": "shorts.select",
@@ -210,9 +221,18 @@ def _recut_steps(*, with_retakes: bool) -> list[dict[str, object]]:
         )
         steps.append(
             {
+                "id": "editorial",
+                "type": "speech.editorial_clean",
+                "needs": ["transcribe"],
+                "inputs": {"transcript": "transcribe.transcript"},
+                "params": {"semantic": True},
+            }
+        )
+        steps.append(
+            {
                 "id": "retakes",
                 "type": "retakes.cull",
-                "needs": ["vad", "transcribe"],
+                "needs": ["vad", "transcribe", "editorial"],
                 "inputs": {
                     "speech": "vad.speech",
                     "transcript": "transcribe.transcript",

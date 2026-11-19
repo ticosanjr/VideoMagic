@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from videoflow.engine.recipes.catalog import (
+    _EDITORIAL,
     _EXPORT,
     _EXPORT_WITH_SHORTS,
     _INGEST,
     _RETAKES,
+    _RETAKES_AFTER_EDITORIAL,
     _TIMELINE,
     _TIMELINE_NO_RETAKES,
     _TRANSCRIBE,
@@ -26,7 +28,15 @@ BUILTIN_RECIPES.update({
             "Clean speech, remove repeats, build the main timeline, and export an NLE project."
         ),
         "llm": {"provider": "none"},
-        "steps": [_INGEST, _VAD, _TRANSCRIBE, _RETAKES, _TIMELINE, _EXPORT],
+        "steps": [
+            _INGEST,
+            _VAD,
+            _TRANSCRIBE,
+            _EDITORIAL,
+            _RETAKES_AFTER_EDITORIAL,
+            _TIMELINE,
+            _EXPORT,
+        ],
     },
     "viral_shorts_batch": {
         "schema_version": 1,
@@ -38,13 +48,14 @@ BUILTIN_RECIPES.update({
             _INGEST,
             _VAD,
             _TRANSCRIBE,
+            _EDITORIAL,
             {
                 "id": "translation",
                 "type": "transcript.translate",
                 "needs": ["transcribe"],
                 "params": {"target_language": "en"},
             },
-            _RETAKES,
+            _RETAKES_AFTER_EDITORIAL,
             _TIMELINE,
             {
                 "id": "shorts",
@@ -305,7 +316,7 @@ _add_recipe(
 _add_recipe(
     "shorts_select_only",
     "Shorts select only",
-    _shorts()[:6]
+    _shorts()[:7]
     + [
         {
             "id": "review",
@@ -343,7 +354,7 @@ _add_recipe(
 _add_recipe(
     "review_gate",
     "Review gate",
-    _shorts()[:6]
+    _shorts()[:7]
     + [
         {
             "id": "review",
@@ -391,7 +402,7 @@ _add_recipe(
     description="Real hook and duration variants per Short, rendered for comparison.",
 )
 
-_variant_base = _shorts()[:5]
+_variant_base = _shorts()[:6]
 _variant_base[-1] = {
     "id": "shorts",
     "type": "shorts.select",
@@ -516,7 +527,7 @@ _add_recipe(
 _add_recipe(
     "broll_pass",
     "B-roll pass",
-    _shorts()[:6]
+    _shorts()[:7]
     + [
         {
             "id": "match",
@@ -548,7 +559,7 @@ _add_recipe(
 _add_recipe(
     "music_pass",
     "Music pass",
-    _shorts()[:6]
+    _shorts()[:7]
     + [
         {"id": "beats", "type": "music.beat", "needs": ["ingest"], "params": {}},
         {
@@ -575,7 +586,7 @@ _add_recipe(
 _add_recipe(
     "sfx_pass",
     "SFX pass",
-    _shorts()[:6]
+    _shorts()[:7]
     + [
         {"id": "sfx", "type": "sfx.plan", "needs": ["ingest"], "params": {}},
         {
@@ -602,7 +613,7 @@ _add_recipe(
 _add_recipe(
     "metadata_pack",
     "Metadata pack",
-    _shorts()[:6]
+    _shorts()[:7]
     + [
         {
             "id": "metadata",

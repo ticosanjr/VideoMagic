@@ -217,6 +217,39 @@ PORTS: dict[str, tuple[tuple[PortSpec, ...], tuple[PortSpec, ...]]] = {
             PortSpec("artifacts", "Transcript artifacts", "artifact_map", "artifacts"),
         ),
     ),
+    "speech.editorial_clean": (
+        (
+            PortSpec("transcript", "Transcript", "transcript", "transcript", True),
+            PortSpec(
+                "speech",
+                "Speech spans",
+                "sample_spans",
+                "speech_intervals",
+                False,
+            ),
+        ),
+        (
+            PortSpec("transcript", "Clean transcript", "transcript", "transcript"),
+            PortSpec(
+                "discarded",
+                "Discarded sentence ids",
+                "integer_list",
+                "discard_sentence_ids",
+            ),
+            PortSpec(
+                "artifacts",
+                "Editorial artifacts",
+                "artifact_map",
+                "artifacts",
+            ),
+            PortSpec(
+                "report",
+                "Editorial cleanup report",
+                "json",
+                "metadata:editorial_clean",
+            ),
+        ),
+    ),
     "shorts.select": (
         (PortSpec("transcript", "Transcript", "transcript", "transcript", True),),
         (PortSpec("shorts", "Selected Shorts", "short_list", "shorts"),),

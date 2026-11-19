@@ -143,6 +143,208 @@ def test_cli_renders_vertical_shorts(fixture: tuple[Path, Path], tmp_path: Path)
         assert stream["height"] == 1920
 
 
+def test_short_render_with_varying_crop_keyframes(
+    fixture: tuple[Path, Path], tmp_path: Path
+) -> None:
+    from videoflow.adapters.ffmpeg import FFmpegAdapter
+
+    source, _ = fixture
+    output = tmp_path / "crop.mp4"
+    FFmpegAdapter().render_short(
+        source,
+        [(0, 2 * 48000)],
+        output,
+        sample_rate=48000,
+        width=320,
+        height=568,
+        crop_focus_x=0.2,
+        crop_focus_y=0.5,
+        crop_keyframes=[(0.0, 0.2), (2.0, 0.8)],
+    )
+    assert output.is_file()
+    assert output.stat().st_size > 0
+
+
+def test_short_render_accepts_an_image_intro(
+    fixture: tuple[Path, Path], tmp_path: Path
+) -> None:
+    import subprocess
+
+    from videoflow.adapters.ffmpeg import FFmpegAdapter
+
+    source, _ = fixture
+    intro = tmp_path / "intro.png"
+    subprocess.run(
+        [
+            ffmpeg(),
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=green:size=320x568",
+            "-frames:v",
+            "1",
+            str(intro),
+        ],
+        check=True,
+    )
+    output = tmp_path / "intro-image.mp4"
+    FFmpegAdapter().render_short(
+        source,
+        [(0, 2 * 48000)],
+        output,
+        sample_rate=48000,
+        width=320,
+        height=568,
+        intro_path=intro,
+        intro_duration_sec=1.0,
+    )
+    assert output.is_file()
+    assert output.stat().st_size > 0
+
+
+def test_short_render_accepts_alpha_webm_overlay(
+    fixture: tuple[Path, Path], tmp_path: Path
+) -> None:
+    import subprocess
+
+    from videoflow.adapters.ffmpeg import FFmpegAdapter
+
+    source, _ = fixture
+    overlay = tmp_path / "alpha.webm"
+    subprocess.run(
+        [
+            ffmpeg(),
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=red@0.0:size=64x64:d=1",
+            "-c:v",
+            "libvpx-vp9",
+            "-pix_fmt",
+            "yuva420p",
+            str(overlay),
+        ],
+        check=True,
+    )
+    output = tmp_path / "alpha-overlay.mp4"
+    FFmpegAdapter().render_short(
+        source,
+        [(0, 2 * 48000)],
+        output,
+        sample_rate=48000,
+        width=320,
+        height=568,
+        overlay_path=overlay,
+        overlay_width_ratio=0.3,
+    )
+    assert output.is_file()
+    assert output.stat().st_size > 0
+
+
+def test_short_render_headline_and_picture_in_picture(
+    fixture: tuple[Path, Path], tmp_path: Path
+) -> None:
+    import subprocess
+
+    from videoflow.adapters.ffmpeg import FFmpegAdapter
+
+    source, _ = fixture
+    visual = tmp_path / "visual.png"
+    overlay = tmp_path / "overlay.png"
+    subprocess.run(
+        [
+            ffmpeg(),
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=blue:size=640x360",
+            "-frames:v",
+            "1",
+            str(visual),
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [
+            ffmpeg(),
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=red:size=160x160",
+            "-frames:v",
+            "1",
+            str(overlay),
+        ],
+        check=True,
+    )
+    headline = tmp_path / "headline.mp4"
+    FFmpegAdapter().render_short(
+        source,
+        [(0, 2 * 48000)],
+        headline,
+        sample_rate=48000,
+        width=320,
+        height=568,
+        layout_mode="headline_card",
+        cutout=True,
+        headline_text="Titulo do Short",
+    )
+    pip = tmp_path / "pip.mp4"
+    FFmpegAdapter().render_short(
+        source,
+        [(0, 2 * 48000)],
+        pip,
+        sample_rate=48000,
+        width=320,
+        height=568,
+        layout_mode="pip_bottom_right",
+        overlay_path=overlay,
+        overlay_width_ratio=0.28,
+    )
+    split = tmp_path / "split.mp4"
+    FFmpegAdapter().render_short(
+        source,
+        [(0, 2 * 48000)],
+        split,
+        sample_rate=48000,
+        width=320,
+        height=568,
+        layout_mode="split_top_visual",
+        visual_path=visual,
+    )
+    punch = tmp_path / "punch.mp4"
+    FFmpegAdapter().render_short(
+        source,
+        [(0, 2 * 48000)],
+        punch,
+        sample_rate=48000,
+        width=320,
+        height=568,
+        layout_mode="fullscreen_punchin",
+        punch_in_scale=1.08,
+    )
+    assert headline.is_file() and headline.stat().st_size > 0
+    assert pip.is_file() and pip.stat().st_size > 0
+    assert split.is_file() and split.stat().st_size > 0
+    assert punch.is_file() and punch.stat().st_size > 0
+
+
 def test_short_render_mixes_music_and_sfx(
     fixture: tuple[Path, Path], tmp_path: Path
 ) -> None:

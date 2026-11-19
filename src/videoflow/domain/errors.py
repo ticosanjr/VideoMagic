@@ -15,7 +15,33 @@ class VideoFlowError(Exception):
         self.message = message
 
     def to_dict(self) -> dict[str, object]:
-        return {"ok": False, "code": self.code, "message": self.message}
+        hint = {
+            "ingest_failed": (
+                "Check that the source exists, is readable, and FFmpeg supports its codec."
+            ),
+            "export_failed": (
+                "Inspect the failed command/stderr, then rerun after fixing the "
+                "timeline or media."
+            ),
+            "needs_review": "Read the QA report, fix the flagged issue, and rerun QA.",
+            "job_cancelled": "Rerun the job when ready.",
+            "path_not_allowed": (
+                "Move the file inside an allowed root or update the path allowlist."
+            ),
+            "unknown_project": "Create the project first with vf_project(action=\"init\").",
+        }.get(
+            self.code,
+            "Check the message and details, then retry after correcting the input.",
+        )
+        return {
+            "ok": False,
+            "code": self.code,
+            "error_code": self.code,
+            "message": self.message,
+            "failed_command": str(getattr(self, "command", "") or ""),
+            "stderr_tail": str(getattr(self, "stderr", "") or "")[-4000:],
+            "fix_hint": hint,
+        }
 
 
 class NotImplementedCapabilityError(VideoFlowError):

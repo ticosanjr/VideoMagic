@@ -97,8 +97,14 @@ def test_bundle_writes_every_target_and_manifest(tmp_path: Path) -> None:
 
 def test_bundle_rejects_blocked_license(tmp_path: Path) -> None:
     state = _state(tmp_path)
+    clip = tmp_path / "assets" / "broll" / "clip.mp4"
+    clip.parent.mkdir(parents=True)
+    clip.write_bytes(b"clip")
+    (tmp_path / "broll.json").write_text(
+        json.dumps({"clips": [{"path": "assets/broll/clip.mp4"}]}),
+        encoding="utf-8",
+    )
     licenses = tmp_path / "assets" / "licenses.json"
-    licenses.parent.mkdir(parents=True)
     licenses.write_text(
         json.dumps(
             {
@@ -109,7 +115,14 @@ def test_bundle_rejects_blocked_license(tmp_path: Path) -> None:
                         "license": "unknown",
                         "license_status": "unknown",
                         "page_url": "",
-                    }
+                    },
+                    {
+                        "title": "Unused stock",
+                        "path": "assets/broll/unused.mp4",
+                        "license": "unknown",
+                        "license_status": "unknown",
+                        "page_url": "",
+                    },
                 ]
             }
         ),
@@ -118,6 +131,31 @@ def test_bundle_rejects_blocked_license(tmp_path: Path) -> None:
 
     with pytest.raises(ExportError, match="licenses need review"):
         build_delivery_bundle(state, tmp_path, adapter=FakeAdapter())
+
+
+def test_bundle_ignores_unused_license_blockers(tmp_path: Path) -> None:
+    state = _state(tmp_path)
+    licenses = tmp_path / "assets" / "licenses.json"
+    licenses.parent.mkdir(parents=True)
+    licenses.write_text(
+        json.dumps(
+            {
+                "assets": [
+                    {
+                        "asset_id": "unused",
+                        "title": "Unused stock",
+                        "path": "assets/broll/unused.mp4",
+                        "license": "unknown",
+                        "license_status": "unknown",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = build_delivery_bundle(state, tmp_path, adapter=FakeAdapter())
+    assert result["ok"] is True
 
 
 def test_bundle_skips_mp4_when_only_nle_targets(tmp_path: Path) -> None:

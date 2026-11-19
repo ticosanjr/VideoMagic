@@ -108,6 +108,13 @@ def test_export_blocks_unapproved_assets(tmp_path: Path) -> None:
     from videoflow.steps.export import ExportParams, ExportStep
 
     context = _context(tmp_path)
+    clip = context.output / "assets" / "broll" / "clip.mp4"
+    clip.parent.mkdir(parents=True)
+    clip.write_bytes(b"clip")
+    (context.output / "broll.json").write_text(
+        json.dumps({"clips": [{"path": "assets/broll/clip.mp4"}]}),
+        encoding="utf-8",
+    )
     write_ledger(
         context.output,
         [
@@ -117,6 +124,7 @@ def test_export_blocks_unapproved_assets(tmp_path: Path) -> None:
                 title="Unreviewed excerpt",
                 page_url="https://youtube.com/watch?v=x",
                 download_url="https://youtube.com/watch?v=x",
+                downloaded_path="assets/broll/clip.mp4",
                 license="YouTube Standard License",
                 license_status="fair_use_review",
             )

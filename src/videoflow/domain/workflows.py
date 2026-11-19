@@ -64,7 +64,7 @@ class WorkflowDefinition(BaseModel):
         return self.description.strip()[:240] or self.name
 
 
-WorkflowAspect = Literal["16:9", "9:16", "4:5", "1:1", "auto"]
+WorkflowAspect = Literal["16:9", "9:16", "4:5", "3:4", "2:3", "1:1", "auto"]
 
 __all__ = [
     "WORKFLOW_EXPORT_TARGETS",

@@ -187,6 +187,8 @@ def test_caption_preview_and_qa_caption(tmp_path: Path, monkeypatch) -> None:
     state.modules_config.shorts.caption_style = CaptionStyle(effect="karaoke_sweep")
 
     def fake_run(command, **kwargs):
+        if "-frames:v" not in command:  # fontconfig probe from font resolution
+            return SimpleNamespace(returncode=0, stderr="", stdout="Arial\n")
         Path(command[-1]).parent.mkdir(parents=True, exist_ok=True)
         Path(command[-1]).write_bytes(b"jpg")
         return SimpleNamespace(returncode=0, stderr="", stdout="")

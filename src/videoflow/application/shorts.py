@@ -35,6 +35,7 @@ from videoflow.application.captions import (
     slugify,
 )
 from videoflow.application.retakes import subtract_spans
+from videoflow.application.thought_boundary import enforce_thought_boundary
 from videoflow.domain.config import CaptionStyle
 from videoflow.domain.errors import InvalidRetakeIdsError
 from videoflow.domain.state import LlmShortsResponse, Sentence
@@ -69,15 +70,29 @@ __all__ = [
 
 SHORT_DIMENSIONS: dict[str, tuple[int, int]] = {
     "9:16": (1080, 1920),
+    "4:5": (1080, 1350),
+    "3:4": (1080, 1440),
+    "2:3": (1080, 1620),
     "1:1": (1080, 1080),
     "16:9": (1920, 1080),
 }
 
 
 def short_dimensions(aspect: str, resolution: int = 1080) -> tuple[int, int]:
-    """Return the render size for an aspect and short-edge resolution."""
+    """Return the render size for an aspect and short-edge resolution.
 
-    width, height = SHORT_DIMENSIONS.get(aspect, SHORT_DIMENSIONS["9:16"])
+    Unknown aspect ratios are a hard error. Silently falling back to 9:16
+    produced vertical clips for callers that asked for 4:5 or 2:3.
+    """
+
+    key = str(aspect or "").strip()
+    try:
+        width, height = SHORT_DIMENSIONS[key]
+    except KeyError as exc:
+        raise ValueError(
+            f"unsupported Short aspect ratio {aspect!r}; "
+            f"expected one of: {', '.join(sorted(SHORT_DIMENSIONS))}"
+        ) from exc
     scale = max(1, int(resolution)) / min(width, height)
     if scale == 1:
         return width, height
@@ -256,6 +271,8 @@ def select_shorts(
     energy_intervals: Sequence[tuple[int, int]] = (),
     scene_intervals: Sequence[tuple[int, int]] = (),
     weights: dict[str, float] | None = None,
+    thought_boundary: bool = True,
+    thought_boundary_max_adjust_sec: float = 4.0,
 ) -> list[ShortClip]:
     notes = warnings if warnings is not None else []
     if prompt_mode not in {"replace", "refine"}:
@@ -317,6 +334,15 @@ def select_shorts(
     selected = _apply_hooks(selected, sentences, hook_mode, min_samples, max_samples)
     if remove_fillers:
         selected = _apply_fillers(selected, sentences, filler_words)
+    if thought_boundary:
+        selected = _apply_thought_boundaries(
+            selected,
+            sentences,
+            cuts=cuts,
+            sample_rate=sample_rate,
+            min_samples=min_samples,
+            max_adjust_sec=thought_boundary_max_adjust_sec,
+        )
     selected.sort(key=lambda item: item.start_sample)
     selected = [
         replace(
@@ -370,6 +396,43 @@ def slice_pieces(
     return trimmed
 
 
+
+
+def _apply_thought_boundaries(
+    clips: Sequence[ShortClip],
+    sentences: Sequence[Sentence],
+    *,
+    cuts: Sequence[tuple[int, int]],
+    sample_rate: int,
+    min_samples: int,
+    max_adjust_sec: float,
+) -> list[ShortClip]:
+    adjusted: list[ShortClip] = []
+    for clip in clips:
+        boundary = enforce_thought_boundary(
+            sentences,
+            clip.start_sample,
+            clip.end_sample,
+            sample_rate=sample_rate,
+            max_adjust_sec=max_adjust_sec,
+        )
+        if not boundary.adjusted:
+            adjusted.append(clip)
+            continue
+        pieces = tuple(subtract_spans([(boundary.start_sample, boundary.end_sample)], cuts))
+        duration = sum(end - start for start, end in pieces)
+        if duration < min_samples:
+            adjusted.append(clip)
+            continue
+        adjusted.append(
+            replace(
+                clip,
+                start_sample=boundary.start_sample,
+                end_sample=boundary.end_sample,
+                pieces=pieces,
+            )
+        )
+    return adjusted
 
 
 def _arc_for(

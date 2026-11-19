@@ -1,5 +1,48 @@
 # Changelog
 
+## [3.3.0] - 2026-11-19
+
+### Added
+
+- `speech.editorial_clean`: deterministic stutter, false-start, fuzzy retake,
+  optional semantic retake, energy-snap, and 15 ms micro-fade pipeline with
+  `transcript_clean.json` and an auditable cut report.
+- Short thought-boundary enforcement with terminal punctuation and pause
+  validation.
+- `vf_assets` for listing, approving, and quarantining project assets.
+- `vf_depth_composite`, `vf_pip`, `vf_parallax`, and `vf_style_preview`
+  compositors with explicit anchors and `z` layers.
+- `vf_export` `fps`, `preset`, and `qa_mode` controls; full QA can run as a
+  background job.
+- `vf_qa_final` short-aware windows, configurable WER, and alpha-based overlay
+  collision detection.
+- Font metric aliases (`Arial` → `Liberation Sans`, and equivalents).
+- Project slug ids with deterministic UUIDv5 state ids and clone targets.
+- B-roll aspect/width/height parity and project-canvas inheritance.
+- Structured MCP errors with `error_code`, `failed_command`, `stderr_tail`, and
+  `fix_hint`.
+
+### Changed
+
+- Social MP4 deliveries default to **30 fps** and `veryfast`; NLE targets keep
+  the source cadence. `fps="source"` opts out.
+- Export QA defaults to fast checks; `qa_mode="full"` dispatches background QA
+  and `off` skips it. `vf_qa_final` remains complete.
+- Word-fidelity WER defaults to `0.12`, with a `0.06–0.12` warning band.
+- Licensing is scoped to assets referenced by the timeline, overlays, B-roll,
+  and audio plan; unused ledger records no longer block delivery.
+- `audio.compose` follows the timeline duration and no longer caps music at
+  120 seconds.
+- The core MCP surface now has **37 tools**.
+
+### Fixed
+
+- ASS captions resolve metric-compatible fonts and avoid overlap.
+- Crop expressions escape safely and collapse static keyframes.
+- Alpha WebM overlays force the `libvpx-vp9` decoder; rounded PiP writes WebM
+  with a real alpha channel.
+- HTML/Chromium capture uses bounded waits and even output dimensions.
+
 ## [3.2.1] - 2026-11-18
 
 ### Added

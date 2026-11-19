@@ -8,7 +8,6 @@ import resource
 import time
 from pathlib import Path
 from typing import Any
-from uuid import UUID
 
 from mcp.server.mcpserver import Context
 
@@ -19,6 +18,7 @@ from videoflow.application.projects import (
     get_project,
     init_project,
     load_project_state,
+    project_uuid,
     save_project_state,
 )
 from videoflow.core.context import PipelineContext
@@ -59,7 +59,14 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
             record = get_project(project_id) if project_id else None
             if record is None:
                 if not output:
-                    return error("output_required", "Pass output when creating a project")
+                    if not project_id:
+                        return error(
+                            "output_required",
+                            "Pass project_id or output when creating a project",
+                        )
+                    from vf_contracts.workspace import project_dir as workspace_project_dir
+
+                    output = str(workspace_project_dir(project_id))
                 record, state = init_project(
                     name=name,
                     output=output,
@@ -507,7 +514,9 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
                     StepIO(stage="nle.sync_back"),
                 )
                 if context.state is not None:
-                    state = context.state.model_copy(update={"project_id": UUID(record.project_id)})
+                    state = context.state.model_copy(
+                        update={"project_id": project_uuid(record.project_id)}
+                    )
                     save_project_state(record, state, bump_revision=False)
                 report = context.metadata.get("sync_back_report", {})
         except VideoFlowError as exc:
@@ -530,7 +539,7 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
             report = validate_nle_exports(
                 output / "exports",
                 timeline_frames=timeline_frames(state) if state.video_segments else None,
-                blocked_paths=blocked_paths(license_blockers(output), output),
+                blocked_paths=blocked_paths(license_blockers(output, state), output),
                 check_media=True,
             )
         except VideoFlowError as exc:

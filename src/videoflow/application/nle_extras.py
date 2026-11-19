@@ -121,20 +121,23 @@ def _project_overlays(directory: Path) -> tuple[NleBroll, ...]:
     for overlay in payload.get("overlays", []):
         if not isinstance(overlay, dict) or not overlay.get("path"):
             continue
+        from videoflow.application.alpha_media import prepare_prores_overlay
         from videoflow.application.overlay_geometry import asset_dimensions, overlay_box
         from videoflow.domain.state import OverlayClip
 
         try:
             clip = OverlayClip.model_validate(overlay)
             box = overlay_box(clip, canvas_w, canvas_h) if canvas_w and canvas_h else None
-            source_w, source_h = asset_dimensions(Path(clip.path), clip.kind)
+            source_path = prepare_prores_overlay(Path(clip.path), cache_dir=directory / ".alpha")
+            source_w, source_h = asset_dimensions(source_path, clip.kind)
         except Exception:  # noqa: BLE001 - keep the NLE export usable without geometry
             clip = None
             box = None
+            source_path = Path(str(overlay["path"]))
             source_w = source_h = 0
         entries.append(
             NleBroll(
-                path=str(overlay["path"]),
+                path=str(source_path),
                 start_sec=float(overlay.get("start_frame") or 0) / fps,
                 duration_sec=max(0.1, float(overlay.get("duration_frames") or 1) / fps),
                 name=Path(str(overlay["path"])).stem,

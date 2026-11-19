@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import functools
 from typing import Any
 
 from mcp.server import MCPServer
 from mcp.types import ToolAnnotations
 
 from videoflow.application.jobs import JobManager
+from videoflow.domain.errors import VideoFlowError
 from videoflow.engine.batch import BatchManager
 from videoflow.mcp_server.agent_resources import register_agent_resources
 from videoflow.mcp_server.context import ToolContext
@@ -27,6 +29,29 @@ def _annotations_for(name: str) -> ToolAnnotations:
         idempotent_hint=name in read_only or action in {"timeline", "artifact"},
         open_world_hint=action in {"ingest", "render", "exec", "exports"},
     )
+
+
+def guard_tool(func: Any) -> Any:
+    """Guarantee structured error payloads at the MCP boundary."""
+
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return func(*args, **kwargs)
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except Exception as exc:  # noqa: BLE001 - MCP boundary must stay structured
+            return {
+                "ok": False,
+                "error_code": "internal_error",
+                "code": "internal_error",
+                "message": str(exc) or exc.__class__.__name__,
+                "failed_command": "",
+                "stderr_tail": "",
+                "fix_hint": "Retry once; if it persists, check the server log and run doctor.",
+            }
+
+    return wrapper
 
 
 def build_server(
@@ -58,7 +83,7 @@ def build_server(
             structured_output=(
                 False if spec.name in {"vf_get_artifact", "vf_get_qa_artifacts"} else None
             ),
-        )(func)
+        )(guard_tool(func))
 
     register_core_tools(tool, ctx)
     register_agent_resources(mcp, ctx, prompts=prompts)

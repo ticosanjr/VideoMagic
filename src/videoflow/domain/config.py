@@ -68,7 +68,7 @@ SubtitlePreset = Literal[
 ]
 ShortsExportFormat = Literal["fcpxml_timeline", "standalone_mp4", "both"]
 ShortsSelectionMode = Literal["auto", "llm", "heuristic"]
-ShortsAspect = Literal["9:16", "1:1", "16:9"]
+ShortsAspect = Literal["9:16", "4:5", "3:4", "2:3", "1:1", "16:9"]
 ShortsResolution = Literal[1080, 1440, 2160]
 ShortsPromptMode = Literal["replace", "refine"]
 ShortsHookMode = Literal["off", "metadata", "repeat", "reorder"]
@@ -228,6 +228,8 @@ class ShortsConfig(StrictModel):
         ]
     )
     virality_threshold: float = Field(default=0.0, ge=0.0, le=100.0)
+    thought_boundary: bool = True
+    thought_boundary_max_adjust_sec: float = Field(default=4.0, ge=0.0, le=12.0)
     reframe_mode: ReframeMode = "center_crop_9_16"
     aspect_ratio: ShortsAspect = "9:16"
     resolution: ShortsResolution = 1080
@@ -240,7 +242,16 @@ class ShortsConfig(StrictModel):
     hook_criteria: list[str] = Field(default_factory=list)
     hook_rewrite: bool = False
     hook_max_chars: int = Field(default=90, ge=20, le=300)
-    layout: Literal["cutout", "split_screen", "full_reframe"] = "full_reframe"
+    layout: Literal[
+        "cutout",
+        "split_screen",
+        "full_reframe",
+        "full_screen",
+        "split_top_visual",
+        "headline_card",
+        "fullscreen_punchin",
+        "pip_bottom_right",
+    ] = "full_reframe"
     hook_overrides: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")

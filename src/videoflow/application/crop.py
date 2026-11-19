@@ -8,6 +8,8 @@ ASPECT_RATIOS: dict[str, tuple[int, int]] = {
     "16:9": (16, 9),
     "9:16": (9, 16),
     "4:5": (4, 5),
+    "3:4": (3, 4),
+    "2:3": (2, 3),
     "1:1": (1, 1),
 }
 
@@ -79,6 +81,28 @@ def crop_box(
     return CropBox(width, height, x, y, focus_x, focus_y)
 
 
+def face_center_focus(
+    face_center_x: float,
+    *,
+    source_width: int,
+    crop_width: int,
+) -> float:
+    """Convert a normalized face center to the crop x focus.
+
+    ``face_center_x`` is the horizontal center of the detected face in the
+    source frame (0..1). The returned value is the normalized crop offset that
+    puts that center exactly on the middle of the output frame.
+    """
+
+    source_width = max(1, int(source_width))
+    crop_width = max(2, min(int(crop_width), source_width))
+    if source_width <= crop_width:
+        return 0.5
+    center = max(0.0, min(1.0, float(face_center_x))) * source_width
+    crop_x = max(0.0, min(float(source_width - crop_width), center - crop_width / 2))
+    return round(crop_x / (source_width - crop_width), 6)
+
+
 def crop_filter(
     width: int,
     height: int,
@@ -97,4 +121,11 @@ def crop_filter(
     )
 
 
-__all__ = ["ASPECT_RATIOS", "CropBox", "crop_box", "crop_filter", "parse_aspect"]
+__all__ = [
+    "ASPECT_RATIOS",
+    "CropBox",
+    "crop_box",
+    "crop_filter",
+    "face_center_focus",
+    "parse_aspect",
+]

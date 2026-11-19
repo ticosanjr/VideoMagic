@@ -18,6 +18,7 @@ from videoflow.application.retakes import (
 from videoflow.application.retakes import (
     cull_retakes as cull_transcript_retakes,
 )
+from videoflow.application.spans import merge_spans
 from videoflow.application.transcript import normalize_transcript
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import IngestError
@@ -40,6 +41,8 @@ class RetakesParams(BaseModel):
     max_group_span_seconds: float = Field(default=180.0, ge=15.0, le=600.0)
     max_discard_ratio: float = Field(default=0.45, ge=0.05, le=0.9)
     semantic_duplicates: bool = False
+    editorial_clean: bool = True
+    editorial_semantic: bool = True
     manual_overrides: list[dict[str, Any]] = Field(default_factory=list)
     use_profile: bool = False
 
@@ -47,11 +50,11 @@ class RetakesParams(BaseModel):
 @register_step
 class RetakesStep(BaseStep):
     type = "retakes.cull"
-    version = "8"
+    version = "9"
     title = "Retakes"
     description = (
-        "Remove exact repeats and failed takes. Requires a transcript; without "
-        "an LLM only exact repetitions are removed."
+        "Run editorial cleanup, then remove exact repeats and failed takes. "
+        "Without an LLM only deterministic passes are used."
     )
     requires = ("audio.vad", "transcribe")
     produces = (
@@ -87,24 +90,29 @@ class RetakesStep(BaseStep):
             io.report(100, "No transcript; retakes skipped")
             return
 
-        discard: list[int] = []
+        discard: list[int] = list(context.discard_sentence_ids)
         restored: list[int] = []
         overlap_cuts: list[tuple[int, int]] = []
-        if options.normalize and not manual:
+        already_editorial = bool(
+            context.metadata.get("editorial_clean", {}).get("applied")
+        )
+        if options.normalize and not manual and not already_editorial:
             normalized = normalize_transcript(
                 context.transcript,
                 cuts=overlap_cuts,
             )
             if normalized:
                 context.transcript = normalized
-                context.retake_overlap_cuts = overlap_cuts
+                context.retake_overlap_cuts = merge_spans(
+                    [*context.retake_overlap_cuts, *overlap_cuts]
+                )
                 context.metadata["transcript_normalized"] = True
                 io.emit(
                     "info",
                     f"Transcript normalized to {len(normalized)} sentence(s)",
                     module="retakes",
                 )
-        elif options.normalize and manual:
+        elif options.normalize and manual and not already_editorial:
             context.warnings.append(
                 "Transcript normalization skipped because manual sentence "
                 "overrides refer to the raw transcript."
@@ -114,29 +122,51 @@ class RetakesStep(BaseStep):
         if pcm_path is None or not pcm_path.is_file():
             candidate = context.work / "source.wav"
             pcm_path = candidate if candidate.is_file() else None
-        refined, alignment = refine_transcript(
-            context.transcript,
-            context.speech_intervals,
-            pcm_path=pcm_path,
-            sample_rate=media.audio_sample_rate,
-        )
-        if refined:
-            context.transcript = refined
-            context.metadata["alignment"] = alignment
-            if alignment.get("implausible_before", 0):
-                context.warnings.append(
-                    "Refined "
-                    f"{alignment.get('vad_clamped', 0)} word timing(s); "
-                    f"implausible words {alignment['implausible_before']} -> "
-                    f"{alignment['implausible_after']}."
-                )
+        if not context.metadata.get("alignment"):
+            refined, alignment = refine_transcript(
+                context.transcript,
+                context.speech_intervals,
+                pcm_path=pcm_path,
+                sample_rate=media.audio_sample_rate,
+            )
+            if refined:
+                context.transcript = refined
+                context.metadata["alignment"] = alignment
+                if alignment.get("implausible_before", 0):
+                    context.warnings.append(
+                        "Refined "
+                        f"{alignment.get('vad_clamped', 0)} word timing(s); "
+                        f"implausible words {alignment['implausible_before']} -> "
+                        f"{alignment['implausible_after']}."
+                    )
+
+        if options.editorial_clean and not already_editorial:
+            from videoflow.steps.editorial_clean import (
+                EditorialCleanParams,
+                apply_editorial_clean,
+            )
+
+            apply_editorial_clean(
+                context,
+                EditorialCleanParams(
+                    normalize=not manual,
+                    semantic=options.editorial_semantic,
+                ),
+                io,
+            )
+            discard = list(context.discard_sentence_ids)
 
         if options.enabled:
             io.report(20, "Culling retakes")
+            candidates = [
+                item
+                for item in context.transcript
+                if item.id not in set(context.discard_sentence_ids)
+            ]
             result = cull_transcript_retakes(
-                context.transcript,
+                candidates,
                 client=io.llm_client,
-                strategy=options.strategy,  # type: ignore[arg-type]
+                strategy=options.strategy,
                 context_window=options.context_window,
                 strictness=options.strictness,
                 single_pass=options.single_pass,
@@ -144,10 +174,17 @@ class RetakesStep(BaseStep):
                 max_discard_ratio=options.max_discard_ratio,
                 semantic_duplicates=options.semantic_duplicates,
             )
-            discard = list(result.discard_sentence_ids)
+            discard = sorted(
+                set(context.discard_sentence_ids) | set(result.discard_sentence_ids)
+            )
             restored = list(result.restored_sentence_ids)
             report = result.to_dict()
-            report["overlap_cuts"] = [list(span) for span in overlap_cuts]
+            report["overlap_cuts"] = [
+                [span[0], span[1]] for span in context.retake_overlap_cuts
+            ]
+            report["editorial_clean"] = dict(
+                context.metadata.get("editorial_clean") or {}
+            )
             context.metadata["retakes_report"] = report
             io.emit(
                 "info",
@@ -188,6 +225,7 @@ class RetakesStep(BaseStep):
                 "restored": restored,
                 "manual": [m.model_dump() for m in manual],
                 "normalized_sentences": len(context.transcript),
+                "editorial": context.metadata.get("editorial_clean", {}),
                 "groups": context.metadata.get("retakes_report", {}).get(
                     "groups", []
                 ),
@@ -207,13 +245,13 @@ class RetakesStep(BaseStep):
             encoding="utf-8",
         )
         context.artifacts["transcript_clean"] = str(clean_path)
-        report = context.metadata.get("retakes_report") or {
+        final_report: dict[str, Any] = context.metadata.get("retakes_report") or {
             "discard_sentence_ids": discard,
             "restored_sentence_ids": restored,
             "groups": [],
         }
         io.report(
             100,
-            f"{len(report.get('groups', []))} group(s), "
+            f"{len(final_report.get('groups', []))} group(s), "
             f"{len(discard)} culled, {len(restored)} restored",
         )

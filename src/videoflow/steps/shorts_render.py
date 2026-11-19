@@ -54,7 +54,17 @@ class RenderShortsParams(BaseModel):
     outro_path: str | None = None
     intro_duration_sec: float = 2.0
     outro_duration_sec: float = 2.0
-    layout: Literal["auto", "none", "cutout", "rounded_window", "full_screen"] = "auto"
+    layout: Literal[
+        "auto",
+        "none",
+        "cutout",
+        "rounded_window",
+        "full_screen",
+        "split_top_visual",
+        "headline_card",
+        "fullscreen_punchin",
+        "pip_bottom_right",
+    ] = "auto"
     cutout_corner_radius: float = Field(default=0.08, ge=0.0, le=0.5)
     cutout_margin: float = Field(default=0.04, ge=0.0, le=0.3)
     cutout_head_overlap: float = Field(default=0.12, ge=0.0, le=0.4)
@@ -178,7 +188,7 @@ class RenderShortsStep(BaseStep):
                             )
                         )
             layout_style = self._layout_for(options.layout, context, index - 1, clip.title)
-            cutout = layout_style in {"cutout", "rounded_window"}
+            cutout = layout_style in {"cutout", "rounded_window", "headline_card"}
             render_width = max(16, int(width * options.draft_scale))
             render_height = max(16, int(height * options.draft_scale))
             destination = shorts_dir / f"{slug}.mp4"
@@ -235,6 +245,27 @@ class RenderShortsStep(BaseStep):
             if skip:
                 reused += 1
             else:
+                layout_args: dict[str, object] = {}
+                if layout_style in {
+                    "split_top_visual",
+                    "headline_card",
+                    "fullscreen_punchin",
+                    "pip_bottom_right",
+                }:
+                    layout_args = {
+                        "layout_mode": layout_style,
+                        "punch_in_scale": float(entry.get("punch_in_scale") or 1.06),
+                        "visual_path": (
+                            Path(str(entry["visual_path"]))
+                            if entry.get("visual_path")
+                            else None
+                        ),
+                        "headline_text": (
+                            str(entry.get("headline_text") or entry.get("title") or "")
+                            if layout_style == "headline_card"
+                            else ""
+                        ),
+                    }
                 adapter.render_short(
                     Path(context.source),
                     clip.pieces,
@@ -245,7 +276,11 @@ class RenderShortsStep(BaseStep):
                     height=render_height,
                     fontsdir=str(fonts_dir()),
                     audio_filters=tuple(options.audio_filters),
-                    overlay_path=Path(options.overlay_path) if options.overlay_path else None,
+                    overlay_path=(
+                        Path(str(entry.get("overlay_path") or options.overlay_path))
+                        if entry.get("overlay_path") or options.overlay_path
+                        else None
+                    ),
                     overlay_position=options.overlay_position,
                     overlay_margin=options.overlay_margin,
                     overlay_width_ratio=options.overlay_width_ratio,
@@ -282,6 +317,7 @@ class RenderShortsStep(BaseStep):
                     outro_path=Path(options.outro_path) if options.outro_path else None,
                     intro_duration_sec=options.intro_duration_sec,
                     outro_duration_sec=options.outro_duration_sec,
+                    **layout_args,
                     **(
                         {
                             "cutout": True,
@@ -334,7 +370,16 @@ class RenderShortsStep(BaseStep):
                 continue
             if item.get("index") == index or item.get("title") == title:
                 layout = str(item.get("layout") or "none")
-                return layout if layout in {"cutout", "rounded_window", "full_screen"} else "none"
+                allowed = {
+                    "cutout",
+                    "rounded_window",
+                    "full_screen",
+                    "split_top_visual",
+                    "headline_card",
+                    "fullscreen_punchin",
+                    "pip_bottom_right",
+                }
+                return layout if layout in allowed else "none"
         return "none"
 
     def cache_outputs(self, context: PipelineContext) -> tuple[Path, ...]:

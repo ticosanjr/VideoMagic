@@ -98,7 +98,8 @@ values genuinely shared by multiple nodes or profiles.
 | `ingest` | — | media, PCM, digest |
 | `audio.vad` | `ingest` | speech intervals, silence spans, VAD engine |
 | `transcribe` | `ingest` | transcript (SRT, project, Faster-Whisper, whisper.cpp, HTTP, or none) |
-| `retakes.cull` | `audio.vad`, `transcribe` | discard/restore decisions, retake/manual spans, updated speech |
+| `speech.editorial_clean` | `transcribe` | stutter/false-start and retake cleanup, exact source cuts, `transcript_clean.json` |
+| `retakes.cull` | `audio.vad`, `transcribe` | discard/restore decisions, retake/manual spans, updated speech; runs editorial cleanup when absent |
 | `audio.diarize` | `transcribe` | heuristic or pyannote speaker ids for captions |
 | `broll.plan` | `shorts.select` | local or Pexels B-roll overlay plan |
 | `edit.timeline` | `audio.vad` (+ optional retakes) | validated `ProjectState`, inactive spans |
@@ -309,7 +310,7 @@ a parity test against the recipe path.
 ```json
 {
   "variables": {
-    "aspect": {"type": "enum", "default": "9:16", "options": ["9:16", "1:1", "16:9"]},
+    "aspect": {"type": "enum", "default": "9:16", "options": ["9:16", "4:5", "3:4", "2:3", "1:1", "16:9"]},
     "caption_size": {"type": "number", "default": 72},
     "platform": {"type": "string", "default": "youtube"}
   },

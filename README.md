@@ -6,7 +6,7 @@ recording into an editable timeline: it removes silence and retakes, adds
 J-cuts and punch-ins, proposes vertical Shorts, masters the dialogue bed, and
 exports timelines for DaVinci Resolve, Adobe Premiere Pro, and Kdenlive.
 
-> Status: 3.2.1 local stable. Diretor Lego workflows, OpenCode Studio Manager, 32 MCP tools, 22 styles, stateful step chains, and multi-NLE delivery. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
+> Status: 3.3.0 local stable. Diretor Lego workflows, OpenCode Studio Manager, 37 MCP tools, 22 styles, stateful step chains, and multi-NLE delivery. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical Shorts,
 > audio mastering and loudness QA, burned titles, color/LUT grading, analytics
@@ -212,7 +212,8 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   motion/face-assisted reframing, audio-energy and scene-change curation,
   platform metadata, URL import, webhook publishing/scheduling,
   OpenAI-compatible multimodal vision analysis, LLM emoji captions, thumbnails,
-  retake-aware conforming, 9:16/1:1/16:9 render at 1080/1440/2160 short edge,
+  retake-aware conforming, 9:16/4:5/3:4/2:3/1:1/16:9 render at 1080/1440/2160 short edge,
+  30 fps social masters with optional NVENC, fast export QA, and full QA in the background,
   an optional source window, burned ASS captions, a live aspect-aware preview,
   and a per-Short trim/retitle/reframe editor.
 - Deterministic timeline: frame-quantised video, sample-aligned audio, merged

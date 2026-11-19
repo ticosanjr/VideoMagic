@@ -42,10 +42,18 @@ retrieved timestamp, and SHA-256 after download.
 - `assets/licenses.md` — a readable review sheet.
 
 The final `export.nle` has `require_licenses: true`. It raises an export error
-while any asset is `unknown`/`cc_review` without approval or is
-`fair_use_review` without approval. The HILT `assets_review` gate is the approval
-point; `assets.assign` records the approval and writes
-`assets/assignments.json` plus `broll.json`.
+while an asset **used by the timeline, overlays, B-roll plan, or audio plan** is
+`unknown`/`cc_review`/`quarantined` without approval or is `fair_use_review`
+without approval. Unused ledger entries no longer block delivery. With a project
+state available, the gate is scoped automatically; pass no state to audit the
+whole ledger. The HILT `assets_review` gate is the approval point;
+`assets.assign` records the approval and writes `assets/assignments.json` plus
+`broll.json`.
+
+Use `vf_assets(action="list")` to inspect the scoped ledger and
+`vf_assets(action="approve"|"quarantine")` to record a decision without
+re-running discovery. Approved records store the license and attribution text;
+quarantined records stay blocked until reviewed again.
 
 `assets.assign` places approved assets on the B-roll plan with start/duration,
 license status, attribution, and source URL. The NLE sidecars include

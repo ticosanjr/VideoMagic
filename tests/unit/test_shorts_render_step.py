@@ -191,10 +191,18 @@ def test_crop_expression_is_piecewise_linear() -> None:
     assert expression.startswith("if(lt(t,1.0)")
 
 
-def test_piece_keyframes_are_relative_and_capped() -> None:
+def test_piece_keyframes_collapse_when_static() -> None:
     from videoflow.adapters.ffmpeg import _piece_keyframes
 
     keyframes = [(index * 0.5, 0.5) for index in range(30)]
+    piece = _piece_keyframes(keyframes, 2 * RATE, 10 * RATE, RATE)
+    assert piece == [(0.0, 0.5)]
+
+
+def test_piece_keyframes_are_relative_and_capped() -> None:
+    from videoflow.adapters.ffmpeg import _piece_keyframes
+
+    keyframes = [(index * 0.5, 0.2 + index * 0.02) for index in range(30)]
     piece = _piece_keyframes(keyframes, 2 * RATE, 10 * RATE, RATE)
     assert piece[0][0] == 0.0
     assert piece[-1][0] == 8.0

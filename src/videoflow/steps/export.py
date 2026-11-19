@@ -66,7 +66,11 @@ class ExportStep(BaseStep):
         options = ExportParams.model_validate(params)
         if context.state is None:
             raise StateNotReadyError("The export step requires a built timeline")
-        blockers = license_blockers(context.output) if options.require_licenses else []
+        blockers = (
+            license_blockers(context.output, context.state)
+            if options.require_licenses
+            else []
+        )
         if blockers:
             titles = ", ".join(
                 str(item.get("title") or item.get("asset_id")) for item in blockers[:6]

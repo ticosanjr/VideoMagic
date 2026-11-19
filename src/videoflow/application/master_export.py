@@ -121,6 +121,7 @@ def render_master(
     scale_height: int | None = None,
     cache_dir: Path | None = None,
     video_filters: Sequence[str] | None = None,
+    fps: int | None = None,
 ) -> Path:
     """Render one timeline to the same H.264/AAC master for every caller."""
 
@@ -146,6 +147,7 @@ def render_master(
         progress=progress,
         scale_height=scale_height,
         cache_dir=cache_dir,
+        fps=fps,
     )
 
 

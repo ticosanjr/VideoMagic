@@ -33,6 +33,7 @@ class VideoExportParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     preset: VideoPreset = "ultrafast"
+    fps: int | Literal["source"] = 30
     subdir: str = Field(default="exports", max_length=120)
     filename_mode: Literal["source_timestamp", "fixed"] = "source_timestamp"
     filename: str = Field(default="video.mp4", min_length=1, max_length=200)
@@ -112,6 +113,7 @@ class VideoExportStep(BaseStep):
                 look=look,
                 crf=crf,
                 preset=preset,
+                fps=None if options.fps == "source" else int(options.fps),
                 progress=progress,
                 scale_height=scale_height,
                 cache_dir=context.output / "render" / "segments",
@@ -122,6 +124,7 @@ class VideoExportStep(BaseStep):
                 "path": str(destination),
                 "preset": options.preset,
                 "crf": crf,
+                "fps": options.fps,
                 "audio_source": options.audio_source,
             }
         )

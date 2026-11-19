@@ -30,6 +30,13 @@ $VF_WORKSPACE_ROOT/projects/{project_id}/
 `output`, `sources`, `primary_source`, `state_path`, `revision`, and
 `schema_version`.
 
+`project_id` accepts a human-readable slug (for example `meu-documentario`) as
+well as a UUID. The registry key and workspace folder keep the slug, while the
+internal `ProjectState.project_id` is a deterministic UUID derived from it, so
+re-running init or clone for the same slug is stable. `vf_project_init` can
+create a project from `project_id` alone; the output defaults to
+`$VF_WORKSPACE_ROOT/projects/{project_id}`.
+
 Every asset is content-addressed and has a `.meta.json` sidecar:
 
 ```json
@@ -51,6 +58,8 @@ Every asset is content-addressed and has a `.meta.json` sidecar:
 
 - `params_hash` makes downloads and generations idempotent.
 - `unknown` and unapproved `youtube_fair_use` assets block export.
+- Export gates only assets referenced by the current timeline; unrelated ledger
+  entries are reported but do not block delivery.
 - Absolute paths and traversal outside the project are rejected.
 - The core mirrors the project state into `state.json`; API/UI keep their
   existing output path for compatibility.

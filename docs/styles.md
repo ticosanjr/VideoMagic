@@ -23,6 +23,11 @@ A user file overrides a seed with the same `style_id`. The legacy
 
 `vf_style_validate(style_id)` checks every referenced caption preset, layout
 mode, motion engine, and font. Unknown presets no longer fall back silently.
+Fonts resolve through `fc-match` first, then through metric-compatible aliases
+(`Arial`/`Helvetica` → `Liberation Sans`, `Times New Roman` → `Liberation
+Serif`, `Courier New` → `Liberation Mono`, `Segoe UI` → `DejaVu Sans`), so a
+Linux render keeps the intended metrics when the exact family is missing. ASS
+captions write the resolved family, not the alias.
 
 `vf_style_apply(project_id, style_id)` compiles the Markdown metadata into
 timeline, audio, caption, layout, and motion parameters, writes a

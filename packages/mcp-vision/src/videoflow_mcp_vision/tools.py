@@ -31,6 +31,14 @@ MOTION_ENGINES = {"remotion", "manim", "ffmpeg", "html", "hyperframes"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"}
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
 MOTIONS = {"zoom_in", "zoom_out", "pan_left", "pan_right"}
+BROLL_ASPECTS = {
+    "16:9": (1920, 1080),
+    "9:16": (1080, 1920),
+    "4:5": (1080, 1350),
+    "3:4": (1080, 1440),
+    "2:3": (1080, 1620),
+    "1:1": (1080, 1080),
+}
 
 
 def transcribe_word_aligned(
@@ -539,8 +547,8 @@ def render_motion_graphic(
     alpha: bool = False,
     draft_scale: float = 1.0,
     draft: bool = False,
-    width: int = 1920,
-    height: int = 1080,
+    width: int = 0,
+    height: int = 0,
 ) -> dict[str, Any]:
     """Render a Remotion, Manim, FFmpeg, HTML, or HyperFrames graphic."""
 
@@ -572,6 +580,7 @@ def render_motion_graphic(
             details={"argument": "duration_sec", "value": duration_sec},
         )
     props = _parse_props(props_json)
+    width, height = _graphic_dimensions(project_id, width, height)
     if selected in {"html", "hyperframes"}:
         return _render_web_graphic(
             project_id,
@@ -703,6 +712,8 @@ def _web_source_digest(source: Path) -> str:
     for path in files:
         relative = str(path.relative_to(source)) if source.is_dir() else source.name
         digest.update(relative.encode("utf-8"))
+        with contextlib.suppress(OSError):
+            digest.update(str(path.stat().st_mtime_ns).encode("ascii"))
         with path.open("rb") as handle:
             for chunk in iter(lambda: handle.read(1024 * 1024), b""):
                 digest.update(chunk)
@@ -727,6 +738,8 @@ def _encode_frames(
         str(fps),
         "-i",
         str(frames / "frame-%05d.png"),
+        "-vf",
+        "scale=trunc(iw/2)*2:trunc(ih/2)*2",
         "-t",
         f"{duration:.3f}",
     ]
@@ -812,13 +825,13 @@ def _render_web_graphic(
                 "--disable-gpu",
                 "--hide-scrollbars",
                 f"--window-size={viewport_width},{viewport_height}",
-                f"--virtual-time-budget={max(1, round(moment * 1000))}",
+                f"--virtual-time-budget={max(500, round(moment * 1000))}",
                 f"--screenshot={frame}",
             ]
             if alpha:
                 argv.append("--default-background-color=00000000")
             argv.append(url)
-            commands.run(argv, timeout=120)
+            commands.run(argv, timeout=15)
             if not frame.is_file():
                 raise OutputNotProducedError(
                     f"Chromium did not capture frame {index}",
@@ -1363,12 +1376,12 @@ def capture_web_or_screen(
                         "--disable-gpu",
                         "--hide-scrollbars",
                         f"--window-size={viewport_width},{viewport_height}",
-                        f"--virtual-time-budget={max(1, round(moment * 1000))}",
+                        f"--virtual-time-budget={max(500, round(moment * 1000))}",
                         f"--screenshot={frame}",
                         f"{url_or_target}{'&' if '?' in url_or_target else '?'}vf_time={moment:.4f}"
                         + (f"&vf_scroll={scroll_animation}" if scroll_animation else ""),
                     ]
-                    commands.run(argv, timeout=120)
+                    commands.run(argv, timeout=15)
                     if not frame.is_file():
                         raise OutputNotProducedError(
                             f"Chromium did not capture frame {index}",
@@ -1449,6 +1462,9 @@ def image_to_broll_motion(
     image_path: str,
     duration_sec: float = 4.0,
     motion: str = "zoom_in",
+    aspect_ratio: str = "",
+    width: int = 0,
+    height: int = 0,
 ) -> dict[str, Any]:
     """Animate a still image into a zoom or pan B-roll clip with FFmpeg."""
 
@@ -1472,13 +1488,20 @@ def image_to_broll_motion(
             details={"argument": "motion", "value": motion},
         )
 
-    key = storage.cache_key(tool, storage.file_fingerprint(source), duration, motion)
-    relative = f"assets/broll/{source.stem}_{motion}.mp4"
+    width, height = _broll_dimensions(project_id, aspect_ratio, width, height)
+    key = storage.cache_key(
+        tool,
+        storage.file_fingerprint(source),
+        duration,
+        motion,
+        width,
+        height,
+    )
+    suffix = "" if (width, height) == (1080, 1920) else f"_{width}x{height}"
+    relative = f"assets/broll/{source.stem}_{motion}{suffix}.mp4"
     cached = storage.cached_asset(project_id, relative, key)
     if cached is not None:
         return _payload(tool, project_id, cached, mode="cache")
-
-    width, height = _broll_size()
     ffmpeg = _ffmpeg()
     target = storage.asset_path(project_id, relative)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -1526,6 +1549,9 @@ def image_to_broll_motion(
             "duration_sec": duration,
             "width": width,
             "height": height,
+            "aspect_ratio": aspect_ratio or (
+                f"{width}:{height}" if width != height else "1:1"
+            ),
             "input": str(source),
         },
     )
@@ -1902,6 +1928,70 @@ def _parse_props(props_json: Any) -> dict[str, Any]:
             details={"argument": "props_json"},
         )
     return parsed
+
+
+def _project_canvas(project_id: str) -> tuple[int, int] | None:
+    path = storage.project_dir(project_id) / "project_state.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    media = payload.get("media_info") if isinstance(payload, dict) else None
+    if not isinstance(media, dict):
+        return None
+    try:
+        width = int(media.get("width") or 0)
+        height = int(media.get("height") or 0)
+    except (TypeError, ValueError):
+        return None
+    if width <= 0 or height <= 0:
+        return None
+    return width, height
+
+
+def _graphic_dimensions(project_id: str, width: int, height: int) -> tuple[int, int]:
+    project = _project_canvas(project_id)
+    if width and not height and project:
+        height = round(width * project[1] / max(1, project[0]))
+    elif height and not width and project:
+        width = round(height * project[0] / max(1, project[1]))
+    if not width and not height:
+        width, height = project or (1920, 1080)
+    width = max(2, int(width) // 2 * 2)
+    height = max(2, int(height) // 2 * 2)
+    return width, height
+
+
+def _broll_dimensions(
+    project_id: str,
+    aspect_ratio: str,
+    width: int,
+    height: int,
+) -> tuple[int, int]:
+    explicit_aspect = str(aspect_ratio or "").strip()
+    if explicit_aspect and explicit_aspect not in BROLL_ASPECTS:
+        raise InvalidArgumentError(
+            f"aspect_ratio must be one of: {', '.join(sorted(BROLL_ASPECTS))}",
+            details={"argument": "aspect_ratio", "value": aspect_ratio},
+        )
+    if width or height:
+        if not width or not height:
+            raise InvalidArgumentError(
+                "width and height must be passed together",
+                details={"argument": "width", "value": width},
+            )
+        resolved = (int(width), int(height))
+    elif explicit_aspect:
+        resolved = BROLL_ASPECTS[explicit_aspect]
+    else:
+        resolved = _project_canvas(project_id) or _broll_size()
+    for name, value in (("width", resolved[0]), ("height", resolved[1])):
+        if value <= 0 or value % 2:
+            raise InvalidArgumentError(
+                f"{name} must be a positive even number",
+                details={"argument": name, "value": value},
+            )
+    return resolved
 
 
 def _broll_size() -> tuple[int, int]:

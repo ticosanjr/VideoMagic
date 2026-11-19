@@ -17,6 +17,10 @@ steps:
     node: transcribe
     purpose: transcribe
     requires_approval: false
+  - id: editorial
+    node: speech.editorial_clean
+    purpose: speech.editorial_clean
+    requires_approval: false
   - id: cull
     node: retakes.cull
     purpose: retakes.cull
@@ -82,6 +86,10 @@ Transforma gravação bruta em Reel vertical com corte agressivo, cutout e legen
 - id: transcribe
   node: transcribe
   purpose: transcribe
+  requires_approval: false
+- id: editorial
+  node: speech.editorial_clean
+  purpose: speech.editorial_clean
   requires_approval: false
 - id: cull
   node: retakes.cull

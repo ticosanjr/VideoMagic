@@ -9,6 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.crop import crop_box, face_center_focus
 from videoflow.application.tracking import track_focus, track_focus_x
 from videoflow.core.context import PipelineContext
 from videoflow.steps.base import BaseStep, StepIO
@@ -131,6 +132,9 @@ class ReframeStep(BaseStep):
         }
         for index, clip in enumerate(context.selected_shorts):
             io.check_cancel()
+            entry = context.shorts[index] if index < len(context.shorts) else {}
+            aspect = str(entry.get("aspect_ratio") or "9:16")
+            target_crop = crop_box(media.width, media.height, aspect=aspect)
             tracking_mode = options.mode
             if options.tracking_backend in {"mediapipe", "yolo", "opencv_haar"}:
                 tracking_mode = "face_tracking"
@@ -166,6 +170,25 @@ class ReframeStep(BaseStep):
                 )
                 reason = ""
                 frames = detections = 0
+            if used_mode in {"opencv_haar", "mediapipe", "yolo", "face_tracking"}:
+                # Tracking returns the face center in source coordinates. The
+                # crop focus is the offset of that center, not the center itself.
+                focus = face_center_focus(
+                    focus,
+                    source_width=media.width,
+                    crop_width=target_crop.width,
+                )
+                keyframes = [
+                    {
+                        **item,
+                        "focus_x": face_center_focus(
+                            item["focus_x"],
+                            source_width=media.width,
+                            crop_width=target_crop.width,
+                        ),
+                    }
+                    for item in keyframes
+                ]
             requested = options.tracking_backend
             if requested != "auto" and used_mode != requested:
                 context.warnings.append(f"{requested} unavailable; used {used_mode}")
@@ -180,6 +203,8 @@ class ReframeStep(BaseStep):
                     "frames": frames,
                     "detections": detections,
                     "keyframes": len(keyframes),
+                    "face_center_lock": used_mode
+                    in {"opencv_haar", "mediapipe", "yolo", "face_tracking"},
                 }
             )
             updated = with_split(clip, focus)

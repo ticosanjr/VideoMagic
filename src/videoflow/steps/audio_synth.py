@@ -65,11 +65,9 @@ class AudioComposeStep(BaseStep):
             root_midi = int(audio.get("root_midi") or options.root_midi)
         except (TypeError, ValueError):
             root_midi = options.root_midi
-        duration = options.duration_sec or float(
-            context.metadata.get("narration_duration_sec") or 0.0
-        )
+        duration = options.duration_sec or context.duration_samples() / max(1, sample_rate)
         if duration <= 0.0:
-            duration = context.duration_samples() / max(1, sample_rate)
+            duration = float(context.metadata.get("narration_duration_sec") or 0.0)
         if duration <= 0.0:
             raise ExportError(
                 "Music composition needs a duration, narration timing, or ingested media."

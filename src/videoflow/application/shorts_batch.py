@@ -15,10 +15,31 @@ from videoflow.application.projects import get_project, load_project_state
 from videoflow.application.shorts import short_dimensions, slugify
 from videoflow.application.shorts_tighten import tighten_clip
 from videoflow.application.style_catalog import StyleCatalog
+from videoflow.application.thought_boundary import enforce_thought_boundary
 from videoflow.domain.config import CaptionStyle
 from videoflow.domain.errors import ExportError
 
-LAYOUTS = {"auto", "none", "cutout", "rounded_window", "full_screen"}
+LAYOUTS = {
+    "auto",
+    "none",
+    "cutout",
+    "rounded_window",
+    "full_screen",
+    "split_top_visual",
+    "headline_card",
+    "fullscreen_punchin",
+    "pip_bottom_right",
+    "split_screen_50_50",
+}
+LAYOUT_ALIASES = {
+    "fullscreen": "full_screen",
+    "full_reframe": "full_screen",
+    "fullscreen_motion": "full_screen",
+    "multicam_auto": "auto",
+    "presenter_collage": "headline_card",
+    "active_speaker_reframe": "full_screen",
+    "split_screen": "split_screen_50_50",
+}
 
 
 def _style_for(style_id: str, fallback: str) -> Any:
@@ -62,6 +83,16 @@ def run_shorts_batch(
             raise ExportError(f"Shorts batch clip {index} has an invalid range")
         start_sample = round(start * rate)
         end_sample = round(end * rate)
+        if bool(entry.get("thought_boundary", True)):
+            boundary = enforce_thought_boundary(
+                kept,
+                start_sample,
+                end_sample,
+                sample_rate=rate,
+                max_adjust_sec=float(entry.get("thought_boundary_max_adjust_sec") or 4.0),
+            )
+            start_sample = boundary.start_sample
+            end_sample = boundary.end_sample
         words = [
             word
             for sentence in kept
@@ -119,14 +150,36 @@ def run_shorts_batch(
                 / rate
             )
             keyframes = [(0.0, focus), (round(duration, 3), focus)]
-        layout = str(entry.get("layout_mode") or (style.layout_mode if style else "auto"))
+        layout = str(
+            entry.get("layout_mode")
+            or entry.get("layout")
+            or (style.layout_mode if style else "auto")
+        )
+        layout = LAYOUT_ALIASES.get(layout, layout)
         if layout not in LAYOUTS:
-            layout = "auto"
+            raise ExportError(
+                f"Unsupported Short layout {layout!r}; expected one of: "
+                + ", ".join(sorted(LAYOUTS))
+            )
         target = directory / f"{slugify(title, index)}.mp4"
         intro = entry.get("intro_path") or brand.get("cta") or ""
         music = entry.get("music_path") or brand.get("music") or ""
-        if intro and Path(str(intro)).suffix.casefold() not in {".mp4", ".mov", ".webm", ".m4v"}:
+        if intro and Path(str(intro)).suffix.casefold() not in {
+            ".mp4",
+            ".mov",
+            ".webm",
+            ".m4v",
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".webp",
+        }:
             intro = ""
+        overlay = entry.get("overlay_path") or ""
+        visual = entry.get("visual_path") or entry.get("broll_path") or ""
+        headline = ""
+        if layout == "headline_card":
+            headline = str(entry.get("headline_text") or entry.get("title") or "")
         context_source = _source_path(state, record)
         renderer.render_short(
             Path(context_source),
@@ -140,8 +193,22 @@ def run_shorts_batch(
             crop_focus_x=focus,
             crop_focus_y=0.5,
             crop_keyframes=keyframes,
-            cutout=layout in {"cutout", "rounded_window"},
+            cutout=layout in {"cutout", "rounded_window", "headline_card"},
+            layout_mode=layout,
+            split_screen=layout == "split_screen_50_50",
+            second_source_path=(
+                Path(str(entry["second_source_path"]))
+                if entry.get("second_source_path")
+                else None
+            ),
+            punch_in_scale=float(entry.get("punch_in_scale") or 1.06),
+            visual_path=Path(visual).expanduser() if visual else None,
+            headline_text=headline,
+            overlay_path=Path(overlay).expanduser() if overlay else None,
+            overlay_position="bottom_right",
+            overlay_width_ratio=float(entry.get("overlay_width_ratio") or 0.28),
             intro_path=Path(intro).expanduser() if intro else None,
+            intro_duration_sec=float(entry.get("intro_duration_sec") or 2.0),
             music_path=Path(music).expanduser() if music else None,
             crossfade_ms=int(tightened.metrics.get("crossfade_ms") or 15),
         )

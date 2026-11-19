@@ -77,8 +77,9 @@ class DeliveryBundleRequest:
     mp4_true_peak_db: float = YOUTUBE_TRUE_PEAK_DB
     mp4_cfr: bool = True
     mp4_crf: int = 18
-    mp4_preset: str = "medium"
+    mp4_preset: str = "veryfast"
     mp4_draft: bool = False
+    mp4_fps: int | str = 30
     audio_source: str = "master"
     look: dict[str, Any] | None = None
     burn_subtitles: bool = True
@@ -108,6 +109,19 @@ def blocked_paths(blockers: Sequence[dict[str, Any]], base: Path) -> set[str]:
             paths.add(str(candidate))
             paths.add(candidate.name)
     return paths
+
+
+def _fps_value(value: int | str | None) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        if value.strip().casefold() in {"source", "auto", ""}:
+            return None
+        try:
+            value = int(value)
+        except ValueError:
+            return None
+    return value if int(value) > 0 else None
 
 
 def timeline_frames(state: ProjectState) -> int:
@@ -224,7 +238,11 @@ def build_delivery_bundle(
     exports = output / "exports"
     exports.mkdir(parents=True, exist_ok=True)
 
-    blockers = license_blockers(output) if options.require_licenses else []
+    blockers = (
+        license_blockers(output, state)
+        if options.require_licenses
+        else []
+    )
     if blockers:
         titles = ", ".join(
             str(item.get("title") or item.get("asset_id") or "asset") for item in blockers[:6]
@@ -281,6 +299,7 @@ def build_delivery_bundle(
             progress("mp4", 0)
         crf = 30 if options.mp4_draft else options.mp4_crf
         preset = "veryfast" if options.mp4_draft else options.mp4_preset
+        output_fps = _fps_value(options.mp4_fps)
         render_master(
             state,
             mp4_path,
@@ -296,6 +315,7 @@ def build_delivery_bundle(
             loudness_lufs=options.mp4_loudness_lufs,
             true_peak_db=options.mp4_true_peak_db,
             cfr=options.mp4_cfr,
+            fps=output_fps,
             progress=((lambda value: progress("mp4", value)) if progress is not None else None),
             cache_dir=cache_dir,
         )
@@ -304,6 +324,16 @@ def build_delivery_bundle(
             progress("mp4", 100)
 
     frames = timeline_frames(state)
+    output_fps = _fps_value(options.mp4_fps)
+    mp4_frames = (
+        round(
+            frames
+            / (state.media_info.fps_num / state.media_info.fps_den)
+            * output_fps
+        )
+        if output_fps and state.media_info is not None
+        else frames
+    )
     validation = validate_nle_exports(
         exports,
         timeline_frames=frames,
@@ -314,7 +344,8 @@ def build_delivery_bundle(
     if mp4_path is not None:
         mp4_dir = _mp4_metadata(mp4_path)
         mp4_ok = bool(mp4_dir.get("exists")) and (
-            not mp4_dir.get("duration_frames") or abs(int(mp4_dir["duration_frames"]) - frames) <= 1
+            not mp4_dir.get("duration_frames")
+            or abs(int(mp4_dir["duration_frames"]) - mp4_frames) <= 1
         )
         validation["exports"]["mp4"] = {
             "ok": mp4_ok,
@@ -340,9 +371,11 @@ def build_delivery_bundle(
         "project_id": str(state.project_id),
         "revision": state.revision,
         "timeline_frames": frames,
+        "mp4_frames": mp4_frames,
         "targets": list(targets),
         "dialect": options.dialect,
         "mp4": {
+            "fps": output_fps or "source",
             "profile": options.mp4_profile,
             "audio_bitrate": options.mp4_audio_bitrate,
             "loudness_lufs": options.mp4_loudness_lufs,

@@ -81,20 +81,66 @@ def audit_final(
     state: Any,
     platforms: list[str] | None = None,
     strict: bool = True,
+    mode: str = "full",
+    window_sec: tuple[float, float] | None = None,
+    expected_sec: float | None = None,
+    expected_frames: int | None = None,
+    expected_samples: int | None = None,
+    fps: float | None = None,
+    transcript: Any | None = None,
+    caption_path: Path | None = None,
+    width: int | None = None,
+    height: int | None = None,
+    max_wer: float = 0.12,
+    warning_wer: float = 0.06,
+    collision_mode: str = "visual",
 ) -> dict[str, Any]:
+    """Audit a delivered MP4 in fast or full mode.
+
+    ``fast`` is the export gate: duration/frames, audio silence, and overlay
+    bounds. ``full`` adds black/freeze detection, loudness, caption QA, contact
+    sheet, waveform, and word fidelity. ``window_sec`` makes the audit
+    Short-aware without treating the parent longform timeline as expected.
+    """
+
+    selected_mode = str(mode or "full").strip().lower()
+    if selected_mode not in {"fast", "full"}:
+        raise ValueError("mode must be 'fast' or 'full'")
     video = Path(video).expanduser()
     if not video.is_file():
         raise FileNotFoundError(f"Final video does not exist: {video}")
     media = state.media_info
-    expected = 0.0
-    expected_frames = 0
-    expected_samples = 0
-    fps = 0.0
-    if media is not None and media.fps_num:
-        fps = media.fps_num / media.fps_den
-        expected_frames = timeline_duration_frames(state)
-        expected_samples = timeline_duration_samples(state)
-        expected = expected_frames / fps if fps else 0.0
+    source_fps = (media.fps_num / media.fps_den) if media is not None and media.fps_num else 0.0
+    if fps is None and expected_frames is None:
+        try:
+            from videoflow.adapters.ffmpeg import FFmpegAdapter
+
+            probed = FFmpegAdapter().probe(video)
+            if probed.fps_num:
+                source_fps = probed.fps_num / probed.fps_den
+        except Exception:  # noqa: BLE001 - probe is advisory
+            pass
+    fps = float(fps) if fps and fps > 0 else source_fps
+    if expected_sec is None:
+        if window_sec is not None:
+            expected_sec = max(0.0, float(window_sec[1]) - float(window_sec[0]))
+        elif media is not None and source_fps:
+            expected_sec = timeline_duration_frames(state) / source_fps
+        else:
+            expected_sec = 0.0
+    expected = max(0.0, float(expected_sec))
+    if expected_frames is None:
+        expected_frames = (
+            max(1, int(round(expected * fps)))
+            if fps and expected > 0
+            else timeline_duration_frames(state)
+        )
+    if expected_samples is None:
+        expected_samples = (
+            max(1, int(round(expected * (media.audio_sample_rate if media is not None else 48000))))
+            if expected > 0
+            else timeline_duration_samples(state)
+        )
     integrity = (
         validate_integrity(
             video,
@@ -102,14 +148,17 @@ def audit_final(
             expected_frames=expected_frames,
             expected_samples=expected_samples,
             fps=fps,
-            last_sentence_end_sec=_last_sentence_end(state),
+            last_sentence_end_sec=(
+                None if window_sec is not None else _last_sentence_end(state)
+            ),
         )
         if expected > 0
         else None
     )
     issues: list[dict[str, Any]] = []
-    issues.extend(detect_black(video))
-    issues.extend(detect_freeze(video))
+    if selected_mode == "full":
+        issues.extend(detect_black(video))
+        issues.extend(detect_freeze(video))
     silence = detect_audio_silence(video)
     for item in silence:
         item.setdefault("kind", "audio_silence")
@@ -126,31 +175,43 @@ def audit_final(
             item["severity"] = "critical"
             item["message"] = "Internal dead air longer than 700 ms."
         issues.append(item)
-    loudness: dict[str, Any] = {}
-    try:
-        from videoflow.adapters.ffmpeg import FFmpegAdapter
+    loudness: dict[str, Any] = {"skipped": selected_mode != "full"}
+    if selected_mode == "full":
+        try:
+            from videoflow.adapters.ffmpeg import FFmpegAdapter
 
-        loudness = FFmpegAdapter().measure_loudness(video)
-        integrated = float(loudness.get("integrated_lufs") or -99.0)
-        peak = float(
-            loudness.get("true_peak_dbfs", loudness.get("true_peak_db", 99.0)) or 99.0
-        )
-        loudness["passed"] = abs(integrated + 16.0) <= 1.0 and peak <= -1.0
-        if strict and not loudness["passed"]:
-            issues.append(
-                {
-                    "kind": "loudness",
-                    "severity": "critical",
-                    "message": (
-                        f"loudness {integrated:.1f} LUFS / true peak {peak:.1f} dBTP "
-                        "is outside -16 ± 1 LUFS and <= -1.0 dBTP"
-                    ),
-                }
+            loudness = FFmpegAdapter().measure_loudness(video)
+            integrated = float(loudness.get("integrated_lufs") or -99.0)
+            peak = float(
+                loudness.get("true_peak_dbfs", loudness.get("true_peak_db", 99.0)) or 99.0
             )
-    except Exception as exc:  # noqa: BLE001 - optional measurement
-        loudness = {"error": str(exc), "passed": True}
-    width = media.width if media is not None else 0
-    height = media.height if media is not None else 0
+            loudness["passed"] = abs(integrated + 16.0) <= 1.0 and peak <= -1.0
+            if strict and not loudness["passed"]:
+                issues.append(
+                    {
+                        "kind": "loudness",
+                        "severity": "critical",
+                        "message": (
+                            f"loudness {integrated:.1f} LUFS / true peak {peak:.1f} dBTP "
+                            "is outside -16 ± 1 LUFS and <= -1.0 dBTP"
+                        ),
+                    }
+                )
+        except Exception as exc:  # noqa: BLE001 - optional measurement
+            loudness = {"error": str(exc), "passed": True}
+    qa_state = state
+    if window_sec is not None and source_fps:
+        start_frame = round(window_sec[0] * source_fps)
+        end_frame = round(window_sec[1] * source_fps)
+        qa_overlays = [
+            overlay
+            for overlay in state.overlays
+            if overlay.start_frame < end_frame
+            and overlay.start_frame + overlay.duration_frames > start_frame
+        ]
+        qa_state = state.model_copy(update={"overlays": qa_overlays})
+    width = int(width or (media.width if media is not None else 0))
+    height = int(height or (media.height if media is not None else 0))
     vertical = bool(width and height and height > width)
     selected = platforms or (
         ["shorts", "reels", "tiktok"]
@@ -166,12 +227,14 @@ def audit_final(
     if width and height:
         style = state.modules_config.shorts.caption_style
         caption = caption_box(style, width, height)
-        caption_present = _caption_path(Path(output)) is not None
+        effective_caption_path = caption_path or _caption_path(Path(output))
+        caption_present = effective_caption_path is not None
         for item in collisions(
-            state,
+            qa_state,
             width,
             height,
             caption=caption if caption_present else None,
+            mode=collision_mode,
         ):
             issues.append(
                 {
@@ -183,7 +246,7 @@ def audit_final(
         for platform in selected:
             for zone in safe_zones.get(platform, ()):
                 zone_box = (zone.x, zone.y, zone.x + zone.width, zone.y + zone.height)
-                for overlay in state.overlays:
+                for overlay in qa_state.overlays:
                     from videoflow.application.overlay_geometry import overlay_box
 
                     box = overlay_box(overlay, width, height)
@@ -209,9 +272,9 @@ def audit_final(
                             "message": f"captions enter {platform} {zone.reason}",
                         }
                     )
-    caption_path = _caption_path(Path(output))
+    caption_path = caption_path or _caption_path(Path(output))
     caption_qa: dict[str, Any] = {"ok": True, "skipped": True}
-    if caption_path is not None:
+    if selected_mode == "full" and caption_path is not None:
         style = state.modules_config.shorts.caption_style
         caption_qa = audit_ass(
             caption_path,
@@ -225,39 +288,81 @@ def audit_final(
                     **item,
                     "severity": (
                         "critical"
-                        if item.get("kind") in {"caption_effect", "caption_escape"}
+                        if item.get("kind")
+                        in {"caption_effect", "caption_escape", "caption_overlap"}
                         else "warning"
                     ),
                 }
             )
-    kept = [
-        sentence
-        for sentence in state.transcript
-        if sentence.id not in set(state.pipeline.discard_sentence_ids)
-    ]
-    fidelity = verify_word_fidelity(
-        video,
-        kept,
-        work=Path(output) / "exports" / "qa",
-        language=state.language or "pt",
-    )
-    if fidelity.get("status") == "checked" and not fidelity.get("passed"):
-        issues.append(
-            {
-                "kind": "word_fidelity",
-                "severity": "critical",
-                "message": f"word error rate {float(fidelity.get('wer') or 0) * 100:.2f}% >= 3%",
-            }
+    if transcript is not None:
+        kept = list(transcript)
+    else:
+        kept = [
+            sentence
+            for sentence in state.transcript
+            if sentence.id not in set(state.pipeline.discard_sentence_ids)
+        ]
+        if window_sec is not None:
+            start_sample = round(window_sec[0] * (media.audio_sample_rate if media else 48000))
+            end_sample = round(window_sec[1] * (media.audio_sample_rate if media else 48000))
+            kept = [
+                sentence
+                for sentence in kept
+                if sentence.end_sample > start_sample and sentence.start_sample < end_sample
+            ]
+    fidelity: dict[str, Any] = {"ok": True, "skipped": True, "status": "skipped"}
+    if selected_mode == "full":
+        fidelity = verify_word_fidelity(
+            video,
+            kept,
+            work=Path(output) / "exports" / "qa",
+            language=state.language or "pt",
+            max_wer=max_wer,
+            warning_wer=warning_wer,
         )
+        if fidelity.get("status") == "checked":
+            wer = float(fidelity.get("wer") or 0.0)
+            if wer >= max_wer:
+                issues.append(
+                    {
+                        "kind": "word_fidelity",
+                        "severity": "critical",
+                        "message": (
+                            f"word error rate {wer * 100:.2f}% >= {max_wer * 100:.0f}%"
+                        ),
+                    }
+                )
+            elif wer >= warning_wer:
+                issues.append(
+                    {
+                        "kind": "word_fidelity",
+                        "severity": "warning",
+                        "message": (
+                            f"word error rate {wer * 100:.2f}% is above the "
+                            f"{warning_wer * 100:.0f}% warning threshold"
+                        ),
+                    }
+                )
     qa_dir = Path(output).expanduser() / "exports" / "qa"
     qa_dir.mkdir(parents=True, exist_ok=True)
-    contact = _contact_sheet(video, qa_dir / "final_contact.jpg")
-    waveform = render_waveform(video, qa_dir / "final_waveform.png")
+    contact = (
+        _contact_sheet(video, qa_dir / "final_contact.jpg")
+        if selected_mode == "full"
+        else None
+    )
+    waveform = (
+        render_waveform(video, qa_dir / "final_waveform.png")
+        if selected_mode == "full"
+        else None
+    )
     critical = [item for item in issues if item.get("severity") == "critical"]
     ok = not critical and (integrity.ok if integrity is not None else True)
     report = {
         "ok": ok,
         "status": "succeeded" if ok else "needs_review",
+        "mode": selected_mode,
+        "window_sec": list(window_sec) if window_sec is not None else None,
+        "fps": round(fps, 6) if fps else 0.0,
         "video": str(video),
         "expected_sec": round(expected, 3),
         "expected_frames": expected_frames,

@@ -1,6 +1,6 @@
 # MCP server — agent profile
 
-VideoFlow 3.2.0 exposes a **32-tool core MCP** plus four isolated domain servers:
+VideoFlow 3.3.0 exposes a **37-tool core MCP** plus four isolated domain servers:
 
 ```text
 mcp-vf-core      13 tools   project, styles, jobs, timeline, render, exports, ingest
@@ -36,13 +36,15 @@ vf_project(action="init", output="/projects/interview", sources=["/media/a.mp4"]
 ```
 
 The call returns a stable `project_id`, the project record, the state summary,
-and resource links. The canonical `project_state.json` now carries a `pipeline`
+and resource links. `project_id` may be a slug; pass it without `output` to use
+`$VF_WORKSPACE_ROOT/projects/{project_id}`. The canonical `project_state.json`
+now carries a `pipeline`
 block with transcript, selected Shorts, captions, analysis spans, artifacts,
 metadata, time map, and step checkpoints; `projects/{id}/state.json` mirrors it. Multiple sub-agents can work on different projects in
 parallel. Writes to the same project are serialized by a project lock and
 `vf_edit_timeline` supports `expected_revision` for conflict detection.
 
-## Core tools (32)
+## Core tools (37)
 
 ### Project, catalog, and execution
 
@@ -74,6 +76,10 @@ parallel. Writes to the same project are serialized by a project lock and
 | `vf_layout` | Auto-pack overlay margins and write `layout.json`. |
 | `vf_caption_preview` | Render before/during/after frames for the active caption. |
 | `vf_qa_autofix` | Resolve overlay/caption collisions, persist the layout, and optionally re-render from the segment cache. |
+| `vf_depth_composite` | Cut one range, matte the presenter, and stack a graphic at `z=10` behind it at `z=20`. |
+| `vf_pip` | Add a rounded-window picture-in-picture overlay with a cached alpha mask. |
+| `vf_parallax` | Split a still into background and subject layers and animate 2.5D parallax. |
+| `vf_style_preview` | Render a short style card with palette, font, layout, and caption. |
 | `vf_artifact` | List or read artifacts, including image content. |
 
 ### Delivery and operations
@@ -86,6 +92,7 @@ parallel. Writes to the same project are serialized by a project lock and
 | `vf_shorts_batch` | Render multiple Shorts with per-clip style, crop, intro, and music. |
 | `vf_qa_final` | Audit the delivered MP4, loudness, silence, safe zones, captions, word fidelity, contact sheet, and waveform. |
 | `vf_font` | List, register, or install TTF/OTF fonts. |
+| `vf_assets` | List, approve, or quarantine project assets and their licenses. |
 | `vf_exports` | `bundle`, `validate`, or `roundtrip` for every NLE. |
 | `vf_interaction` | List/read/answer HITL requests, including curation previews. |
 | `vf_ingest` | Session ingest or multicam synchronization. |
@@ -106,7 +113,11 @@ are written as a `cancel_requested` flag and picked up by the worker heartbeat.
 
 `vf_export` is the canonical delivery entry point. Its MP4 uses the same
 `master_export` path as `export.video` and the bundle (same grade, LUT, grain,
-overlays, captions, and audio), and delivery sidecars are PCM 24-bit.
+overlays, captions, and audio), and delivery sidecars are PCM 24-bit. The social
+master defaults to `fps=30`; pass `fps="source"` to preserve the source cadence.
+`qa_mode="fast"` validates duration/frames, edge silence, and overlay bounds
+without WER or contact sheets; `qa_mode="full"` dispatches a background QA job;
+`qa_mode="off"` skips export QA.
 
 `vf_project` also supports `list`, `clone`, `archive`, `unarchive`, `delete`,
 `history`, `undo`, and `restore`. Deleting a non-empty output requires

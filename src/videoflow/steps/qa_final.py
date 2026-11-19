@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.application.qa_final import audit_final
 from videoflow.core.context import PipelineContext
@@ -18,6 +19,9 @@ class FinalQaParams(BaseModel):
 
     video_path: str = ""
     strict: bool = True
+    mode: Literal["fast", "full"] = "full"
+    collision_mode: Literal["visual", "rectangle"] = "visual"
+    max_wer: float = Field(default=0.12, ge=0.0, le=1.0)
 
 
 @register_step
@@ -48,6 +52,9 @@ class FinalQaStep(BaseStep):
             output=context.output,
             state=context.state,
             strict=options.strict,
+            mode=options.mode,
+            collision_mode=options.collision_mode,
+            max_wer=options.max_wer,
         )
         context.metadata["final_qa"] = report
         context.artifacts["final_qa"] = str(report.get("report") or "")

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
+import os
 import shutil
+import subprocess
 import tempfile
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -19,7 +22,6 @@ from videoflow.domain.errors import ExportError
 from videoflow.domain.state import AudioSegment, MediaInfo, ProjectState, VideoSegment
 from videoflow.exporters.common import (
     require_timeline,
-    timeline_duration_frames,
     timeline_duration_samples,
 )
 
@@ -162,13 +164,64 @@ def build_filter_graph(state: ProjectState) -> tuple[str, str, str]:
 
 SEGMENT_THRESHOLD = 16
 PRE_ROLL_SECONDS = 1.0
-GROUP_CACHE_VERSION = 3
+GROUP_CACHE_VERSION = 4
+DEFAULT_EXPORT_FPS = 30
 
 YOUTUBE_PROFILE = "youtube_h264"
 DEFAULT_AUDIO_BITRATE = "192k"
 YOUTUBE_AUDIO_BITRATE = "320k"
 YOUTUBE_LUFS = -16.5
 YOUTUBE_TRUE_PEAK_DB = -1.0
+
+
+@functools.lru_cache(maxsize=1)
+def video_encoder() -> str:
+    """Return ``libx264`` or ``h264_nvenc`` for this machine/release build."""
+
+    requested = os.environ.get("VF_VIDEO_ENCODER", "auto").strip().lower()
+    if requested in {"libx264", "x264", "cpu"}:
+        return "libx264"
+    if requested in {"nvenc", "h264_nvenc"}:
+        return "h264_nvenc"
+    if requested not in {"auto", ""}:
+        return "libx264"
+    if shutil.which("nvidia-smi") is None:
+        return "libx264"
+    try:
+        probe = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=2,
+        )
+        if probe.returncode != 0 or not probe.stdout.strip():
+            return "libx264"
+        encoders = subprocess.run(
+            [shutil.which("ffmpeg") or "ffmpeg", "-hide_banner", "-encoders"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        return "h264_nvenc" if "h264_nvenc" in encoders.stdout else "libx264"
+    except (OSError, subprocess.SubprocessError):
+        return "libx264"
+
+
+def output_render_frames(state: ProjectState, fps: int | None = None) -> int:
+    """Frame count at the delivery fps, preserving the timeline duration."""
+
+    media = state.media_info
+    if media is None:
+        return 0
+    if not fps or fps <= 0:
+        return timeline_render_frames(state)
+    if not media.fps_num:
+        return timeline_render_frames(state)
+    source_fps = media.fps_num / media.fps_den
+    seconds = timeline_render_frames(state) / source_fps
+    return max(1, int(round(seconds * fps)))
 
 
 def _video_encode_args(
@@ -182,17 +235,34 @@ def _video_encode_args(
 ) -> list[str]:
     """Return the H.264 encoder flags shared by both render paths."""
 
-    args = [
-        "-c:v",
-        "libx264",
-        "-preset",
-        preset,
-        "-crf",
-        str(crf),
-        "-pix_fmt",
-        "yuv420p",
-    ]
-    if profile == YOUTUBE_PROFILE:
+    encoder = video_encoder()
+    if encoder == "h264_nvenc":
+        args = [
+            "-c:v",
+            "h264_nvenc",
+            "-preset",
+            "p4",
+            "-rc",
+            "vbr",
+            "-cq",
+            str(crf),
+            "-b:v",
+            "0",
+            "-pix_fmt",
+            "yuv420p",
+        ]
+    else:
+        args = [
+            "-c:v",
+            "libx264",
+            "-preset",
+            preset,
+            "-crf",
+            str(crf),
+            "-pix_fmt",
+            "yuv420p",
+        ]
+    if profile == YOUTUBE_PROFILE and encoder == "libx264":
         args.extend(["-profile:v", "high", "-level", "4.1"])
     if cfr:
         args.extend(["-fps_mode", "cfr", "-r", f"{fps_num}/{fps_den}"])
@@ -267,13 +337,21 @@ def _last_sentence_end_sec(state: ProjectState) -> float | None:
     return last_speech_timeline_sec(state)
 
 
-def _integrity_report(state: ProjectState, path: Path):
+def _integrity_report(
+    state: ProjectState,
+    path: Path,
+    *,
+    fps_override: int | None = None,
+):
     media = state.media_info
-    fps = (media.fps_num / media.fps_den) if media is not None and media.fps_den else 0.0
+    source_fps = (
+        (media.fps_num / media.fps_den) if media is not None and media.fps_den else 0.0
+    )
+    fps = float(fps_override) if fps_override else source_fps
     return validate_integrity(
         path,
         _expected_seconds(state),
-        expected_frames=timeline_render_frames(state),
+        expected_frames=output_render_frames(state, fps_override),
         expected_samples=timeline_duration_samples(state) if state.audio_segments else 0,
         fps=fps,
         last_sentence_end_sec=_last_sentence_end_sec(state),
@@ -479,6 +557,7 @@ def _group_key(
     preset: str,
     profile: str,
     scale_height: int | None,
+    fps: int | None = None,
 ) -> str:
     video = sorted(state.video_segments, key=lambda item: item.timeline_in_frame)
     source_signatures = []
@@ -491,6 +570,7 @@ def _group_key(
         "version": GROUP_CACHE_VERSION,
         "sources": source_signatures,
         "fps": [media.fps_num, media.fps_den],
+        "output_fps": fps or 0,
         "crf": crf,
         "preset": preset,
         "profile": profile,
@@ -512,6 +592,7 @@ def _render_video_group(
     preset: str,
     profile: str = "",
     scale_height: int | None = None,
+    fps: int | None = None,
 ) -> Path:
     cache_dir.mkdir(parents=True, exist_ok=True)
     key = _group_key(
@@ -523,6 +604,7 @@ def _render_video_group(
         preset=preset,
         profile=profile,
         scale_height=scale_height,
+        fps=fps,
     )
     cached = cache_dir / f"group-{key}.mp4"
     if cached.is_file() and cached.stat().st_size > 0:
@@ -601,8 +683,8 @@ def _render_video_group(
                     crf=crf,
                     preset=preset,
                     profile=profile,
-                    fps_num=media.fps_num,
-                    fps_den=media.fps_den,
+                    fps_num=fps or media.fps_num,
+                    fps_den=1 if fps else media.fps_den,
                     cfr=True,
                 ),
                 "-movflags",
@@ -636,6 +718,7 @@ def _export_mp4_segmented(
     progress: Callable[[int], None] | None = None,
     scale_height: int | None = None,
     cache_dir: Path | None = None,
+    fps: int | None = None,
 ) -> Path:
     media, video_map, audio_map = require_timeline(state)
     video = sorted(state.video_segments, key=lambda item: item.timeline_in_frame)
@@ -666,6 +749,7 @@ def _export_mp4_segmented(
                     preset=preset,
                     profile=profile,
                     scale_height=scale_height,
+                    fps=fps,
                 )
             )
             if progress is not None:
@@ -756,7 +840,11 @@ def _export_mp4_segmented(
                 str(combined),
             ]
         )
-        report = _integrity_report(state, combined) if _duration_gate_enabled(adapter) else None
+        report = (
+            _integrity_report(state, combined, fps_override=fps)
+            if _duration_gate_enabled(adapter)
+            else None
+        )
         if report is not None and not report.ok:
             repaired = directory / "combined-cfr.mp4"
             renderer.render(
@@ -784,7 +872,7 @@ def _export_mp4_segmented(
                     "-fps_mode",
                     "cfr",
                     "-r",
-                    f"{media.fps_num}/{media.fps_den}",
+                    f"{fps or media.fps_num}/{1 if fps else media.fps_den}",
                     "-af",
                     "aresample=async=1,apad",
                     "-t",
@@ -794,7 +882,7 @@ def _export_mp4_segmented(
                     str(repaired),
                 ]
             )
-            report = _integrity_report(state, repaired)
+            report = _integrity_report(state, repaired, fps_override=fps)
             if not report.ok:
                 raise ExportError(
                     f"{destination.name} failed the duration gate after CFR repair: {report.reason}"
@@ -808,12 +896,18 @@ def _export_mp4_segmented(
                 progress(100)
             return destination
 
-        frames = timeline_render_frames(state)
+        output_fps = float(fps) if fps else media.fps_num / media.fps_den
+        frames = output_render_frames(state, fps)
         samples = max(
-            1, int(round(frames / (media.fps_num / media.fps_den) * media.audio_sample_rate))
+            1, int(round(frames / output_fps * media.audio_sample_rate))
         )
         final_media = media.model_copy(
-            update={"source_path": str(combined), "duration_frames": frames}
+            update={
+                "source_path": str(combined),
+                "duration_frames": frames,
+                "fps_num": fps or media.fps_num,
+                "fps_den": 1 if fps else media.fps_den,
+            }
         )
         synthetic = ProjectState(
             media_info=final_media,
@@ -859,6 +953,7 @@ def _export_mp4_segmented(
             ass_path=ass_path,
             progress=wrapped,
             scale_height=None,
+            fps=fps,
         )
 
 
@@ -885,6 +980,7 @@ def export_mp4(
     progress: Callable[[int], None] | None = None,
     scale_height: int | None = None,
     cache_dir: Path | None = None,
+    fps: int | None = None,
 ) -> Path:
     """Render the validated main timeline to an H.264/AAC MP4 atomically."""
 
@@ -916,6 +1012,7 @@ def export_mp4(
             progress=progress,
             scale_height=scale_height,
             cache_dir=cache_dir,
+            fps=fps,
         )
     temporary = destination.with_name(f".{destination.stem}.{uuid4().hex}.part.mp4")
     try:
@@ -936,8 +1033,13 @@ def export_mp4(
             ass_path=ass_path,
             progress=progress,
             scale_height=scale_height,
+            fps=fps,
         )
-        report = _integrity_report(state, temporary) if _duration_gate_enabled(adapter) else None
+        report = (
+            _integrity_report(state, temporary, fps_override=fps)
+            if _duration_gate_enabled(adapter)
+            else None
+        )
         if report is not None and not report.ok:
             temporary.unlink(missing_ok=True)
             _render_classic_mp4(
@@ -957,9 +1059,12 @@ def export_mp4(
                 ass_path=ass_path,
                 progress=progress,
                 scale_height=scale_height,
+                fps=fps,
             )
             report = (
-                _integrity_report(state, temporary) if _duration_gate_enabled(adapter) else None
+                _integrity_report(state, temporary, fps_override=fps)
+                if _duration_gate_enabled(adapter)
+                else None
             )
         if report is not None and not report.ok:
             raise ExportError(f"{destination.name} failed the duration gate: {report.reason}")
@@ -989,6 +1094,7 @@ def _render_classic_mp4(
     ass_path: Path | None = None,
     progress: Callable[[int], None] | None = None,
     scale_height: int | None = None,
+    fps: int | None = None,
 ) -> Path:
     """Render the classic single-pass graph to ``output_path``."""
 
@@ -1013,7 +1119,7 @@ def _render_classic_mp4(
     if color_filters:
         graph += f";{video_label}{','.join(color_filters)}[vcolor]"
         video_label = "[vcolor]"
-    fps = media.fps_num / media.fps_den
+    source_fps = media.fps_num / media.fps_den
     overlay_inputs: list[str] = []
     input_index = 2 if master_file is not None else 1
 
@@ -1025,10 +1131,24 @@ def _render_classic_mp4(
             path = Path(overlay.path).expanduser()
             if not path.is_file():
                 continue
-            duration = overlay.duration_frames / fps
+            duration = overlay.duration_frames / source_fps
             if overlay.kind == "image":
                 overlay_inputs.extend(
                     ["-loop", "1", "-t", f"{duration:.6f}", "-i", str(path)]
+                )
+            elif path.suffix.casefold() == ".webm":
+                # FFmpeg's native VP9 decoder drops alpha; force libvpx-vp9.
+                overlay_inputs.extend(
+                    [
+                        "-c:v",
+                        "libvpx-vp9",
+                        "-stream_loop",
+                        "-1",
+                        "-t",
+                        f"{duration:.6f}",
+                        "-i",
+                        str(path),
+                    ]
                 )
             else:
                 overlay_inputs.extend(
@@ -1046,7 +1166,7 @@ def _render_classic_mp4(
             overlay_filters.extend(
                 ["format=rgba", f"colorchannelmixer=aa={overlay.opacity:.3f}"]
             )
-            fade_seconds = max(0.0, overlay.transition_frames / fps)
+            fade_seconds = max(0.0, overlay.transition_frames / source_fps)
             if fade_seconds > 0 and overlay.transition_in in {"fade", "crossfade"}:
                 overlay_filters.append(
                     f"fade=t=in:st=0:d={min(fade_seconds, duration):.6f}:alpha=1"
@@ -1064,7 +1184,7 @@ def _render_classic_mp4(
             box = overlay_box(overlay, media.width, media.height)
             x = max(0, min(max(0, media.width - box.width), box.x))
             y = max(0, min(max(0, media.height - box.height), box.y))
-            start = overlay.start_frame / fps
+            start = overlay.start_frame / source_fps
             end = start + duration
             overlay_chains.append(
                 f"{video_label}[{label}]overlay="
@@ -1092,7 +1212,7 @@ def _render_classic_mp4(
     destination = Path(output_path).expanduser()
     destination.parent.mkdir(parents=True, exist_ok=True)
     renderer = adapter or FFmpegAdapter()
-    total_frames = max(1, timeline_duration_frames(state))
+    total_frames = max(1, output_render_frames(state, fps))
 
     def frame_progress(frame: int) -> None:
         if progress is not None:
@@ -1113,9 +1233,9 @@ def _render_classic_mp4(
             crf=crf,
             preset=preset,
             profile=profile,
-            fps_num=media.fps_num,
-            fps_den=media.fps_den,
-            cfr=cfr,
+            fps_num=fps or media.fps_num,
+            fps_den=1 if fps else media.fps_den,
+            cfr=cfr or bool(fps),
         ),
         *_audio_encode_args(bitrate=audio_bitrate),
         "-t",

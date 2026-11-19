@@ -17,7 +17,7 @@ Este workspace foi preparado pelo VideoFlow {{VERSION}}.
    VideoFlow para ingest, transcrição, beatmap, motion, captura, QA e export.
 4. **Fluxo determinístico em 5 etapas**:
    1. `vf_ingest` (CFR + multi-take/multicam) + `transcribe_word_aligned` +
-      `session.cull`.
+      `speech.editorial_clean` + `session.cull`.
    2. Gerar `beat_map.json` a partir do `.md` do estilo escolhido e **aguardar
       aprovação humana** antes de renderizar gráficos.
    3. Montagem atômica com `vf_timeline(action="apply_beatmap")`,
@@ -60,8 +60,11 @@ Estas regras são obrigatórias para qualquer edição futura.
 
 - **NUNCA** rode `remove_background(is_video=True)` no vídeo inteiro; isso
   esgota CPU/VRAM.
-- Recorte apenas o sub-trecho exato de `2s a 4s` onde o efeito ocorre. No hook
-  vertical, o limite é `0s a 3s`.
+- Prefira `vf_depth_composite(project_id, text_or_asset, start_sec, end_sec)`:
+  ele recorta só o intervalo, aplica rembg no sub-trecho e cria as camadas
+  `z=10` (gráfico) e `z=20` (apresentador com alfa).
+- Se precisar montar manualmente, recorte apenas o sub-trecho exato de `2s a 4s`
+  onde o efeito ocorre. No hook vertical, o limite é `0s a 3s`.
 - Empilhe na timeline via `vf_timeline(action="apply_beatmap")`:
   - Camada 1 (`z=0`): vídeo original completo;
   - Camada 2 (`z=10`): texto/gráfico com
@@ -87,9 +90,9 @@ Estas regras são obrigatórias para qualquer edição futura.
   - flutuação contínua e sombra projetada.
 - **Passo C:** insira com `vf_overlay` usando `anchor="center"` ou
   `"top_center"`, `width_ratio=0.72`, `z=20`.
-- Apresentador em PiP: `layout_mode="rounded_window"`, máscara PNG em cache,
-  `anchor="bottom_right"`, `margin_x=32`, `margin_y=32`, `width_ratio=0.28`,
-  `z=25`.
+- Apresentador em PiP: prefira `vf_pip(project_id, overlay_asset, start_sec,
+  end_sec, anchor="bottom_right", width_ratio=0.28)`; ele usa máscara PNG em
+  cache e `z=25`. Alternativa manual: `layout_mode="rounded_window"`.
 
 ### 3. Zoom in/out e pan left/right em imagens (Ken Burns)
 
@@ -104,9 +107,10 @@ Estas regras são obrigatórias para qualquer edição futura.
 - **Cards/documentos flutuantes:** renderize a imagem num plano CSS 3D em
   `render_motion_graphic(engine="hyperframes")` com `rotateY` de `-4deg` a
   `+4deg` e `scale` de `1.0` a `1.06`.
-- **Fotos com separação de profundidade (2.5D real):**
+- **Fotos com separação de profundidade (2.5D real):** prefira
+  `vf_parallax(project_id, image_path, start_sec, end_sec)`:
   - `remove_background(is_video=False)` gera o PNG recortado;
-  - anime duas camadas sobrepostas no `hyperframes`;
+  - o compositor anima duas camadas sobrepostas no `hyperframes`;
   - fundo: `scale 1.0 → 1.04`, blur leve;
   - sujeito: `scale 1.0 → 1.12`, deslocamento lateral oposto;
   - inclinação de câmera entre `-3deg` e `+3deg`.
@@ -115,11 +119,11 @@ Estas regras são obrigatórias para qualquer edição futura.
 
 ### 5. Ordem operacional recomendada
 
-1. `vf_ingest` + `transcribe_word_aligned` + `transcript.dedupe` +
+1. `vf_ingest` + `transcribe_word_aligned` + `speech.editorial_clean` +
    `retakes.cull`.
-2. `vf_style_apply(style_id=...)`.
-3. `vf_beatmap_plan` / `render_motion_graphic` / `capture_web_or_screen` /
-   `image_to_broll_motion`.
+2. `vf_style_apply(style_id=...)`; valide com `vf_style_preview`.
+3. `vf_beatmap_plan` / `vf_depth_composite` / `vf_pip` / `vf_parallax` /
+   `render_motion_graphic` / `capture_web_or_screen` / `image_to_broll_motion`.
 4. `vf_timeline(action="apply_beatmap")` e `vf_overlay` com âncoras/z.
 5. `vf_overlay_preview`, `vf_caption_preview`, `vf_layout`, `vf_qa_autofix`.
 6. `vf_export` + `vf_qa_final`; só publique se o status for `succeeded`.

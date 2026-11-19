@@ -659,6 +659,9 @@ class JobManager:
         if mode == "shorts_batch":
             self._work_shorts_batch(job)
             return
+        if mode == "qa_full":
+            self._work_qa_full(job)
+            return
         self._work_recipe(job)
 
     def _work_recipe(self, job: Job) -> None:
@@ -711,6 +714,36 @@ class JobManager:
         result = run_shorts_batch(project_id, clips)
         callbacks.progress("shorts.batch", 100, "Short batch complete")
         return RunOutcome(result=result)
+
+    def _work_qa_full(self, job: Job) -> None:
+        self._executor.run(
+            job,
+            self._run_qa_full,
+            JobRunPolicy(write_failure=True, cancel_error=True),
+        )
+
+    def _run_qa_full(self, job: Job, callbacks: Any) -> RunOutcome:
+        from videoflow.application.projects import get_project, load_project_state
+        from videoflow.application.qa_final import audit_final
+
+        project_id = str(job.options.get("project_id") or job.project_id or "")
+        video_path = str(job.options.get("video_path") or "")
+        if not project_id or not video_path:
+            raise ProjectStateError("Full QA needs project_id and video_path")
+        record = get_project(project_id)
+        state = load_project_state(record)
+        callbacks.progress("qa.full", 5, "Running full delivery QA")
+        report = audit_final(
+            Path(video_path),
+            output=Path(record.output),
+            state=state,
+            strict=True,
+            mode="full",
+            fps=job.options.get("fps"),
+            expected_frames=job.options.get("expected_frames"),
+        )
+        callbacks.progress("qa.full", 100, "Full QA complete")
+        return RunOutcome(result={"qa_final": report})
 
     def _build_context(self, job: Job, project_id: str, record: Any) -> Any:
         from videoflow.application.pipeline_state import context_from_pipeline

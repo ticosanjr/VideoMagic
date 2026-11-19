@@ -72,11 +72,11 @@ def test_job_failure_is_recorded(tmp_path: Path) -> None:
     wait_for(job, manager)
     finished = manager.get(str(job.job_id))
     assert finished.status == "failed"
-    assert finished.error == {
-        "ok": False,
-        "code": "videoflow_error",
-        "message": "boom",
-    }
+    assert finished.error["ok"] is False
+    assert finished.error["code"] == "videoflow_error"
+    assert finished.error["error_code"] == "videoflow_error"
+    assert finished.error["message"] == "boom"
+    assert "fix_hint" in finished.error
 
 
 def test_job_can_be_cancelled(tmp_path: Path) -> None:

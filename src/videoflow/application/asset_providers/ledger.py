@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import time
 from collections.abc import Iterable
@@ -27,10 +28,78 @@ def _expired(value: object) -> bool:
 
 def _blocked(record: dict[str, Any]) -> bool:
     return (
-        record.get("license_status") in {"unknown", "cc_review"}
+        record.get("license_status") in {"unknown", "cc_review", "quarantined"}
         or (record.get("license_status") == "fair_use_review" and not record.get("approved"))
         or _expired(record.get("expires_at"))
     )
+
+
+def _record_paths(record: dict[str, Any], root: Path | None = None) -> set[str]:
+    values: set[str] = set()
+    for key in ("path", "title", "local_path", "asset_path", "downloaded_path"):
+        value = str(record.get(key) or "").strip()
+        if not value:
+            continue
+        candidate = Path(value).expanduser()
+        if root is not None and not candidate.is_absolute():
+            candidate = Path(root).expanduser() / candidate
+        with contextlib.suppress(OSError):
+            values.add(str(candidate.resolve()))
+        values.add(candidate.name)
+    return values
+
+
+def referenced_asset_paths(output: Path, state: Any | None = None) -> set[str]:
+    """Paths actually used by the timeline, overlays, B-roll, and audio plan."""
+
+    root = Path(output).expanduser()
+    values: set[str] = set()
+    if state is not None:
+        media = getattr(state, "media_info", None)
+        if media is not None and getattr(media, "source_path", ""):
+            values.add(str(Path(media.source_path).expanduser().resolve()))
+        for source in (getattr(state, "sources", {}) or {}).values():
+            path = getattr(source, "source_path", "")
+            if path:
+                values.add(str(Path(path).expanduser().resolve()))
+        for overlay in getattr(state, "overlays", []) or []:
+            values.add(str(Path(overlay.path).expanduser().resolve()))
+        for segment in getattr(state, "video_segments", []) or []:
+            clip_media = state.video_media(segment) if hasattr(state, "video_media") else None
+            if clip_media is not None:
+                values.add(str(Path(clip_media.source_path).expanduser().resolve()))
+        for segment in getattr(state, "audio_segments", []) or []:
+            clip_media = state.audio_media(segment) if hasattr(state, "audio_media") else None
+            if clip_media is not None:
+                values.add(str(Path(clip_media.source_path).expanduser().resolve()))
+    for relative in ("broll-matches.json", "broll.json", "shorts.json", "audio/beatmap.json"):
+        path = root / relative
+        if not path.is_file():
+            continue
+        with contextlib.suppress(OSError, ValueError):
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            for value in _iter_paths(payload):
+                candidate = Path(value).expanduser()
+                if not candidate.is_absolute():
+                    candidate = root / candidate
+                with contextlib.suppress(OSError):
+                    values.add(str(candidate.resolve()))
+    return values
+
+
+def _iter_paths(value: Any) -> Iterable[str]:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if (
+                key in {"path", "local_path", "asset_path", "downloaded_path"}
+                and isinstance(item, str)
+            ):
+                yield item
+            else:
+                yield from _iter_paths(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _iter_paths(item)
 
 
 def ledger_payload(candidates: Iterable[AssetCandidate]) -> dict[str, Any]:
@@ -82,18 +151,31 @@ def read_ledger(output: Path) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {"assets": [], "blockers": []}
 
 
-def _workspace_blockers(output: Path) -> list[dict[str, Any]]:
+def _workspace_blockers(
+    output: Path,
+    referenced: set[str] | None = None,
+) -> list[dict[str, Any]]:
     try:
         from vf_contracts.assets import iter_assets
-        from vf_contracts.workspace import validate_project_id
+        from vf_contracts.workspace import project_dir, validate_project_id
 
         record_path = Path(output) / "project.json"
         payload = json.loads(record_path.read_text(encoding="utf-8"))
         project_id = validate_project_id(str(payload.get("project_id") or ""))
     except (OSError, ValueError, TypeError):
         return []
+    folder = project_dir(project_id)
+    names = {Path(item).name for item in referenced or ()}
     blockers: list[dict[str, Any]] = []
     for asset in iter_assets(project_id):
+        if referenced is not None:
+            candidate = Path(str(asset.path)).expanduser()
+            if not candidate.is_absolute():
+                candidate = folder / candidate
+            with contextlib.suppress(OSError):
+                candidate = candidate.resolve()
+            if str(candidate) not in referenced and candidate.name not in names:
+                continue
         if asset.license == "unknown":
             status = "unknown"
         elif asset.license == "youtube_fair_use":
@@ -113,14 +195,31 @@ def _workspace_blockers(output: Path) -> list[dict[str, Any]]:
     return blockers
 
 
-def license_blockers(output: Path) -> list[dict[str, Any]]:
+def license_blockers(
+    output: Path,
+    state: Any | None = None,
+    *,
+    scope: str = "timeline",
+) -> list[dict[str, Any]]:
+    """Return blockers; with a state, only assets used by that project count."""
+
     payload = read_ledger(output)
+    referenced = (
+        referenced_asset_paths(Path(output), state)
+        if state is not None and scope == "timeline"
+        else None
+    )
     ledger = [
         record
         for record in payload.get("assets", [])
-        if isinstance(record, dict) and _blocked(record)
+        if isinstance(record, dict)
+        and _blocked(record)
+        and (
+            referenced is None
+            or bool(_record_paths(record, Path(output)) & referenced)
+        )
     ]
-    return [*ledger, *_workspace_blockers(output)]
+    return [*ledger, *_workspace_blockers(output, referenced)]
 
 
 def mark_approved(output: Path, *, approval_id: str, reviewer: str = "") -> Path:

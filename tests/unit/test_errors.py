@@ -19,7 +19,14 @@ from videoflow.domain.errors import (
 
 def test_base_error_payload() -> None:
     error = VideoFlowError("boom")
-    assert error.to_dict() == {"ok": False, "code": "videoflow_error", "message": "boom"}
+    payload = error.to_dict()
+    assert payload["ok"] is False
+    assert payload["code"] == "videoflow_error"
+    assert payload["error_code"] == "videoflow_error"
+    assert payload["message"] == "boom"
+    assert payload["failed_command"] == ""
+    assert payload["stderr_tail"] == ""
+    assert payload["fix_hint"]
 
 
 def test_not_implemented_payload_names_the_capability() -> None:
@@ -54,9 +61,9 @@ def test_project_and_preset_errors_name_the_subject() -> None:
 
 def test_unavailable_capability_payload_names_the_route() -> None:
     payload = CapabilityUnavailableError("module_run", "not yet").to_dict()
-    assert payload == {
-        "ok": False,
-        "code": "not_implemented",
-        "message": "not yet",
-        "capability": "module_run",
-    }
+    assert payload["ok"] is False
+    assert payload["code"] == "not_implemented"
+    assert payload["error_code"] == "not_implemented"
+    assert payload["message"] == "not yet"
+    assert payload["capability"] == "module_run"
+    assert "fix_hint" in payload

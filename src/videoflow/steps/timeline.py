@@ -9,7 +9,7 @@ import wave
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Literal
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -191,6 +191,27 @@ class TimelineStep(BaseStep):
             if options.pad_after_ms is not None
             else int(context.metadata.get("speech_pad_after_ms", 150))
         )
+        editorial_applied = bool(
+            context.metadata.get("editorial_clean", {}).get("applied")
+        )
+        editorial_cuts = (
+            [
+                (int(start), int(end))
+                for start, end in context.metadata.get("editorial_cuts", [])
+                if int(end) > int(start)
+            ]
+            if editorial_applied
+            else []
+        )
+        if editorial_applied:
+            pad_before = max(
+                int(pad_before),
+                int(context.metadata.get("speech_pad_before_ms", 0) or 0),
+            )
+            pad_after = max(
+                int(pad_after),
+                int(context.metadata.get("speech_pad_after_ms", 0) or 0),
+            )
         use_transcript = (
             options.use_transcript_spans
             and bool(context.metadata.get("transcript_normalized"))
@@ -242,6 +263,7 @@ class TimelineStep(BaseStep):
                     forced_cuts=[
                         *context.retake_overlap_cuts,
                         *repeat_cuts,
+                        *editorial_cuts,
                     ],
                 )
                 if options.keep_untranscribed:
@@ -263,6 +285,7 @@ class TimelineStep(BaseStep):
                         forced_cuts=[
                             *context.retake_overlap_cuts,
                             *repeat_cuts,
+                            *editorial_cuts,
                         ],
                     )
                     after_seconds = sum(
@@ -371,6 +394,7 @@ class TimelineStep(BaseStep):
             )
             removals.extend(context.retake_overlap_cuts)
             removals.extend(repeat_cuts)
+            removals.extend(editorial_cuts)
             if removals:
                 raw_speech = subtract_spans(raw_speech, removals)
             speech = pad_spans(
@@ -437,6 +461,7 @@ class TimelineStep(BaseStep):
         removed_spans = [
             *context.retake_overlap_cuts,
             *repeat_cuts,
+            *editorial_cuts,
             *((span.start_sample, span.end_sample) for span in noise_spans),
         ]
         speech, integrity_violations = enforce_word_integrity(
@@ -457,11 +482,21 @@ class TimelineStep(BaseStep):
             context.warnings.append(
                 f"{len(integrity_violations)} kept word(s) could not be kept whole."
             )
+        editorial_crossfade = (
+            context.metadata.get("editorial_crossfade_ms")
+            if editorial_applied
+            else None
+        )
+        audio_crossfade_ms = (
+            int(editorial_crossfade)
+            if editorial_crossfade is not None
+            else options.audio_crossfade_ms
+        )
         jl = JlCutsConfig(
             enable_j_cuts=options.enable_j_cuts,
             enable_l_cuts=options.enable_l_cuts,
             offset_ms=options.offset_ms,
-            audio_crossfade_ms=options.audio_crossfade_ms,
+            audio_crossfade_ms=audio_crossfade_ms,
             fade_in_ms=options.fade_in_ms,
             fade_out_ms=options.fade_out_ms,
             fade_curve=options.fade_curve,
@@ -509,7 +544,9 @@ class TimelineStep(BaseStep):
                         "Manual timeline edits at revision "
                         f"{current.revision} were replaced by this recipe build."
                     )
-        project_id = UUID(options.project_id) if options.project_id else uuid4()
+        from videoflow.application.projects import project_uuid
+
+        project_id = project_uuid(options.project_id) if options.project_id else uuid4()
         context.state = ProjectState(
             project_id=project_id,
             revision=revision,

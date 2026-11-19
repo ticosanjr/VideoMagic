@@ -76,7 +76,7 @@ def compose_music(
     root_midi: int = 45,
     seed: int = 7,
     sample_rate: int = SAMPLE_RATE,
-    max_loop_seconds: float = 120.0,
+    max_loop_seconds: float = 4 * 3600.0,
 ) -> dict[str, object]:
     rng = np.random.default_rng(seed)
     requested = max(1.0, float(duration_sec))

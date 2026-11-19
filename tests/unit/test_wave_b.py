@@ -90,6 +90,56 @@ def test_caption_dedup_across_cut_and_word_mode() -> None:
     assert lines[0].end == 2.0
 
 
+def test_face_center_focus_puts_the_face_on_the_center_axis() -> None:
+    from videoflow.application.crop import face_center_focus
+
+    assert face_center_focus(0.5, source_width=1920, crop_width=608) == 0.5
+    assert face_center_focus(0.8, source_width=1920, crop_width=608) == 0.939024
+    assert face_center_focus(0.1, source_width=1920, crop_width=608) == 0.0
+
+
+def test_reframe_converts_face_center_to_crop_focus(tmp_path: Path, monkeypatch) -> None:
+    media = MediaInfo(
+        source_path=str(tmp_path / "source.mp4"),
+        duration_frames=60,
+        fps_num=30,
+        fps_den=1,
+        width=1920,
+        height=1080,
+        audio_sample_rate=48000,
+    )
+    clip = ShortClip(
+        title="Hook",
+        start_sample=0,
+        end_sample=48000,
+        sentence_ids=(1,),
+        pieces=((0, 48000),),
+    )
+    context = PipelineContext(
+        source=tmp_path / "source.mp4",
+        output=tmp_path,
+        work=tmp_path / "work",
+        exports=tmp_path / "exports",
+        media=media,
+        transcript=[Sentence(id=1, start_sample=0, end_sample=48000, text="hello")],
+    )
+    context.selected_shorts = [clip]
+    context.shorts = [{"title": "Hook", "aspect_ratio": "9:16"}]
+    monkeypatch.setattr(
+        "videoflow.steps.shorts_reframe.track_focus_x",
+        lambda *args, **kwargs: (0.8, "face_tracking"),
+    )
+
+    ReframeStep().run(
+        context,
+        ReframeParams(mode="face_tracking", tracking_backend="opencv_haar"),
+        _io(),
+    )
+
+    assert context.selected_shorts[0].crop_focus_x == 0.939024
+    assert context.metadata["tracking"][0]["face_center_lock"] is True
+
+
 def test_reframe_static_fallback_emits_keyframes(tmp_path: Path) -> None:
     media = MediaInfo(
         source_path=str(tmp_path / "source.mp4"),

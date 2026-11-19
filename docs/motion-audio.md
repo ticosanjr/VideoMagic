@@ -32,7 +32,17 @@ not bundled; the step falls back to FFmpeg with a warning.
 
 `audio.compose` synthesizes a copyright-free bed and stems with numpy. No
 third-party recording is used. It writes `audio/music/music-bed.wav` plus pad,
-bass, and pulse stems.
+bass, and pulse stems. The bed follows the timeline duration when one exists and
+falls back to `narration_duration_sec`; `max_loop_seconds` defaults to four
+hours so longform projects do not truncate the music.
+
+## B-roll motion
+
+`image_to_broll_motion` accepts `aspect_ratio` (`16:9`, `9:16`, `4:5`, `3:4`,
+`2:3`, `1:1`) or explicit even `width`/`height`. Without either, it inherits the
+project canvas from `project_state.json` and falls back to 1080×1920. The cache
+key includes the output dimensions, so the same still can serve both longform
+and Shorts without stale assets.
 
 `sfx.synthesize` generates Foley cues:
 

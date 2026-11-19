@@ -80,6 +80,45 @@ def _wait(manager: Any, project_id: str, job_id: str, timeout: float) -> dict[st
     return {"ok": job.status == "succeeded", "job": _job_payload(job)}
 
 
+def _fps_int(value: int | str | None) -> int | None:
+    if isinstance(value, int):
+        return value if value > 0 else None
+    if isinstance(value, str) and value.strip().isdigit():
+        number = int(value.strip())
+        return number if number > 0 else None
+    return None
+
+
+def _short_clip_for_video(output: Path, video: Path) -> dict[str, Any] | None:
+    """Find the Short manifest entry that owns ``video``."""
+
+    import json
+
+    target = Path(video).expanduser().resolve()
+    for relative in (
+        "shorts/batch/shorts_batch.json",
+        "shorts/shorts_batch.json",
+        "shorts.json",
+    ):
+        path = Path(output) / relative
+        if not path.is_file():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        clips = payload.get("clips") if isinstance(payload, dict) else None
+        if not isinstance(clips, list):
+            continue
+        for clip in clips:
+            if not isinstance(clip, dict) or not clip.get("path"):
+                continue
+            with contextlib.suppress(OSError):
+                if Path(str(clip["path"])).expanduser().resolve() == target:
+                    return clip
+    return None
+
+
 def register_core_tools(register: Any, ctx: Any) -> None:
     legacy = _capture_legacy(register, ctx)
     manager = ctx.manager
@@ -497,6 +536,120 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         return result
 
     @register
+    def vf_depth_composite(
+        project_id: str,
+        text_or_asset: str,
+        start_sec: float,
+        end_sec: float,
+        style_props: dict[str, Any] | None = None,
+        anchor: str = "center",
+        width_ratio: float = 0.82,
+    ) -> dict[str, Any]:
+        """Place text/graphics behind a matted presenter in one time range."""
+
+        from videoflow.application.compositor import depth_composite
+
+        try:
+            return depth_composite(
+                project_id,
+                text_or_asset,
+                start_sec,
+                end_sec,
+                style_props=style_props,
+                anchor=anchor,
+                width_ratio=width_ratio,
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except (OSError, ValueError) as exc:
+            return error("depth_composite_failed", str(exc))
+
+    @register
+    def vf_pip(
+        project_id: str,
+        overlay_asset: str,
+        start_sec: float,
+        end_sec: float,
+        anchor: str = "bottom_right",
+        corner_radius: int = 24,
+        width_ratio: float = 0.28,
+        margin_x: int = 32,
+        margin_y: int = 32,
+        z: int = 25,
+    ) -> dict[str, Any]:
+        """Add a rounded-window picture-in-picture overlay."""
+
+        from videoflow.application.compositor import picture_in_picture
+
+        try:
+            return picture_in_picture(
+                project_id,
+                overlay_asset,
+                start_sec,
+                end_sec,
+                anchor=anchor,
+                corner_radius=corner_radius,
+                width_ratio=width_ratio,
+                margin_x=margin_x,
+                margin_y=margin_y,
+                z=z,
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except (OSError, ValueError) as exc:
+            return error("pip_failed", str(exc))
+
+    @register
+    def vf_parallax(
+        project_id: str,
+        image_path: str,
+        start_sec: float,
+        end_sec: float,
+        bg_scale: float = 1.04,
+        fg_scale: float = 1.12,
+        rotate_y_deg: float = 3.0,
+        width_ratio: float = 0.72,
+        z: int = 10,
+    ) -> dict[str, Any]:
+        """Animate a still as background plus subject 2.5D parallax."""
+
+        from videoflow.application.compositor import parallax
+
+        try:
+            return parallax(
+                project_id,
+                image_path,
+                start_sec,
+                end_sec,
+                bg_scale=bg_scale,
+                fg_scale=fg_scale,
+                rotate_y_deg=rotate_y_deg,
+                width_ratio=width_ratio,
+                z=z,
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except (OSError, ValueError) as exc:
+            return error("parallax_failed", str(exc))
+
+    @register
+    def vf_style_preview(
+        project_id: str,
+        style_id: str,
+        duration_sec: float = 5.0,
+    ) -> dict[str, Any]:
+        """Render a short style card with palette, font, layout, and caption."""
+
+        from videoflow.application.compositor import style_preview
+
+        try:
+            return style_preview(project_id, style_id, duration_sec=duration_sec)
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except (OSError, ValueError) as exc:
+            return error("style_preview_failed", str(exc))
+
+    @register
     def vf_shorts_batch(
         project_id: str,
         clips: list[dict[str, Any]],
@@ -534,31 +687,145 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         video_path: str = "",
         strict: bool = True,
         platforms: list[str] | None = None,
+        mode: str = "full",
+        collision_mode: str = "visual",
+        max_wer: float = 0.12,
     ) -> dict[str, Any]:
         """Audit the deliverable MP4 and write a contact sheet."""
 
         from videoflow.application.qa_final import audit_final
+        from videoflow.application.shorts import short_dimensions
 
         try:
             record = get_project(project_id)
             state = load_project_state(record)
-            default = Path(record.output) / "exports" / "youtube_master.mp4"
-            fallback = Path(record.output) / "exports" / "final_youtube.mp4"
+            output = Path(record.output)
+            default = output / "exports" / "youtube_master.mp4"
+            fallback = output / "exports" / "final_youtube.mp4"
             video = (
                 Path(video_path).expanduser()
                 if video_path
                 else (default if default.is_file() else fallback)
             )
-            report = audit_final(
-                video,
-                output=Path(record.output),
-                state=state,
-                strict=strict,
-                platforms=platforms,
-            )
-        except (VideoFlowError, OSError) as exc:
+            clip = _short_clip_for_video(output, video)
+            if clip is None:
+                import json
+
+                bundle_fps: int | None = None
+                bundle_frames: int | None = None
+                bundle_path = output / "exports" / "bundle.json"
+                try:
+                    bundle_payload = json.loads(bundle_path.read_text(encoding="utf-8"))
+                    bundle_fps = _fps_int(
+                        (bundle_payload.get("mp4") or {}).get("fps")
+                    )
+                    frames = bundle_payload.get("mp4_frames")
+                    bundle_frames = int(frames) if frames else None
+                except (OSError, ValueError, TypeError):
+                    pass
+                report = audit_final(
+                    video,
+                    output=output,
+                    state=state,
+                    strict=strict,
+                    platforms=platforms,
+                    mode=mode,
+                    fps=float(bundle_fps) if bundle_fps else None,
+                    expected_frames=bundle_frames,
+                    collision_mode=collision_mode,
+                    max_wer=max_wer,
+                )
+            else:
+                start = float(clip.get("start_sec") or 0.0)
+                end = float(clip.get("end_sec") or start)
+                aspect = str(clip.get("aspect_ratio") or "9:16")
+                clip_width, clip_height = short_dimensions(aspect)
+                rate = state.media_info.audio_sample_rate if state.media_info else 48000
+                transcript = [
+                    item
+                    for item in state.transcript
+                    if item.end_sample > round(start * rate)
+                    and item.start_sample < round(end * rate)
+                    and item.id not in set(state.pipeline.discard_sentence_ids)
+                ]
+                subtitles = str(clip.get("subtitles") or "")
+                subtitle_path = Path(subtitles).expanduser() if subtitles else None
+                if subtitle_path is not None and not subtitle_path.is_absolute():
+                    subtitle_path = output / subtitle_path
+                report = audit_final(
+                    video,
+                    output=output,
+                    state=state,
+                    strict=strict,
+                    platforms=platforms,
+                    mode=mode,
+                    window_sec=(start, end),
+                    expected_sec=max(0.0, end - start),
+                    fps=float(clip.get("fps") or 30.0),
+                    transcript=transcript,
+                    caption_path=subtitle_path,
+                    width=clip_width,
+                    height=clip_height,
+                    collision_mode=collision_mode,
+                    max_wer=max_wer,
+                )
+                report["short"] = {
+                    "title": clip.get("title", ""),
+                    "start_sec": start,
+                    "end_sec": end,
+                    "aspect_ratio": aspect,
+                }
+        except (VideoFlowError, OSError, ValueError) as exc:
             return error("qa_final_failed", str(exc))
         return {"ok": bool(report.get("ok")), "report": report}
+
+    @register
+    def vf_assets(
+        action: str = "list",
+        project_id: str = "",
+        asset_ids: list[str] | None = None,
+        license: str = "",
+        attribution: str = "",
+        reason: str = "",
+    ) -> dict[str, Any]:
+        """List, approve, or quarantine project assets and their licenses."""
+
+        from videoflow.application.assets_service import (
+            asset_records,
+            review_assets,
+        )
+
+        if not project_id:
+            return error("project_required", "project_id is required")
+        try:
+            record = get_project(project_id)
+            state = load_project_state(record)
+            if action == "list":
+                records = asset_records(
+                    Path(record.output),
+                    project_id=record.project_id,
+                    state=state,
+                )
+                return {"ok": True, "assets": records, "count": len(records)}
+            if action in {"approve", "quarantine"}:
+                result = review_assets(
+                    Path(record.output),
+                    action=action,
+                    project_id=record.project_id,
+                    asset_ids=asset_ids,
+                    license=license,
+                    attribution=attribution,
+                    reason=reason,
+                )
+                result["assets"] = asset_records(
+                    Path(record.output),
+                    project_id=record.project_id,
+                    state=state,
+                )
+                return result
+            return error("unknown_action", "vf_assets supports list, approve, or quarantine")
+        except VideoFlowError as exc:
+            return exc.to_dict()
 
     @register
     def vf_font(
@@ -601,6 +868,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         force: bool = False,
         status: str = "",
         include_archived: bool = False,
+        target_project_id: str = "",
     ) -> dict[str, Any]:
         """Create/open/status a project, manage lifecycle, or undo revisions."""
 
@@ -690,7 +958,12 @@ def register_core_tools(register: Any, ctx: Any) -> None:
             from videoflow.application.projects import clone_project
 
             try:
-                cloned, state = clone_project(get_project(project_id), name=name, output=output)
+                cloned, state = clone_project(
+                    get_project(project_id),
+                    name=name,
+                    output=output,
+                    project_id=target_project_id,
+                )
             except VideoFlowError as exc:
                 return exc.to_dict()
             return {
@@ -1247,6 +1520,9 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         dialect: str = "1.10",
         mp4_profile: str = "youtube_h264",
         mp4_loudness_lufs: float | None = -16.5,
+        fps: int | str = 30,
+        qa_mode: str = "fast",
+        mp4_preset: str = "veryfast",
     ) -> dict[str, Any]:
         from videoflow.application.delivery_bundle import (
             DEFAULT_BUNDLE_TARGETS,
@@ -1292,22 +1568,44 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                 audio_source=audio_source,
                 look=look,
                 mp4_draft=draft,
+                mp4_fps=fps,
+                mp4_preset=mp4_preset,
             ),
         )
-        if not draft:
+        mp4 = (bundle.get("files") or {}).get("mp4") or {}
+        path = Path(str(mp4.get("path") or ""))
+        if not draft and qa_mode != "off" and path.is_file():
             from videoflow.application.qa_final import audit_final
 
-            mp4 = (bundle.get("files") or {}).get("mp4") or {}
-            path = Path(str(mp4.get("path") or ""))
-            if path.is_file():
+            if qa_mode == "fast":
                 report = audit_final(
                     path,
                     output=Path(record.output),
                     state=state,
                     strict=True,
+                    mode="fast",
+                    fps=_fps_int(fps),
+                    expected_frames=bundle.get("mp4_frames"),
                 )
                 bundle["qa_final"] = report
                 bundle["ok"] = bool(bundle.get("ok")) and bool(report.get("ok"))
+            elif qa_mode == "full":
+                job = manager.start(
+                    Path(record.primary_source or record.output),
+                    Path(record.output),
+                    {
+                        "mode": "qa_full",
+                        "project_id": record.project_id,
+                        "video_path": str(path),
+                        "fps": _fps_int(fps),
+                        "expected_frames": bundle.get("mp4_frames"),
+                    },
+                    queue=True,
+                    project_id=record.project_id,
+                )
+                bundle["qa_job"] = _job_payload(job)
+            else:
+                raise VideoFlowError(f"invalid qa_mode: {qa_mode}")
         return bundle
 
     @register
@@ -1319,11 +1617,16 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         captions: bool = True,
         draft: bool = False,
         release_kit: bool = False,
+        fps: int | str = 30,
+        qa_mode: str = "fast",
+        preset: str = "veryfast",
     ) -> dict[str, Any]:
         """Render the canonical master and every requested NLE target."""
 
         if audio_source not in {"mix", "master", "timeline"}:
             return error("invalid_audio_source", "audio_source must be mix, master, or timeline")
+        if qa_mode not in {"fast", "full", "off"}:
+            return error("invalid_qa_mode", "qa_mode must be fast, full, or off")
         try:
             bundle = _run_bundle(
                 project_id,
@@ -1332,6 +1635,9 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                 audio_source=audio_source,
                 captions=captions,
                 draft=draft,
+                fps=fps,
+                qa_mode=qa_mode,
+                mp4_preset=preset,
             )
         except VideoFlowError as exc:
             return exc.to_dict()

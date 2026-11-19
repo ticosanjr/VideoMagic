@@ -114,6 +114,8 @@ class ShortsSelectStep(BaseStep):
             energy_intervals=energy,
             scene_intervals=scenes,
             weights=profile_weights(options.profile),
+            thought_boundary=options.thought_boundary,
+            thought_boundary_max_adjust_sec=options.thought_boundary_max_adjust_sec,
         )
         if options.virality_threshold > 0 and selected:
             above = [clip for clip in selected if clip.virality_score >= options.virality_threshold]
