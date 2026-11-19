@@ -6,7 +6,7 @@ recording into an editable timeline: it removes silence and retakes, adds
 J-cuts and punch-ins, proposes vertical Shorts, masters the dialogue bed, and
 exports timelines for DaVinci Resolve, Adobe Premiere Pro, and Kdenlive.
 
-> Status: 3.4.0 local stable. Diretor Lego workflows, OpenCode Studio Manager, 37 MCP tools, 22 styles, stateful step chains, multi-NLE delivery, and opt-in Windows GPU offload. GPU speed certification awaits Windows/NVIDIA hardware. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
+> Status: 3.4.1 local stable. Diretor Lego workflows, OpenCode Studio Manager, 37 MCP tools, 22 styles, stateful step chains, multi-NLE delivery, and opt-in Windows GPU offload with a self-healing worker kit. GPU speed certification awaits Windows/NVIDIA hardware. The local Linux binary and AppImage run ingest, Silero VAD with an FFmpeg fallback, local Faster-Whisper
 > quality transcription with a whisper.cpp fallback, SRT/ASR paths,
 > transcript-driven retake culling, deterministic cuts, vertical Shorts,
 > audio mastering and loudness QA, burned titles, color/LUT grading, analytics

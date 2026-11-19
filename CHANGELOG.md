@@ -1,5 +1,22 @@
 # Changelog
 
+## [3.4.1] - 2026-11-19
+
+### Fixed
+
+- Windows kit now installs the worker from the local `worker\` directory or a
+  bundled wheel instead of the ambiguous `uv pip install worker`.
+- Replaced the fragile batch actions with one `VideoFlowGPU.bat` entry point and
+  `VideoFlowGPU.ps1` menu: install/repair, start, stop, status, doctor, logs,
+  autostart, and uninstall.
+- Bootstrap now repairs a broken Python/venv, reinstalls the expected worker
+  version, verifies CUDA/PyTorch/dependencies, downloads an NVENC FFmpeg when
+  missing, validates the shared mount, and restores `worker.env` from a backup.
+- Added a supervisor with exponential backoff and a private-profile firewall
+  check.
+- Bundled `videoflow_gpu_worker-3.4.1` wheel and Windows scripts inside the
+  packaged VideoFlow data so kit generation works outside the source tree.
+
 ## [3.4.0] - 2026-11-19
 
 GPU offload is opt-in. The automated gate is green; physical ASR/NVENC/matte

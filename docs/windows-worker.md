@@ -24,29 +24,67 @@ release.
 ## Contents
 
 ```text
+VideoFlowGPU.bat                 single entry point; double-click for the menu
+VideoFlowGPU.ps1                 install/repair, start, stop, status, doctor,
+                                 logs, autostart, uninstall, supervisor
 worker.env                       token, worker id, ports, VRAM, discovery
-iniciar_gpu_worker.bat           installs and starts the worker
-instalar_autostart_windows.bat   schtasks ONLOGON registration
-parar_gpu_worker.bat             stops the worker
-status_gpu_worker.bat / .ps1     prints /health or "offline"
+worker.env.bak                   token/backup restored during repair
+expected_version.txt             worker version expected by the kit
 LEIA-ME.txt                      operator instructions
 worker/                          gpu-worker source fallback
-wheels/                          optional prebuilt wheel
+wheels/                          prebuilt videoflow_gpu_worker wheel
 bin/                             optional ffmpeg.exe/ffprobe.exe
+logs/                            bootstrap.log and worker-error.log
 ```
 
-## First run
+## Single entry point
+
+Double-click `VideoFlowGPU.bat`. The menu offers:
+
+```text
+1) Install / update / repair
+2) Start worker
+3) Stop worker
+4) Status
+5) Doctor
+6) Install autostart
+7) Remove autostart
+8) Show logs
+9) Uninstall virtual environment
+0) Exit
+```
+
+Command-line actions are also accepted:
+
+```bat
+VideoFlowGPU.bat Install
+VideoFlowGPU.bat Start
+VideoFlowGPU.bat Stop
+VideoFlowGPU.bat Status
+VideoFlowGPU.bat Doctor
+VideoFlowGPU.bat Repair
+VideoFlowGPU.bat Autostart
+VideoFlowGPU.bat --silent
+```
+
+## First run and repair
 
 1. Extract to a short path such as `C:\VideoFlowGPU`.
-2. Run `iniciar_gpu_worker.bat`.
-3. The script installs `uv`, Python 3.11, a virtual environment, the worker,
-   PyTorch CUDA, faster-whisper, rembg, and OpenCV.
+2. Run `VideoFlowGPU.bat` and choose **Install / update / repair**.
+3. The script installs `uv`, Python 3.11, the worker from `worker\` or the
+   bundled wheel, CUDA PyTorch, faster-whisper, rembg, OpenCV, and an NVENC
+   FFmpeg build when none is present.
 4. It adds a private-profile firewall rule for TCP 8766 when run as
    Administrator.
-5. It starts `videoflow-gpu-worker` using `worker.env`.
+5. Choose **Start worker**.
 
-The first run is network-heavy and can take several minutes. Subsequent runs
-reuse `.venv`.
+The first run is network-heavy and can take several minutes. The bootstrap is
+idempotent: a broken `.venv` is rebuilt, the expected worker version is
+reinstalled, missing Python packages are repaired, `worker.env` is restored
+from backup when possible, and the shared-mount failure falls back to HTTP.
+
+The supervisor restarts the worker after a crash with exponential backoff and
+writes logs under `logs/`.
 
 ## Pairing
 
@@ -73,14 +111,10 @@ artifacts over HTTP.
 
 ## Autostart
 
-Run `instalar_autostart_windows.bat` as Administrator. It registers:
+Choose **Install autostart** in `VideoFlowGPU.bat` (or run
+`VideoFlowGPU.bat Autostart`). It registers an `AtLogOn` scheduled task that
+runs `VideoFlowGPU.ps1 -Action Start -Silent`. Remove it from the menu or with:
 
-```text
-schtasks /SC ONLOGON /TN "VideoFlow GPU Worker" /TR "...iniciar_gpu_worker.bat --silent"
-```
-
-Remove it with:
-
-```bat
-schtasks /Delete /TN "VideoFlow GPU Worker" /F
+```powershell
+Unregister-ScheduledTask -TaskName "VideoFlow GPU Worker" -Confirm:$false
 ```

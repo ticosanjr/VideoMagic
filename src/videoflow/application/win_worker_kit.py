@@ -90,153 +90,52 @@ def _env_file(
     return "\n".join(lines) + "\n"
 
 
-def _start_bat() -> str:
-    return """@echo off
-setlocal EnableExtensions EnableDelayedExpansion
-chcp 65001 >nul
-cd /d "%~dp0"
-set "SILENT=0"
-if /I "%~1"=="--silent" set "SILENT=1"
-if not exist "worker.env" (
-  echo worker.env is missing. Download the kit again.
-  if "%SILENT%"=="0" pause
-  exit /b 1
-)
-for /f "usebackq eol=# tokens=1,* delims==" %%A in ("worker.env") do (
-  if not "%%~A"=="" set "%%A=%%B"
-)
-if "%VF_GPU_PORT%"=="" set "VF_GPU_PORT=8766"
-
-where uv >nul 2>&1
-if errorlevel 1 (
-  echo Installing uv...
-  powershell -NoP -Exec Bypass -Command "irm https://astral.sh/uv/install.ps1 | iex"
-  set "PATH=%USERPROFILE%\\.local\\bin;%PATH%"
-)
-where uv >nul 2>&1
-if errorlevel 1 (
-  echo Could not install uv. Install it from https://astral.sh/uv and rerun.
-  if "%SILENT%"=="0" pause
-  exit /b 1
-)
-
-if not exist ".venv\\Scripts\\python.exe" (
-  uv venv .venv --python 3.11
-)
-call ".venv\\Scripts\\activate.bat"
-uv pip install --upgrade pip
-if exist "wheels\\videoflow_gpu_worker-*.whl" (
-  uv pip install wheels\\videoflow_gpu_worker-*.whl
-) else (
-  uv pip install worker
-)
-uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-uv pip install faster-whisper "rembg[gpu]" onnxruntime-gpu opencv-python-headless
-
-if exist "bin\\ffmpeg.exe" set "VF_GPU_FFMPEG=%CD%\\bin\\ffmpeg.exe"
-if exist "bin\\ffprobe.exe" set "VF_GPU_FFPROBE=%CD%\\bin\\ffprobe.exe"
-where ffmpeg >nul 2>&1
-if errorlevel 1 if "%VF_GPU_FFMPEG%"=="" (
-  echo WARNING: ffmpeg.exe was not found. Copy an NVENC build to bin\\ffmpeg.exe.
-)
-
-net session >nul 2>&1
-if not errorlevel 1 (
-  netsh advfirewall firewall add rule name="VideoFlow GPU Worker" ^
-    dir=in action=allow protocol=TCP localport=%VF_GPU_PORT% profile=private >nul
-) else (
-  echo WARNING: run this script as Administrator once to open the private firewall port.
-)
-
-echo Starting VideoFlow GPU worker on port %VF_GPU_PORT%...
-videoflow-gpu-worker
-set "EXIT_CODE=%ERRORLEVEL%"
-if not "%EXIT_CODE%"=="0" echo Worker exited with code %EXIT_CODE%.
-if "%SILENT%"=="0" pause
-exit /b %EXIT_CODE%
-"""
+def _templates_root() -> Path:
+    return Path(__file__).resolve().parents[1] / "templates"
 
 
-def _autostart_bat() -> str:
-    return """@echo off
-setlocal
-chcp 65001 >nul
-cd /d "%~dp0"
-schtasks /Create /SC ONLOGON /TN "VideoFlow GPU Worker" ^
-  /TR "\\"%CD%\\iniciar_gpu_worker.bat\\" --silent" /RL LIMITED /F
-if errorlevel 1 (
-  echo Could not register the scheduled task. Run as an administrator.
-  pause
-  exit /b 1
-)
-echo Autostart registered as "VideoFlow GPU Worker".
-pause
-"""
-
-
-def _stop_bat() -> str:
-    return """@echo off
-setlocal
-chcp 65001 >nul
-taskkill /F /IM videoflow-gpu-worker.exe >nul 2>&1
-if errorlevel 1 (
-  echo No running VideoFlow GPU worker was found.
-) else (
-  echo VideoFlow GPU worker stopped.
-)
-pause
-"""
-
-
-def _status_ps1() -> str:
-    return """param([int]$Port = 8766)
-try {
-  $health = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health" -TimeoutSec 3
-  $caps = ($health.capabilities -join ',')
-  Write-Output ("status=" + $health.status + " gpu=" + $health.gpu_name + " capabilities=" + $caps)
-} catch {
-  Write-Output "offline"
-}
-"""
-
-
-def _status_bat() -> str:
-    return """@echo off
-setlocal
-chcp 65001 >nul
-cd /d "%~dp0"
-if not exist "worker.env" exit /b 1
-for /f "usebackq eol=# tokens=1,* delims==" %%A in ("worker.env") do (
-  if not "%%~A"=="" set "%%A=%%B"
-)
-if "%VF_GPU_PORT%"=="" set "VF_GPU_PORT=8766"
-powershell -NoP -ExecutionPolicy Bypass -File "%~dp0status_gpu_worker.ps1" -Port %VF_GPU_PORT%
-pause
-"""
+def _windows_scripts(version: str) -> dict[str, bytes]:
+    scripts = _templates_root() / "windows"
+    ps1 = (scripts / "VideoFlowGPU.ps1").read_text(encoding="utf-8")
+    return {
+        "VideoFlowGPU.ps1": _crlf(ps1.replace("__VERSION__", version)),
+        "VideoFlowGPU.bat": _crlf((scripts / "VideoFlowGPU.bat").read_text(encoding="utf-8")),
+        "expected_version.txt": (version + "\n").encode("utf-8"),
+    }
 
 
 def _readme(*, worker_id: str, has_ffmpeg: bool) -> str:
     ffmpeg_line = (
         "bin\\ffmpeg.exe is included."
         if has_ffmpeg
-        else "Copy an NVENC-enabled ffmpeg.exe and ffprobe.exe into bin\\ "
-        "before starting, or install FFmpeg on PATH."
+        else "FFmpeg is downloaded automatically if bin\\ffmpeg.exe is missing."
     )
     return f"""VideoFlow Windows GPU Worker
 =============================
 
 Worker id: {worker_id}
 
+ONE FILE: double-click VideoFlowGPU.bat.
+It opens a menu for install/repair, start, stop, status, doctor, logs,
+autostart, and uninstall. The same script supports command-line actions.
+
+First run:
 1. Extract this zip to a short path, for example C:\\VideoFlowGPU.
-2. Run iniciar_gpu_worker.bat. The first run installs Python 3.11, the worker,
-   PyTorch CUDA, faster-whisper, rembg, and OpenCV. It can take several minutes
-   and downloads from the internet.
-3. If Windows Firewall asks, allow the private network. For a silent install,
-   run iniciar_gpu_worker.bat once as Administrator so it can add the private
-   TCP firewall rule.
-4. In VideoFlow on the Linux machine, use Setup -> GPU acceleration and connect
-   to this machine's LAN IP on port 8766 with the token from worker.env.
-5. Optional: run instalar_autostart_windows.bat to start the worker at logon.
+2. Run VideoFlowGPU.bat and choose Install / update / repair.
+3. The script installs uv, Python 3.11, the worker, CUDA PyTorch,
+   faster-whisper, rembg, OpenCV, FFmpeg with NVENC, and the firewall rule.
+4. Start the worker from the menu.
+5. In VideoFlow on Linux, use Setup -> GPU acceleration with this machine's
+   LAN IP, port 8766, and the token from worker.env.
+
+Self-healing:
+- Broken .venv is removed and rebuilt.
+- Wrong/missing worker version is reinstalled.
+- Missing CUDA/Python packages are reinstalled.
+- Missing FFmpeg/NVENC is downloaded or reported clearly.
+- Shared mount failure falls back to HTTP.
+- The supervisor restarts the worker after a crash.
+- The token is restored from worker.env.bak when possible.
 
 {ffmpeg_line}
 
@@ -249,9 +148,9 @@ Security:
   to the Windows path of the same folder mounted on Linux.
 
 Troubleshooting:
-- status_gpu_worker.bat prints health or "offline".
-- parar_gpu_worker.bat stops the worker.
-- If NVENC is unavailable, run: ffmpeg -hide_banner -encoders | findstr nvenc
+- VideoFlowGPU.bat -> Status / Doctor / Show logs.
+- The logs are in logs/bootstrap.log and logs/worker-error.log.
+- If NVIDIA driver/nvidia-smi is missing, install the NVIDIA driver and reboot.
 """
 
 
@@ -273,6 +172,8 @@ def _add_worker_source(zf: zipfile.ZipFile) -> list[str]:
         _zip_write(zf, "worker/README.md", readme.read_bytes())
         files.append("worker/README.md")
     source = WORKER_ROOT / "src" / "gpu_worker"
+    if not source.is_dir():
+        return files
     for path in sorted(source.rglob("*.py")):
         relative = path.relative_to(WORKER_ROOT).as_posix()
         _zip_write(zf, f"worker/{relative}", path.read_bytes())
@@ -282,9 +183,19 @@ def _add_worker_source(zf: zipfile.ZipFile) -> list[str]:
 
 def _wheel_paths() -> list[Path]:
     candidates: list[Path] = []
-    for root in (ROOT / "dist", WORKER_ROOT / "dist"):
+    for root in (
+        _templates_root() / "wheels",
+        ROOT / "dist",
+        WORKER_ROOT / "dist",
+    ):
         candidates.extend(sorted(root.glob("videoflow_gpu_worker-*.whl")))
     return candidates
+
+
+def _kit_version() -> str:
+    from videoflow import __version__
+
+    return str(__version__)
 
 
 def build_worker_kit(
@@ -318,15 +229,11 @@ def build_worker_kit(
                 worker_id=resolved_worker,
                 shared_windows_path=shared_windows_path,
             ).encode("utf-8"),
-            "iniciar_gpu_worker.bat": _crlf(_start_bat()),
-            "instalar_autostart_windows.bat": _crlf(_autostart_bat()),
-            "parar_gpu_worker.bat": _crlf(_stop_bat()),
-            "status_gpu_worker.bat": _crlf(_status_bat()),
-            "status_gpu_worker.ps1": _crlf(_status_ps1()),
             "LEIA-ME.txt": _readme(
                 worker_id=resolved_worker,
                 has_ffmpeg=has_ffmpeg,
             ).encode("utf-8"),
+            **_windows_scripts(_kit_version()),
         }
         for name, data in entries.items():
             _zip_write(zf, name, data)

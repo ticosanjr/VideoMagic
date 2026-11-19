@@ -1,0 +1,33 @@
+{
+  "version": "3.4.1",
+  "built_at": "2026-11-19T06:46:10+00:00",
+  "host": "linux-x86_64",
+  "python": "3.12.3",
+  "artifacts": [
+    {
+      "name": "videoflow-3.4.1-linux-x86_64",
+      "sha256": "f0aad29c01b2ba947a44b9cbd7951157b06558ec3d12b24cf5d9119de3cae51b",
+      "size_bytes": 347629496
+    },
+    {
+      "name": "VideoFlow-3.4.1-x86_64.AppImage",
+      "sha256": "b4142c802ec54463ac28585e0dffcd89ee7b109e058406aa38705d68b59a7d5f",
+      "size_bytes": 346393080
+    },
+    {
+      "name": "sbom.json",
+      "sha256": "19639030e4d9c9ea3b34ce2fb3f32ed8e9c050f70868ca509fd20fa55f672292",
+      "size_bytes": 11430
+    },
+    {
+      "name": "VideoFlow-3.4.1-linux-x86_64.tar.zst",
+      "sha256": "70e30335d34c04d248900922bf781a803b5688096d80903b46fb76232d982eed",
+      "size_bytes": 372216979
+    },
+    {
+      "name": "VideoFlow-3.4.1-mcp-servers.tar.zst",
+      "sha256": "d1478a6fc75158fe1321fe04b9bdf0d690203908780ee16ccd1168fb1ae6e1dc",
+      "size_bytes": 169406
+    }
+  ]
+}

@@ -28,33 +28,36 @@ def test_windows_kit_contains_scripts_env_and_readme(tmp_path: Path) -> None:
     names = _names(result.path)
     assert {
         "worker.env",
-        "iniciar_gpu_worker.bat",
-        "instalar_autostart_windows.bat",
-        "parar_gpu_worker.bat",
-        "status_gpu_worker.bat",
-        "status_gpu_worker.ps1",
+        "VideoFlowGPU.ps1",
+        "VideoFlowGPU.bat",
+        "expected_version.txt",
         "LEIA-ME.txt",
     } <= names
     with zipfile.ZipFile(result.path) as archive:
         env = archive.read("worker.env").decode("utf-8")
-        start = archive.read("iniciar_gpu_worker.bat").decode("utf-8")
-        autostart = archive.read("instalar_autostart_windows.bat").decode("utf-8")
+        ps1 = archive.read("VideoFlowGPU.ps1").decode("utf-8")
+        bat = archive.read("VideoFlowGPU.bat").decode("utf-8")
         readme = archive.read("LEIA-ME.txt").decode("utf-8")
     assert "VF_GPU_TOKEN=secret-token" in env
     assert "VF_GPU_WORKER_ID=worker-1" in env
     assert "VF_GPU_DISCOVERY=1" in env
     assert r"VF_GPU_SHARED_ROOT=Z:\videoflow" in env
     for token in (
-        "uv venv",
-        "torch",
-        "faster-whisper",
-        "netsh advfirewall",
-        "videoflow-gpu-worker",
-        "net session",
+        "uv pip install --python",
+        'Join-Path $Root "worker"',
+        "videoflow-gpu-worker.exe",
+        "nvidia-smi.exe",
+        "h264_nvenc",
+        "Register-ScheduledTask",
+        "Supervisor",
+        "worker.env.bak",
+        "--reinstall",
     ):
-        assert token in start
-    assert "schtasks" in autostart and "--silent" in autostart
-    assert "worker.env" in readme and "Do not publish" in readme
+        assert token in ps1
+    assert "VideoFlowGPU.ps1" in bat and "--silent" in bat
+    assert "ONE FILE" in readme
+    assert "Self-healing" in readme
+    assert "Do not publish" in readme
 
 
 def test_windows_kit_includes_ffmpeg_when_provided(tmp_path: Path) -> None:
@@ -69,6 +72,12 @@ def test_windows_kit_includes_ffmpeg_when_provided(tmp_path: Path) -> None:
     names = _names(result.path)
     assert "bin/ffmpeg.exe" in names
     assert "bin/ffprobe.exe" in names
+
+
+def test_windows_kit_includes_prebuilt_worker_wheel(tmp_path: Path) -> None:
+    result = build_worker_kit(output=tmp_path, include_worker_source=False)
+    names = _names(result.path)
+    assert any(name.startswith("wheels/videoflow_gpu_worker-") for name in names)
 
 
 def test_windows_kit_includes_worker_source_by_default(tmp_path: Path) -> None:
