@@ -1191,6 +1191,13 @@ export interface OpenCodeBootstrapResult {
   warnings: string[];
 }
 
+export async function chooseFolder(initial = ""): Promise<{ ok: boolean; path?: string; cancelled?: boolean }> {
+  return request("/api/v1/system/choose-folder", {
+    method: "POST",
+    body: JSON.stringify({ initial })
+  });
+}
+
 export async function bootstrapOpenCode(
   payload: OpenCodeBootstrapRequest
 ): Promise<OpenCodeBootstrapResult> {
@@ -1779,6 +1786,9 @@ export interface GpuWorkerStatus {
   models: string[];
   queue_depth: number;
   message: string;
+  auth_mode?: string;
+  nvenc?: boolean;
+  encoder?: string;
   fallback_local?: boolean;
   shared_mount_enabled?: boolean;
   shared_linux_path?: string;
@@ -1803,6 +1813,9 @@ export interface GpuDiscoveredWorker {
   capabilities: string[];
   version: string;
   seen_at: number;
+  auth_mode?: string;
+  nvenc?: boolean;
+  encoder?: string;
 }
 
 export interface GpuBenchmark {

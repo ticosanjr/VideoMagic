@@ -26,6 +26,9 @@ class DiscoveredWorker:
     queue_depth: int = 0
     capabilities: list[str] = field(default_factory=list)
     version: str = ""
+    auth_mode: str = ""
+    nvenc: bool = False
+    encoder: str = ""
     seen_at: float = field(default_factory=time.time)
 
     @property
@@ -47,6 +50,9 @@ class DiscoveredWorker:
             "queue_depth": self.queue_depth,
             "capabilities": list(self.capabilities),
             "version": self.version,
+            "auth_mode": self.auth_mode,
+            "nvenc": self.nvenc,
+            "encoder": self.encoder,
             "seen_at": self.seen_at,
         }
 
@@ -71,6 +77,9 @@ def _parse(payload: dict[str, Any]) -> DiscoveredWorker | None:
         queue_depth=int(payload.get("queue_depth") or 0),
         capabilities=[str(item) for item in payload.get("capabilities") or []],
         version=str(payload.get("version") or ""),
+        auth_mode=str(payload.get("auth_mode") or ""),
+        nvenc=bool(payload.get("nvenc")),
+        encoder=str(payload.get("encoder") or ""),
     )
 
 

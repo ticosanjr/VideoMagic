@@ -446,3 +446,42 @@ def test_models_unload_and_shared_validation(
         headers=HEADERS,
     )
     assert invalid.status_code == 400, invalid.text
+
+
+def test_lan_open_mode_allows_private_clients_without_token(tmp_path: Path) -> None:
+    application = create_app(
+        Settings(
+            token="secret",
+            allow_lan_open=True,
+            work_dir=tmp_path / "worker",
+        )
+    )
+    try:
+        with TestClient(application, client=("192.168.1.50", 50000)) as test_client:
+            response = test_client.post(
+                "/artifacts", files={"file": ("a.wav", b"a")}
+            )
+            assert response.status_code == 200, response.text
+            health = test_client.get("/health").json()
+            assert health["auth_mode"] == "lan_open"
+            assert health["encoder"] in {"nvenc", "libx264"}
+    finally:
+        application.state.close()
+
+
+def test_lan_open_mode_rejects_public_clients(tmp_path: Path) -> None:
+    application = create_app(
+        Settings(
+            token="secret",
+            allow_lan_open=True,
+            work_dir=tmp_path / "worker",
+        )
+    )
+    try:
+        with TestClient(application, client=("8.8.8.8", 50000)) as test_client:
+            response = test_client.post(
+                "/artifacts", files={"file": ("a.wav", b"a")}
+            )
+            assert response.status_code == 401
+    finally:
+        application.state.close()

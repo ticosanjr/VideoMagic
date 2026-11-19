@@ -313,6 +313,7 @@ function Ensure-EnvFile {
     if (-not $map.ContainsKey("VF_GPU_MODEL_TTL_SEC") -or -not $map["VF_GPU_MODEL_TTL_SEC"]) { $map["VF_GPU_MODEL_TTL_SEC"] = "300" }
     if (-not $map.ContainsKey("VF_GPU_BUILTIN_HANDLERS") -or -not $map["VF_GPU_BUILTIN_HANDLERS"]) { $map["VF_GPU_BUILTIN_HANDLERS"] = "1" }
     if (-not $map.ContainsKey("VF_GPU_DISCOVERY") -or -not $map["VF_GPU_DISCOVERY"]) { $map["VF_GPU_DISCOVERY"] = "1" }
+    if (-not $map.ContainsKey("VF_GPU_ALLOW_LAN_OPEN") -or -not $map["VF_GPU_ALLOW_LAN_OPEN"]) { $map["VF_GPU_ALLOW_LAN_OPEN"] = "1" }
     if (-not $map.ContainsKey("VF_GPU_ADVERTISE_PORT") -or -not $map["VF_GPU_ADVERTISE_PORT"]) { $map["VF_GPU_ADVERTISE_PORT"] = "8767" }
     if (-not $map.ContainsKey("VF_GPU_MAX_UPLOAD_MB") -or -not $map["VF_GPU_MAX_UPLOAD_MB"]) { $map["VF_GPU_MAX_UPLOAD_MB"] = "8192" }
     if (-not $map.ContainsKey("VF_GPU_ASR_MODEL") -or -not $map["VF_GPU_ASR_MODEL"]) { $map["VF_GPU_ASR_MODEL"] = "large-v3-turbo" }
@@ -685,7 +686,14 @@ function Ensure-Ffmpeg {
         $nvenc = Test-Nvenc $ffmpeg
     }
     if (-not $nvenc) {
-        Write-Warn "FFmpeg nao conseguiu encodar com h264_nvenc. Verifique o driver NVIDIA."
+        $probe = Invoke-Native $ffmpeg @(
+            "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "color=c=black:s=128x72:d=0.1",
+            "-c:v", "h264_nvenc", "-f", "null", "-"
+        ) -AllowFailure
+        $detail = ($probe.Output -split "`n" | Select-Object -Last 1)
+        Write-Warn ("FFmpeg sem NVENC: {0}" -f $detail)
+        Write-Warn "O worker pode ser usado com libx264; o render remoto continua disponivel."
     }
     $env:VF_GPU_FFMPEG = $ffmpeg
     $ffprobe = Join-Path $Root "bin\ffprobe.exe"
@@ -753,14 +761,16 @@ function Ensure-Firewall {
     foreach ($rule in $rules) {
         $existing = Get-NetFirewallRule -DisplayName $rule.Name -ErrorAction SilentlyContinue
         if (-not $existing) {
-            New-NetFirewallRule -DisplayName $rule.Name -Direction Inbound -Protocol $rule.Protocol -LocalPort $rule.Port -Action Allow -Profile Private, Domain | Out-Null
-            Write-Log ("Regra de firewall criada: {0} {1}" -f $rule.Protocol, $rule.Port)
+            New-NetFirewallRule -DisplayName $rule.Name -Direction Inbound -Protocol $rule.Protocol -LocalPort $rule.Port -Action Allow -Profile Any | Out-Null
+            Write-Log ("Regra de firewall criada: {0} {1} (qualquer perfil)" -f $rule.Protocol, $rule.Port)
+        } else {
+            Set-NetFirewallRule -DisplayName $rule.Name -Profile Any -Action Allow -Enabled True | Out-Null
         }
     }
     try {
         $connectionProfile = Get-NetConnectionProfile -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($connectionProfile -and $connectionProfile.NetworkCategory -eq "Public") {
-            Write-Warn "A rede atual e Public; a regra cobre Private/Domain. Mude para Private se a conexao LAN falhar."
+            Write-Log "Rede Public detectada; a regra agora cobre Public, Private e Domain."
         }
     } catch { }
     Set-InstallStep "firewall" $true

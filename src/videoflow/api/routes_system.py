@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import shutil
 import subprocess
 import zipfile
@@ -319,6 +320,24 @@ def register_system_routes(app: FastAPI) -> None:
             filename="videoflow-backup.zip",
         )
 
+    @app.post("/api/v1/system/choose-folder")
+    def system_choose_folder(payload: dict[str, object] | None = None) -> dict[str, object]:
+        initial = str((payload or {}).get("initial") or "").strip()
+        try:
+            selected = _choose_folder(initial)
+        except Exception as exc:  # noqa: BLE001 - report picker failures cleanly
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "ok": False,
+                    "code": "folder_picker_unavailable",
+                    "message": str(exc),
+                },
+            ) from exc
+        if not selected:
+            return {"ok": False, "cancelled": True}
+        return {"ok": True, "path": selected}
+
     @app.get("/api/v1/system")
     def system() -> dict[str, object]:
         return {
@@ -331,3 +350,38 @@ def register_system_routes(app: FastAPI) -> None:
             "settings_error": settings_error(),
             "database_error": database_error(),
         }
+
+
+def _choose_folder(initial: str = "") -> str:
+    """Open a native folder picker in the desktop session."""
+
+    if os.name != "nt":
+        if shutil.which("zenity"):
+            argv = ["zenity", "--file-selection", "--directory"]
+            if initial:
+                argv.extend(["--filename", initial])
+            completed = subprocess.run(
+                argv, capture_output=True, text=True, check=False, timeout=300
+            )
+            if completed.returncode == 0:
+                return completed.stdout.strip()
+            return ""
+        if shutil.which("kdialog"):
+            argv = ["kdialog", "--getexistingdirectory", initial or str(Path.home())]
+            completed = subprocess.run(
+                argv, capture_output=True, text=True, check=False, timeout=300
+            )
+            return completed.stdout.strip() if completed.returncode == 0 else ""
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except Exception as exc:  # noqa: BLE001 - optional desktop dependency
+        raise RuntimeError(
+            "No folder picker is available; type the path manually."
+        ) from exc
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    selected = filedialog.askdirectory(initialdir=initial or str(Path.home()))
+    root.destroy()
+    return str(selected or "")

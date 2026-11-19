@@ -84,6 +84,9 @@ def compute_status(
         "models": list(health.models_loaded),
         "queue_depth": health.queue_depth,
         "message": health.message,
+        "auth_mode": getattr(health, "auth_mode", ""),
+        "nvenc": getattr(health, "nvenc", False),
+        "encoder": getattr(health, "encoder", ""),
         "fallback_local": resolved.fallback_local,
         "allowed_capabilities": (
             sorted(getattr(resolved, "allowed_capabilities", None))

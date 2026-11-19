@@ -370,6 +370,9 @@ def test_short_render_remote_success_records_placement(
         def decide(self, capability: str):
             return SimpleNamespace(is_remote=True, reason="", execution_node="remote_gpu")
 
+        def health(self):
+            return SimpleNamespace(nvenc=True, available=True)
+
         def submit(self, capability, payload, *, timeout):
             submitted["capability"] = capability
             submitted["payload"] = payload

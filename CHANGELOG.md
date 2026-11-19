@@ -1,5 +1,38 @@
 # Changelog
 
+## [3.8.0] - 2026-11-19
+
+### Added
+
+- Zero-config Windows GPU worker: LAN-open mode for private networks, automatic
+  LAN discovery and reconnect, and firewall rules covering Public, Private, and
+  Domain profiles.
+- Worker health exposes `auth_mode`, `nvenc`, and the preferred encoder; the
+  client selects NVENC only when the worker reports it, otherwise it uses
+  libx264 on the worker.
+- Clear NVENC diagnostics with the FFmpeg error tail; remote rendering remains
+  available without NVENC.
+- Setup → Workspace: native folder picker, allowed-root registration, style and
+  workflow sync, and one-click OpenCode MCP installation.
+- Setup → Styles, Formats, and Help panels for editing the Markdown catalog,
+  reviewing aspect ratios and safe zones, and reading MCP workflow prompts and
+  troubleshooting.
+- Restored style, workflow, and preset API routes used by those panels.
+
+### Changed
+
+- Advanced worker host/token pairing is hidden under “Advanced pairing”;
+  discovery and connection are automatic on the normal path.
+- Windows kit defaults `VF_GPU_DISCOVERY=1` and `VF_GPU_ALLOW_LAN_OPEN=1`.
+- `short.render` negotiates the worker encoder from health instead of assuming
+  NVENC.
+
+### Security
+
+- LAN-open accepts only loopback or RFC1918 private clients. Public clients
+  still require the token.
+- Token-only mode remains available by setting `VF_GPU_ALLOW_LAN_OPEN=0`.
+
 ## [3.7.0] - 2026-11-19
 
 ### Added

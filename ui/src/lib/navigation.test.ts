@@ -19,7 +19,7 @@ describe("navigation areas", () => {
   it("keeps the MCP control order", () => {
     expect(AREAS.map((area) => area.id)).toEqual(["runs", "setup"]);
     expect(areaTabs("runs")).toEqual(["overview", "jobs"]);
-    expect(defaultTabForArea("setup")).toBe("models");
+    expect(defaultTabForArea("setup")).toBe("workspace");
   });
 
   it("maps tabs to areas", () => {

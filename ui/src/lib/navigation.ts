@@ -10,6 +10,10 @@ export type TabId =
   | "services"
   | "extensions"
   | "connect"
+  | "workspace"
+  | "styles"
+  | "formats"
+  | "help"
   | "gpu"
   | "settings";
 
@@ -28,7 +32,7 @@ export const AREAS: AreaMeta[] = [
   { id: "runs", tabs: ["overview", "jobs"] },
   {
     id: "setup",
-    tabs: ["models", "providers", "services", "extensions", "connect", "gpu", "settings"]
+    tabs: ["workspace", "connect", "models", "providers", "services", "extensions", "styles", "formats", "help", "gpu", "settings"]
   }
 ];
 
@@ -40,6 +44,10 @@ export const TABS: TabMeta[] = [
   { id: "services", area: "setup", legacy: [] },
   { id: "extensions", area: "setup", legacy: ["plugins"] },
   { id: "connect", area: "setup", legacy: ["integrations"] },
+  { id: "workspace", area: "setup", legacy: [] },
+  { id: "styles", area: "setup", legacy: ["presets"] },
+  { id: "formats", area: "setup", legacy: [] },
+  { id: "help", area: "setup", legacy: ["instructions"] },
   { id: "gpu", area: "setup", legacy: ["gpu-offload", "acceleration"] },
   { id: "settings", area: "setup", legacy: [] }
 ];
@@ -116,6 +124,10 @@ export const TAB_ICONS: Record<TabId, IconName> = {
   services: "server",
   extensions: "puzzle",
   connect: "link",
+  workspace: "folder",
+  styles: "sparkles",
+  formats: "grid",
+  help: "info",
   gpu: "gpu",
   settings: "settings"
 };

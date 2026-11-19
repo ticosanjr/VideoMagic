@@ -92,6 +92,7 @@ class Settings:
     """
 
     token: str | None = None
+    allow_lan_open: bool = False
     host: str = DEFAULT_HOST
     port: int = DEFAULT_PORT
     worker_id: str = ""
@@ -126,6 +127,7 @@ class Settings:
         work_dir = _env_path(values, "VF_GPU_WORK_DIR") or default_work_dir()
         return cls(
             token=_env(values, "VF_GPU_TOKEN"),
+            allow_lan_open=_env_bool(values, "VF_GPU_ALLOW_LAN_OPEN", False),
             host=_env(values, "VF_GPU_HOST") or DEFAULT_HOST,
             port=_env_int(values, "VF_GPU_PORT", DEFAULT_PORT, minimum=1, maximum=65535),
             worker_id=_env(values, "VF_GPU_WORKER_ID") or "",
@@ -143,7 +145,7 @@ class Settings:
             vram_reserve_mb=_env_int(
                 values, "VF_GPU_VRAM_RESERVE_MB", DEFAULT_VRAM_RESERVE_MB, minimum=0
             ),
-            discovery=_env_bool(values, "VF_GPU_DISCOVERY", False),
+            discovery=_env_bool(values, "VF_GPU_DISCOVERY", True),
             advertise_port=_env_int(
                 values,
                 "VF_GPU_ADVERTISE_PORT",

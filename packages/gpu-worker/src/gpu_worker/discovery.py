@@ -45,6 +45,9 @@ class DiscoveryBeacon:
         status = "idle"
         capabilities: list[str] = []
         queue_depth = 0
+        auth_mode = "token"
+        nvenc = False
+        encoder = "libx264"
         if callable(self.health):
             try:
                 health = self.health() or {}
@@ -53,6 +56,9 @@ class DiscoveryBeacon:
             status = str(health.get("status") or status)
             capabilities = [str(item) for item in health.get("capabilities") or []]
             queue_depth = int(health.get("queue_depth") or 0)
+            auth_mode = str(health.get("auth_mode") or auth_mode)
+            nvenc = bool(health.get("nvenc"))
+            encoder = str(health.get("encoder") or encoder)
         return {
             "worker_id": self.worker_id,
             "hostname": socket.gethostname(),
@@ -64,6 +70,9 @@ class DiscoveryBeacon:
             "status": status,
             "queue_depth": queue_depth,
             "capabilities": capabilities,
+            "auth_mode": auth_mode,
+            "nvenc": nvenc,
+            "encoder": encoder,
             "version": __version__,
         }
 

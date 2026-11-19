@@ -123,17 +123,38 @@ def register_gpu_routes(app: FastAPI) -> None:
         settings = _current()
         url = _validate_worker_url(payload.worker_url)
         token = payload.token.strip()
+        stored = token or get_secret(settings.gpu.worker_token_secret)
         if token:
             set_secret(settings.gpu.worker_token_secret, token)
-        elif not get_secret(settings.gpu.worker_token_secret):
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "ok": False,
-                    "code": "token_required",
-                    "message": "A worker token is required the first time.",
-                },
-            )
+        elif not stored:
+            from vf_compute.client import GPUWorkerClient
+
+            try:
+                probe = GPUWorkerClient(url, "").health(timeout=3.0)
+            except Exception as exc:  # noqa: BLE001 - report a typed connect error
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "ok": False,
+                        "code": "token_required",
+                        "message": (
+                            "No token was supplied and the worker did not confirm "
+                            f"LAN-open mode: {exc}"
+                        ),
+                    },
+                ) from exc
+            if not probe.available or probe.auth_mode != "lan_open":
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "ok": False,
+                        "code": "token_required",
+                        "message": (
+                            "The worker requires a token. Enable LAN-open mode in "
+                            "the Windows kit or paste the token under Advanced."
+                        ),
+                    },
+                )
         gpu = settings.gpu.model_copy(
             update={
                 "worker_url": url,
@@ -146,7 +167,7 @@ def register_gpu_routes(app: FastAPI) -> None:
         save_gpu_config(
             mode=gpu.mode,
             worker_url=url,
-            token=token or get_secret(gpu.worker_token_secret),
+            token=stored or "",
             worker_id=gpu.worker_id,
             transport=gpu.transport,
         )

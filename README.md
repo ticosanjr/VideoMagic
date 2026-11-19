@@ -6,7 +6,7 @@ removes silence and retakes, adds J-cuts and punch-ins, proposes vertical
 Shorts, masters the dialogue bed, and exports timelines for DaVinci Resolve,
 Adobe Premiere Pro, and Kdenlive.
 
-> Status: 3.7.0 local stable. **34 MCP tools**, 22 styles, stateful step
+> Status: 3.8.0 local stable. **34 MCP tools**, 22 styles, stateful step
 > chains, multi-NLE delivery, and opt-in Windows GPU offload with a
 > self-healing worker kit. GPU speed certification awaits Windows/NVIDIA
 > hardware. The local Linux binary and AppImage run ingest, Silero VAD with an

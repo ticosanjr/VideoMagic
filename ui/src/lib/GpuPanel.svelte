@@ -43,6 +43,7 @@
   let manualUrl = $state("");
   let manualToken = $state("");
   let manualWorkerId = $state("");
+  let autoConnecting = $state(false);
   let discovered = $state<GpuDiscoveredWorker[]>([]);
   let benchmark = $state<GpuBenchmark | null>(null);
   let busy = $state("");
@@ -211,8 +212,29 @@
     await patch({ capabilities: { [key]: value } }, "capability");
   }
 
+  async function autoConnect() {
+    if (!discoveryEnabled || (status?.worker_url && status?.available) || autoConnecting) return;
+    autoConnecting = true;
+    try {
+      const payload = await discoverGpuWorkers();
+      discovered = payload.workers;
+      const peer =
+        payload.workers.find((item) => item.auth_mode === "lan_open") ??
+        payload.workers[0];
+      if (!peer) return;
+      await connect(peer.url, peer.worker_id);
+      if (!status?.available) {
+        notice = "Worker found. If it asks for a token, use Advanced once.";
+      }
+    } catch {
+      // Discovery is best-effort; manual pairing remains available.
+    } finally {
+      autoConnecting = false;
+    }
+  }
+
   onMount(() => {
-    void refresh();
+    void refresh().then(() => autoConnect());
   });
 </script>
 
@@ -233,7 +255,7 @@
         ></span>
         <span class="text-[length:var(--vf-text-xs)] text-neutral-300" data-testid="gpu-status-line">
           {status?.available
-            ? `${status.gpu_name || "GPU"} · ${formatGb(status.vram_free_mb)} / ${formatGb(status.vram_total_mb)} GB`
+            ? `${status.gpu_name || "GPU"} · ${formatGb(status.vram_free_mb)} / ${formatGb(status.vram_total_mb)} GB · ${status.encoder || "encoder?"}`
             : loading
               ? "Checking worker…"
               : status?.mode === "local_only"
@@ -254,7 +276,11 @@
   <div class="grid gap-4 xl:grid-cols-2">
     <article class="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4" data-testid="gpu-pairing-card">
       <h3 class="text-[length:var(--vf-text-sm)] font-semibold text-neutral-100">Pairing</h3>
-      <p class="mt-1 text-[length:var(--vf-text-xs)] text-neutral-500">Scan the LAN or enter the Windows address and token manually.</p>
+      <p class="mt-1 text-[length:var(--vf-text-xs)] text-neutral-500">
+        {autoConnecting
+          ? "Looking for a Windows worker on the LAN…"
+          : "Auto-discovery is on. Open the Windows worker and it connects automatically."}
+      </p>
       <div class="mt-3 flex flex-wrap gap-2">
         <button type="button" data-testid="gpu-discover" disabled={busy !== ""} onclick={() => void discover()} class="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[length:var(--vf-text-xs)] text-neutral-200 disabled:opacity-40">
           {busy === "discover" ? "Scanning…" : "Scan LAN"}
@@ -275,7 +301,9 @@
           {/each}
         </ul>
       {/if}
-      <div class="mt-4 grid gap-2">
+      <details class="mt-4 rounded-lg border border-white/5 p-3">
+        <summary class="cursor-pointer text-[11px] uppercase tracking-wide text-neutral-500">Advanced pairing</summary>
+        <div class="mt-3 grid gap-2">
         <label class="text-[11px] text-neutral-500" for="gpu-worker-url">Worker URL</label>
         <input id="gpu-worker-url" data-testid="gpu-manual-url" bind:value={manualUrl} placeholder="http://192.168.1.45:8766" class="rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 font-mono text-[length:var(--vf-text-xs)] text-neutral-100" />
         <label class="text-[11px] text-neutral-500" for="gpu-worker-token">Pairing token</label>
@@ -286,7 +314,8 @@
           <button type="button" data-testid="gpu-connect" disabled={busy !== ""} onclick={() => void connect()} class="rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-emerald-100 disabled:opacity-40">Connect</button>
           <button type="button" data-testid="gpu-disconnect" disabled={busy !== "" || !workerUrl} onclick={() => void disconnect()} class="rounded-lg border border-white/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-neutral-300 disabled:opacity-40">Disconnect</button>
         </div>
-      </div>
+        </div>
+      </details>
     </article>
 
     <article class="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4" data-testid="gpu-capabilities-card">

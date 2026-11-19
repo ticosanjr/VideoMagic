@@ -2,14 +2,18 @@
   import { onMount, tick } from "svelte";
   import CapabilitiesPanel from "$lib/CapabilitiesPanel.svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
+  import FormatsPanel from "$lib/FormatsPanel.svelte";
   import GpuPanel from "$lib/GpuPanel.svelte";
   import GpuStatusPill from "$lib/GpuStatusPill.svelte";
+  import HelpPanel from "$lib/HelpPanel.svelte";
   import HitlInbox from "$lib/HitlInbox.svelte";
   import IntegrationsPanel from "$lib/IntegrationsPanel.svelte";
   import JobsPanel from "$lib/JobsPanel.svelte";
   import ModelsPanel from "$lib/ModelsPanel.svelte";
   import PluginsPanel from "$lib/PluginsPanel.svelte";
   import ServicesPanel from "$lib/ServicesPanel.svelte";
+  import StylesPanel from "$lib/StylesPanel.svelte";
+  import WorkspacePanel from "$lib/WorkspacePanel.svelte";
   import SettingsPanel from "$lib/SettingsPanel.svelte";
   import SetupHealth from "$lib/SetupHealth.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -53,6 +57,10 @@
     services: "Inspect, stop, and restart local VideoFlow processes",
     extensions: "Local plugin packages and sandbox status",
     connect: "MCP and REST setup for OpenCode, Paperclip, and DeepSeek",
+    workspace: "Choose the workspace folder and install the MCP automatically",
+    styles: "Edit the Markdown style catalog used by presets and agents",
+    formats: "Aspect ratios, caption presets, and Shorts safe zones",
+    help: "MCP workflow, example prompts, resources, and worker troubleshooting",
     gpu: "Pair a Windows GPU worker and validate its capabilities",
     settings: "Local runtime, paths, models, speech, TTS, and quality"
   };
@@ -424,8 +432,16 @@
           />
         {:else if activeTab === "extensions"}
           <PluginsPanel />
+        {:else if activeTab === "workspace"}
+          <WorkspacePanel />
         {:else if activeTab === "connect"}
           <IntegrationsPanel />
+        {:else if activeTab === "styles"}
+          <StylesPanel />
+        {:else if activeTab === "formats"}
+          <FormatsPanel />
+        {:else if activeTab === "help"}
+          <HelpPanel />
         {:else if activeTab === "gpu"}
           <GpuPanel />
         {:else if activeTab === "settings"}

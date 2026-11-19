@@ -336,22 +336,29 @@ class ShortRenderStep(BaseStep):
                             "Remote Short render requested but unavailable: "
                             f"{decision.reason}"
                         )
-                    commands = make_commands(
-                        "nvenc" if options.encoder in {"auto", "nvenc"} else "libx264"
+                    worker_nvenc = bool(getattr(router.health(), "nvenc", False))
+                    encoder_name = (
+                        "nvenc"
+                        if options.encoder == "nvenc"
+                        or (options.encoder == "auto" and worker_nvenc)
+                        else "libx264"
                     )
+                    commands = make_commands(encoder_name)
                     last_commands.append(commands)
                     final = self._remote_render(
                         router, commands, output, options.timeout_sec
                     )
                     placement = decision.execution_node
-                    context.metadata["short_render_encoder"] = (
-                        "nvenc" if options.encoder in {"auto", "nvenc"} else "libx264"
-                    )
+                    context.metadata["short_render_encoder"] = encoder_name
                 else:
+                    worker_health = router.health()
+                    worker_nvenc = bool(getattr(worker_health, "nvenc", False))
+
                     def remote_run() -> Path:
                         encoder_name = (
                             "nvenc"
-                            if options.encoder in {"auto", "nvenc"}
+                            if options.encoder == "nvenc"
+                            or (options.encoder == "auto" and worker_nvenc)
                             else "libx264"
                         )
                         commands = make_commands(encoder_name)

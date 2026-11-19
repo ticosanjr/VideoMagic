@@ -26,6 +26,13 @@ The server stays on loopback. The stdio process inherits the path allowlist and
 does not start a second API. Packaged builds also expose the domain servers as
 `videoflow mcp-fetch`, `videoflow mcp-audio`, and `videoflow mcp-vision`.
 
+## Workspace and automatic MCP install
+
+Setup → Workspace chooses a folder, registers it as an allowed root, copies
+styles and workflows, and merges the VideoFlow MCP server into the OpenCode
+config with a backup. Setup → Styles, Formats, and Help expose the style
+catalog, aspect ratios/safe zones, and MCP workflow instructions.
+
 ## Projects
 
 Every project-scoped tool requires an explicit `project_id`. There is no

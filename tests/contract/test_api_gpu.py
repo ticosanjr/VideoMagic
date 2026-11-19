@@ -35,6 +35,9 @@ class FakeRouter:
             vram_free_mb=4096,
             vram_total_mb=12288,
             capabilities=["asr"],
+            auth_mode="lan_open",
+            nvenc=True,
+            encoder="nvenc",
         )
 
 
@@ -179,3 +182,31 @@ def test_gpu_shared_validate_requires_a_path(monkeypatch) -> None:
     missing = client.post("/api/v1/gpu/shared/validate", json={"path": ""})
     assert missing.status_code == 200
     assert missing.json()["result"]["path"] == "videoflow-probe.txt"
+
+
+def test_gpu_connect_accepts_lan_open_worker_without_token(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(routes_gpu, "router_from_settings", lambda settings: FakeRouter())
+
+    class LanOpenClient:
+        def __init__(self, url, token):
+            self.url = url
+            self.token = token
+
+        def health(self, timeout=None):
+            return SimpleNamespace(
+                available=True,
+                auth_mode="lan_open",
+                nvenc=False,
+                encoder="libx264",
+            )
+
+    monkeypatch.setattr("vf_compute.client.GPUWorkerClient", LanOpenClient)
+    client = TestClient(_app())
+    response = client.post(
+        "/api/v1/gpu/connect",
+        json={"worker_url": "http://192.168.1.45:8766"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["status"]["auth_mode"] == "lan_open"

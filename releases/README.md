@@ -5,11 +5,12 @@ the manifest, checksums, and notes are tracked. GitHub Actions is not used.
 
 ## Current
 
+- `v3.8.0`: zero-config LAN worker, automatic discovery/reconnect, LAN-open
+  private networking, NVENC negotiation, workspace folder picker, automatic
+  OpenCode MCP install, and restored Styles/Formats/Help panels.
 - `v3.7.0`: decupage acoustic phase, Scene Intelligence, Dynamic Shorts
-  compositor, `vf_scenes`, 34 MCP tools, FCPXML V1/V2/A1/A2, and phase 7
-  benchmark evidence.
+  compositor, `vf_scenes`, 34 MCP tools, FCPXML V1/V2/A1/A2.
 - `v3.6.0`: distribution and GPU-worker hardening.
-- `v3.5.0`: MCP-first surface and stateful step chains.
 
 Older folders are pruned by the three-release rule.
 

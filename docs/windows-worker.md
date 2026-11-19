@@ -162,3 +162,26 @@ runs `VideoFlowGPU.ps1 -Action Start -Silent`. Remove it from the menu or with:
 ```powershell
 Unregister-ScheduledTask -TaskName "VideoFlow GPU Worker" -Confirm:$false
 ```
+
+## Zero-config discovery and pairing (3.8+)
+
+The Windows kit enables:
+
+```text
+VF_GPU_DISCOVERY=1
+VF_GPU_ALLOW_LAN_OPEN=1
+```
+
+With LAN-open enabled, clients on loopback or private RFC1918 addresses can
+connect without a token. Public addresses still require `VF_GPU_TOKEN` and the
+`X-VF-Token` header. Set `VF_GPU_ALLOW_LAN_OPEN=0` to return to token-only
+behaviour.
+
+The installer creates inbound firewall rules for TCP 8766 and UDP 8767 on
+**all profiles**, including Public. The worker advertises `auth_mode`, `nvenc`,
+and `encoder` in `/health` and in the UDP beacon. The VideoFlow UI discovers and
+reconnects automatically; host and token fields remain under Advanced pairing.
+
+If NVENC fails, the installer logs the FFmpeg error tail and keeps the worker
+available with `libx264`. Remote rendering still works and the UI reports the
+selected encoder.

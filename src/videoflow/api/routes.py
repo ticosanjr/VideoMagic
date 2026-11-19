@@ -12,8 +12,11 @@ from videoflow.api.routes_hilt import register_hilt_routes
 from videoflow.api.routes_intelligence import register_intelligence_routes
 from videoflow.api.routes_jobs import register_job_routes
 from videoflow.api.routes_outputs import register_output_routes
+from videoflow.api.routes_presets import register_preset_routes
 from videoflow.api.routes_providers import register_provider_routes
+from videoflow.api.routes_styles import register_style_routes
 from videoflow.api.routes_system import register_system_routes
+from videoflow.api.routes_workflows import register_workflow_routes
 from videoflow.application.jobs import JobManager
 
 
@@ -23,6 +26,9 @@ def register_routes(app: FastAPI, jobs: JobManager) -> None:
     register_discovery_routes(app)
     register_gpu_routes(app)
     register_gpu_worker_routes(app)
+    register_preset_routes(app)
+    register_style_routes(app)
+    register_workflow_routes(app)
     register_system_routes(app)
     register_admin_routes(app)
     register_provider_routes(app)

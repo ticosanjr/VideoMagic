@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import os
 import re
 import secrets
@@ -45,6 +46,14 @@ from gpu_worker.worker import JobRunner
 MAX_JOB_INPUTS = 64
 JOB_RETENTION_SEC = 7 * 24 * 3600
 PUBLIC_PATHS = frozenset({"/health"})
+
+
+def _is_private_client(host: str | None) -> bool:
+    try:
+        address = ipaddress.ip_address(str(host or ""))
+    except ValueError:
+        return False
+    return bool(address.is_private or address.is_loopback)
 
 
 def _local_ip() -> str:
@@ -217,20 +226,28 @@ def create_app(
         if request.url.path in PUBLIC_PATHS or request.url.path == "/health/":
             return await call_next(request)
         configured = app.state.settings.token
+        supplied = request.headers.get("x-vf-token", "")
+        valid = bool(
+            configured
+            and supplied
+            and secrets.compare_digest(
+                supplied.encode("utf-8"), configured.encode("utf-8")
+            )
+        )
+        lan_open = bool(
+            app.state.settings.allow_lan_open
+            and _is_private_client(request.client.host if request.client else "")
+        )
+        if valid or lan_open:
+            return await call_next(request)
         if not configured:
             return JSONResponse(
                 status_code=503,
                 content={"detail": "VF_GPU_TOKEN is not configured on the worker"},
             )
-        supplied = request.headers.get("x-vf-token", "")
-        valid = supplied and secrets.compare_digest(
-            supplied.encode("utf-8"), configured.encode("utf-8")
+        return JSONResponse(
+            status_code=401, content={"detail": "missing or invalid X-VF-Token"}
         )
-        if not valid:
-            return JSONResponse(
-                status_code=401, content={"detail": "missing or invalid X-VF-Token"}
-            )
-        return await call_next(request)
 
     def require_job(job_id: str) -> JobRecord:
         if not is_job_id(job_id):
@@ -265,6 +282,17 @@ def create_app(
             "temperature_c": gpu.temperature_c,
             "capabilities": handlers.available(),
             "unavailable_capabilities": handlers.unavailable(),
+            "auth_mode": (
+                "lan_open"
+                if config.allow_lan_open
+                else ("token" if config.token else "none")
+            ),
+            "nvenc": nvenc_available(config.ffmpeg_cmd or "ffmpeg"),
+            "encoder": (
+                "nvenc"
+                if nvenc_available(config.ffmpeg_cmd or "ffmpeg")
+                else "libx264"
+            ),
             "models": [model["name"] for model in model_details],
             "model_details": model_details,
             "queue_depth": store.queue_depth(),

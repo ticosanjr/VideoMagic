@@ -67,6 +67,9 @@ class WorkerHealth(BaseModel):
     version: str = ""
     platform: str = ""
     shared_root: str = ""
+    auth_mode: str = ""
+    nvenc: bool = False
+    encoder: str = ""
 
     @model_validator(mode="before")
     @classmethod
@@ -123,6 +126,9 @@ class WorkerHealth(BaseModel):
             version=str(data.get("version") or ""),
             platform=str(data.get("platform") or ""),
             shared_root=str(data.get("shared_root") or ""),
+            auth_mode=str(data.get("auth_mode") or ""),
+            nvenc=bool(data.get("nvenc", False)),
+            encoder=str(data.get("encoder") or ""),
             vram_used_mb=_as_int(data.get("vram_used_mb", data.get("vram_used"))),
             gpu_utilization=_as_float(
                 data.get("gpu_utilization", data.get("gpu_util"))
