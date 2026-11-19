@@ -11,6 +11,7 @@ import os
 from collections.abc import Sequence
 from urllib.parse import urlparse
 
+from videoflow.application.compute import compute_status
 from videoflow.domain.errors import CapabilityUnavailableError
 
 _LOCAL_HOSTS = {
@@ -635,7 +636,30 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "videoflow_dub_short",
             requires=["external LLM", "external TTS"],
         ),
+        _compute_entry(),
     ]
+
+
+def _compute_entry() -> dict[str, object]:
+    status = compute_status()
+    available = bool(status.get("available"))
+    entry = _entry(
+        "compute_router",
+        "Hybrid GPU router",
+        "infrastructure",
+        "available",
+        "Local execution with optional remote GPU worker for ASR, NVENC, "
+        "matte, face tracking, stems, upscale, TTS, and ComfyUI.",
+        "GET /api/v1/capabilities",
+        "vf_capabilities",
+    )
+    entry["compute"] = status
+    entry["status"] = "available" if status.get("ok") else "partial"
+    entry["remote_available"] = available
+    entry["execution_node"] = status.get("execution_node", "local")
+    if not status.get("ok"):
+        entry["reason"] = str(status.get("message") or "compute router unavailable")
+    return entry
 
 
 def _entry(

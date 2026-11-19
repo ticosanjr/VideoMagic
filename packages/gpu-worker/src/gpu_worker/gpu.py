@@ -12,6 +12,9 @@ class GpuInfo:
     name: str
     vram_free_mb: int
     vram_total_mb: int
+    vram_used_mb: int = 0
+    gpu_utilization: float = 0.0
+    temperature_c: float = 0.0
 
 
 CPU_ONLY = GpuInfo(available=False, name="cpu", vram_free_mb=0, vram_total_mb=0)
@@ -24,7 +27,7 @@ def detect_gpu() -> GpuInfo:
         completed = subprocess.run(
             [
                 "nvidia-smi",
-                "--query-gpu=name,memory.free,memory.total",
+                "--query-gpu=name,memory.free,memory.total,memory.used,utilization.gpu,temperature.gpu",
                 "--format=csv,noheader,nounits",
             ],
             capture_output=True,
@@ -48,9 +51,30 @@ def detect_gpu() -> GpuInfo:
         total = int(float(parts[2]))
     except ValueError:
         free = total = 0
+    used = 0
+    utilization = 0.0
+    temperature = 0.0
+    if len(parts) > 3:
+        try:
+            used = int(float(parts[3]))
+        except ValueError:
+            used = 0
+    if len(parts) > 4:
+        try:
+            utilization = float(parts[4])
+        except ValueError:
+            utilization = 0.0
+    if len(parts) > 5:
+        try:
+            temperature = float(parts[5])
+        except ValueError:
+            temperature = 0.0
     return GpuInfo(
         available=True,
         name=parts[0] or "unknown",
         vram_free_mb=max(free, 0),
         vram_total_mb=max(total, 0),
+        vram_used_mb=max(used, 0),
+        gpu_utilization=max(utilization, 0.0),
+        temperature_c=max(temperature, 0.0),
     )

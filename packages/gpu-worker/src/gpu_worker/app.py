@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import secrets
 import shutil
+import socket
 import threading
 import uuid
 from collections.abc import AsyncIterator
@@ -35,6 +37,15 @@ from gpu_worker.worker import JobRunner
 MAX_JOB_INPUTS = 64
 JOB_RETENTION_SEC = 7 * 24 * 3600
 PUBLIC_PATHS = frozenset({"/health"})
+
+
+def _local_ip() -> str:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.connect(("8.8.8.8", 80))
+            return str(probe.getsockname()[0])
+    except OSError:
+        return "127.0.0.1"
 
 
 class JobSubmission(BaseModel):
@@ -152,14 +163,24 @@ def create_app(
     def health() -> dict[str, Any]:
         gpu = detect_gpu()
         model_details = models.snapshot()
+        hostname = socket.gethostname()
         return {
             "status": "ok",
             "version": __version__,
             "available": True,
+            "worker_id": config.worker_id or hostname,
+            "hostname": hostname,
+            "ip_local": _local_ip(),
+            "port": config.port,
+            "platform": "windows" if os.name == "nt" else "linux",
+            "shared_root": str(shared_root) if shared_root is not None else "",
             "gpu_available": gpu.available,
             "gpu_name": gpu.name,
             "vram_free_mb": gpu.vram_free_mb,
             "vram_total_mb": gpu.vram_total_mb,
+            "vram_used_mb": gpu.vram_used_mb,
+            "gpu_utilization": gpu.gpu_utilization,
+            "temperature_c": gpu.temperature_c,
             "capabilities": handlers.available(),
             "unavailable_capabilities": handlers.unavailable(),
             "models": [model["name"] for model in model_details],

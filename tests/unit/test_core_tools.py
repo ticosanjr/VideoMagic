@@ -124,7 +124,10 @@ def setup(tmp_path: Path, monkeypatch):
 def test_core_project_catalog_exec_job(tmp_path: Path, monkeypatch) -> None:
     tools, record, job = setup(tmp_path, monkeypatch)
     assert tools["vf_project"](action="status", project_id=record.project_id)["ok"] is True
-    assert tools["vf_capabilities"]()["ok"] is True
+    capabilities = tools["vf_capabilities"]()
+    assert capabilities["ok"] is True
+    assert "compute" in capabilities
+    assert capabilities["compute"]["execution_node"] == "local"
     catalog = tools["vf_catalog_search"](query="session")
     assert any(step["type"] == "session.ingest" for step in catalog["steps"])
     assert "recipes" not in catalog

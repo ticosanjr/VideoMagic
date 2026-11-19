@@ -3,19 +3,23 @@
 from __future__ import annotations
 
 import os
+import tempfile
 import time
+from pathlib import Path
+from typing import Any
 
+from vf_compute.capabilities import vram_cost
 from vf_compute.client import GPUWorkerClient
 from vf_compute.models import WorkerDecision, WorkerHealth
 
 COMPUTE_MODES = ("auto", "local_only", "remote_preferred")
 
 _DEFAULT_MODE = "auto"
-_DEFAULT_HEALTH_TTL = 5.0
+_DEFAULT_HEALTH_TTL = 1.0
 _DEFAULT_HEALTH_TIMEOUT = 0.3
 _DEFAULT_MIN_VRAM_MB = 2048
 _DEFAULT_MAX_QUEUE = 2
-_DEFAULT_CIRCUIT_SEC = 30.0
+_DEFAULT_CIRCUIT_SEC = 2.0
 
 
 def _env_str(name: str, default: str = "") -> str:
@@ -44,7 +48,12 @@ def _env_int(name: str, default: int) -> int:
 
 
 def _local(reason: str, capability: str) -> WorkerDecision:
-    return WorkerDecision(mode="local", reason=reason, capability=capability)
+    return WorkerDecision(
+        mode="local",
+        reason=reason,
+        capability=capability,
+        execution_node="local",
+    )
 
 
 class ComputeRouter:
@@ -82,6 +91,7 @@ class ComputeRouter:
         self.circuit_sec = max(float(circuit_sec), 0.0)
         self._client = client
         self._health: WorkerHealth | None = None
+        self._worker_id = ""
         self._health_at = 0.0
         self._circuit_until = 0.0
 
@@ -118,6 +128,34 @@ class ComputeRouter:
         self._health_at = 0.0
         self._circuit_until = 0.0
 
+    def set_worker(self, url: str, token: str = "", *, worker_id: str = "") -> None:
+        """Point the router at a worker without rebuilding the process."""
+
+        self.worker_url = str(url or "").strip().rstrip("/")
+        self.token = str(token or "")
+        self._worker_id = str(worker_id or "")
+        if self._client is not None:
+            self._client.close()
+        self._client = None
+        self.invalidate()
+
+    def disconnect(self) -> None:
+        """Drop the current worker and fall back to local execution."""
+
+        self.set_worker("", "")
+
+    @property
+    def execution_node(self) -> str:
+        """Stable node label for the last healthy placement."""
+
+        if self.mode == "local_only":
+            return "local"
+        health = self._health
+        if health is None or not health.available:
+            return "local"
+        identifier = health.worker_id or health.hostname or self._worker_id
+        return f"remote_gpu:{identifier}" if identifier else "remote_gpu"
+
     def health(self, force: bool = False) -> WorkerHealth:
         """Return worker health using a TTL cache and circuit breaker.
 
@@ -137,7 +175,7 @@ class ComputeRouter:
                     return self._health
                 return WorkerHealth(available=False, message="worker circuit open")
 
-        if not self.worker_url:
+        if not self.worker_url and self._client is None:
             health = WorkerHealth(
                 available=False,
                 message="VF_GPU_WORKER_URL is not configured",
@@ -187,14 +225,111 @@ class ComputeRouter:
             return _local("local_only mode", capability)
 
         health = self.health()
-        reason = self._remote_block_reason(health, capability, required_vram_mb)
+        required = max(int(required_vram_mb or 0), vram_cost(capability), 0)
+        reason = self._remote_block_reason(health, capability, required)
         if reason is not None:
             return _local(reason, capability)
         return WorkerDecision(
             mode="remote",
             reason=f"remote worker selected for {capability or 'default'}",
             capability=capability,
+            execution_node=self.execution_node,
         )
+
+    def execute(
+        self,
+        capability: str,
+        remote_fn: Any,
+        local_fn: Any,
+        *,
+        required_vram_mb: int = 0,
+    ) -> dict[str, Any]:
+        """Run remotely when possible, falling back locally on any failure.
+
+        The return value keeps the caller's payload under ``value`` and records
+        the placement, fallback reason, and elapsed time for job telemetry.
+        """
+
+        decision = self.decide(capability, required_vram_mb)
+        if decision.is_remote:
+            started = time.perf_counter()
+            try:
+                value = remote_fn()
+            except Exception as exc:  # noqa: BLE001 - fallback is the contract
+                self.invalidate()
+                reason = f"remote failed: {exc}"
+            else:
+                return {
+                    "value": value,
+                    "execution_node": decision.execution_node,
+                    "fallback_reason": "",
+                    "remote": True,
+                    "elapsed_sec": round(time.perf_counter() - started, 4),
+                }
+        else:
+            reason = decision.reason
+        started = time.perf_counter()
+        value = local_fn()
+        return {
+            "value": value,
+            "execution_node": "local",
+            "fallback_reason": reason,
+            "remote": False,
+            "elapsed_sec": round(time.perf_counter() - started, 4),
+        }
+
+    def submit(
+        self,
+        capability: str,
+        payload: dict[str, Any] | None = None,
+        *,
+        timeout: float = 300.0,
+    ) -> dict[str, Any]:
+        """Submit a capability job, wait, and download its first artifact.
+
+        This is the small-job path. Large artifacts should use the shared
+        mount path added in the transport stage.
+        """
+
+        body = dict(payload or {})
+        decision = self.decide(capability, int(body.get("required_vram_mb") or 0))
+        if not decision.is_remote:
+            raise RuntimeError(decision.reason)
+        params = body.get("params")
+        if not isinstance(params, dict):
+            params = {
+                key: value
+                for key, value in body.items()
+                if key not in {"inputs", "shared_inputs", "timeout_sec"}
+            }
+        inputs = [str(item) for item in body.get("inputs", []) or []]
+        shared_inputs = [str(item) for item in body.get("shared_inputs", []) or []]
+        job_id = self.client.submit(
+            capability,
+            params=params,
+            inputs=inputs,
+            shared_inputs=shared_inputs,
+            shared_root=str(body.get("shared_root") or "") or None,
+        )
+        status = self.client.wait(
+            job_id,
+            timeout=float(body.get("timeout_sec") or timeout),
+        )
+        if not status.ok:
+            raise RuntimeError(
+                f"remote job {job_id} ended in {status.state}: {status.error or status.message}"
+            )
+        if not status.artifacts:
+            raise RuntimeError(f"remote job {job_id} returned no artifacts")
+        name = status.artifacts[0]
+        target = Path(tempfile.mkdtemp(prefix="vf-remote-")) / Path(name).name
+        self.client.download(job_id, name, target)
+        return {
+            "path": str(target),
+            "job_id": job_id,
+            "execution_node": decision.execution_node,
+            "artifacts": list(status.artifacts),
+        }
 
 
 __all__ = ["COMPUTE_MODES", "ComputeRouter"]

@@ -73,6 +73,13 @@ def _env_path(environ: Mapping[str, str], name: str) -> Path | None:
     return Path(raw).expanduser() if raw is not None else None
 
 
+def _env_bool(environ: Mapping[str, str], name: str, default: bool = False) -> bool:
+    raw = _env(environ, name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     """Immutable worker configuration.
@@ -84,6 +91,7 @@ class Settings:
     token: str | None = None
     host: str = DEFAULT_HOST
     port: int = DEFAULT_PORT
+    worker_id: str = ""
     work_dir: Path = field(default_factory=default_work_dir)
     max_upload_mb: int = DEFAULT_MAX_UPLOAD_MB
     max_queue: int = DEFAULT_MAX_QUEUE
@@ -97,6 +105,11 @@ class Settings:
     asr_cmd: str | None = None
     diarize_cmd: str | None = None
     comfyui_url: str | None = None
+    builtin_handlers: bool = False
+    ffmpeg_cmd: str | None = None
+    asr_model: str = "large-v3-turbo"
+    asr_device: str = "cuda"
+    asr_compute_type: str = "float16"
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
@@ -108,6 +121,7 @@ class Settings:
             token=_env(values, "VF_GPU_TOKEN"),
             host=_env(values, "VF_GPU_HOST") or DEFAULT_HOST,
             port=_env_int(values, "VF_GPU_PORT", DEFAULT_PORT, minimum=1, maximum=65535),
+            worker_id=_env(values, "VF_GPU_WORKER_ID") or "",
             work_dir=work_dir,
             max_upload_mb=_env_int(
                 values, "VF_GPU_MAX_UPLOAD_MB", DEFAULT_MAX_UPLOAD_MB, minimum=1
@@ -125,6 +139,11 @@ class Settings:
             asr_cmd=_env(values, "VF_GPU_ASR_CMD"),
             diarize_cmd=_env(values, "VF_GPU_DIARIZE_CMD"),
             comfyui_url=_env(values, "VF_GPU_COMFYUI_URL") or _env(values, "VF_COMFYUI_URL"),
+            builtin_handlers=_env_bool(values, "VF_GPU_BUILTIN_HANDLERS", False),
+            ffmpeg_cmd=_env(values, "VF_GPU_FFMPEG"),
+            asr_model=_env(values, "VF_GPU_ASR_MODEL") or "large-v3-turbo",
+            asr_device=_env(values, "VF_GPU_ASR_DEVICE") or "cuda",
+            asr_compute_type=_env(values, "VF_GPU_ASR_COMPUTE_TYPE") or "float16",
         )
 
     @property

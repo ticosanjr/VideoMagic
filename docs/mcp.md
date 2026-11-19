@@ -98,6 +98,13 @@ parallel. Writes to the same project are serialized by a project lock and
 | `vf_ingest` | Session ingest or multicam synchronization. |
 | `vf_qa` | Read QA artifacts or route new QA through `vf_exec`. |
 
+### Hybrid compute
+
+`vf_capabilities` reports a top-level `compute` object and a `compute_router`
+manifest entry with the active placement, worker identity, GPU/VRAM telemetry,
+and remote capabilities. `VF_COMPUTE_MODE=local_only` guarantees no network
+I/O. See [gpu-worker.md](gpu-worker.md).
+
 ### Stateful runs and the shared queue
 
 `vf_run` accepts an ordered, linear list of step types or a workflow id whose

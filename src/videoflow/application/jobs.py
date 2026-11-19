@@ -82,6 +82,7 @@ class Job:
     idempotency_key: str = ""
     project_id: str = ""
     timeline_ready: bool = False
+    execution: dict[str, Any] = field(default_factory=dict)
     deleted: bool = False
     cancel_event: threading.Event = field(
         default_factory=threading.Event, repr=False, compare=False
@@ -125,6 +126,7 @@ class Job:
             "idempotency_key": self.idempotency_key,
             "cancel_requested": self.cancel_requested,
             "timeline_ready": self.timeline_ready,
+            "execution": dict(self.execution),
             "log_count": self.telemetry.log_count(),
             "stages": self.telemetry.stages(),
             "interaction": (
@@ -368,6 +370,9 @@ class JobManager:
             if job is None:
                 job = self.get(str(job_id))
             job.result = dict(result)
+            execution = job.result.get("execution")
+            if isinstance(execution, dict):
+                job.execution = dict(execution)
             self._persist_job(job)
         return job
 
@@ -1234,6 +1239,9 @@ def _job_from_dict(payload: dict[str, Any]) -> Job:
     job.idempotency_key = str(payload.get("idempotency_key") or "")
     job.project_id = str(payload.get("project_id") or "")
     job.timeline_ready = bool(payload.get("timeline_ready", False))
+    job.execution = (
+        payload.get("execution") if isinstance(payload.get("execution"), dict) else {}
+    )
     job.pause_requested = bool(payload.get("pause_requested", False))
     job.priority = int(payload.get("priority", 0))
     job.attempts = int(payload.get("attempts", 0) or 0)

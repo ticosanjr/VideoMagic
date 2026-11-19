@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Hybrid `ComputeRouter` placements with per-capability VRAM estimates,
+  1-second health caching, a 2-second circuit breaker, `execute()` fallback,
+  and `execution_node` labels.
+- Optional GPU worker handlers for `asr` (faster-whisper), `render_nvenc`
+  (FFmpeg NVENC with ASS), `segment_matte` (rembg), and `face_track` (OpenCV),
+  enabled with `VF_GPU_BUILTIN_HANDLERS=1`.
+- Worker health now reports `worker_id`, hostname, LAN address, platform, VRAM
+  used, GPU utilization, and temperature.
+- `vf_capabilities` exposes a `compute` status object and `compute_router`
+  manifest entry.
+- Job payloads persist an optional `execution` block.
+
 ## [3.3.0] - 2026-11-19
 
 ### Added

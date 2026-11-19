@@ -1038,9 +1038,11 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         """Backends, models, and external-provider policy."""
 
         payload = legacy["vf_capabilities"](allow_external_services=allow_external_services)
+        from videoflow.application.compute import compute_status
         from videoflow.application.models import model_diagnostics
 
         payload["models"] = model_diagnostics()
+        payload["compute"] = compute_status()
         return payload
 
     @register

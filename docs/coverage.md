@@ -10,7 +10,28 @@ uv run python scripts/coverage_layers.py
 The `.coveragerc` used for this report disables the release gate's omit list so
 adapters, exporters, API, jobs, and MCP are visible.
 
-## Current working tree (3.3.0)
+## Current working tree (3.4.0 development)
+
+Measured with the release-gate omit list disabled. The full unit/contract run is
+**2,801 passed, 2 skipped, 1 xfailed**.
+
+| Layer | Hit | Total | Cover |
+| --- | ---: | ---: | ---: |
+| api | 3,065 | 3,175 | 96.54% |
+| jobs | 705 | 789 | 89.35% |
+| exporters | 1,752 | 1,837 | 95.37% |
+| mcp | 1,242 | 1,364 | 91.06% |
+| steps | 10,130 | 10,619 | 95.40% |
+| application | 20,497 | 21,703 | 94.44% |
+| domain | 1,643 | 1,663 | 98.80% |
+| **full tree (statements)** | **42,417** | **44,636** | **95.03%** |
+| **full tree (branches)** | **10,803** | **12,506** | **86.38%** |
+
+The hybrid compute router and worker status add unit coverage without lowering
+the full-tree target. Remaining misses are optional CUDA backends, offline
+providers, and platform-specific tray/notifier paths.
+
+## 3.3.0 release
 
 Measured with the release-gate omit list disabled. The full unit/contract run is
 **2,788 passed, 2 skipped, 1 xfailed**.

@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
+from gpu_worker.capabilities import BUILTIN_CAPABILITIES
 from gpu_worker.security import is_capability, safe_filename, unique_path
 
 if TYPE_CHECKING:
@@ -22,16 +23,6 @@ if TYPE_CHECKING:
 
 Handler = Callable[[dict[str, Any], list[Path], Path], Sequence[str | Path]]
 
-BUILTIN_CAPABILITIES = (
-    "tts",
-    "music",
-    "sfx",
-    "stems",
-    "upscale",
-    "comfyui",
-    "asr",
-    "diarize",
-)
 _COMMAND_TIMEOUT_SEC = 3600.0
 _COMFYUI_POLL_SEC = 0.5
 _COMFYUI_MAX_WAIT_SEC = 3600.0
@@ -339,6 +330,10 @@ def build_default_registry(settings: Settings) -> HandlerRegistry:
     """Build the registry, marking env-driven capabilities unavailable when missing."""
 
     registry = HandlerRegistry()
+    if settings.builtin_handlers:
+        from gpu_worker.handlers_gpu import register_builtin_handlers
+
+        register_builtin_handlers(registry, settings)
     _register_command(
         registry,
         capability="tts",

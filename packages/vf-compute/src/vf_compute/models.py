@@ -52,10 +52,21 @@ class WorkerHealth(BaseModel):
     gpu_name: str = ""
     vram_free_mb: int = 0
     vram_total_mb: int = 0
+    vram_used_mb: int = 0
+    gpu_utilization: float = 0.0
+    temperature_c: float = 0.0
     capabilities: list[str] = Field(default_factory=list)
     models_loaded: list[str] = Field(default_factory=list)
     queue_depth: int = 0
     message: str = ""
+    worker_id: str = ""
+    hostname: str = ""
+    ip_local: str = ""
+    port: int = 0
+    status: str = ""
+    version: str = ""
+    platform: str = ""
+    shared_root: str = ""
 
     @model_validator(mode="before")
     @classmethod
@@ -104,6 +115,21 @@ class WorkerHealth(BaseModel):
             ),
             queue_depth=_as_int(data.get("queue_depth", data.get("queue"))),
             message=str(message),
+            worker_id=str(data.get("worker_id") or data.get("id") or ""),
+            hostname=str(data.get("hostname") or data.get("host") or ""),
+            ip_local=str(data.get("ip_local") or data.get("ip") or ""),
+            port=_as_int(data.get("port")),
+            status=str(data.get("status") or ""),
+            version=str(data.get("version") or ""),
+            platform=str(data.get("platform") or ""),
+            shared_root=str(data.get("shared_root") or ""),
+            vram_used_mb=_as_int(data.get("vram_used_mb", data.get("vram_used"))),
+            gpu_utilization=_as_float(
+                data.get("gpu_utilization", data.get("gpu_util"))
+            ),
+            temperature_c=_as_float(
+                data.get("temperature_c", data.get("temperature"))
+            ),
         )
 
 
@@ -115,6 +141,7 @@ class WorkerDecision(BaseModel):
     mode: ComputeMode
     reason: str
     capability: str = ""
+    execution_node: str = ""
 
     @property
     def is_remote(self) -> bool:
