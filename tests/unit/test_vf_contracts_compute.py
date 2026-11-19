@@ -530,6 +530,22 @@ def test_client_health_and_upload(
     assert b"voice.wav" in worker.requests[-1].content
 
 
+def test_client_streams_file_uploads_without_read_bytes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    worker = FakeWorker()
+    client = _client(worker)
+    source = tmp_path / "voice.wav"
+    source.write_bytes(b"wav-bytes")
+
+    def forbidden(self):
+        raise AssertionError("upload_artifact must not call Path.read_bytes")
+
+    monkeypatch.setattr(Path, "read_bytes", forbidden)
+    assert client.upload_artifact(source) == "artifact-1"
+    assert b"wav-bytes" in worker.requests[-1].content
+
+
 def test_client_submit_shared_and_status_wait() -> None:
     worker = FakeWorker()
     worker.statuses = [

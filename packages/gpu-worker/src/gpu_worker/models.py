@@ -20,6 +20,7 @@ class LoadedModel:
     last_used: float
     unload: UnloadCallback | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    vram_mb: int = 0
 
 
 class ModelRegistry:
@@ -39,6 +40,7 @@ class ModelRegistry:
         capability: str | None = None,
         unload: UnloadCallback | None = None,
         metadata: dict[str, Any] | None = None,
+        vram_mb: int = 0,
     ) -> LoadedModel:
         if not name or not name.strip():
             raise ValueError("model name must not be empty")
@@ -50,6 +52,7 @@ class ModelRegistry:
             last_used=now,
             unload=unload,
             metadata=dict(metadata or {}),
+            vram_mb=max(int(vram_mb), 0),
         )
         with self._lock:
             previous = self._models.get(name)
@@ -77,6 +80,28 @@ class ModelRegistry:
                 model.unload()
         return True
 
+    def vram_used_mb(self) -> int:
+        with self._lock:
+            return sum(model.vram_mb for model in self._models.values())
+
+    def unload_lru(self, required_mb: int) -> tuple[list[str], int]:
+        """Unload least-recently-used models until ``required_mb`` is freed."""
+
+        required = max(int(required_mb), 0)
+        if required <= 0:
+            return [], 0
+        with self._lock:
+            ordered = sorted(self._models.values(), key=lambda item: item.last_used)
+        names: list[str] = []
+        freed = 0
+        for model in ordered:
+            if freed >= required:
+                break
+            if self.unload(model.name):
+                names.append(model.name)
+                freed += model.vram_mb
+        return names, freed
+
     def sweep(self, *, now: float | None = None) -> list[str]:
         """Unload models idle longer than the TTL; return their names."""
 
@@ -99,6 +124,7 @@ class ModelRegistry:
                 "loaded_at": model.loaded_at,
                 "last_used": model.last_used,
                 "metadata": dict(model.metadata),
+                "vram_mb": model.vram_mb,
             }
             for model in models
         ]

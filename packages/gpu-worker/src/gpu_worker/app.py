@@ -20,6 +20,7 @@ from starlette.concurrency import run_in_threadpool
 
 from gpu_worker import __version__
 from gpu_worker.artifacts import ArtifactStore, ArtifactTooLarge
+from gpu_worker.discovery import DiscoveryBeacon
 from gpu_worker.gpu import detect_gpu
 from gpu_worker.handlers import HandlerRegistry, build_default_registry
 from gpu_worker.models import ModelRegistry
@@ -28,10 +29,12 @@ from gpu_worker.security import (
     is_artifact_id,
     is_capability,
     is_job_id,
+    resolve_shared_output,
     resolve_shared_path,
 )
 from gpu_worker.settings import Settings
 from gpu_worker.store import JobRecord, JobStore
+from gpu_worker.vram import VramBudget
 from gpu_worker.worker import JobRunner
 
 MAX_JOB_INPUTS = 64
@@ -55,6 +58,7 @@ class JobSubmission(BaseModel):
     inputs: list[str] = Field(default_factory=list)
     shared: bool = False
     shared_inputs: list[str] = Field(default_factory=list)
+    shared_outputs: list[str] = Field(default_factory=list)
 
 
 def create_app(
@@ -83,6 +87,10 @@ def create_app(
 
     artifacts = ArtifactStore(work_dir / "artifacts", store, max_bytes=config.max_upload_bytes)
     models = ModelRegistry(config.model_ttl_sec)
+    vram = VramBudget(
+        max_vram_mb=config.max_vram_mb,
+        reserve_mb=config.vram_reserve_mb,
+    )
     handlers = registry or build_default_registry(config)
     runner = JobRunner(
         store=store,
@@ -90,6 +98,8 @@ def create_app(
         artifacts=artifacts,
         work_dir=work_dir,
         shared_root=shared_root,
+        models=models,
+        vram=vram,
     )
 
     closed = threading.Event()
@@ -98,6 +108,9 @@ def create_app(
         if closed.is_set():
             return
         closed.set()
+        beacon = getattr(app.state, "beacon", None)
+        if beacon is not None:
+            beacon.stop()
         runner.stop()
         models.stop()
 
@@ -120,6 +133,7 @@ def create_app(
     app.state.store = store
     app.state.artifacts = artifacts
     app.state.models = models
+    app.state.vram = vram
     app.state.registry = handlers
     app.state.runner = runner
     app.state.close = close
@@ -179,6 +193,7 @@ def create_app(
             "vram_free_mb": gpu.vram_free_mb,
             "vram_total_mb": gpu.vram_total_mb,
             "vram_used_mb": gpu.vram_used_mb,
+            "vram_budget_mb": vram.budget_mb(),
             "gpu_utilization": gpu.gpu_utilization,
             "temperature_c": gpu.temperature_c,
             "capabilities": handlers.available(),
@@ -217,6 +232,11 @@ def create_app(
                 status_code=400,
                 detail=f"at most {MAX_JOB_INPUTS} inputs are allowed per job",
             )
+        if len(body.shared_outputs) > MAX_JOB_INPUTS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"at most {MAX_JOB_INPUTS} outputs are allowed per job",
+            )
 
         inputs: list[str] = []
         for artifact_id in body.inputs:
@@ -239,6 +259,17 @@ def create_app(
         elif body.shared and shared_root is None:
             raise HTTPException(status_code=400, detail="VF_GPU_SHARED_ROOT is not configured")
 
+        if body.shared_outputs:
+            if not body.shared:
+                raise HTTPException(status_code=400, detail="shared_outputs requires shared=true")
+            if shared_root is None:
+                raise HTTPException(status_code=400, detail="VF_GPU_SHARED_ROOT is not configured")
+            for relative in body.shared_outputs:
+                try:
+                    resolve_shared_output(shared_root, relative)
+                except UnsafePathError as exc:
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
+
         if store.queue_depth() >= config.max_queue:
             raise HTTPException(
                 status_code=429,
@@ -253,6 +284,7 @@ def create_app(
             params=body.params,
             inputs=inputs,
             shared_inputs=list(body.shared_inputs),
+            shared_outputs=list(body.shared_outputs),
         )
         if not runner.submit(job_id):
             store.delete_job(job_id)
@@ -281,8 +313,45 @@ def create_app(
         shutil.rmtree(work_dir / "jobs" / job.id, ignore_errors=True)
         return {"job_id": job.id, "deleted": True}
 
+    @app.post("/models/unload")
+    def unload_models(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+        requested = str((payload or {}).get("name") or "").strip()
+        if requested:
+            removed = [requested] if models.unload(requested) else []
+        else:
+            removed = [item["name"] for item in models.snapshot() if models.unload(item["name"])]
+        return {
+            "unloaded": removed,
+            "vram_used_mb": models.vram_used_mb(),
+            "loaded_models": [item["name"] for item in models.snapshot()],
+        }
+
+    @app.post("/shared/validate")
+    def validate_shared(payload: dict[str, Any]) -> dict[str, Any]:
+        if shared_root is None:
+            raise HTTPException(status_code=400, detail="VF_GPU_SHARED_ROOT is not configured")
+        relative = str(payload.get("path") or "").strip()
+        try:
+            target = resolve_shared_output(shared_root, relative)
+            probe = target.with_name(f".{target.name}.probe")
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink(missing_ok=True)
+        except (OSError, UnsafePathError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"ok": True, "path": relative, "resolved": str(target)}
+
     runner.start()
     models.start()
+    beacon: DiscoveryBeacon | None = None
+    if config.discovery:
+        beacon = DiscoveryBeacon(
+            worker_id=config.worker_id or socket.gethostname(),
+            port=config.port,
+            advertise_port=config.advertise_port,
+            health=health,
+        )
+        beacon.start()
+        app.state.beacon = beacon
     return app
 
 

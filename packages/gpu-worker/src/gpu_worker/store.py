@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     params TEXT NOT NULL,
     inputs TEXT NOT NULL,
     shared_inputs TEXT NOT NULL,
+    shared_outputs TEXT NOT NULL DEFAULT '[]',
+    shared_artifacts TEXT NOT NULL DEFAULT '[]',
     error TEXT,
     artifacts TEXT NOT NULL DEFAULT '[]',
     created_at REAL NOT NULL,
@@ -59,6 +61,8 @@ class JobRecord:
     params: dict[str, Any] = field(default_factory=dict)
     inputs: list[str] = field(default_factory=list)
     shared_inputs: list[str] = field(default_factory=list)
+    shared_outputs: list[str] = field(default_factory=list)
+    shared_artifacts: list[str] = field(default_factory=list)
     error: str | None = None
     artifacts: list[str] = field(default_factory=list)
     created_at: float = 0.0
@@ -73,6 +77,8 @@ class JobRecord:
             "params": self.params,
             "inputs": self.inputs,
             "shared_inputs": self.shared_inputs,
+            "shared_outputs": self.shared_outputs,
+            "shared_artifacts": self.shared_artifacts,
             "error": self.error,
             "artifacts": self.artifacts,
             "created_at": self.created_at,
@@ -103,6 +109,18 @@ class JobStore:
         with self._lock, self._connection() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
             connection.executescript(_SCHEMA)
+            columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(jobs)").fetchall()
+            }
+            if "shared_outputs" not in columns:
+                connection.execute(
+                    "ALTER TABLE jobs ADD COLUMN shared_outputs TEXT NOT NULL DEFAULT '[]'"
+                )
+            if "shared_artifacts" not in columns:
+                connection.execute(
+                    "ALTER TABLE jobs ADD COLUMN shared_artifacts TEXT NOT NULL DEFAULT '[]'"
+                )
 
     # Artifacts -----------------------------------------------------------------
 
@@ -137,18 +155,21 @@ class JobStore:
         params: dict[str, Any],
         inputs: Sequence[str],
         shared_inputs: Sequence[str],
+        shared_outputs: Sequence[str] = (),
     ) -> JobRecord:
         created_at = time.time()
         with self._lock, self._connection() as connection:
             connection.execute(
                 "INSERT INTO jobs (id, capability, status, params, inputs, shared_inputs, "
-                "error, artifacts, created_at) VALUES (?, ?, 'queued', ?, ?, ?, NULL, '[]', ?)",
+                "shared_outputs, error, artifacts, created_at) "
+                "VALUES (?, ?, 'queued', ?, ?, ?, ?, NULL, '[]', ?)",
                 (
                     job_id,
                     capability,
                     json.dumps(params, sort_keys=True),
                     json.dumps(list(inputs)),
                     json.dumps(list(shared_inputs)),
+                    json.dumps(list(shared_outputs)),
                     created_at,
                 ),
             )
@@ -159,6 +180,7 @@ class JobStore:
             params=dict(params),
             inputs=list(inputs),
             shared_inputs=list(shared_inputs),
+            shared_outputs=list(shared_outputs),
             created_at=created_at,
         )
 
@@ -183,14 +205,22 @@ class JobStore:
         *,
         error: str | None = None,
         artifacts: Sequence[str] = (),
+        shared_artifacts: Sequence[str] = (),
     ) -> bool:
         if status not in TERMINAL_STATUSES:
             raise ValueError(f"invalid terminal status: {status}")
         with self._lock, self._connection() as connection:
             cursor = connection.execute(
-                "UPDATE jobs SET status = ?, error = ?, artifacts = ?, finished_at = ? "
-                "WHERE id = ?",
-                (status, error, json.dumps(list(artifacts)), time.time(), job_id),
+                "UPDATE jobs SET status = ?, error = ?, artifacts = ?, "
+                "shared_artifacts = ?, finished_at = ? WHERE id = ?",
+                (
+                    status,
+                    error,
+                    json.dumps(list(artifacts)),
+                    json.dumps(list(shared_artifacts)),
+                    time.time(),
+                    job_id,
+                ),
             )
             return cursor.rowcount > 0
 
@@ -245,6 +275,8 @@ def _row_to_job(row: sqlite3.Row | None) -> JobRecord | None:
         params=_json_object(row["params"]),
         inputs=_json_list(row["inputs"]),
         shared_inputs=_json_list(row["shared_inputs"]),
+        shared_outputs=_json_list(row["shared_outputs"]),
+        shared_artifacts=_json_list(row["shared_artifacts"]),
         error=row["error"],
         artifacts=_json_list(row["artifacts"]),
         created_at=row["created_at"],

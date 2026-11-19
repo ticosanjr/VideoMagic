@@ -11,7 +11,10 @@ DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 8766
 DEFAULT_MAX_UPLOAD_MB = 512
 DEFAULT_MAX_QUEUE = 16
-DEFAULT_MODEL_TTL_SEC = 900.0
+DEFAULT_MODEL_TTL_SEC = 300.0
+DEFAULT_MAX_VRAM_MB = 10_240
+DEFAULT_VRAM_RESERVE_MB = 512
+DEFAULT_ADVERTISE_PORT = 8767
 
 
 def default_work_dir() -> Path:
@@ -96,6 +99,10 @@ class Settings:
     max_upload_mb: int = DEFAULT_MAX_UPLOAD_MB
     max_queue: int = DEFAULT_MAX_QUEUE
     model_ttl_sec: float = DEFAULT_MODEL_TTL_SEC
+    max_vram_mb: int = DEFAULT_MAX_VRAM_MB
+    vram_reserve_mb: int = DEFAULT_VRAM_RESERVE_MB
+    discovery: bool = False
+    advertise_port: int = DEFAULT_ADVERTISE_PORT
     shared_root: Path | None = None
     chatterbox_cmd: str | None = None
     ace_step_cmd: str | None = None
@@ -129,6 +136,20 @@ class Settings:
             max_queue=_env_int(values, "VF_GPU_MAX_QUEUE", DEFAULT_MAX_QUEUE, minimum=0),
             model_ttl_sec=_env_float(
                 values, "VF_GPU_MODEL_TTL_SEC", DEFAULT_MODEL_TTL_SEC, minimum=0.0
+            ),
+            max_vram_mb=_env_int(
+                values, "VF_GPU_MAX_VRAM_MB", DEFAULT_MAX_VRAM_MB, minimum=0
+            ),
+            vram_reserve_mb=_env_int(
+                values, "VF_GPU_VRAM_RESERVE_MB", DEFAULT_VRAM_RESERVE_MB, minimum=0
+            ),
+            discovery=_env_bool(values, "VF_GPU_DISCOVERY", False),
+            advertise_port=_env_int(
+                values,
+                "VF_GPU_ADVERTISE_PORT",
+                DEFAULT_ADVERTISE_PORT,
+                minimum=1,
+                maximum=65535,
             ),
             shared_root=_env_path(values, "VF_GPU_SHARED_ROOT"),
             chatterbox_cmd=_env(values, "VF_CHATTERBOX_CMD"),

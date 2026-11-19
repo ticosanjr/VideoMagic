@@ -13,7 +13,7 @@ adapters, exporters, API, jobs, and MCP are visible.
 ## Current working tree (3.4.0 development)
 
 Measured with the release-gate omit list disabled. The full unit/contract run is
-**2,801 passed, 2 skipped, 1 xfailed**.
+**2,813 passed, 2 skipped, 1 xfailed**.
 
 | Layer | Hit | Total | Cover |
 | --- | ---: | ---: | ---: |
@@ -24,8 +24,8 @@ Measured with the release-gate omit list disabled. The full unit/contract run is
 | steps | 10,130 | 10,619 | 95.40% |
 | application | 20,497 | 21,703 | 94.44% |
 | domain | 1,643 | 1,663 | 98.80% |
-| **full tree (statements)** | **42,417** | **44,636** | **95.03%** |
-| **full tree (branches)** | **10,803** | **12,506** | **86.38%** |
+| **full tree (statements)** | **42,418** | **44,636** | **95.03%** |
+| **full tree (branches)** | **10,804** | **12,506** | **86.39%** |
 
 The hybrid compute router and worker status add unit coverage without lowering
 the full-tree target. Remaining misses are optional CUDA backends, offline

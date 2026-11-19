@@ -27,6 +27,41 @@ limit.
 to local execution with a reason. A remote failure invalidates the health cache
 and opens the circuit for `VF_GPU_CIRCUIT_SEC`.
 
+## VRAM, transport, and discovery
+
+### VRAM budget and model eviction
+
+The worker enforces `VF_GPU_MAX_VRAM_MB` (default 10240) with a
+`VF_GPU_VRAM_RESERVE_MB` reservation (default 512). Before each job it estimates
+the capability cost and asks `ModelRegistry` to unload least-recently-used
+models until the job fits. If it still does not fit, the job fails with an
+actionable VRAM error. `VF_GPU_MODEL_TTL_SEC` defaults to 300 seconds.
+
+`POST /models/unload` frees one named model or every loaded model. Health
+reports `vram_used_mb`, `vram_budget_mb`, and per-model `vram_mb`.
+
+### Shared outputs and streaming
+
+`JobSubmission.shared_outputs` asks the worker to write results directly into
+the mounted workspace. Paths must be relative, cannot contain `..`, and their
+parent directory must already exist. The worker copies each produced artifact
+atomically and reports the relative paths in `shared_artifacts`.
+
+When the mount is unavailable, `GPUWorkerClient` streams uploads in chunks
+instead of reading a file into memory. Prefer the shared mount for longform
+masters and HTTP streaming for short clips.
+
+`POST /shared/validate` checks a write path by creating and removing a probe
+file.
+
+### Discovery
+
+With `VF_GPU_DISCOVERY=1` the worker broadcasts a UDP beacon every two seconds
+on `VF_GPU_ADVERTISE_PORT` (default 8767). The beacon includes `worker_id`,
+hostname, LAN address, port, GPU, VRAM, queue, capabilities, and version.
+`vf_compute.discovery.GpuDiscovery` keeps a 10-second TTL peer table, and
+`ComputeRouter.discover()` listens briefly and returns peers.
+
 ## Worker capabilities
 
 With `VF_GPU_BUILTIN_HANDLERS=1` the worker registers Python handlers for:
@@ -54,6 +89,11 @@ VF_GPU_ASR_MODEL=large-v3-turbo
 VF_GPU_ASR_DEVICE=cuda
 VF_GPU_ASR_COMPUTE_TYPE=float16
 VF_GPU_MODEL_TTL_SEC=300
+VF_GPU_MAX_VRAM_MB=10240
+VF_GPU_VRAM_RESERVE_MB=512
+VF_GPU_DISCOVERY=1
+VF_GPU_ADVERTISE_PORT=8767
+VF_GPU_SHARED_ROOT=\\server\videoflow
 ```
 
 ## Status and telemetry

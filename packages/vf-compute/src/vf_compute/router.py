@@ -144,6 +144,13 @@ class ComputeRouter:
 
         self.set_worker("", "")
 
+    def discover(self, *, timeout_sec: float = 1.5) -> list[dict[str, Any]]:
+        """Listen for LAN beacons and return the peers seen."""
+
+        from vf_compute.discovery import discover_workers
+
+        return discover_workers(timeout_sec=timeout_sec)
+
     @property
     def execution_node(self) -> str:
         """Stable node label for the last healthy placement."""
@@ -304,11 +311,13 @@ class ComputeRouter:
             }
         inputs = [str(item) for item in body.get("inputs", []) or []]
         shared_inputs = [str(item) for item in body.get("shared_inputs", []) or []]
+        shared_outputs = [str(item) for item in body.get("shared_outputs", []) or []]
         job_id = self.client.submit(
             capability,
             params=params,
             inputs=inputs,
             shared_inputs=shared_inputs,
+            shared_outputs=shared_outputs,
             shared_root=str(body.get("shared_root") or "") or None,
         )
         status = self.client.wait(
@@ -321,6 +330,17 @@ class ComputeRouter:
             )
         if not status.artifacts:
             raise RuntimeError(f"remote job {job_id} returned no artifacts")
+        if status.shared_artifacts and body.get("shared_root"):
+            shared_path = Path(str(body["shared_root"])) / status.shared_artifacts[0]
+            if shared_path.is_file():
+                return {
+                    "path": str(shared_path),
+                    "job_id": job_id,
+                    "execution_node": decision.execution_node,
+                    "artifacts": list(status.artifacts),
+                    "shared_artifacts": list(status.shared_artifacts),
+                    "transport": "shared_mount",
+                }
         name = status.artifacts[0]
         target = Path(tempfile.mkdtemp(prefix="vf-remote-")) / Path(name).name
         self.client.download(job_id, name, target)
@@ -329,6 +349,8 @@ class ComputeRouter:
             "job_id": job_id,
             "execution_node": decision.execution_node,
             "artifacts": list(status.artifacts),
+            "shared_artifacts": list(status.shared_artifacts),
+            "transport": "lan_stream",
         }
 
 

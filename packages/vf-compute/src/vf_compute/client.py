@@ -132,19 +132,27 @@ class GPUWorkerClient:
         return WorkerHealth.from_payload(_json_object(response))
 
     def upload_artifact(self, content: bytes | bytearray | memoryview | str | Path) -> str:
-        """Upload bytes or a local file and return the worker artifact id."""
+        """Upload bytes or a local file and return the worker artifact id.
+
+        Local files are streamed in chunks instead of being read into memory.
+        """
 
         if isinstance(content, (bytes, bytearray, memoryview)):
-            data = bytes(content)
-            name = "artifact.bin"
+            response = self._request(
+                "POST",
+                "/artifacts",
+                files={"file": ("artifact.bin", bytes(content))},
+            )
         else:
             source = Path(content)
             if not source.is_file():
                 raise FileNotFoundError(f"artifact not found: {source}")
-            data = source.read_bytes()
-            name = source.name
-
-        response = self._request("POST", "/artifacts", files={"file": (name, data)})
+            with source.open("rb") as handle:
+                response = self._request(
+                    "POST",
+                    "/artifacts",
+                    files={"file": (source.name, handle, "application/octet-stream")},
+                )
         payload = _json_object(response)
         artifact_id = payload.get("artifact_id") or payload.get("id")
         if not artifact_id:
@@ -159,19 +167,25 @@ class GPUWorkerClient:
         *,
         shared_root: str | None = None,
         shared_inputs: list[str] | None = None,
+        shared_outputs: list[str] | None = None,
     ) -> str:
         """Submit a job to ``POST /jobs/{capability}`` and return its job id.
 
         When ``shared_root`` or ``shared_inputs`` is provided the request is
         marked ``shared=true`` and includes the relative paths under both
         ``input_paths`` and ``shared_inputs`` so workers can mount the
-        workspace directly.
+        workspace directly. ``shared_outputs`` asks the worker to write results
+        into the same mounted workspace.
         """
 
         if not capability:
             raise ValueError("capability is required")
         clean_capability = _safe_segment(capability, "capability")
-        shared = shared_root is not None or bool(shared_inputs)
+        shared = (
+            shared_root is not None
+            or bool(shared_inputs)
+            or bool(shared_outputs)
+        )
         body: dict[str, Any] = {
             "params": dict(params or {}),
             "inputs": list(inputs or []),
@@ -181,6 +195,7 @@ class GPUWorkerClient:
             input_paths = list(shared_inputs or [])
             body["shared_inputs"] = input_paths
             body["input_paths"] = input_paths
+            body["shared_outputs"] = list(shared_outputs or [])
 
         response = self._request(
             "POST", f"/jobs/{quote(clean_capability, safe='')}", json=body

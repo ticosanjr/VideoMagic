@@ -2,15 +2,24 @@
 
 from __future__ import annotations
 
+import os
 import queue
 import shutil
 import threading
 from pathlib import Path
 
 from gpu_worker.artifacts import ArtifactStore
+from gpu_worker.capabilities import vram_cost
 from gpu_worker.handlers import HandlerError, HandlerRegistry
-from gpu_worker.security import resolve_shared_path, safe_filename, unique_path
+from gpu_worker.models import ModelRegistry
+from gpu_worker.security import (
+    resolve_shared_output,
+    resolve_shared_path,
+    safe_filename,
+    unique_path,
+)
 from gpu_worker.store import JobRecord, JobStore
+from gpu_worker.vram import VramBudget, VramError
 
 _SENTINEL = "__stop__"
 
@@ -26,12 +35,16 @@ class JobRunner:
         artifacts: ArtifactStore,
         work_dir: Path,
         shared_root: Path | None = None,
+        models: ModelRegistry | None = None,
+        vram: VramBudget | None = None,
     ) -> None:
         self._store = store
         self._registry = registry
         self._artifacts = artifacts
         self._work_dir = Path(work_dir)
         self._shared_root = shared_root
+        self._models = models
+        self._vram = vram
         self._queue: queue.Queue[str] = queue.Queue()
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
@@ -81,13 +94,18 @@ class JobRunner:
         if not self._store.mark_running(job_id):
             return
         try:
-            names = self._execute(job)
+            names, shared = self._execute(job)
         except Exception as exc:
             self._store.finish_job(job_id, "failed", error=_error_text(exc))
             return
-        self._store.finish_job(job_id, "succeeded", artifacts=names)
+        self._store.finish_job(
+            job_id,
+            "succeeded",
+            artifacts=names,
+            shared_artifacts=shared,
+        )
 
-    def _execute(self, job: JobRecord) -> list[str]:
+    def _execute(self, job: JobRecord) -> tuple[list[str], list[str]]:
         job_dir = self._work_dir / "jobs" / job.id
         inputs_dir = job_dir / "inputs"
         artifacts_dir = job_dir / "artifacts"
@@ -106,8 +124,39 @@ class JobRunner:
                 f"capability '{job.capability}' is unavailable: "
                 f"{self._registry.reason(job.capability)}"
             )
+        if self._vram is not None and self._models is not None:
+            try:
+                self._vram.ensure(vram_cost(job.capability), self._models)
+            except VramError as exc:
+                raise HandlerError(str(exc)) from exc
         results = handler(job.params, input_paths, job_dir) or []
-        return self._collect_artifacts(job_dir, artifacts_dir, results)
+        names = self._collect_artifacts(job_dir, artifacts_dir, results)
+        shared = self._write_shared_outputs(job, artifacts_dir, names)
+        return names, shared
+
+    def _write_shared_outputs(
+        self,
+        job: JobRecord,
+        artifacts_dir: Path,
+        names: list[str],
+    ) -> list[str]:
+        if not job.shared_outputs:
+            return []
+        if self._shared_root is None:
+            raise HandlerError("shared outputs are not configured")
+        if len(job.shared_outputs) > len(names):
+            raise HandlerError(
+                "more shared_outputs were requested than artifacts produced "
+                f"({len(job.shared_outputs)} > {len(names)})"
+            )
+        written: list[str] = []
+        for relative, name in zip(job.shared_outputs, names, strict=False):
+            target = resolve_shared_output(self._shared_root, relative)
+            temporary = target.with_name(f".{target.name}.part")
+            shutil.copyfile(artifacts_dir / name, temporary)
+            os.replace(temporary, target)
+            written.append(relative)
+        return written
 
     def _materialize_inputs(self, job: JobRecord, inputs_dir: Path) -> list[Path]:
         paths: list[Path] = []

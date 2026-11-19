@@ -15,6 +15,11 @@
 - `vf_capabilities` exposes a `compute` status object and `compute_router`
   manifest entry.
 - Job payloads persist an optional `execution` block.
+- VRAM budget with LRU model eviction, `POST /models/unload`, and budget
+  telemetry.
+- Shared-mount outputs (`shared_outputs`) with atomic writes and path
+  validation, plus chunked HTTP uploads instead of `read_bytes()`.
+- UDP discovery beacon and a TTL-scoped peer listener (`ComputeRouter.discover`).
 
 ## [3.3.0] - 2026-11-19
 

@@ -85,3 +85,31 @@ def resolve_shared_path(root: Path, relative: str) -> Path:
     if not resolved.is_file():
         raise UnsafePathError("shared input path is not a file")
     return resolved
+
+
+def resolve_shared_output(root: Path, relative: str) -> Path:
+    """Resolve a write target inside ``root``.
+
+    The parent directory must already exist so the worker cannot create arbitrary
+    directory trees. Existing symlinks are resolved and must stay inside the root.
+    """
+
+    if not isinstance(relative, str) or not relative.strip():
+        raise UnsafePathError("shared output path must be a non-empty string")
+    if "\x00" in relative or "\\" in relative:
+        raise UnsafePathError("shared output path contains an invalid character")
+    candidate = Path(relative)
+    if candidate.is_absolute() or candidate.anchor:
+        raise UnsafePathError("shared output path must be relative")
+    if any(part == ".." for part in candidate.parts):
+        raise UnsafePathError("shared output path may not contain '..'")
+    if candidate.name in {"", ".", ".."}:
+        raise UnsafePathError("shared output path must name a file")
+
+    root_resolved = root.expanduser().resolve()
+    parent = (root_resolved / candidate).parent.resolve()
+    if parent != root_resolved and root_resolved not in parent.parents:
+        raise UnsafePathError("shared output path escapes the shared root")
+    if not parent.is_dir():
+        raise UnsafePathError("shared output parent directory does not exist")
+    return parent / candidate.name

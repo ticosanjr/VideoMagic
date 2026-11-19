@@ -386,3 +386,63 @@ def test_asr_and_diarize_report_missing_commands(tmp_path: Path) -> None:
     assert registry.is_available("asr") is False
     assert "VF_GPU_ASR_CMD" in registry.reason("asr")
     assert "VF_GPU_DIARIZE_CMD" in registry.reason("diarize")
+
+
+def test_shared_outputs_write_into_the_mount(
+    client: TestClient, app, settings: Settings
+) -> None:
+    output_dir = settings.shared_root / "renders"  # type: ignore[operator]
+    output_dir.mkdir(parents=True)
+    register_result_handler(app, "shared-result")
+    response = client.post(
+        "/jobs/fake",
+        json={
+            "params": {},
+            "shared": True,
+            "shared_outputs": ["renders/result.txt"],
+        },
+        headers=HEADERS,
+    )
+    assert response.status_code == 200, response.text
+    job = wait_for_job(client, response.json()["job_id"])
+    assert job["status"] == "succeeded", job
+    assert job["shared_artifacts"] == ["renders/result.txt"]
+    assert (output_dir / "result.txt").read_text(encoding="utf-8") == "shared-result"
+
+
+def test_shared_outputs_reject_traversal_and_missing_parent(
+    client: TestClient, settings: Settings
+) -> None:
+    for relative in ("../escape.txt", "missing/result.txt", "/tmp/escape.txt"):
+        response = client.post(
+            "/jobs/fake",
+            json={"params": {}, "shared": True, "shared_outputs": [relative]},
+            headers=HEADERS,
+        )
+        assert response.status_code in {400, 404}, response.text
+
+
+def test_models_unload_and_shared_validation(
+    client: TestClient, app, settings: Settings
+) -> None:
+    app.state.models.register("model-a", vram_mb=1024)
+    unloaded = client.post("/models/unload", json={}, headers=HEADERS)
+    assert unloaded.status_code == 200, unloaded.text
+    assert unloaded.json()["unloaded"] == ["model-a"]
+    assert app.state.models.vram_used_mb() == 0
+
+    (settings.shared_root / "renders").mkdir(parents=True, exist_ok=True)  # type: ignore[operator]
+    valid = client.post(
+        "/shared/validate",
+        json={"path": "renders/probe.txt"},
+        headers=HEADERS,
+    )
+    assert valid.status_code == 200, valid.text
+    assert not (settings.shared_root / "renders" / "probe.txt").exists()  # type: ignore[operator]
+
+    invalid = client.post(
+        "/shared/validate",
+        json={"path": "../escape.txt"},
+        headers=HEADERS,
+    )
+    assert invalid.status_code == 400, invalid.text

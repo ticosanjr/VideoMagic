@@ -83,7 +83,10 @@ def nvenc_available(ffmpeg: str = "ffmpeg") -> bool:
     return available
 
 
-def make_asr_handler(settings: Settings) -> Handler:
+def make_asr_handler(
+    settings: Settings,
+    registry: HandlerRegistry | None = None,
+) -> Handler:
     """faster-whisper handler returning a JSON transcript with word timings."""
 
     def handler(
@@ -98,6 +101,7 @@ def make_asr_handler(settings: Settings) -> Handler:
             params.get("compute_type") or settings.asr_compute_type or "float16"
         )
         key = (model_name, device, compute_type)
+        model_key = f"faster-whisper:{model_name}:{device}:{compute_type}"
         with _ASR_LOCK:
             model = _ASR_MODELS.get(key)
             if model is None:
@@ -111,6 +115,20 @@ def make_asr_handler(settings: Settings) -> Handler:
                     compute_type=compute_type,
                 )
                 _ASR_MODELS[key] = model
+
+                def unload() -> None:
+                    _ASR_MODELS.pop(key, None)
+
+                if registry is not None:
+                    registry.register(
+                        model_key,
+                        capability="asr",
+                        unload=unload,
+                        vram_mb=3277,
+                        metadata={"model": model_name, "device": device},
+                    )
+            elif registry is not None:
+                registry.touch(model_key)
         language = str(params.get("language") or "pt")
         beam_size = int(params.get("beam_size") or 5)
         word_timestamps = bool(params.get("word_timestamps", True))
@@ -391,7 +409,7 @@ def register_builtin_handlers(registry: HandlerRegistry, settings: Settings) -> 
     """Register optional Python handlers, marking missing dependencies."""
 
     if _available("faster_whisper"):
-        registry.register_handler("asr", make_asr_handler(settings))
+        registry.register_handler("asr", make_asr_handler(settings, registry))
     else:
         registry.mark_unavailable("asr", "faster-whisper is not installed")
     if nvenc_available(_ffmpeg(settings)):
