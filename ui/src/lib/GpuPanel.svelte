@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   import {
     benchmarkGpu,
     connectGpuWorker,
@@ -233,8 +233,17 @@
     }
   }
 
+  let autoTimer: ReturnType<typeof setInterval> | undefined;
+
   onMount(() => {
     void refresh().then(() => autoConnect());
+    autoTimer = setInterval(() => {
+      if (discoveryEnabled && !status?.available) void autoConnect();
+    }, 5000);
+  });
+
+  onDestroy(() => {
+    if (autoTimer) clearInterval(autoTimer);
   });
 </script>
 
