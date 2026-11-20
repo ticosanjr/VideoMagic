@@ -139,7 +139,7 @@
       discoveryInfo = payload.diagnostics ?? null;
       notice = payload.workers.length
         ? `${payload.workers.length} worker(s) found.`
-        : "No worker beacon found on the LAN.";
+        : "No worker found on the LAN (UDP beacon and TCP scan).";
       error = "";
     } catch (reason) {
       error = reason instanceof Error ? reason.message : String(reason);
@@ -234,6 +234,10 @@
     if (!discoveryEnabled || (status?.worker_url && status?.available) || autoConnecting) return;
     autoConnecting = true;
     try {
+      if (status?.worker_url && !status.available) {
+        await connect(status.worker_url);
+        if (status?.available) return;
+      }
       const payload = await discoverGpuWorkers();
       discovered = payload.workers;
       discoveryInfo = payload.diagnostics ?? null;
@@ -253,20 +257,22 @@
   }
 
   let autoTimer: ReturnType<typeof setInterval> | undefined;
-
   let activityTimer: ReturnType<typeof setInterval> | undefined;
+  let statusTimer: ReturnType<typeof setInterval> | undefined;
 
   onMount(() => {
     void refresh().then(() => autoConnect().then(() => refreshActivity()));
     activityTimer = setInterval(() => void refreshActivity(), 3000);
+    statusTimer = setInterval(() => void refresh().then(() => refreshActivity()), 5000);
     autoTimer = setInterval(() => {
       if (discoveryEnabled && !status?.available) void autoConnect();
-    }, 5000);
+    }, 10000);
   });
 
   onDestroy(() => {
     if (autoTimer) clearInterval(autoTimer);
     if (activityTimer) clearInterval(activityTimer);
+    if (statusTimer) clearInterval(statusTimer);
   });
 </script>
 

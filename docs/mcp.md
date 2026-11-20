@@ -1,6 +1,6 @@
 # MCP server — agent profile
 
-VideoFlow 3.9.0 exposes a **35-tool core MCP** plus four isolated domain servers:
+VideoFlow 3.9.1 exposes a **35-tool core MCP** plus four isolated domain servers:
 
 ```text
 mcp-vf-core      35 tools   project, styles, jobs, timeline, scenes, export, ingest, QA, GPU, transcript

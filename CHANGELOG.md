@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.9.1] - 2026-11-20
+
+### Fixed
+
+- Linux GPU panel refreshes worker status every 5 seconds and retries the saved
+  URL before scanning the subnet.
+- Auto-discovery retries every 10 seconds instead of every 5 seconds, reducing
+  LAN scan load when the worker is offline.
+- Worker dashboard ignores its own polling paths when recording the last real
+  request.
+- Windows worker env records `VF_GPU_LOG_FILE`; “Open logs” falls back to the log
+  folder when the file has not been created yet.
+- Worker dashboard adds a benchmark action and keeps the NVENC error visible.
+
 ## [3.9.0] - 2026-11-20
 
 ### Added

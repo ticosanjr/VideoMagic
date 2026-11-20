@@ -315,6 +315,7 @@ function Ensure-EnvFile {
     if (-not $map.ContainsKey("VF_GPU_DISCOVERY") -or -not $map["VF_GPU_DISCOVERY"]) { $map["VF_GPU_DISCOVERY"] = "1" }
     if (-not $map.ContainsKey("VF_GPU_ALLOW_LAN_OPEN") -or -not $map["VF_GPU_ALLOW_LAN_OPEN"]) { $map["VF_GPU_ALLOW_LAN_OPEN"] = "1" }
     if (-not $map.ContainsKey("VF_GPU_ADVERTISE_PORT") -or -not $map["VF_GPU_ADVERTISE_PORT"]) { $map["VF_GPU_ADVERTISE_PORT"] = "8767" }
+    if (-not $map.ContainsKey("VF_GPU_LOG_FILE") -or -not $map["VF_GPU_LOG_FILE"]) { $map["VF_GPU_LOG_FILE"] = $WorkerLog }
     if (-not $map.ContainsKey("VF_GPU_MAX_UPLOAD_MB") -or -not $map["VF_GPU_MAX_UPLOAD_MB"]) { $map["VF_GPU_MAX_UPLOAD_MB"] = "8192" }
     if (-not $map.ContainsKey("VF_GPU_ASR_MODEL") -or -not $map["VF_GPU_ASR_MODEL"]) { $map["VF_GPU_ASR_MODEL"] = "large-v3-turbo" }
     if (-not $map.ContainsKey("VF_GPU_ASR_DEVICE") -or -not $map["VF_GPU_ASR_DEVICE"]) { $map["VF_GPU_ASR_DEVICE"] = "cuda" }

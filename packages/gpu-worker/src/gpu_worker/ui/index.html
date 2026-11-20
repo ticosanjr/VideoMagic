@@ -37,7 +37,7 @@ code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}pre{background:
   </div>
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     <span class="badge"><span id="dot" class="dot"></span><span id="state">conectando</span></span>
-    <button id="refresh">Atualizar</button>
+    <button id="refresh">Atualizar</button><button id="benchmark">Benchmark</button>
   </div>
 </header>
 
@@ -130,6 +130,16 @@ function render(data) {
   $("log").textContent = data.logs || "Sem log disponível.";
 }
 $("refresh").onclick = () => void load();
+$("benchmark").onclick = async () => {
+  try {
+    const response = await fetch("/probe", {method:"POST"});
+    const data = await response.json();
+    $("notice").hidden = false;
+    $("notice").textContent = `Benchmark: ok=${data.ok} · cuda=${data.cuda} · nvenc=${data.nvenc} · ${data.latency_ms} ms`;
+  } catch (error) {
+    $("notice").hidden = false; $("notice").textContent = `Benchmark falhou: ${error}`;
+  }
+};
 $("copy").onclick = async () => {
   try { await navigator.clipboard.writeText($("lan-url").textContent); $("copy").textContent = "Copiado"; setTimeout(()=>$("copy").textContent="Copiar URL",1200); } catch {}
 };

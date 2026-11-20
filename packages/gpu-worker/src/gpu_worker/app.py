@@ -299,13 +299,20 @@ def create_app(
             app.state.settings.allow_lan_open and _is_private_client(client_host)
         )
         if valid or lan_open or _is_loopback_client(client_host):
-            app.state.last_request_at = time.time()
-            app.state.last_request = {
-                "path": request.url.path,
-                "method": request.method,
-                "client": client_host,
-                "at": app.state.last_request_at,
-            }
+            if request.url.path not in {
+                "/api/overview",
+                "/api/jobs",
+                "/api/logs",
+                "/health",
+                "/probe",
+            } and not request.url.path.startswith("/ui"):
+                app.state.last_request_at = time.time()
+                app.state.last_request = {
+                    "path": request.url.path,
+                    "method": request.method,
+                    "client": client_host,
+                    "at": app.state.last_request_at,
+                }
             return await call_next(request)
         if not configured:
             return JSONResponse(
@@ -396,6 +403,8 @@ def create_app(
         if not _is_loopback_client(request.client.host if request.client else ""):
             raise HTTPException(status_code=403, detail="local access only")
         target = _log_path(config)
+        if not target.exists():
+            target = target.parent
         try:
             if os.name == "nt":
                 os.startfile(str(target))  # type: ignore[attr-defined]
