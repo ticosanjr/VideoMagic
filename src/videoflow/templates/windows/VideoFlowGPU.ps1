@@ -316,6 +316,7 @@ function Ensure-EnvFile {
     if (-not $map.ContainsKey("VF_GPU_ALLOW_LAN_OPEN") -or -not $map["VF_GPU_ALLOW_LAN_OPEN"]) { $map["VF_GPU_ALLOW_LAN_OPEN"] = "1" }
     if (-not $map.ContainsKey("VF_GPU_ADVERTISE_PORT") -or -not $map["VF_GPU_ADVERTISE_PORT"]) { $map["VF_GPU_ADVERTISE_PORT"] = "8767" }
     if (-not $map.ContainsKey("VF_GPU_LOG_FILE") -or -not $map["VF_GPU_LOG_FILE"]) { $map["VF_GPU_LOG_FILE"] = $WorkerLog }
+    if (-not $map.ContainsKey("VF_GPU_CPU_WORKERS") -or -not $map["VF_GPU_CPU_WORKERS"]) { $map["VF_GPU_CPU_WORKERS"] = "2" }
     if (-not $map.ContainsKey("VF_GPU_MAX_UPLOAD_MB") -or -not $map["VF_GPU_MAX_UPLOAD_MB"]) { $map["VF_GPU_MAX_UPLOAD_MB"] = "8192" }
     if (-not $map.ContainsKey("VF_GPU_ASR_MODEL") -or -not $map["VF_GPU_ASR_MODEL"]) { $map["VF_GPU_ASR_MODEL"] = "large-v3-turbo" }
     if (-not $map.ContainsKey("VF_GPU_ASR_DEVICE") -or -not $map["VF_GPU_ASR_DEVICE"]) { $map["VF_GPU_ASR_DEVICE"] = "cuda" }
@@ -749,6 +750,26 @@ function Ensure-Nvidia {
     Set-InstallStep "nvidia" $true @{ name = $info.name; driver = $info.driver; vram_mb = $info.vram_mb }
 }
 
+function Optimize-Windows {
+    try {
+        powercfg.exe /setactive SCHEME_MIN 2>$null | Out-Null
+        Write-Log "Plano de energia: alto desempenho."
+    } catch {
+        Write-Warn "Nao foi possivel definir o plano de energia."
+    }
+    if (-not (Test-Admin)) { return }
+    $paths = @($Root, $VenvDir, $LogDir) | Where-Object { $_ -and (Test-Path $_) }
+    foreach ($path in $paths) {
+        try {
+            Add-MpPreference -ExclusionPath $path -ErrorAction Stop
+            Write-Log ("Defender excluido: {0}" -f $path)
+        } catch {
+            Write-Warn ("Nao foi possivel excluir {0} do Defender." -f $path)
+        }
+    }
+    Set-InstallStep "performance" $true
+}
+
 function Ensure-Firewall {
     $port = [int]$script:EnvMap["VF_GPU_PORT"]
     if (-not (Test-Admin)) {
@@ -830,6 +851,7 @@ function Install-Worker {
         Write-Warn "Driver NVIDIA nao encontrado; instale antes de iniciar o worker."
     }
     Ensure-Firewall
+    Optimize-Windows
     Ensure-SharedMount
     Set-InstallStep "install" $true @{ version = $ExpectedVersion }
     Write-Ok "Instalacao/reparo concluido."

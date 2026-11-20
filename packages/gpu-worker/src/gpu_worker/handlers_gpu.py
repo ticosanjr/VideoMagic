@@ -148,6 +148,8 @@ def make_asr_handler(
                     model_name,
                     device=device,
                     compute_type=compute_type,
+                    cpu_threads=int(params.get("cpu_threads") or settings.asr_cpu_threads or 0),
+                    num_workers=int(params.get("num_workers") or settings.asr_num_workers or 1),
                 )
                 _ASR_MODELS[key] = model
 
@@ -804,35 +806,48 @@ def _scene_keyframes(
     *,
     size: int,
 ) -> list[str]:
+    from concurrent.futures import ThreadPoolExecutor
+
     import cv2
 
     directory.mkdir(parents=True, exist_ok=True)
-    capture = cv2.VideoCapture(str(source))
-    if not capture.isOpened():
-        raise HandlerError(f"cannot open video for keyframes: {source}")
-    paths: list[str] = []
-    try:
-        for index, (start, end) in enumerate(spans):
-            scene_id = f"SC_{index + 1:04d}"
-            target = directory / f"{scene_id}.jpg"
-            capture.set(cv2.CAP_PROP_POS_MSEC, (start + max(0.0, end - start) / 2.0) * 1000.0)
+
+    def one(index: int, start: float, end: float) -> str:
+        scene_id = f"SC_{index + 1:04d}"
+        target = directory / f"{scene_id}.jpg"
+        capture = cv2.VideoCapture(str(source))
+        if not capture.isOpened():
+            capture.release()
+            return ""
+        try:
+            capture.set(
+                cv2.CAP_PROP_POS_MSEC,
+                (start + max(0.0, end - start) / 2.0) * 1000.0,
+            )
             ok, frame = capture.read()
-            if not ok:
-                paths.append("")
-                continue
-            height, width = frame.shape[:2]
-            scale = min(1.0, float(size) / max(1, max(width, height)))
-            if scale < 1.0:
-                frame = cv2.resize(
-                    frame,
-                    (max(1, round(width * scale)), max(1, round(height * scale))),
-                    interpolation=cv2.INTER_AREA,
-                )
-            cv2.imwrite(str(target), frame, [int(cv2.IMWRITE_JPEG_QUALITY), 78])
-            paths.append(f"keyframes/{scene_id}.jpg")
-    finally:
-        capture.release()
-    return paths
+        finally:
+            capture.release()
+        if not ok:
+            return ""
+        height, width = frame.shape[:2]
+        scale = min(1.0, float(size) / max(1, max(width, height)))
+        if scale < 1.0:
+            frame = cv2.resize(
+                frame,
+                (max(1, round(width * scale)), max(1, round(height * scale))),
+                interpolation=cv2.INTER_AREA,
+            )
+        cv2.imwrite(str(target), frame, [int(cv2.IMWRITE_JPEG_QUALITY), 78])
+        return f"keyframes/{scene_id}.jpg"
+
+    workers = min(8, max(1, len(spans)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        return list(
+            pool.map(
+                lambda item: one(item[0], item[1][0], item[1][1]),
+                enumerate(spans),
+            )
+        )
 
 
 def make_scene_analyze_handler(settings: Settings) -> Handler:

@@ -463,6 +463,32 @@ def build_commands(
             )
             audio_index = 2 if audio_index == 1 else 1
         script = segment_filter(segment, fps=fps, audio_label=f"{audio_index}:a")
+        if encoder == "nvenc":
+            video_codec = [
+                "-c:v",
+                "h264_nvenc",
+                "-preset",
+                "p4",
+                "-rc",
+                "vbr",
+                "-cq",
+                "20",
+                "-b:v",
+                "0",
+                "-spatial-aq",
+                "1",
+                "-temporal-aq",
+                "1",
+            ]
+        else:
+            video_codec = [
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "18",
+            ]
         argv.extend(
             [
                 "-filter_complex_script",
@@ -471,12 +497,7 @@ def build_commands(
                 "[v]",
                 "-map",
                 "[a]",
-                "-c:v",
-                "libx264",
-                "-preset",
-                "veryfast",
-                "-crf",
-                "18",
+                *video_codec,
                 "-c:a",
                 "aac",
                 "-b:a",
@@ -550,12 +571,20 @@ def build_commands(
             "h264_nvenc",
             "-preset",
             DEFAULT_PRESET,
+            "-tune",
+            "hq",
             "-rc",
             "vbr",
             "-cq",
             str(DEFAULT_CRF),
             "-b:v",
             "0",
+            "-spatial-aq",
+            "1",
+            "-temporal-aq",
+            "1",
+            "-rc-lookahead",
+            "20",
         ]
     else:
         codec = [

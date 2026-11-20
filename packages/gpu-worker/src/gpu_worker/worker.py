@@ -26,6 +26,7 @@ from gpu_worker.store import JobRecord, JobStore
 from gpu_worker.vram import VramBudget, VramError
 
 _SENTINEL = "__stop__"
+_CPU_CAPABILITIES = frozenset({"scene_analyze", "vision_blur", "audio_events"})
 _INPUT_PLACEHOLDER = re.compile(r"^__VF_INPUT_(\d+)__$")
 
 
@@ -60,6 +61,7 @@ class JobRunner:
         shared_root: Path | None = None,
         models: ModelRegistry | None = None,
         vram: VramBudget | None = None,
+        cpu_workers: int = 2,
     ) -> None:
         self._store = store
         self._registry = registry
@@ -68,37 +70,78 @@ class JobRunner:
         self._shared_root = shared_root
         self._models = models
         self._vram = vram
-        self._queue: queue.Queue[str] = queue.Queue()
-        self._thread: threading.Thread | None = None
+        self._gpu_queue: queue.Queue[str] = queue.Queue()
+        self._cpu_queue: queue.Queue[str] = queue.Queue()
+        self._cpu_workers = max(1, min(int(cpu_workers), 8))
+        self._threads: list[threading.Thread] = []
         self._lock = threading.Lock()
         self._stopped = threading.Event()
+        self._metrics: list[dict[str, object]] = []
+        self._current: dict[str, dict[str, object]] = {}
+        self._metrics_lock = threading.Lock()
 
     def start(self) -> None:
         with self._lock:
-            if self._thread is not None and self._thread.is_alive():
+            if self._threads and any(thread.is_alive() for thread in self._threads):
                 return
             self._stopped.clear()
-            self._thread = threading.Thread(target=self._loop, name="gpu-worker-job", daemon=True)
-            self._thread.start()
+            self._threads = [
+                threading.Thread(
+                    target=self._loop,
+                    args=(self._gpu_queue,),
+                    name="gpu-worker-gpu",
+                    daemon=True,
+                )
+            ]
+            self._threads.extend(
+                threading.Thread(
+                    target=self._loop,
+                    args=(self._cpu_queue,),
+                    name=f"gpu-worker-cpu-{index + 1}",
+                    daemon=True,
+                )
+                for index in range(self._cpu_workers)
+            )
+            for thread in self._threads:
+                thread.start()
 
     def submit(self, job_id: str) -> bool:
         if self._stopped.is_set():
             return False
-        self._queue.put(job_id)
+        job = self._store.get_job(job_id)
+        is_cpu = job is not None and job.capability in _CPU_CAPABILITIES
+        (self._cpu_queue if is_cpu else self._gpu_queue).put(job_id)
         return True
 
     def stop(self) -> None:
         with self._lock:
-            thread = self._thread
-            self._thread = None
+            threads = list(self._threads)
+            self._threads = []
         self._stopped.set()
-        self._queue.put(_SENTINEL)
-        if thread is not None and thread.is_alive():
-            thread.join(timeout=5.0)
+        self._gpu_queue.put(_SENTINEL)
+        for _ in range(self._cpu_workers):
+            self._cpu_queue.put(_SENTINEL)
+        for thread in threads:
+            if thread.is_alive():
+                thread.join(timeout=5.0)
 
-    def _loop(self) -> None:
+    def metrics(self) -> dict[str, object]:
+        with self._metrics_lock:
+            recent = list(self._metrics)
+            current = [
+                {**item, "running_sec": round(max(0.0, time.time() - float(item["started_at"])), 3)}
+                for item in self._current.values()
+            ]
+        return {
+            "cpu_workers": self._cpu_workers,
+            "recent": recent[-20:],
+            "current": current,
+            "completed": len(recent),
+        }
+
+    def _loop(self, queue_: queue.Queue[str]) -> None:
         while True:
-            job_id = self._queue.get()
+            job_id = queue_.get()
             try:
                 if job_id == _SENTINEL:
                     return
@@ -108,7 +151,7 @@ class JobRunner:
                     # A metadata failure must not take the single worker thread down.
                     continue
             finally:
-                self._queue.task_done()
+                queue_.task_done()
 
     def _run(self, job_id: str) -> None:
         job = self._store.get_job(job_id)
@@ -116,10 +159,19 @@ class JobRunner:
             return
         if not self._store.mark_running(job_id):
             return
+        started = time.perf_counter()
+        with self._metrics_lock:
+            self._current[job_id] = {
+                "job_id": job_id,
+                "capability": job.capability,
+                "started_at": time.time(),
+                "running_sec": 0.0,
+            }
         try:
             names, shared, shared_error = self._execute(job)
         except Exception as exc:
             self._store.finish_job(job_id, "failed", error=_error_text(exc))
+            self._record_metric(job, started, "failed", _error_text(exc))
             return
         self._store.finish_job(
             job_id,
@@ -128,6 +180,24 @@ class JobRunner:
             shared_artifacts=shared,
             shared_error=shared_error,
         )
+        self._record_metric(job, started, "succeeded", "")
+
+    def _record_metric(self, job: JobRecord, started: float, status: str, error: str) -> None:
+        elapsed = round(time.perf_counter() - started, 3)
+        queue_wait = max(0.0, round((job.started_at or job.created_at) - job.created_at, 3))
+        record = {
+            "job_id": job.id,
+            "capability": job.capability,
+            "status": status,
+            "queue_wait_sec": queue_wait,
+            "elapsed_sec": elapsed,
+            "error": error,
+            "finished_at": time.time(),
+        }
+        with self._metrics_lock:
+            self._current.pop(job.id, None)
+            self._metrics.append(record)
+            self._metrics = self._metrics[-100:]
 
     def _execute(self, job: JobRecord) -> tuple[list[str], list[str], str | None]:
         job_dir = self._work_dir / "jobs" / job.id
@@ -148,7 +218,11 @@ class JobRunner:
                 f"capability '{job.capability}' is unavailable: "
                 f"{self._registry.reason(job.capability)}"
             )
-        if self._vram is not None and self._models is not None:
+        if (
+            job.capability not in _CPU_CAPABILITIES
+            and self._vram is not None
+            and self._models is not None
+        ):
             try:
                 self._vram.ensure(vram_cost(job.capability), self._models)
             except VramError as exc:
@@ -214,7 +288,10 @@ class JobRunner:
                 raise HandlerError(f"input artifact not found: {artifact_id}")
             suffix = record.path.suffix or ".bin"
             destination = inputs_dir / f"input_{index:03d}{suffix}"
-            shutil.copyfile(record.path, destination)
+            try:
+                os.link(record.path, destination)
+            except OSError:
+                shutil.copyfile(record.path, destination)
             paths.append(destination)
         return paths
 

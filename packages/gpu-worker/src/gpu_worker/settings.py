@@ -99,6 +99,7 @@ class Settings:
     work_dir: Path = field(default_factory=default_work_dir)
     max_upload_mb: int = DEFAULT_MAX_UPLOAD_MB
     max_queue: int = DEFAULT_MAX_QUEUE
+    cpu_workers: int = 2
     model_ttl_sec: float = DEFAULT_MODEL_TTL_SEC
     max_vram_mb: int = DEFAULT_MAX_VRAM_MB
     vram_reserve_mb: int = DEFAULT_VRAM_RESERVE_MB
@@ -118,6 +119,8 @@ class Settings:
     asr_model: str = "large-v3-turbo"
     asr_device: str = "cuda"
     asr_compute_type: str = "float16"
+    asr_cpu_threads: int = 0
+    asr_num_workers: int = 1
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
@@ -136,6 +139,7 @@ class Settings:
                 values, "VF_GPU_MAX_UPLOAD_MB", DEFAULT_MAX_UPLOAD_MB, minimum=1
             ),
             max_queue=_env_int(values, "VF_GPU_MAX_QUEUE", DEFAULT_MAX_QUEUE, minimum=0),
+            cpu_workers=_env_int(values, "VF_GPU_CPU_WORKERS", 2, minimum=1, maximum=8),
             model_ttl_sec=_env_float(
                 values, "VF_GPU_MODEL_TTL_SEC", DEFAULT_MODEL_TTL_SEC, minimum=0.0
             ),
@@ -167,6 +171,8 @@ class Settings:
             asr_model=_env(values, "VF_GPU_ASR_MODEL") or "large-v3-turbo",
             asr_device=_env(values, "VF_GPU_ASR_DEVICE") or "cuda",
             asr_compute_type=_env(values, "VF_GPU_ASR_COMPUTE_TYPE") or "float16",
+            asr_cpu_threads=_env_int(values, "VF_GPU_ASR_CPU_THREADS", 0, minimum=0),
+            asr_num_workers=_env_int(values, "VF_GPU_ASR_NUM_WORKERS", 1, minimum=1, maximum=8),
         )
 
     @property

@@ -1,5 +1,24 @@
 # Changelog
 
+## [3.10.0] - 2026-11-20
+
+### Performance
+
+- Worker scheduler split into one exclusive GPU lane and a bounded CPU pool
+  (`VF_GPU_CPU_WORKERS`); CPU scene analysis no longer reserves VRAM or blocks
+  GPU render.
+- Input artifacts use hardlinks into job directories when possible, with copy
+  fallback, removing duplicate large-file copies.
+- Runner exposes queue wait, elapsed time, status, errors, current and recent
+  jobs through `/api/overview`.
+- NVENC final encode adds HQ tune, spatial/temporal AQ and lookahead 20.
+- Remote micro-clips use NVENC p4/CQ20 when the worker reports NVENC.
+- Parallel worker keyframe extraction.
+- faster-whisper exposes CPU threads and worker count tuning.
+- Windows install sets high-performance power plan, Defender exclusions when
+  admin, CPU worker default, and keeps all-profile firewall rules.
+- Performance documentation and worker lane metrics.
+
 ## [3.9.2] - 2026-11-20
 
 ### Changed

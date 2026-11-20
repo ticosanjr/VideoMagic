@@ -232,6 +232,7 @@ def create_app(
         shared_root=shared_root,
         models=models,
         vram=vram,
+        cpu_workers=config.cpu_workers,
     )
 
     closed = threading.Event()
@@ -384,6 +385,7 @@ def create_app(
             "ok": True,
             "health": health(),
             "jobs": [job.summary() for job in store.list_jobs(limit=12)],
+            "runner": runner.metrics(),
             "logs": _tail_log(config, limit=40),
         }
 

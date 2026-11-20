@@ -46,7 +46,7 @@ code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}pre{background:
 <section class="grid cols" id="cards">
   <div class="card"><h2>Conexão</h2><div class="row"><span class="label">URL LAN</span><strong id="lan-url">—</strong></div><div class="row"><span class="label">Porta</span><strong id="port">—</strong></div><div class="row"><span class="label">Descoberta UDP</span><strong id="discovery">—</strong></div><div class="row"><span class="label">Autenticação</span><strong id="auth">—</strong></div><div class="row"><span class="label">Firewall</span><strong id="firewall">—</strong></div><div class="row"><span class="label">Último pedido</span><strong id="last-request">—</strong></div><div class="actions"><button id="copy">Copiar URL</button><button id="logs">Abrir logs</button></div></div>
   <div class="card"><h2>GPU</h2><div class="row"><span class="label">Modelo</span><strong id="gpu">—</strong></div><div class="row"><span class="label">VRAM</span><strong id="vram">—</strong></div><div class="row"><span class="label">Driver</span><strong id="driver">—</strong></div><div class="row"><span class="label">Encoder</span><strong id="encoder">—</strong></div><div class="row"><span class="label">NVENC</span><strong id="nvenc">—</strong></div></div>
-  <div class="card"><h2>Versão</h2><div class="row"><span class="label">Worker</span><strong id="version">—</strong></div><div class="row"><span class="label">Worker ID</span><strong id="worker-id">—</strong></div><div class="row"><span class="label">Uptime</span><strong id="uptime">—</strong></div><div class="row"><span class="label">Fila</span><strong id="queue">—</strong></div><div class="row"><span class="label">Latência</span><strong id="latency">—</strong></div></div>
+  <div class="card"><h2>Versão</h2><div class="row"><span class="label">Worker</span><strong id="version">—</strong></div><div class="row"><span class="label">Worker ID</span><strong id="worker-id">—</strong></div><div class="row"><span class="label">Uptime</span><strong id="uptime">—</strong></div><div class="row"><span class="label">Fila</span><strong id="queue">—</strong></div><div class="row"><span class="label">Workers CPU</span><strong id="cpu-workers">—</strong></div><div class="row"><span class="label">Latência</span><strong id="latency">—</strong></div></div>
 </section>
 
 <section class="grid cols">
@@ -114,6 +114,7 @@ function render(data) {
   $("worker-id").textContent = h.worker_id || "—";
   $("uptime").textContent = fmt(h.uptime_sec);
   $("queue").textContent = String(h.queue_depth ?? 0);
+  $("cpu-workers").textContent = String((data.runner || {}).cpu_workers ?? "—");
   $("notice").hidden = !(h.nvenc === false && h.nvenc_error);
   if (h.nvenc === false && h.nvenc_error) $("notice").textContent = `NVENC indisponível: ${h.nvenc_error}`;
   const current = h.current_job;
