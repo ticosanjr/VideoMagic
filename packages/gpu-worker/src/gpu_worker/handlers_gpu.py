@@ -9,6 +9,7 @@ from __future__ import annotations
 from gpu_worker.gpu_handlers import (
     make_asr_handler,
     make_face_track_handler,
+    make_ffmpeg_transcode_handler,
     make_forced_align_handler,
     make_render_nvenc_handler,
     make_scene_analyze_handler,
@@ -78,6 +79,7 @@ __all__ = [
     "_scene_visuals",
     "make_asr_handler",
     "make_face_track_handler",
+    "make_ffmpeg_transcode_handler",
     "make_forced_align_handler",
     "make_render_nvenc_handler",
     "make_scene_analyze_handler",

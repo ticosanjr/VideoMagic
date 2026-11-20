@@ -1785,6 +1785,31 @@ def image_to_broll_motion(
         width=width,
         height=height,
     )
+    if ROUTER.health("ffmpeg_transcode"):
+        try:
+            result = ROUTER.submit(
+                "ffmpeg_transcode",
+                {
+                    "input": str(source),
+                    "duration_sec": duration,
+                    "filter": filter_chain,
+                    "fps": 30,
+                    "still": True,
+                    "crf": 18,
+                    "output_name": f"{source.stem}_{motion}.mp4",
+                },
+            )
+            record = _materialize_remote(
+                project_id=project_id,
+                relative_path=relative,
+                result=result,
+                capability="ffmpeg_transcode",
+                cache_key=key,
+                kind="broll",
+            )
+            return _payload(tool, project_id, record, mode="remote")
+        except Exception:  # noqa: BLE001 - local FFmpeg is the contract
+            pass
     commands.run(
         [
             ffmpeg,

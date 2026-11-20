@@ -380,6 +380,7 @@ class GpuSettings(BaseModel):
             "forced_align": True,
             "scene_analyze": True,
             "short_render": True,
+            "ffmpeg_transcode": True,
             "audio_events": False,
             "vision_blur": True,
             "render_nvenc": True,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -330,3 +331,38 @@ def test_resolve_subtitle_track_prefers_merged_captions(tmp_path: Path) -> None:
     assert resolve_subtitle_track(tmp_path) == tmp_path / "titles.ass"
     (tmp_path / "subtitles.ass").write_text("[Events]\n", encoding="utf-8")
     assert resolve_subtitle_track(tmp_path) == tmp_path / "subtitles.ass"
+
+
+def test_bundle_can_render_mp4_on_remote_nvenc(tmp_path: Path, monkeypatch) -> None:
+    state = _state(tmp_path)
+    remote = tmp_path / "remote.mp4"
+    remote.write_bytes(b"remote-mp4")
+
+    class FakeRouter:
+        def decide(self, capability, vram=0):
+            return SimpleNamespace(is_remote=True, execution_node="remote_gpu:test")
+
+        def health(self):
+            return SimpleNamespace(nvenc=True, nvenc_error="")
+
+        def submit(self, capability, payload, timeout=300.0):
+            assert capability == "render_nvenc"
+            assert Path(payload["inputs"][0]).is_file()
+            return {"path": str(remote), "execution_node": "remote_gpu:test"}
+
+    monkeypatch.setattr(
+        "videoflow.application.compute.router_from_settings",
+        lambda settings=None: FakeRouter(),
+    )
+    result = build_delivery_bundle(
+        state,
+        tmp_path,
+        request=DeliveryBundleRequest(
+            compute_policy="remote",
+            allow_slow_cpu_fallback=False,
+        ),
+        adapter=FakeAdapter(),
+    )
+    assert result["ok"] is True
+    assert result["mp4"]["placement"] == "remote_gpu:test"
+    assert result["mp4"]["encoder"] == "nvenc"

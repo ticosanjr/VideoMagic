@@ -89,6 +89,8 @@ class DeliveryBundleRequest:
     require_licenses: bool = True
     include_sidecars: bool = True
     extra_targets: tuple[str, ...] = field(default_factory=tuple)
+    compute_policy: str = "auto"
+    allow_slow_cpu_fallback: bool = True
 
 
 def _sha256(path: Path) -> str:
@@ -294,6 +296,7 @@ def build_delivery_bundle(
             artifacts["kdenlive_mlt"] = mlt_path
 
     mp4_path: Path | None = None
+    mp4_report: dict[str, Any] = {"placement": "local", "encoder": "libx264"}
     subtitle_path = resolve_subtitle_track(output)
     ass_path = subtitle_path if options.burn_subtitles else None
     if requested_mp4:
@@ -303,25 +306,111 @@ def build_delivery_bundle(
         crf = 30 if options.mp4_draft else options.mp4_crf
         preset = "veryfast" if options.mp4_draft else options.mp4_preset
         output_fps = _fps_value(options.mp4_fps)
-        render_master(
-            state,
-            mp4_path,
-            output=output,
-            adapter=adapter,
-            audio_source=options.audio_source,
-            ass_path=ass_path,
-            look=look_from_mapping(output, options.look),
-            crf=crf,
-            preset=preset,
-            profile=options.mp4_profile,
-            audio_bitrate=options.mp4_audio_bitrate,
-            loudness_lufs=options.mp4_loudness_lufs,
-            true_peak_db=options.mp4_true_peak_db,
-            cfr=options.mp4_cfr,
-            fps=output_fps,
-            progress=((lambda value: progress("mp4", value)) if progress is not None else None),
-            cache_dir=cache_dir,
-        )
+        rendered_remote = False
+        if options.compute_policy != "local" and not options.mp4_draft:
+            try:
+                from videoflow.application.compute import (
+                    guard_remote_policy,
+                    router_from_settings,
+                )
+
+                router = router_from_settings()
+                guard_remote_policy(
+                    router,
+                    "render_nvenc",
+                    compute_policy=options.compute_policy,
+                    allow_slow_cpu_fallback=options.allow_slow_cpu_fallback,
+                    error_cls=ExportError,
+                )
+                health = router.health()
+                if not bool(getattr(health, "nvenc", False)):
+                    raise ExportError(
+                        "worker reports NVENC unavailable: "
+                        + (getattr(health, "nvenc_error", "") or "h264_nvenc failed")
+                    )
+                mezzanine = output / "work" / "bundle_mezzanine.mp4"
+                mezzanine.parent.mkdir(parents=True, exist_ok=True)
+                if progress is not None:
+                    progress("mp4", 10)
+                render_master(
+                    state,
+                    mezzanine,
+                    output=output,
+                    adapter=adapter,
+                    audio_source=options.audio_source,
+                    ass_path=None,
+                    look=look_from_mapping(output, options.look),
+                    crf=18,
+                    preset="ultrafast",
+                    profile=options.mp4_profile,
+                    audio_bitrate=options.mp4_audio_bitrate,
+                    loudness_lufs=None,
+                    true_peak_db=-2.0,
+                    cfr=options.mp4_cfr,
+                    fps=output_fps,
+                    cache_dir=cache_dir,
+                )
+                params: dict[str, Any] = {
+                    "output_name": mp4_path.name,
+                    "preset": "p4",
+                    "tune": "hq",
+                    "cq": 19,
+                    "audio_bitrate": "192k",
+                }
+                if state.media_info is not None:
+                    params["width"] = state.media_info.width
+                    params["height"] = state.media_info.height
+                if output_fps:
+                    params["fps"] = output_fps
+                inputs = [str(mezzanine)]
+                if ass_path is not None:
+                    inputs.append(str(ass_path))
+                if progress is not None:
+                    progress("mp4", 55)
+                result = router.submit(
+                    "render_nvenc",
+                    {"inputs": inputs, "params": params, "timeout_sec": 3600.0},
+                    timeout=3600.0,
+                )
+                remote_path = Path(str(result.get("path") or ""))
+                if not remote_path.is_file():
+                    raise ExportError("remote NVENC render returned no file")
+                mp4_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(remote_path, mp4_path)
+                rendered_remote = True
+                mp4_report = {
+                    "placement": str(result.get("execution_node") or "remote_gpu"),
+                    "encoder": "nvenc",
+                }
+                if progress is not None:
+                    progress("mp4", 95)
+            except ExportError as exc:
+                if (
+                    options.compute_policy in {"remote", "remote_only"}
+                    and not options.allow_slow_cpu_fallback
+                ):
+                    raise
+                mp4_report["degraded_reason"] = str(exc)
+        if not rendered_remote:
+            render_master(
+                state,
+                mp4_path,
+                output=output,
+                adapter=adapter,
+                audio_source=options.audio_source,
+                ass_path=ass_path,
+                look=look_from_mapping(output, options.look),
+                crf=crf,
+                preset=preset,
+                profile=options.mp4_profile,
+                audio_bitrate=options.mp4_audio_bitrate,
+                loudness_lufs=options.mp4_loudness_lufs,
+                true_peak_db=options.mp4_true_peak_db,
+                cfr=options.mp4_cfr,
+                fps=output_fps,
+                progress=((lambda value: progress("mp4", value)) if progress is not None else None),
+                cache_dir=cache_dir,
+            )
         artifacts["mp4"] = mp4_path
         if progress is not None:
             progress("mp4", 100)
@@ -356,6 +445,7 @@ def build_delivery_bundle(
             "errors": [] if mp4_ok else ["mp4 duration does not match the timeline"],
             "warnings": [],
             **mp4_dir,
+            **mp4_report,
         }
         validation["ok"] = bool(validation["ok"]) and mp4_ok
 
@@ -390,6 +480,7 @@ def build_delivery_bundle(
                 if (output / "audio" / "master.wav").is_file()
                 else ""
             ),
+            **mp4_report,
         },
         "files": files,
         "sidecars": sidecars,

@@ -997,6 +997,8 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         mode: str = "full",
         collision_mode: str = "visual",
         max_wer: float = 0.12,
+        compute_policy: str = "auto",
+        allow_slow_cpu_fallback: bool = True,
     ) -> dict[str, Any]:
         """Audit the deliverable MP4 and write a contact sheet."""
 
@@ -1041,6 +1043,8 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                     expected_frames=bundle_frames,
                     collision_mode=collision_mode,
                     max_wer=max_wer,
+                    compute_policy=compute_policy,
+                    allow_slow_cpu_fallback=allow_slow_cpu_fallback,
                 )
             else:
                 start = float(clip.get("start_sec") or 0.0)
@@ -1075,6 +1079,8 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                     height=clip_height,
                     collision_mode=collision_mode,
                     max_wer=max_wer,
+                    compute_policy=compute_policy,
+                    allow_slow_cpu_fallback=allow_slow_cpu_fallback,
                 )
                 report["short"] = {
                     "title": clip.get("title", ""),
@@ -2130,6 +2136,8 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         fps: int | str = 30,
         qa_mode: str = "fast",
         mp4_preset: str = "veryfast",
+        compute_policy: str = "auto",
+        allow_slow_cpu_fallback: bool = True,
     ) -> dict[str, Any]:
         from videoflow.application.delivery_bundle import (
             DEFAULT_BUNDLE_TARGETS,
@@ -2177,6 +2185,8 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                 mp4_draft=draft,
                 mp4_fps=fps,
                 mp4_preset=mp4_preset,
+                compute_policy=compute_policy,
+                allow_slow_cpu_fallback=allow_slow_cpu_fallback,
             ),
         )
         mp4 = (bundle.get("files") or {}).get("mp4") or {}
@@ -2244,6 +2254,8 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         mp4_profile: str = "youtube_h264",
         mp4_loudness_lufs: float | None = -16.5,
         burn_subtitles: bool | None = None,
+        compute_policy: str = "auto",
+        allow_slow_cpu_fallback: bool = True,
     ) -> dict[str, Any]:
         """Render a bundle, start a draft render, validate exports, or run an NLE roundtrip."""
 
@@ -2297,6 +2309,8 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                 fps=fps,
                 qa_mode=qa_mode,
                 mp4_preset=preset,
+                compute_policy=compute_policy,
+                allow_slow_cpu_fallback=allow_slow_cpu_fallback,
             )
         except VideoFlowError as exc:
             return exc.to_dict()

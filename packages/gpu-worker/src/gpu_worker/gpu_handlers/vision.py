@@ -91,6 +91,19 @@ def make_face_track_handler(settings: Settings) -> Handler:
             raise HandlerError(f"cannot open video: {input_paths[0]}")
         fps = float(capture.get(cv2.CAP_PROP_FPS) or 30.0)
         sample = max(1, round(fps / max(1.0, float(params.get("fps") or 5.0))))
+        raw_pieces = params.get("pieces") or []
+        sample_rate = float(params.get("sample_rate") or 0.0)
+        windows: list[tuple[float, float]] = []
+        for item in raw_pieces:
+            if isinstance(item, (list, tuple)) and len(item) >= 2 and sample_rate > 0:
+                windows.append(
+                    (float(item[0]) / sample_rate, float(item[1]) / sample_rate)
+                )
+        if not windows:
+            windows = [(0.0, float("inf"))]
+
+        def inside(time_sec: float) -> bool:
+            return any(start <= time_sec <= end for start, end in windows)
         width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
         height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
         total_frames = int(capture.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
@@ -101,7 +114,7 @@ def make_face_track_handler(settings: Settings) -> Handler:
                 ok, frame = capture.read()
                 if not ok:
                     break
-                if index % sample:
+                if index % sample or not inside(index / max(1.0, fps)):
                     index += 1
                     continue
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)

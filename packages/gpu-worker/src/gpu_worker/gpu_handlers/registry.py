@@ -18,7 +18,11 @@ from gpu_worker.gpu_handlers.common import (
     nvenc_available,
 )
 from gpu_worker.gpu_handlers.matte import _matte_session, make_segment_matte_handler
-from gpu_worker.gpu_handlers.render import make_render_nvenc_handler, make_short_render_handler
+from gpu_worker.gpu_handlers.render import (
+    make_ffmpeg_transcode_handler,
+    make_render_nvenc_handler,
+    make_short_render_handler,
+)
 from gpu_worker.gpu_handlers.scene import make_scene_analyze_handler
 from gpu_worker.gpu_handlers.vision import make_face_track_handler, make_vision_blur_handler
 from gpu_worker.handlers import HandlerRegistry
@@ -139,6 +143,9 @@ def register_builtin_handlers(
     if _binary_available(_ffmpeg(settings)):
         registry.register_handler(
             "short_render", make_short_render_handler(settings)
+        )
+        registry.register_handler(
+            "ffmpeg_transcode", make_ffmpeg_transcode_handler(settings)
         )
     else:
         registry.mark_unavailable("short_render", "FFmpeg is not available")

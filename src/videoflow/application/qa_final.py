@@ -103,6 +103,8 @@ def audit_final(
     warning_wer: float = 0.06,
     collision_mode: str = "visual",
     intro_duration_sec: float = 0.0,
+    compute_policy: str = "auto",
+    allow_slow_cpu_fallback: bool = True,
 ) -> dict[str, Any]:
     """Audit a delivered MP4 in fast or full mode.
 

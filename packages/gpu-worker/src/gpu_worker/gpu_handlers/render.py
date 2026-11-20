@@ -89,6 +89,59 @@ def make_render_nvenc_handler(settings: Settings) -> Handler:
     return handler
 
 
+def make_ffmpeg_transcode_handler(settings: Settings) -> Handler:
+    """Loop/trim/filter a still or clip with the worker FFmpeg."""
+
+    def handler(
+        params: dict[str, Any], input_paths: list[Path], work_dir: Path
+    ) -> list[Path]:
+        work_dir.mkdir(parents=True, exist_ok=True)
+        if not input_paths:
+            raise HandlerError("ffmpeg_transcode requires an input artifact")
+        source = input_paths[0]
+        output_name = str(params.get("output_name") or "transcode.mp4")
+        output = work_dir / output_name
+        filter_chain = str(params.get("filter") or "").strip()
+        argv = [_ffmpeg(settings), "-hide_banner", "-loglevel", "error", "-y"]
+        if params.get("still", True):
+            argv.extend(["-loop", "1"])
+        argv.extend(["-i", str(source)])
+        duration = params.get("duration_sec")
+        if duration:
+            argv.extend(["-t", f"{float(duration):.3f}"])
+        if filter_chain:
+            argv.extend(["-vf", filter_chain])
+        fps = params.get("fps")
+        if fps:
+            argv.extend(["-r", str(int(fps))])
+        if params.get("audio"):
+            argv.extend(["-c:a", "aac", "-b:a", "192k"])
+        else:
+            argv.append("-an")
+        argv.extend(
+            [
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                str(int(params.get("crf") or 18)),
+                "-pix_fmt",
+                "yuv420p",
+                "-movflags",
+                "+faststart",
+                str(output),
+            ]
+        )
+        report("transcoding", 20)
+        _run(argv)
+        if not output.is_file() or output.stat().st_size == 0:
+            raise HandlerError("ffmpeg_transcode produced no output")
+        return [output]
+
+    return handler
+
+
 def make_short_render_handler(settings: Settings) -> Handler:
     """Execute tokenised micro-clip/concat/final FFmpeg commands."""
 

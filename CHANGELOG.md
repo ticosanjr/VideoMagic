@@ -1,5 +1,29 @@
 # Changelog
 
+## [3.17.2] - 2026-11-20
+
+### Added — remote placement
+
+- `vf_export` bundles and `build_delivery_bundle` can render the social master
+  with worker NVENC (`compute_policy="auto"`), with local fallback and
+  `placement`/`encoder`/`degraded_reason` telemetry.
+- `qa_final` full word fidelity can reuse the worker ASR instead of requiring a
+  local faster-whisper model.
+- `shorts.reframe` can offload face tracking to the worker `face_track`
+  capability, filtering only the selected pieces.
+- `image_to_broll_motion` can offload zoom/pan encoding to the new worker
+  `ffmpeg_transcode` capability.
+- Worker `face_track` accepts sample pieces and reports only selected ranges.
+- `ffmpeg_transcode` added to worker capabilities, compute VRAM table, settings,
+  registry, and the GPU dashboard.
+
+### Fixed
+
+- `ComputeRouter.submit` accepts the historical `input` key as a single input,
+  repairing existing mcp-vision remote calls.
+- QA word fidelity keeps early “backend unavailable” behaviour and only extracts
+  PCM after a backend is actually available.
+
 ## [3.17.1] - 2026-11-20
 
 ### Fixed

@@ -9,6 +9,7 @@ VRAM_COST_MB: dict[str, int] = {
     "forced_align": 3277,
     "scene_analyze": 1024,
     "short_render": 1024,
+    "ffmpeg_transcode": 0,
     "audio_events": 512,
     "vision_blur": 512,
     "render_nvenc": 820,

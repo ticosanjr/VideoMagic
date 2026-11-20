@@ -24,6 +24,7 @@
     ["forced_align", "Forced alignment"],
     ["scene_analyze", "Scene intelligence"],
     ["short_render", "Dynamic Short render"],
+    ["ffmpeg_transcode", "FFmpeg transcode"],
     ["audio_events", "Acoustic event tagging"],
     ["vision_blur", "Visual blur audit"],
     ["render_nvenc", "NVENC master render"],

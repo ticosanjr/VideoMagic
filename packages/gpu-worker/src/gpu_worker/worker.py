@@ -29,7 +29,9 @@ from gpu_worker.vram import VramBudget, VramError
 
 _SENTINEL = "__stop__"
 _SENTINEL_PRIORITY = 10_000
-_CPU_CAPABILITIES = frozenset({"scene_analyze", "vision_blur", "audio_events"})
+_CPU_CAPABILITIES = frozenset(
+    {"scene_analyze", "vision_blur", "audio_events", "ffmpeg_transcode"}
+)
 _INPUT_PLACEHOLDER = re.compile(r"^__VF_INPUT_(\d+)__$")
 
 

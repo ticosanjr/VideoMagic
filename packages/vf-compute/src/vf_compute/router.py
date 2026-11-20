@@ -499,6 +499,8 @@ class ComputeRouter:
                 if key not in {"inputs", "shared_inputs", "timeout_sec"}
             }
         raw_inputs = [str(item) for item in body.get("inputs", []) or []]
+        if not raw_inputs and body.get("input"):
+            raw_inputs = [str(body["input"])]
         shared_inputs = [str(item) for item in body.get("shared_inputs", []) or []]
         shared_outputs = [str(item) for item in body.get("shared_outputs", []) or []]
         body_shared_root = str(body.get("shared_root") or "") or ""

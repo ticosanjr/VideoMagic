@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 
 from videoflow.application.tracking import focus_x_from_frames
@@ -522,3 +524,49 @@ def test_yolo_model_is_loaded_once_per_path(monkeypatch, tmp_path) -> None:
     assert tracking._face_centers_yolo(frames) == [None]
     assert tracking._face_centers_yolo(frames) == [None]
     assert loaded == [str(model)]
+
+
+def test_remote_face_tracking_uses_worker_keyframes(tmp_path: Path, monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from videoflow.application import tracking
+
+    payload = {
+        "keyframes": [
+            {"time": 0.0, "bbox": [0.1, 0.1, 0.2, 0.2]},
+            {"time": 0.5, "bbox": [0.6, 0.1, 0.2, 0.2]},
+        ]
+    }
+    result_path = tmp_path / "tracking.json"
+    result_path.write_text(__import__("json").dumps(payload), encoding="utf-8")
+
+    class FakeRouter:
+        def decide(self, capability, vram=0):
+            return SimpleNamespace(is_remote=True, reason="", execution_node="remote_gpu")
+
+        def submit(self, capability, payload, timeout=300.0):
+            assert capability == "face_track"
+            return {"paths": [str(result_path)], "execution_node": "remote_gpu"}
+
+    monkeypatch.setattr(
+        "videoflow.application.compute.router_from_settings",
+        lambda settings=None: FakeRouter(),
+    )
+    monkeypatch.setattr(
+        "videoflow.application.compute.guard_remote_policy",
+        lambda *args, **kwargs: None,
+    )
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"source")
+    values, backend = tracking._remote_face_values(
+        source,
+        [(0, 48000)],
+        48000,
+        2,
+        compute_policy="remote",
+        allow_slow_cpu_fallback=False,
+    )
+    assert backend == "remote_gpu"
+    assert len(values) == 2
+    assert values[0] == 0.2
+    assert values[1] == 0.7

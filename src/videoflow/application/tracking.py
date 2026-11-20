@@ -6,12 +6,14 @@ tracking is optional and only activates when OpenCV is installed.
 
 from __future__ import annotations
 
+import contextlib
 import statistics
 import subprocess
 from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -232,6 +234,98 @@ def _fill_gaps(values: list[float | None]) -> list[float]:
     return filled
 
 
+def _remote_face_values(
+    source: Path,
+    pieces: Sequence[tuple[int, int]],
+    sample_rate: int,
+    fps: int,
+    *,
+    compute_policy: str,
+    allow_slow_cpu_fallback: bool,
+) -> tuple[list[float | None], str]:
+    """Return per-sample focus values from the GPU worker's face_track job."""
+
+    import json
+
+    from videoflow.application.compute import (
+        guard_remote_policy,
+        router_from_settings,
+    )
+
+    router = router_from_settings()
+    guard_remote_policy(
+        router,
+        "face_track",
+        compute_policy=compute_policy,
+        allow_slow_cpu_fallback=allow_slow_cpu_fallback,
+        error_cls=RuntimeError,
+    )
+    decision = router.decide("face_track")
+    if not decision.is_remote:
+        if compute_policy == "remote_only":
+            raise RuntimeError(f"remote face tracking unavailable: {decision.reason}")
+        return [], "local"
+    result = router.submit(
+        "face_track",
+        {
+            "inputs": [str(source)],
+            "params": {
+                "fps": max(1, int(fps)),
+                "sample_rate": int(sample_rate),
+                "pieces": [[int(start), int(end)] for start, end in pieces],
+            },
+            "timeout_sec": 1800.0,
+        },
+        timeout=1800.0,
+    )
+    paths = result.get("paths") if isinstance(result.get("paths"), list) else []
+    path = Path(str(result.get("path") or ""))
+    candidates = [Path(str(item)) for item in paths] + ([path] if str(path) else [])
+    payload: dict[str, Any] = {}
+    for candidate in candidates:
+        if candidate.suffix.casefold() != ".json" or not candidate.is_file():
+            continue
+        with contextlib.suppress(OSError, ValueError):
+            loaded = json.loads(candidate.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict) and isinstance(loaded.get("keyframes"), list):
+                payload = loaded
+                break
+    if not payload:
+        raise RuntimeError("remote face_track returned no keyframes")
+    detections: list[tuple[float, float]] = []
+    for item in payload.get("keyframes") or []:
+        if not isinstance(item, dict):
+            continue
+        bbox = item.get("bbox")
+        if not isinstance(bbox, (list, tuple)) or len(bbox) < 3:
+            continue
+        detections.append((float(item.get("time") or 0.0), float(bbox[0]) + float(bbox[2]) / 2))
+    detections.sort()
+    durations = [max(0, end - start) / max(1, sample_rate) for start, end in pieces]
+    total = sum(durations)
+    count = max(1, int(round(total * max(1, fps))))
+    values: list[float | None] = []
+    for index in range(count):
+        moment = index / max(1, fps)
+        offset = 0.0
+        source_time = 0.0
+        for (start, _end), duration in zip(pieces, durations, strict=False):
+            if moment <= offset + duration or duration <= 0:
+                source_time = start / max(1, sample_rate) + max(0.0, moment - offset)
+                break
+            offset += duration
+        nearest = min(
+            detections,
+            key=lambda item: abs(item[0] - source_time),
+            default=None,
+        )
+        if nearest is None or abs(nearest[0] - source_time) > max(0.35, 1.0 / max(1, fps)):
+            values.append(None)
+        else:
+            values.append(nearest[1])
+    return values, str(result.get("execution_node") or "remote_gpu")
+
+
 def track_focus(
     source: Path,
     pieces: Sequence[tuple[int, int]],
@@ -245,6 +339,8 @@ def track_focus(
     yolo_confidence: float = 0.35,
     mediapipe_model: int = 1,
     mediapipe_model_path: str = "",
+    compute_policy: str = "local",
+    allow_slow_cpu_fallback: bool = True,
 ) -> TrackingResult:
     """Return focus keyframes plus the concrete backend and fallback reason."""
 
@@ -255,6 +351,49 @@ def track_focus(
         yolo_model=yolo_model,
         mediapipe_model_path=mediapipe_model_path,
     )
+    remote_values: list[float | None] = []
+    remote_backend = "local"
+    if (
+        compute_policy != "local"
+        and mode in {"face_tracking", "auto_face_tracking_yolo"}
+    ):
+        try:
+            remote_values, remote_backend = _remote_face_values(
+                source,
+                pieces,
+                sample_rate,
+                fps,
+                compute_policy=compute_policy,
+                allow_slow_cpu_fallback=allow_slow_cpu_fallback,
+            )
+        except Exception as exc:  # noqa: BLE001 - local fallback is the contract
+            if compute_policy == "remote_only" and not allow_slow_cpu_fallback:
+                raise
+            reason = f"remote face tracking failed: {exc}"
+            remote_values = []
+    if remote_values:
+        detections = sum(1 for value in remote_values if value is not None)
+        if detections:
+            filled = _fill_gaps(remote_values)
+            weight = max(0.0, min(0.99, float(smoothing)))
+            smoothed = filled[0] if filled else 0.5
+            keyframes: list[dict[str, float]] = []
+            for index, value in enumerate(filled):
+                smoothed = weight * smoothed + (1.0 - weight) * value
+                keyframes.append(
+                    {
+                        "time_sec": round(index / max(1, fps), 3),
+                        "focus_x": round(max(0.05, min(0.95, smoothed)), 4),
+                    }
+                )
+            return TrackingResult(
+                keyframes,
+                "remote_face_track",
+                requested,
+                "",
+                len(remote_values),
+                detections,
+            )
     # Haar needs more than 64x36 to find a face; only the neural backends
     # additionally need colour.
     wide = resolved in {"mediapipe", "yolo", "opencv_haar"}
@@ -346,6 +485,8 @@ def track_focus_keyframes(
     smoothing: float = 0.85,
     fps: int = 2,
     backend: str = "",
+    compute_policy: str = "local",
+    allow_slow_cpu_fallback: bool = True,
 ) -> tuple[list[dict[str, float]], str]:
     """Backward-compatible wrapper used by existing callers and tests."""
 
@@ -357,10 +498,12 @@ def track_focus_keyframes(
         smoothing=smoothing,
         fps=fps,
         backend=backend,
+        compute_policy=compute_policy,
+        allow_slow_cpu_fallback=allow_slow_cpu_fallback,
     )
     legacy = (
         "face_tracking"
-        if result.backend in {"opencv_haar", "mediapipe", "yolo"}
+        if result.backend in {"opencv_haar", "mediapipe", "yolo", "remote_face_track"}
         else "motion_tracking"
     )
     return result.keyframes, legacy
@@ -376,6 +519,8 @@ def track_focus_x_report(
     yolo_model: str = "",
     yolo_confidence: float = 0.35,
     mediapipe_model: int = 1,
+    compute_policy: str = "local",
+    allow_slow_cpu_fallback: bool = True,
 ) -> tuple[float, TrackingResult]:
     result = track_focus(
         source,
@@ -388,6 +533,8 @@ def track_focus_x_report(
         yolo_model=yolo_model,
         yolo_confidence=yolo_confidence,
         mediapipe_model=mediapipe_model,
+        compute_policy=compute_policy,
+        allow_slow_cpu_fallback=allow_slow_cpu_fallback,
     )
     focus = (
         float(statistics.median(item["focus_x"] for item in result.keyframes))
@@ -404,11 +551,21 @@ def track_focus_x(
     *,
     mode: str = "motion_tracking",
     backend: str = "",
+    compute_policy: str = "local",
+    allow_slow_cpu_fallback: bool = True,
 ) -> tuple[float, str]:
-    focus, result = track_focus_x_report(source, pieces, sample_rate, mode=mode, backend=backend)
+    focus, result = track_focus_x_report(
+        source,
+        pieces,
+        sample_rate,
+        mode=mode,
+        backend=backend,
+        compute_policy=compute_policy,
+        allow_slow_cpu_fallback=allow_slow_cpu_fallback,
+    )
     legacy = (
         "face_tracking"
-        if result.backend in {"opencv_haar", "mediapipe", "yolo"}
+        if result.backend in {"opencv_haar", "mediapipe", "yolo", "remote_face_track"}
         else "motion_tracking"
     )
     return focus, legacy
