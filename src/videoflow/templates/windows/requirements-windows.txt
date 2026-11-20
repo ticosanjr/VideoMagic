@@ -13,4 +13,4 @@ rembg==2.0.67
 onnxruntime-gpu==1.20.2
 opencv-python-headless==4.10.0.84
 numpy==1.26.4
-setuptools>=70
+setuptools==80.9.0

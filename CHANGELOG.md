@@ -1,5 +1,32 @@
 # Changelog
 
+## [3.17.1] - 2026-11-20
+
+### Fixed
+
+- Windows kit now ships `setuptools==80.9.0`; setuptools 81+ removed
+  `pkg_resources`, which CTranslate2 4.5 still imports. This restores
+  Faster-Whisper, forced alignment, and CTranslate2 CUDA detection.
+- NVENC and ONNX runtime pins are deterministic: `onnxruntime-gpu==1.20.2` is
+  no longer upgraded to an arbitrary latest version during repair.
+- Worker startup is tolerant of broken optional handlers: a failing ASR, matte,
+  or capability registration cannot abort the HTTP server.
+- Dependency detection imports modules for real and reports the exact failure
+  instead of claiming “not installed”.
+- `/health` and `/probe` expose `asr_ready`, `asr_error`, and a dependency
+  report; `/api/doctor` forces a fresh diagnosis.
+- Dashboard shows ASR dependency errors and warmup errors with detail.
+
+### Fixed — lifecycle
+
+- `Stop` now kills the supervisor tree, waits for port 8766 to be released, and
+  reports a clear error if a foreign process owns it.
+- `Start` reuses a healthy supervisor, validates PID ownership, and stops only
+  VideoFlow processes when a stale listener owns the port.
+- Supervisor mutex is scoped per installation instead of global.
+- Menu option 0 stops this worker before exiting; option 14 keeps it running.
+- Added `stop -All`, menu option 13, and clear port-owner diagnostics.
+
 ## [3.17.0] - 2026-11-20
 
 ### Added

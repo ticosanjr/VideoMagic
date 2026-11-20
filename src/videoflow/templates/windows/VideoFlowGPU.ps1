@@ -2,6 +2,7 @@ param(
     [ValidateSet("Menu", "Install", "Repair", "Start", "Stop", "Restart", "Status", "Doctor", "Diagnose", "Logs", "Autostart", "Uninstall", "Benchmark", "Supervisor", "SelfTest")]
     [string]$Action = "Menu",
     [switch]$Silent,
+    [switch]$All,
     [switch]$Json,
     [switch]$DryRun
 )
@@ -571,7 +572,7 @@ function Ensure-Runtime {
     param([switch]$Force)
     $runtimeStep = "runtime-" + $RuntimeRev
     $importsOk = $true
-    foreach ($module in @("faster_whisper", "rembg", "cv2", "onnxruntime", "torch")) {
+    foreach ($module in @("pkg_resources", "faster_whisper", "rembg", "cv2", "onnxruntime", "torch")) {
         if (-not (Test-PythonImport $module)) { $importsOk = $false }
     }
     if ((Test-InstallStep $runtimeStep) -and $importsOk -and -not $Force) {
@@ -580,7 +581,7 @@ function Ensure-Runtime {
             Write-Warn "ONNX Runtime sem CUDAExecutionProvider; reparando o pacote GPU."
             $uv = Resolve-Uv
             Invoke-Native $uv @("pip", "uninstall", "--python", $VenvPython, "onnxruntime") -AllowFailure | Out-Null
-            Invoke-Native $uv @("pip", "install", "--python", $VenvPython, "--upgrade", "--no-deps", "onnxruntime-gpu") -AllowFailure | Out-Null
+            Invoke-Native $uv @("pip", "install", "--python", $VenvPython, "--upgrade", "--no-deps", "onnxruntime-gpu==1.20.2") -AllowFailure | Out-Null
             Ensure-CudaDlls
         }
         $cuda = Get-PythonExpr "import torch; print(1 if torch.cuda.is_available() else 0)"
@@ -607,8 +608,10 @@ function Ensure-Runtime {
         Invoke-Native $uv @("pip", "install", "--python", $VenvPython, "--index-strategy", "unsafe-best-match", "--upgrade", "torch", "torchvision", "torchaudio", "--index-url", "https://download.pytorch.org/whl/cu121", "--extra-index-url", "https://pypi.org/simple") | Out-Null
         Invoke-Native $uv @("pip", "install", "--python", $VenvPython, "--upgrade", "faster-whisper", "ctranslate2", "rembg", "opencv-python-headless", "numpy<2") | Out-Null
     }
+    # CTranslate2 4.5 still imports pkg_resources; setuptools 81+ removed it.
+    Invoke-Native $uv @("pip", "install", "--python", $VenvPython, "--upgrade", "setuptools==80.9.0") -AllowFailure | Out-Null
     Invoke-Native $uv @("pip", "uninstall", "--python", $VenvPython, "onnxruntime") -AllowFailure | Out-Null
-    Invoke-Native $uv @("pip", "install", "--python", $VenvPython, "--upgrade", "--no-deps", "onnxruntime-gpu") -AllowFailure | Out-Null
+    Invoke-Native $uv @("pip", "install", "--python", $VenvPython, "--upgrade", "--no-deps", "onnxruntime-gpu==1.20.2") -AllowFailure | Out-Null
     Ensure-CudaDlls
     $cuda = Get-PythonExpr "import torch; print(1 if torch.cuda.is_available() else 0)"
     $ct2 = Get-PythonExpr "import ctranslate2; print(ctranslate2.get_cuda_device_count())"
@@ -828,23 +831,92 @@ function Ensure-Firewall {
     Set-InstallStep "firewall" $true
 }
 
+function Get-VideoFlowProcesses {
+    param([switch]$AnyRoot)
+    $rootPattern = [regex]::Escape($Root)
+    Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+        if ($_.ProcessId -eq $PID) { return $false }
+        $cmd = [string]$_.CommandLine
+        if (-not $cmd) { $cmd = "" }
+        $isVideoFlow = ($cmd -match "VideoFlowGPU\.ps1" -or $cmd -match "gpu_worker" -or $cmd -match "videoflow-gpu-worker" -or $_.Name -like "videoflow-gpu-worker*")
+        $exe = [string]$_.ExecutablePath
+        $inThisRoot = $AnyRoot -or ($cmd -match $rootPattern) -or ($exe -and $exe.StartsWith($Root, [System.StringComparison]::OrdinalIgnoreCase))
+        return ($isVideoFlow -and $inThisRoot)
+    }
+}
+
+function Get-ProcessCommandLine {
+    param([int]$ProcessId)
+    try {
+        $info = Get-CimInstance Win32_Process -Filter "ProcessId=$ProcessId" -ErrorAction SilentlyContinue
+        if ($info) { return [string]$info.CommandLine }
+    } catch { }
+    return ""
+}
+
+function Get-PortListener {
+    param([int]$Port)
+    try {
+        return (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1)
+    } catch {
+        return $null
+    }
+}
+
+function Wait-PortFree {
+    param([int]$Port, [int]$TimeoutSec = 15)
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    while ((Get-Date) -lt $deadline) {
+        if (-not (Get-PortListener -Port $Port)) { return $true }
+        Start-Sleep -Milliseconds 300
+    }
+    return $false
+}
+
+function Test-VideoFlowListener {
+    param([object]$Listener)
+    if (-not $Listener) { return $false }
+    $cmd = Get-ProcessCommandLine -ProcessId $Listener.OwningProcess
+    $process = Get-Process -Id $Listener.OwningProcess -ErrorAction SilentlyContinue
+    if ($process -and $process.ProcessName -like "videoflow-gpu-worker*") { return $true }
+    if ($cmd -match "gpu_worker" -or $cmd -match "videoflow-gpu-worker" -or $cmd -match [regex]::Escape($Root)) { return $true }
+    return $false
+}
+
+function Get-SupervisorMutexName {
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($Root.ToLowerInvariant())
+    $hash = [System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)
+    return "Local\VideoFlowGpuWorkerSupervisor-" + ([System.BitConverter]::ToString($hash).Replace("-", "").Substring(0, 12))
+}
+
 function Ensure-Port {
     $port = [int]$script:EnvMap["VF_GPU_PORT"]
-    $listener = $null
-    try {
-        $listener = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
-    } catch { }
+    $listener = Get-PortListener -Port $port
     if (-not $listener) { return }
     $process = Get-Process -Id $listener.OwningProcess -ErrorAction SilentlyContinue
-    if ($process -and $process.ProcessName -like "videoflow-gpu-worker*") {
-        Write-Warn ("Worker antigo na porta {0}; parando." -f $port)
-        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 1
-        return
-    }
     $name = "unknown"
     if ($process) { $name = $process.ProcessName }
-    Fail "E_PORT_IN_USE" ("A porta {0} esta em uso por {1} (PID {2})." -f $port, $name, $listener.OwningProcess) "Feche o processo ou mude VF_GPU_PORT em worker.env."
+    $cmd = Get-ProcessCommandLine -ProcessId $listener.OwningProcess
+    if (Test-VideoFlowListener -Listener $listener) {
+        Write-Warn ("Listener VideoFlow antigo na porta {0} (PID {1}); parando a arvore inteira." -f $port, $listener.OwningProcess)
+        $parent = 0
+        try {
+            $info = Get-CimInstance Win32_Process -Filter "ProcessId=$($listener.OwningProcess)" -ErrorAction SilentlyContinue
+            if ($info) { $parent = [int]$info.ParentProcessId }
+        } catch { }
+        if ($parent -gt 0) {
+            $parentCmd = Get-ProcessCommandLine -ProcessId $parent
+            if ($parentCmd -match "VideoFlowGPU\.ps1") { Stop-ProcessTree $parent }
+        }
+        Stop-ProcessTree $listener.OwningProcess
+        if (-not (Wait-PortFree -Port $port -TimeoutSec 15)) {
+            Fail "E_PORT_IN_USE" ("A porta {0} continua ocupada por VideoFlow (PID {1}, {2})." -f $port, $listener.OwningProcess, $name) "Rode VideoFlowGPU.bat stop --all ou finalize os processos VideoFlow restantes."
+        }
+        return
+    }
+    $detail = "PID $($listener.OwningProcess), processo $name"
+    if ($cmd) { $detail += ", comando: $cmd" }
+    Fail "E_PORT_IN_USE" ("A porta {0} esta em uso por outro programa ({1})." -f $port, $detail) "Feche o programa, rode VideoFlowGPU.bat stop --all ou mude VF_GPU_PORT em worker.env."
 }
 
 function Ensure-SharedMount {
@@ -940,21 +1012,31 @@ function Start-Worker {
         Ensure-Ffmpeg
     }
     Ensure-SharedMount
-    Ensure-Port
     $pidFile = Join-Path $LogDir "supervisor.pid"
     if (Test-Path $pidFile) {
         $value = 0
         [int]::TryParse(([string](Get-Content -Path $pidFile -Raw)).Trim(), [ref]$value) | Out-Null
         if ($value -gt 0) {
             $existing = Get-Process -Id $value -ErrorAction SilentlyContinue
-            if ($existing) {
+            $existingCmd = Get-ProcessCommandLine -ProcessId $value
+            $isThisSupervisor = $existing -and ($existingCmd -match "VideoFlowGPU\.ps1") -and ($existingCmd -match "Supervisor")
+            if ($isThisSupervisor) {
                 Write-Log ("Supervisor ja rodando (PID {0}); verificando saude." -f $value)
-                $health = Wait-Health
-                Write-Ok ("Worker saudavel: {0}" -f $health.gpu_name)
-                return
+                try {
+                    $health = Wait-Health
+                    Write-Ok ("Worker saudavel: {0}" -f $health.gpu_name)
+                    return
+                } catch {
+                    Write-Warn "Supervisor existente nao respondeu ao health; reiniciando."
+                    Stop-Worker -Quiet
+                }
+            } else {
+                Write-Warn "PID do supervisor era de outro processo; limpando."
+                Remove-Item -Path $pidFile -Force -ErrorAction SilentlyContinue
             }
         }
     }
+    Ensure-Port
     Set-Content -Path (Join-Path $LogDir "desired_state") -Value "running" -Encoding ASCII
     $process = Start-Supervisor
     $health = Wait-Health
@@ -985,29 +1067,55 @@ function Stop-ProcessTree {
 }
 
 function Stop-Worker {
-    param([switch]$Quiet)
+    param([switch]$Quiet, [switch]$All)
+    $port = [int]$script:EnvMap["VF_GPU_PORT"]
     Set-Content -Path (Join-Path $LogDir "desired_state") -Value "stopped" -Encoding ASCII
+    $targets = @()
     foreach ($name in @("supervisor.pid", "worker.pid")) {
         $path = Join-Path $LogDir $name
-        if (Test-Path $path) {
-            $value = 0
-            [int]::TryParse(([string](Get-Content -Path $path -Raw)).Trim(), [ref]$value) | Out-Null
-            if ($value -gt 0) {
-                $process = Get-Process -Id $value -ErrorAction SilentlyContinue
-                if ($process) {
-                    if ($name -eq "supervisor.pid" -and $process.ProcessName -notlike "powershell*") {
-                        Write-Warn "PID do supervisor nao parece PowerShell; ignorando."
-                    } else {
-                        Stop-ProcessTree $value
-                    }
-                }
-            }
-            Remove-Item -Path $path -Force -ErrorAction SilentlyContinue
+        if (-not (Test-Path $path)) { continue }
+        $value = 0
+        [int]::TryParse(([string](Get-Content -Path $path -Raw)).Trim(), [ref]$value) | Out-Null
+        if ($value -gt 0) { $targets += $value }
+        Remove-Item -Path $path -Force -ErrorAction SilentlyContinue
+    }
+    $processes = @(Get-VideoFlowProcesses -AnyRoot:$All)
+    if (-not $All) {
+        $rootPattern = [regex]::Escape($Root)
+        $processes = @($processes | Where-Object {
+            $cmd = [string]$_.CommandLine
+            ($cmd -match $rootPattern)
+        })
+    }
+    $targets += @($processes | ForEach-Object { [int]$_.ProcessId })
+    $listener = Get-PortListener -Port $port
+    if ($listener -and (Test-VideoFlowListener -Listener $listener)) {
+        $listenerCmd = Get-ProcessCommandLine -ProcessId $listener.OwningProcess
+        $listenerRoot = [regex]::Escape($Root)
+        if ($All -or ($listenerCmd -match $listenerRoot)) {
+            $targets += [int]$listener.OwningProcess
         }
     }
-    Get-Process -Name "videoflow-gpu-worker*" -ErrorAction SilentlyContinue | ForEach-Object { Stop-ProcessTree $_.Id }
-    Start-Sleep -Seconds 1
-    if (-not $Quiet) { Write-Ok "Worker parado." }
+    $targets = @($targets | Sort-Object -Unique | Where-Object { $_ -gt 0 -and $_ -ne $PID })
+    foreach ($target in $targets) {
+        $process = Get-Process -Id $target -ErrorAction SilentlyContinue
+        if ($process) {
+            Write-Log ("Parando {0} (PID {1})." -f $process.ProcessName, $target)
+            Stop-ProcessTree $target
+        }
+    }
+    if ($All) {
+        Get-Process -Name "videoflow-gpu-worker*" -ErrorAction SilentlyContinue | ForEach-Object {
+            if ($_.Id -ne $PID) { Stop-ProcessTree $_.Id }
+        }
+    }
+    if (-not (Wait-PortFree -Port $port -TimeoutSec 15)) {
+        $remaining = Get-PortListener -Port $port
+        $owner = "desconhecido"
+        if ($remaining) { $owner = "PID $($remaining.OwningProcess)" }
+        Fail "E_PORT_IN_USE" ("A porta {0} nao foi liberada apos parar o worker ({1})." -f $port, $owner) "Feche o processo restante ou rode VideoFlowGPU.bat stop --all."
+    }
+    if (-not $Quiet) { Write-Ok ("Worker parado; porta {0} livre." -f $port) }
 }
 
 function Get-StatusObject {
@@ -1290,8 +1398,12 @@ function Start-WorkerProcess {
 }
 
 function Supervisor {
-    $mutex = New-Object Threading.Mutex($false, "Local\VideoFlowGpuWorkerSupervisor")
-    if (-not $mutex.WaitOne(0)) { return }
+    $mutexName = Get-SupervisorMutexName
+    $mutex = New-Object Threading.Mutex($false, $mutexName)
+    if (-not $mutex.WaitOne(0)) {
+        Write-Log ("Supervisor ja ativo para este kit ({0}); saindo." -f $mutexName) "WARN"
+        return
+    }
     try {
         Ensure-EnvFile
         $desired = Join-Path $LogDir "desired_state"
@@ -1376,12 +1488,15 @@ function Show-Menu {
         Write-Host "10) Abrir pasta de logs"
         Write-Host "11) Desinstalar venv"
         Write-Host "12) Abrir painel do worker"
-        Write-Host "0) Sair"
+        Write-Host "13) Parar todos os workers VideoFlow"
+        Write-Host "14) Sair mantendo o worker rodando"
+        Write-Host "0) Parar este worker e sair"
         $choice = Read-Host "Escolha"
         switch ($choice) {
             "1" { Invoke-MenuAction "Instalar/reparar" { Install-Worker -Force } }
             "2" { Invoke-MenuAction "Iniciar worker" { Start-Worker } }
             "3" { Invoke-MenuAction "Parar worker" { Stop-Worker } }
+            "13" { Invoke-MenuAction "Parar todos os workers VideoFlow" { Stop-Worker -All } }
             "4" { Invoke-MenuAction "Status" { Show-Status } }
             "5" { Invoke-MenuAction "Diagnostico" { Show-Diagnose } }
             "6" { Invoke-MenuAction "Logs" { Show-Logs } }
@@ -1391,7 +1506,8 @@ function Show-Menu {
             "10" { Invoke-MenuAction "Abrir logs" { Start-Process explorer.exe $LogDir } }
             "11" { Invoke-MenuAction "Desinstalar" { Uninstall-Worker } }
             "12" { Invoke-MenuAction "Painel" { Open-Dashboard } }
-            "0" { return }
+            "14" { return }
+            "0" { Invoke-MenuAction "Parar worker" { Stop-Worker }; return }
             default { Write-Host "Opcao invalida." }
         }
     }
@@ -1412,7 +1528,7 @@ function Main {
             "Install" { Invoke-Step "Install" { Install-Worker } }
             "Repair" { Invoke-Step "Repair" { Stop-Worker -Quiet; Install-Worker -Force } }
             "Start" { Invoke-Step "Start" { Start-Worker } }
-            "Stop" { Invoke-Step "Stop" { Stop-Worker } }
+            "Stop" { Invoke-Step "Stop" { Stop-Worker -All:$All } }
             "Restart" { Invoke-Step "Restart" { Stop-Worker; Start-Worker } }
             "Status" { Invoke-Step "Status" { Show-Status } }
             "Doctor" { Invoke-Step "Doctor" { Show-Doctor } }

@@ -317,6 +317,11 @@
                 : "No worker connected"}
         </span>
       </div>
+      {#if status?.asr_ready === false}
+        <p class="mt-1 max-w-3xl text-[length:var(--vf-text-2xs)] text-amber-300" data-testid="gpu-asr-error">
+          ASR indisponível: {status.asr_error || "dependência do worker ausente"}
+        </p>
+      {/if}
     </div>
 
     {#if error}

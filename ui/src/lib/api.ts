@@ -1862,6 +1862,9 @@ export interface GpuWorkerStatus {
   nvenc?: boolean;
   encoder?: string;
   nvenc_error?: string;
+  asr_ready?: boolean;
+  asr_error?: string;
+  dependencies?: Record<string, unknown>;
   disk_free_mb?: number;
   min_free_disk_mb?: number;
   uptime_sec?: number;

@@ -10,7 +10,13 @@ from gpu_worker.gpu_handlers.asr import (
     make_asr_handler,
     make_forced_align_handler,
 )
-from gpu_worker.gpu_handlers.common import _available, _binary_available, _ffmpeg, nvenc_available
+from gpu_worker.gpu_handlers.common import (
+    _available,
+    _binary_available,
+    _ffmpeg,
+    _import_error,
+    nvenc_available,
+)
 from gpu_worker.gpu_handlers.matte import _matte_session, make_segment_matte_handler
 from gpu_worker.gpu_handlers.render import make_render_nvenc_handler, make_short_render_handler
 from gpu_worker.gpu_handlers.scene import make_scene_analyze_handler
@@ -37,8 +43,9 @@ def warmup_models(
     errors: list[str] = []
     model_name = settings.asr_model or "large-v3-turbo"
     key = (model_name, settings.asr_device or "cuda", settings.asr_compute_type or "float16")
-    if not _available("faster_whisper"):
-        skipped.append("asr: faster-whisper is not installed")
+    asr_error = _import_error("faster_whisper")
+    if asr_error:
+        skipped.append(f"asr: {asr_error}")
     else:
         try:
             from faster_whisper import WhisperModel
@@ -91,16 +98,20 @@ def register_builtin_handlers(
 ) -> None:
     """Register optional Python handlers, marking missing dependencies."""
 
-    if _available("faster_whisper"):
-        registry.register_handler("asr", make_asr_handler(settings, models))
-        registry.register_handler(
-            "forced_align", make_forced_align_handler(settings)
-        )
+    asr_error = _import_error("faster_whisper")
+    if not asr_error:
+        try:
+            registry.register_handler("asr", make_asr_handler(settings, models))
+            registry.register_handler(
+                "forced_align", make_forced_align_handler(settings)
+            )
+        except Exception as exc:  # noqa: BLE001 - optional handler cannot kill startup
+            reason = f"ASR handler init failed: {type(exc).__name__}: {exc}"
+            registry.mark_unavailable("asr", reason)
+            registry.mark_unavailable("forced_align", reason)
     else:
-        registry.mark_unavailable("asr", "faster-whisper is not installed")
-        registry.mark_unavailable(
-            "forced_align", "faster-whisper is not installed"
-        )
+        registry.mark_unavailable("asr", asr_error)
+        registry.mark_unavailable("forced_align", asr_error)
     if nvenc_available(_ffmpeg(settings)):
         registry.register_handler("render_nvenc", make_render_nvenc_handler(settings))
     else:

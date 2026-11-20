@@ -13,7 +13,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
-__version__ = "3.17.0"
+__version__ = "3.17.1"
 
 
 class _OverlayFinder(importlib.abc.MetaPathFinder):

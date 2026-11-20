@@ -59,7 +59,14 @@ function render(data) {
   $("cpu-workers").textContent = String((data.runner || {}).cpu_workers ?? "—");
   $("disk").textContent = h.disk_free_mb != null ? `${h.disk_free_mb} MB` : "—";
   const warm = data.warmup || h.warmup || {};
-  $("warmup").textContent = warm.running ? "aquecendo…" : (warm.loaded || []).length ? (warm.loaded || []).join(", ") : (warm.errors || []).length ? "falhou" : "não executado";
+  const warmErrors = (warm.errors || []).join("; ");
+  $("warmup").textContent = warm.running
+    ? "aquecendo…"
+    : (warm.loaded || []).length
+      ? (warm.loaded || []).join(", ")
+      : warmErrors
+        ? `falhou: ${warmErrors}`
+        : (h.asr_ready === false && h.asr_error ? `ASR: ${h.asr_error}` : "não executado");
   $("notice").hidden = !(h.nvenc === false && h.nvenc_error);
   if (h.nvenc === false && h.nvenc_error) {
     $("notice").textContent = `NVENC indisponível: ${h.nvenc_error}${h.nvenc_advice ? " — " + h.nvenc_advice : ""}`;
@@ -176,7 +183,8 @@ $("benchmark").onclick = async () => {
     if (data.nvenc === false) {
       $("notice").textContent = `Benchmark: cuda=${data.cuda} · NVENC indisponível: ${data.nvenc_error || "encode de teste falhou"}${data.nvenc_advice ? " — " + data.nvenc_advice : ""}`;
     } else {
-      $("notice").textContent = `Benchmark: ok=${data.ok} · cuda=${data.cuda} · nvenc=${data.nvenc} · ${data.latency_ms} ms`;
+      const asr = data.asr_ready === false ? ` · ASR indisponível: ${data.asr_error || "dependência ausente"}` : "";
+      $("notice").textContent = `Benchmark: ok=${data.ok} · cuda=${data.cuda} · nvenc=${data.nvenc} · ${data.latency_ms} ms${asr}`;
     }
   } catch (error) {
     $("notice").hidden = false; $("notice").textContent = `Benchmark falhou: ${error}`;

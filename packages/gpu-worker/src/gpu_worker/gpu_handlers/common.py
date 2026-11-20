@@ -26,8 +26,29 @@ if TYPE_CHECKING:
     from gpu_worker.settings import Settings
 
 
+_IMPORT_CACHE: dict[str, tuple[bool, str]] = {}
+
+
 def _available(module: str) -> bool:
     return importlib.util.find_spec(module) is not None
+
+
+def _importable(module: str) -> bool:
+    return not _import_error(module)
+
+
+def _import_error(module: str) -> str:
+    """Import a module for real; ``find_spec`` misses broken dependencies."""
+
+    cached = _IMPORT_CACHE.get(module)
+    if cached is None:
+        try:
+            importlib.import_module(module)
+            cached = (True, "")
+        except Exception as exc:  # noqa: BLE001 - optional dependency
+            cached = (False, f"{type(exc).__name__}: {exc}")
+        _IMPORT_CACHE[module] = cached
+    return cached[1]
 
 
 def _ffmpeg(settings: Settings) -> str:

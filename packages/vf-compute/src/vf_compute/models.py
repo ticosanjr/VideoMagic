@@ -71,6 +71,9 @@ class WorkerHealth(BaseModel):
     nvenc: bool = False
     encoder: str = ""
     nvenc_error: str = ""
+    asr_ready: bool = True
+    asr_error: str = ""
+    dependencies: dict[str, Any] = Field(default_factory=dict)
     disk_free_mb: int = 0
     min_free_disk_mb: int = 0
     uptime_sec: float = 0.0
@@ -140,6 +143,13 @@ class WorkerHealth(BaseModel):
             nvenc=bool(data.get("nvenc", False)),
             encoder=str(data.get("encoder") or ""),
             nvenc_error=str(data.get("nvenc_error") or ""),
+            asr_ready=bool(data.get("asr_ready", True)),
+            asr_error=str(data.get("asr_error") or ""),
+            dependencies=(
+                dict(data["dependencies"])
+                if isinstance(data.get("dependencies"), Mapping)
+                else {}
+            ),
             disk_free_mb=_as_int(data.get("disk_free_mb")),
             min_free_disk_mb=_as_int(data.get("min_free_disk_mb")),
             uptime_sec=_as_float(data.get("uptime_sec")),

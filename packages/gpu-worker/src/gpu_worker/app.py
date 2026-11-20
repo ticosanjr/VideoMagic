@@ -34,6 +34,7 @@ from starlette.concurrency import run_in_threadpool
 from gpu_worker import __version__
 from gpu_worker.artifacts import ArtifactStore, ArtifactTooLarge
 from gpu_worker.discovery import DiscoveryBeacon
+from gpu_worker.doctor import dependency_report
 from gpu_worker.gpu import detect_gpu
 from gpu_worker.handlers import HandlerRegistry, build_default_registry
 from gpu_worker.handlers_gpu import (
@@ -197,7 +198,18 @@ def create_app(
         max_vram_mb=config.max_vram_mb,
         reserve_mb=config.vram_reserve_mb,
     )
-    handlers = registry or build_default_registry(config, models)
+    if registry is not None:
+        handlers = registry
+    else:
+        try:
+            handlers = build_default_registry(config, models)
+        except Exception as exc:  # noqa: BLE001 - optional handlers cannot kill startup
+            handlers = HandlerRegistry()
+            handlers.mark_unavailable(
+                "builtin_handlers",
+                f"builtin handler init failed: {type(exc).__name__}: {exc}",
+            )
+    dependencies = dependency_report(config)
     runner = JobRunner(
         store=store,
         registry=handlers,
@@ -242,6 +254,7 @@ def create_app(
     app.state.artifacts = artifacts
     app.state.uploads = uploads
     app.state.models = models
+    app.state.dependencies = dependencies
     app.state.vram = vram
     app.state.registry = handlers
     app.state.runner = runner
@@ -407,6 +420,9 @@ def create_app(
             "status": "ok",
             "version": __version__,
             "available": True,
+            "asr_ready": bool(app.state.dependencies.get("asr_ready")),
+            "asr_error": str(app.state.dependencies.get("asr_error") or ""),
+            "dependencies": app.state.dependencies,
             "worker_id": config.worker_id or hostname,
             "hostname": hostname,
             "ip_local": _local_ip(),
@@ -466,6 +482,12 @@ def create_app(
             "warmup": dict(app.state.warmup),
             "logs": _tail_log(config, limit=40),
         }
+
+    @app.get("/api/doctor")
+    def api_doctor() -> dict[str, Any]:
+        report = dependency_report(config, force=True)
+        app.state.dependencies = report
+        return {"ok": report.get("ok", False), **report}
 
     @app.post("/api/warmup")
     def api_warmup() -> dict[str, Any]:
@@ -632,6 +654,7 @@ def create_app(
         # Benchmark must re-test the driver, not replay a cached startup result.
         nvenc_probe = probe_nvenc(ffmpeg, force=True)
         nvenc = nvenc_probe.available
+        dependencies = dependency_report(config, force=True)
         ct2_devices = 0
         try:
             import ctranslate2
@@ -646,6 +669,7 @@ def create_app(
             providers = [str(item) for item in onnxruntime.get_available_providers()]
         except Exception:  # noqa: BLE001 - optional runtime
             providers = []
+        app.state.dependencies = dependencies
         return {
             "ok": bool(gpu.available and nvenc),
             "cuda": bool(gpu.available),
@@ -653,7 +677,10 @@ def create_app(
             "nvenc_error": nvenc_probe.reason,
             "nvenc_advice": nvenc_probe.advice,
             "nvenc_args": list(nvenc_probe.args),
-            "asr": bool(gpu.available and ct2_devices > 0),
+            "asr_ready": bool(dependencies.get("asr_ready")),
+            "asr_error": str(dependencies.get("asr_error") or ""),
+            "dependencies": dependencies,
+            "asr": bool(dependencies.get("asr_ready") and ct2_devices > 0),
             "matte": "CUDAExecutionProvider" in providers,
             "gpu_name": gpu.name,
             "vram_free_mb": gpu.vram_free_mb,
