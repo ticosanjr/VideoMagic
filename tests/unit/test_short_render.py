@@ -431,3 +431,32 @@ def test_commands_add_silence_for_video_without_audio(tmp_path: Path) -> None:
     argv = commands.segments[0]["argv"]
     assert "anullsrc=r=48000:cl=stereo" in argv
     assert "[1:a]asetpts" in str(commands.segments[0]["filter"])
+
+
+def test_segment_cache_reuses_micro_clips(tmp_path: Path) -> None:
+    plan, manifest = _plan()
+    renders = build_segment_renders(plan, manifest)
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"source")
+    commands = build_commands(renders, source=source, output_name="short.mp4")
+    cache = tmp_path / "cache"
+
+    class Runner:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def __call__(self, argv: list[str], cwd: Path) -> None:
+            self.calls += 1
+            output = Path(argv[-1])
+            if not output.is_absolute():
+                output = cwd / output
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_bytes(b"mp4")
+
+    first = Runner()
+    execute_commands(commands, tmp_path / "work1", runner=first, segment_cache=cache)
+    second = Runner()
+    execute_commands(commands, tmp_path / "work2", runner=second, segment_cache=cache)
+    assert first.calls == len(commands.segments) + 1
+    assert second.calls == 1  # only the final concat/encode
+    assert len(list(cache.glob("*.mp4"))) == len(commands.segments)

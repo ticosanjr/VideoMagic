@@ -469,6 +469,17 @@ def create_app(
 
     @app.post("/artifacts/init")
     def init_artifact(body: UploadInit) -> dict[str, Any]:
+        existing = artifacts.get(body.sha256) if body.sha256 else None
+        if existing is not None:
+            return {
+                "upload_id": f"artifact:{existing.id}",
+                "offset": existing.size,
+                "size": existing.size,
+                "chunk_size": body.chunk_size,
+                "sha256": existing.id,
+                "artifact_id": existing.id,
+                "complete": True,
+            }
         try:
             session = uploads.create(
                 filename=body.filename,

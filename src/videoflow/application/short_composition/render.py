@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import shutil
 import subprocess
 from collections.abc import Callable, Sequence
@@ -365,6 +367,35 @@ def _token(index: int) -> str:
     return f"__IN{index}__"
 
 
+def _segment_cache_key(
+    *,
+    source: Path,
+    segment: SegmentRender,
+    script: str,
+    fps: int,
+    encoder: str,
+) -> str:
+    try:
+        stat = Path(source).stat()
+        fingerprint = f"{stat.st_size}:{stat.st_mtime_ns}"
+    except OSError:
+        fingerprint = "missing"
+    payload = {
+        "source": str(source),
+        "fingerprint": fingerprint,
+        "start": round(segment.source_start, 6),
+        "end": round(segment.source_end, 6),
+        "layout": segment.layout,
+        "broll": str(segment.broll_path or ""),
+        "filter": script,
+        "fps": int(fps),
+        "encoder": encoder,
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    ).hexdigest()[:20]
+
+
 def build_commands(
     renders: Sequence[SegmentRender],
     *,
@@ -513,7 +544,21 @@ def build_commands(
                 name,
             ]
         )
-        commands.append({"argv": argv, "filter": script, "output": name})
+        cache_key = _segment_cache_key(
+            source=source,
+            segment=segment,
+            script=script,
+            fps=fps,
+            encoder=encoder,
+        )
+        commands.append(
+            {
+                "argv": argv,
+                "filter": script,
+                "output": name,
+                "cache_key": cache_key,
+            }
+        )
         concat_names.append(name)
 
     fade_start_abs = max(0.0, float(fade_start))
@@ -650,6 +695,7 @@ def execute_commands(
     ffmpeg: str = "ffmpeg",
     runner: Callable[[list[str], Path], None] | None = None,
     check_cancel: Callable[[], None] | None = None,
+    segment_cache: Path | None = None,
 ) -> Path:
     """Run micro-clips, concat, and finalisation in one work directory."""
 
@@ -657,9 +703,25 @@ def execute_commands(
     work.mkdir(parents=True, exist_ok=True)
     tokens = commands.input_tokens()
     run = runner or _run
+    cache_root = Path(segment_cache).expanduser() if segment_cache is not None else None
+    if cache_root is not None:
+        cache_root.mkdir(parents=True, exist_ok=True)
     for index, segment in enumerate(commands.segments, start=1):
         if check_cancel is not None:
             check_cancel()
+        output_name = str(segment.get("output") or f"seg_{index:04d}.mp4")
+        cached = (
+            cache_root / f"{segment.get('cache_key') or index}.mp4"
+            if cache_root is not None
+            else None
+        )
+        if cached is not None and cached.is_file() and cached.stat().st_size > 0:
+            target = work / output_name
+            try:
+                os.link(cached, target)
+            except OSError:
+                shutil.copy2(cached, target)
+            continue
         script_path = work / f"segment_{index:04d}.ffscript"
         script_path.write_text(
             _replace_filter_tokens(str(segment["filter"]), tokens), encoding="utf-8"
@@ -673,11 +735,16 @@ def execute_commands(
             for item in argv
         ]
         run(argv, work)
-        segment_output = work / str(segment.get("output") or "")
+        segment_output = work / output_name
         if not segment_output.is_file() or segment_output.stat().st_size == 0:
             raise IngestError(
                 f"Short render segment {index} produced no output: {segment_output}"
             )
+        if cached is not None:
+            try:
+                os.link(segment_output, cached)
+            except OSError:
+                shutil.copy2(segment_output, cached)
     concat_path = work / "concat.txt"
     concat_path.write_text(
         "\n".join(

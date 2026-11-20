@@ -233,6 +233,9 @@ class GPUWorkerClient:
                 ) from exc
             raise
         payload = _json_object(init)
+        existing = payload.get("artifact_id")
+        if existing and payload.get("complete"):
+            return str(existing)
         upload_id = str(payload.get("upload_id") or "")
         if not upload_id:
             raise GPUWorkerError("worker did not return an upload id")

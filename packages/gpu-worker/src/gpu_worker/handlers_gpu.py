@@ -1040,9 +1040,20 @@ def make_short_render_handler(settings: Settings) -> Handler:
             return value
 
         ffmpeg = _ffmpeg(settings)
+        cache_root = work_dir.parent.parent / "short_segment_cache"
+        cache_root.mkdir(parents=True, exist_ok=True)
         for index, segment in enumerate(params.get("segments") or [], start=1):
             if not isinstance(segment, dict):
                 raise HandlerError("short_render segment must be an object")
+            output_name = str(segment.get("output") or f"seg_{index:04d}.mp4")
+            cached = cache_root / f"{segment.get('cache_key') or index}.mp4"
+            if cached.is_file() and cached.stat().st_size > 0:
+                target = work_dir / output_name
+                try:
+                    os.link(cached, target)
+                except OSError:
+                    shutil.copy2(cached, target)
+                continue
             script = work_dir / f"segment_{index:04d}.ffscript"
             script.write_text(
                 replace_filter(str(segment.get("filter") or "")), encoding="utf-8"
@@ -1058,11 +1069,16 @@ def make_short_render_handler(settings: Settings) -> Handler:
             if any("__IN" in item or "__SCRIPT" in item for item in argv):
                 raise HandlerError("short_render left an unresolved placeholder")
             _run_in(argv, work_dir)
-            segment_output = work_dir / str(segment.get("output") or "")
+            segment_output = work_dir / output_name
             if not segment_output.is_file() or segment_output.stat().st_size == 0:
                 raise HandlerError(
                     f"short_render segment {index} produced no output"
                 )
+            if not cached.is_file():
+                try:
+                    os.link(segment_output, cached)
+                except OSError:
+                    shutil.copy2(segment_output, cached)
         names = [str(item) for item in params.get("concat_names") or []]
         if not names:
             raise HandlerError("short_render produced no micro-clips")

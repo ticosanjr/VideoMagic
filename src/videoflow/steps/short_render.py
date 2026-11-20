@@ -310,6 +310,7 @@ class ShortRenderStep(BaseStep):
                     commands,
                     work,
                     check_cancel=io.check_cancel,
+                    segment_cache=parent / "segment_cache",
                 )
                 output.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(rendered, output)

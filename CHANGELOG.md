@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.12.0] - 2026-11-20
+
+### Performance
+
+- Persistent Short segment cache keyed by source fingerprint, crop, filter,
+  FPS, and encoder; local and worker renders reuse previous micro-clips.
+- Worker upload init now returns an existing content-addressed artifact instead
+  of re-uploading identical inputs.
+- Windows/public kit and CI remain part of the release flow.
+
+### Changed
+
+- Short segment cache lives under `work/shorts/<id>/segment_cache` locally and
+  under `short_segment_cache` on the worker.
+
 ## [3.11.0] - 2026-11-20
 
 ### Added
