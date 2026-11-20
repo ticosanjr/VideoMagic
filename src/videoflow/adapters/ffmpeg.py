@@ -247,6 +247,9 @@ class FFmpegAdapter:
         preset: str = "veryfast",
         crf: int = 23,
         audio: bool = True,
+        fps: int | None = None,
+        fast: bool = False,
+        encoder: str = "auto",
     ) -> Path:
         """Build a preview-only H.264/AAC proxy."""
 
@@ -254,23 +257,35 @@ class FFmpegAdapter:
         target = Path(destination).expanduser()
         target.parent.mkdir(parents=True, exist_ok=True)
         temporary = target.with_name(f"{target.stem}.part{target.suffix}")
-        command = [
-            "ffmpeg",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-y",
-            "-i",
-            str(source_path),
-            "-vf",
-            f"scale=-2:{max(144, int(height))}",
-            "-c:v",
-            "libx264",
-            "-preset",
-            preset,
-            "-crf",
-            str(max(0, min(51, int(crf)))),
-        ]
+        command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
+        if fast:
+            command.extend(["-skip_frame", "nokey"])
+        command.extend(["-i", str(source_path)])
+        command.extend(
+            [
+                "-vf",
+                (
+                    f"fps={max(1, int(fps))},scale=-2:{max(144, int(height))}"
+                    if fps
+                    else f"scale=-2:{max(144, int(height))}"
+                ),
+            ]
+        )
+        chosen = str(encoder or "auto").lower()
+        if chosen == "auto":
+            from videoflow.exporters.mp4 import video_encoder
+
+            chosen = video_encoder()
+        if fast and chosen in {"libx264", "x264", "cpu"}:
+            command.extend(["-c:v", "mpeg4", "-q:v", "8"])
+        elif chosen in {"nvenc", "h264_nvenc"}:
+            command.extend(
+                ["-c:v", "h264_nvenc", "-preset", "p1", "-cq", str(max(0, min(51, int(crf))))]
+            )
+        else:
+            command.extend(
+                ["-c:v", "libx264", "-preset", preset, "-crf", str(max(0, min(51, int(crf))))]
+            )
         if audio:
             command.extend(["-c:a", "aac", "-b:a", "128k"])
         else:
@@ -363,20 +378,10 @@ class FFmpegAdapter:
         target = Path(destination).expanduser()
         target.parent.mkdir(parents=True, exist_ok=True)
         temp = target.with_name(f"{target.stem}.part.wav")
-        command = [
-            "ffmpeg",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-y",
-            "-i",
-            str(source_path),
-            "-vn",
-            "-ac",
-            "2",
-            "-ar",
-            str(sample_rate),
-        ]
+        command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
+        command.extend(
+            ["-i", str(source_path), "-vn", "-ac", "2", "-ar", str(sample_rate)]
+        )
         chain = ",".join(item for item in filters if item)
         if chain:
             command.extend(["-af", chain])

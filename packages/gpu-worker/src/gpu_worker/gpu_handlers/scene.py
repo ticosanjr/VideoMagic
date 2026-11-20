@@ -30,8 +30,8 @@ def _scene_sample_times(
     start: float,
     end: float,
     *,
-    max_frames: int = 20,
-    interval: float = 0.5,
+    max_frames: int = 3,
+    interval: float = 1.5,
 ) -> list[float]:
     return _rules_sample_times(
         start,
@@ -122,10 +122,10 @@ def _scene_face_backend(cv2: Any) -> Any:
 
         detector = mp.solutions.face_detection.FaceDetection(
             model_selection=1,
-            min_detection_confidence=0.60,
+            min_detection_confidence=0.45,
         )
 
-        def detect(frame: Any) -> tuple[int, float, float, float, float] | None:
+        def region(frame: Any) -> tuple[int, float, float, float, float] | None:
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             result = detector.process(rgb)
             if not result.detections:
@@ -143,6 +143,39 @@ def _scene_face_backend(cv2: Any) -> Any:
                 float(box.width),
                 float(box.height),
             )
+
+        def detect(frame: Any) -> tuple[int, float, float, float, float] | None:
+            direct = region(frame)
+            if direct is not None:
+                return direct
+            height, width = frame.shape[:2]
+            corner = 0.30
+            cw = max(8, int(width * corner))
+            ch = max(8, int(height * corner))
+            for x0, y0 in (
+                (0, 0),
+                (width - cw, 0),
+                (0, height - ch),
+                (width - cw, height - ch),
+            ):
+                crop = frame[y0 : y0 + ch, x0 : x0 + cw]
+                if crop.size == 0:
+                    continue
+                enlarged = cv2.resize(
+                    crop, (cw * 2, ch * 2), interpolation=cv2.INTER_CUBIC
+                )
+                found = region(enlarged)
+                if found is None:
+                    continue
+                count, cx, cy, fw, fh = found
+                return (
+                    count,
+                    (x0 + cx * cw) / max(1, width),
+                    (y0 + cy * ch) / max(1, height),
+                    fw * cw / max(1, width),
+                    fh * ch / max(1, height),
+                )
+            return None
 
         return detect
     except Exception:  # noqa: BLE001 - Haar fallback
@@ -181,7 +214,7 @@ def _scene_visuals(
     spans: list[tuple[float, float]],
     *,
     topology: str,
-    max_frames: int = 10,
+    max_frames: int = 3,
 ) -> list[dict[str, Any]]:
     """Sample every scene with one sequential decode pass.
 
@@ -369,13 +402,13 @@ def make_scene_analyze_handler(settings: Settings) -> Handler:
         min_scene_len_sec = float(params.get("min_scene_len_sec") or 1.5)
         topology = str(params.get("source_topology") or "single_16x9")
         keyframe_size = max(128, min(1080, int(params.get("keyframe_size") or 544)))
-        visual_max_frames = max(3, min(20, int(params.get("visual_max_frames") or 10)))
+        visual_max_frames = max(3, min(5, int(params.get("visual_max_frames") or 3)))
         if topology == "auto":
             ratio = width / max(1, height)
             topology = "dual_canvas" if abs(ratio - 3.55) < 0.15 else "single_16x9"
         ffmpeg = _ffmpeg(settings)
         proxy = work_dir / "proxy_360.mp4"
-        analyze_fps = 10.0
+        analyze_fps = 3.0
         report("building scene proxy", 8)
         _run(
             [
@@ -451,6 +484,11 @@ def make_scene_analyze_handler(settings: Settings) -> Handler:
         )
         report("extracting keyframes", 70)
         paths = _scene_keyframes(source, spans, work_dir / "keyframes", size=keyframe_size)
+        if len(paths) != len(spans) or any(not item for item in paths):
+            raise HandlerError(
+                f"scene_analyze produced {sum(1 for item in paths if item)}/"
+                f"{len(spans)} keyframes"
+            )
         report("writing manifest", 90)
         scenes: list[dict[str, Any]] = []
         previous: str | None = None

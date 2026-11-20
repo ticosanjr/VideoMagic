@@ -248,7 +248,7 @@ def test_qa_final_advisory(monkeypatch, tmp_path: Path) -> None:
     )
     monkeypatch.setattr(
         "videoflow.adapters.ffmpeg.FFmpegAdapter.measure_loudness",
-        lambda self, path: {"integrated_lufs": -16.0, "true_peak_db": -1.0},
+        lambda self, path: {"integrated_lufs": -15.5, "true_peak_db": -1.6},
     )
     monkeypatch.setattr("videoflow.application.qa_final._contact_sheet", lambda video, target: None)
     report = audit_final(video, output=tmp_path, state=state)

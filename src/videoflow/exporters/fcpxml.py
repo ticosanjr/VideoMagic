@@ -278,6 +278,55 @@ def export_fcpxml(
                 },
             )
 
+    quarantine_colors = {
+        "retake": "red",
+        "noise": "orange",
+        "manual": "yellow",
+        "silence": "gray",
+    }
+    for inactive in state.inactive_segments:
+        clip = inactive.video
+        source_id = clip.source_id or state.primary_source_id or "primary"
+        start_sec = timebase.frames_to_seconds(clip.source_in_frame)
+        duration_sec = timebase.frames_to_seconds(
+            clip.source_out_frame - clip.source_in_frame
+        )
+        element = ET.SubElement(
+            spine,
+            "asset-clip",
+            {
+                "ref": source_assets.get(source_id, "a1"),
+                "lane": "1",
+                "name": f"Quarantine {inactive.clip_id} ({inactive.reason})",
+                "offset": format_rational_time(start_sec),
+                "start": format_rational_time(start_sec),
+                "duration": format_rational_time(duration_sec),
+                "audioStart": format_rational_time(
+                    timebase.samples_to_seconds(inactive.audio.source_in_sample)
+                ),
+                "audioDuration": format_rational_time(
+                    timebase.samples_to_seconds(
+                        inactive.audio.source_out_sample
+                        - inactive.audio.source_in_sample
+                    )
+                ),
+                "srcEnable": "all",
+                "enabled": "0",
+                "audioRole": "dialogue",
+            },
+        )
+        ET.SubElement(
+            element,
+            "marker",
+            {
+                "start": "0s",
+                "duration": format_rational_time(duration_sec),
+                "value": inactive.reason.upper(),
+                "note": f"Quarantine: {inactive.reason}",
+                "color": quarantine_colors.get(inactive.reason, "gray"),
+            },
+        )
+
     for entry in extras.broll:
         asset_id = broll_assets.get(entry.path)
         if asset_id is None:

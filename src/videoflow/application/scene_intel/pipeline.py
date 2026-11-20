@@ -214,6 +214,14 @@ def analyze_scene_project(
     )
     keyframe_sec = time.perf_counter() - keyframe_started
     warnings = list(detection.warnings) + list(visual_warnings) + list(keyframe_warnings)
+    if len(keyframe_paths) != len(detection.spans) or any(
+        not path for path in keyframe_paths
+    ):
+        warnings.append(
+            "scene analysis produced "
+            f"{sum(1 for path in keyframe_paths if path)}/"
+            f"{len(detection.spans)} keyframes"
+        )
     build = build_manifest(
         video_id=video_id,
         media=media,

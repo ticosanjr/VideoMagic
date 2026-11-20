@@ -1,0 +1,354 @@
+{
+  "ok": false,
+  "checks": {
+    "scene_speed_45s_per_hour": false,
+    "scene_speed_10s_for_784": false,
+    "faces_detected": true,
+    "pip_detected": true,
+    "protected_rule": true,
+    "talking_head_not_protected": true,
+    "all_keyframes": true,
+    "quarantine_track": true,
+    "deliverables_7_passed": true
+  },
+  "scene": {
+    "elapsed_sec": 21.252,
+    "sec_per_hour": 97.58,
+    "scenes": 35,
+    "faces": 35,
+    "pip": 9,
+    "screen_layouts": 9,
+    "keyframes": 35,
+    "timings": {
+      "hash": 0.4866,
+      "proxy": 11.3468,
+      "detection": 1.9831,
+      "visual": 4.4592,
+      "keyframes": 2.7731,
+      "total": 21.2518
+    }
+  },
+  "quarantine": {
+    "path": "/tmp/opencode/vf-cycle3-gate/quarantine.fcpxml",
+    "lane": true,
+    "enabled_off": true,
+    "markers": 1
+  },
+  "deliverables": [
+    {
+      "path": "/tmp/opencode/vf-cycle2-gate/project/shorts/batch/01-vertical-30.mp4",
+      "status": "succeeded",
+      "loudness": {
+        "integrated_lufs": -15.5,
+        "true_peak_dbfs": -12.7,
+        "passed": true,
+        "skipped": false
+      },
+      "media_contract": {
+        "ok": true,
+        "kind": "deliverable",
+        "path": "/tmp/opencode/vf-cycle2-gate/project/shorts/batch/01-vertical-30.mp4",
+        "errors": [],
+        "warnings": [],
+        "metrics": {
+          "format": {
+            "duration_sec": 30.0,
+            "size": 9570193
+          },
+          "video": {
+            "width": 1080,
+            "height": 1920,
+            "fps_num": 30,
+            "fps_den": 1,
+            "fps": 30.0,
+            "pix_fmt": "yuv420p",
+            "codec": "h264",
+            "color_transfer": "",
+            "color_primaries": "",
+            "color_space": "",
+            "bits_per_raw_sample": 8,
+            "duration_sec": 30.0,
+            "nb_frames": 900
+          },
+          "audio": {
+            "sample_rate": 48000,
+            "channels": 2,
+            "codec": "aac",
+            "bit_rate": 191528,
+            "duration_sec": 30.0
+          }
+        }
+      }
+    },
+    {
+      "path": "/tmp/opencode/vf-cycle2-gate/project/shorts/batch/02-feed-30.mp4",
+      "status": "succeeded",
+      "loudness": {
+        "integrated_lufs": -15.5,
+        "true_peak_dbfs": -12.1,
+        "passed": true,
+        "skipped": false
+      },
+      "media_contract": {
+        "ok": true,
+        "kind": "deliverable",
+        "path": "/tmp/opencode/vf-cycle2-gate/project/shorts/batch/02-feed-30.mp4",
+        "errors": [],
+        "warnings": [],
+        "metrics": {
+          "format": {
+            "duration_sec": 30.0,
+            "size": 16149856
+          },
+          "video": {
+            "width": 1080,
+            "height": 1350,
+            "fps_num": 30,
+            "fps_den": 1,
+            "fps": 30.0,
+            "pix_fmt": "yuv420p",
+            "codec": "h264",
+            "color_transfer": "",
+            "color_primaries": "",
+            "color_space": "",
+            "bits_per_raw_sample": 8,
+            "duration_sec": 30.0,
+            "nb_frames": 900
+          },
+          "audio": {
+            "sample_rate": 48000,
+            "channels": 2,
+            "codec": "aac",
+            "bit_rate": 191466,
+            "duration_sec": 30.0
+          }
+        }
+      }
+    },
+    {
+      "path": "/tmp/opencode/vf-cycle2-gate/project/shorts/batch/03-intro-30.mp4",
+      "status": "succeeded",
+      "loudness": {
+        "integrated_lufs": -15.4,
+        "true_peak_dbfs": -10.7,
+        "passed": true,
+        "skipped": false
+      },
+      "media_contract": {
+        "ok": true,
+        "kind": "deliverable",
+        "path": "/tmp/opencode/vf-cycle2-gate/project/shorts/batch/03-intro-30.mp4",
+        "errors": [],
+        "warnings": [],
+        "metrics": {
+          "format": {
+            "duration_sec": 32.0,
+            "size": 25899746
+          },
+          "video": {
+            "width": 1080,
+            "height": 1920,
+            "fps_num": 30,
+            "fps_den": 1,
+            "fps": 30.0,
+            "pix_fmt": "yuv420p",
+            "codec": "h264",
+            "color_transfer": "",
+            "color_primaries": "",
+            "color_space": "",
+            "bits_per_raw_sample": 8,
+            "duration_sec": 32.0,
+            "nb_frames": 960
+          },
+          "audio": {
+            "sample_rate": 48000,
+            "channels": 2,
+            "codec": "aac",
+            "bit_rate": 180616,
+            "duration_sec": 32.0
+          }
+        }
+      }
+    },
+    {
+      "path": "/tmp/opencode/vf-cycle3-gate/extra/shorts/batch/01-extra-a.mp4",
+      "status": "succeeded",
+      "loudness": {
+        "integrated_lufs": -15.5,
+        "true_peak_dbfs": -12.7,
+        "passed": true,
+        "skipped": false
+      },
+      "media_contract": {
+        "ok": true,
+        "kind": "deliverable",
+        "path": "/tmp/opencode/vf-cycle3-gate/extra/shorts/batch/01-extra-a.mp4",
+        "errors": [],
+        "warnings": [],
+        "metrics": {
+          "format": {
+            "duration_sec": 30.0,
+            "size": 11761337
+          },
+          "video": {
+            "width": 1080,
+            "height": 1920,
+            "fps_num": 30,
+            "fps_den": 1,
+            "fps": 30.0,
+            "pix_fmt": "yuv420p",
+            "codec": "h264",
+            "color_transfer": "",
+            "color_primaries": "",
+            "color_space": "",
+            "bits_per_raw_sample": 8,
+            "duration_sec": 30.0,
+            "nb_frames": 900
+          },
+          "audio": {
+            "sample_rate": 48000,
+            "channels": 2,
+            "codec": "aac",
+            "bit_rate": 191528,
+            "duration_sec": 30.0
+          }
+        }
+      }
+    },
+    {
+      "path": "/tmp/opencode/vf-cycle3-gate/extra/shorts/batch/02-extra-b.mp4",
+      "status": "succeeded",
+      "loudness": {
+        "integrated_lufs": -15.5,
+        "true_peak_dbfs": -12.1,
+        "passed": true,
+        "skipped": false
+      },
+      "media_contract": {
+        "ok": true,
+        "kind": "deliverable",
+        "path": "/tmp/opencode/vf-cycle3-gate/extra/shorts/batch/02-extra-b.mp4",
+        "errors": [],
+        "warnings": [],
+        "metrics": {
+          "format": {
+            "duration_sec": 30.0,
+            "size": 11847777
+          },
+          "video": {
+            "width": 1080,
+            "height": 1920,
+            "fps_num": 30,
+            "fps_den": 1,
+            "fps": 30.0,
+            "pix_fmt": "yuv420p",
+            "codec": "h264",
+            "color_transfer": "",
+            "color_primaries": "",
+            "color_space": "",
+            "bits_per_raw_sample": 8,
+            "duration_sec": 30.0,
+            "nb_frames": 900
+          },
+          "audio": {
+            "sample_rate": 48000,
+            "channels": 2,
+            "codec": "aac",
+            "bit_rate": 191466,
+            "duration_sec": 30.0
+          }
+        }
+      }
+    },
+    {
+      "path": "/tmp/opencode/vf-cycle1-gate/project/exports/youtube_mix.mp4",
+      "status": "succeeded",
+      "loudness": {
+        "integrated_lufs": -15.5,
+        "true_peak_dbfs": -13.2,
+        "passed": true,
+        "skipped": false
+      },
+      "media_contract": {
+        "ok": true,
+        "kind": "deliverable",
+        "path": "/tmp/opencode/vf-cycle1-gate/project/exports/youtube_mix.mp4",
+        "errors": [],
+        "warnings": [],
+        "metrics": {
+          "format": {
+            "duration_sec": 12.0,
+            "size": 22450809
+          },
+          "video": {
+            "width": 1920,
+            "height": 1080,
+            "fps_num": 30,
+            "fps_den": 1,
+            "fps": 30.0,
+            "pix_fmt": "yuv420p",
+            "codec": "h264",
+            "color_transfer": "",
+            "color_primaries": "",
+            "color_space": "",
+            "bits_per_raw_sample": 8,
+            "duration_sec": 12.0,
+            "nb_frames": 360
+          },
+          "audio": {
+            "sample_rate": 48000,
+            "channels": 2,
+            "codec": "aac",
+            "bit_rate": 191930,
+            "duration_sec": 12.0
+          }
+        }
+      }
+    },
+    {
+      "path": "/tmp/opencode/vf-cycle1-gate/project/exports/youtube_timeline.mp4",
+      "status": "succeeded",
+      "loudness": {
+        "integrated_lufs": -15.5,
+        "true_peak_dbfs": -11.2,
+        "passed": true,
+        "skipped": false
+      },
+      "media_contract": {
+        "ok": true,
+        "kind": "deliverable",
+        "path": "/tmp/opencode/vf-cycle1-gate/project/exports/youtube_timeline.mp4",
+        "errors": [],
+        "warnings": [],
+        "metrics": {
+          "format": {
+            "duration_sec": 12.0,
+            "size": 22451011
+          },
+          "video": {
+            "width": 1920,
+            "height": 1080,
+            "fps_num": 30,
+            "fps_den": 1,
+            "fps": 30.0,
+            "pix_fmt": "yuv420p",
+            "codec": "h264",
+            "color_transfer": "",
+            "color_primaries": "",
+            "color_space": "",
+            "bits_per_raw_sample": 8,
+            "duration_sec": 12.0,
+            "nb_frames": 360
+          },
+          "audio": {
+            "sample_rate": 48000,
+            "channels": 2,
+            "codec": "aac",
+            "bit_rate": 192065,
+            "duration_sec": 12.0
+          }
+        }
+      }
+    }
+  ]
+}

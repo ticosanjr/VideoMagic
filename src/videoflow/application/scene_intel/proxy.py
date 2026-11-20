@@ -82,6 +82,8 @@ def ensure_proxy(
         preset="ultrafast",
         crf=30,
         audio=False,
+        fps=3,
+        fast=True,
     )
     return workspace.proxy, True
 

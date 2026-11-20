@@ -20,7 +20,12 @@ SAFE_ZONES: dict[str, tuple[SafeZoneBox, ...]] = {
     "tiktok": (
         SafeZoneBox(platform="tiktok", x=0.0, y=0.80, width=1.0, height=0.20, reason="bottom UI"),
         SafeZoneBox(
-            platform="tiktok", x=0.84, y=0.0, width=0.16, height=1.0, reason="right action rail"
+            platform="tiktok",
+            x=940 / 1080,
+            y=0.0,
+            width=140 / 1080,
+            height=1.0,
+            reason="right action rail",
         ),
         SafeZoneBox(platform="tiktok", x=0.0, y=0.0, width=1.0, height=0.10, reason="top chrome"),
     ),

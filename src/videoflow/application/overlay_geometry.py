@@ -246,12 +246,25 @@ def caption_box(
 ) -> PixelBox:
     """Estimate the ASS caption band from its real style and margins."""
 
-    width = _even(canvas_w * max(0.1, min(1.0, float(style.max_width))))
+    from videoflow.application.captions import caption_safe_zone
+
     font = max(8, int(getattr(style, "font_size", 72)))
     height = _even(font * 1.30 * max(1, min(4, max_lines)))
-    x = round((canvas_w - width) / 2)
-    center_y = float(getattr(style, "position_y", 0.78)) * canvas_h
-    y = round(center_y - height / 2)
+    zone = caption_safe_zone(canvas_w, canvas_h)
+    if int(zone["margin_r"]) > int(zone["margin_l"]):
+        width = _even(canvas_w - int(zone["margin_l"]) - int(zone["margin_r"]))
+        pos = zone.get("pos")
+        if isinstance(pos, tuple):
+            center_y = float(pos[1])
+            y = round(center_y - height / 2)
+        else:
+            y = round(canvas_h - int(zone["margin_v"]) - height)
+        x = int(zone["margin_l"])
+    else:
+        width = _even(canvas_w * max(0.1, min(1.0, float(style.max_width))))
+        x = round((canvas_w - width) / 2)
+        center_y = float(getattr(style, "position_y", 0.78)) * canvas_h
+        y = round(center_y - height / 2)
     y = max(0, min(canvas_h - height, y))
     return PixelBox(x=x, y=y, width=width, height=height, z=40)
 

@@ -28,13 +28,13 @@
       "mono repaired from the left channel"
     ],
     "filters": [
-      "loudnorm=I=-15.5:TP=-1.5:LRA=11:measured_I=-18.75:measured_TP=-16.5:measured_LRA=0.0:measured_thresh=-28.75:linear=true"
+      "loudnorm=I=-15.5:TP=-1.5:LRA=9:measured_I=-18.75:measured_TP=-16.5:measured_LRA=0.0:measured_thresh=-28.75:linear=true"
     ]
   },
   "exports": {
     "mix": {
       "path": "/tmp/opencode/vf-cycle1-gate/project/exports/youtube_mix.mp4",
-      "elapsed_sec": 4.165,
+      "elapsed_sec": 5.774,
       "contract_ok": true,
       "contract": {
         "ok": true,
@@ -100,7 +100,7 @@
     },
     "timeline": {
       "path": "/tmp/opencode/vf-cycle1-gate/project/exports/youtube_timeline.mp4",
-      "elapsed_sec": 3.852,
+      "elapsed_sec": 6.047,
       "contract_ok": true,
       "contract": {
         "ok": true,
@@ -111,7 +111,7 @@
         "metrics": {
           "format": {
             "duration_sec": 12.0,
-            "size": 22450735
+            "size": 22451011
           },
           "video": {
             "width": 1920,
@@ -132,7 +132,7 @@
             "sample_rate": 48000,
             "channels": 2,
             "codec": "aac",
-            "bit_rate": 191881,
+            "bit_rate": 192065,
             "duration_sec": 12.0
           }
         }
@@ -173,6 +173,6 @@
     "encoder": "libx264",
     "nvenc_error": "alid argument\n[vf#0:0 @ 0000015600718a80] Terminating thread with error: Invalid argument\n[vost#0:0/h264_nvenc @ 00000156006fd980] [enc:h264_nvenc @ 0000015600667600] Could not open encoder before EOF\n[vost#0:0/h264_nvenc @ 00000156006fd980] Task finished with error: Invalid argument\n[vost#0:0/h264_nvenc @ 00000156006fd980] Terminating thread with error: Invalid argument\n[out#0/null @ 0000015600683800] Nothing was written into output file, because at least one of its streams received no packets."
   },
-  "elapsed_sec": 13.796,
+  "elapsed_sec": 18.846,
   "ok": false
 }

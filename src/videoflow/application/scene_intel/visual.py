@@ -45,7 +45,7 @@ class _FaceBackend:
 
             self._mediapipe = mp.solutions.face_detection.FaceDetection(
                 model_selection=1,
-                min_detection_confidence=0.60,
+                min_detection_confidence=0.45,
             )
         except Exception:  # noqa: BLE001 - optional dependency
             self._mediapipe = None
@@ -61,6 +61,42 @@ class _FaceBackend:
             self._cascade = None
 
     def detect(self, frame: Any, cv2: Any) -> tuple[int, float, float, float, float] | None:
+        direct = self._detect_region(frame, cv2)
+        if direct is not None:
+            return direct
+        height, width = frame.shape[:2]
+        if height < 40 or width < 40:
+            return None
+        corner = 0.30
+        cw = max(8, int(width * corner))
+        ch = max(8, int(height * corner))
+        origins = (
+            (0, 0),
+            (width - cw, 0),
+            (0, height - ch),
+            (width - cw, height - ch),
+        )
+        for x0, y0 in origins:
+            crop = frame[y0 : y0 + ch, x0 : x0 + cw]
+            if crop.size == 0:
+                continue
+            enlarged = cv2.resize(crop, (cw * 2, ch * 2), interpolation=cv2.INTER_CUBIC)
+            found = self._detect_region(enlarged, cv2)
+            if found is None:
+                continue
+            count, cx, cy, fw, fh = found
+            return (
+                count,
+                (x0 + cx * cw) / max(1, width),
+                (y0 + cy * ch) / max(1, height),
+                fw * cw / max(1, width),
+                fh * ch / max(1, height),
+            )
+        return None
+
+    def _detect_region(
+        self, frame: Any, cv2: Any
+    ) -> tuple[int, float, float, float, float] | None:
         if self._mediapipe is not None:
             try:
                 rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -148,7 +184,7 @@ def analyze_visuals(
         edges: list[float] = []
         sharp: list[float] = []
         samples = _sample_times(
-            span, max_frames=max_frames_per_scene, interval=1.0
+            span, max_frames=max_frames_per_scene, interval=2.0
         )
         capture.set(cv2.CAP_PROP_POS_MSEC, span.start_sec * 1000.0)
         cursor = span.start_sec

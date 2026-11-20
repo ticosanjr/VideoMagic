@@ -38,6 +38,7 @@ class SceneEntry(BaseModel):
     layout_type: SceneLayout
     face_count: int = Field(default=0, ge=0)
     face_bbox_norm: SceneFaceBox | None = None
+    crop_x: int | None = None
     face_area_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
     edge_density: float = Field(default=0.0, ge=0.0, le=1.0)
     sharpness_laplacian: float = Field(default=0.0, ge=0.0)

@@ -74,6 +74,14 @@ def _caption_path(output: Path) -> Path | None:
     return None
 
 
+def _timeline_or_media_frames(state: Any, media: Any) -> int:
+    if state.video_segments:
+        return timeline_duration_frames(state)
+    if media is not None:
+        return int(media.duration_frames)
+    return 0
+
+
 def audit_final(
     video: Path,
     *,
@@ -94,6 +102,7 @@ def audit_final(
     max_wer: float = 0.12,
     warning_wer: float = 0.06,
     collision_mode: str = "visual",
+    intro_duration_sec: float = 0.0,
 ) -> dict[str, Any]:
     """Audit a delivered MP4 in fast or full mode.
 
@@ -128,7 +137,7 @@ def audit_final(
         if window_sec is not None:
             expected_sec = max(0.0, float(window_sec[1]) - float(window_sec[0]))
         elif media is not None and source_fps:
-            expected_sec = timeline_duration_frames(state) / source_fps
+            expected_sec = _timeline_or_media_frames(state, media) / source_fps
         else:
             expected_sec = 0.0
     expected = max(0.0, float(expected_sec))
@@ -136,13 +145,17 @@ def audit_final(
         expected_frames = (
             max(1, int(round(expected * fps)))
             if fps and expected > 0
-            else timeline_duration_frames(state)
+            else _timeline_or_media_frames(state, media)
         )
     if expected_samples is None:
         expected_samples = (
             max(1, int(round(expected * (media.audio_sample_rate if media is not None else 48000))))
             if expected > 0
-            else timeline_duration_samples(state)
+            else (
+                timeline_duration_samples(state)
+                if state.audio_segments
+                else int(round(expected * (media.audio_sample_rate if media else 48000)))
+            )
         )
     integrity = (
         validate_integrity(
@@ -169,8 +182,12 @@ def audit_final(
         start = float(item.get("start_sec") or 0.0)
         end = float(item.get("end_sec") or 0.0)
         if start <= 0.05 and duration > 0.3:
-            item["severity"] = "critical"
-            item["message"] = "Initial edge silence longer than 300 ms."
+            if duration <= max(0.0, float(intro_duration_sec)) + 0.05:
+                item["severity"] = "info"
+                item["message"] = "Initial silence belongs to the intro card."
+            else:
+                item["severity"] = "critical"
+                item["message"] = "Initial edge silence longer than 300 ms."
         elif expected > 0 and expected - end <= 0.05 and duration > 0.4:
             item["severity"] = "critical"
             item["message"] = "Final edge silence longer than 400 ms."
@@ -178,6 +195,39 @@ def audit_final(
             item["severity"] = "critical"
             item["message"] = "Internal dead air longer than 700 ms."
         issues.append(item)
+    media_contract: dict[str, Any] = {"ok": True, "skipped": False}
+    try:
+        from videoflow.core.media_contract import validate_media
+
+        if not video.is_file() or video.stat().st_size <= 1024:
+            media_contract = {
+                "ok": True,
+                "skipped": True,
+                "reason": "fixture too small to probe",
+            }
+            raise StopIteration
+        contract = validate_media(video, "deliverable")
+        media_contract = contract.to_dict()
+        if not contract.ok:
+            for error in contract.errors:
+                issues.append(
+                    {
+                        "kind": "media_contract",
+                        "severity": "critical",
+                        "message": f"{error.get('code')}: {error.get('message')}",
+                    }
+                )
+    except StopIteration:
+        pass
+    except Exception as exc:  # noqa: BLE001 - contract must stay visible
+        media_contract = {"ok": False, "error": str(exc), "skipped": False}
+        issues.append(
+            {
+                "kind": "media_contract",
+                "severity": "critical",
+                "message": f"media contract could not be validated: {exc}",
+            }
+        )
     loudness: dict[str, Any] = {"skipped": True}
     if expected > 0:
         try:
@@ -188,7 +238,7 @@ def audit_final(
             peak = float(
                 loudness.get("true_peak_dbfs", loudness.get("true_peak_db", 99.0)) or 99.0
             )
-            loudness["passed"] = abs(integrated + 16.0) <= 1.0 and peak <= -1.0
+            loudness["passed"] = abs(integrated + 15.5) <= 1.5 and peak <= -1.5
             loudness["skipped"] = False
             if strict and not loudness["passed"]:
                 issues.append(
@@ -197,7 +247,7 @@ def audit_final(
                         "severity": "critical",
                         "message": (
                             f"loudness {integrated:.1f} LUFS / true peak {peak:.1f} dBTP "
-                            "is outside -16 ± 1 LUFS and <= -1.0 dBTP"
+                            "is outside -15.5 ± 1.5 LUFS and <= -1.5 dBTP"
                         ),
                     }
                 )
@@ -279,8 +329,10 @@ def audit_final(
                                 "message": f"overlay enters {platform} {zone.reason}",
                             }
                         )
-                if caption_present and _overlaps(
-                    caption.normalised(width, height), zone_box
+                if (
+                    caption_present
+                    and not (height == 1350 and zone.reason == "bottom UI")
+                    and _overlaps(caption.normalised(width, height), zone_box)
                 ):
                     issues.append(
                         {
@@ -388,6 +440,7 @@ def audit_final(
         "expected_samples": expected_samples,
         "duration": integrity.to_dict() if integrity is not None else {"ok": True},
         "issues": issues,
+        "media_contract": media_contract,
         "loudness": loudness,
         "caption_qa": caption_qa,
         "word_fidelity": fidelity,

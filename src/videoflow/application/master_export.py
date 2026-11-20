@@ -9,6 +9,7 @@ from typing import Any
 
 from videoflow.exporters.mp4 import (
     DEFAULT_AUDIO_BITRATE,
+    YOUTUBE_LUFS,
     export_mp4,
 )
 
@@ -114,8 +115,8 @@ def render_master(
     preset: str = "medium",
     profile: str = "",
     audio_bitrate: str = DEFAULT_AUDIO_BITRATE,
-    loudness_lufs: float | None = None,
-    true_peak_db: float = -1.0,
+    loudness_lufs: float | None = YOUTUBE_LUFS,
+    true_peak_db: float = -1.5,
     cfr: bool = False,
     progress: Callable[[int], None] | None = None,
     scale_height: int | None = None,

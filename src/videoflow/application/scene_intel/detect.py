@@ -104,6 +104,7 @@ def detect_scene_spans(
     min_scene_len_sec: float = 1.5,
     decupage_plan: dict[str, Any] | None = None,
     sample_rate: int = 48_000,
+    proxy_fps: float = 3.0,
 ) -> DetectionResult:
     """Return ordered scene spans with decupage jump boundaries included."""
 
@@ -114,10 +115,10 @@ def detect_scene_spans(
     try:
         times = _py_scene_detect(
             proxy,
-            fps=fps,
+            fps=proxy_fps,
             threshold=threshold,
             min_scene_len_sec=min_scene_len_sec,
-            frame_skip=max(0, round(fps / 10)),
+            frame_skip=0,
         )
     except Exception as exc:  # noqa: BLE001 - optional dependency
         warnings.append(f"PySceneDetect unavailable; using FFmpeg fallback: {exc}")

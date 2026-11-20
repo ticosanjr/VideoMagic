@@ -92,7 +92,7 @@ def caption_safe_zone(width: int, height: int, layout: str = "") -> dict[str, ob
         return {
             "alignment": 2,
             "margin_l": 60,
-            "margin_r": 60,
+            "margin_r": 160,
             "margin_v": 189,
             "pos": None,
             "wrap_style": 2,

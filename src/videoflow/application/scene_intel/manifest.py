@@ -83,9 +83,20 @@ def build_manifest(
             sharpness_laplacian=visual.sharpness_laplacian,
             previous_layout=previous_layout,
         )
+        crop_x = None
+        if visual.face_cx is not None:
+            target_w = max(1, round(media.height * 9 / 16))
+            crop_x = max(
+                0,
+                min(
+                    media.width - target_w,
+                    round(float(visual.face_cx) * media.width - target_w / 2),
+                ),
+            )
         entries.append(
             SceneEntry(
                 scene_id=f"SC_{index + 1:04d}",
+                crop_x=crop_x,
                 start_sample=start_sample,
                 end_sample=end_sample,
                 start_sec=round(span.start_sec, 6),
