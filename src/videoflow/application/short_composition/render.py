@@ -696,8 +696,14 @@ def execute_commands(
     runner: Callable[[list[str], Path], None] | None = None,
     check_cancel: Callable[[], None] | None = None,
     segment_cache: Path | None = None,
+    segment_workers: int | None = None,
 ) -> Path:
-    """Run micro-clips, concat, and finalisation in one work directory."""
+    """Run micro-clips, concat, and finalisation in one work directory.
+
+    Independent micro-clips render in parallel when a real subprocess runner is
+    used. Custom runners stay sequential so tests and callers keep deterministic
+    ordering. Set ``VF_SHORT_SEGMENT_WORKERS`` to tune the pool.
+    """
 
     work = Path(work_dir)
     work.mkdir(parents=True, exist_ok=True)
@@ -706,9 +712,8 @@ def execute_commands(
     cache_root = Path(segment_cache).expanduser() if segment_cache is not None else None
     if cache_root is not None:
         cache_root.mkdir(parents=True, exist_ok=True)
+    pending: list[tuple[int, dict[str, object], str, Path | None]] = []
     for index, segment in enumerate(commands.segments, start=1):
-        if check_cancel is not None:
-            check_cancel()
         output_name = str(segment.get("output") or f"seg_{index:04d}.mp4")
         cached = (
             cache_root / f"{segment.get('cache_key') or index}.mp4"
@@ -722,6 +727,16 @@ def execute_commands(
             except OSError:
                 shutil.copy2(cached, target)
             continue
+        pending.append((index, segment, output_name, cached))
+
+    def render_segment(
+        index: int,
+        segment: dict[str, object],
+        output_name: str,
+        cached: Path | None,
+    ) -> None:
+        if check_cancel is not None:
+            check_cancel()
         script_path = work / f"segment_{index:04d}.ffscript"
         script_path.write_text(
             _replace_filter_tokens(str(segment["filter"]), tokens), encoding="utf-8"
@@ -745,6 +760,31 @@ def execute_commands(
                 os.link(segment_output, cached)
             except OSError:
                 shutil.copy2(segment_output, cached)
+
+    if segment_workers is None:
+        if runner is not None:
+            segment_workers = 1
+        else:
+            try:
+                segment_workers = int(os.environ.get("VF_SHORT_SEGMENT_WORKERS", "2"))
+            except ValueError:
+                segment_workers = 2
+    workers = max(1, min(int(segment_workers), 8, max(1, len(pending))))
+    if workers == 1:
+        for item in pending:
+            render_segment(*item)
+    else:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [pool.submit(render_segment, *item) for item in pending]
+            try:
+                for future in as_completed(futures):
+                    future.result()
+            except BaseException:
+                for future in futures:
+                    future.cancel()
+                raise
     concat_path = work / "concat.txt"
     concat_path.write_text(
         "\n".join(

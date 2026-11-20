@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import ipaddress
 import json
 import os
 import re
@@ -38,6 +37,18 @@ from gpu_worker.discovery import DiscoveryBeacon
 from gpu_worker.gpu import detect_gpu
 from gpu_worker.handlers import HandlerRegistry, build_default_registry
 from gpu_worker.handlers_gpu import nvenc_available, nvenc_error, warmup_models
+from gpu_worker.http_auth import (
+    is_loopback_client as _is_loopback_client,
+)
+from gpu_worker.http_auth import (
+    is_private_client as _is_private_client,
+)
+from gpu_worker.http_auth import (
+    matches_allowlist as _matches_allowlist,
+)
+from gpu_worker.http_auth import (
+    read_token_file as _read_token_file,
+)
 from gpu_worker.models import ModelRegistry
 from gpu_worker.security import (
     UnsafePathError,
@@ -49,77 +60,33 @@ from gpu_worker.security import (
 )
 from gpu_worker.settings import Settings
 from gpu_worker.store import JobRecord, JobStore
+from gpu_worker.telemetry import (
+    current_job as _current_job,
+)
+from gpu_worker.telemetry import (
+    disk_free_mb as _disk_free_mb,
+)
+from gpu_worker.telemetry import (
+    lan_urls as _lan_urls,
+)
+from gpu_worker.telemetry import (
+    local_ip as _local_ip,
+)
+from gpu_worker.telemetry import (
+    log_path as _log_path,
+)
+from gpu_worker.telemetry import (
+    rotate_log as _rotate_log,
+)
+from gpu_worker.telemetry import (
+    tail_log as _tail_log,
+)
 from gpu_worker.uploads import UploadStore
 from gpu_worker.vram import VramBudget
 from gpu_worker.worker import JobRunner
 
 MAX_JOB_INPUTS = 64
 PUBLIC_PATHS = frozenset({"/health"})
-
-
-def _is_private_client(host: str | None) -> bool:
-    try:
-        address = ipaddress.ip_address(str(host or ""))
-    except ValueError:
-        return False
-    return bool(address.is_private or address.is_loopback)
-
-
-def _is_loopback_client(host: str | None) -> bool:
-    try:
-        return ipaddress.ip_address(str(host or "")).is_loopback
-    except ValueError:
-        return False
-
-
-def _matches_allowlist(host: str | None, entries: tuple[str, ...]) -> bool:
-    if not entries:
-        return False
-    try:
-        address = ipaddress.ip_address(str(host or ""))
-    except ValueError:
-        return False
-    for entry in entries:
-        try:
-            if "/" in entry:
-                if address in ipaddress.ip_network(entry, strict=False):
-                    return True
-            elif address == ipaddress.ip_address(entry):
-                return True
-        except ValueError:
-            continue
-    return False
-
-
-def _rotate_log(config: Settings) -> bool:
-    path = _log_path(config)
-    if not path.is_file():
-        return False
-    limit = max(1, int(config.log_max_mb)) * 1024 * 1024
-    try:
-        if path.stat().st_size <= limit:
-            return False
-        rotated = path.with_name(f"{path.name}.1")
-        os.replace(path, rotated)
-        return True
-    except OSError:
-        return False
-
-
-def _read_token_file(path: Path) -> str:
-    try:
-        return path.read_text(encoding="utf-8").strip()
-    except OSError:
-        return ""
-
-
-def _local_ip() -> str:
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
-            probe.connect(("8.8.8.8", 80))
-            return str(probe.getsockname()[0])
-    except OSError:
-        return "127.0.0.1"
 
 
 _SHA_CACHE: dict[tuple[str, int, int], str] = {}
@@ -186,55 +153,6 @@ class JobSubmission(BaseModel):
     shared_inputs: list[str] = Field(default_factory=list)
     shared_outputs: list[str] = Field(default_factory=list)
     priority: int = Field(default=0, ge=-100, le=100)
-
-
-def _current_job(store: JobStore) -> dict[str, Any] | None:
-    for job in store.list_jobs(limit=10):
-        if job.status in {"queued", "running"}:
-            return job.summary()
-    return None
-
-
-def _lan_urls() -> list[str]:
-    urls: list[str] = []
-    try:
-        hostname = socket.gethostname()
-        for info in socket.getaddrinfo(hostname, None, socket.AF_INET):
-            address = str(info[4][0])
-            if address.startswith("127.") or address in urls:
-                continue
-            urls.append(address)
-    except OSError:
-        pass
-    local = _local_ip()
-    if local and not local.startswith("127.") and local not in urls:
-        urls.insert(0, local)
-    return urls
-
-
-def _disk_free_mb(path: Path) -> int:
-    try:
-        return int(shutil.disk_usage(path).free // (1024 * 1024))
-    except OSError:
-        return 0
-
-
-def _log_path(config: Settings) -> Path:
-    explicit = os.environ.get("VF_GPU_LOG_FILE", "").strip()
-    if explicit:
-        return Path(explicit).expanduser()
-    return Path(config.work_dir) / "worker.log"
-
-
-def _tail_log(config: Settings, *, limit: int = 200) -> str:
-    path = _log_path(config)
-    if not path.is_file():
-        return ""
-    try:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    except OSError:
-        return ""
-    return "\n".join(lines[-limit:])
 
 
 def create_app(

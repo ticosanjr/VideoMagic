@@ -1,5 +1,24 @@
 # Changelog
 
+## [3.15.0] - 2026-11-20
+
+### Changed
+
+- Split `handlers_gpu.py` into `gpu_worker/gpu_handlers/` modules for common
+  helpers, ASR, matte, render, vision, scene, and registration; the historical
+  facade remains import-compatible.
+- Extracted worker client classification and telemetry helpers from `app.py`.
+- Split the embedded worker dashboard into `index.html`, `app.css`, and
+  `app.js`; added local token rotation.
+- Made the CPU-pool concurrency test deterministic with a barrier.
+
+### Performance
+
+- Short micro-clips render in a bounded parallel pool locally and on the worker
+  (`VF_SHORT_SEGMENT_WORKERS`, default 2).
+- `download_all` fetches independent artifacts with a bounded pool of three
+  while preserving manifest order.
+
 ## [3.14.0] - 2026-11-20
 
 ### Changed

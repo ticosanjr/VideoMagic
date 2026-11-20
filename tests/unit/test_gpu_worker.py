@@ -539,3 +539,16 @@ def test_job_reports_priority_stage_and_progress(client: TestClient, app) -> Non
     assert job["progress"] == 100
     assert job["stage"] == "succeeded"
     assert job["status"] == "succeeded"
+
+
+def test_worker_dashboard_assets_are_served(client: TestClient) -> None:
+    index = client.get("/ui/", headers=HEADERS)
+    assert index.status_code == 200
+    assert "/ui/app.js" in index.text
+    assert "/ui/app.css" in index.text
+    script = client.get("/ui/app.js", headers=HEADERS)
+    assert script.status_code == 200
+    assert "api/overview" in script.text
+    styles = client.get("/ui/app.css", headers=HEADERS)
+    assert styles.status_code == 200
+    assert "--accent" in styles.text

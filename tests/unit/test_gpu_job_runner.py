@@ -73,17 +73,27 @@ def test_runner_records_metrics_for_cpu_jobs(tmp_path: Path) -> None:
 
 
 def test_runner_uses_cpu_pool_not_the_gpu_lane(tmp_path: Path) -> None:
+    import threading
+
     runner, store = _runner(tmp_path, cpu_workers=2)
+    barrier = threading.Barrier(2)
+
+    def concurrent_handler(params, inputs, work_dir):
+        # Both jobs must be in flight at the same time or this fails.
+        barrier.wait(timeout=3.0)
+        output = Path(work_dir) / f"{params['name']}.txt"
+        output.write_text(str(params["name"]), encoding="utf-8")
+        return [output]
+
+    runner._registry.register_handler("vision_blur", concurrent_handler)
     runner.start()
     try:
         _submit(store, "cpu-a", "vision_blur", "a")
         _submit(store, "cpu-b", "vision_blur", "b")
-        started = time.perf_counter()
         runner.submit("cpu-a")
         runner.submit("cpu-b")
-        assert _wait(store, "cpu-a") == "succeeded"
-        assert _wait(store, "cpu-b") == "succeeded"
-        assert time.perf_counter() - started < 1.0
+        assert _wait(store, "cpu-a", timeout=8.0) == "succeeded"
+        assert _wait(store, "cpu-b", timeout=8.0) == "succeeded"
         assert runner.metrics()["cpu_workers"] == 2
     finally:
         runner.stop()

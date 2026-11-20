@@ -4,33 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>VideoFlow GPU Worker</title>
-<style>
-:root{color-scheme:dark;--bg:#080a0f;--panel:#11151d;--line:#232a36;--muted:#8b98ad;--text:#eef3fb;--accent:#38bdf8;--ok:#34d399;--warn:#fbbf24;--bad:#fb7185}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(1000px 500px at 15% -10%,#123047 0,transparent 55%),var(--bg);color:var(--text);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
-main{max-width:1180px;margin:0 auto;padding:28px 20px 48px}
-header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
-h1{font-size:22px;margin:0;letter-spacing:-.02em}small,.muted{color:var(--muted)}
-.badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#0d1219;border-radius:999px;padding:5px 10px;color:var(--muted);font-size:12px}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--warn)}.dot.ok{background:var(--ok);box-shadow:0 0 12px #34d39988}.dot.bad{background:var(--bad)}
-.grid{display:grid;gap:14px;margin-top:18px}.cols{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
-.card{background:linear-gradient(180deg,#121823,#0e131b);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 18px 50px #0006}
-.card h2{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0 0 10px}
-.metric{font-size:18px;font-weight:650;margin:0}.label{font-size:12px;color:var(--muted)}
-.row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid #ffffff08}.row:last-child{border:0}
-button{border:1px solid #2a3442;background:#141c27;color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-weight:600}button:hover{border-color:#3b82f6}
-button.primary{background:#0b3a56;border-color:#1d7fae;color:#dff5ff}
-button.danger{background:#44121d;border-color:#9f1239;color:#ffe4e6}
-.chart{width:100%;height:120px;background:#080c12;border:1px solid var(--line);border-radius:12px}
-input{background:#0a0f16;border:1px solid var(--line);color:var(--text);border-radius:9px;padding:8px 10px;min-width:0;width:100%}
-code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}pre{background:#080c12;border:1px solid var(--line);border-radius:12px;padding:12px;overflow:auto;max-height:340px;white-space:pre-wrap;word-break:break-word;font-size:12px;color:#cbd5e1}
-.table{width:100%;border-collapse:collapse;font-size:12px}.table th{text-align:left;color:var(--muted);font-weight:600;border-bottom:1px solid var(--line);padding:8px 6px}.table td{padding:8px 6px;border-bottom:1px solid #ffffff08;vertical-align:top}
-.tag{display:inline-block;border:1px solid #ffffff14;border-radius:999px;padding:2px 8px;font-size:11px;color:#cbd5e1}.tag.ok{color:#a7f3d0;border-color:#34d39955}.tag.bad{color:#fecdd3;border-color:#fb718555}.tag.run{color:#bae6fd;border-color:#38bdf855}
-.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.copybox{display:flex;gap:8px;align-items:center}.copybox input{font-family:ui-monospace,monospace;font-size:12px}
-.notice{border:1px solid #fbbf2444;background:#2a210f;color:#fde68a;border-radius:12px;padding:10px 12px;margin-top:12px}
-.progress{height:8px;background:#0a0f16;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin-top:6px}
-.progress > span{display:block;height:100%;background:linear-gradient(90deg,#0ea5e9,#34d399);width:0;transition:width .3s}
-@media(max-width:700px){main{padding:18px 12px}.card{padding:14px}}
-</style>
+<link rel="stylesheet" href="/ui/app.css" />
 </head>
 <body>
 <main>
@@ -41,7 +15,7 @@ code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}pre{background:
   </div>
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     <span class="badge"><span id="dot" class="dot"></span><span id="state">conectando</span></span>
-    <button id="refresh">Atualizar</button><button id="warm">Aquecer modelos</button><button id="benchmark">Benchmark</button><button id="restart" class="danger">Reiniciar worker</button>
+    <button id="refresh">Atualizar</button><button id="warm">Aquecer modelos</button><button id="benchmark">Benchmark</button><button id="rotate" class="danger" hidden>Rotacionar token</button><button id="restart" class="danger">Reiniciar worker</button>
   </div>
 </header>
 
@@ -74,177 +48,6 @@ code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}pre{background:
   <div class="card"><h2>Log recente</h2><div class="actions"><input id="log-filter" placeholder="Filtrar linhas do log" /></div><pre id="log">Sem log disponível.</pre></div>
 </section>
 </main>
-<script>
-const $ = (id) => document.getElementById(id);
-const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const fmt = (seconds) => {
-  const value = Number(seconds || 0);
-  if (value < 60) return `${Math.round(value)} s`;
-  if (value < 3600) return `${Math.floor(value/60)} min`;
-  return `${(value/3600).toFixed(1)} h`;
-};
-const when = (ts) => ts ? new Date(Number(ts) * 1000).toLocaleString() : "—";
-let last = null;
-let system = null;
-let rawLog = "";
-async function load() {
-  const started = performance.now();
-  try {
-    const [overviewResponse, systemResponse] = await Promise.all([
-      fetch("/api/overview", {cache:"no-store"}),
-      fetch("/api/system", {cache:"no-store"})
-    ]);
-    if (!overviewResponse.ok) throw new Error(`HTTP ${overviewResponse.status}`);
-    const data = await overviewResponse.json();
-    last = data;
-    if (systemResponse.ok) {
-      system = await systemResponse.json();
-      renderSystem(system);
-    }
-    render(data);
-    $("latency").textContent = `${Math.round(performance.now()-started)} ms`;
-  } catch (error) {
-    $("dot").className = "dot bad";
-    $("state").textContent = "offline";
-    $("notice").hidden = false;
-    $("notice").textContent = `Não foi possível ler o worker: ${error}`;
-  }
-}
-function render(data) {
-  const h = data.health || {};
-  $("dot").className = `dot ${h.available ? "ok" : "bad"}`;
-  $("state").textContent = h.available ? "online" : "offline";
-  $("subtitle").textContent = `${h.hostname || "worker"} · ${h.platform || ""} · atualiza a cada 2 s`;
-  const urls = h.lan_urls || [];
-  const url = urls.length ? `http://${urls[0]}:${h.port}` : `http://${h.ip_local || "127.0.0.1"}:${h.port}`;
-  $("lan-url").textContent = url;
-  $("port").textContent = h.port || "—";
-  $("discovery").textContent = "UDP 8767";
-  $("auth").textContent = h.auth_mode === "lan_open" ? "LAN aberta (privada)" : "Token";
-  $("firewall").textContent = "TCP 8766 / UDP 8767";
-  const lastRequest = h.last_request || {};
-  $("last-request").textContent = lastRequest.path ? `${lastRequest.method} ${lastRequest.path} · ${lastRequest.client || ""}` : "aguardando";
-  $("gpu").textContent = h.gpu_name || "—";
-  $("vram").textContent = `${h.vram_free_mb ?? 0} / ${h.vram_total_mb ?? 0} MB`;
-  $("driver").textContent = h.driver_version || "—";
-  $("encoder").textContent = h.encoder || "—";
-  $("nvenc").textContent = h.nvenc ? "disponível" : "indisponível";
-  $("version").textContent = h.version || "—";
-  $("worker-id").textContent = h.worker_id || "—";
-  $("uptime").textContent = fmt(h.uptime_sec);
-  $("queue").textContent = String(h.queue_depth ?? 0);
-  $("cpu-workers").textContent = String((data.runner || {}).cpu_workers ?? "—");
-  $("disk").textContent = h.disk_free_mb != null ? `${h.disk_free_mb} MB` : "—";
-  const warm = data.warmup || h.warmup || {};
-  $("warmup").textContent = warm.running ? "aquecendo…" : (warm.loaded || []).length ? (warm.loaded || []).join(", ") : (warm.errors || []).length ? "falhou" : "não executado";
-  $("notice").hidden = !(h.nvenc === false && h.nvenc_error);
-  if (h.nvenc === false && h.nvenc_error) $("notice").textContent = `NVENC indisponível: ${h.nvenc_error}`;
-  const current = h.current_job;
-  const currentProgress = Number(current?.progress ?? 0);
-  $("current").innerHTML = current
-    ? `<div class="row"><span class="label">Job</span><code>${esc(current.job_id)}</code></div><div class="row"><span class="label">Capacidade</span><strong>${esc(current.capability)}</strong></div><div class="row"><span class="label">Etapa</span><span class="tag run">${esc(current.stage || current.status)}</span></div><div class="row"><span class="label">Progresso</span><strong>${currentProgress}%</strong></div><div class="progress"><span style="width:${currentProgress}%"></span></div><div class="row"><span class="label">Início</span><strong>${when(current.started_at || current.created_at)}</strong></div>`
-    : "Nada em execução.";
-  const queue = (data.runner || {}).queue || [];
-  $("queue-list").innerHTML = queue.length ? queue.map((item) => `<span class="tag run">${esc(item.capability)} · ${esc(item.job_id).slice(0,8)} · espera ~${fmt(item.estimated_wait_sec)}</span>`).join(" ") : "Fila vazia.";
-  const jobs = data.jobs || [];
-  $("jobs").innerHTML = jobs.length ? jobs.map((job) => {
-    const end = job.finished_at || (job.started_at ? Date.now()/1000 : null);
-    const duration = job.started_at && end ? end - job.started_at : null;
-    const cls = job.status === "succeeded" ? "ok" : job.status === "failed" ? "bad" : "run";
-    const progress = Math.max(0, Math.min(100, Number(job.progress ?? (job.status === "succeeded" ? 100 : 0))));
-    return `<tr><td><code>${esc(job.job_id).slice(0,10)}…</code></td><td>${esc(job.capability)}</td><td><span class="tag ${cls}">${esc(job.status)}</span><br><small>${esc(job.stage || "")}</small></td><td><div class="progress" style="min-width:80px"><span style="width:${progress}%"></span></div><small>${progress}%</small></td><td>${when(job.created_at)}</td><td>${duration ? fmt(duration) : "—"}</td><td>${esc(job.error || "")}</td></tr>`;
-  }).join("") : `<tr><td colspan="7" class="muted">Sem jobs.</td></tr>`;
-  rawLog = data.logs || "";
-  applyLogFilter();
-}
-
-function applyLogFilter() {
-  const needle = ($("log-filter").value || "").trim().toLowerCase();
-  const lines = rawLog ? rawLog.split("\n") : [];
-  const visible = needle ? lines.filter((line) => line.toLowerCase().includes(needle)) : lines;
-  $("log").textContent = visible.length ? visible.join("\n") : (needle ? "Nenhuma linha corresponde ao filtro." : "Sem log disponível.");
-}
-
-function drawChart(samples) {
-  const points = (samples || []).slice(-120);
-  if (!points.length) return;
-  const width = 600;
-  const height = 110;
-  const line = (key, maxValue) => points.map((sample, index) => {
-    const x = points.length === 1 ? 0 : (index / (points.length - 1)) * width;
-    const raw = Number(sample[key] || 0);
-    const y = height - Math.max(0, Math.min(1, maxValue > 0 ? raw / maxValue : 0)) * height;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
-  $("chart-gpu").setAttribute("points", line("gpu_utilization", 100));
-  $("chart-queue").setAttribute("points", line("queue_depth", Math.max(1, ...points.map((item) => Number(item.queue_depth || 0)))));
-  const vramUsed = points.map((item) => Math.max(0, Number(item.vram_total_mb || 0) - Number(item.vram_free_mb || 0)));
-  const vramMax = Math.max(1, ...points.map((item, index) => Number(item.vram_total_mb || 0) || vramUsed[index]));
-  const vramLine = points.map((sample, index) => {
-    const x = points.length === 1 ? 0 : (index / (points.length - 1)) * width;
-    const y = height - Math.max(0, Math.min(1, vramUsed[index] / vramMax)) * height;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
-  $("chart-vram").setAttribute("points", vramLine);
-}
-
-function renderSystem(data) {
-  $("sec-mode").textContent = data.token_only ? "token-only" : "LAN aberta + token";
-  $("sec-allow").textContent = (data.allowed_clients || []).length ? (data.allowed_clients || []).join(", ") : "qualquer IP privado";
-  $("sec-clients").textContent = `${(data.clients || []).length} cliente(s) · ${data.request_count ?? 0} pedidos`;
-  const firewall = data.firewall || {};
-  $("sec-firewall").textContent = firewall.supported ? `${(firewall.rules || []).length} regra(s)` : "não verificável neste sistema";
-  const audit = (data.audit || []).slice(-1)[0];
-  $("sec-audit").textContent = audit ? `${audit.method} ${audit.path} · ${audit.client} · ${audit.outcome}` : "—";
-  drawChart(data.history || []);
-}
-$("refresh").onclick = () => void load();
-$("log-filter").oninput = () => applyLogFilter();
-$("restart").onclick = async () => {
-  if (!confirm("Reiniciar as threads do worker e reenfileirar jobs?")) return;
-  try {
-    $("notice").hidden = false;
-    $("notice").textContent = "Reiniciando worker…";
-    const response = await fetch("/api/restart", {method:"POST"});
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || "Falha ao reiniciar");
-    $("notice").textContent = "Worker reiniciado.";
-    void load();
-  } catch (error) {
-    $("notice").hidden = false; $("notice").textContent = `Reinício falhou: ${error}`;
-  }
-};
-$("warm").onclick = async () => {
-  try {
-    $("notice").hidden = false;
-    $("notice").textContent = "Aquecendo modelos…";
-    const response = await fetch("/api/warmup", {method:"POST"});
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || "Falha no warmup");
-    $("notice").textContent = `Warmup: ${(data.loaded || []).join(", ") || "nada carregado"}${(data.errors || []).length ? " · erros: " + data.errors.join("; ") : ""}`;
-    void load();
-  } catch (error) {
-    $("notice").hidden = false; $("notice").textContent = `Warmup falhou: ${error}`;
-  }
-};
-$("benchmark").onclick = async () => {
-  try {
-    const response = await fetch("/probe", {method:"POST"});
-    const data = await response.json();
-    $("notice").hidden = false;
-    $("notice").textContent = `Benchmark: ok=${data.ok} · cuda=${data.cuda} · nvenc=${data.nvenc} · ${data.latency_ms} ms`;
-  } catch (error) {
-    $("notice").hidden = false; $("notice").textContent = `Benchmark falhou: ${error}`;
-  }
-};
-$("copy").onclick = async () => {
-  try { await navigator.clipboard.writeText($("lan-url").textContent); $("copy").textContent = "Copiado"; setTimeout(()=>$("copy").textContent="Copiar URL",1200); } catch {}
-};
-$("logs").onclick = async () => {
-  try { const response = await fetch("/api/open-logs", {method:"POST"}); const data = await response.json(); if (!response.ok) throw new Error(data.detail || "Falha ao abrir logs"); }
-  catch (error) { $("notice").hidden=false; $("notice").textContent = String(error); }
-};
-load(); setInterval(load, 2000);
-</script>
+<script src="/ui/app.js" defer></script>
 </body>
 </html>

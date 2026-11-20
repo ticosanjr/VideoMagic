@@ -558,6 +558,7 @@ class GPUWorkerClient:
         manifest: list[dict[str, Any]] | None = None,
         progress: Callable[[int, int], None] | None = None,
         cancel: Callable[[], bool] | None = None,
+        max_parallel: int = 3,
     ) -> list[Path]:
         """Download every named artifact and verify the manifest hashes."""
 
@@ -570,20 +571,25 @@ class GPUWorkerClient:
             for item in manifest
             if isinstance(item, Mapping)
         }
-        paths: list[Path] = []
-        for name in names:
+
+        def fetch(name: str) -> Path:
             item = by_name.get(name, {})
-            paths.append(
-                self.download(
-                    job_id,
-                    name,
-                    directory / Path(name).name,
-                    expected_sha256=str(item.get("sha256") or ""),
-                    progress=progress,
-                    cancel=cancel,
-                )
+            return self.download(
+                job_id,
+                name,
+                directory / Path(name).name,
+                expected_sha256=str(item.get("sha256") or ""),
+                progress=progress,
+                cancel=cancel,
             )
-        return paths
+
+        workers = max(1, min(int(max_parallel), 8, max(1, len(names))))
+        if workers == 1 or len(names) <= 1:
+            return [fetch(name) for name in names]
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            return list(pool.map(fetch, names))
 
 
 __all__ = [

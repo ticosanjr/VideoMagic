@@ -133,8 +133,12 @@ def test_render_nvenc_handler_builds_nvenc_command(tmp_path: Path, monkeypatch) 
         commands.append(tokens)
         Path(tokens[-1]).write_bytes(b"mp4")
 
-    monkeypatch.setattr(handlers_gpu, "_run", fake_run)
-    monkeypatch.setattr(handlers_gpu, "nvenc_available", lambda ffmpeg="ffmpeg": True)
+    from gpu_worker.gpu_handlers import render as render_handlers
+
+    monkeypatch.setattr(render_handlers, "_run", fake_run)
+    monkeypatch.setattr(
+        render_handlers, "nvenc_available", lambda ffmpeg="ffmpeg": True
+    )
     base = tmp_path / "base.mp4"
     base.write_bytes(b"base")
     ass = tmp_path / "captions.ass"
@@ -165,7 +169,9 @@ def test_nvenc_probe_is_cached(monkeypatch) -> None:
         calls.append(command)
         return Completed()
 
-    monkeypatch.setattr(handlers_gpu.subprocess, "run", fake_run)
+    from gpu_worker.gpu_handlers import common as handler_common
+
+    monkeypatch.setattr(handler_common.subprocess, "run", fake_run)
     handlers_gpu._NVENC_CACHE.clear()
     assert handlers_gpu.nvenc_available("/fake/ffmpeg") is True
     assert handlers_gpu.nvenc_available("/fake/ffmpeg") is True
