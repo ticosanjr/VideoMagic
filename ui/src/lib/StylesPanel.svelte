@@ -4,14 +4,18 @@
     deleteStyle,
     duplicateStyle,
     getStyle,
+    listFormats,
     listStyles,
     restoreStyle,
     saveStyleMarkdown,
+    type OutputFormat,
     type StyleSummary
   } from "$lib/api";
 
   let styles = $state<StyleSummary[]>([]);
+  let formats = $state<OutputFormat[]>([]);
   let selected = $state("");
+  let formatId = $state("");
   let creating = $state(false);
   let styleId = $state("");
   let name = $state("");
@@ -23,6 +27,7 @@
   async function load() {
     try {
       styles = await listStyles();
+      formats = await listFormats();
       if (!selected && styles.length) await open(styles[0].style_id);
     } catch (reason) {
       error = reason instanceof Error ? reason.message : String(reason);
@@ -34,6 +39,7 @@
     try {
       const detail = await getStyle(styleId);
       name = String(detail.style.name ?? styleId);
+      formatId = String(detail.style.format_id ?? "");
       markdown = detail.markdown;
       error = "";
     } catch (reason) {
@@ -46,6 +52,7 @@
     selected = "";
     styleId = "meu-estilo";
     name = "Meu estilo";
+    formatId = "";
     markdown = `---\nname: Meu estilo\naspect_ratio: "9:16"\ncaption_preset: youtube_bold_yellow\n---\n\n# Direção\n\nDescreva o estilo aqui.\n`;
     notice = "";
     error = "";
@@ -59,6 +66,7 @@
         style_id: creating ? styleId : selected,
         name,
         markdown_content: markdown,
+        format_id: formatId,
         overwrite: true
       });
       selected = result.style_id;
@@ -134,7 +142,7 @@
           <li>
             <button type="button" onclick={() => void open(style.style_id)} class={`w-full rounded-lg px-3 py-2 text-left text-[length:var(--vf-text-xs)] ${selected === style.style_id ? "bg-sky-500/15 text-sky-100" : "text-neutral-300 hover:bg-white/[0.04]"}`}>
               <span class="block font-medium">{style.name}</span>
-              <span class="block font-mono text-[10px] text-neutral-500">{style.style_id} · {style.aspect_ratio || "auto"}</span>
+              <span class="block font-mono text-[10px] text-neutral-500">{style.style_id} · {style.format_id || style.aspect_ratio || "auto"}</span>
             </button>
           </li>
         {/each}
@@ -149,6 +157,12 @@
             <input value={selected} disabled class="w-40 rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 font-mono text-[11px] text-neutral-400" />
           {/if}
           <input bind:value={name} class="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 text-[length:var(--vf-text-sm)] text-neutral-100" />
+          <select bind:value={formatId} title="Output format linked to this style" class="rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 text-[length:var(--vf-text-xs)] text-neutral-200">
+            <option value="">No linked format</option>
+            {#each formats as format}
+              <option value={format.format_id}>{format.name} · {format.aspect_ratio}</option>
+            {/each}
+          </select>
           <button type="button" disabled={busy} onclick={() => void save()} class="rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-emerald-100 disabled:opacity-40">Save</button>
           <button type="button" disabled={busy || creating} onclick={() => void duplicate()} class="rounded-lg border border-white/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-neutral-300">Duplicate</button>
           <button type="button" disabled={busy || creating} title="Restore the shipped seed version" onclick={() => void restore()} class="rounded-lg border border-white/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-neutral-300">Restore seed</button>

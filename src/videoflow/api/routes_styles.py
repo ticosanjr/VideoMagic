@@ -19,6 +19,7 @@ class StyleSaveRequest(BaseModel):
     name: str = ""
     markdown_content: str = ""
     aspect_ratio: str | None = None
+    format_id: str | None = None
     target_lufs: float | None = None
     max_static_sec: float | None = None
     min_silence_ms: int | None = None
@@ -69,6 +70,7 @@ def _updates(request: StyleSaveRequest) -> dict[str, Any]:
         for key, value in (
             ("body", request.body),
             ("aspect_ratio", request.aspect_ratio),
+            ("format_id", request.format_id),
             ("target_lufs", request.target_lufs),
             ("max_static_sec", request.max_static_sec),
             ("min_silence_ms", request.min_silence_ms),

@@ -44,6 +44,18 @@ CREATE TABLE IF NOT EXISTS jobs (
     finished_at REAL
 );
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+CREATE TABLE IF NOT EXISTS metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id TEXT NOT NULL,
+    capability TEXT NOT NULL,
+    status TEXT NOT NULL,
+    priority INTEGER NOT NULL DEFAULT 0,
+    queue_wait_sec REAL NOT NULL DEFAULT 0,
+    elapsed_sec REAL NOT NULL DEFAULT 0,
+    error TEXT,
+    created_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_metrics_created ON metrics(created_at);
 """
 
 TERMINAL_STATUSES = frozenset({"succeeded", "failed", "cancelled"})
@@ -177,6 +189,28 @@ class JobStore:
             )
         stored = self.get_artifact(artifact.id)
         return stored or artifact
+
+    def list_artifacts(self) -> list[ArtifactRecord]:
+        with self._lock, self._connection() as connection:
+            rows = connection.execute(
+                "SELECT id, filename, size, path FROM artifacts"
+            ).fetchall()
+        return [
+            ArtifactRecord(
+                id=row["id"],
+                filename=row["filename"],
+                size=int(row["size"]),
+                path=Path(row["path"]),
+            )
+            for row in rows
+        ]
+
+    def delete_artifact(self, artifact_id: str) -> bool:
+        with self._lock, self._connection() as connection:
+            cursor = connection.execute(
+                "DELETE FROM artifacts WHERE id = ?", (artifact_id,)
+            )
+            return cursor.rowcount > 0
 
     def get_artifact(self, artifact_id: str) -> ArtifactRecord | None:
         with self._lock, self._connection() as connection:
@@ -317,6 +351,77 @@ class JobStore:
                 "SELECT COUNT(*) AS total FROM jobs WHERE status = 'queued'"
             ).fetchone()
         return int(row["total"]) if row is not None else 0
+
+    def referenced_artifact_ids(self) -> set[str]:
+        with self._lock, self._connection() as connection:
+            rows = connection.execute("SELECT inputs FROM jobs").fetchall()
+        referenced: set[str] = set()
+        for row in rows:
+            referenced.update(_json_list(row["inputs"]))
+        return referenced
+
+    # Metrics -------------------------------------------------------------------
+
+    def record_metric(
+        self,
+        *,
+        job_id: str,
+        capability: str,
+        status: str,
+        priority: int = 0,
+        queue_wait_sec: float = 0.0,
+        elapsed_sec: float = 0.0,
+        error: str = "",
+    ) -> None:
+        with self._lock, self._connection() as connection:
+            connection.execute(
+                "INSERT INTO metrics (job_id, capability, status, priority, "
+                "queue_wait_sec, elapsed_sec, error, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    job_id,
+                    capability,
+                    status,
+                    int(priority),
+                    float(queue_wait_sec),
+                    float(elapsed_sec),
+                    error or "",
+                    time.time(),
+                ),
+            )
+
+    def metrics_history(self, *, limit: int = 120, capability: str = "") -> list[dict[str, Any]]:
+        query = "SELECT * FROM metrics"
+        params: list[Any] = []
+        if capability:
+            query += " WHERE capability = ?"
+            params.append(capability)
+        query += " ORDER BY id DESC LIMIT ?"
+        params.append(max(1, min(int(limit), 1000)))
+        with self._lock, self._connection() as connection:
+            rows = connection.execute(query, params).fetchall()
+        return [
+            {
+                "id": int(row["id"]),
+                "job_id": row["job_id"],
+                "capability": row["capability"],
+                "status": row["status"],
+                "priority": int(row["priority"]),
+                "queue_wait_sec": float(row["queue_wait_sec"]),
+                "elapsed_sec": float(row["elapsed_sec"]),
+                "error": row["error"] or "",
+                "created_at": float(row["created_at"]),
+            }
+            for row in reversed(rows)
+        ]
+
+    def prune_metrics(self, max_age_sec: float) -> int:
+        cutoff = time.time() - max(float(max_age_sec), 0.0)
+        with self._lock, self._connection() as connection:
+            cursor = connection.execute(
+                "DELETE FROM metrics WHERE created_at < ?", (cutoff,)
+            )
+            return cursor.rowcount
 
     def queue_depth_for(self, capability: str) -> int:
         with self._lock, self._connection() as connection:

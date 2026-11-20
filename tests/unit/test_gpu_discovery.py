@@ -125,7 +125,8 @@ def test_worker_beacon_sends_udp(monkeypatch) -> None:
 def test_tcp_scan_finds_worker_when_broadcast_is_blocked(monkeypatch) -> None:
     from vf_compute import discovery as client_discovery
 
-    monkeypatch.setattr(client_discovery, "_local_ipv4", lambda: "192.168.1.10")
+    monkeypatch.setattr(client_discovery, "local_ipv4_addresses", lambda: ["192.168.1.10"])
+    monkeypatch.setattr(client_discovery, "local_subnets", lambda **_: ["192.168.1.0/24"])
 
     def fake_probe(address: str, port: int, timeout: float):
         if address == "192.168.1.55":
@@ -133,5 +134,5 @@ def test_tcp_scan_finds_worker_when_broadcast_is_blocked(monkeypatch) -> None:
         return None
 
     monkeypatch.setattr(client_discovery, "_probe_worker", fake_probe)
-    found = client_discovery.scan_workers(port=8766)
+    found = client_discovery.scan_workers(port=8766, use_cache=False)
     assert [item["worker_id"] for item in found] == ["worker-scan"]

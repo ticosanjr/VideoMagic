@@ -70,6 +70,16 @@ class WorkerHealth(BaseModel):
     auth_mode: str = ""
     nvenc: bool = False
     encoder: str = ""
+    nvenc_error: str = ""
+    disk_free_mb: int = 0
+    min_free_disk_mb: int = 0
+    uptime_sec: float = 0.0
+    job_retention_hours: float = 0.0
+    lan_urls: list[str] = Field(default_factory=list)
+    warmup: dict[str, Any] = Field(default_factory=dict)
+    current_job: dict[str, Any] = Field(default_factory=dict)
+    allowed_clients: list[str] = Field(default_factory=list)
+    token_only: bool = False
 
     @model_validator(mode="before")
     @classmethod
@@ -129,6 +139,24 @@ class WorkerHealth(BaseModel):
             auth_mode=str(data.get("auth_mode") or ""),
             nvenc=bool(data.get("nvenc", False)),
             encoder=str(data.get("encoder") or ""),
+            nvenc_error=str(data.get("nvenc_error") or ""),
+            disk_free_mb=_as_int(data.get("disk_free_mb")),
+            min_free_disk_mb=_as_int(data.get("min_free_disk_mb")),
+            uptime_sec=_as_float(data.get("uptime_sec")),
+            job_retention_hours=_as_float(data.get("job_retention_hours")),
+            lan_urls=_as_str_list(data.get("lan_urls")),
+            warmup=(
+                dict(data["warmup"])
+                if isinstance(data.get("warmup"), Mapping)
+                else {}
+            ),
+            current_job=(
+                dict(data["current_job"])
+                if isinstance(data.get("current_job"), Mapping)
+                else {}
+            ),
+            allowed_clients=_as_str_list(data.get("allowed_clients")),
+            token_only=bool(data.get("token_only", False)),
             vram_used_mb=_as_int(data.get("vram_used_mb", data.get("vram_used"))),
             gpu_utilization=_as_float(
                 data.get("gpu_utilization", data.get("gpu_util"))

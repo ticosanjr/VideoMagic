@@ -28,6 +28,7 @@ hiddenimports = [
     "videoflow.api.app",
     "videoflow.mcp_server",
     "videoflow.mcp_server.server",
+    "scene_rules",
     "uvicorn.logging",
     "uvicorn.loops.auto",
     "uvicorn.protocols.http.auto",

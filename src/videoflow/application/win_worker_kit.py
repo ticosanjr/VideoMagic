@@ -216,7 +216,12 @@ def _wheel_paths() -> list[Path]:
 
 
 def _worker_wheel() -> Path | None:
-    candidates = _wheel_paths()
+    candidates = [
+        path
+        for path in _wheel_paths()
+        if path.name.startswith("videoflow_gpu_worker-")
+        or path.name.startswith("videoflow_gpu_worker_")
+    ]
     version = _kit_version()
     for path in candidates:
         if version in path.name:

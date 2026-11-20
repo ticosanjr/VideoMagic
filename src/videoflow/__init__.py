@@ -13,7 +13,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
-__version__ = "3.13.0"
+__version__ = "3.14.0"
 
 
 class _OverlayFinder(importlib.abc.MetaPathFinder):
@@ -50,6 +50,8 @@ def _install_overlay() -> None:
     if not (package / "__init__.py").is_file():
         return
     sys.meta_path.insert(0, _OverlayFinder(overlay))
+    if str(overlay) not in sys.path:
+        sys.path.insert(0, str(overlay))
     globals()["__path__"] = [str(package)]
     version_file = overlay / "version.txt"
     if version_file.is_file():

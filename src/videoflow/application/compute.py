@@ -89,6 +89,16 @@ def compute_status(
         "nvenc": getattr(health, "nvenc", False),
         "encoder": getattr(health, "encoder", ""),
         "version": getattr(health, "version", ""),
+        "nvenc_error": getattr(health, "nvenc_error", ""),
+        "disk_free_mb": getattr(health, "disk_free_mb", 0),
+        "min_free_disk_mb": getattr(health, "min_free_disk_mb", 0),
+        "uptime_sec": getattr(health, "uptime_sec", 0.0),
+        "job_retention_hours": getattr(health, "job_retention_hours", 0.0),
+        "lan_urls": list(getattr(health, "lan_urls", []) or []),
+        "warmup": dict(getattr(health, "warmup", {}) or {}),
+        "current_job": dict(getattr(health, "current_job", {}) or {}),
+        "allowed_clients": list(getattr(health, "allowed_clients", []) or []),
+        "token_only": bool(getattr(health, "token_only", False)),
         "fallback_local": resolved.fallback_local,
         "allowed_capabilities": (
             sorted(getattr(resolved, "allowed_capabilities", None))

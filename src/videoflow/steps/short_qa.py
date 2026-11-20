@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
-from videoflow.application.scene_intel.io import read_json, write_json
+from videoflow.application.scene_intel.io import write_json
+from videoflow.application.short_composition.io import (
+    read_cues,
+    read_export_report,
+    read_plan,
+)
 from videoflow.application.short_composition.qa import validate_short_delivery
 from videoflow.core.context import PipelineContext
-from videoflow.domain.errors import NeedsReviewError, ShortPlanError, StateNotReadyError
+from videoflow.domain.errors import NeedsReviewError
 from videoflow.domain.short_composition import ShortCompositionPlan
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload
@@ -29,20 +33,7 @@ class ShortQaParams(BaseModel):
 
 
 def _plan(context: PipelineContext, override: str) -> ShortCompositionPlan:
-    raw: dict[str, Any] = {}
-    if override:
-        raw = read_json(Path(override).expanduser())
-    if not raw:
-        raw = context.metadata.get("short_plan") or {}
-    if not raw:
-        artifact = context.artifacts.get("short_plan", "")
-        raw = read_json(Path(artifact)) if artifact else {}
-    if not raw:
-        raise StateNotReadyError("Run short.plan before short.qa")
-    try:
-        return ShortCompositionPlan.model_validate(raw)
-    except ValueError as exc:
-        raise ShortPlanError(f"Invalid Short plan: {exc}") from exc
+    return read_plan(context, override, step="short.qa")
 
 
 @register_step
@@ -63,22 +54,8 @@ class ShortQaStep(BaseStep):
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = ShortQaParams.model_validate(params)
         plan = _plan(context, options.plan_path)
-        cues: dict[str, Any] = {}
-        if options.cues_path:
-            cues = read_json(Path(options.cues_path).expanduser())
-        if not cues and isinstance(context.metadata.get("short_cues"), dict):
-            cues = context.metadata["short_cues"]
-        if not cues:
-            artifact = context.artifacts.get("short_cues", "")
-            cues = read_json(Path(artifact)) if artifact else {}
-        export_path = (
-            Path(options.export_report_path).expanduser()
-            if options.export_report_path
-            else Path(context.artifacts.get("short_export_report", ""))
-        )
-        export_report = read_json(export_path) if export_path.is_file() else {}
-        if not export_report and isinstance(context.metadata.get("short_export"), dict):
-            export_report = context.metadata["short_export"]
+        cues = read_cues(context, options.cues_path)
+        export_report = read_export_report(context, options.export_report_path)
         video = (
             Path(options.video_path).expanduser()
             if options.video_path

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import socket
 import threading
@@ -39,6 +40,8 @@ class DiscoveryBeacon:
         self.interval = max(float(interval), 0.5)
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self._zeroconf: Any = None
+        self._service_info: Any = None
 
     def payload(self) -> dict[str, Any]:
         gpu = detect_gpu()
@@ -79,6 +82,7 @@ class DiscoveryBeacon:
     def start(self) -> None:
         if self._thread is not None and self._thread.is_alive():
             return
+        self._start_mdns()
         self._stop.clear()
         self._thread = threading.Thread(
             target=self._loop,
@@ -93,6 +97,59 @@ class DiscoveryBeacon:
         self._thread = None
         if thread is not None and thread.is_alive():
             thread.join(timeout=2.0)
+        self._stop_mdns()
+
+    def _start_mdns(self) -> None:
+        """Advertise through mDNS when zeroconf is installed (optional)."""
+
+        try:
+            from zeroconf import ServiceInfo, Zeroconf
+        except Exception:  # noqa: BLE001 - optional dependency
+            return
+        try:
+            payload = self.payload()
+            address = socket.inet_aton(str(payload["ip_local"]))
+            properties = {
+                "worker_id": self.worker_id,
+                "hostname": str(payload["hostname"]),
+                "gpu_name": str(payload["gpu_name"]),
+                "vram_total_mb": str(payload["vram_total_mb"]),
+                "vram_free_mb": str(payload["vram_free_mb"]),
+                "status": str(payload["status"]),
+                "queue_depth": str(payload["queue_depth"]),
+                "capabilities": ",".join(str(item) for item in payload["capabilities"]),
+                "version": str(payload["version"]),
+                "auth_mode": str(payload["auth_mode"]),
+                "nvenc": "1" if payload["nvenc"] else "0",
+                "encoder": str(payload["encoder"]),
+            }
+            info = ServiceInfo(
+                "_videoflow._tcp.local.",
+                f"{self.worker_id}._videoflow._tcp.local.",
+                addresses=[address],
+                port=self.port,
+                properties=properties,
+                server=f"{socket.gethostname()}.local.",
+            )
+            zc = Zeroconf()
+            zc.register_service(info)
+            self._zeroconf = zc
+            self._service_info = info
+        except Exception:  # noqa: BLE001 - mDNS is best-effort
+            self._stop_mdns()
+
+    def _stop_mdns(self) -> None:
+        zc = self._zeroconf
+        info = self._service_info
+        self._zeroconf = None
+        self._service_info = None
+        if zc is None:
+            return
+        with contextlib.suppress(Exception):
+            if info is not None:
+                zc.unregister_service(info)
+        with contextlib.suppress(Exception):
+            zc.close()
 
     def _loop(self) -> None:
         while not self._stop.wait(self.interval):

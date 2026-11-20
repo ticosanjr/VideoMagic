@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import ipaddress
+import json
 import os
 import re
 import secrets
@@ -13,8 +14,9 @@ import subprocess
 import threading
 import time
 import uuid
+from collections import deque
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -68,6 +70,47 @@ def _is_loopback_client(host: str | None) -> bool:
         return ipaddress.ip_address(str(host or "")).is_loopback
     except ValueError:
         return False
+
+
+def _matches_allowlist(host: str | None, entries: tuple[str, ...]) -> bool:
+    if not entries:
+        return False
+    try:
+        address = ipaddress.ip_address(str(host or ""))
+    except ValueError:
+        return False
+    for entry in entries:
+        try:
+            if "/" in entry:
+                if address in ipaddress.ip_network(entry, strict=False):
+                    return True
+            elif address == ipaddress.ip_address(entry):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def _rotate_log(config: Settings) -> bool:
+    path = _log_path(config)
+    if not path.is_file():
+        return False
+    limit = max(1, int(config.log_max_mb)) * 1024 * 1024
+    try:
+        if path.stat().st_size <= limit:
+            return False
+        rotated = path.with_name(f"{path.name}.1")
+        os.replace(path, rotated)
+        return True
+    except OSError:
+        return False
+
+
+def _read_token_file(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
 
 
 def _local_ip() -> str:
@@ -208,6 +251,8 @@ def create_app(
     config = settings or Settings.from_env()
     work_dir = Path(config.work_dir).expanduser().resolve()
     work_dir.mkdir(parents=True, exist_ok=True)
+    token_path = work_dir / "worker.token"
+    runtime_token = _read_token_file(token_path) or (config.token or "")
     shared_root = (
         Path(config.shared_root).expanduser().resolve() if config.shared_root is not None else None
     )
@@ -290,10 +335,28 @@ def create_app(
     app.state.started_at = time.time()
     app.state.last_request_at = 0.0
     app.state.last_request = {}
+    app.state.runtime_token = runtime_token
+    app.state.token_path = token_path
+    app.state.audit = deque(maxlen=500)
+    app.state.clients = {}
+    app.state.request_count = 0
+    app.state.history = deque(maxlen=360)
+    app.state.firewall_cache = (0.0, {})
     app.state.warmup = {"running": False, "loaded": [], "skipped": [], "errors": []}
     warmup_lock = threading.Lock()
     maintenance_stop = threading.Event()
     app.state.maintenance_stop = maintenance_stop
+
+    def audit(client: str, path: str, method: str, outcome: str) -> None:
+        app.state.audit.append(
+            {
+                "at": time.time(),
+                "client": client,
+                "path": path,
+                "method": method,
+                "outcome": outcome,
+            }
+        )
 
     def run_warmup() -> dict[str, Any]:
         with warmup_lock:
@@ -317,11 +380,37 @@ def create_app(
 
     app.state.run_warmup = run_warmup
 
+    def sample_history() -> dict[str, Any]:
+        gpu = detect_gpu()
+        metrics = runner.metrics()
+        sample = {
+            "at": time.time(),
+            "gpu_utilization": gpu.gpu_utilization,
+            "vram_free_mb": gpu.vram_free_mb,
+            "vram_total_mb": gpu.vram_total_mb,
+            "temperature_c": gpu.temperature_c,
+            "queue_depth": store.queue_depth(),
+            "running": len(metrics.get("current") or []),
+            "completed": len(metrics.get("recent") or []),
+        }
+        app.state.history.append(sample)
+        return sample
+
+    def history_loop() -> None:
+        while not maintenance_stop.wait(5.0):
+            try:
+                sample_history()
+            except Exception:  # noqa: BLE001 - sampling is advisory
+                continue
+
     def maintenance_loop() -> None:
         while not maintenance_stop.wait(3600.0):
             try:
                 for stale_job in store.cleanup_finished(retention_sec):
                     shutil.rmtree(work_dir / "jobs" / stale_job, ignore_errors=True)
+                artifacts.cleanup(store.referenced_artifact_ids())
+                store.prune_metrics(config.metrics_retention_hours * 3600.0)
+                _rotate_log(config)
             except Exception:  # noqa: BLE001 - maintenance must never kill the worker
                 continue
 
@@ -329,7 +418,7 @@ def create_app(
     async def require_token(request: Request, call_next):
         if request.url.path in PUBLIC_PATHS or request.url.path == "/health/":
             return await call_next(request)
-        configured = app.state.settings.token
+        configured = str(app.state.runtime_token or "")
         supplied = request.headers.get("x-vf-token", "")
         valid = bool(
             configured
@@ -339,10 +428,21 @@ def create_app(
             )
         )
         client_host = request.client.host if request.client else ""
+        loopback = _is_loopback_client(client_host)
         lan_open = bool(
-            app.state.settings.allow_lan_open and _is_private_client(client_host)
+            app.state.settings.allow_lan_open
+            and not app.state.settings.token_only
+            and _is_private_client(client_host)
+            and (
+                not app.state.settings.allowed_clients
+                or _matches_allowlist(client_host, app.state.settings.allowed_clients)
+            )
         )
-        if valid or lan_open or _is_loopback_client(client_host):
+        if valid or lan_open or loopback:
+            outcome = "token" if valid else ("loopback" if loopback else "lan_open")
+            audit(client_host, request.url.path, request.method, outcome)
+            app.state.request_count += 1
+            app.state.clients[client_host] = time.time()
             if request.url.path not in {
                 "/api/overview",
                 "/api/jobs",
@@ -358,6 +458,7 @@ def create_app(
                     "at": app.state.last_request_at,
                 }
             return await call_next(request)
+        audit(client_host, request.url.path, request.method, "denied")
         if not configured:
             return JSONResponse(
                 status_code=503,
@@ -402,10 +503,17 @@ def create_app(
             "capabilities": handlers.available(),
             "unavailable_capabilities": handlers.unavailable(),
             "auth_mode": (
-                "lan_open"
-                if config.allow_lan_open
-                else ("token" if config.token else "none")
+                "token_only"
+                if config.token_only
+                else (
+                    "lan_open"
+                    if config.allow_lan_open
+                    else ("token" if app.state.runtime_token else "none")
+                )
             ),
+            "token_configured": bool(app.state.runtime_token),
+            "token_only": config.token_only,
+            "allowed_clients": list(config.allowed_clients),
             "nvenc": nvenc_available(config.ffmpeg_cmd or "ffmpeg"),
             "encoder": (
                 "nvenc"
@@ -424,6 +532,8 @@ def create_app(
             "min_free_disk_mb": config.min_free_disk_mb,
             "warmup": dict(app.state.warmup),
             "job_retention_hours": config.job_retention_hours,
+            "clients_connected": len(app.state.clients),
+            "request_count": app.state.request_count,
         }
 
     @app.get("/api/overview")
@@ -456,6 +566,123 @@ def create_app(
     @app.get("/api/logs")
     def api_logs(lines: int = 200) -> dict[str, Any]:
         return {"ok": True, "text": _tail_log(config, limit=max(1, min(lines, 2000)))}
+
+    def firewall_status() -> dict[str, Any]:
+        cached_at, cached = app.state.firewall_cache
+        if cached and time.time() - cached_at < 60.0:
+            return cached
+        if os.name != "nt":
+            payload = {"supported": False, "rules": []}
+        else:
+            command = (
+                "Get-NetFirewallRule -DisplayName 'VideoFlow GPU Worker*' "
+                "| Select-Object DisplayName,Enabled,Direction,Action,Profile "
+                "| ConvertTo-Json -Compress"
+            )
+            try:
+                completed = subprocess.run(
+                    ["powershell", "-NoProfile", "-Command", command],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    check=False,
+                )
+                raw = json.loads(completed.stdout or "null")
+                rules = raw if isinstance(raw, list) else ([raw] if raw else [])
+                payload = {"supported": True, "rules": rules}
+            except Exception as exc:  # noqa: BLE001 - firewall is advisory
+                payload = {"supported": True, "rules": [], "error": str(exc)}
+        app.state.firewall_cache = (time.time(), payload)
+        return payload
+
+    @app.get("/api/history")
+    def api_history(limit: int = 120) -> dict[str, Any]:
+        return {
+            "ok": True,
+            "samples": list(app.state.history),
+            "metrics": store.metrics_history(limit=max(1, min(limit, 1000))),
+        }
+
+    @app.get("/api/system")
+    def api_system(request: Request) -> dict[str, Any]:
+        clients = [
+            {"client": host, "last_seen": seen}
+            for host, seen in sorted(
+                app.state.clients.items(), key=lambda item: item[1], reverse=True
+            )
+        ]
+        return {
+            "ok": True,
+            "version": __version__,
+            "uptime_sec": round(max(0.0, time.time() - app.state.started_at), 1),
+            "disk_free_mb": _disk_free_mb(work_dir),
+            "queue_depth": store.queue_depth(),
+            "clients": clients,
+            "request_count": app.state.request_count,
+            "token_only": config.token_only,
+            "allowed_clients": list(config.allowed_clients),
+            "firewall": firewall_status(),
+            "log_path": str(_log_path(config)),
+            "token_file": str(app.state.token_path),
+            "history": list(app.state.history),
+            "audit": (
+                list(app.state.audit)[-5:]
+                if _is_loopback_client(request.client.host if request.client else "")
+                else []
+            ),
+        }
+
+    @app.get("/api/security")
+    def api_security(request: Request) -> dict[str, Any]:
+        if not _is_loopback_client(request.client.host if request.client else ""):
+            raise HTTPException(status_code=403, detail="local access only")
+        return {
+            "ok": True,
+            "auth_mode": (
+                "token_only"
+                if config.token_only
+                else ("lan_open" if config.allow_lan_open else "token")
+            ),
+            "token_configured": bool(app.state.runtime_token),
+            "token_only": config.token_only,
+            "allow_lan_open": config.allow_lan_open,
+            "allowed_clients": list(config.allowed_clients),
+            "token_file": str(app.state.token_path),
+        }
+
+    @app.get("/api/audit")
+    def api_audit(request: Request, limit: int = 100) -> dict[str, Any]:
+        if not _is_loopback_client(request.client.host if request.client else ""):
+            raise HTTPException(status_code=403, detail="local access only")
+        entries = list(app.state.audit)[-max(1, min(int(limit), 500)) :]
+        return {"ok": True, "entries": entries}
+
+    @app.post("/api/token/rotate")
+    def api_token_rotate(request: Request) -> dict[str, Any]:
+        if not _is_loopback_client(request.client.host if request.client else ""):
+            raise HTTPException(status_code=403, detail="local access only")
+        token = secrets.token_urlsafe(32)
+        try:
+            app.state.token_path.write_text(token + "\n", encoding="utf-8")
+            with suppress(OSError):
+                os.chmod(app.state.token_path, 0o600)
+        except OSError as exc:
+            raise HTTPException(status_code=500, detail=f"cannot write token: {exc}") from exc
+        app.state.runtime_token = token
+        audit(
+            request.client.host if request.client else "",
+            "/api/token/rotate",
+            "POST",
+            "rotated",
+        )
+        return {"ok": True, "token": token, "token_file": str(app.state.token_path)}
+
+    @app.post("/api/restart")
+    def api_restart(request: Request) -> dict[str, Any]:
+        if not _is_loopback_client(request.client.host if request.client else ""):
+            raise HTTPException(status_code=403, detail="local access only")
+        runner.restart()
+        return {"ok": True, "runner": runner.metrics()}
 
     @app.post("/api/open-logs")
     def api_open_logs(request: Request) -> dict[str, Any]:
@@ -845,6 +1072,12 @@ def create_app(
 
     runner.start()
     models.start()
+    sample_history()
+    threading.Thread(
+        target=history_loop,
+        name="gpu-worker-history",
+        daemon=True,
+    ).start()
     threading.Thread(
         target=maintenance_loop,
         name="gpu-worker-maintenance",

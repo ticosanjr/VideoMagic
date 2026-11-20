@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import os
 import uuid
@@ -102,6 +103,21 @@ class ArtifactStore:
         if stored.path.resolve() != destination.resolve():
             destination.unlink(missing_ok=True)
         return stored
+
+    def cleanup(self, keep_ids: set[str]) -> int:
+        """Delete stored objects no queued or retained job references."""
+
+        removed = 0
+        for record in self._store.list_artifacts():
+            if record.id in keep_ids:
+                continue
+            path = record.path.expanduser().resolve()
+            if self.objects in path.parents:
+                with contextlib.suppress(OSError):
+                    path.unlink(missing_ok=True)
+            if self._store.delete_artifact(record.id):
+                removed += 1
+        return removed
 
     def save_upload(self, source: BinaryIO, filename: str | None) -> ArtifactRecord:
         """Stream an upload to disk, hashing it and deduplicating by digest."""

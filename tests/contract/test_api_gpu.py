@@ -143,7 +143,7 @@ def test_gpu_discovery_and_worker_list(monkeypatch) -> None:
     monkeypatch.setattr(
         discovery,
         "discover_workers",
-        lambda timeout_sec=1.5: [{"worker_id": "worker-1", "url": "http://gpu:8766"}],
+        lambda timeout_sec=1.5, **_: [{"worker_id": "worker-1", "url": "http://gpu:8766"}],
     )
     monkeypatch.setattr(routes_gpu, "router_from_settings", lambda settings: FakeRouter())
     client = TestClient(_app())

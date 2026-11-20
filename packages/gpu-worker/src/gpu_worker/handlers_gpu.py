@@ -17,6 +17,11 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from scene_rules import classify_layout as _classify_layout
+from scene_rules import editing_hints as _editing_hints
+from scene_rules import median as _rules_median
+from scene_rules import sample_times as _rules_sample_times
+
 from gpu_worker.handlers import Handler, HandlerError, HandlerRegistry
 from gpu_worker.progress import report
 
@@ -598,9 +603,7 @@ def make_face_track_handler(settings: Settings) -> Handler:
 
 
 def _scene_median(values: list[float], default: float = 0.0) -> float:
-    import statistics
-
-    return round(statistics.median(values), 6) if values else default
+    return _rules_median(values, default)
 
 
 def _scene_sample_times(
@@ -610,14 +613,12 @@ def _scene_sample_times(
     max_frames: int = 20,
     interval: float = 0.5,
 ) -> list[float]:
-    duration = max(0.0, end - start)
-    if duration <= 0:
-        return [start]
-    count = max(3, min(max_frames, int(duration / max(0.1, interval)) + 1))
-    return [
-        min(end - 1e-4, start + duration * (index + 0.5) / count)
-        for index in range(count)
-    ]
+    return _rules_sample_times(
+        start,
+        end,
+        max_frames=max_frames,
+        interval=interval,
+    )
 
 
 def _scene_ffmpeg_times(
@@ -850,15 +851,14 @@ def _scene_visuals(
 
 
 def _scene_layout(visual: dict[str, Any], width: int, height: int, topology: str) -> str:
-    if topology == "dual_canvas" or (width == 3840 and height == 1080):
-        return "DUAL_CANVAS_OBS"
-    if visual["face_count"] >= 1 and visual["face_area_ratio"] >= 0.055:
-        return "TALKING_HEAD"
-    if visual["face_count"] >= 1:
-        return "SCREEN_SHARE_PIP"
-    if visual["edge_density"] >= 0.08:
-        return "SCREEN_SHARE_FULL"
-    return "BROLL_OR_FOOTAGE"
+    return _classify_layout(
+        face_count=int(visual["face_count"]),
+        face_area_ratio=float(visual["face_area_ratio"]),
+        edge_density=float(visual["edge_density"]),
+        width=width,
+        height=height,
+        topology=topology,
+    )
 
 
 def _scene_hints(
@@ -867,21 +867,13 @@ def _scene_hints(
     visual: dict[str, Any],
     previous: str | None,
 ) -> list[str]:
-    hints: list[str] = []
-    if layout == "TALKING_HEAD" and duration >= 12.0:
-        hints.append("LONG_STATIC_SHOT")
-    if previous is not None and layout != previous:
-        hints.append("SCENE_TYPE_SWITCH")
-    protected = layout in {"SCREEN_SHARE_PIP", "SCREEN_SHARE_FULL", "DUAL_CANVAS_OBS"}
-    if protected and visual["edge_density"] >= 0.05:
-        hints.append("PROTECT_FROM_BROLL")
-    if layout == "TALKING_HEAD" and visual["sharpness_laplacian"] < 60.0:
-        hints.append("LOW_SHARPNESS_WARNING")
-    if layout == "TALKING_HEAD" and "PROTECT_FROM_BROLL" not in hints:
-        hints.append("SAFE_FOR_BROLL")
-    if layout == "DUAL_CANVAS_OBS":
-        hints.append("DUAL_CANVAS_READY")
-    return hints
+    return _editing_hints(
+        layout=layout,
+        duration_sec=duration,
+        edge_density=float(visual["edge_density"]),
+        sharpness_laplacian=float(visual["sharpness_laplacian"]),
+        previous_layout=previous,
+    )
 
 
 def _scene_keyframes(

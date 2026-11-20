@@ -8,6 +8,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.application.scene_intel.io import read_json, write_json
+from videoflow.application.short_composition.io import read_manifest, read_supercontext
 from videoflow.application.short_composition.plan import resolve_draft
 from videoflow.application.short_composition.planner import (
     build_llm_request,
@@ -45,28 +46,16 @@ class ShortPlanParams(BaseModel):
 
 
 def _manifest(context: PipelineContext) -> ScenesManifest:
-    raw = context.metadata.get("scenes_manifest")
-    if not isinstance(raw, dict) or not raw:
-        artifact = context.artifacts.get("scenes_manifest", "")
-        raw = read_json(Path(artifact)) if artifact else {}
-    if not raw:
-        raise StateNotReadyError("Run scene.analyze before short.plan")
-    try:
-        return ScenesManifest.model_validate(raw)
-    except ValueError as exc:
-        raise StateNotReadyError(f"Scene manifest is invalid: {exc}") from exc
+    return read_manifest(
+        context,
+        step="short.plan",
+        error_cls=StateNotReadyError,
+        error_prefix="Scene manifest is invalid",
+    )
 
 
 def _supercontext(context: PipelineContext) -> dict[str, Any]:
-    raw = context.metadata.get("scenes_supercontext")
-    if isinstance(raw, dict) and raw:
-        return raw
-    artifact = context.artifacts.get("scenes_supercontext", "")
-    if artifact:
-        payload = read_json(Path(artifact))
-        if payload:
-            return payload
-    return {}
+    return read_supercontext(context)
 
 
 def _submitted_plan(

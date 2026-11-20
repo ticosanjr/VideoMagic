@@ -119,6 +119,23 @@ class JobRunner:
         (self._cpu_queue if is_cpu else self._gpu_queue).put(item)
         return True
 
+    def restart(self) -> None:
+        """Restart worker threads and re-enqueue every queued job."""
+
+        self.stop()
+        for queue_ in (self._gpu_queue, self._cpu_queue):
+            while True:
+                try:
+                    queue_.get_nowait()
+                except queue.Empty:
+                    break
+                else:
+                    queue_.task_done()
+        self._stopped.clear()
+        self.start()
+        for job in self._store.queued_jobs():
+            self.submit(job.id, priority=job.priority)
+
     def stop(self) -> None:
         with self._lock:
             threads = list(self._threads)
@@ -250,6 +267,16 @@ class JobRunner:
             self._current.pop(job.id, None)
             self._metrics.append(record)
             self._metrics = self._metrics[-100:]
+        with contextlib.suppress(Exception):
+            self._store.record_metric(
+                job_id=job.id,
+                capability=job.capability,
+                status=status,
+                priority=job.priority,
+                queue_wait_sec=queue_wait,
+                elapsed_sec=elapsed,
+                error=error,
+            )
 
     def _execute(self, job: JobRecord) -> tuple[list[str], list[str], str | None]:
         from gpu_worker.progress import report

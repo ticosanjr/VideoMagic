@@ -138,6 +138,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         markdown_content: str = "",
         body: str = "",
         aspect_ratio: str | None = None,
+        format_id: str | None = None,
         target_lufs: float | None = None,
         max_static_sec: float | None = None,
         min_silence_ms: int | None = None,
@@ -243,6 +244,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                 for key, value in (
                     ("body", body or None),
                     ("aspect_ratio", aspect_ratio),
+                    ("format_id", format_id),
                     ("target_lufs", target_lufs),
                     ("max_static_sec", max_static_sec),
                     ("min_silence_ms", min_silence_ms),

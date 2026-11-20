@@ -1,5 +1,32 @@
 # Changelog
 
+## [3.14.0] - 2026-11-20
+
+### Changed
+
+- Extracted `packages/scene-rules` as the single portable source of scene
+  sampling, layout classification, editing hints, and protected-layout rules
+  shared by the application and the GPU worker; the Windows kit ships it.
+- Centralized Short plan/manifest/supercontext/cues/export readers in
+  `short_composition/io.py` and migrated all Short steps.
+- Linked styles to output formats with `format_id`; linked formats provide
+  aspect ratio, safe zones, and caption preset, and unknown ids are rejected.
+- Made `WorkerHealth` the canonical status model with disk, uptime, retention,
+  LAN URLs, NVENC error, warmup, current job, allowlist, and token-only fields;
+  a contract test guards the TypeScript interface.
+- Added SSR component tests for Styles, Formats, Help, and GPU panels.
+
+### Added
+
+- Worker dashboard GPU/VRAM/queue history, connected clients, firewall state,
+  audit decision, searchable logs, and local restart.
+- mDNS advertisement/discovery when `zeroconf` is installed, real-prefix and
+  multi-subnet scanning, `VF_GPU_SCAN_CIDRS`, scan cache, and deduplication.
+- `VF_GPU_ALLOWED_CLIENTS`, `VF_GPU_TOKEN_ONLY`, token rotation, auth audit,
+  and local-only security endpoints.
+- Per-job metrics in SQLite with `/api/history`, artifact garbage collection,
+  metrics pruning, and log rotation.
+
 ## [3.13.0] - 2026-11-20
 
 ### Performance

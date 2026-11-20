@@ -83,6 +83,13 @@ def _env_bool(environ: Mapping[str, str], name: str, default: bool = False) -> b
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_list(environ: Mapping[str, str], name: str) -> tuple[str, ...]:
+    raw = _env(environ, name)
+    if raw is None:
+        return ()
+    return tuple(item.strip() for item in raw.split(",") if item.strip())
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     """Immutable worker configuration.
@@ -101,6 +108,10 @@ class Settings:
     max_queue: int = DEFAULT_MAX_QUEUE
     cpu_workers: int = 2
     warmup: bool = False
+    token_only: bool = False
+    allowed_clients: tuple[str, ...] = ()
+    log_max_mb: int = 20
+    metrics_retention_hours: float = 720.0
     job_retention_hours: float = 168.0
     min_free_disk_mb: int = 2048
     model_ttl_sec: float = DEFAULT_MODEL_TTL_SEC
@@ -144,6 +155,12 @@ class Settings:
             max_queue=_env_int(values, "VF_GPU_MAX_QUEUE", DEFAULT_MAX_QUEUE, minimum=0),
             cpu_workers=_env_int(values, "VF_GPU_CPU_WORKERS", 2, minimum=1, maximum=8),
             warmup=_env_bool(values, "VF_GPU_WARMUP", False),
+            token_only=_env_bool(values, "VF_GPU_TOKEN_ONLY", False),
+            allowed_clients=_env_list(values, "VF_GPU_ALLOWED_CLIENTS"),
+            log_max_mb=_env_int(values, "VF_GPU_LOG_MAX_MB", 20, minimum=1),
+            metrics_retention_hours=_env_float(
+                values, "VF_GPU_METRICS_RETENTION_HOURS", 720.0, minimum=1.0
+            ),
             job_retention_hours=_env_float(
                 values, "VF_GPU_JOB_RETENTION_HOURS", 168.0, minimum=1.0
             ),

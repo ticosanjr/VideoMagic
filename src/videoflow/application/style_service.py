@@ -67,6 +67,16 @@ def save_style(
         style = StyleDefinition.model_validate(style.model_dump(mode="json"))
     except ValueError as exc:
         raise StyleError(f"invalid style: {exc}") from exc
+    if style.format_id:
+        from videoflow.application.format_catalog import FormatCatalog
+
+        try:
+            FormatCatalog().get(style.format_id)
+        except Exception as exc:  # noqa: BLE001 - surface a catalog error
+            raise StyleError(f"unknown format_id: {style.format_id}") from exc
+        from videoflow.application.style_catalog import resolve_style_format
+
+        style = resolve_style_format(style)
     path = active.save(style, overwrite=overwrite)
     sync = active.sync(workspace_dir) if workspace_dir else {}
     return {

@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
+import os
+import re
 import socket
+import subprocess
 import threading
 import time
 from dataclasses import dataclass, field
@@ -11,6 +15,10 @@ from typing import Any
 
 DEFAULT_DISCOVERY_PORT = 8767
 DEFAULT_PEER_TTL_SEC = 10.0
+_SCAN_CACHE: dict[tuple[object, ...], tuple[float, list[dict[str, Any]]]] = {}
+_SCAN_LOCK = threading.RLock()
+_SCAN_TTL_SEC = 15.0
+_SUBNET_CACHE: tuple[float, list[str]] = (0.0, [])
 
 
 @dataclass(slots=True)
@@ -162,20 +170,126 @@ class GpuDiscovery:
             sock.close()
 
 
+def _merge_workers(*groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: dict[str, dict[str, Any]] = {}
+    for group in groups:
+        for item in group:
+            key = str(item.get("worker_id") or item.get("url") or "")
+            if not key:
+                continue
+            current = merged.get(key)
+            if current is None or len(item) > len(current):
+                merged[key] = item
+    return sorted(
+        merged.values(),
+        key=lambda item: (
+            str(item.get("worker_id") or ""),
+            str(item.get("url") or ""),
+        ),
+    )
+
+
+def mdns_workers(*, timeout_sec: float = 1.0) -> list[dict[str, Any]]:
+    """Discover workers advertising ``_videoflow._tcp.local.`` when zeroconf exists.
+
+    mDNS is optional: the worker still advertises over UDP and the client still
+    scans the local subnets when zeroconf is not installed.
+    """
+
+    try:
+        import zeroconf
+    except Exception:  # noqa: BLE001 - optional dependency
+        return []
+    found: dict[str, dict[str, Any]] = {}
+    event = threading.Event()
+
+    class Listener:
+        def add_service(self, zc: Any, service_type: str, name: str) -> None:
+            info = zc.get_service_info(service_type, name, timeout=1000)
+            if info is None:
+                return
+            properties = {
+                key.decode("utf-8", "replace"): value.decode("utf-8", "replace")
+                for key, value in (info.properties or {}).items()
+                if isinstance(key, bytes)
+            }
+            addresses = [
+                socket.inet_ntoa(address)
+                for address in info.addresses
+                if len(address) == socket.inet_aton("0.0.0.0").__len__()
+            ]
+            ipv4 = next(
+                (
+                    address
+                    for address in addresses
+                    if not address.startswith("127.")
+                ),
+                addresses[0] if addresses else "",
+            )
+            worker_id = str(properties.get("worker_id") or name.split(".")[0])
+            found[worker_id] = {
+                "worker_id": worker_id,
+                "hostname": str(properties.get("hostname") or info.server or ""),
+                "ip_local": ipv4,
+                "port": int(info.port or 0),
+                "url": f"http://{ipv4}:{info.port}" if ipv4 and info.port else "",
+                "gpu_name": str(properties.get("gpu_name") or ""),
+                "vram_total_mb": int(properties.get("vram_total_mb") or 0),
+                "vram_free_mb": int(properties.get("vram_free_mb") or 0),
+                "status": str(properties.get("status") or ""),
+                "queue_depth": int(properties.get("queue_depth") or 0),
+                "capabilities": [
+                    item
+                    for item in str(properties.get("capabilities") or "").split(",")
+                    if item
+                ],
+                "version": str(properties.get("version") or ""),
+                "auth_mode": str(properties.get("auth_mode") or ""),
+                "nvenc": str(properties.get("nvenc") or "").lower()
+                in {"1", "true", "yes"},
+                "encoder": str(properties.get("encoder") or ""),
+                "seen_at": time.time(),
+                "transport": "mdns",
+            }
+
+        def update_service(self, zc: Any, service_type: str, name: str) -> None:
+            self.add_service(zc, service_type, name)
+
+        def remove_service(self, zc: Any, service_type: str, name: str) -> None:
+            return None
+
+    try:
+        zc = zeroconf.Zeroconf()
+        browser = zeroconf.ServiceBrowser(
+            zc, "_videoflow._tcp.local.", Listener()
+        )
+        try:
+            event.wait(max(0.2, float(timeout_sec)))
+        finally:
+            browser.cancel()
+            zc.close()
+    except Exception:  # noqa: BLE001 - mDNS is best-effort
+        return []
+    return sorted(found.values(), key=lambda item: item["worker_id"])
+
+
 def discover_workers(
     *,
     timeout_sec: float = 1.5,
     port: int = DEFAULT_DISCOVERY_PORT,
+    include_mdns: bool = True,
 ) -> list[dict[str, Any]]:
-    """Listen once for ``timeout_sec`` and return the peers seen."""
+    """Listen for UDP beacons, add optional mDNS peers, and deduplicate."""
 
     discovery = GpuDiscovery(port=port)
     discovery.start()
     try:
         time.sleep(max(0.1, float(timeout_sec)))
-        return discovery.peers()
+        peers = discovery.peers()
     finally:
         discovery.stop()
+    mdns = mdns_workers(timeout_sec=min(max(0.2, float(timeout_sec)), 2.0)) if include_mdns else []
+    return _merge_workers(peers, mdns)
 
 
 def _local_ipv4() -> str:
@@ -185,6 +299,93 @@ def _local_ipv4() -> str:
             return str(probe.getsockname()[0])
     except OSError:
         return ""
+
+
+def local_ipv4_addresses() -> list[str]:
+    """Return every usable local IPv4 address, best-effort."""
+
+    addresses: set[str] = set()
+    preferred = _local_ipv4()
+    if preferred and not preferred.startswith("127."):
+        addresses.add(preferred)
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            address = str(info[4][0])
+            if not address.startswith("127."):
+                addresses.add(address)
+    except OSError:
+        pass
+    return sorted(addresses)
+
+
+def _subnet_from_command() -> list[str]:
+    try:
+        if os.name == "nt":
+            completed = subprocess.run(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    "Get-NetIPAddress -AddressFamily IPv4 | "
+                    "Select-Object IPAddress,PrefixLength | ConvertTo-Json -Compress",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            payload = json.loads(completed.stdout or "[]")
+            rows = payload if isinstance(payload, list) else [payload]
+            return [
+                f"{row['IPAddress']}/{row['PrefixLength']}"
+                for row in rows
+                if isinstance(row, dict) and row.get("IPAddress")
+            ]
+        completed = subprocess.run(
+            ["ip", "-o", "-4", "addr", "show"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+        return [
+            f"{match.group(1)}/{match.group(2)}"
+            for match in re.finditer(
+                r"inet\s+(\d+\.\d+\.\d+\.\d+)/(\d+)", completed.stdout or ""
+            )
+        ]
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return []
+
+
+def local_subnets(*, force: bool = False) -> list[str]:
+    """Return private CIDRs for the local interfaces, with a short cache."""
+
+    global _SUBNET_CACHE
+    now = time.time()
+    if not force and _SUBNET_CACHE[0] and now - _SUBNET_CACHE[0] < 300.0:
+        return list(_SUBNET_CACHE[1])
+    configured = [
+        item.strip()
+        for item in os.environ.get("VF_GPU_SCAN_CIDRS", "").split(",")
+        if item.strip()
+    ]
+    candidates = configured or _subnet_from_command()
+    if not candidates:
+        candidates = [f"{address}/24" for address in local_ipv4_addresses()]
+    networks: list[str] = []
+    for candidate in candidates:
+        try:
+            network = ipaddress.ip_network(candidate, strict=False)
+        except ValueError:
+            continue
+        if network.version != 4 or not network.is_private:
+            continue
+        text = network.compressed
+        if text not in networks:
+            networks.append(text)
+    _SUBNET_CACHE = (now, networks)
+    return networks
 
 
 def _probe_worker(address: str, port: int, timeout: float) -> dict[str, Any] | None:
@@ -230,14 +431,45 @@ def scan_workers(
     port: int = 8766,
     timeout: float = 0.12,
     max_workers: int = 32,
+    cidrs: list[str] | None = None,
+    max_hosts: int = 1024,
+    use_cache: bool = True,
 ) -> list[dict[str, Any]]:
-    """Probe the local /24 for a worker when UDP broadcast is blocked."""
+    """Probe local subnets when UDP/mDNS discovery is blocked."""
 
-    local = _local_ipv4()
-    if not local:
+    networks = cidrs or local_subnets()
+    if not networks:
         return []
-    prefix = ".".join(local.split(".")[:3])
-    addresses = [f"{prefix}.{host}" for host in range(1, 255) if f"{prefix}.{host}" != local]
+    own = set(local_ipv4_addresses())
+    addresses: list[str] = []
+    seen: set[str] = set()
+    for text in networks:
+        try:
+            network = ipaddress.ip_network(text, strict=False)
+        except ValueError:
+            continue
+        if network.version != 4:
+            continue
+        for address in network.hosts():
+            value = str(address)
+            if value in seen or value in own:
+                continue
+            seen.add(value)
+            addresses.append(value)
+            if len(addresses) >= max(1, min(int(max_hosts), 4096)):
+                break
+        if len(addresses) >= max(1, min(int(max_hosts), 4096)):
+            break
+    if not addresses:
+        return []
+    key = (tuple(networks), int(port), tuple(addresses))
+    now = time.time()
+    if use_cache:
+        with _SCAN_LOCK:
+            cached = _SCAN_CACHE.get(key)
+            if cached is not None and now - cached[0] < _SCAN_TTL_SEC:
+                return [dict(item) for item in cached[1]]
+
     from concurrent.futures import ThreadPoolExecutor
 
     found: list[dict[str, Any]] = []
@@ -245,7 +477,10 @@ def scan_workers(
         for item in pool.map(lambda address: _probe_worker(address, port, timeout), addresses):
             if item is not None:
                 found.append(item)
-    return found
+    merged = _merge_workers(found)
+    with _SCAN_LOCK:
+        _SCAN_CACHE[key] = (now, merged)
+    return [dict(item) for item in merged]
 
 
 __all__ = [
@@ -253,5 +488,8 @@ __all__ = [
     "DiscoveredWorker",
     "GpuDiscovery",
     "discover_workers",
+    "local_ipv4_addresses",
+    "local_subnets",
+    "mdns_workers",
     "scan_workers",
 ]

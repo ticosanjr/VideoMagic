@@ -48,6 +48,7 @@ class StyleDefinition(BaseModel):
     style_id: str = Field(min_length=1, max_length=80)
     name: str = Field(min_length=1, max_length=200)
     aspect_ratio: str = Field(default="", max_length=20)
+    format_id: str = Field(default="", max_length=80)
     target_lufs: float = Field(default=-16.0, ge=-30.0, le=-5.0)
     max_static_sec: float = Field(default=4.0, ge=0.1, le=120.0)
     min_silence_ms: int = Field(default=400, ge=0, le=10_000)

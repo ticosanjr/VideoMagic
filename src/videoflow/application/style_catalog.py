@@ -154,6 +154,7 @@ def render_style_markdown(style: StyleDefinition) -> str:
         "style_id",
         "name",
         "aspect_ratio",
+        "format_id",
         "target_lufs",
         "max_static_sec",
         "min_silence_ms",
@@ -179,6 +180,7 @@ def render_style_markdown(style: StyleDefinition) -> str:
         "style_id": style.style_id,
         "name": style.name,
         "aspect_ratio": style.aspect_ratio,
+        "format_id": style.format_id,
         "target_lufs": style.target_lufs,
         "max_static_sec": style.max_static_sec,
         "min_silence_ms": style.min_silence_ms,
@@ -214,12 +216,31 @@ def render_style_markdown(style: StyleDefinition) -> str:
     return f"---\n{header}\n---\n\n{body.strip()}\n"
 
 
+def resolve_style_format(style: StyleDefinition) -> StyleDefinition:
+    """Apply the linked format's geometry, safe zones, and caption preset."""
+
+    if not style.format_id:
+        return style
+    from videoflow.application.format_catalog import FormatCatalog
+
+    try:
+        template = FormatCatalog().get(style.format_id)
+    except Exception:  # noqa: BLE001 - a missing custom format must not break reads
+        return style
+    updates: dict[str, Any] = {"aspect_ratio": template.aspect_ratio}
+    if not style.safe_zones:
+        updates["safe_zones"] = dict(template.safe_zones)
+    if not style.caption_preset:
+        updates["caption_preset"] = template.caption_preset
+    return style.model_copy(update=updates)
+
+
 def _read_style(path: Path) -> StyleDefinition:
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
         raise StyleError(f"cannot read style {path.name}: {exc}") from exc
-    return parse_style_markdown(text, fallback_id=path.stem)
+    return resolve_style_format(parse_style_markdown(text, fallback_id=path.stem))
 
 
 def _signature(root: Path) -> tuple[tuple[str, int, int], ...]:
@@ -415,6 +436,7 @@ class StyleCatalog:
                 "style_id": style.style_id,
                 "name": style.name,
                 "aspect_ratio": style.aspect_ratio,
+                "format_id": style.format_id,
                 "summary": style.summary,
                 "file_path": str(self.path_for(style.style_id)),
                 "updated_at": style.updated_at,
@@ -436,7 +458,9 @@ class StyleCatalog:
         path = self.root / f"{style.style_id}.md"
         if path.exists() and not overwrite:
             raise StyleError(f"style already exists: {style.style_id}")
-        style = style.model_copy(update={"updated_at": style.updated_at or _now()})
+        style = resolve_style_format(
+            style.model_copy(update={"updated_at": style.updated_at or _now()})
+        )
         text = render_style_markdown(style)
         if path.is_file() and path.read_text(encoding="utf-8", errors="replace") == text:
             return path

@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from videoflow.application.scene_intel.io import read_json, write_json
+from videoflow.application.scene_intel.io import write_json
+from videoflow.application.short_composition.io import read_manifest, read_optional_plan
 from videoflow.application.short_composition.validate import validate_plan
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import ShortPlanError, StateNotReadyError
-from videoflow.domain.scenes import ScenesManifest
 from videoflow.domain.short_composition import ShortCompositionPlan
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.registry import register_step
@@ -41,28 +40,16 @@ class ShortValidateStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = ShortValidateParams.model_validate(params)
-        raw_plan: dict[str, Any] = {}
-        if options.plan_path:
-            raw_plan = read_json(Path(options.plan_path).expanduser())
-        if not raw_plan:
-            metadata = context.metadata.get("short_plan")
-            if isinstance(metadata, dict):
-                raw_plan = metadata
-        if not raw_plan:
-            artifact = context.artifacts.get("short_plan", "")
-            if artifact:
-                raw_plan = read_json(Path(artifact))
+        raw_plan = read_optional_plan(context, options.plan_path)
         if not raw_plan:
             raise StateNotReadyError("Run short.plan before short.validate")
-        raw_manifest = context.metadata.get("scenes_manifest")
-        if not isinstance(raw_manifest, dict) or not raw_manifest:
-            artifact = context.artifacts.get("scenes_manifest", "")
-            raw_manifest = read_json(Path(artifact)) if artifact else {}
-        if not raw_manifest:
-            raise StateNotReadyError("Run scene.analyze before short.validate")
+        manifest = read_manifest(
+            context,
+            step="short.validate",
+            error_prefix="Invalid plan or manifest",
+        )
         try:
             plan = ShortCompositionPlan.model_validate(raw_plan)
-            manifest = ScenesManifest.model_validate(raw_manifest)
         except ValueError as exc:
             raise ShortPlanError(f"Invalid plan or manifest: {exc}") from exc
         report = validate_plan(plan, manifest)

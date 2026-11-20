@@ -320,6 +320,8 @@ function Ensure-EnvFile {
     if (-not $map.ContainsKey("VF_GPU_WARMUP") -or -not $map["VF_GPU_WARMUP"]) { $map["VF_GPU_WARMUP"] = "1" }
     if (-not $map.ContainsKey("VF_GPU_JOB_RETENTION_HOURS") -or -not $map["VF_GPU_JOB_RETENTION_HOURS"]) { $map["VF_GPU_JOB_RETENTION_HOURS"] = "168" }
     if (-not $map.ContainsKey("VF_GPU_MIN_FREE_DISK_MB") -or -not $map["VF_GPU_MIN_FREE_DISK_MB"]) { $map["VF_GPU_MIN_FREE_DISK_MB"] = "4096" }
+    if (-not $map.ContainsKey("VF_GPU_METRICS_RETENTION_HOURS") -or -not $map["VF_GPU_METRICS_RETENTION_HOURS"]) { $map["VF_GPU_METRICS_RETENTION_HOURS"] = "720" }
+    if (-not $map.ContainsKey("VF_GPU_LOG_MAX_MB") -or -not $map["VF_GPU_LOG_MAX_MB"]) { $map["VF_GPU_LOG_MAX_MB"] = "20" }
     if (-not $map.ContainsKey("VF_GPU_MAX_UPLOAD_MB") -or -not $map["VF_GPU_MAX_UPLOAD_MB"]) { $map["VF_GPU_MAX_UPLOAD_MB"] = "8192" }
     if (-not $map.ContainsKey("VF_GPU_ASR_MODEL") -or -not $map["VF_GPU_ASR_MODEL"]) { $map["VF_GPU_ASR_MODEL"] = "large-v3-turbo" }
     if (-not $map.ContainsKey("VF_GPU_ASR_DEVICE") -or -not $map["VF_GPU_ASR_DEVICE"]) { $map["VF_GPU_ASR_DEVICE"] = "cuda" }

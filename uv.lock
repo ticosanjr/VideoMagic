@@ -5532,7 +5532,7 @@ wheels = [
 
 [[package]]
 name = "vf-compute"
-version = "3.13.0"
+version = "3.14.0"
 source = { editable = "packages/vf-compute" }
 dependencies = [
     { name = "httpx" },
@@ -5547,7 +5547,7 @@ requires-dist = [
 
 [[package]]
 name = "vf-contracts"
-version = "3.13.0"
+version = "3.14.0"
 source = { editable = "packages/vf-contracts" }
 dependencies = [
     { name = "pydantic" },
@@ -5558,7 +5558,7 @@ requires-dist = [{ name = "pydantic", specifier = ">=2" }]
 
 [[package]]
 name = "videoflow"
-version = "3.13.0"
+version = "3.14.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
@@ -5577,6 +5577,7 @@ dependencies = [
     { name = "videoflow-mcp-audio" },
     { name = "videoflow-mcp-fetch" },
     { name = "videoflow-mcp-vision" },
+    { name = "videoflow-scene-rules" },
 ]
 
 [package.optional-dependencies]
@@ -5678,6 +5679,7 @@ requires-dist = [
     { name = "videoflow-mcp-audio", editable = "packages/mcp-audio" },
     { name = "videoflow-mcp-fetch", editable = "packages/mcp-fetch" },
     { name = "videoflow-mcp-vision", editable = "packages/mcp-vision" },
+    { name = "videoflow-scene-rules", editable = "packages/scene-rules" },
     { name = "whisperx", marker = "extra == 'alignment'", specifier = ">=3.2" },
 ]
 provides-extras = ["dev", "faster-whisper", "diarization", "vision", "tracking", "alignment", "scene", "shorts", "render", "tray"]
@@ -5687,7 +5689,7 @@ dev = [{ name = "pyinstaller", specifier = ">=6.10" }]
 
 [[package]]
 name = "videoflow-mcp-audio"
-version = "3.13.0"
+version = "3.14.0"
 source = { editable = "packages/mcp-audio" }
 dependencies = [
     { name = "mcp" },
@@ -5710,7 +5712,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "videoflow-mcp-fetch"
-version = "3.13.0"
+version = "3.14.0"
 source = { editable = "packages/mcp-fetch" }
 dependencies = [
     { name = "httpx" },
@@ -5729,7 +5731,7 @@ requires-dist = [
 
 [[package]]
 name = "videoflow-mcp-vision"
-version = "3.13.0"
+version = "3.14.0"
 source = { editable = "packages/mcp-vision" }
 dependencies = [
     { name = "mcp" },
@@ -5748,6 +5750,11 @@ requires-dist = [
     { name = "websocket-client", specifier = ">=1.8" },
 ]
 provides-extras = ["dev"]
+
+[[package]]
+name = "videoflow-scene-rules"
+version = "3.14.0"
+source = { editable = "packages/scene-rules" }
 
 [[package]]
 name = "websocket-client"

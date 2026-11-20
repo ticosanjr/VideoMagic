@@ -48,7 +48,7 @@
   let autoConnecting = $state(false);
   let activity = $state<GpuActivity | null>(null);
   let discovered = $state<GpuDiscoveredWorker[]>([]);
-  let discoveryInfo = $state<{ udp: number; tcp_scan: number; elapsed_ms: number } | null>(null);
+  let discoveryInfo = $state<{ udp: number; mdns?: number; tcp_scan: number; subnets?: string[]; elapsed_ms: number } | null>(null);
   let benchmark = $state<GpuBenchmark | null>(null);
   let busy = $state("");
   let error = $state("");
@@ -329,7 +329,7 @@
       </div>
       {#if discoveryInfo}
         <p class="mt-2 text-[11px] text-neutral-500">
-          Discovery: UDP {discoveryInfo.udp} · TCP scan {discoveryInfo.tcp_scan} · {discoveryInfo.elapsed_ms} ms
+          Discovery: UDP {discoveryInfo.udp} · mDNS {discoveryInfo.mdns ?? 0} · TCP scan {discoveryInfo.tcp_scan} · {(discoveryInfo.subnets ?? []).join(", ") || "/24"} · {discoveryInfo.elapsed_ms} ms
         </p>
       {/if}
       {#if discovered.length}
@@ -400,7 +400,9 @@
         <div class="flex items-center justify-between gap-3 border-b border-white/5 pb-1.5"><span class="text-neutral-500">Worker URL</span><span class="truncate font-mono text-neutral-200">{status?.worker_url || "not connected"}</span></div>
         <div class="flex items-center justify-between gap-3 border-b border-white/5 pb-1.5"><span class="text-neutral-500">Worker id</span><span class="truncate text-neutral-200">{status?.worker_id || "—"}</span></div>
         <div class="flex items-center justify-between gap-3 border-b border-white/5 pb-1.5"><span class="text-neutral-500">Version</span><span class="text-neutral-200">{status?.version || "—"}</span></div>
-        <div class="flex items-center justify-between gap-3 border-b border-white/5 pb-1.5"><span class="text-neutral-500">Authentication</span><span class="text-neutral-200">{status?.auth_mode === "lan_open" ? "LAN open (private)" : status?.auth_mode || "token"}</span></div>
+        <div class="flex items-center justify-between gap-3 border-b border-white/5 pb-1.5"><span class="text-neutral-500">Authentication</span><span class="text-neutral-200">{status?.token_only ? "token-only" : status?.auth_mode === "lan_open" ? "LAN open (private)" : status?.auth_mode || "token"}</span></div>
+        <div class="flex items-center justify-between gap-3 border-b border-white/5 pb-1.5"><span class="text-neutral-500">Allowlist</span><span class="truncate text-neutral-200">{status?.allowed_clients?.length ? status.allowed_clients.join(", ") : "private LAN"}</span></div>
+        <div class="flex items-center justify-between gap-3 border-b border-white/5 pb-1.5"><span class="text-neutral-500">Disk free</span><span class="text-neutral-200">{status?.disk_free_mb ?? "—"} MB</span></div>
         <div class="flex items-center justify-between gap-3 border-b border-white/5 pb-1.5"><span class="text-neutral-500">Encoder</span><span class="text-neutral-200">{status?.encoder || "—"} · NVENC {status?.nvenc ? "yes" : "no"}</span></div>
         <div class="flex items-center justify-between gap-3"><span class="text-neutral-500">Discovery</span><span class="text-neutral-200">{discoveryEnabled ? "UDP 8767 + subnet scan" : "disabled"}</span></div>
       </div>

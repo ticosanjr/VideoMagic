@@ -1,6 +1,6 @@
 [project]
 name = "videoflow"
-version = "3.13.0"
+version = "3.14.0"
 description = "Local, non-destructive video pre-edit pipeline controlled through MCP."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -25,6 +25,7 @@ dependencies = [
   "uvicorn>=0.32",
   "vf-contracts",
   "vf-compute",
+  "videoflow-scene-rules",
   "videoflow-mcp-fetch",
   "videoflow-mcp-audio",
   "videoflow-mcp-vision",
@@ -34,6 +35,7 @@ dependencies = [
 [tool.uv.sources]
 vf-contracts = { path = "packages/vf-contracts", editable = true }
 vf-compute = { path = "packages/vf-compute", editable = true }
+videoflow-scene-rules = { path = "packages/scene-rules", editable = true }
 videoflow-mcp-fetch = { path = "packages/mcp-fetch", editable = true }
 videoflow-mcp-audio = { path = "packages/mcp-audio", editable = true }
 videoflow-mcp-vision = { path = "packages/mcp-vision", editable = true }
@@ -105,7 +107,7 @@ packages = ["src/videoflow"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src", ".", "packages/vf-contracts/src", "packages/vf-compute/src", "packages/mcp-fetch/src", "packages/mcp-audio/src", "packages/mcp-vision/src", "packages/gpu-worker/src"]
+pythonpath = ["src", ".", "packages/vf-contracts/src", "packages/vf-compute/src", "packages/mcp-fetch/src", "packages/mcp-audio/src", "packages/mcp-vision/src", "packages/gpu-worker/src", "packages/scene-rules/src"]
 addopts = [
   "-m",
   "not media and not slow and not manual and not packaging",

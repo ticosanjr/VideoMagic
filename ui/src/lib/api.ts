@@ -1062,6 +1062,7 @@ export interface StyleSummary {
   style_id: string;
   name: string;
   aspect_ratio: string;
+  format_id?: string;
   summary: string;
   file_path: string;
   updated_at: string;
@@ -1154,6 +1155,7 @@ export async function saveStyleMarkdown(payload: {
   style_id?: string;
   name?: string;
   markdown_content?: string;
+  format_id?: string;
   workspace_dir?: string;
   overwrite?: boolean;
 }): Promise<{ ok: boolean; style_id: string }> {
@@ -1821,8 +1823,20 @@ export interface GpuWorkerStatus {
   auth_mode?: string;
   nvenc?: boolean;
   encoder?: string;
+  nvenc_error?: string;
+  disk_free_mb?: number;
+  min_free_disk_mb?: number;
+  uptime_sec?: number;
+  job_retention_hours?: number;
+  lan_urls?: string[];
+  warmup?: GpuWarmupState;
+  current_job?: GpuJobActivity | null;
+  allowed_clients?: string[];
+  token_only?: boolean;
   hostname: string;
   ip_local: string;
+  platform?: string;
+  shared_root?: string;
   port: number;
   gpu_name: string;
   vram_free_mb: number;
@@ -1834,6 +1848,7 @@ export interface GpuWorkerStatus {
   models: string[];
   queue_depth: number;
   message: string;
+  status?: string;
   fallback_local?: boolean;
   shared_mount_enabled?: boolean;
   shared_linux_path?: string;
@@ -1848,6 +1863,8 @@ export interface GpuDiscoveredWorker {
   worker_id: string;
   hostname: string;
   ip_local: string;
+  platform?: string;
+  shared_root?: string;
   port: number;
   url: string;
   gpu_name: string;
@@ -1933,7 +1950,9 @@ export async function discoverGpuWorkers(timeoutSec = 1.5, scan = true): Promise
   workers: GpuDiscoveredWorker[];
   diagnostics?: {
     udp: number;
+    mdns?: number;
     tcp_scan: number;
+    subnets?: string[];
     scan_enabled: boolean;
     elapsed_ms: number;
     udp_port: number;

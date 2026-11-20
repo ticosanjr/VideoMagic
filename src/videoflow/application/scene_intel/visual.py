@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import os
-import statistics
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from scene_rules import classify_layout as _classify_layout
+from scene_rules import median as _median
+from scene_rules import sample_times as _rules_sample_times
 
 from videoflow.application.scene_intel.detect import SceneSpan
 from videoflow.domain.state import MediaInfo
@@ -25,19 +28,13 @@ class SceneVisual:
     sampled_frames: int = 0
 
 
-def _median(values: list[float], default: float = 0.0) -> float:
-    return round(statistics.median(values), 6) if values else default
-
-
 def _sample_times(span: SceneSpan, *, max_frames: int = 3, interval: float = 1.0) -> list[float]:
-    duration = span.duration
-    count = max(3, min(max_frames, int(duration / max(0.1, interval)) + 1))
-    if duration <= 0:
-        return [span.start_sec]
-    return [
-        min(span.end_sec - 1e-4, span.start_sec + duration * (index + 0.5) / count)
-        for index in range(count)
-    ]
+    return _rules_sample_times(
+        span.start_sec,
+        span.end_sec,
+        max_frames=max_frames,
+        interval=interval,
+    )
 
 
 class _FaceBackend:
@@ -220,14 +217,11 @@ def analyze_visuals(
 
 
 def classify_layout(visual: SceneVisual, media: MediaInfo, topology: str) -> str:
-    if topology == "dual_canvas" or (
-        media.width == 3840 and media.height == 1080
-    ):
-        return "DUAL_CANVAS_OBS"
-    if visual.face_count >= 1 and visual.face_area_ratio >= 0.055:
-        return "TALKING_HEAD"
-    if visual.face_count >= 1:
-        return "SCREEN_SHARE_PIP"
-    if visual.edge_density >= 0.08:
-        return "SCREEN_SHARE_FULL"
-    return "BROLL_OR_FOOTAGE"
+    return _classify_layout(
+        face_count=visual.face_count,
+        face_area_ratio=visual.face_area_ratio,
+        edge_density=visual.edge_density,
+        width=media.width,
+        height=media.height,
+        topology=topology,
+    )

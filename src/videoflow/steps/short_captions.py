@@ -25,6 +25,7 @@ from videoflow.application.short_composition.captions import (
     words_from_sentences,
 )
 from videoflow.application.short_composition.geometry import subtitle_y_map
+from videoflow.application.short_composition.io import read_manifest, read_plan, read_supercontext
 from videoflow.application.short_composition.rhythm import (
     end_settings,
     layout_sfx_cues,
@@ -70,43 +71,15 @@ class ShortCaptionsParams(BaseModel):
 
 
 def _plan(context: PipelineContext, override: str) -> ShortCompositionPlan:
-    raw: dict[str, Any] = {}
-    if override:
-        raw = read_json(Path(override).expanduser())
-    if not raw:
-        metadata = context.metadata.get("short_plan")
-        if isinstance(metadata, dict):
-            raw = metadata
-    if not raw:
-        artifact = context.artifacts.get("short_plan", "")
-        raw = read_json(Path(artifact)) if artifact else {}
-    if not raw:
-        raise StateNotReadyError("Run short.plan before short.captions")
-    try:
-        return ShortCompositionPlan.model_validate(raw)
-    except ValueError as exc:
-        raise ShortPlanError(f"Invalid Short plan: {exc}") from exc
+    return read_plan(context, override, step="short.captions")
 
 
 def _manifest(context: PipelineContext) -> ScenesManifest:
-    raw = context.metadata.get("scenes_manifest")
-    if not isinstance(raw, dict) or not raw:
-        artifact = context.artifacts.get("scenes_manifest", "")
-        raw = read_json(Path(artifact)) if artifact else {}
-    if not raw:
-        raise StateNotReadyError("Run scene.analyze before short.captions")
-    try:
-        return ScenesManifest.model_validate(raw)
-    except ValueError as exc:
-        raise ShortPlanError(f"Invalid scene manifest: {exc}") from exc
+    return read_manifest(context, step="short.captions")
 
 
 def _supercontext(context: PipelineContext) -> dict[str, Any]:
-    raw = context.metadata.get("scenes_supercontext")
-    if isinstance(raw, dict) and raw:
-        return raw
-    artifact = context.artifacts.get("scenes_supercontext", "")
-    return read_json(Path(artifact)) if artifact else {}
+    return read_supercontext(context)
 
 
 def _asu_words(

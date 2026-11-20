@@ -9,8 +9,8 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
-from videoflow.application.scene_intel.io import read_json
 from videoflow.application.sfx import sfx_dir
+from videoflow.application.short_composition.io import read_cues, read_manifest, read_plan
 from videoflow.application.short_composition.render import (
     build_segment_renders,
     safe_output_name,
@@ -60,40 +60,15 @@ def _audio_duration(path: Path) -> float:
 
 
 def _plan(context: PipelineContext, override: str) -> ShortCompositionPlan:
-    raw: dict[str, Any] = {}
-    if override:
-        raw = read_json(Path(override).expanduser())
-    if not raw:
-        raw = context.metadata.get("short_plan") or {}
-    if not raw:
-        artifact = context.artifacts.get("short_plan", "")
-        raw = read_json(Path(artifact)) if artifact else {}
-    if not raw:
-        raise StateNotReadyError("Run short.plan before short.export")
-    try:
-        return ShortCompositionPlan.model_validate(raw)
-    except ValueError as exc:
-        raise ExportError(f"Invalid Short plan: {exc}") from exc
+    return read_plan(context, override, step="short.export", error_cls=ExportError)
 
 
 def _manifest(context: PipelineContext) -> ScenesManifest:
-    raw = context.metadata.get("scenes_manifest")
-    if not isinstance(raw, dict) or not raw:
-        artifact = context.artifacts.get("scenes_manifest", "")
-        raw = read_json(Path(artifact)) if artifact else {}
-    if not raw:
-        raise StateNotReadyError("Run scene.analyze before short.export")
-    return ScenesManifest.model_validate(raw)
+    return read_manifest(context, step="short.export")
 
 
 def _cues(context: PipelineContext, override: str) -> dict[str, Any]:
-    if override:
-        return read_json(Path(override).expanduser())
-    raw = context.metadata.get("short_cues")
-    if isinstance(raw, dict):
-        return raw
-    artifact = context.artifacts.get("short_cues", "")
-    return read_json(Path(artifact)) if artifact else {}
+    return read_cues(context, override)
 
 
 @register_step

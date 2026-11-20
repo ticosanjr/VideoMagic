@@ -104,26 +104,39 @@ def register_gpu_routes(app: FastAPI) -> None:
             return {"ok": True, "enabled": False, "workers": []}
         import time
 
-        from vf_compute.discovery import discover_workers, scan_workers
+        from vf_compute.discovery import (
+            discover_workers,
+            local_subnets,
+            mdns_workers,
+            scan_workers,
+        )
 
         started = time.perf_counter()
         timeout = max(0.2, min(float(timeout_sec), 5.0))
-        udp = discover_workers(timeout_sec=timeout)
+        udp = discover_workers(timeout_sec=timeout, include_mdns=False)
+        mdns = mdns_workers(timeout_sec=min(timeout, 2.0))
         tcp: list[dict[str, Any]] = []
-        if scan and not udp:
+        if scan and not (udp or mdns):
             tcp = scan_workers(port=8766)
         merged: dict[str, dict[str, Any]] = {}
-        for item in [*udp, *tcp]:
-            merged[str(item.get("worker_id") or item.get("url"))] = item
-        workers = list(merged.values())
+        for item in [*udp, *mdns, *tcp]:
+            key = str(item.get("worker_id") or item.get("url"))
+            current = merged.get(key)
+            if current is None or len(item) > len(current):
+                merged[key] = item
+        workers = sorted(
+            merged.values(), key=lambda item: str(item.get("worker_id") or "")
+        )
         return {
             "ok": True,
             "enabled": True,
             "workers": workers,
             "diagnostics": {
                 "udp": len(udp),
+                "mdns": len(mdns),
                 "tcp_scan": len(tcp),
                 "scan_enabled": bool(scan),
+                "subnets": local_subnets(),
                 "elapsed_ms": round((time.perf_counter() - started) * 1000, 1),
                 "udp_port": 8767,
                 "tcp_port": 8766,
