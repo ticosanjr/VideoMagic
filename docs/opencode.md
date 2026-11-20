@@ -20,7 +20,10 @@ The Bootstrap offers:
 - `opencode` MCP profile by default;
 - workflow checkboxes;
 - live preview of styles that will be copied;
-- global config, overwrite, sample project, allowed root and prompt options;
+- workspace-local config by default (no global edits);
+- overwrite, sample project, allowed root and prompt options;
+- MCP health (global entries, stable launcher, worker URL seen by MCP);
+- “Remove global VideoFlow MCP” cleanup;
 - result with created files, workflows, styles, warnings and launch command.
 
 ## CLI
@@ -37,7 +40,8 @@ Options:
 | Flag | Meaning |
 | --- | --- |
 | `--profile` | `opencode` (default), `core`, `decupagem`, `broll`, `audio`, `vision`, `full` |
-| `--global` | merge VideoFlow servers into `~/.config/opencode/opencode.json` |
+| `--global` | opt in to merging VideoFlow servers into `~/.config/opencode/opencode.json` |
+| `--cleanup-global` | remove only VideoFlow MCP entries from the global config |
 | `--overwrite` | replace existing skills/commands/preset files |
 | `--with-sample` | generate a 10s sample project |
 | `--no-register-root` | do not add the target to `paths.allowed_roots` |
@@ -132,4 +136,45 @@ videoflow mcp-vision   # ASR, mattes, upscale, motion, capture
 
 `init-opencode` detects a packaged build and writes those subcommands instead
 of `uv run` paths, so the `full` profile works without a source checkout.
+
+## Local-only install and shared worker state
+
+The default is workspace-local: `<workspace>/opencode.json`. VideoFlow only
+edits the global OpenCode config when `--global` or
+`register_global_opencode=true` is explicit.
+
+Generated MCP environments do **not** override `VIDEOWFLOW_HOME`. The core and
+domain servers therefore read the same `settings.json`, `gpu.json`, secrets,
+and worker token as the UI. `VF_WORKSPACE_ROOT` remains workspace-specific.
+
+Packaged builds use a stable launcher (`~/.local/share/videoflow/bin/videoflow`
+on Linux or `%LOCALAPPDATA%\VideoFlow\videoflow-mcp.cmd` on Windows) instead
+of the disposable AppImage `/tmp/.mount_*` path. The launcher is refreshed when
+the app starts.
+
+Generated configs set:
+
+```json
+"mcp": {
+  "timeout": {
+    "startup": 120000,
+    "catalog": 120000
+  }
+}
+```
+
+This avoids OpenCode's 30-second default timing out while a packaged server
+warms up.
+
+## Health and cleanup
+
+```text
+GET  /api/v1/system/opencode/mcp-health
+POST /api/v1/system/opencode/cleanup-global
+```
+
+The health route reports the global config path, VideoFlow entries, launcher,
+worker URL seen by MCP, and stale-path warnings. Cleanup removes only entries
+named `core`, `fetch`, `audio`, or `vision` whose command references VideoFlow;
+unrelated MCP servers are preserved and the file is backed up.
 

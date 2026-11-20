@@ -4,13 +4,20 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from vf_compute.models import WorkerHealth
+from vf_compute.models import JobStatus, WorkerHealth
 
 from videoflow.api import routes_gpu
 from videoflow.application.settings import load_settings
 
 
 class FakeClient:
+    def submit(self, capability: str, params=None, inputs=None, **kwargs) -> str:
+        assert capability == "selftest"
+        return "selftest-job"
+
+    def wait(self, job_id: str, timeout: float = 30.0) -> JobStatus:
+        return JobStatus(job_id=job_id, state="succeeded")
+
     def unload_models(self, name: str = "") -> dict[str, object]:
         return {"unloaded": [name or "all"], "loaded_models": []}
 
@@ -45,6 +52,17 @@ def _app() -> FastAPI:
     app = FastAPI()
     routes_gpu.register_gpu_routes(app)
     return app
+
+
+def test_gpu_selftest_route_runs_a_worker_job(monkeypatch) -> None:
+    monkeypatch.setattr(routes_gpu, "router_from_settings", lambda settings: FakeRouter())
+    client = TestClient(_app())
+    response = client.post("/api/v1/gpu/selftest")
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["job_id"] == "selftest-job"
+    assert payload["state"] == "succeeded"
 
 
 def test_gpu_settings_patch_and_status(monkeypatch) -> None:

@@ -9,6 +9,7 @@
     getGpuActivity,
     getGpuStatus,
     patchGpuSettings,
+    runGpuSelftest,
     unloadGpuModels,
     validateGpuShared,
     type GpuActivity,
@@ -50,6 +51,7 @@
   let discovered = $state<GpuDiscoveredWorker[]>([]);
   let discoveryInfo = $state<{ udp: number; mdns?: number; tcp_scan: number; subnets?: string[]; elapsed_ms: number } | null>(null);
   let benchmark = $state<GpuBenchmark | null>(null);
+  let selftest = $state<{ job_id: string; state: string; elapsed_sec: number } | null>(null);
   let busy = $state("");
   let error = $state("");
   let notice = $state("");
@@ -110,6 +112,20 @@
       notice = payload.connected ? "Worker connected." : "Worker saved but not reachable.";
       error = "";
       manualToken = "";
+    } catch (reason) {
+      error = reason instanceof Error ? reason.message : String(reason);
+    } finally {
+      busy = "";
+    }
+  }
+
+  async function runSelftest() {
+    busy = "selftest";
+    selftest = null;
+    try {
+      selftest = await runGpuSelftest();
+      notice = `Worker executed selftest job ${selftest.job_id} in ${selftest.elapsed_sec}s.`;
+      error = "";
     } catch (reason) {
       error = reason instanceof Error ? reason.message : String(reason);
     } finally {
@@ -407,7 +423,13 @@
         <div class="flex items-center justify-between gap-3"><span class="text-neutral-500">Discovery</span><span class="text-neutral-200">{discoveryEnabled ? "UDP 8767 + subnet scan" : "disabled"}</span></div>
       </div>
       {#if status?.worker_url}
-        <button type="button" class="mt-3 rounded-lg border border-white/10 px-2.5 py-1 text-[11px] text-neutral-300" onclick={() => void navigator.clipboard.writeText(status?.worker_url || "")}>Copy worker URL</button>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button type="button" class="rounded-lg border border-white/10 px-2.5 py-1 text-[11px] text-neutral-300" onclick={() => void navigator.clipboard.writeText(status?.worker_url || "")}>Copy worker URL</button>
+          <button type="button" disabled={busy !== ""} onclick={() => void runSelftest()} class="rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-100 disabled:opacity-40">{busy === "selftest" ? "Testing…" : "Test execution"}</button>
+        </div>
+        {#if selftest}
+          <p class="mt-2 text-[11px] text-emerald-200">Selftest job {selftest.job_id.slice(0, 8)} · {selftest.state} · {selftest.elapsed_sec}s</p>
+        {/if}
       {/if}
     </article>
 

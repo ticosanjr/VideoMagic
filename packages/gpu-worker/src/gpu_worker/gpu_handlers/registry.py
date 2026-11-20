@@ -18,11 +18,12 @@ from gpu_worker.gpu_handlers.vision import make_face_track_handler, make_vision_
 from gpu_worker.handlers import HandlerRegistry
 
 if TYPE_CHECKING:
+    from gpu_worker.models import ModelRegistry
     from gpu_worker.settings import Settings
 
 def warmup_models(
     settings: Settings,
-    registry: HandlerRegistry | None = None,
+    models: ModelRegistry | None = None,
 ) -> dict[str, Any]:
     """Preload expensive models so the first job does not pay cold start.
 
@@ -51,13 +52,13 @@ def warmup_models(
                         cpu_threads=int(settings.asr_cpu_threads or 0),
                         num_workers=int(settings.asr_num_workers or 1),
                     )
-                    if registry is not None:
+                    if models is not None:
                         model_key = f"faster-whisper:{key[0]}:{key[1]}:{key[2]}"
 
                         def unload_asr() -> None:
                             _ASR_MODELS.pop(key, None)
 
-                        registry.register(
+                        models.register(
                             model_key,
                             capability="asr",
                             unload=unload_asr,
@@ -71,7 +72,7 @@ def warmup_models(
         skipped.append("matte: rembg is not installed")
     else:
         try:
-            _matte_session("u2net", registry)
+            _matte_session("u2net", models)
             loaded.append("rembg:u2net")
         except Exception as exc:  # noqa: BLE001 - warmup is best-effort
             errors.append(f"matte: {exc}")
@@ -83,11 +84,15 @@ def warmup_models(
     }
 
 
-def register_builtin_handlers(registry: HandlerRegistry, settings: Settings) -> None:
+def register_builtin_handlers(
+    registry: HandlerRegistry,
+    settings: Settings,
+    models: ModelRegistry | None = None,
+) -> None:
     """Register optional Python handlers, marking missing dependencies."""
 
     if _available("faster_whisper"):
-        registry.register_handler("asr", make_asr_handler(settings, registry))
+        registry.register_handler("asr", make_asr_handler(settings, models))
         registry.register_handler(
             "forced_align", make_forced_align_handler(settings)
         )
@@ -104,7 +109,7 @@ def register_builtin_handlers(registry: HandlerRegistry, settings: Settings) -> 
         )
     if _available("rembg"):
         registry.register_handler(
-            "segment_matte", make_segment_matte_handler(settings, registry)
+            "segment_matte", make_segment_matte_handler(settings, models)
         )
     else:
         registry.mark_unavailable("segment_matte", "rembg is not installed")

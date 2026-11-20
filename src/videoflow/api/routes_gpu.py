@@ -211,6 +211,36 @@ def register_gpu_routes(app: FastAPI) -> None:
             "status": compute_status(router=router, settings=updated),
         }
 
+    @app.post("/api/v1/gpu/selftest")
+    def gpu_selftest() -> dict[str, Any]:
+        settings = _current()
+        router = _require_router(settings)
+        started = time.perf_counter()
+        try:
+            job_id = router.client.submit("selftest", params={}, inputs=[])
+            status = router.client.wait(job_id, timeout=30.0)
+        except Exception as exc:  # noqa: BLE001 - diagnostic endpoint
+            raise HTTPException(
+                status_code=502,
+                detail={"ok": False, "code": "selftest_failed", "message": str(exc)},
+            ) from exc
+        if not status.ok:
+            raise HTTPException(
+                status_code=502,
+                detail={
+                    "ok": False,
+                    "code": "selftest_failed",
+                    "message": status.error or status.message or status.state,
+                    "job_id": job_id,
+                },
+            )
+        return {
+            "ok": True,
+            "job_id": job_id,
+            "state": status.state,
+            "elapsed_sec": round(time.perf_counter() - started, 3),
+        }
+
     @app.get("/api/v1/gpu/activity")
     def gpu_activity() -> dict[str, Any]:
         settings = _current()

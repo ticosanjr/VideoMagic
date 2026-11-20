@@ -275,6 +275,12 @@ def _parser() -> argparse.ArgumentParser:
         default="opencode",
     )
     init_opencode.add_argument("--global", dest="global_config", action="store_true")
+    init_opencode.add_argument(
+        "--cleanup-global",
+        dest="cleanup_global",
+        action="store_true",
+        help="Remove only VideoFlow MCP entries from the global OpenCode config.",
+    )
     init_opencode.add_argument("--overwrite", action="store_true")
     init_opencode.add_argument("--with-sample", action="store_true")
     init_opencode.add_argument("--no-register-root", action="store_true")
@@ -1166,6 +1172,7 @@ def _init_opencode(args: argparse.Namespace) -> int:
                 target_dir=args.target_dir,
                 mcp_profile=args.profile,
                 register_global_opencode=bool(args.global_config),
+                cleanup_global_opencode=bool(getattr(args, "cleanup_global", False)),
                 overwrite=bool(args.overwrite),
                 include_sample_project=bool(args.with_sample),
                 register_root=not args.no_register_root,

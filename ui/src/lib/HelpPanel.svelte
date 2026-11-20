@@ -11,10 +11,20 @@
     {
       id: "worker",
       title: "Windows GPU worker",
-      body: `Download the kit in Setup → GPU. Run “Instalar / reparar tudo”, then “Iniciar worker”.
-The 3.8+ kit enables LAN discovery and LAN-open mode for private networks. The Linux app
+      body: `Download the kit in Setup -> GPU. Run “Instalar / reparar tudo”, then “Iniciar worker”.
+The kit enables LAN discovery and LAN-open mode for private networks. The Linux app
 discovers the worker automatically and reconnects every 5 seconds. Public clients still
-need the token. Use Advanced pairing only when LAN-open is disabled.`
+need the token. Use “Test execution” in Setup -> GPU to submit a real selftest job through
+the worker queue. If it fails, the error is shown in the panel and in the worker dashboard.`
+    },
+    {
+      id: "mcp-health",
+      title: "MCP health and timeouts",
+      body: `Setup -> Workspace shows the MCP health card: global config path, VideoFlow
+global servers, launcher, worker URL seen by MCP, and warnings for stale paths.
+Generated configs use a 120 s startup/catalog timeout because packaged AppImage/onefile
+servers can be slow on a cold start. Workspace-local configs are preferred: project
+opencode.json overrides global entries with the same name.`
     },
     {
       id: "progress",
@@ -59,9 +69,12 @@ by worker_id.`
     {
       id: "workspace",
       title: "Workspace and MCP install",
-      body: `The workspace holds projects, styles, workflows, references, and AGENTS.md.
-The installer merges the VideoFlow MCP server into the OpenCode config, backs up the
-existing file, registers the allowed root, and can create a 10-second sample project.`
+      body: `The workspace holds projects, styles, workflows, references, AGENTS.md, and a
+workspace-local opencode.json. Install is local only by default: VideoFlow never edits
+the global OpenCode config unless you explicitly choose it through the API/CLI. The MCP
+process now shares the app's settings and gpu.json, so a worker connected in Setup -> GPU
+is also visible to the agent. Use “Remove global VideoFlow MCP” to clean old global
+entries. The stable launcher avoids AppImage /tmp mount paths.`
     },
     {
       id: "styles",

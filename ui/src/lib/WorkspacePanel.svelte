@@ -3,7 +3,10 @@
   import {
     bootstrapOpenCode,
     chooseFolder,
+    cleanupGlobalMcp,
+    getMcpHealth,
     getSystem,
+    type McpHealth,
     type OpenCodeBootstrapResult,
     type SystemInfo
   } from "$lib/api";
@@ -11,20 +14,45 @@
   let system = $state<SystemInfo | null>(null);
   let targetDir = $state("");
   let profile = $state<"opencode" | "core" | "decupagem" | "broll" | "audio" | "vision" | "full">("opencode");
-  let registerGlobal = $state(true);
   let includeSample = $state(false);
   let prompts = $state(false);
   let overwrite = $state(false);
   let busy = $state(false);
   let error = $state("");
   let result = $state<OpenCodeBootstrapResult | null>(null);
+  let mcpHealth = $state<McpHealth | null>(null);
+  let cleanupNotice = $state("");
+
+  async function refreshHealth() {
+    try {
+      mcpHealth = await getMcpHealth();
+    } catch {
+      mcpHealth = null;
+    }
+  }
 
   onMount(() => {
     void getSystem().then((value) => {
       system = value;
       if (!targetDir && value.allowed_roots?.length) targetDir = value.allowed_roots[0];
     }).catch(() => null);
+    void refreshHealth();
   });
+
+  async function cleanupGlobal() {
+    busy = true;
+    try {
+      const response = await cleanupGlobalMcp();
+      cleanupNotice = response.removed.length
+        ? `Removed from global config: ${response.removed.join(", ")}.`
+        : "No VideoFlow servers in the global config.";
+      void refreshHealth();
+    } catch (reason) {
+      error = reason instanceof Error ? reason.message : String(reason);
+    } finally {
+      busy = false;
+    }
+  }
 
   async function browse() {
     try {
@@ -43,7 +71,8 @@
       result = await bootstrapOpenCode({
         target_dir: targetDir,
         mcp_profile: profile,
-        register_global_opencode: registerGlobal,
+        register_global_opencode: false,
+        cleanup_global_opencode: false,
         include_sample_project: includeSample,
         prompts,
         overwrite,
@@ -93,9 +122,6 @@
             <option value="full">full</option>
           </select>
         </label>
-        <label class="flex items-end gap-2 pb-2 text-[length:var(--vf-text-xs)] text-neutral-300">
-          <input type="checkbox" bind:checked={registerGlobal} /> Register in global OpenCode config
-        </label>
         <label class="flex items-center gap-2 text-[length:var(--vf-text-xs)] text-neutral-300">
           <input type="checkbox" bind:checked={includeSample} /> Create 10 s sample project
         </label>
@@ -109,6 +135,10 @@
       <button type="button" title="Create the workspace, copy styles/workflows, and install the MCP server" disabled={busy || !targetDir.trim()} onclick={() => void install()} class="mt-4 rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-4 py-2 text-[length:var(--vf-text-xs)] font-medium text-emerald-100 disabled:opacity-40">
         {busy ? "Preparing workspace…" : "Prepare workspace and install MCP"}
       </button>
+      <button type="button" title="Remove only VideoFlow entries from the global OpenCode config" disabled={busy} onclick={() => void cleanupGlobal()} class="ml-2 mt-4 rounded-lg border border-rose-400/20 px-3 py-2 text-[length:var(--vf-text-xs)] text-rose-200 disabled:opacity-40">
+        Remove global VideoFlow MCP
+      </button>
+      {#if cleanupNotice}<p class="mt-2 text-[11px] text-amber-200">{cleanupNotice}</p>{/if}
     </article>
 
     <article class="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4">
@@ -118,7 +148,18 @@
         <li>AGENTS.md with the VideoFlow protocol</li>
         <li>Styles and workflows copied to the workspace</li>
         <li>Allowed-root registration and project folder</li>
+        <li>No global OpenCode changes by default</li>
       </ul>
+      {#if mcpHealth}
+        <div class="mt-3 rounded-lg border border-white/10 bg-black/20 p-3 text-[11px] text-neutral-400">
+          <p class="font-medium text-neutral-200">MCP health</p>
+          <p class="mt-1">Global config: {mcpHealth.global_path || "not found"}</p>
+          <p>Global VideoFlow servers: {mcpHealth.global_videoflow_servers.join(", ") || "none"}</p>
+          <p>Launcher: {mcpHealth.launcher_exists ? mcpHealth.launcher : "missing"}</p>
+          <p>Worker URL seen by MCP: {mcpHealth.worker_url || "not connected"}</p>
+          {#each mcpHealth.warnings as warning}<p class="mt-1 text-amber-200">{warning}</p>{/each}
+        </div>
+      {/if}
       {#if result}
         <div class="mt-4 rounded-lg border border-emerald-400/20 bg-emerald-950/20 p-3 text-[length:var(--vf-text-xs)] text-emerald-100">
           <p class="font-medium">Workspace ready: {result.target_dir}</p>

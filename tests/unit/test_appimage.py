@@ -61,3 +61,24 @@ def test_build_appimage_appdir_only_mode(tmp_path: Path) -> None:
     assert completed.returncode == 0, completed.stderr
     assert "appdir ready" in completed.stdout
     assert (tmp_path / "work" / "AppDir" / "AppRun").is_file()
+
+
+def test_appdir_supports_a_onedir_runtime(tmp_path: Path) -> None:
+    runtime = tmp_path / "videoflow-appimage"
+    runtime.mkdir()
+    binary = runtime / "videoflow"
+    binary.write_text("#!/bin/sh\necho onedir\n", encoding="utf-8")
+    binary.chmod(0o755)
+    (runtime / "_internal").mkdir()
+    (runtime / "_internal" / "marker").write_text("x", encoding="utf-8")
+
+    appdir = build_appdir(
+        fake_binary(tmp_path),
+        tmp_path / "work",
+        icon=fake_icon(tmp_path),
+        runtime_dir=runtime,
+    )
+    assert (appdir / "usr/bin/videoflow/videoflow").is_file()
+    assert (appdir / "usr/bin/videoflow/_internal/marker").is_file()
+    apprun = (appdir / "AppRun").read_text(encoding="utf-8")
+    assert '"$HERE/usr/bin/videoflow/videoflow" tray' in apprun

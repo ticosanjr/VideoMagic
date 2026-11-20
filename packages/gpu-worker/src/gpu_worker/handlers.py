@@ -19,6 +19,7 @@ from gpu_worker.capabilities import BUILTIN_CAPABILITIES
 from gpu_worker.security import is_capability, safe_filename, unique_path
 
 if TYPE_CHECKING:
+    from gpu_worker.models import ModelRegistry
     from gpu_worker.settings import Settings
 
 Handler = Callable[[dict[str, Any], list[Path], Path], Sequence[str | Path]]
@@ -326,14 +327,20 @@ def _register_command(
     registry.register_handler(capability, factory(spec))
 
 
-def build_default_registry(settings: Settings) -> HandlerRegistry:
+def build_default_registry(
+    settings: Settings,
+    models: ModelRegistry | None = None,
+) -> HandlerRegistry:
     """Build the registry, marking env-driven capabilities unavailable when missing."""
 
     registry = HandlerRegistry()
     if settings.builtin_handlers:
         from gpu_worker.handlers_gpu import register_builtin_handlers
 
-        register_builtin_handlers(registry, settings)
+        register_builtin_handlers(registry, settings, models)
+    from gpu_worker.gpu_handlers.selftest import make_selftest_handler
+
+    registry.register_handler("selftest", make_selftest_handler(settings))
     _register_command(
         registry,
         capability="tts",

@@ -131,6 +131,76 @@ def register_system_routes(app: FastAPI) -> None:
         payload["ok"] = True
         return payload
 
+    @app.get("/api/v1/system/opencode/mcp-health")
+    def system_mcp_health() -> dict[str, object]:
+        from vf_compute.config import load_gpu_config
+
+        from videoflow.application.opencode_config import (
+            executable,
+            global_config_path,
+            mcp_launcher_path,
+        )
+        from videoflow.bootstrap import global_videoflow_servers
+
+        path = global_config_path()
+        global_servers = global_videoflow_servers()
+        configured: list[dict[str, object]] = []
+        warnings: list[str] = []
+        if path.is_file():
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                payload = {}
+                warnings.append(f"{path} is not plain JSON")
+            servers = (payload.get("mcp") or {}).get("servers") if isinstance(payload, dict) else {}
+            if isinstance(servers, dict):
+                for name, block in servers.items():
+                    if not isinstance(block, dict):
+                        continue
+                    command = block.get("command")
+                    first = str(command[0]) if isinstance(command, list) and command else ""
+                    exists = bool(first) and Path(first).expanduser().is_file()
+                    configured.append(
+                        {
+                            "name": name,
+                            "command": command,
+                            "exists": exists,
+                            "videoflow": str(name) in global_servers,
+                        }
+                    )
+                    if str(name) in global_servers and not exists:
+                        warnings.append(
+                            f"global MCP '{name}' points to a missing executable: {first}"
+                        )
+        launcher = mcp_launcher_path()
+        gpu = load_gpu_config()
+        if global_servers:
+            warnings.append(
+                "VideoFlow is registered in the global OpenCode config. "
+                "Prefer workspace-local installation."
+            )
+        return {
+            "ok": True,
+            "global_path": str(path),
+            "global_videoflow_servers": global_servers,
+            "configured": configured,
+            "launcher": str(launcher),
+            "launcher_exists": launcher.is_file(),
+            "executable": executable(),
+            "worker_url": gpu.worker_url,
+            "worker_source": gpu.source,
+            "videoflow_home": os.environ.get("VIDEOWFLOW_HOME", ""),
+            "warnings": warnings,
+        }
+
+    @app.post("/api/v1/system/opencode/cleanup-global")
+    def system_cleanup_global_mcp() -> dict[str, object]:
+        from videoflow.bootstrap import remove_global_videoflow_servers
+
+        result = remove_global_videoflow_servers()
+        result["ok"] = bool(result.get("ok"))
+        return result
+
     @app.get("/api/v1/system/doctor")
     def system_doctor() -> dict[str, object]:
         from videoflow.application.models import list_models

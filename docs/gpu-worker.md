@@ -139,3 +139,22 @@ Job results may persist that block under `execution`.
 - Tokens are compared with `secrets.compare_digest` and are never returned.
 - The worker binds to `0.0.0.0`; use the private LAN and a host firewall rule.
 - Artifact ids and shared paths are validated before use.
+
+
+## Execution selftest
+
+`POST /api/v1/gpu/selftest` (Linux app) submits a real `selftest` job to the
+worker queue and waits for it. The handler writes `selftest.json` with the
+worker version, Python version, platform, and work directory. This verifies
+transport, authentication, queueing, execution, and artifact collection in one
+button (`Setup -> GPU -> Test execution`).
+
+## Model registry
+
+ASR and matte models are registered in the worker `ModelRegistry`, not in the
+handler registry. This keeps TTL unloading and VRAM accounting correct. The
+Windows runtime includes `setuptools` because faster-whisper still imports
+`pkg_resources` on some installations.
+
+The worker version comes from package metadata, so `/health` reports the real
+installed wheel version instead of a hardcoded value.

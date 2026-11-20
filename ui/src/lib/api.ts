@@ -1214,6 +1214,8 @@ export interface OpenCodeBootstrapRequest {
   target_dir: string;
   mcp_profile: "opencode" | "core" | "decupagem" | "broll" | "audio" | "vision" | "full";
   register_global_opencode?: boolean;
+  cleanup_global_opencode?: boolean;
+  videoflow_home?: string;
   overwrite?: boolean;
   include_sample_project?: boolean;
   register_root?: boolean;
@@ -1234,7 +1236,43 @@ export interface OpenCodeBootstrapResult {
   launch_command: string;
   sample_project: Record<string, unknown>;
   registered_root: boolean;
+  global_cleanup?: Record<string, unknown>;
   warnings: string[];
+}
+
+export interface McpServerHealth {
+  name: string;
+  command: unknown;
+  exists: boolean;
+  videoflow: boolean;
+}
+
+export interface McpHealth {
+  ok: boolean;
+  global_path: string;
+  global_videoflow_servers: string[];
+  configured: McpServerHealth[];
+  launcher: string;
+  launcher_exists: boolean;
+  executable: string;
+  worker_url: string;
+  worker_source: string;
+  videoflow_home: string;
+  warnings: string[];
+}
+
+export async function getMcpHealth(): Promise<McpHealth> {
+  return request<McpHealth>("/api/v1/system/opencode/mcp-health");
+}
+
+export async function cleanupGlobalMcp(): Promise<{
+  ok: boolean;
+  path: string;
+  removed: string[];
+  backup: string;
+  warnings: string[];
+}> {
+  return request("/api/v1/system/opencode/cleanup-global", { method: "POST" });
 }
 
 export async function chooseFolder(initial = ""): Promise<{ ok: boolean; path?: string; cancelled?: boolean }> {
@@ -1938,6 +1976,15 @@ export interface GpuActivity {
 
 export async function getGpuActivity(): Promise<{ ok: boolean; overview?: GpuActivity; error?: string }> {
   return request("/api/v1/gpu/activity");
+}
+
+export async function runGpuSelftest(): Promise<{
+  ok: boolean;
+  job_id: string;
+  state: string;
+  elapsed_sec: number;
+}> {
+  return request("/api/v1/gpu/selftest", { method: "POST" });
 }
 
 export async function getGpuStatus(): Promise<{ ok: boolean; status: GpuWorkerStatus }> {

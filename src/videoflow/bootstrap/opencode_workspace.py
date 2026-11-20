@@ -40,6 +40,8 @@ class BootstrapRequest(BaseModel):
         "opencode"
     )
     register_global_opencode: bool = False
+    cleanup_global_opencode: bool = False
+    videoflow_home: str = ""
     overwrite: bool = False
     include_sample_project: bool = False
     register_root: bool = True
@@ -59,6 +61,7 @@ class BootstrapResult(BaseModel):
     launch_command: str = ""
     sample_project: dict[str, object] = Field(default_factory=dict)
     registered_root: bool = False
+    global_cleanup: dict[str, object] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -127,6 +130,87 @@ def _workflow_list(catalog: WorkflowCatalog) -> str:
             f"`./.opencode/workflows/{item['workflow_id']}.md`"
         )
     return "\n".join(lines) or "- Nenhum workflow cadastrado."
+
+
+_VIDEOFLOW_SERVERS = frozenset({"core", "fetch", "audio", "vision"})
+
+
+def _is_videoflow_server(name: str, block: object) -> bool:
+    if name not in _VIDEOFLOW_SERVERS or not isinstance(block, dict):
+        return False
+    command = block.get("command")
+    if not isinstance(command, list):
+        return False
+    text = " ".join(str(item).lower() for item in command)
+    return any(
+        marker in text
+        for marker in (
+            "videoflow",
+            "mcp-fetch",
+            "mcp-audio",
+            "mcp-vision",
+            ".mount_video",
+        )
+    )
+
+
+def global_videoflow_servers() -> list[str]:
+    path = global_config_path()
+    if not path.is_file():
+        return []
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    servers = (payload.get("mcp") or {}).get("servers") if isinstance(payload, dict) else {}
+    if not isinstance(servers, dict):
+        return []
+    return sorted(
+        name for name, block in servers.items() if _is_videoflow_server(name, block)
+    )
+
+
+def remove_global_videoflow_servers() -> dict[str, object]:
+    """Remove only VideoFlow's MCP entries from the global OpenCode config."""
+
+    path = global_config_path()
+    result: dict[str, object] = {
+        "ok": True,
+        "path": str(path),
+        "removed": [],
+        "backup": "",
+        "warnings": [],
+    }
+    if not path.is_file():
+        return result
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        result["ok"] = False
+        result["warnings"] = [f"{path} is not plain JSON; left unchanged"]
+        return result
+    if not isinstance(payload, dict):
+        result["ok"] = False
+        result["warnings"] = [f"{path} is not a JSON object; left unchanged"]
+        return result
+    servers = (payload.get("mcp") or {}).get("servers")
+    if not isinstance(servers, dict):
+        return result
+    removed = [
+        name
+        for name, block in servers.items()
+        if _is_videoflow_server(str(name), block)
+    ]
+    for name in removed:
+        servers.pop(name, None)
+    if not removed:
+        return result
+    backup = _backup(path)
+    if backup is not None:
+        result["backup"] = str(backup)
+    atomic_write_text(path, json.dumps(payload, indent=2) + "\n")
+    result["removed"] = removed
+    return result
 
 
 def _write_agents(
@@ -268,6 +352,7 @@ def bootstrap_opencode_workspace(request: BootstrapRequest) -> BootstrapResult:
         request.mcp_profile,
         workspace_root=workspace_root,
         prompts=request.prompts,
+        videoflow_home=request.videoflow_home,
     )
     _merge_json_file(
         target / "opencode.json",
@@ -283,6 +368,16 @@ def bootstrap_opencode_workspace(request: BootstrapRequest) -> BootstrapResult:
             config,
             overwrite=request.overwrite,
             warnings=warnings,
+        )
+    global_cleanup: dict[str, object] = {}
+    if request.cleanup_global_opencode:
+        global_cleanup = remove_global_videoflow_servers()
+        warnings.extend(str(item) for item in global_cleanup.get("warnings") or [])
+    elif not request.register_global_opencode and global_videoflow_servers():
+        warnings.append(
+            "VideoFlow MCP servers are still registered globally. "
+            "Use Setup -> Workspace -> Remove global VideoFlow MCP so only "
+            "the workspace-local configuration is used."
         )
 
     catalog = StyleCatalog()
@@ -333,6 +428,7 @@ def bootstrap_opencode_workspace(request: BootstrapRequest) -> BootstrapResult:
         launch_command=f'cd "{target}" && opencode',
         sample_project=sample,
         registered_root=registered_root,
+        global_cleanup=global_cleanup,
         warnings=warnings,
     )
     return result
@@ -342,5 +438,7 @@ __all__ = [
     "BootstrapRequest",
     "BootstrapResult",
     "bootstrap_opencode_workspace",
+    "global_videoflow_servers",
+    "remove_global_videoflow_servers",
     "templates_dir",
 ]

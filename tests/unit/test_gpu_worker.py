@@ -122,7 +122,7 @@ def test_health_is_public_and_reports_worker_state(client: TestClient) -> None:
     assert isinstance(payload["gpu_name"], str) and payload["gpu_name"]
     assert isinstance(payload["vram_free_mb"], int)
     assert isinstance(payload["vram_total_mb"], int)
-    assert payload["capabilities"] == []
+    assert payload["capabilities"] == ["selftest"]
     assert payload["models"] == []
     assert payload["queue_depth"] == 0
     assert "tts" in payload["unavailable_capabilities"]
@@ -213,7 +213,7 @@ def test_env_settings_and_builtin_command_handler(
     try:
         with TestClient(application) as test_client:
             health = test_client.get("/health").json()
-            assert health["capabilities"] == ["tts"]
+            assert health["capabilities"] == ["selftest", "tts"]
             response = test_client.post(
                 "/jobs/tts",
                 json={"params": {"text": "hello"}},
@@ -552,3 +552,17 @@ def test_worker_dashboard_assets_are_served(client: TestClient) -> None:
     styles = client.get("/ui/app.css", headers=HEADERS)
     assert styles.status_code == 200
     assert "--accent" in styles.text
+
+
+def test_selftest_job_runs_through_the_queue(client: TestClient) -> None:
+    response = client.post("/jobs/selftest", json={}, headers=HEADERS)
+    assert response.status_code == 200, response.text
+    job = wait_for_job(client, response.json()["job_id"])
+    assert job["status"] == "succeeded"
+    assert "selftest.json" in job["artifacts"]
+    download = client.get(
+        f"/jobs/{job['job_id']}/artifact/selftest.json",
+        headers=HEADERS,
+    )
+    assert download.status_code == 200
+    assert download.json()["ok"] is True

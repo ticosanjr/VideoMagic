@@ -52,7 +52,8 @@ def test_bootstrap_creates_workspace_and_syncs_styles(tmp_path: Path) -> None:
     assert set(config["mcp"]["servers"]) == {"core", "fetch", "audio", "vision"}
     core = config["mcp"]["servers"]["core"]
     assert core["environment"]["VF_WORKSPACE_ROOT"] == str(target / "projects")
-    assert core["environment"]["VIDEOWFLOW_HOME"] == str(target / "videoflow-data")
+    assert "VIDEOWFLOW_HOME" not in core["environment"]
+    assert config["mcp"]["timeout"]["startup"] >= 100000
     assert "VF_GPU_WORKER_TOKEN" not in core["environment"]
     assert "VF_GPU_WORKER_URL" not in core["environment"]
     assert "VF_COMPUTE_MODE" not in core["environment"]
@@ -148,6 +149,50 @@ def test_bootstrap_sample_project_is_reported(tmp_path: Path, monkeypatch) -> No
     assert result.sample_project["project_id"] == "sample"
 
 
+def test_bootstrap_is_local_only_by_default(tmp_path: Path) -> None:
+    global_file = tmp_path / "global-opencode" / "opencode.json"
+    result = _bootstrap(tmp_path, mcp_profile="core")
+    assert result.status == "ok"
+    assert global_file.exists() is False
+    local = json.loads((tmp_path / "workspace" / "opencode.json").read_text(encoding="utf-8"))
+    assert "core" in local["mcp"]["servers"]
+
+
+def test_cleanup_global_removes_only_videoflow_servers(tmp_path: Path) -> None:
+    from videoflow.bootstrap import remove_global_videoflow_servers
+
+    global_file = tmp_path / "global-opencode" / "opencode.json"
+    global_file.parent.mkdir(parents=True)
+    global_file.write_text(
+        json.dumps(
+            {
+                "model": "x",
+                "mcp": {
+                    "servers": {
+                        "core": {
+                            "type": "local",
+                            "command": ["/tmp/.mount_old/usr/bin/videoflow", "mcp"],
+                        },
+                        "fetch": {
+                            "type": "local",
+                            "command": ["videoflow-mcp-fetch"],
+                        },
+                        "other": {"type": "local", "command": ["other"]},
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = remove_global_videoflow_servers()
+    assert result["ok"] is True
+    assert result["removed"] == ["core", "fetch"]
+    merged = json.loads(global_file.read_text(encoding="utf-8"))
+    assert merged["model"] == "x"
+    assert set(merged["mcp"]["servers"]) == {"other"}
+    assert result["backup"]
+
+
 def test_opencode_config_packaged_and_merge() -> None:
     generated = opencode_config.build_config(
         "core",
@@ -172,6 +217,18 @@ def test_opencode_config_packaged_commands(monkeypatch) -> None:
     fetch = opencode_config.server_block("fetch", workspace_root="/w")
     assert core["command"][-1] == "mcp"
     assert fetch["command"][-1] == "mcp-fetch"
+    assert core["timeout"]["startup"] == 120000
+
+
+def test_stable_mcp_launcher_uses_appimage(tmp_path: Path, monkeypatch) -> None:
+    appimage = tmp_path / "VideoFlow.AppImage"
+    appimage.write_text("#!/bin/sh\n", encoding="utf-8")
+    monkeypatch.setenv("APPIMAGE", str(appimage))
+    launcher = tmp_path / "launcher" / "videoflow"
+    monkeypatch.setattr(opencode_config, "mcp_launcher_path", lambda: launcher)
+    assert opencode_config.ensure_mcp_launcher() == str(launcher)
+    assert launcher.is_file()
+    assert str(appimage) in launcher.read_text(encoding="utf-8")
 
 
 def test_bootstrap_api_route(tmp_path: Path) -> None:
@@ -299,3 +356,36 @@ def test_bootstrap_api_and_cli_errors(tmp_path: Path, capsys) -> None:
 
     assert cli.main(["init-opencode", "/", "--profile", "core", "--no-register-root"]) == 1
     assert "bootstrap_failed" in capsys.readouterr().err
+
+
+def test_mcp_health_and_cleanup_routes(tmp_path: Path) -> None:
+    global_file = tmp_path / "global-opencode" / "opencode.json"
+    global_file.parent.mkdir(parents=True)
+    global_file.write_text(
+        json.dumps(
+            {
+                "mcp": {
+                    "servers": {
+                        "core": {
+                            "type": "local",
+                            "command": ["/tmp/.mount_old/usr/bin/videoflow", "mcp"],
+                        },
+                        "other": {"type": "local", "command": ["other"]},
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    client = TestClient(create_app())
+    health = client.get("/api/v1/system/opencode/mcp-health")
+    assert health.status_code == 200, health.text
+    payload = health.json()
+    assert "core" in payload["global_videoflow_servers"]
+    assert any("missing executable" in item for item in payload["warnings"])
+
+    cleaned = client.post("/api/v1/system/opencode/cleanup-global")
+    assert cleaned.status_code == 200, cleaned.text
+    assert cleaned.json()["removed"] == ["core"]
+    merged = json.loads(global_file.read_text(encoding="utf-8"))
+    assert set(merged["mcp"]["servers"]) == {"other"}

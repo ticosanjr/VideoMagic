@@ -45,7 +45,22 @@ uv run python scripts/build_portable.py \
   --skip-ui-build \
   "$CLEAN_FLAG"
 
-uv run python scripts/build_appimage.py
+# Build an onedir runtime for the AppImage. The onefile payload extracts on
+# every launch, which makes four MCP servers slow enough to hit OpenCode's
+# startup timeout. The onedir AppImage mounts once and starts immediately.
+uv run python scripts/build_portable.py \
+  --onedir \
+  --name videoflow-appimage \
+  --with-ffmpeg \
+  --with-whisper \
+  "${WHISPER_VULKAN[@]}" \
+  --with-silero \
+  --with-faster-whisper \
+  --with-tray \
+  --skip-ui-build \
+  "$CLEAN_FLAG"
+
+uv run python scripts/build_appimage.py --onedir dist/videoflow-appimage
 uv run python scripts/generate_sbom.py --output dist/sbom.json
 uv run python scripts/release.py --version "$VERSION" --force --keep 3
 

@@ -194,7 +194,7 @@ def create_app(
         max_vram_mb=config.max_vram_mb,
         reserve_mb=config.vram_reserve_mb,
     )
-    handlers = registry or build_default_registry(config)
+    handlers = registry or build_default_registry(config, models)
     runner = JobRunner(
         store=store,
         registry=handlers,
@@ -287,7 +287,7 @@ def create_app(
                 "errors": [],
                 "started_at": time.time(),
             }
-        result = warmup_models(config, handlers)
+        result = warmup_models(config, models)
         with warmup_lock:
             app.state.warmup = {
                 **result,

@@ -1,5 +1,29 @@
 # Changelog
 
+## [3.16.0] - 2026-11-20
+
+### Fixed
+
+- MCP servers now share the app's `settings.json` and `gpu.json`; they no longer
+  override `VIDEOWFLOW_HOME`, so a connected worker is visible to the agent.
+- Packaged MCP commands use a stable launcher instead of the disposable
+  AppImage `/tmp/.mount_*` executable.
+- Workspace MCP installation is local-only by default, with an explicit cleanup
+  action for stale global VideoFlow entries.
+- Worker ASR/matte models register in `ModelRegistry` instead of the handler
+  registry; warmup no longer fails with duplicate `capability`.
+- Worker runtime includes `setuptools`, fixing `pkg_resources` failures.
+- Worker `/health` reports the real package version instead of `2.90.0`.
+- OpenCode generated configs use 120 s MCP startup/catalog timeouts.
+
+### Added
+
+- `selftest` worker capability and `POST /api/v1/gpu/selftest` plus a
+  “Test execution” button.
+- MCP health route and global cleanup endpoint.
+- Onedir AppImage builds, avoiding onefile extraction on every MCP launch.
+- Shell launcher for packaged MCP commands and a Windows `.cmd` wrapper.
+
 ## [3.15.0] - 2026-11-20
 
 ### Changed

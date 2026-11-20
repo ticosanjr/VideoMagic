@@ -12,6 +12,7 @@ if str(PACKAGE_SRC) not in sys.path:
 from gpu_worker import handlers_gpu  # noqa: E402
 from gpu_worker.capabilities import VRAM_COST_MB  # noqa: E402
 from gpu_worker.handlers import build_default_registry  # noqa: E402
+from gpu_worker.models import ModelRegistry  # noqa: E402
 from gpu_worker.settings import Settings  # noqa: E402
 from vf_compute.capabilities import VRAM_COST_MB as ROUTER_COSTS  # noqa: E402
 
@@ -49,6 +50,39 @@ def test_builtin_handlers_are_opt_in_and_report_missing_backends(
     assert enabled.is_available("render_nvenc") is False
     assert "h264_nvenc" in enabled.reason("render_nvenc")
     assert "rembg" in enabled.reason("segment_matte")
+
+
+def test_selftest_handler_is_always_available(tmp_path: Path) -> None:
+    registry = build_default_registry(Settings(work_dir=tmp_path / "plain"))
+    assert registry.is_available("selftest") is True
+
+
+def test_matte_session_registers_in_model_registry(tmp_path: Path, monkeypatch) -> None:
+    import sys
+    from types import SimpleNamespace
+
+    from gpu_worker.gpu_handlers import matte
+
+    created: list[str] = []
+
+    def new_session(name: str):
+        created.append(name)
+        return object()
+
+    monkeypatch.setitem(sys.modules, "rembg", SimpleNamespace(new_session=new_session))
+    models = ModelRegistry(ttl_seconds=60)
+    first = matte._matte_session("u2net", models)
+    second = matte._matte_session("u2net", models)
+    assert first is second
+    assert created == ["u2net"]
+    assert "rembg:u2net" in {item["name"] for item in models.snapshot()}
+
+
+def test_worker_version_is_not_hardcoded() -> None:
+    from gpu_worker import __version__
+
+    assert __version__ != "2.90.0"
+    assert __version__
 
 
 def test_asr_handler_writes_word_aligned_json(tmp_path: Path, monkeypatch) -> None:

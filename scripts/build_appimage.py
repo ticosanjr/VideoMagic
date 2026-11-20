@@ -29,6 +29,12 @@ APPIMAGETOOL_URL = (
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build a Linux AppImage.")
     parser.add_argument("--binary", type=Path, default=ROOT / "dist" / "videoflow")
+    parser.add_argument(
+        "--onedir",
+        type=Path,
+        default=None,
+        help="PyInstaller onedir directory. Preferred: no per-launch extraction.",
+    )
     parser.add_argument("--out", type=Path, default=ROOT / "dist")
     parser.add_argument("--work", type=Path, default=ROOT / "build" / "appimage")
     parser.add_argument("--icon", type=Path, default=None)
@@ -38,11 +44,19 @@ def main() -> int:
         help="Create the AppDir and stop before appimagetool (for tests).",
     )
     args = parser.parse_args()
-    if not args.binary.is_file():
+    if args.onedir is None and not args.binary.is_file():
         print(f"binary not found: {args.binary}. Build the onefile first.")
         return 1
+    if args.onedir is not None and _runtime_binary(args.onedir) is None:
+        print(f"onedir binary not found in: {args.onedir}")
+        return 1
 
-    appdir = build_appdir(args.binary, args.work, icon=args.icon)
+    appdir = build_appdir(
+        args.binary,
+        args.work,
+        icon=args.icon,
+        runtime_dir=args.onedir,
+    )
     if args.appdir_only:
         print(f"appdir ready: {appdir}")
         return 0
@@ -61,7 +75,25 @@ def main() -> int:
     return 0
 
 
-def build_appdir(binary: Path, work: Path, *, icon: Path | None = None) -> Path:
+def _runtime_binary(directory: Path) -> Path | None:
+    preferred = directory / "videoflow"
+    if preferred.is_file():
+        return preferred
+    candidates = [
+        path
+        for path in directory.iterdir()
+        if path.is_file() and os.access(path, os.X_OK)
+    ]
+    return candidates[0] if candidates else None
+
+
+def build_appdir(
+    binary: Path,
+    work: Path,
+    *,
+    icon: Path | None = None,
+    runtime_dir: Path | None = None,
+) -> Path:
     """Create the AppDir. No appimagetool needed, so this is unit-testable."""
 
     appdir = work / "AppDir"
@@ -71,9 +103,20 @@ def build_appdir(binary: Path, work: Path, *, icon: Path | None = None) -> Path:
     (appdir / "usr" / "share" / "applications").mkdir(parents=True)
     (appdir / "usr" / "share" / "icons" / "hicolor" / "256x256" / "apps").mkdir(parents=True)
 
-    target = appdir / "usr" / "bin" / "videoflow"
-    shutil.copy2(binary, target)
-    target.chmod(0o755)
+    if runtime_dir is not None:
+        runtime_binary = _runtime_binary(runtime_dir)
+        if runtime_binary is None:
+            raise SystemExit(f"onedir binary not found in: {runtime_dir}")
+        destination = appdir / "usr" / "bin" / "videoflow"
+        shutil.copytree(runtime_dir, destination)
+        executable = destination / runtime_binary.name
+        executable.chmod(0o755)
+        app_exec = f'"$HERE/usr/bin/videoflow/{runtime_binary.name}"'
+    else:
+        target = appdir / "usr" / "bin" / "videoflow"
+        shutil.copy2(binary, target)
+        target.chmod(0o755)
+        app_exec = '"$HERE/usr/bin/videoflow"'
 
     apprun = appdir / "AppRun"
     apprun.write_text(
@@ -82,9 +125,9 @@ def build_appdir(binary: Path, work: Path, *, icon: Path | None = None) -> Path:
         'cd "$HOME" 2>/dev/null || cd /\n'
         'if [ "$#" -eq 0 ]; then\n'
         '  echo "VideoFlow: starting the tray and opening http://127.0.0.1:8765/"\n'
-        '  exec "$HERE/usr/bin/videoflow" tray\n'
+        f'  exec {app_exec} tray\n'
         "fi\n"
-        'exec "$HERE/usr/bin/videoflow" "$@"\n',
+        f'exec {app_exec} "$@"\n',
         encoding="utf-8",
     )
     apprun.chmod(apprun.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)

@@ -8,10 +8,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from gpu_worker.gpu_handlers.common import _ffmpeg, _run
-from gpu_worker.handlers import Handler, HandlerError, HandlerRegistry
+from gpu_worker.handlers import Handler, HandlerError
 from gpu_worker.progress import report
 
 if TYPE_CHECKING:
+    from gpu_worker.models import ModelRegistry
     from gpu_worker.settings import Settings
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
@@ -20,7 +21,7 @@ _MATTE_LOCK = threading.RLock()
 
 def _matte_session(
     name: str,
-    registry: HandlerRegistry | None = None,
+    models: ModelRegistry | None = None,
 ) -> Any:
     """Return a cached rembg session instead of reloading the model per job."""
 
@@ -28,8 +29,8 @@ def _matte_session(
     with _MATTE_LOCK:
         session = _MATTE_SESSIONS.get(key)
         if session is not None:
-            if registry is not None:
-                registry.touch(f"rembg:{key}")
+            if models is not None:
+                models.touch(f"rembg:{key}")
             return session
         try:
             from rembg import new_session
@@ -37,12 +38,12 @@ def _matte_session(
             raise HandlerError(f"rembg is not installed: {exc}") from exc
         session = new_session(key)
         _MATTE_SESSIONS[key] = session
-        if registry is not None:
+        if models is not None:
 
             def unload() -> None:
                 _MATTE_SESSIONS.pop(key, None)
 
-            registry.register(
+            models.register(
                 f"rembg:{key}",
                 capability="segment_matte",
                 unload=unload,
@@ -53,7 +54,7 @@ def _matte_session(
 
 def make_segment_matte_handler(
     settings: Settings,
-    registry: HandlerRegistry | None = None,
+    models: ModelRegistry | None = None,
 ) -> Handler:
     """Remove the background from an image or a short video clip."""
 
@@ -68,7 +69,7 @@ def make_segment_matte_handler(
         except Exception as exc:  # noqa: BLE001 - optional dependency
             raise HandlerError(f"rembg is not installed: {exc}") from exc
         report("loading matte model", 10)
-        session = _matte_session(str(params.get("model") or "u2net"), registry)
+        session = _matte_session(str(params.get("model") or "u2net"), models)
         source = input_paths[0]
         if source.suffix.casefold() in IMAGE_SUFFIXES:
             target = work_dir / "matte.png"

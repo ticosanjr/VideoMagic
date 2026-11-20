@@ -7,10 +7,11 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from gpu_worker.handlers import Handler, HandlerError, HandlerRegistry
+from gpu_worker.handlers import Handler, HandlerError
 from gpu_worker.progress import report
 
 if TYPE_CHECKING:
+    from gpu_worker.models import ModelRegistry
     from gpu_worker.settings import Settings
 
 _ASR_MODELS: dict[tuple[str, str, str], Any] = {}
@@ -18,7 +19,7 @@ _ASR_LOCK = threading.RLock()
 
 def make_asr_handler(
     settings: Settings,
-    registry: HandlerRegistry | None = None,
+    models: ModelRegistry | None = None,
 ) -> Handler:
     """faster-whisper handler returning a JSON transcript with word timings."""
 
@@ -55,16 +56,16 @@ def make_asr_handler(
                 def unload() -> None:
                     _ASR_MODELS.pop(key, None)
 
-                if registry is not None:
-                    registry.register(
+                if models is not None:
+                    models.register(
                         model_key,
                         capability="asr",
                         unload=unload,
                         vram_mb=3277,
                         metadata={"model": model_name, "device": device},
                     )
-            elif registry is not None:
-                registry.touch(model_key)
+            elif models is not None:
+                models.touch(model_key)
         language = str(params.get("language") or "pt")
         beam_size = int(params.get("beam_size") or 5)
         word_timestamps = bool(params.get("word_timestamps", True))

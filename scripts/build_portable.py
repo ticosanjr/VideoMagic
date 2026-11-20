@@ -271,6 +271,7 @@ def main() -> int:
 
     os.environ["VIDEOWFLOW_BUNDLE_MODELS"] = "1" if args.with_models else "0"
     os.environ["VIDEOWFLOW_ONEDIR"] = "1" if args.onedir else "0"
+    os.environ["VIDEOWFLOW_NAME"] = str(args.name)
 
     suffix = ".exe" if os.name == "nt" else ""
     output = ROOT / "dist" / (args.name if args.onedir else f"{args.name}{suffix}")
