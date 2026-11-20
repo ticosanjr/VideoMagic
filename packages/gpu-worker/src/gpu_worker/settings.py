@@ -100,6 +100,9 @@ class Settings:
     max_upload_mb: int = DEFAULT_MAX_UPLOAD_MB
     max_queue: int = DEFAULT_MAX_QUEUE
     cpu_workers: int = 2
+    warmup: bool = False
+    job_retention_hours: float = 168.0
+    min_free_disk_mb: int = 2048
     model_ttl_sec: float = DEFAULT_MODEL_TTL_SEC
     max_vram_mb: int = DEFAULT_MAX_VRAM_MB
     vram_reserve_mb: int = DEFAULT_VRAM_RESERVE_MB
@@ -140,6 +143,13 @@ class Settings:
             ),
             max_queue=_env_int(values, "VF_GPU_MAX_QUEUE", DEFAULT_MAX_QUEUE, minimum=0),
             cpu_workers=_env_int(values, "VF_GPU_CPU_WORKERS", 2, minimum=1, maximum=8),
+            warmup=_env_bool(values, "VF_GPU_WARMUP", False),
+            job_retention_hours=_env_float(
+                values, "VF_GPU_JOB_RETENTION_HOURS", 168.0, minimum=1.0
+            ),
+            min_free_disk_mb=_env_int(
+                values, "VF_GPU_MIN_FREE_DISK_MB", 2048, minimum=0
+            ),
             model_ttl_sec=_env_float(
                 values, "VF_GPU_MODEL_TTL_SEC", DEFAULT_MODEL_TTL_SEC, minimum=0.0
             ),

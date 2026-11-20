@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.13.0] - 2026-11-20
+
+### Performance
+
+- Jobs expose monotonic `stage` and `progress`; handlers report ASR, matte,
+  scene, Short render, face tracking and NVENC stages.
+- Worker queues are priority queues (`-100..100`) with position, ETA and
+  per-capability average elapsed time in `/api/overview`.
+- Submissions are rejected with HTTP 507 when free disk drops below
+  `VF_GPU_MIN_FREE_DISK_MB`.
+- `POST /api/warmup`, dashboard warmup button, and `VF_GPU_WARMUP` preload
+  faster-whisper and rembg; rembg sessions are cached between jobs.
+- Automatic shared-mount inputs from `VF_GPU_SHARED_LOCAL_ROOT` plus worker
+  `shared_root`, avoiding uploads for files already on the mount.
+- Bounded parallel input uploads (`VF_GPU_UPLOAD_WORKERS`) and per-request
+  transfer metrics with MB/s and dedup counters.
+- Scene proxy is 360p/10 fps and visual sampling uses one sequential decode
+  pass instead of random seeks; `visual_max_frames` bounds analysis.
+- Finished jobs are cleaned hourly according to `VF_GPU_JOB_RETENTION_HOURS`.
+
 ## [3.12.0] - 2026-11-20
 
 ### Performance

@@ -27,6 +27,7 @@ def router_from_settings(settings: Any | None = None) -> ComputeRouter:
         worker_url=gpu.worker_url,
         token=token,
         transport=gpu.transport,
+        shared_local_root=gpu.shared_linux_path,
         min_vram_mb=2048,
         max_queue=2,
         fallback_local=gpu.fallback_local,

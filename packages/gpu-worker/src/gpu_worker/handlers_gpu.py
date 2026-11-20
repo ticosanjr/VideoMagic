@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from gpu_worker.handlers import Handler, HandlerError, HandlerRegistry
+from gpu_worker.progress import report
 
 if TYPE_CHECKING:
     from gpu_worker.settings import Settings
@@ -25,8 +26,43 @@ if TYPE_CHECKING:
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
 _ASR_MODELS: dict[tuple[str, str, str], Any] = {}
 _ASR_LOCK = threading.RLock()
+_MATTE_SESSIONS: dict[str, Any] = {}
+_MATTE_LOCK = threading.RLock()
 _NVENC_CACHE: dict[str, bool] = {}
 _NVENC_REASONS: dict[str, str] = {}
+
+
+def _matte_session(
+    name: str,
+    registry: HandlerRegistry | None = None,
+) -> Any:
+    """Return a cached rembg session instead of reloading the model per job."""
+
+    key = str(name or "u2net")
+    with _MATTE_LOCK:
+        session = _MATTE_SESSIONS.get(key)
+        if session is not None:
+            if registry is not None:
+                registry.touch(f"rembg:{key}")
+            return session
+        try:
+            from rembg import new_session
+        except Exception as exc:  # noqa: BLE001 - optional dependency
+            raise HandlerError(f"rembg is not installed: {exc}") from exc
+        session = new_session(key)
+        _MATTE_SESSIONS[key] = session
+        if registry is not None:
+
+            def unload() -> None:
+                _MATTE_SESSIONS.pop(key, None)
+
+            registry.register(
+                f"rembg:{key}",
+                capability="segment_matte",
+                unload=unload,
+                metadata={"model": key},
+            )
+        return session
 
 
 def _available(module: str) -> bool:
@@ -137,6 +173,7 @@ def make_asr_handler(
         )
         key = (model_name, device, compute_type)
         model_key = f"faster-whisper:{model_name}:{device}:{compute_type}"
+        report("loading ASR model", 8)
         with _ASR_LOCK:
             model = _ASR_MODELS.get(key)
             if model is None:
@@ -169,6 +206,7 @@ def make_asr_handler(
         language = str(params.get("language") or "pt")
         beam_size = int(params.get("beam_size") or 5)
         word_timestamps = bool(params.get("word_timestamps", True))
+        report("transcribing", 15)
         try:
             segments, info = model.transcribe(
                 str(input_paths[0]),
@@ -194,7 +232,13 @@ def make_asr_handler(
                 ),
                 "segments": [],
             }
+            total_duration = float(getattr(info, "duration", 0.0) or 0.0)
             for segment in segments:
+                if total_duration > 0:
+                    report(
+                        "transcribing",
+                        15 + round(75 * min(1.0, float(segment.end) / total_duration)),
+                    )
                 words = []
                 for word in getattr(segment, "words", None) or []:
                     words.append(
@@ -217,6 +261,7 @@ def make_asr_handler(
                 )
         except Exception as exc:  # noqa: BLE001 - runtime backend failure
             raise HandlerError(f"faster-whisper failed: {exc}") from exc
+        report("writing transcript", 95)
         target = work_dir / "transcript.json"
         target.write_text(
             json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
@@ -379,7 +424,9 @@ def make_render_nvenc_handler(settings: Settings) -> Handler:
         if params.get("duration"):
             command.extend(["-t", f"{float(params['duration']):.3f}"])
         command.append(str(output))
+        report("encoding with NVENC", 20)
         _run(command)
+        report("finalizing", 95)
         if not output.is_file():
             raise HandlerError("render_nvenc did not create the output video")
         return [output]
@@ -387,7 +434,10 @@ def make_render_nvenc_handler(settings: Settings) -> Handler:
     return handler
 
 
-def make_segment_matte_handler(settings: Settings) -> Handler:
+def make_segment_matte_handler(
+    settings: Settings,
+    registry: HandlerRegistry | None = None,
+) -> Handler:
     """Remove the background from an image or a short video clip."""
 
     def handler(
@@ -397,13 +447,15 @@ def make_segment_matte_handler(settings: Settings) -> Handler:
         if not input_paths:
             raise HandlerError("segment_matte requires an input artifact")
         try:
-            from rembg import new_session, remove
+            from rembg import remove
         except Exception as exc:  # noqa: BLE001 - optional dependency
             raise HandlerError(f"rembg is not installed: {exc}") from exc
-        session = new_session(str(params.get("model") or "u2net"))
+        report("loading matte model", 10)
+        session = _matte_session(str(params.get("model") or "u2net"), registry)
         source = input_paths[0]
         if source.suffix.casefold() in IMAGE_SUFFIXES:
             target = work_dir / "matte.png"
+            report("removing background", 40)
             target.write_bytes(remove(source.read_bytes(), session=session))
             return [target]
         ffmpeg = _ffmpeg(settings)
@@ -430,10 +482,14 @@ def make_segment_matte_handler(settings: Settings) -> Handler:
             frames = sorted(frames_dir.glob("*.png"))
             if not frames:
                 raise HandlerError("segment_matte extracted no frames")
+            total = len(frames)
             for index, frame in enumerate(frames, start=1):
                 (matte_dir / f"{index:06d}.png").write_bytes(
                     remove(frame.read_bytes(), session=session)
                 )
+                if index == 1 or index % 10 == 0 or index == total:
+                    report("removing background", 15 + round(75 * index / total))
+            report("encoding matte", 95)
             target = work_dir / "matte.webm"
             _run(
                 [
@@ -488,6 +544,7 @@ def make_face_track_handler(settings: Settings) -> Handler:
         sample = max(1, round(fps / max(1.0, float(params.get("fps") or 5.0))))
         width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
         height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+        total_frames = int(capture.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
         keyframes: list[dict[str, Any]] = []
         index = 0
         try:
@@ -515,6 +572,11 @@ def make_face_track_handler(settings: Settings) -> Handler:
                         }
                     )
                 index += 1
+                if total_frames and index % 60 == 0:
+                    report(
+                        "tracking faces",
+                        10 + round(80 * min(1.0, index / total_frames)),
+                    )
         finally:
             capture.release()
         payload = {
@@ -603,6 +665,7 @@ def _scene_detect_times(
     fps: float,
     threshold: float,
     min_scene_len_sec: float,
+    analyze_fps: float = 10.0,
 ) -> list[float]:
     try:
         from scenedetect import SceneManager, open_video
@@ -620,7 +683,7 @@ def _scene_detect_times(
         manager.detect_scenes(
             video,
             show_progress=False,
-            frame_skip=max(0, round(fps / 10)),
+            frame_skip=max(0, round(analyze_fps / 10) - 1),
         )
         return [
             float(getattr(scene[0], "seconds", 0.0))
@@ -697,70 +760,92 @@ def _scene_visuals(
     spans: list[tuple[float, float]],
     *,
     topology: str,
-    max_frames: int = 20,
+    max_frames: int = 10,
 ) -> list[dict[str, Any]]:
+    """Sample every scene with one sequential decode pass.
+
+    Random ``CAP_PROP_POS_MSEC`` seeks force the decoder to restart at each
+    keyframe, which dominated the full scene pipeline. Walking the 10 fps proxy
+    once and analyzing only the selected frames keeps the same measurements
+    while removing the seek cost.
+    """
+
     import cv2
 
     capture = cv2.VideoCapture(str(proxy))
     if not capture.isOpened():
         raise HandlerError(f"cannot open scene proxy: {proxy}")
     detect = _scene_face_backend(cv2)
-    results: list[dict[str, Any]] = []
+    faces: list[list[tuple[int, float, float, float, float]]] = [[] for _ in spans]
+    edges: list[list[float]] = [[] for _ in spans]
+    sharp: list[list[float]] = [[] for _ in spans]
+    targets: list[tuple[float, int]] = []
+    for index, (start, end) in enumerate(spans):
+        for timestamp in _scene_sample_times(start, end, max_frames=max_frames):
+            targets.append((timestamp, index))
+    targets.sort()
+
+    def measure(frame: Any, index: int) -> None:
+        if topology == "dual_canvas":
+            half = frame.shape[1] // 2
+            cam, screen = frame[:, half:], frame[:, :half]
+        else:
+            cam = screen = frame
+        face = detect(cam)
+        if face is not None:
+            faces[index].append(face)
+        gray = cv2.cvtColor(screen, cv2.COLOR_BGR2GRAY)
+        edges[index].append(float(cv2.Canny(gray, 80, 180).mean()) / 255.0)
+        crop = gray
+        if face is not None:
+            _count, cx, cy, fw, fh = face
+            height, width = gray.shape[:2]
+            x0 = max(0, int((cx - fw / 2) * width))
+            x1 = min(width, int((cx + fw / 2) * width))
+            y0 = max(0, int((cy - fh / 2) * height))
+            y1 = min(height, int((cy + fh / 2) * height))
+            if x1 > x0 and y1 > y0:
+                crop = gray[y0:y1, x0:x1]
+        sharp[index].append(float(cv2.Laplacian(crop, cv2.CV_64F).var()))
+
+    cursor = 0
     try:
-        for start, end in spans:
-            faces: list[tuple[int, float, float, float, float]] = []
-            edges: list[float] = []
-            sharp: list[float] = []
-            for timestamp in _scene_sample_times(start, end, max_frames=max_frames):
-                capture.set(cv2.CAP_PROP_POS_MSEC, timestamp * 1000.0)
-                ok, frame = capture.read()
-                if not ok:
-                    continue
-                if topology == "dual_canvas":
-                    half = frame.shape[1] // 2
-                    cam, screen = frame[:, half:], frame[:, :half]
-                else:
-                    cam = screen = frame
-                face = detect(cam)
-                if face is not None:
-                    faces.append(face)
-                gray = cv2.cvtColor(screen, cv2.COLOR_BGR2GRAY)
-                edges.append(float(cv2.Canny(gray, 80, 180).mean()) / 255.0)
-                crop = gray
-                if face is not None:
-                    _count, cx, cy, fw, fh = face
-                    height, width = gray.shape[:2]
-                    x0 = max(0, int((cx - fw / 2) * width))
-                    x1 = min(width, int((cx + fw / 2) * width))
-                    y0 = max(0, int((cy - fh / 2) * height))
-                    y1 = min(height, int((cy + fh / 2) * height))
-                    if x1 > x0 and y1 > y0:
-                        crop = gray[y0:y1, x0:x1]
-                sharp.append(float(cv2.Laplacian(crop, cv2.CV_64F).var()))
-            if faces:
-                count = max(item[0] for item in faces)
-                cx = _scene_median([item[1] for item in faces])
-                cy = _scene_median([item[2] for item in faces])
-                fw = _scene_median([item[3] for item in faces])
-                fh = _scene_median([item[4] for item in faces])
-                area = fw * fh
-            else:
-                count = 0
-                cx = cy = fw = fh = area = 0.0
-            results.append(
-                {
-                    "face_count": count,
-                    "face_cx": cx if count else None,
-                    "face_cy": cy if count else None,
-                    "face_w": fw if count else None,
-                    "face_h": fh if count else None,
-                    "face_area_ratio": round(area, 6),
-                    "edge_density": _scene_median(edges),
-                    "sharpness_laplacian": _scene_median(sharp),
-                }
-            )
+        while cursor < len(targets):
+            ok, frame = capture.read()
+            if not ok:
+                break
+            position = float(capture.get(cv2.CAP_PROP_POS_MSEC) or 0.0) / 1000.0
+            while cursor < len(targets) and targets[cursor][0] <= position + 0.05:
+                measure(frame, targets[cursor][1])
+                cursor += 1
     finally:
         capture.release()
+
+    results: list[dict[str, Any]] = []
+    for index in range(len(spans)):
+        scene_faces = faces[index]
+        if scene_faces:
+            count = max(item[0] for item in scene_faces)
+            cx = _scene_median([item[1] for item in scene_faces])
+            cy = _scene_median([item[2] for item in scene_faces])
+            fw = _scene_median([item[3] for item in scene_faces])
+            fh = _scene_median([item[4] for item in scene_faces])
+            area = fw * fh
+        else:
+            count = 0
+            cx = cy = fw = fh = area = 0.0
+        results.append(
+            {
+                "face_count": count,
+                "face_cx": cx if count else None,
+                "face_cy": cy if count else None,
+                "face_w": fw if count else None,
+                "face_h": fh if count else None,
+                "face_area_ratio": round(area, 6),
+                "edge_density": _scene_median(edges[index]),
+                "sharpness_laplacian": _scene_median(sharp[index]),
+            }
+        )
     return results
 
 
@@ -874,11 +959,14 @@ def make_scene_analyze_handler(settings: Settings) -> Handler:
         min_scene_len_sec = float(params.get("min_scene_len_sec") or 1.5)
         topology = str(params.get("source_topology") or "single_16x9")
         keyframe_size = max(128, min(1080, int(params.get("keyframe_size") or 544)))
+        visual_max_frames = max(3, min(20, int(params.get("visual_max_frames") or 10)))
         if topology == "auto":
             ratio = width / max(1, height)
             topology = "dual_canvas" if abs(ratio - 3.55) < 0.15 else "single_16x9"
         ffmpeg = _ffmpeg(settings)
         proxy = work_dir / "proxy_360.mp4"
+        analyze_fps = 10.0
+        report("building scene proxy", 8)
         _run(
             [
                 ffmpeg,
@@ -890,6 +978,8 @@ def make_scene_analyze_handler(settings: Settings) -> Handler:
                 str(source),
                 "-vf",
                 "scale=-2:360",
+                "-r",
+                str(int(analyze_fps)),
                 "-an",
                 "-c:v",
                 "libx264",
@@ -900,12 +990,14 @@ def make_scene_analyze_handler(settings: Settings) -> Handler:
                 str(proxy),
             ]
         )
+        report("detecting cuts", 30)
         times = _scene_detect_times(
             proxy,
             ffmpeg=ffmpeg,
-            fps=fps,
+            fps=analyze_fps,
             threshold=threshold,
             min_scene_len_sec=min_scene_len_sec,
+            analyze_fps=analyze_fps,
         )
         boundaries = sorted(
             {
@@ -940,8 +1032,16 @@ def make_scene_analyze_handler(settings: Settings) -> Handler:
         ]
         if not spans:
             spans = [(0.0, duration)]
-        visuals = _scene_visuals(proxy, spans, topology=topology)
+        report("sampling scenes", 45)
+        visuals = _scene_visuals(
+            proxy,
+            spans,
+            topology=topology,
+            max_frames=visual_max_frames,
+        )
+        report("extracting keyframes", 70)
         paths = _scene_keyframes(source, spans, work_dir / "keyframes", size=keyframe_size)
+        report("writing manifest", 90)
         scenes: list[dict[str, Any]] = []
         previous: str | None = None
         for index, ((start, end), visual) in enumerate(zip(spans, visuals, strict=False)):
@@ -1042,7 +1142,13 @@ def make_short_render_handler(settings: Settings) -> Handler:
         ffmpeg = _ffmpeg(settings)
         cache_root = work_dir.parent.parent / "short_segment_cache"
         cache_root.mkdir(parents=True, exist_ok=True)
-        for index, segment in enumerate(params.get("segments") or [], start=1):
+        raw_segments = params.get("segments") or []
+        total_segments = max(1, len(raw_segments))
+        for index, segment in enumerate(raw_segments, start=1):
+            report(
+                f"rendering segment {index}/{total_segments}",
+                5 + round(80 * (index - 1) / total_segments),
+            )
             if not isinstance(segment, dict):
                 raise HandlerError("short_render segment must be an object")
             output_name = str(segment.get("output") or f"seg_{index:04d}.mp4")
@@ -1079,6 +1185,7 @@ def make_short_render_handler(settings: Settings) -> Handler:
                     os.link(segment_output, cached)
                 except OSError:
                     shutil.copy2(segment_output, cached)
+        report("concatenating and encoding", 92)
         names = [str(item) for item in params.get("concat_names") or []]
         if not names:
             raise HandlerError("short_render produced no micro-clips")
@@ -1134,6 +1241,69 @@ def _run_in(tokens: list[str], cwd: Path, *, timeout: float = 3600.0) -> None:
         )
 
 
+def warmup_models(
+    settings: Settings,
+    registry: HandlerRegistry | None = None,
+) -> dict[str, Any]:
+    """Preload expensive models so the first job does not pay cold start.
+
+    Failures are reported, never raised: a missing optional dependency or an
+    offline model download must not stop the worker from serving the
+    capabilities it does have.
+    """
+
+    loaded: list[str] = []
+    skipped: list[str] = []
+    errors: list[str] = []
+    model_name = settings.asr_model or "large-v3-turbo"
+    key = (model_name, settings.asr_device or "cuda", settings.asr_compute_type or "float16")
+    if not _available("faster_whisper"):
+        skipped.append("asr: faster-whisper is not installed")
+    else:
+        try:
+            from faster_whisper import WhisperModel
+
+            with _ASR_LOCK:
+                if key not in _ASR_MODELS:
+                    _ASR_MODELS[key] = WhisperModel(
+                        key[0],
+                        device=key[1],
+                        compute_type=key[2],
+                        cpu_threads=int(settings.asr_cpu_threads or 0),
+                        num_workers=int(settings.asr_num_workers or 1),
+                    )
+                    if registry is not None:
+                        model_key = f"faster-whisper:{key[0]}:{key[1]}:{key[2]}"
+
+                        def unload_asr() -> None:
+                            _ASR_MODELS.pop(key, None)
+
+                        registry.register(
+                            model_key,
+                            capability="asr",
+                            unload=unload_asr,
+                            vram_mb=3277,
+                            metadata={"model": key[0], "device": key[1]},
+                        )
+            loaded.append(f"faster-whisper:{key[0]}")
+        except Exception as exc:  # noqa: BLE001 - warmup is best-effort
+            errors.append(f"asr: {exc}")
+    if not _available("rembg"):
+        skipped.append("matte: rembg is not installed")
+    else:
+        try:
+            _matte_session("u2net", registry)
+            loaded.append("rembg:u2net")
+        except Exception as exc:  # noqa: BLE001 - warmup is best-effort
+            errors.append(f"matte: {exc}")
+    return {
+        "ok": not errors,
+        "loaded": loaded,
+        "skipped": skipped,
+        "errors": errors,
+    }
+
+
 def register_builtin_handlers(registry: HandlerRegistry, settings: Settings) -> None:
     """Register optional Python handlers, marking missing dependencies."""
 
@@ -1154,7 +1324,9 @@ def register_builtin_handlers(registry: HandlerRegistry, settings: Settings) -> 
             "render_nvenc", "FFmpeg does not expose h264_nvenc"
         )
     if _available("rembg"):
-        registry.register_handler("segment_matte", make_segment_matte_handler(settings))
+        registry.register_handler(
+            "segment_matte", make_segment_matte_handler(settings, registry)
+        )
     else:
         registry.mark_unavailable("segment_matte", "rembg is not installed")
     if _available("cv2"):
@@ -1192,4 +1364,5 @@ __all__ = [
     "nvenc_available",
     "nvenc_error",
     "register_builtin_handlers",
+    "warmup_models",
 ]

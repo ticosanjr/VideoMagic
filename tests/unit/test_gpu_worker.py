@@ -510,3 +510,32 @@ def test_worker_health_reports_encoder_and_activity(client: TestClient) -> None:
     assert payload["encoder"] in {"nvenc", "libx264"}
     assert isinstance(payload["lan_urls"], list)
     assert "current_job" in payload
+
+
+def test_warmup_endpoint_requires_builtin_handlers(client: TestClient) -> None:
+    response = client.post("/api/warmup", headers=HEADERS)
+    assert response.status_code == 409
+    assert "VF_GPU_BUILTIN_HANDLERS" in response.json()["detail"]
+
+
+def test_job_reports_priority_stage_and_progress(client: TestClient, app) -> None:
+    from gpu_worker.progress import report
+
+    def handler(params, input_paths, work_dir):
+        report("analyzing", 55)
+        target = Path(work_dir) / "result.txt"
+        target.write_text("ok", encoding="utf-8")
+        return [target]
+
+    app.state.registry.register_handler("fake", handler)
+    response = client.post(
+        "/jobs/fake",
+        json={"priority": 7},
+        headers=HEADERS,
+    )
+    assert response.status_code == 200, response.text
+    job = wait_for_job(client, response.json()["job_id"])
+    assert job["priority"] == 7
+    assert job["progress"] == 100
+    assert job["stage"] == "succeeded"
+    assert job["status"] == "succeeded"

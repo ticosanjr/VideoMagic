@@ -10,8 +10,9 @@ from videoflow.application.compute import compute_status, execute_batch, execute
 
 
 class FakeClient:
-    def __init__(self, *, free: int = 8192) -> None:
+    def __init__(self, *, free: int = 8192, shared_root: str = "") -> None:
         self.free = free
+        self.shared_root = shared_root
         self.submitted: list[dict[str, object]] = []
         self.closed = False
 
@@ -26,9 +27,13 @@ class FakeClient:
                 "gpu_name": "RTX 3060",
                 "vram_free_mb": self.free,
                 "vram_total_mb": 12288,
+                "shared_root": self.shared_root,
                 "capabilities": ["asr", "render_nvenc", "segment_matte"],
             }
         )
+
+    def upload_artifact(self, path: str | Path) -> str:
+        return f"artifact:{Path(path).name}"
 
     def submit(self, capability: str, **kwargs: object) -> str:
         self.submitted.append({"capability": capability, **kwargs})
@@ -111,6 +116,33 @@ def test_router_submit_downloads_first_artifact(tmp_path: Path) -> None:
     assert Path(result["path"]).is_file()
     assert result["execution_node"] == "remote_gpu:worker-1"
     assert client.submitted[0]["capability"] == "asr"
+
+
+def test_router_uses_shared_inputs_without_uploading(tmp_path: Path) -> None:
+    local_root = tmp_path / "shared"
+    source = local_root / "media" / "voice.wav"
+    source.parent.mkdir(parents=True)
+    source.write_bytes(b"audio")
+    client = FakeClient(shared_root=r"Z:\videoflow")
+    router = ComputeRouter(
+        client=client,
+        min_vram_mb=0,
+        shared_local_root=str(local_root),
+    )
+    result = router.submit(
+        "asr",
+        {
+            "inputs": [str(source)],
+            "params": {"audio": str(source), "language": "pt"},
+            "timeout_sec": 5,
+        },
+    )
+    submitted = client.submitted[0]
+    assert submitted["shared_inputs"] == ["media/voice.wav"]
+    assert submitted["params"]["audio"] == "__VF_INPUT_0__"
+    assert submitted["shared_root"] == r"Z:\videoflow"
+    assert result["shared_inputs"] == ["media/voice.wav"]
+    assert result["transfer"]["upload_bytes"] == 0
 
 
 def test_router_set_worker_and_disconnect() -> None:

@@ -471,39 +471,39 @@
     },
     {
       "name": "vf-compute",
-      "purl": "pkg:pypi/vf-compute@3.10.0",
+      "purl": "pkg:pypi/vf-compute@3.13.0",
       "type": "library",
-      "version": "3.10.0"
+      "version": "3.13.0"
     },
     {
       "name": "vf-contracts",
-      "purl": "pkg:pypi/vf-contracts@3.10.0",
+      "purl": "pkg:pypi/vf-contracts@3.13.0",
       "type": "library",
-      "version": "3.10.0"
+      "version": "3.13.0"
     },
     {
       "name": "videoflow",
-      "purl": "pkg:pypi/videoflow@3.10.0",
+      "purl": "pkg:pypi/videoflow@3.13.0",
       "type": "library",
-      "version": "3.10.0"
+      "version": "3.13.0"
     },
     {
       "name": "videoflow-mcp-audio",
-      "purl": "pkg:pypi/videoflow-mcp-audio@3.10.0",
+      "purl": "pkg:pypi/videoflow-mcp-audio@3.13.0",
       "type": "library",
-      "version": "3.10.0"
+      "version": "3.13.0"
     },
     {
       "name": "videoflow-mcp-fetch",
-      "purl": "pkg:pypi/videoflow-mcp-fetch@3.10.0",
+      "purl": "pkg:pypi/videoflow-mcp-fetch@3.13.0",
       "type": "library",
-      "version": "3.10.0"
+      "version": "3.13.0"
     },
     {
       "name": "videoflow-mcp-vision",
-      "purl": "pkg:pypi/videoflow-mcp-vision@3.10.0",
+      "purl": "pkg:pypi/videoflow-mcp-vision@3.13.0",
       "type": "library",
-      "version": "3.10.0"
+      "version": "3.13.0"
     },
     {
       "name": "websocket-client",

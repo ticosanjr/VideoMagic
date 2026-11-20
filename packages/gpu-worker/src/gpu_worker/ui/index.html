@@ -25,6 +25,8 @@ code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}pre{background:
 .tag{display:inline-block;border:1px solid #ffffff14;border-radius:999px;padding:2px 8px;font-size:11px;color:#cbd5e1}.tag.ok{color:#a7f3d0;border-color:#34d39955}.tag.bad{color:#fecdd3;border-color:#fb718555}.tag.run{color:#bae6fd;border-color:#38bdf855}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.copybox{display:flex;gap:8px;align-items:center}.copybox input{font-family:ui-monospace,monospace;font-size:12px}
 .notice{border:1px solid #fbbf2444;background:#2a210f;color:#fde68a;border-radius:12px;padding:10px 12px;margin-top:12px}
+.progress{height:8px;background:#0a0f16;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin-top:6px}
+.progress > span{display:block;height:100%;background:linear-gradient(90deg,#0ea5e9,#34d399);width:0;transition:width .3s}
 @media(max-width:700px){main{padding:18px 12px}.card{padding:14px}}
 </style>
 </head>
@@ -37,7 +39,7 @@ code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}pre{background:
   </div>
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     <span class="badge"><span id="dot" class="dot"></span><span id="state">conectando</span></span>
-    <button id="refresh">Atualizar</button><button id="benchmark">Benchmark</button>
+    <button id="refresh">Atualizar</button><button id="warm">Aquecer modelos</button><button id="benchmark">Benchmark</button>
   </div>
 </header>
 
@@ -46,7 +48,7 @@ code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}pre{background:
 <section class="grid cols" id="cards">
   <div class="card"><h2>Conexão</h2><div class="row"><span class="label">URL LAN</span><strong id="lan-url">—</strong></div><div class="row"><span class="label">Porta</span><strong id="port">—</strong></div><div class="row"><span class="label">Descoberta UDP</span><strong id="discovery">—</strong></div><div class="row"><span class="label">Autenticação</span><strong id="auth">—</strong></div><div class="row"><span class="label">Firewall</span><strong id="firewall">—</strong></div><div class="row"><span class="label">Último pedido</span><strong id="last-request">—</strong></div><div class="actions"><button id="copy">Copiar URL</button><button id="logs">Abrir logs</button></div></div>
   <div class="card"><h2>GPU</h2><div class="row"><span class="label">Modelo</span><strong id="gpu">—</strong></div><div class="row"><span class="label">VRAM</span><strong id="vram">—</strong></div><div class="row"><span class="label">Driver</span><strong id="driver">—</strong></div><div class="row"><span class="label">Encoder</span><strong id="encoder">—</strong></div><div class="row"><span class="label">NVENC</span><strong id="nvenc">—</strong></div></div>
-  <div class="card"><h2>Versão</h2><div class="row"><span class="label">Worker</span><strong id="version">—</strong></div><div class="row"><span class="label">Worker ID</span><strong id="worker-id">—</strong></div><div class="row"><span class="label">Uptime</span><strong id="uptime">—</strong></div><div class="row"><span class="label">Fila</span><strong id="queue">—</strong></div><div class="row"><span class="label">Workers CPU</span><strong id="cpu-workers">—</strong></div><div class="row"><span class="label">Latência</span><strong id="latency">—</strong></div></div>
+  <div class="card"><h2>Versão e disco</h2><div class="row"><span class="label">Worker</span><strong id="version">—</strong></div><div class="row"><span class="label">Worker ID</span><strong id="worker-id">—</strong></div><div class="row"><span class="label">Uptime</span><strong id="uptime">—</strong></div><div class="row"><span class="label">Fila</span><strong id="queue">—</strong></div><div class="row"><span class="label">Workers CPU</span><strong id="cpu-workers">—</strong></div><div class="row"><span class="label">Disco livre</span><strong id="disk">—</strong></div><div class="row"><span class="label">Modelos aquecidos</span><strong id="warmup">—</strong></div><div class="row"><span class="label">Latência</span><strong id="latency">—</strong></div></div>
 </section>
 
 <section class="grid cols">
@@ -55,8 +57,9 @@ code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}pre{background:
 
 <section class="grid">
   <div class="card">
-    <h2>Últimos jobs</h2>
-    <table class="table"><thead><tr><th>Job</th><th>Capacidade</th><th>Status</th><th>Início</th><th>Duração</th><th>Erro</th></tr></thead><tbody id="jobs"><tr><td colspan="6" class="muted">Sem jobs.</td></tr></tbody></table>
+    <h2>Fila e últimos jobs</h2>
+    <div id="queue-list" class="muted" style="margin-bottom:10px">Fila vazia.</div>
+    <table class="table"><thead><tr><th>Job</th><th>Capacidade</th><th>Status / etapa</th><th>Progresso</th><th>Início</th><th>Duração</th><th>Erro</th></tr></thead><tbody id="jobs"><tr><td colspan="7" class="muted">Sem jobs.</td></tr></tbody></table>
   </div>
 </section>
 
@@ -115,22 +118,42 @@ function render(data) {
   $("uptime").textContent = fmt(h.uptime_sec);
   $("queue").textContent = String(h.queue_depth ?? 0);
   $("cpu-workers").textContent = String((data.runner || {}).cpu_workers ?? "—");
+  $("disk").textContent = h.disk_free_mb != null ? `${h.disk_free_mb} MB` : "—";
+  const warm = data.warmup || h.warmup || {};
+  $("warmup").textContent = warm.running ? "aquecendo…" : (warm.loaded || []).length ? (warm.loaded || []).join(", ") : (warm.errors || []).length ? "falhou" : "não executado";
   $("notice").hidden = !(h.nvenc === false && h.nvenc_error);
   if (h.nvenc === false && h.nvenc_error) $("notice").textContent = `NVENC indisponível: ${h.nvenc_error}`;
   const current = h.current_job;
+  const currentProgress = Number(current?.progress ?? 0);
   $("current").innerHTML = current
-    ? `<div class="row"><span class="label">Job</span><code>${esc(current.job_id)}</code></div><div class="row"><span class="label">Capacidade</span><strong>${esc(current.capability)}</strong></div><div class="row"><span class="label">Status</span><span class="tag run">${esc(current.status)}</span></div><div class="row"><span class="label">Início</span><strong>${when(current.started_at || current.created_at)}</strong></div>`
+    ? `<div class="row"><span class="label">Job</span><code>${esc(current.job_id)}</code></div><div class="row"><span class="label">Capacidade</span><strong>${esc(current.capability)}</strong></div><div class="row"><span class="label">Etapa</span><span class="tag run">${esc(current.stage || current.status)}</span></div><div class="row"><span class="label">Progresso</span><strong>${currentProgress}%</strong></div><div class="progress"><span style="width:${currentProgress}%"></span></div><div class="row"><span class="label">Início</span><strong>${when(current.started_at || current.created_at)}</strong></div>`
     : "Nada em execução.";
+  const queue = (data.runner || {}).queue || [];
+  $("queue-list").innerHTML = queue.length ? queue.map((item) => `<span class="tag run">${esc(item.capability)} · ${esc(item.job_id).slice(0,8)} · espera ~${fmt(item.estimated_wait_sec)}</span>`).join(" ") : "Fila vazia.";
   const jobs = data.jobs || [];
   $("jobs").innerHTML = jobs.length ? jobs.map((job) => {
     const end = job.finished_at || (job.started_at ? Date.now()/1000 : null);
     const duration = job.started_at && end ? end - job.started_at : null;
     const cls = job.status === "succeeded" ? "ok" : job.status === "failed" ? "bad" : "run";
-    return `<tr><td><code>${esc(job.job_id).slice(0,10)}…</code></td><td>${esc(job.capability)}</td><td><span class="tag ${cls}">${esc(job.status)}</span></td><td>${when(job.created_at)}</td><td>${duration ? fmt(duration) : "—"}</td><td>${esc(job.error || "")}</td></tr>`;
-  }).join("") : `<tr><td colspan="6" class="muted">Sem jobs.</td></tr>`;
+    const progress = Math.max(0, Math.min(100, Number(job.progress ?? (job.status === "succeeded" ? 100 : 0))));
+    return `<tr><td><code>${esc(job.job_id).slice(0,10)}…</code></td><td>${esc(job.capability)}</td><td><span class="tag ${cls}">${esc(job.status)}</span><br><small>${esc(job.stage || "")}</small></td><td><div class="progress" style="min-width:80px"><span style="width:${progress}%"></span></div><small>${progress}%</small></td><td>${when(job.created_at)}</td><td>${duration ? fmt(duration) : "—"}</td><td>${esc(job.error || "")}</td></tr>`;
+  }).join("") : `<tr><td colspan="7" class="muted">Sem jobs.</td></tr>`;
   $("log").textContent = data.logs || "Sem log disponível.";
 }
 $("refresh").onclick = () => void load();
+$("warm").onclick = async () => {
+  try {
+    $("notice").hidden = false;
+    $("notice").textContent = "Aquecendo modelos…";
+    const response = await fetch("/api/warmup", {method:"POST"});
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || "Falha no warmup");
+    $("notice").textContent = `Warmup: ${(data.loaded || []).join(", ") || "nada carregado"}${(data.errors || []).length ? " · erros: " + data.errors.join("; ") : ""}`;
+    void load();
+  } catch (error) {
+    $("notice").hidden = false; $("notice").textContent = `Warmup falhou: ${error}`;
+  }
+};
 $("benchmark").onclick = async () => {
   try {
     const response = await fetch("/probe", {method:"POST"});

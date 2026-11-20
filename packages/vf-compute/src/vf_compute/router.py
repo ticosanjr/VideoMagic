@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -62,6 +63,21 @@ def _valid_shared_file(path: Path) -> bool:
     return False
 
 
+def _shared_relative(root: str | Path | None, value: str) -> str:
+    """Return ``value`` relative to a local shared mount, or ``""``."""
+
+    if not root:
+        return ""
+    try:
+        base = Path(root).expanduser().resolve()
+        path = Path(value).expanduser().resolve()
+        if not path.is_file():
+            return ""
+        return path.relative_to(base).as_posix()
+    except (OSError, ValueError):
+        return ""
+
+
 def _local(reason: str, capability: str) -> WorkerDecision:
     return WorkerDecision(
         mode="local",
@@ -87,6 +103,7 @@ class ComputeRouter:
         worker_url: str = "",
         token: str = "",
         transport: str = "auto",
+        shared_local_root: str = "",
         health_ttl: float = _DEFAULT_HEALTH_TTL,
         health_timeout: float = _DEFAULT_HEALTH_TIMEOUT,
         min_vram_mb: int = _DEFAULT_MIN_VRAM_MB,
@@ -105,6 +122,8 @@ class ComputeRouter:
         self.transport = str(transport or "auto").strip().lower()
         if self.transport not in {"auto", "http", "shared"}:
             self.transport = "auto"
+        self.shared_local_root = str(shared_local_root or "").strip()
+        self.upload_workers = max(1, min(_env_int("VF_GPU_UPLOAD_WORKERS", 3), 8))
         self.health_ttl = max(float(health_ttl), 0.0)
         self.health_timeout = max(float(health_timeout), 0.0)
         self.min_vram_mb = max(int(min_vram_mb), 0)
@@ -132,6 +151,7 @@ class ComputeRouter:
             worker_url=config.worker_url,
             token=config.token,
             transport=config.transport,
+            shared_local_root=_env_str("VF_GPU_SHARED_LOCAL_ROOT"),
             health_ttl=_env_float("VF_GPU_HEALTH_TTL_SEC", _DEFAULT_HEALTH_TTL),
             health_timeout=_env_float("VF_GPU_HEALTH_TIMEOUT_SEC", _DEFAULT_HEALTH_TIMEOUT),
             min_vram_mb=_env_int("VF_GPU_MIN_VRAM_MB", _DEFAULT_MIN_VRAM_MB),
@@ -358,34 +378,54 @@ class ComputeRouter:
         upload = getattr(self.client, "upload_artifact", None)
         if not callable(upload):
             return inputs
-        prepared: list[str] = []
-        for item in inputs:
+        prepared: list[str | None] = [None] * len(inputs)
+        pending: list[tuple[int, str, Path]] = []
+        known: dict[str, str] = {}
+        for index, item in enumerate(inputs):
             try:
                 path = Path(item).expanduser()
-                if path.is_file():
-                    prepared.append(str(upload(path)))
+                if not path.is_file():
+                    prepared[index] = item
                     continue
+                resolved = str(path.resolve())
             except OSError:
-                pass
-            prepared.append(item)
-        return prepared
+                prepared[index] = item
+                continue
+            existing = known.get(resolved)
+            if existing is not None:
+                prepared[index] = existing
+                continue
+            pending.append((index, resolved, path))
+        if not pending:
+            return [item for item in prepared if item is not None]
+        if len(pending) > 1 and self.upload_workers > 1:
+            with ThreadPoolExecutor(max_workers=self.upload_workers) as pool:
+                uploaded = list(pool.map(lambda item: str(upload(item[2])), pending))
+        else:
+            uploaded = [str(upload(item[2])) for item in pending]
+        for (index, resolved, _path), artifact_id in zip(pending, uploaded, strict=True):
+            known[resolved] = artifact_id
+            prepared[index] = artifact_id
+        return [item if item is not None else "" for item in prepared]
 
     def _prepare_remote_params(
         self,
         params: dict[str, Any],
         inputs: list[str],
+        shared_placeholders: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Upload local files referenced by params and replace them by placeholders.
 
         The worker rewrites ``__VF_INPUT_n__`` to the materialized input path
         before calling the handler, so command templates and Python handlers see
-        a real local path on the GPU machine.
+        a real local path on the GPU machine. Files already reachable through a
+        shared mount keep their index without an upload.
         """
 
         upload = getattr(self.client, "upload_artifact", None)
         if not callable(upload):
             return params
-        cache: dict[str, str] = {}
+        cache: dict[str, str] = dict(shared_placeholders or {})
 
         def walk(value: Any) -> Any:
             if isinstance(value, str):
@@ -412,6 +452,24 @@ class ComputeRouter:
             return value
 
         return walk(params)
+
+    def _transfer_summary(self) -> dict[str, Any]:
+        stats = getattr(self.client, "transfer_stats", {}) or {}
+        upload_bytes = int(stats.get("upload_bytes") or 0)
+        download_bytes = int(stats.get("download_bytes") or 0)
+        seconds = float(stats.get("upload_seconds") or 0) + float(
+            stats.get("download_seconds") or 0
+        )
+        return {
+            "upload_bytes": upload_bytes,
+            "download_bytes": download_bytes,
+            "upload_seconds": round(float(stats.get("upload_seconds") or 0), 3),
+            "download_seconds": round(float(stats.get("download_seconds") or 0), 3),
+            "dedup_uploads": int(stats.get("upload_dedup") or 0),
+            "mb_per_sec": round(
+                (upload_bytes + download_bytes) / 1_000_000 / max(seconds, 0.001), 3
+            ),
+        }
 
     def submit(
         self,
@@ -440,20 +498,71 @@ class ComputeRouter:
                 for key, value in body.items()
                 if key not in {"inputs", "shared_inputs", "timeout_sec"}
             }
-        inputs = [str(item) for item in body.get("inputs", []) or []]
-        inputs = self._prepare_remote_inputs(inputs)
-        params = self._prepare_remote_params(params, inputs)
+        raw_inputs = [str(item) for item in body.get("inputs", []) or []]
         shared_inputs = [str(item) for item in body.get("shared_inputs", []) or []]
         shared_outputs = [str(item) for item in body.get("shared_outputs", []) or []]
-        shared_root = str(body.get("shared_root") or "") or ""
-        job_id = self.client.submit(
-            capability,
-            params=params,
-            inputs=inputs,
-            shared_inputs=shared_inputs,
-            shared_outputs=shared_outputs,
-            shared_root=shared_root or None,
+        body_shared_root = str(body.get("shared_root") or "") or ""
+        shared_root = body_shared_root
+        shared_local_root = str(
+            body.get("shared_local_root") or self.shared_local_root or ""
         )
+        health = self._health
+        if not shared_root and health is not None and health.shared_root:
+            shared_root = str(health.shared_root)
+        transport_reason = ""
+        shared_mode = (
+            self.transport in {"auto", "shared"}
+            and bool(shared_root and shared_local_root)
+        )
+        upload_raw = raw_inputs
+        if shared_mode:
+            upload_raw = []
+            mapped: list[str] = []
+            for item in raw_inputs:
+                relative = _shared_relative(shared_local_root, item)
+                if relative:
+                    mapped.append(relative)
+                else:
+                    upload_raw.append(item)
+            for relative in mapped:
+                if relative not in shared_inputs:
+                    shared_inputs.append(relative)
+        elif self.transport == "shared":
+            transport_reason = (
+                "shared transport requested but VF_GPU_SHARED_LOCAL_ROOT or the "
+                "worker shared root is missing; used HTTP"
+            )
+        reset_transfer = getattr(self.client, "reset_transfer_stats", None)
+        if callable(reset_transfer):
+            reset_transfer()
+        inputs = self._prepare_remote_inputs(upload_raw)
+        shared_placeholders: dict[str, str] = {}
+        if shared_mode:
+            base = len(inputs)
+            for index, relative in enumerate(shared_inputs):
+                try:
+                    local = (Path(shared_local_root) / relative).resolve()
+                except (OSError, ValueError):
+                    continue
+                shared_placeholders[str(local)] = f"__VF_INPUT_{base + index}__"
+        params = self._prepare_remote_params(params, inputs, shared_placeholders)
+        share_remote_root = shared_root if (shared_mode or body_shared_root) else ""
+        submit_kwargs: dict[str, Any] = {
+            "params": params,
+            "inputs": inputs,
+            "shared_inputs": shared_inputs if share_remote_root else [],
+            "shared_outputs": shared_outputs,
+            "shared_root": share_remote_root or None,
+        }
+        try:
+            job_id = self.client.submit(
+                capability,
+                priority=int(body.get("priority") or 0),
+                **submit_kwargs,
+            )
+        except TypeError:
+            # Older workers and test doubles do not accept the priority keyword.
+            job_id = self.client.submit(capability, **submit_kwargs)
         status = self.client.wait(
             job_id,
             timeout=float(body.get("timeout_sec") or timeout),
@@ -465,8 +574,8 @@ class ComputeRouter:
         if not status.artifacts:
             raise RuntimeError(f"remote job {job_id} returned no artifacts")
 
-        degraded = False
-        degraded_reason = ""
+        degraded = bool(transport_reason)
+        degraded_reason = transport_reason
         if (
             shared_root
             and status.shared_artifacts
@@ -495,9 +604,11 @@ class ComputeRouter:
                     "execution_node": decision.execution_node,
                     "artifacts": list(status.artifacts),
                     "shared_artifacts": list(status.shared_artifacts),
+                    "shared_inputs": list(shared_inputs),
                     "transport": "shared_mount",
-                    "degraded": False,
-                    "degraded_reason": "",
+                    "transfer": self._transfer_summary(),
+                    "degraded": bool(transport_reason),
+                    "degraded_reason": transport_reason,
                     "execution": execution.to_dict(),
                 }
             degraded = True
@@ -547,7 +658,9 @@ class ComputeRouter:
             "execution_node": decision.execution_node,
             "artifacts": list(status.artifacts),
             "shared_artifacts": list(status.shared_artifacts),
+            "shared_inputs": list(shared_inputs),
             "transport": "http_fallback" if degraded else "http",
+            "transfer": self._transfer_summary(),
             "degraded": degraded,
             "degraded_reason": degraded_reason,
             "execution": execution.to_dict(),

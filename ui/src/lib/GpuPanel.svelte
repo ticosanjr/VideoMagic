@@ -422,7 +422,10 @@
             {#if activity.jobs?.find((job) => job.status === "running" || job.status === "queued")}
               {@const current = activity.jobs.find((job) => job.status === "running" || job.status === "queued")}
               <p class="mt-1 text-[length:var(--vf-text-xs)] text-neutral-200">{current?.capability}</p>
-              <p class="text-[11px] text-neutral-500">{current?.status} · job {current?.job_id.slice(0, 8)}</p>
+              <p class="text-[11px] text-neutral-500">{current?.stage || current?.status} · {Math.round(current?.progress ?? 0)}% · job {current?.job_id.slice(0, 8)}</p>
+              <div class="mt-1.5 h-1 overflow-hidden rounded-full bg-white/10">
+                <div class="h-full bg-sky-400 transition-all" style={`width:${Math.max(0, Math.min(100, Number(current?.progress ?? 0)))}%`}></div>
+              </div>
             {:else}
               <p class="mt-1 text-[length:var(--vf-text-xs)] text-neutral-500">Idle</p>
             {/if}
@@ -430,13 +433,17 @@
           <div class="rounded-lg border border-white/5 p-2">
             <p class="text-[10px] uppercase tracking-wide text-neutral-500">Queue</p>
             <p class="mt-1 text-[length:var(--vf-text-xs)] text-neutral-200">{status?.queue_depth ?? 0} job(s)</p>
+            {#if activity.runner?.queue?.length}
+              {@const next = activity.runner.queue[0]}
+              <p class="text-[11px] text-neutral-500">Next: {next.capability} · ~{Math.round(next.estimated_wait_sec)} s</p>
+            {/if}
           </div>
         </div>
         <ul class="mt-3 max-h-44 space-y-1.5 overflow-auto">
           {#each (activity.jobs ?? []).slice(0, 6) as job}
             <li class="flex items-center justify-between gap-2 rounded-lg border border-white/5 px-2 py-1.5 text-[11px]">
               <span class="truncate text-neutral-300">{job.capability}</span>
-              <span class="shrink-0 font-mono text-neutral-500">{job.status}</span>
+              <span class="shrink-0 font-mono text-neutral-500">{job.stage || job.status} · {Math.round(job.progress ?? 0)}%</span>
             </li>
           {/each}
         </ul>

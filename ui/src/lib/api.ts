@@ -1875,6 +1875,9 @@ export interface GpuJobActivity {
   job_id: string;
   capability: string;
   status: string;
+  priority?: number;
+  progress?: number;
+  stage?: string;
   created_at: number;
   started_at?: number | null;
   finished_at?: number | null;
@@ -1882,10 +1885,37 @@ export interface GpuJobActivity {
   artifacts?: string[];
 }
 
+export interface GpuRunnerQueueItem {
+  job_id: string;
+  capability: string;
+  priority: number;
+  position: number;
+  estimated_wait_sec: number;
+}
+
+export interface GpuRunnerMetrics {
+  cpu_workers?: number;
+  queued?: number;
+  completed?: number;
+  current?: GpuJobActivity[];
+  queue?: GpuRunnerQueueItem[];
+  recent?: GpuJobActivity[];
+  average_elapsed_sec?: Record<string, number>;
+}
+
+export interface GpuWarmupState {
+  running?: boolean;
+  loaded?: string[];
+  skipped?: string[];
+  errors?: string[];
+}
+
 export interface GpuActivity {
   ok?: boolean;
   health?: Record<string, unknown>;
   jobs?: GpuJobActivity[];
+  runner?: GpuRunnerMetrics;
+  warmup?: GpuWarmupState;
   logs?: string;
 }
 

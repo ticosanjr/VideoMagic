@@ -35,7 +35,7 @@ from gpu_worker.artifacts import ArtifactStore, ArtifactTooLarge
 from gpu_worker.discovery import DiscoveryBeacon
 from gpu_worker.gpu import detect_gpu
 from gpu_worker.handlers import HandlerRegistry, build_default_registry
-from gpu_worker.handlers_gpu import nvenc_available, nvenc_error
+from gpu_worker.handlers_gpu import nvenc_available, nvenc_error, warmup_models
 from gpu_worker.models import ModelRegistry
 from gpu_worker.security import (
     UnsafePathError,
@@ -52,7 +52,6 @@ from gpu_worker.vram import VramBudget
 from gpu_worker.worker import JobRunner
 
 MAX_JOB_INPUTS = 64
-JOB_RETENTION_SEC = 7 * 24 * 3600
 PUBLIC_PATHS = frozenset({"/health"})
 
 
@@ -143,6 +142,7 @@ class JobSubmission(BaseModel):
     shared: bool = False
     shared_inputs: list[str] = Field(default_factory=list)
     shared_outputs: list[str] = Field(default_factory=list)
+    priority: int = Field(default=0, ge=-100, le=100)
 
 
 def _current_job(store: JobStore) -> dict[str, Any] | None:
@@ -167,6 +167,13 @@ def _lan_urls() -> list[str]:
     if local and not local.startswith("127.") and local not in urls:
         urls.insert(0, local)
     return urls
+
+
+def _disk_free_mb(path: Path) -> int:
+    try:
+        return int(shutil.disk_usage(path).free // (1024 * 1024))
+    except OSError:
+        return 0
 
 
 def _log_path(config: Settings) -> Path:
@@ -208,7 +215,8 @@ def create_app(
     store = JobStore(work_dir / "jobs.sqlite3")
     store.initialize()
     store.fail_interrupted_jobs()
-    for stale_job in store.cleanup_finished(JOB_RETENTION_SEC):
+    retention_sec = max(3600.0, float(config.job_retention_hours) * 3600.0)
+    for stale_job in store.cleanup_finished(retention_sec):
         shutil.rmtree(work_dir / "jobs" / stale_job, ignore_errors=True)
 
     artifacts = ArtifactStore(work_dir / "artifacts", store, max_bytes=config.max_upload_bytes)
@@ -242,6 +250,7 @@ def create_app(
             return
         closed.set()
         beacon = getattr(app.state, "beacon", None)
+        maintenance_stop.set()
         if beacon is not None:
             beacon.stop()
         runner.stop()
@@ -281,6 +290,40 @@ def create_app(
     app.state.started_at = time.time()
     app.state.last_request_at = 0.0
     app.state.last_request = {}
+    app.state.warmup = {"running": False, "loaded": [], "skipped": [], "errors": []}
+    warmup_lock = threading.Lock()
+    maintenance_stop = threading.Event()
+    app.state.maintenance_stop = maintenance_stop
+
+    def run_warmup() -> dict[str, Any]:
+        with warmup_lock:
+            if app.state.warmup.get("running"):
+                return dict(app.state.warmup)
+            app.state.warmup = {
+                "running": True,
+                "loaded": [],
+                "skipped": [],
+                "errors": [],
+                "started_at": time.time(),
+            }
+        result = warmup_models(config, handlers)
+        with warmup_lock:
+            app.state.warmup = {
+                **result,
+                "running": False,
+                "finished_at": time.time(),
+            }
+        return dict(app.state.warmup)
+
+    app.state.run_warmup = run_warmup
+
+    def maintenance_loop() -> None:
+        while not maintenance_stop.wait(3600.0):
+            try:
+                for stale_job in store.cleanup_finished(retention_sec):
+                    shutil.rmtree(work_dir / "jobs" / stale_job, ignore_errors=True)
+            except Exception:  # noqa: BLE001 - maintenance must never kill the worker
+                continue
 
     @app.middleware("http")
     async def require_token(request: Request, call_next):
@@ -377,6 +420,10 @@ def create_app(
             "last_request": app.state.last_request,
             "nvenc_error": nvenc_error(config.ffmpeg_cmd or "ffmpeg"),
             "lan_urls": _lan_urls(),
+            "disk_free_mb": _disk_free_mb(work_dir),
+            "min_free_disk_mb": config.min_free_disk_mb,
+            "warmup": dict(app.state.warmup),
+            "job_retention_hours": config.job_retention_hours,
         }
 
     @app.get("/api/overview")
@@ -386,8 +433,18 @@ def create_app(
             "health": health(),
             "jobs": [job.summary() for job in store.list_jobs(limit=12)],
             "runner": runner.metrics(),
+            "warmup": dict(app.state.warmup),
             "logs": _tail_log(config, limit=40),
         }
+
+    @app.post("/api/warmup")
+    def api_warmup() -> dict[str, Any]:
+        if not config.builtin_handlers:
+            raise HTTPException(
+                status_code=409,
+                detail="warmup requires VF_GPU_BUILTIN_HANDLERS=1",
+            )
+        return {"ok": True, **run_warmup()}
 
     @app.get("/api/jobs")
     def api_jobs(limit: int = 25) -> dict[str, Any]:
@@ -617,6 +674,15 @@ def create_app(
                 except UnsafePathError as exc:
                     raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+        free_mb = _disk_free_mb(work_dir)
+        if free_mb < config.min_free_disk_mb:
+            raise HTTPException(
+                status_code=507,
+                detail=(
+                    f"worker disk is low: {free_mb} MB free, "
+                    f"minimum {config.min_free_disk_mb} MB"
+                ),
+            )
         if store.queue_depth() >= config.max_queue:
             raise HTTPException(
                 status_code=429,
@@ -632,8 +698,9 @@ def create_app(
             inputs=inputs,
             shared_inputs=list(body.shared_inputs),
             shared_outputs=list(body.shared_outputs),
+            priority=int(body.priority),
         )
-        if not runner.submit(job_id):
+        if not runner.submit(job_id, priority=int(body.priority)):
             store.delete_job(job_id)
             raise HTTPException(status_code=503, detail="worker is shutting down")
         return {"job_id": job_id, "status": "queued"}
@@ -778,6 +845,17 @@ def create_app(
 
     runner.start()
     models.start()
+    threading.Thread(
+        target=maintenance_loop,
+        name="gpu-worker-maintenance",
+        daemon=True,
+    ).start()
+    if config.warmup and config.builtin_handlers:
+        threading.Thread(
+            target=run_warmup,
+            name="gpu-worker-warmup",
+            daemon=True,
+        ).start()
     beacon: DiscoveryBeacon | None = None
     if config.discovery:
         beacon = DiscoveryBeacon(

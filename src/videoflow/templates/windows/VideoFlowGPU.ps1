@@ -317,6 +317,9 @@ function Ensure-EnvFile {
     if (-not $map.ContainsKey("VF_GPU_ADVERTISE_PORT") -or -not $map["VF_GPU_ADVERTISE_PORT"]) { $map["VF_GPU_ADVERTISE_PORT"] = "8767" }
     if (-not $map.ContainsKey("VF_GPU_LOG_FILE") -or -not $map["VF_GPU_LOG_FILE"]) { $map["VF_GPU_LOG_FILE"] = $WorkerLog }
     if (-not $map.ContainsKey("VF_GPU_CPU_WORKERS") -or -not $map["VF_GPU_CPU_WORKERS"]) { $map["VF_GPU_CPU_WORKERS"] = "2" }
+    if (-not $map.ContainsKey("VF_GPU_WARMUP") -or -not $map["VF_GPU_WARMUP"]) { $map["VF_GPU_WARMUP"] = "1" }
+    if (-not $map.ContainsKey("VF_GPU_JOB_RETENTION_HOURS") -or -not $map["VF_GPU_JOB_RETENTION_HOURS"]) { $map["VF_GPU_JOB_RETENTION_HOURS"] = "168" }
+    if (-not $map.ContainsKey("VF_GPU_MIN_FREE_DISK_MB") -or -not $map["VF_GPU_MIN_FREE_DISK_MB"]) { $map["VF_GPU_MIN_FREE_DISK_MB"] = "4096" }
     if (-not $map.ContainsKey("VF_GPU_MAX_UPLOAD_MB") -or -not $map["VF_GPU_MAX_UPLOAD_MB"]) { $map["VF_GPU_MAX_UPLOAD_MB"] = "8192" }
     if (-not $map.ContainsKey("VF_GPU_ASR_MODEL") -or -not $map["VF_GPU_ASR_MODEL"]) { $map["VF_GPU_ASR_MODEL"] = "large-v3-turbo" }
     if (-not $map.ContainsKey("VF_GPU_ASR_DEVICE") -or -not $map["VF_GPU_ASR_DEVICE"]) { $map["VF_GPU_ASR_DEVICE"] = "cuda" }

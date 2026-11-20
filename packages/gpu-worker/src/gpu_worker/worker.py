@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import itertools
 import os
 import queue
 import re
@@ -15,6 +16,7 @@ from gpu_worker.artifacts import ArtifactStore
 from gpu_worker.capabilities import vram_cost
 from gpu_worker.handlers import HandlerError, HandlerRegistry
 from gpu_worker.models import ModelRegistry
+from gpu_worker.progress import bind as bind_progress
 from gpu_worker.security import (
     UnsafePathError,
     resolve_shared_output,
@@ -26,6 +28,7 @@ from gpu_worker.store import JobRecord, JobStore
 from gpu_worker.vram import VramBudget, VramError
 
 _SENTINEL = "__stop__"
+_SENTINEL_PRIORITY = 10_000
 _CPU_CAPABILITIES = frozenset({"scene_analyze", "vision_blur", "audio_events"})
 _INPUT_PLACEHOLDER = re.compile(r"^__VF_INPUT_(\d+)__$")
 
@@ -70,8 +73,9 @@ class JobRunner:
         self._shared_root = shared_root
         self._models = models
         self._vram = vram
-        self._gpu_queue: queue.Queue[str] = queue.Queue()
-        self._cpu_queue: queue.Queue[str] = queue.Queue()
+        self._gpu_queue: queue.PriorityQueue[tuple[int, int, str]] = queue.PriorityQueue()
+        self._cpu_queue: queue.PriorityQueue[tuple[int, int, str]] = queue.PriorityQueue()
+        self._sequence = itertools.count()
         self._cpu_workers = max(1, min(int(cpu_workers), 8))
         self._threads: list[threading.Thread] = []
         self._lock = threading.Lock()
@@ -105,12 +109,14 @@ class JobRunner:
             for thread in self._threads:
                 thread.start()
 
-    def submit(self, job_id: str) -> bool:
+    def submit(self, job_id: str, priority: int = 0) -> bool:
         if self._stopped.is_set():
             return False
         job = self._store.get_job(job_id)
         is_cpu = job is not None and job.capability in _CPU_CAPABILITIES
-        (self._cpu_queue if is_cpu else self._gpu_queue).put(job_id)
+        effective = int(job.priority) if job is not None and priority == 0 else int(priority)
+        item = (-effective, next(self._sequence), job_id)
+        (self._cpu_queue if is_cpu else self._gpu_queue).put(item)
         return True
 
     def stop(self) -> None:
@@ -118,9 +124,9 @@ class JobRunner:
             threads = list(self._threads)
             self._threads = []
         self._stopped.set()
-        self._gpu_queue.put(_SENTINEL)
+        self._gpu_queue.put((-_SENTINEL_PRIORITY, 0, _SENTINEL))
         for _ in range(self._cpu_workers):
-            self._cpu_queue.put(_SENTINEL)
+            self._cpu_queue.put((-_SENTINEL_PRIORITY, 0, _SENTINEL))
         for thread in threads:
             if thread.is_alive():
                 thread.join(timeout=5.0)
@@ -129,26 +135,67 @@ class JobRunner:
         with self._metrics_lock:
             recent = list(self._metrics)
             current = [
-                {**item, "running_sec": round(max(0.0, time.time() - float(item["started_at"])), 3)}
+                {
+                    **item,
+                    "running_sec": round(
+                        max(0.0, time.time() - float(item["started_at"])), 3
+                    ),
+                }
                 for item in self._current.values()
             ]
+        averages: dict[str, float] = {}
+        for item in recent:
+            capability = str(item.get("capability") or "")
+            elapsed = float(item.get("elapsed_sec") or 0.0)
+            if not capability or elapsed <= 0:
+                continue
+            previous = averages.get(capability, elapsed)
+            averages[capability] = (previous + elapsed) / 2.0
+        queued = self._store.queued_jobs()
+        queue: list[dict[str, object]] = []
+        wait = 0.0
+        for position, job in enumerate(queued, start=1):
+            estimate = averages.get(job.capability, 0.0)
+            wait += estimate
+            queue.append(
+                {
+                    "job_id": job.id,
+                    "capability": job.capability,
+                    "priority": job.priority,
+                    "position": position,
+                    "estimated_wait_sec": round(wait, 3),
+                }
+            )
         return {
             "cpu_workers": self._cpu_workers,
             "recent": recent[-20:],
             "current": current,
+            "queue": queue,
+            "queued": len(queue),
             "completed": len(recent),
+            "average_elapsed_sec": {
+                key: round(value, 3) for key, value in sorted(averages.items())
+            },
         }
 
-    def _loop(self, queue_: queue.Queue[str]) -> None:
+    def _progress(self, job_id: str, stage: str, progress: int) -> None:
+        self._store.update_progress(job_id, stage, progress)
+        with self._metrics_lock:
+            current = self._current.get(job_id)
+            if current is not None:
+                current["stage"] = stage
+                current["progress"] = progress
+
+    def _loop(self, queue_: queue.PriorityQueue[tuple[int, int, str]]) -> None:
         while True:
-            job_id = queue_.get()
+            _priority, _sequence, job_id = queue_.get()
             try:
                 if job_id == _SENTINEL:
                     return
                 try:
                     self._run(job_id)
                 except Exception:
-                    # A metadata failure must not take the single worker thread down.
+                    # A metadata failure must not take the worker thread down.
                     continue
             finally:
                 queue_.task_done()
@@ -159,16 +206,20 @@ class JobRunner:
             return
         if not self._store.mark_running(job_id):
             return
+        job = self._store.get_job(job_id) or job
         started = time.perf_counter()
         with self._metrics_lock:
             self._current[job_id] = {
                 "job_id": job_id,
                 "capability": job.capability,
+                "stage": "starting",
+                "progress": 1,
                 "started_at": time.time(),
                 "running_sec": 0.0,
             }
         try:
-            names, shared, shared_error = self._execute(job)
+            with bind_progress(lambda stage, value: self._progress(job_id, stage, value)):
+                names, shared, shared_error = self._execute(job)
         except Exception as exc:
             self._store.finish_job(job_id, "failed", error=_error_text(exc))
             self._record_metric(job, started, "failed", _error_text(exc))
@@ -188,6 +239,7 @@ class JobRunner:
         record = {
             "job_id": job.id,
             "capability": job.capability,
+            "priority": job.priority,
             "status": status,
             "queue_wait_sec": queue_wait,
             "elapsed_sec": elapsed,
@@ -200,12 +252,15 @@ class JobRunner:
             self._metrics = self._metrics[-100:]
 
     def _execute(self, job: JobRecord) -> tuple[list[str], list[str], str | None]:
+        from gpu_worker.progress import report
+
         job_dir = self._work_dir / "jobs" / job.id
         inputs_dir = job_dir / "inputs"
         artifacts_dir = job_dir / "artifacts"
         inputs_dir.mkdir(parents=True, exist_ok=True)
         artifacts_dir.mkdir(parents=True, exist_ok=True)
 
+        report("preparing inputs", 3)
         input_paths = self._materialize_inputs(job, inputs_dir)
         for relative in job.shared_inputs:
             if self._shared_root is None:
@@ -223,15 +278,21 @@ class JobRunner:
             and self._vram is not None
             and self._models is not None
         ):
+            report("reserving vram", 6)
             try:
                 self._vram.ensure(vram_cost(job.capability), self._models)
             except VramError as exc:
                 raise HandlerError(str(exc)) from exc
         materialized = _materialize_params(job.params, input_paths)
         params = materialized if isinstance(materialized, dict) else job.params
+        report("running", 10)
         results = handler(params, input_paths, job_dir) or []
+        report("collecting artifacts", 92)
         names = self._collect_artifacts(job_dir, artifacts_dir, results)
+        if job.shared_outputs:
+            report("writing shared outputs", 96)
         shared, shared_error = self._write_shared_outputs(job, artifacts_dir, names)
+        report("finishing", 99)
         return names, shared, shared_error
 
     def _write_shared_outputs(

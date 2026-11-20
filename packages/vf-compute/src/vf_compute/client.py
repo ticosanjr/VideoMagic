@@ -6,6 +6,7 @@ import hashlib
 import os
 import re
 import tempfile
+import threading
 import time
 from collections.abc import Callable, Mapping
 from pathlib import Path
@@ -110,6 +111,23 @@ class GPUWorkerClient:
             transport=transport,
             headers=self._headers,
         )
+        self.transfer_stats: dict[str, float] = {
+            "upload_bytes": 0.0,
+            "upload_seconds": 0.0,
+            "upload_dedup": 0.0,
+            "download_bytes": 0.0,
+            "download_seconds": 0.0,
+        }
+        self._transfer_lock = threading.Lock()
+
+    def reset_transfer_stats(self) -> None:
+        with self._transfer_lock:
+            for key in self.transfer_stats:
+                self.transfer_stats[key] = 0.0
+
+    def _record_transfer(self, key: str, value: float) -> None:
+        with self._transfer_lock:
+            self.transfer_stats[key] = self.transfer_stats.get(key, 0.0) + max(0.0, value)
 
     def __enter__(self) -> GPUWorkerClient:
         return self
@@ -185,12 +203,15 @@ class GPUWorkerClient:
             return self._upload_multipart(source)
 
     def _upload_multipart(self, source: Path) -> str:
+        started = time.perf_counter()
         with source.open("rb") as handle:
             response = self._request(
                 "POST",
                 "/artifacts",
                 files={"file": (source.name, handle, "application/octet-stream")},
             )
+        self._record_transfer("upload_bytes", source.stat().st_size)
+        self._record_transfer("upload_seconds", time.perf_counter() - started)
         return self._artifact_id(response)
 
     def _artifact_id(self, response: httpx.Response) -> str:
@@ -235,6 +256,7 @@ class GPUWorkerClient:
         payload = _json_object(init)
         existing = payload.get("artifact_id")
         if existing and payload.get("complete"):
+            self._record_transfer("upload_dedup", 1)
             return str(existing)
         upload_id = str(payload.get("upload_id") or "")
         if not upload_id:
@@ -244,6 +266,8 @@ class GPUWorkerClient:
             1,
             min(int(payload.get("chunk_size") or 8 * 1024 * 1024), 64 * 1024 * 1024),
         )
+        initial_offset = offset
+        upload_started = time.perf_counter()
         with path.open("rb") as handle:
             handle.seek(offset)
             while offset < size:
@@ -288,6 +312,8 @@ class GPUWorkerClient:
             "POST",
             f"/artifacts/{quote(upload_id, safe='')}/complete",
         )
+        self._record_transfer("upload_bytes", max(0, size - initial_offset))
+        self._record_transfer("upload_seconds", time.perf_counter() - upload_started)
         return self._artifact_id(complete)
 
     def artifact_manifest(self, job_id: str) -> list[dict[str, Any]]:
@@ -329,6 +355,7 @@ class GPUWorkerClient:
         shared_root: str | None = None,
         shared_inputs: list[str] | None = None,
         shared_outputs: list[str] | None = None,
+        priority: int = 0,
     ) -> str:
         """Submit a job to ``POST /jobs/{capability}`` and return its job id.
 
@@ -352,6 +379,8 @@ class GPUWorkerClient:
             "inputs": list(inputs or []),
             "shared": shared,
         }
+        if int(priority):
+            body["priority"] = max(-100, min(100, int(priority)))
         if shared:
             input_paths = list(shared_inputs or [])
             body["shared_inputs"] = input_paths
@@ -443,6 +472,7 @@ class GPUWorkerClient:
 
         clean_id = _safe_segment(job_id, "job id")
         clean_name = _safe_segment(name, "artifact name")
+        download_started = time.perf_counter()
         destination = Path(target)
         destination.parent.mkdir(parents=True, exist_ok=True)
         partial = destination.parent / f".{destination.name}.part"
@@ -506,6 +536,10 @@ class GPUWorkerClient:
                     partial.unlink(missing_ok=True)
                     raise GPUWorkerError("artifact SHA-256 does not match")
                 os.replace(partial, destination)
+                self._record_transfer("download_bytes", written)
+                self._record_transfer(
+                    "download_seconds", time.perf_counter() - download_started
+                )
                 return destination
         except httpx.HTTPStatusError as exc:
             raise GPUWorkerError(

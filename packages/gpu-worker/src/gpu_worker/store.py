@@ -36,6 +36,9 @@ CREATE TABLE IF NOT EXISTS jobs (
     shared_error TEXT,
     error TEXT,
     artifacts TEXT NOT NULL DEFAULT '[]',
+    priority INTEGER NOT NULL DEFAULT 0,
+    progress INTEGER NOT NULL DEFAULT 0,
+    stage TEXT NOT NULL DEFAULT 'queued',
     created_at REAL NOT NULL,
     started_at REAL,
     finished_at REAL
@@ -67,6 +70,9 @@ class JobRecord:
     shared_error: str | None = None
     error: str | None = None
     artifacts: list[str] = field(default_factory=list)
+    priority: int = 0
+    progress: int = 0
+    stage: str = "queued"
     created_at: float = 0.0
     started_at: float | None = None
     finished_at: float | None = None
@@ -82,6 +88,9 @@ class JobRecord:
             "finished_at": self.finished_at,
             "error": self.error,
             "artifact_count": len(self.artifacts),
+            "priority": self.priority,
+            "progress": self.progress,
+            "stage": self.stage,
         }
 
     def as_dict(self) -> dict[str, Any]:
@@ -97,6 +106,9 @@ class JobRecord:
             "shared_error": self.shared_error,
             "error": self.error,
             "artifacts": self.artifacts,
+            "priority": self.priority,
+            "progress": self.progress,
+            "stage": self.stage,
             "created_at": self.created_at,
             "started_at": self.started_at,
             "finished_at": self.finished_at,
@@ -141,6 +153,18 @@ class JobStore:
                 connection.execute(
                     "ALTER TABLE jobs ADD COLUMN shared_error TEXT"
                 )
+            if "priority" not in columns:
+                connection.execute(
+                    "ALTER TABLE jobs ADD COLUMN priority INTEGER NOT NULL DEFAULT 0"
+                )
+            if "progress" not in columns:
+                connection.execute(
+                    "ALTER TABLE jobs ADD COLUMN progress INTEGER NOT NULL DEFAULT 0"
+                )
+            if "stage" not in columns:
+                connection.execute(
+                    "ALTER TABLE jobs ADD COLUMN stage TEXT NOT NULL DEFAULT 'queued'"
+                )
 
     # Artifacts -----------------------------------------------------------------
 
@@ -176,13 +200,14 @@ class JobStore:
         inputs: Sequence[str],
         shared_inputs: Sequence[str],
         shared_outputs: Sequence[str] = (),
+        priority: int = 0,
     ) -> JobRecord:
         created_at = time.time()
         with self._lock, self._connection() as connection:
             connection.execute(
                 "INSERT INTO jobs (id, capability, status, params, inputs, shared_inputs, "
-                "shared_outputs, error, artifacts, created_at) "
-                "VALUES (?, ?, 'queued', ?, ?, ?, ?, NULL, '[]', ?)",
+                "shared_outputs, error, artifacts, priority, progress, stage, created_at) "
+                "VALUES (?, ?, 'queued', ?, ?, ?, ?, NULL, '[]', ?, 0, 'queued', ?)",
                 (
                     job_id,
                     capability,
@@ -190,6 +215,7 @@ class JobStore:
                     json.dumps(list(inputs)),
                     json.dumps(list(shared_inputs)),
                     json.dumps(list(shared_outputs)),
+                    int(priority),
                     created_at,
                 ),
             )
@@ -201,6 +227,7 @@ class JobStore:
             inputs=list(inputs),
             shared_inputs=list(shared_inputs),
             shared_outputs=list(shared_outputs),
+            priority=int(priority),
             created_at=created_at,
         )
 
@@ -220,11 +247,32 @@ class JobStore:
     def mark_running(self, job_id: str) -> bool:
         with self._lock, self._connection() as connection:
             cursor = connection.execute(
-                "UPDATE jobs SET status = 'running', started_at = ? "
-                "WHERE id = ? AND status = 'queued'",
+                "UPDATE jobs SET status = 'running', stage = 'starting', progress = 1, "
+                "started_at = ? WHERE id = ? AND status = 'queued'",
                 (time.time(), job_id),
             )
             return cursor.rowcount > 0
+
+    def update_progress(self, job_id: str, stage: str, progress: int) -> bool:
+        """Persist a monotonic stage/percentage for a running job."""
+
+        with self._lock, self._connection() as connection:
+            cursor = connection.execute(
+                "UPDATE jobs SET stage = ?, progress = MAX(progress, ?) "
+                "WHERE id = ? AND status = 'running'",
+                (str(stage or "running")[:80], max(0, min(100, int(progress))), job_id),
+            )
+            return cursor.rowcount > 0
+
+    def queued_jobs(self) -> list[JobRecord]:
+        """Queued jobs in dispatch order (highest priority first, then FIFO)."""
+
+        with self._lock, self._connection() as connection:
+            rows = connection.execute(
+                "SELECT * FROM jobs WHERE status = 'queued' "
+                "ORDER BY priority DESC, created_at ASC"
+            ).fetchall()
+        return [job for row in rows if (job := _row_to_job(row)) is not None]
 
     def finish_job(
         self,
@@ -240,9 +288,13 @@ class JobStore:
             raise ValueError(f"invalid terminal status: {status}")
         with self._lock, self._connection() as connection:
             cursor = connection.execute(
-                "UPDATE jobs SET status = ?, error = ?, artifacts = ?, "
-                "shared_artifacts = ?, shared_error = ?, finished_at = ? WHERE id = ?",
+                "UPDATE jobs SET status = ?, stage = ?, "
+                "progress = CASE WHEN ? = 'succeeded' THEN 100 ELSE progress END, "
+                "error = ?, artifacts = ?, shared_artifacts = ?, shared_error = ?, "
+                "finished_at = ? WHERE id = ?",
                 (
+                    status,
+                    status,
                     status,
                     error,
                     json.dumps(list(artifacts)),
@@ -263,6 +315,15 @@ class JobStore:
         with self._lock, self._connection() as connection:
             row = connection.execute(
                 "SELECT COUNT(*) AS total FROM jobs WHERE status = 'queued'"
+            ).fetchone()
+        return int(row["total"]) if row is not None else 0
+
+    def queue_depth_for(self, capability: str) -> int:
+        with self._lock, self._connection() as connection:
+            row = connection.execute(
+                "SELECT COUNT(*) AS total FROM jobs "
+                "WHERE status = 'queued' AND capability = ?",
+                (capability,),
             ).fetchone()
         return int(row["total"]) if row is not None else 0
 
@@ -298,6 +359,7 @@ class JobStore:
 def _row_to_job(row: sqlite3.Row | None) -> JobRecord | None:
     if row is None:
         return None
+    columns = set(row.keys())
     return JobRecord(
         id=row["id"],
         capability=row["capability"],
@@ -310,6 +372,9 @@ def _row_to_job(row: sqlite3.Row | None) -> JobRecord | None:
         shared_error=row["shared_error"],
         error=row["error"],
         artifacts=_json_list(row["artifacts"]),
+        priority=int(row["priority"]) if "priority" in columns else 0,
+        progress=int(row["progress"]) if "progress" in columns else 0,
+        stage=str(row["stage"] or "queued") if "stage" in columns else "queued",
         created_at=row["created_at"],
         started_at=row["started_at"],
         finished_at=row["finished_at"],

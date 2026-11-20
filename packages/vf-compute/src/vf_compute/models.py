@@ -170,6 +170,8 @@ class JobStatus(BaseModel):
     job_id: str
     state: str = "queued"
     progress: float = 0.0
+    stage: str = ""
+    priority: int = 0
     message: str = ""
     artifacts: list[str] = Field(default_factory=list)
     shared_artifacts: list[str] = Field(default_factory=list)
@@ -211,6 +213,8 @@ class JobStatus(BaseModel):
             job_id=resolved_id,
             state=state,
             progress=_as_float(data.get("progress")),
+            stage=str(data.get("stage") or ""),
+            priority=_as_int(data.get("priority")),
             message=str(data.get("message") or data.get("detail") or ""),
             artifacts=_as_str_list(artifacts),
             shared_artifacts=_as_str_list(

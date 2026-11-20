@@ -87,3 +87,56 @@ def test_runner_uses_cpu_pool_not_the_gpu_lane(tmp_path: Path) -> None:
         assert runner.metrics()["cpu_workers"] == 2
     finally:
         runner.stop()
+
+
+def test_runner_persists_handler_progress(tmp_path: Path) -> None:
+    import threading
+
+    from gpu_worker.progress import report
+
+    runner, store = _runner(tmp_path)
+    started = threading.Event()
+    release = threading.Event()
+
+    def slow_handler(params, inputs, work_dir):
+        report("halfway", 42)
+        started.set()
+        release.wait(5.0)
+        output = Path(work_dir) / "slow.txt"
+        output.write_text("done", encoding="utf-8")
+        return [output]
+
+    runner._registry.register_handler("asr", slow_handler)
+    runner.start()
+    try:
+        _submit(store, "slow-1", "asr", "slow")
+        runner.submit("slow-1")
+        assert started.wait(5.0)
+        job = store.get_job("slow-1")
+        assert job is not None
+        assert job.stage == "halfway"
+        assert job.progress == 42
+        release.set()
+        assert _wait(store, "slow-1") == "succeeded"
+        finished = store.get_job("slow-1")
+        assert finished is not None
+        assert finished.progress == 100
+        assert finished.stage == "succeeded"
+    finally:
+        release.set()
+        runner.stop()
+
+
+def test_runner_metrics_orders_queue_by_priority(tmp_path: Path) -> None:
+    runner, store = _runner(tmp_path)
+    store.create_job(
+        job_id="low", capability="scene_analyze", params={}, inputs=[], shared_inputs=[],
+        priority=0,
+    )
+    store.create_job(
+        job_id="high", capability="scene_analyze", params={}, inputs=[], shared_inputs=[],
+        priority=10,
+    )
+    metrics = runner.metrics()
+    assert [item["job_id"] for item in metrics["queue"]] == ["high", "low"]
+    assert metrics["queue"][0]["position"] == 1

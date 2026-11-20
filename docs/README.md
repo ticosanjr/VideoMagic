@@ -3,7 +3,7 @@
 Everything here is English. The original Portuguese brief is archived and
 non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 
-## Implementation status (3.12.0)
+## Implementation status (3.13.0)
 
 | Area | State |
 | --- | --- |
@@ -12,7 +12,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Silero VAD via ONNX Runtime with FFmpeg `silencedetect` fallback | implemented |
 | Deterministic timeline, J/L-cuts, fades, punch-ins | implemented |
 | FCPXML 1.9/1.10, xmeml v4, native Kdenlive MLT export | implemented |
-| Portable artifacts | 3.12.0 lean Linux binary, AppImage, and MCP server bundle; speech weights are optional downloads from the Models tab |
+| Portable artifacts | 3.13.0 lean Linux binary, AppImage, and MCP server bundle; speech weights are optional downloads from the Models tab |
 | Run history | persisted in `work/run-history.json`, including failed runs, paginated by `GET /api/v1/runs` |
 | Diagnostics | doctor covers FFmpeg capabilities, CUDA/ONNX, SQLite, providers, services, models, disk, and settings; support bundle ZIP |
 | MCP control panel | Runs and jobs observability plus models, providers, services, extensions, connections, GPU, and runtime settings |
@@ -29,7 +29,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Plugins | exporter and provider registration, manifest permissions, static sandbox allowlist ([plugins.md](plugins.md)) |
 | UI guidance | naming, tooltips, microcopy, empty states, units ([ui-copy.md](ui-copy.md)) |
 | Error catalog | codes, HTTP status, meaning, next action ([errors.md](errors.md)) |
-| Release gates | 3.12.0 evidence and the two open 3.0 blockers ([3.0-blockers.md](3.0-blockers.md)) |
+| Release gates | 3.13.0 evidence and the two open 3.0 blockers ([3.0-blockers.md](3.0-blockers.md)) |
 | Coverage | per-layer baseline and the remaining gap ([coverage.md](coverage.md)) |
 | Voice cloning | Optional ElevenLabs provider, consent, profile/sample API, and TTS/patch fallback ([voice-clone.md](voice-clone.md)) |
 | Settings | searchable settings with units, help tips, discard/reset ([settings.md](settings.md)) |
@@ -126,6 +126,7 @@ Every stub has a strict `xfail` contract in `tests/contract/`.
 | [Scene intelligence](scenes.md) | You are building or debugging the scene map and keyframe cache |
 | [Format presets](formats.md) | You are creating output geometry, safe zones, or platform targets |
 | [Performance profile](performance-3.10.md) | You are tuning worker lanes, NVENC, transfers, or Windows |
+| [Performance profile 3.13](performance-3.13.md) | You need job progress, priority, warmup, adaptive transfer, or scene tuning |
 | [Shorts benchmark](shorts-benchmark.md) | You are validating phase 7 F1, throughput, captions, and safe zones |
 | [OpusClip parity](opusclip-parity.md) | You are comparing the OpusClip feature set or running the OpusClip-style recipes |
 | [Cache](cache.md) | A rerun is slower than it should be |
