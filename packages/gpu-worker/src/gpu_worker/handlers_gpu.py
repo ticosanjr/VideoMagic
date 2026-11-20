@@ -15,14 +15,18 @@ from gpu_worker.gpu_handlers import (
     make_segment_matte_handler,
     make_short_render_handler,
     make_vision_blur_handler,
+    nvenc_advice,
+    nvenc_args,
     nvenc_available,
     nvenc_error,
+    probe_nvenc,
     register_builtin_handlers,
     warmup_models,
 )
 from gpu_worker.gpu_handlers.asr import _ASR_LOCK, _ASR_MODELS
 from gpu_worker.gpu_handlers.common import (
     _NVENC_CACHE,
+    _NVENC_PROBES,
     _NVENC_REASONS,
     _available,
     _binary_available,
@@ -55,6 +59,7 @@ __all__ = [
     "_MATTE_LOCK",
     "_MATTE_SESSIONS",
     "_NVENC_CACHE",
+    "_NVENC_PROBES",
     "_NVENC_REASONS",
     "_available",
     "_binary_available",
@@ -79,8 +84,11 @@ __all__ = [
     "make_segment_matte_handler",
     "make_short_render_handler",
     "make_vision_blur_handler",
+    "nvenc_advice",
+    "nvenc_args",
     "nvenc_available",
     "nvenc_error",
+    "probe_nvenc",
     "register_builtin_handlers",
     "warmup_models",
 ]

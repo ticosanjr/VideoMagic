@@ -104,23 +104,14 @@ def safe_output_name(
 
 
 def nvenc_available(ffmpeg: str = "ffmpeg") -> bool:
-    """Return whether the local FFmpeg exposes a working h264_nvenc."""
+    """Return whether the local FFmpeg can really encode with h264_nvenc."""
 
     cached = _NVENC_CACHE.get(ffmpeg)
     if cached is not None:
         return cached
-    try:
-        completed = subprocess.run(
-            [ffmpeg, "-hide_banner", "-encoders"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        _NVENC_CACHE[ffmpeg] = False
-        return False
-    available = completed.returncode == 0 and "h264_nvenc" in completed.stdout
+    from videoflow.core.nvenc import nvenc_available as probe
+
+    available = probe(ffmpeg)
     _NVENC_CACHE[ffmpeg] = available
     return available
 
@@ -512,6 +503,8 @@ def build_commands(
                 "1",
                 "-temporal-aq",
                 "1",
+                "-pix_fmt",
+                "yuv420p",
             ]
         else:
             video_codec = [
@@ -632,6 +625,8 @@ def build_commands(
             "1",
             "-rc-lookahead",
             "20",
+            "-pix_fmt",
+            "yuv420p",
         ]
     else:
         codec = [

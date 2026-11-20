@@ -36,7 +36,10 @@ from gpu_worker.artifacts import ArtifactStore, ArtifactTooLarge
 from gpu_worker.discovery import DiscoveryBeacon
 from gpu_worker.gpu import detect_gpu
 from gpu_worker.handlers import HandlerRegistry, build_default_registry
-from gpu_worker.handlers_gpu import nvenc_available, nvenc_error, warmup_models
+from gpu_worker.handlers_gpu import (
+    probe_nvenc,
+    warmup_models,
+)
 from gpu_worker.http_auth import (
     is_loopback_client as _is_loopback_client,
 )
@@ -397,6 +400,7 @@ def create_app(
     @app.get("/health")
     def health() -> dict[str, Any]:
         gpu = detect_gpu()
+        nvenc_probe = probe_nvenc(config.ffmpeg_cmd or "ffmpeg")
         model_details = models.snapshot()
         hostname = socket.gethostname()
         return {
@@ -432,19 +436,17 @@ def create_app(
             "token_configured": bool(app.state.runtime_token),
             "token_only": config.token_only,
             "allowed_clients": list(config.allowed_clients),
-            "nvenc": nvenc_available(config.ffmpeg_cmd or "ffmpeg"),
-            "encoder": (
-                "nvenc"
-                if nvenc_available(config.ffmpeg_cmd or "ffmpeg")
-                else "libx264"
-            ),
+            "nvenc": nvenc_probe.available,
+            "encoder": "nvenc" if nvenc_probe.available else "libx264",
             "models": [model["name"] for model in model_details],
             "model_details": model_details,
             "queue_depth": store.queue_depth(),
             "uptime_sec": round(max(0.0, time.time() - app.state.started_at), 1),
             "current_job": _current_job(store),
             "last_request": app.state.last_request,
-            "nvenc_error": nvenc_error(config.ffmpeg_cmd or "ffmpeg"),
+            "nvenc_error": nvenc_probe.reason,
+            "nvenc_advice": nvenc_probe.advice,
+            "nvenc_args": list(nvenc_probe.args),
             "lan_urls": _lan_urls(),
             "disk_free_mb": _disk_free_mb(work_dir),
             "min_free_disk_mb": config.min_free_disk_mb,
@@ -627,7 +629,8 @@ def create_app(
         started = time.perf_counter()
         gpu = detect_gpu()
         ffmpeg = config.ffmpeg_cmd or "ffmpeg"
-        nvenc = nvenc_available(ffmpeg)
+        nvenc_probe = probe_nvenc(ffmpeg)
+        nvenc = nvenc_probe.available
         ct2_devices = 0
         try:
             import ctranslate2
@@ -646,6 +649,9 @@ def create_app(
             "ok": bool(gpu.available and nvenc),
             "cuda": bool(gpu.available),
             "nvenc": bool(nvenc),
+            "nvenc_error": nvenc_probe.reason,
+            "nvenc_advice": nvenc_probe.advice,
+            "nvenc_args": list(nvenc_probe.args),
             "asr": bool(gpu.available and ct2_devices > 0),
             "matte": "CUDAExecutionProvider" in providers,
             "gpu_name": gpu.name,

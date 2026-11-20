@@ -173,6 +173,11 @@ def test_render_nvenc_handler_builds_nvenc_command(tmp_path: Path, monkeypatch) 
     monkeypatch.setattr(
         render_handlers, "nvenc_available", lambda ffmpeg="ffmpeg": True
     )
+    monkeypatch.setattr(
+        render_handlers,
+        "nvenc_args",
+        lambda ffmpeg="ffmpeg": ["-preset", "p4", "-rc", "vbr", "-cq", "20", "-b:v", "0"],
+    )
     base = tmp_path / "base.mp4"
     base.write_bytes(b"base")
     ass = tmp_path / "captions.ass"
@@ -198,16 +203,67 @@ def test_nvenc_probe_is_cached(monkeypatch) -> None:
     class Completed:
         returncode = 0
         stdout = " V....D h264_nvenc"
+        stderr = ""
 
     def fake_run(command, **kwargs):
         calls.append(command)
+        if command[-1].endswith(".mp4"):
+            Path(command[-1]).write_bytes(b"x" * 2048)
+            return Completed()
         return Completed()
 
     from gpu_worker.gpu_handlers import common as handler_common
 
     monkeypatch.setattr(handler_common.subprocess, "run", fake_run)
     handlers_gpu._NVENC_CACHE.clear()
+    handlers_gpu._NVENC_PROBES.clear()
     assert handlers_gpu.nvenc_available("/fake/ffmpeg") is True
     assert handlers_gpu.nvenc_available("/fake/ffmpeg") is True
     assert len(calls) == 2
     assert "h264_nvenc" in calls[1]
+    assert "-pix_fmt" in calls[1]
+
+
+def test_nvenc_probe_falls_back_from_invalid_options(monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        if command[-1] == "-encoders" or "-encoders" in command:
+            return SimpleNamespace(returncode=0, stdout=" V....D h264_nvenc", stderr="")
+        if len(calls) == 2:
+            return SimpleNamespace(
+                returncode=1,
+                stdout="",
+                stderr="[h264_nvenc] Invalid argument",
+            )
+        Path(command[-1]).write_bytes(b"x" * 2048)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    from gpu_worker.gpu_handlers import common as handler_common
+
+    monkeypatch.setattr(handler_common.subprocess, "run", fake_run)
+    handlers_gpu._NVENC_PROBES.clear()
+    probe = handlers_gpu.probe_nvenc("/fake/ffmpeg")
+    assert probe.available is True
+    assert probe.args == ("-preset", "p4", "-tune", "hq", "-rc", "constqp", "-qp", "23")
+    assert len(calls) == 3
+
+
+def test_nvenc_probe_reports_actionable_advice(monkeypatch) -> None:
+    def fake_run(command, **kwargs):
+        if "-encoders" in command:
+            return SimpleNamespace(returncode=0, stdout=" h264_nvenc", stderr="")
+        return SimpleNamespace(
+            returncode=1,
+            stdout="",
+            stderr="[h264_nvenc] Cannot load libnvidia-encode.so.1",
+        )
+
+    from gpu_worker.gpu_handlers import common as handler_common
+
+    monkeypatch.setattr(handler_common.subprocess, "run", fake_run)
+    handlers_gpu._NVENC_PROBES.clear()
+    probe = handlers_gpu.probe_nvenc("/fake/ffmpeg")
+    assert probe.available is False
+    assert "driver" in probe.advice.casefold()

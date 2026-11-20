@@ -188,7 +188,9 @@ YOUTUBE_TRUE_PEAK_DB = -1.5
 
 @functools.lru_cache(maxsize=1)
 def video_encoder() -> str:
-    """Return ``libx264`` or ``h264_nvenc`` for this machine/release build."""
+    """Return ``libx264`` or ``h264_nvenc`` after proving NVENC works."""
+
+    from videoflow.core.nvenc import nvenc_available as _nvenc_works
 
     requested = os.environ.get("VF_VIDEO_ENCODER", "auto").strip().lower()
     if requested in {"libx264", "x264", "cpu"}:
@@ -209,14 +211,11 @@ def video_encoder() -> str:
         )
         if probe.returncode != 0 or not probe.stdout.strip():
             return "libx264"
-        encoders = subprocess.run(
-            [shutil.which("ffmpeg") or "ffmpeg", "-hide_banner", "-encoders"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=5,
+        return (
+            "h264_nvenc"
+            if _nvenc_works(shutil.which("ffmpeg") or "ffmpeg")
+            else "libx264"
         )
-        return "h264_nvenc" if "h264_nvenc" in encoders.stdout else "libx264"
     except (OSError, subprocess.SubprocessError):
         return "libx264"
 
@@ -249,20 +248,21 @@ def _video_encode_args(
 
     encoder = video_encoder()
     if encoder == "h264_nvenc":
-        args = [
-            "-c:v",
-            "h264_nvenc",
-            "-preset",
-            "p4",
-            "-rc",
-            "vbr",
-            "-cq",
-            str(crf),
-            "-b:v",
-            "0",
-            "-pix_fmt",
-            "yuv420p",
-        ]
+        from videoflow.core.nvenc import DEFAULT_ARGS, nvenc_args
+
+        proven = nvenc_args(shutil.which("ffmpeg") or "ffmpeg")
+        if proven == list(DEFAULT_ARGS):
+            proven = [
+                "-preset",
+                "p4",
+                "-rc",
+                "vbr",
+                "-cq",
+                str(crf),
+                "-b:v",
+                "0",
+            ]
+        args = ["-c:v", "h264_nvenc", *proven, "-pix_fmt", "yuv420p"]
     else:
         args = [
             "-c:v",

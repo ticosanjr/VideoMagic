@@ -629,12 +629,32 @@ function Ensure-Runtime {
 function Test-Nvenc {
     param([string]$Ffmpeg)
     if (-not (Test-Path $Ffmpeg)) { return $false }
-    $probe = Invoke-Native $Ffmpeg @(
-        "-hide_banner", "-loglevel", "error",
-        "-f", "lavfi", "-i", "color=c=black:s=128x72:d=0.1",
-        "-c:v", "h264_nvenc", "-f", "null", "-"
-    ) -AllowFailure
-    return ($probe.ExitCode -eq 0)
+    $probeFile = Join-Path $env:TEMP ("videoflow-nvenc-{0}.mp4" -f ([guid]::NewGuid().ToString("N")))
+    $candidates = @(
+        @("-preset", "p4", "-tune", "hq", "-rc", "vbr", "-cq", "23", "-b:v", "0"),
+        @("-preset", "p4", "-tune", "hq", "-rc", "constqp", "-qp", "23"),
+        @("-preset", "fast", "-tune", "hq", "-rc", "constqp", "-qp", "23"),
+        @("-preset", "p1", "-rc", "constqp", "-qp", "23"),
+        @("-preset", "p1"),
+        @()
+    )
+    foreach ($candidate in $candidates) {
+        if (Test-Path $probeFile) { Remove-Item $probeFile -Force -ErrorAction SilentlyContinue }
+        $tokens = @(
+            "-hide_banner", "-loglevel", "error", "-y",
+            "-f", "lavfi", "-i", "color=c=black:s=640x360:r=30:d=1",
+            "-vf", "format=yuv420p", "-c:v", "h264_nvenc"
+        ) + $candidate + @(
+            "-pix_fmt", "yuv420p", "-an", "-t", "1", $probeFile
+        )
+        $probe = Invoke-Native $Ffmpeg $tokens -AllowFailure
+        if ($probe.ExitCode -eq 0 -and (Test-Path $probeFile) -and ((Get-Item $probeFile).Length -gt 1024)) {
+            Remove-Item $probeFile -Force -ErrorAction SilentlyContinue
+            return $true
+        }
+    }
+    if (Test-Path $probeFile) { Remove-Item $probeFile -Force -ErrorAction SilentlyContinue }
+    return $false
 }
 
 function Install-Ffmpeg {
@@ -693,14 +713,19 @@ function Ensure-Ffmpeg {
         $nvenc = Test-Nvenc $ffmpeg
     }
     if (-not $nvenc) {
+        $probeFile = Join-Path $env:TEMP ("videoflow-nvenc-diag-{0}.mp4" -f ([guid]::NewGuid().ToString("N")))
         $probe = Invoke-Native $ffmpeg @(
-            "-hide_banner", "-loglevel", "error",
-            "-f", "lavfi", "-i", "color=c=black:s=128x72:d=0.1",
-            "-c:v", "h264_nvenc", "-f", "null", "-"
+            "-hide_banner", "-loglevel", "error", "-y",
+            "-f", "lavfi", "-i", "color=c=black:s=640x360:r=30:d=1",
+            "-vf", "format=yuv420p",
+            "-c:v", "h264_nvenc", "-preset", "p1",
+            "-pix_fmt", "yuv420p", "-an", "-t", "1", $probeFile
         ) -AllowFailure
-        $detail = ($probe.Output -split "`n" | Select-Object -Last 1)
+        if (Test-Path $probeFile) { Remove-Item $probeFile -Force -ErrorAction SilentlyContinue }
+        $detail = ($probe.Output -split "`n" | Where-Object { $_ -match "error|invalid|nvenc|encode" } | Select-Object -Last 1)
+        if (-not $detail) { $detail = "encode de teste falhou" }
         Write-Warn ("FFmpeg sem NVENC: {0}" -f $detail)
-        Write-Warn "O worker pode ser usado com libx264; o render remoto continua disponivel."
+        Write-Warn "Atualize o driver NVIDIA e use um FFmpeg gpl com NVENC. O worker continua com libx264."
     }
     $env:VF_GPU_FFMPEG = $ffmpeg
     $ffprobe = Join-Path $Root "bin\ffprobe.exe"

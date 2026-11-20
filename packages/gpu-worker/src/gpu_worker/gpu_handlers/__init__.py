@@ -1,7 +1,14 @@
 """Built-in GPU handlers split by capability family."""
 
 from gpu_worker.gpu_handlers.asr import make_asr_handler, make_forced_align_handler
-from gpu_worker.gpu_handlers.common import nvenc_available, nvenc_error
+from gpu_worker.gpu_handlers.common import (
+    NvencProbe,
+    nvenc_advice,
+    nvenc_args,
+    nvenc_available,
+    nvenc_error,
+    probe_nvenc,
+)
 from gpu_worker.gpu_handlers.matte import make_segment_matte_handler
 from gpu_worker.gpu_handlers.registry import register_builtin_handlers, warmup_models
 from gpu_worker.gpu_handlers.render import (
@@ -23,8 +30,12 @@ __all__ = [
     "make_short_render_handler",
     "make_segment_matte_handler",
     "make_vision_blur_handler",
+    "NvencProbe",
+    "nvenc_advice",
+    "nvenc_args",
     "nvenc_available",
     "nvenc_error",
+    "probe_nvenc",
     "register_builtin_handlers",
     "warmup_models",
 ]

@@ -280,7 +280,20 @@ class FFmpegAdapter:
             command.extend(["-c:v", "mpeg4", "-q:v", "8"])
         elif chosen in {"nvenc", "h264_nvenc"}:
             command.extend(
-                ["-c:v", "h264_nvenc", "-preset", "p1", "-cq", str(max(0, min(51, int(crf))))]
+                [
+                    "-c:v",
+                    "h264_nvenc",
+                    "-preset",
+                    "p1",
+                    "-rc",
+                    "vbr",
+                    "-cq",
+                    str(max(0, min(51, int(crf)))),
+                    "-b:v",
+                    "0",
+                    "-pix_fmt",
+                    "yuv420p",
+                ]
             )
         else:
             command.extend(

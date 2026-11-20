@@ -61,7 +61,9 @@ function render(data) {
   const warm = data.warmup || h.warmup || {};
   $("warmup").textContent = warm.running ? "aquecendo…" : (warm.loaded || []).length ? (warm.loaded || []).join(", ") : (warm.errors || []).length ? "falhou" : "não executado";
   $("notice").hidden = !(h.nvenc === false && h.nvenc_error);
-  if (h.nvenc === false && h.nvenc_error) $("notice").textContent = `NVENC indisponível: ${h.nvenc_error}`;
+  if (h.nvenc === false && h.nvenc_error) {
+    $("notice").textContent = `NVENC indisponível: ${h.nvenc_error}${h.nvenc_advice ? " — " + h.nvenc_advice : ""}`;
+  }
   const current = h.current_job;
   const currentProgress = Number(current?.progress ?? 0);
   $("current").innerHTML = current
@@ -171,7 +173,11 @@ $("benchmark").onclick = async () => {
     const response = await fetch("/probe", {method:"POST"});
     const data = await response.json();
     $("notice").hidden = false;
-    $("notice").textContent = `Benchmark: ok=${data.ok} · cuda=${data.cuda} · nvenc=${data.nvenc} · ${data.latency_ms} ms`;
+    if (data.nvenc === false) {
+      $("notice").textContent = `Benchmark: cuda=${data.cuda} · NVENC indisponível: ${data.nvenc_error || "encode de teste falhou"}${data.nvenc_advice ? " — " + data.nvenc_advice : ""}`;
+    } else {
+      $("notice").textContent = `Benchmark: ok=${data.ok} · cuda=${data.cuda} · nvenc=${data.nvenc} · ${data.latency_ms} ms`;
+    }
   } catch (error) {
     $("notice").hidden = false; $("notice").textContent = `Benchmark falhou: ${error}`;
   }

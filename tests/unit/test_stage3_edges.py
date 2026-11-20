@@ -80,6 +80,9 @@ def test_video_encoder_auto_detects_nvenc(monkeypatch) -> None:
     monkeypatch.setenv("VF_VIDEO_ENCODER", "auto")
     monkeypatch.setattr(mp4.shutil, "which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr(mp4.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        "videoflow.core.nvenc.nvenc_available", lambda *a, **k: True
+    )
     video_encoder.cache_clear()
     assert video_encoder() == "h264_nvenc"
     assert any("nvidia-smi" in command[0] for command in calls)
@@ -93,6 +96,9 @@ def test_video_encoder_auto_detects_nvenc(monkeypatch) -> None:
         mp4.subprocess,
         "run",
         lambda command, **kwargs: BrokenProbe(),
+    )
+    monkeypatch.setattr(
+        "videoflow.core.nvenc.nvenc_available", lambda *a, **k: False
     )
     assert video_encoder() == "libx264"
     video_encoder.cache_clear()
