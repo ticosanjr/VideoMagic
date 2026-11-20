@@ -1014,6 +1014,50 @@ export interface LogLine {
 
 export { ApiError, formatBackendDetail, describeError } from "./api/client";
 
+export interface OutputFormat {
+  format_id: string;
+  name: string;
+  aspect_ratio: "9:16" | "4:5" | "1:1" | "16:9";
+  width: number;
+  height: number;
+  fps: number;
+  safe_zones: Record<string, number>;
+  caption_preset: string;
+  platforms: string[];
+  export_targets: string[];
+  description: string;
+  builtin: boolean;
+}
+
+export async function listFormats(): Promise<OutputFormat[]> {
+  const response = await request<{ ok: boolean; formats: OutputFormat[] }>("/api/v1/formats");
+  return response.formats ?? [];
+}
+
+export async function saveFormat(payload: Partial<OutputFormat> & { format_id: string; name: string }): Promise<OutputFormat> {
+  const response = await request<{ ok: boolean; format: OutputFormat }>("/api/v1/formats", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+  return response.format;
+}
+
+export async function deleteFormat(formatId: string): Promise<boolean> {
+  const response = await request<{ ok: boolean; deleted: boolean }>(
+    `/api/v1/formats/${encodeURIComponent(formatId)}`,
+    { method: "DELETE" }
+  );
+  return response.deleted;
+}
+
+export async function duplicateFormat(formatId: string, payload: { new_id?: string; name?: string }): Promise<OutputFormat> {
+  const response = await request<{ ok: boolean; format: OutputFormat }>(
+    `/api/v1/formats/${encodeURIComponent(formatId)}/duplicate`,
+    { method: "POST", body: JSON.stringify(payload) }
+  );
+  return response.format;
+}
+
 export interface StyleSummary {
   style_id: string;
   name: string;
@@ -1773,6 +1817,10 @@ export interface GpuWorkerStatus {
   execution_node: string;
   available: boolean;
   worker_id: string;
+  version?: string;
+  auth_mode?: string;
+  nvenc?: boolean;
+  encoder?: string;
   hostname: string;
   ip_local: string;
   port: number;
@@ -1786,9 +1834,6 @@ export interface GpuWorkerStatus {
   models: string[];
   queue_depth: number;
   message: string;
-  auth_mode?: string;
-  nvenc?: boolean;
-  encoder?: string;
   fallback_local?: boolean;
   shared_mount_enabled?: boolean;
   shared_linux_path?: string;
@@ -1826,16 +1871,46 @@ export interface GpuBenchmark {
   worker: Record<string, unknown>;
 }
 
+export interface GpuJobActivity {
+  job_id: string;
+  capability: string;
+  status: string;
+  created_at: number;
+  started_at?: number | null;
+  finished_at?: number | null;
+  error?: string | null;
+  artifacts?: string[];
+}
+
+export interface GpuActivity {
+  ok?: boolean;
+  health?: Record<string, unknown>;
+  jobs?: GpuJobActivity[];
+  logs?: string;
+}
+
+export async function getGpuActivity(): Promise<{ ok: boolean; overview?: GpuActivity; error?: string }> {
+  return request("/api/v1/gpu/activity");
+}
+
 export async function getGpuStatus(): Promise<{ ok: boolean; status: GpuWorkerStatus }> {
   return request("/api/v1/gpu/status");
 }
 
-export async function discoverGpuWorkers(timeoutSec = 1.5): Promise<{
+export async function discoverGpuWorkers(timeoutSec = 1.5, scan = true): Promise<{
   ok: boolean;
   enabled: boolean;
   workers: GpuDiscoveredWorker[];
+  diagnostics?: {
+    udp: number;
+    tcp_scan: number;
+    scan_enabled: boolean;
+    elapsed_ms: number;
+    udp_port: number;
+    tcp_port: number;
+  };
 }> {
-  return request(`/api/v1/gpu/discovery?timeout_sec=${timeoutSec}`);
+  return request(`/api/v1/gpu/discovery?timeout_sec=${timeoutSec}&scan=${scan}`);
 }
 
 export async function connectGpuWorker(payload: {

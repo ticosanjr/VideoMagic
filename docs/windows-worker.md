@@ -185,3 +185,22 @@ reconnects automatically; host and token fields remain under Advanced pairing.
 If NVENC fails, the installer logs the FFmpeg error tail and keeps the worker
 available with `libx264`. Remote rendering still works and the UI reports the
 selected encoder.
+
+## Embedded dashboard (3.9+)
+
+Open:
+
+```text
+http://127.0.0.1:8766/
+```
+
+The dashboard is served by the worker itself and shows:
+
+- connection URLs, port, auth mode, discovery and firewall state;
+- worker version, uptime, worker id, queue, last request;
+- GPU, driver, VRAM, NVENC status and the real FFmpeg error;
+- current job, recent jobs, elapsed times, errors, and recent logs;
+- copy URL and open logs actions.
+
+Menu option **12** opens it. Sensitive actions such as opening a local folder are
+restricted to loopback.

@@ -15,6 +15,7 @@ class GpuInfo:
     vram_used_mb: int = 0
     gpu_utilization: float = 0.0
     temperature_c: float = 0.0
+    driver_version: str = ""
 
 
 CPU_ONLY = GpuInfo(available=False, name="cpu", vram_free_mb=0, vram_total_mb=0)
@@ -27,7 +28,7 @@ def detect_gpu() -> GpuInfo:
         completed = subprocess.run(
             [
                 "nvidia-smi",
-                "--query-gpu=name,memory.free,memory.total,memory.used,utilization.gpu,temperature.gpu",
+                "--query-gpu=name,driver_version,memory.free,memory.total,memory.used,utilization.gpu,temperature.gpu",
                 "--format=csv,noheader,nounits",
             ],
             capture_output=True,
@@ -44,29 +45,36 @@ def detect_gpu() -> GpuInfo:
     if not line:
         return CPU_ONLY
     parts = [part.strip() for part in line.split(",")]
-    if len(parts) < 3:
-        return GpuInfo(available=True, name=parts[0] or "unknown", vram_free_mb=0, vram_total_mb=0)
+    if len(parts) < 4:
+        return GpuInfo(
+            available=True,
+            name=parts[0] or "unknown",
+            vram_free_mb=0,
+            vram_total_mb=0,
+            driver_version=parts[1] if len(parts) > 1 else "",
+        )
+    driver = parts[1]
     try:
-        free = int(float(parts[1]))
-        total = int(float(parts[2]))
+        free = int(float(parts[2]))
+        total = int(float(parts[3]))
     except ValueError:
         free = total = 0
     used = 0
     utilization = 0.0
     temperature = 0.0
-    if len(parts) > 3:
-        try:
-            used = int(float(parts[3]))
-        except ValueError:
-            used = 0
     if len(parts) > 4:
         try:
-            utilization = float(parts[4])
+            used = int(float(parts[4]))
         except ValueError:
-            utilization = 0.0
+            used = 0
     if len(parts) > 5:
         try:
-            temperature = float(parts[5])
+            utilization = float(parts[5])
+        except ValueError:
+            utilization = 0.0
+    if len(parts) > 6:
+        try:
+            temperature = float(parts[6])
         except ValueError:
             temperature = 0.0
     return GpuInfo(
@@ -77,4 +85,5 @@ def detect_gpu() -> GpuInfo:
         vram_used_mb=max(used, 0),
         gpu_utilization=max(utilization, 0.0),
         temperature_c=max(temperature, 0.0),
+        driver_version=driver,
     )

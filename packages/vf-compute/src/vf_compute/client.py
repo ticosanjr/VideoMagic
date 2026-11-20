@@ -364,6 +364,10 @@ class GPUWorkerClient:
             raise GPUWorkerError("worker did not return a job id")
         return str(job_id)
 
+    def overview(self, timeout: float | None = None) -> dict[str, Any]:
+        response = self._request("GET", "/api/overview", timeout=timeout)
+        return _json_object(response)
+
     def status(self, job_id: str) -> JobStatus:
         """Fetch one job status."""
 

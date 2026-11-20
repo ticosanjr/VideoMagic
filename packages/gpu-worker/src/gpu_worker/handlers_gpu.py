@@ -26,6 +26,7 @@ IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
 _ASR_MODELS: dict[tuple[str, str, str], Any] = {}
 _ASR_LOCK = threading.RLock()
 _NVENC_CACHE: dict[str, bool] = {}
+_NVENC_REASONS: dict[str, str] = {}
 
 
 def _available(module: str) -> bool:
@@ -100,12 +101,21 @@ def nvenc_available(ffmpeg: str = "ffmpeg") -> bool:
             check=False,
             timeout=20,
         )
-    except (FileNotFoundError, OSError, subprocess.SubprocessError):
+    except (FileNotFoundError, OSError, subprocess.SubprocessError) as exc:
         _NVENC_CACHE[key] = False
+        _NVENC_REASONS[key] = str(exc)[-500:]
         return False
     available = probe.returncode == 0
     _NVENC_CACHE[key] = available
+    _NVENC_REASONS[key] = "" if available else (
+        (probe.stderr or probe.stdout or "h264_nvenc probe failed").strip()[-500:]
+    )
     return available
+
+
+def nvenc_error(ffmpeg: str = "ffmpeg") -> str:
+    nvenc_available(ffmpeg)
+    return _NVENC_REASONS.get(str(ffmpeg), "")
 
 
 def make_asr_handler(
@@ -1149,5 +1159,6 @@ __all__ = [
     "make_segment_matte_handler",
     "make_vision_blur_handler",
     "nvenc_available",
+    "nvenc_error",
     "register_builtin_handlers",
 ]

@@ -87,6 +87,7 @@ def compute_status(
         "auth_mode": getattr(health, "auth_mode", ""),
         "nvenc": getattr(health, "nvenc", False),
         "encoder": getattr(health, "encoder", ""),
+        "version": getattr(health, "version", ""),
         "fallback_local": resolved.fallback_local,
         "allowed_capabilities": (
             sorted(getattr(resolved, "allowed_capabilities", None))

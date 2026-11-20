@@ -22,6 +22,7 @@ from videoflow.domain.errors import VideoFlowError
 from videoflow.mcp_server.agent_helpers import _job_payload
 from videoflow.mcp_server.agent_tools import register_agent_tools
 from videoflow.mcp_server.context import error
+from videoflow.mcp_server.format_tools import register_format_tools
 from videoflow.mcp_server.scene_tools import register_scene_tools
 from videoflow.steps.registry import iter_steps
 
@@ -132,6 +133,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
     def vf_style(
         action: str = "list",
         style_id: str = "",
+        new_id: str = "",
         name: str = "",
         markdown_content: str = "",
         body: str = "",
@@ -162,7 +164,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         mode: str = "merge",
         max_rules: int = 15,
     ) -> dict[str, Any]:
-        """List, save, sync, or learn rules for the Markdown style catalog."""
+        """List, get, create, save, duplicate, restore, sync, or learn Markdown styles."""
 
         from videoflow.application import style_service
         from videoflow.domain.paths import resolve_allowed
@@ -201,6 +203,18 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                 return style_service.get_style(style_id)
             if action == "delete":
                 return style_service.delete_style(style_id)
+            if action == "duplicate":
+                if not style_id:
+                    return error("style_required", "style_id is required")
+                return style_service.duplicate_style(
+                    style_id,
+                    new_id=new_id or f"{style_id}-copy",
+                    name=name,
+                )
+            if action == "restore":
+                if not style_id:
+                    return error("style_required", "style_id is required")
+                return style_service.restore_style(style_id)
             if action == "sync":
                 if not workspace_dir:
                     return error("workspace_required", "workspace_dir is required")
@@ -218,8 +232,10 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                     max_rules=max_rules,
                     workspace_dir=workspace_dir or None,
                 )
-            if action != "save":
+            if action not in {"save", "create", "update"}:
                 return error("unknown_action", f"Unknown style action: {action}")
+            if action == "create":
+                overwrite = False
             if not style_id and not markdown_content.strip():
                 return error("style_required", "style_id is required")
             updates = {
@@ -2140,3 +2156,4 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         return response
 
     register_scene_tools(register, ctx, wait_fn=_wait)
+    register_format_tools(register)

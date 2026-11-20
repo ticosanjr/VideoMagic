@@ -472,6 +472,16 @@ def test_core_style_catalog_actions_and_project_binding(tmp_path: Path, monkeypa
     assert (workspace / "presets" / "canal-teste.md").is_file()
     assert saved["sync"]["copied"]
 
+    duplicated = tools["vf_style"](
+        action="duplicate",
+        style_id="canal-teste",
+        new_id="canal-teste-copy",
+        name="Canal Teste Copy",
+    )
+    assert duplicated["ok"] is True
+    assert duplicated["style_id"] == "canal-teste-copy"
+    assert tools["vf_style"](action="delete", style_id="canal-teste-copy")["deleted"] is True
+
     fetched = tools["vf_style"](action="get", style_id="canal-teste")
     assert fetched["style"]["target_lufs"] == -14.0
     assert "canal-teste" in fetched["markdown"]

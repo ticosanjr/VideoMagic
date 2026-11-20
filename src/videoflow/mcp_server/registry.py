@@ -90,6 +90,11 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "shorts",
     ),
     ToolSpec(
+        "vf_format",
+        "List, get, save, delete, or duplicate output format presets.",
+        "formats",
+    ),
+    ToolSpec(
         "vf_scenes",
         "Analyze scenes or read the cached manifest, keyframe metadata, supercontext, and cache.",
         "scenes",
@@ -151,7 +156,8 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "vf_style",
-        "List, get, save, sync, analyze, delete, or learn rules for Markdown styles.",
+        "List, get, create, save, duplicate, restore, sync, analyze, delete, "
+        "or learn rules for Markdown styles.",
         "styles",
     ),
     ToolSpec(

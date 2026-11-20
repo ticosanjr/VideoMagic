@@ -485,3 +485,28 @@ def test_lan_open_mode_rejects_public_clients(tmp_path: Path) -> None:
             assert response.status_code == 401
     finally:
         application.state.close()
+
+
+def test_worker_dashboard_and_overview(client: TestClient) -> None:
+    with TestClient(client.app, client=("127.0.0.1", 50000)) as local:
+        page = local.get("/ui/")
+        assert page.status_code == 200
+        assert "VideoFlow" in page.text
+        overview = local.get("/api/overview")
+        assert overview.status_code == 200
+        payload = overview.json()
+        assert payload["ok"] is True
+        assert "health" in payload and "jobs" in payload
+        assert payload["health"]["auth_mode"] in {"token", "lan_open", "none"}
+        assert "encoder" in payload["health"]
+        jobs = local.get("/api/jobs?limit=5")
+        assert jobs.status_code == 200
+        assert isinstance(jobs.json()["jobs"], list)
+
+
+def test_worker_health_reports_encoder_and_activity(client: TestClient) -> None:
+    payload = client.get("/health").json()
+    assert payload["uptime_sec"] >= 0
+    assert payload["encoder"] in {"nvenc", "libx264"}
+    assert isinstance(payload["lan_urls"], list)
+    assert "current_job" in payload

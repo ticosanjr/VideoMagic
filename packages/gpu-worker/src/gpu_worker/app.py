@@ -9,6 +9,7 @@ import re
 import secrets
 import shutil
 import socket
+import subprocess
 import threading
 import time
 import uuid
@@ -18,7 +19,14 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from fastapi.responses import (
+    FileResponse,
+    JSONResponse,
+    RedirectResponse,
+    Response,
+    StreamingResponse,
+)
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -27,7 +35,7 @@ from gpu_worker.artifacts import ArtifactStore, ArtifactTooLarge
 from gpu_worker.discovery import DiscoveryBeacon
 from gpu_worker.gpu import detect_gpu
 from gpu_worker.handlers import HandlerRegistry, build_default_registry
-from gpu_worker.handlers_gpu import nvenc_available
+from gpu_worker.handlers_gpu import nvenc_available, nvenc_error
 from gpu_worker.models import ModelRegistry
 from gpu_worker.security import (
     UnsafePathError,
@@ -54,6 +62,13 @@ def _is_private_client(host: str | None) -> bool:
     except ValueError:
         return False
     return bool(address.is_private or address.is_loopback)
+
+
+def _is_loopback_client(host: str | None) -> bool:
+    try:
+        return ipaddress.ip_address(str(host or "")).is_loopback
+    except ValueError:
+        return False
 
 
 def _local_ip() -> str:
@@ -128,6 +143,48 @@ class JobSubmission(BaseModel):
     shared: bool = False
     shared_inputs: list[str] = Field(default_factory=list)
     shared_outputs: list[str] = Field(default_factory=list)
+
+
+def _current_job(store: JobStore) -> dict[str, Any] | None:
+    for job in store.list_jobs(limit=10):
+        if job.status in {"queued", "running"}:
+            return job.as_dict()
+    return None
+
+
+def _lan_urls() -> list[str]:
+    urls: list[str] = []
+    try:
+        hostname = socket.gethostname()
+        for info in socket.getaddrinfo(hostname, None, socket.AF_INET):
+            address = str(info[4][0])
+            if address.startswith("127.") or address in urls:
+                continue
+            urls.append(address)
+    except OSError:
+        pass
+    local = _local_ip()
+    if local and not local.startswith("127.") and local not in urls:
+        urls.insert(0, local)
+    return urls
+
+
+def _log_path(config: Settings) -> Path:
+    explicit = os.environ.get("VF_GPU_LOG_FILE", "").strip()
+    if explicit:
+        return Path(explicit).expanduser()
+    return Path(config.work_dir) / "worker.log"
+
+
+def _tail_log(config: Settings, *, limit: int = 200) -> str:
+    path = _log_path(config)
+    if not path.is_file():
+        return ""
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return ""
+    return "\n".join(lines[-limit:])
 
 
 def create_app(
@@ -220,6 +277,9 @@ def create_app(
     app.state.artifact_store = artifacts
     app.state.model_registry = models
     app.state.worker = runner
+    app.state.started_at = time.time()
+    app.state.last_request_at = 0.0
+    app.state.last_request = {}
 
     @app.middleware("http")
     async def require_token(request: Request, call_next):
@@ -234,11 +294,18 @@ def create_app(
                 supplied.encode("utf-8"), configured.encode("utf-8")
             )
         )
+        client_host = request.client.host if request.client else ""
         lan_open = bool(
-            app.state.settings.allow_lan_open
-            and _is_private_client(request.client.host if request.client else "")
+            app.state.settings.allow_lan_open and _is_private_client(client_host)
         )
-        if valid or lan_open:
+        if valid or lan_open or _is_loopback_client(client_host):
+            app.state.last_request_at = time.time()
+            app.state.last_request = {
+                "path": request.url.path,
+                "method": request.method,
+                "client": client_host,
+                "at": app.state.last_request_at,
+            }
             return await call_next(request)
         if not configured:
             return JSONResponse(
@@ -280,6 +347,7 @@ def create_app(
             "vram_budget_mb": vram.budget_mb(),
             "gpu_utilization": gpu.gpu_utilization,
             "temperature_c": gpu.temperature_c,
+            "driver_version": getattr(gpu, "driver_version", ""),
             "capabilities": handlers.available(),
             "unavailable_capabilities": handlers.unavailable(),
             "auth_mode": (
@@ -296,7 +364,50 @@ def create_app(
             "models": [model["name"] for model in model_details],
             "model_details": model_details,
             "queue_depth": store.queue_depth(),
+            "uptime_sec": round(max(0.0, time.time() - app.state.started_at), 1),
+            "current_job": _current_job(store),
+            "last_request": app.state.last_request,
+            "nvenc_error": nvenc_error(config.ffmpeg_cmd or "ffmpeg"),
+            "lan_urls": _lan_urls(),
         }
+
+    @app.get("/api/overview")
+    def api_overview() -> dict[str, Any]:
+        return {
+            "ok": True,
+            "health": health(),
+            "jobs": [job.as_dict() for job in store.list_jobs(limit=12)],
+            "logs": _tail_log(config, limit=40),
+        }
+
+    @app.get("/api/jobs")
+    def api_jobs(limit: int = 25) -> dict[str, Any]:
+        return {
+            "ok": True,
+            "jobs": [job.as_dict() for job in store.list_jobs(limit=limit)],
+        }
+
+    @app.get("/api/logs")
+    def api_logs(lines: int = 200) -> dict[str, Any]:
+        return {"ok": True, "text": _tail_log(config, limit=max(1, min(lines, 2000)))}
+
+    @app.post("/api/open-logs")
+    def api_open_logs(request: Request) -> dict[str, Any]:
+        if not _is_loopback_client(request.client.host if request.client else ""):
+            raise HTTPException(status_code=403, detail="local access only")
+        target = _log_path(config)
+        try:
+            if os.name == "nt":
+                os.startfile(str(target))  # type: ignore[attr-defined]
+            else:
+                subprocess.Popen(["xdg-open", str(target)])
+        except Exception as exc:  # noqa: BLE001 - desktop integration is optional
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"ok": True, "path": str(target)}
+
+    @app.get("/")
+    def ui_root() -> RedirectResponse:
+        return RedirectResponse(url="/ui/")
 
     @app.post("/probe")
     def probe() -> dict[str, Any]:
@@ -638,6 +749,10 @@ def create_app(
         except (OSError, UnsafePathError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"ok": True, "path": relative, "resolved": str(target)}
+
+    ui_dir = Path(__file__).resolve().parent / "ui"
+    if ui_dir.is_dir():
+        app.mount("/ui", StaticFiles(directory=str(ui_dir), html=True), name="ui")
 
     runner.start()
     models.start()

@@ -98,17 +98,36 @@ def register_gpu_routes(app: FastAPI) -> None:
         return {"ok": True, "status": status}
 
     @app.get("/api/v1/gpu/discovery")
-    def gpu_discovery(timeout_sec: float = 1.5) -> dict[str, Any]:
+    def gpu_discovery(timeout_sec: float = 1.5, scan: bool = True) -> dict[str, Any]:
         settings = _current()
         if not settings.gpu.discovery_enabled:
             return {"ok": True, "enabled": False, "workers": []}
-        from vf_compute.discovery import discover_workers
+        import time
 
+        from vf_compute.discovery import discover_workers, scan_workers
+
+        started = time.perf_counter()
         timeout = max(0.2, min(float(timeout_sec), 5.0))
+        udp = discover_workers(timeout_sec=timeout)
+        tcp: list[dict[str, Any]] = []
+        if scan and not udp:
+            tcp = scan_workers(port=8766)
+        merged: dict[str, dict[str, Any]] = {}
+        for item in [*udp, *tcp]:
+            merged[str(item.get("worker_id") or item.get("url"))] = item
+        workers = list(merged.values())
         return {
             "ok": True,
             "enabled": True,
-            "workers": discover_workers(timeout_sec=timeout),
+            "workers": workers,
+            "diagnostics": {
+                "udp": len(udp),
+                "tcp_scan": len(tcp),
+                "scan_enabled": bool(scan),
+                "elapsed_ms": round((time.perf_counter() - started) * 1000, 1),
+                "udp_port": 8767,
+                "tcp_port": 8766,
+            },
         }
 
     @app.get("/api/v1/gpu/workers")
@@ -178,6 +197,17 @@ def register_gpu_routes(app: FastAPI) -> None:
             "connected": health.available,
             "status": compute_status(router=router, settings=updated),
         }
+
+    @app.get("/api/v1/gpu/activity")
+    def gpu_activity() -> dict[str, Any]:
+        settings = _current()
+        try:
+            router = _require_router(settings)
+            return {"ok": True, "overview": router.client.overview(timeout=3.0)}
+        except HTTPException:
+            raise
+        except Exception as exc:  # noqa: BLE001 - activity is advisory
+            return {"ok": False, "error": str(exc), "overview": {}}
 
     @app.post("/api/v1/gpu/disconnect")
     def gpu_disconnect() -> dict[str, Any]:

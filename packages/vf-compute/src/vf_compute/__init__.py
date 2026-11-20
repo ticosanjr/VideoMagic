@@ -11,7 +11,12 @@ from vf_compute.config import (
     load_gpu_config,
     save_gpu_config,
 )
-from vf_compute.discovery import DiscoveredWorker, GpuDiscovery, discover_workers
+from vf_compute.discovery import (
+    DiscoveredWorker,
+    GpuDiscovery,
+    discover_workers,
+    scan_workers,
+)
 from vf_compute.execution import ExecutionRecord, now_iso
 from vf_compute.models import JobStatus, WorkerDecision, WorkerHealth
 from vf_compute.router import COMPUTE_MODES, ComputeRouter
@@ -35,6 +40,7 @@ __all__ = [
     "WorkerDecision",
     "WorkerHealth",
     "discover_workers",
+    "scan_workers",
     "now_iso",
     "vram_cost",
 ]

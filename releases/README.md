@@ -5,12 +5,14 @@ the manifest, checksums, and notes are tracked. GitHub Actions is not used.
 
 ## Current
 
+- `v3.9.0`: embedded Windows worker dashboard, active subnet discovery, live
+  worker activity, complete style CRUD, `vf_format` catalog, professional
+  Formats UI, searchable help, and tooltips.
 - `v3.8.0`: zero-config LAN worker, automatic discovery/reconnect, LAN-open
-  private networking, NVENC negotiation, workspace folder picker, automatic
-  OpenCode MCP install, and restored Styles/Formats/Help panels.
+  private networking, NVENC negotiation, workspace folder picker, and automatic
+  OpenCode MCP install.
 - `v3.7.0`: decupage acoustic phase, Scene Intelligence, Dynamic Shorts
-  compositor, `vf_scenes`, 34 MCP tools, FCPXML V1/V2/A1/A2.
-- `v3.6.0`: distribution and GPU-worker hardening.
+  compositor, `vf_scenes`, FCPXML V1/V2/A1/A2.
 
 Older folders are pruned by the three-release rule.
 

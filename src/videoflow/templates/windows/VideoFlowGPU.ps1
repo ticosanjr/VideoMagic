@@ -992,11 +992,22 @@ function Show-Status {
         Write-Host ("GPU: {0}" -f $status.health.gpu_name)
         Write-Host ("VRAM: {0}/{1} MB" -f $status.health.vram_used_mb, $status.health.vram_total_mb)
         Write-Host ("Capabilities: {0}" -f ($status.health.capabilities -join ", "))
+        Write-Host ("Auth: {0}" -f $status.health.auth_mode)
+        Write-Host ("Encoder: {0} (nvenc={1})" -f $status.health.encoder, $status.health.nvenc)
+        Write-Host ("URIs: {0}" -f (($status.health.lan_urls | ForEach-Object { "http://${_}:$($status.port)" }) -join ", "))
+        Write-Host ("Painel: http://127.0.0.1:{0}/" -f $status.port)
     } else {
         Write-Host "Health: offline"
     }
 }
 
+function Open-Dashboard {
+    Ensure-EnvFile
+    $port = [int]$script:EnvMap["VF_GPU_PORT"]
+    $url = "http://127.0.0.1:$port/"
+    Write-Log ("Abrindo painel: {0}" -f $url)
+    Start-Process $url
+}
 function Show-Doctor {
     Ensure-EnvFile
     $uv = ""
@@ -1299,6 +1310,7 @@ function Show-Menu {
         Write-Host "9) Benchmark rapido"
         Write-Host "10) Abrir pasta de logs"
         Write-Host "11) Desinstalar venv"
+        Write-Host "12) Abrir painel do worker"
         Write-Host "0) Sair"
         $choice = Read-Host "Escolha"
         switch ($choice) {
@@ -1313,6 +1325,7 @@ function Show-Menu {
             "9" { Invoke-MenuAction "Benchmark" { Invoke-Benchmark } }
             "10" { Invoke-MenuAction "Abrir logs" { Start-Process explorer.exe $LogDir } }
             "11" { Invoke-MenuAction "Desinstalar" { Uninstall-Worker } }
+            "12" { Invoke-MenuAction "Painel" { Open-Dashboard } }
             "0" { return }
             default { Write-Host "Opcao invalida." }
         }
@@ -1343,6 +1356,7 @@ function Main {
             "Autostart" { Invoke-Step "Autostart" { Install-Autostart } }
             "Uninstall" { Invoke-Step "Uninstall" { Uninstall-Worker } }
             "Benchmark" { Invoke-Step "Benchmark" { Invoke-Benchmark } }
+            "Dashboard" { Invoke-Step "Dashboard" { Open-Dashboard } }
             "Supervisor" { Supervisor }
             "SelfTest" { Invoke-Step "SelfTest" { Invoke-SelfTest } }
         }

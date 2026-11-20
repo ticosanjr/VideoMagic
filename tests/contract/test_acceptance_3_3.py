@@ -27,4 +27,4 @@ def test_shorts_style_matrix_acceptance() -> None:
 def test_compositor_surface_acceptance() -> None:
     result = check_compositors()
     assert result["ok"] is True
-    assert result["tool_count"] == 34
+    assert result["tool_count"] == 35

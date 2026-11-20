@@ -76,14 +76,14 @@
       <h3 class="text-[length:var(--vf-text-sm)] font-semibold text-neutral-100">Workspace folder</h3>
       <label class="mt-3 block text-[11px] text-neutral-500" for="workspace-folder">Folder</label>
       <div class="mt-1 flex gap-2">
-        <input id="workspace-folder" bind:value={targetDir} placeholder="/home/me/videoflow-workspace" class="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 font-mono text-[length:var(--vf-text-xs)] text-neutral-100" />
+        <input id="workspace-folder" title="Folder that will hold projects, styles, workflows, and the OpenCode config" bind:value={targetDir} placeholder="/home/me/videoflow-workspace" class="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 font-mono text-[length:var(--vf-text-xs)] text-neutral-100" />
         <button type="button" onclick={() => void browse()} class="rounded-lg border border-white/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-neutral-200">Browse…</button>
       </div>
       <p class="mt-2 text-[11px] text-neutral-500">Allowed roots: {system?.allowed_roots?.join(", ") || "loading…"}</p>
 
       <div class="mt-4 grid gap-3 sm:grid-cols-2">
         <label class="text-[11px] text-neutral-500">MCP profile
-          <select bind:value={profile} class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 text-[length:var(--vf-text-xs)] text-neutral-100">
+          <select title="MCP servers installed into OpenCode" bind:value={profile} class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 text-[length:var(--vf-text-xs)] text-neutral-100">
             <option value="opencode">opencode (core + fetch + audio + vision)</option>
             <option value="core">core only</option>
             <option value="decupagem">decupagem</option>
@@ -106,7 +106,7 @@
           <input type="checkbox" bind:checked={overwrite} /> Overwrite workspace files
         </label>
       </div>
-      <button type="button" disabled={busy || !targetDir.trim()} onclick={() => void install()} class="mt-4 rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-4 py-2 text-[length:var(--vf-text-xs)] font-medium text-emerald-100 disabled:opacity-40">
+      <button type="button" title="Create the workspace, copy styles/workflows, and install the MCP server" disabled={busy || !targetDir.trim()} onclick={() => void install()} class="mt-4 rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-4 py-2 text-[length:var(--vf-text-xs)] font-medium text-emerald-100 disabled:opacity-40">
         {busy ? "Preparing workspace…" : "Prepare workspace and install MCP"}
       </button>
     </article>

@@ -178,9 +178,80 @@ def discover_workers(
         discovery.stop()
 
 
+def _local_ipv4() -> str:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.connect(("8.8.8.8", 80))
+            return str(probe.getsockname()[0])
+    except OSError:
+        return ""
+
+
+def _probe_worker(address: str, port: int, timeout: float) -> dict[str, Any] | None:
+    import json
+    import urllib.request
+
+    url = f"http://{address}:{port}"
+    try:
+        with urllib.request.urlopen(f"{url}/health", timeout=timeout) as response:
+            if response.status != 200:
+                return None
+            payload = json.loads(response.read().decode("utf-8"))
+    except Exception:  # noqa: BLE001 - scan is best-effort
+        return None
+    if not isinstance(payload, dict) or not payload.get("available", True):
+        return None
+    worker_id = str(payload.get("worker_id") or "")
+    if not worker_id:
+        return None
+    return {
+        "worker_id": worker_id,
+        "hostname": str(payload.get("hostname") or ""),
+        "ip_local": address,
+        "port": int(payload.get("port") or port),
+        "url": url,
+        "gpu_name": str(payload.get("gpu_name") or ""),
+        "vram_total_mb": int(payload.get("vram_total_mb") or 0),
+        "vram_free_mb": int(payload.get("vram_free_mb") or 0),
+        "status": str(payload.get("status") or ""),
+        "queue_depth": int(payload.get("queue_depth") or 0),
+        "capabilities": [str(item) for item in payload.get("capabilities") or []],
+        "version": str(payload.get("version") or ""),
+        "auth_mode": str(payload.get("auth_mode") or ""),
+        "nvenc": bool(payload.get("nvenc")),
+        "encoder": str(payload.get("encoder") or ""),
+        "seen_at": time.time(),
+        "transport": "tcp_scan",
+    }
+
+
+def scan_workers(
+    *,
+    port: int = 8766,
+    timeout: float = 0.12,
+    max_workers: int = 32,
+) -> list[dict[str, Any]]:
+    """Probe the local /24 for a worker when UDP broadcast is blocked."""
+
+    local = _local_ipv4()
+    if not local:
+        return []
+    prefix = ".".join(local.split(".")[:3])
+    addresses = [f"{prefix}.{host}" for host in range(1, 255) if f"{prefix}.{host}" != local]
+    from concurrent.futures import ThreadPoolExecutor
+
+    found: list[dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=max(1, min(int(max_workers), 64))) as pool:
+        for item in pool.map(lambda address: _probe_worker(address, port, timeout), addresses):
+            if item is not None:
+                found.append(item)
+    return found
+
+
 __all__ = [
     "DEFAULT_DISCOVERY_PORT",
     "DiscoveredWorker",
     "GpuDiscovery",
     "discover_workers",
+    "scan_workers",
 ]

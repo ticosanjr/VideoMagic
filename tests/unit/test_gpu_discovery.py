@@ -48,6 +48,7 @@ def test_gpu_discovery_receives_a_real_udp_beacon() -> None:
         port = probe.getsockname()[1]
     discovery = GpuDiscovery(port=port, ttl_sec=5)
     discovery.start()
+    time.sleep(0.15)
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sender:
             sender.sendto(json.dumps(PAYLOAD).encode("utf-8"), ("127.0.0.1", port))
@@ -119,3 +120,18 @@ def test_worker_beacon_sends_udp(monkeypatch) -> None:
     beacon._send()
     assert sent and sent[0][1] == ("255.255.255.255", 8767)
     assert b"worker-1" in sent[0][0]
+
+
+def test_tcp_scan_finds_worker_when_broadcast_is_blocked(monkeypatch) -> None:
+    from vf_compute import discovery as client_discovery
+
+    monkeypatch.setattr(client_discovery, "_local_ipv4", lambda: "192.168.1.10")
+
+    def fake_probe(address: str, port: int, timeout: float):
+        if address == "192.168.1.55":
+            return {"worker_id": "worker-scan", "url": f"http://{address}:{port}", "port": port}
+        return None
+
+    monkeypatch.setattr(client_discovery, "_probe_worker", fake_probe)
+    found = client_discovery.scan_workers(port=8766)
+    assert [item["worker_id"] for item in found] == ["worker-scan"]

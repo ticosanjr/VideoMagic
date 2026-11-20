@@ -5,12 +5,15 @@
     duplicateStyle,
     getStyle,
     listStyles,
+    restoreStyle,
     saveStyleMarkdown,
     type StyleSummary
   } from "$lib/api";
 
   let styles = $state<StyleSummary[]>([]);
   let selected = $state("");
+  let creating = $state(false);
+  let styleId = $state("");
   let name = $state("");
   let markdown = $state("");
   let busy = $state(false);
@@ -38,17 +41,43 @@
     }
   }
 
+  function createNew() {
+    creating = true;
+    selected = "";
+    styleId = "meu-estilo";
+    name = "Meu estilo";
+    markdown = `---\nname: Meu estilo\naspect_ratio: "9:16"\ncaption_preset: youtube_bold_yellow\n---\n\n# Direção\n\nDescreva o estilo aqui.\n`;
+    notice = "";
+    error = "";
+  }
+
   async function save() {
-    if (!selected) return;
+    if (!selected && !creating) return;
     busy = true;
     try {
-      await saveStyleMarkdown({
-        style_id: selected,
+      const result = await saveStyleMarkdown({
+        style_id: creating ? styleId : selected,
         name,
         markdown_content: markdown,
         overwrite: true
       });
+      selected = result.style_id;
+      creating = false;
       notice = "Style saved.";
+      await load();
+    } catch (reason) {
+      error = reason instanceof Error ? reason.message : String(reason);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function restore() {
+    if (!selected) return;
+    busy = true;
+    try {
+      await restoreStyle(selected);
+      notice = "Seed style restored.";
       await load();
     } catch (reason) {
       error = reason instanceof Error ? reason.message : String(reason);
@@ -112,12 +141,18 @@
       </ul>
     </aside>
     <article class="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4">
-      {#if selected}
+      {#if selected || creating}
         <div class="flex flex-wrap items-center gap-2">
+          {#if creating}
+            <input bind:value={styleId} class="w-40 rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 font-mono text-[11px] text-neutral-200" />
+          {:else}
+            <input value={selected} disabled class="w-40 rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 font-mono text-[11px] text-neutral-400" />
+          {/if}
           <input bind:value={name} class="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 text-[length:var(--vf-text-sm)] text-neutral-100" />
           <button type="button" disabled={busy} onclick={() => void save()} class="rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-emerald-100 disabled:opacity-40">Save</button>
-          <button type="button" disabled={busy} onclick={() => void duplicate()} class="rounded-lg border border-white/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-neutral-300">Duplicate</button>
-          <button type="button" disabled={busy} onclick={() => void remove()} class="rounded-lg border border-rose-400/20 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-rose-200">Delete</button>
+          <button type="button" disabled={busy || creating} onclick={() => void duplicate()} class="rounded-lg border border-white/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-neutral-300">Duplicate</button>
+          <button type="button" disabled={busy || creating} title="Restore the shipped seed version" onclick={() => void restore()} class="rounded-lg border border-white/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-neutral-300">Restore seed</button>
+          <button type="button" disabled={busy || creating} title="Delete this custom style" onclick={() => void remove()} class="rounded-lg border border-rose-400/20 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-rose-200">Delete</button>
         </div>
         <textarea bind:value={markdown} spellcheck="false" class="mt-3 h-[55vh] w-full rounded-xl border border-white/10 bg-black/40 p-3 font-mono text-[length:var(--vf-text-xs)] leading-5 text-neutral-200"></textarea>
       {:else}

@@ -18,7 +18,7 @@ from videoflow.mcp_server.registry import RESOURCE_SPECS, TOOL_SPECS
 from videoflow.mcp_server.server import build_server
 
 names = [spec.name for spec in TOOL_SPECS]
-assert len(names) == 34, names
+assert len(names) == 35, names
 assert len(names) == len(set(names))
 assert all(name.startswith("vf_") for name in names)
 assert len(RESOURCE_SPECS) == 16
@@ -40,6 +40,10 @@ uv run coverage run --rcfile=/dev/null -m pytest \
   tests/unit/test_output_layout.py \
   tests/unit/test_scene_contracts.py \
   tests/unit/test_scene_intel.py \
+  tests/unit/test_formats.py \
+  tests/unit/test_system_folder_picker.py \
+  tests/unit/test_api_styles.py \
+  tests/unit/test_api_workflows.py \
   tests/unit/test_scene_mcp.py \
   tests/unit/test_short_composition.py \
   tests/unit/test_short_captions.py \

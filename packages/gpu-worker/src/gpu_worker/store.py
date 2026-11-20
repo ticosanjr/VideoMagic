@@ -191,6 +191,14 @@ class JobStore:
             created_at=created_at,
         )
 
+    def list_jobs(self, *, limit: int = 25) -> list[JobRecord]:
+        with self._lock, self._connection() as connection:
+            rows = connection.execute(
+                "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?",
+                (max(1, min(int(limit), 200)),),
+            ).fetchall()
+        return [job for row in rows if (job := _row_to_job(row)) is not None]
+
     def get_job(self, job_id: str) -> JobRecord | None:
         with self._lock, self._connection() as connection:
             row = connection.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()

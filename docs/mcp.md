@@ -1,9 +1,9 @@
 # MCP server — agent profile
 
-VideoFlow 3.7.0 exposes a **34-tool core MCP** plus four isolated domain servers:
+VideoFlow 3.9.0 exposes a **35-tool core MCP** plus four isolated domain servers:
 
 ```text
-mcp-vf-core      34 tools   project, styles, jobs, timeline, scenes, export, ingest, QA, GPU, transcript
+mcp-vf-core      35 tools   project, styles, jobs, timeline, scenes, export, ingest, QA, GPU, transcript
 mcp-vf-media-fetch  4 tools stock B-roll, images, URL segments, SFX
 mcp-vf-audio-studio 5 tools TTS, cleanup, stems, music/SFX, mix
 mcp-vf-vision-fx    6 tools word-aligned captions, rembg, upscale, motion, Ken Burns, screen/browser capture
@@ -51,7 +51,7 @@ metadata, time map, and step checkpoints; `projects/{id}/state.json` mirrors it.
 parallel. Writes to the same project are serialized by a project lock and
 `vf_edit_timeline` supports `expected_revision` for conflict detection.
 
-## Core tools (34)
+## Core tools (35)
 
 ### Project, catalog, and execution
 
@@ -94,6 +94,7 @@ parallel. Writes to the same project are serialized by a project lock and
 | --- | --- |
 | `vf_export` | `bundle`, `render`, `validate`, or `roundtrip`; canonical master plus `resolve`, `premiere`, and `kdenlive`. |
 | `vf_shorts_batch` | Render multiple Shorts with per-clip style, crop, intro, and music. |
+| `vf_format` | `list`, `get`, `save`, `delete`, or `duplicate` output format presets. |
 | `vf_scenes` | `analyze`, `manifest`, `keyframe`, `supercontext`, or `cache` for the scene-intelligence layer. |
 | `vf_qa_final` | Audit the delivered MP4, loudness, silence, safe zones, captions, word fidelity, contact sheet, and waveform. |
 | `vf_assets` | List assets, licenses, or fonts; approve, quarantine, or register fonts. |

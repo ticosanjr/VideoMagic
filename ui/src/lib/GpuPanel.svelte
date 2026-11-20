@@ -6,10 +6,12 @@
     disconnectGpuWorker,
     discoverGpuWorkers,
     downloadGpuWorkerKit,
+    getGpuActivity,
     getGpuStatus,
     patchGpuSettings,
     unloadGpuModels,
     validateGpuShared,
+    type GpuActivity,
     type GpuBenchmark,
     type GpuDiscoveredWorker,
     type GpuWorkerStatus
@@ -44,7 +46,9 @@
   let manualToken = $state("");
   let manualWorkerId = $state("");
   let autoConnecting = $state(false);
+  let activity = $state<GpuActivity | null>(null);
   let discovered = $state<GpuDiscoveredWorker[]>([]);
+  let discoveryInfo = $state<{ udp: number; tcp_scan: number; elapsed_ms: number } | null>(null);
   let benchmark = $state<GpuBenchmark | null>(null);
   let busy = $state("");
   let error = $state("");
@@ -132,6 +136,7 @@
     try {
       const payload = await discoverGpuWorkers();
       discovered = payload.workers;
+      discoveryInfo = payload.diagnostics ?? null;
       notice = payload.workers.length
         ? `${payload.workers.length} worker(s) found.`
         : "No worker beacon found on the LAN.";
@@ -140,6 +145,19 @@
       error = reason instanceof Error ? reason.message : String(reason);
     } finally {
       busy = "";
+    }
+  }
+
+  async function refreshActivity() {
+    if (!status?.available) {
+      activity = null;
+      return;
+    }
+    try {
+      const payload = await getGpuActivity();
+      activity = payload.ok ? payload.overview ?? null : null;
+    } catch {
+      activity = null;
     }
   }
 
@@ -218,6 +236,7 @@
     try {
       const payload = await discoverGpuWorkers();
       discovered = payload.workers;
+      discoveryInfo = payload.diagnostics ?? null;
       const peer =
         payload.workers.find((item) => item.auth_mode === "lan_open") ??
         payload.workers[0];
@@ -235,8 +254,11 @@
 
   let autoTimer: ReturnType<typeof setInterval> | undefined;
 
+  let activityTimer: ReturnType<typeof setInterval> | undefined;
+
   onMount(() => {
-    void refresh().then(() => autoConnect());
+    void refresh().then(() => autoConnect().then(() => refreshActivity()));
+    activityTimer = setInterval(() => void refreshActivity(), 3000);
     autoTimer = setInterval(() => {
       if (discoveryEnabled && !status?.available) void autoConnect();
     }, 5000);
@@ -244,6 +266,7 @@
 
   onDestroy(() => {
     if (autoTimer) clearInterval(autoTimer);
+    if (activityTimer) clearInterval(activityTimer);
   });
 </script>
 
@@ -298,6 +321,11 @@
           {busy === "kit" ? "Building kit…" : "Download Windows kit (.zip)"}
         </button>
       </div>
+      {#if discoveryInfo}
+        <p class="mt-2 text-[11px] text-neutral-500">
+          Discovery: UDP {discoveryInfo.udp} · TCP scan {discoveryInfo.tcp_scan} · {discoveryInfo.elapsed_ms} ms
+        </p>
+      {/if}
       {#if discovered.length}
         <ul class="mt-3 space-y-1.5" data-testid="gpu-discovered-list">
           {#each discovered as peer}
@@ -357,6 +385,61 @@
           {/if}
         </div>
       </div>
+    </article>
+
+    <article class="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4" data-testid="gpu-connection-card">
+      <h3 class="text-[length:var(--vf-text-sm)] font-semibold text-neutral-100">Connection details</h3>
+      <p class="mt-1 text-[length:var(--vf-text-xs)] text-neutral-500">Everything needed to connect or diagnose this worker.</p>
+      <div class="mt-3 space-y-1.5 text-[length:var(--vf-text-xs)]">
+        <div class="flex items-center justify-between gap-3 border-b border-white/5 pb-1.5"><span class="text-neutral-500">Worker URL</span><span class="truncate font-mono text-neutral-200">{status?.worker_url || "not connected"}</span></div>
+        <div class="flex items-center justify-between gap-3 border-b border-white/5 pb-1.5"><span class="text-neutral-500">Worker id</span><span class="truncate text-neutral-200">{status?.worker_id || "—"}</span></div>
+        <div class="flex items-center justify-between gap-3 border-b border-white/5 pb-1.5"><span class="text-neutral-500">Version</span><span class="text-neutral-200">{status?.version || "—"}</span></div>
+        <div class="flex items-center justify-between gap-3 border-b border-white/5 pb-1.5"><span class="text-neutral-500">Authentication</span><span class="text-neutral-200">{status?.auth_mode === "lan_open" ? "LAN open (private)" : status?.auth_mode || "token"}</span></div>
+        <div class="flex items-center justify-between gap-3 border-b border-white/5 pb-1.5"><span class="text-neutral-500">Encoder</span><span class="text-neutral-200">{status?.encoder || "—"} · NVENC {status?.nvenc ? "yes" : "no"}</span></div>
+        <div class="flex items-center justify-between gap-3"><span class="text-neutral-500">Discovery</span><span class="text-neutral-200">{discoveryEnabled ? "UDP 8767 + subnet scan" : "disabled"}</span></div>
+      </div>
+      {#if status?.worker_url}
+        <button type="button" class="mt-3 rounded-lg border border-white/10 px-2.5 py-1 text-[11px] text-neutral-300" onclick={() => void navigator.clipboard.writeText(status?.worker_url || "")}>Copy worker URL</button>
+      {/if}
+    </article>
+
+    <article class="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4" data-testid="gpu-activity-card">
+      <div class="flex items-center justify-between gap-2">
+        <h3 class="text-[length:var(--vf-text-sm)] font-semibold text-neutral-100">Worker activity</h3>
+        <span class="text-[11px] text-neutral-500">{status?.available ? "live · 3 s" : "offline"}</span>
+      </div>
+      <p class="mt-1 text-[length:var(--vf-text-xs)] text-neutral-500">What the worker is processing right now and the latest finished requests.</p>
+      {#if activity}
+        <div class="mt-3 grid gap-2 sm:grid-cols-2">
+          <div class="rounded-lg border border-white/5 p-2">
+            <p class="text-[10px] uppercase tracking-wide text-neutral-500">Current</p>
+            {#if activity.jobs?.find((job) => job.status === "running" || job.status === "queued")}
+              {@const current = activity.jobs.find((job) => job.status === "running" || job.status === "queued")}
+              <p class="mt-1 text-[length:var(--vf-text-xs)] text-neutral-200">{current?.capability}</p>
+              <p class="text-[11px] text-neutral-500">{current?.status} · job {current?.job_id.slice(0, 8)}</p>
+            {:else}
+              <p class="mt-1 text-[length:var(--vf-text-xs)] text-neutral-500">Idle</p>
+            {/if}
+          </div>
+          <div class="rounded-lg border border-white/5 p-2">
+            <p class="text-[10px] uppercase tracking-wide text-neutral-500">Queue</p>
+            <p class="mt-1 text-[length:var(--vf-text-xs)] text-neutral-200">{status?.queue_depth ?? 0} job(s)</p>
+          </div>
+        </div>
+        <ul class="mt-3 max-h-44 space-y-1.5 overflow-auto">
+          {#each (activity.jobs ?? []).slice(0, 6) as job}
+            <li class="flex items-center justify-between gap-2 rounded-lg border border-white/5 px-2 py-1.5 text-[11px]">
+              <span class="truncate text-neutral-300">{job.capability}</span>
+              <span class="shrink-0 font-mono text-neutral-500">{job.status}</span>
+            </li>
+          {/each}
+        </ul>
+        {#if activity.logs}
+          <pre class="mt-3 max-h-32 overflow-auto rounded-lg bg-black/40 p-2 font-mono text-[10px] leading-4 text-neutral-400">{activity.logs}</pre>
+        {/if}
+      {:else}
+        <p class="mt-3 text-[length:var(--vf-text-xs)] text-neutral-500">Connect the worker to see live activity.</p>
+      {/if}
     </article>
 
     <article class="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4" data-testid="gpu-shared-card">

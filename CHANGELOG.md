@@ -1,5 +1,34 @@
 # Changelog
 
+## [3.9.0] - 2026-11-20
+
+### Added
+
+- Windows worker dashboard embedded in the wheel at `http://127.0.0.1:8766/`,
+  with connection details, LAN URLs, auth mode, firewall/discovery state,
+  GPU/NVENC diagnostics, current job, recent jobs, logs, and copy/open actions.
+- Worker `/api/overview`, `/api/jobs`, `/api/logs`, and local-only
+  `/api/open-logs`; health now reports uptime, current job, last request,
+  LAN URLs, NVENC error, and driver version.
+- Active worker discovery: UDP beacon plus TCP subnet scan, merged results and
+  diagnostics in `/api/v1/gpu/discovery`.
+- Linux GPU panel connection card, discovery diagnostics, and live worker
+  activity polling.
+- `vf_format` MCP tool and format preset catalog with 9:16, 4:5, 1:1, and 16:9
+  seeds, safe zones, caption presets, platforms, export targets, and CRUD.
+- Formats UI with visual safe-zone preview, create, edit, duplicate, and delete.
+- `vf_style` actions `create`, `duplicate`, and `restore`; Styles UI now creates
+  styles and restores seeds.
+- Expandable help center with search, worker/style/format/scenes/Shorts/export
+  documentation, troubleshooting, and copyable prompt.
+
+### Changed
+
+- Windows worker menu adds “Abrir painel do worker” and status prints auth,
+  encoder, LAN URLs, and dashboard URL.
+- Discovered worker payloads include `auth_mode`, `nvenc`, and `encoder`.
+- MCP surface is now 35 tools; resources remain 16.
+
 ## [3.8.0] - 2026-11-19
 
 ### Added
