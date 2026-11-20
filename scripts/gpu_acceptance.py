@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Any
 
 from vf_compute import GPUWorkerClient
-from vf_compute.discovery import discover_workers
+from vf_compute.discovery import discover_workers, scan_workers
 
 
 def _videoflow_version() -> str:
@@ -197,6 +197,11 @@ def main() -> int:
     parser.add_argument("--nvenc-video", type=Path, default=None)
     parser.add_argument("--matte-input", type=Path, default=None)
     parser.add_argument("--discover", action="store_true")
+    parser.add_argument(
+        "--require-nvenc",
+        action="store_true",
+        help="Fail when the worker does not expose a working h264_nvenc encoder.",
+    )
     parser.add_argument("--json-out", type=Path, default=None)
     parser.add_argument("--markdown-out", type=Path, default=None)
     args = parser.parse_args()
@@ -211,8 +216,15 @@ def main() -> int:
         "discovery": [],
         "status": "blocked",
     }
+    if not args.worker_url and args.discover:
+        peers = discover_workers(timeout_sec=2.0)
+        if not peers:
+            peers = scan_workers(port=8766)
+        payload["discovery"] = peers
+        args.worker_url = str((peers[0] if peers else {}).get("url") or "")
+    payload["worker_url"] = args.worker_url
     if not args.worker_url:
-        payload["message"] = "No --worker-url was provided."
+        payload["message"] = "No --worker-url was provided and discovery found no worker."
     else:
         try:
             client = GPUWorkerClient(args.worker_url, args.token, timeout=15.0)
@@ -220,6 +232,12 @@ def main() -> int:
             payload["worker"] = health.model_dump(mode="json")
             if not health.available:
                 payload["message"] = health.message or "Worker is not available."
+            elif args.require_nvenc and not bool(getattr(health, "nvenc", False)):
+                payload["status"] = "failed"
+                payload["message"] = (
+                    "NVENC is required but unavailable: "
+                    + (getattr(health, "encoder", "") or "unknown")
+                )
             else:
                 payload["checks"]["asr"] = _asr_check(client, args.asr_audio)
                 payload["checks"]["nvenc"] = _nvenc_check(client, args.nvenc_video)

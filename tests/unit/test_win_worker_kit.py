@@ -187,3 +187,21 @@ def test_export_win_worker_cli(tmp_path: Path, capsys) -> None:
     assert output["worker_id"] == "cli-worker"
     assert output["token"] == "cli-token"
     assert Path(output["path"]).is_file()
+
+
+def test_public_windows_kit_is_tokenless(tmp_path: Path) -> None:
+    result = build_worker_kit(
+        output=tmp_path,
+        public=True,
+        include_worker_source=False,
+    )
+    names = _names(result.path)
+    assert "worker.env" not in names
+    assert "VideoFlowGPU.ps1" in names
+    assert result.path.name.startswith("VideoFlow-Windows-GPU-Worker-")
+    with zipfile.ZipFile(result.path) as archive:
+        readme = archive.read("LEIA-ME.txt").decode("utf-8")
+        ps1 = archive.read("VideoFlowGPU.ps1").decode("utf-8")
+    assert "generated automatically" in readme or "first run" in readme.lower()
+    assert "VF_GPU_ALLOW_LAN_OPEN" in ps1
+    assert result.token == ""

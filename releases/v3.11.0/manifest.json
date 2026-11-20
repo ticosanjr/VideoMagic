@@ -1,0 +1,33 @@
+{
+  "version": "3.11.0",
+  "built_at": "2026-11-20T09:46:51+00:00",
+  "host": "linux-x86_64",
+  "python": "3.12.3",
+  "artifacts": [
+    {
+      "name": "videoflow-3.11.0-linux-x86_64",
+      "sha256": "19e050d363197fcd8908e1971fef676a32bfa73ac5c469b3e606d1bc753cdb02",
+      "size_bytes": 351590656
+    },
+    {
+      "name": "VideoFlow-3.11.0-x86_64.AppImage",
+      "sha256": "709bb0a96a31ec2204fe31931954d0bc05d610447dd81c5b11ef991f4df90646",
+      "size_bytes": 350349816
+    },
+    {
+      "name": "sbom.json",
+      "sha256": "ce4efe1319a3c47af497bb81022e433c48db4a4ba3270fa3e86dea1845aeb87f",
+      "size_bytes": 11718
+    },
+    {
+      "name": "VideoFlow-3.11.0-linux-x86_64.tar.zst",
+      "sha256": "9a8b8d48c0fd052a0004aa41311c3c2fd6fba9454519070e4ff79f439cd207a7",
+      "size_bytes": 380443788
+    },
+    {
+      "name": "VideoFlow-Windows-GPU-Worker-3.11.0.zip",
+      "sha256": "47a4fe392d200a5f796a5d4d5c293e5113f2cd2c08f660e6e8c58f02a46cc8c6",
+      "size_bytes": 3814177
+    }
+  ]
+}

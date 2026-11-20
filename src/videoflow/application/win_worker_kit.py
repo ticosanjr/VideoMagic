@@ -109,7 +109,7 @@ def _windows_scripts(version: str) -> dict[str, bytes]:
     }
 
 
-def _readme(*, worker_id: str, has_ffmpeg: bool) -> str:
+def _readme(*, worker_id: str, has_ffmpeg: bool, public: bool = False) -> str:
     ffmpeg_line = (
         "bin\\ffmpeg.exe is included."
         if has_ffmpeg
@@ -131,8 +131,9 @@ First run:
 3. The script installs uv, a private Python 3.11, the worker, CUDA PyTorch,
    faster-whisper, rembg, OpenCV, FFmpeg with NVENC, and the firewall rule.
 4. Choose "Iniciar worker".
-5. In VideoFlow on Linux, use Setup -> GPU acceleration with this machine's
-   LAN IP, port 8766, and the token from worker.env.
+5. In VideoFlow on Linux, open Setup -> GPU acceleration. The worker appears
+   automatically through LAN discovery. LAN-open mode is enabled by default for
+   private networks; public clients still require the token.
 
 Offline worker install:
 - wheels\\ contains the worker and its Python dependencies.
@@ -160,8 +161,10 @@ Error capture:
 {ffmpeg_line}
 
 Security:
-- worker.env contains a pairing token. Do not publish this zip or paste the
-  token into logs, chat, or screenshots.
+- The first run creates worker.env with a token. Do not publish a personal kit
+  or paste the token into logs, chat, or screenshots.
+- LAN-open mode accepts only private/loopback clients; public clients require
+  the token.
 - The worker is intended for a private LAN. Do not expose port 8766 to the
   internet.
 - The shared mount is optional. If used, set VF_GPU_SHARED_ROOT in worker.env
@@ -250,10 +253,15 @@ def build_worker_kit(
     shared_windows_path: str = "",
     ffmpeg_path: Path | None = None,
     include_worker_source: bool = False,
+    public: bool = False,
 ) -> KitResult:
-    """Build a personal Windows worker zip and return its metadata."""
+    """Build a Windows worker zip.
 
-    resolved_token = _single_line(token, "token") or secrets.token_urlsafe(32)
+    Public kits omit ``worker.env`` and are safe to attach to a GitHub release;
+    the installer generates a local token on first run.
+    """
+
+    resolved_token = "" if public else (_single_line(token, "token") or secrets.token_urlsafe(32))
     resolved_worker = _safe_worker_id(worker_id)
     shared_windows_path = _single_line(shared_windows_path, "shared_windows_path")
     target_dir = (
@@ -262,7 +270,11 @@ def build_worker_kit(
         else portable_home() / KIT_DIR
     )
     target_dir.mkdir(parents=True, exist_ok=True)
-    target = target_dir / f"videoflow-windows-gpu-worker-{resolved_worker}.zip"
+    target = target_dir / (
+        f"VideoFlow-Windows-GPU-Worker-{_kit_version()}.zip"
+        if public
+        else f"videoflow-windows-gpu-worker-{resolved_worker}.zip"
+    )
     files: list[str] = []
     ffmpeg = Path(ffmpeg_path).expanduser() if ffmpeg_path is not None else None
     has_ffmpeg = bool(ffmpeg and ffmpeg.is_file())
@@ -273,15 +285,18 @@ def build_worker_kit(
         unique.setdefault(wheel.name, wheel)
     wheels = list(unique.values())
     with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        env_text = _env_file(
+            token=resolved_token,
+            worker_id=resolved_worker,
+            shared_windows_path=shared_windows_path,
+        )
         entries = {
-            "worker.env": _env_file(
-                token=resolved_token,
-                worker_id=resolved_worker,
-                shared_windows_path=shared_windows_path,
-            ).encode("utf-8"),
+            # A public kit never ships a token. Ensure-EnvFile creates worker.env.
+            **({"worker.env": env_text.encode("utf-8")} if not public else {}),
             "LEIA-ME.txt": _readme(
                 worker_id=resolved_worker,
                 has_ffmpeg=has_ffmpeg,
+                public=public,
             ).encode("utf-8"),
             "checksums.txt": _checksums(wheels),
             **_windows_scripts(_kit_version()),
@@ -313,12 +328,17 @@ def build_worker_kit(
     )
     metadata = result.to_dict(include_token=False)
     metadata["path"] = str(target)
-    metadata["token_location"] = "worker.env inside the zip"
+    metadata["public"] = bool(public)
+    metadata["token_location"] = "generated on first run" if public else "worker.env inside the zip"
     (target_dir / "last.json").write_text(
         json.dumps(metadata, indent=2) + "\n",
         encoding="utf-8",
     )
     return result
+
+
+def build_public_worker_kit(*, output: Path | None = None) -> KitResult:
+    return build_worker_kit(output=output, public=True)
 
 
 def kit_info() -> dict[str, object] | None:
@@ -332,4 +352,4 @@ def kit_info() -> dict[str, object] | None:
     return payload if isinstance(payload, dict) else None
 
 
-__all__ = ["KitResult", "build_worker_kit", "kit_info"]
+__all__ = ["KitResult", "build_worker_kit", "build_public_worker_kit", "kit_info"]

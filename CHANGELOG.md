@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.11.0] - 2026-11-20
+
+### Added
+
+- Public tokenless Windows GPU worker kit attached to releases:
+  `VideoFlow-Windows-GPU-Worker-<version>.zip`, with scripts, worker wheel,
+  runtime wheels, expected version, checksums, and no pairing token. The
+  installer creates `worker.env` on first run.
+- `scripts/build_windows_kit.py` and release/CI integration.
+- Windows workflow builds and validates the tokenless kit; release workflow
+  publishes it.
+- GPU smoke supports LAN auto-discovery and overview/dashboard checks without a
+  token (`--discover`, `--skip-jobs`).
+- GPU acceptance supports discovery and `--require-nvenc`.
+
+### Changed
+
+- Public Windows kit uses LAN-open discovery by default; personal kits still
+  include a token and warn not to publish.
+
 ## [3.10.0] - 2026-11-20
 
 ### Performance

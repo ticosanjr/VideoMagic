@@ -29,9 +29,16 @@ jobs:
           .\dist\videoflow.exe version
           .\dist\videoflow.exe doctor
           .\dist\videoflow.exe demo -o demo-smoke
-      - name: Upload Windows artifact
+      - name: Build tokenless Windows GPU worker kit
+        run: |
+          uv run python scripts/build_windows_kit.py --output dist
+          uv run python -c "import zipfile,pathlib; p=next(pathlib.Path('dist').glob('VideoFlow-Windows-GPU-Worker-*.zip')); z=zipfile.ZipFile(p); names=set(z.namelist()); assert 'worker.env' not in names; assert any(n.startswith('wheels/videoflow_gpu_worker-') for n in names); assert 'VideoFlowGPU.ps1' in names; print(p, len(names), 'files')"
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: videoflow-windows-x86_64
-          path: dist/videoflow.exe
+          name: videoflow-windows
+          path: |
+            dist/videoflow.exe
+            dist/VideoFlow-Windows-GPU-Worker-*.zip
+            dist/windows-kit.json
           if-no-files-found: error

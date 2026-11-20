@@ -168,6 +168,7 @@ def run_local_worker(
             token=token,
             directory=directory,
             check_fallback=True,
+            check_jobs=True,
         )
         report["mode"] = "local"
         return report
@@ -177,12 +178,28 @@ def run_local_worker(
         app.state.close()
 
 
+def discover_url(*, timeout: float = 3.0) -> str:
+    """Find a LAN worker through UDP, then the active TCP subnet scan."""
+
+    from vf_compute.discovery import discover_workers, scan_workers
+
+    peers = discover_workers(timeout_sec=min(max(timeout, 0.5), 5.0))
+    if not peers:
+        peers = scan_workers(port=8766)
+    for peer in peers:
+        url = str(peer.get("url") or "")
+        if url:
+            return url
+    return ""
+
+
 def run_smoke(
     *,
     url: str,
     token: str,
     directory: Path,
     check_fallback: bool,
+    check_jobs: bool = True,
 ) -> dict[str, object]:
     media = _sample_media(directory)
     report: dict[str, object] = {
@@ -200,6 +217,13 @@ def run_smoke(
         if not health.available:
             report["ok"] = False
             report["error"] = health.message or "worker is not available"
+            return report
+        try:
+            report["overview"] = client.overview(timeout=5.0)
+        except Exception as exc:  # noqa: BLE001 - dashboard is advisory
+            report["overview"] = {"ok": False, "error": str(exc)}
+        if not check_jobs:
+            report["ok"] = bool(report["overview"].get("ok", False))
             return report
         missing = [name for name in ("asr", "upscale") if name not in health.capabilities]
         if missing:
@@ -253,6 +277,16 @@ def main(argv: list[str] | None = None) -> int:
         help="Run the worker HTTP app locally with deterministic handlers.",
     )
     parser.add_argument("--local-port", type=int, default=8799)
+    parser.add_argument(
+        "--discover",
+        action="store_true",
+        help="Find the worker through UDP/TCP discovery instead of --url.",
+    )
+    parser.add_argument(
+        "--skip-jobs",
+        action="store_true",
+        help="Only check health/overview/dashboard, without media jobs.",
+    )
     parser.add_argument("--output", default="")
     parser.add_argument("--json-out", default="")
     parser.add_argument(
@@ -261,8 +295,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Verify the router chooses local when the worker is unreachable.",
     )
     args = parser.parse_args(argv)
+    if not args.local and args.discover:
+        args.url = discover_url()
+        if not args.url:
+            raise SystemExit("no worker discovered on the LAN")
     if not args.local and not args.url:
-        raise SystemExit("pass --url, set VF_GPU_WORKER_URL, or use --local")
+        raise SystemExit("pass --url, set VF_GPU_WORKER_URL, --discover, or use --local")
     directory = (
         Path(args.output).expanduser()
         if args.output
@@ -281,6 +319,7 @@ def main(argv: list[str] | None = None) -> int:
             token=args.token,
             directory=directory,
             check_fallback=args.check_fallback,
+            check_jobs=not args.skip_jobs,
         )
     text = json.dumps(report, indent=2) + "\n"
     if args.json_out:

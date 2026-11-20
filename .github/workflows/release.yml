@@ -94,11 +94,15 @@ jobs:
           .\dist\videoflow.exe version
           .\dist\videoflow.exe doctor
           .\dist\videoflow.exe demo -o demo-smoke
-      - name: Upload Windows artifact
+      - name: Build tokenless Windows GPU worker kit
+        run: uv run python scripts/build_windows_kit.py --output dist
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
           name: videoflow-windows
-          path: dist/videoflow.exe
+          path: |
+            dist/videoflow.exe
+            dist/VideoFlow-Windows-GPU-Worker-*.zip
           if-no-files-found: error
 
   publish:
@@ -117,13 +121,16 @@ jobs:
           cp artifacts/videoflow-linux/videoflow dist/videoflow
           cp artifacts/videoflow-linux/VideoFlow-*-x86_64.AppImage "dist/VideoFlow-${VERSION}-x86_64.AppImage"
           cp artifacts/videoflow-windows/videoflow.exe dist/videoflow.exe
+          cp artifacts/videoflow-windows/VideoFlow-Windows-GPU-Worker-*.zip dist/
           cp artifacts/videoflow-sbom/sbom.json dist/sbom.json
           uv sync --extra dev --group dev
-          uv run python scripts/release.py --version "$VERSION" --force
+          uv run python scripts/release.py --version "$VERSION" --force \
+            --artifact "$(ls dist/VideoFlow-Windows-GPU-Worker-*.zip)"
           gh release create "$GITHUB_REF_NAME" \
             "releases/v${VERSION}/videoflow-${VERSION}-linux-x86_64" \
             "releases/v${VERSION}/VideoFlow-${VERSION}-x86_64.AppImage" \
             "releases/v${VERSION}/videoflow-${VERSION}-windows-x86_64.exe" \
+            "releases/v${VERSION}/VideoFlow-Windows-GPU-Worker-${VERSION}.zip" \
             "releases/v${VERSION}/sbom.json" \
             "releases/v${VERSION}/SHA256SUMS" \
             --title "VideoFlow ${VERSION}" \
