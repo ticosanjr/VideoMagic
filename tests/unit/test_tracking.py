@@ -50,6 +50,7 @@ def test_keyframes_use_face_centers_when_available(monkeypatch) -> None:
         [(0, 48000)],
         48000,
         mode="face_tracking",
+        backend="opencv_haar",
         smoothing=0.0,
     )
     assert mode == "face_tracking"

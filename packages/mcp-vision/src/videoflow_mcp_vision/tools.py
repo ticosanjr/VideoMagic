@@ -9,6 +9,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from collections.abc import Sequence
@@ -182,6 +183,29 @@ def remove_background(
     target.parent.mkdir(parents=True, exist_ok=True)
 
     if is_video:
+        if ROUTER.health("segment_matte"):
+            try:
+                result = ROUTER.submit(
+                    "segment_matte",
+                    {
+                        "input": str(source),
+                        "fps": 30,
+                        "model": os.environ.get("VF_MATTE_MODEL", "u2net"),
+                        "output_name": f"{source.stem}_alpha.webm",
+                    },
+                )
+                record = _materialize_remote(
+                    project_id=project_id,
+                    relative_path=relative,
+                    result=result,
+                    capability="segment_matte",
+                    cache_key=key,
+                    kind="broll",
+                )
+                _require_output(target)
+                return _payload(tool, project_id, record, mode="remote", fallback=False)
+            except Exception:  # noqa: BLE001 - local fallback is the contract
+                pass
         _matte_video(source, target)
     else:
         _run_rembg(source, target)
@@ -727,6 +751,8 @@ def _encode_frames(
     fps: int,
     duration: float,
     alpha: bool,
+    draft: bool = False,
+    extension: str = "png",
 ) -> None:
     argv = [
         _ffmpeg(),
@@ -737,16 +763,40 @@ def _encode_frames(
         "-framerate",
         str(fps),
         "-i",
-        str(frames / "frame-%05d.png"),
+        str(frames / f"frame-%05d.{extension}"),
         "-vf",
         "scale=trunc(iw/2)*2:trunc(ih/2)*2",
         "-t",
         f"{duration:.3f}",
     ]
     if alpha:
-        argv.extend(["-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-b:v", "0", "-crf", "24"])
+        argv.extend(
+            [
+                "-c:v",
+                "libvpx-vp9",
+                "-pix_fmt",
+                "yuva420p",
+                "-auto-alt-ref",
+                "0",
+                "-b:v",
+                "0",
+                "-crf",
+                "34" if draft else "24",
+            ]
+        )
     else:
-        argv.extend(["-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p"])
+        argv.extend(
+            [
+                "-c:v",
+                "libx264",
+                "-preset",
+                "ultrafast" if draft else "veryfast",
+                "-crf",
+                "28" if draft else "18",
+                "-pix_fmt",
+                "yuv420p",
+            ]
+        )
     argv.append(str(target))
     commands.run(argv)
 
@@ -781,9 +831,10 @@ def _render_web_graphic(
             f"html engine expects a directory or .html file: {source_value}",
             details={"path": source_value},
         )
-    browser = _chrome()
+    _chrome()
     entry = entry.resolve()
-    viewport_width, viewport_height = _scaled_viewport(width, height, draft_scale)
+    viewport_width, viewport_height = _scaled_viewport(width, height, 1.0)
+    device_scale = max(0.1, min(1.0, float(draft_scale)))
     digest = _web_source_digest(source.resolve())
     key = storage.cache_key(
         tool,
@@ -805,39 +856,39 @@ def _render_web_graphic(
 
     target = storage.asset_path(project_id, relative)
     target.parent.mkdir(parents=True, exist_ok=True)
-    fps = 30
+    fps = 15 if draft_scale < 1.0 else 30
     total = max(1, round(duration * fps))
     props_query = quote(json.dumps(props, separators=(",", ":")))
     with tempfile.TemporaryDirectory(prefix="vf-html-") as raw:
         frames = Path(raw) / "frames"
         frames.mkdir(parents=True)
-        for index in range(total):
-            moment = index / fps
-            frame = frames / f"frame-{index:05d}.png"
-            separator = "&" if "?" in entry.as_uri() else "?"
-            url = (
-                f"{entry.as_uri()}{separator}vf_frame={index}&vf_time={moment:.4f}"
-                f"&vf_props={props_query}#t={moment:.4f}"
-            )
-            argv = [
-                browser,
-                "--headless=new",
-                "--disable-gpu",
-                "--hide-scrollbars",
-                f"--window-size={viewport_width},{viewport_height}",
-                f"--virtual-time-budget={max(500, round(moment * 1000))}",
-                f"--screenshot={frame}",
-            ]
-            if alpha:
-                argv.append("--default-background-color=00000000")
-            argv.append(url)
-            commands.run(argv, timeout=15)
-            if not frame.is_file():
-                raise OutputNotProducedError(
-                    f"Chromium did not capture frame {index}",
-                    details={"path": str(frame)},
-                )
-        _encode_frames(frames, target, fps=fps, duration=duration, alpha=alpha)
+        separator = "&" if "?" in entry.as_uri() else "?"
+        url = f"{entry.as_uri()}{separator}vf_props={props_query}"
+        extension = "png" if alpha else "jpg"
+        with _cdp_frame_capture(
+            url,
+            width=viewport_width,
+            height=viewport_height,
+            alpha=alpha,
+            scale=device_scale,
+            jpeg=not alpha,
+            timeout_sec=10.0,
+        ) as capture:
+            for index in range(total):
+                moment = index / fps
+                frame = frames / f"frame-{index:05d}.{extension}"
+                frame.write_bytes(capture(moment))
+        _encode_frames(
+            frames,
+            target,
+            fps=fps,
+            duration=duration,
+            alpha=alpha,
+            draft=draft_scale < 1.0,
+            extension=extension,
+        )
+    if alpha:
+        _assert_alpha(target)
     _require_output(target)
     record = storage.write_output(
         project_id,
@@ -852,7 +903,10 @@ def _render_web_graphic(
             "duration_sec": duration,
             "alpha": alpha,
             "draft_scale": draft_scale,
-            "viewport": [viewport_width, viewport_height],
+            "viewport": [
+                max(2, round(viewport_width * device_scale / 2) * 2),
+                max(2, round(viewport_height * device_scale / 2) * 2),
+            ],
             "source_sha256": digest,
             "props": props,
         },
@@ -1021,6 +1075,17 @@ def _cdp_scroll_capture(
 
         command("Page.enable")
         command("Runtime.enable")
+        command(
+            "Emulation.setDeviceMetricsOverride",
+            {
+                "width": int(width),
+                "height": int(height),
+                "deviceScaleFactor": 1.0,
+                "mobile": False,
+                "screenWidth": int(width),
+                "screenHeight": int(height),
+            },
+        )
         command("Page.navigate", {"url": url})
         for _ in range(120):
             state = command(
@@ -1077,8 +1142,204 @@ def _cdp_scroll_capture(
                     "height": float(rect["height"]),
                     "scale": 1,
                 }
+            params["optimizeForSpeed"] = True
             result = command("Page.captureScreenshot", params)
             return base64.b64decode(result.get("data", ""))
+
+        yield capture
+    finally:
+        if socket_connection is not None:
+            with _contextlib.suppress(Exception):
+                socket_connection.close()
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+        shutil.rmtree(profile, ignore_errors=True)
+
+
+@contextlib.contextmanager
+def _cdp_frame_capture(
+    url: str,
+    *,
+    width: int,
+    height: int,
+    alpha: bool = False,
+    scale: float = 1.0,
+    jpeg: bool = False,
+    timeout_sec: float = 10.0,
+):
+    """Reuse one Chromium target to capture animation frames deterministically.
+
+    Frames are driven by seeking ``document.getAnimations()`` instead of
+    starting a fresh browser per frame, so a 5 s card renders in seconds. Every
+    CDP command has a hard timeout; a stalled page cannot hang the render.
+    """
+
+    import base64
+    import contextlib as _contextlib
+    import socket
+    import subprocess
+    import time
+    import urllib.request
+
+    try:
+        import websocket  # type: ignore[import-not-found]
+    except Exception as exc:  # noqa: BLE001 - optional automation dependency
+        raise MissingCommandError(
+            "deterministic frame capture requires websocket-client",
+            details={"env": ["VF_CHROME_BIN"], "capability": "motion"},
+        ) from exc
+
+    browser = _chrome()
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = int(sock.getsockname()[1])
+    profile = tempfile.mkdtemp(prefix="vf-cdp-")
+    process = subprocess.Popen(
+        [
+            browser,
+            "--headless=new",
+            "--disable-gpu",
+            "--hide-scrollbars",
+            "--disable-background-timer-throttling",
+            "--disable-renderer-backgrounding",
+            "--disable-backgrounding-occluded-windows",
+            f"--window-size={width},{height}",
+            "--force-device-scale-factor=1",
+            f"--remote-debugging-port={port}",
+            f"--user-data-dir={profile}",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "about:blank",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    socket_connection = None
+    try:
+        for _ in range(120):
+            try:
+                with urllib.request.urlopen(
+                    f"http://127.0.0.1:{port}/json/version", timeout=0.5
+                ) as response:
+                    if response.status == 200:
+                        break
+            except OSError:
+                time.sleep(0.1)
+        else:
+            raise OutputNotProducedError(
+                "Chromium did not expose its debugging endpoint",
+                details={"url": url},
+            )
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/json/list", timeout=2
+        ) as response:
+            targets = json.loads(response.read().decode("utf-8"))
+        page = next((item for item in targets if item.get("type") == "page"), None)
+        if page is None or not page.get("webSocketDebuggerUrl"):
+            raise OutputNotProducedError(
+                "Chromium did not expose a page target", details={"url": url}
+            )
+        socket_connection = websocket.create_connection(
+            page["webSocketDebuggerUrl"], timeout=timeout_sec
+        )
+        counter = 0
+
+        def command(method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+            nonlocal counter
+            counter += 1
+            try:
+                socket_connection.send(
+                    json.dumps({"id": counter, "method": method, "params": params or {}})
+                )
+                while True:
+                    message = json.loads(socket_connection.recv())
+                    if message.get("id") != counter:
+                        continue
+                    if message.get("error"):
+                        raise OutputNotProducedError(
+                            f"Chromium CDP error: {message['error']}",
+                            details={"method": method},
+                        )
+                    return message.get("result") or {}
+            except OutputNotProducedError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - timeouts and closed sockets
+                raise OutputNotProducedError(
+                    f"Chromium CDP {method} timed out after {timeout_sec:.1f}s",
+                    details={"url": url},
+                ) from exc
+
+        command("Page.enable")
+        command("Runtime.enable")
+        command(
+            "Emulation.setDeviceMetricsOverride",
+            {
+                "width": int(width),
+                "height": int(height),
+                "deviceScaleFactor": max(0.1, float(scale)),
+                "mobile": False,
+                "screenWidth": int(width),
+                "screenHeight": int(height),
+            },
+        )
+        if alpha:
+            command(
+                "Emulation.setDefaultBackgroundColorOverride",
+                {"color": {"r": 0, "g": 0, "b": 0, "a": 0}},
+            )
+        command("Page.navigate", {"url": url})
+        for _ in range(100):
+            state = command(
+                "Runtime.evaluate",
+                {"expression": "document.readyState", "returnByValue": True},
+            )
+            if (state.get("result") or {}).get("value") == "complete":
+                break
+            time.sleep(0.1)
+
+        def capture(moment: float) -> bytes:
+            milliseconds = max(0.0, float(moment)) * 1000.0
+            expression = f"""(() => {{
+  const t = {milliseconds:.3f};
+  window.__vfTime = t / 1000;
+  try {{
+    for (const animation of document.getAnimations()) {{
+      animation.pause();
+      animation.currentTime = t;
+    }}
+  }} catch (error) {{}}
+  window.dispatchEvent(new CustomEvent('vf-frame', {{detail: {{time: t / 1000}}}}));
+  void document.documentElement.getBoundingClientRect();
+  return true;
+}})()"""
+            command(
+                "Runtime.evaluate",
+                {
+                    "expression": expression,
+                    "returnByValue": True,
+                },
+            )
+            result = command(
+                "Page.captureScreenshot",
+                {
+                    "format": "jpeg" if jpeg else "png",
+                    "quality": 88,
+                    "fromSurface": True,
+                    "captureBeyondViewport": False,
+                    "optimizeForSpeed": True,
+                },
+            )
+            payload = result.get("data", "")
+            if not payload:
+                raise OutputNotProducedError(
+                    "Chromium returned an empty screenshot",
+                    details={"time_sec": moment},
+                )
+            return base64.b64decode(payload)
 
         yield capture
     finally:
@@ -1195,6 +1456,8 @@ def capture_web_or_screen(
                 f"{name} must be between 320 and 3840",
                 details={"argument": name, "value": value},
             )
+    viewport_width = max(2, int(viewport_width) // 2 * 2)
+    viewport_height = max(2, int(viewport_height) // 2 * 2)
     screen_target = _is_screen_target(target_value)
     browser = "" if screen_target else _chrome()
     stem = _slug(Path(output_name).stem or Path(url_or_target).stem or "capture")
@@ -1346,7 +1609,9 @@ def capture_web_or_screen(
                         frame = frames / f"frame-{index:05d}.png"
                         frame.write_bytes(capture(progress))
                 if crop:
-                    for frame in frames.glob("frame-*.png"):
+                    for frame in sorted(frames.glob("frame-0*.*")):
+                        if ".crop." in frame.name:
+                            continue
                         commands.run(
                             [
                                 _ffmpeg(),
@@ -1362,33 +1627,34 @@ def capture_web_or_screen(
                             ]
                         )
                         frame.with_suffix(".crop.png").replace(frame)
-                _encode_frames(frames, target, fps=fps, duration=duration, alpha=False)
+                _encode_frames(
+                    frames,
+                    target,
+                    fps=fps,
+                    duration=duration,
+                    alpha=False,
+                    extension="png",
+                )
         else:
             with tempfile.TemporaryDirectory(prefix="vf-capture-") as raw_dir:
                 frames = Path(raw_dir) / "frames"
                 frames.mkdir(parents=True)
-                for index in range(total):
-                    moment = index / fps
-                    frame = frames / f"frame-{index:05d}.png"
-                    argv = [
-                        browser,
-                        "--headless=new",
-                        "--disable-gpu",
-                        "--hide-scrollbars",
-                        f"--window-size={viewport_width},{viewport_height}",
-                        f"--virtual-time-budget={max(500, round(moment * 1000))}",
-                        f"--screenshot={frame}",
-                        f"{url_or_target}{'&' if '?' in url_or_target else '?'}vf_time={moment:.4f}"
-                        + (f"&vf_scroll={scroll_animation}" if scroll_animation else ""),
-                    ]
-                    commands.run(argv, timeout=15)
-                    if not frame.is_file():
-                        raise OutputNotProducedError(
-                            f"Chromium did not capture frame {index}",
-                            details={"path": str(frame)},
-                        )
+                with _cdp_frame_capture(
+                    url_or_target,
+                    width=viewport_width,
+                    height=viewport_height,
+                    alpha=False,
+                    jpeg=True,
+                    timeout_sec=10.0,
+                ) as capture:
+                    for index in range(total):
+                        moment = index / fps
+                        frame = frames / f"frame-{index:05d}.jpg"
+                        frame.write_bytes(capture(moment))
                 if crop:
-                    for frame in frames.glob("frame-*.png"):
+                    for frame in sorted(frames.glob("frame-0*.*")):
+                        if ".crop." in frame.name:
+                            continue
                         commands.run(
                             [
                                 _ffmpeg(),
@@ -1404,7 +1670,14 @@ def capture_web_or_screen(
                             ]
                         )
                         frame.with_suffix(".crop.png").replace(frame)
-                _encode_frames(frames, target, fps=fps, duration=duration, alpha=False)
+                _encode_frames(
+                    frames,
+                    target,
+                    fps=fps,
+                    duration=duration,
+                    alpha=False,
+                    extension="jpg",
+                )
     _require_output(target)
     record = storage.write_output(
         project_id,
@@ -1764,10 +2037,144 @@ def _segment_bounds(item: dict[str, Any]) -> tuple[float, float]:
     return float(item.get("start", 0.0)), float(item.get("end", item.get("start", 0.0)))
 
 
+def _matte_backend() -> str:
+    requested = os.environ.get("VF_MATTE_BACKEND", "auto").strip().lower()
+    if requested in {"mediapipe", "selfie"}:
+        return "mediapipe"
+    if requested in {"rembg", "u2net", "u2netp"}:
+        return "rembg"
+    # MediaPipe keeps one segmenter in memory; the rembg CLI reloads its
+    # model per frame, which turns a 3 s clip into minutes.
+    if importlib.util.find_spec("mediapipe") is not None:
+        return "mediapipe"
+    if importlib.util.find_spec("rembg") is not None or shutil.which("rembg"):
+        return "rembg"
+    return "rembg"
+
+
+def _matte_frame(source: Path, target: Path) -> None:
+    """Cut one frame with the cheapest backend available."""
+
+    if _matte_backend() == "mediapipe" and _mediapipe_selfie(source, target):
+        return
+    _run_rembg(source, target)
+
+
+def _selfie_model_path() -> Path | None:
+    """Return a local MediaPipe selfie model, downloading it once if needed."""
+
+    configured = Path(
+        os.environ.get("VF_SELFIE_MODEL", "")
+    ).expanduser() if os.environ.get("VF_SELFIE_MODEL") else None
+    root = Path(
+        os.environ.get("VIDEOFLOW_HOME")
+        or (Path.home() / ".videoflow")
+    ).expanduser()
+    candidates = [
+        configured,
+        root / "models" / "selfie_segmenter.tflite",
+        Path("models") / "selfie_segmenter.tflite",
+        Path("models") / "selfie_segmenter_landscape.tflite",
+    ]
+    for candidate in candidates:
+        if candidate is not None and candidate.is_file():
+            return candidate
+    target = root / "models" / "selfie_segmenter.tflite"
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        import urllib.request
+
+        url = (
+            "https://storage.googleapis.com/mediapipe-models/image_segmenter/"
+            "selfie_segmenter/float16/1/selfie_segmenter.tflite"
+        )
+        with urllib.request.urlopen(url, timeout=30) as response:
+            payload = response.read()
+        if len(payload) < 1024:
+            return None
+        target.write_bytes(payload)
+        return target
+    except Exception:  # noqa: BLE001 - offline is a valid environment
+        return None
+
+
+_SELFIE_SEGMENTERS: dict[str, Any] = {}
+
+
+def _selfie_segmenter(model: Path) -> Any:
+    """Create one MediaPipe segmenter per process instead of per frame."""
+
+    key = str(model)
+    cached = _SELFIE_SEGMENTERS.get(key)
+    if cached is not None:
+        return cached
+    import mediapipe as mp  # noqa: F401 - initialize the runtime once
+    from mediapipe.tasks.python import BaseOptions
+    from mediapipe.tasks.python.vision import (
+        ImageSegmenter,
+        ImageSegmenterOptions,
+        RunningMode,
+    )
+
+    options = ImageSegmenterOptions(
+        base_options=BaseOptions(model_asset_path=str(model)),
+        running_mode=RunningMode.IMAGE,
+        output_confidence_masks=True,
+        output_category_mask=False,
+    )
+    segmenter = ImageSegmenter.create_from_options(options)
+    _SELFIE_SEGMENTERS[key] = segmenter
+    return segmenter
+
+
+def _mediapipe_selfie(source: Path, target: Path) -> bool:
+    """Run MediaPipe selfie segmentation and write an RGBA PNG."""
+
+    try:
+        import cv2
+        import mediapipe as mp
+        import numpy as np
+    except Exception:  # noqa: BLE001 - backend is optional
+        return False
+    model = _selfie_model_path()
+    if model is None:
+        return False
+    frame = cv2.imread(str(source), cv2.IMREAD_COLOR)
+    if frame is None:
+        return False
+    try:
+        segmenter = _selfie_segmenter(model)
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        image = mp.Image(
+            image_format=mp.ImageFormat.SRGB,
+            data=np.ascontiguousarray(rgb),
+        )
+        result = segmenter.segment(image)
+        masks = result.confidence_masks or ()
+        if not masks:
+            return False
+        candidate = masks[1] if len(masks) > 1 else masks[0]
+        mask = np.squeeze(candidate.numpy_view())
+    except Exception:  # noqa: BLE001 - optional backend
+        return False
+    alpha = np.clip(mask * 255.0, 0, 255).astype("uint8")
+    bgra = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
+    bgra[:, :, 3] = alpha
+    return bool(cv2.imwrite(str(target), bgra))
+
+
 def _matte_video(source: Path, target: Path) -> None:
     ffmpeg = _ffmpeg()
     fps = os.environ.get("VF_MATTE_FPS", "30")
     _validate_fps(fps)
+    maximum = int(os.environ.get("VF_MATTE_MAX_WIDTH", "720"))
+    try:
+        width = float(_probe_stream(source).get("width") or 0)
+    except Exception:  # noqa: BLE001 - probe is advisory
+        width = 0.0
+    scale = ""
+    if maximum > 0 and width > maximum:
+        scale = f",scale='min({maximum},iw)':-2"
     with tempfile.TemporaryDirectory(prefix="vf-matte-") as raw:
         workdir = Path(raw)
         frames = workdir / "frames"
@@ -1781,7 +2188,7 @@ def _matte_video(source: Path, target: Path) -> None:
                 "-i",
                 str(source),
                 "-vf",
-                f"fps={fps}",
+                f"fps={fps}{scale}",
                 str(frames / "%06d.png"),
             ]
         )
@@ -1792,7 +2199,7 @@ def _matte_video(source: Path, target: Path) -> None:
                 details={"input": str(source)},
             )
         for index, frame in enumerate(extracted, start=1):
-            _run_rembg(frame, mattes / f"{index:06d}.png")
+            _matte_frame(frame, mattes / f"{index:06d}.png")
         commands.run(
             [
                 ffmpeg,
@@ -1815,22 +2222,26 @@ def _matte_video(source: Path, target: Path) -> None:
 
 
 def _run_rembg(source: Path, target: Path) -> None:
+    model = os.environ.get("VF_MATTE_MODEL", "u2netp").strip()
     template = os.environ.get("VF_REMBG_CMD")
     if template:
         commands.run(
             commands.expand_template(
                 template,
-                {"input": str(source), "output": str(target)},
+                {"input": str(source), "output": str(target), "model": model},
                 name="rembg command",
             )
         )
         return
+    model_args = ["-m", model] if model else []
     binary = shutil.which("rembg")
     if binary:
-        commands.run([binary, "i", str(source), str(target)])
+        commands.run([binary, "i", *model_args, str(source), str(target)])
         return
     if importlib.util.find_spec("rembg") is not None:
-        commands.run([sys.executable, "-m", "rembg", "i", str(source), str(target)])
+        commands.run(
+            [sys.executable, "-m", "rembg", "i", *model_args, str(source), str(target)]
+        )
         return
     raise MissingCommandError(
         "rembg is not installed; set VF_REMBG_CMD or install rembg",
@@ -2106,6 +2517,43 @@ def _require_output(path: Path) -> None:
         raise OutputNotProducedError(
             f"command did not produce {path}",
             details={"path": str(path)},
+        )
+
+
+def _assert_alpha(path: Path) -> None:
+    """Fail when a rendered "alpha" intermediate lost its alpha plane."""
+
+    try:
+        completed = subprocess.run(
+            [
+                _ffprobe(),
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=pix_fmt:stream_tags=alpha_mode",
+                "-of",
+                "json",
+                str(path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        payload = json.loads(completed.stdout or "{}")
+        stream = (payload.get("streams") or [{}])[0]
+    except Exception:  # noqa: BLE001 - probe is advisory for exotic codecs
+        return
+    pix_fmt = str(stream.get("pix_fmt") or "")
+    alpha_mode = str((stream.get("tags") or {}).get("alpha_mode") or "")
+    has_alpha = pix_fmt.startswith(("yuva", "rgba", "bgra", "argb", "abgr")) or alpha_mode == "1"
+    if not has_alpha:
+        path.unlink(missing_ok=True)
+        raise OutputNotProducedError(
+            "alpha_channel_missing: rendered graphic has no alpha plane",
+            details={"path": str(path), "pix_fmt": pix_fmt},
         )
 
 

@@ -86,6 +86,21 @@ def _remove_background(
     )
 
 
+def _require_alpha_asset(path: Path, *, what: str) -> None:
+    """Reject an opaque intermediate before it becomes a black rectangle."""
+
+    from videoflow.core.media_contract import validate_alpha
+
+    if not Path(path).is_file():
+        raise ExportError(f"{what} is missing: {path}")
+    report = validate_alpha(path)
+    if not report.ok:
+        raise ExportError(
+            f"alpha_channel_missing: {what} has no alpha plane "
+            f"({report.to_dict()})"
+        )
+
+
 def _render_graphic(
     project_id: str,
     *,
@@ -323,11 +338,11 @@ def _parallax_html(
 html,body{{margin:0;width:{width}px;height:{height}px;overflow:hidden;background:#050608}}
 .stage{{position:relative;width:100%;height:100%;overflow:hidden;perspective:1200px}}
 .bg{{position:absolute;inset:-6%;background-image:url('{background}');background-size:cover;
-background-position:center;filter:blur(6px) brightness(.62);
+background-position:center;
 animation:bg {duration}s ease-in-out forwards}}
 .fg{{position:absolute;inset:0;background-image:url('{subject}');background-size:contain;
 background-repeat:no-repeat;background-position:center bottom;transform-origin:50% 70%;
-animation:fg {duration}s ease-in-out forwards;filter:drop-shadow(0 24px 42px #0009)}}
+animation:fg {duration}s ease-in-out forwards}}
 .vignette{{position:absolute;inset:0;
 background:radial-gradient(circle at 50% 45%,transparent 40%,#0009 100%)}}
 @keyframes bg{{from{{transform:scale(1)}}to{{transform:scale({bg_scale:.4f})}}}}
@@ -459,12 +474,15 @@ def depth_composite(
             alpha=True,
             width=width,
             height=height,
+            draft=True,
         )
         graphic_path = Path(str(graphic["output"]))
+    _require_alpha_asset(graphic_path, what="depth graphic")
 
     trimmed = _trim_clip(project_id, state, start, end, fps=30)
     matte = _remove_background(project_id, trimmed, is_video=True)
     matted_path = Path(str(matte["output"]))
+    _require_alpha_asset(matted_path, what="depth matte")
     created = _append_overlays(
         project_id,
         [
@@ -662,6 +680,33 @@ def _rounded_clip(
     )
 
 
+def _parallax_background(image: Path, work: Path) -> Path:
+    """Pre-blur the backdrop once instead of on every rendered frame."""
+
+    target = _cache_path(
+        work,
+        "parallax_bg",
+        str(image.resolve()),
+        image.stat().st_mtime_ns,
+    ).with_suffix(".jpg")
+    if target.is_file():
+        return target
+    try:
+        from PIL import Image, ImageEnhance, ImageFilter
+    except Exception:  # noqa: BLE001 - CSS still works without the pre-blur
+        return image
+    try:
+        with Image.open(image) as source:
+            frame = source.convert("RGB")
+            radius = max(2.0, min(frame.size) / 140)
+            frame = frame.filter(ImageFilter.GaussianBlur(radius=radius))
+            frame = ImageEnhance.Brightness(frame).enhance(0.62)
+            frame.save(target, quality=86)
+        return target
+    except Exception:  # noqa: BLE001 - advisory optimisation
+        return image
+
+
 def parallax(
     project_id: str,
     image_path: str,
@@ -689,6 +734,7 @@ def parallax(
     width, height = _canvas(state)
     subject = _remove_background(project_id, image, is_video=False)
     subject_path = Path(str(subject["output"]))
+    _require_alpha_asset(subject_path, what="parallax subject")
     work = output / "work" / "compositor"
     work.mkdir(parents=True, exist_ok=True)
     html_path = _cache_path(
@@ -703,9 +749,10 @@ def parallax(
         round(rotate_y_deg, 3),
         round(end - start, 3),
     ).with_suffix(".html")
+    background_path = _parallax_background(image, work)
     html_path.write_text(
         _parallax_html(
-            image_path=image,
+            image_path=background_path,
             subject_path=subject_path,
             width=width,
             height=height,
@@ -724,6 +771,7 @@ def parallax(
         alpha=False,
         width=width,
         height=height,
+        draft=True,
     )
     created = _append_overlays(
         project_id,

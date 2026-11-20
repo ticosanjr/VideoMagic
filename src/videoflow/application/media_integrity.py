@@ -142,7 +142,8 @@ def validate_integrity(
 
     payload = probe_media(path)
     expected = max(0.0, float(expected_sec))
-    frame_tolerance = (1.0 / fps) if fps > 0 else 0.001
+    base_tolerance = (1.0 / fps) if fps > 0 else 0.001
+    frame_tolerance = max(base_tolerance, base_tolerance * max(1, int(tolerance_frames)))
     format_sec = _seconds((payload.get("format") or {}).get("duration"))
     video = _first_stream(payload, "video")
     audio = _first_stream(payload, "audio")

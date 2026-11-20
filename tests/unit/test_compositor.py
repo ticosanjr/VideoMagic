@@ -57,6 +57,7 @@ def test_depth_composite_adds_graphic_and_matte_layers(
     record, source = _project(tmp_path)
     graphic = _fake(tmp_path / "graphic.webm")
     matte = _fake(tmp_path / "matte.webm")
+    monkeypatch.setattr(compositor, "_require_alpha_asset", lambda *a, **k: None)
     monkeypatch.setattr(compositor, "_trim_clip", lambda *args, **kwargs: source)
     monkeypatch.setattr(
         compositor, "_remove_background", lambda *args, **kwargs: {"output": str(matte)}
@@ -87,6 +88,7 @@ def test_depth_composite_accepts_an_asset_and_validates_range(
     record, source = _project(tmp_path)
     asset = _fake(tmp_path / "title.png")
     matte = _fake(tmp_path / "matte.webm")
+    monkeypatch.setattr(compositor, "_require_alpha_asset", lambda *a, **k: None)
     monkeypatch.setattr(compositor, "_trim_clip", lambda *args, **kwargs: source)
     monkeypatch.setattr(
         compositor, "_remove_background", lambda *args, **kwargs: {"output": str(matte)}
@@ -137,6 +139,7 @@ def test_parallax_uses_two_vision_layers(tmp_path: Path, monkeypatch) -> None:
     image = _fake(tmp_path / "photo.png")
     subject = _fake(tmp_path / "subject.png")
     graphic = _fake(tmp_path / "parallax.mp4")
+    monkeypatch.setattr(compositor, "_require_alpha_asset", lambda *a, **k: None)
     monkeypatch.setattr(
         compositor, "_remove_background", lambda *args, **kwargs: {"output": str(subject)}
     )
@@ -471,3 +474,21 @@ def test_style_frame_extracts_caches_and_handles_missing_media(
         background_image=source,
     )
     assert "background-image" in html
+
+
+def test_depth_composite_rejects_opaque_matte(tmp_path: Path, monkeypatch) -> None:
+    record, source = _project(tmp_path)
+    matte = _fake(tmp_path / "matte.webm")
+    opaque = _fake(tmp_path / "opaque.mp4")
+    monkeypatch.setattr(compositor, "_trim_clip", lambda *args, **kwargs: source)
+    monkeypatch.setattr(
+        compositor, "_remove_background", lambda *args, **kwargs: {"output": str(opaque)}
+    )
+    monkeypatch.setattr(
+        compositor,
+        "_render_graphic",
+        lambda *args, **kwargs: {"output": str(matte)},
+    )
+
+    with pytest.raises(ExportError, match="alpha_channel_missing"):
+        compositor.depth_composite(record.project_id, "Depth title", 0.0, 2.0)

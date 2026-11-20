@@ -116,7 +116,7 @@ def render_master(
     profile: str = "",
     audio_bitrate: str = DEFAULT_AUDIO_BITRATE,
     loudness_lufs: float | None = YOUTUBE_LUFS,
-    true_peak_db: float = -1.5,
+    true_peak_db: float = -2.0,
     cfr: bool = False,
     progress: Callable[[int], None] | None = None,
     scale_height: int | None = None,

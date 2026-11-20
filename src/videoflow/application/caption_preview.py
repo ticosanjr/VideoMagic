@@ -67,11 +67,15 @@ def render_caption_preview(
         build_ass_lines([active], style=style, width=media.width, height=media.height),
         encoding="utf-8",
     )
+    during = min(
+        max(float(time_sec), active.start + span * 0.35),
+        active.start + span * 0.65,
+    )
     frames: list[dict[str, Any]] = []
     for label, offset in (
-        ("before", max(active.start, active.start + span * 0.15)),
-        ("word", min(active.end, max(active.start, float(time_sec)))),
-        ("after", min(active.end, active.start + span * 0.85)),
+        ("before", active.start + span * 0.15),
+        ("word", during),
+        ("after", active.start + span * 0.85),
     ):
         target = directory / f"caption_{int(time_sec * 1000):09d}_{label}.jpg"
         completed = subprocess.run(

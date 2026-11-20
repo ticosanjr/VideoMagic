@@ -520,6 +520,19 @@ def test_caption_formatting_helpers() -> None:
     assert "Dialogue: 0,0:00:00.00,0:00:01.25,Karaoke" in ass
 
 
+def _fake_capture(monkeypatch: pytest.MonkeyPatch) -> None:
+    import contextlib as _contextlib
+
+    @_contextlib.contextmanager
+    def capture(*args: object, **kwargs: object):
+        def grab(moment: float) -> bytes:
+            return b"PNG"
+
+        yield grab
+
+    monkeypatch.setattr(vision_tools, "_cdp_frame_capture", capture)
+
+
 def _fake_chrome(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     script = tmp_path / "fake-chrome"
     script.write_text(
@@ -544,6 +557,7 @@ def test_render_html_graphic_uses_sha256_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _fake_chrome(tmp_path, monkeypatch)
+    _fake_capture(monkeypatch)
     source = tmp_path / "scene"
     source.mkdir()
     (source / "index.html").write_text("<html><body>Hello</body></html>", encoding="utf-8")
@@ -578,6 +592,7 @@ def test_render_html_graphic_alpha_writes_webm(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _fake_chrome(tmp_path, monkeypatch)
+    _fake_capture(monkeypatch)
     source = tmp_path / "scene"
     source.mkdir()
     (source / "index.html").write_text("<html></html>", encoding="utf-8")
@@ -626,6 +641,7 @@ def test_capture_web_or_screen_clip(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _fake_chrome(tmp_path, monkeypatch)
+    _fake_capture(monkeypatch)
 
     result = vision_tools.capture_web_or_screen(
         "proj-capture",

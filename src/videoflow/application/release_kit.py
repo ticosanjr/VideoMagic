@@ -64,6 +64,7 @@ def build_release_kit(project_id: str) -> dict[str, Any]:
         "thumbnails": thumbnails,
         "platform": platform,
         "source": "transcript",
+        "transcript_clean": True,
     }
     target = directory / "release_kit.json"
     target.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

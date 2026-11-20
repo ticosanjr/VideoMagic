@@ -229,6 +229,49 @@ def resolve_font_family(family: str) -> str | None:
     return _METRIC_ALIASES.get(name.casefold())
 
 
+@lru_cache(maxsize=1)
+def fontconfig_fonts() -> list[dict[str, object]]:
+    """List families reported by ``fc-list`` (the real renderer view)."""
+
+    binary = shutil.which("fc-list")
+    if binary is None:
+        return []
+    try:
+        completed = subprocess.run(
+            [binary, "--format", "%{family}\t%{style}\t%{file}\n"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    if completed.returncode != 0:
+        return []
+    fonts: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for line in completed.stdout.splitlines():
+        parts = line.split("\t")
+        if len(parts) < 3:
+            continue
+        family, style, path = (part.strip() for part in parts[:3])
+        if not family or not path:
+            continue
+        key = f"{family.casefold()}::{style.casefold()}"
+        if key in seen:
+            continue
+        seen.add(key)
+        fonts.append(
+            {
+                "family": family,
+                "style": style,
+                "file": path,
+                "source": "fontconfig",
+            }
+        )
+    return fonts
+
+
 def font_available(family: str) -> bool:
     """Check a registered font, fontconfig, or a known metric alias."""
 

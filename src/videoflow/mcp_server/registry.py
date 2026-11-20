@@ -85,6 +85,41 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "compositor",
     ),
     ToolSpec(
+        "vf_fx_depth",
+        "Composite text or graphics behind a matted presenter with real alpha.",
+        "compositor",
+    ),
+    ToolSpec(
+        "vf_fx_parallax",
+        "Animate a still as background plus a real-alpha 2.5D subject.",
+        "compositor",
+    ),
+    ToolSpec(
+        "vf_fx_motion",
+        "Render HTML, HyperFrames, Remotion, Manim, or FFmpeg motion graphics.",
+        "compositor",
+    ),
+    ToolSpec(
+        "vf_fx_capture",
+        "Capture a URL or screen as a still or a scrollable B-roll clip.",
+        "compositor",
+    ),
+    ToolSpec(
+        "vf_media",
+        "Fetch stock media, animate stills, generate beds, and audit or clear licenses.",
+        "assets",
+    ),
+    ToolSpec(
+        "vf_font",
+        "List or resolve bundled, system, fontconfig, and aliased fonts.",
+        "assets",
+    ),
+    ToolSpec(
+        "vf_preview",
+        "Render ordered caption or overlay preview frames.",
+        "qa",
+    ),
+    ToolSpec(
         "vf_shorts_batch",
         "Render multiple Shorts with per-clip style, crop, intro, and music.",
         "shorts",

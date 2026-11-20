@@ -129,6 +129,7 @@ Every stub has a strict `xfail` contract in `tests/contract/`.
 | [Cycle 1 gate](qa-evidence/cycle1-gate.md) | You are validating media contract, audio drift, or remote NVENC |
 | [Cycle 2 gate](qa-evidence/cycle2-gate.md) | You are validating edited-timeline Shorts, loudness, or caption safe zones |
 | [Cycle 3 gate](qa-evidence/cycle3-gate.md) | You are validating scene speed, PiP faces, keyframes, or FCPXML quarantine |
+| [Cycle 4 micro gate](qa-evidence/cycle4-micro-gate.md) | You are validating advanced FX, keyless media, style preview, or release-kit titles |
 | [Performance profile 3.13](performance-3.13.md) | You need job progress, priority, warmup, adaptive transfer, or scene tuning |
 | [Refactor and hardening 3.14](refactor-3.14.md) | You are changing scene rules, Short IO, styles/formats, discovery, or worker security |
 | [Refactor and throughput 3.15](refactor-3.15.md) | You are changing worker handlers, dashboard assets, or Short render concurrency |

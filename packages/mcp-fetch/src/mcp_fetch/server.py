@@ -28,7 +28,9 @@ from .errors import (
 from .providers import (
     GalleryDLClient,
     LocalAsset,
+    OpenverseClient,
     RemoteAsset,
+    WikimediaClient,
     YtDlpClient,
     env_value,
     freesound_license_filter,
@@ -362,13 +364,23 @@ class FetchService:
         query = _require_query(query)
         count = _bounded_int(count, name="count", minimum=1, maximum=50)
         requested = str(provider or "auto").strip().lower()
-        if requested not in {"auto", "pexels", "pixabay", "gallery-dl", "gallery_dl"}:
+        if requested not in {
+            "auto",
+            "pexels",
+            "pixabay",
+            "openverse",
+            "wikimedia",
+            "gallery-dl",
+            "gallery_dl",
+        }:
             raise InvalidRequestError(
-                f"Unknown provider {provider!r}; use 'auto', 'pexels', 'pixabay', or 'gallery-dl'."
+                f"Unknown provider {provider!r}; use 'auto', 'pexels', 'pixabay', "
+                "'openverse', 'wikimedia', or 'gallery-dl'."
             )
         orientation = "landscape"
         provider_name = ""
         client: Any = None
+        keyless_chain: list[str] = []
         if requested in {"auto", "pexels", "pixabay"}:
             try:
                 provider_name, client = resolve_keyed_provider(
@@ -380,9 +392,65 @@ class FetchService:
             except ProviderUnavailableError:
                 if not keyless or requested != "auto":
                     raise
+                keyless_chain = ["openverse", "wikimedia", "gallery-dl"]
                 provider_name = "gallery-dl"
+        elif requested in {"openverse", "wikimedia"}:
+            keyless_chain = [requested]
+            provider_name = requested
         else:
             provider_name = "gallery-dl"
+
+        if keyless_chain and keyless_chain[0] != "gallery-dl":
+            factories = {"openverse": OpenverseClient, "wikimedia": WikimediaClient}
+            last_failure: Exception | None = None
+            for candidate_name in keyless_chain:
+                if candidate_name == "gallery-dl":
+                    provider_name = "gallery-dl"
+                    break
+                try:
+                    candidate_client = factories[candidate_name](
+                        client=self._http_client()
+                    )
+                    candidates = candidate_client.search_images(
+                        query, count=count, orientation=orientation
+                    )
+                    if not candidates:
+                        raise ProviderResponseError(
+                            f"{candidate_name} returned no images for {query!r}."
+                        )
+                    request = {
+                        "tool": "fetch_stock_images",
+                        "provider": candidate_name,
+                        "query": query,
+                        "count": count,
+                        "keyless": True,
+                        "orientation": orientation,
+                    }
+                    key = workspace.key({**request, "project_id": workspace.project_id})
+                    cached = self._cached(
+                        workspace, key, provider=candidate_name, request=request
+                    )
+                    if cached is not None:
+                        return cached
+                    return self._materialize_remote(
+                        workspace,
+                        key,
+                        kind="images",
+                        provider_name=candidate_name,
+                        candidates=candidates,
+                        downloader=candidate_client,
+                        query=query,
+                        params={"count": count, "keyless": True},
+                        request=request,
+                    )
+                except (McpFetchError, httpx.HTTPError) as exc:  # try the next source
+                    last_failure = exc
+                    provider_name = candidate_name
+            if requested in {"openverse", "wikimedia"}:
+                raise ProviderResponseError(
+                    f"{requested} image search failed: {last_failure}",
+                    detail={"query": query},
+                )
 
         params = {"count": count, "keyless": bool(keyless), "orientation": orientation}
         request = {

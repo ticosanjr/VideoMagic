@@ -258,7 +258,11 @@ class AssetsLicenseAuditStep(BaseStep):
             if isinstance(item, dict)
         ]
         ledger_path = write_ledger(context.output, candidates)
-        blockers = license_blockers(context.output)
+        blockers = license_blockers(
+            context.output,
+            state=context.state,
+            scope="timeline" if context.state is not None else "workspace",
+        )
         context.metadata["license_blockers"] = blockers
         context.artifacts["assets_licenses"] = str(ledger_path)
         context.hashes["assets.license_audit"] = digest_payload(

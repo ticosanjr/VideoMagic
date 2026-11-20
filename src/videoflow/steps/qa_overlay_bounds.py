@@ -6,7 +6,12 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from videoflow.application.overlay_geometry import caption_box, collisions, layout_payload
+from videoflow.application.overlay_geometry import (
+    caption_box,
+    collisions,
+    layout_payload,
+    visual_overlay_box,
+)
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import RecipeError, StateNotReadyError
 from videoflow.steps.base import BaseStep, StepIO
@@ -19,6 +24,7 @@ class OverlayBoundsParams(BaseModel):
     platforms: list[str] = Field(default_factory=lambda: ["youtube_16_9"])
     strict: bool = False
     include_captions: bool = True
+    collision_mode: str = Field(default="visual", pattern="^(visual|bbox)$")
 
 
 @register_step
@@ -47,7 +53,17 @@ class OverlayBoundsStep(BaseStep):
             if options.include_captions
             else None
         )
-        issues = collisions(context.state, width, height, caption=caption)
+        issues = collisions(
+            context.state,
+            width,
+            height,
+            caption=caption,
+            mode=options.collision_mode,
+        )
+        visual_boxes = {
+            overlay.overlay_id: visual_overlay_box(overlay, width, height)
+            for overlay in context.state.overlays
+        }
         try:
             from videoflow.steps.qa_safezone import SAFE_ZONES
 
@@ -62,17 +78,38 @@ class OverlayBoundsStep(BaseStep):
                     for item in layout_payload(
                         context.state, width, height, caption=caption
                     )["overlays"]:
-                        x, y = item["x"], item["y"]
-                        right, bottom = x + item["w"], y + item["h"]
+                        if options.collision_mode in {"visual", "bbox"}:
+                            visual = visual_boxes.get(item["overlay_id"])
+                            if visual is None:
+                                continue
+                            x, y, right, bottom = (
+                                visual.x,
+                                visual.y,
+                                visual.right,
+                                visual.bottom,
+                            )
+                        else:
+                            x, y = item["x"], item["y"]
+                            right, bottom = x + item["w"], y + item["h"]
                         if not (
                             right <= zone_box[0]
                             or zone_box[2] <= x
                             or bottom <= zone_box[1]
                             or zone_box[3] <= y
                         ):
+                            intentional = (
+                                item.get("anchor") == "top_center"
+                                and visual is not None
+                                and abs(y) <= 1
+                                and "top chrome" in zone.reason
+                            )
                             issues.append(
                                 {
-                                    "kind": "safe_zone",
+                                    "kind": (
+                                        "top_chrome_intentional"
+                                        if intentional
+                                        else "safe_zone"
+                                    ),
                                     "item_a": item["overlay_id"],
                                     "item_b": f"{platform}:{zone.reason}",
                                     "overlap_px": 0,
@@ -82,8 +119,13 @@ class OverlayBoundsStep(BaseStep):
                             )
         except Exception:  # noqa: BLE001 - safe-zone QA is optional
             pass
+        blocking = [
+            issue
+            for issue in issues
+            if issue.get("kind") != "top_chrome_intentional"
+        ]
         report = {
-            "ok": not issues,
+            "ok": not blocking,
             "canvas": {"width": width, "height": height},
             "issues": issues,
             "layout": layout_payload(context.state, width, height, caption=caption),
@@ -93,9 +135,9 @@ class OverlayBoundsStep(BaseStep):
         path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         context.metadata["overlay_bounds"] = report
         context.artifacts["overlay_bounds"] = str(path)
-        if options.strict and issues:
+        if options.strict and blocking:
             raise RecipeError(
-                f"Overlay bounds QA found {len(issues)} collision(s); see {path}"
+                f"Overlay bounds QA found {len(blocking)} collision(s); see {path}"
             )
         io.report(100, f"Overlay bounds QA: {len(issues)} issue(s)")
 

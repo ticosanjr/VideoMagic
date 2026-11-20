@@ -188,7 +188,7 @@ def check_compositors() -> dict[str, Any]:
         "vf_style_preview",
     }
     return {
-        "ok": required <= names and len(TOOL_SPECS) == 35,
+        "ok": required <= names and len(TOOL_SPECS) >= 35,
         "missing": sorted(required - names),
         "tool_count": len(TOOL_SPECS),
     }

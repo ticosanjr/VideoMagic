@@ -164,6 +164,8 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         notes: list[str] | None = None,
         mode: str = "merge",
         max_rules: int = 15,
+        project_id: str = "",
+        duration_sec: float = 5.0,
     ) -> dict[str, Any]:
         """List, get, create, save, duplicate, restore, sync, or learn Markdown styles."""
 
@@ -199,6 +201,16 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                     images=images,
                     name=name,
                     save=False,
+                )
+            if action == "preview":
+                from videoflow.application.compositor import style_preview
+
+                if not project_id:
+                    return error("project_required", "project_id is required")
+                if not style_id:
+                    return error("style_required", "style_id is required")
+                return style_preview(
+                    project_id, style_id, duration_sec=duration_sec
                 )
             if action == "get":
                 return style_service.get_style(style_id)
@@ -632,6 +644,317 @@ def register_core_tools(register: Any, ctx: Any) -> None:
             return exc.to_dict()
         except (OSError, ValueError) as exc:
             return error("style_preview_failed", str(exc))
+
+    @register
+    def vf_fx_depth(
+        project_id: str,
+        text_or_asset: str,
+        start_sec: float,
+        end_sec: float,
+        style_props: dict[str, Any] | None = None,
+        anchor: str = "center",
+        width_ratio: float = 0.82,
+    ) -> dict[str, Any]:
+        """Place a graphic behind the matted presenter with real alpha."""
+
+        from videoflow.application.compositor import depth_composite
+
+        try:
+            return depth_composite(
+                project_id,
+                text_or_asset,
+                start_sec,
+                end_sec,
+                style_props=style_props,
+                anchor=anchor,
+                width_ratio=width_ratio,
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except (OSError, ValueError) as exc:
+            return error("fx_depth_failed", str(exc))
+
+    @register
+    def vf_fx_parallax(
+        project_id: str,
+        image_path: str,
+        start_sec: float,
+        end_sec: float,
+        bg_scale: float = 1.04,
+        fg_scale: float = 1.12,
+        rotate_y_deg: float = 3.0,
+        width_ratio: float = 0.72,
+        z: int = 10,
+    ) -> dict[str, Any]:
+        """Animate a still as a 2.5D background plus alpha subject."""
+
+        from videoflow.application.compositor import parallax
+
+        try:
+            return parallax(
+                project_id,
+                image_path,
+                start_sec,
+                end_sec,
+                bg_scale=bg_scale,
+                fg_scale=fg_scale,
+                rotate_y_deg=rotate_y_deg,
+                width_ratio=width_ratio,
+                z=z,
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except (OSError, ValueError) as exc:
+            return error("fx_parallax_failed", str(exc))
+
+    @register
+    def vf_fx_motion(
+        project_id: str,
+        engine: str = "hyperframes",
+        template_or_code: str = "",
+        props_json: str = "{}",
+        duration_sec: float = 5.0,
+        alpha: bool = False,
+        draft_scale: float = 1.0,
+        draft: bool = False,
+        width: int = 0,
+        height: int = 0,
+    ) -> dict[str, Any]:
+        """Render an HTML, HyperFrames, Remotion, Manim, or FFmpeg graphic."""
+
+        from videoflow_mcp_vision.tools import render_motion_graphic
+
+        try:
+            return render_motion_graphic(
+                project_id,
+                engine=engine,
+                template_or_code=template_or_code,
+                props_json=props_json,
+                duration_sec=duration_sec,
+                alpha=alpha,
+                draft_scale=draft_scale,
+                draft=draft,
+                width=width,
+                height=height,
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except Exception as exc:  # noqa: BLE001 - domain MCP boundary
+            return error("fx_motion_failed", str(exc))
+
+    @register
+    def vf_fx_capture(
+        project_id: str,
+        url_or_target: str,
+        mode: str = "screenshot",
+        duration_sec: float = 3.0,
+        crop_selector: str = "",
+        css_selector: str = "",
+        scroll_animation: str = "",
+        output_name: str = "",
+        fps: int = 5,
+        viewport_width: int = 1440,
+        viewport_height: int = 900,
+    ) -> dict[str, Any]:
+        """Capture a URL or screen as a still or scrollable clip."""
+
+        from videoflow_mcp_vision.tools import capture_web_or_screen
+
+        try:
+            return capture_web_or_screen(
+                project_id,
+                url_or_target=url_or_target,
+                mode=mode,
+                duration_sec=duration_sec,
+                crop_selector=crop_selector,
+                css_selector=css_selector,
+                scroll_animation=scroll_animation,
+                output_name=output_name,
+                fps=fps,
+                viewport_width=viewport_width,
+                viewport_height=viewport_height,
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except Exception as exc:  # noqa: BLE001 - domain MCP boundary
+            return error("fx_capture_failed", str(exc))
+
+    @register
+    def vf_media(
+        action: str = "list",
+        project_id: str = "",
+        query: str = "",
+        count: int = 5,
+        provider: str = "auto",
+        image_path: str = "",
+        duration_sec: float = 4.0,
+        motion: str = "zoom_in",
+        aspect_ratio: str = "",
+        prompt: str = "",
+        type: str = "music",
+        asset_ids: list[str] | None = None,
+        license: str = "",
+        attribution: str = "",
+        reason: str = "",
+        name: str = "",
+    ) -> dict[str, Any]:
+        """Fetch, animate, audit, or approve stock/media and licenses."""
+
+        try:
+            if action == "fetch_stock_images":
+                from mcp_fetch.server import fetch_stock_images
+
+                if not project_id:
+                    return error("project_required", "project_id is required")
+                return fetch_stock_images(
+                    project_id, query, count=count, provider=provider
+                )
+            if action == "image_to_broll_motion":
+                from videoflow_mcp_vision.tools import image_to_broll_motion
+
+                if not project_id:
+                    return error("project_required", "project_id is required")
+                return image_to_broll_motion(
+                    project_id,
+                    image_path,
+                    duration_sec=duration_sec,
+                    motion=motion,
+                    aspect_ratio=aspect_ratio,
+                )
+            if action == "generate_music_or_sfx":
+                from videoflow_mcp_audio.tools import generate_music_or_sfx
+
+                if not project_id:
+                    return error("project_required", "project_id is required")
+                return generate_music_or_sfx(
+                    project_id, prompt, duration_sec=duration_sec, type=type
+                )
+            if action in {"list", "license_audit", "approve_license"}:
+                if not project_id:
+                    return error("project_required", "project_id is required")
+                from videoflow.application.asset_providers.ledger import license_blockers
+                from videoflow.application.assets_service import (
+                    asset_records,
+                    review_assets,
+                )
+
+                record = get_project(project_id)
+                state = load_project_state(record)
+                if action == "approve_license":
+                    return review_assets(
+                        Path(record.output),
+                        action="approve",
+                        project_id=record.project_id,
+                        asset_ids=asset_ids,
+                        license=license,
+                        attribution=attribution,
+                        reason=reason,
+                    )
+                records = asset_records(
+                    Path(record.output), project_id=record.project_id, state=state
+                )
+                blockers = license_blockers(
+                    Path(record.output), state=state, scope="timeline"
+                )
+                return {
+                    "ok": True,
+                    "assets": records,
+                    "referenced": [item for item in records if item.get("referenced")],
+                    "blockers": blockers,
+                    "blocking_count": len(blockers),
+                }
+            return error(
+                "unknown_action",
+                "vf_media supports fetch_stock_images, image_to_broll_motion, "
+                "generate_music_or_sfx, list, license_audit, or approve_license",
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except Exception as exc:  # noqa: BLE001 - keep MCP errors structured
+            return error("media_failed", str(exc))
+
+    @register
+    def vf_font(
+        action: str = "list",
+        family: str = "",
+        font_path: str = "",
+        name: str = "",
+    ) -> dict[str, Any]:
+        """List or resolve real fonts, including virtual metric aliases."""
+
+        from videoflow.application.fonts import (
+            font_aliases,
+            fontconfig_fonts,
+            list_fonts,
+            list_system_fonts,
+            register_font,
+            resolve_font_family,
+        )
+
+        try:
+            if action == "list":
+                requested = str(family or "").strip()
+                resolved = resolve_font_family(requested) if requested else None
+                return {
+                    "ok": True,
+                    "fonts": list_fonts(),
+                    "system": list_system_fonts(),
+                    "fontconfig": fontconfig_fonts(),
+                    "aliases": font_aliases(),
+                    "family": requested,
+                    "resolved": resolved or requested,
+                }
+            if action == "resolve":
+                return {
+                    "ok": True,
+                    "family": family,
+                    "resolved": resolve_font_family(family),
+                    "aliases": font_aliases(),
+                }
+            if action == "register":
+                if not font_path:
+                    return error("font_required", "font_path is required")
+                return {"ok": True, "font": register_font(Path(font_path), name=name)}
+            return error("unknown_action", "vf_font supports list, resolve, or register")
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except Exception as exc:  # noqa: BLE001 - keep MCP errors structured
+            return error("font_failed", str(exc))
+
+    @register
+    def vf_preview(
+        project_id: str,
+        mode: str = "caption",
+        time_sec: float = 0.0,
+        platform: str = "youtube_16_9",
+    ) -> dict[str, Any]:
+        """Render a caption or overlay preview with ordered frames."""
+
+        try:
+            record = get_project(project_id)
+            state = load_project_state(record)
+            output = Path(record.output)
+            if mode == "caption":
+                from videoflow.application.caption_preview import (
+                    render_caption_preview,
+                )
+
+                result = render_caption_preview(state, output, time_sec=time_sec)
+            elif mode == "overlay":
+                from videoflow.application.overlay_preview import (
+                    render_overlay_preview,
+                )
+
+                result = render_overlay_preview(
+                    state, output, time_sec=time_sec, platform=platform
+                )
+            else:
+                return error("unknown_mode", "vf_preview supports caption or overlay")
+            return {"ok": True, "project_id": project_id, "mode": mode, "preview": result}
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except (OSError, ValueError) as exc:
+            return error("preview_failed", str(exc))
 
     @register
     def vf_shorts_batch(

@@ -18,7 +18,7 @@ from videoflow.mcp_server.registry import RESOURCE_SPECS, TOOL_SPECS
 from videoflow.mcp_server.server import build_server
 
 names = [spec.name for spec in TOOL_SPECS]
-assert len(names) == 35, names
+assert len(names) == 42, names
 assert len(names) == len(set(names))
 assert all(name.startswith("vf_") for name in names)
 assert len(RESOURCE_SPECS) == 16

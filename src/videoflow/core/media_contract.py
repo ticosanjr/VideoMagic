@@ -280,6 +280,7 @@ def _video_metrics(stream: dict[str, Any]) -> dict[str, Any]:
         "fps_den": fps[1] if fps else None,
         "fps": round(fps[0] / fps[1], 6) if fps else None,
         "pix_fmt": str(stream.get("pix_fmt") or ""),
+        "alpha_mode": str((stream.get("tags") or {}).get("alpha_mode") or ""),
         "codec": str(stream.get("codec_name") or ""),
         "color_transfer": str(stream.get("color_transfer") or ""),
         "color_primaries": str(stream.get("color_primaries") or ""),
@@ -375,7 +376,8 @@ def validate_media(
             _add_error(report, "overlay_video_missing", "overlay has no video stream")
         else:
             pix_fmt = str(report.metrics["video"]["pix_fmt"] or "")
-            if pix_fmt not in ALPHA_PIX_FMTS:
+            alpha_mode = str(report.metrics["video"].get("alpha_mode") or "")
+            if pix_fmt not in ALPHA_PIX_FMTS and alpha_mode != "1":
                 _add_error(
                     report,
                     "alpha_channel_missing",

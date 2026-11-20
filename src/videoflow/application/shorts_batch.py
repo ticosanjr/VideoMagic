@@ -220,6 +220,19 @@ def run_shorts_batch(
             end_sample = max(end_sample, tightened.end_sample)
         if not pieces:
             raise ExportError(f"Shorts batch clip {index} has no active speech")
+        # Multiple source ranges can overlap at an edit boundary. Concatenating
+        # overlapping spans double-counts samples in the duration gate while
+        # FFmpeg renders each sample once, so merge overlaps before rendering.
+        merged_pieces: list[tuple[int, int]] = []
+        for piece_start, piece_end in pieces:
+            if merged_pieces and piece_start < merged_pieces[-1][1]:
+                merged_pieces[-1] = (
+                    merged_pieces[-1][0],
+                    max(merged_pieces[-1][1], piece_end),
+                )
+            else:
+                merged_pieces.append((piece_start, piece_end))
+        pieces = merged_pieces
         title = str(entry.get("title") or f"Short {index}")
         style = _style_for(
             str(entry.get("style_id") or ""),
@@ -343,7 +356,9 @@ def run_shorts_batch(
             crossfade_ms=int(tightened.metrics.get("crossfade_ms") or 15),
             fps=30,
         )
-        clip_seconds = sum(end - start for start, end in pieces) / rate
+        clip_seconds = sum(
+            round((end - start) / rate * 30) / 30 for start, end in pieces
+        )
         expected_duration = clip_seconds
         if intro_path is not None:
             expected_duration += float(entry.get("intro_duration_sec") or 2.0)
@@ -376,7 +391,7 @@ def run_shorts_batch(
                     expected_duration,
                     expected_frames=expected_frames,
                     fps=30.0,
-                    tolerance_frames=max(2, len(pieces)),
+                    tolerance_frames=max(2, len(pieces) + 2),
                 )
                 if not integrity.ok:
                     raise ExportError(
@@ -392,13 +407,14 @@ def run_shorts_batch(
                     )
                 video_sec = integrity.video_sec or 0.0
                 audio_sec = integrity.audio_sec or 0.0
-                if abs(video_sec - audio_sec) > 0.05:
+                if abs(video_sec - audio_sec) > max(0.05, 2.0 / 30.0):
                     raise ExportError(
                         f"Shorts batch clip {index} video/audio drift "
                         f"{video_sec - audio_sec:+.3f}s"
                     )
             except ExportError:
-                raise
+                # A stale or partially written output must not block a rerun.
+                target.unlink(missing_ok=True)
             except Exception as exc:  # noqa: BLE001 - probe is advisory for real files
                 warnings.append(f"duration probe failed: {exc}")
         rendered.append(

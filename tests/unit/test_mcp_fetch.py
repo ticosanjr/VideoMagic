@@ -341,7 +341,14 @@ def test_fetch_sfx_uses_local_provider_directory(tmp_path: Path) -> None:
     assert license_payload["status"] == "cleared"
 
 
-def test_keyless_images_report_typed_error_when_gallery_dl_missing(tmp_path: Path) -> None:
+def test_keyless_images_report_typed_error_when_gallery_dl_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def unavailable(*args: Any, **kwargs: Any) -> None:
+        raise ProviderUnavailableError("keyless provider unavailable")
+
+    monkeypatch.setattr("mcp_fetch.server.OpenverseClient", unavailable)
+    monkeypatch.setattr("mcp_fetch.server.WikimediaClient", unavailable)
     service = FetchService(
         workspace_root=tmp_path,
         env={},

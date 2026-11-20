@@ -349,25 +349,27 @@ def collisions(
             if right_box is None:
                 continue
             window = _temporal_overlap(left, right)
-            if window is None or not overlap(left_box, right_box):
+            overlap_area = overlap_pixels(left_box, right_box)
+            if window is None or not overlap(left_box, right_box) or overlap_area <= 0:
                 continue
             issues.append(
                 {
                     "kind": "overlay_overlap",
                     "item_a": left.overlay_id,
                     "item_b": right.overlay_id,
-                    "overlap_px": overlap_pixels(left_box, right_box),
+                    "overlap_px": overlap_area,
                     "start_sec": round(window[0], 3),
                     "end_sec": round(window[1], 3),
                 }
             )
-        if caption is not None and overlap(left_box, caption):
+        caption_area = overlap_pixels(left_box, caption) if caption is not None else 0
+        if caption is not None and overlap(left_box, caption) and caption_area > 0:
             issues.append(
                 {
                     "kind": "caption_overlap",
                     "item_a": left.overlay_id,
                     "item_b": "captions",
-                    "overlap_px": overlap_pixels(left_box, caption),
+                    "overlap_px": caption_area,
                     "start_sec": round(left.start_sec, 3),
                     "end_sec": round(left.end_sec, 3),
                 }

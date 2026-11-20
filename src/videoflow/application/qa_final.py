@@ -167,6 +167,9 @@ def audit_final(
             last_sentence_end_sec=(
                 None if window_sec is not None else _last_sentence_end(state)
             ),
+            # AAC priming and frame rounding can shift a Short by up to two
+            # frames without any visible drift.
+            tolerance_frames=2,
         )
         if expected > 0
         else None
@@ -414,7 +417,7 @@ def audit_final(
                         ),
                     }
                 )
-    qa_dir = Path(output).expanduser() / "exports" / "qa"
+    qa_dir = Path(output).expanduser() / "exports" / "qa" / video.stem
     qa_dir.mkdir(parents=True, exist_ok=True)
     contact = (
         _contact_sheet(video, qa_dir / "final_contact.jpg")

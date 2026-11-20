@@ -1498,7 +1498,7 @@ class FFmpegAdapter:
                     "copy",
                     "-af",
                     (
-                        "loudnorm=I=-15.5:TP=-1.5:LRA=9,"
+                        "loudnorm=I=-15.5:TP=-2.0:LRA=9,"
                         f"apad=whole_dur={clip_duration:.6f},"
                         f"atrim=0:{clip_duration:.6f}"
                     ),
