@@ -629,7 +629,8 @@ def create_app(
         started = time.perf_counter()
         gpu = detect_gpu()
         ffmpeg = config.ffmpeg_cmd or "ffmpeg"
-        nvenc_probe = probe_nvenc(ffmpeg)
+        # Benchmark must re-test the driver, not replay a cached startup result.
+        nvenc_probe = probe_nvenc(ffmpeg, force=True)
         nvenc = nvenc_probe.available
         ct2_devices = 0
         try:

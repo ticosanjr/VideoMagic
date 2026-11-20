@@ -7,7 +7,7 @@
     "gpu_targets_are_reported_separately": true
   },
   "seconds": 90,
-  "elapsed_sec": 164.651,
+  "elapsed_sec": 118.815,
   "checks": {
     "core_source_contract": true,
     "core_all_keyframes": true,
@@ -39,33 +39,33 @@
     "protected_rule": true,
     "talking_head_not_protected": true,
     "quarantine": true,
-    "scene_elapsed_sec": 4.116
+    "scene_elapsed_sec": 3.248
   },
   "fx": {
     "depth": {
-      "path": "/home/rafael/.videoflow/workspace/projects/micro-gate-1795189640/assets/matte/micro-90_clip_9f9e33a3de6e0516_alpha.webm",
-      "graphic": "/home/rafael/.videoflow/workspace/projects/micro-gate-1795189640/assets/graphics/depth_graphic_6064fcad5203a26f_c812211e.webm",
-      "elapsed_sec": 18.157,
+      "path": "/home/rafael/.videoflow/workspace/projects/micro-gate-1795192884/assets/matte/micro-90_clip_be6ca9026d652ae1_alpha.webm",
+      "graphic": "/home/rafael/.videoflow/workspace/projects/micro-gate-1795192884/assets/graphics/depth_graphic_6064fcad5203a26f_23661d1c.webm",
+      "elapsed_sec": 13.778,
       "alpha": true,
       "cpu_target_25s": true,
       "gpu_target_5s": false
     },
     "parallax": {
-      "path": "/home/rafael/.videoflow/workspace/projects/micro-gate-1795189640/assets/graphics/parallax_ad7fc34fc4b0a54f_9cc70081.mp4",
-      "elapsed_sec": 14.697,
+      "path": "/home/rafael/.videoflow/workspace/projects/micro-gate-1795192884/assets/graphics/parallax_47a69d0e48cbcb9a_f9434fec.mp4",
+      "elapsed_sec": 10.842,
       "alpha": true,
       "cpu_target_20s": true,
       "gpu_target_10s": false
     },
     "motion": {
-      "path": "/home/rafael/.videoflow/workspace/projects/micro-gate-1795189640/assets/graphics/index_47812811.webm",
-      "elapsed_sec": 6.501,
+      "path": "/home/rafael/.videoflow/workspace/projects/micro-gate-1795192884/assets/graphics/index_046d19f6.webm",
+      "elapsed_sec": 4.871,
       "alpha": true,
       "cache_invalidated": true
     },
     "capture": {
-      "path": "/home/rafael/.videoflow/workspace/projects/micro-gate-1795189640/assets/broll/scroll.mp4",
-      "elapsed_sec": 3.173,
+      "path": "/home/rafael/.videoflow/workspace/projects/micro-gate-1795192884/assets/broll/scroll.mp4",
+      "elapsed_sec": 2.57,
       "width": 1080,
       "height": 1920,
       "even_dimensions": true
@@ -74,13 +74,13 @@
   "media": {
     "stock": {
       "ok": true,
-      "path": "/home/rafael/.videoflow/workspace/projects/micro-gate-1795189640/assets/images/2b56f3faae7d4df26194d529af266b3b6a0712fae4e852f77fbe7b895ab3d5c9.jpg",
+      "path": "/home/rafael/.videoflow/workspace/projects/micro-gate-1795192884/assets/images/2b56f3faae7d4df26194d529af266b3b6a0712fae4e852f77fbe7b895ab3d5c9.jpg",
       "license": "CC0",
       "attribution": "Wilfredor / Wikimedia Commons (CC0)"
     },
     "broll": {
       "ok": true,
-      "path": "/home/rafael/.videoflow/workspace/projects/micro-gate-1795189640/assets/broll/2b56f3faae7d4df26194d529af266b3b6a0712fae4e852f77fbe7b895ab3d5c9_zoom_in_1920x1080.mp4",
+      "path": "/home/rafael/.videoflow/workspace/projects/micro-gate-1795192884/assets/broll/2b56f3faae7d4df26194d529af266b3b6a0712fae4e852f77fbe7b895ab3d5c9_zoom_in_1920x1080.mp4",
       "width": 1920,
       "height": 1080
     },
@@ -91,12 +91,12 @@
     },
     "music": {
       "ok": true,
-      "path": "/home/rafael/.videoflow/workspace/projects/micro-gate-1795189640/assets/audio/music_documentary_tension_cdab180a.wav"
+      "path": "/home/rafael/.videoflow/workspace/projects/micro-gate-1795192884/assets/audio/music_documentary_tension_cdab180a.wav"
     }
   },
   "style": {
-    "path": "/home/rafael/.videoflow/workspace/projects/micro-gate-1795189640/assets/graphics/style_sr_depth_3d_viral_c3eb701fe69b7879_39cc553b.mp4",
-    "elapsed_sec": 8.282,
+    "path": "/home/rafael/.videoflow/workspace/projects/micro-gate-1795192884/assets/graphics/style_sr_depth_3d_viral_dd329b9b483a24b0_47d127ae.mp4",
+    "elapsed_sec": 6.552,
     "cpu_target_25s": true,
     "draft": true
   },
@@ -114,9 +114,9 @@
   },
   "deliverables": [
     {
-      "path": "/tmp/opencode/vf-micro-gate/project-1795189640/exports/youtube_mix.mp4",
+      "path": "/tmp/opencode/vf-micro-gate/project-1795192884/exports/youtube_mix.mp4",
       "kind": "longform_mix",
-      "elapsed_sec": 13.392,
+      "elapsed_sec": 9.384,
       "status": "succeeded",
       "loudness": {
         "integrated_lufs": -16.8,
@@ -131,9 +131,9 @@
       "issues": []
     },
     {
-      "path": "/tmp/opencode/vf-micro-gate/project-1795189640/exports/youtube_timeline.mp4",
+      "path": "/tmp/opencode/vf-micro-gate/project-1795192884/exports/youtube_timeline.mp4",
       "kind": "longform_timeline",
-      "elapsed_sec": 14.675,
+      "elapsed_sec": 9.867,
       "status": "succeeded",
       "loudness": {
         "integrated_lufs": -16.8,
@@ -148,7 +148,7 @@
       "issues": []
     },
     {
-      "path": "/tmp/opencode/vf-micro-gate/project-1795189640/shorts/batch/01-depth-3d.mp4",
+      "path": "/tmp/opencode/vf-micro-gate/project-1795192884/shorts/batch/01-depth-3d.mp4",
       "kind": "short",
       "status": "succeeded",
       "loudness": {
@@ -164,7 +164,7 @@
       "issues": []
     },
     {
-      "path": "/tmp/opencode/vf-micro-gate/project-1795189640/shorts/batch/01-feed-4-5.mp4",
+      "path": "/tmp/opencode/vf-micro-gate/project-1795192884/shorts/batch/01-feed-4-5.mp4",
       "kind": "short",
       "status": "succeeded",
       "loudness": {
@@ -180,7 +180,7 @@
       "issues": []
     },
     {
-      "path": "/tmp/opencode/vf-micro-gate/project-1795189640/shorts/batch/01-intro.mp4",
+      "path": "/tmp/opencode/vf-micro-gate/project-1795192884/shorts/batch/01-intro.mp4",
       "kind": "short",
       "status": "succeeded",
       "loudness": {
@@ -205,7 +205,7 @@
       ]
     },
     {
-      "path": "/tmp/opencode/vf-micro-gate/project-1795189640/shorts/batch/01-short-75.mp4",
+      "path": "/tmp/opencode/vf-micro-gate/project-1795192884/shorts/batch/01-short-75.mp4",
       "kind": "short",
       "status": "succeeded",
       "loudness": {
@@ -221,7 +221,7 @@
       "issues": []
     },
     {
-      "path": "/tmp/opencode/vf-micro-gate/project-1795189640/shorts/batch/01-vertical.mp4",
+      "path": "/tmp/opencode/vf-micro-gate/project-1795192884/shorts/batch/01-vertical.mp4",
       "kind": "short",
       "status": "succeeded",
       "loudness": {

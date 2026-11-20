@@ -1,5 +1,52 @@
 # Changelog
 
+## [3.17.0] - 2026-11-20
+
+### Added
+
+- Advanced FX MCP tools: `vf_fx_depth`, `vf_fx_parallax`, `vf_fx_motion`,
+  `vf_fx_capture`, `vf_media`, `vf_font`, and `vf_preview`.
+- Real-alpha validation for depth and parallax intermediates with a hard
+  `alpha_channel_missing` failure instead of a black rectangle.
+- Keyless Wikimedia Commons and Openverse image search with license and
+  attribution metadata; `approve_license` clears the timeline audit gate.
+- Fontconfig discovery and virtual metric aliases through `vf_font`.
+- Release-kit titles generated from `transcript_clean`.
+
+### Fixed
+
+- NVENC probing now performs a real 640x360 `yuv420p` MP4 encode and tries six
+  preset/rate-control profiles; the worker only advertises NVENC when bytes are
+  produced. The benchmark forces a fresh probe and returns actionable advice.
+- Worker renders reuse the encoder flags proven by the probe rather than
+  hard-coded options that some drivers reject with `Invalid argument`.
+- Windows installer NVENC checks no longer use the fragile `-f null` probe.
+- Local exporter and Short renderer validate a real NVENC encode before
+  selecting hardware encoding.
+- Depth/parallax CPU budgets: matte downsample, MediaPipe selfie reuse, draft
+  graphics, pre-blurred parallax backdrop, and JPEG frame capture.
+- HTML motion graphics invalidate cache on in-place edits via content and
+  `mtime` hashing; capture uses CDP frame timing with a 10 s hard timeout.
+- Short batches merge overlapping source pieces, tolerate AAC frame rounding,
+  and re-render stale invalid outputs.
+- QA reports are stored per deliverable instead of overwriting `final_qa.json`.
+- Caption previews preserve `before < during < after` ordering.
+- Overlay QA accepts `visual`/`bbox` alpha bounds and marks intentional
+  `top_center` top-chrome overlap.
+
+### Performance
+
+- Scene analysis uses a 3 fps 360p keyframe proxy and at most three visual
+  samples per scene.
+- Depth and parallax render in 18.2 s and 14.7 s on CPU for the 3 s/6 s cases.
+- Cycle 4 micro gate completes in 164.7 s with 7/7 deliverables passing.
+
+### Changed
+
+- `bump_version.py` now updates all workspace package manifests.
+- NVENC probing is a dedicated worker module (`gpu_worker.nvenc`) with the
+  historical `handlers_gpu` surface preserved.
+
 ## [3.16.0] - 2026-11-20
 
 ### Fixed

@@ -51,7 +51,23 @@ def main() -> int:
         return 2
 
     changed = []
-    targets = (
+    package_manifests = (
+        "gpu-worker",
+        "mcp-audio",
+        "mcp-fetch",
+        "mcp-vision",
+        "scene-rules",
+        "vf-compute",
+        "vf-contracts",
+    )
+    targets = [
+        (
+            ROOT / "packages" / name / "pyproject.toml",
+            re.compile(r'(?m)^version = "[^"]+"'),
+            f'version = "{version}"',
+        )
+        for name in package_manifests
+    ] + [
         (
             ROOT / "pyproject.toml",
             re.compile(r'(?m)^version = "[^"]+"'),
@@ -72,7 +88,7 @@ def main() -> int:
             re.compile(r'(?ms)(name = "videoflow"\nversion = ")[^"]+"'),
             rf'\g<1>{version}"',
         ),
-    )
+    ]
     for path, pattern, replacement in targets:
         if _replace(path, pattern, replacement):
             changed.append(path.relative_to(ROOT))

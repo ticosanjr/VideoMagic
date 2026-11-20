@@ -113,6 +113,7 @@ test("pairs, benchmarks, and configures GPU acceleration", async ({ page }) => {
   await page.getByTestId("gpu-discover").click();
   await expect(page.getByTestId("gpu-discovered-list")).toContainText("gpu-host");
 
+  await page.getByText("Advanced pairing").click();
   await page.getByTestId("gpu-manual-url").fill("http://192.168.1.45:8766");
   await page.getByTestId("gpu-manual-token").fill("secret-token");
   await page.getByTestId("gpu-connect").click();

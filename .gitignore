@@ -22,3 +22,9 @@ ui/.vite/
 *.mov
 Outputs/
 .DS_Store
+releases/*/*.tar.zst
+releases/*/*.zip
+releases/*/*.zip.sha256
+releases/*/*.AppImage
+releases/*/videoflow-*-linux-x86_64
+releases/*/videoflow.exe

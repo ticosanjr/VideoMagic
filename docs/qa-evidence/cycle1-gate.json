@@ -34,7 +34,7 @@
   "exports": {
     "mix": {
       "path": "/tmp/opencode/vf-cycle1-gate/project/exports/youtube_mix.mp4",
-      "elapsed_sec": 5.774,
+      "elapsed_sec": 4.276,
       "contract_ok": true,
       "contract": {
         "ok": true,
@@ -54,6 +54,7 @@
             "fps_den": 1,
             "fps": 30.0,
             "pix_fmt": "yuv420p",
+            "alpha_mode": "",
             "codec": "h264",
             "color_transfer": "",
             "color_primaries": "",
@@ -100,7 +101,7 @@
     },
     "timeline": {
       "path": "/tmp/opencode/vf-cycle1-gate/project/exports/youtube_timeline.mp4",
-      "elapsed_sec": 6.047,
+      "elapsed_sec": 4.798,
       "contract_ok": true,
       "contract": {
         "ok": true,
@@ -120,6 +121,7 @@
             "fps_den": 1,
             "fps": 30.0,
             "pix_fmt": "yuv420p",
+            "alpha_mode": "",
             "codec": "h264",
             "color_transfer": "",
             "color_primaries": "",
@@ -173,6 +175,6 @@
     "encoder": "libx264",
     "nvenc_error": "alid argument\n[vf#0:0 @ 0000015600718a80] Terminating thread with error: Invalid argument\n[vost#0:0/h264_nvenc @ 00000156006fd980] [enc:h264_nvenc @ 0000015600667600] Could not open encoder before EOF\n[vost#0:0/h264_nvenc @ 00000156006fd980] Task finished with error: Invalid argument\n[vost#0:0/h264_nvenc @ 00000156006fd980] Terminating thread with error: Invalid argument\n[out#0/null @ 0000015600683800] Nothing was written into output file, because at least one of its streams received no packets."
   },
-  "elapsed_sec": 18.846,
+  "elapsed_sec": 14.808,
   "ok": false
 }
