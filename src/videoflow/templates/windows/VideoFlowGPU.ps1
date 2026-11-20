@@ -995,7 +995,7 @@ function Show-Status {
         Write-Host ("Capabilities: {0}" -f ($status.health.capabilities -join ", "))
         Write-Host ("Auth: {0}" -f $status.health.auth_mode)
         Write-Host ("Encoder: {0} (nvenc={1})" -f $status.health.encoder, $status.health.nvenc)
-        Write-Host ("URIs: {0}" -f (($status.health.lan_urls | ForEach-Object { "http://${_}:$($status.port)" }) -join ", "))
+        Write-Host ("URIs: {0}" -f (($status.health.lan_urls | ForEach-Object { "http://$($_):$($status.port)" }) -join ", "))
         Write-Host ("Painel: http://127.0.0.1:{0}/" -f $status.port)
     } else {
         Write-Host "Health: offline"

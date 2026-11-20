@@ -154,6 +154,10 @@
     </aside>
     <article class="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4">
       {#if draft}
+        {#if draft.builtin}
+          <p class="mb-3 rounded-lg border border-amber-400/20 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-200">Built-in formats are read-only. Duplicate to customize.</p>
+        {/if}
+        <fieldset disabled={draft.builtin} class="border-0 p-0">
         <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <label class="text-[11px] text-neutral-500">Format id<input bind:value={draft.format_id} disabled={!draft.new} class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 font-mono text-[11px] text-neutral-200" /></label>
           <label class="text-[11px] text-neutral-500">Name<input bind:value={draft.name} class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 text-[11px] text-neutral-200" /></label>
@@ -165,9 +169,14 @@
           <label class="text-[11px] text-neutral-500" title="Reserved action rail on the right; Shorts default is 140 px">Right safe zone (px)<input type="number" bind:value={draft.safe_zones.right_px} class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 text-[11px] text-neutral-200" /></label>
           <label class="text-[11px] text-neutral-500">Caption preset<input bind:value={draft.caption_preset} class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 text-[11px] text-neutral-200" /></label>
         </div>
+        <div class="mt-3 grid gap-3 sm:grid-cols-2">
+          <label class="text-[11px] text-neutral-500">Platforms (comma separated)<input value={draft.platforms.join(", ")} oninput={(event) => draft && (draft.platforms = event.currentTarget.value.split(",").map((item) => item.trim()).filter(Boolean))} class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 text-[11px] text-neutral-200" /></label>
+          <label class="text-[11px] text-neutral-500">Export targets (comma separated)<input value={draft.export_targets.join(", ")} oninput={(event) => draft && (draft.export_targets = event.currentTarget.value.split(",").map((item) => item.trim()).filter(Boolean))} class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 text-[11px] text-neutral-200" /></label>
+        </div>
         <label class="mt-3 block text-[11px] text-neutral-500">Description<textarea bind:value={draft.description} class="mt-1 h-20 w-full rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 text-[11px] text-neutral-200"></textarea></label>
+        </fieldset>
         <div class="mt-3 flex flex-wrap gap-2">
-          <button type="button" disabled={busy} onclick={() => void save()} class="rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-emerald-100 disabled:opacity-40">Save</button>
+          <button type="button" disabled={busy || draft.builtin} onclick={() => void save()} class="rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-emerald-100 disabled:opacity-40">Save</button>
           <button type="button" disabled={busy || draft.new} onclick={() => void duplicate()} class="rounded-lg border border-white/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-neutral-300">Duplicate</button>
           <button type="button" disabled={busy || draft.new || draft.builtin} onclick={() => void remove()} class="rounded-lg border border-rose-400/20 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-rose-200">Delete</button>
         </div>

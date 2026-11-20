@@ -71,6 +71,19 @@ class JobRecord:
     started_at: float | None = None
     finished_at: float | None = None
 
+    def summary(self) -> dict[str, Any]:
+        """Compact projection for dashboards and health payloads."""
+        return {
+            "job_id": self.id,
+            "capability": self.capability,
+            "status": self.status,
+            "created_at": self.created_at,
+            "started_at": self.started_at,
+            "finished_at": self.finished_at,
+            "error": self.error,
+            "artifact_count": len(self.artifacts),
+        }
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "job_id": self.id,

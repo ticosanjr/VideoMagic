@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.9.2] - 2026-11-20
+
+### Changed
+
+- Worker health and dashboard use compact job summaries instead of embedding
+  full job params and inputs; `/jobs/{id}` remains the detailed endpoint.
+- Built-in format presets are read-only in the Formats UI; duplicate to edit.
+- Platforms and export targets are editable in the Formats UI.
+- Worker status prints each LAN URL correctly on Windows.
+- Help/i18n coverage and tooltips updated.
+
 ## [3.9.1] - 2026-11-20
 
 ### Fixed

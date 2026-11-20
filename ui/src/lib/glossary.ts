@@ -1099,4 +1099,7 @@ export const GLOSSARY: Record<string, string> = {
   "Worker activity": "Atividade do worker",
   "Worker id": "ID do worker",
   "built-in": "nativo",
+  "Built-in formats are read-only. Duplicate to customize.": "Formatos nativos são somente leitura. Duplique para personalizar.",
+  "Export targets (comma separated)": "Destinos de exportação (separados por vírgula)",
+  "Platforms (comma separated)": "Plataformas (separadas por vírgula)",
 };

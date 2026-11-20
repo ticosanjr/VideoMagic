@@ -148,7 +148,7 @@ class JobSubmission(BaseModel):
 def _current_job(store: JobStore) -> dict[str, Any] | None:
     for job in store.list_jobs(limit=10):
         if job.status in {"queued", "running"}:
-            return job.as_dict()
+            return job.summary()
     return None
 
 
@@ -383,7 +383,7 @@ def create_app(
         return {
             "ok": True,
             "health": health(),
-            "jobs": [job.as_dict() for job in store.list_jobs(limit=12)],
+            "jobs": [job.summary() for job in store.list_jobs(limit=12)],
             "logs": _tail_log(config, limit=40),
         }
 
@@ -391,7 +391,7 @@ def create_app(
     def api_jobs(limit: int = 25) -> dict[str, Any]:
         return {
             "ok": True,
-            "jobs": [job.as_dict() for job in store.list_jobs(limit=limit)],
+            "jobs": [job.summary() for job in store.list_jobs(limit=limit)],
         }
 
     @app.get("/api/logs")
