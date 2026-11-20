@@ -64,17 +64,79 @@ class CaptionLine:
     effect_fallback: bool = False
 
 
+def caption_safe_zone(width: int, height: int, layout: str = "") -> dict[str, object]:
+    """Return the delivery-safe caption box for a canvas and layout."""
+
+    key = str(layout or "").strip().lower()
+    vertical = {
+        "full_face": 1340,
+        "fullscreen_punchin": 1340,
+        "full_screen": 1340,
+        "split_broll": 960,
+        "split_top_visual": 960,
+        "split_screen_safe": 840,
+        "split_screen": 840,
+        "split_screen_50_50": 840,
+    }
+    if width == 1080 and height == 1920:
+        return {
+            "alignment": 5,
+            "margin_l": 60,
+            "margin_r": 160,
+            "margin_v": 0,
+            "pos": (500, vertical.get(key, 1340)),
+            "wrap_style": 2,
+            "max_chars": 18,
+        }
+    if width == 1080 and height == 1350:
+        return {
+            "alignment": 2,
+            "margin_l": 60,
+            "margin_r": 60,
+            "margin_v": 189,
+            "pos": None,
+            "wrap_style": 2,
+            "max_chars": 18,
+        }
+    if width > height:
+        return {
+            "alignment": 2,
+            "margin_l": 60,
+            "margin_r": 60,
+            "margin_v": 49,
+            "pos": None,
+            "wrap_style": 2,
+            "max_chars": 42,
+        }
+    return {
+        "alignment": 2,
+        "margin_l": 60,
+        "margin_r": 60,
+        "margin_v": _adaptive_margin_v(CaptionStyle(), width, height),
+        "pos": None,
+        "wrap_style": 2,
+        "max_chars": 24,
+    }
+
+
 def build_ass(
     events: Sequence[tuple[float, float, str]],
     *,
     style: CaptionStyle | None = None,
     width: int = 1080,
     height: int = 1920,
+    layout: str = "",
 ) -> str:
     lines = [
         CaptionLine(start=start, end=end, text=text) for start, end, text in events if end > start
     ]
-    return build_ass_lines(lines, style=style, width=width, height=height)
+    return build_ass_lines(
+        lines,
+        style=style,
+        width=width,
+        height=height,
+        layout=layout,
+    )
 
 
 def _adaptive_margin_v(caption: CaptionStyle, width: int, height: int) -> int:
@@ -133,10 +195,12 @@ def build_ass_lines(
     style: CaptionStyle | None = None,
     width: int = 1080,
     height: int = 1920,
+    layout: str = "",
 ) -> str:
     caption = style or CaptionStyle()
     lines = _normalize_caption_lines(lines)
-    margin_v = _adaptive_margin_v(caption, width, height)
+    zone = caption_safe_zone(width, height, layout)
+    margin_v = int(zone["margin_v"])
     from videoflow.application.fonts import resolve_font_family
 
     font_family = resolve_font_family(caption.font_family) or caption.font_family
@@ -149,32 +213,38 @@ def build_ass_lines(
     else:
         back_color = _ass_color(caption.shadow_color, caption.shadow_opacity)
     shadow = caption.shadow_offset if caption.shadow_opacity > 0 else 0
-    margin_lr = max(0, round((1.0 - caption.max_width) * width / 2))
+    margin_l = int(zone["margin_l"])
+    margin_r = int(zone["margin_r"])
     header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {width}
 PlayResY: {height}
-WrapStyle: 0
+WrapStyle: {int(zone["wrap_style"])}
 ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_family},{caption.font_size},{_ass_color(caption.primary_color)},{_ass_color(caption.highlight_color)},{_ass_color(caption.outline_color)},{back_color},{bold},{italic},0,0,100,100,0,0,{border_style},{outline},{shadow},{caption.alignment},{margin_lr},{margin_lr},{margin_v},1
+Style: Default,{font_family},{caption.font_size},{_ass_color(caption.primary_color)},{_ass_color(caption.highlight_color)},{_ass_color(caption.outline_color)},{back_color},{bold},{italic},0,0,100,100,0,0,{border_style},{outline},{shadow},{int(zone["alignment"])},{margin_l},{margin_r},{margin_v},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     rows: list[str] = []
-    x = round(caption.position_x * width)
-    y = round(caption.position_y * height)
-    custom_position = (
-        abs(caption.position_x - 0.5) > 1e-6
-        or abs(caption.position_y - 0.78) > 1e-6
-    )
+    zone_pos = zone["pos"]
+    if isinstance(zone_pos, tuple):
+        x, y = int(zone_pos[0]), int(zone_pos[1])
+        custom_position = True
+    else:
+        x = round(caption.position_x * width)
+        y = round(caption.position_y * height)
+        custom_position = (
+            abs(caption.position_x - 0.5) > 1e-6
+            or abs(caption.position_y - 0.78) > 1e-6
+        )
     for line in lines:
         if line.end <= line.start:
             continue
-        override = f"{{\\an{caption.alignment}"
+        override = f"{{\\an{int(zone['alignment'])}"
         if custom_position:
             override += f"\\pos({x},{y})"
         if caption.speaker_colors and line.speaker < len(caption.speaker_colors):
@@ -186,7 +256,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             text = _karaoke_text(line, caption)
         else:
             text = _sentence_text(line.text, caption)
-        text = _wrap_ass_markup(text, caption, width)
+        text = _wrap_ass_markup(
+            text,
+            caption,
+            width,
+            max_chars=int(zone["max_chars"]),
+        )
         rows.append(
             f"Dialogue: 0,{_ass_time(line.start)},{_ass_time(line.end)},Default,,0,0,0,,{override}{text}"
         )
@@ -531,39 +606,42 @@ def _ass_color(value: str, opacity: float = 1.0) -> str:
     return f"&H{alpha:02X}{blue:02X}{green:02X}{red:02X}"
 
 
-def _wrap_ass_markup(text: str, style: CaptionStyle, width: int) -> str:
-    """Insert smart line breaks outside ASS override tags."""
+def _wrap_ass_markup(
+    text: str,
+    style: CaptionStyle,
+    width: int,
+    *,
+    max_chars: int = 0,
+) -> str:
+    r"""Insert explicit ``\N`` breaks outside ASS override tags."""
 
-    max_chars = max(8, int(style.max_width * width / max(1.0, style.font_size * 0.55)))
-    output: list[str] = []
-    line_chars = 0
-    last_space: tuple[int, int] | None = None
-    index = 0
-    while index < len(text):
-        char = text[index]
-        if char == "{":
-            close = text.find("}", index)
-            if close == -1:
-                output.append(text[index:])
-                break
-            output.append(text[index : close + 1])
-            index = close + 1
+    if max_chars <= 0:
+        max_chars = max(
+            8,
+            int(style.max_width * width / max(1.0, style.font_size * 0.55)),
+        )
+    tokens = re.findall(r"\{[^}]*\}|[^\s]+|\s+", text)
+    lines: list[str] = []
+    current = ""
+    current_len = 0
+    for token in tokens:
+        if token.startswith("{"):
+            current += token
             continue
-        if char in " \t":
-            last_space = (len(output), line_chars)
-            output.append(char)
-            line_chars += 1
-            index += 1
-            if line_chars > max_chars and last_space is not None:
-                slot, before = last_space
-                output[slot] = "\\N"
-                line_chars = line_chars - before - 1
-                last_space = None
+        if token.isspace():
+            if current and not current.endswith(" "):
+                current += " "
             continue
-        output.append(char)
-        line_chars += 1
-        index += 1
-    return "".join(output)
+        if current_len and current_len + len(token) > max_chars:
+            lines.append(current.rstrip())
+            current = token
+            current_len = len(token)
+        else:
+            current += token
+            current_len += len(token)
+    if current.strip():
+        lines.append(current.rstrip())
+    return "\\N".join(lines)
 
 
 def shift_ass_text(text: str, offset_sec: float) -> str:

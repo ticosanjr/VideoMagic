@@ -8,7 +8,7 @@ from videoflow.application.qa_caption import audit_ass
 from videoflow.domain.config import CaptionStyle
 
 
-def test_vertical_captions_use_social_margin_without_pos() -> None:
+def test_vertical_captions_use_short_safe_zone() -> None:
     ass = build_ass_lines(
         [CaptionLine(0, 1, "uma legenda")],
         style=CaptionStyle(),
@@ -16,8 +16,9 @@ def test_vertical_captions_use_social_margin_without_pos() -> None:
         height=1920,
     )
     style_row = next(line for line in ass.splitlines() if line.startswith("Style:"))
-    assert style_row.split(",")[-2] == "422"
-    assert "\\pos(" not in ass
+    assert style_row.split(",")[-2] == "0"
+    assert "\\pos(500,1340)" in ass
+    assert "WrapStyle: 2" in ass
 
 
 def test_longform_captions_use_lower_margin() -> None:
@@ -32,14 +33,14 @@ def test_longform_captions_use_lower_margin() -> None:
     assert "\\pos(" not in ass
 
 
-def test_custom_caption_position_still_uses_pos() -> None:
+def test_short_safe_zone_overrides_custom_position() -> None:
     ass = build_ass_lines(
         [CaptionLine(0, 1, "custom")],
         style=CaptionStyle(position_x=0.5, position_y=0.8),
         width=1080,
         height=1920,
     )
-    assert "\\pos(540,1536)" in ass
+    assert "\\pos(500,1340)" in ass
 
 
 def test_overlapping_caption_events_are_trimmed_or_merged() -> None:

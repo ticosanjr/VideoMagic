@@ -199,8 +199,15 @@ def apply_decisions(
 ) -> tuple[list[Asu], list[dict[str, Any]], list[dict[str, str]], dict[str, Any]]:
     """Apply validated decisions to an ASU copy and return source cuts."""
 
+    remove_actions = {
+        "REMOVE",
+        "REMOVE_RETAKE",
+        "REMOVE_NOISE",
+        "REMOVE_FILLER",
+        "QUARANTINE",
+    }
     remove_ids = {
-        item.asu_id for item in decisions if item.action == "REMOVE"
+        item.asu_id for item in decisions if item.action in remove_actions
     }
     restore_ids = {
         item.asu_id for item in decisions if item.action == "RESTORE"
@@ -221,12 +228,20 @@ def apply_decisions(
     flags: list[dict[str, str]] = []
     for asu in asus:
         if asu.asu_id in remove_ids:
+            decision = next(
+                (item for item in decisions if item.asu_id == asu.asu_id),
+                None,
+            )
             cuts.append(
                 {
                     "asu_id": asu.asu_id,
                     "start_sample": asu.start_sample,
                     "end_sample": asu.end_sample,
-                    "reason": "decupage_remove",
+                    "reason": (
+                        decision.reason
+                        if decision is not None and decision.reason
+                        else (decision.action.lower() if decision is not None else "remove")
+                    ),
                 }
             )
             continue

@@ -114,6 +114,37 @@ def timeline_to_source_sec(state: ProjectState, timeline_sec: float) -> float:
     raise TimeMapError(f"timeline time {timeline_sec:g}s is outside every segment")
 
 
+def timeline_range_to_source_ranges(
+    state: ProjectState,
+    start_sec: float,
+    end_sec: float,
+) -> list[tuple[str, float, float]]:
+    """Split a timeline range into the surviving source ranges."""
+
+    start = max(0.0, float(start_sec))
+    end = float(end_sec)
+    if end <= start:
+        raise TimeMapError("range end must be greater than range start")
+    ranges: list[tuple[str, float, float]] = []
+    for entry in build_time_map(state):
+        fps = entry.fps_num / max(1, entry.fps_den)
+        entry_start = entry.timeline_in_frame / fps
+        entry_end = entry.timeline_out_frame / fps
+        left = max(start, entry_start)
+        right = min(end, entry_end)
+        if right <= left:
+            continue
+        source_start = entry.source_in_frame / fps + (left - entry_start)
+        source_end = entry.source_in_frame / fps + (right - entry_start)
+        if source_end > source_start:
+            ranges.append((entry.source_id, source_start, source_end))
+    if not ranges:
+        raise TimeMapError(
+            f"timeline range {start_sec:g}-{end_sec:g}s is outside the edited timeline"
+        )
+    return ranges
+
+
 def source_range_to_timeline(
     state: ProjectState,
     start_sec: float,
@@ -153,6 +184,7 @@ __all__ = [
     "refresh_time_map",
     "source_range_to_timeline",
     "source_to_timeline_sec",
+    "timeline_range_to_source_ranges",
     "timeline_to_source_sec",
 ]
 

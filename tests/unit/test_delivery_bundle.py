@@ -92,7 +92,7 @@ def test_bundle_writes_every_target_and_manifest(tmp_path: Path) -> None:
     assert payload["schema_version"] == 1
     assert payload["validation"]["ok"] is True
     assert payload["mp4"]["profile"] == "youtube_h264"
-    assert payload["mp4"]["loudness_lufs"] == -16.5
+    assert payload["mp4"]["loudness_lufs"] == -15.5
 
 
 def test_bundle_rejects_blocked_license(tmp_path: Path) -> None:

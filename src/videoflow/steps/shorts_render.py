@@ -126,6 +126,7 @@ class RenderShortsStep(BaseStep):
                     sample_rate=media.audio_sample_rate,
                     word_timing=options.caption_style.word_timing,
                     effect=options.caption_style.effect,
+                    max_words=2,
                     warnings=context.warnings,
                 )
                 if lines:
@@ -137,6 +138,7 @@ class RenderShortsStep(BaseStep):
                             style=options.caption_style,
                             width=width,
                             height=height,
+                            layout=str(entry.get("layout") or ""),
                         ),
                     )
                 else:
@@ -150,6 +152,7 @@ class RenderShortsStep(BaseStep):
                                 style=options.caption_style,
                                 width=width,
                                 height=height,
+                                layout=str(entry.get("layout") or ""),
                             ),
                         )
             broll_clips: list[tuple[Path, float, float]] = []

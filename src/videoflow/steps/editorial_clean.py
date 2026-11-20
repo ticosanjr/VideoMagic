@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -25,6 +25,7 @@ class EditorialCleanParams(BaseModel):
     enabled: bool = True
     normalize: bool = True
     semantic: bool = True
+    semantic_mode: Literal["inline_llm", "delegated", "off"] = "delegated"
     semantic_block: int = Field(default=8, ge=2, le=32)
     semantic_overlap: int = Field(default=4, ge=0, le=16)
     fuzzy_similarity: float = Field(default=0.65, ge=0.0, le=1.0)
@@ -101,8 +102,12 @@ def apply_editorial_clean(
         transcript,
         sample_rate=sample_rate,
         pcm_path=pcm_path,
-        client=io.llm_client,
-        semantic=options.semantic,
+        client=(
+            io.llm_client
+            if options.semantic and options.semantic_mode == "inline_llm"
+            else None
+        ),
+        semantic=bool(options.semantic and options.semantic_mode != "off"),
         semantic_block=options.semantic_block,
         semantic_overlap=options.semantic_overlap,
         fuzzy_similarity=options.fuzzy_similarity,
@@ -131,14 +136,23 @@ def apply_editorial_clean(
     for warning in result.report.get("warnings", []):
         context.warnings.append(str(warning))
     context.metadata["editorial_clean"] = result.report
+    directory = context.output / "transcript"
+    directory.mkdir(parents=True, exist_ok=True)
+    candidates = result.report.get("semantic_candidates") or []
+    if options.semantic_mode == "delegated":
+        candidates_path = directory / "semantic_candidates.json"
+        candidates_path.write_text(
+            json.dumps(candidates, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        context.artifacts["semantic_candidates"] = str(candidates_path)
+        context.metadata["semantic_candidates"] = candidates
     context.metadata["editorial_cuts"] = [list(item) for item in result.cuts]
     context.metadata["speech_pad_before_ms"] = options.pad_before_ms
     context.metadata["speech_pad_after_ms"] = options.pad_after_ms
     context.metadata["editorial_crossfade_ms"] = options.crossfade_ms
     context.hashes["speech.editorial_clean"] = digest_payload(result.report)
 
-    directory = context.output / "transcript"
-    directory.mkdir(parents=True, exist_ok=True)
     clean_path = directory / "transcript_clean.json"
     report_path = directory / "editorial_clean.json"
     clean_path.write_text(

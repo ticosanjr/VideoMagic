@@ -27,6 +27,10 @@ MediaKind = Literal[
     "deliverable",
 ]
 PIPELINE_SCHEMA_VERSION = "3.5"
+TARGET_LUFS = -15.5
+TOLERANCE_LUFS = 1.5
+TRUE_PEAK_MAX = -1.5
+TARGET_LRA = 9
 ALPHA_PIX_FMTS = frozenset({"yuva420p", "yuva444p10le", "rgba", "bgra", "argb", "abgr"})
 SDR_PIX_FMTS = frozenset({"yuv420p", "yuvj420p", "yuv422p", "yuv444p"})
 AUDIO_MASTER_RATE = 48_000
@@ -539,6 +543,10 @@ def color_profile(path: str | Path) -> dict[str, Any]:
 __all__ = [
     "ALPHA_PIX_FMTS",
     "PIPELINE_SCHEMA_VERSION",
+    "TARGET_LRA",
+    "TARGET_LUFS",
+    "TOLERANCE_LUFS",
+    "TRUE_PEAK_MAX",
     "channel_rms",
     "needs_mono_repair",
     "repair_mono_file",

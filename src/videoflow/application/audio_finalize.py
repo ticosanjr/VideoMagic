@@ -22,6 +22,9 @@ from pathlib import Path
 from typing import Any
 
 from videoflow.core.media_contract import (
+    TARGET_LRA,
+    TARGET_LUFS,
+    TRUE_PEAK_MAX,
     MediaContractError,
     channel_rms,
     needs_mono_repair,
@@ -30,8 +33,8 @@ from videoflow.core.media_contract import (
 from videoflow.domain.errors import ExportError
 from videoflow.runtime import find_binary
 
-DEFAULT_TARGET_LUFS = -16.0
-DEFAULT_TRUE_PEAK_DB = -1.5
+DEFAULT_TARGET_LUFS = TARGET_LUFS
+DEFAULT_TRUE_PEAK_DB = TRUE_PEAK_MAX
 DEFAULT_SAMPLE_RATE = 48_000
 DEFAULT_MUSIC_GAIN = 0.22
 DEFAULT_SFX_GAIN = 0.55
@@ -143,7 +146,7 @@ def _measure_loudnorm(
     true_peak_db: float,
 ) -> dict[str, float]:
     filter_graph = (
-        f"{graph};[mix]loudnorm=I={target_lufs}:TP={true_peak_db}:LRA=11:"
+        f"{graph};[mix]loudnorm=I={target_lufs}:TP={true_peak_db}:LRA={TARGET_LRA}:"
         "print_format=json[measured]"
     )
     completed = subprocess.run(
@@ -296,7 +299,7 @@ def finalize_audio(
         true_peak_db=float(true_peak_db),
     )
     loudnorm = (
-        f"loudnorm=I={target_lufs}:TP={true_peak_db}:LRA=11:"
+        f"loudnorm=I={target_lufs}:TP={true_peak_db}:LRA={TARGET_LRA}:"
         f"measured_I={measured['input_i']}:measured_TP={measured['input_tp']}:"
         f"measured_LRA={measured['input_lra']}:measured_thresh={measured['input_thresh']}:"
         "linear=true"

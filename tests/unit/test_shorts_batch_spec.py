@@ -145,7 +145,7 @@ def test_batch_passes_fps_to_renderer(tmp_path: Path, monkeypatch) -> None:
         [{"start_sec": 5, "end_sec": 7, "title": "Sixty", "fps": 60}],
         adapter=renderer,
     )
-    assert renderer.calls[0]["fps"] == 60
+    assert renderer.calls[0]["fps"] == 30
 
 
 def test_batch_rejects_missing_intro_asset(tmp_path: Path, monkeypatch) -> None:

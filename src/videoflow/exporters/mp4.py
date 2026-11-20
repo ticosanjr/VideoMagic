@@ -182,8 +182,8 @@ DEFAULT_EXPORT_FPS = 30
 YOUTUBE_PROFILE = "youtube_h264"
 DEFAULT_AUDIO_BITRATE = "192k"
 YOUTUBE_AUDIO_BITRATE = "320k"
-YOUTUBE_LUFS = -16.5
-YOUTUBE_TRUE_PEAK_DB = -1.0
+YOUTUBE_LUFS = -15.5
+YOUTUBE_TRUE_PEAK_DB = -1.5
 
 
 @functools.lru_cache(maxsize=1)
@@ -288,7 +288,7 @@ def _audio_encode_args(*, bitrate: str) -> list[str]:
 def loudnorm_filter(loudness_lufs: float, true_peak_db: float = YOUTUBE_TRUE_PEAK_DB) -> str:
     """Return the single-pass EBU R128 target used by the social master."""
 
-    return f"loudnorm=I={loudness_lufs:g}:TP={true_peak_db:g}:LRA=11"
+    return f"loudnorm=I={loudness_lufs:g}:TP={true_peak_db:g}:LRA=9"
 
 
 def _is_multi_source(state: ProjectState) -> bool:

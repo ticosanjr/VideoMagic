@@ -75,6 +75,7 @@ class CaptionsStep(BaseStep):
                 sample_rate=media.audio_sample_rate,
                 word_timing=options.caption_style.word_timing,
                 effect=options.caption_style.effect,
+                max_words=2,
                 warnings=context.warnings,
             )
             if lines:
@@ -86,6 +87,7 @@ class CaptionsStep(BaseStep):
                         style=options.caption_style,
                         width=width,
                         height=height,
+                        layout=str(entry.get("layout") or ""),
                     ),
                 )
             else:
@@ -103,6 +105,7 @@ class CaptionsStep(BaseStep):
                         style=options.caption_style,
                         width=width,
                         height=height,
+                        layout=str(entry.get("layout") or ""),
                     ),
                 )
             captions[clip.title] = str(ass_path)

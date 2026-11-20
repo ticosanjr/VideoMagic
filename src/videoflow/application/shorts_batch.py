@@ -34,6 +34,7 @@ LAYOUTS = {
     "split_screen_50_50",
 }
 LAYOUT_ALIASES = {
+    "full_face": "fullscreen_punchin",
     "fullscreen": "full_screen",
     "full_reframe": "full_screen",
     "fullscreen_motion": "full_screen",
@@ -41,6 +42,12 @@ LAYOUT_ALIASES = {
     "presenter_collage": "headline_card",
     "active_speaker_reframe": "full_screen",
     "split_screen": "split_screen_50_50",
+    "split_broll": "split_top_visual",
+    "split_screen_safe": "split_screen_50_50",
+    "cutout": "cutout",
+    "rounded_window": "rounded_window",
+    "headline_card": "headline_card",
+    "depth_3d": "full_screen",
 }
 
 
@@ -94,7 +101,7 @@ class ShortsClipSpec(BaseModel):
     @field_validator("layout", "layout_mode")
     @classmethod
     def _normalize_layout(cls, value: str) -> str:
-        text = str(value or "").strip()
+        text = str(value or "").strip().lower()
         return LAYOUT_ALIASES.get(text, text)
 
     def resolved_layout(self, fallback: str = "auto") -> str:
@@ -137,49 +144,82 @@ def run_shorts_batch(
             continue
         spec = ShortsClipSpec.model_validate(entry)
         entry = spec.model_dump(mode="python")
+        from videoflow.application.time_map import (
+            TimeMapError,
+            source_range_to_timeline,
+            timeline_range_to_source_ranges,
+        )
+
         start = max(0.0, float(spec.start_sec))
         end = float(spec.end_sec)
-        if spec.time_basis == "source":
-            from videoflow.application.time_map import TimeMapError, source_to_timeline_sec
-
-            try:
-                start = source_to_timeline_sec(state, start, source_id=spec.source_id)
-                end = source_to_timeline_sec(state, end, source_id=spec.source_id)
-            except TimeMapError as exc:
-                raise ExportError(
-                    f"Shorts batch clip {index} source range is invalid: {exc}"
-                ) from exc
         if end <= start:
             raise ExportError(f"Shorts batch clip {index} has an invalid range")
-        start_sample = round(start * rate)
-        end_sample = round(end * rate)
-        if bool(entry.get("thought_boundary", True)):
-            boundary = enforce_thought_boundary(
-                kept,
-                start_sample,
-                end_sample,
-                sample_rate=rate,
-                max_adjust_sec=float(entry.get("thought_boundary_max_adjust_sec") or 4.0),
+        try:
+            if spec.time_basis == "source":
+                timeline_ranges = source_range_to_timeline(
+                    state,
+                    start,
+                    end,
+                    source_id=spec.source_id,
+                )
+                source_ranges: list[tuple[str, float, float]] = []
+                for timeline_start, timeline_end in timeline_ranges:
+                    source_ranges.extend(
+                        timeline_range_to_source_ranges(
+                            state, timeline_start, timeline_end
+                        )
+                    )
+                timeline_start = min(item[0] for item in timeline_ranges)
+                timeline_end = max(item[1] for item in timeline_ranges)
+            else:
+                source_ranges = timeline_range_to_source_ranges(state, start, end)
+                timeline_start, timeline_end = start, end
+        except TimeMapError as exc:
+            raise ExportError(
+                f"Shorts batch clip {index} range is outside the edited timeline: {exc}"
+            ) from exc
+        source_ids = {item[0] for item in source_ranges}
+        if len(source_ids) > 1:
+            raise ExportError(
+                f"Shorts batch clip {index} crosses multiple sources; "
+                "render one source per Short"
             )
-            start_sample = boundary.start_sample
-            end_sample = boundary.end_sample
-        words = [
-            word
-            for sentence in kept
-            for word in sentence.words
-        ]
-        tightened = tighten_clip(
-            start_sample=start_sample,
-            end_sample=end_sample,
-            speech_intervals=state.pipeline.speech_intervals,
-            words=words,
-            sample_rate=rate,
-            start_pad_ms=int(entry.get("start_pad_ms") or 80),
-            end_pad_ms=int(entry.get("end_pad_ms") or 150),
-            max_internal_silence_ms=int(entry.get("max_internal_silence_ms") or 500),
-        )
-        start_sample = tightened.start_sample
-        end_sample = tightened.end_sample
+        words = [word for sentence in kept for word in sentence.words]
+        pieces: list[tuple[int, int]] = []
+        start_sample = round(source_ranges[0][1] * rate)
+        end_sample = round(source_ranges[-1][2] * rate)
+        metrics: dict[str, object] = {}
+        for _source_id, source_start, source_end in source_ranges:
+            range_start = round(source_start * rate)
+            range_end = round(source_end * rate)
+            if bool(entry.get("thought_boundary", True)):
+                boundary = enforce_thought_boundary(
+                    kept,
+                    range_start,
+                    range_end,
+                    sample_rate=rate,
+                    max_adjust_sec=float(
+                        entry.get("thought_boundary_max_adjust_sec") or 4.0
+                    ),
+                )
+                range_start = boundary.start_sample
+                range_end = boundary.end_sample
+            tightened = tighten_clip(
+                start_sample=range_start,
+                end_sample=range_end,
+                speech_intervals=state.pipeline.speech_intervals,
+                words=words,
+                sample_rate=rate,
+                start_pad_ms=int(entry.get("start_pad_ms") or 110),
+                end_pad_ms=int(entry.get("end_pad_ms") or 190),
+                max_internal_silence_ms=int(entry.get("max_internal_silence_ms") or 500),
+            )
+            pieces.extend(tightened.pieces)
+            metrics = tightened.metrics
+            start_sample = min(start_sample, tightened.start_sample)
+            end_sample = max(end_sample, tightened.end_sample)
+        if not pieces:
+            raise ExportError(f"Shorts batch clip {index} has no active speech")
         title = str(entry.get("title") or f"Short {index}")
         style = _style_for(
             str(entry.get("style_id") or ""),
@@ -189,37 +229,6 @@ def run_shorts_batch(
             entry.get("aspect_ratio") or (style.aspect_ratio if style else "9:16") or "9:16"
         )
         width, height = short_dimensions(aspect)
-        caption_preset = str(entry.get("caption_preset") or (style.caption_preset if style else ""))
-        caption_style = CaptionStyle()
-        if caption_preset:
-            caption_style = apply_preset(caption_preset, caption_style)
-        ass_path: Path | None = None
-        if kept:
-            lines = caption_lines(
-                kept,
-                [(start_sample, end_sample)],
-                sample_rate=rate,
-                word_timing=caption_style.word_timing,
-                effect=caption_style.effect,
-            )
-            if lines:
-                ass_path = directory / f"{slugify(title, index)}.ass"
-                ass_path.write_text(
-                    build_ass_lines(lines, style=caption_style, width=width, height=height),
-                    encoding="utf-8",
-                )
-        keyframes = [
-            (float(item[0]), float(item[1]))
-            for item in (entry.get("crop_keyframes") or [])
-            if isinstance(item, (list, tuple)) and len(item) >= 2
-        ]
-        focus = keyframes[len(keyframes) // 2][1] if keyframes else 0.5
-        if not keyframes:
-            duration = (
-                sum(piece_end - piece_start for piece_start, piece_end in tightened.pieces)
-                / rate
-            )
-            keyframes = [(0.0, focus), (round(duration, 3), focus)]
         layout = str(
             entry.get("layout_mode")
             or entry.get("layout")
@@ -231,6 +240,41 @@ def run_shorts_batch(
                 f"Unsupported Short layout {layout!r}; expected one of: "
                 + ", ".join(sorted(LAYOUTS))
             )
+        caption_preset = str(entry.get("caption_preset") or (style.caption_preset if style else ""))
+        caption_style = CaptionStyle()
+        if caption_preset:
+            caption_style = apply_preset(caption_preset, caption_style)
+        ass_path: Path | None = None
+        if kept:
+            lines = caption_lines(
+                kept,
+                pieces,
+                sample_rate=rate,
+                word_timing=caption_style.word_timing,
+                effect=caption_style.effect,
+                max_words=2,
+            )
+            if lines:
+                ass_path = directory / f"{slugify(title, index)}.ass"
+                ass_path.write_text(
+                    build_ass_lines(
+                        lines,
+                        style=caption_style,
+                        width=width,
+                        height=height,
+                        layout=layout,
+                    ),
+                    encoding="utf-8",
+                )
+        keyframes = [
+            (float(item[0]), float(item[1]))
+            for item in (entry.get("crop_keyframes") or [])
+            if isinstance(item, (list, tuple)) and len(item) >= 2
+        ]
+        focus = keyframes[len(keyframes) // 2][1] if keyframes else 0.5
+        if not keyframes:
+            duration = sum(piece_end - piece_start for piece_start, piece_end in pieces) / rate
+            keyframes = [(0.0, focus), (round(duration, 3), focus)]
         target = directory / f"{slugify(title, index)}.mp4"
         intro = entry.get("intro_path") or brand.get("cta") or ""
         intro_path: Path | None = None
@@ -266,7 +310,7 @@ def run_shorts_batch(
         context_source = _source_path(state, record, spec.source_id)
         renderer.render_short(
             Path(context_source),
-            list(tightened.pieces),
+            pieces,
             target,
             sample_rate=rate,
             width=width,
@@ -297,9 +341,9 @@ def run_shorts_batch(
             outro_duration_sec=float(entry.get("outro_duration_sec") or 2.0),
             music_path=Path(music).expanduser() if music else None,
             crossfade_ms=int(tightened.metrics.get("crossfade_ms") or 15),
-            fps=int(spec.fps),
+            fps=30,
         )
-        clip_seconds = sum(end - start for start, end in tightened.pieces) / rate
+        clip_seconds = sum(end - start for start, end in pieces) / rate
         expected_duration = clip_seconds
         if intro_path is not None:
             expected_duration += float(entry.get("intro_duration_sec") or 2.0)
@@ -316,19 +360,46 @@ def run_shorts_batch(
                 f"above max_sec={spec.max_sec:.3f}"
             )
         warnings: list[str] = []
-        probe = getattr(renderer, "probe", None)
-        if callable(probe):
+        render_impl = getattr(renderer, "render_short", None)
+        real_renderer = bool(
+            isinstance(renderer, FFmpegAdapter)
+            and getattr(render_impl, "__module__", "").startswith("videoflow")
+        )
+        if target.is_file() and real_renderer:
+            from videoflow.application.media_integrity import validate_integrity
+            from videoflow.core.media_contract import validate_media
+
             try:
-                probed = probe(target)
-                expected_frames = round(expected_duration * spec.fps)
-                if abs(int(probed.duration_frames) - expected_frames) > 1:
+                expected_frames = round(expected_duration * 30)
+                integrity = validate_integrity(
+                    target,
+                    expected_duration,
+                    expected_frames=expected_frames,
+                    fps=30.0,
+                    tolerance_frames=max(2, len(pieces)),
+                )
+                if not integrity.ok:
                     raise ExportError(
-                        f"Shorts batch clip {index} rendered "
-                        f"{probed.duration_frames} frames, expected {expected_frames}"
+                        f"Shorts batch clip {index} failed the duration gate: "
+                        f"{integrity.reason}"
+                    )
+                contract = validate_media(target, "deliverable")
+                if not contract.ok:
+                    first = contract.errors[0] if contract.errors else {}
+                    raise ExportError(
+                        f"Shorts batch clip {index} violated the media contract: "
+                        f"{first.get('code')}: {first.get('message')}"
+                    )
+                video_sec = integrity.video_sec or 0.0
+                audio_sec = integrity.audio_sec or 0.0
+                if abs(video_sec - audio_sec) > 0.05:
+                    raise ExportError(
+                        f"Shorts batch clip {index} video/audio drift "
+                        f"{video_sec - audio_sec:+.3f}s"
                     )
             except ExportError:
                 raise
-            except Exception as exc:  # noqa: BLE001 - probe is advisory for fakes
+            except Exception as exc:  # noqa: BLE001 - probe is advisory for real files
                 warnings.append(f"duration probe failed: {exc}")
         rendered.append(
             {
@@ -339,14 +410,18 @@ def run_shorts_batch(
                 "layout": layout,
                 "style_id": getattr(style, "style_id", ""),
                 "source_id": spec.source_id,
-                "start_sec": round(start_sample / rate, 3),
-                "end_sec": round(end_sample / rate, 3),
+                "start_sec": round(timeline_start, 3),
+                "end_sec": round(timeline_end, 3),
+                "source_start_sec": round(start_sample / rate, 3),
+                "source_end_sec": round(end_sample / rate, 3),
                 "expected_duration_sec": round(expected_duration, 3),
-                "metrics": tightened.metrics,
-                "pieces": [list(piece) for piece in tightened.pieces],
+                "metrics": metrics,
+                "pieces": [list(piece) for piece in pieces],
+                "timeline_start_sec": round(timeline_start, 3),
+                "timeline_end_sec": round(timeline_end, 3),
                 "crop_keyframes": [[round(t, 3), round(x, 4)] for t, x in keyframes],
                 "source": str(context_source),
-                "fps": int(spec.fps),
+                "fps": 30,
                 "warnings": warnings,
             }
         )

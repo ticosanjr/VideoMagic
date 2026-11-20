@@ -19,7 +19,11 @@ from videoflow.application.decupage.llm import (
 from videoflow.application.decupage.prefilter import prefilter
 from videoflow.core.context import PipelineContext
 from videoflow.domain.decupage import Asu, AsuDecision
-from videoflow.domain.errors import CapabilityUnavailableError, StateNotReadyError
+from videoflow.domain.errors import (
+    CapabilityUnavailableError,
+    InvalidConfigError,
+    StateNotReadyError,
+)
 from videoflow.domain.paths import resolve_allowed
 from videoflow.runtime import allowed_roots
 from videoflow.steps.base import BaseStep, StepIO
@@ -307,17 +311,14 @@ class DecupageApplyStep(BaseStep):
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = ApplyParams.model_validate(params)
         asus = _asus(context)
-        raw_decisions: list[Any] = list(
-            context.metadata.get("decupage_prefilter_decisions", [])
-        )
-        raw_decisions.extend(context.metadata.get("decupage_decisions", []))
         if options.decisions is not None:
-            raw_decisions.extend(options.decisions)
+            raw_decisions: list[Any] = list(options.decisions)
         elif options.decisions_path:
             path = resolve_allowed(Path(options.decisions_path), allowed_roots())
             if not path.is_file():
                 raise StateNotReadyError(f"Decisions file not found: {path}")
             payload = json.loads(path.read_text(encoding="utf-8"))
+            raw_decisions = []
             if isinstance(payload, dict):
                 raw_decisions.extend(payload.get("decisions") or [])
                 raw_decisions.extend(
@@ -327,14 +328,19 @@ class DecupageApplyStep(BaseStep):
             elif isinstance(payload, list):
                 raw_decisions.extend(payload)
         else:
-            raw_decisions.extend(context.metadata.get("decupage_decisions", []))
+            raw_decisions = [
+                *context.metadata.get("decupage_prefilter_decisions", []),
+                *context.metadata.get("decupage_decisions", []),
+            ]
 
         decisions: list[AsuDecision] = []
         for item in raw_decisions:
             try:
                 decisions.append(AsuDecision.model_validate(item))
-            except (TypeError, ValueError):
-                continue
+            except (TypeError, ValueError) as exc:
+                raise InvalidConfigError(
+                    f"invalid decupage decision: {item!r}: {exc}"
+                ) from exc
         updated, cuts, flags, summary = apply_decisions(
             asus,
             decisions,

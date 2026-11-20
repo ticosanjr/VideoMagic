@@ -532,7 +532,16 @@ class FFmpegAdapter:
         for path, duration in segments:
             if path == Path(source):
                 continue
-            command.extend(["-loop", "1", "-t", f"{duration:.3f}", "-i", str(path)])
+            image_card = path.suffix.casefold() in {
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".webp",
+            }
+            command.extend(
+                (["-loop", "1"] if image_card else ["-t", f"{duration:.3f}"])
+                + ["-i", str(path)]
+            )
             video_index = index
             audio_index = index + 1
             command.extend(
@@ -586,6 +595,10 @@ class FFmpegAdapter:
                 "aac",
                 "-b:a",
                 "192k",
+                "-r",
+                str(max(1, int(fps))),
+                "-fps_mode",
+                "cfr",
                 "-movflags",
                 "+faststart",
                 str(output),
@@ -1335,6 +1348,10 @@ class FFmpegAdapter:
                         "yuv420p",
                         "-c:a",
                         "copy",
+                        "-r",
+                        str(max(1, int(fps))),
+                        "-fps_mode",
+                        "cfr",
                         "-movflags",
                         "+faststart",
                         str(final),
@@ -1457,6 +1474,49 @@ class FFmpegAdapter:
                     work=work,
                     fps=fps,
                 )
+            loudness_final = work / "loudness.mp4"
+            clip_duration = sum(end - start for start, end in pieces) / sample_rate
+            if intro_path is not None and intro_duration_sec > 0:
+                clip_duration += max(0.2, float(intro_duration_sec))
+            if outro_path is not None and outro_duration_sec > 0:
+                clip_duration += max(0.2, float(outro_duration_sec))
+            self._capture(
+                [
+                    "ffmpeg",
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-y",
+                    "-i",
+                    str(final),
+                    "-c:v",
+                    "copy",
+                    "-af",
+                    (
+                        "loudnorm=I=-15.5:TP=-1.5:LRA=9,"
+                        f"apad=whole_dur={clip_duration:.6f},"
+                        f"atrim=0:{clip_duration:.6f}"
+                    ),
+                    "-ar",
+                    "48000",
+                    "-ac",
+                    "2",
+                    "-c:a",
+                    "aac",
+                    "-b:a",
+                    "192k",
+                    "-t",
+                    f"{clip_duration:.6f}",
+                    "-r",
+                    str(max(1, int(fps))),
+                    "-fps_mode",
+                    "cfr",
+                    "-movflags",
+                    "+faststart",
+                    str(loudness_final),
+                ]
+            )
+            final = loudness_final
             shutil.move(str(final), target)
         finally:
             shutil.rmtree(work, ignore_errors=True)

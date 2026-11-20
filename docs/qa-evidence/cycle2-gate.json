@@ -1,0 +1,217 @@
+{
+  "ok": true,
+  "elapsed_sec": 80.297,
+  "checks": {
+    "pad_floor_110_190": true,
+    "Vertical 30_duration": true,
+    "Vertical 30_frames": true,
+    "Vertical 30_fps": true,
+    "Vertical 30_audio": true,
+    "Vertical 30_loudness": true,
+    "Vertical 30_safe_zone": true,
+    "Feed 30_duration": true,
+    "Feed 30_frames": true,
+    "Feed 30_fps": true,
+    "Feed 30_audio": true,
+    "Feed 30_loudness": true,
+    "Feed 30_safe_zone": true,
+    "Intro 30_duration": true,
+    "Intro 30_frames": true,
+    "Intro 30_fps": true,
+    "Intro 30_audio": true,
+    "Intro 30_loudness": true,
+    "Intro 30_safe_zone": true
+  },
+  "clips": [
+    {
+      "title": "Vertical 30",
+      "path": "/tmp/opencode/vf-cycle2-gate/project/shorts/batch/01-vertical-30.mp4",
+      "subtitles": "/tmp/opencode/vf-cycle2-gate/project/shorts/batch/01-vertical-30.ass",
+      "aspect_ratio": "9:16",
+      "layout": "fullscreen_punchin",
+      "style_id": "",
+      "source_id": "",
+      "start_sec": 0.0,
+      "end_sec": 30.0,
+      "source_start_sec": 0.0,
+      "source_end_sec": 30.0,
+      "expected_duration_sec": 30.0,
+      "metrics": {
+        "speech_ratio": 1.0,
+        "edge_silence_start_ms": 0.0,
+        "edge_silence_end_ms": 200.0,
+        "max_internal_silence_ms": 0.0,
+        "first_word_start": 0.0,
+        "last_word_end": 29.8,
+        "pieces": 1,
+        "crossfade_ms": 15
+      },
+      "pieces": [
+        [
+          0,
+          1440000
+        ]
+      ],
+      "timeline_start_sec": 0.0,
+      "timeline_end_sec": 30.0,
+      "crop_keyframes": [
+        [
+          0.0,
+          0.5
+        ],
+        [
+          30.0,
+          0.5
+        ]
+      ],
+      "source": "/tmp/opencode/vf-cycle2-gate/source.mp4",
+      "fps": 30.0,
+      "warnings": [],
+      "duration_sec": 30.0,
+      "audio_sample_rate": 48000,
+      "integrated_lufs": -15.5,
+      "audio_checks": {
+        "dialogue_count": 18,
+        "margin_v": 0,
+        "outside_text": "Dialogue: 0,0:00:00.00,0:00:01.80,Default,,0,0,0,,palavra0_0\\Npalavra0_1\nDialogue: 0,0:00:02.00,0:00:03.80,Default,,0,0,0,,palavra0_2\\Npalavra0_3\nDialogue: 0,0:00:04.00,0:00:04.80,Default,,0,0,0,,palavra0_4\nDialogue: 0,0:00:05.00,0:00:06.80,Default,,0,0,0,,palavra5_0\\Npalavra5_1\nDialogue: 0,0:00:07.00,0:00:08.80,Default,,0,0,0,,palavra5_2\\Npalavra5_3\nDialogue: 0,0:00:09.00,0:00:09.80,Default,,0,0,0,,palavra5_4\nDialogue: 0,0:00:10.00,0:00:11.80,Default,,0,0,0,,palavra10_0\\Npalavra10_1\nDialogue: 0,0:00:12.00,0:00:13.80,Default,,0,0,0,,palavra10_2\\Npalavra10_3\nDialogue: 0,0:00:14.00,0:00:14.80,Default,,0,0,0,,palavra10_4\nDialogue: 0,0:00:15.00,0:00:16.80,Default,,0,0,0,,palavra15_0\\Npalavra15_1\nDialogue: 0,0:00:17.00,0:00:18.80,Default,,0,0,0,,palavra15_2\\Npalavra15_3\nDialogue: 0,0:00:19.00,0:00:19.80,Default,,0,0,0,,palavra15_4\nDialogue: 0,0:00:20.00,0:00:21.80,Default,,0,0,0,,palavra20_0\\Npalavra20_1\nDialogue: 0,0:00:22.00,0:00:23.80,Default,,0,0,0,,palavra20_2\\Npalavra20_3\nDialogue: 0,0:00:24.00,0:00:24.80,Default,,0,0,0,,palavra20_4\nDialogue: 0,0:00:25.00,0:00:26.80,Default,,0,0,0,,palavra25_0\\Npalavra25_1\nDialogue: 0,0:00:27.00,0:00:28.80,Default,,0,0,0,,palavra25_2\\Npalavra25_3\nDialogue: 0,0:00:29.00,0:00:29.80,Default,,0,0,0,,palavra25_4",
+        "literal_color_tag": false,
+        "last_end": 29.8,
+        "clamped": true,
+        "max_line_chars": 11,
+        "pos": [
+          [
+            "500",
+            "1340"
+          ]
+        ],
+        "wrap_style": true,
+        "margin_lr": true
+      }
+    },
+    {
+      "title": "Feed 30",
+      "path": "/tmp/opencode/vf-cycle2-gate/project/shorts/batch/02-feed-30.mp4",
+      "subtitles": "/tmp/opencode/vf-cycle2-gate/project/shorts/batch/02-feed-30.ass",
+      "aspect_ratio": "4:5",
+      "layout": "split_top_visual",
+      "style_id": "",
+      "source_id": "",
+      "start_sec": 30.0,
+      "end_sec": 60.0,
+      "source_start_sec": 30.0,
+      "source_end_sec": 60.0,
+      "expected_duration_sec": 30.0,
+      "metrics": {
+        "speech_ratio": 1.0,
+        "edge_silence_start_ms": 0.0,
+        "edge_silence_end_ms": 200.0,
+        "max_internal_silence_ms": 0.0,
+        "first_word_start": 30.0,
+        "last_word_end": 59.8,
+        "pieces": 1,
+        "crossfade_ms": 15
+      },
+      "pieces": [
+        [
+          1440000,
+          2880000
+        ]
+      ],
+      "timeline_start_sec": 30.0,
+      "timeline_end_sec": 60.0,
+      "crop_keyframes": [
+        [
+          0.0,
+          0.5
+        ],
+        [
+          30.0,
+          0.5
+        ]
+      ],
+      "source": "/tmp/opencode/vf-cycle2-gate/source.mp4",
+      "fps": 30.0,
+      "warnings": [],
+      "duration_sec": 30.0,
+      "audio_sample_rate": 48000,
+      "integrated_lufs": -15.5,
+      "audio_checks": {
+        "dialogue_count": 18,
+        "margin_v": 189,
+        "outside_text": "Dialogue: 0,0:00:00.00,0:00:01.80,Default,,0,0,0,,palavra30_0\\Npalavra30_1\nDialogue: 0,0:00:02.00,0:00:03.80,Default,,0,0,0,,palavra30_2\\Npalavra30_3\nDialogue: 0,0:00:04.00,0:00:04.80,Default,,0,0,0,,palavra30_4\nDialogue: 0,0:00:05.00,0:00:06.80,Default,,0,0,0,,palavra35_0\\Npalavra35_1\nDialogue: 0,0:00:07.00,0:00:08.80,Default,,0,0,0,,palavra35_2\\Npalavra35_3\nDialogue: 0,0:00:09.00,0:00:09.80,Default,,0,0,0,,palavra35_4\nDialogue: 0,0:00:10.00,0:00:11.80,Default,,0,0,0,,palavra40_0\\Npalavra40_1\nDialogue: 0,0:00:12.00,0:00:13.80,Default,,0,0,0,,palavra40_2\\Npalavra40_3\nDialogue: 0,0:00:14.00,0:00:14.80,Default,,0,0,0,,palavra40_4\nDialogue: 0,0:00:15.00,0:00:16.80,Default,,0,0,0,,palavra45_0\\Npalavra45_1\nDialogue: 0,0:00:17.00,0:00:18.80,Default,,0,0,0,,palavra45_2\\Npalavra45_3\nDialogue: 0,0:00:19.00,0:00:19.80,Default,,0,0,0,,palavra45_4\nDialogue: 0,0:00:20.00,0:00:21.80,Default,,0,0,0,,palavra50_0\\Npalavra50_1\nDialogue: 0,0:00:22.00,0:00:23.80,Default,,0,0,0,,palavra50_2\\Npalavra50_3\nDialogue: 0,0:00:24.00,0:00:24.80,Default,,0,0,0,,palavra50_4\nDialogue: 0,0:00:25.00,0:00:26.80,Default,,0,0,0,,palavra55_0\\Npalavra55_1\nDialogue: 0,0:00:27.00,0:00:28.80,Default,,0,0,0,,palavra55_2\\Npalavra55_3\nDialogue: 0,0:00:29.00,0:00:29.80,Default,,0,0,0,,palavra55_4",
+        "literal_color_tag": false,
+        "last_end": 29.8,
+        "clamped": true,
+        "max_line_chars": 11,
+        "pos": [],
+        "wrap_style": true,
+        "margin_lr": true
+      }
+    },
+    {
+      "title": "Intro 30",
+      "path": "/tmp/opencode/vf-cycle2-gate/project/shorts/batch/03-intro-30.mp4",
+      "subtitles": "/tmp/opencode/vf-cycle2-gate/project/shorts/batch/03-intro-30.ass",
+      "aspect_ratio": "9:16",
+      "layout": "split_screen_50_50",
+      "style_id": "",
+      "source_id": "",
+      "start_sec": 60.0,
+      "end_sec": 90.0,
+      "source_start_sec": 60.0,
+      "source_end_sec": 90.0,
+      "expected_duration_sec": 32.0,
+      "metrics": {
+        "speech_ratio": 1.0,
+        "edge_silence_start_ms": 0.0,
+        "edge_silence_end_ms": 200.0,
+        "max_internal_silence_ms": 0.0,
+        "first_word_start": 60.0,
+        "last_word_end": 89.8,
+        "pieces": 1,
+        "crossfade_ms": 15
+      },
+      "pieces": [
+        [
+          2880000,
+          4320000
+        ]
+      ],
+      "timeline_start_sec": 60.0,
+      "timeline_end_sec": 90.0,
+      "crop_keyframes": [
+        [
+          0.0,
+          0.5
+        ],
+        [
+          30.0,
+          0.5
+        ]
+      ],
+      "source": "/tmp/opencode/vf-cycle2-gate/source.mp4",
+      "fps": 30.0,
+      "warnings": [],
+      "duration_sec": 32.0,
+      "audio_sample_rate": 48000,
+      "integrated_lufs": -15.4,
+      "audio_checks": {
+        "dialogue_count": 18,
+        "margin_v": 0,
+        "outside_text": "Dialogue: 0,0:00:00.00,0:00:01.80,Default,,0,0,0,,palavra60_0\\Npalavra60_1\nDialogue: 0,0:00:02.00,0:00:03.80,Default,,0,0,0,,palavra60_2\\Npalavra60_3\nDialogue: 0,0:00:04.00,0:00:04.80,Default,,0,0,0,,palavra60_4\nDialogue: 0,0:00:05.00,0:00:06.80,Default,,0,0,0,,palavra65_0\\Npalavra65_1\nDialogue: 0,0:00:07.00,0:00:08.80,Default,,0,0,0,,palavra65_2\\Npalavra65_3\nDialogue: 0,0:00:09.00,0:00:09.80,Default,,0,0,0,,palavra65_4\nDialogue: 0,0:00:10.00,0:00:11.80,Default,,0,0,0,,palavra70_0\\Npalavra70_1\nDialogue: 0,0:00:12.00,0:00:13.80,Default,,0,0,0,,palavra70_2\\Npalavra70_3\nDialogue: 0,0:00:14.00,0:00:14.80,Default,,0,0,0,,palavra70_4\nDialogue: 0,0:00:15.00,0:00:16.80,Default,,0,0,0,,palavra75_0\\Npalavra75_1\nDialogue: 0,0:00:17.00,0:00:18.80,Default,,0,0,0,,palavra75_2\\Npalavra75_3\nDialogue: 0,0:00:19.00,0:00:19.80,Default,,0,0,0,,palavra75_4\nDialogue: 0,0:00:20.00,0:00:21.80,Default,,0,0,0,,palavra80_0\\Npalavra80_1\nDialogue: 0,0:00:22.00,0:00:23.80,Default,,0,0,0,,palavra80_2\\Npalavra80_3\nDialogue: 0,0:00:24.00,0:00:24.80,Default,,0,0,0,,palavra80_4\nDialogue: 0,0:00:25.00,0:00:26.80,Default,,0,0,0,,palavra85_0\\Npalavra85_1\nDialogue: 0,0:00:27.00,0:00:28.80,Default,,0,0,0,,palavra85_2\\Npalavra85_3\nDialogue: 0,0:00:29.00,0:00:29.80,Default,,0,0,0,,palavra85_4",
+        "literal_color_tag": false,
+        "last_end": 29.8,
+        "clamped": true,
+        "max_line_chars": 11,
+        "pos": [
+          [
+            "500",
+            "840"
+          ]
+        ],
+        "wrap_style": true,
+        "margin_lr": true
+      }
+    }
+  ]
+}

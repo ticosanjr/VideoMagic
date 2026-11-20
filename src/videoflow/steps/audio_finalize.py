@@ -12,6 +12,7 @@ from videoflow.application.audio_finalize import (
     DEFAULT_SFX_GAIN,
     DEFAULT_TARGET_LUFS,
     DEFAULT_TRUE_PEAK_DB,
+    TARGET_LUFS,
     finalize_audio,
 )
 from videoflow.core.context import PipelineContext
@@ -76,13 +77,19 @@ class AudioFinalizeStep(BaseStep):
         if duration <= 0:
             rate = media.audio_sample_rate or 48000
             duration = context.duration_samples() / max(1, rate)
+        target_lufs = TARGET_LUFS
+        if abs(float(options.target_lufs) - TARGET_LUFS) > 0.01:
+            context.warnings.append(
+                f"audio.finalize enforced {TARGET_LUFS:g} LUFS instead of "
+                f"{options.target_lufs:g} LUFS"
+            )
         result = finalize_audio(
             voice,
             context.output,
             music_path=music_value or None,
             sfx_path=sfx_value or None,
             duration_sec=duration,
-            target_lufs=options.target_lufs,
+            target_lufs=target_lufs,
             true_peak_db=options.true_peak_db,
             sample_rate=options.sample_rate,
             music_gain=options.music_gain,

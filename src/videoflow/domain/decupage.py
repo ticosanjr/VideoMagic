@@ -59,7 +59,17 @@ class AsuDecision(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     asu_id: str
-    action: Literal["KEEP", "REMOVE", "TRIM_WORDS", "REVIEW", "RESTORE"]
+    action: Literal[
+        "KEEP",
+        "REMOVE",
+        "REMOVE_RETAKE",
+        "REMOVE_NOISE",
+        "REMOVE_FILLER",
+        "TRIM_WORDS",
+        "QUARANTINE",
+        "REVIEW",
+        "RESTORE",
+    ]
     category: str = ""
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     remove_word_indices: list[int] = Field(default_factory=list)
@@ -82,6 +92,10 @@ class DecupageSpan(BaseModel):
     end_sample: int = Field(ge=0)
     start_sec: float = Field(ge=0.0)
     end_sec: float = Field(ge=0.0)
+    valley_rms_dbfs: float | None = None
+    pad_clamped_by_noise: bool = False
+    pre_roll_ms: float = 0.0
+    post_roll_ms: float = 0.0
 
 
 class DecupageCut(BaseModel):

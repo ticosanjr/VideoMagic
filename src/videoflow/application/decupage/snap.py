@@ -73,7 +73,7 @@ def build_plan(
 
     starts = [start for start, _end in base] + [start for start, _end in source_cuts]
     ends = [end for _start, end in base] + [end for _start, end in source_cuts]
-    snapped: list[tuple[int, int]] = []
+    snapped: list[tuple[int, int, float | None, bool]] = []
     for start, end in base:
         previous = max((item for item in ends if item <= start), default=0)
         following = min(
@@ -98,17 +98,23 @@ def build_plan(
             end_search_left_ms,
             end_search_right_ms,
         )
-        new_start = _pad_start(new_start - pre, start, noise, duration)
-        new_end = _pad_end(new_end + post, end, noise, duration)
+        raw_start = min(new_start, start) - pre
+        raw_end = max(new_end, end) + post
+        new_start = _pad_start(raw_start, start, noise, duration)
+        new_end = _pad_end(raw_end, end, noise, duration)
+        clamped = new_start != raw_start or new_end != raw_end
+        valley = _valley_db(profile, new_start)
         new_start = max(previous, min(new_start, end - 1))
         new_end = min(following, duration, max(new_end, start + 1))
         if new_end - new_start >= _samples(rate, min_clip_ms):
-            snapped.append((new_start, new_end))
-    snapped = merge_spans(snapped)
-
+            snapped.append((new_start, new_end, valley, clamped))
+    pair_snaps = merge_spans([(item[0], item[1]) for item in snapped])
+    flags_by_start: dict[int, tuple[float | None, bool]] = {}
+    for start, _end, valley, clamped in snapped:
+        flags_by_start[start] = (valley, clamped)
     merged: list[tuple[int, int]] = []
     gap_limit = _samples(rate, min_cut_gap_ms)
-    for start, end in snapped:
+    for start, end in pair_snaps:
         if not merged:
             merged.append((start, end))
             continue
@@ -130,12 +136,17 @@ def build_plan(
         q_end = min(timebase.frame_start_sample(frames.end), duration)
         if q_end <= q_start:
             continue
+        valley, clamped = flags_by_start.get(start, (None, False))
         active.append(
             DecupageSpan(
                 start_sample=q_start,
                 end_sample=q_end,
                 start_sec=round(q_start / rate, 3),
                 end_sec=round(q_end / rate, 3),
+                valley_rms_dbfs=valley,
+                pad_clamped_by_noise=clamped,
+                pre_roll_ms=pre_roll_ms,
+                post_roll_ms=post_roll_ms,
             )
         )
     joins = [
@@ -284,6 +295,18 @@ def _pad_end(
         if value > start and anchor < end:
             value = min(value, start)
     return max(0, min(duration, value))
+
+
+def _valley_db(profile: dict[str, Any], sample: int) -> float | None:
+    values = profile.get("db") or []
+    if not values:
+        return None
+    hop = max(1, int(profile.get("hop_samples") or 1))
+    index = min(len(values) - 1, max(0, sample // hop))
+    try:
+        return round(float(values[index]), 3)
+    except (TypeError, ValueError):
+        return None
 
 
 def _snap_start(

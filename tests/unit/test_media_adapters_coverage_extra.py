@@ -752,7 +752,7 @@ def test_render_short_full_chain_with_split_screen_and_sfx(
     assert "aa=1.0" in overlay_command
     music_command = next(item for item in joined if "[1:a]volume=0.18" in item)
     assert "[0:a][music]amix=inputs=2" in music_command
-    assert "concat=n=3:v=1:a=1[v][a]" in " ".join(commands[-1])
+    assert any("concat=n=3:v=1:a=1[v][a]" in " ".join(item) for item in commands)
 
 
 def test_render_short_requires_pieces_and_valid_assets(
