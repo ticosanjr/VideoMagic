@@ -260,13 +260,20 @@ def mdns_workers(*, timeout_sec: float = 1.0) -> list[dict[str, Any]]:
 
     try:
         zc = zeroconf.Zeroconf()
-        browser = zeroconf.ServiceBrowser(
-            zc, "_videoflow._tcp.local.", Listener()
-        )
+        browsers = [
+            zeroconf.ServiceBrowser(
+                zc, service_type, Listener()
+            )
+            for service_type in (
+                "_videoflow._tcp.local.",
+                "_videoflow-gpu._tcp.local.",
+            )
+        ]
         try:
             event.wait(max(0.2, float(timeout_sec)))
         finally:
-            browser.cancel()
+            for browser in browsers:
+                browser.cancel()
             zc.close()
     except Exception:  # noqa: BLE001 - mDNS is best-effort
         return []

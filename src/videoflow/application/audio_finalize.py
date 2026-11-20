@@ -21,7 +21,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from videoflow.core.media_contract import MediaContractError, validate_media
+from videoflow.core.media_contract import (
+    MediaContractError,
+    channel_rms,
+    needs_mono_repair,
+    validate_media,
+)
 from videoflow.domain.errors import ExportError
 from videoflow.runtime import find_binary
 
@@ -119,64 +124,15 @@ def _duration(path: Path) -> float:
 
 
 def _channel_rms(path: Path, *, seconds: float = 8.0) -> tuple[float, float]:
-    """Return RMS in dBFS for the first ``seconds`` of each stereo channel."""
+    """Compatibility wrapper around the shared media-contract measurement."""
 
-    import array
-    import math
-
-    completed = subprocess.run(
-        [
-            _ffmpeg(),
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-t",
-            f"{max(0.1, seconds):.3f}",
-            "-i",
-            str(path),
-            "-f",
-            "s16le",
-            "-ac",
-            "2",
-            "-ar",
-            "48000",
-            "-",
-        ],
-        capture_output=True,
-        check=False,
-        timeout=60,
-    )
-    if completed.returncode != 0 or not completed.stdout:
-        return -120.0, -120.0
-    samples = array.array("h")
-    samples.frombytes(completed.stdout)
-    if not samples:
-        return -120.0, -120.0
-    left = samples[0::2]
-    right = samples[1::2]
-    if not left or not right:
-        return -120.0, -120.0
-
-    def rms(values: array.array) -> float:
-        total = sum(int(value) * int(value) for value in values)
-        mean = total / max(1, len(values))
-        if mean <= 0:
-            return -120.0
-        return 20.0 * math.log10(math.sqrt(mean) / 32768.0)
-
-    return rms(left), rms(right)
+    return channel_rms(path, seconds=seconds)
 
 
 def _needs_mono_repair(left_db: float, right_db: float) -> str:
-    """Return ``left``, ``right``, or an empty string."""
+    """Compatibility wrapper around the shared mono-repair policy."""
 
-    if abs(left_db - right_db) <= 18.0:
-        return ""
-    if left_db > right_db and right_db < -50.0:
-        return "left"
-    if right_db > left_db and left_db < -50.0:
-        return "right"
-    return ""
+    return needs_mono_repair(left_db, right_db)
 
 
 def _measure_loudnorm(
@@ -248,12 +204,20 @@ def _build_graph(
         voice_filters.append("pan=stereo|c0=c0|c1=c0")
     elif mono_repair == "right":
         voice_filters.append("pan=stereo|c0=c1|c1=c1")
-    voice_filters.extend(["highpass=f=80", "afftdn=nf=-30"])
+    voice_filters.extend(
+        [
+            "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo",
+            "aresample=48000",
+            "highpass=f=80",
+            "afftdn=nf=-30",
+        ]
+    )
     chains = [f"[0:a]{','.join(voice_filters)},apad=whole_dur={duration:.6f}[voice]"]
     if music:
         chains.append("[voice]asplit=2[voice_sc][voice_mix]")
         chains.append(
-            f"[1:a]aloop=loop=-1:size=2880000,atrim=0:{duration:.6f},"
+            f"[1:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,"
+            f"aresample=48000,aloop=loop=-1:size=2880000,atrim=0:{duration:.6f},"
             f"volume={music_gain:.3f}[music]"
         )
         chains.append(
@@ -265,7 +229,8 @@ def _build_graph(
         chains.append("[voice]anull[mix0]")
     if sfx:
         chains.append(
-            f"[2:a]atrim=0:{duration:.6f},apad=whole_dur={duration:.6f},"
+            f"[2:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,"
+            f"aresample=48000,atrim=0:{duration:.6f},apad=whole_dur={duration:.6f},"
             f"volume={sfx_gain:.3f}[sfx]"
         )
         chains.append("[mix0][sfx]amix=inputs=2:weights=1 1:normalize=0[mix]")
@@ -336,7 +301,13 @@ def finalize_audio(
         f"measured_LRA={measured['input_lra']}:measured_thresh={measured['input_thresh']}:"
         "linear=true"
     )
-    final_graph = f"{graph};[mix]{loudnorm}[out]"
+    final_graph = (
+        f"{graph};[mix]apad=whole_dur={duration:.6f},"
+        f"atrim=0:{duration:.6f},asetpts=PTS-STARTPTS,{loudnorm},"
+        "aformat=sample_fmts=s32:sample_rates=48000:channel_layouts=stereo,"
+        f"apad=whole_dur={duration:.6f},atrim=0:{duration:.6f},"
+        "asetpts=PTS-STARTPTS[out]"
+    )
     command = [
         _ffmpeg(),
         "-hide_banner",

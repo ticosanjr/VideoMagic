@@ -8,11 +8,16 @@ boundary and treat any failure as a hard error.
 
 from __future__ import annotations
 
+import array
+import math
+import shutil
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
 from videoflow.application.media_integrity import probe_media as _probe_media
+from videoflow.runtime import find_binary
 
 MediaKind = Literal[
     "source",
@@ -21,6 +26,7 @@ MediaKind = Literal[
     "overlay",
     "deliverable",
 ]
+PIPELINE_SCHEMA_VERSION = "3.5"
 ALPHA_PIX_FMTS = frozenset({"yuva420p", "yuva444p10le", "rgba", "bgra", "argb", "abgr"})
 SDR_PIX_FMTS = frozenset({"yuv420p", "yuvj420p", "yuv422p", "yuv444p"})
 AUDIO_MASTER_RATE = 48_000
@@ -28,6 +34,119 @@ AUDIO_MASTER_CHANNELS = 2
 AUDIO_MASTER_CODEC = "pcm_s24le"
 AUDIO_DELIVERY_CODECS = frozenset({"aac", "libfdk_aac"})
 AUDIO_DELIVERY_MIN_BITRATE = 192_000
+
+
+def channel_rms(path: str | Path, *, seconds: float = 8.0) -> tuple[float, float]:
+    """Return per-channel RMS in dBFS for the first ``seconds`` of a stereo file."""
+
+    ffmpeg = find_binary("ffmpeg")
+    if ffmpeg is None:
+        return -120.0, -120.0
+    completed = subprocess.run(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-t",
+            f"{max(0.1, seconds):.3f}",
+            "-i",
+            str(Path(path).expanduser()),
+            "-f",
+            "s16le",
+            "-ac",
+            "2",
+            "-ar",
+            "48000",
+            "-",
+        ],
+        capture_output=True,
+        check=False,
+        timeout=60,
+    )
+    if completed.returncode != 0 or not completed.stdout:
+        return -120.0, -120.0
+    samples = array.array("h")
+    samples.frombytes(completed.stdout)
+    left = samples[0::2]
+    right = samples[1::2]
+    if not left or not right:
+        return -120.0, -120.0
+
+    def rms(values: array.array) -> float:
+        if not values:
+            return -120.0
+        total = sum(float(value) * float(value) for value in values)
+        return 20.0 * math.log10(max(1e-12, math.sqrt(total / len(values)) / 32768.0))
+
+    return rms(left), rms(right)
+
+
+def needs_mono_repair(left_db: float, right_db: float, *, threshold_db: float = 18.0) -> str:
+    """Return ``left``/``right`` when one channel is effectively silent."""
+
+    if left_db <= -90.0 and right_db <= -90.0:
+        return ""
+    if abs(left_db - right_db) <= threshold_db:
+        return ""
+    return "left" if left_db > right_db else "right"
+
+
+def repair_mono_file(
+    path: str | Path,
+    *,
+    threshold_db: float = 18.0,
+    sample_rate: int = AUDIO_MASTER_RATE,
+) -> bool:
+    """Rewrite a unilateral stereo file as centered dual-mono.
+
+    Returns ``True`` when a repair was applied. The file is replaced atomically.
+    """
+
+    source = Path(path).expanduser()
+    if not source.is_file():
+        return False
+    repair = needs_mono_repair(*channel_rms(source), threshold_db=threshold_db)
+    if not repair:
+        return False
+    ffmpeg = find_binary("ffmpeg")
+    if ffmpeg is None:
+        raise MediaContractError("ffmpeg_missing", "FFmpeg is required for mono repair")
+    temporary = source.with_name(f".{source.name}.mono-repair{source.suffix}")
+    pan = "pan=stereo|c0=c0|c1=c0" if repair == "left" else "pan=stereo|c0=c1|c1=c1"
+    completed = subprocess.run(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            str(source),
+            "-af",
+            f"{pan},aformat=sample_fmts=fltp:channel_layouts=stereo",
+            "-ar",
+            str(sample_rate),
+            "-ac",
+            "2",
+            "-c:a",
+            "pcm_s24le",
+            str(temporary),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+    )
+    if completed.returncode != 0 or not temporary.is_file():
+        temporary.unlink(missing_ok=True)
+        raise MediaContractError(
+            "mono_repair_failed",
+            "mono repair failed: " + (completed.stderr.strip()[-300:] or "no output"),
+            path=str(source),
+        )
+    shutil.move(str(temporary), str(source))
+    return True
 
 
 class MediaContractError(RuntimeError):
@@ -345,6 +464,31 @@ def _check_expected(report: MediaReport, expected: ExpectedMedia) -> None:
         )
 
 
+def source_needs_normalization(path: str | Path) -> list[str]:
+    """Return reasons the ingest stage must transcode the source."""
+
+    report = validate_media(path, "source")
+    video = report.metrics.get("video") or {}
+    reasons: list[str] = []
+    width = int(video.get("width") or 0)
+    height = int(video.get("height") or 0)
+    if width and height and (width % 2 or height % 2):
+        reasons.append("odd_dimensions")
+    pix_fmt = str(video.get("pix_fmt") or "")
+    if pix_fmt and pix_fmt not in {"yuv420p", "yuvj420p"}:
+        reasons.append("pixel_format")
+    transfer = str(video.get("color_transfer") or "")
+    if transfer and transfer not in {"bt709", "smpte170m", "bt470bg", ""}:
+        reasons.append("color_transfer")
+    fps_num = int(video.get("fps_num") or 0)
+    fps_den = int(video.get("fps_den") or 0)
+    if fps_num and fps_den:
+        fps = fps_num / fps_den
+        if abs(fps - round(fps)) > 0.001 or round(fps) not in {24, 25, 30, 50, 60}:
+            reasons.append("fps")
+    return reasons
+
+
 def assert_media(
     path: str | Path,
     kind: MediaKind,
@@ -394,6 +538,11 @@ def color_profile(path: str | Path) -> dict[str, Any]:
 
 __all__ = [
     "ALPHA_PIX_FMTS",
+    "PIPELINE_SCHEMA_VERSION",
+    "channel_rms",
+    "needs_mono_repair",
+    "repair_mono_file",
+    "source_needs_normalization",
     "ExpectedMedia",
     "MediaContractError",
     "MediaKind",

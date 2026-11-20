@@ -32,6 +32,7 @@ class SceneAnalyzeParams(BaseModel):
     min_scene_len_sec: float = Field(default=1.5, ge=0.25, le=30.0)
     keyframe_size: int = Field(default=544, ge=128, le=1080)
     compute_policy: Literal["auto", "local", "remote", "remote_only"] = "auto"
+    allow_slow_cpu_fallback: bool = False
     force: bool = False
 
 
@@ -144,9 +145,19 @@ class SceneAnalyzeStep(BaseStep):
             placement = "local"
         elif result is None:
             try:
-                from videoflow.application.compute import router_from_settings
+                from videoflow.application.compute import (
+                    guard_remote_policy,
+                    router_from_settings,
+                )
 
                 router = router_from_settings()
+                guard_remote_policy(
+                    router,
+                    "scene_analyze",
+                    compute_policy=options.compute_policy,
+                    allow_slow_cpu_fallback=options.allow_slow_cpu_fallback,
+                    error_cls=IngestError,
+                )
                 if options.compute_policy == "remote_only":
                     decision = router.decide("scene_analyze")
                     if not decision.is_remote:

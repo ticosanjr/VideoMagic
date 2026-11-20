@@ -939,6 +939,18 @@ function Start-Worker {
         Fail "E_SUPERVISOR_EXIT" "O supervisor encerrou antes do worker ficar saudavel." "Veja logs\bootstrap.log e logs\worker-error.log." "" $tail
     }
     Write-Ok ("Worker saudavel: {0} na porta {1}" -f $health.gpu_name, $script:EnvMap["VF_GPU_PORT"])
+    $lan = ""
+    if ($health.lan_urls -and $health.lan_urls.Count -gt 0) { $lan = [string]$health.lan_urls[0] }
+    if (-not $lan) { $lan = [string]$health.ip_local }
+    if ($lan) { Write-Host ("Worker pronto em http://{0}:{1}" -f $lan, $health.port) -ForegroundColor Green }
+    try {
+        $profiles = Get-NetConnectionProfile -ErrorAction SilentlyContinue
+        foreach ($profile in $profiles) {
+            if ($profile.NetworkCategory -eq "Public") {
+                Write-Warn ("Rede '{0}' esta como Public. O firewall cobre Public, mas conexoes de outros PCs podem ser bloqueadas pela politica corporativa." -f $profile.Name)
+            }
+        }
+    } catch { }
 }
 
 function Stop-ProcessTree {

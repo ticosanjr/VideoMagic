@@ -100,6 +100,27 @@ class AudioEventsStep(BaseStep):
         engine = "yamnet"
         reason = ""
         available = bool(status["available"] and status["labels"])
+        if not available:
+            reason = str(status.get("reason") or "yamnet_unavailable")
+            context.metadata["audio_events"] = []
+            context.metadata["audio_events_report"] = {
+                "schema_version": 1,
+                "available": False,
+                "status": "capability_unavailable",
+                "error_code": "yamnet_model_missing",
+                "engine": "none",
+                "reason": reason,
+                "events": 0,
+                "model_path": model_path,
+                "fix_hint": "Run videoflow doctor --install-models",
+            }
+            io.emit(
+                "error",
+                f"YAMNet model unavailable: {reason}",
+                module="audio.events",
+            )
+            io.report(100, "Acoustic events unavailable")
+            return
         try:
             if available:
                 detected = adapter.detect(

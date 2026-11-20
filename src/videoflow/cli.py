@@ -74,7 +74,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "version":
             return _version()
         if args.command == "doctor":
-            return _doctor()
+            return _doctor(install_models=bool(getattr(args, "install_models", False)))
         if args.command == "shorts":
             return _shorts(args)
         if args.command == "recipe":
@@ -118,7 +118,12 @@ def _parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("version", help="Print the version and exit.")
-    sub.add_parser("doctor", help="Check FFmpeg, data directory, UI, and MCP.")
+    doctor = sub.add_parser("doctor", help="Check FFmpeg, data directory, UI, and MCP.")
+    doctor.add_argument(
+        "--install-models",
+        action="store_true",
+        help="Install YAMNet/MediaPipe/OpenCV/scene dependencies and model files.",
+    )
 
     shorts = sub.add_parser("shorts", help="Select and render vertical 9:16 clips.")
     shorts.add_argument("source", type=Path)
@@ -352,9 +357,80 @@ def _version() -> int:
     return 0
 
 
-def _doctor() -> int:
+def _install_doctor_models() -> dict[str, object]:
+    import shutil
+    import urllib.request
+
+    packages = [
+        "onnxruntime",
+        "mediapipe",
+        "opencv-python-headless",
+        "scenedetect",
+    ]
+    commands: list[list[str]] = []
+    if shutil.which("uv"):
+        commands.append(["uv", "pip", "install", *packages])
+    commands.append([sys.executable, "-m", "pip", "install", *packages])
+    install: dict[str, object] = {"packages": packages, "installed": False}
+    last_error = ""
+    for command in commands:
+        try:
+            completed = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=1800,
+            )
+            if completed.returncode == 0:
+                install["installed"] = True
+                install["command"] = command
+                break
+            last_error = (completed.stderr or completed.stdout or "")[-600:]
+        except (OSError, subprocess.SubprocessError) as exc:
+            last_error = str(exc)
+    if not install["installed"]:
+        install["error"] = last_error or "pip/uv unavailable"
+
+    target_dir = portable_home() / "models" / "audio-tagging"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    labels = target_dir / "yamnet_class_map.csv"
+    labels_url = os.environ.get(
+        "VF_YAMNET_LABELS_URL",
+        "https://raw.githubusercontent.com/tensorflow/models/master/research/audioset/yamnet/yamnet_class_map.csv",
+    )
+    try:
+        if not labels.is_file():
+            with urllib.request.urlopen(labels_url, timeout=60) as response:
+                labels.write_bytes(response.read())
+        install["labels"] = str(labels)
+    except Exception as exc:  # noqa: BLE001 - diagnostics must report, not crash
+        install["labels_error"] = str(exc)
+
+    model = target_dir / "yamnet.onnx"
+    model_url = os.environ.get("VF_YAMNET_MODEL_URL", "").strip()
+    if model.is_file():
+        install["model"] = str(model)
+    elif model_url:
+        try:
+            with urllib.request.urlopen(model_url, timeout=300) as response:
+                model.write_bytes(response.read())
+            install["model"] = str(model)
+        except Exception as exc:  # noqa: BLE001
+            install["model_error"] = str(exc)
+    else:
+        install["model_error"] = (
+            "set VF_YAMNET_MODEL_URL to a public yamnet.onnx download "
+            "(the model is not bundled for licensing/size reasons)"
+        )
+    return install
+
+
+def _doctor(*, install_models: bool = False) -> int:
     ensure_home()
     checks: dict[str, object] = {"version": __version__, "home": str(portable_home())}
+    if install_models:
+        checks["install_models"] = _install_doctor_models()
     ok = True
     for name in ("ffmpeg", "ffprobe"):
         path = find_binary(name)

@@ -41,7 +41,7 @@ class DiscoveryBeacon:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._zeroconf: Any = None
-        self._service_info: Any = None
+        self._service_infos: list[Any] = []
 
     def payload(self) -> dict[str, Any]:
         gpu = detect_gpu()
@@ -123,30 +123,36 @@ class DiscoveryBeacon:
                 "nvenc": "1" if payload["nvenc"] else "0",
                 "encoder": str(payload["encoder"]),
             }
-            info = ServiceInfo(
-                "_videoflow._tcp.local.",
-                f"{self.worker_id}._videoflow._tcp.local.",
-                addresses=[address],
-                port=self.port,
-                properties=properties,
-                server=f"{socket.gethostname()}.local.",
-            )
             zc = Zeroconf()
-            zc.register_service(info)
+            infos = []
+            for service_type in (
+                "_videoflow._tcp.local.",
+                "_videoflow-gpu._tcp.local.",
+            ):
+                info = ServiceInfo(
+                    service_type,
+                    f"{self.worker_id}.{service_type}",
+                    addresses=[address],
+                    port=self.port,
+                    properties=properties,
+                    server=f"{socket.gethostname()}.local.",
+                )
+                zc.register_service(info)
+                infos.append(info)
             self._zeroconf = zc
-            self._service_info = info
+            self._service_infos = infos
         except Exception:  # noqa: BLE001 - mDNS is best-effort
             self._stop_mdns()
 
     def _stop_mdns(self) -> None:
         zc = self._zeroconf
-        info = self._service_info
+        infos = self._service_infos
         self._zeroconf = None
-        self._service_info = None
+        self._service_infos = []
         if zc is None:
             return
-        with contextlib.suppress(Exception):
-            if info is not None:
+        for info in infos:
+            with contextlib.suppress(Exception):
                 zc.unregister_service(info)
         with contextlib.suppress(Exception):
             zc.close()

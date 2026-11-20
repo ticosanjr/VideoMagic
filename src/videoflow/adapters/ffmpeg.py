@@ -143,7 +143,12 @@ class FFmpegAdapter:
                 "-i",
                 str(source_path),
                 "-vf",
-                f"fps={fps_num}/{fps_den}",
+                (
+                    f"fps=fps={fps_num}/{fps_den},"
+                    "scale=trunc(iw/2)*2:trunc(ih/2)*2,"
+                    "format=yuv420p,setparams=color_primaries=bt709:"
+                    "color_trc=bt709:colorspace=bt709"
+                ),
                 "-c:v",
                 "libx264",
                 "-preset",
@@ -152,8 +157,18 @@ class FFmpegAdapter:
                 "18",
                 "-pix_fmt",
                 "yuv420p",
+                "-color_primaries",
+                "bt709",
+                "-color_trc",
+                "bt709",
+                "-colorspace",
+                "bt709",
                 "-c:a",
                 "aac",
+                "-ar",
+                "48000",
+                "-ac",
+                "2",
                 "-b:a",
                 "192k",
                 "-movflags",

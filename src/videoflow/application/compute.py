@@ -37,6 +37,27 @@ def router_from_settings(settings: Any | None = None) -> ComputeRouter:
     )
 
 
+def guard_remote_policy(
+    router: ComputeRouter,
+    capability: str,
+    *,
+    compute_policy: str,
+    allow_slow_cpu_fallback: bool = False,
+    error_cls: type[Exception] = RuntimeError,
+) -> None:
+    """Fail fast when the caller explicitly requires the GPU."""
+
+    if compute_policy != "remote" or allow_slow_cpu_fallback:
+        return
+    decision = router.decide(capability)
+    if decision.is_remote:
+        return
+    raise error_cls(
+        "gpu_required_for_operation: "
+        f"{decision.reason}. Pass allow_slow_cpu_fallback=True to run on CPU."
+    )
+
+
 def compute_status(
     router: ComputeRouter | None = None,
     settings: Any | None = None,
@@ -158,5 +179,6 @@ __all__ = [
     "compute_status",
     "execute_batch",
     "execute_capability",
+    "guard_remote_policy",
     "router_from_settings",
 ]

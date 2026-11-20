@@ -148,7 +148,7 @@ def test_vad_rms_is_persisted_as_an_artifact(tmp_path: Path) -> None:
     assert context.metadata["vad_rms"]["count"] == 98
 
 
-def test_audio_events_step_falls_back_to_heuristic(
+def test_audio_events_step_reports_capability_unavailable(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     source = write_wav(tmp_path / "source.wav", amplitude=0.4)
@@ -177,6 +177,8 @@ def test_audio_events_step_falls_back_to_heuristic(
         lambda *_args, **_kwargs: [(0, 160)],
     )
     AudioEventsStep().run(context, AudioEventsParams(), StepIO())
-    assert context.metadata["audio_events_report"]["engine"] == "heuristic"
-    assert len(context.metadata["audio_events"]) == 1
-    assert Path(context.artifacts["audio_events"]).is_file()
+    report = context.metadata["audio_events_report"]
+    assert report["engine"] == "none"
+    assert report["status"] == "capability_unavailable"
+    assert report["error_code"] == "yamnet_model_missing"
+    assert context.metadata["audio_events"] == []

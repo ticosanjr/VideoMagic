@@ -43,6 +43,7 @@ class ShortRenderParams(BaseModel):
     cam_side: Literal["right", "left"] = "right"
     output_name: str = "short.mp4"
     compute_policy: Literal["auto", "local", "remote", "remote_only"] = "auto"
+    allow_slow_cpu_fallback: bool = False
     encoder: Literal["auto", "nvenc", "libx264"] = "auto"
     burn_captions: bool = True
     smooth_track: bool = False
@@ -299,9 +300,19 @@ class ShortRenderStep(BaseStep):
             final = local_run(options.encoder)
         else:
             try:
-                from videoflow.application.compute import router_from_settings
+                from videoflow.application.compute import (
+                    guard_remote_policy,
+                    router_from_settings,
+                )
 
                 router = router_from_settings()
+                guard_remote_policy(
+                    router,
+                    "short_render",
+                    compute_policy=options.compute_policy,
+                    allow_slow_cpu_fallback=options.allow_slow_cpu_fallback,
+                    error_cls=IngestError,
+                )
                 if options.compute_policy == "remote_only":
                     decision = router.decide("short_render")
                     if not decision.is_remote:

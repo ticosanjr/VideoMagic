@@ -15,6 +15,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
+from videoflow.core.media_contract import PIPELINE_SCHEMA_VERSION
 from videoflow.runtime import portable_home
 
 CACHE_VERSION = 1
@@ -36,7 +37,8 @@ def cache_dir() -> Path:
 
 
 def cache_key(payload: Any) -> str:
-    encoded = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+    envelope = {"pipeline_schema_version": PIPELINE_SCHEMA_VERSION, "payload": payload}
+    encoded = json.dumps(envelope, sort_keys=True, default=str).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
 
 

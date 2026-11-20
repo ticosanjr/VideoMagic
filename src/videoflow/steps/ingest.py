@@ -9,6 +9,11 @@ from pydantic import BaseModel, ConfigDict, Field
 from videoflow.application.media_pool import pool_file
 from videoflow.application.sync import detect_drift_ms
 from videoflow.core.context import PipelineContext
+from videoflow.core.media_contract import (
+    channel_rms,
+    needs_mono_repair,
+    source_needs_normalization,
+)
 from videoflow.domain.errors import MediaNotFoundError
 from videoflow.domain.paths import resolve_allowed
 from videoflow.runtime import allowed_roots
@@ -56,20 +61,30 @@ class IngestStep(BaseStep):
         media = adapter.probe(source)
         original = source
         normalized: Path | None = None
-        if options.force_cfr and hasattr(adapter, "is_vfr") and adapter.is_vfr(source):
-            io.report(25, "Normalising variable frame rate to CFR")
+        normalization_reasons = source_needs_normalization(source)
+        source_fps = media.fps_num / max(1, media.fps_den)
+        target_fps = int(round(source_fps)) if source_fps else media.fps_num
+        if target_fps not in {24, 25, 30, 50, 60}:
+            target_fps = 30
+        needs_cfr = bool(
+            options.force_cfr
+            and hasattr(adapter, "is_vfr")
+            and adapter.is_vfr(source)
+        )
+        if options.force_cfr and (needs_cfr or normalization_reasons):
+            io.report(25, "Normalising media to CFR, BT.709, and even dimensions")
             normalized = adapter.normalize_cfr(
                 source,
                 context.work / "source_cfr.mp4",
-                fps_num=media.fps_num,
-                fps_den=media.fps_den,
+                fps_num=target_fps,
+                fps_den=1,
             )
             context.source = normalized
             context.metadata["source_original"] = str(original)
             media = adapter.probe(normalized)
             io.emit(
                 "info",
-                f"VFR normalised to {media.fps_num}/{media.fps_den} "
+                f"Media normalised to {media.fps_num}/{media.fps_den} "
                 f"({media.duration_frames} frames)",
             )
         context.media = media
@@ -82,6 +97,14 @@ class IngestStep(BaseStep):
                 height=options.proxy_height,
             )
             context.metadata["proxy"] = str(proxy)
+        left_db, right_db = channel_rms(context.source)
+        mono_repair = needs_mono_repair(left_db, right_db)
+        if mono_repair:
+            io.emit(
+                "warning",
+                f"Unilateral mono detected on the {mono_repair} channel; "
+                "delivery audio will be centered during audio.finalize",
+            )
         if options.extract_pcm:
             io.report(55, "Extracting analysis audio")
             wav = pool_file(
@@ -117,6 +140,11 @@ class IngestStep(BaseStep):
             "fps_den": media.fps_den,
             "duration_frames": media.duration_frames,
             "force_cfr": options.force_cfr,
+            "normalization_reasons": normalization_reasons,
+            "audio_mono_repaired": bool(mono_repair),
+            "audio_mono_repair_channel": mono_repair,
+            "audio_left_dbfs": round(left_db, 3),
+            "audio_right_dbfs": round(right_db, 3),
         }
         context.hashes["ingest"] = context.pcm_digest or media.model_dump_json()
         io.report(100, "Media ready")

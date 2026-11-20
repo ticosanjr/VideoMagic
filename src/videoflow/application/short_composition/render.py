@@ -27,6 +27,7 @@ from videoflow.application.short_composition.plan import (
 from videoflow.application.short_composition.tracking import (
     median_face,
 )
+from videoflow.core.media_contract import PIPELINE_SCHEMA_VERSION
 from videoflow.domain.errors import IngestError
 from videoflow.domain.scenes import SceneEntry, ScenesManifest
 from videoflow.domain.short_composition import ShortCompositionPlan
@@ -381,6 +382,7 @@ def _segment_cache_key(
     except OSError:
         fingerprint = "missing"
     payload = {
+        "pipeline_schema_version": PIPELINE_SCHEMA_VERSION,
         "source": str(source),
         "fingerprint": fingerprint,
         "start": round(segment.source_start, 6),

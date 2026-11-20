@@ -34,6 +34,7 @@ class ForcedAlignmentParams(BaseModel):
     device: Literal["cpu", "cuda", "auto"] = "cpu"
     compute_type: str = "int8"
     compute_policy: Literal["auto", "local", "remote", "remote_only"] = "auto"
+    allow_slow_cpu_fallback: bool = False
     min_words: int = Field(default=1, ge=0, le=100)
 
 
@@ -205,6 +206,15 @@ def _remote_words(
     from videoflow.application.compute import router_from_settings
 
     router = router_from_settings()
+    from videoflow.application.compute import guard_remote_policy
+
+    guard_remote_policy(
+        router,
+        "asr",
+        compute_policy=options.compute_policy,
+        allow_slow_cpu_fallback=options.allow_slow_cpu_fallback,
+        error_cls=RuntimeError,
+    )
     decision = router.decide("asr")
     if not decision.is_remote:
         if options.compute_policy == "remote_only":

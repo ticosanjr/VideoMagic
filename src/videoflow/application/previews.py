@@ -19,7 +19,7 @@ from videoflow.domain.errors import StateNotReadyError, VideoFlowError
 from videoflow.domain.state import ProjectState
 from videoflow.exporters.mp4 import export_mp4
 
-PREVIEW_CACHE_VERSION = 1
+PREVIEW_CACHE_VERSION = "3.5"
 
 
 def preview_paths(job: Any) -> tuple[Path, Path]:

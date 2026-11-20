@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from typing import Literal
 
@@ -38,6 +39,8 @@ class VideoExportParams(BaseModel):
     filename_mode: Literal["source_timestamp", "fixed"] = "source_timestamp"
     filename: str = Field(default="video.mp4", min_length=1, max_length=200)
     audio_source: Literal["timeline", "mix"] = "timeline"
+    compute_policy: Literal["auto", "local", "remote", "remote_only"] = "auto"
+    allow_slow_cpu_fallback: bool = False
     draft_scale: float = Field(default=0.0, ge=0.0, le=1.0)
     motion_blur: bool | None = None
     lut_path: str = ""
@@ -95,29 +98,112 @@ class VideoExportStep(BaseStep):
             audio_filters=tuple(audio_filters),
         )
 
-        def progress(value: int) -> None:
-            io.check_cancel()
-            io.report(10 + int(max(0, min(100, value)) * 0.85), "Rendering video")
-
         scale_height = None
         if options.draft_scale and 0 < options.draft_scale < 1 and context.media is not None:
             scale_height = max(144, int(context.media.height * options.draft_scale))
-        with render_gate.hold("export.video", str(context.output)):
+        def render_local(
+            target: Path,
+            *,
+            local_preset: str,
+            local_crf: int,
+            start: int = 10,
+            span: int = 85,
+        ) -> None:
+            def local_progress(value: int) -> None:
+                io.check_cancel()
+                io.report(start + int(max(0, min(100, value)) * span / 100), "Rendering video")
+
             render_master(
                 context.state,
-                destination,
+                target,
                 output=context.output,
                 adapter=adapter,
                 audio_source=options.audio_source,
                 ass_path=ass_path,
                 look=look,
-                crf=crf,
-                preset=preset,
+                crf=local_crf,
+                preset=local_preset,
                 fps=None if options.fps == "source" else int(options.fps),
-                progress=progress,
+                progress=local_progress,
                 scale_height=scale_height,
                 cache_dir=context.output / "render" / "segments",
             )
+
+        placement = "local"
+        encoder = "libx264"
+        remote_error = ""
+        if options.compute_policy != "local":
+            try:
+                from videoflow.application.compute import (
+                    guard_remote_policy,
+                    router_from_settings,
+                )
+
+                router = router_from_settings()
+                guard_remote_policy(
+                    router,
+                    "render_nvenc",
+                    compute_policy=options.compute_policy,
+                    allow_slow_cpu_fallback=options.allow_slow_cpu_fallback,
+                    error_cls=ExportError,
+                )
+                health = router.health()
+                if not bool(getattr(health, "nvenc", False)):
+                    raise ExportError(
+                        "gpu_required_for_operation: worker reports NVENC unavailable: "
+                        + (getattr(health, "nvenc_error", "") or "h264_nvenc failed")
+                    )
+                mezzanine = context.work / "export_mezzanine.mp4"
+                io.report(10, "Rendering mezzanine for the Windows NVENC encode")
+                render_local(mezzanine, local_preset="ultrafast", local_crf=18, start=10, span=45)
+                params: dict[str, object] = {
+                    "output_name": destination.name,
+                    "preset": "p4",
+                    "tune": "hq",
+                    "cq": 19,
+                    "audio_bitrate": "192k",
+                }
+                if context.media is not None:
+                    params["width"] = context.media.width
+                    params["height"] = context.media.height
+                if options.fps != "source":
+                    params["fps"] = int(options.fps)
+                if ass_path is not None:
+                    params["ass_path"] = str(ass_path)
+                io.report(58, "Uploading mezzanine to the GPU worker")
+                result = router.submit(
+                    "render_nvenc",
+                    {
+                        "inputs": [str(mezzanine)],
+                        "params": params,
+                        "timeout_sec": 3600.0,
+                    },
+                    timeout=3600.0,
+                )
+                remote_path = Path(str(result.get("path") or ""))
+                if not remote_path.is_file():
+                    raise ExportError("Remote NVENC render returned no file")
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(remote_path, destination)
+                placement = str(result.get("execution_node") or "remote_gpu")
+                encoder = "nvenc"
+            except ExportError as exc:
+                if (
+                    options.compute_policy in {"remote", "remote_only"}
+                    and not options.allow_slow_cpu_fallback
+                ):
+                    raise
+                remote_error = str(exc)
+                context.warnings.append(f"Remote NVENC export unavailable: {exc}")
+                placement = "local"
+                encoder = "libx264"
+        if placement == "local":
+            with render_gate.hold("export.video", str(context.output)):
+                render_local(destination, local_preset=preset, local_crf=crf)
+        context.metadata["video_export_placement"] = placement
+        context.metadata["video_export_encoder"] = encoder
+        if remote_error:
+            context.metadata["video_export_degraded_reason"] = remote_error
         context.artifacts["video"] = str(destination)
         context.hashes["export.video"] = digest_payload(
             {

@@ -8,12 +8,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.core.media_contract import PIPELINE_SCHEMA_VERSION
 from videoflow.domain.state import MediaInfo
 
 PROXY_HEIGHT = 360
 KEYFRAME_SIZE = 544
 KEYFRAME_QUALITY = 78
-CACHE_VERSION = 1
+CACHE_VERSION = "3.5"
 
 
 def file_sha256(path: Path, *, chunk: int = 1024 * 1024) -> str:
@@ -96,6 +97,7 @@ def cache_key(
     payload = "|".join(
         [
             f"v={CACHE_VERSION}",
+            f"schema={PIPELINE_SCHEMA_VERSION}",
             video_sha,
             f"threshold={round(float(threshold), 4)}",
             f"min_len={round(float(min_scene_len_sec), 4)}",

@@ -59,6 +59,7 @@ class TranscribeParams(BaseModel):
     condition_on_previous_text: bool | None = None
     vad_filter: bool | None = None
     compute_policy: Literal["auto", "local", "remote", "remote_only"] = "auto"
+    allow_slow_cpu_fallback: bool = False
     anti_hallucination: bool = True
     no_speech_threshold: float = Field(default=0.6, ge=0.0, le=1.0)
     compression_ratio_threshold: float = Field(default=2.2, ge=1.0, le=10.0)
@@ -404,9 +405,19 @@ class TranscribeStep(BaseStep):
         ):
             try:
                 from videoflow.application.asr_remote import RemoteAsrClient
-                from videoflow.application.compute import router_from_settings
+                from videoflow.application.compute import (
+                    guard_remote_policy,
+                    router_from_settings,
+                )
 
                 router = router_from_settings(settings)
+                guard_remote_policy(
+                    router,
+                    "asr",
+                    compute_policy=options.compute_policy,
+                    allow_slow_cpu_fallback=options.allow_slow_cpu_fallback,
+                    error_cls=TranscriptionError,
+                )
                 decision = router.decide("asr")
                 if decision.is_remote:
                     remote_model = (

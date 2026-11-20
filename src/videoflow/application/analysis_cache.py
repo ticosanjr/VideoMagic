@@ -9,7 +9,7 @@ from typing import Any
 
 from videoflow.runtime import cache_root
 
-CACHE_VERSION = 1
+CACHE_VERSION = "3.5"
 
 
 def _sha256(path: Path) -> str:

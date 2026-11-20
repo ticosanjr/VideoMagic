@@ -101,9 +101,15 @@ def _video_filters(clip: VideoSegment, media: MediaInfo, *, offset_frames: int =
     return filters
 
 
-def _audio_filters(clip: AudioSegment, media: MediaInfo, *, offset_samples: int = 0) -> list[str]:
-    sample_rate = media.audio_sample_rate
-    duration = (clip.source_out_sample - clip.source_in_sample) / sample_rate
+def _audio_filters(
+    clip: AudioSegment,
+    media: MediaInfo,
+    *,
+    offset_samples: int = 0,
+    sample_rate: int | None = None,
+) -> list[str]:
+    clip_rate = int(sample_rate or media.audio_sample_rate)
+    duration = (clip.source_out_sample - clip.source_in_sample) / clip_rate
     start = max(0, clip.source_in_sample - offset_samples)
     end = max(start + 1, clip.source_out_sample - offset_samples)
     filters = [
@@ -111,10 +117,16 @@ def _audio_filters(clip: AudioSegment, media: MediaInfo, *, offset_samples: int 
         "asetpts=PTS-STARTPTS",
     ]
     if clip.fade_in_samples > 0:
-        filters.append(f"afade=t=in:st=0:d={clip.fade_in_samples / sample_rate:.6f}")
+        filters.append(f"afade=t=in:st=0:d={clip.fade_in_samples / clip_rate:.6f}")
     if clip.fade_out_samples > 0:
-        start = max(0.0, duration - clip.fade_out_samples / sample_rate)
-        filters.append(f"afade=t=out:st={start:.6f}:d={clip.fade_out_samples / sample_rate:.6f}")
+        start = max(0.0, duration - clip.fade_out_samples / clip_rate)
+        filters.append(f"afade=t=out:st={start:.6f}:d={clip.fade_out_samples / clip_rate:.6f}")
+    filters.extend(
+        [
+            "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo",
+            "aresample=48000",
+        ]
+    )
     return filters
 
 
@@ -164,7 +176,7 @@ def build_filter_graph(state: ProjectState) -> tuple[str, str, str]:
 
 SEGMENT_THRESHOLD = 16
 PRE_ROLL_SECONDS = 1.0
-GROUP_CACHE_VERSION = 4
+GROUP_CACHE_VERSION = "3.5"
 DEFAULT_EXPORT_FPS = 30
 
 YOUTUBE_PROFILE = "youtube_h264"
@@ -317,6 +329,28 @@ def timeline_render_frames(state: ProjectState) -> int:
     return max(1, total)
 
 
+def _validate_delivery(path: Path, adapter: Any | None = None) -> None:
+    if not _duration_gate_enabled(adapter):
+        return
+    from videoflow.adapters.ffmpeg import FFmpegAdapter
+
+    if adapter is not None and not isinstance(adapter, FFmpegAdapter):
+        return
+    from videoflow.core.media_contract import validate_media
+
+    report = validate_media(path, "deliverable")
+    if not report.ok:
+        first = (
+            report.errors[0]
+            if report.errors
+            else {"code": "media_contract", "message": "invalid"}
+        )
+        raise ExportError(
+            f"{path.name} violated the media contract: "
+            f"{first.get('code')}: {first.get('message')}"
+        )
+
+
 def _duration_gate_enabled(adapter: Any | None) -> bool:
     """Fakes used in unit tests do not write decodable MP4 files."""
 
@@ -394,7 +428,12 @@ def _audio_graph_inputs(
                 str(Path(clip_media.source_path).expanduser()),
             ]
         )
-        filters = _audio_filters(clip, media, offset_samples=seek_sample)
+        filters = _audio_filters(
+            clip,
+            media,
+            offset_samples=seek_sample,
+            sample_rate=clip_rate,
+        )
         previous = transitions[index - 1] if index > 0 else None
         current = transitions[index] if index < len(transitions) else None
         if previous is not None and previous.audio and previous.type == "fade_to_black":
@@ -462,7 +501,7 @@ def export_timeline_audio(
         "-ac",
         "2",
         "-c:a",
-        "pcm_s16le",
+        "pcm_s24le",
         str(temporary),
     ]
     renderer = adapter or FFmpegAdapter()
@@ -789,7 +828,11 @@ def _export_mp4_segmented(
                     "-i",
                     str(master_file),
                     "-vn",
+                    "-af",
+                    "aresample=async=1:first_pts=0,apad",
                     *_audio_encode_args(bitrate=audio_bitrate),
+                    "-t",
+                    f"{_expected_seconds(state):.6f}",
                     "-movflags",
                     "+faststart",
                     str(audio_only),
@@ -799,6 +842,7 @@ def _export_mp4_segmented(
             audio_inputs, audio_graph = _audio_graph_inputs(state, media, source)
             audio_label = "[aout]"
             audio_effects = [item for item in (audio_filters or []) if item]
+            audio_effects.append(f"apad=whole_dur={_expected_seconds(state):.6f}")
             if loudness_lufs is not None:
                 audio_effects.append(loudnorm_filter(loudness_lufs, true_peak_db))
             if audio_effects:
@@ -813,6 +857,8 @@ def _export_mp4_segmented(
                     audio_label,
                     "-vn",
                     *_audio_encode_args(bitrate=audio_bitrate),
+                    "-t",
+                    f"{_expected_seconds(state):.6f}",
                     str(audio_only),
                 ]
             )
@@ -892,6 +938,7 @@ def _export_mp4_segmented(
         if not has_video_finishing:
             shutil.move(str(combined), str(destination))
             _write_export_layout(state, destination)
+            _validate_delivery(destination, adapter)
             if progress is not None:
                 progress(100)
             return destination
@@ -1073,6 +1120,7 @@ def export_mp4(
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
+    _validate_delivery(destination, adapter)
     return destination
 
 
@@ -1250,4 +1298,5 @@ def _render_classic_mp4(
         renderer.render(command)
     if not destination.is_file():
         raise ExportError(f"FFmpeg did not write {destination.name}")
+    _validate_delivery(destination, adapter)
     return destination
