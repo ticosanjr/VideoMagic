@@ -153,9 +153,9 @@ def test_kit_info_reads_last_metadata(tmp_path: Path, monkeypatch) -> None:
 def test_windows_kit_routes_download_and_info(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(win_worker_kit, "portable_home", lambda: tmp_path)
     app = FastAPI()
-    from videoflow.api.routes_gpu_worker import register_gpu_worker_routes
+    from videoflow.api.routes_gpu import _register_worker_kit_routes
 
-    register_gpu_worker_routes(app)
+    _register_worker_kit_routes(app)
     client = TestClient(app)
     response = client.post(
         "/api/v1/gpu-worker/package",
