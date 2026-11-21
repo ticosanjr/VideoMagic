@@ -49,6 +49,9 @@ mark "fast gate"
 )
 mark "UI build"
 
+"$ROOT/scripts/build_worker_wheels.sh" "$VERSION"
+mark "worker wheels"
+
 if [ "$REFRESH_RUNTIME" = "1" ] || [ ! -x "$RUNTIME_BASE/videoflow" ]; then
   WHISPER_VULKAN=()
   if command -v glslc >/dev/null 2>&1; then

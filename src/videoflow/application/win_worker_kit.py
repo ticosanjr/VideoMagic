@@ -204,6 +204,14 @@ def _add_worker_source(zf: zipfile.ZipFile) -> list[str]:
     return files
 
 
+_WORKER_WHEEL_VERSION = re.compile(r"^videoflow[_-]gpu[_-]worker-([^-]+)-")
+
+
+def _wheel_version(path: Path) -> str:
+    match = _WORKER_WHEEL_VERSION.match(path.name)
+    return match.group(1) if match else ""
+
+
 def _wheel_paths() -> list[Path]:
     candidates: list[Path] = []
     for root in (
@@ -215,18 +223,24 @@ def _wheel_paths() -> list[Path]:
     return candidates
 
 
-def _worker_wheel() -> Path | None:
-    candidates = [
-        path
-        for path in _wheel_paths()
-        if path.name.startswith("videoflow_gpu_worker-")
-        or path.name.startswith("videoflow_gpu_worker_")
-    ]
+def _worker_wheel() -> Path:
+    """Return the worker wheel for this exact kit version.
+
+    Silently falling back to another wheel is what produced a 3.17.3 kit with
+    a 3.9.2 wheel: the installer then failed with E_WORKER_VERSION on the
+    user's machine. A missing wheel is a build error and must stop here.
+    """
+
     version = _kit_version()
-    for path in candidates:
-        if version in path.name:
-            return path
-    return candidates[-1] if candidates else None
+    candidates = _wheel_paths()
+    matches = [path for path in candidates if _wheel_version(path) == version]
+    if not matches:
+        available = ", ".join(path.name for path in candidates) or "none"
+        raise FileNotFoundError(
+            f"worker wheel for {version} not found; available: {available}. "
+            f"Run scripts/build_worker_wheels.sh {version} before packaging."
+        )
+    return matches[-1]
 
 
 def _runtime_wheels() -> list[Path]:
@@ -284,7 +298,7 @@ def build_worker_kit(
     ffmpeg = Path(ffmpeg_path).expanduser() if ffmpeg_path is not None else None
     has_ffmpeg = bool(ffmpeg and ffmpeg.is_file())
     worker_wheel = _worker_wheel()
-    wheels = ([worker_wheel] if worker_wheel is not None else []) + _runtime_wheels()
+    wheels = [worker_wheel, *_runtime_wheels()]
     unique: dict[str, Path] = {}
     for wheel in wheels:
         unique.setdefault(wheel.name, wheel)

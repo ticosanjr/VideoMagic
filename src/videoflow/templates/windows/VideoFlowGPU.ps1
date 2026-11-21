@@ -448,7 +448,15 @@ function Get-WorkerWheel {
     if ($wheels.Count -eq 0) {
         Fail "E_WHEEL_MISSING" "O wheel do worker nao esta em wheels\." "Reextraia o ZIP do kit ou rode Install novamente."
     }
-    return $wheels[0]
+    $matching = @($wheels | Where-Object { $_.Name -match ("^videoflow_gpu_worker-" + [regex]::Escape($ExpectedVersion) + "-") })
+    if ($matching.Count -eq 0) {
+        $found = ($wheels | ForEach-Object { $_.Name }) -join ", "
+        Fail "E_WORKER_WHEEL_VERSION" ("Kit espera {0}, mas wheels contem: {1}." -f $ExpectedVersion, $found) "Baixe o kit do worker da mesma versao do VideoFlow."
+    }
+    if ($matching.Count -gt 1) {
+        Write-Warn ("Mais de um wheel {0} em wheels\; usando {1}." -f $ExpectedVersion, $matching[0].Name)
+    }
+    return $matching[0]
 }
 
 function Test-Checksum {

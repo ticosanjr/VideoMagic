@@ -87,7 +87,33 @@ def test_windows_kit_includes_ffmpeg_when_provided(tmp_path: Path) -> None:
 def test_windows_kit_includes_prebuilt_worker_wheel(tmp_path: Path) -> None:
     result = build_worker_kit(output=tmp_path, include_worker_source=False)
     names = _names(result.path)
-    assert any(name.startswith("wheels/videoflow_gpu_worker-") for name in names)
+    from videoflow import __version__
+
+    expected = f"wheels/videoflow_gpu_worker-{__version__}-py3-none-any.whl"
+    assert expected in names
+
+
+def test_worker_wheel_requires_the_exact_kit_version(
+    tmp_path: Path, monkeypatch
+) -> None:
+    wheel = tmp_path / "videoflow_gpu_worker-3.9.2-py3-none-any.whl"
+    wheel.write_bytes(b"wheel")
+    monkeypatch.setattr(win_worker_kit, "_wheel_paths", lambda: [wheel])
+    monkeypatch.setattr(win_worker_kit, "_kit_version", lambda: "3.17.4")
+    with pytest.raises(FileNotFoundError, match="3.17.4"):
+        win_worker_kit._worker_wheel()
+
+
+def test_worker_wheel_selects_the_matching_version(
+    tmp_path: Path, monkeypatch
+) -> None:
+    stale = tmp_path / "videoflow_gpu_worker-3.9.2-py3-none-any.whl"
+    current = tmp_path / "videoflow_gpu_worker-3.17.4-py3-none-any.whl"
+    stale.write_bytes(b"old")
+    current.write_bytes(b"new")
+    monkeypatch.setattr(win_worker_kit, "_wheel_paths", lambda: [stale, current])
+    monkeypatch.setattr(win_worker_kit, "_kit_version", lambda: "3.17.4")
+    assert win_worker_kit._worker_wheel() == current
 
 
 def test_windows_kit_includes_offline_worker_dependencies(tmp_path: Path) -> None:

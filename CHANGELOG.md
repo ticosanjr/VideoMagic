@@ -1,5 +1,22 @@
 # Changelog
 
+## [3.17.4] - 2026-11-21
+
+- Release 3.17.4.
+
+## [3.17.4] - 2026-11-21
+
+### Fixed — Windows GPU Worker
+
+- O kit Windows agora exige o wheel `videoflow_gpu_worker` da mesma versão e
+  falha no build quando ele não existe, em vez de empacotar silenciosamente um
+  wheel antigo. O kit 3.17.3 saiu com wheel 3.9.2 e os usuários recebiam
+  `E_WORKER_VERSION`; use o kit 3.17.4.
+- `VideoFlowGPU.ps1` valida a versão do wheel em `wheels\` antes de instalar e
+  mostra `E_WORKER_WHEEL_VERSION` com os arquivos encontrados.
+- O build de release gera os wheels do worker e do scene-rules antes de montar
+  o bundle.
+
 ## [3.17.3] - 2026-11-21
 
 ### Fixed — decupagem

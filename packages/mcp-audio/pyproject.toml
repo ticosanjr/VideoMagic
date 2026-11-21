@@ -1,6 +1,6 @@
 [project]
 name = "videoflow-mcp-audio"
-version = "3.17.3"
+version = "3.17.4"
 description = "VideoFlow 2.90 audio MCP tools: TTS, cleanup, stems, music/SFX, and mixing."
 readme = "README.md"
 requires-python = ">=3.11"
