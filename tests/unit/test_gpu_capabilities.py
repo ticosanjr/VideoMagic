@@ -267,3 +267,49 @@ def test_nvenc_probe_reports_actionable_advice(monkeypatch) -> None:
     probe = handlers_gpu.probe_nvenc("/fake/ffmpeg")
     assert probe.available is False
     assert "driver" in probe.advice.casefold()
+
+
+def test_asr_retries_without_vad_when_onnx_is_broken(tmp_path: Path) -> None:
+    class Words:
+        word = " ola"
+        start = 0.0
+        end = 0.4
+        probability = 0.9
+
+    class Segment:
+        start = 0.0
+        end = 0.4
+        text = " ola"
+        words = [Words()]
+
+    class Model:
+        def __init__(self) -> None:
+            self.calls: list[bool] = []
+
+        def transcribe(self, path, **kwargs):
+            self.calls.append(bool(kwargs["vad_filter"]))
+            if kwargs["vad_filter"]:
+                raise AttributeError(
+                    "module 'onnxruntime' has no attribute 'SessionOptions'"
+                )
+            return [Segment()], SimpleNamespace(language="pt", language_probability=0.9)
+
+    model = Model()
+    key = ("large-v3-turbo", "cpu", "int8")
+    handlers_gpu._ASR_MODELS[key] = model
+    audio = tmp_path / "audio.wav"
+    audio.write_bytes(b"wav")
+    handler = handlers_gpu.make_asr_handler(
+        Settings(
+            work_dir=tmp_path / "worker",
+            asr_model="large-v3-turbo",
+            asr_device="cpu",
+            asr_compute_type="int8",
+        )
+    )
+    outputs = handler({"vad_filter": True}, [audio], tmp_path / "work")
+    payload = json.loads(Path(outputs[0]).read_text(encoding="utf-8"))
+    assert model.calls == [True, False]
+    assert payload["vad_fallback"] is True
+    assert "SessionOptions" in payload["vad_error"]
+    assert payload["segments"][0]["text"] == "ola"

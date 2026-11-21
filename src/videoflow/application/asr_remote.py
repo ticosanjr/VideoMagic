@@ -14,6 +14,19 @@ from typing import Any
 from videoflow.domain.errors import TranscriptionError
 from videoflow.domain.state import Sentence, WordTiming
 
+_VAD_MARKERS = (
+    "onnxruntime",
+    "sessionoptions",
+    "inferencesession",
+    "silero",
+    "vad model",
+)
+
+
+def _vad_backend_error(exc: BaseException) -> bool:
+    message = f"{type(exc).__name__}: {exc}".casefold()
+    return any(marker in message for marker in _VAD_MARKERS)
+
 
 class RemoteAsrClient:
     """Submit 16 kHz WAV audio to the GPU worker and parse its transcript."""
@@ -54,24 +67,35 @@ class RemoteAsrClient:
         sample_rate: int,
         **_: Any,
     ) -> list[Sentence]:
-        result = self.router.submit(
-            self.capability,
-            {
-                "inputs": [str(wav_path)],
-                "language": self.language,
-                "model": self.model,
-                "beam_size": self.beam_size,
-                "word_timestamps": self.word_timestamps,
-                "vad_filter": self.vad_filter,
-                "condition_on_previous_text": False,
-                "no_speech_threshold": self.no_speech_threshold,
-                "compression_ratio_threshold": self.compression_ratio_threshold,
-                "repetition_penalty": self.repetition_penalty,
-                "timeout_sec": self.timeout_sec,
-            },
-            timeout=self.timeout_sec,
-        )
-        self.execution = dict(result.get("execution") or {})
+        params = {
+            "inputs": [str(wav_path)],
+            "language": self.language,
+            "model": self.model,
+            "beam_size": self.beam_size,
+            "word_timestamps": self.word_timestamps,
+            "vad_filter": self.vad_filter,
+            "condition_on_previous_text": False,
+            "no_speech_threshold": self.no_speech_threshold,
+            "compression_ratio_threshold": self.compression_ratio_threshold,
+            "repetition_penalty": self.repetition_penalty,
+            "timeout_sec": self.timeout_sec,
+        }
+        try:
+            result = self.router.submit(
+                self.capability, params, timeout=self.timeout_sec
+            )
+        except Exception as exc:  # noqa: BLE001 - worker/transport boundary
+            if not self.vad_filter or not _vad_backend_error(exc):
+                raise
+            params["vad_filter"] = False
+            result = self.router.submit(
+                self.capability, params, timeout=self.timeout_sec
+            )
+            self.execution = dict(result.get("execution") or {})
+            self.execution["vad_fallback"] = True
+            self.execution["vad_error"] = f"{type(exc).__name__}: {exc}"[:500]
+        else:
+            self.execution = dict(result.get("execution") or {})
         payload = _read_payload(result)
         self.last_language = str(payload.get("language") or "")
         try:

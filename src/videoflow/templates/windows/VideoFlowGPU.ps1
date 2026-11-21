@@ -537,6 +537,27 @@ function Test-PythonImport {
     return ($probe.ExitCode -eq 0)
 }
 
+function Test-OnnxRuntime {
+    $expr = "import onnxruntime as o; o.SessionOptions(); o.InferenceSession; print(o.__version__ + '|' + ','.join(o.get_available_providers()))"
+    return -not [string]::IsNullOrWhiteSpace((Get-PythonExpr $expr))
+}
+
+function Repair-OnnxRuntime {
+    $uv = Resolve-Uv
+    Write-Log "Reparando ONNX Runtime (removendo CPU e GPU e reinstalando o wheel GPU)."
+    $repair = Invoke-Native $VenvPython @("-m", "gpu_worker.repair", "--fix", "--json", "--uv", $uv) -AllowFailure
+    if ($repair.ExitCode -eq 0 -and (Test-OnnxRuntime)) { return $true }
+    Invoke-Native $uv @("pip", "uninstall", "--python", $VenvPython, "-y", "onnxruntime", "onnxruntime-gpu") -AllowFailure | Out-Null
+    $site = (Get-PythonExpr "import site; print(site.getsitepackages()[0])").Trim()
+    if ($site) {
+        foreach ($name in @("onnxruntime", "onnxruntime_gpu-*.dist-info", "onnxruntime-*.dist-info")) {
+            Get-ChildItem -Path $site -Filter $name -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+    Invoke-Native $uv @("pip", "install", "--python", $VenvPython, "--force-reinstall", "--no-deps", "onnxruntime-gpu==1.20.2") -AllowFailure | Out-Null
+    return (Test-OnnxRuntime)
+}
+
 function Get-PythonExpr {
     param([string]$Expression)
     if (-not (Test-Path $VenvPython)) { return "" }
@@ -577,19 +598,18 @@ for _base in glob.glob(os.path.join(_here, "nvidia", "*", "bin")):
 }
 
 function Ensure-Runtime {
-    param([switch]$Force)
+    param([switch]$Force, [switch]$AllowDegraded)
     $runtimeStep = "runtime-" + $RuntimeRev
     $importsOk = $true
-    foreach ($module in @("pkg_resources", "faster_whisper", "rembg", "cv2", "onnxruntime", "torch")) {
+    foreach ($module in @("pkg_resources", "faster_whisper", "rembg", "cv2", "torch")) {
         if (-not (Test-PythonImport $module)) { $importsOk = $false }
     }
+    if (-not (Test-OnnxRuntime)) { $importsOk = $false }
     if ((Test-InstallStep $runtimeStep) -and $importsOk -and -not $Force) {
         $providers = Get-PythonExpr "import onnxruntime; print(','.join(onnxruntime.get_available_providers()))"
         if ($providers -notmatch "CUDAExecutionProvider") {
-            Write-Warn "ONNX Runtime sem CUDAExecutionProvider; reparando o pacote GPU."
-            $uv = Resolve-Uv
-            Invoke-Native $uv @("pip", "uninstall", "--python", $VenvPython, "onnxruntime") -AllowFailure | Out-Null
-            Invoke-Native $uv @("pip", "install", "--python", $VenvPython, "--upgrade", "--no-deps", "onnxruntime-gpu==1.20.2") -AllowFailure | Out-Null
+            Write-Warn "ONNX Runtime sem CUDAExecutionProvider; revisando o pacote GPU."
+            Repair-OnnxRuntime | Out-Null
             Ensure-CudaDlls
         }
         $cuda = Get-PythonExpr "import torch; print(1 if torch.cuda.is_available() else 0)"
@@ -618,8 +638,7 @@ function Ensure-Runtime {
     }
     # CTranslate2 4.5 still imports pkg_resources; setuptools 81+ removed it.
     Invoke-Native $uv @("pip", "install", "--python", $VenvPython, "--upgrade", "setuptools==80.9.0") -AllowFailure | Out-Null
-    Invoke-Native $uv @("pip", "uninstall", "--python", $VenvPython, "onnxruntime") -AllowFailure | Out-Null
-    Invoke-Native $uv @("pip", "install", "--python", $VenvPython, "--upgrade", "--no-deps", "onnxruntime-gpu==1.20.2") -AllowFailure | Out-Null
+    Repair-OnnxRuntime | Out-Null
     Ensure-CudaDlls
     $cuda = Get-PythonExpr "import torch; print(1 if torch.cuda.is_available() else 0)"
     $ct2 = Get-PythonExpr "import ctranslate2; print(ctranslate2.get_cuda_device_count())"
@@ -631,6 +650,13 @@ function Ensure-Runtime {
         $ct2 = Get-PythonExpr "import ctranslate2; print(ctranslate2.get_cuda_device_count())"
     }
     $providers = Get-PythonExpr "import onnxruntime; print(','.join(onnxruntime.get_available_providers()))"
+    if (-not (Test-OnnxRuntime)) {
+        if ($AllowDegraded) {
+            Write-Warn "ONNX Runtime incompleto; ASR vai operar sem VAD ate o proximo Repair."
+        } else {
+            Fail "E_ONNX_BROKEN" "ONNX Runtime incompleto apos o reparo (SessionOptions/InferenceSession ausentes)." "Rode Install/Repair em uma pasta nova do kit e verifique o Visual C++ Redistributable."
+        }
+    }
     if ($providers -notmatch "CUDAExecutionProvider") {
         Write-Warn "ONNX Runtime sem CUDAExecutionProvider; matte pode cair para CPU."
     }
@@ -1016,7 +1042,7 @@ function Start-Worker {
         Install-Worker
     } else {
         Ensure-Worker
-        Ensure-Runtime
+        Ensure-Runtime -AllowDegraded
         Ensure-Ffmpeg
     }
     Ensure-SharedMount

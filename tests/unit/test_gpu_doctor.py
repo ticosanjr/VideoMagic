@@ -87,3 +87,33 @@ def test_windows_kit_pins_compatible_setuptools() -> None:
     wheels = root / "src" / "videoflow" / "templates" / "wheels" / "win"
     assert (wheels / "setuptools-80.9.0-py3-none-any.whl").is_file()
     assert not list(wheels.glob("setuptools-84*.whl"))
+
+
+def test_doctor_detects_a_partial_onnxruntime(monkeypatch) -> None:
+    monkeypatch.setattr(doctor, "_import_detail", lambda module: (True, "1.0", ""))
+    monkeypatch.setattr(
+        doctor,
+        "_onnx_detail",
+        lambda: (
+            False,
+            "1.20.2",
+            "AttributeError: module 'onnxruntime' has no attribute 'SessionOptions'",
+            [],
+        ),
+    )
+    monkeypatch.setattr(doctor, "_model_present", lambda model: True)
+    monkeypatch.setattr(
+        doctor,
+        "probe_nvenc",
+        lambda ffmpeg: SimpleNamespace(
+            available=True,
+            to_dict=lambda: {"available": True},
+        ),
+    )
+    doctor.clear_cache()
+    report = doctor.dependency_report(_settings(), force=True)
+    assert report["asr_ready"] is True
+    assert report["asr_vad_ready"] is False
+    assert "SessionOptions" in report["asr_vad_error"]
+    assert report["checks"]["onnxruntime"] is False
+    assert report["repair_hint"]

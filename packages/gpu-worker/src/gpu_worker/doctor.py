@@ -32,6 +32,40 @@ def _import_detail(module: str) -> tuple[bool, str, str]:
     return True, version, ""
 
 
+def _onnx_detail() -> tuple[bool, str, str, list[str]]:
+    """Deep ONNX probe: importing the module is not enough.
+
+    A mixed install of ``onnxruntime`` (CPU) and ``onnxruntime-gpu`` can leave
+    a partial package that imports but has no ``SessionOptions``. Faster-whisper
+    then fails at 15% when Silero VAD starts.
+    """
+
+    try:
+        module = importlib.import_module("onnxruntime")
+    except Exception as exc:  # noqa: BLE001
+        return False, "", f"{type(exc).__name__}: {exc}", []
+    version = str(getattr(module, "__version__", "") or "")
+    options = getattr(module, "SessionOptions", None)
+    session = getattr(module, "InferenceSession", None)
+    if options is None or session is None:
+        missing = "SessionOptions" if options is None else "InferenceSession"
+        return (
+            False,
+            version,
+            f"AttributeError: module 'onnxruntime' has no attribute '{missing}'",
+            [],
+        )
+    try:
+        options()
+    except Exception as exc:  # noqa: BLE001
+        return False, version, f"{type(exc).__name__}: {exc}", []
+    try:
+        providers = [str(item) for item in module.get_available_providers()]
+    except Exception:  # noqa: BLE001 - provider list is advisory
+        providers = []
+    return True, version, "", providers
+
+
 def _model_present(model: str) -> bool:
     name = str(model or "").strip()
     if not name:
@@ -68,19 +102,9 @@ def dependency_report(settings: Settings, *, force: bool = False) -> dict[str, A
     asr_ok, asr_version, asr_error = _import_detail("faster_whisper")
     if asr_ok and ct2_error:
         asr_ok, asr_error = False, ct2_error
-    onnx_ok, onnx_version, onnx_error = _import_detail("onnxruntime")
-    providers: list[str] = []
-    if onnx_ok:
-        try:
-            providers = [
-                str(item)
-                for item in importlib.import_module(
-                    "onnxruntime"
-                ).get_available_providers()
-            ]
-        except Exception:  # noqa: BLE001 - provider probe is advisory
-            providers = []
+    onnx_ok, onnx_version, onnx_error, providers = _onnx_detail()
     nvenc = probe_nvenc(ffmpeg)
+    rembg_ok, _rembg_version, rembg_error = _import_detail("rembg")
     model = str(getattr(settings, "asr_model", "") or "large-v3-turbo")
     model_ready = _model_present(model)
     dependencies = {
@@ -111,8 +135,13 @@ def dependency_report(settings: Settings, *, force: bool = False) -> dict[str, A
         "onnxruntime": {
             "ok": onnx_ok,
             "version": onnx_version,
+            "session_api": onnx_ok,
             "providers": providers,
             "error": onnx_error,
+        },
+        "rembg": {
+            "ok": rembg_ok,
+            "error": rembg_error,
         },
         "ffmpeg": {
             "ok": ffmpeg_ok,
@@ -143,14 +172,27 @@ def dependency_report(settings: Settings, *, force: bool = False) -> dict[str, A
         "ctranslate2": ct2_ok,
         "faster_whisper": asr_ok,
         "onnxruntime": onnx_ok,
+        "rembg": rembg_ok,
         "ffmpeg": ffmpeg_ok,
         "nvenc": nvenc.available,
     }
+    asr_vad_ready = bool(onnx_ok)
+    matte_ready = bool(rembg_ok and onnx_ok)
+    repair_hint = ""
+    if not onnx_ok:
+        repair_hint = (
+            "ONNX Runtime incompleto. Rode Install/Repair no kit do worker "
+            "para reinstalar onnxruntime-gpu."
+        )
     report = {
         "ok": all(checks.values()),
         "checks": checks,
         "asr_ready": asr_ready,
         "asr_error": asr_reason,
+        "asr_vad_ready": asr_vad_ready,
+        "asr_vad_error": onnx_error,
+        "matte_ready": matte_ready,
+        "repair_hint": repair_hint,
         "asr_model_ready": model_ready,
         "dependencies": dependencies,
     }

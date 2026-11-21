@@ -87,3 +87,42 @@ def test_remote_asr_rejects_empty_payload(tmp_path: Path) -> None:
     router.submit = submit  # type: ignore[method-assign]
     with pytest.raises(TranscriptionError, match="no sentences"):
         RemoteAsrClient(router).transcribe(tmp_path / "audio.wav", 48_000)
+
+
+def test_remote_asr_retries_without_vad_on_onnx_failure(tmp_path: Path) -> None:
+    payload = {
+        "language": "pt",
+        "segments": [
+            {
+                "start": 0.0,
+                "end": 1.0,
+                "text": "ola",
+                "words": [
+                    {"word": "ola", "start": 0.0, "end": 1.0, "probability": 0.9}
+                ],
+            }
+        ],
+    }
+
+    class RetryRouter(FakeRouter):
+        def __init__(self) -> None:
+            super().__init__(payload)
+            self.failed = False
+
+        def submit(self, capability: str, body: dict, *, timeout: float) -> dict:
+            if not self.failed:
+                self.calls.append((capability, dict(body)))
+                self.failed = True
+                raise RuntimeError(
+                    "module 'onnxruntime' has no attribute 'SessionOptions'"
+                )
+            body["_payload_path"] = str(tmp_path / "transcript.json")
+            return super().submit(capability, body, timeout=timeout)
+
+    router = RetryRouter()
+    client = RemoteAsrClient(router, language="pt", vad_filter=True)
+    sentences = client.transcribe(tmp_path / "audio.wav", 48_000)
+    assert sentences[0].words[0].word == "ola"
+    assert router.calls[0][1]["vad_filter"] is True
+    assert router.calls[1][1]["vad_filter"] is False
+    assert client.execution["vad_fallback"] is True
