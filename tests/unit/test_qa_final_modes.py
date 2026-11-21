@@ -8,9 +8,11 @@ from videoflow.domain.state import (
     AudioSegment,
     MediaInfo,
     OverlayClip,
+    PipelineState,
     ProjectState,
     Sentence,
     VideoSegment,
+    WordTiming,
 )
 
 
@@ -353,3 +355,155 @@ def test_word_fidelity_normalizes_names() -> None:
     )
     assert normalize_wer_text("Ação") == "acao"
     assert normalize_wer_text("clódi e emecêpê") == "claude e mcp"
+
+
+def test_full_mode_flags_repeated_words_in_the_deliverable(
+    tmp_path: Path, monkeypatch
+) -> None:
+    video = tmp_path / "deliverable.mp4"
+    video.write_bytes(b"mp4")
+    _patch(monkeypatch, wer=0.02)
+    monkeypatch.setattr(
+        qa_final,
+        "verify_word_fidelity",
+        lambda *a, **k: {
+            "status": "checked",
+            "passed": True,
+            "wer": 0.02,
+            "repeated_word_count": 2,
+            "repeated_content_words": 1,
+            "repeated_content_list": ["projeto"],
+        },
+    )
+    report = qa_final.audit_final(
+        video,
+        output=tmp_path,
+        state=_state(tmp_path),
+        mode="full",
+    )
+    assert report["status"] == "needs_review"
+    assert any(
+        item["kind"] == "repeated_words" and item["severity"] == "critical"
+        for item in report["issues"]
+    )
+
+
+def test_full_mode_warns_when_fidelity_is_unavailable(
+    tmp_path: Path, monkeypatch
+) -> None:
+    video = tmp_path / "deliverable.mp4"
+    video.write_bytes(b"mp4")
+    _patch(monkeypatch, wer=0.02)
+    monkeypatch.setattr(
+        qa_final,
+        "verify_word_fidelity",
+        lambda *a, **k: {
+            "status": "unavailable",
+            "passed": True,
+            "warning": "faster-whisper small model is not installed",
+        },
+    )
+    report = qa_final.audit_final(
+        video,
+        output=tmp_path,
+        state=_state(tmp_path),
+        mode="full",
+    )
+    assert report["ok"] is True
+    assert any(
+        item["kind"] == "word_fidelity" and item["severity"] == "warning"
+        for item in report["issues"]
+    )
+
+
+def test_full_mode_reference_excludes_words_cut_from_the_timeline(
+    tmp_path: Path, monkeypatch
+) -> None:
+    video = tmp_path / "deliverable.mp4"
+    video.write_bytes(b"mp4")
+    _patch(monkeypatch, wer=0.02)
+    captured: dict[str, str] = {}
+
+    def fidelity(_video, sentences, **_kwargs):
+        captured["text"] = " ".join(sentence.text for sentence in sentences)
+        return {"status": "checked", "passed": True, "wer": 0.01}
+
+    monkeypatch.setattr(qa_final, "verify_word_fidelity", fidelity)
+    state = _state(tmp_path)
+    media = MediaInfo(
+        source_path=str(tmp_path / "source.mp4"),
+        duration_frames=4000,
+        fps_num=48_000,
+        fps_den=1,
+        width=1920,
+        height=1080,
+        audio_sample_rate=48_000,
+    )
+    words = [
+        WordTiming(word="oi", start_sample=0, end_sample=1000, probability=0.9),
+        WordTiming(word="projeto", start_sample=1000, end_sample=2000, probability=0.9),
+        WordTiming(word="projeto", start_sample=2000, end_sample=3000, probability=0.9),
+        WordTiming(word="fim", start_sample=3000, end_sample=4000, probability=0.9),
+    ]
+    state = state.model_copy(
+        update={
+            "media_info": media,
+            "transcript": [
+                Sentence(
+                    id=0,
+                    start_sample=0,
+                    end_sample=4000,
+                    text="oi projeto projeto fim",
+                    words=words,
+                )
+            ],
+            "video_segments": [
+                VideoSegment(
+                    clip_id="v1",
+                    source_in_frame=0,
+                    source_out_frame=2000,
+                    timeline_in_frame=0,
+                    timeline_out_frame=2000,
+                ),
+                VideoSegment(
+                    clip_id="v2",
+                    source_in_frame=3000,
+                    source_out_frame=4000,
+                    timeline_in_frame=2000,
+                    timeline_out_frame=3000,
+                ),
+            ],
+        }
+    )
+    report = qa_final.audit_final(
+        video,
+        output=tmp_path,
+        state=state,
+        mode="full",
+    )
+    assert report["status"] == "succeeded"
+    assert captured["text"] == "oi projeto fim"
+
+
+def test_full_mode_fails_on_timeline_cut_leak(
+    tmp_path: Path, monkeypatch
+) -> None:
+    video = tmp_path / "deliverable.mp4"
+    video.write_bytes(b"mp4")
+    _patch(monkeypatch, wer=0.02)
+    state = _state(tmp_path).model_copy(
+        update={
+            "pipeline": PipelineState(metadata={"cut_leak": {"seconds": 0.2}})
+        }
+    )
+    report = qa_final.audit_final(
+        video,
+        output=tmp_path,
+        state=state,
+        mode="full",
+    )
+    assert report["status"] == "needs_review"
+    assert any(
+        item["kind"] == "cut_leak" and item["severity"] == "critical"
+        for item in report["issues"]
+    )

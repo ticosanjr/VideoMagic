@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from videoflow.application.qa_final import audit_final
+from videoflow.application.qa_final import audit_final, cut_leak_seconds
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import ExportError, NeedsReviewError
 from videoflow.steps.base import BaseStep, StepIO
@@ -55,6 +55,7 @@ class FinalQaStep(BaseStep):
             mode=options.mode,
             collision_mode=options.collision_mode,
             max_wer=options.max_wer,
+            timeline_leak_sec=cut_leak_seconds(context.metadata),
         )
         context.metadata["final_qa"] = report
         context.artifacts["final_qa"] = str(report.get("report") or "")

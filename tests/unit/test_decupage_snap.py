@@ -107,6 +107,19 @@ def test_snap_merges_micro_gap_but_not_noise() -> None:
     assert len(noisy.active_spans) == 2
 
 
+def test_snap_keeps_a_short_deliberate_cut() -> None:
+    plan = build_plan(
+        _media(),
+        [_asu(1, 0, 1280), _asu(2, 1920, 3200)],
+        [{"start_sample": 1280, "end_sample": 1920, "reason": "stutter"}],
+        profile=_profile(),
+        noise_events=[],
+        review_flags=[],
+        min_clip_ms=0,
+    )
+    assert len(plan.active_spans) == 2
+
+
 def test_timeline_applies_plan_and_guards_revision(tmp_path: Path) -> None:
     plan = build_plan(
         _media(),

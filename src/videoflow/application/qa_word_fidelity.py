@@ -10,6 +10,7 @@ from typing import Any
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.qa_media import compare_text
+from videoflow.application.text import STOPWORDS
 from videoflow.domain.state import Sentence
 
 _WORD = re.compile(r"[0-9A-Za-zÀ-ÿ']+")
@@ -172,6 +173,8 @@ def verify_word_fidelity(
     comparison = compare_text(reference, hypothesis)
     similarity = float(comparison.get("similarity") or 0.0)
     wer = max(0.0, 1.0 - similarity)
+    repeated = _adjacent_repeats(hypothesis)
+    content_repeats = [item for item in repeated if item["content"]]
     return {
         "status": "checked",
         "passed": wer < max_wer,
@@ -184,8 +187,29 @@ def verify_word_fidelity(
         "spoken_words": comparison.get("spoken_words", 0),
         "missing": comparison.get("missing", [])[:40],
         "extra": comparison.get("extra", [])[:40],
+        "repeated_words": [item["word"] for item in repeated][:40],
+        "repeated_word_count": len(repeated),
+        "repeated_content_words": len(content_repeats),
+        "repeated_content_list": [item["word"] for item in content_repeats][:40],
         "placement": placement,
     }
 
 
 __all__ = ["normalize_wer_text", "verify_word_fidelity"]
+
+
+def _adjacent_repeats(hypothesis: str) -> list[dict[str, Any]]:
+    """Count immediately repeated words in the transcribed deliverable."""
+
+    tokens = [token for token in hypothesis.split() if token]
+    repeats: list[dict[str, Any]] = []
+    for left, right in zip(tokens, tokens[1:], strict=False):
+        if left != right:
+            continue
+        repeats.append(
+            {
+                "word": left,
+                "content": len(left) >= 3 and left not in STOPWORDS,
+            }
+        )
+    return repeats

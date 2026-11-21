@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.decupage.deterministic import deterministic_repeats
 from videoflow.application.decupage.llm import (
     apply_decisions,
     audit_prompt,
@@ -54,6 +55,48 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     )
 
 
+def _merge_cut_dicts(cuts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Merge overlapping sample spans, keeping the first reason."""
+
+    ordered = sorted(
+        (
+            {
+                **item,
+                "start_sample": int(item.get("start_sample", 0)),
+                "end_sample": int(item.get("end_sample", 0)),
+            }
+            for item in cuts
+            if int(item.get("end_sample", 0)) > int(item.get("start_sample", 0))
+        ),
+        key=lambda item: (item["start_sample"], item["end_sample"]),
+    )
+    merged: list[dict[str, Any]] = []
+    for item in ordered:
+        if merged and item["start_sample"] <= merged[-1]["end_sample"]:
+            merged[-1]["end_sample"] = max(
+                merged[-1]["end_sample"], item["end_sample"]
+            )
+            continue
+        merged.append(item)
+    return merged
+
+
+def _dedupe_flags(flags: list[dict[str, str]]) -> list[dict[str, str]]:
+    seen: set[tuple[str, str, str]] = set()
+    result: list[dict[str, str]] = []
+    for item in flags:
+        key = (
+            str(item.get("asu_id", "")),
+            str(item.get("category", "")),
+            str(item.get("reason", "")),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(item)
+    return result
+
+
 class PrefilterParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -84,15 +127,42 @@ class DecupagePrefilterStep(BaseStep):
             token_similarity=options.token_similarity,
             max_group_seconds=options.max_group_seconds,
         )
+        deterministic = deterministic_repeats(
+            result.asus,
+            result.decisions,
+            sample_rate=(
+                context.media.audio_sample_rate
+                if context.media is not None
+                else 48_000
+            ),
+        )
+        decisions = [*result.decisions, *deterministic.decisions]
+        decided = {item.asu_id for item in decisions}
+        for flag in deterministic.flags:
+            if flag["asu_id"] in decided:
+                continue
+            decided.add(flag["asu_id"])
+            decisions.append(
+                AsuDecision(
+                    asu_id=flag["asu_id"],
+                    action="REVIEW",
+                    category=flag["category"],
+                    confidence=0.6,
+                    reason=flag["reason"],
+                )
+            )
         payload = {
-            "report": result.report,
+            "report": {
+                **result.report,
+                "deterministic_repeats": deterministic.stats,
+            },
             "asus": [item.model_dump(mode="json") for item in result.asus],
-            "decisions": [item.model_dump(mode="json") for item in result.decisions],
+            "decisions": [item.model_dump(mode="json") for item in decisions],
         }
         target = context.work / "decupage" / "prefilter.json"
         _write_json(target, payload)
         context.metadata["asus"] = payload["asus"]
-        context.metadata["decupage_prefilter"] = result.report
+        context.metadata["decupage_prefilter"] = payload["report"]
         context.metadata["decupage_prefilter_decisions"] = payload["decisions"]
         context.artifacts["decupage_prefilter"] = str(target)
         context.hashes["decupage.prefilter"] = digest_payload(payload)
@@ -297,6 +367,7 @@ class ApplyParams(BaseModel):
     decisions: list[dict[str, Any]] | None = None
     decisions_path: str = ""
     max_discard_ratio: float = Field(default=0.45, ge=0.05, le=0.9)
+    deterministic_repeats: bool = True
 
 
 @register_step
@@ -341,17 +412,42 @@ class DecupageApplyStep(BaseStep):
                 raise InvalidConfigError(
                     f"invalid decupage decision: {item!r}: {exc}"
                 ) from exc
+        sample_rate = (
+            context.media.audio_sample_rate
+            if context.media is not None
+            else 48_000
+        )
+        deterministic = (
+            deterministic_repeats(asus, decisions, sample_rate=sample_rate)
+            if options.deterministic_repeats
+            else None
+        )
+        applied_decisions = list(decisions)
+        if deterministic is not None:
+            applied_decisions.extend(deterministic.decisions)
         updated, cuts, flags, summary = apply_decisions(
             asus,
-            decisions,
+            applied_decisions,
             max_discard_ratio=options.max_discard_ratio,
         )
+        if deterministic is not None:
+            cuts.extend(deterministic.cuts)
+            flags.extend(deterministic.flags)
+            cuts = _merge_cut_dicts(cuts)
+            flags = _dedupe_flags(flags)
+            summary["deterministic"] = deterministic.stats
+            summary["cuts"] = len(cuts)
+            summary["trimmed"] = sum(
+                1
+                for item in applied_decisions
+                if item.action == "TRIM_WORDS"
+            )
         payload = {
             "asus": [item.model_dump(mode="json") for item in updated],
             "cuts": cuts,
             "review_flags": flags,
             "summary": summary,
-            "decisions": [item.model_dump(mode="json") for item in decisions],
+            "decisions": [item.model_dump(mode="json") for item in applied_decisions],
         }
         target = context.work / "decupage" / "state.json"
         _write_json(target, payload)

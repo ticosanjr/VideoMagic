@@ -6,6 +6,7 @@ intent. The timeline step consumes it later.
 
 from __future__ import annotations
 
+import bisect
 from typing import Any
 
 from videoflow.application.retake_spans import subtract_spans
@@ -73,12 +74,15 @@ def build_plan(
 
     starts = [start for start, _end in base] + [start for start, _end in source_cuts]
     ends = [end for _start, end in base] + [end for _start, end in source_cuts]
+    ordered_starts = sorted(set(starts))
+    ordered_ends = sorted(set(ends))
     snapped: list[tuple[int, int, float | None, bool]] = []
     for start, end in base:
-        previous = max((item for item in ends if item <= start), default=0)
-        following = min(
-            (item for item in starts if item >= end),
-            default=duration,
+        position = bisect.bisect_right(ordered_ends, start)
+        previous = ordered_ends[position - 1] if position else 0
+        position = bisect.bisect_left(ordered_starts, end)
+        following = (
+            ordered_starts[position] if position < len(ordered_starts) else duration
         )
         new_start = _snap_start(
             start,
@@ -120,8 +124,10 @@ def build_plan(
             continue
         gap_start, gap_end = merged[-1][1], start
         gap = gap_end - gap_start
-        blocked = _overlaps(gap_start, gap_end, noise) or _overlaps(
-            gap_start, gap_end, trim_spans
+        blocked = (
+            _overlaps(gap_start, gap_end, noise)
+            or _overlaps(gap_start, gap_end, trim_spans)
+            or _overlaps(gap_start, gap_end, source_cuts)
         )
         if 0 < gap < gap_limit and not blocked:
             merged[-1] = (merged[-1][0], end)

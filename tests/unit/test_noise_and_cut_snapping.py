@@ -225,7 +225,7 @@ def test_transcript_spans_skip_discarded_and_noise_sentences() -> None:
         noise_mode="non_speech",
     )
     assert [(span.start_sample, span.end_sample) for span in noise] == [(96_000, 144_000)]
-    assert spans == [(0, 50_400), (141_600, 194_400)]
+    assert spans == [(0, 48_000), (144_000, 194_400)]
 
 
 def test_transcript_spans_clamp_pads_to_the_gap_midpoint() -> None:
@@ -433,7 +433,7 @@ def test_smart_gap_keeps_long_speech_but_removes_short_cough() -> None:
     assert len(short) == 2
 
 
-def test_isolated_single_word_tail_is_dropped() -> None:
+def test_isolated_content_word_tail_is_kept() -> None:
     from videoflow.application.timeline_builder import transcript_spans
 
     transcript = [
@@ -454,8 +454,33 @@ def test_isolated_single_word_tail_is_dropped() -> None:
         internal_gap_mode="all",
         drop_isolated_words=True,
     )
+    assert len(spans) == 2
+    assert spans[-1][0] <= 48_000 <= spans[-1][1]
+    assert not any(span.start_sample == 48_000 for span in noise)
+
+
+def test_isolated_filler_tail_is_dropped() -> None:
+    from videoflow.application.timeline_builder import transcript_spans
+
+    transcript = [
+        _word_sentence(
+            [
+                ("complete", 0, 9_600),
+                ("sentence", 9_600, 19_200),
+                ("hum", 48_000, 52_800),
+            ]
+        )
+    ]
+    spans, noise = transcript_spans(
+        transcript,
+        set(),
+        sample_rate=48_000,
+        duration_samples=60_000,
+        max_internal_gap_ms=200,
+        internal_gap_mode="all",
+        drop_isolated_words=True,
+    )
     assert len(spans) == 1
-    assert spans[0][0] == 0
     assert any(span.start_sample == 48_000 for span in noise)
 
 

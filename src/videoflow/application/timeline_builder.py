@@ -13,7 +13,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from videoflow.application.retakes import subtract_spans
-from videoflow.application.text import STANDALONE_WORDS
+from videoflow.application.spans import merge_spans
+from videoflow.application.text import STANDALONE_WORDS, STOPWORDS
 from videoflow.domain.config import JlCutsConfig, ZoomsConfig
 from videoflow.domain.errors import InvalidTimeError
 from videoflow.domain.state import (
@@ -58,6 +59,31 @@ _WATERMARK = re.compile(
     r"legendas?\s+pela\s+comunidade|amara\.org|subtitles?\s+by|"
     r"legendado\s+por|transcri(?:ção|cao)\s+por",
     re.IGNORECASE,
+)
+
+# A single-word run between two pauses is usually room noise only when the
+# token is a filler. Real content words ("projeto", "acho") must survive.
+_ISOLATED_FILLERS = frozenset(
+    {
+        "ah",
+        "ahn",
+        "eh",
+        "er",
+        "erm",
+        "ha",
+        "hã",
+        "hm",
+        "hmm",
+        "hum",
+        "uh",
+        "um",
+        "é",
+        "ne",
+        "né",
+        "tipo",
+        "entao",
+        "então",
+    }
 )
 
 
@@ -219,8 +245,16 @@ def transcript_spans(
     tail_guard = max(0, round(tail_guard_ms * sample_rate / 1000))
     runs: list[tuple[int, int, int, str]] = []
     noise: list[InactiveSpan] = []
+    kept_word_spans: list[tuple[int, int]] = []
+    discard_spans: list[tuple[int, int]] = []
     for sentence in transcript:
         if sentence.id in discard_ids:
+            discard_spans.append(
+                (
+                    max(0, min(duration_samples, sentence.start_sample)),
+                    max(0, min(duration_samples, sentence.end_sample)),
+                )
+            )
             continue
         start_bound = max(0, min(duration_samples, sentence.start_sample))
         end_bound = max(start_bound, min(duration_samples, sentence.end_sample))
@@ -263,19 +297,25 @@ def transcript_spans(
         ]
         if not words:
             continue
+        kept_word_spans.extend(
+            (word.start_sample, word.end_sample) for word in words
+        )
         sentence_runs: list[tuple[int, int, int, str]] = []
         current: list[Any] = [words[0]]
         for previous, word in zip(words, words[1:], strict=False):
             gap_start = max(previous.end_sample, start_bound)
             gap_end = min(word.start_sample, end_bound)
             gap = word.start_sample - previous.end_sample
-            if gap <= maximum_gap:
-                current.append(word)
-                continue
             forced = any(
                 max(gap_start, cut_start) < min(gap_end, cut_end)
                 for cut_start, cut_end in forced_cuts
             )
+            # A deliberate cut between two words must split the run even when
+            # the gap is short: the removed word is small, so the remaining
+            # gap can be under the normal 150 ms threshold.
+            if gap <= maximum_gap and not forced:
+                current.append(word)
+                continue
             if not forced and _keep_internal_gap(
                 max(0, gap_start),
                 max(gap_start, gap_end),
@@ -354,7 +394,12 @@ def transcript_spans(
                 and count == 1
             ):
                 token = re.sub(r"[^\wÀ-ÿ]+", "", first_word.casefold())
-                if token not in STANDALONE_WORDS:
+                keep = token in STANDALONE_WORDS or (
+                    len(token) >= 3
+                    and token not in STOPWORDS
+                    and token not in _ISOLATED_FILLERS
+                )
+                if not keep:
                     noise.append(
                         InactiveSpan(
                             start_sample=max(0, start),
@@ -398,7 +443,120 @@ def transcript_spans(
                 )
             continue
         spans.append((padded_start, padded_end))
-    return spans, noise
+    return (
+        _exclude_cuts(
+            spans,
+            [
+                *forced_cuts,
+                *discard_spans,
+                *((span.start_sample, span.end_sample) for span in noise),
+            ],
+            kept_word_spans,
+            duration_samples,
+            minimum,
+        ),
+        noise,
+    )
+
+
+def _exclude_cuts(
+    spans: Sequence[tuple[int, int]],
+    cuts: Sequence[tuple[int, int]],
+    kept_words: Sequence[tuple[int, int]],
+    duration_samples: int,
+    minimum: int,
+) -> list[tuple[int, int]]:
+    """Keep padding from restoring audio the editor removed.
+
+    Padding protects word edges; it must never bring a removed take back. The
+    cuts are clipped against the kept word spans first, so the padding cannot
+    split a word the transcript says to keep.
+    """
+
+    if not cuts or not spans:
+        return list(spans)
+    merged = [
+        (max(0, start), min(duration_samples, end))
+        for start, end in merge_spans(cuts)
+        if min(duration_samples, end) > max(0, start)
+    ]
+    if not merged:
+        return list(spans)
+    words = merge_spans(kept_words)
+    # A word the editor decided to remove is not a word to protect. Only the
+    # genuinely kept words clip the cuts.
+    words = [
+        (word_start, word_end)
+        for word_start, word_end in words
+        if not any(
+            cut_start <= (word_start + word_end) // 2 <= cut_end
+            for cut_start, cut_end in merged
+        )
+    ]
+    clipped = subtract_spans(merged, words)
+    if not clipped:
+        return list(spans)
+    result: list[tuple[int, int]] = []
+    for start, end in spans:
+        for piece_start, piece_end in subtract_spans([(start, end)], clipped):
+            if piece_end <= piece_start:
+                continue
+            if piece_end - piece_start >= minimum or any(
+                word_start < piece_end and word_end > piece_start
+                for word_start, word_end in words
+            ):
+                result.append((piece_start, piece_end))
+    result.sort()
+    merged_result: list[tuple[int, int]] = []
+    for start, end in result:
+        if merged_result and start <= merged_result[-1][1]:
+            merged_result[-1] = (
+                merged_result[-1][0],
+                max(merged_result[-1][1], end),
+            )
+        else:
+            merged_result.append((start, end))
+    return merged_result
+
+
+def exclude_removed_audio(
+    spans: Sequence[tuple[int, int]],
+    cuts: Sequence[tuple[int, int]],
+    transcript: Sequence[Any],
+    discard_ids: set[int],
+    *,
+    duration_samples: int,
+    minimum: int = 1,
+) -> list[tuple[int, int]]:
+    """Re-apply every deliberate removal after padding or silence capping.
+
+    ``transcript_spans`` already excludes the cuts, but later passes (silence
+    capping, word repair, VAD padding) can extend a kept span back into them.
+    This final pass uses the same word clipping as the builder.
+    """
+
+    words = [
+        (word.start_sample, word.end_sample)
+        for sentence in transcript
+        if sentence.id not in discard_ids
+        for word in sentence.words
+        if not any(
+            start <= (word.start_sample + word.end_sample) // 2 <= end
+            for start, end in cuts
+        )
+    ]
+    discard = [
+        (sentence.start_sample, sentence.end_sample)
+        for sentence in transcript
+        if sentence.id in discard_ids
+    ]
+    return _exclude_cuts(
+        spans,
+        [*cuts, *discard],
+        words,
+        duration_samples,
+        minimum,
+    )
 
 
 def repair_clipped_words(

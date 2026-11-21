@@ -1,5 +1,28 @@
 # Changelog
 
+## [3.17.3] - 2026-11-21
+
+### Fixed — decupagem
+
+- Repetições curtas, stopwords e repetições entre frases são detectadas no
+  fluxo de palavras, sem depender da LLM, mantendo a última ocorrência.
+- O padding do timeline não devolve mais áudio de retakes, repetições, ruído ou
+  marca d'água; o corte forçado é aplicado antes da regra de gap curto.
+- `decupage.snap` não reabsorve mais cortes deliberados abaixo de 180 ms.
+- Removido o limite de quantidade de cortes; `max_cut_ratio` fica apenas como
+  teto de segurança contra remoção catastrófica.
+- `decupage.prefilter` e `decupage.apply` geram cortes determinísticos e expõem
+  casos ambíguos (pontuação, baixa confiança, números e ênfase) para a LLM.
+- Palavras de conteúdo isoladas não são mais descartadas como ruído.
+- `build_plan` usa `bisect` para localizar vizinhos e não reabsorve cortes.
+
+### Added — QA
+
+- `qa_final` compara o WER com as palavras realmente mantidas na timeline.
+- Repetição de palavra de conteúdo no áudio final marca `needs_review`.
+- `cut_leak` acima de 50 ms no timeline ou na decupagem marca `needs_review`.
+- Fidelidade de palavras indisponível gera aviso explícito.
+
 ## [3.17.2] - 2026-11-20
 
 ### Added — remote placement

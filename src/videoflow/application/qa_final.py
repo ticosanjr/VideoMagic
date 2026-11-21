@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,97 @@ def _overlaps(
     return not (
         left[2] <= right[0] or right[2] <= left[0] or left[3] <= right[1] or right[3] <= left[1]
     )
+
+
+def timeline_source_spans(state: Any) -> list[tuple[int, int]]:
+    """Source-sample ranges the rendered timeline actually keeps."""
+
+    segments = getattr(state, "video_segments", None) or []
+    media = getattr(state, "media_info", None)
+    if not segments or media is None:
+        return []
+    timebase = media.timebase()
+    primary = str(getattr(state, "primary_source_id", "") or "")
+    sources = getattr(state, "sources", None) or {}
+    spans: list[tuple[int, int]] = []
+    for segment in segments:
+        source_id = str(getattr(segment, "source_id", "") or "")
+        if sources and primary and source_id and source_id != primary:
+            continue
+        start = timebase.frame_start_sample(segment.source_in_frame)
+        end = timebase.frame_start_sample(segment.source_out_frame)
+        if end > start:
+            spans.append((start, end))
+    spans.sort()
+    merged: list[tuple[int, int]] = []
+    for start, end in spans:
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
+def filter_kept_to_timeline(
+    sentences: Sequence[Any],
+    spans: Sequence[tuple[int, int]],
+) -> list[Any]:
+    """Drop words the timeline removed so the WER reference matches the cut.
+
+    The transcript keeps every source word; a repeated word cut by the timeline
+    is still there. Comparing the deliverable against that text reports the
+    removed repetition as a missing word, which inflates the WER and can fail a
+    correct export.
+    """
+
+    if not spans:
+        return list(sentences)
+    result: list[Any] = []
+    for sentence in sentences:
+        words = list(getattr(sentence, "words", None) or [])
+        if words:
+            kept = [
+                word
+                for word in words
+                if any(
+                    start <= (word.start_sample + word.end_sample) // 2 < end
+                    for start, end in spans
+                )
+            ]
+            if not kept:
+                continue
+            result.append(
+                sentence.model_copy(
+                    update={
+                        "words": kept,
+                        "text": " ".join(word.word for word in kept),
+                        "start_sample": kept[0].start_sample,
+                        "end_sample": kept[-1].end_sample,
+                    }
+                )
+            )
+            continue
+        midpoint = (sentence.start_sample + sentence.end_sample) // 2
+        if any(start <= midpoint < end for start, end in spans):
+            result.append(sentence)
+    return result
+
+
+def cut_leak_seconds(metadata: Any) -> float:
+    """Largest measured leak of removed audio, in seconds."""
+
+    if not isinstance(metadata, dict):
+        return 0.0
+    seconds = 0.0
+    for key in ("cut_leak", "decupage_cut_leak"):
+        value = metadata.get(key)
+        if not isinstance(value, dict):
+            continue
+        try:
+            seconds = max(seconds, float(value.get("seconds") or 0.0))
+        except (TypeError, ValueError):
+            continue
+    return seconds
 
 
 def _contact_sheet(video: Path, target: Path) -> Path | None:
@@ -105,6 +197,7 @@ def audit_final(
     intro_duration_sec: float = 0.0,
     compute_policy: str = "auto",
     allow_slow_cpu_fallback: bool = True,
+    timeline_leak_sec: float | None = None,
 ) -> dict[str, Any]:
     """Audit a delivered MP4 in fast or full mode.
 
@@ -386,6 +479,7 @@ def audit_final(
                 for sentence in kept
                 if sentence.end_sample > start_sample and sentence.start_sample < end_sample
             ]
+        kept = filter_kept_to_timeline(kept, timeline_source_spans(state))
     fidelity: dict[str, Any] = {"ok": True, "skipped": True, "status": "skipped"}
     if selected_mode == "full":
         fidelity = verify_word_fidelity(
@@ -419,6 +513,58 @@ def audit_final(
                         ),
                     }
                 )
+            repeated_content = int(fidelity.get("repeated_content_words") or 0)
+            repeated_total = int(fidelity.get("repeated_word_count") or 0)
+            if repeated_content:
+                words = ", ".join(fidelity.get("repeated_content_list") or [])
+                issues.append(
+                    {
+                        "kind": "repeated_words",
+                        "severity": "critical",
+                        "message": (
+                            f"{repeated_content} repeated content word(s) "
+                            f"survived in the deliverable: {words}"
+                        ),
+                    }
+                )
+            elif repeated_total:
+                issues.append(
+                    {
+                        "kind": "repeated_words",
+                        "severity": "warning",
+                        "message": (
+                            f"{repeated_total} repeated short word(s) survived "
+                            "in the deliverable"
+                        ),
+                    }
+                )
+        else:
+            issues.append(
+                {
+                    "kind": "word_fidelity",
+                    "severity": "warning",
+                    "message": str(
+                        fidelity.get("warning")
+                        or "word fidelity check did not run"
+                    ),
+                }
+            )
+    pipeline_metadata = getattr(getattr(state, "pipeline", None), "metadata", None)
+    leaked = max(
+        float(timeline_leak_sec or 0.0),
+        cut_leak_seconds(pipeline_metadata),
+    )
+    if leaked > 0.05:
+        issues.append(
+            {
+                "kind": "cut_leak",
+                "severity": "critical",
+                "message": (
+                    f"{leaked:.2f}s of removed speech leaked back into the "
+                    "timeline"
+                ),
+            }
+        )
     qa_dir = Path(output).expanduser() / "exports" / "qa" / video.stem
     qa_dir.mkdir(parents=True, exist_ok=True)
     contact = (
@@ -465,4 +611,4 @@ def audit_final(
     return report
 
 
-__all__ = ["audit_final"]
+__all__ = ["audit_final", "cut_leak_seconds", "filter_kept_to_timeline", "timeline_source_spans"]

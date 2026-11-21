@@ -23,6 +23,7 @@ from videoflow.application.timeline_builder import (
     build_inactive_segments,
     build_timeline,
     detect_noise_spans,
+    exclude_removed_audio,
     repair_clipped_words,
     transcript_spans,
 )
@@ -82,9 +83,9 @@ class TimelineParams(BaseModel):
     remove_fillers: bool = False
     repeat_min_words: int = Field(default=5, ge=2, le=20)
     repeat_max_gap_seconds: float = Field(default=180.0, ge=1.0, le=3600.0)
+    repeat_gap_seconds: float = Field(default=1.2, ge=0.1, le=10.0)
     repeat_pad_ms: int = Field(default=40, ge=0, le=500)
-    repeat_max_cuts: int = Field(default=40, ge=1, le=200)
-    word_cut_max_ratio: float = Field(default=0.2, ge=0.0, le=0.5)
+    word_cut_max_ratio: float = Field(default=0.9, ge=0.0, le=1.0)
     keep_untranscribed: bool = True
     untranscribed_min_ms: int = Field(default=500, ge=100, le=5000)
     untranscribed_energy_threshold: int = Field(default=800, ge=0)
@@ -126,6 +127,20 @@ def _pcm_path(context: PipelineContext) -> Path | None:
         return context.pcm_path
     candidate = context.work / "source.wav"
     return candidate if candidate.is_file() else None
+
+
+def _overlap_samples(
+    spans: list[tuple[int, int]],
+    cuts: list[tuple[int, int]],
+) -> int:
+    total = 0
+    for start, end in spans:
+        for cut_start, cut_end in cuts:
+            low = max(start, cut_start)
+            high = min(end, cut_end)
+            if high > low:
+                total += high - low
+    return total
 
 
 @contextlib.contextmanager
@@ -227,8 +242,8 @@ class TimelineStep(BaseStep):
                 max_gap_seconds=options.repeat_max_gap_seconds,
                 min_words=max(4, options.repeat_min_words),
                 max_cut_ratio=options.word_cut_max_ratio,
-                max_cuts=options.repeat_max_cuts,
                 remove_fillers=options.remove_fillers,
+                repeat_gap_seconds=options.repeat_gap_seconds,
             )
             repeat_cuts = plan.cuts
             if repeat_cuts:
@@ -405,6 +420,15 @@ class TimelineStep(BaseStep):
                 context.duration_samples(),
             )
             context.metadata["timeline_units"] = "vad"
+        deliberate_cuts = [
+            *context.retake_overlap_cuts,
+            *repeat_cuts,
+            *editorial_cuts,
+        ]
+        removed_spans = [
+            *deliberate_cuts,
+            *((span.start_sample, span.end_sample) for span in noise_spans),
+        ]
         pcm_path = _pcm_path(context)
         silences = detect_silence_spans(
             pcm_path,
@@ -434,6 +458,15 @@ class TimelineStep(BaseStep):
                 max_word_ms=options.word_repair_max_ms,
                 guard_ms=options.silence_word_margin_ms,
             )
+        if removed_spans:
+            speech = exclude_removed_audio(
+                speech,
+                removed_spans,
+                context.transcript,
+                set(context.discard_sentence_ids),
+                duration_samples=context.duration_samples(),
+                minimum=max(1, round(media.audio_sample_rate * 0.02)),
+            )
         if capped_seconds:
             context.warnings.append(
                 f"Silence cap removed {capped_seconds:.1f}s "
@@ -458,12 +491,6 @@ class TimelineStep(BaseStep):
                 "seconds": round(seconds, 3),
                 "units": context.metadata.get("timeline_units", "vad"),
             }
-        removed_spans = [
-            *context.retake_overlap_cuts,
-            *repeat_cuts,
-            *editorial_cuts,
-            *((span.start_sample, span.end_sample) for span in noise_spans),
-        ]
         speech, integrity_violations = enforce_word_integrity(
             speech,
             context.transcript,
@@ -481,6 +508,17 @@ class TimelineStep(BaseStep):
         if integrity_violations:
             context.warnings.append(
                 f"{len(integrity_violations)} kept word(s) could not be kept whole."
+            )
+        leaked = _overlap_samples(speech, deliberate_cuts) / media.audio_sample_rate
+        context.metadata["cut_leak"] = {
+            "seconds": round(leaked, 3),
+            "cuts": len(deliberate_cuts),
+            "source": "timeline",
+        }
+        if deliberate_cuts and leaked > 0.05:
+            context.warnings.append(
+                f"{leaked:.2f}s of removed speech leaked back into the "
+                "timeline; check word-integrity merges and padding."
             )
         editorial_crossfade = (
             context.metadata.get("editorial_crossfade_ms")

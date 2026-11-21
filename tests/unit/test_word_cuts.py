@@ -96,7 +96,7 @@ def test_local_ngram_repeat_cuts_only_the_earlier_occurrence() -> None:
     )
     plan = _plan([sentence])
     assert plan.cut_words == 4
-    assert plan.report[0]["reason"] == "ngram"
+    assert plan.report[0]["reason"] in {"ngram", "phrase"}
     assert plan.report[0]["start_sec"] == 0.0
 
 
@@ -116,17 +116,38 @@ def test_unique_words_are_not_cut() -> None:
     assert [(run.start, run.end) for run in runs] == [(0, 1)]
 
 
-def test_max_cut_ratio_limits_the_plan() -> None:
-    texts = ["alpha", "beta", "gamma", "delta"] * 4
-    sentence = _sentence(0, texts)
+def test_max_cut_ratio_limits_non_stutter_cuts() -> None:
+    sentences = [
+        _sentence(0, ["alpha", "beta", "gamma", "delta"]),
+        _sentence(1, ["alpha", "beta", "gamma", "delta"], start=5.0),
+    ]
     plan = plan_word_cuts(
+        sentences,
+        set(),
+        sample_rate=1000,
+        max_cut_ratio=0.1,
+        max_gap_seconds=120.0,
+    )
+    assert plan.cut_words == 0
+
+
+def test_ratio_is_a_safety_ceiling_not_a_count_limit() -> None:
+    sentence = _sentence(0, ["fazia", "fazia", "fazia", "coisa"])
+    limited = plan_word_cuts(
         [sentence],
         set(),
         sample_rate=1000,
         max_cut_ratio=0.1,
         max_gap_seconds=120.0,
     )
-    assert plan.cut_words <= 1
+    assert limited.cut_words == 0
+    default = plan_word_cuts(
+        [sentence],
+        set(),
+        sample_rate=1000,
+        max_gap_seconds=120.0,
+    )
+    assert default.cut_words == 2
 
 
 def test_empty_transcript_returns_no_cuts() -> None:
@@ -154,13 +175,14 @@ def test_punctuation_only_words_and_single_word_sentences_are_ignored() -> None:
     assert plan.cuts == []
 
 
-def test_stopword_only_repeats_are_not_cut() -> None:
+def test_stopword_only_repeats_are_cut() -> None:
     sentences = [
         _sentence(0, ["de", "que", "a", "de", "que", "a"]),
         _sentence(1, ["de", "que", "a", "outra", "coisa"], start=2.0),
     ]
     plan = _plan(sentences)
-    assert plan.cuts == []
+    assert plan.cut_words == 3
+    assert plan.report[0]["text"] == "de que a"
 
 
 def test_ngram_beyond_the_window_is_not_cut() -> None:
@@ -193,21 +215,6 @@ def test_ngram_beyond_the_window_is_not_cut() -> None:
     assert plan.cuts == []
 
 
-def test_max_cuts_limits_selected_ranges() -> None:
-    sentences = [
-        _sentence(0, ["um", "um", "dois", "dois", "tres", "tres"]),
-    ]
-    plan = plan_word_cuts(
-        sentences,
-        set(),
-        sample_rate=1000,
-        max_cut_ratio=1.0,
-        max_gap_seconds=120.0,
-        max_cuts=1,
-    )
-    assert len(plan.report) == 1
-
-
 def test_stutter_with_a_longer_same_sentence_gap() -> None:
     sentence = _sentence(0, ["fazia", "fazia", "coisa"], step=1.0)
     plan = _plan([sentence])
@@ -219,7 +226,7 @@ def test_phrase_stutter_cuts_the_earlier_attempt() -> None:
     sentence = _sentence(0, ["eu", "acho", "eu", "acho", "que"])
     plan = _plan([sentence])
     assert plan.cut_words == 2
-    assert plan.report[0]["reason"] == "stutter"
+    assert plan.report[0]["reason"] in {"stutter", "phrase"}
     assert plan.report[0]["text"] == "eu acho"
 
 

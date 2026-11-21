@@ -38,6 +38,20 @@ class SnapParams(BaseModel):
     min_clip_ms: float = Field(default=120.0, ge=1.0, le=2000.0)
 
 
+def _overlap_samples(
+    spans: list[tuple[int, int]],
+    cuts: list[tuple[int, int]],
+) -> int:
+    total = 0
+    for start, end in spans:
+        for cut_start, cut_end in cuts:
+            low = max(start, cut_start)
+            high = min(end, cut_end)
+            if high > low:
+                total += high - low
+    return total
+
+
 def _profile(context: PipelineContext) -> dict[str, Any]:
     raw = context.metadata.get("vad_rms")
     if isinstance(raw, dict) and raw.get("path"):
@@ -142,6 +156,17 @@ class DecupageTimelineStep(BaseStep):
                 f"{options.expected_revision}"
             )
         spans = [(item.start_sample, item.end_sample) for item in plan.active_spans]
+        cut_spans = [(item.start_sample, item.end_sample) for item in plan.cuts]
+        leaked_samples = _overlap_samples(spans, cut_spans)
+        leaked = leaked_samples / max(1, plan.sample_rate)
+        context.metadata["decupage_cut_leak"] = {
+            "seconds": round(leaked, 3),
+            "cuts": len(cut_spans),
+        }
+        if cut_spans and leaked > 0.05:
+            context.warnings.append(
+                f"{leaked:.2f}s of removed speech survived in the decupage plan."
+            )
         jl = JlCutsConfig(
             enable_j_cuts=False,
             enable_l_cuts=False,
@@ -217,6 +242,7 @@ class DecupageTimelineStep(BaseStep):
             ),
             "revision": updated.revision,
             "warnings": list(built.warnings),
+            "cut_leak": context.metadata["decupage_cut_leak"],
         }
         target = context.work / "decupage" / "timeline.json"
         target.parent.mkdir(parents=True, exist_ok=True)

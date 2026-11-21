@@ -87,6 +87,21 @@ def test_prefilter_groups_retakes_and_quarantines_noise(tmp_path: Path) -> None:
     assert Path(context.artifacts["decupage_prefilter"]).is_file()
 
 
+def test_prefilter_exposes_repeats_and_ambiguity(tmp_path: Path) -> None:
+    context = _context(
+        tmp_path,
+        [
+            _asu(1, "não, não vou", 0),
+            _asu(2, "eu eu configurar", 1000),
+        ],
+    )
+    DecupagePrefilterStep().run(context, {}, StepIO())
+    decisions = context.metadata["decupage_prefilter_decisions"]
+    assert any(item["action"] == "TRIM_WORDS" for item in decisions)
+    assert any(item["action"] == "REVIEW" for item in decisions)
+    assert context.metadata["decupage_prefilter"]["deterministic_repeats"]["repeats"] == 1
+
+
 def test_llm_caller_writes_request_without_calling_a_model(tmp_path: Path) -> None:
     context = _context(tmp_path, [_asu(1, "Uma frase completa.", 0)])
     DecupageLlmStep().run(
@@ -181,6 +196,25 @@ def test_apply_restore_cancels_a_removal(tmp_path: Path) -> None:
         "ASU_0002",
     ]
     assert context.metadata["decupage_review_flags"]
+
+
+def test_apply_removes_repeats_without_any_llm_decision(tmp_path: Path) -> None:
+    context = _context(tmp_path, [_asu(1, "eu eu configurar", 0)])
+    DecupageApplyStep().run(context, ApplyParams(), StepIO())
+    assert context.metadata["decupage_state"]["trimmed"] == 1
+    assert context.metadata["decupage_state"]["deterministic"]["repeats"] == 1
+    assert context.metadata["asus"][0]["text"] == "eu configurar"
+    cuts = context.metadata["decupage_cuts"]
+    assert len(cuts) == 1
+    assert cuts[0]["reason"] == "decupage_trim"
+
+
+def test_apply_flags_ambiguous_repeats_for_the_llm(tmp_path: Path) -> None:
+    context = _context(tmp_path, [_asu(1, "não, não vou", 0)])
+    DecupageApplyStep().run(context, ApplyParams(), StepIO())
+    assert context.metadata["decupage_state"]["deterministic"]["repeats"] == 0
+    assert context.metadata["decupage_review_flags"]
+    assert context.metadata["asus"][0]["text"] == "não, não vou"
 
 
 def test_llm_none_is_explicit(tmp_path: Path) -> None:

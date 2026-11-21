@@ -13,9 +13,14 @@ import math
 import re
 from collections import Counter, defaultdict
 from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from difflib import SequenceMatcher
 
+from videoflow.application.repetition import (
+    RepeatWord,
+    detect_words,
+    word_stream,
+)
 from videoflow.application.text import (
     STOPWORDS as _STOPWORDS,
 )
@@ -52,6 +57,7 @@ _FILLERS = {
 _PRIORITY = {
     "filler": 0,
     "stutter": 0,
+    "phrase": 0,
     "prefix_tail": 1,
     "restatement": 2,
     "ngram": 3,
@@ -114,28 +120,27 @@ def _flatten(
     transcript: Sequence[Sentence],
     discard_ids: set[int],
 ) -> list[WordRef]:
-    words: list[WordRef] = []
-    for sentence in sorted(transcript, key=lambda item: (item.start_sample, item.id)):
-        if sentence.id in discard_ids:
-            continue
-        for word in sentence.words:
-            norm = _normalise(word.word)
-            if not norm or word.low_confidence:
-                continue
-            words.append(
-                WordRef(
-                    index=len(words),
-                    sentence_id=sentence.id,
-                    start_sample=word.start_sample,
-                    end_sample=word.end_sample,
-                    text=word.word,
-                    norm=norm,
-                    protected=_protected(word.word),
-                    low_confidence=word.low_confidence,
-                )
-            )
-    words.sort(key=lambda item: (item.start_sample, item.end_sample))
-    return [replace(word, index=index) for index, word in enumerate(words)]
+    """Flatten the kept transcript without losing low-confidence words.
+
+    Dropping a low-confidence word makes its neighbours look adjacent and can
+    create a false repetition. The word stays in the stream, marked, and the
+    repetition detector refuses to cut it.
+    """
+
+    words: list[WordRef] = [
+        WordRef(
+            index=token.index,
+            sentence_id=token.sentence_id,
+            start_sample=token.start_sample,
+            end_sample=token.end_sample,
+            text=token.text,
+            norm=token.norm,
+            protected=token.protected,
+            low_confidence=token.low_confidence,
+        )
+        for token in word_stream(transcript, discard_ids)
+    ]
+    return words
 
 
 def _sentence_groups(words: Sequence[WordRef]) -> list[list[WordRef]]:
@@ -146,35 +151,37 @@ def _sentence_groups(words: Sequence[WordRef]) -> list[list[WordRef]]:
     return [sorted(group, key=lambda item: item.index) for group in ordered]
 
 
-def _stutter_cuts(
+def _repetition_cuts(
     words: Sequence[WordRef],
     *,
     sample_rate: int,
-    max_gap_ms: int = 900,
+    max_gap_sec: float = 1.2,
 ) -> list[WordCut]:
-    gap = round(max_gap_ms * sample_rate / 1000)
-    short_gap = round(350 * sample_rate / 1000)
-    cuts: list[WordCut] = []
-    index = 0
-    while index < len(words) - 1:
-        following = index + 1
-        while following < len(words) and words[following].norm == words[index].norm:
-            same_sentence = words[following].sentence_id == words[index].sentence_id
-            allowed = gap if same_sentence else short_gap
-            if words[following].start_sample - words[following - 1].end_sample > allowed:
-                break
-            following += 1
-        if following - index >= 2:
-            cuts.append(
-                WordCut(
-                    index,
-                    following - 2,
-                    "stutter",
-                    " ".join(word.text for word in words[index:following]),
-                )
-            )
-        index = following
-    return cuts
+    """Immediate word and phrase repetitions, including short stopwords."""
+
+    tokens = [
+        RepeatWord(
+            index=word.index,
+            sentence_id=word.sentence_id,
+            text=word.text,
+            norm=word.norm,
+            start_sample=word.start_sample,
+            end_sample=word.end_sample,
+            low_confidence=word.low_confidence,
+            protected=word.protected,
+        )
+        for word in words
+    ]
+    plan = detect_words(tokens, sample_rate=sample_rate, max_gap_sec=max_gap_sec)
+    return [
+        WordCut(
+            cut.first_index,
+            cut.last_index,
+            cut.reason,
+            cut.text,
+        )
+        for cut in plan.cuts
+    ]
 
 
 def _filler_cuts(words: Sequence[WordRef]) -> list[WordCut]:
@@ -183,43 +190,6 @@ def _filler_cuts(words: Sequence[WordRef]) -> list[WordCut]:
         if word.norm not in _FILLERS or _protected(word.text):
             continue
         cuts.append(WordCut(index, index, "filler", word.text))
-    return cuts
-
-
-def _phrase_stutters(
-    words: Sequence[WordRef],
-    *,
-    sample_rate: int,
-    max_gap_ms: int = 700,
-) -> list[WordCut]:
-    gap = round(max_gap_ms * sample_rate / 1000)
-    cuts: list[WordCut] = []
-    for size in (2, 3):
-        index = 0
-        while index + 2 * size <= len(words):
-            first = [word.norm for word in words[index : index + size]]
-            second = [word.norm for word in words[index + size : index + 2 * size]]
-            same_sentence = (
-                words[index].sentence_id == words[index + 2 * size - 1].sentence_id
-            )
-            separated = (
-                words[index + size].start_sample
-                - words[index + size - 1].end_sample
-            )
-            if first == second and same_sentence and separated <= gap:
-                cuts.append(
-                    WordCut(
-                        index,
-                        index + size - 1,
-                        "stutter",
-                        " ".join(
-                            word.text for word in words[index : index + size]
-                        ),
-                    )
-                )
-                index += 2 * size
-            else:
-                index += 1
     return cuts
 
 
@@ -318,7 +288,11 @@ def _split_cut(
     current_start: int | None = None
     for index in range(cut.start, cut.end + 1):
         word = words[index]
-        cuttable = counts[word.norm] > 1 or cut.reason == "filler"
+        cuttable = (
+            (counts[word.norm] > 1 or cut.reason == "filler")
+            and not word.protected
+            and not word.low_confidence
+        )
         if cuttable:
             if current_start is None:
                 current_start = index
@@ -344,7 +318,7 @@ def _split_cut(
     return [
         run
         for run in runs
-        if run.reason == "filler"
+        if run.reason in {"filler", "stutter", "phrase"}
         or any(_content(words[index].norm) for index in range(run.start, run.end + 1))
     ]
 
@@ -375,11 +349,17 @@ def plan_word_cuts(
     sample_rate: int = 48_000,
     max_gap_seconds: float = 120.0,
     min_words: int = 4,
-    max_cut_ratio: float = 0.2,
-    max_cuts: int = 60,
+    max_cut_ratio: float = 0.9,
     remove_fillers: bool = False,
+    repeat_gap_seconds: float = 1.2,
 ) -> WordCutPlan:
-    """Return word-level source cuts and a report."""
+    """Return word-level source cuts and a report.
+
+    There is no count limit: every detected repetition is cut, because a
+    silent cap makes the last repeated words survive in long recordings.
+    ``max_cut_ratio`` (default 0.9) is only a catastrophic-removal safety
+    ceiling, not a per-run cut count.
+    """
 
     words = _flatten(transcript, discard_ids)
     total = len(words)
@@ -389,8 +369,13 @@ def plan_word_cuts(
     candidates: list[WordCut] = []
     if remove_fillers:
         candidates.extend(_filler_cuts(words))
-    candidates.extend(_stutter_cuts(words, sample_rate=sample_rate))
-    candidates.extend(_phrase_stutters(words, sample_rate=sample_rate))
+    candidates.extend(
+        _repetition_cuts(
+            words,
+            sample_rate=sample_rate,
+            max_gap_sec=repeat_gap_seconds,
+        )
+    )
     candidates.extend(_sentence_cuts(_sentence_groups(words)))
     candidates.extend(
         _ngram_cuts(
@@ -403,12 +388,13 @@ def plan_word_cuts(
     expanded: list[WordCut] = []
     for candidate in candidates:
         expanded.extend(_split_cut(candidate, words, counts))
-    merged = _merge(expanded)
     limit = max(1, math.floor(total * max_cut_ratio))
     selected: list[WordCut] = []
     used = 0
+    # Selection runs on the raw candidates: a large overlapping n-gram must not
+    # merge away the small stutters before they get a chance to be chosen.
     for cut in sorted(
-        merged,
+        expanded,
         key=lambda item: (
             _PRIORITY[item.reason],
             -(item.end - item.start + 1),
@@ -416,7 +402,7 @@ def plan_word_cuts(
         ),
     ):
         length = cut.end - cut.start + 1
-        if used + length > limit and cut.reason not in {"stutter", "filler"}:
+        if used + length > limit:
             continue
         if any(
             cut.start <= existing.end and existing.start <= cut.end
@@ -425,8 +411,6 @@ def plan_word_cuts(
             continue
         selected.append(cut)
         used += length
-        if len(selected) >= max_cuts:
-            break
     selected.sort(key=lambda item: item.start)
     spans: list[tuple[int, int]] = []
     report: list[dict[str, object]] = []
