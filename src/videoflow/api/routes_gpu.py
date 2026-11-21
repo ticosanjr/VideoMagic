@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from vf_shared.compute.config import clear_gpu_config, save_gpu_config
 
 from videoflow.application.compute import compute_status, router_from_settings
 from videoflow.application.secrets import get_secret, set_secret
 from videoflow.application.settings import AppSettings, GpuSettings, load_settings, save_settings
+from videoflow.application.win_worker_kit import build_worker_kit, kit_info
+from videoflow.domain.errors import VideoFlowError
 
 
 class GpuConnectRequest(BaseModel):
@@ -81,8 +85,55 @@ def _require_router(settings: AppSettings):
     return router
 
 
+class WindowsKitRequest(BaseModel):
+    token: str = ""
+    worker_id: str = ""
+    shared_windows_path: str = ""
+    ffmpeg_path: str = ""
+    include_worker_source: bool = True
+
+
+def _register_worker_kit_routes(app: FastAPI) -> None:
+    """Personal Windows worker kit download and metadata."""
+
+    @app.post("/api/v1/gpu-worker/package")
+    def package_gpu_worker(payload: WindowsKitRequest | None = None) -> FileResponse:
+        request = payload or WindowsKitRequest()
+        try:
+            result = build_worker_kit(
+                token=request.token,
+                worker_id=request.worker_id,
+                shared_windows_path=request.shared_windows_path,
+                ffmpeg_path=Path(request.ffmpeg_path) if request.ffmpeg_path else None,
+                include_worker_source=request.include_worker_source,
+            )
+        except (OSError, VideoFlowError) as exc:
+            raise HTTPException(
+                status_code=500,
+                detail={"ok": False, "code": "win_kit_failed", "message": str(exc)},
+            ) from exc
+        return FileResponse(
+            result.path,
+            media_type="application/zip",
+            filename=result.path.name,
+        )
+
+    @app.get("/api/v1/gpu-worker/package/info")
+    def package_gpu_worker_info() -> dict[str, object]:
+        info = kit_info()
+        if info is None:
+            return {
+                "ok": False,
+                "code": "win_kit_missing",
+                "message": "No Windows worker kit has been generated yet.",
+            }
+        return info
+
+
 def register_gpu_routes(app: FastAPI) -> None:
     """Register GPU acceleration status and control routes."""
+
+    _register_worker_kit_routes(app)
 
     @app.get("/api/v1/gpu/status")
     def gpu_status() -> dict[str, Any]:
@@ -358,5 +409,6 @@ __all__ = [
     "GpuSettingsPatch",
     "GpuSharedRequest",
     "GpuUnloadRequest",
+    "WindowsKitRequest",
     "register_gpu_routes",
 ]

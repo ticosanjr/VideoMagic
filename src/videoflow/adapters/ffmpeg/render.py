@@ -12,6 +12,7 @@ import re
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -43,6 +44,10 @@ from videoflow.domain.state import MediaInfo
 from videoflow.domain.timebase import Rounding, Timebase
 from videoflow.runtime import find_binary
 
+
+def _pkg():
+    return sys.modules["videoflow.adapters.ffmpeg"]
+
 DEFAULT_TIMEOUT_SECONDS = 600
 
 DEFAULT_RENDER_TIMEOUT_SECONDS = 3600
@@ -69,7 +74,7 @@ class RenderMixin:
                 timeout=timeout,
             )
             return
-        binary = find_binary("ffmpeg")
+        binary = _pkg().find_binary("ffmpeg")
         if binary is None:
             raise IngestError("ffmpeg is not available. Place it next to the executable.")
         command = [
@@ -83,10 +88,10 @@ class RenderMixin:
             "pipe:1",
             "-nostats",
         ]
-        process = subprocess.Popen(
+        process = _pkg().subprocess.Popen(
             command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+            stdout=_pkg().subprocess.PIPE,
+            stderr=_pkg().subprocess.STDOUT,
             text=True,
             start_new_session=True,
         )
@@ -100,12 +105,12 @@ class RenderMixin:
         reader_thread = threading.Thread(target=reader, daemon=True)
         reader_thread.start()
         tail: list[str] = []
-        deadline = time.monotonic() + max(1, timeout)
+        deadline = _pkg().time.monotonic() + max(1, timeout)
         while process.poll() is None:
             if self.cancel_event is not None and self.cancel_event.is_set():
                 self._terminate(process)
                 raise JobCancelledError("Cancelled") from None
-            if time.monotonic() >= deadline:
+            if _pkg().time.monotonic() >= deadline:
                 self._terminate(process)
                 raise IngestError(f"render timed out after {timeout}s") from None
             try:
