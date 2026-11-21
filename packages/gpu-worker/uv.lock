@@ -345,7 +345,7 @@ wheels = [
 
 [[package]]
 name = "vf-shared"
-version = "3.17.4"
+version = "3.18.0"
 source = { editable = "../vf-shared" }
 dependencies = [
     { name = "httpx" },
@@ -363,7 +363,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "videoflow-gpu-worker"
-version = "3.17.4"
+version = "3.18.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },

@@ -59,6 +59,7 @@ def main() -> int:
         "scene-rules",
         "vf-compute",
         "vf-contracts",
+        "vf-shared",
     )
     targets = [
         (

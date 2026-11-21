@@ -79,9 +79,9 @@ cp -al "$RUNTIME_BASE" dist/videoflow
 mkdir -p dist/videoflow/app/videoflow
 rsync -a --delete --exclude='__pycache__' \
   "$ROOT/src/videoflow/" "$ROOT/dist/videoflow/app/videoflow/"
-mkdir -p dist/videoflow/app/scene_rules
+mkdir -p dist/videoflow/app/vf_shared
 rsync -a --delete --exclude='__pycache__' \
-  "$ROOT/packages/scene-rules/src/scene_rules/" "$ROOT/dist/videoflow/app/scene_rules/"
+  "$ROOT/packages/vf-shared/src/vf_shared/" "$ROOT/dist/videoflow/app/vf_shared/"
 printf '%s\n' "$VERSION" > dist/videoflow/app/version.txt
 rm -rf dist/videoflow/ui
 cp -a "$ROOT/ui/build" dist/videoflow/ui

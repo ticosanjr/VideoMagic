@@ -1,8 +1,37 @@
 # Changelog
 
-## [3.17.4] - 2026-11-21
+## [3.18.0] - 2026-11-22
 
-- Release 3.17.4.
+### Added — arquitetura v4.0 (alpha)
+
+- `packages/vf-shared/` consolida `vf-compute`, `vf-contracts` e
+  `scene-rules`, usado pelo core e pelo `gpu-worker`.
+- `media_contract` 4.0 em módulos pequenos, com validação de áudio, alfa, CFR e
+  `assert_pcm_buffer`/`assert_audio_duration`.
+- `@mcp_tool_guard` com envelope único de erro e telemetria de execução.
+- `state.json` leve com sidecars `transcript_raw`, `transcript_clean`,
+  `timeline`, `pipeline` e ponteiros SHA-256.
+- `ffmpeg.py` fatiado em mixins (`probe`, `audio`, `frames`, `render`, `run` e
+  `shorts`).
+
+### Fixed
+
+- Worker remoto sobrevive a `onnxruntime` incompleto: retry de ASR sem VAD,
+  doctor profundo (`SessionOptions`/`InferenceSession`), comando
+  `gpu_worker.repair` e reparo automático no Start do kit.
+- Export valida a duração do áudio contra a timeline e preserva segmentos +
+  `ffprobe.json` em `exports/_failed/<timestamp>/` quando o gate falha.
+- Áudio unilateral (um canal mudo) é centralizado no mix da timeline.
+- Decupagem ganhou `second_pass=True` sobre o fluxo de palavras editado.
+- Rotas do kit Windows absorvidas pelo router de GPU.
+- Caches de entrega passam a usar `pipeline_schema_version = "4.0"`.
+
+### Known limitations
+
+- Release de **prévia**: Fases 1–2 do plano v4.0 estão parciais.
+- `routes_outputs.py` ainda é monolítico; domínios `media`, `audio`, `vision`
+  ainda não foram migrados; MCP ainda não tem o catálogo de 16 tools.
+- Gate 1/2/3/4 reais e o `release_kit` completo ainda não foram executados.
 
 ## [3.17.4] - 2026-11-21
 
