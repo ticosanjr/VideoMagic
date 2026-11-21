@@ -23,7 +23,7 @@ from videoflow.domain.errors import (
 from videoflow.domain.state import ProjectState
 from videoflow.exporters.mp4 import export_mp4
 
-RENDER_CACHE_VERSION = "3.5"
+RENDER_CACHE_VERSION = "4.0"
 
 
 def _state_path(job: Any) -> Path:

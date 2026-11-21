@@ -18,7 +18,12 @@ from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.disk import ensure_free_space_for_export
 from videoflow.application.fonts import fonts_dir
 from videoflow.application.media_integrity import validate_integrity
-from videoflow.core.media_contract import MediaContractError, assert_audio_duration
+from videoflow.core.media_contract import (
+    MediaContractError,
+    assert_audio_duration,
+    channel_rms,
+    needs_mono_repair,
+)
 from videoflow.domain.errors import ExportError
 from videoflow.domain.state import AudioSegment, MediaInfo, ProjectState, VideoSegment
 from videoflow.exporters.common import (
@@ -108,6 +113,7 @@ def _audio_filters(
     *,
     offset_samples: int = 0,
     sample_rate: int | None = None,
+    mono_repair: str = "",
 ) -> list[str]:
     clip_rate = int(sample_rate or media.audio_sample_rate)
     duration = (clip.source_out_sample - clip.source_in_sample) / clip_rate
@@ -122,6 +128,10 @@ def _audio_filters(
     if clip.fade_out_samples > 0:
         start = max(0.0, duration - clip.fade_out_samples / clip_rate)
         filters.append(f"afade=t=out:st={start:.6f}:d={clip.fade_out_samples / clip_rate:.6f}")
+    if mono_repair == "left":
+        filters.append("pan=stereo|c0=c0|c1=c0")
+    elif mono_repair == "right":
+        filters.append("pan=stereo|c0=c1|c1=c1")
     filters.extend(
         [
             "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo",
@@ -143,6 +153,7 @@ def build_filter_graph(state: ProjectState) -> tuple[str, str, str]:
     video_durations = [(clip.timeline_out_frame - clip.timeline_in_frame) / fps for clip in video]
     transitions = [clip.transition_out for clip in video[:-1]]
     chains: list[str] = []
+    mono_repair = needs_mono_repair(*channel_rms(Path(media.source_path).expanduser()))
     for index, clip in enumerate(video):
         filters = _video_filters(clip, media)
         previous = transitions[index - 1] if index > 0 else None
@@ -154,7 +165,7 @@ def build_filter_graph(state: ProjectState) -> tuple[str, str, str]:
             filters.append(f"fade=t=out:st={start:.6f}:d={current.duration_frames / fps:.6f}")
         chains.append(f"[0:v]{','.join(filters)}[v{index}]")
     for index, clip in enumerate(audio):
-        filters = _audio_filters(clip, media)
+        filters = _audio_filters(clip, media, mono_repair=mono_repair)
         previous = transitions[index - 1] if index > 0 else None
         current = transitions[index] if index < len(transitions) else None
         if previous is not None and previous.audio and previous.type == "fade_to_black":
@@ -177,7 +188,7 @@ def build_filter_graph(state: ProjectState) -> tuple[str, str, str]:
 
 SEGMENT_THRESHOLD = 16
 PRE_ROLL_SECONDS = 1.0
-GROUP_CACHE_VERSION = "3.5"
+GROUP_CACHE_VERSION = "4.0"
 DEFAULT_EXPORT_FPS = 30
 
 YOUTUBE_PROFILE = "youtube_h264"
@@ -414,6 +425,7 @@ def _audio_graph_inputs(
     transitions = [clip.transition_out for clip in video[:-1]]
     fps = media.fps_num / media.fps_den
     sample_rate = media.audio_sample_rate
+    mono_repair = needs_mono_repair(*channel_rms(Path(media.source_path).expanduser()))
     inputs: list[str] = []
     chains: list[str] = []
     for index, clip in enumerate(audio):
@@ -434,6 +446,7 @@ def _audio_graph_inputs(
             media,
             offset_samples=seek_sample,
             sample_rate=clip_rate,
+            mono_repair=mono_repair,
         )
         previous = transitions[index - 1] if index > 0 else None
         current = transitions[index] if index < len(transitions) else None

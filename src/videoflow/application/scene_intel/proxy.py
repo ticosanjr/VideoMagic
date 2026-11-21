@@ -14,7 +14,7 @@ from videoflow.domain.state import MediaInfo
 PROXY_HEIGHT = 360
 KEYFRAME_SIZE = 544
 KEYFRAME_QUALITY = 78
-CACHE_VERSION = "3.5"
+CACHE_VERSION = "4.0"
 
 
 def file_sha256(path: Path, *, chunk: int = 1024 * 1024) -> str:
