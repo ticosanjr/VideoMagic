@@ -226,3 +226,25 @@ def test_llm_none_is_explicit(tmp_path: Path) -> None:
     )
     assert context.metadata["decupage_llm"]["status"] == "skipped"
     assert context.metadata["decupage_llm"]["required"] is False
+
+
+def test_second_pass_cleans_a_repeat_exposed_by_the_first_pass(tmp_path: Path) -> None:
+    context = _context(tmp_path, [_asu(1, "projeto lixo projeto", 0)])
+    DecupageApplyStep().run(
+        context,
+        ApplyParams(
+            decisions=[
+                {
+                    "asu_id": "ASU_0001",
+                    "action": "TRIM_WORDS",
+                    "remove_word_indices": [1],
+                    "category": "STUTTER",
+                }
+            ],
+            second_pass=True,
+        ),
+        StepIO(),
+    )
+    assert context.metadata["decupage_state"]["second_pass"]["repeats"] == 1
+    assert any(item["reason"] == "second_pass" for item in context.metadata["decupage_cuts"])
+    assert context.metadata["asus"][0]["text"] == "projeto"

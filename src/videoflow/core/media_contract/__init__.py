@@ -33,6 +33,7 @@ from videoflow.core.media_contract.policy import (
     source_needs_normalization,
 )
 from videoflow.core.media_contract.validate import (
+    assert_audio_duration,
     assert_media,
     validate_alpha,
     validate_media,
@@ -55,6 +56,7 @@ __all__ = [
     "MediaContractError",
     "MediaKind",
     "MediaReport",
+    "assert_audio_duration",
     "assert_media",
     "assert_pcm_buffer",
     "channel_rms",

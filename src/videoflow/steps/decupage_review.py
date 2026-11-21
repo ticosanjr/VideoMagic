@@ -81,6 +81,41 @@ def _merge_cut_dicts(cuts: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return merged
 
 
+def _trim_asus_by_spans(asus: list[Any], cuts: list[dict[str, Any]]) -> list[Any]:
+    spans = [
+        (int(item["start_sample"]), int(item["end_sample"])) for item in cuts
+    ]
+    result: list[Any] = []
+    for asu in asus:
+        kept = [
+            word
+            for word in asu.words
+            if not any(
+                start <= (word.start_sample + word.end_sample) // 2 <= end
+                for start, end in spans
+            )
+        ]
+        if not kept:
+            result.append(asu)
+            continue
+        result.append(
+            asu.model_copy(
+                update={
+                    "start_sample": kept[0].start_sample,
+                    "end_sample": kept[-1].end_sample,
+                    "start_sec": kept[0].start_sec,
+                    "end_sec": kept[-1].end_sec,
+                    "text": " ".join(word.w for word in kept),
+                    "words": [
+                        word.model_copy(update={"idx": index})
+                        for index, word in enumerate(kept)
+                    ],
+                }
+            )
+        )
+    return result
+
+
 def _dedupe_flags(flags: list[dict[str, str]]) -> list[dict[str, str]]:
     seen: set[tuple[str, str, str]] = set()
     result: list[dict[str, str]] = []
@@ -368,6 +403,8 @@ class ApplyParams(BaseModel):
     decisions_path: str = ""
     max_discard_ratio: float = Field(default=0.45, ge=0.05, le=0.9)
     deterministic_repeats: bool = True
+    second_pass: bool = False
+    second_pass_max_gap_seconds: float = Field(default=1.2, ge=0.1, le=10.0)
 
 
 @register_step
@@ -442,6 +479,30 @@ class DecupageApplyStep(BaseStep):
                 for item in applied_decisions
                 if item.action == "TRIM_WORDS"
             )
+        if options.second_pass:
+            from videoflow.application.decupage.second_pass import second_pass_cuts
+
+            extra = second_pass_cuts(
+                updated,
+                [
+                    (int(item["start_sample"]), int(item["end_sample"]))
+                    for item in cuts
+                ],
+                sample_rate=sample_rate,
+                max_gap_sec=options.second_pass_max_gap_seconds,
+            )
+            cuts.extend(extra.cuts)
+            flags.extend(extra.flags)
+            cuts = _merge_cut_dicts(cuts)
+            flags = _dedupe_flags(flags)
+            if extra.cuts:
+                updated = _trim_asus_by_spans(updated, extra.cuts)
+            summary["second_pass"] = {
+                "repeats": extra.repeats,
+                "ambiguous": extra.ambiguous,
+                "cuts": len(extra.cuts),
+            }
+            summary["cuts"] = len(cuts)
         payload = {
             "asus": [item.model_dump(mode="json") for item in updated],
             "cuts": cuts,

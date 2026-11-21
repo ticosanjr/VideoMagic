@@ -136,18 +136,29 @@ class ExportStep(BaseStep):
             if getattr(io.adapter, "render", None) is not None
             else FFmpegAdapter(cancel_event=io.cancel_event)
         )
-        artifacts = export_timeline(
-            context.state,
-            destination,
-            targets=options.targets,
-            dialect=options.dialect,
-            basename=basename,
-            extras=nle_extras_from_output(context.output),
-            progress=on_progress,
-            should_cancel=io.check_cancel,
-            adapter=adapter,
-            cache_dir=context.output / "render" / "segments",
-        )
+        try:
+            artifacts = export_timeline(
+                context.state,
+                destination,
+                targets=options.targets,
+                dialect=options.dialect,
+                basename=basename,
+                extras=nle_extras_from_output(context.output),
+                progress=on_progress,
+                should_cancel=io.check_cancel,
+                adapter=adapter,
+                cache_dir=context.output / "render" / "segments",
+            )
+        except Exception as exc:  # noqa: BLE001 - preserve evidence then re-raise
+            from videoflow.application.export_evidence import preserve_failed_export
+
+            preserve_failed_export(
+                context.output,
+                error=str(exc),
+                command="export_timeline",
+                paths=(destination,),
+            )
+            raise
         context.artifacts.update({name: str(path) for name, path in artifacts.items()})
         sidecars = destination / "sidecars"
         sidecars.mkdir(parents=True, exist_ok=True)

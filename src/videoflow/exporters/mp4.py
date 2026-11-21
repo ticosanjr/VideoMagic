@@ -18,6 +18,7 @@ from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.disk import ensure_free_space_for_export
 from videoflow.application.fonts import fonts_dir
 from videoflow.application.media_integrity import validate_integrity
+from videoflow.core.media_contract import MediaContractError, assert_audio_duration
 from videoflow.domain.errors import ExportError
 from videoflow.domain.state import AudioSegment, MediaInfo, ProjectState, VideoSegment
 from videoflow.exporters.common import (
@@ -511,6 +512,13 @@ def export_timeline_audio(
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
+    expected = timeline_duration_samples(state) / float(sample_rate or media.audio_sample_rate)
+    tolerance = max(1.0 / 30.0, (media.fps_den / media.fps_num) if media.fps_den else 0.0)
+    if isinstance(renderer, FFmpegAdapter):
+        try:
+            assert_audio_duration(destination, expected, tolerance_sec=tolerance)
+        except MediaContractError as exc:
+            raise ExportError(str(exc.message)) from exc
     if progress is not None:
         progress(100)
     return destination

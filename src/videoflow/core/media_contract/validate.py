@@ -255,3 +255,36 @@ def validate_alpha(path: str | Path) -> MediaReport:
     """Validate that a video/image overlay carries a real alpha channel."""
 
     return validate_media(path, "overlay")
+
+
+def assert_audio_duration(
+    path: str | Path,
+    expected_sec: float,
+    *,
+    tolerance_sec: float = 1.0 / 30.0,
+) -> float:
+    """Fail when a rendered audio master does not match the timeline duration.
+
+    A half/double sample-rate mistake (the historical 2:1 bug) shows up here as
+    a duration far outside one frame of tolerance.
+    """
+
+    report = validate_media(path, "audio_master")
+    duration = (report.metrics.get("format") or {}).get("duration_sec")
+    if duration is None:
+        raise MediaContractError(
+            "audio_duration_unknown",
+            f"could not measure audio duration: {path}",
+            path=str(Path(path).expanduser()),
+            report=report,
+        )
+    delta = abs(float(duration) - float(expected_sec))
+    if delta > max(0.0, float(tolerance_sec)):
+        raise MediaContractError(
+            "audio_duration_mismatch",
+            f"audio duration {float(duration):.6f}s != timeline "
+            f"{float(expected_sec):.6f}s (delta {delta:.6f}s)",
+            path=str(Path(path).expanduser()),
+            report=report,
+        )
+    return float(duration)

@@ -113,21 +113,34 @@ class VideoExportStep(BaseStep):
                 io.check_cancel()
                 io.report(start + int(max(0, min(100, value)) * span / 100), "Rendering video")
 
-            render_master(
-                context.state,
-                target,
-                output=context.output,
-                adapter=adapter,
-                audio_source=options.audio_source,
-                ass_path=ass_path,
-                look=look,
-                crf=local_crf,
-                preset=local_preset,
-                fps=None if options.fps == "source" else int(options.fps),
-                progress=local_progress,
-                scale_height=scale_height,
-                cache_dir=context.output / "render" / "segments",
-            )
+            try:
+                render_master(
+                    context.state,
+                    target,
+                    output=context.output,
+                    adapter=adapter,
+                    audio_source=options.audio_source,
+                    ass_path=ass_path,
+                    look=look,
+                    crf=local_crf,
+                    preset=local_preset,
+                    fps=None if options.fps == "source" else int(options.fps),
+                    progress=local_progress,
+                    scale_height=scale_height,
+                    cache_dir=context.output / "render" / "segments",
+                )
+            except Exception as exc:  # noqa: BLE001 - preserve evidence
+                from videoflow.application.export_evidence import (
+                    preserve_failed_export,
+                )
+
+                preserve_failed_export(
+                    context.output,
+                    error=str(exc),
+                    command="render_master",
+                    paths=(target,),
+                )
+                raise
 
         placement = "local"
         encoder = "libx264"
