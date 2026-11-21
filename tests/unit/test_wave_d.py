@@ -10,7 +10,7 @@ from videoflow.steps.base import StepIO
 
 
 def test_workspace_root_accepts_projects_directory(tmp_path: Path, monkeypatch) -> None:
-    from vf_contracts.workspace import project_dir, workspace_root
+    from vf_shared.contracts.workspace import project_dir, workspace_root
 
     monkeypatch.setenv("VF_WORKSPACE_ROOT", str(tmp_path / "workspace" / "projects"))
     assert workspace_root() == tmp_path / "workspace" / "projects"

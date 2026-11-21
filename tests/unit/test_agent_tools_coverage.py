@@ -343,6 +343,7 @@ def test_agent_tool_resolve_errors_and_adoption(tmp_path: Path, monkeypatch) -> 
 
     assert tools["vf_edit_timeline"](record.project_id, "v1", "invalid")["ok"] is False
 
+    (Path(record.output) / "state.json").unlink(missing_ok=True)
     (Path(record.output) / "project_state.json").write_text("{", encoding="utf-8")
     assert tools["vf_get_timeline"](record.project_id, "job-1")["ok"] is False
     assert tools["vf_render_start"](record.project_id)["ok"] is False
@@ -384,6 +385,7 @@ def test_agent_tool_remaining_branches(tmp_path: Path, monkeypatch) -> None:
 
     empty_record, _ = init_project(output=tmp_path / "no-state")
     assert tools["vf_nle_roundtrip"](empty_record.project_id, direction="push")["ok"] is False
+    (Path(empty_record.output) / "state.json").unlink(missing_ok=True)
     (Path(empty_record.output) / "project_state.json").write_text("{", encoding="utf-8")
     assert tools["vf_render_start"](empty_record.project_id)["ok"] is False
 
@@ -427,9 +429,10 @@ def test_agent_helpers_empty_and_corrupt(tmp_path: Path, monkeypatch) -> None:
     assert _state(empty_record) is not None
     (Path(empty_record.output) / "project_state.json").unlink()
     assert _state(empty_record) is not None
-    from vf_contracts.workspace import project_dir
+    from vf_shared.contracts.workspace import project_dir
 
     (project_dir(empty_record.project_id) / "state.json").unlink()
+    (Path(empty_record.output) / "state.json").unlink()
     assert _state(empty_record) is None
     manager = FakeManager(None)
     try:

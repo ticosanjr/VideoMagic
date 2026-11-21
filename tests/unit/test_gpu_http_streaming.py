@@ -15,9 +15,9 @@ from fastapi.testclient import TestClient  # noqa: E402
 from gpu_worker import worker as worker_module  # noqa: E402
 from gpu_worker.app import create_app  # noqa: E402
 from gpu_worker.settings import Settings  # noqa: E402
-from vf_compute.client import GPUWorkerClient  # noqa: E402
-from vf_compute.models import JobStatus, WorkerHealth  # noqa: E402
-from vf_compute.router import ComputeRouter  # noqa: E402
+from vf_shared.compute.client import GPUWorkerClient  # noqa: E402
+from vf_shared.compute.models import JobStatus, WorkerHealth  # noqa: E402
+from vf_shared.compute.router import ComputeRouter  # noqa: E402
 
 TOKEN = "test-token"
 HEADERS = {"X-VF-Token": TOKEN}

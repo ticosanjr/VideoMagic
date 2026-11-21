@@ -5531,9 +5531,9 @@ wheels = [
 ]
 
 [[package]]
-name = "vf-compute"
+name = "vf-shared"
 version = "3.17.4"
-source = { editable = "packages/vf-compute" }
+source = { editable = "packages/vf-shared" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
@@ -5542,19 +5542,11 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
-    { name = "pydantic", specifier = ">=2" },
+    { name = "pydantic", specifier = ">=2.6" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9" },
 ]
-
-[[package]]
-name = "vf-contracts"
-version = "3.17.4"
-source = { editable = "packages/vf-contracts" }
-dependencies = [
-    { name = "pydantic" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "pydantic", specifier = ">=2" }]
+provides-extras = ["dev"]
 
 [[package]]
 name = "videoflow"
@@ -5572,12 +5564,10 @@ dependencies = [
     { name = "python-multipart" },
     { name = "pyyaml" },
     { name = "uvicorn" },
-    { name = "vf-compute" },
-    { name = "vf-contracts" },
+    { name = "vf-shared" },
     { name = "videoflow-mcp-audio" },
     { name = "videoflow-mcp-fetch" },
     { name = "videoflow-mcp-vision" },
-    { name = "videoflow-scene-rules" },
 ]
 
 [package.optional-dependencies]
@@ -5674,12 +5664,10 @@ requires-dist = [
     { name = "scenedetect", marker = "extra == 'scene'", specifier = ">=0.6.5,<1" },
     { name = "ultralytics", marker = "extra == 'tracking'", specifier = ">=8.3" },
     { name = "uvicorn", specifier = ">=0.32" },
-    { name = "vf-compute", editable = "packages/vf-compute" },
-    { name = "vf-contracts", editable = "packages/vf-contracts" },
+    { name = "vf-shared", editable = "packages/vf-shared" },
     { name = "videoflow-mcp-audio", editable = "packages/mcp-audio" },
     { name = "videoflow-mcp-fetch", editable = "packages/mcp-fetch" },
     { name = "videoflow-mcp-vision", editable = "packages/mcp-vision" },
-    { name = "videoflow-scene-rules", editable = "packages/scene-rules" },
     { name = "whisperx", marker = "extra == 'alignment'", specifier = ">=3.2" },
 ]
 provides-extras = ["dev", "faster-whisper", "diarization", "vision", "tracking", "alignment", "scene", "shorts", "render", "tray"]
@@ -5695,8 +5683,7 @@ dependencies = [
     { name = "mcp" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "vf-compute" },
-    { name = "vf-contracts" },
+    { name = "vf-shared" },
 ]
 
 [package.metadata]
@@ -5705,8 +5692,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.26" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9" },
-    { name = "vf-compute", editable = "packages/vf-compute" },
-    { name = "vf-contracts", editable = "packages/vf-contracts" },
+    { name = "vf-shared", editable = "packages/vf-shared" },
 ]
 provides-extras = ["dev"]
 
@@ -5718,7 +5704,7 @@ dependencies = [
     { name = "httpx" },
     { name = "mcp" },
     { name = "pydantic" },
-    { name = "vf-contracts" },
+    { name = "vf-shared" },
 ]
 
 [package.metadata]
@@ -5726,7 +5712,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "mcp", specifier = ">=1.20" },
     { name = "pydantic", specifier = ">=2.6" },
-    { name = "vf-contracts", editable = "packages/vf-contracts" },
+    { name = "vf-shared", editable = "packages/vf-shared" },
 ]
 
 [[package]]
@@ -5735,8 +5721,7 @@ version = "3.17.4"
 source = { editable = "packages/mcp-vision" }
 dependencies = [
     { name = "mcp" },
-    { name = "vf-compute" },
-    { name = "vf-contracts" },
+    { name = "vf-shared" },
     { name = "websocket-client" },
 ]
 
@@ -5745,16 +5730,10 @@ requires-dist = [
     { name = "mcp", specifier = ">=1.20" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9" },
-    { name = "vf-compute", editable = "packages/vf-compute" },
-    { name = "vf-contracts", editable = "packages/vf-contracts" },
+    { name = "vf-shared", editable = "packages/vf-shared" },
     { name = "websocket-client", specifier = ">=1.8" },
 ]
 provides-extras = ["dev"]
-
-[[package]]
-name = "videoflow-scene-rules"
-version = "3.17.4"
-source = { editable = "packages/scene-rules" }
 
 [[package]]
 name = "websocket-client"

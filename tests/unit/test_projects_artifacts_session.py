@@ -245,7 +245,7 @@ def test_load_project_state_rejects_v1_source(tmp_path: Path, monkeypatch) -> No
         load_project_state(record)
 
 def test_project_mirrors_state_into_workspace(tmp_path: Path, monkeypatch) -> None:
-    from vf_contracts.workspace import project_dir
+    from vf_shared.contracts.workspace import project_dir
 
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home-ws"))
     record, state = init_project(name="Workspace", output=tmp_path / "out-ws")

@@ -341,8 +341,8 @@ def test_download_youtube_requires_ytdlp(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_workspace_asset_license_blocks_export(tmp_path: Path, monkeypatch) -> None:
-    from vf_contracts.assets import write_asset
-    from vf_contracts.workspace import ensure_project
+    from vf_shared.contracts.assets import write_asset
+    from vf_shared.contracts.workspace import ensure_project
 
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
     output = tmp_path / "out"
@@ -376,8 +376,8 @@ def test_license_expiry_parser_edges() -> None:
 
 
 def test_workspace_fair_use_asset_blocks(tmp_path: Path, monkeypatch) -> None:
-    from vf_contracts.assets import write_asset
-    from vf_contracts.workspace import ensure_project
+    from vf_shared.contracts.assets import write_asset
+    from vf_shared.contracts.workspace import ensure_project
 
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home-fair"))
     output = tmp_path / "out-fair"

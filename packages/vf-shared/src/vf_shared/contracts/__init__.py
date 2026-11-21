@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from vf_contracts.assets import (
+from vf_shared.contracts.assets import (
     AssetRecord,
     License,
     asset_key,
@@ -13,7 +13,7 @@ from vf_contracts.assets import (
     sidecar_path,
     write_asset,
 )
-from vf_contracts.workspace import (
+from vf_shared.contracts.workspace import (
     ASSET_KINDS,
     RENDER_VARIANTS,
     WORKSPACE_VERSION,

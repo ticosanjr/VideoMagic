@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from vf_compute.models import WorkerHealth
+from vf_shared.compute.models import WorkerHealth
 
 from videoflow.application.jobs import JobManager
 from videoflow.mcp_server.context import ToolContext

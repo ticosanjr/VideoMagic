@@ -2,24 +2,24 @@
 
 from __future__ import annotations
 
-from vf_compute.capabilities import CAPABILITIES, VRAM_COST_MB, vram_cost
-from vf_compute.client import GPUWorkerClient, GPUWorkerError
-from vf_compute.config import (
+from vf_shared.compute.capabilities import CAPABILITIES, VRAM_COST_MB, vram_cost
+from vf_shared.compute.client import GPUWorkerClient, GPUWorkerError
+from vf_shared.compute.config import (
     GpuConfig,
     clear_gpu_config,
     config_path,
     load_gpu_config,
     save_gpu_config,
 )
-from vf_compute.discovery import (
+from vf_shared.compute.discovery import (
     DiscoveredWorker,
     GpuDiscovery,
     discover_workers,
     scan_workers,
 )
-from vf_compute.execution import ExecutionRecord, now_iso
-from vf_compute.models import JobStatus, WorkerDecision, WorkerHealth
-from vf_compute.router import COMPUTE_MODES, ComputeRouter
+from vf_shared.compute.execution import ExecutionRecord, now_iso
+from vf_shared.compute.models import JobStatus, WorkerDecision, WorkerHealth
+from vf_shared.compute.router import COMPUTE_MODES, ComputeRouter
 
 __all__ = [
     "CAPABILITIES",

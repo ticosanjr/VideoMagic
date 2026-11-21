@@ -18,7 +18,7 @@ from videoflow.domain.errors import AssetNotFoundError
 
 def _workspace_records(project_id: str) -> list[dict[str, Any]]:
     try:
-        from vf_contracts.assets import iter_assets
+        from vf_shared.contracts.assets import iter_assets
 
         return [asset.model_dump(mode="json") for asset in iter_assets(project_id)]
     except Exception:  # noqa: BLE001 - workspace index is optional

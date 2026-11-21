@@ -12,7 +12,7 @@ from __future__ import annotations
 from .workspace import Asset, Workspace, sha256_file, stable_key
 
 try:  # pragma: no cover - depends on the installed distribution
-    from vf_contracts.assets import (
+    from vf_shared.contracts.assets import (
         AssetRecord,
         asset_key,
         find_cached,
@@ -20,7 +20,7 @@ try:  # pragma: no cover - depends on the installed distribution
         sidecar_path,
         write_asset,
     )
-    from vf_contracts.workspace import ASSET_KINDS, project_dir, resolve_within
+    from vf_shared.contracts.workspace import ASSET_KINDS, project_dir, resolve_within
 
     CONTRACTS_AVAILABLE = True
 except ImportError:  # pragma: no cover - fallback for isolated source checkouts

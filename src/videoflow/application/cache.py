@@ -17,6 +17,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from videoflow.core.media_contract import PIPELINE_SCHEMA_VERSION
+
 _QUANTUM = Decimal("0.000001")
 
 
@@ -65,6 +67,7 @@ def module_hash(
         "module": module,
         "module_version": module_version,
         "params": dict(params),
+        "pipeline_schema_version": PIPELINE_SCHEMA_VERSION,
         "prompt_template_version": prompt_template_version,
         "upstream_hash": upstream_hash,
     }

@@ -16,9 +16,13 @@ from typing import Any, Literal
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field
-from vf_contracts.workspace import ensure_project, project_dir, write_project
+from vf_shared.contracts.workspace import ensure_project, project_dir, write_project
 
 from videoflow.application import database
+from videoflow.application.state_sidecars import (
+    load_state_from_index,
+    write_state_index,
+)
 from videoflow.domain.errors import (
     ProjectStateError,
     StateNotReadyError,
@@ -285,11 +289,21 @@ def load_project_state(record: ProjectRecord) -> ProjectState:
         if workspace_state.is_file():
             path = workspace_state
         else:
+            indexed = load_state_from_index(record.output)
+            if indexed is not None:
+                return indexed
             raise StateNotReadyError("Project has no project_state.json yet")
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(payload, dict) and payload.get("sidecars"):
+            indexed = load_state_from_index(record.output)
+            if indexed is not None:
+                return indexed
         return ProjectState.model_validate(migrate_project_state(payload))
     except (OSError, ValueError) as exc:
+        indexed = load_state_from_index(record.output)
+        if indexed is not None:
+            return indexed
         raise ProjectStateError(f"Could not read project state: {exc}") from exc
 
 
@@ -337,6 +351,7 @@ def save_project_state(
         if bump_revision:
             state = state.model_copy(update={"revision": state.revision + 1})
         _write_json(state_path(record), state.model_dump(mode="json"))
+        write_state_index(output, state)
         _sync_workspace(record, state)
         paths, primary_path = _source_paths(state)
         updated = record.model_copy(

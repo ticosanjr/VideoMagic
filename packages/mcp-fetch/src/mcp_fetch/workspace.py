@@ -8,7 +8,7 @@ layout::
 Each media file has a contract ``AssetRecord`` sidecar (``<file>.meta.json``),
 a rich metadata sidecar (``<file>.metadata.json``), and a license sidecar
 (``<file>.license.json``). Idempotency keys use
-``vf_contracts.assets.asset_key`` so other VideoFlow packages find the same
+``vf_shared.contracts.assets.asset_key`` so other VideoFlow packages find the same
 asset with ``find_cached``.
 
 The package keeps a small fallback with the same layout and sidecar shape for
@@ -30,9 +30,9 @@ from pathlib import Path
 from typing import Any
 
 try:  # pragma: no cover - depends on the installed distribution
-    from vf_contracts.assets import AssetRecord as ContractAssetRecord
-    from vf_contracts.assets import asset_key as contract_asset_key
-    from vf_contracts.assets import sha256_file as contract_sha256_file
+    from vf_shared.contracts.assets import AssetRecord as ContractAssetRecord
+    from vf_shared.contracts.assets import asset_key as contract_asset_key
+    from vf_shared.contracts.assets import sha256_file as contract_sha256_file
 except ImportError:  # pragma: no cover - fallback for isolated source checkouts
     ContractAssetRecord = None  # type: ignore[assignment,misc]
     contract_asset_key = None  # type: ignore[assignment]

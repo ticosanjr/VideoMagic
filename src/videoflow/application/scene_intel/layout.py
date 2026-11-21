@@ -1,19 +1,19 @@
 """Deterministic scene layouts and editing hints.
 
-The rules live in the portable ``scene_rules`` package so the GPU worker and
+The rules live in the portable ``vf_shared.scene_rules`` package so the GPU worker and
 the local pipeline cannot drift.
 """
 
 from __future__ import annotations
 
-from scene_rules import (
+from vf_shared.scene_rules import (
     LONG_STATIC_SEC,
     LOW_SHARPNESS,
     PROTECTED_LAYOUTS,
     SCREEN_ACTIVITY_EDGE_DENSITY,
     protected_from_broll,
 )
-from scene_rules import (
+from vf_shared.scene_rules import (
     editing_hints as _editing_hints,
 )
 

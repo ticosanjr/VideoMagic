@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vf_compute.config import (
+from vf_shared.compute.config import (
     clear_gpu_config,
     config_path,
     load_gpu_config,
     save_gpu_config,
 )
-from vf_compute.router import ComputeRouter
+from vf_shared.compute.router import ComputeRouter
 
 
 def _clear_env(monkeypatch) -> None:

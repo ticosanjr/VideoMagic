@@ -4,18 +4,9 @@
       "additionalProperties": false,
       "description": "Provider selection for optional LLM steps.\n\nSecrets are referenced by environment variable name, never stored inline.",
       "properties": {
-        "provider": {
-          "default": "none",
-          "enum": [
-            "auto",
-            "openai_compatible",
-            "deepseek",
-            "opencode_v2",
-            "opencode",
-            "opencode_cli",
-            "none"
-          ],
-          "title": "Provider",
+        "api_key_env": {
+          "default": "VIDEOWFLOW_LLM_API_KEY",
+          "title": "Api Key Env",
           "type": "string"
         },
         "base_url": {
@@ -35,9 +26,18 @@
           "title": "Model",
           "type": "string"
         },
-        "api_key_env": {
-          "default": "VIDEOWFLOW_LLM_API_KEY",
-          "title": "Api Key Env",
+        "provider": {
+          "default": "none",
+          "enum": [
+            "auto",
+            "openai_compatible",
+            "deepseek",
+            "opencode_v2",
+            "opencode",
+            "opencode_cli",
+            "none"
+          ],
+          "title": "Provider",
           "type": "string"
         },
         "timeout_seconds": {
@@ -55,6 +55,24 @@
       "additionalProperties": false,
       "description": "A visual grouping area on the recipe canvas.",
       "properties": {
+        "color": {
+          "default": "#38bdf8",
+          "maxLength": 32,
+          "title": "Color",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "height": {
+          "default": 400.0,
+          "maximum": 20000.0,
+          "minimum": 80.0,
+          "title": "Height",
+          "type": "number"
+        },
         "id": {
           "maxLength": 80,
           "minLength": 1,
@@ -67,16 +85,19 @@
           "title": "Label",
           "type": "string"
         },
-        "description": {
-          "default": "",
-          "title": "Description",
-          "type": "string"
+        "nodes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Nodes",
+          "type": "array"
         },
-        "color": {
-          "default": "#38bdf8",
-          "maxLength": 32,
-          "title": "Color",
-          "type": "string"
+        "width": {
+          "default": 800.0,
+          "maximum": 20000.0,
+          "minimum": 100.0,
+          "title": "Width",
+          "type": "number"
         },
         "x": {
           "default": 0.0,
@@ -87,27 +108,6 @@
           "default": 0.0,
           "title": "Y",
           "type": "number"
-        },
-        "width": {
-          "default": 800.0,
-          "maximum": 20000.0,
-          "minimum": 100.0,
-          "title": "Width",
-          "type": "number"
-        },
-        "height": {
-          "default": 400.0,
-          "maximum": 20000.0,
-          "minimum": 80.0,
-          "title": "Height",
-          "type": "number"
-        },
-        "nodes": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Nodes",
-          "type": "array"
         }
       },
       "required": [
@@ -120,16 +120,6 @@
     "RecipeNodeUi": {
       "additionalProperties": false,
       "properties": {
-        "x": {
-          "default": 0.0,
-          "title": "X",
-          "type": "number"
-        },
-        "y": {
-          "default": 0.0,
-          "title": "Y",
-          "type": "number"
-        },
         "expanded": {
           "default": false,
           "title": "Expanded",
@@ -146,6 +136,16 @@
           "minimum": 280,
           "title": "Width",
           "type": "integer"
+        },
+        "x": {
+          "default": 0.0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "default": 0.0,
+          "title": "Y",
+          "type": "number"
         }
       },
       "title": "RecipeNodeUi",
@@ -154,21 +154,14 @@
     "RecipeStep": {
       "additionalProperties": false,
       "properties": {
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
         "id": {
           "title": "Id",
           "type": "string"
-        },
-        "type": {
-          "minLength": 1,
-          "title": "Type",
-          "type": "string"
-        },
-        "needs": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Needs",
-          "type": "array"
         },
         "inputs": {
           "additionalProperties": {
@@ -182,6 +175,18 @@
           "title": "Media Override",
           "type": "string"
         },
+        "needs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Needs",
+          "type": "array"
+        },
+        "output_dir": {
+          "default": "",
+          "title": "Output Dir",
+          "type": "string"
+        },
         "output_mode": {
           "default": "pipeline",
           "enum": [
@@ -191,20 +196,15 @@
           "title": "Output Mode",
           "type": "string"
         },
-        "output_dir": {
-          "default": "",
-          "title": "Output Dir",
-          "type": "string"
-        },
-        "enabled": {
-          "default": true,
-          "title": "Enabled",
-          "type": "boolean"
-        },
         "params": {
           "additionalProperties": true,
           "title": "Params",
           "type": "object"
+        },
+        "type": {
+          "minLength": 1,
+          "title": "Type",
+          "type": "string"
         }
       },
       "required": [
@@ -217,14 +217,12 @@
     "RecipeUi": {
       "additionalProperties": false,
       "properties": {
-        "version": {
-          "default": 1,
-          "minimum": 1,
-          "title": "Version",
-          "type": "integer"
-        },
-        "viewport": {
-          "$ref": "#/$defs/RecipeViewport"
+        "groups": {
+          "items": {
+            "$ref": "#/$defs/RecipeGroup"
+          },
+          "title": "Groups",
+          "type": "array"
         },
         "nodes": {
           "additionalProperties": {
@@ -233,12 +231,14 @@
           "title": "Nodes",
           "type": "object"
         },
-        "groups": {
-          "items": {
-            "$ref": "#/$defs/RecipeGroup"
-          },
-          "title": "Groups",
-          "type": "array"
+        "version": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "viewport": {
+          "$ref": "#/$defs/RecipeViewport"
         }
       },
       "title": "RecipeUi",
@@ -247,17 +247,6 @@
     "RecipeVariable": {
       "additionalProperties": false,
       "properties": {
-        "type": {
-          "default": "string",
-          "enum": [
-            "string",
-            "number",
-            "boolean",
-            "enum"
-          ],
-          "title": "Type",
-          "type": "string"
-        },
         "default": {
           "default": null,
           "title": "Default"
@@ -276,6 +265,17 @@
           "default": false,
           "title": "Required",
           "type": "boolean"
+        },
+        "type": {
+          "default": "string",
+          "enum": [
+            "string",
+            "number",
+            "boolean",
+            "enum"
+          ],
+          "title": "Type",
+          "type": "string"
         }
       },
       "title": "RecipeVariable",
@@ -308,15 +308,17 @@
   },
   "additionalProperties": false,
   "properties": {
-    "schema_version": {
-      "const": 1,
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
+    "description": {
+      "default": "",
+      "title": "Description",
+      "type": "string"
     },
     "id": {
       "title": "Id",
       "type": "string"
+    },
+    "llm": {
+      "$ref": "#/$defs/LlmRecipeConfig"
     },
     "name": {
       "maxLength": 200,
@@ -324,13 +326,27 @@
       "title": "Name",
       "type": "string"
     },
-    "description": {
-      "default": "",
-      "title": "Description",
-      "type": "string"
+    "profiles": {
+      "additionalProperties": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Profiles",
+      "type": "object"
     },
-    "llm": {
-      "$ref": "#/$defs/LlmRecipeConfig"
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/RecipeStep"
+      },
+      "minItems": 1,
+      "title": "Steps",
+      "type": "array"
     },
     "ui": {
       "$ref": "#/$defs/RecipeUi"
@@ -342,12 +358,9 @@
       "title": "Variables",
       "type": "object"
     },
-    "profiles": {
-      "additionalProperties": {
-        "additionalProperties": true,
-        "type": "object"
-      },
-      "title": "Profiles",
+    "variables_resolved": {
+      "additionalProperties": true,
+      "title": "Variables Resolved",
       "type": "object"
     },
     "variants": {
@@ -356,19 +369,6 @@
         "type": "object"
       },
       "title": "Variants",
-      "type": "array"
-    },
-    "variables_resolved": {
-      "additionalProperties": true,
-      "title": "Variables Resolved",
-      "type": "object"
-    },
-    "steps": {
-      "items": {
-        "$ref": "#/$defs/RecipeStep"
-      },
-      "minItems": 1,
-      "title": "Steps",
       "type": "array"
     }
   },

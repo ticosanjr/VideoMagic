@@ -1,0 +1,95 @@
+{
+  "$defs": {
+    "SidecarPointer": {
+      "additionalProperties": false,
+      "description": "SHA-256 pointer to one sidecar document.",
+      "properties": {
+        "bytes": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Bytes",
+          "type": "integer"
+        },
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "segments": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Segments",
+          "type": "integer"
+        },
+        "sentences": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Sentences",
+          "type": "integer"
+        },
+        "sha256": {
+          "default": "",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "SidecarPointer",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Light ``state.json`` index introduced by the v4 layout.",
+  "properties": {
+    "pipeline_schema_version": {
+      "default": "4.0",
+      "title": "Pipeline Schema Version",
+      "type": "string"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "qa": {
+      "items": {
+        "$ref": "#/$defs/SidecarPointer"
+      },
+      "title": "Qa",
+      "type": "array"
+    },
+    "revision": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 4,
+      "default": 4,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "sidecars": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SidecarPointer"
+      },
+      "title": "Sidecars",
+      "type": "object"
+    },
+    "slug": {
+      "default": "",
+      "title": "Slug",
+      "type": "string"
+    },
+    "updated_at": {
+      "default": "",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "title": "ProjectStateIndex",
+  "type": "object"
+}

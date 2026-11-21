@@ -1,6 +1,6 @@
 """Asset persistence with license/source sidecars and idempotent cache keys.
 
-The preferred writer is ``vf_contracts.assets.write_asset``. Each tool keeps a
+The preferred writer is ``vf_shared.contracts.assets.write_asset``. Each tool keeps a
 stable project-relative working path (for example ``assets/broll/clip_zoom.mp4``)
 while the shared contract stores the content-addressed copy and its own
 ``.meta.json`` sidecar. A local ``<file>.json`` sidecar holds the tool cache key
@@ -156,7 +156,7 @@ def write_output(
     metadata: dict[str, Any] | None = None,
     ai_generated: bool = False,
 ) -> AssetRecord:
-    """Store one output through `vf_contracts.assets.write_asset`."""
+    """Store one output through `vf_shared.contracts.assets.write_asset`."""
 
     if data is not None and source_path is not None:
         raise InvalidArgumentError("write_output accepts data or source_path, not both")
@@ -186,7 +186,7 @@ def write_output(
         stored = _absolute_result_path(external, project_id, target)
         if not stored.is_file():
             raise OutputNotProducedError(
-                "vf_contracts.assets.write_asset did not store the asset",
+                "vf_shared.contracts.assets.write_asset did not store the asset",
                 details={"path": str(stored)},
             )
         _copy_if_needed(stored, target)
@@ -275,7 +275,7 @@ def contract_license(license: str, *, ai_generated: bool = False) -> str:
 
 def _shared_project_dir(project_id: str) -> Path | None:
     try:
-        from vf_contracts.workspace import project_dir as shared_project_dir
+        from vf_shared.contracts.workspace import project_dir as shared_project_dir
     except Exception:
         return None
     try:
@@ -288,7 +288,7 @@ def _write_via_contracts(**values: Any) -> Any | None:
     """Call the shared writer when its signature can accept this asset."""
 
     try:
-        from vf_contracts import assets as contract_assets
+        from vf_shared.contracts import assets as contract_assets
     except Exception:
         return None
     writer = getattr(contract_assets, "write_asset", None)
@@ -370,7 +370,7 @@ def _contract_kind(kind: str) -> str:
 def _absolute_result_path(result: Any, project_id: str, default: Path) -> Path:
     path = _result_path(result, default)
     if not path.is_absolute():
-        # ``vf_contracts`` always stores under its own workspace project dir,
+        # ``vf_shared.contracts`` always stores under its own workspace project dir,
         # which may differ from VF_PROJECT_OUTPUT. Resolve relative results
         # against the writer's root, not the tool's preferred output root.
         path = (_shared_project_dir(project_id) or project_dir(project_id)) / path

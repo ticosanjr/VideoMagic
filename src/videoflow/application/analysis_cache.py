@@ -7,9 +7,10 @@ import json
 from pathlib import Path
 from typing import Any
 
+from videoflow.core.media_contract import PIPELINE_SCHEMA_VERSION
 from videoflow.runtime import cache_root
 
-CACHE_VERSION = "3.5"
+CACHE_VERSION = PIPELINE_SCHEMA_VERSION
 
 
 def _sha256(path: Path) -> str:

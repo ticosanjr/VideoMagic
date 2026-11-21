@@ -318,6 +318,29 @@ class PipelineState(StrictModel):
     checkpoints: list[PipelineCheckpoint] = Field(default_factory=list)
 
 
+class SidecarPointer(StrictModel):
+    """SHA-256 pointer to one sidecar document."""
+
+    path: str = Field(min_length=1)
+    sha256: str = ""
+    bytes: int = Field(default=0, ge=0)
+    sentences: int = Field(default=0, ge=0)
+    segments: int = Field(default=0, ge=0)
+
+
+class ProjectStateIndex(StrictModel):
+    """Light ``state.json`` index introduced by the v4 layout."""
+
+    schema_version: Literal[4] = 4
+    pipeline_schema_version: str = "4.0"
+    project_id: UUID = Field(default_factory=uuid4)
+    slug: str = ""
+    revision: int = Field(default=1, ge=1)
+    updated_at: str = ""
+    sidecars: dict[str, SidecarPointer] = Field(default_factory=dict)
+    qa: list[SidecarPointer] = Field(default_factory=list)
+
+
 class ProjectState(StrictModel):
     """The single JSON document under ``.videoflow/project_state.json``."""
 

@@ -24,7 +24,7 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-from vf_compute import ComputeRouter, GPUWorkerClient
+from vf_shared.compute import ComputeRouter, GPUWorkerClient
 
 
 def _ffmpeg() -> str:
@@ -181,7 +181,7 @@ def run_local_worker(
 def discover_url(*, timeout: float = 3.0) -> str:
     """Find a LAN worker through UDP, then the active TCP subnet scan."""
 
-    from vf_compute.discovery import discover_workers, scan_workers
+    from vf_shared.compute.discovery import discover_workers, scan_workers
 
     peers = discover_workers(timeout_sec=min(max(timeout, 0.5), 5.0))
     if not peers:

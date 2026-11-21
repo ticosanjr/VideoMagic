@@ -53,7 +53,7 @@ _ENV_KEYS = (
 
 
 class FakeRouter:
-    """Minimal stand-in for `vf_compute.ComputeRouter`."""
+    """Minimal stand-in for `vf_shared.compute.ComputeRouter`."""
 
     def __init__(self, healthy: set[str] | None = None, remote_file: Path | None = None) -> None:
         self.healthy = set(healthy or set())
@@ -281,8 +281,8 @@ def test_assets_go_through_vf_contracts_writer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[dict[str, object]] = []
-    module = types.ModuleType("vf_contracts")
-    assets = types.ModuleType("vf_contracts.assets")
+    module = types.ModuleType("vf_shared.contracts")
+    assets = types.ModuleType("vf_shared.contracts.assets")
 
     def write_asset(
         project_id: str,
@@ -314,8 +314,8 @@ def test_assets_go_through_vf_contracts_writer(
 
     assets.write_asset = write_asset  # type: ignore[attr-defined]
     module.assets = assets  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "vf_contracts", module)
-    monkeypatch.setitem(sys.modules, "vf_contracts.assets", assets)
+    monkeypatch.setitem(sys.modules, "vf_shared.contracts", module)
+    monkeypatch.setitem(sys.modules, "vf_shared.contracts.assets", assets)
 
     record = audio_storage.write_output(
         "proj-writer",

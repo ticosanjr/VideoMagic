@@ -11,12 +11,20 @@ import json
 from pathlib import Path
 
 from videoflow.core.recipe import Recipe
-from videoflow.domain.state import ApiError, JobRecord, LlmRetakeResponse, Preset, ProjectState
+from videoflow.domain.state import (
+    ApiError,
+    JobRecord,
+    LlmRetakeResponse,
+    Preset,
+    ProjectState,
+    ProjectStateIndex,
+)
 from videoflow.domain.styles import StyleDefinition
 from videoflow.domain.workflows import WorkflowDefinition
 
 MODELS = {
     "project-state": ProjectState,
+    "state-index": ProjectStateIndex,
     "preset": Preset,
     "llm-retake-response": LlmRetakeResponse,
     "api-error": ApiError,

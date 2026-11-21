@@ -58,7 +58,7 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
                             "output_required",
                             "Pass project_id or output when creating a project",
                         )
-                    from vf_contracts.workspace import project_dir as workspace_project_dir
+                    from vf_shared.contracts.workspace import project_dir as workspace_project_dir
 
                     output = str(workspace_project_dir(project_id))
                 record, state = init_project(

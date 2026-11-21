@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from vf_compute import ComputeRouter
+from vf_shared.compute import ComputeRouter
 
 
 def router_from_settings(settings: Any | None = None) -> ComputeRouter:

@@ -3,18 +3,6 @@
     "AudioEnhanceConfig": {
       "additionalProperties": false,
       "properties": {
-        "enabled": {
-          "default": false,
-          "title": "Enabled",
-          "type": "boolean"
-        },
-        "highpass_hz": {
-          "default": 80,
-          "maximum": 500,
-          "minimum": 20,
-          "title": "Highpass Hz",
-          "type": "integer"
-        },
         "denoise": {
           "default": true,
           "title": "Denoise",
@@ -27,17 +15,29 @@
           "title": "Denoise Db",
           "type": "integer"
         },
-        "noise_floor_db": {
-          "default": -30,
-          "maximum": -5,
-          "minimum": -80,
-          "title": "Noise Floor Db",
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "highpass_hz": {
+          "default": 80,
+          "maximum": 500,
+          "minimum": 20,
+          "title": "Highpass Hz",
           "type": "integer"
         },
         "loudnorm": {
           "default": true,
           "title": "Loudnorm",
           "type": "boolean"
+        },
+        "noise_floor_db": {
+          "default": -30,
+          "maximum": -5,
+          "minimum": -80,
+          "title": "Noise Floor Db",
+          "type": "integer"
         },
         "target_lufs": {
           "default": -16.0,
@@ -65,6 +65,27 @@
           "title": "Clip Id",
           "type": "string"
         },
+        "fade_curve": {
+          "default": "logarithmic",
+          "enum": [
+            "linear",
+            "logarithmic"
+          ],
+          "title": "Fade Curve",
+          "type": "string"
+        },
+        "fade_in_samples": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Fade In Samples",
+          "type": "integer"
+        },
+        "fade_out_samples": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Fade Out Samples",
+          "type": "integer"
+        },
         "source_id": {
           "default": "",
           "title": "Source Id",
@@ -89,27 +110,6 @@
           "minimum": 0,
           "title": "Timeline Out Sample",
           "type": "integer"
-        },
-        "fade_in_samples": {
-          "default": 0,
-          "minimum": 0,
-          "title": "Fade In Samples",
-          "type": "integer"
-        },
-        "fade_out_samples": {
-          "default": 0,
-          "minimum": 0,
-          "title": "Fade Out Samples",
-          "type": "integer"
-        },
-        "fade_curve": {
-          "default": "logarithmic",
-          "enum": [
-            "linear",
-            "logarithmic"
-          ],
-          "title": "Fade Curve",
-          "type": "string"
         }
       },
       "required": [
@@ -126,6 +126,82 @@
       "additionalProperties": false,
       "description": "Burned caption/karaoke style. Colors are #RRGGBB.",
       "properties": {
+        "alignment": {
+          "default": 2,
+          "maximum": 9,
+          "minimum": 1,
+          "title": "Alignment",
+          "type": "integer"
+        },
+        "background_color": {
+          "default": "#000000",
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "title": "Background Color",
+          "type": "string"
+        },
+        "background_opacity": {
+          "default": 0.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Background Opacity",
+          "type": "number"
+        },
+        "background_padding": {
+          "default": 0,
+          "maximum": 40,
+          "minimum": 0,
+          "title": "Background Padding",
+          "type": "integer"
+        },
+        "brand_vocabulary": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Brand Vocabulary",
+          "type": "object"
+        },
+        "censor_enabled": {
+          "default": false,
+          "title": "Censor Enabled",
+          "type": "boolean"
+        },
+        "censor_replacement": {
+          "default": "***",
+          "maxLength": 20,
+          "minLength": 1,
+          "title": "Censor Replacement",
+          "type": "string"
+        },
+        "censor_words": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Censor Words",
+          "type": "array"
+        },
+        "effect": {
+          "default": "static",
+          "enum": [
+            "static",
+            "karaoke_switch",
+            "karaoke_sweep",
+            "pop"
+          ],
+          "title": "Effect",
+          "type": "string"
+        },
+        "emoji_enabled": {
+          "default": false,
+          "title": "Emoji Enabled",
+          "type": "boolean"
+        },
+        "emoji_map": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Emoji Map",
+          "type": "object"
+        },
         "font_family": {
           "default": "Arial",
           "minLength": 1,
@@ -148,27 +224,41 @@
           "title": "Font Weight",
           "type": "string"
         },
-        "italic": {
-          "default": false,
-          "title": "Italic",
-          "type": "boolean"
-        },
-        "uppercase": {
-          "default": false,
-          "title": "Uppercase",
-          "type": "boolean"
-        },
-        "primary_color": {
-          "default": "#FFFFFF",
-          "pattern": "^#[0-9A-Fa-f]{6}$",
-          "title": "Primary Color",
-          "type": "string"
-        },
         "highlight_color": {
           "default": "#FFD400",
           "pattern": "^#[0-9A-Fa-f]{6}$",
           "title": "Highlight Color",
           "type": "string"
+        },
+        "italic": {
+          "default": false,
+          "title": "Italic",
+          "type": "boolean"
+        },
+        "keyword_color": {
+          "default": "#00E5FF",
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "title": "Keyword Color",
+          "type": "string"
+        },
+        "keyword_highlight_enabled": {
+          "default": false,
+          "title": "Keyword Highlight Enabled",
+          "type": "boolean"
+        },
+        "keyword_words": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Keyword Words",
+          "type": "array"
+        },
+        "max_width": {
+          "default": 0.9,
+          "maximum": 1.0,
+          "minimum": 0.2,
+          "title": "Max Width",
+          "type": "number"
         },
         "outline_color": {
           "default": "#000000",
@@ -182,6 +272,26 @@
           "minimum": 0,
           "title": "Outline Width",
           "type": "integer"
+        },
+        "position_x": {
+          "default": 0.5,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Position X",
+          "type": "number"
+        },
+        "position_y": {
+          "default": 0.78,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Position Y",
+          "type": "number"
+        },
+        "primary_color": {
+          "default": "#FFFFFF",
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "title": "Primary Color",
+          "type": "string"
         },
         "shadow_color": {
           "default": "#000000",
@@ -203,64 +313,17 @@
           "title": "Shadow Opacity",
           "type": "number"
         },
-        "background_color": {
-          "default": "#000000",
-          "pattern": "^#[0-9A-Fa-f]{6}$",
-          "title": "Background Color",
-          "type": "string"
+        "speaker_colors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Speaker Colors",
+          "type": "array"
         },
-        "background_opacity": {
-          "default": 0.0,
-          "maximum": 1.0,
-          "minimum": 0.0,
-          "title": "Background Opacity",
-          "type": "number"
-        },
-        "background_padding": {
-          "default": 0,
-          "maximum": 40,
-          "minimum": 0,
-          "title": "Background Padding",
-          "type": "integer"
-        },
-        "alignment": {
-          "default": 2,
-          "maximum": 9,
-          "minimum": 1,
-          "title": "Alignment",
-          "type": "integer"
-        },
-        "position_x": {
-          "default": 0.5,
-          "maximum": 1.0,
-          "minimum": 0.0,
-          "title": "Position X",
-          "type": "number"
-        },
-        "position_y": {
-          "default": 0.78,
-          "maximum": 1.0,
-          "minimum": 0.0,
-          "title": "Position Y",
-          "type": "number"
-        },
-        "max_width": {
-          "default": 0.9,
-          "maximum": 1.0,
-          "minimum": 0.2,
-          "title": "Max Width",
-          "type": "number"
-        },
-        "effect": {
-          "default": "static",
-          "enum": [
-            "static",
-            "karaoke_switch",
-            "karaoke_sweep",
-            "pop"
-          ],
-          "title": "Effect",
-          "type": "string"
+        "uppercase": {
+          "default": false,
+          "title": "Uppercase",
+          "type": "boolean"
         },
         "word_timing": {
           "default": "word",
@@ -271,69 +334,6 @@
           ],
           "title": "Word Timing",
           "type": "string"
-        },
-        "censor_enabled": {
-          "default": false,
-          "title": "Censor Enabled",
-          "type": "boolean"
-        },
-        "censor_words": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Censor Words",
-          "type": "array"
-        },
-        "censor_replacement": {
-          "default": "***",
-          "maxLength": 20,
-          "minLength": 1,
-          "title": "Censor Replacement",
-          "type": "string"
-        },
-        "keyword_highlight_enabled": {
-          "default": false,
-          "title": "Keyword Highlight Enabled",
-          "type": "boolean"
-        },
-        "keyword_color": {
-          "default": "#00E5FF",
-          "pattern": "^#[0-9A-Fa-f]{6}$",
-          "title": "Keyword Color",
-          "type": "string"
-        },
-        "keyword_words": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Keyword Words",
-          "type": "array"
-        },
-        "emoji_enabled": {
-          "default": false,
-          "title": "Emoji Enabled",
-          "type": "boolean"
-        },
-        "emoji_map": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Emoji Map",
-          "type": "object"
-        },
-        "brand_vocabulary": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Brand Vocabulary",
-          "type": "object"
-        },
-        "speaker_colors": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Speaker Colors",
-          "type": "array"
         }
       },
       "title": "CaptionStyle",
@@ -342,19 +342,19 @@
     "DubbingConfig": {
       "additionalProperties": false,
       "properties": {
-        "target_language": {
-          "default": "en",
-          "maxLength": 20,
-          "minLength": 2,
-          "title": "Target Language",
-          "type": "string"
-        },
         "original_volume": {
           "default": 0.0,
           "maximum": 1.0,
           "minimum": 0.0,
           "title": "Original Volume",
           "type": "number"
+        },
+        "target_language": {
+          "default": "en",
+          "maxLength": 20,
+          "minLength": 2,
+          "title": "Target Language",
+          "type": "string"
         }
       },
       "title": "DubbingConfig",
@@ -379,10 +379,10 @@
           "title": "Write Fcpxml",
           "type": "boolean"
         },
-        "write_xmeml": {
-          "default": true,
+        "write_mp4": {
+          "default": false,
           "deprecated": true,
-          "title": "Write Xmeml",
+          "title": "Write Mp4",
           "type": "boolean"
         },
         "write_otio": {
@@ -391,10 +391,10 @@
           "title": "Write Otio",
           "type": "boolean"
         },
-        "write_mp4": {
-          "default": false,
+        "write_xmeml": {
+          "default": true,
           "deprecated": true,
-          "title": "Write Mp4",
+          "title": "Write Xmeml",
           "type": "boolean"
         }
       },
@@ -405,16 +405,13 @@
       "additionalProperties": false,
       "description": "A non-destructive removed clip kept for the Recut view.",
       "properties": {
+        "audio": {
+          "$ref": "#/$defs/AudioSegment"
+        },
         "clip_id": {
           "minLength": 1,
           "title": "Clip Id",
           "type": "string"
-        },
-        "video": {
-          "$ref": "#/$defs/VideoSegment"
-        },
-        "audio": {
-          "$ref": "#/$defs/AudioSegment"
         },
         "reason": {
           "default": "manual",
@@ -426,6 +423,9 @@
           ],
           "title": "Reason",
           "type": "string"
+        },
+        "video": {
+          "$ref": "#/$defs/VideoSegment"
         }
       },
       "required": [
@@ -440,11 +440,6 @@
       "additionalProperties": false,
       "description": "A source-time region that the Recut flow should not play.",
       "properties": {
-        "start_sample": {
-          "minimum": 0,
-          "title": "Start Sample",
-          "type": "integer"
-        },
         "end_sample": {
           "minimum": 0,
           "title": "End Sample",
@@ -460,6 +455,11 @@
           ],
           "title": "Reason",
           "type": "string"
+        },
+        "start_sample": {
+          "minimum": 0,
+          "title": "Start Sample",
+          "type": "integer"
         }
       },
       "required": [
@@ -472,16 +472,16 @@
     "IngestConfig": {
       "additionalProperties": false,
       "properties": {
-        "force_cfr": {
-          "default": true,
-          "deprecated": true,
-          "title": "Force Cfr",
-          "type": "boolean"
-        },
         "extract_audio_pcm": {
           "default": true,
           "deprecated": true,
           "title": "Extract Audio Pcm",
+          "type": "boolean"
+        },
+        "force_cfr": {
+          "default": true,
+          "deprecated": true,
+          "title": "Force Cfr",
           "type": "boolean"
         },
         "generate_proxy": {
@@ -497,11 +497,6 @@
     "IntroOutroConfig": {
       "additionalProperties": false,
       "properties": {
-        "intro_enabled": {
-          "default": false,
-          "title": "Intro Enabled",
-          "type": "boolean"
-        },
         "intro_asset": {
           "default": "",
           "title": "Intro Asset",
@@ -514,9 +509,9 @@
           "title": "Intro Duration Sec",
           "type": "number"
         },
-        "outro_enabled": {
+        "intro_enabled": {
           "default": false,
-          "title": "Outro Enabled",
+          "title": "Intro Enabled",
           "type": "boolean"
         },
         "outro_asset": {
@@ -530,6 +525,11 @@
           "minimum": 0.2,
           "title": "Outro Duration Sec",
           "type": "number"
+        },
+        "outro_enabled": {
+          "default": false,
+          "title": "Outro Enabled",
+          "type": "boolean"
         }
       },
       "title": "IntroOutroConfig",
@@ -538,6 +538,13 @@
     "JlCutsConfig": {
       "additionalProperties": false,
       "properties": {
+        "audio_crossfade_ms": {
+          "default": 20,
+          "maximum": 50,
+          "minimum": 10,
+          "title": "Audio Crossfade Ms",
+          "type": "integer"
+        },
         "enable_j_cuts": {
           "default": true,
           "title": "Enable J Cuts",
@@ -548,19 +555,14 @@
           "title": "Enable L Cuts",
           "type": "boolean"
         },
-        "offset_ms": {
-          "default": 200,
-          "maximum": 500,
-          "minimum": 100,
-          "title": "Offset Ms",
-          "type": "integer"
-        },
-        "audio_crossfade_ms": {
-          "default": 20,
-          "maximum": 50,
-          "minimum": 10,
-          "title": "Audio Crossfade Ms",
-          "type": "integer"
+        "fade_curve": {
+          "default": "logarithmic",
+          "enum": [
+            "linear",
+            "logarithmic"
+          ],
+          "title": "Fade Curve",
+          "type": "string"
         },
         "fade_in_ms": {
           "default": 20,
@@ -576,19 +578,17 @@
           "title": "Fade Out Ms",
           "type": "integer"
         },
-        "fade_curve": {
-          "default": "logarithmic",
-          "enum": [
-            "linear",
-            "logarithmic"
-          ],
-          "title": "Fade Curve",
-          "type": "string"
-        },
         "handle_check": {
           "default": true,
           "title": "Handle Check",
           "type": "boolean"
+        },
+        "offset_ms": {
+          "default": 200,
+          "maximum": 500,
+          "minimum": 100,
+          "title": "Offset Ms",
+          "type": "integer"
         }
       },
       "title": "JlCutsConfig",
@@ -598,6 +598,14 @@
       "additionalProperties": false,
       "description": "A sentence override, or a word override inside that sentence.",
       "properties": {
+        "action": {
+          "enum": [
+            "keep",
+            "discard"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
         "sentence_id": {
           "minimum": 0,
           "title": "Sentence Id",
@@ -615,14 +623,6 @@
           ],
           "default": null,
           "title": "Word Index"
-        },
-        "action": {
-          "enum": [
-            "keep",
-            "discard"
-          ],
-          "title": "Action",
-          "type": "string"
         }
       },
       "required": [
@@ -635,19 +635,14 @@
     "MediaInfo": {
       "additionalProperties": false,
       "properties": {
-        "source_path": {
-          "minLength": 1,
-          "title": "Source Path",
-          "type": "string"
+        "audio_sample_rate": {
+          "exclusiveMinimum": 0,
+          "title": "Audio Sample Rate",
+          "type": "integer"
         },
         "duration_frames": {
           "minimum": 0,
           "title": "Duration Frames",
-          "type": "integer"
-        },
-        "fps_num": {
-          "exclusiveMinimum": 0,
-          "title": "Fps Num",
           "type": "integer"
         },
         "fps_den": {
@@ -655,9 +650,9 @@
           "title": "Fps Den",
           "type": "integer"
         },
-        "width": {
+        "fps_num": {
           "exclusiveMinimum": 0,
-          "title": "Width",
+          "title": "Fps Num",
           "type": "integer"
         },
         "height": {
@@ -665,15 +660,20 @@
           "title": "Height",
           "type": "integer"
         },
-        "audio_sample_rate": {
-          "exclusiveMinimum": 0,
-          "title": "Audio Sample Rate",
-          "type": "integer"
+        "source_path": {
+          "minLength": 1,
+          "title": "Source Path",
+          "type": "string"
         },
         "start_timecode_frames": {
           "default": 0,
           "minimum": 0,
           "title": "Start Timecode Frames",
+          "type": "integer"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "title": "Width",
           "type": "integer"
         }
       },
@@ -692,24 +692,14 @@
     "ModuleEnabled": {
       "additionalProperties": false,
       "properties": {
+        "export": {
+          "default": true,
+          "title": "Export",
+          "type": "boolean"
+        },
         "ingest": {
           "default": true,
           "title": "Ingest",
-          "type": "boolean"
-        },
-        "vad": {
-          "default": true,
-          "title": "Vad",
-          "type": "boolean"
-        },
-        "transcribe": {
-          "default": true,
-          "title": "Transcribe",
-          "type": "boolean"
-        },
-        "retakes": {
-          "default": true,
-          "title": "Retakes",
           "type": "boolean"
         },
         "jl_cuts": {
@@ -717,9 +707,9 @@
           "title": "Jl Cuts",
           "type": "boolean"
         },
-        "zooms": {
+        "retakes": {
           "default": true,
-          "title": "Zooms",
+          "title": "Retakes",
           "type": "boolean"
         },
         "shorts": {
@@ -727,9 +717,19 @@
           "title": "Shorts",
           "type": "boolean"
         },
-        "export": {
+        "transcribe": {
           "default": true,
-          "title": "Export",
+          "title": "Transcribe",
+          "type": "boolean"
+        },
+        "vad": {
+          "default": true,
+          "title": "Vad",
+          "type": "boolean"
+        },
+        "zooms": {
+          "default": true,
+          "title": "Zooms",
           "type": "boolean"
         }
       },
@@ -739,50 +739,50 @@
     "ModulesConfig": {
       "additionalProperties": false,
       "properties": {
-        "providers": {
-          "$ref": "#/$defs/ProvidersConfig"
-        },
         "audio": {
           "$ref": "#/$defs/AudioEnhanceConfig"
-        },
-        "overlay": {
-          "$ref": "#/$defs/OverlayConfig"
-        },
-        "music": {
-          "$ref": "#/$defs/MusicConfig"
-        },
-        "tts": {
-          "$ref": "#/$defs/TtsConfig"
-        },
-        "intro_outro": {
-          "$ref": "#/$defs/IntroOutroConfig"
         },
         "dubbing": {
           "$ref": "#/$defs/DubbingConfig"
         },
+        "export": {
+          "$ref": "#/$defs/ExportConfig"
+        },
         "ingest": {
           "$ref": "#/$defs/IngestConfig"
         },
-        "vad": {
-          "$ref": "#/$defs/VadConfig"
-        },
-        "transcribe": {
-          "$ref": "#/$defs/TranscribeConfig"
-        },
-        "retakes": {
-          "$ref": "#/$defs/RetakesConfig"
+        "intro_outro": {
+          "$ref": "#/$defs/IntroOutroConfig"
         },
         "jl_cuts": {
           "$ref": "#/$defs/JlCutsConfig"
         },
-        "zooms": {
-          "$ref": "#/$defs/ZoomsConfig"
+        "music": {
+          "$ref": "#/$defs/MusicConfig"
+        },
+        "overlay": {
+          "$ref": "#/$defs/OverlayConfig"
+        },
+        "providers": {
+          "$ref": "#/$defs/ProvidersConfig"
+        },
+        "retakes": {
+          "$ref": "#/$defs/RetakesConfig"
         },
         "shorts": {
           "$ref": "#/$defs/ShortsConfig"
         },
-        "export": {
-          "$ref": "#/$defs/ExportConfig"
+        "transcribe": {
+          "$ref": "#/$defs/TranscribeConfig"
+        },
+        "tts": {
+          "$ref": "#/$defs/TtsConfig"
+        },
+        "vad": {
+          "$ref": "#/$defs/VadConfig"
+        },
+        "zooms": {
+          "$ref": "#/$defs/ZoomsConfig"
         }
       },
       "title": "ModulesConfig",
@@ -791,11 +791,6 @@
     "MulticamCut": {
       "additionalProperties": false,
       "properties": {
-        "start_frame": {
-          "minimum": 0,
-          "title": "Start Frame",
-          "type": "integer"
-        },
         "end_frame": {
           "exclusiveMinimum": 0,
           "title": "End Frame",
@@ -805,6 +800,11 @@
           "minLength": 1,
           "title": "Source Id",
           "type": "string"
+        },
+        "start_frame": {
+          "minimum": 0,
+          "title": "Start Frame",
+          "type": "integer"
         }
       },
       "required": [
@@ -837,26 +837,19 @@
     "MusicConfig": {
       "additionalProperties": false,
       "properties": {
-        "enabled": {
-          "default": false,
-          "title": "Enabled",
-          "type": "boolean"
-        },
         "asset": {
           "default": "",
           "title": "Asset",
           "type": "string"
         },
-        "volume": {
-          "default": 0.18,
-          "maximum": 1.0,
-          "minimum": 0.0,
-          "title": "Volume",
-          "type": "number"
-        },
         "ducking": {
           "default": true,
           "title": "Ducking",
+          "type": "boolean"
+        },
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
           "type": "boolean"
         },
         "fade_in_ms": {
@@ -872,6 +865,13 @@
           "minimum": 0,
           "title": "Fade Out Ms",
           "type": "integer"
+        },
+        "volume": {
+          "default": 0.18,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Volume",
+          "type": "number"
         }
       },
       "title": "MusicConfig",
@@ -880,31 +880,6 @@
     "OverlayClip": {
       "additionalProperties": false,
       "properties": {
-        "overlay_id": {
-          "minLength": 1,
-          "title": "Overlay Id",
-          "type": "string"
-        },
-        "asset_id": {
-          "default": "",
-          "title": "Asset Id",
-          "type": "string"
-        },
-        "path": {
-          "minLength": 1,
-          "title": "Path",
-          "type": "string"
-        },
-        "start_frame": {
-          "minimum": 0,
-          "title": "Start Frame",
-          "type": "integer"
-        },
-        "duration_frames": {
-          "exclusiveMinimum": 0,
-          "title": "Duration Frames",
-          "type": "integer"
-        },
         "anchor": {
           "default": "top_center",
           "enum": [
@@ -919,38 +894,20 @@
           "title": "Anchor",
           "type": "string"
         },
-        "margin_x": {
-          "default": 0,
-          "minimum": 0,
-          "title": "Margin X",
+        "asset_id": {
+          "default": "",
+          "title": "Asset Id",
+          "type": "string"
+        },
+        "duration_frames": {
+          "exclusiveMinimum": 0,
+          "title": "Duration Frames",
           "type": "integer"
         },
-        "margin_y": {
-          "default": 0,
-          "minimum": 0,
-          "title": "Margin Y",
-          "type": "integer"
-        },
-        "width_ratio": {
-          "default": 0.25,
-          "exclusiveMinimum": 0.0,
-          "maximum": 1.0,
-          "title": "Width Ratio",
-          "type": "number"
-        },
-        "opacity": {
-          "default": 1.0,
-          "maximum": 1.0,
-          "minimum": 0.0,
-          "title": "Opacity",
-          "type": "number"
-        },
-        "z": {
-          "default": 20,
-          "maximum": 1000,
-          "minimum": 0,
-          "title": "Z",
-          "type": "integer"
+        "ken_burns": {
+          "default": false,
+          "title": "Ken Burns",
+          "type": "boolean"
         },
         "kind": {
           "default": "image",
@@ -966,15 +923,51 @@
           "title": "Layout",
           "type": "string"
         },
-        "ken_burns": {
-          "default": false,
-          "title": "Ken Burns",
-          "type": "boolean"
+        "margin_x": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Margin X",
+          "type": "integer"
+        },
+        "margin_y": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Margin Y",
+          "type": "integer"
+        },
+        "opacity": {
+          "default": 1.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Opacity",
+          "type": "number"
+        },
+        "overlay_id": {
+          "minLength": 1,
+          "title": "Overlay Id",
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "start_frame": {
+          "minimum": 0,
+          "title": "Start Frame",
+          "type": "integer"
         },
         "transformative_crop": {
           "default": false,
           "title": "Transformative Crop",
           "type": "boolean"
+        },
+        "transition_frames": {
+          "default": 6,
+          "maximum": 120,
+          "minimum": 0,
+          "title": "Transition Frames",
+          "type": "integer"
         },
         "transition_in": {
           "default": "",
@@ -986,11 +979,18 @@
           "title": "Transition Out",
           "type": "string"
         },
-        "transition_frames": {
-          "default": 6,
-          "maximum": 120,
+        "width_ratio": {
+          "default": 0.25,
+          "exclusiveMinimum": 0.0,
+          "maximum": 1.0,
+          "title": "Width Ratio",
+          "type": "number"
+        },
+        "z": {
+          "default": 20,
+          "maximum": 1000,
           "minimum": 0,
-          "title": "Transition Frames",
+          "title": "Z",
           "type": "integer"
         }
       },
@@ -1006,15 +1006,29 @@
     "OverlayConfig": {
       "additionalProperties": false,
       "properties": {
+        "asset": {
+          "default": "",
+          "title": "Asset",
+          "type": "string"
+        },
         "enabled": {
           "default": false,
           "title": "Enabled",
           "type": "boolean"
         },
-        "asset": {
-          "default": "",
-          "title": "Asset",
-          "type": "string"
+        "margin_px": {
+          "default": 32,
+          "maximum": 400,
+          "minimum": 0,
+          "title": "Margin Px",
+          "type": "integer"
+        },
+        "opacity": {
+          "default": 0.9,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Opacity",
+          "type": "number"
         },
         "position": {
           "default": "bottom_right",
@@ -1028,25 +1042,11 @@
           "title": "Position",
           "type": "string"
         },
-        "margin_px": {
-          "default": 32,
-          "maximum": 400,
-          "minimum": 0,
-          "title": "Margin Px",
-          "type": "integer"
-        },
         "width_ratio": {
           "default": 0.18,
           "maximum": 1.0,
           "minimum": 0.03,
           "title": "Width Ratio",
-          "type": "number"
-        },
-        "opacity": {
-          "default": 0.9,
-          "maximum": 1.0,
-          "minimum": 0.0,
-          "title": "Opacity",
           "type": "number"
         }
       },
@@ -1057,29 +1057,14 @@
       "additionalProperties": false,
       "description": "One completed, skipped, or failed step in a tools-only run.",
       "properties": {
-        "step": {
-          "minLength": 1,
-          "title": "Step",
-          "type": "string"
-        },
-        "status": {
-          "default": "completed",
-          "enum": [
-            "completed",
-            "failed",
-            "skipped"
-          ],
-          "title": "Status",
-          "type": "string"
-        },
-        "started_at": {
-          "default": "",
-          "title": "Started At",
-          "type": "string"
-        },
         "finished_at": {
           "default": "",
           "title": "Finished At",
+          "type": "string"
+        },
+        "message": {
+          "default": "",
+          "title": "Message",
           "type": "string"
         },
         "params_hash": {
@@ -1093,9 +1078,24 @@
           "title": "Revision",
           "type": "integer"
         },
-        "message": {
+        "started_at": {
           "default": "",
-          "title": "Message",
+          "title": "Started At",
+          "type": "string"
+        },
+        "status": {
+          "default": "completed",
+          "enum": [
+            "completed",
+            "failed",
+            "skipped"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "step": {
+          "minLength": 1,
+          "title": "Step",
           "type": "string"
         }
       },
@@ -1109,22 +1109,6 @@
       "additionalProperties": false,
       "description": "Serializable bridge between tools-only MCP calls.\n\nThe canonical timeline remains in :class:`ProjectState`; this block keeps\nthe rest of :class:`PipelineContext` so a later tool call can resume without\nre-sending transcript, shorts, captions, artifacts, or analysis spans.",
       "properties": {
-        "schema_version": {
-          "const": 1,
-          "default": 1,
-          "title": "Schema Version",
-          "type": "integer"
-        },
-        "run_id": {
-          "default": "",
-          "title": "Run Id",
-          "type": "string"
-        },
-        "step": {
-          "default": "",
-          "title": "Step",
-          "type": "string"
-        },
         "applied_style_id": {
           "default": "",
           "title": "Applied Style Id",
@@ -1137,50 +1121,82 @@
           "title": "Artifacts",
           "type": "object"
         },
+        "cache_hits": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Cache Hits",
+          "type": "array"
+        },
+        "cache_misses": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Cache Misses",
+          "type": "array"
+        },
+        "checkpoints": {
+          "items": {
+            "$ref": "#/$defs/PipelineCheckpoint"
+          },
+          "title": "Checkpoints",
+          "type": "array"
+        },
+        "discard_sentence_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Discard Sentence Ids",
+          "type": "array"
+        },
+        "hashes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Hashes",
+          "type": "object"
+        },
+        "inactive_spans": {
+          "items": {
+            "$ref": "#/$defs/InactiveSpan"
+          },
+          "title": "Inactive Spans",
+          "type": "array"
+        },
+        "language_confidence": {
+          "default": 0.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Language Confidence",
+          "type": "number"
+        },
+        "manual_overrides": {
+          "items": {
+            "$ref": "#/$defs/ManualOverride"
+          },
+          "title": "Manual Overrides",
+          "type": "array"
+        },
         "metadata": {
           "additionalProperties": true,
           "title": "Metadata",
           "type": "object"
-        },
-        "pcm_path": {
-          "default": "",
-          "title": "Pcm Path",
-          "type": "string"
         },
         "pcm_digest": {
           "default": "",
           "title": "Pcm Digest",
           "type": "string"
         },
-        "speech_intervals": {
-          "items": {
-            "maxItems": 2,
-            "minItems": 2,
-            "prefixItems": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "integer"
-              }
-            ],
-            "type": "array"
-          },
-          "title": "Speech Intervals",
-          "type": "array"
+        "pcm_path": {
+          "default": "",
+          "title": "Pcm Path",
+          "type": "string"
         },
-        "silence_spans": {
+        "restored_sentence_ids": {
           "items": {
-            "$ref": "#/$defs/InactiveSpan"
+            "type": "integer"
           },
-          "title": "Silence Spans",
-          "type": "array"
-        },
-        "retake_spans": {
-          "items": {
-            "$ref": "#/$defs/InactiveSpan"
-          },
-          "title": "Retake Spans",
+          "title": "Restored Sentence Ids",
           "type": "array"
         },
         "retake_overlap_cuts": {
@@ -1200,63 +1216,23 @@
           "title": "Retake Overlap Cuts",
           "type": "array"
         },
-        "inactive_spans": {
+        "retake_spans": {
           "items": {
             "$ref": "#/$defs/InactiveSpan"
           },
-          "title": "Inactive Spans",
+          "title": "Retake Spans",
           "type": "array"
         },
-        "vad_engine": {
-          "default": "none",
-          "title": "Vad Engine",
-          "type": "string"
-        },
-        "transcript_source": {
-          "default": "none",
-          "title": "Transcript Source",
-          "type": "string"
-        },
-        "transcript_language": {
+        "run_id": {
           "default": "",
-          "title": "Transcript Language",
+          "title": "Run Id",
           "type": "string"
         },
-        "language_confidence": {
-          "default": 0.0,
-          "maximum": 1.0,
-          "minimum": 0.0,
-          "title": "Language Confidence",
-          "type": "number"
-        },
-        "discard_sentence_ids": {
-          "items": {
-            "type": "integer"
-          },
-          "title": "Discard Sentence Ids",
-          "type": "array"
-        },
-        "restored_sentence_ids": {
-          "items": {
-            "type": "integer"
-          },
-          "title": "Restored Sentence Ids",
-          "type": "array"
-        },
-        "manual_overrides": {
-          "items": {
-            "$ref": "#/$defs/ManualOverride"
-          },
-          "title": "Manual Overrides",
-          "type": "array"
-        },
-        "shorts": {
-          "items": {
-            "additionalProperties": true,
-            "type": "object"
-          },
-          "title": "Shorts",
-          "type": "array"
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
         },
         "selected_shorts": {
           "items": {
@@ -1273,33 +1249,42 @@
           "title": "Short Captions",
           "type": "object"
         },
-        "warnings": {
+        "shorts": {
           "items": {
-            "type": "string"
+            "additionalProperties": true,
+            "type": "object"
           },
-          "title": "Warnings",
+          "title": "Shorts",
           "type": "array"
         },
-        "hashes": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Hashes",
-          "type": "object"
-        },
-        "cache_hits": {
+        "silence_spans": {
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/InactiveSpan"
           },
-          "title": "Cache Hits",
+          "title": "Silence Spans",
           "type": "array"
         },
-        "cache_misses": {
+        "speech_intervals": {
           "items": {
-            "type": "string"
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "type": "array"
           },
-          "title": "Cache Misses",
+          "title": "Speech Intervals",
           "type": "array"
+        },
+        "step": {
+          "default": "",
+          "title": "Step",
+          "type": "string"
         },
         "time_map": {
           "items": {
@@ -1308,11 +1293,26 @@
           "title": "Time Map",
           "type": "array"
         },
-        "checkpoints": {
+        "transcript_language": {
+          "default": "",
+          "title": "Transcript Language",
+          "type": "string"
+        },
+        "transcript_source": {
+          "default": "none",
+          "title": "Transcript Source",
+          "type": "string"
+        },
+        "vad_engine": {
+          "default": "none",
+          "title": "Vad Engine",
+          "type": "string"
+        },
+        "warnings": {
           "items": {
-            "$ref": "#/$defs/PipelineCheckpoint"
+            "type": "string"
           },
-          "title": "Checkpoints",
+          "title": "Warnings",
           "type": "array"
         }
       },
@@ -1341,6 +1341,29 @@
     "RetakesConfig": {
       "additionalProperties": false,
       "properties": {
+        "base_url": {
+          "default": "http://localhost:11434/v1",
+          "title": "Base Url",
+          "type": "string"
+        },
+        "context_window_sentences": {
+          "default": 15,
+          "deprecated": true,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Context Window Sentences",
+          "type": "integer"
+        },
+        "model_name": {
+          "default": "qwen2.5:7b-instruct",
+          "title": "Model Name",
+          "type": "string"
+        },
+        "prompt_template_version": {
+          "default": "retake-v1",
+          "title": "Prompt Template Version",
+          "type": "string"
+        },
         "provider": {
           "default": "ollama",
           "enum": [
@@ -1350,19 +1373,18 @@
           "title": "Provider",
           "type": "string"
         },
-        "base_url": {
-          "default": "http://localhost:11434/v1",
-          "title": "Base Url",
+        "retake_strategy": {
+          "default": "keep_last",
+          "enum": [
+            "keep_last",
+            "keep_best"
+          ],
+          "title": "Retake Strategy",
           "type": "string"
         },
         "secret_name": {
           "default": "VIDEOWFLOW_LLM_API_KEY",
           "title": "Secret Name",
-          "type": "string"
-        },
-        "model_name": {
-          "default": "qwen2.5:7b-instruct",
-          "title": "Model Name",
           "type": "string"
         },
         "strictness": {
@@ -1375,34 +1397,12 @@
           "title": "Strictness",
           "type": "string"
         },
-        "context_window_sentences": {
-          "default": 15,
-          "deprecated": true,
-          "maximum": 100,
-          "minimum": 1,
-          "title": "Context Window Sentences",
-          "type": "integer"
-        },
-        "retake_strategy": {
-          "default": "keep_last",
-          "enum": [
-            "keep_last",
-            "keep_best"
-          ],
-          "title": "Retake Strategy",
-          "type": "string"
-        },
         "temperature": {
           "default": 0.0,
           "maximum": 0.0,
           "minimum": 0.0,
           "title": "Temperature",
           "type": "number"
-        },
-        "prompt_template_version": {
-          "default": "retake-v1",
-          "title": "Prompt Template Version",
-          "type": "string"
         }
       },
       "title": "RetakesConfig",
@@ -1411,14 +1411,14 @@
     "SampleSpan": {
       "additionalProperties": false,
       "properties": {
-        "start_sample": {
-          "minimum": 0,
-          "title": "Start Sample",
-          "type": "integer"
-        },
         "end_sample": {
           "minimum": 0,
           "title": "End Sample",
+          "type": "integer"
+        },
+        "start_sample": {
+          "minimum": 0,
+          "title": "Start Sample",
           "type": "integer"
         }
       },
@@ -1432,9 +1432,20 @@
     "Sentence": {
       "additionalProperties": false,
       "properties": {
+        "end_sample": {
+          "minimum": 0,
+          "title": "End Sample",
+          "type": "integer"
+        },
         "id": {
           "minimum": 0,
           "title": "Id",
+          "type": "integer"
+        },
+        "speaker": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Speaker",
           "type": "integer"
         },
         "start_sample": {
@@ -1442,20 +1453,9 @@
           "title": "Start Sample",
           "type": "integer"
         },
-        "end_sample": {
-          "minimum": 0,
-          "title": "End Sample",
-          "type": "integer"
-        },
         "text": {
           "title": "Text",
           "type": "string"
-        },
-        "speaker": {
-          "default": 0,
-          "minimum": 0,
-          "title": "Speaker",
-          "type": "integer"
         },
         "words": {
           "items": {
@@ -1477,139 +1477,6 @@
     "ShortsConfig": {
       "additionalProperties": false,
       "properties": {
-        "profile": {
-          "default": "default",
-          "enum": [
-            "default",
-            "hook",
-            "education",
-            "podcast",
-            "tiktok",
-            "youtube"
-          ],
-          "title": "Profile",
-          "type": "string"
-        },
-        "target_duration_min_sec": {
-          "default": 30,
-          "minimum": 1,
-          "title": "Target Duration Min Sec",
-          "type": "integer"
-        },
-        "target_duration_max_sec": {
-          "default": 60,
-          "minimum": 1,
-          "title": "Target Duration Max Sec",
-          "type": "integer"
-        },
-        "min_clips": {
-          "default": 3,
-          "maximum": 20,
-          "minimum": 1,
-          "title": "Min Clips",
-          "type": "integer"
-        },
-        "max_clips_to_generate": {
-          "default": 3,
-          "maximum": 20,
-          "minimum": 1,
-          "title": "Max Clips To Generate",
-          "type": "integer"
-        },
-        "selection_mode": {
-          "default": "auto",
-          "enum": [
-            "auto",
-            "llm",
-            "heuristic"
-          ],
-          "title": "Selection Mode",
-          "type": "string"
-        },
-        "prompt": {
-          "default": "",
-          "maxLength": 2000,
-          "title": "Prompt",
-          "type": "string"
-        },
-        "reprompt": {
-          "default": "",
-          "maxLength": 2000,
-          "title": "Reprompt",
-          "type": "string"
-        },
-        "prompt_mode": {
-          "default": "replace",
-          "enum": [
-            "replace",
-            "refine"
-          ],
-          "title": "Prompt Mode",
-          "type": "string"
-        },
-        "hook_mode": {
-          "default": "off",
-          "enum": [
-            "off",
-            "metadata",
-            "repeat",
-            "reorder"
-          ],
-          "title": "Hook Mode",
-          "type": "string"
-        },
-        "audio_energy_boost": {
-          "default": false,
-          "title": "Audio Energy Boost",
-          "type": "boolean"
-        },
-        "scene_change_boost": {
-          "default": false,
-          "title": "Scene Change Boost",
-          "type": "boolean"
-        },
-        "remove_fillers": {
-          "default": false,
-          "title": "Remove Fillers",
-          "type": "boolean"
-        },
-        "filler_words": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Filler Words",
-          "type": "array"
-        },
-        "virality_threshold": {
-          "default": 0.0,
-          "maximum": 100.0,
-          "minimum": 0.0,
-          "title": "Virality Threshold",
-          "type": "number"
-        },
-        "thought_boundary": {
-          "default": true,
-          "title": "Thought Boundary",
-          "type": "boolean"
-        },
-        "thought_boundary_max_adjust_sec": {
-          "default": 4.0,
-          "maximum": 12.0,
-          "minimum": 0.0,
-          "title": "Thought Boundary Max Adjust Sec",
-          "type": "number"
-        },
-        "reframe_mode": {
-          "default": "center_crop_9_16",
-          "enum": [
-            "center_crop_9_16",
-            "motion_tracking",
-            "face_tracking",
-            "auto_face_tracking_yolo"
-          ],
-          "title": "Reframe Mode",
-          "type": "string"
-        },
         "aspect_ratio": {
           "default": "9:16",
           "enum": [
@@ -1623,53 +1490,15 @@
           "title": "Aspect Ratio",
           "type": "string"
         },
-        "resolution": {
-          "default": 1080,
-          "enum": [
-            1080,
-            1440,
-            2160
-          ],
-          "title": "Resolution",
-          "type": "integer"
-        },
-        "source_start_sec": {
-          "default": 0.0,
-          "minimum": 0.0,
-          "title": "Source Start Sec",
-          "type": "number"
-        },
-        "source_end_sec": {
-          "anyOf": [
-            {
-              "minimum": 0.0,
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Source End Sec"
+        "audio_energy_boost": {
+          "default": false,
+          "title": "Audio Energy Boost",
+          "type": "boolean"
         },
         "burn_subtitles": {
           "default": true,
           "title": "Burn Subtitles",
           "type": "boolean"
-        },
-        "subtitles_preset": {
-          "default": "tiktok_bold",
-          "enum": [
-            "tiktok_bold",
-            "minimalist_box",
-            "highlight_word",
-            "hormozi_bold",
-            "beast_highlight",
-            "clean_white",
-            "podcast_speaker"
-          ],
-          "title": "Subtitles Preset",
-          "type": "string"
         },
         "caption_style": {
           "$ref": "#/$defs/CaptionStyle"
@@ -1684,6 +1513,13 @@
           "title": "Export Format",
           "type": "string"
         },
+        "filler_words": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Filler Words",
+          "type": "array"
+        },
         "hook_criteria": {
           "items": {
             "type": "string"
@@ -1691,17 +1527,35 @@
           "title": "Hook Criteria",
           "type": "array"
         },
-        "hook_rewrite": {
-          "default": false,
-          "title": "Hook Rewrite",
-          "type": "boolean"
-        },
         "hook_max_chars": {
           "default": 90,
           "maximum": 300,
           "minimum": 20,
           "title": "Hook Max Chars",
           "type": "integer"
+        },
+        "hook_mode": {
+          "default": "off",
+          "enum": [
+            "off",
+            "metadata",
+            "repeat",
+            "reorder"
+          ],
+          "title": "Hook Mode",
+          "type": "string"
+        },
+        "hook_overrides": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Hook Overrides",
+          "type": "object"
+        },
+        "hook_rewrite": {
+          "default": false,
+          "title": "Hook Rewrite",
+          "type": "boolean"
         },
         "layout": {
           "default": "full_reframe",
@@ -1718,12 +1572,158 @@
           "title": "Layout",
           "type": "string"
         },
-        "hook_overrides": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Hook Overrides",
-          "type": "object"
+        "max_clips_to_generate": {
+          "default": 3,
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Max Clips To Generate",
+          "type": "integer"
+        },
+        "min_clips": {
+          "default": 3,
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Min Clips",
+          "type": "integer"
+        },
+        "profile": {
+          "default": "default",
+          "enum": [
+            "default",
+            "hook",
+            "education",
+            "podcast",
+            "tiktok",
+            "youtube"
+          ],
+          "title": "Profile",
+          "type": "string"
+        },
+        "prompt": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "prompt_mode": {
+          "default": "replace",
+          "enum": [
+            "replace",
+            "refine"
+          ],
+          "title": "Prompt Mode",
+          "type": "string"
+        },
+        "reframe_mode": {
+          "default": "center_crop_9_16",
+          "enum": [
+            "center_crop_9_16",
+            "motion_tracking",
+            "face_tracking",
+            "auto_face_tracking_yolo"
+          ],
+          "title": "Reframe Mode",
+          "type": "string"
+        },
+        "remove_fillers": {
+          "default": false,
+          "title": "Remove Fillers",
+          "type": "boolean"
+        },
+        "reprompt": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Reprompt",
+          "type": "string"
+        },
+        "resolution": {
+          "default": 1080,
+          "enum": [
+            1080,
+            1440,
+            2160
+          ],
+          "title": "Resolution",
+          "type": "integer"
+        },
+        "scene_change_boost": {
+          "default": false,
+          "title": "Scene Change Boost",
+          "type": "boolean"
+        },
+        "selection_mode": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "llm",
+            "heuristic"
+          ],
+          "title": "Selection Mode",
+          "type": "string"
+        },
+        "source_end_sec": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source End Sec"
+        },
+        "source_start_sec": {
+          "default": 0.0,
+          "minimum": 0.0,
+          "title": "Source Start Sec",
+          "type": "number"
+        },
+        "subtitles_preset": {
+          "default": "tiktok_bold",
+          "enum": [
+            "tiktok_bold",
+            "minimalist_box",
+            "highlight_word",
+            "hormozi_bold",
+            "beast_highlight",
+            "clean_white",
+            "podcast_speaker"
+          ],
+          "title": "Subtitles Preset",
+          "type": "string"
+        },
+        "target_duration_max_sec": {
+          "default": 60,
+          "minimum": 1,
+          "title": "Target Duration Max Sec",
+          "type": "integer"
+        },
+        "target_duration_min_sec": {
+          "default": 30,
+          "minimum": 1,
+          "title": "Target Duration Min Sec",
+          "type": "integer"
+        },
+        "thought_boundary": {
+          "default": true,
+          "title": "Thought Boundary",
+          "type": "boolean"
+        },
+        "thought_boundary_max_adjust_sec": {
+          "default": 4.0,
+          "maximum": 12.0,
+          "minimum": 0.0,
+          "title": "Thought Boundary Max Adjust Sec",
+          "type": "number"
+        },
+        "virality_threshold": {
+          "default": 0.0,
+          "maximum": 100.0,
+          "minimum": 0.0,
+          "title": "Virality Threshold",
+          "type": "number"
         }
       },
       "title": "ShortsConfig",
@@ -1733,49 +1733,10 @@
       "additionalProperties": false,
       "description": "One contiguous source-to-timeline mapping segment.",
       "properties": {
-        "source_id": {
-          "default": "",
-          "title": "Source Id",
-          "type": "string"
-        },
-        "source_in_sample": {
-          "minimum": 0,
-          "title": "Source In Sample",
-          "type": "integer"
-        },
-        "source_out_sample": {
-          "minimum": 0,
-          "title": "Source Out Sample",
-          "type": "integer"
-        },
-        "timeline_in_sample": {
-          "minimum": 0,
-          "title": "Timeline In Sample",
-          "type": "integer"
-        },
-        "timeline_out_sample": {
-          "minimum": 0,
-          "title": "Timeline Out Sample",
-          "type": "integer"
-        },
-        "source_in_frame": {
-          "minimum": 0,
-          "title": "Source In Frame",
-          "type": "integer"
-        },
-        "source_out_frame": {
-          "minimum": 0,
-          "title": "Source Out Frame",
-          "type": "integer"
-        },
-        "timeline_in_frame": {
-          "minimum": 0,
-          "title": "Timeline In Frame",
-          "type": "integer"
-        },
-        "timeline_out_frame": {
-          "minimum": 0,
-          "title": "Timeline Out Frame",
+        "fps_den": {
+          "default": 1,
+          "exclusiveMinimum": 0,
+          "title": "Fps Den",
           "type": "integer"
         },
         "fps_num": {
@@ -1784,16 +1745,55 @@
           "title": "Fps Num",
           "type": "integer"
         },
-        "fps_den": {
-          "default": 1,
-          "exclusiveMinimum": 0,
-          "title": "Fps Den",
-          "type": "integer"
-        },
         "sample_rate": {
           "default": 48000,
           "exclusiveMinimum": 0,
           "title": "Sample Rate",
+          "type": "integer"
+        },
+        "source_id": {
+          "default": "",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_in_frame": {
+          "minimum": 0,
+          "title": "Source In Frame",
+          "type": "integer"
+        },
+        "source_in_sample": {
+          "minimum": 0,
+          "title": "Source In Sample",
+          "type": "integer"
+        },
+        "source_out_frame": {
+          "minimum": 0,
+          "title": "Source Out Frame",
+          "type": "integer"
+        },
+        "source_out_sample": {
+          "minimum": 0,
+          "title": "Source Out Sample",
+          "type": "integer"
+        },
+        "timeline_in_frame": {
+          "minimum": 0,
+          "title": "Timeline In Frame",
+          "type": "integer"
+        },
+        "timeline_in_sample": {
+          "minimum": 0,
+          "title": "Timeline In Sample",
+          "type": "integer"
+        },
+        "timeline_out_frame": {
+          "minimum": 0,
+          "title": "Timeline Out Frame",
+          "type": "integer"
+        },
+        "timeline_out_sample": {
+          "minimum": 0,
+          "title": "Timeline Out Sample",
           "type": "integer"
         }
       },
@@ -1813,6 +1813,25 @@
     "TranscribeConfig": {
       "additionalProperties": false,
       "properties": {
+        "compute_type": {
+          "default": "int8",
+          "enum": [
+            "float16",
+            "int8",
+            "float32"
+          ],
+          "title": "Compute Type",
+          "type": "string"
+        },
+        "device": {
+          "default": "cpu",
+          "enum": [
+            "cuda",
+            "cpu"
+          ],
+          "title": "Device",
+          "type": "string"
+        },
         "engine": {
           "default": "auto",
           "enum": [
@@ -1821,18 +1840,6 @@
             "whisper.cpp"
           ],
           "title": "Engine",
-          "type": "string"
-        },
-        "model_size": {
-          "default": "small",
-          "enum": [
-            "tiny",
-            "base",
-            "small",
-            "medium",
-            "large-v3"
-          ],
-          "title": "Model Size",
           "type": "string"
         },
         "language": {
@@ -1872,23 +1879,16 @@
           "title": "Language",
           "type": "string"
         },
-        "device": {
-          "default": "cpu",
+        "model_size": {
+          "default": "small",
           "enum": [
-            "cuda",
-            "cpu"
+            "tiny",
+            "base",
+            "small",
+            "medium",
+            "large-v3"
           ],
-          "title": "Device",
-          "type": "string"
-        },
-        "compute_type": {
-          "default": "int8",
-          "enum": [
-            "float16",
-            "int8",
-            "float32"
-          ],
-          "title": "Compute Type",
+          "title": "Model Size",
           "type": "string"
         },
         "vad_filter": {
@@ -1903,12 +1903,32 @@
     "Transform": {
       "additionalProperties": false,
       "properties": {
-        "scale": {
-          "default": 1.0,
-          "maximum": 4.0,
-          "minimum": 1.0,
-          "title": "Scale",
-          "type": "number"
+        "anchor": {
+          "default": "upper_third",
+          "enum": [
+            "center",
+            "upper_third",
+            "face_detect"
+          ],
+          "title": "Anchor",
+          "type": "string"
+        },
+        "keyframes": {
+          "items": {
+            "$ref": "#/$defs/TransformKeyframe"
+          },
+          "title": "Keyframes",
+          "type": "array"
+        },
+        "pan_direction": {
+          "default": "none",
+          "enum": [
+            "none",
+            "left_to_right",
+            "right_to_left"
+          ],
+          "title": "Pan Direction",
+          "type": "string"
         },
         "pos_x": {
           "default": 0.0,
@@ -1918,6 +1938,13 @@
         "pos_y": {
           "default": 0.0,
           "title": "Pos Y",
+          "type": "number"
+        },
+        "scale": {
+          "default": 1.0,
+          "maximum": 4.0,
+          "minimum": 1.0,
+          "title": "Scale",
           "type": "number"
         },
         "type": {
@@ -1931,33 +1958,6 @@
           ],
           "title": "Type",
           "type": "string"
-        },
-        "anchor": {
-          "default": "upper_third",
-          "enum": [
-            "center",
-            "upper_third",
-            "face_detect"
-          ],
-          "title": "Anchor",
-          "type": "string"
-        },
-        "pan_direction": {
-          "default": "none",
-          "enum": [
-            "none",
-            "left_to_right",
-            "right_to_left"
-          ],
-          "title": "Pan Direction",
-          "type": "string"
-        },
-        "keyframes": {
-          "items": {
-            "$ref": "#/$defs/TransformKeyframe"
-          },
-          "title": "Keyframes",
-          "type": "array"
         }
       },
       "title": "Transform",
@@ -1972,11 +1972,14 @@
           "title": "At",
           "type": "number"
         },
-        "scale": {
-          "maximum": 4.0,
-          "minimum": 1.0,
-          "title": "Scale",
-          "type": "number"
+        "curve": {
+          "default": "linear",
+          "enum": [
+            "linear",
+            "smooth"
+          ],
+          "title": "Curve",
+          "type": "string"
         },
         "pos_x": {
           "default": 0.0,
@@ -1988,14 +1991,11 @@
           "title": "Pos Y",
           "type": "number"
         },
-        "curve": {
-          "default": "linear",
-          "enum": [
-            "linear",
-            "smooth"
-          ],
-          "title": "Curve",
-          "type": "string"
+        "scale": {
+          "maximum": 4.0,
+          "minimum": 1.0,
+          "title": "Scale",
+          "type": "number"
         }
       },
       "required": [
@@ -2008,6 +2008,18 @@
     "Transition": {
       "additionalProperties": false,
       "properties": {
+        "audio": {
+          "default": true,
+          "title": "Audio",
+          "type": "boolean"
+        },
+        "duration_frames": {
+          "default": 6,
+          "maximum": 120,
+          "minimum": 1,
+          "title": "Duration Frames",
+          "type": "integer"
+        },
         "type": {
           "default": "crossfade",
           "enum": [
@@ -2022,18 +2034,6 @@
           ],
           "title": "Type",
           "type": "string"
-        },
-        "duration_frames": {
-          "default": 6,
-          "maximum": 120,
-          "minimum": 1,
-          "title": "Duration Frames",
-          "type": "integer"
-        },
-        "audio": {
-          "default": true,
-          "title": "Audio",
-          "type": "boolean"
         }
       },
       "title": "Transition",
@@ -2042,6 +2042,33 @@
     "TtsConfig": {
       "additionalProperties": false,
       "properties": {
+        "base_url": {
+          "default": "",
+          "title": "Base Url",
+          "type": "string"
+        },
+        "binary": {
+          "default": "piper",
+          "title": "Binary",
+          "type": "string"
+        },
+        "model": {
+          "default": "tts-1",
+          "title": "Model",
+          "type": "string"
+        },
+        "model_path": {
+          "default": "",
+          "title": "Model Path",
+          "type": "string"
+        },
+        "original_volume": {
+          "default": 0.35,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Original Volume",
+          "type": "number"
+        },
         "provider": {
           "default": "none",
           "enum": [
@@ -2052,34 +2079,9 @@
           "title": "Provider",
           "type": "string"
         },
-        "base_url": {
-          "default": "",
-          "title": "Base Url",
-          "type": "string"
-        },
-        "model": {
-          "default": "tts-1",
-          "title": "Model",
-          "type": "string"
-        },
-        "voice": {
-          "default": "alloy",
-          "title": "Voice",
-          "type": "string"
-        },
         "secret_name": {
           "default": "VIDEOWFLOW_TTS_API_KEY",
           "title": "Secret Name",
-          "type": "string"
-        },
-        "binary": {
-          "default": "piper",
-          "title": "Binary",
-          "type": "string"
-        },
-        "model_path": {
-          "default": "",
-          "title": "Model Path",
           "type": "string"
         },
         "speed": {
@@ -2089,18 +2091,16 @@
           "title": "Speed",
           "type": "number"
         },
+        "voice": {
+          "default": "alloy",
+          "title": "Voice",
+          "type": "string"
+        },
         "volume": {
           "default": 1.0,
           "maximum": 1.0,
           "minimum": 0.0,
           "title": "Volume",
-          "type": "number"
-        },
-        "original_volume": {
-          "default": 0.35,
-          "maximum": 1.0,
-          "minimum": 0.0,
-          "title": "Original Volume",
           "type": "number"
         }
       },
@@ -2120,12 +2120,12 @@
           "title": "Engine",
           "type": "string"
         },
-        "speech_threshold": {
-          "default": 0.5,
-          "maximum": 0.9,
-          "minimum": 0.1,
-          "title": "Speech Threshold",
-          "type": "number"
+        "keep_handles_ms": {
+          "default": 200,
+          "deprecated": true,
+          "minimum": 0,
+          "title": "Keep Handles Ms",
+          "type": "integer"
         },
         "min_silence_duration_ms": {
           "default": 400,
@@ -2134,24 +2134,24 @@
           "title": "Min Silence Duration Ms",
           "type": "integer"
         },
-        "speech_pad_before_ms": {
-          "default": 120,
-          "minimum": 0,
-          "title": "Speech Pad Before Ms",
-          "type": "integer"
-        },
         "speech_pad_after_ms": {
           "default": 150,
           "minimum": 0,
           "title": "Speech Pad After Ms",
           "type": "integer"
         },
-        "keep_handles_ms": {
-          "default": 200,
-          "deprecated": true,
+        "speech_pad_before_ms": {
+          "default": 120,
           "minimum": 0,
-          "title": "Keep Handles Ms",
+          "title": "Speech Pad Before Ms",
           "type": "integer"
+        },
+        "speech_threshold": {
+          "default": 0.5,
+          "maximum": 0.9,
+          "minimum": 0.1,
+          "title": "Speech Threshold",
+          "type": "number"
         }
       },
       "title": "VadConfig",
@@ -2165,27 +2165,17 @@
           "title": "Clip Id",
           "type": "string"
         },
-        "title": {
-          "minLength": 1,
-          "title": "Title",
-          "type": "string"
-        },
-        "start_sample": {
-          "minimum": 0,
-          "title": "Start Sample",
-          "type": "integer"
-        },
-        "end_sample": {
-          "minimum": 0,
-          "title": "End Sample",
-          "type": "integer"
-        },
         "crop_focus_x": {
           "default": 0.5,
           "maximum": 1.0,
           "minimum": 0.0,
           "title": "Crop Focus X",
           "type": "number"
+        },
+        "end_sample": {
+          "minimum": 0,
+          "title": "End Sample",
+          "type": "integer"
         },
         "reframe_mode": {
           "default": "center_crop_9_16",
@@ -2196,6 +2186,16 @@
             "auto_face_tracking_yolo"
           ],
           "title": "Reframe Mode",
+          "type": "string"
+        },
+        "start_sample": {
+          "minimum": 0,
+          "title": "Start Sample",
+          "type": "integer"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
           "type": "string"
         }
       },
@@ -2269,19 +2269,15 @@
     "WordTiming": {
       "additionalProperties": false,
       "properties": {
-        "word": {
-          "title": "Word",
-          "type": "string"
-        },
-        "start_sample": {
-          "minimum": 0,
-          "title": "Start Sample",
-          "type": "integer"
-        },
         "end_sample": {
           "minimum": 0,
           "title": "End Sample",
           "type": "integer"
+        },
+        "low_confidence": {
+          "default": false,
+          "title": "Low Confidence",
+          "type": "boolean"
         },
         "probability": {
           "maximum": 1.0,
@@ -2289,10 +2285,14 @@
           "title": "Probability",
           "type": "number"
         },
-        "low_confidence": {
-          "default": false,
-          "title": "Low Confidence",
-          "type": "boolean"
+        "start_sample": {
+          "minimum": 0,
+          "title": "Start Sample",
+          "type": "integer"
+        },
+        "word": {
+          "title": "Word",
+          "type": "string"
         }
       },
       "required": [
@@ -2307,37 +2307,6 @@
     "ZoomsConfig": {
       "additionalProperties": false,
       "properties": {
-        "mode": {
-          "default": "alternate_cuts",
-          "enum": [
-            "alternate_cuts",
-            "topic_change",
-            "manual_rules"
-          ],
-          "title": "Mode",
-          "type": "string"
-        },
-        "min_scale": {
-          "default": 1.0,
-          "maximum": 4.0,
-          "minimum": 1.0,
-          "title": "Min Scale",
-          "type": "number"
-        },
-        "max_scale": {
-          "default": 1.5,
-          "maximum": 4.0,
-          "minimum": 1.0,
-          "title": "Max Scale",
-          "type": "number"
-        },
-        "punch_in_scale": {
-          "default": 1.15,
-          "maximum": 4.0,
-          "minimum": 1.0,
-          "title": "Punch In Scale",
-          "type": "number"
-        },
         "anchor_point": {
           "default": "upper_third",
           "enum": [
@@ -2348,10 +2317,29 @@
           "title": "Anchor Point",
           "type": "string"
         },
-        "progressive_zoom": {
-          "default": false,
-          "title": "Progressive Zoom",
-          "type": "boolean"
+        "max_scale": {
+          "default": 1.5,
+          "maximum": 4.0,
+          "minimum": 1.0,
+          "title": "Max Scale",
+          "type": "number"
+        },
+        "min_scale": {
+          "default": 1.0,
+          "maximum": 4.0,
+          "minimum": 1.0,
+          "title": "Min Scale",
+          "type": "number"
+        },
+        "mode": {
+          "default": "alternate_cuts",
+          "enum": [
+            "alternate_cuts",
+            "topic_change",
+            "manual_rules"
+          ],
+          "title": "Mode",
+          "type": "string"
         },
         "pan_direction": {
           "default": "none",
@@ -2362,6 +2350,18 @@
           ],
           "title": "Pan Direction",
           "type": "string"
+        },
+        "progressive_zoom": {
+          "default": false,
+          "title": "Progressive Zoom",
+          "type": "boolean"
+        },
+        "punch_in_scale": {
+          "default": 1.15,
+          "maximum": 4.0,
+          "minimum": 1.0,
+          "title": "Punch In Scale",
+          "type": "number"
         }
       },
       "title": "ZoomsConfig",
@@ -2371,21 +2371,26 @@
   "additionalProperties": false,
   "description": "The single JSON document under ``.videoflow/project_state.json``.",
   "properties": {
-    "schema_version": {
-      "const": 4,
-      "default": 4,
-      "title": "Schema Version",
-      "type": "integer"
+    "audio_segments": {
+      "items": {
+        "$ref": "#/$defs/AudioSegment"
+      },
+      "title": "Audio Segments",
+      "type": "array"
     },
-    "project_id": {
-      "format": "uuid",
-      "title": "Project Id",
-      "type": "string"
+    "cache_hashes": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Cache Hashes",
+      "type": "object"
     },
-    "style_id": {
-      "default": "",
-      "title": "Style Id",
-      "type": "string"
+    "inactive_segments": {
+      "items": {
+        "$ref": "#/$defs/InactiveSegment"
+      },
+      "title": "Inactive Segments",
+      "type": "array"
     },
     "language": {
       "default": "",
@@ -2399,11 +2404,12 @@
       "title": "Language Confidence",
       "type": "number"
     },
-    "revision": {
-      "default": 1,
-      "minimum": 1,
-      "title": "Revision",
-      "type": "integer"
+    "manual_overrides": {
+      "items": {
+        "$ref": "#/$defs/ManualOverride"
+      },
+      "title": "Manual Overrides",
+      "type": "array"
     },
     "media_info": {
       "anyOf": [
@@ -2416,24 +2422,11 @@
       ],
       "default": null
     },
-    "sources": {
-      "additionalProperties": {
-        "$ref": "#/$defs/MediaInfo"
-      },
-      "title": "Sources",
-      "type": "object"
+    "module_enabled": {
+      "$ref": "#/$defs/ModuleEnabled"
     },
-    "primary_source_id": {
-      "default": "",
-      "title": "Primary Source Id",
-      "type": "string"
-    },
-    "source_offsets": {
-      "additionalProperties": {
-        "type": "integer"
-      },
-      "title": "Source Offsets",
-      "type": "object"
+    "modules_config": {
+      "$ref": "#/$defs/ModulesConfig"
     },
     "multicam": {
       "anyOf": [
@@ -2446,32 +2439,25 @@
       ],
       "default": null
     },
-    "modules_config": {
-      "$ref": "#/$defs/ModulesConfig"
-    },
-    "module_enabled": {
-      "$ref": "#/$defs/ModuleEnabled"
-    },
-    "cache_hashes": {
-      "additionalProperties": {
-        "type": "string"
-      },
-      "title": "Cache Hashes",
-      "type": "object"
-    },
-    "vad_intervals": {
+    "overlays": {
       "items": {
-        "$ref": "#/$defs/SampleSpan"
+        "$ref": "#/$defs/OverlayClip"
       },
-      "title": "Vad Intervals",
+      "title": "Overlays",
       "type": "array"
     },
-    "transcript": {
-      "items": {
-        "$ref": "#/$defs/Sentence"
-      },
-      "title": "Transcript",
-      "type": "array"
+    "pipeline": {
+      "$ref": "#/$defs/PipelineState"
+    },
+    "primary_source_id": {
+      "default": "",
+      "title": "Primary Source Id",
+      "type": "string"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
     },
     "retake_culls": {
       "items": {
@@ -2487,32 +2473,49 @@
       "title": "Retake Guard Restores",
       "type": "array"
     },
-    "manual_overrides": {
-      "items": {
-        "$ref": "#/$defs/ManualOverride"
+    "revision": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 4,
+      "default": 4,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "source_offsets": {
+      "additionalProperties": {
+        "type": "integer"
       },
-      "title": "Manual Overrides",
+      "title": "Source Offsets",
+      "type": "object"
+    },
+    "sources": {
+      "additionalProperties": {
+        "$ref": "#/$defs/MediaInfo"
+      },
+      "title": "Sources",
+      "type": "object"
+    },
+    "style_id": {
+      "default": "",
+      "title": "Style Id",
+      "type": "string"
+    },
+    "transcript": {
+      "items": {
+        "$ref": "#/$defs/Sentence"
+      },
+      "title": "Transcript",
       "type": "array"
     },
-    "video_segments": {
+    "vad_intervals": {
       "items": {
-        "$ref": "#/$defs/VideoSegment"
+        "$ref": "#/$defs/SampleSpan"
       },
-      "title": "Video Segments",
-      "type": "array"
-    },
-    "audio_segments": {
-      "items": {
-        "$ref": "#/$defs/AudioSegment"
-      },
-      "title": "Audio Segments",
-      "type": "array"
-    },
-    "inactive_segments": {
-      "items": {
-        "$ref": "#/$defs/InactiveSegment"
-      },
-      "title": "Inactive Segments",
+      "title": "Vad Intervals",
       "type": "array"
     },
     "vertical_clips": {
@@ -2522,15 +2525,12 @@
       "title": "Vertical Clips",
       "type": "array"
     },
-    "overlays": {
+    "video_segments": {
       "items": {
-        "$ref": "#/$defs/OverlayClip"
+        "$ref": "#/$defs/VideoSegment"
       },
-      "title": "Overlays",
+      "title": "Video Segments",
       "type": "array"
-    },
-    "pipeline": {
-      "$ref": "#/$defs/PipelineState"
     }
   },
   "title": "ProjectState",

@@ -156,8 +156,8 @@ def _workspace_blockers(
     referenced: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     try:
-        from vf_contracts.assets import iter_assets
-        from vf_contracts.workspace import project_dir, validate_project_id
+        from vf_shared.contracts.assets import iter_assets
+        from vf_shared.contracts.workspace import project_dir, validate_project_id
 
         record_path = Path(output) / "project.json"
         payload = json.loads(record_path.read_text(encoding="utf-8"))

@@ -84,6 +84,12 @@
       "title": "Fonts",
       "type": "array"
     },
+    "format_id": {
+      "default": "",
+      "maxLength": 80,
+      "title": "Format Id",
+      "type": "string"
+    },
     "hook_strategy": {
       "default": "",
       "maxLength": 400,

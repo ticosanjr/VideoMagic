@@ -205,7 +205,7 @@ def test_repeated_request_reuses_cached_asset_without_network(
     monkeypatch.setenv("VF_WORKSPACE_ROOT", str(tmp_path))
     contracts_src = PACKAGES / "vf-contracts" / "src"
     if contracts_src.is_dir():
-        from vf_contracts.assets import find_cached
+        from vf_shared.contracts.assets import find_cached
 
         record = find_cached("project-1", "broll", key)
         assert record is not None

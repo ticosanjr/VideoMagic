@@ -12,7 +12,7 @@ if str(PACKAGE_SRC) not in sys.path:
     sys.path.insert(0, str(PACKAGE_SRC))
 
 from gpu_worker import discovery as worker_discovery  # noqa: E402
-from vf_compute.discovery import GpuDiscovery  # noqa: E402
+from vf_shared.compute.discovery import GpuDiscovery  # noqa: E402
 
 PAYLOAD = {
     "worker_id": "worker-1",
@@ -123,7 +123,7 @@ def test_worker_beacon_sends_udp(monkeypatch) -> None:
 
 
 def test_tcp_scan_finds_worker_when_broadcast_is_blocked(monkeypatch) -> None:
-    from vf_compute import discovery as client_discovery
+    from vf_shared.compute import discovery as client_discovery
 
     monkeypatch.setattr(client_discovery, "local_ipv4_addresses", lambda: ["192.168.1.10"])
     monkeypatch.setattr(client_discovery, "local_subnets", lambda **_: ["192.168.1.0/24"])

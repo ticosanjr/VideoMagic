@@ -27,8 +27,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from vf_compute import GPUWorkerClient
-from vf_compute.discovery import discover_workers, scan_workers
+from vf_shared.compute import GPUWorkerClient
+from vf_shared.compute.discovery import discover_workers, scan_workers
 
 
 def _videoflow_version() -> str:

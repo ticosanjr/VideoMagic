@@ -127,7 +127,7 @@ def test_artifact_cleanup_removes_unreferenced_objects(tmp_path: Path) -> None:
 
 
 def test_local_subnets_honors_private_cidrs(monkeypatch) -> None:
-    from vf_compute import discovery
+    from vf_shared.compute import discovery
 
     monkeypatch.setenv(
         "VF_GPU_SCAN_CIDRS",

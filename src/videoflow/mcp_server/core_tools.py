@@ -12,7 +12,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from vf_contracts.assets import iter_assets
+from vf_shared.contracts.assets import iter_assets
 
 from videoflow.application import artifacts as artifact_service
 from videoflow.application.channel_kit import channel_kit_ids, is_channel_kit
@@ -2107,7 +2107,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         if cached is not None:
             path = Path(cached.path)
             if not path.is_absolute():
-                from vf_contracts.workspace import project_dir
+                from vf_shared.contracts.workspace import project_dir
 
                 path = project_dir(project_id) / path
             result: list[Any] = [{"ok": True, **cached.model_dump(mode="json")}]

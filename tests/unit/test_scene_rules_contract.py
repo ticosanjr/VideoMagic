@@ -10,7 +10,7 @@ if str(PACKAGE_SRC) not in sys.path:
     sys.path.insert(0, str(PACKAGE_SRC))
 
 from gpu_worker import handlers_gpu  # noqa: E402
-from scene_rules import classify_layout, editing_hints, sample_times  # noqa: E402
+from vf_shared.scene_rules import classify_layout, editing_hints, sample_times  # noqa: E402
 
 from videoflow.application.scene_intel import layout as local_layout  # noqa: E402
 from videoflow.application.scene_intel import visual as local_visual  # noqa: E402

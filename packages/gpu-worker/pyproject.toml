@@ -23,11 +23,11 @@ dependencies = [
   "pydantic>=2",
   "python-multipart>=0.0.20",
   "setuptools>=70,<81",
-  "videoflow-scene-rules",
+  "vf-shared",
 ]
 
 [tool.uv.sources]
-videoflow-scene-rules = { path = "../scene-rules", editable = true }
+vf-shared = { path = "../vf-shared", editable = true }
 
 [project.scripts]
 videoflow-gpu-worker = "gpu_worker.cli:main"

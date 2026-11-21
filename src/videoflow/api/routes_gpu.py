@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from vf_compute.config import clear_gpu_config, save_gpu_config
+from vf_shared.compute.config import clear_gpu_config, save_gpu_config
 
 from videoflow.application.compute import compute_status, router_from_settings
 from videoflow.application.secrets import get_secret, set_secret
@@ -104,7 +104,7 @@ def register_gpu_routes(app: FastAPI) -> None:
             return {"ok": True, "enabled": False, "workers": []}
         import time
 
-        from vf_compute.discovery import (
+        from vf_shared.compute.discovery import (
             discover_workers,
             local_subnets,
             mdns_workers,
@@ -159,7 +159,7 @@ def register_gpu_routes(app: FastAPI) -> None:
         if token:
             set_secret(settings.gpu.worker_token_secret, token)
         elif not stored:
-            from vf_compute.client import GPUWorkerClient
+            from vf_shared.compute.client import GPUWorkerClient
 
             try:
                 probe = GPUWorkerClient(url, "").health(timeout=3.0)

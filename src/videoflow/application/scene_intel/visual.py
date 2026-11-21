@@ -7,9 +7,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from scene_rules import classify_layout as _classify_layout
-from scene_rules import median as _median
-from scene_rules import sample_times as _rules_sample_times
+from vf_shared.scene_rules import classify_layout as _classify_layout
+from vf_shared.scene_rules import median as _median
+from vf_shared.scene_rules import sample_times as _rules_sample_times
 
 from videoflow.application.scene_intel.detect import SceneSpan
 from videoflow.domain.state import MediaInfo

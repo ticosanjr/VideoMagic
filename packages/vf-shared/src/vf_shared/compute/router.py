@@ -9,11 +9,11 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
-from vf_compute.capabilities import vram_cost
-from vf_compute.client import GPUWorkerClient
-from vf_compute.config import load_gpu_config
-from vf_compute.execution import ExecutionRecord, now_iso
-from vf_compute.models import WorkerDecision, WorkerHealth
+from vf_shared.compute.capabilities import vram_cost
+from vf_shared.compute.client import GPUWorkerClient
+from vf_shared.compute.config import load_gpu_config
+from vf_shared.compute.execution import ExecutionRecord, now_iso
+from vf_shared.compute.models import WorkerDecision, WorkerHealth
 
 COMPUTE_MODES = ("auto", "local_only", "remote_preferred")
 
@@ -196,7 +196,7 @@ class ComputeRouter:
     def discover(self, *, timeout_sec: float = 1.5) -> list[dict[str, Any]]:
         """Listen for LAN beacons and return the peers seen."""
 
-        from vf_compute.discovery import discover_workers
+        from vf_shared.compute.discovery import discover_workers
 
         return discover_workers(timeout_sec=timeout_sec)
 

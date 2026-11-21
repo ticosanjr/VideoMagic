@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-# Keep in sync with packages/vf-compute/src/vf_compute/capabilities.py.
+# Keep in sync with packages/vf-compute/src/vf_shared.compute/capabilities.py.
 VRAM_COST_MB: dict[str, int] = {
     "selftest": 0,
     "asr": 3277,

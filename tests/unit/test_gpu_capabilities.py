@@ -14,7 +14,7 @@ from gpu_worker.capabilities import VRAM_COST_MB  # noqa: E402
 from gpu_worker.handlers import build_default_registry  # noqa: E402
 from gpu_worker.models import ModelRegistry  # noqa: E402
 from gpu_worker.settings import Settings  # noqa: E402
-from vf_compute.capabilities import VRAM_COST_MB as ROUTER_COSTS  # noqa: E402
+from vf_shared.compute.capabilities import VRAM_COST_MB as ROUTER_COSTS  # noqa: E402
 
 
 def test_router_and_worker_vram_tables_match() -> None:

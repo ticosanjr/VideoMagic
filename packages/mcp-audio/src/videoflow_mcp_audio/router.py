@@ -1,4 +1,4 @@
-"""Thin adapter around `vf_compute.ComputeRouter` with health-based fallback."""
+"""Thin adapter around `vf_shared.compute.ComputeRouter` with health-based fallback."""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ class RouterBridge:
             return self._router
         self._loaded = True
         try:
-            from vf_compute import ComputeRouter
+            from vf_shared.compute import ComputeRouter
         except Exception:
             self._router = None
             return None

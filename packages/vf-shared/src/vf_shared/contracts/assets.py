@@ -16,7 +16,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from vf_contracts.workspace import (
+from vf_shared.contracts.workspace import (
     _validate_name,
     project_dir,
     resolve_within,

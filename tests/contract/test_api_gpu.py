@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from vf_compute.models import JobStatus, WorkerHealth
+from vf_shared.compute.models import JobStatus, WorkerHealth
 
 from videoflow.api import routes_gpu
 from videoflow.application.settings import load_settings
@@ -156,7 +156,7 @@ def test_gpu_unload_requires_a_worker(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_gpu_discovery_and_worker_list(monkeypatch) -> None:
-    import vf_compute.discovery as discovery
+    import vf_shared.compute.discovery as discovery
 
     monkeypatch.setattr(
         discovery,
@@ -220,7 +220,7 @@ def test_gpu_connect_accepts_lan_open_worker_without_token(monkeypatch) -> None:
                 encoder="libx264",
             )
 
-    monkeypatch.setattr("vf_compute.client.GPUWorkerClient", LanOpenClient)
+    monkeypatch.setattr("vf_shared.compute.client.GPUWorkerClient", LanOpenClient)
     client = TestClient(_app())
     response = client.post(
         "/api/v1/gpu/connect",

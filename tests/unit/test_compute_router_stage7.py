@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vf_compute.models import JobStatus, WorkerHealth
-from vf_compute.router import ComputeRouter
+from vf_shared.compute.models import JobStatus, WorkerHealth
+from vf_shared.compute.router import ComputeRouter
 
 from videoflow.application.capabilities import capability_manifest
 from videoflow.application.compute import compute_status, execute_batch, execute_capability

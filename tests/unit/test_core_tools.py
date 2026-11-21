@@ -223,8 +223,8 @@ def test_core_job_wait_and_render_status(tmp_path: Path, monkeypatch) -> None:
 
 def test_core_artifact_workspace_asset(tmp_path: Path, monkeypatch) -> None:
     from PIL import Image
-    from vf_contracts.assets import write_asset
-    from vf_contracts.workspace import ensure_project
+    from vf_shared.contracts.assets import write_asset
+    from vf_shared.contracts.workspace import ensure_project
 
     tools, record, job = setup(tmp_path, monkeypatch)
     ensure_project(record.project_id, name="Core", output=record.output)

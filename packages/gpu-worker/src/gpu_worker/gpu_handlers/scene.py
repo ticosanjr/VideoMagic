@@ -10,10 +10,10 @@ import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from scene_rules import classify_layout as _classify_layout
-from scene_rules import editing_hints as _editing_hints
-from scene_rules import median as _rules_median
-from scene_rules import sample_times as _rules_sample_times
+from vf_shared.scene_rules import classify_layout as _classify_layout
+from vf_shared.scene_rules import editing_hints as _editing_hints
+from vf_shared.scene_rules import median as _rules_median
+from vf_shared.scene_rules import sample_times as _rules_sample_times
 
 from gpu_worker.gpu_handlers.common import _available, _ffmpeg, _run
 from gpu_worker.handlers import Handler, HandlerError

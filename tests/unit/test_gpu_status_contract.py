@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from vf_compute.models import WorkerHealth
+from vf_shared.compute.models import WorkerHealth
 
 ROOT = Path(__file__).resolve().parents[2]
 API_TS = ROOT / "ui" / "src" / "lib" / "api.ts"

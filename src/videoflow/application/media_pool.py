@@ -7,7 +7,7 @@ import os
 import shutil
 from pathlib import Path
 
-from vf_contracts.workspace import workspace_root
+from vf_shared.contracts.workspace import workspace_root
 
 
 def pool_root() -> Path:

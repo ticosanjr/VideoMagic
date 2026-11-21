@@ -133,7 +133,7 @@ def register_system_routes(app: FastAPI) -> None:
 
     @app.get("/api/v1/system/opencode/mcp-health")
     def system_mcp_health() -> dict[str, object]:
-        from vf_compute.config import load_gpu_config
+        from vf_shared.compute.config import load_gpu_config
 
         from videoflow.application.opencode_config import (
             executable,

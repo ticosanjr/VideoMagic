@@ -74,8 +74,8 @@ def test_license_blockers_are_scoped_to_timeline_assets(tmp_path: Path) -> None:
 def test_workspace_blockers_are_scoped_to_timeline_assets(tmp_path: Path, monkeypatch) -> None:
     from types import SimpleNamespace
 
-    import vf_contracts.workspace as workspace
-    from vf_contracts.assets import write_asset
+    import vf_shared.contracts.workspace as workspace
+    from vf_shared.contracts.assets import write_asset
 
     monkeypatch.setenv("VF_WORKSPACE_ROOT", str(tmp_path / "ws"))
     output = tmp_path / "out"
@@ -197,7 +197,7 @@ def test_asset_records_tolerates_bad_ledger_and_workspace(
     tmp_path: Path, monkeypatch
 ) -> None:
     import pytest
-    import vf_contracts.assets as contract_assets
+    import vf_shared.contracts.assets as contract_assets
 
     from videoflow.application import assets_service as service
     from videoflow.domain.errors import AssetNotFoundError

@@ -16,10 +16,10 @@ for _package in ("vf-contracts", "vf-compute"):
 
 import httpx  # noqa: E402
 import pytest  # noqa: E402
-from vf_compute.client import GPUWorkerClient, GPUWorkerError  # noqa: E402
-from vf_compute.models import JobStatus, WorkerHealth  # noqa: E402
-from vf_compute.router import ComputeRouter  # noqa: E402
-from vf_contracts.assets import (  # noqa: E402
+from vf_shared.compute.client import GPUWorkerClient, GPUWorkerError  # noqa: E402
+from vf_shared.compute.models import JobStatus, WorkerHealth  # noqa: E402
+from vf_shared.compute.router import ComputeRouter  # noqa: E402
+from vf_shared.contracts.assets import (  # noqa: E402
     asset_key,
     find_cached,
     iter_assets,
@@ -28,7 +28,7 @@ from vf_contracts.assets import (  # noqa: E402
     sidecar_path,
     write_asset,
 )
-from vf_contracts.workspace import (  # noqa: E402
+from vf_shared.contracts.workspace import (  # noqa: E402
     ASSET_KINDS,
     RENDER_VARIANTS,
     asset_dir,
