@@ -64,7 +64,9 @@ class AudioMasterStep(BaseStep):
             raise IngestError("Audio master requires ingested media.")
         target_lufs = options.target_lufs
         if options.platform in {"tiktok", "reels", "shorts"} and options.target_lufs == -16.0:
-            target_lufs = -16.5
+            from videoflow.core.media_contract import TARGET_LUFS
+
+            target_lufs = TARGET_LUFS
         filters = audio_filters(
             AudioEnhanceConfig(
                 enabled=True,

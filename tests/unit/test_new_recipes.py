@@ -63,7 +63,7 @@ def test_footage_intelligence_edit_is_complete_and_favorite() -> None:
         if step.type in {"human.gate", "human.input", "human.files"}
     }
 
-    assert len(recipe.steps) == 54
+    assert len(recipe.steps) == 55
     assert len(recipe.ui.groups) == 6
     assert {
         "ingest",

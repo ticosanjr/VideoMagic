@@ -15,7 +15,7 @@ def test_lamera_recipe_is_valid_grouped_and_favorite() -> None:
     for step in resolved.steps:
         get_step(step.type).validate_params(step.params)
 
-    assert len(recipe.steps) == 66
+    assert len(recipe.steps) == 67
     assert len(recipe.ui.groups) == 6
     step_ids = {step.id for step in recipe.steps}
     assert step_ids == set(recipe.ui.nodes)

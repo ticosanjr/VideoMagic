@@ -512,3 +512,86 @@ def restore_recipe_version(recipe_id: str, version: str) -> Recipe:
     recipe = load_recipe(path)
     save_user_recipe(recipe)
     return recipe
+
+
+_AUDIO_SOURCES = ("audio.master", "audio.mix", "audio.compose", "sfx.synthesize")
+_AUDIO_FINAL_CONSUMERS = (
+    "audio.qa",
+    "export.nle",
+    "export.video",
+    "shorts.render",
+    "delivery.package",
+)
+
+
+def ensure_audio_finalize() -> None:
+    """Wire the canonical ``audio.finalize`` step into every built-in recipe.
+
+    Recipes keep declaring their own mix/master chain. This pass appends the
+    final loudness stage after the last audio producer and makes delivery
+    consumers wait for it, without duplicating a stage that already exists.
+    """
+
+    for recipe in BUILTIN_RECIPES.values():
+        steps = recipe.get("steps")
+        if not isinstance(steps, list) or not steps:
+            continue
+        if any(step.get("type") == "audio.finalize" for step in steps):
+            continue
+        ingest = next((step for step in steps if step.get("type") == "ingest"), None)
+        if ingest is None:
+            continue
+        producers = [step for step in steps if step.get("type") in _AUDIO_SOURCES]
+        if not any(step.get("type") in _AUDIO_FINAL_CONSUMERS for step in steps):
+            continue
+        terminal = (
+            str(producers[-1].get("id") or "audio_master")
+            if producers
+            else (
+                "timeline"
+                if any(step.get("id") == "timeline" for step in steps)
+                else str(ingest.get("id") or "ingest")
+            )
+        )
+        finalize_id = "audio_finalize"
+        while any(step.get("id") == finalize_id for step in steps):
+            finalize_id += "_final"
+        steps.append(
+            {
+                "id": finalize_id,
+                "type": "audio.finalize",
+                "needs": list(
+                    dict.fromkeys([terminal, str(ingest.get("id") or "ingest")])
+                ),
+                "params": {"target_name": "master.wav"},
+            }
+        )
+        ui = recipe.get("ui")
+        if isinstance(ui, dict) and isinstance(ui.get("nodes"), dict):
+            nodes = ui["nodes"]
+            if finalize_id not in nodes:
+                anchor_node = nodes.get(terminal) or nodes.get("audio_mix") or nodes.get("audio_qa")
+                anchor_x = float((anchor_node or {}).get("x") or 0.0)
+                anchor_y = float((anchor_node or {}).get("y") or 0.0)
+                nodes[finalize_id] = {
+                    "x": anchor_x,
+                    "y": anchor_y + 140.0,
+                    "expanded": False,
+                    "pinned": False,
+                    "width": 420,
+                }
+                for group in ui.get("groups") or []:
+                    group_nodes = group.get("nodes")
+                    if not isinstance(group_nodes, list):
+                        continue
+                    if terminal in group_nodes or "audio" in str(group.get("id") or ""):
+                        if finalize_id not in group_nodes:
+                            group_nodes.append(finalize_id)
+                        break
+        for step in steps:
+            if step.get("type") in _AUDIO_FINAL_CONSUMERS:
+                needs = list(step.get("needs") or [])
+                if finalize_id not in needs:
+                    needs.append(finalize_id)
+                step["needs"] = needs
+        recipe["steps"] = steps

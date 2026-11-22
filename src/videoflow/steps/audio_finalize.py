@@ -55,6 +55,7 @@ class AudioFinalizeStep(BaseStep):
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = AudioFinalizeParams.model_validate(params)
         media = require_media(context)
+        mixed_input = bool(context.artifacts.get("audio_mix")) and not options.voice_path
         voice_value = (
             options.voice_path
             or context.artifacts.get("audio_mix")
@@ -68,11 +69,20 @@ class AudioFinalizeStep(BaseStep):
             raise ExportError("Audio finalization requires dialogue audio")
         music_value = (
             options.music_path
-            or context.artifacts.get("audio_music")
-            or context.artifacts.get("music_bed")
-            or ""
+            or (
+                ""
+                if mixed_input
+                else (
+                    context.artifacts.get("audio_music")
+                    or context.artifacts.get("music_bed")
+                    or ""
+                )
+            )
         )
-        sfx_value = options.sfx_path or context.artifacts.get("audio_sfx") or ""
+        sfx_value = (
+            options.sfx_path
+            or ("" if mixed_input else (context.artifacts.get("audio_sfx") or ""))
+        )
         duration = options.duration_sec
         if duration <= 0:
             rate = media.audio_sample_rate or 48000
@@ -97,8 +107,15 @@ class AudioFinalizeStep(BaseStep):
             target_name=options.target_name,
         )
         payload = result.to_dict()
+        canonical = context.output / "audio" / "master.wav"
+        if result.path != canonical:
+            import shutil
+
+            canonical.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(result.path, canonical)
         context.artifacts["audio_final"] = result.path
         context.artifacts["audio_mix"] = result.path
+        context.artifacts["audio_master"] = str(canonical)
         context.metadata["audio_finalize"] = payload
         context.hashes["audio.finalize"] = digest_payload(payload)
         target = context.output / "audio" / "finalize.json"

@@ -12,6 +12,7 @@ from videoflow.engine.recipes import definitions_synthetic as _synthetic  # noqa
 from videoflow.engine.recipes.catalog import (
     BUILTIN_RECIPES,
     builtin_recipe,
+    ensure_audio_finalize,
     get_recipe,
     get_recipe_version,
     list_recipe_history,
@@ -36,3 +37,5 @@ __all__ = [
     "save_user_recipe",
     "user_recipes_dir",
 ]
+
+ensure_audio_finalize()

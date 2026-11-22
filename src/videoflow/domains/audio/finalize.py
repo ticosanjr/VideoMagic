@@ -33,6 +33,8 @@ from videoflow.core.media_contract import (
 from videoflow.domain.errors import ExportError
 from videoflow.runtime import find_binary
 
+from .exact import pad_to_duration
+
 DEFAULT_TARGET_LUFS = TARGET_LUFS
 DEFAULT_TRUE_PEAK_DB = TRUE_PEAK_MAX
 DEFAULT_SAMPLE_RATE = 48_000
@@ -308,7 +310,7 @@ def finalize_audio(
         f"{graph};[mix]apad=whole_dur={duration:.6f},"
         f"atrim=0:{duration:.6f},asetpts=PTS-STARTPTS,{loudnorm},"
         "aformat=sample_fmts=s32:sample_rates=48000:channel_layouts=stereo,"
-        f"apad=whole_dur={duration:.6f},atrim=0:{duration:.6f},"
+        f"apad=whole_dur={duration:.6f},atrim=end_sample={int(round(duration * 48000))},"
         "asetpts=PTS-STARTPTS[out]"
     )
     command = [
@@ -338,6 +340,11 @@ def finalize_audio(
             "Audio finalization failed: "
             + (completed.stderr.strip()[-600:] or f"exit {completed.returncode}")
         )
+    # ``loudnorm`` upsamples internally and can shave a couple of frames from
+    # the tail. Re-pad/trim once on a plain PCM pass so the master length is
+    # sample-exact against the video timeline.
+    if abs(_duration(target) - duration) > 0.001:
+        pad_to_duration(target, duration)
     try:
         contract = validate_media(target, "audio_master")
     except MediaContractError as exc:

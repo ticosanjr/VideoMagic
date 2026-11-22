@@ -936,7 +936,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         duration_sec: float = 12.0,
         type: str = "music",
         music_path: str = "",
-        target_lufs: float = -14.0,
+        target_lufs: float = -15.5,
         output_name: str = "",
     ) -> dict[str, Any]:
         """TTS, voice cleanup, stems, music/Foley, or a mastered mix."""
