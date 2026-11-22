@@ -182,18 +182,27 @@ def test_render_nvenc_handler_builds_nvenc_command(tmp_path: Path, monkeypatch) 
     base.write_bytes(b"base")
     ass = tmp_path / "captions.ass"
     ass.write_text("Style: Default", encoding="utf-8")
+    font = tmp_path / "Inter.ttf"
+    font.write_bytes(b"font")
     handler = handlers_gpu.make_render_nvenc_handler(
         Settings(work_dir=tmp_path / "worker", builtin_handlers=True)
     )
     outputs = handler(
-        {"ass_path": str(ass), "width": 1080, "height": 1920, "fps": 30},
+        {
+            "ass_path": str(ass),
+            "font_paths": [str(font)],
+            "width": 1080,
+            "height": 1920,
+            "fps": 30,
+        },
         [base],
         tmp_path / "work",
     )
     assert outputs and outputs[0].is_file()
     command = commands[0]
     assert "h264_nvenc" in command
-    assert any("ass=" in token for token in command)
+    ass_token = next(token for token in command if "ass=" in token)
+    assert "fontsdir=" in ass_token
     assert "scale=1080:1920" in " ".join(command)
 
 

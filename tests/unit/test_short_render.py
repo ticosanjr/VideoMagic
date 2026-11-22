@@ -246,6 +246,8 @@ def test_worker_short_render_executes_tokenised_commands(
     captions = tmp_path / "captions.ass"
     source.write_bytes(b"source")
     captions.write_text("[Script Info]\n", encoding="utf-8")
+    font = tmp_path / "Inter.ttf"
+    font.write_bytes(b"font")
     commands = build_commands(
         renders,
         source=source,
@@ -266,8 +268,10 @@ def test_worker_short_render_executes_tokenised_commands(
     handler = handlers_gpu.make_short_render_handler(
         Settings(work_dir=tmp_path / "worker")
     )
+    payload = commands.to_payload()
+    payload["font_paths"] = [str(font)]
     outputs = handler(
-        commands.to_payload(),
+        payload,
         [source, captions],
         tmp_path / "job",
     )
@@ -277,7 +281,9 @@ def test_worker_short_render_executes_tokenised_commands(
     assert all("__SCRIPT" not in item for call in calls for item in call)
     scripts = list((tmp_path / "job").glob("*.ffscript"))
     assert scripts
-    assert all("__IN" not in script.read_text(encoding="utf-8") for script in scripts)
+    script_text = "\n".join(script.read_text(encoding="utf-8") for script in scripts)
+    assert "__IN" not in script_text
+    assert "fontsdir=" in script_text
     assert (tmp_path / "job" / "concat.txt").is_file()
 
 

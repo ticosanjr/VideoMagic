@@ -364,7 +364,12 @@ def build_delivery_bundle(
                     params["fps"] = output_fps
                 inputs = [str(mezzanine)]
                 if ass_path is not None:
+                    from videoflow.application.remote_fonts import remote_font_paths
+
                     inputs.append(str(ass_path))
+                    fonts = remote_font_paths()
+                    if fonts:
+                        params["font_paths"] = fonts
                 if progress is not None:
                     progress("mp4", 55)
                 result = router.submit(

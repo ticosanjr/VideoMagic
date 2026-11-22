@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -54,7 +55,11 @@ def make_render_nvenc_handler(settings: Settings) -> Handler:
         if fps:
             filters.append(f"fps={fps}")
         if ass_path.is_file():
-            filters.append(f"ass='{_escape_filter_path(ass_path)}'")
+            fonts_dir = _materialize_fonts(params.get("font_paths"), work_dir)
+            ass_filter = f"ass='{_escape_filter_path(ass_path)}'"
+            if fonts_dir is not None:
+                ass_filter += f":fontsdir='{_escape_filter_path(fonts_dir)}'"
+            filters.append(ass_filter)
         if filters:
             command.extend(["-vf", ",".join(filters)])
         command.extend(
@@ -142,6 +147,27 @@ def make_ffmpeg_transcode_handler(settings: Settings) -> Handler:
     return handler
 
 
+def _materialize_fonts(values: object, work_dir: Path) -> Path | None:
+    """Copy uploaded font files into one directory for ``fontsdir``."""
+
+    if not isinstance(values, (list, tuple)):
+        return None
+    fonts = [
+        Path(str(item)).expanduser()
+        for item in values
+        if str(item).strip() and Path(str(item)).expanduser().is_file()
+    ]
+    if not fonts:
+        return None
+    target = Path(work_dir) / "fonts"
+    target.mkdir(parents=True, exist_ok=True)
+    for font in fonts:
+        destination = target / font.name
+        if not destination.is_file():
+            shutil.copy2(font, destination)
+    return target
+
+
 def make_short_render_handler(settings: Settings) -> Handler:
     """Execute tokenised micro-clip/concat/final FFmpeg commands."""
 
@@ -154,6 +180,7 @@ def make_short_render_handler(settings: Settings) -> Handler:
         tokens = {
             f"__IN{index}__": str(path) for index, path in enumerate(input_paths)
         }
+        fonts_dir = _materialize_fonts(params.get("font_paths"), work_dir)
 
         def replace(value: str) -> str:
             for token, path in tokens.items():
@@ -163,6 +190,12 @@ def make_short_render_handler(settings: Settings) -> Handler:
         def replace_filter(value: str) -> str:
             for token, path in tokens.items():
                 value = value.replace(token, _escape_filter_path(Path(path)))
+            if fonts_dir is not None:
+                value = re.sub(
+                    r"(ass='[^']*')",
+                    rf"\1:fontsdir='{_escape_filter_path(fonts_dir)}'",
+                    value,
+                )
             return value
 
         ffmpeg = _ffmpeg(settings)

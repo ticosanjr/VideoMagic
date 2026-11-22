@@ -28,6 +28,14 @@ limit.
 to local execution with a reason. A remote failure invalidates the health cache
 and opens the circuit for `VF_GPU_CIRCUIT_SEC`.
 
+### External load guard
+
+`max_gpu_utilization_pct` (default `70`, `0` disables) keeps the router local
+when `nvidia-smi` reports the GPU busier than the cap. This prevents a render
+or ASR job from competing with OBS, a game, or another CUDA process. The
+decision reason is `external GPU load above cap: 82% > 70%`, and the cap is
+adjustable in Setup → GPU → Resources or with `VF_GPU_MAX_UTILIZATION`.
+
 ## VRAM, transport, and discovery
 
 ### VRAM budget and model eviction
@@ -55,6 +63,15 @@ masters and HTTP streaming for short clips.
 `POST /shared/validate` checks a write path by creating and removing a probe
 file.
 
+### Fonts for remote ASS renders
+
+When captions are burned on the worker, the core uploads the portable
+`assets/fonts` files and passes `font_paths` in the job params. The worker
+copies them into a per-job `fonts` directory and adds
+`fontsdir='...'` to the `ass` filter for both `render_nvenc` and
+`short_render`. This keeps the same typeface as the local render instead of
+silently falling back to a Windows system font.
+
 ### Discovery
 
 With `VF_GPU_DISCOVERY=1` the worker broadcasts a UDP beacon every two seconds
@@ -74,8 +91,8 @@ placement. It has four cards:
    matte, face tracking, stems, upscale, TTS, and ComfyUI.
 3. **Shared folder** — enable the mount, set the Windows path, and validate
    read/write.
-4. **Resources** — VRAM cap, local fallback, discovery, loaded models, queue,
-   and “Free GPU memory”.
+4. **Resources** — VRAM cap, external utilization cap, local fallback,
+   discovery, loaded models, queue, and “Free GPU memory”.
 
 The header pill has three live states: ready, busy, and local/offline. Its
 popover switches between automatic placement and forced local mode and links to

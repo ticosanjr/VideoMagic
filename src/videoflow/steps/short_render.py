@@ -210,6 +210,11 @@ class ShortRenderStep(BaseStep):
             raise StateNotReadyError(
                 "Caption ASS is missing; run short.captions or set burn_captions=false"
             )
+        font_paths: list[str] = []
+        if options.burn_captions and captions is not None:
+            from videoflow.application.remote_fonts import remote_font_paths
+
+            font_paths = remote_font_paths()
         cues = _cues(context, options.cues_path)
         sfx = _sfx_cues(cues, context.warnings)
         padding, fade_start, fade_ms = _ending(cues, plan)
@@ -330,7 +335,7 @@ class ShortRenderStep(BaseStep):
                     commands = make_commands(encoder_name)
                     last_commands.append(commands)
                     final = self._remote_render(
-                        router, commands, output, options.timeout_sec
+                        router, commands, output, options.timeout_sec, font_paths
                     )
                     placement = decision.execution_node
                     context.metadata["short_render_encoder"] = encoder_name
@@ -349,7 +354,11 @@ class ShortRenderStep(BaseStep):
                         last_commands.append(commands)
                         context.metadata["short_render_encoder"] = encoder_name
                         return self._remote_render(
-                            router, commands, output, options.timeout_sec
+                            router,
+                            commands,
+                            output,
+                            options.timeout_sec,
+                            font_paths,
                         )
 
                     outcome = router.execute(
@@ -402,12 +411,16 @@ class ShortRenderStep(BaseStep):
         commands: Any,
         output: Path,
         timeout_sec: float,
+        font_paths: list[str] | None = None,
     ) -> Path:
+        payload = commands.to_payload()
+        if font_paths:
+            payload["font_paths"] = list(font_paths)
         result = router.submit(
             "short_render",
             {
                 "inputs": [str(path) for path in commands.inputs],
-                "params": commands.to_payload(),
+                "params": payload,
                 "timeout_sec": timeout_sec,
             },
             timeout=timeout_sec,

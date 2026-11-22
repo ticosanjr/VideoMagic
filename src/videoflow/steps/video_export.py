@@ -182,7 +182,12 @@ class VideoExportStep(BaseStep):
                 if options.fps != "source":
                     params["fps"] = int(options.fps)
                 if ass_path is not None:
+                    from videoflow.application.remote_fonts import remote_font_paths
+
                     params["ass_path"] = str(ass_path)
+                    fonts = remote_font_paths()
+                    if fonts:
+                        params["font_paths"] = fonts
                 io.report(58, "Uploading mezzanine to the GPU worker")
                 result = router.submit(
                     "render_nvenc",
