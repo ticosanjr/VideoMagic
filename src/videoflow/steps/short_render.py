@@ -368,6 +368,8 @@ class ShortRenderStep(BaseStep):
                         "short_render",
                         remote_run,
                         lambda: local_run(options.encoder),
+                        compute_policy=options.compute_policy,
+                        allow_slow_cpu_fallback=options.allow_slow_cpu_fallback,
                     )
                     final = outcome["value"]
                     placement = str(outcome.get("execution_node") or "local")

@@ -25,24 +25,33 @@ class RouterHealthMixin:
         circuit. Network failures open the circuit for ``circuit_sec``.
         """
 
-        if self.mode == "local_only":
-            return WorkerHealth(available=False, message="local_only mode")
-
         # Re-read the paired worker on every preflight so a UI change takes
         # effect without restarting the MCP server. Env stays an explicit
         # override; otherwise ``gpu.json`` is the source of truth.
+        merged = load_gpu_config()
+        file_config = load_gpu_config_file()
+        if merged.source != "default":
+            self.mode = merged.mode
+            if merged.transport != self.transport:
+                self.transport = merged.transport
+                if self._client is not None:
+                    self._client.close()
+                self._client = None
+                self.invalidate()
+
+        if self.mode == "local_only":
+            return WorkerHealth(available=False, message="local_only mode")
+
         explicit_env = env_worker_url()
         if explicit_env:
-            env_config = load_gpu_config()
             desired_url = explicit_env
-            desired_token = env_config.token
-            desired_id = env_config.worker_id
+            desired_token = merged.token
+            desired_id = merged.worker_id
             desired_source = "env"
         else:
-            file_config = load_gpu_config_file()
             desired_url = file_config.worker_url
-            desired_token = file_config.token
-            desired_id = file_config.worker_id
+            desired_token = merged.token or file_config.token
+            desired_id = merged.worker_id or file_config.worker_id
             desired_source = "settings"
 
         if desired_url and desired_url != self.worker_url:

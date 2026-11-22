@@ -34,7 +34,9 @@ class RouterSubmitMixin:
         started = time.perf_counter()
         decision = self.decide(capability, int(body.get("required_vram_mb") or 0))
         if not decision.is_remote:
-            raise RuntimeError(decision.reason)
+            raise self.offline_error(
+                f"gpu_required_for_operation: {decision.reason}"
+            )
         params = body.get("params")
         if not isinstance(params, dict):
             params = {

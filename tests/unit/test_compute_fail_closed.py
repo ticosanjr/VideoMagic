@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import pytest
 from vf_shared.compute.config import GpuConfig
+from vf_shared.compute.errors import WorkerOfflineError
 from vf_shared.compute.models import WorkerDecision, WorkerHealth
 from vf_shared.compute.router import ComputeRouter
 
 from videoflow.application.compute import guard_remote_policy
-from videoflow.domain.errors import GpuWorkerOfflineError
+from videoflow.domain.errors import GpuWorkerOfflineError, VideoFlowError
 
 
 class FakeClient:
@@ -157,3 +158,128 @@ def test_auto_mode_uses_the_stable_degraded_reason() -> None:
     assert result["degraded"] is True
     assert result["degraded_reason"] == "windows_gpu_offline_fallback_cpu"
     assert result["worker_source"] == "settings"
+
+
+class _OfflineClient:
+    def health(self, timeout: float | None = None) -> WorkerHealth:
+        return WorkerHealth(available=False, message="offline")
+
+    def close(self) -> None:
+        return None
+
+
+class _HealthyClient:
+    def health(self, timeout: float | None = None) -> WorkerHealth:
+        return WorkerHealth(
+            available=True,
+            worker_id="worker-1",
+            gpu_name="RTX 3060",
+            vram_free_mb=10_000,
+            vram_total_mb=12_000,
+            capabilities=["asr"],
+        )
+
+    def close(self) -> None:
+        return None
+
+
+def test_remote_policy_raises_before_running_locally() -> None:
+    router = ComputeRouter(
+        mode="auto", worker_url="http://worker:8766", client=_OfflineClient()
+    )
+    called: list[str] = []
+
+    with pytest.raises(WorkerOfflineError) as info:
+        router.execute(
+            "asr",
+            lambda: called.append("remote"),
+            lambda: called.append("local"),
+            compute_policy="remote",
+        )
+
+    assert info.value.code == "gpu_worker_offline"
+    assert called == []
+
+
+def test_typed_offline_error_is_forwarded_by_the_application_router() -> None:
+    router = ComputeRouter(
+        mode="auto",
+        worker_url="http://worker:8766",
+        client=_OfflineClient(),
+        offline_error=GpuWorkerOfflineError,
+    )
+
+    with pytest.raises(GpuWorkerOfflineError) as info:
+        router.execute("asr", lambda: None, lambda: None, compute_policy="remote")
+
+    assert isinstance(info.value, VideoFlowError)
+    assert isinstance(info.value, WorkerOfflineError)
+    assert info.value.to_dict()["error_code"] == "gpu_worker_offline"
+
+
+def test_remote_policy_does_not_fall_back_after_a_remote_failure() -> None:
+    router = ComputeRouter(
+        mode="auto", worker_url="http://worker:8766", client=_HealthyClient()
+    )
+    called: list[str] = []
+
+    def remote() -> str:
+        called.append("remote")
+        raise RuntimeError("worker crashed")
+
+    with pytest.raises(RuntimeError, match="worker crashed"):
+        router.execute(
+            "asr", remote, lambda: called.append("local"), compute_policy="remote"
+        )
+
+    assert called == ["remote"]
+
+
+def test_auto_policy_keeps_the_stable_fallback_reason() -> None:
+    router = ComputeRouter(
+        mode="auto", worker_url="http://worker:8766", client=_OfflineClient()
+    )
+
+    outcome = router.execute("asr", lambda: "remote", lambda: "local")
+
+    assert outcome["value"] == "local"
+    assert outcome["degraded"] is True
+    assert outcome["degraded_reason"] == "windows_gpu_offline_fallback_cpu"
+
+
+def test_explicit_local_policy_is_not_reported_as_degraded() -> None:
+    router = ComputeRouter(
+        mode="auto", worker_url="http://worker:8766", client=_HealthyClient()
+    )
+
+    outcome = router.execute(
+        "asr",
+        lambda: (_ for _ in ()).throw(AssertionError("remote must not run")),
+        lambda: "local",
+        compute_policy="local",
+    )
+
+    assert outcome["value"] == "local"
+    assert outcome["degraded"] is False
+    assert outcome["degraded_reason"] == ""
+
+
+def test_file_mode_change_applies_without_restart(monkeypatch) -> None:
+    from vf_shared.compute import router_health
+
+    monkeypatch.setattr(
+        router_health,
+        "load_gpu_config_file",
+        lambda: GpuConfig(mode="local_only", source="/tmp/gpu.json"),
+    )
+    monkeypatch.setattr(
+        router_health,
+        "load_gpu_config",
+        lambda: GpuConfig(mode="local_only", source="/tmp/gpu.json"),
+    )
+    router = ComputeRouter(mode="auto", worker_url="http://worker:8766")
+
+    health = router.health(force=True)
+
+    assert router.mode == "local_only"
+    assert health.available is False

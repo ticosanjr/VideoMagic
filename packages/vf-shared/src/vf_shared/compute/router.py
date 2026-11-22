@@ -6,6 +6,7 @@ from typing import Any
 
 from vf_shared.compute.client import GPUWorkerClient
 from vf_shared.compute.config import load_gpu_config
+from vf_shared.compute.errors import WorkerOfflineError
 from vf_shared.compute.models import WorkerHealth
 
 from .router_common import (
@@ -52,6 +53,7 @@ class ComputeRouter(RouterHealthMixin, RouterExecuteMixin, RouterSubmitMixin):
         discovery_enabled: bool = True,
         discovery_timeout: float = _DEFAULT_DISCOVERY_TIMEOUT,
         worker_source: str = "",
+        offline_error: type[Exception] | None = None,
     ) -> None:
         normalized_mode = (mode or _DEFAULT_MODE).strip().lower()
         if normalized_mode not in COMPUTE_MODES:
@@ -89,6 +91,7 @@ class ComputeRouter(RouterHealthMixin, RouterExecuteMixin, RouterSubmitMixin):
         if normalized_source not in {"settings", "mdns", "env", "none"}:
             normalized_source = "settings" if self.worker_url else "none"
         self.worker_source = normalized_source
+        self.offline_error = offline_error or WorkerOfflineError
 
 
     @classmethod

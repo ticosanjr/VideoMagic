@@ -212,6 +212,8 @@ def test_execute_capability_uses_router(monkeypatch) -> None:
             *,
             required_vram_mb=0,
             fallback_local=True,
+            compute_policy="auto",
+            allow_slow_cpu_fallback=False,
         ):
             return {
                 "value": local_fn(),

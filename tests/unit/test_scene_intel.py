@@ -496,7 +496,7 @@ def test_scene_step_offloads_to_remote_router(
         def __init__(self) -> None:
             self.capability = ""
 
-        def execute(self, capability, remote_fn, local_fn):
+        def execute(self, capability, remote_fn, local_fn, **kwargs):
             self.capability = capability
             return {
                 "value": remote_fn(),

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from vf_shared.compute.errors import WorkerOfflineError
+
 
 class VideoFlowError(Exception):
     """Base class for expected VideoFlow failures."""
@@ -467,7 +469,7 @@ class CapabilityUnavailableError(VideoFlowError):
         return payload
 
 
-class GpuWorkerOfflineError(VideoFlowError, RuntimeError):
+class GpuWorkerOfflineError(VideoFlowError, WorkerOfflineError):
     """A remote-only operation cannot reach the Windows GPU worker."""
 
     code = "gpu_worker_offline"

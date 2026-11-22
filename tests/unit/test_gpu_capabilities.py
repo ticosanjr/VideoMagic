@@ -204,7 +204,11 @@ def test_render_nvenc_handler_builds_nvenc_command(tmp_path: Path, monkeypatch) 
     ass_token = next(token for token in command if "ass=" in token)
     assert "fontsdir=" in ass_token
     assert "scale=1080:1920" in " ".join(command)
-    assert "format=yuv420p" in " ".join(command)
+    joined = " ".join(command)
+    assert "format=yuv420p" in joined
+    assert "-pix_fmt" in command
+    # 10-bit 4:2:2 must be decoded/converted on CPU, never with CUDA hwaccel.
+    assert "-hwaccel" not in command
 
 
 def test_nvenc_probe_is_cached(monkeypatch) -> None:

@@ -25,6 +25,7 @@ def router_from_settings(settings: Any | None = None) -> ComputeRouter:
     except Exception:  # noqa: BLE001 - a missing secret means local fallback
         token = ""
     return ComputeRouter(
+        offline_error=GpuWorkerOfflineError,
         mode=gpu.mode,
         worker_url=gpu.worker_url,
         token=token,
@@ -152,8 +153,10 @@ def execute_capability(
     *,
     required_vram_mb: int = 0,
     settings: Any | None = None,
+    compute_policy: str = "auto",
+    allow_slow_cpu_fallback: bool = False,
 ) -> dict[str, Any]:
-    """Route one capability with a guaranteed local fallback."""
+    """Route one capability, failing closed unless a CPU fallback is allowed."""
 
     router = router_from_settings(settings)
     return router.execute(
@@ -162,6 +165,8 @@ def execute_capability(
         local_fn,
         required_vram_mb=required_vram_mb,
         fallback_local=router.fallback_local,
+        compute_policy=compute_policy,
+        allow_slow_cpu_fallback=allow_slow_cpu_fallback,
     )
 
 
@@ -173,8 +178,10 @@ def execute_batch(
     *,
     required_vram_mb: int = 0,
     settings: Any | None = None,
+    compute_policy: str = "auto",
+    allow_slow_cpu_fallback: bool = False,
 ) -> list[dict[str, Any]]:
-    """Route independent items, falling back locally after the circuit opens."""
+    """Route independent items, failing closed for remote-only requests."""
 
     router = router_from_settings(settings)
     results: list[dict[str, Any]] = []
@@ -186,6 +193,8 @@ def execute_batch(
                 lambda item=item: local_fn(item),
                 required_vram_mb=required_vram_mb,
                 fallback_local=router.fallback_local,
+                compute_policy=compute_policy,
+                allow_slow_cpu_fallback=allow_slow_cpu_fallback,
             )
         )
     return results

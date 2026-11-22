@@ -21,22 +21,32 @@ class RouterExecuteMixin:
         *,
         required_vram_mb: int = 0,
         fallback_local: bool = True,
+        compute_policy: str = "auto",
+        allow_slow_cpu_fallback: bool = False,
     ) -> dict[str, Any]:
-        """Run remotely when possible, falling back locally on any failure.
+        """Run remotely when allowed, failing closed for remote-only requests.
 
-        The return value keeps the caller's payload under ``value`` and records
-        the placement, fallback reason, and elapsed time for job telemetry.
+        ``compute_policy="remote"`` or ``"remote_only"`` never runs the local
+        function unless the caller explicitly passes
+        ``allow_slow_cpu_fallback=True``. ``"auto"`` keeps the CPU fallback and
+        records the stable offline reason in the execution telemetry.
         """
 
-        decision = self.decide(capability, required_vram_mb)
+        policy = str(compute_policy or "auto").strip().lower()
+        if policy not in {"auto", "local", "remote", "remote_only"}:
+            raise ValueError(f"invalid compute policy: {compute_policy!r}")
+        strict_remote = policy in {"remote", "remote_only"} and not allow_slow_cpu_fallback
         started_at = now_iso()
-        if decision.is_remote:
+        decision = None if policy == "local" else self.decide(
+            capability, required_vram_mb
+        )
+        if decision is not None and decision.is_remote:
             started = time.perf_counter()
             try:
                 value = remote_fn()
             except Exception as exc:  # noqa: BLE001 - fallback is the contract
                 self.invalidate()
-                if not fallback_local:
+                if strict_remote or not fallback_local:
                     raise
                 reason = f"remote failed: {exc}"
             else:
@@ -62,17 +72,29 @@ class RouterExecuteMixin:
                     "elapsed_sec": round(elapsed, 4),
                     "execution": execution.to_dict(),
                 }
-        else:
+        elif decision is not None and strict_remote:
+            health = self.health()
+            message = (
+                "gpu_required_for_operation: "
+                f"{decision.reason}. Pass allow_slow_cpu_fallback=True to run on CPU."
+            )
+            if not health.available:
+                raise self.offline_error(message)
+            raise RuntimeError(message)
+        elif decision is not None:
             health = self.health()
             reason = (
                 "windows_gpu_offline_fallback_cpu"
                 if self.mode != "local_only" and not health.available
                 else decision.reason
             )
+        else:
+            reason = ""
+
         started = time.perf_counter()
         value = local_fn()
         elapsed = time.perf_counter() - started
-        degraded = self.mode != "local_only"
+        degraded = policy != "local" and self.mode != "local_only"
         execution = ExecutionRecord(
             run_id="",
             capability=capability,
@@ -95,7 +117,6 @@ class RouterExecuteMixin:
             "elapsed_sec": round(elapsed, 4),
             "execution": execution.to_dict(),
         }
-
 
     def _prepare_remote_inputs(self, inputs: list[str]) -> list[str]:
         upload = getattr(self.client, "upload_artifact", None)

@@ -172,6 +172,8 @@ class SceneAnalyzeStep(BaseStep):
                         "scene_analyze",
                         remote_run,
                         local_run,
+                        compute_policy=options.compute_policy,
+                        allow_slow_cpu_fallback=options.allow_slow_cpu_fallback,
                     )
                     result = outcome["value"]
                     placement = str(outcome.get("execution_node") or "local")

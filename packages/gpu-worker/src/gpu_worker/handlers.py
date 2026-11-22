@@ -26,8 +26,6 @@ _COMFYUI_POLL_SEC = 0.5
 _COMFYUI_MAX_WAIT_SEC = 3600.0
 
 
-
-
 class HandlerRegistry:
     """Allowlisted capabilities plus their runnable implementations."""
 

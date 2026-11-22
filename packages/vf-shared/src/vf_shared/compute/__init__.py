@@ -19,6 +19,7 @@ from vf_shared.compute.discovery import (
     discover_workers,
     scan_workers,
 )
+from vf_shared.compute.errors import WorkerOfflineError
 from vf_shared.compute.execution import ExecutionRecord, now_iso
 from vf_shared.compute.models import JobStatus, WorkerDecision, WorkerHealth
 from vf_shared.compute.router import COMPUTE_MODES, ComputeRouter
@@ -43,6 +44,7 @@ __all__ = [
     "VRAM_COST_MB",
     "WorkerDecision",
     "WorkerHealth",
+    "WorkerOfflineError",
     "discover_workers",
     "scan_workers",
     "now_iso",
