@@ -54,7 +54,6 @@ uv run coverage run --rcfile=/dev/null -m pytest \
   tests/unit/test_compositor.py \
   tests/unit/test_contracts_docs.py \
   tests/unit/test_core_tools.py \
-  tests/unit/test_decupage_benchmark.py \
   tests/unit/test_decupage_review.py \
   tests/unit/test_decupage_snap.py \
   tests/unit/test_speech_asu.py \
@@ -78,14 +77,10 @@ uv run coverage run --rcfile=/dev/null -m pytest \
   tests/unit/test_wave_c.py \
   tests/unit/test_wave_d.py \
   tests/contract/test_mcp.py \
-  tests/contract/test_acceptance_3_3.py \
   -m "not media" -q --no-header -o addopts=""
 
 uv run coverage report \
   --include='src/videoflow/mcp_server/*' \
   --fail-under=80
-
-echo "== decupage benchmark =="
-uv run python scripts/decupage_benchmark.py --self-test --require-thresholds >/dev/null
 
 echo "gate: MCP checks passed"

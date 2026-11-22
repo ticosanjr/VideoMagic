@@ -26,8 +26,7 @@ and not a parallel implementation.
 Run the report:
 
 ```bash
-uv run python scripts/shorts_golden.py
-uv run python scripts/shorts_golden.py --top-k 2 --json
+uv run pytest tests/unit/test_shorts_score_dedup.py tests/unit/test_shorts_score_llm.py -q
 ```
 
 Current result: baseline precision@1 **0.75**, calibrated **1.00**, zero

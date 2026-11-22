@@ -16,7 +16,7 @@ from videoflow.domain.state import Sentence
 from videoflow.domain.transcript import parse_srt_file
 from videoflow.domains.asr.engine import FasterWhisperAdapter
 from videoflow.domains.asr.http import WhisperHttpAdapter
-from videoflow.domains.asr.legacy_whisper import WhisperCliAdapter
+from videoflow.domains.asr.whisper_cpp import WhisperCliAdapter
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload
 from videoflow.steps.registry import register_step

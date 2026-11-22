@@ -41,9 +41,9 @@ from videoflow.domain.errors import (
     TtsError,
 )
 from videoflow.domain.state import Sentence
-from videoflow.domains.asr import legacy_whisper as whisper_module
+from videoflow.domains.asr import whisper_cpp as whisper_module
 from videoflow.domains.asr.http import WhisperHttpAdapter
-from videoflow.domains.asr.legacy_whisper import WhisperCliAdapter
+from videoflow.domains.asr.whisper_cpp import WhisperCliAdapter
 
 # --------------------------------------------------------------------------- #
 # Shared fakes

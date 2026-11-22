@@ -1,3 +1,5 @@
+> Histórico: o script `scripts/shorts_benchmark.py` foi removido na v4.2. Use `scripts/e2e_micro_gate.py` e os testes de Shorts.
+
 # Scene intelligence and Dynamic Shorts benchmark
 
 The phase 7 harness is deterministic and produces JSON and Markdown evidence.

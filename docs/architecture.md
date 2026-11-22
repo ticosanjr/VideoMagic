@@ -38,91 +38,62 @@ Rules:
 
 | Path | Responsibility |
 | --- | --- |
-| `domain/timebase.py` | Rational frame and sample arithmetic, frame coverage, pads |
-| `domain/config.py` | Pydantic module configs and CPU-first defaults |
-| `domain/state.py` | `ProjectState` and its JSON Schema |
-| `domain/planning.py` | Cache-status planning and upstream rules |
-| `domain/retakes.py` | Repetition clusters and the keeper guard |
-| `domain/timeline.py` | Overlap and packing checks |
-| `domain/paths.py` | Path allowlist jail |
-| `domain/redact.py` | Secret redaction |
+| `domain/` | Pure contracts: rational timebase, state, planning, timeline, retakes, paths, redaction, errors |
 | `core/recipe.py` | Versioned recipe DAG contract and validation |
-| `core/context.py` | Typed artifact context shared by recipe steps |
-| `steps/` | Atomic ingest, VAD, transcription, retakes, timeline, Shorts, and export steps |
-| `engine/runner.py` | Topological execution, progress, telemetry, and report writing |
-| `engine/recipes.py` | Built-in and operator recipe discovery |
-| `application/cache.py` | Canonical module hashing |
-| `application/timeline_builder.py` | Deterministic cuts, J/L boundaries, fades, zoom metadata |
-| `application/export_service.py` | One validated timeline to three NLE artifacts |
-| `application/capabilities.py` | Capability manifest, provider policy, and external-host guard |
-| `application/fonts.py` | Local TTF/OTF asset store and family-name parser |
-| `application/images.py` | Local PNG/JPEG watermark asset store |
-| `application/music.py` | Local music asset store and ducking/mix filter |
-| `application/voiceover.py` | TTS generation and voice-over mix |
-| `application/dubbing.py` | Translation plus TTS dubbing mix |
-| `application/brand_templates.py` | Reusable brand bundle store and flat job options |
-| `application/tracking.py` | Motion/face focus estimation for Short reframing |
-| `application/audio_analysis.py` | Audio-energy peak extraction |
-| `application/video_analysis.py` | FFmpeg scene-change detection |
-| `application/url_import.py` | yt-dlp source download and policy guard |
-| `application/publishing.py` | Webhook targets, durable schedule queue, and dispatcher |
-| `application/multimodal.py` | Audio-emotion proxy and visual motion/face analysis |
-| `application/project_templates.py` | Flat project templates and config envelopes |
-| `application/audio.py` | FFmpeg audio-enhancement filter builder |
-| `application/short_editor.py` | Per-Short trim, retitle, reframe, caption override, and re-render |
-| `application/portable.py` | Ingest → VAD → timeline → export run |
-| `application/filesystem.py` | Allowlisted directory listing, search, and folder creation for the rack picker |
-| `runtime.py` | Portable home, bundled binary discovery, UI discovery |
-| `cli.py` | Unified `videoflow` command surface |
-| `application/runner.py` | Executes a `RunPlan` (stub) |
-| `application/jobs.py` | In-process jobs with progress, cancel, bounded concurrency, SQLite-first persistence, and restart requeue |
-| `application/database.py` | SQLite WAL operational store for jobs, assets, batches, schedules, and services, with migration, backup, and restore |
-| `application/render_queue.py` | Cancellable MP4 render queue with partial-output cleanup |
-| `application/previews.py` | Cancellable 540p preview/proxy queue |
-| `application/timeline_edit.py` | Validated trim, move, delete, split, ripple, ripple-trim, and slip edits |
-| `application/waveforms.py` | Cached RMS peaks for timeline clips |
-| `application/scoring.py` | Channel profiles, re-ranking, and golden-set metrics |
-| `application/sfx.py` | Sound-effect asset store |
-| `application/nle_extras.py` | Native markers, chapters, titles, B-roll, colour, and stem for exporters |
-| `application/crash.py` | Minimal JSON crash reports |
-| `application/cost.py` | LLM token accounting |
-| `application/schema_migrations.py` | Version gates for settings, providers, schedules, and plugins |
-| `exporters/extras.py` | Typed finishing inputs shared by the three NLE writers |
-| `application/telemetry.py` | Per-stage timestamps, progress, and bounded logs |
-| `modules/` | The eight rack modules (fingerprints live, engines stubbed) |
-| `adapters/ffmpeg.py` | FFprobe ingest, PCM extraction, digest, silencedetect VAD |
-| `adapters/silero.py` | Silero v5.1.2 ONNX inference and speech-window merging |
-| `adapters/faster_whisper.py` | Local Faster-Whisper/CTranslate2 adapter with adaptive beam/threads/word options |
-| `application/asr_profiles.py` | Faster-Whisper, whisper.cpp Vulkan, remote HTTP, and quality profile resolution |
-| `adapters/whisper.py` | Local whisper.cpp CLI adapter and fallback |
-| `adapters/asr.py` | OpenAI-compatible `/audio/transcriptions` client |
-| `adapters/llm.py` | OpenAI-compatible retake client |
-| `exporters/` | FCPXML, xmeml, native Kdenlive MLT implemented; OTIO helper; MP4 stub |
-| `api/` | FastAPI app, job routes, SSE, UI mount, CLI |
-| `mcp_server/` | Tool registry, SDK server, stdio CLI |
+| `core/context.py` | Typed artifact/state context shared by steps |
+| `core/media_contract/` | PCM, loudness, frame, and codec invariants |
+| `core/execution.py` | Execution records and telemetry types |
+| `core/nvenc.py` | NVENC capability and argument contracts |
+| `steps/` | Atomic pipeline steps, params models, ports, registry, cache, and self-heal |
+| `steps/decupage.py` | Canonical decupage calibration; `decoupage.py` is a compatibility shim |
+| `steps/shorts_captions.py` | Canonical Short caption pipelines (`shorts.captions` and `short.captions`) |
+| `steps/shorts_render.py` | Canonical Short render pipelines (`shorts.render` and `short.render`) |
+| `engine/runner.py` | Topological/linear execution, progress, telemetry, and report writing |
+| `engine/recipes/` | Built-in and operator recipe definitions and catalog |
+| `engine/checkpoint.py` | Step checkpoints and resumable execution |
+| `application/` | Application services grouped by area (jobs, database, pipeline, QA, delivery, styles, intelligence) |
+| `application/intelligence/` | LLM providers, routing, budget, circuit breaker, and JSON contracts |
+| `application/decupage/` | Decupage review and snap services |
+| `application/short_composition/` | Short plan, caption geometry, rhythm, and render command builders |
+| `domains/asr/` | Faster-Whisper and whisper.cpp CLI adapters, HTTP/remote ASR, profiles |
+| `domains/audio/` | Finalize, mixing, analysis, synthesis, and audio DSP |
+| `domains/vision/` | Matte, scene vision, tracking, and vision helpers |
+| `domains/media/` | Media probing, B-roll, and media-side services |
+| `domains/toolkit/` | Shared domain utilities |
+| `adapters/ffmpeg/` | FFmpeg/FFprobe package: probe, PCM, render, overlays, audio filters |
+| `adapters/llm.py` | Delegates to the canonical OpenAI-compatible provider |
+| `adapters/opencode.py` | Constrained OpenCode CLI bridge |
+| `adapters/vision.py` | Vision JSON adapter over the shared provider parser |
+| `adapters/tts.py`, `diarization.py`, `silero.py`, `yamnet.py`, `resolve.py` | External engines and Resolve integration |
+| `exporters/` | FCPXML, xmeml, and native Kdenlive MLT writers; no MP4 stub |
+| `api/` | FastAPI app, REST routes, SSE streams, error mapping, UI mount |
+| `mcp_server/` | Guard, strict 16/21 tool profiles, resources, prompts, stdio CLI |
+| `bootstrap/` | OpenCode workspace generation, styles/workflows, GPU kit bootstrap |
+| `packages/vf-shared/` | Shared compute router, GPU client, scene rules, contracts, discovery |
+| `packages/gpu-worker/` | Windows GPU worker app, handler registry, NVENC/matte/ASR/scene handlers |
+| `templates/` | OpenCode skills/commands, AGENTS template, styles/workflows, Windows wheels |
+| `styles/` | Canonical 22 Markdown styles (single source; workspace `presets/` is a copy) |
+| `workflows/` | Canonical workflow Markdown files |
+| `ui/` | SvelteKit rack; renders state and never computes cuts |
+| `cli.py`, `runtime.py`, `plugin_api.py` | Unified CLI, portable home/binary discovery, plugin surface |
 
-## 3. The eight modules
+## 3. Pipeline families
 
-Execution order is fixed. The graph is a line with two side inputs, not a free
-DAG. This keeps cache reasoning and UI ordering simple.
+Steps are registered atomically and composed by recipes or `vf_run`. The common
+families are:
 
-```
-ingest ──► vad ──────────────┐
-   │                          ├──► jl_cuts ──► zooms ──┐
-   └──► transcribe ──► retakes┘                        ├──► export
-                └──────────────► shorts ───────────────┘
-```
-
-| Module | Reads | Writes | Engine |
+| Family | Reads | Writes | Engine |
 | --- | --- | --- | --- |
-| ingest | source path | media info, PCM, proxy | FFmpeg |
-| vad | PCM | speech sample spans | Silero ONNX (FFmpeg fallback) |
-| transcribe | PCM | sentences and words | Faster-Whisper / whisper.cpp / ASR HTTP |
-| retakes | transcript | culls, guard restores | LLM + domain guard |
-| jl_cuts | VAD spans, culls | video and audio segments | domain + timebase |
-| zooms | segments | transforms | domain rules |
-| shorts | transcript, culls | vertical source windows | LLM + FFmpeg |
-| export | all of the above | FCPXML, xmeml, Kdenlive MLT, MP4 | lxml, MLT-compatible XML, OTIO, FFmpeg |
+| ingest/session | source paths | media info, PCM, normalized sources | FFmpeg |
+| speech | PCM | VAD spans, sentences, words, ASR cleanup | Silero, Faster-Whisper, whisper.cpp, HTTP ASR |
+| editorial | transcript | culls, retakes, clean transcript, decupage plan | LLM + domain rules |
+| timeline | transcript, VAD, culls | canonical segments, overlays, beat maps | domain + timebase |
+| shorts | selected ranges | composition plan, captions, rendered Shorts | FFmpeg + NVENC |
+| audio | stems, TTS, music, SFX | final loudness-normalized mix | FFmpeg + audio domains |
+| qa/export | timeline + artifacts | QA reports, MP4, FCPXML, xmeml, Kdenlive MLT | FFmpeg, lxml, XML writers |
+
+The exact step list, params, and ports are served on demand through
+`vf://docs/steps` and `vf://docs/steps/{step_type}`.
 
 A bypassed module emits an identity result: the same input payload, an explicit
 `bypassed: true` marker, and a hash that includes the disabled flag. Downstream

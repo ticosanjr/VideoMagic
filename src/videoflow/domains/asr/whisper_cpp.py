@@ -1,8 +1,8 @@
 """Local whisper.cpp CLI adapter.
 
 The portable build bundles ``whisper-cli`` and a tiny GGML model. The adapter
-writes an SRT with the CLI and reuses the existing SRT parser, so timestamps go
-through the same source-sample conversion as an imported subtitle.
+writes an SRT or a token JSON with the CLI and reuses the shared parsers, so
+timestamps go through the same source-sample conversion as imported subtitles.
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ class WhisperCliAdapter:
             raise TranscriptionError(f"Audio does not exist: {source}")
         if sample_rate <= 0:
             raise TranscriptionError("sample rate must be positive")
-        _require_16k(source)
+        _require_whisper_16k(source)
         if not self.binary.is_file():
             raise TranscriptionError(
                 f"whisper-cli was not found: {self.binary}. "
@@ -150,7 +150,7 @@ def _default_model() -> Path:
     return found if found else Path("ggml-tiny.bin")
 
 
-def _require_16k(path: Path) -> None:
+def _require_whisper_16k(path: Path) -> None:
     try:
         with wave.open(str(path), "rb") as audio:
             rate = audio.getframerate()

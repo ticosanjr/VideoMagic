@@ -13,8 +13,8 @@ from types import SimpleNamespace
 from videoflow.application.models import installed_path
 from videoflow.application.settings import load_settings
 from videoflow.domains.asr.engine import FasterWhisperAdapter
-from videoflow.domains.asr.legacy_whisper import WhisperCliAdapter
 from videoflow.domains.asr.profiles import resolve_asr_plan
+from videoflow.domains.asr.whisper_cpp import WhisperCliAdapter
 
 
 def main() -> int:

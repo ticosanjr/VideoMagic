@@ -22,7 +22,10 @@ from videoflow.domain.config import (
     MediaLanguage,
     ModelSize,
 )
-from videoflow.domain.errors import JobCancelledError, TranscriptionError
+from videoflow.domain.errors import (
+    JobCancelledError,
+    TranscriptionError,
+)
 from videoflow.domain.state import Sentence, WordTiming
 from videoflow.domain.timebase import Rounding
 from videoflow.runtime import (

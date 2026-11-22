@@ -1,3 +1,5 @@
+> Histórico: os scripts de aceitação 3.3 foram removidos na v4.2. O gate atual é `scripts/e2e_micro_gate.py`.
+
 # Performance acceptance — 3.3.0
 
 The 3.3.0 delivery path changes four things at once:

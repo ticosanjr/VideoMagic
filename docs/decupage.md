@@ -224,7 +224,7 @@ O harness determinístico e o procedimento do golden video estão em
 [qa-evidence/decupage-benchmark.json](qa-evidence/decupage-benchmark.json).
 
 ```bash
-uv run python scripts/decupage_benchmark.py --self-test --require-thresholds
+uv run pytest tests/unit/test_decupage_snap.py tests/unit/test_decupage_review.py -q
 ```
 
 ## Limites desta fase

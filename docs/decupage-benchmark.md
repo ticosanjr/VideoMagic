@@ -5,10 +5,11 @@ before physical GPU certification.
 
 ## Self-test
 
+> Histórico: o script `scripts/decupage_benchmark.py` foi removido na v4.2.
+> O comportamento determinístico agora é coberto pelos testes abaixo.
+
 ```bash
-uv run python scripts/decupage_benchmark.py --self-test \
-  --json-out docs/qa-evidence/decupage-benchmark.json \
-  --markdown-out docs/qa-evidence/decupage-benchmark.md
+uv run pytest tests/unit/test_decupage_snap.py tests/unit/test_decupage_review.py -q
 ```
 
 Current evidence: **synthetic passed**, physical acceptance pending.
