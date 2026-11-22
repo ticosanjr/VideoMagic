@@ -43,11 +43,13 @@ from gpu_worker.gpu_handlers.matte import (
     _matte_session,
 )
 from gpu_worker.gpu_handlers.scene import (
-    _scene_face_backend,
     _scene_ffmpeg_times,
     _scene_hints,
     _scene_keyframes,
     _scene_layout,
+)
+from gpu_worker.gpu_handlers.scene_visual import (
+    _scene_face_backend,
     _scene_median,
     _scene_sample_times,
     _scene_visuals,

@@ -13,6 +13,7 @@ REFACTORED = (
     "src/videoflow/domains/asr",
     "src/videoflow/domains/vision",
     "src/videoflow/domains/toolkit",
+    "packages/gpu-worker/src/gpu_worker",
     "packages/vf-shared/src/vf_shared",
 )
 

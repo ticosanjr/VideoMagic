@@ -12,51 +12,12 @@ import threading
 import time
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS artifacts (
-    id TEXT PRIMARY KEY,
-    filename TEXT NOT NULL,
-    size INTEGER NOT NULL,
-    path TEXT NOT NULL,
-    created_at REAL NOT NULL
-);
-CREATE TABLE IF NOT EXISTS jobs (
-    id TEXT PRIMARY KEY,
-    capability TEXT NOT NULL,
-    status TEXT NOT NULL,
-    params TEXT NOT NULL,
-    inputs TEXT NOT NULL,
-    shared_inputs TEXT NOT NULL,
-    shared_outputs TEXT NOT NULL DEFAULT '[]',
-    shared_artifacts TEXT NOT NULL DEFAULT '[]',
-    shared_error TEXT,
-    error TEXT,
-    artifacts TEXT NOT NULL DEFAULT '[]',
-    priority INTEGER NOT NULL DEFAULT 0,
-    progress INTEGER NOT NULL DEFAULT 0,
-    stage TEXT NOT NULL DEFAULT 'queued',
-    created_at REAL NOT NULL,
-    started_at REAL,
-    finished_at REAL
-);
-CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
-CREATE TABLE IF NOT EXISTS metrics (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    job_id TEXT NOT NULL,
-    capability TEXT NOT NULL,
-    status TEXT NOT NULL,
-    priority INTEGER NOT NULL DEFAULT 0,
-    queue_wait_sec REAL NOT NULL DEFAULT 0,
-    elapsed_sec REAL NOT NULL DEFAULT 0,
-    error TEXT,
-    created_at REAL NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_metrics_created ON metrics(created_at);
-"""
+from gpu_worker.store_records import JobRecord, _json_list, _row_to_job
+from gpu_worker.store_schema import SCHEMA
 
 TERMINAL_STATUSES = frozenset({"succeeded", "failed", "cancelled"})
 
@@ -69,62 +30,6 @@ class ArtifactRecord:
     path: Path
 
 
-@dataclass(frozen=True, slots=True)
-class JobRecord:
-    id: str
-    capability: str
-    status: str
-    params: dict[str, Any] = field(default_factory=dict)
-    inputs: list[str] = field(default_factory=list)
-    shared_inputs: list[str] = field(default_factory=list)
-    shared_outputs: list[str] = field(default_factory=list)
-    shared_artifacts: list[str] = field(default_factory=list)
-    shared_error: str | None = None
-    error: str | None = None
-    artifacts: list[str] = field(default_factory=list)
-    priority: int = 0
-    progress: int = 0
-    stage: str = "queued"
-    created_at: float = 0.0
-    started_at: float | None = None
-    finished_at: float | None = None
-
-    def summary(self) -> dict[str, Any]:
-        """Compact projection for dashboards and health payloads."""
-        return {
-            "job_id": self.id,
-            "capability": self.capability,
-            "status": self.status,
-            "created_at": self.created_at,
-            "started_at": self.started_at,
-            "finished_at": self.finished_at,
-            "error": self.error,
-            "artifact_count": len(self.artifacts),
-            "priority": self.priority,
-            "progress": self.progress,
-            "stage": self.stage,
-        }
-
-    def as_dict(self) -> dict[str, Any]:
-        return {
-            "job_id": self.id,
-            "capability": self.capability,
-            "status": self.status,
-            "params": self.params,
-            "inputs": self.inputs,
-            "shared_inputs": self.shared_inputs,
-            "shared_outputs": self.shared_outputs,
-            "shared_artifacts": self.shared_artifacts,
-            "shared_error": self.shared_error,
-            "error": self.error,
-            "artifacts": self.artifacts,
-            "priority": self.priority,
-            "progress": self.progress,
-            "stage": self.stage,
-            "created_at": self.created_at,
-            "started_at": self.started_at,
-            "finished_at": self.finished_at,
-        }
 
 
 class JobStore:
@@ -148,7 +53,7 @@ class JobStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._lock, self._connection() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
-            connection.executescript(_SCHEMA)
+            connection.executescript(SCHEMA)
             columns = {
                 row["name"]
                 for row in connection.execute("PRAGMA table_info(jobs)").fetchall()
@@ -461,44 +366,7 @@ class JobStore:
         return job_ids
 
 
-def _row_to_job(row: sqlite3.Row | None) -> JobRecord | None:
-    if row is None:
-        return None
-    columns = set(row.keys())
-    return JobRecord(
-        id=row["id"],
-        capability=row["capability"],
-        status=row["status"],
-        params=_json_object(row["params"]),
-        inputs=_json_list(row["inputs"]),
-        shared_inputs=_json_list(row["shared_inputs"]),
-        shared_outputs=_json_list(row["shared_outputs"]),
-        shared_artifacts=_json_list(row["shared_artifacts"]),
-        shared_error=row["shared_error"],
-        error=row["error"],
-        artifacts=_json_list(row["artifacts"]),
-        priority=int(row["priority"]) if "priority" in columns else 0,
-        progress=int(row["progress"]) if "progress" in columns else 0,
-        stage=str(row["stage"] or "queued") if "stage" in columns else "queued",
-        created_at=row["created_at"],
-        started_at=row["started_at"],
-        finished_at=row["finished_at"],
-    )
 
 
-def _json_list(raw: str | None) -> list[str]:
-    try:
-        value = json.loads(raw or "[]")
-    except (TypeError, ValueError):
-        return []
-    if not isinstance(value, list):
-        return []
-    return [item for item in value if isinstance(item, str)]
 
 
-def _json_object(raw: str | None) -> dict[str, Any]:
-    try:
-        value = json.loads(raw or "{}")
-    except (TypeError, ValueError):
-        return {}
-    return value if isinstance(value, dict) else {}
