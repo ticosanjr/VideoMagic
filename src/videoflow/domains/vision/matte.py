@@ -222,6 +222,35 @@ def _mediapipe_selfie(source: Path, target: Path) -> bool:
     return bool(cv2.imwrite(str(target), bgra))
 
 
+def _run_rembg_directory(source_dir: Path, target_dir: Path) -> bool:
+    """Run rembg once for the whole frame directory, reusing one model load."""
+
+    if os.environ.get("VF_REMBG_CMD"):
+        return False
+    model = os.environ.get("VF_MATTE_MODEL", "u2netp").strip()
+    model_args = ["-m", model] if model else []
+    binary = shutil.which("rembg")
+    if binary:
+        command = [binary, "p", *model_args, str(source_dir), str(target_dir)]
+    elif importlib.util.find_spec("rembg") is not None:
+        command = [
+            sys.executable,
+            "-m",
+            "rembg",
+            "p",
+            *model_args,
+            str(source_dir),
+            str(target_dir),
+        ]
+    else:
+        return False
+    try:
+        commands.run(command)
+    except Exception:  # noqa: BLE001 - fall back to one frame at a time
+        return False
+    return True
+
+
 def _matte_video(source: Path, target: Path) -> None:
     ffmpeg = _ffmpeg()
     fps = os.environ.get("VF_MATTE_FPS", "30")
@@ -257,8 +286,14 @@ def _matte_video(source: Path, target: Path) -> None:
                 "FFmpeg extracted no frames for background removal",
                 details={"input": str(source)},
             )
-        for index, frame in enumerate(extracted, start=1):
-            _matte_frame(frame, mattes / f"{index:06d}.png")
+        batched = _matte_backend() == "rembg" and _run_rembg_directory(frames, mattes)
+        if batched and all(
+            (mattes / frame.name).is_file() for frame in extracted
+        ):
+            pass
+        else:
+            for index, frame in enumerate(extracted, start=1):
+                _matte_frame(frame, mattes / f"{index:06d}.png")
         commands.run(
             [
                 ffmpeg,

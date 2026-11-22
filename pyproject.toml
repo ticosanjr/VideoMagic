@@ -48,6 +48,7 @@ diarization = [
     "pyannote.audio>=3.3",
 ]
 vision = [
+    "mediapipe>=0.10,<1",
     "opencv-python-headless>=4.10,<5",
     "pillow>=10",
     "pytesseract>=0.3.13",

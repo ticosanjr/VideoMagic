@@ -5613,6 +5613,7 @@ tray = [
     { name = "python-xlib", marker = "sys_platform == 'linux'" },
 ]
 vision = [
+    { name = "mediapipe" },
     { name = "opencv-python-headless" },
     { name = "pillow" },
     { name = "pytesseract" },
@@ -5635,6 +5636,7 @@ requires-dist = [
     { name = "mediapipe", marker = "extra == 'scene'", specifier = ">=0.10,<1" },
     { name = "mediapipe", marker = "extra == 'shorts'", specifier = ">=0.10,<1" },
     { name = "mediapipe", marker = "extra == 'tracking'", specifier = ">=0.10,<1" },
+    { name = "mediapipe", marker = "extra == 'vision'", specifier = ">=0.10,<1" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "onnxruntime", specifier = ">=1.20" },
