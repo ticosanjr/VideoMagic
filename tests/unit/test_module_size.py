@@ -16,12 +16,7 @@ REFACTORED = (
     "packages/vf-shared/src/vf_shared",
 )
 
-# Moved unchanged from vf-compute in Commit 1.1; split by Commit 1.6.
-PENDING_SPLIT = {
-    "packages/vf-shared/src/vf_shared/compute/client.py",
-    "packages/vf-shared/src/vf_shared/compute/discovery.py",
-    "packages/vf-shared/src/vf_shared/compute/router.py",
-}
+PENDING_SPLIT: set[str] = set()
 
 
 def _python_files(path: Path) -> list[Path]:
