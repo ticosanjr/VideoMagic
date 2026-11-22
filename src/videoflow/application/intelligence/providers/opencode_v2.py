@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import base64
-import json
 import time
 from typing import Any
 
@@ -14,6 +13,8 @@ from videoflow.application.intelligence.models import (
     ProviderResult,
 )
 from videoflow.domain.errors import LlmError
+
+from .json_parse import parse_json_object
 
 DEFAULT_BASE_URL = "http://127.0.0.1:4096"
 PROMPT_PREFIX = (
@@ -43,34 +44,50 @@ class OpenCodeV2Provider:
         self.timeout = timeout
         self.retries = max(0, int(retries))
         self._models: dict[str, list[dict[str, Any]]] = {}
+        self._status_cache: tuple[float, IntelligenceStatus] | None = None
+
+    def _remember(self, status: IntelligenceStatus) -> IntelligenceStatus:
+        self._status_cache = (time.monotonic(), status)
+        return status
 
     def status(self) -> IntelligenceStatus:
+        now = time.monotonic()
+        if self._status_cache is not None and now - self._status_cache[0] < 30.0:
+            return self._status_cache[1]
         if not self.base_url:
-            return IntelligenceStatus(
-                provider=self.id,
-                kind=self.kind,
-                ready=False,
-                detail="missing base_url",
+            return self._remember(
+                IntelligenceStatus(
+                    provider=self.id,
+                    kind=self.kind,
+                    ready=False,
+                    detail="missing base_url",
+                )
             )
         try:
-            response = self._request("GET", "/api/info", timeout=5.0)
+            response = self._request("GET", "/api/info", timeout=1.5)
         except LlmError as exc:
-            return IntelligenceStatus(
-                provider=self.id, kind=self.kind, ready=False, detail=str(exc)
+            return self._remember(
+                IntelligenceStatus(
+                    provider=self.id, kind=self.kind, ready=False, detail=str(exc)
+                )
             )
         if response.status_code >= 400:
-            return IntelligenceStatus(
+            return self._remember(
+                IntelligenceStatus(
+                    provider=self.id,
+                    kind=self.kind,
+                    ready=False,
+                    detail=f"HTTP {response.status_code}",
+                )
+            )
+        return self._remember(
+            IntelligenceStatus(
                 provider=self.id,
                 kind=self.kind,
-                ready=False,
-                detail=f"HTTP {response.status_code}",
+                ready=True,
+                detail="ready",
+                models=[self.model] if self.model else [],
             )
-        return IntelligenceStatus(
-            provider=self.id,
-            kind=self.kind,
-            ready=True,
-            detail="ready",
-            models=[self.model] if self.model else [],
         )
 
     def complete_json(
@@ -102,7 +119,7 @@ class OpenCodeV2Provider:
             )
         try:
             text = str(response.json()["data"]["text"])
-            data = _parse_json(text)
+            data = parse_json_object(text)
         except (KeyError, TypeError, ValueError) as exc:
             raise LlmError("OpenCode V2 returned unusable JSON") from exc
         return ProviderResult(
@@ -235,20 +252,4 @@ class OpenCodeV2Provider:
         raise LlmError("OpenCode V2 request failed")
 
 
-def _parse_json(content: str) -> dict[str, Any]:
-    text = content.strip()
-    if "```json" in text:
-        text = text.split("```json", 1)[1].split("```", 1)[0].strip()
-    elif "```" in text:
-        text = text.split("```", 1)[1].split("```", 1)[0].strip()
-    try:
-        parsed = json.loads(text)
-    except json.JSONDecodeError:
-        start = text.find("{")
-        end = text.rfind("}")
-        if start < 0 or end <= start:
-            raise
-        parsed = json.loads(text[start : end + 1])
-    if not isinstance(parsed, dict):
-        raise ValueError("expected a JSON object")
-    return parsed
+_parse_json = parse_json_object

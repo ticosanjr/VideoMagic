@@ -242,13 +242,12 @@ class Intelligence:
                     timeout=self.config.default_timeout_seconds,
                     retries=self.settings.llm.retries,
                 )
-        if "deepseek" not in providers and (
-            remote_allowed or self.config.deepseek_base_url.strip()
-        ):
+        deepseek_key = get_secret(self.config.deepseek_api_key_env)
+        if "deepseek" not in providers and remote_allowed and deepseek_key:
             providers["deepseek"] = DeepSeekProvider(
                 base_url=self.config.deepseek_base_url,
                 model=self.config.deepseek_model,
-                api_key=get_secret(self.config.deepseek_api_key_env),
+                api_key=deepseek_key,
                 timeout=self.config.default_timeout_seconds,
                 retries=self.settings.llm.retries,
             )

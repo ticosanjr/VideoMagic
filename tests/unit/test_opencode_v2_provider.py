@@ -33,8 +33,10 @@ def test_status_paths(monkeypatch) -> None:
     provider = _provider()
     monkeypatch.setattr(provider, "_request", lambda *args, **kwargs: Response(200))
     assert provider.status().ready is True
+    provider._status_cache = None
     monkeypatch.setattr(provider, "_request", lambda *args, **kwargs: Response(500))
     assert provider.status().ready is False
+    provider._status_cache = None
     monkeypatch.setattr(
         provider,
         "_request",

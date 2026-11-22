@@ -3,19 +3,21 @@
 from __future__ import annotations
 
 import base64
-import json
 import time
 from pathlib import Path
 from typing import Any
 
 import httpx
 
-from videoflow.application.cost import estimate_cost, record_usage
+from videoflow.application import circuit
+from videoflow.application.cost import ensure_within_budget, estimate_cost, record_usage
 from videoflow.application.intelligence.models import (
     IntelligenceStatus,
     ProviderResult,
 )
 from videoflow.domain.errors import LlmError
+
+from .json_parse import parse_json_object
 
 SYSTEM_PROMPT = (
     "You are a data transformation function inside a video pipeline. "
@@ -38,6 +40,9 @@ class OpenAICompatibleProvider:
         retries: int = 2,
         temperature: float = 0.0,
         max_tokens: int = 0,
+        transport: httpx.BaseTransport | None = None,
+        seed: int | None = None,
+        system_prompt: str = SYSTEM_PROMPT,
     ) -> None:
         self.id = provider_id
         self.base_url = base_url.rstrip("/")
@@ -47,6 +52,9 @@ class OpenAICompatibleProvider:
         self.retries = max(0, int(retries))
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.transport = transport
+        self.seed = seed
+        self.system_prompt = system_prompt
 
     def status(self) -> IntelligenceStatus:
         ready = bool(self.base_url and self.model)
@@ -69,6 +77,7 @@ class OpenAICompatibleProvider:
         temperature: float = 0.0,
         max_tokens: int = 0,
     ) -> ProviderResult:
+        ensure_within_budget()
         selected = model or self.model
         started = time.perf_counter()
         payload: dict[str, Any] = {
@@ -76,7 +85,7 @@ class OpenAICompatibleProvider:
             "temperature": temperature or self.temperature,
             "stream": False,
             "messages": [
-                {"role": "system", "content": f"{SYSTEM_PROMPT} schema={schema_name}"},
+                {"role": "system", "content": f"{self.system_prompt} schema={schema_name}"},
                 {"role": "user", "content": prompt},
             ],
             "response_format": {"type": "json_object"},
@@ -84,8 +93,10 @@ class OpenAICompatibleProvider:
         limit = max_tokens or self.max_tokens
         if limit > 0:
             payload["max_tokens"] = limit
+        if self.seed is not None:
+            payload["seed"] = self.seed
         response = self._post("/chat/completions", payload, timeout)
-        for optional in ("response_format",):
+        for optional in ("response_format", "seed"):
             if response.status_code != 400:
                 break
             payload.pop(optional, None)
@@ -100,7 +111,7 @@ class OpenAICompatibleProvider:
             usage = body.get("usage")
             record_usage(selected, usage)
             content = body["choices"][0]["message"]["content"]
-            data = _parse_json(content)
+            data = parse_json_object(content)
         except (KeyError, IndexError, TypeError, ValueError) as exc:
             raise LlmError(f"{self.id} returned unusable JSON") from exc
         prompt_tokens = int((usage or {}).get("prompt_tokens") or 0)
@@ -129,16 +140,21 @@ class OpenAICompatibleProvider:
     ) -> ProviderResult:
         """Ask a vision-capable chat model to audit a small set of frames."""
 
+        ensure_within_budget()
         selected = model or self.model
         started = time.perf_counter()
         content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
         for value in image_paths:
-            path = Path(value)
-            if not path.is_file():
-                continue
-            suffix = path.suffix.lower()
-            mime = "image/png" if suffix == ".png" else "image/jpeg"
-            encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+            if isinstance(value, (bytes, bytearray)):
+                mime = "image/jpeg"
+                encoded = base64.b64encode(bytes(value)).decode("ascii")
+            else:
+                path = Path(value)
+                if not path.is_file():
+                    continue
+                suffix = path.suffix.lower()
+                mime = "image/png" if suffix == ".png" else "image/jpeg"
+                encoded = base64.b64encode(path.read_bytes()).decode("ascii")
             content.append(
                 {
                     "type": "image_url",
@@ -163,6 +179,8 @@ class OpenAICompatibleProvider:
         limit = max_tokens or self.max_tokens
         if limit > 0:
             payload["max_tokens"] = limit
+        if self.seed is not None:
+            payload["seed"] = self.seed
         response = self._post("/chat/completions", payload, timeout)
         if response.status_code >= 400:
             raise LlmError(
@@ -174,7 +192,7 @@ class OpenAICompatibleProvider:
             usage = body.get("usage")
             record_usage(selected, usage)
             content_value = body["choices"][0]["message"]["content"]
-            data = _parse_json(content_value)
+            data = parse_json_object(content_value)
         except (KeyError, IndexError, TypeError, ValueError) as exc:
             raise LlmError(f"{self.id} returned unusable vision JSON") from exc
         prompt_tokens = int((usage or {}).get("prompt_tokens") or 0)
@@ -237,36 +255,47 @@ class OpenAICompatibleProvider:
     def _post(
         self, path: str, payload: dict[str, Any], timeout: float
     ) -> httpx.Response:
+        if not circuit.allow(self.base_url):
+            raise LlmError(
+                f"{self.id} is cooling down after repeated failures"
+            )
         headers = {"Content-Type": "application/json"}
         if self._api_key:
             headers["Authorization"] = f"Bearer {self._api_key}"
         last: Exception | None = None
-        for attempt in range(self.retries + 1):
-            try:
-                with httpx.Client(timeout=timeout or self.timeout) as client:
-                    response = client.post(
-                        f"{self.base_url}{path}", headers=headers, json=payload
-                    )
-                if response.status_code < 500 or attempt >= self.retries:
-                    return response
-            except httpx.HTTPError as exc:
-                last = exc
-                if attempt >= self.retries:
-                    raise LlmError(
-                        f"Cannot reach {self.id}: {exc.__class__.__name__}"
-                    ) from exc
-        if last is not None:
-            raise LlmError(f"Cannot reach {self.id}: {last.__class__.__name__}")
-        raise LlmError(f"{self.id} request failed")
+        try:
+            for attempt in range(self.retries + 1):
+                try:
+                    with httpx.Client(
+                        timeout=timeout or self.timeout,
+                        transport=self.transport,
+                    ) as client:
+                        response = client.post(
+                            f"{self.base_url}{path}", headers=headers, json=payload
+                        )
+                    if response.status_code < 500 or attempt >= self.retries:
+                        if response.status_code >= 500:
+                            circuit.failure(self.base_url)
+                        else:
+                            circuit.success(self.base_url)
+                        return response
+                except httpx.HTTPError as exc:
+                    last = exc
+                    if attempt >= self.retries:
+                        circuit.failure(self.base_url)
+                        raise LlmError(
+                            f"Cannot reach {self.id}: {exc.__class__.__name__}"
+                        ) from exc
+            if last is not None:
+                circuit.failure(self.base_url)
+                raise LlmError(
+                    f"Cannot reach {self.id}: {last.__class__.__name__}"
+                )
+            raise LlmError(f"{self.id} request failed")
+        except LlmError:
+            if last is None:
+                circuit.failure(self.base_url)
+            raise
 
 
-def _parse_json(content: str) -> dict[str, Any]:
-    text = content.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if len(lines) >= 3:
-            text = "\n".join(lines[1:-1]).strip()
-    parsed = json.loads(text)
-    if not isinstance(parsed, dict):
-        raise ValueError("expected a JSON object")
-    return parsed
+_parse_json = parse_json_object

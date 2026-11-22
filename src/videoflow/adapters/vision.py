@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 
+from videoflow.application.intelligence.providers.json_parse import parse_json_object
 from videoflow.domain.errors import LlmError
 
 
@@ -67,19 +68,9 @@ class OpenAIVisionClient:
             text = body["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError, ValueError) as exc:
             raise LlmError("Vision endpoint returned unusable JSON") from exc
-        return _parse_json(text if isinstance(text, str) else json.dumps(text))
+        try:
+            return parse_json_object(text if isinstance(text, str) else json.dumps(text))
+        except ValueError as exc:
+            raise LlmError("Vision model did not return JSON") from exc
 
-
-def _parse_json(content: str) -> dict[str, Any]:
-    text = content.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if len(lines) >= 3:
-            text = "\n".join(lines[1:-1]).strip()
-    try:
-        parsed = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise LlmError("Vision model did not return JSON") from exc
-    if not isinstance(parsed, dict):
-        raise LlmError("Vision model did not return an object")
-    return parsed
+_parse_json = parse_json_object

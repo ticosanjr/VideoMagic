@@ -6,12 +6,14 @@ Works with Ollama, LM Studio, Groq, Together, and any endpoint that exposes
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 import httpx
 
-from videoflow.application.cost import ensure_within_budget, record_usage
+from videoflow.application.intelligence.providers.json_parse import parse_json_object
+from videoflow.application.intelligence.providers.openai_compatible import (
+    OpenAICompatibleProvider,
+)
 from videoflow.domain.errors import LlmError
 
 SYSTEM_PROMPT = (
@@ -45,63 +47,26 @@ class OpenAICompatibleLlm:
         self.seed = seed
 
     def complete_json(self, prompt: str, schema_name: str) -> dict[str, Any]:
-        ensure_within_budget()
-        payload: dict[str, Any] = {
-            "model": self.model,
-            "temperature": self.temperature,
-            "stream": False,
-            "messages": [
-                {"role": "system", "content": f"{SYSTEM_PROMPT} schema={schema_name}"},
-                {"role": "user", "content": prompt},
-            ],
-            "response_format": {"type": "json_object"},
-        }
-        if self.max_tokens > 0:
-            payload["max_tokens"] = self.max_tokens
-        if self.seed is not None:
-            payload["seed"] = self.seed
-        response = self._post(payload)
-        for optional in ("response_format", "seed"):
-            if response.status_code != 400:
-                break
-            payload.pop(optional, None)
-            response = self._post(payload)
-        if response.status_code >= 400:
-            raise LlmError(
-                f"LLM endpoint returned HTTP {response.status_code}: {response.text[:200].strip()}"
-            )
-        try:
-            body = response.json()
-            record_usage(self.model, body.get("usage"))
-            content = body["choices"][0]["message"]["content"]
-            return _parse_json(content)
-        except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
-            raise LlmError("LLM endpoint returned unusable JSON") from exc
-
-    def _post(self, payload: dict[str, Any]) -> httpx.Response:
-        headers = {"Content-Type": "application/json"}
-        if self._api_key:
-            headers["Authorization"] = f"Bearer {self._api_key}"
-        last: Exception | None = None
-        for attempt in range(self.retries + 1):
-            try:
-                with httpx.Client(timeout=self.timeout, transport=self._transport) as client:
-                    response = client.post(
-                        f"{self.base_url}/chat/completions",
-                        headers=headers,
-                        json=payload,
-                    )
-                if response.status_code < 500 or attempt >= self.retries:
-                    return response
-            except httpx.HTTPError as exc:
-                last = exc
-                if attempt >= self.retries:
-                    raise LlmError(
-                        f"Cannot reach the LLM endpoint: {exc.__class__.__name__}"
-                    ) from exc
-        if last is not None:
-            raise LlmError(f"Cannot reach the LLM endpoint: {last.__class__.__name__}")
-        raise LlmError("LLM request failed")
+        provider = OpenAICompatibleProvider(
+            provider_id="llm",
+            base_url=self.base_url,
+            model=self.model,
+            api_key=self._api_key,
+            timeout=self.timeout,
+            retries=self.retries,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+            transport=self._transport,
+            seed=self.seed,
+            system_prompt=SYSTEM_PROMPT,
+        )
+        return provider.complete_json(
+            prompt,
+            schema_name,
+            timeout=self.timeout,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+        ).data
 
 
 class FallbackLlm:
@@ -121,13 +86,4 @@ class FallbackLlm:
         raise LlmError(str(last) if last is not None else "No LLM provider is configured")
 
 
-def _parse_json(content: str) -> dict[str, Any]:
-    text = content.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if len(lines) >= 3:
-            text = "\n".join(lines[1:-1]).strip()
-    parsed = json.loads(text)
-    if not isinstance(parsed, dict):
-        raise json.JSONDecodeError("expected an object", text, 0)
-    return parsed
+_parse_json = parse_json_object
