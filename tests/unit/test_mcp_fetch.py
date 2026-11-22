@@ -13,7 +13,7 @@ import httpx
 import pytest
 
 PACKAGES = Path(__file__).resolve().parents[2] / "packages"
-for package_source in (PACKAGES / "vf-contracts" / "src", PACKAGES / "mcp-fetch" / "src"):
+for package_source in (PACKAGES / "mcp-fetch" / "src",):
     if str(package_source) not in sys.path:
         sys.path.insert(0, str(package_source))
 
@@ -204,7 +204,7 @@ def test_repeated_request_reuses_cached_asset_without_network(
     key = json.loads(manifest_files[0].read_text(encoding="utf-8"))["idempotency_key"]
 
     monkeypatch.setenv("VF_WORKSPACE_ROOT", str(tmp_path))
-    contracts_src = PACKAGES / "vf-contracts" / "src"
+    contracts_src = PACKAGES / "vf-shared" / "src"
     if contracts_src.is_dir():
         from vf_shared.contracts.assets import find_cached
 

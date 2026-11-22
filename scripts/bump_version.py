@@ -56,9 +56,6 @@ def main() -> int:
         "mcp-audio",
         "mcp-fetch",
         "mcp-vision",
-        "scene-rules",
-        "vf-compute",
-        "vf-contracts",
         "vf-shared",
     )
     targets = [

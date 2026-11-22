@@ -4,16 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
 _PACKAGES = Path(__file__).resolve().parents[2] / "packages"
-for _package in ("vf-contracts", "vf-compute"):
-    _src = _PACKAGES / _package / "src"
-    if str(_src) not in sys.path:
-        sys.path.insert(0, str(_src))
-
 import httpx  # noqa: E402
 import pytest  # noqa: E402
 from vf_shared.compute.client import GPUWorkerClient, GPUWorkerError  # noqa: E402
