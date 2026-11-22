@@ -12,13 +12,13 @@ from pathlib import Path
 from typing import Any
 
 PROFILES: dict[str, list[str]] = {
-    "opencode": ["core", "fetch", "audio", "vision"],
+    "opencode": ["core"],
     "core": ["core"],
     "decupagem": ["core"],
-    "broll": ["core", "fetch"],
-    "audio": ["core", "audio"],
-    "vision": ["core", "vision"],
-    "full": ["core", "fetch", "audio", "vision"],
+    "broll": ["core"],
+    "audio": ["core"],
+    "vision": ["core"],
+    "full": ["core"],
 }
 
 _DOMAIN_PACKAGES = {

@@ -340,7 +340,13 @@ def _parser() -> argparse.ArgumentParser:
     restart.add_argument("--host", default="127.0.0.1")
     restart.add_argument("--port", type=int, default=8765)
     sub.add_parser("status", help="Show whether the local service is running.")
-    mcp = sub.add_parser("mcp", help="Run the core MCP server over stdio.")
+    mcp = sub.add_parser("mcp", help="Run the unified MCP server over stdio.")
+    mcp.add_argument(
+        "--profile",
+        choices=["core", "full"],
+        default="core",
+        help="Tool profile exposed by the unified server.",
+    )
     mcp.add_argument(
         "--no-prompts",
         action="store_true",

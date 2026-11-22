@@ -43,13 +43,13 @@ def test_bootstrap_creates_workspace_and_syncs_styles(tmp_path: Path) -> None:
 
     assert result.status == "ok"
     assert result.registered_root is True
-    assert result.mcp_servers == ["audio", "core", "fetch", "vision"]
+    assert result.mcp_servers == ["core"]
     assert result.launch_command == f'cd "{target}" && opencode'
     assert result.copied_styles
     assert len(result.copied_workflows) == 5
 
     config = json.loads((target / "opencode.json").read_text(encoding="utf-8"))
-    assert set(config["mcp"]["servers"]) == {"core", "fetch", "audio", "vision"}
+    assert set(config["mcp"]["servers"]) == {"core"}
     core = config["mcp"]["servers"]["core"]
     assert core["environment"]["VF_WORKSPACE_ROOT"] == str(target / "projects")
     assert "VIDEOWFLOW_HOME" not in core["environment"]
