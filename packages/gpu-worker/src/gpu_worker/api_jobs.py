@@ -15,7 +15,7 @@ from gpu_worker.api_common import MAX_JOB_INPUTS, _parse_range, _sha256_cached
 from gpu_worker.api_models import JobSubmission
 from gpu_worker.doctor import dependency_report
 from gpu_worker.gpu import detect_gpu
-from gpu_worker.handlers_gpu import probe_nvenc
+from gpu_worker.gpu_handlers import probe_nvenc
 from gpu_worker.security import (
     UnsafePathError,
     is_artifact_id,

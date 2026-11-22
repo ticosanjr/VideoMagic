@@ -467,6 +467,12 @@ class CapabilityUnavailableError(VideoFlowError):
         return payload
 
 
+class GpuWorkerOfflineError(VideoFlowError, RuntimeError):
+    """A remote-only operation cannot reach the Windows GPU worker."""
+
+    code = "gpu_worker_offline"
+
+
 class LlmError(VideoFlowError):
     """The OpenAI-compatible endpoint failed or returned unusable JSON."""
 

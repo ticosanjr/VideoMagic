@@ -129,7 +129,7 @@ def test_worker_scene_handler_returns_manifest_and_keyframe_zip(
     )
     if str(package_src) not in sys.path:
         sys.path.insert(0, str(package_src))
-    from gpu_worker.handlers_gpu import make_scene_analyze_handler
+    from gpu_worker.gpu_handlers import make_scene_analyze_handler
     from gpu_worker.settings import Settings
 
     handler = make_scene_analyze_handler(Settings(work_dir=tmp_path / "worker"))

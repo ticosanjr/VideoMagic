@@ -6,6 +6,8 @@ from typing import Any
 
 from vf_shared.compute import ComputeRouter
 
+from videoflow.domain.errors import GpuWorkerOfflineError
+
 
 def router_from_settings(settings: Any | None = None) -> ComputeRouter:
     """Build a router from persisted ``GpuSettings`` and the secret store."""
@@ -49,15 +51,25 @@ def guard_remote_policy(
 ) -> None:
     """Fail fast when the caller explicitly requires the GPU."""
 
-    if compute_policy != "remote" or allow_slow_cpu_fallback:
+    if compute_policy not in {"remote", "remote_only"} or allow_slow_cpu_fallback:
         return
     decision = router.decide(capability)
     if decision.is_remote:
         return
-    raise error_cls(
+    health_fn = getattr(router, "health", None)
+    available = True
+    if callable(health_fn):
+        try:
+            available = bool(health_fn().available)
+        except Exception:  # noqa: BLE001 - a failed probe is offline
+            available = False
+    message = (
         "gpu_required_for_operation: "
         f"{decision.reason}. Pass allow_slow_cpu_fallback=True to run on CPU."
     )
+    if not available:
+        raise GpuWorkerOfflineError(message)
+    raise error_cls(message)
 
 
 def compute_status(
@@ -92,6 +104,7 @@ def compute_status(
         "mode": resolved.mode,
         "worker_url": resolved.worker_url,
         "transport": getattr(resolved, "transport", "auto"),
+        "worker_source": getattr(resolved, "worker_source", "none"),
         "execution_node": resolved.execution_node,
         "available": health.available,
         "worker_id": health.worker_id,

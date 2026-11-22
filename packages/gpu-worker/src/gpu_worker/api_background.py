@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from gpu_worker.gpu import detect_gpu
-from gpu_worker.handlers_gpu import warmup_models
+from gpu_worker.gpu_handlers import warmup_models
 from gpu_worker.telemetry import rotate_log as _rotate_log
 
 

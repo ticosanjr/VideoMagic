@@ -17,7 +17,7 @@ from fastapi.responses import RedirectResponse
 from gpu_worker import __version__
 from gpu_worker.doctor import dependency_report
 from gpu_worker.gpu import detect_gpu
-from gpu_worker.handlers_gpu import probe_nvenc
+from gpu_worker.gpu_handlers import probe_nvenc
 from gpu_worker.http_auth import is_loopback_client as _is_loopback_client
 from gpu_worker.telemetry import current_job as _current_job
 from gpu_worker.telemetry import disk_free_mb as _disk_free_mb

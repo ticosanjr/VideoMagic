@@ -247,7 +247,7 @@ def build_default_registry(
 
     registry = HandlerRegistry()
     if settings.builtin_handlers:
-        from gpu_worker.handlers_gpu import register_builtin_handlers
+        from gpu_worker.gpu_handlers.registry import register_builtin_handlers
 
         register_builtin_handlers(registry, settings, models)
     from gpu_worker.gpu_handlers.selftest import make_selftest_handler

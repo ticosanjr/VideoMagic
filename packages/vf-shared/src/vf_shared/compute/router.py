@@ -51,6 +51,7 @@ class ComputeRouter(RouterHealthMixin, RouterExecuteMixin, RouterSubmitMixin):
         client: GPUWorkerClient | None = None,
         discovery_enabled: bool = True,
         discovery_timeout: float = _DEFAULT_DISCOVERY_TIMEOUT,
+        worker_source: str = "",
     ) -> None:
         normalized_mode = (mode or _DEFAULT_MODE).strip().lower()
         if normalized_mode not in COMPUTE_MODES:
@@ -84,6 +85,10 @@ class ComputeRouter(RouterHealthMixin, RouterExecuteMixin, RouterSubmitMixin):
         self.discovery_timeout = max(0.1, float(discovery_timeout))
         self._discovery_at = 0.0
         self._discovery_reason = ""
+        normalized_source = str(worker_source or "").strip().lower()
+        if normalized_source not in {"settings", "mdns", "env", "none"}:
+            normalized_source = "settings" if self.worker_url else "none"
+        self.worker_source = normalized_source
 
 
     @classmethod
@@ -109,6 +114,11 @@ class ComputeRouter(RouterHealthMixin, RouterExecuteMixin, RouterSubmitMixin):
             discovery_enabled=_env_bool("VF_GPU_DISCOVERY", True),
             discovery_timeout=_env_float(
                 "VF_GPU_DISCOVERY_TIMEOUT_SEC", _DEFAULT_DISCOVERY_TIMEOUT
+            ),
+            worker_source=(
+                "env"
+                if config.source == "env"
+                else ("settings" if config.worker_url else "none")
             ),
         )
 

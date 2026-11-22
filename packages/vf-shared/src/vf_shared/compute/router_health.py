@@ -5,6 +5,11 @@ from __future__ import annotations
 import time
 
 from vf_shared.compute.capabilities import vram_cost
+from vf_shared.compute.config import (
+    env_worker_url,
+    load_gpu_config,
+    load_gpu_config_file,
+)
 from vf_shared.compute.models import WorkerDecision, WorkerHealth
 
 from .router_common import _DISCOVERY_TTL, _local
@@ -22,6 +27,36 @@ class RouterHealthMixin:
 
         if self.mode == "local_only":
             return WorkerHealth(available=False, message="local_only mode")
+
+        # Re-read the paired worker on every preflight so a UI change takes
+        # effect without restarting the MCP server. Env stays an explicit
+        # override; otherwise ``gpu.json`` is the source of truth.
+        explicit_env = env_worker_url()
+        if explicit_env:
+            env_config = load_gpu_config()
+            desired_url = explicit_env
+            desired_token = env_config.token
+            desired_id = env_config.worker_id
+            desired_source = "env"
+        else:
+            file_config = load_gpu_config_file()
+            desired_url = file_config.worker_url
+            desired_token = file_config.token
+            desired_id = file_config.worker_id
+            desired_source = "settings"
+
+        if desired_url and desired_url != self.worker_url:
+            self.set_worker(desired_url, desired_token, worker_id=desired_id)
+            self.worker_source = desired_source
+        elif desired_url and desired_token and desired_token != self.token:
+            self.token = desired_token
+            if self._client is not None:
+                self._client.close()
+            self._client = None
+            self.invalidate()
+            self.worker_source = desired_source
+        elif desired_url:
+            self.worker_source = desired_source
 
         now = time.monotonic()
         if not force:
@@ -49,6 +84,7 @@ class RouterHealthMixin:
                     if peer.get("token"):
                         self.token = str(peer["token"])
                     self._worker_id = str(peer.get("worker_id") or "")
+                    self.worker_source = "mdns"
                     self._discovery_reason = "worker discovered on the LAN"
             if not self.worker_url and self._client is None:
                 health = WorkerHealth(
@@ -71,7 +107,6 @@ class RouterHealthMixin:
         self._health = health
         self._health_at = time.monotonic()
         return health
-
 
     def _remote_block_reason(
         self,
@@ -110,7 +145,6 @@ class RouterHealthMixin:
                 f"{self.max_gpu_utilization:.0f}%"
             )
         return None
-
 
     def decide(self, capability: str, required_vram_mb: int = 0) -> WorkerDecision:
         """Choose ``remote`` or ``local`` for one capability request."""

@@ -72,6 +72,12 @@ def _normalize_transport(value: str, default: str = "auto") -> str:
     return transport if transport in TRANSPORT_MODES else default
 
 
+def env_worker_url() -> str:
+    """Return only the explicit ``VF_GPU_WORKER_URL`` override, if set."""
+
+    return os.environ.get("VF_GPU_WORKER_URL", "").strip().rstrip("/")
+
+
 def load_gpu_config() -> GpuConfig:
     """Resolve GPU settings from env, then ``gpu.json``, then defaults."""
 
@@ -104,6 +110,23 @@ def load_gpu_config() -> GpuConfig:
         worker_id=worker_id,
         transport=transport,
         source=source,
+    )
+
+
+def load_gpu_config_file() -> GpuConfig:
+    """Read only ``gpu.json``, ignoring env overrides."""
+
+    path = config_path()
+    payload = _read_file(path)
+    if not payload:
+        return GpuConfig()
+    return GpuConfig(
+        mode=_normalize_mode(str(payload.get("mode") or "auto")),
+        worker_url=str(payload.get("worker_url") or "").strip().rstrip("/"),
+        token=str(payload.get("token") or "").strip(),
+        worker_id=str(payload.get("worker_id") or "").strip(),
+        transport=_normalize_transport(str(payload.get("transport") or "auto")),
+        source=str(path),
     )
 
 
@@ -148,8 +171,10 @@ __all__ = [
     "GpuConfig",
     "TRANSPORT_MODES",
     "clear_gpu_config",
+    "env_worker_url",
     "config_path",
     "load_gpu_config",
+    "load_gpu_config_file",
     "save_gpu_config",
     "videoflow_home",
 ]

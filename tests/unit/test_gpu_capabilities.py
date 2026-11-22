@@ -9,7 +9,7 @@ PACKAGE_SRC = Path(__file__).resolve().parents[2] / "packages" / "gpu-worker" / 
 if str(PACKAGE_SRC) not in sys.path:
     sys.path.insert(0, str(PACKAGE_SRC))
 
-from gpu_worker import handlers_gpu  # noqa: E402
+from gpu_worker import gpu_handlers  # noqa: E402
 from gpu_worker.capabilities import VRAM_COST_MB  # noqa: E402
 from gpu_worker.handlers import build_default_registry  # noqa: E402
 from gpu_worker.models import ModelRegistry  # noqa: E402
@@ -105,10 +105,10 @@ def test_asr_handler_writes_word_aligned_json(tmp_path: Path, monkeypatch) -> No
             return [Segment()], SimpleNamespace(language="pt", language_probability=0.98)
 
     key = ("large-v3-turbo", "cpu", "int8")
-    monkeypatch.setitem(handlers_gpu._ASR_MODELS, key, Model())
+    monkeypatch.setitem(gpu_handlers._ASR_MODELS, key, Model())
     audio = tmp_path / "audio.wav"
     audio.write_bytes(b"wav")
-    handler = handlers_gpu.make_asr_handler(
+    handler = gpu_handlers.make_asr_handler(
         Settings(
             work_dir=tmp_path / "worker",
             asr_model="large-v3-turbo",
@@ -143,10 +143,10 @@ def test_forced_align_handler_writes_alignment_json(tmp_path: Path, monkeypatch)
             return [Segment()], SimpleNamespace(language="pt", language_probability=0.98)
 
     key = ("large-v3-turbo", "cpu", "int8")
-    monkeypatch.setitem(handlers_gpu._ASR_MODELS, key, Model())
+    monkeypatch.setitem(gpu_handlers._ASR_MODELS, key, Model())
     audio = tmp_path / "audio.wav"
     audio.write_bytes(b"wav")
-    handler = handlers_gpu.make_forced_align_handler(
+    handler = gpu_handlers.make_forced_align_handler(
         Settings(
             work_dir=tmp_path / "worker",
             asr_model="large-v3-turbo",
@@ -184,7 +184,7 @@ def test_render_nvenc_handler_builds_nvenc_command(tmp_path: Path, monkeypatch) 
     ass.write_text("Style: Default", encoding="utf-8")
     font = tmp_path / "Inter.ttf"
     font.write_bytes(b"font")
-    handler = handlers_gpu.make_render_nvenc_handler(
+    handler = gpu_handlers.make_render_nvenc_handler(
         Settings(work_dir=tmp_path / "worker", builtin_handlers=True)
     )
     outputs = handler(
@@ -204,6 +204,7 @@ def test_render_nvenc_handler_builds_nvenc_command(tmp_path: Path, monkeypatch) 
     ass_token = next(token for token in command if "ass=" in token)
     assert "fontsdir=" in ass_token
     assert "scale=1080:1920" in " ".join(command)
+    assert "format=yuv420p" in " ".join(command)
 
 
 def test_nvenc_probe_is_cached(monkeypatch) -> None:
@@ -224,10 +225,10 @@ def test_nvenc_probe_is_cached(monkeypatch) -> None:
     from gpu_worker.gpu_handlers import common as handler_common
 
     monkeypatch.setattr(handler_common.subprocess, "run", fake_run)
-    handlers_gpu._NVENC_CACHE.clear()
-    handlers_gpu._NVENC_PROBES.clear()
-    assert handlers_gpu.nvenc_available("/fake/ffmpeg") is True
-    assert handlers_gpu.nvenc_available("/fake/ffmpeg") is True
+    gpu_handlers._NVENC_CACHE.clear()
+    gpu_handlers._NVENC_PROBES.clear()
+    assert gpu_handlers.nvenc_available("/fake/ffmpeg") is True
+    assert gpu_handlers.nvenc_available("/fake/ffmpeg") is True
     assert len(calls) == 2
     assert "h264_nvenc" in calls[1]
     assert "-pix_fmt" in calls[1]
@@ -252,8 +253,8 @@ def test_nvenc_probe_falls_back_from_invalid_options(monkeypatch) -> None:
     from gpu_worker.gpu_handlers import common as handler_common
 
     monkeypatch.setattr(handler_common.subprocess, "run", fake_run)
-    handlers_gpu._NVENC_PROBES.clear()
-    probe = handlers_gpu.probe_nvenc("/fake/ffmpeg")
+    gpu_handlers._NVENC_PROBES.clear()
+    probe = gpu_handlers.probe_nvenc("/fake/ffmpeg")
     assert probe.available is True
     assert probe.args == ("-preset", "p4", "-tune", "hq", "-rc", "constqp", "-qp", "23")
     assert len(calls) == 3
@@ -272,8 +273,8 @@ def test_nvenc_probe_reports_actionable_advice(monkeypatch) -> None:
     from gpu_worker.gpu_handlers import common as handler_common
 
     monkeypatch.setattr(handler_common.subprocess, "run", fake_run)
-    handlers_gpu._NVENC_PROBES.clear()
-    probe = handlers_gpu.probe_nvenc("/fake/ffmpeg")
+    gpu_handlers._NVENC_PROBES.clear()
+    probe = gpu_handlers.probe_nvenc("/fake/ffmpeg")
     assert probe.available is False
     assert "driver" in probe.advice.casefold()
 
@@ -305,10 +306,10 @@ def test_asr_retries_without_vad_when_onnx_is_broken(tmp_path: Path) -> None:
 
     model = Model()
     key = ("large-v3-turbo", "cpu", "int8")
-    handlers_gpu._ASR_MODELS[key] = model
+    gpu_handlers._ASR_MODELS[key] = model
     audio = tmp_path / "audio.wav"
     audio.write_bytes(b"wav")
-    handler = handlers_gpu.make_asr_handler(
+    handler = gpu_handlers.make_asr_handler(
         Settings(
             work_dir=tmp_path / "worker",
             asr_model="large-v3-turbo",

@@ -9,7 +9,7 @@ PACKAGE_SRC = Path(__file__).resolve().parents[2] / "packages" / "gpu-worker" / 
 if str(PACKAGE_SRC) not in sys.path:
     sys.path.insert(0, str(PACKAGE_SRC))
 
-from gpu_worker import handlers_gpu  # noqa: E402
+from gpu_worker import gpu_handlers  # noqa: E402
 from vf_shared.scene_rules import classify_layout, editing_hints, sample_times  # noqa: E402
 
 from videoflow.application.scene_intel import layout as local_layout  # noqa: E402
@@ -43,7 +43,7 @@ def test_local_and_worker_classification_match(
         height=height,
         topology=topology,
     )
-    worker = handlers_gpu._scene_layout(
+    worker = gpu_handlers._scene_layout(
         {
             "face_count": face_count,
             "face_area_ratio": face_area,
@@ -83,7 +83,7 @@ def test_editing_hints_and_sampling_match() -> None:
         "sharpness_laplacian": 20.0,
         "previous_layout": "SCREEN_SHARE_FULL",
     }
-    assert handlers_gpu._scene_hints(
+    assert gpu_handlers._scene_hints(
         kwargs["layout"],
         kwargs["duration_sec"],
         {
@@ -92,6 +92,6 @@ def test_editing_hints_and_sampling_match() -> None:
         },
         kwargs["previous_layout"],
     ) == editing_hints(**kwargs) == local_layout.editing_hints(**kwargs)
-    assert handlers_gpu._scene_sample_times(4.0, 10.0, max_frames=5) == sample_times(
+    assert gpu_handlers._scene_sample_times(4.0, 10.0, max_frames=5) == sample_times(
         4.0, 10.0, max_frames=5
     )

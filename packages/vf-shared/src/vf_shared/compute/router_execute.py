@@ -56,13 +56,19 @@ class RouterExecuteMixin:
                     "execution_node": decision.execution_node,
                     "fallback_reason": "",
                     "remote": True,
+                    "worker_source": self.worker_source,
                     "degraded": False,
                     "degraded_reason": "",
                     "elapsed_sec": round(elapsed, 4),
                     "execution": execution.to_dict(),
                 }
         else:
-            reason = decision.reason
+            health = self.health()
+            reason = (
+                "windows_gpu_offline_fallback_cpu"
+                if self.mode != "local_only" and not health.available
+                else decision.reason
+            )
         started = time.perf_counter()
         value = local_fn()
         elapsed = time.perf_counter() - started
@@ -83,6 +89,7 @@ class RouterExecuteMixin:
             "execution_node": "local",
             "fallback_reason": reason,
             "remote": False,
+            "worker_source": self.worker_source,
             "degraded": degraded,
             "degraded_reason": reason,
             "elapsed_sec": round(elapsed, 4),

@@ -42,6 +42,7 @@ def test_router_discovers_a_worker_when_no_url_is_configured(monkeypatch) -> Non
     health = router.health(force=True)
     assert health.available is True
     assert router.worker_url == "http://192.168.1.45:8766"
+    assert router.worker_source == "mdns"
     assert router.execution_node == "remote_gpu:worker-1"
 
 

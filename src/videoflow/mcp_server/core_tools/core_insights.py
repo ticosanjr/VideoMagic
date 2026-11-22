@@ -150,6 +150,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                 ),
                 "mode": router.mode,
                 "transport": getattr(router, "transport", "auto"),
+                "worker_source": getattr(router, "worker_source", "none"),
                 "worker_url": router.worker_url,
                 "health": health.model_dump(mode="json"),
                 "probe": probe,

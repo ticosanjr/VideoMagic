@@ -60,6 +60,9 @@ def make_render_nvenc_handler(settings: Settings) -> Handler:
             if fonts_dir is not None:
                 ass_filter += f":fontsdir='{_escape_filter_path(fonts_dir)}'"
             filters.append(ass_filter)
+        # NVENC only consumes 8-bit 4:2:0. This explicit format forces CPU
+        # decode/conversion for 10-bit 4:2:2 and HDR sources before encoding.
+        filters.append("format=yuv420p")
         if filters:
             command.extend(["-vf", ",".join(filters)])
         command.extend(

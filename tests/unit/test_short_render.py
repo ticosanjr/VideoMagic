@@ -238,7 +238,7 @@ def test_worker_short_render_executes_tokenised_commands(
     )
     if str(package_src) not in sys.path:
         sys.path.insert(0, str(package_src))
-    from gpu_worker import handlers_gpu
+    from gpu_worker import gpu_handlers
     from gpu_worker.gpu_handlers import render as render_handlers
     from gpu_worker.settings import Settings
 
@@ -267,7 +267,7 @@ def test_worker_short_render_executes_tokenised_commands(
         output.write_bytes(b"mp4")
 
     monkeypatch.setattr(render_handlers, "_run_in", fake_run)
-    handler = handlers_gpu.make_short_render_handler(
+    handler = gpu_handlers.make_short_render_handler(
         Settings(work_dir=tmp_path / "worker")
     )
     payload = commands.to_payload()

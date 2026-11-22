@@ -8,7 +8,9 @@ from vf_shared.compute.config import (
     GpuConfig,
     clear_gpu_config,
     config_path,
+    env_worker_url,
     load_gpu_config,
+    load_gpu_config_file,
     save_gpu_config,
 )
 from vf_shared.compute.discovery import (
@@ -34,7 +36,9 @@ __all__ = [
     "JobStatus",
     "clear_gpu_config",
     "config_path",
+    "env_worker_url",
     "load_gpu_config",
+    "load_gpu_config_file",
     "save_gpu_config",
     "VRAM_COST_MB",
     "WorkerDecision",
