@@ -1,5 +1,52 @@
 # Changelog
 
+## [4.0.0] - 2026-11-22
+
+Primeira release estável da arquitetura unificada.
+
+### Added — núcleo unificado
+
+- `videoflow.domains.media`, `.audio`, `.asr`, `.vision` e `.toolkit` substituem
+  os antigos pacotes satélites e os módulos monolíticos de `application/`.
+- Um único servidor MCP com **44 tools**: stock media, TTS/stems/mix, captions,
+  mattes, upscale, motion, captura web e B-roll agora vivem no core.
+- `vf_audio`, `vf_vision` e as novas ações de `vf_media`
+  (`fetch_stock_broll`, `rip_video_segment`, `fetch_sfx`).
+- `packages/mcp-fetch`, `packages/mcp-audio` e `packages/mcp-vision` foram
+  removidos, junto com os subcomandos `videoflow mcp-*`.
+- `vf-shared` absorveu `vf-compute`, `vf-contracts` e `scene-rules`; nenhum
+  módulo refatorado passa de 400 linhas.
+- `state.json` leve com sidecars SHA-256; `media_contract` 4.0 com validação de
+  áudio, alfa, CFR e duração.
+
+### Added — GPU worker e compute
+
+- Descoberta LAN do worker (UDP + mDNS + scan TCP) sem reiniciar o processo.
+- ASR remoto sobrevive a `onnxruntime` incompleto, com retry sem VAD.
+- Doctor profundo do worker, comando `gpu_worker.repair` e reparo no Start do
+  kit Windows.
+- `GPUWorkerClient` e `ComputeRouter` fatiados em módulos pequenos; transporte
+  compartilhado, retomada de upload e `download_all`.
+
+### Fixed — decupagem, áudio e export
+
+- `assert_audio_duration` no master e preservação de artefatos em
+  `exports/_failed/<timestamp>/` com `ffprobe.json`.
+- Loudness canônico `-15.5 ± 1.5 LUFS` e piso de pads da decupagem
+  (110 ms antes / 190 ms depois) sem invadir cortes ou ruído.
+- `second_pass` sobre o fluxo de palavras editado e centralização de áudio
+  unilateral.
+- FCPXML marca a lane de quarentena como **V2/A2**.
+- Caches de entrega migrados para `pipeline_schema_version = "4.0"`.
+
+### Known limitations
+
+- O hardening completo do worker Windows/UI (1.6b: Job Objects, VRAM guard,
+  SMB atômico e painel de benchmark) segue no backlog; o worker atual mantém as
+  proteções já documentadas em `docs/gpu-worker.md`.
+- O E2E de UI com Playwright e os fixtures de 90 s/7 min não fazem parte desta
+  validação de release.
+
 ## [3.18.0] - 2026-11-22
 
 ### Added — arquitetura v4.0 (alpha)
