@@ -79,7 +79,7 @@ updated_at: "2026-11-16T21:00:00Z"
 
 ## Mapping to recipes
 
-`rulebook_from_style()` derives the existing `PresetRulebook`/`channel_kit`
+`rulebook_from_style()` derives the existing `PresetRulebook`/brand kit
 used by recipes:
 
 | Style field | Applied to |
@@ -90,7 +90,7 @@ used by recipes:
 | `caption_preset` | `captions.plan`, `shorts.captions` |
 | `motion_engine` | `motion.render` |
 | `export_targets` | `export.nle`, `delivery.package` |
-| `palette` / `fonts` | `channel_kit` and legacy `style` preset |
+| `palette` / `fonts` | brand kit and legacy `style` preset |
 
 ## Interfaces
 

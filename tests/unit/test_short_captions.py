@@ -253,3 +253,14 @@ def test_ass_time_carries_across_minutes() -> None:
 
     assert _ass_time(59.999) == "0:01:00.00"
     assert _ass_time(3599.999) == "1:00:00.00"
+
+
+def test_short_captions_module_is_a_thin_shim() -> None:
+    from pathlib import Path as _Path
+
+    from videoflow.steps import short_captions, shorts_captions
+
+    assert short_captions.ShortCaptionsStep is shorts_captions.ShortCaptionsStep
+    assert short_captions.ShortCaptionsParams is shorts_captions.ShortCaptionsParams
+    source = _Path(short_captions.__file__).read_text(encoding="utf-8")
+    assert len(source.splitlines()) < 20

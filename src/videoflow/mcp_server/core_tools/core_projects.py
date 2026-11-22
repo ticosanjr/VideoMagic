@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from videoflow.application.channel_kit import channel_kit_ids, is_channel_kit
+from videoflow.application.brand_kit import channel_kit_ids, is_channel_kit
 from videoflow.application.hilt import list_requests, load_response, public_payload
 from videoflow.application.projects import get_project, list_projects
 from videoflow.domain.errors import VideoFlowError

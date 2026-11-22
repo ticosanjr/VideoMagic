@@ -342,7 +342,7 @@ def test_short_render_remote_only_requires_worker(tmp_path: Path, monkeypatch) -
     from videoflow import application as application_module
     from videoflow.domain.errors import IngestError
     from videoflow.mcp_server.context import error  # noqa: F401 - import order
-    from videoflow.steps import short_render as step_module
+    from videoflow.steps import shorts_render as step_module
 
     context, _plan = _render_context(tmp_path)
 
@@ -367,7 +367,7 @@ def test_short_render_remote_success_records_placement(
     from types import SimpleNamespace
 
     from videoflow import application as application_module
-    from videoflow.steps import short_render as step_module
+    from videoflow.steps import shorts_render as step_module
     from videoflow.steps.base import StepIO
 
     context, _plan = _render_context(tmp_path)
@@ -469,3 +469,14 @@ def test_segment_cache_reuses_micro_clips(tmp_path: Path) -> None:
     assert first.calls == len(commands.segments) + 1
     assert second.calls == 1  # only the final concat/encode
     assert len(list(cache.glob("*.mp4"))) == len(commands.segments)
+
+
+def test_short_render_module_is_a_thin_shim() -> None:
+    from pathlib import Path as _Path
+
+    from videoflow.steps import short_render, shorts_render
+
+    assert short_render.ShortRenderStep is shorts_render.ShortRenderStep
+    assert short_render.ShortRenderParams is shorts_render.ShortRenderParams
+    source = _Path(short_render.__file__).read_text(encoding="utf-8")
+    assert len(source.splitlines()) < 20

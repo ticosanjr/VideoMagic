@@ -355,3 +355,35 @@ def test_style_duplicate_and_restore_seed(tmp_path: Path) -> None:
     restored = style_service.restore_style("canal-rafael-tech", catalog=catalog)
     assert restored["ok"] is True
     assert (tmp_path / "styles" / "canal-rafael-tech.md").is_file()
+
+
+def test_twenty_two_styles_come_from_the_seed_directory(tmp_path) -> None:
+    from videoflow.application.style_catalog import StyleCatalog, seed_styles_dir
+
+    catalog = StyleCatalog(root=tmp_path / "user-styles")
+    styles = catalog.list_styles()
+    assert len(styles) == 22
+    assert len(list(seed_styles_dir().glob("*.md"))) == 22
+
+
+def test_packaging_bundles_the_seed_styles() -> None:
+    from pathlib import Path as _Path
+
+    root = _Path(__file__).resolve().parents[2]
+    spec = (root / "packaging" / "videoflow.spec").read_text(encoding="utf-8")
+    assert '"styles"), "videoflow/styles"' in spec
+
+
+def test_vf_style_list_exposes_all_seed_styles() -> None:
+    import asyncio
+
+    from videoflow.mcp_server.server import build_server
+
+    async def call() -> dict:
+        server = build_server(profile="full")
+        result = await server.call_tool("vf_style", {"action": "list"})
+        return result.structured_content  # type: ignore[attr-defined]
+
+    payload = asyncio.run(call())
+    assert payload["ok"] is True
+    assert len(payload["styles"]) == 22

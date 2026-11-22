@@ -81,7 +81,7 @@ def test_legacy_rulebook_migrates_and_similar_rules_merge(tmp_path: Path, monkey
 
 
 def test_channel_kit_mutates_recipe() -> None:
-    from videoflow.application.channel_kit import apply_channel_kit
+    from videoflow.application.brand_kit import apply_channel_kit
     from videoflow.core.recipe import parse_recipe
     from videoflow.domain.headless import ChannelKit, PresetHardConstraints, PresetRulebook
 
@@ -142,7 +142,7 @@ def test_channel_kit_mutates_recipe() -> None:
 
 
 def test_channel_kit_ignores_unknown_step_metadata() -> None:
-    from videoflow.application.channel_kit import apply_channel_kit
+    from videoflow.application.brand_kit import apply_channel_kit
     from videoflow.core.recipe import parse_recipe
     from videoflow.domain.headless import ChannelKit, PresetRulebook
 
@@ -181,7 +181,7 @@ def test_channel_kit_ignores_unknown_step_metadata() -> None:
 
 
 def test_merge_defaults_accepts_list_and_dict_overrides() -> None:
-    from videoflow.application.channel_kit import _merge_defaults
+    from videoflow.application.brand_kit import _merge_defaults
 
     params = {"targets": [], "safe_zones": {}, "enabled": False, "count": 0}
     defaults = {
@@ -200,7 +200,7 @@ def test_merge_defaults_accepts_list_and_dict_overrides() -> None:
 
 
 def test_channel_kit_ids_and_style_rejection() -> None:
-    from videoflow.application.channel_kit import channel_kit_ids, is_channel_kit
+    from videoflow.application.brand_kit import channel_kit_ids, is_channel_kit
 
     ids = channel_kit_ids()
     assert "youtube-talking-head" in ids
@@ -208,3 +208,18 @@ def test_channel_kit_ids_and_style_rejection() -> None:
     assert "shorts-aggressive" in ids
     assert is_channel_kit("youtube-talking-head") is True
     assert is_channel_kit("canal-paula-long") is False
+
+
+def test_channel_kit_module_was_absorbed_by_brand_kit() -> None:
+    import importlib.util
+
+    assert importlib.util.find_spec("videoflow.application.channel_kit") is None
+    from videoflow.application.brand_kit import (
+        apply_channel_kit,
+        channel_kit_ids,
+        is_channel_kit,
+    )
+
+    assert callable(apply_channel_kit)
+    assert channel_kit_ids()
+    assert is_channel_kit("youtube-talking-head") is True
