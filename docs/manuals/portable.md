@@ -355,7 +355,7 @@ static libstdc++/libgcc and OpenMP disabled, so it only needs glibc too.
 
 ### Whisper bundling and licensing
 
-`--with-whisper` runs `scripts/fetch_whisper.py`:
+`--with-whisper` downloads or builds whisper.cpp inline:
 
 - Linux: downloads whisper.cpp v1.7.6 source, builds a static `whisper-cli`, and
   copies it to `vendor/whisper/`.

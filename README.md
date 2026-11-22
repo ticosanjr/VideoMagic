@@ -53,9 +53,9 @@ connections, the GPU worker, and runtime settings. See [docs/mcp.md](docs/mcp.md
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 1,723 passing, 1 strict xfail, 18 deselected
+uv run pytest                       # 2,992 passing, 1 skipped, 1 xfailed
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
-uv run python scripts/fetch_whisper.py         # optional GGML model into vendor/
+uv run python scripts/build_portable.py --with-whisper  # optional whisper.cpp + GGML model
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model
 uv run python scripts/fetch_faster_whisper.py  # pinned 484 MB Faster-Whisper model
 uv run videoflow-api                # http://127.0.0.1:8765/health and /mcp

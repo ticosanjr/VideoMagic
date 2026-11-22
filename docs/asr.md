@@ -36,7 +36,7 @@ Build whisper.cpp with Vulkan when `glslc` is available:
 ```bash
 PATH=/path/to/glslc:$PATH \
 LD_LIBRARY_PATH=/path/to/libshaderc:$LD_LIBRARY_PATH \
-uv run python scripts/fetch_whisper.py --vulkan --refresh
+uv run python scripts/build_portable.py --with-whisper --whisper-vulkan --refresh-whisper
 ```
 
 `scripts/build_portable.py --with-whisper --whisper-vulkan` includes the

@@ -11,22 +11,13 @@ The 3.3.0 delivery path changes four things at once:
 
 ## How to measure
 
-```bash
-uv run python scripts/acceptance_3_3.py \
-  --bench-seconds 660 \
-  --segments 11 \
-  --json-out docs/qa-evidence/3.3.0-acceptance.json
-```
-
-`--bench-seconds` controls the synthetic source length. `--segments` splits the
-timeline so the segmented renderer and its group cache are exercised. For a
-quick sanity check:
+O harness de aceitação 3.3 foi removido na v4.2. Use o gate atual:
 
 ```bash
-uv run python scripts/acceptance_3_3.py --bench-seconds 60 --segments 11
+uv run python scripts/e2e_micro_gate.py --help
 ```
 
-The script generates a 1920×1080 `testsrc2` source with a 440 Hz tone, exports
+The historical harness generated a 1920×1080 `testsrc2` source with a 440 Hz tone, exports
 with `fps=30`, `preset=veryfast`, and reports:
 
 - source seconds;

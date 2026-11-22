@@ -5,7 +5,7 @@ before physical GPU certification.
 
 ## Self-test
 
-> Histórico: o script `scripts/decupage_benchmark.py` foi removido na v4.2.
+> Histórico: o harness de benchmark foi removido na v4.2.
 > O comportamento determinístico agora é coberto pelos testes abaixo.
 
 ```bash
