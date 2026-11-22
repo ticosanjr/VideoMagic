@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from videoflow.application.asset_store import list_files, save_file
 from videoflow.domain.errors import AssetNotFoundError
+from videoflow.domains.media.asset_store import list_files, save_file
 from videoflow.runtime import portable_home
 
 MAX_MUSIC_BYTES = 100 * 1024 * 1024

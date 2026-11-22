@@ -8,7 +8,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from videoflow.application.broll_approval import load_approvals
 from videoflow.application.caption_presets import apply_preset
 from videoflow.application.fonts import fonts_dir
 from videoflow.application.shorts import (
@@ -20,6 +19,7 @@ from videoflow.application.shorts import (
 )
 from videoflow.core.context import PipelineContext
 from videoflow.domain.config import CaptionStyle
+from videoflow.domains.media.broll_approval import load_approvals
 from videoflow.exporters.common import write_text
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import adapter_for, digest_payload, require_media

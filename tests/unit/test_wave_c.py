@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from videoflow.application import analysis_cache, disk, media_pool
+from videoflow.application import analysis_cache, disk
 from videoflow.application.beatmap_plan import build_beatmap_plan
 from videoflow.application.masks import ensure_rounded_mask, mask_root
 from videoflow.application.overlays import add_overlay
@@ -29,6 +29,7 @@ from videoflow.domain.state import (
     VideoSegment,
 )
 from videoflow.domain.styles import StyleDefinition
+from videoflow.domains.media import pool as media_pool
 
 
 def _media(tmp_path: Path) -> MediaInfo:
@@ -617,7 +618,8 @@ def test_adapter_helpers_and_filter_edges(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_pool_missing_source_and_qa_loudness_error(tmp_path: Path, monkeypatch) -> None:
-    from videoflow.application import media_pool, qa_final
+    from videoflow.application import qa_final
+    from videoflow.domains.media import pool as media_pool
 
     missing = tmp_path / "missing.wav"
     assert media_pool.pool_file(missing) == missing

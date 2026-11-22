@@ -6,7 +6,6 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from videoflow.application.media_pool import pool_file
 from videoflow.application.sync import detect_drift_ms
 from videoflow.core.context import PipelineContext
 from videoflow.core.media_contract import (
@@ -16,6 +15,7 @@ from videoflow.core.media_contract import (
 )
 from videoflow.domain.errors import MediaNotFoundError
 from videoflow.domain.paths import resolve_allowed
+from videoflow.domains.media.pool import pool_file
 from videoflow.runtime import allowed_roots
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import adapter_for

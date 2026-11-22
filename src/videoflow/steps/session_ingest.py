@@ -11,11 +11,11 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from videoflow.application.media_pool import pool_file
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import IngestError
 from videoflow.domain.paths import resolve_allowed
 from videoflow.domain.state import AudioSegment, MediaInfo, ProjectState, VideoSegment
+from videoflow.domains.media.pool import pool_file
 from videoflow.runtime import allowed_roots
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import adapter_for, digest_payload

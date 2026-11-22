@@ -1292,7 +1292,7 @@ def test_broll_local_provider_plans_deduped_assets(tmp_path: Path) -> None:
 def test_broll_downloads_urls_and_records_failures(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from videoflow.application.broll_providers import BrollAsset
+    from videoflow.domains.media.broll_providers import BrollAsset
     from videoflow.steps.broll import BrollParams, BrollStep
 
     class FakeProvider:

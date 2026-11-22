@@ -10,18 +10,18 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from videoflow.application.asset_providers import (
-    AssetCandidate,
-    read_ledger,
-    write_ledger_from_payload,
-)
-from videoflow.application.assets import scan_directory
 from videoflow.application.image_gen import generate_image as generate_openai_image
 from videoflow.application.images import images_dir, save_image
 from videoflow.application.intelligence import IntelligenceError, build_intelligence
 from videoflow.application.secrets import get_secret
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import IngestError
+from videoflow.domains.media import (
+    AssetCandidate,
+    read_ledger,
+    write_ledger_from_payload,
+)
+from videoflow.domains.media.assets import scan_directory
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.registry import register_step
 

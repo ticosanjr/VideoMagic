@@ -16,7 +16,6 @@ from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from videoflow.application.asset_providers import license_blockers
 from videoflow.application.captions import CaptionLine, build_ass_lines
 from videoflow.application.time_map import refresh_time_map, source_range_to_timeline
 from videoflow.domain.state import (
@@ -28,6 +27,7 @@ from videoflow.domain.state import (
     VideoSegment,
 )
 from videoflow.domain.timebase import Rounding
+from videoflow.domains.media import license_blockers
 
 
 class BeatmapCut(BaseModel):

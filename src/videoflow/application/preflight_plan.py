@@ -7,9 +7,9 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from videoflow.application.asset_providers import license_blockers
 from videoflow.application.compute import compute_status
 from videoflow.application.projects import get_project, load_project_state
+from videoflow.domains.media import license_blockers
 
 KNOWN_FIELDS: dict[str, set[str]] = {
     "export": {

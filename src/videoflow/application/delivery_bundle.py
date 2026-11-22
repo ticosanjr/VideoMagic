@@ -15,7 +15,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from videoflow.application.asset_providers import license_blockers
 from videoflow.application.disk import (
     ensure_free_space_for_export,
     prune_render_segments,
@@ -31,6 +30,7 @@ from videoflow.application.subtitles import resolve_subtitle_track
 from videoflow.domain.errors import ExportError
 from videoflow.domain.state import ProjectState
 from videoflow.domain.timebase import Rounding
+from videoflow.domains.media import license_blockers
 from videoflow.exporters.common import timeline_duration_frames, timeline_duration_samples
 from videoflow.exporters.extras import NleExtras
 from videoflow.exporters.fcpxml import Dialect

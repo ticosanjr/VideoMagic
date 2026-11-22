@@ -10,7 +10,6 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
-from videoflow.application.asset_providers import license_blockers
 from videoflow.application.export_names import (
     fixed_basename,
     timestamped_basename,
@@ -20,6 +19,7 @@ from videoflow.application.export_service import export_timeline
 from videoflow.application.nle_extras import nle_extras_from_output
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import ExportError, StateNotReadyError
+from videoflow.domains.media import license_blockers
 from videoflow.exporters.fcpxml import Dialect
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload

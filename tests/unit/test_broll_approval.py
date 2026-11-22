@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from videoflow.application import broll_approval
 from videoflow.domain.errors import StateNotReadyError
+from videoflow.domains.media import broll_approval
 
 PLAN = {
     "Opening": [

@@ -10,8 +10,8 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.application import embeddings
-from videoflow.application.assets import list_assets
 from videoflow.core.context import PipelineContext
+from videoflow.domains.media.assets import list_assets
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.registry import register_step
 

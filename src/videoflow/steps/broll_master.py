@@ -8,9 +8,9 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from videoflow.application.assets import list_assets
-from videoflow.application.broll_providers import LocalBrollProvider
 from videoflow.core.context import PipelineContext
+from videoflow.domains.media.assets import list_assets
+from videoflow.domains.media.broll_providers import LocalBrollProvider
 from videoflow.steps.assets_intel import _tfidf_scores
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload

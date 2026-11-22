@@ -8,6 +8,7 @@ REFACTORED = (
     "src/videoflow/core/media_contract",
     "src/videoflow/mcp",
     "src/videoflow/api/routes_outputs",
+    "src/videoflow/domains/media",
     "packages/vf-shared/src/vf_shared",
 )
 

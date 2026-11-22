@@ -15,12 +15,6 @@ from pydantic import BaseModel, Field, model_validator
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.api.errors import status_for
-from videoflow.application.broll_approval import (
-    load_approvals,
-    redo_approval,
-    save_approval,
-    undo_approval,
-)
 from videoflow.application.caption_ai import apply_llm_emoji
 from videoflow.application.clock import now_iso
 from videoflow.application.deliverables import (
@@ -70,4 +64,10 @@ from videoflow.domain.errors import (
 )
 from videoflow.domain.paths import resolve_allowed
 from videoflow.domain.state import ProjectState
+from videoflow.domains.media.broll_approval import (
+    load_approvals,
+    redo_approval,
+    save_approval,
+    undo_approval,
+)
 from videoflow.runtime import allowed_roots

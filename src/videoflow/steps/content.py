@@ -145,7 +145,7 @@ class AssetIndexStep(BaseStep):
         if not options.asset_dir:
             io.report(100, "Asset indexing skipped")
             return
-        from videoflow.application.assets import scan_directory
+        from videoflow.domains.media.assets import scan_directory
 
         records = scan_directory(Path(options.asset_dir), tags=options.tags)
         target = context.output / "assets-index.json"

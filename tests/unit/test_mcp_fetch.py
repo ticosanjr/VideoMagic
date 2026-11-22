@@ -17,12 +17,13 @@ for package_source in (PACKAGES / "vf-contracts" / "src", PACKAGES / "mcp-fetch"
     if str(package_source) not in sys.path:
         sys.path.insert(0, str(package_source))
 
-from mcp_fetch import providers  # noqa: E402
 from mcp_fetch.errors import (  # noqa: E402
     ProviderUnavailableError,
     UrlNotAllowedError,
 )
 from mcp_fetch.server import FetchService, build_server  # noqa: E402
+
+from videoflow.domains.media import providers  # noqa: E402
 
 PEXELS_VIDEO = {
     "videos": [
@@ -236,7 +237,7 @@ def test_rip_video_segment_builds_yt_dlp_command_without_shell(
         (destination / "clip.mp4").write_bytes(b"segment")
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr(providers.subprocess, "run", fake_run)
+    monkeypatch.setattr(providers.video.subprocess, "run", fake_run)
     service = FetchService(workspace_root=tmp_path, env={})
 
     result = service.rip_video_segment(
@@ -290,8 +291,8 @@ def test_rip_video_segment_rejects_non_http_and_disallowed_hosts(
         called = True
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr(providers.shutil, "which", lambda _binary: "/usr/bin/yt-dlp")
-    monkeypatch.setattr(providers.subprocess, "run", fake_run)
+    monkeypatch.setattr(providers.video.shutil, "which", lambda _binary: "/usr/bin/yt-dlp")
+    monkeypatch.setattr(providers.video.subprocess, "run", fake_run)
 
     with pytest.raises(UrlNotAllowedError):
         FetchService(workspace_root=tmp_path, env={}).rip_video_segment(

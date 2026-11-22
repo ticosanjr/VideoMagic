@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from videoflow.application.asset_providers.models import AssetCandidate
 from videoflow.core.context import PipelineContext
+from videoflow.domains.media.models import AssetCandidate
 from videoflow.steps import assets_pipeline
 from videoflow.steps.assets_pipeline import (
     AssetsAssignStep,

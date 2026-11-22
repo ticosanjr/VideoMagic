@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from videoflow.application.asset_providers.ledger import license_blockers
-from videoflow.application.assets_service import asset_records, review_assets
 from videoflow.domain.state import MediaInfo, OverlayClip, ProjectState
+from videoflow.domains.media.assets_service import asset_records, review_assets
+from videoflow.domains.media.ledger import license_blockers
 
 
 def _project(tmp_path: Path) -> tuple[Path, ProjectState, Path, Path]:
@@ -133,7 +133,7 @@ def test_asset_list_and_approve_and_quarantine(tmp_path: Path) -> None:
 def test_asset_records_merges_workspace_and_skips_bad_entries(
     tmp_path: Path, monkeypatch
 ) -> None:
-    from videoflow.application import assets_service as service
+    from videoflow.domains.media import assets_service as service
 
     output, state, _used, _unused = _project(tmp_path)
     (output / "assets" / "licenses.json").unlink()
@@ -156,7 +156,7 @@ def test_asset_records_merges_workspace_and_skips_bad_entries(
 def test_approve_workspace_only_asset_persists_ledger(
     tmp_path: Path, monkeypatch
 ) -> None:
-    from videoflow.application import assets_service as service
+    from videoflow.domains.media import assets_service as service
 
     output, _state, _used, _unused = _project(tmp_path)
     (output / "assets" / "licenses.json").unlink()
@@ -199,8 +199,8 @@ def test_asset_records_tolerates_bad_ledger_and_workspace(
     import pytest
     import vf_shared.contracts.assets as contract_assets
 
-    from videoflow.application import assets_service as service
     from videoflow.domain.errors import AssetNotFoundError
+    from videoflow.domains.media import assets_service as service
 
     output = tmp_path / "out"
     output.mkdir()

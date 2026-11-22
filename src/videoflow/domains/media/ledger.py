@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from videoflow.application.asset_providers.models import AssetCandidate
+from videoflow.domains.media.models import AssetCandidate
 
 
 def _expired(value: object) -> bool:

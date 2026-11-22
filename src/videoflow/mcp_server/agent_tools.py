@@ -447,9 +447,9 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
     def vf_validate_exports(project_id: str, job_id: str = "") -> dict[str, Any]:
         """Cross-validate FCPXML, XMEML, and Kdenlive against the timeline."""
 
-        from videoflow.application.asset_providers import license_blockers
         from videoflow.application.delivery_bundle import blocked_paths, timeline_frames
         from videoflow.application.nle_validation import validate_nle_exports
+        from videoflow.domains.media import license_blockers
 
         try:
             record = _record(project_id)

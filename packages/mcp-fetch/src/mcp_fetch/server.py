@@ -16,16 +16,7 @@ from typing import Any, Self
 
 import httpx
 from mcp.server import MCPServer
-
-from .contracts import Asset, Workspace
-from .errors import (
-    DownloadError,
-    InvalidRequestError,
-    McpFetchError,
-    ProviderResponseError,
-    ProviderUnavailableError,
-)
-from .providers import (
+from videoflow.domains.media.providers import (
     GalleryDLClient,
     LocalAsset,
     OpenverseClient,
@@ -40,6 +31,15 @@ from .providers import (
     safe_filename,
     utc_now,
     validate_external_url,
+)
+
+from .contracts import Asset, Workspace
+from .errors import (
+    DownloadError,
+    InvalidRequestError,
+    McpFetchError,
+    ProviderResponseError,
+    ProviderUnavailableError,
 )
 
 SERVER_NAME = "VideoFlow Fetch"

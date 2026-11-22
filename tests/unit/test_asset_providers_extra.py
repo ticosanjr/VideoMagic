@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
-from videoflow.application.asset_providers import search_assets
 from videoflow.application.settings import AppSettings
+from videoflow.domains.media import search_assets
 
 
 class Response:
@@ -61,7 +61,7 @@ def test_pixabay_video_and_image(monkeypatch) -> None:
         },
     }
     monkeypatch.setattr(
-        "videoflow.application.asset_providers.search.httpx.get", _fake_get(routes)
+        "videoflow.domains.media.search_stock.httpx.get", _fake_get(routes)
     )
     results = search_assets(
         "evidence",
@@ -111,7 +111,7 @@ def test_openverse_and_wikimedia(monkeypatch) -> None:
         },
     }
     monkeypatch.setattr(
-        "videoflow.application.asset_providers.search.httpx.get", _fake_get(routes)
+        "videoflow.domains.media.search_keyless.httpx.get", _fake_get(routes)
     )
     results = search_assets(
         "document",
@@ -144,7 +144,7 @@ def test_internet_archive_metadata(monkeypatch) -> None:
         },
     }
     monkeypatch.setattr(
-        "videoflow.application.asset_providers.search.httpx.get", _fake_get(routes)
+        "videoflow.domains.media.search_keyless.httpx.get", _fake_get(routes)
     )
     results = search_assets(
         "archive",
@@ -160,10 +160,10 @@ def test_internet_archive_metadata(monkeypatch) -> None:
 
 def test_youtube_search(monkeypatch) -> None:
     monkeypatch.setattr(
-        "videoflow.application.asset_providers.search.find_binary", lambda name: "/bin/yt-dlp"
+        "videoflow.domains.media.search_keyless.find_binary", lambda name: "/bin/yt-dlp"
     )
     monkeypatch.setattr(
-        "videoflow.application.asset_providers.search.subprocess.run",
+        "videoflow.domains.media.search_keyless.subprocess.run",
         lambda *args, **kwargs: SimpleNamespace(
             returncode=0,
             stdout="abc\tEvidence clip\t600\tCreator\n",
@@ -186,8 +186,8 @@ def test_youtube_search(monkeypatch) -> None:
 def test_missing_keys_and_http_errors(monkeypatch) -> None:
     import pytest
 
-    from videoflow.application.asset_providers import search
     from videoflow.domain.errors import CapabilityUnavailableError, SearchError
+    from videoflow.domains.media import search, search_keyless, search_stock
 
     monkeypatch.delenv("PEXELS_API_KEY", raising=False)
     monkeypatch.delenv("PIXABAY_API_KEY", raising=False)
@@ -211,11 +211,10 @@ def test_missing_keys_and_http_errors(monkeypatch) -> None:
         )
 
     monkeypatch.setenv("PEXELS_API_KEY", "key")
-    monkeypatch.setattr(
-        search.httpx,
-        "get",
-        lambda *args, **kwargs: Response({}, 500),
-    )
+    def fake_get(*args, **kwargs):
+        return Response({}, 500)
+    monkeypatch.setattr(search_stock.httpx, "get", fake_get)
+    monkeypatch.setattr(search_keyless.httpx, "get", fake_get)
     with pytest.raises(SearchError, match="Pexels video"):
         search._pexels(
             "x",
@@ -297,7 +296,7 @@ def test_openverse_wikimedia_and_archive_skip_bad_items(monkeypatch) -> None:
         return Response({}, 404)
 
     monkeypatch.setattr(
-        "videoflow.application.asset_providers.search.httpx.get", get
+        "videoflow.domains.media.search_keyless.httpx.get", get
     )
     openverse = search_assets(
         "x",
@@ -331,7 +330,7 @@ def test_openverse_wikimedia_and_archive_skip_bad_items(monkeypatch) -> None:
     assert archive == []
 
     monkeypatch.setattr(
-        "videoflow.application.asset_providers.search.httpx.get",
+        "videoflow.domains.media.search_keyless.httpx.get",
         lambda *args, **kwargs: Response({"results": []}, 500),
     )
     assert (
@@ -358,8 +357,8 @@ def test_openverse_wikimedia_and_archive_skip_bad_items(monkeypatch) -> None:
 def test_youtube_failures_and_aggregate_errors(monkeypatch) -> None:
     import pytest
 
-    from videoflow.application.asset_providers import search
     from videoflow.domain.errors import CapabilityUnavailableError, SearchError
+    from videoflow.domains.media import search_keyless as search
 
     assert (
         search._youtube(

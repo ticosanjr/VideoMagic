@@ -49,7 +49,7 @@ def _context(tmp_path: Path) -> PipelineContext:
 def test_discover_harvest_audit_and_assign(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
     context = _context(tmp_path)
-    from videoflow.application.asset_providers import AssetCandidate
+    from videoflow.domains.media import AssetCandidate
 
     candidate = AssetCandidate(
         asset_id="wikimedia-1",
@@ -102,9 +102,9 @@ def test_discover_harvest_audit_and_assign(tmp_path: Path, monkeypatch) -> None:
 def test_export_blocks_unapproved_assets(tmp_path: Path) -> None:
     import pytest
 
-    from videoflow.application.asset_providers import AssetCandidate, write_ledger
     from videoflow.domain.errors import ExportError
     from videoflow.domain.state import MediaInfo, ProjectState
+    from videoflow.domains.media import AssetCandidate, write_ledger
     from videoflow.steps.export import ExportParams, ExportStep
 
     context = _context(tmp_path)
@@ -147,8 +147,8 @@ def test_export_blocks_unapproved_assets(tmp_path: Path) -> None:
 
 
 def test_expired_asset_license_is_a_blocker(tmp_path: Path) -> None:
-    from videoflow.application.asset_providers import AssetCandidate, write_ledger
-    from videoflow.application.asset_providers.ledger import license_blockers
+    from videoflow.domains.media import AssetCandidate, write_ledger
+    from videoflow.domains.media.ledger import license_blockers
 
     output = tmp_path / "out"
     output.mkdir()

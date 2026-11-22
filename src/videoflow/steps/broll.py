@@ -10,12 +10,12 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from videoflow.application.broll_providers import (
+from videoflow.core.context import PipelineContext
+from videoflow.domains.media.broll_providers import (
     BrollAsset,
     LocalBrollProvider,
     PexelsBrollProvider,
 )
-from videoflow.core.context import PipelineContext
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload
 from videoflow.steps.registry import register_step

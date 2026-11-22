@@ -832,11 +832,11 @@ def register_core_tools(register: Any, ctx: Any) -> None:
             if action in {"list", "license_audit", "approve_license"}:
                 if not project_id:
                     return error("project_required", "project_id is required")
-                from videoflow.application.asset_providers.ledger import license_blockers
-                from videoflow.application.assets_service import (
+                from videoflow.domains.media.assets_service import (
                     asset_records,
                     review_assets,
                 )
+                from videoflow.domains.media.ledger import license_blockers
 
                 record = get_project(project_id)
                 state = load_project_state(record)
@@ -1365,7 +1365,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
     ) -> dict[str, Any]:
         """List assets, licenses, or fonts; approve, quarantine, or register fonts."""
 
-        from videoflow.application.assets_service import (
+        from videoflow.domains.media.assets_service import (
             asset_records,
             review_assets,
         )

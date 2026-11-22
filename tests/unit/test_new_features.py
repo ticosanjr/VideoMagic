@@ -5,11 +5,6 @@ from pathlib import Path
 
 import pytest
 
-from videoflow.application.broll_approval import (
-    load_approvals,
-    ordered_entries,
-    save_approval,
-)
 from videoflow.application.providers import (
     ProviderConfig,
     delete_provider,
@@ -23,6 +18,11 @@ from videoflow.application.timeline_edit import TimelineEdit, apply_timeline_edi
 from videoflow.application.timeline_history import TimelineHistory
 from videoflow.domain.errors import InvalidTimeError
 from videoflow.domain.state import AudioSegment, MediaInfo, ProjectState, VideoSegment
+from videoflow.domains.media.broll_approval import (
+    load_approvals,
+    ordered_entries,
+    save_approval,
+)
 
 
 def media() -> MediaInfo:

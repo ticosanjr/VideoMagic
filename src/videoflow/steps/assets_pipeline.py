@@ -10,7 +10,8 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from videoflow.application.asset_providers import (
+from videoflow.core.context import PipelineContext
+from videoflow.domains.media import (
     AssetCandidate,
     download_asset,
     license_blockers,
@@ -18,8 +19,7 @@ from videoflow.application.asset_providers import (
     search_assets,
     write_ledger,
 )
-from videoflow.application.assets import scan_directory
-from videoflow.core.context import PipelineContext
+from videoflow.domains.media.assets import scan_directory
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload
 from videoflow.steps.registry import register_step

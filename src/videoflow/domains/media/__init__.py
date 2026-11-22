@@ -5,13 +5,13 @@ ledger is the source of truth for export: ``unknown`` and unapproved
 ``fair_use_review`` assets block the final NLE export.
 """
 
-from videoflow.application.asset_providers.download import (
+from videoflow.domains.media.download import (
     _clip_bounds,
     _download_http,
     _download_youtube,
     download_asset,
 )
-from videoflow.application.asset_providers.ledger import (
+from videoflow.domains.media.ledger import (
     ledger_payload,
     license_blockers,
     mark_approved,
@@ -19,15 +19,14 @@ from videoflow.application.asset_providers.ledger import (
     write_ledger,
     write_ledger_from_payload,
 )
-from videoflow.application.asset_providers.models import (
+from videoflow.domains.media.models import (
     AssetCandidate,
     _asset_id,
     _candidate,
     classify_license,
 )
-from videoflow.application.asset_providers.search import (
+from videoflow.domains.media.search import (
     PROVIDERS,
-    _check_provider,
     _internet_archive,
     _openverse,
     _pexels,
@@ -36,6 +35,7 @@ from videoflow.application.asset_providers.search import (
     _youtube,
     search_assets,
 )
+from videoflow.domains.media.search_base import _check_provider
 
 __all__ = [
     "PROVIDERS",

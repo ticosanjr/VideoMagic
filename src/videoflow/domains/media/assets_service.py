@@ -6,14 +6,14 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from videoflow.application.asset_providers.ledger import (
+from videoflow.domain.errors import AssetNotFoundError
+from videoflow.domains.media.ledger import (
     _blocked,
     _record_paths,
     read_ledger,
     referenced_asset_paths,
     write_ledger_from_payload,
 )
-from videoflow.domain.errors import AssetNotFoundError
 
 
 def _workspace_records(project_id: str) -> list[dict[str, Any]]:

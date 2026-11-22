@@ -2,7 +2,7 @@ from pathlib import Path
 
 import httpx
 
-from videoflow.application.broll_providers import (
+from videoflow.domains.media.broll_providers import (
     LocalBrollProvider,
     PexelsBrollProvider,
 )

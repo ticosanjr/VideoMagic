@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from videoflow.application.asset_store import list_files, save_file
 from videoflow.domain.errors import FilesystemError
+from videoflow.domains.media.asset_store import list_files, save_file
 
 
 def test_save_file_writes_hashed_name(tmp_path: Path) -> None:
