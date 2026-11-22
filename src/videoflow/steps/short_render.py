@@ -254,7 +254,9 @@ class ShortRenderStep(BaseStep):
         output = Path(context.output) / "shorts" / plan.short_id / output_name
         last_commands: list[Any] = []
 
-        def make_commands(encoder: str):
+        def make_commands(encoder: str, *, remote: bool = False):
+            from videoflow.application.fonts import fonts_dir
+
             return build_commands(
                 renders,
                 source=source,
@@ -267,6 +269,7 @@ class ShortRenderStep(BaseStep):
                 fade_start=fade_start,
                 fade_ms=fade_ms,
                 padding_sec=padding,
+                fontsdir=None if remote else str(fonts_dir()),
             )
 
         def local_run(encoder: str) -> Path:
@@ -332,7 +335,7 @@ class ShortRenderStep(BaseStep):
                         or (options.encoder == "auto" and worker_nvenc)
                         else "libx264"
                     )
-                    commands = make_commands(encoder_name)
+                    commands = make_commands(encoder_name, remote=True)
                     last_commands.append(commands)
                     final = self._remote_render(
                         router, commands, output, options.timeout_sec, font_paths
@@ -350,7 +353,7 @@ class ShortRenderStep(BaseStep):
                             or (options.encoder == "auto" and worker_nvenc)
                             else "libx264"
                         )
-                        commands = make_commands(encoder_name)
+                        commands = make_commands(encoder_name, remote=True)
                         last_commands.append(commands)
                         context.metadata["short_render_encoder"] = encoder_name
                         return self._remote_render(

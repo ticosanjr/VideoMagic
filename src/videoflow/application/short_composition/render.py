@@ -355,6 +355,15 @@ def build_segment_renders(
     return renders
 
 
+def _filter_path(path: Path) -> str:
+    return (
+        str(path)
+        .replace("\\", "/")
+        .replace(":", "\\:")
+        .replace("'", "\\'")
+    )
+
+
 def _token(index: int) -> str:
     return f"__IN{index}__"
 
@@ -403,6 +412,7 @@ def build_commands(
     fade_ms: int = 80,
     padding_sec: float = 0.0,
     loudnorm: str = DEFAULT_LOUDNORM,
+    fontsdir: str | None = None,
 ) -> RenderCommands:
     """Build tokenised FFmpeg commands for local or remote execution."""
 
@@ -560,6 +570,11 @@ def build_commands(
     final_filter_parts = []
     video_chain = (
         f"[0:v]ass='{_token(captions_index)}'"
+        + (
+            f":fontsdir='{_filter_path(Path(fontsdir))}'"
+            if fontsdir
+            else ""
+        )
         if captions_index is not None
         else "[0:v]null"
     )

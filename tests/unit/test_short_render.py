@@ -148,6 +148,7 @@ def test_commands_build_tokens_and_final_audio() -> None:
         fade_start=30.27,
         fade_ms=80,
         padding_sec=0.35,
+        fontsdir="/home/u/.videoflow/assets/fonts",
     )
     assert len(commands.segments) == 3
     assert commands.concat_names[0] == "seg_0001.mp4"
@@ -155,6 +156,7 @@ def test_commands_build_tokens_and_final_audio() -> None:
     assert "-filter_complex_script" in first["argv"]
     assert "__SCRIPT_1__" in first["argv"]
     assert commands.final_filter.count("ass=") == 1
+    assert "fontsdir='/home/u/.videoflow/assets/fonts'" in commands.final_filter
     assert "tpad=stop_mode=clone:stop_duration=0.350" in commands.final_filter
     assert "apad=pad_dur=0.350" in commands.final_filter
     assert "loudnorm=I=-14:TP=-1.5:LRA=9" in commands.final_filter
