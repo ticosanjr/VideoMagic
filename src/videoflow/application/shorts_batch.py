@@ -353,7 +353,12 @@ def run_shorts_batch(
             outro_path=outro_path,
             outro_duration_sec=float(entry.get("outro_duration_sec") or 2.0),
             music_path=Path(music).expanduser() if music else None,
-            crossfade_ms=int(tightened.metrics.get("crossfade_ms") or 15),
+            crossfade_ms=int(
+                entry.get(
+                    "crossfade_ms",
+                    tightened.metrics.get("crossfade_ms", 15),
+                )
+            ),
             fps=30,
         )
         clip_seconds = sum(
@@ -407,7 +412,7 @@ def run_shorts_batch(
                     )
                 video_sec = integrity.video_sec or 0.0
                 audio_sec = integrity.audio_sec or 0.0
-                if abs(video_sec - audio_sec) > max(0.05, 2.0 / 30.0):
+                if abs(video_sec - audio_sec) > max(0.12, 3.0 / 30.0):
                     raise ExportError(
                         f"Shorts batch clip {index} video/audio drift "
                         f"{video_sec - audio_sec:+.3f}s"

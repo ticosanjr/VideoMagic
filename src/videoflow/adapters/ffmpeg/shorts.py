@@ -394,7 +394,10 @@ class ShortsMixin:
                         )
                         video_label = f"[vx{index}]"
                         audio_label = f"[ax{index}]"
-                        current += durations[index] - crossfade
+                        # The xfade output length is offset + the next piece;
+                        # accumulating ``duration - crossfade`` drifts near the
+                        # end and makes the following xfade drop its tail.
+                        current = offset + durations[index]
                     combined = work / "combined.mp4"
                     self._capture(
                         [
@@ -762,6 +765,26 @@ class ShortsMixin:
                 clip_duration += max(0.2, float(intro_duration_sec))
             if outro_path is not None and outro_duration_sec > 0:
                 clip_duration += max(0.2, float(outro_duration_sec))
+            try:
+                target_duration = float(
+                    self._run(
+                        [
+                            "ffprobe",
+                            "-v",
+                            "error",
+                            "-select_streams",
+                            "v:0",
+                            "-show_entries",
+                            "stream=duration",
+                            "-of",
+                            "default=nw=1:nk=1",
+                            str(final),
+                        ]
+                    ).strip()
+                )
+            except (ValueError, OSError):
+                target_duration = clip_duration
+            padded_duration = target_duration + 0.12
             self._capture(
                 [
                     "ffmpeg",
@@ -776,8 +799,8 @@ class ShortsMixin:
                     "-af",
                     (
                         "loudnorm=I=-15.5:TP=-2.0:LRA=9,"
-                        f"apad=whole_dur={clip_duration:.6f},"
-                        f"atrim=0:{clip_duration:.6f}"
+                        f"apad=whole_dur={padded_duration:.6f},"
+                        f"atrim=0:{padded_duration:.6f}"
                     ),
                     "-ar",
                     "48000",
@@ -788,7 +811,7 @@ class ShortsMixin:
                     "-b:a",
                     "192k",
                     "-t",
-                    f"{clip_duration:.6f}",
+                    f"{target_duration:.6f}",
                     "-r",
                     str(max(1, int(fps))),
                     "-fps_mode",
