@@ -336,10 +336,6 @@ def _resolve_binary(name: str) -> str | None:
     return shutil.which(name)
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
-
-
 VERSION = "v1.7.6"
 SOURCE_URL = f"https://github.com/ggml-org/whisper.cpp/archive/refs/tags/{VERSION}.tar.gz"
 WINDOWS_URL = (
@@ -467,3 +463,7 @@ def _download(url: str, target: Path) -> None:
 def _run(command: list[str], *, cwd: Path) -> None:
     print("running:", " ".join(command))
     subprocess.run(command, cwd=cwd, check=True)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
