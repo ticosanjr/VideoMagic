@@ -1,5 +1,65 @@
 # Changelog
 
+## [4.2.0] - 2026-11-23
+
+Release de hardening estrutural sobre a v4.1.0. Sem mudança de contrato de
+estilos ou de timeline.
+
+### Fixed — core silencioso
+
+- WAV 24-bit agora calcula RMS real; `sampwidth` fora de `{2,3}` falha com
+  `ValueError` em vez de retornar `0`.
+- Buffers PCM incompletos são truncados sem `IndexError`.
+- `qa_artifacts()` lê `work/qa/` e `exports/qa/`, com JSON inválido marcado como
+  `{"error": "unreadable"}`.
+- SSE de jobs non-bloqueante (`async def` + `await asyncio.sleep`).
+- Sete códigos HTTP v4 adicionados ao mapeamento estável.
+- Retakes usam a constante central de sample rate.
+
+### Fixed — LLM e inteligência
+
+- Budget e circuit breaker aplicados antes de qualquer chamada HTTP.
+- Status do OpenCode em cache de 30 s com probe de 1.5 s.
+- DeepSeek só é registrado com `allow_network` e API key.
+- Parser JSON único para OpenAI, OpenCode, LLM e vision.
+- Vision aceita `bytes` e delega ao provider canônico.
+
+### Fixed — GPU worker e roteamento
+
+- Registro único de handlers GPU; `handlers_gpu.py` removido.
+- Preflight relê `gpu.json` a cada chamada e reporta `worker_source`.
+- `compute_policy="remote"` falha com `gpu_worker_offline`; `auto` registra
+  `windows_gpu_offline_fallback_cpu`.
+- `render_nvenc` anexa fontes e converte 10-bit 4:2:2 para `yuv420p` em CPU.
+- Escrita SMB atômica com `.part`, `fsync` e `os.replace`.
+
+### Changed — MCP e ergonomia
+
+- Guard único em `mcp_server/guard.py` com `invalid_params`,
+  `invalid_keys` e `did_you_mean`.
+- Perfis estritos: `core` com 16 tools e `full` com 21.
+- Entrada única `videoflow` no OpenCode; entradas legadas são removidas no
+  merge.
+- `AGENTS.md` gerado com 84 linhas.
+
+### Changed — desduplicação e faxina
+
+- Pipelines de Shorts têm uma fonte única; módulos singulares são shims de
+  17 linhas.
+- Brand kit absorveu channel kit e brand templates; domínio renomeado para
+  `BrandKit` com migração de rulebooks antigos.
+- Estilos lidos somente de `src/videoflow/styles/` (22 estilos).
+- `presets/*.md` e recipes legadas removidos.
+- Wheels 3.17.x, 3.18.0 e 4.0.0 removidos; kit usa 4.2.0.
+- Scripts históricos e testes exclusivos removidos; arquitetura reescrita.
+
+### Validation
+
+- `ruff check src packages scripts`: 0 erros.
+- `pytest -q`: 2.992 passed, 1 skipped, 1 xfailed.
+- `pytest -q -m media --no-cov`: verde.
+- MCP: `core` = 16, `full` = 21; `AGENTS.md` = 84 linhas.
+
 ## [4.1.0] - 2026-11-22
 
 Release de estabilidade sobre a arquitetura 4.0.

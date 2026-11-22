@@ -83,7 +83,7 @@ def test_short_render_step_writes_vertical_mp4(
         capture_output=True,
     )
     from videoflow.steps import short_export as export_module
-    from videoflow.steps import short_render as step_module
+    from videoflow.steps import shorts_render as step_module
 
     monkeypatch.setattr(step_module, "sfx_dir", lambda: sfx_dir)
     monkeypatch.setattr(export_module, "sfx_dir", lambda: sfx_dir)

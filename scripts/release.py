@@ -145,7 +145,9 @@ def main() -> int:
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
     )
     notes = target_dir / "release-notes.md"
-    if args.force or not notes.exists():
+    # ``--force`` refreshes artifacts, not curated release notes. A maintainer
+    # can still replace the file explicitly before staging.
+    if not notes.exists():
         notes.write_text(_release_notes(args.version, staged), encoding="utf-8")
     removed = _prune_old_releases(RELEASES, keep=args.keep)
     for path in removed:
