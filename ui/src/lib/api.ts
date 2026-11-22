@@ -813,6 +813,7 @@ export interface AppSettings {
     shared_linux_path: string;
     shared_windows_path: string;
     max_vram_mb: number;
+    max_gpu_utilization_pct: number;
     model_unload_ttl_sec: number;
     fallback_local: boolean;
     discovery_enabled: boolean;
@@ -1897,6 +1898,7 @@ export interface GpuWorkerStatus {
   discovery_enabled?: boolean;
   capabilities_enabled?: Record<string, boolean>;
   max_vram_mb?: number;
+  max_gpu_utilization_pct?: number;
   model_unload_ttl_sec?: number;
 }
 

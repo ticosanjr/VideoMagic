@@ -14,6 +14,7 @@ from .router_common import (
     _DEFAULT_HEALTH_TIMEOUT,
     _DEFAULT_HEALTH_TTL,
     _DEFAULT_MAX_QUEUE,
+    _DEFAULT_MAX_UTILIZATION,
     _DEFAULT_MIN_VRAM_MB,
     _DEFAULT_MODE,
     _env_bool,
@@ -43,6 +44,7 @@ class ComputeRouter(RouterHealthMixin, RouterExecuteMixin, RouterSubmitMixin):
         health_timeout: float = _DEFAULT_HEALTH_TIMEOUT,
         min_vram_mb: int = _DEFAULT_MIN_VRAM_MB,
         max_queue: int = _DEFAULT_MAX_QUEUE,
+        max_gpu_utilization: float = _DEFAULT_MAX_UTILIZATION,
         circuit_sec: float = _DEFAULT_CIRCUIT_SEC,
         fallback_local: bool = True,
         allowed_capabilities: set[str] | None = None,
@@ -65,6 +67,7 @@ class ComputeRouter(RouterHealthMixin, RouterExecuteMixin, RouterSubmitMixin):
         self.health_timeout = max(float(health_timeout), 0.0)
         self.min_vram_mb = max(int(min_vram_mb), 0)
         self.max_queue = max(int(max_queue), 0)
+        self.max_gpu_utilization = max(0.0, min(100.0, float(max_gpu_utilization)))
         self.circuit_sec = max(float(circuit_sec), 0.0)
         self.fallback_local = bool(fallback_local)
         self.allowed_capabilities = (
@@ -98,6 +101,9 @@ class ComputeRouter(RouterHealthMixin, RouterExecuteMixin, RouterSubmitMixin):
             health_timeout=_env_float("VF_GPU_HEALTH_TIMEOUT_SEC", _DEFAULT_HEALTH_TIMEOUT),
             min_vram_mb=_env_int("VF_GPU_MIN_VRAM_MB", _DEFAULT_MIN_VRAM_MB),
             max_queue=_env_int("VF_GPU_MAX_QUEUE", _DEFAULT_MAX_QUEUE),
+            max_gpu_utilization=_env_float(
+                "VF_GPU_MAX_UTILIZATION", _DEFAULT_MAX_UTILIZATION
+            ),
             circuit_sec=_env_float("VF_GPU_CIRCUIT_SEC", _DEFAULT_CIRCUIT_SEC),
             client=client,
             discovery_enabled=_env_bool("VF_GPU_DISCOVERY", True),

@@ -396,6 +396,7 @@ class GpuSettings(BaseModel):
     shared_linux_path: str = ""
     shared_windows_path: str = ""
     max_vram_mb: int = Field(default=10_240, ge=4096, le=24_576)
+    max_gpu_utilization_pct: int = Field(default=70, ge=0, le=100)
     model_unload_ttl_sec: int = Field(default=300, ge=30, le=86_400)
     fallback_local: bool = True
     discovery_enabled: bool = True

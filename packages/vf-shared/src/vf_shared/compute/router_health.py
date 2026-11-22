@@ -100,6 +100,15 @@ class RouterHealthMixin:
             )
         if health.queue_depth >= self.max_queue:
             return f"worker queue full: {health.queue_depth}/{self.max_queue}"
+        if (
+            self.max_gpu_utilization > 0
+            and health.gpu_utilization > self.max_gpu_utilization
+        ):
+            return (
+                "external GPU load above cap: "
+                f"{health.gpu_utilization:.0f}% > "
+                f"{self.max_gpu_utilization:.0f}%"
+            )
         return None
 
 

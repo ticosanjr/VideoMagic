@@ -41,6 +41,7 @@
   let sharedEnabled = $state(false);
   let sharedPath = $state("");
   let maxVram = $state(10240);
+  let maxUtilization = $state(70);
   let fallback = $state(true);
   let discoveryEnabled = $state(true);
   let workerUrl = $state("");
@@ -65,6 +66,7 @@
     sharedEnabled = Boolean(next.shared_mount_enabled);
     sharedPath = next.shared_windows_path || "";
     maxVram = next.max_vram_mb ?? maxVram;
+    maxUtilization = next.max_gpu_utilization_pct ?? maxUtilization;
     fallback = next.fallback_local ?? true;
     discoveryEnabled = next.discovery_enabled ?? true;
   }
@@ -501,6 +503,9 @@
       <p class="mt-1 text-[length:var(--vf-text-xs)] text-neutral-500">VRAM cap, fallback, and loaded models.</p>
       <label class="mt-3 block text-[11px] text-neutral-500" for="gpu-vram">Maximum VRAM: {vramLabel(maxVram)}</label>
       <input id="gpu-vram" data-testid="gpu-vram-slider" type="range" min="4096" max="11264" step="512" bind:value={maxVram} onchange={() => void patch({ max_vram_mb: maxVram }, "vram")} class="mt-1 w-full" />
+      <label class="mt-3 block text-[11px] text-neutral-500" for="gpu-max-utilization">Skip remote when GPU is busier than: {maxUtilization}%</label>
+      <input id="gpu-max-utilization" data-testid="gpu-utilization-cap" type="range" min="0" max="100" step="5" bind:value={maxUtilization} onchange={() => void patch({ max_gpu_utilization_pct: maxUtilization }, "utilization")} class="mt-1 w-full" />
+      <p class="mt-1 text-[length:var(--vf-text-xs)] text-neutral-500">0 disables the external load guard.</p>
       <label class="mt-3 flex items-center gap-2 text-[length:var(--vf-text-xs)] text-neutral-300">
         <input type="checkbox" data-testid="gpu-fallback" checked={fallback} disabled={busy !== ""} onchange={(event) => void patch({ fallback_local: event.currentTarget.checked }, "fallback")} />
         Fall back to local when the worker fails

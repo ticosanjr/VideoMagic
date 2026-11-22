@@ -35,6 +35,7 @@ class GpuSettingsPatch(BaseModel):
     shared_linux_path: str | None = None
     shared_windows_path: str | None = None
     max_vram_mb: int | None = Field(default=None, ge=4096, le=24576)
+    max_gpu_utilization_pct: int | None = Field(default=None, ge=0, le=100)
     model_unload_ttl_sec: int | None = Field(default=None, ge=30, le=86400)
     fallback_local: bool | None = None
     discovery_enabled: bool | None = None
