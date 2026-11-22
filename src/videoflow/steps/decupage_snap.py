@@ -36,6 +36,8 @@ class SnapParams(BaseModel):
     min_cut_gap_ms: float = Field(default=180.0, ge=0.0, le=1000.0)
     crossfade_ms: float = Field(default=18.0, ge=10.0, le=50.0)
     min_clip_ms: float = Field(default=120.0, ge=1.0, le=2000.0)
+    pre_roll_floor_ms: float = Field(default=110.0, ge=70.0, le=500.0)
+    post_roll_floor_ms: float = Field(default=190.0, ge=110.0, le=500.0)
 
 
 def _overlap_samples(
@@ -94,6 +96,8 @@ class DecupageSnapStep(BaseStep):
             min_cut_gap_ms=options.min_cut_gap_ms,
             crossfade_ms=options.crossfade_ms,
             min_clip_ms=options.min_clip_ms,
+            pre_roll_floor_ms=options.pre_roll_floor_ms,
+            post_roll_floor_ms=options.post_roll_floor_ms,
         )
         target = context.work / "decupage" / "plan.json"
         target.parent.mkdir(parents=True, exist_ok=True)

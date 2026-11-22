@@ -39,6 +39,8 @@ def build_plan(
     min_cut_gap_ms: float = 180.0,
     crossfade_ms: float = 18.0,
     min_clip_ms: float = 120.0,
+    pre_roll_floor_ms: float = 110.0,
+    post_roll_floor_ms: float = 190.0,
 ) -> DecupagePlan:
     """Return a sample-exact plan with padded, quantised active spans."""
 
@@ -76,8 +78,40 @@ def build_plan(
     ends = [end for _start, end in base] + [end for _start, end in source_cuts]
     ordered_starts = sorted(set(starts))
     ordered_ends = sorted(set(ends))
+    pre_floor = _samples(rate, max(70.0, float(pre_roll_floor_ms)))
+    post_floor = _samples(rate, max(110.0, float(post_roll_floor_ms)))
     snapped: list[tuple[int, int, float | None, bool]] = []
     for start, end in base:
+        original_start, original_end = start, end
+        span_words = [
+            word
+            for asu in asus
+            for word in asu.words
+            if start
+            <= (word.start_sample + word.end_sample) // 2
+            <= end
+            and not any(
+                cut_start
+                <= (word.start_sample + word.end_sample) // 2
+                <= cut_end
+                for cut_start, cut_end in source_cuts
+            )
+        ]
+        if span_words:
+            first_word = min(word.start_sample for word in span_words)
+            last_word = max(word.end_sample for word in span_words)
+            start = min(start, max(0, first_word - pre_floor))
+            end = max(end, min(duration, last_word + post_floor))
+        for cut_start, cut_end in source_cuts:
+            if cut_end <= original_start:
+                start = max(start, cut_end)
+            if cut_start >= original_end:
+                end = min(end, cut_start)
+        for noise_start, noise_end in noise:
+            if noise_end <= original_start:
+                start = max(start, noise_end)
+            if noise_start >= original_end:
+                end = min(end, noise_start)
         position = bisect.bisect_right(ordered_ends, start)
         previous = ordered_ends[position - 1] if position else 0
         position = bisect.bisect_left(ordered_starts, end)

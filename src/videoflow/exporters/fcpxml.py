@@ -297,7 +297,7 @@ def export_fcpxml(
             {
                 "ref": source_assets.get(source_id, "a1"),
                 "lane": "1",
-                "name": f"Quarantine {inactive.clip_id} ({inactive.reason})",
+                "name": f"Quarantine V2/A2 {inactive.clip_id} ({inactive.reason})",
                 "offset": format_rational_time(start_sec),
                 "start": format_rational_time(start_sec),
                 "duration": format_rational_time(duration_sec),
@@ -322,7 +322,7 @@ def export_fcpxml(
                 "start": "0s",
                 "duration": format_rational_time(duration_sec),
                 "value": inactive.reason.upper(),
-                "note": f"Quarantine: {inactive.reason}",
+                "note": f"Quarantine V2/A2: {inactive.reason}",
                 "color": quarantine_colors.get(inactive.reason, "gray"),
             },
         )
