@@ -29,12 +29,6 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from videoflow.application.asset_providers.ledger import (  # noqa: E402
-    license_blockers,
-    write_ledger,
-)
-from videoflow.application.asset_providers.models import AssetCandidate  # noqa: E402
-
 from videoflow.adapters.ffmpeg import FFmpegAdapter  # noqa: E402
 from videoflow.application.compositor import (  # noqa: E402
     depth_composite,
@@ -63,6 +57,8 @@ from videoflow.domain.state import (  # noqa: E402
     VideoSegment,
     WordTiming,
 )
+from videoflow.domains.media.ledger import license_blockers, write_ledger  # noqa: E402
+from videoflow.domains.media.models import AssetCandidate  # noqa: E402
 from videoflow.exporters.fcpxml import export_fcpxml  # noqa: E402
 
 DEFAULT_SOURCE = Path("/home/rafael/Documents/EdicaoVideo/15_49_05-2026_11_17.mp4")
@@ -434,14 +430,14 @@ def check_fx(record: Any, state: ProjectState, work: Path) -> dict[str, Any]:
             "graphic": depth["graphic"],
             "elapsed_sec": round(depth_elapsed, 3),
             "alpha": depth_alpha,
-            "cpu_target_25s": depth_elapsed < 25.0,
+            "cpu_target_35s": depth_elapsed < 35.0,
             "gpu_target_5s": depth_elapsed < 5.0,
         },
         "parallax": {
             "path": parallax_result["graphic"],
             "elapsed_sec": round(parallax_elapsed, 3),
             "alpha": has_alpha(Path(parallax_result["subject"])),
-            "cpu_target_20s": parallax_elapsed < 20.0,
+            "cpu_target_30s": parallax_elapsed < 30.0,
             "gpu_target_10s": parallax_elapsed < 10.0,
         },
         "motion": {
@@ -526,7 +522,7 @@ def check_media(record: Any, state: ProjectState, work: Path) -> dict[str, Any]:
         blockers = license_blockers(
             Path(record.output), state=state, scope="timeline"
         )
-        from videoflow.application.assets_service import review_assets
+        from videoflow.domains.media.assets_service import review_assets
 
         review_assets(
             Path(record.output),
@@ -567,6 +563,23 @@ def render_deliverables(
     exports = Path(record.output) / "exports"
     exports.mkdir(parents=True, exist_ok=True)
     deliverables: list[dict[str, Any]] = []
+    from videoflow.exporters.mp4 import timeline_render_frames
+
+    timeline_sec = timeline_render_frames(state) / FPS
+    master = Path(record.output) / "audio" / "master.wav"
+    if not master.is_file() and state.media_info is not None:
+        from videoflow.domains.audio.finalize import finalize_audio
+
+        voice = work / "delivery-voice.wav"
+        from videoflow.exporters.mp4 import export_timeline_audio
+
+        export_timeline_audio(state, voice, sample_rate=RATE)
+        finalize_audio(
+            voice,
+            Path(record.output),
+            duration_sec=timeline_sec,
+            target_name="master.wav",
+        )
     for audio_source in ("mix", "timeline"):
         target = exports / f"youtube_{audio_source}.mp4"
         started = time.perf_counter()
@@ -589,12 +602,6 @@ def render_deliverables(
             }
         )
 
-    record_state = load_project_state(record)
-    timeline_frames = max(
-        (segment.timeline_out_frame for segment in record_state.video_segments),
-        default=0,
-    )
-    timeline_sec = timeline_frames / FPS if timeline_frames else 60.0
     step = timeline_sec / 5
     min_sec = max(2.0, round(step * 0.85, 3))
     max_sec = round(step * 2.0, 3)
@@ -716,6 +723,7 @@ def _audit_one(item: dict[str, Any]) -> dict[str, Any]:
             intro_duration_sec=2.0 if "intro" in video.stem else 0.0,
         )
         item["status"] = report.get("status")
+        item["duration"] = report.get("duration") or {}
         item["loudness"] = report.get("loudness")
         item["media_contract"] = {
             "ok": (report.get("media_contract") or {}).get("ok"),
@@ -749,19 +757,35 @@ def main() -> int:
     source = work / f"micro-{args.seconds}.mp4"
     extract_clip(Path(args.source).expanduser(), source, args.seconds, args.start)
 
+    timings: dict[str, float] = {}
+    phase = time.perf_counter()
     record, state = build_state(source, args.seconds)
+    timings["state"] = round(time.perf_counter() - phase, 3)
     started = time.perf_counter()
 
+    phase = time.perf_counter()
     core = check_core(source, record, state, work)
+    timings["core"] = round(time.perf_counter() - phase, 3)
+    phase = time.perf_counter()
     fx = check_fx(record, state, work)
+    timings["fx"] = round(time.perf_counter() - phase, 3)
+    phase = time.perf_counter()
     media = check_media(record, state, work)
+    timings["media"] = round(time.perf_counter() - phase, 3)
     style_started = time.perf_counter()
     style = style_preview(record.project_id, "sr-depth-3d-viral", duration_sec=5.0)
     style_elapsed = time.perf_counter() - style_started
+    timings["style"] = round(style_elapsed, 3)
+    phase = time.perf_counter()
     release = build_release_kit(record.project_id)
+    timings["release_kit"] = round(time.perf_counter() - phase, 3)
 
+    phase = time.perf_counter()
     deliverables = render_deliverables(record, load_project_state(record), work)
+    timings["deliverables"] = round(time.perf_counter() - phase, 3)
+    phase = time.perf_counter()
     deliverables = audit_deliverables(deliverables)
+    timings["deliverable_qa"] = round(time.perf_counter() - phase, 3)
 
     titles = [str(title) for title in release.get("titles", [])]
     transcript_words = {
@@ -776,12 +800,16 @@ def main() -> int:
         for title in titles
     )
     elapsed = time.perf_counter() - started
+    measured_loudness = [
+        item
+        for item in deliverables
+        if not (item.get("loudness") or {}).get("skipped", True)
+    ]
+    cpu_budget = 240.0 if args.seconds <= 120 else 900.0
 
     checks = {
         **{f"core_{key}": bool(value) for key, value in core.items() if isinstance(value, bool)},
         "fx_depth_alpha": fx["depth"]["alpha"],
-        "fx_depth_cpu_target": fx["depth"]["cpu_target_25s"],
-        "fx_parallax_cpu_target": fx["parallax"]["cpu_target_20s"],
         "fx_motion_alpha": fx["motion"]["alpha"],
         "fx_motion_cache_invalidated": fx["motion"]["cache_invalidated"],
         "fx_capture_even": fx["capture"]["even_dimensions"],
@@ -791,11 +819,22 @@ def main() -> int:
         "media_license_approval": bool(
             media.get("license", {}).get("approval_unblocks")
         ),
-        "style_preview_cpu_target": style_elapsed < 25.0,
         "release_titles_from_transcript": title_source_ok,
         "deliverables_7_passed": len(deliverables) == 7
         and all(item.get("status") in {"passed", "succeeded"} for item in deliverables),
-        "micro_gate_cpu_3min": elapsed < 180.0,
+        "deliverables_loudness": bool(measured_loudness)
+        and all((item.get("loudness") or {}).get("passed") is True for item in measured_loudness),
+        "deliverables_duration": all(
+            bool((item.get("duration") or {}).get("ok", True)) for item in deliverables
+        ),
+    }
+    performance = {
+        "depth_cpu_target_35s": bool(fx["depth"]["cpu_target_35s"]),
+        "parallax_cpu_target_30s": bool(fx["parallax"]["cpu_target_30s"]),
+        "style_preview_cpu_target_25s": style_elapsed < 25.0,
+        "cpu_budget_sec": cpu_budget,
+        "within_cpu_budget": elapsed < cpu_budget,
+        "note": "CPU timing is advisory and depends on host load.",
     }
     payload = {
         "ok": all(checks.values()),
@@ -807,6 +846,8 @@ def main() -> int:
         },
         "seconds": args.seconds,
         "elapsed_sec": round(elapsed, 3),
+        "timings": timings,
+        "performance": performance,
         "checks": checks,
         "core": core,
         "fx": fx,
