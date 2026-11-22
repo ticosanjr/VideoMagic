@@ -412,9 +412,13 @@ def run_shorts_batch(
                         f"Shorts batch clip {index} video/audio drift "
                         f"{video_sec - audio_sec:+.3f}s"
                     )
-            except ExportError:
-                # A stale or partially written output must not block a rerun.
+            except ExportError as exc:
+                # A failed gate must be visible; deleting the file and keeping
+                # the clip in the manifest hides a broken deliverable.
                 target.unlink(missing_ok=True)
+                raise ExportError(
+                    f"Shorts batch clip {index} failed validation: {exc}"
+                ) from exc
             except Exception as exc:  # noqa: BLE001 - probe is advisory for real files
                 warnings.append(f"duration probe failed: {exc}")
         rendered.append(
