@@ -19,7 +19,12 @@ from videoflow.domain.errors import SelfHealRequiredError
 from videoflow.domain.headless import BeatMap
 from videoflow.domain.state import Sentence, WordTiming
 from videoflow.engine.recipes.catalog import get_recipe
-from videoflow.mcp_server.registry import RESOURCE_SPECS, TOOL_SPECS
+from videoflow.mcp_server.registry import (
+    CORE_TOOL_NAMES,
+    FULL_TOOL_NAMES,
+    RESOURCE_SPECS,
+    TOOL_SPECS,
+)
 from videoflow.steps.base import BaseStep, EmptyParams, StepIO
 from videoflow.steps.ports import validate_recipe_ports
 from videoflow.steps.registry import register_step, requirements_by_type, step_types
@@ -40,8 +45,10 @@ def _context(tmp: Path) -> PipelineContext:
     )
 
 
-def test_mcp_surface_has_44_core_tools_and_16_resources() -> None:
-    assert len(TOOL_SPECS) == 44
+def test_mcp_surface_has_strict_profiles_and_16_resources() -> None:
+    assert len(TOOL_SPECS) == 50
+    assert len(CORE_TOOL_NAMES) == 16
+    assert len(FULL_TOOL_NAMES) == 21
     assert len(RESOURCE_SPECS) == 16
     assert {spec.name for spec in TOOL_SPECS} >= {
         "vf_assets",
@@ -57,6 +64,12 @@ def test_mcp_surface_has_44_core_tools_and_16_resources() -> None:
         "vf_ingest",
         "vf_qa_final",
         "vf_export",
+        "vf_session_brief",
+        "vf_transcript",
+        "vf_decupage",
+        "vf_shorts",
+        "vf_qa",
+        "vf_jobs",
     }
 
 

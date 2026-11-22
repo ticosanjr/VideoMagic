@@ -32,9 +32,22 @@ def _bootstrap(tmp_path: Path, **updates):
 
 
 def test_templates_are_packaged() -> None:
-    assert (templates_dir() / "AGENTS.md").is_file()
+    agents = templates_dir() / "AGENTS.md"
+    assert agents.is_file()
+    assert len(agents.read_text(encoding="utf-8").splitlines()) <= 90
     assert len(list((templates_dir() / "skills").glob("*.md"))) == 3
     assert len(list((templates_dir() / "commands").glob("*.md"))) == 7
+
+
+def test_every_profile_generates_one_videoflow_entry() -> None:
+    from videoflow.application.opencode_config import PROFILES, build_config
+
+    for profile in PROFILES:
+        config = build_config(profile, workspace_root="/w/projects")
+        assert set(config["mcp"]["servers"]) == {"videoflow"}
+        text = json.dumps(config)
+        for legacy in ("mcp-audio", "mcp-fetch", "mcp-vision"):
+            assert legacy not in text
 
 
 def test_bootstrap_creates_workspace_and_syncs_styles(tmp_path: Path) -> None:
@@ -43,14 +56,14 @@ def test_bootstrap_creates_workspace_and_syncs_styles(tmp_path: Path) -> None:
 
     assert result.status == "ok"
     assert result.registered_root is True
-    assert result.mcp_servers == ["core"]
+    assert result.mcp_servers == ["videoflow"]
     assert result.launch_command == f'cd "{target}" && opencode'
     assert result.copied_styles
     assert len(result.copied_workflows) == 5
 
     config = json.loads((target / "opencode.json").read_text(encoding="utf-8"))
-    assert set(config["mcp"]["servers"]) == {"core"}
-    core = config["mcp"]["servers"]["core"]
+    assert set(config["mcp"]["servers"]) == {"videoflow"}
+    core = config["mcp"]["servers"]["videoflow"]
     assert core["environment"]["VF_WORKSPACE_ROOT"] == str(target / "projects")
     assert "VIDEOWFLOW_HOME" not in core["environment"]
     assert config["mcp"]["timeout"]["startup"] >= 100000
@@ -119,7 +132,7 @@ def test_bootstrap_merges_global_config_and_keeps_other_servers(tmp_path: Path) 
     merged = json.loads(global_file.read_text(encoding="utf-8"))
     assert merged["model"] == "deepseek/deepseek-chat"
     assert "other" in merged["mcp"]["servers"]
-    assert "core" in merged["mcp"]["servers"]
+    assert "videoflow" in merged["mcp"]["servers"]
     assert list(global_file.parent.glob("opencode.json.bak-*"))
 
 
@@ -155,7 +168,7 @@ def test_bootstrap_is_local_only_by_default(tmp_path: Path) -> None:
     assert result.status == "ok"
     assert global_file.exists() is False
     local = json.loads((tmp_path / "workspace" / "opencode.json").read_text(encoding="utf-8"))
-    assert "core" in local["mcp"]["servers"]
+    assert "videoflow" in local["mcp"]["servers"]
 
 
 def test_cleanup_global_removes_only_videoflow_servers(tmp_path: Path) -> None:
@@ -200,7 +213,10 @@ def test_opencode_config_packaged_and_merge() -> None:
         prompts=False,
     )
     assert generated["$schema"] == "https://opencode.ai/config.json"
-    assert generated["mcp"]["servers"]["core"]["environment"]["VF_MCP_PROMPTS"] == "0"
+    assert (
+        generated["mcp"]["servers"]["videoflow"]["environment"]["VF_MCP_PROMPTS"]
+        == "0"
+    )
 
     merged = opencode_config.merge_config(
         {"model": "x", "mcp": {"servers": {"other": {"type": "local"}}}},
@@ -208,14 +224,32 @@ def test_opencode_config_packaged_and_merge() -> None:
     )
     assert merged["model"] == "x"
     assert "other" in merged["mcp"]["servers"]
-    assert "core" in merged["mcp"]["servers"]
+    assert "videoflow" in merged["mcp"]["servers"]
+
+
+def test_merge_replaces_legacy_videoflow_entries() -> None:
+    generated = opencode_config.build_config("core", workspace_root="/w/projects")
+    merged = opencode_config.merge_config(
+        {
+            "mcp": {
+                "servers": {
+                    "core": {"command": ["videoflow-mcp"]},
+                    "fetch": {"command": ["videoflow-mcp-fetch"]},
+                    "other": {"command": ["other-server"]},
+                }
+            }
+        },
+        generated,
+    )
+    assert set(merged["mcp"]["servers"]) == {"videoflow", "other"}
 
 
 def test_opencode_config_packaged_commands(monkeypatch) -> None:
     monkeypatch.setattr(opencode_config, "is_packaged", lambda: True)
-    core = opencode_config.server_block("core", workspace_root="/w")
-    assert core["command"][-1] == "mcp"
-    assert core["timeout"]["startup"] == 120000
+    block = opencode_config.server_block("videoflow", workspace_root="/w")
+    assert block["command"][:2] == [opencode_config.executable(), "mcp"]
+    assert block["command"][-2:] == ["--profile", "core"]
+    assert block["timeout"]["startup"] == 120000
     with pytest.raises(ValueError):
         opencode_config.server_block("fetch", workspace_root="/w")
 
@@ -245,7 +279,7 @@ def test_bootstrap_api_route(tmp_path: Path) -> None:
     payload = response.json()
     assert response.status_code == 200
     assert payload["ok"] is True
-    assert payload["mcp_servers"] == ["core"]
+    assert payload["mcp_servers"] == ["videoflow"]
     assert (tmp_path / "api-workspace" / "opencode.json").is_file()
 
 

@@ -1620,8 +1620,15 @@ def test_mcp_runs_the_stdio_server(monkeypatch) -> None:
         def run(self, mode):
             modes.append(mode)
 
-    monkeypatch.setattr(mcp_server_module, "build_server", lambda: FakeServer())
+    captured: dict[str, object] = {}
+
+    def fake_build(**kwargs):
+        captured.update(kwargs)
+        return FakeServer()
+
+    monkeypatch.setattr(mcp_server_module, "build_server", fake_build)
     assert cli.main(["mcp"]) == 0
+    assert captured["profile"] == "core"
     assert modes == ["stdio"]
 
 

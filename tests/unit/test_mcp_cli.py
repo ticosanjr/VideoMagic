@@ -31,12 +31,27 @@ def test_main_forwards_prompt_flag(monkeypatch, argv, expected) -> None:
     captured: dict[str, object] = {}
     server = FakeServer()
 
-    def fake_build(*args, prompts: bool = True) -> FakeServer:
+    def fake_build(*args, prompts: bool = True, profile: str = "core") -> FakeServer:
         captured["prompts"] = prompts
+        captured["profile"] = profile
         return server
 
     monkeypatch.setattr(cli, "build_server", fake_build)
     monkeypatch.delenv("VF_MCP_PROMPTS", raising=False)
     cli.main(argv)
     assert captured["prompts"] is expected
+    assert captured["profile"] == "core"
     assert server.modes == ["stdio"]
+
+
+def test_main_forwards_full_profile(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+    server = FakeServer()
+
+    def fake_build(*args, prompts: bool = True, profile: str = "core") -> FakeServer:
+        captured["profile"] = profile
+        return server
+
+    monkeypatch.setattr(cli, "build_server", fake_build)
+    cli.main(["--profile", "full"])
+    assert captured["profile"] == "full"

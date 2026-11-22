@@ -49,26 +49,42 @@ def _parameter_names(func: Any) -> list[str]:
     ]
 
 
-def _suggest(name: str, candidates: list[str]) -> list[str]:
-    return get_close_matches(str(name), candidates, n=3, cutoff=0.55)
+def _suggest(keys: list[str], candidates: list[str]) -> dict[str, str]:
+    """Map each unknown key to its closest valid parameter, if any."""
+
+    suggestions: dict[str, str] = {}
+    valid = set(candidates)
+    for key in keys:
+        if key in valid:
+            continue
+        matches = get_close_matches(str(key), candidates, n=1, cutoff=0.55)
+        if matches:
+            suggestions[str(key)] = matches[0]
+    return suggestions
 
 
-def _invalid_keys(exc: BaseException) -> tuple[list[str], list[str]]:
+def suggest_parameters(
+    keys: list[str], candidates: list[str]
+) -> dict[str, str]:
+    """Return close-match suggestions for unknown tool parameters."""
+
+    return _suggest(keys, candidates)
+
+
+def _invalid_keys(exc: BaseException) -> list[str]:
     if isinstance(exc, ValidationError):
         keys = [
             str(error.get("loc", ["?"])[-1])
             for error in exc.errors()
             if error.get("loc")
         ]
-        return sorted(set(keys)), []
+        return sorted(set(keys))
     message = str(exc)
     marker = "unexpected keyword argument"
     if marker in message:
         key = message.rsplit("'", 2)[-2] if message.count("'") >= 2 else ""
-        return ([key] if key else []), []
-    if "missing" in message and "argument" in message:
-        return [], []
-    return [], []
+        return [key] if key else []
+    return []
 
 
 def _command_details(exc: BaseException) -> tuple[str, str]:
@@ -88,7 +104,7 @@ def _command_details(exc: BaseException) -> tuple[str, str]:
 
 
 def _hint(error_code: str, message: str) -> str:
-    if error_code == "invalid_parameter":
+    if error_code == "invalid_params":
         return "Use the exact parameter names from the tool schema."
     if "onnxruntime" in message.lower():
         return "Run Install/Repair in the Windows worker kit and check the ONNX runtime."
@@ -108,17 +124,18 @@ def error_envelope(
         payload = dict(exc.to_dict())
         payload.setdefault("error_code", payload.get("code", "videoflow_error"))
         payload.setdefault("invalid_keys", [])
-        payload.setdefault("did_you_mean", [])
+        payload.setdefault("did_you_mean", {})
         return payload
 
-    invalid, did_you_mean = _invalid_keys(exc)
-    if invalid and func is not None:
-        did_you_mean = _suggest(invalid[0], _parameter_names(func))
+    invalid = _invalid_keys(exc)
+    did_you_mean = (
+        _suggest(invalid, _parameter_names(func)) if invalid and func else {}
+    )
     if isinstance(exc, ValidationError):
-        error_code = "invalid_parameter"
+        error_code = "invalid_params"
         message = exc.errors()[0].get("msg", str(exc)) if exc.errors() else str(exc)
     elif isinstance(exc, TypeError):
-        error_code = "invalid_parameter"
+        error_code = "invalid_params"
         message = str(exc)
     elif isinstance(exc, subprocess.CalledProcessError):
         error_code = "command_failed"
@@ -180,6 +197,7 @@ def mcp_tool_guard(func: Any) -> Any:
                 return error_envelope(exc, func=func)
             return normalize_execution(result)
 
+        async_wrapper.__mcp_guarded__ = True  # type: ignore[attr-defined]
         return async_wrapper
 
     @functools.wraps(func)
@@ -190,6 +208,7 @@ def mcp_tool_guard(func: Any) -> Any:
             return error_envelope(exc, func=func)
         return normalize_execution(result)
 
+    wrapper.__mcp_guarded__ = True  # type: ignore[attr-defined]
     return wrapper
 
 
@@ -210,4 +229,5 @@ __all__ = [
     "fill_execution",
     "mcp_tool_guard",
     "normalize_execution",
+    "suggest_parameters",
 ]

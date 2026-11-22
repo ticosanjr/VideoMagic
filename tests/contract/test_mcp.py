@@ -2,16 +2,73 @@ import asyncio
 import json
 import uuid
 
-from videoflow.mcp_server.registry import RESOURCE_SPECS, TOOL_SPECS
+from videoflow.mcp_server.registry import (
+    CORE_TOOL_NAMES,
+    FULL_TOOL_NAMES,
+    RESOURCE_SPECS,
+    TOOL_DOCSTRINGS,
+    TOOL_SPECS,
+)
 from videoflow.mcp_server.server import build_server
 
 
-def test_registry_is_the_core_profile() -> None:
+def test_registry_keeps_unique_specs_and_16_resources() -> None:
     names = [tool.name for tool in TOOL_SPECS]
-    assert len(names) == 44
     assert len(names) == len(set(names))
     assert all(name.startswith("vf_") for name in names)
     assert len(RESOURCE_SPECS) == 16
+
+
+def test_profiles_have_exactly_16_and_21_tools() -> None:
+    assert len(CORE_TOOL_NAMES) == 16
+    assert len(FULL_TOOL_NAMES) == 21
+    assert set(FULL_TOOL_NAMES) - set(CORE_TOOL_NAMES) == {
+        "vf_fx_depth",
+        "vf_fx_parallax",
+        "vf_fx_motion",
+        "vf_fx_capture",
+        "vf_style",
+    }
+
+    async def names(profile: str) -> list[str]:
+        return [tool.name for tool in await build_server(profile=profile).list_tools()]
+
+    core = asyncio.run(names("core"))
+    full = asyncio.run(names("full"))
+    assert len(core) == len(set(core)) == 16
+    assert len(full) == len(set(full)) == 21
+    assert set(core) == set(CORE_TOOL_NAMES)
+    assert set(full) == set(FULL_TOOL_NAMES)
+
+
+def test_official_tools_have_three_line_contracts() -> None:
+    for name in FULL_TOOL_NAMES:
+        doc = TOOL_DOCSTRINGS[name]
+        assert "[DOES]" in doc
+        assert "[REQUIRES]" in doc
+        assert "[RETURNS]" in doc
+        assert len([line for line in doc.splitlines() if line.strip()]) == 3
+
+
+def test_unknown_tool_parameter_returns_a_typed_envelope() -> None:
+    async def call() -> object:
+        result = await build_server(profile="all").call_tool(
+            "vf_pip",
+            {
+                "project_id": "p",
+                "overlay_asset": "a.png",
+                "start_sec": 0,
+                "end_sec": 1,
+                "margin_top": 10,
+            },
+        )
+        return result
+
+    payload = asyncio.run(call()).structured_content  # type: ignore[attr-defined]
+    assert payload["ok"] is False
+    assert payload["error_code"] == "invalid_params"
+    assert payload["invalid_keys"] == ["margin_top"]
+    assert payload["did_you_mean"] == {"margin_top": "margin_y"}
 
 
 def test_server_registers_every_public_tool() -> None:

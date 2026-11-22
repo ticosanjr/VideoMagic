@@ -35,12 +35,16 @@ def test_legacy_domain_mcp_subcommands_are_gone(command: str) -> None:
         cli.main([command])
 
 
-def test_only_the_core_server_block_is_supported() -> None:
+def test_only_the_videoflow_server_block_is_supported() -> None:
     from videoflow.application.opencode_config import server_block
 
-    core = server_block("core", workspace_root="/w")
-    assert core["command"]
-    for name in ("fetch", "audio", "vision"):
+    block = server_block("videoflow", workspace_root="/w")
+    assert block["command"]
+    assert block["command"][-2:] == ["--profile", "core"]
+    assert server_block("videoflow", workspace_root="/w", tool_profile="full")[
+        "command"
+    ][-2:] == ["--profile", "full"]
+    for name in ("core", "fetch", "audio", "vision"):
         with pytest.raises(ValueError):
             server_block(name, workspace_root="/w")
 

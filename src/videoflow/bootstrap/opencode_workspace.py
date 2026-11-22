@@ -132,7 +132,9 @@ def _workflow_list(catalog: WorkflowCatalog) -> str:
     return "\n".join(lines) or "- Nenhum workflow cadastrado."
 
 
-_VIDEOFLOW_SERVERS = frozenset({"core", "fetch", "audio", "vision"})
+_VIDEOFLOW_SERVERS = frozenset(
+    {"videoflow", "core", "fetch", "audio", "vision"}
+)
 
 
 def _is_videoflow_server(name: str, block: object) -> bool:

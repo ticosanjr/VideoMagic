@@ -6,7 +6,6 @@ ROOT = Path(__file__).resolve().parents[2]
 
 REFACTORED = (
     "src/videoflow/core/media_contract",
-    "src/videoflow/mcp",
     "src/videoflow/api/routes_outputs",
     "src/videoflow/mcp_server/core_tools",
     "src/videoflow/exporters/xmeml",

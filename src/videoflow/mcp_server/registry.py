@@ -1,9 +1,9 @@
-"""Public MCP surface for the 3.5 core profile.
+"""MCP tool registry and strict v4.2 profiles.
 
-One tool per workflow area with explicit ``action`` values, stable project ids,
-and on-demand resources for the step catalog. Fetch, audio and vision
-capabilities live in ``videoflow.domains`` and are exposed by this same server;
-the GPU worker remains a separate remote runtime.
+``core`` exposes exactly 16 tools and ``full`` exactly 21. The internal ``all``
+profile keeps every granular tool for the HTTP API and compatibility tests.
+Fetch, audio and vision capabilities live in ``videoflow.domains`` and are
+exposed by this same server; the GPU worker remains a separate remote runtime.
 """
 
 from __future__ import annotations
@@ -246,7 +246,209 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "Run session ingest, multicam synchronization, or audio diagnosis.",
         "ingest",
     ),
+    ToolSpec(
+        "vf_session_brief",
+        "Summarize a project's stage, sources, GPU, QA, and next moves.",
+        "project",
+    ),
+    ToolSpec(
+        "vf_transcript",
+        "Search, page, and maintain the cleaned transcript and glossary.",
+        "transcript",
+    ),
+    ToolSpec(
+        "vf_decupage",
+        "Plan the beat map and assemble the canonical decupage timeline.",
+        "timeline",
+    ),
+    ToolSpec(
+        "vf_shorts",
+        "Batch-render Shorts with per-clip style, crop, intro, and music.",
+        "shorts",
+    ),
+    ToolSpec(
+        "vf_qa",
+        "Audit the deliverable, compare QA runs, and autofix layout defects.",
+        "qa",
+    ),
+    ToolSpec(
+        "vf_jobs",
+        "List, cancel, wait, inspect logs, or read QA for project jobs.",
+        "jobs",
+    ),
 )
+
+# Official v4.2 profiles. ``all`` is internal and keeps every granular tool for
+# the HTTP API and backward-compatible tests; the CLI only accepts core/full.
+CORE_TOOL_NAMES: tuple[str, ...] = (
+    "vf_project",
+    "vf_session_brief",
+    "vf_capabilities",
+    "vf_ingest",
+    "vf_run",
+    "vf_transcript",
+    "vf_decupage",
+    "vf_scenes",
+    "vf_preview",
+    "vf_timeline",
+    "vf_shorts",
+    "vf_audio",
+    "vf_media",
+    "vf_export",
+    "vf_qa",
+    "vf_jobs",
+)
+
+FULL_TOOL_NAMES: tuple[str, ...] = (
+    *CORE_TOOL_NAMES,
+    "vf_fx_depth",
+    "vf_fx_parallax",
+    "vf_fx_motion",
+    "vf_fx_capture",
+    "vf_style",
+)
+
+PROFILE_TOOL_NAMES: dict[str, tuple[str, ...]] = {
+    "core": CORE_TOOL_NAMES,
+    "full": FULL_TOOL_NAMES,
+    "all": tuple(spec.name for spec in TOOL_SPECS),
+}
+
+
+def profile_tool_names(profile: str) -> tuple[str, ...]:
+    """Return the exact tool list for one profile."""
+
+    try:
+        return PROFILE_TOOL_NAMES[str(profile).strip().lower()]
+    except KeyError as exc:
+        raise ValueError(f"unknown MCP profile: {profile!r}") from exc
+
+
+TOOL_DOCSTRINGS: dict[str, str] = {
+    "vf_project": (
+        "[DOES] Create, open, or inspect a project and manage checkpoints.\n"
+        "[REQUIRES] ``action`` plus the project path or ``project_id``.\n"
+        "[RETURNS] Project record, summary, or checkpoint metadata."
+    ),
+    "vf_session_brief": (
+        "[DOES] Summarize stage, sources, GPU, QA, and revision for a session.\n"
+        "[REQUIRES] A registered ``project_id``.\n"
+        "[RETURNS] Compact brief with next actions and recent revisions."
+    ),
+    "vf_capabilities": (
+        "[DOES] Report backend, model, and external-provider availability.\n"
+        "[REQUIRES] Optional ``allow_external_services``.\n"
+        "[RETURNS] Capability list plus policy flags."
+    ),
+    "vf_ingest": (
+        "[DOES] Ingest sources, synchronize multicam, or diagnose audio.\n"
+        "[REQUIRES] ``action`` and project sources or a ``project_id``.\n"
+        "[RETURNS] Job payload or the updated session state."
+    ),
+    "vf_run": (
+        "[DOES] Run an ordered chain of catalog steps with checkpoints.\n"
+        "[REQUIRES] ``project_id`` and an explicit step list.\n"
+        "[RETURNS] Job payload with per-step status and artifacts."
+    ),
+    "vf_transcript": (
+        "[DOES] Search or page the transcript and maintain the glossary.\n"
+        "[REQUIRES] ``project_id`` and a query or glossary action.\n"
+        "[RETURNS] Matching transcript spans or the updated glossary."
+    ),
+    "vf_decupage": (
+        "[DOES] Plan a beat map and assemble the canonical decupage timeline.\n"
+        "[REQUIRES] ``project_id``, style parameters, and a time range.\n"
+        "[RETURNS] Beat-map plan or the applied timeline revision."
+    ),
+    "vf_scenes": (
+        "[DOES] Analyze scenes or read the cached scene manifest.\n"
+        "[REQUIRES] ``project_id`` and an optional cache or analyze action.\n"
+        "[RETURNS] Scene summary, manifest, or keyframe metadata."
+    ),
+    "vf_preview": (
+        "[DOES] Render ordered caption or overlay preview frames.\n"
+        "[REQUIRES] ``project_id`` and preview times or target artifacts.\n"
+        "[RETURNS] Preview image paths and their timeline times."
+    ),
+    "vf_timeline": (
+        "[DOES] Read, edit, or atomically apply a beat map to the timeline.\n"
+        "[REQUIRES] ``project_id``, ``action``, and edit or beat-map fields.\n"
+        "[RETURNS] Canonical timeline JSON or the new revision."
+    ),
+    "vf_shorts": (
+        "[DOES] Batch-render Shorts with style, crop, intro, and music.\n"
+        "[REQUIRES] ``project_id`` and clip or source ranges.\n"
+        "[RETURNS] Job payload with rendered Short paths."
+    ),
+    "vf_audio": (
+        "[DOES] Run TTS, cleanup, stems, music, Foley, and mastering.\n"
+        "[REQUIRES] ``action`` plus the audio source or text.\n"
+        "[RETURNS] Audio artifact path and execution metadata."
+    ),
+    "vf_media": (
+        "[DOES] Fetch stock media, animate stills, and audit licenses.\n"
+        "[REQUIRES] ``action`` and a query, image, or asset id.\n"
+        "[RETURNS] Media artifact paths, animation, or license report."
+    ),
+    "vf_export": (
+        "[DOES] Bundle, draft-render, validate, or NLE-roundtrip exports.\n"
+        "[REQUIRES] ``project_id`` and an export action or targets.\n"
+        "[RETURNS] Job payload with exports, checks, and roundtrip paths."
+    ),
+    "vf_qa": (
+        "[DOES] Audit the deliverable, compare QA runs, and autofix layout.\n"
+        "[REQUIRES] ``project_id`` and a QA action or report ids.\n"
+        "[RETURNS] QA report, regression diff, or corrected layout."
+    ),
+    "vf_jobs": (
+        "[DOES] List, cancel, wait, inspect logs, or read QA for jobs.\n"
+        "[REQUIRES] ``action`` and optional ``project_id`` or ``job_id``.\n"
+        "[RETURNS] Job records, logs, or persisted QA artifacts."
+    ),
+    "vf_fx_depth": (
+        "[DOES] Composite text or graphics behind a matted presenter.\n"
+        "[REQUIRES] ``project_id``, the asset, and a time range.\n"
+        "[RETURNS] Timeline layers with alpha and overlay metadata."
+    ),
+    "vf_fx_parallax": (
+        "[DOES] Animate a still as background plus real-alpha 2.5D subject.\n"
+        "[REQUIRES] ``project_id``, an image, and a time range.\n"
+        "[RETURNS] Parallax layers written to the timeline."
+    ),
+    "vf_fx_motion": (
+        "[DOES] Render HTML, HyperFrames, Remotion, Manim, or FFmpeg motion.\n"
+        "[REQUIRES] A project, motion source, engine, and duration.\n"
+        "[RETURNS] Rendered motion artifact and overlay metadata."
+    ),
+    "vf_fx_capture": (
+        "[DOES] Capture a URL or screen as a still or scrollable B-roll.\n"
+        "[REQUIRES] A ``url`` or screen target and capture mode.\n"
+        "[RETURNS] Captured image or video clip path."
+    ),
+    "vf_style": (
+        "[DOES] List, save, sync, analyze, or learn rules for styles.\n"
+        "[REQUIRES] ``action`` and a style id or Markdown payload.\n"
+        "[RETURNS] Style record, diff, validation, or learned rules."
+    ),
+}
+
+
+def validate_tool_docstring(func: object) -> None:
+    """Fail registration when a tool has no three-line MCP contract."""
+
+    doc = str(getattr(func, "__doc__", "") or "").strip()
+    lines = [line for line in doc.splitlines() if line.strip()]
+    missing = [
+        marker
+        for marker in ("[DOES]", "[REQUIRES]", "[RETURNS]")
+        if marker not in doc
+    ]
+    if missing or len(lines) < 3:
+        name = getattr(func, "__name__", repr(func))
+        raise RuntimeError(
+            f"MCP tool {name} needs a three-line [DOES]/[REQUIRES]/[RETURNS] "
+            f"docstring; missing {missing or 'three lines'}"
+        )
 
 RESOURCE_SPECS: tuple[ResourceSpec, ...] = (
     ResourceSpec("vf://projects", "Registered projects."),

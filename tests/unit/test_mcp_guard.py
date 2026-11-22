@@ -6,7 +6,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from videoflow.domain.errors import VideoFlowError
-from videoflow.mcp.guard import (
+from videoflow.mcp_server.guard import (
     error_envelope,
     mcp_tool_guard,
     normalize_execution,
@@ -28,9 +28,9 @@ def test_guard_turns_validation_into_one_envelope() -> None:
     except ValidationError as exc:
         payload = error_envelope(exc, func=_tool)
     assert payload["ok"] is False
-    assert payload["error_code"] == "invalid_parameter"
+    assert payload["error_code"] == "invalid_params"
     assert "sentence_id" in payload["invalid_keys"]
-    assert payload["did_you_mean"] == ["sentence_ids"]
+    assert payload["did_you_mean"] == {"sentence_id": "sentence_ids"}
     assert payload["stderr_tail"] == ""
 
 
@@ -39,7 +39,7 @@ def test_guard_suggests_parameter_for_unexpected_keyword() -> None:
     payload = wrapped(sentence_id=[1])
     assert payload["ok"] is False
     assert payload["invalid_keys"] == ["sentence_id"]
-    assert payload["did_you_mean"] == ["sentence_ids"]
+    assert payload["did_you_mean"] == {"sentence_id": "sentence_ids"}
     assert "Error executing tool" not in str(payload)
 
 
@@ -91,3 +91,21 @@ def test_unknown_errors_become_internal_error(error: Exception) -> None:
     payload = mcp_tool_guard(fail)()
     assert payload["error_code"] == "internal_error"
     assert payload["message"] == str(error)
+
+
+def test_unknown_key_returns_the_documented_envelope() -> None:
+    def vf_layout(margin_y: int = 32, project_id: str = "") -> dict[str, object]:
+        return {"ok": True}
+
+    payload = mcp_tool_guard(vf_layout)(project_id="p", margin_top=10)
+    assert payload == {
+        "ok": False,
+        "error_code": "invalid_params",
+        "code": "invalid_params",
+        "message": payload["message"],
+        "invalid_keys": ["margin_top"],
+        "did_you_mean": {"margin_top": "margin_y"},
+        "failed_command": "",
+        "stderr_tail": "",
+        "fix_hint": "Use the exact parameter names from the tool schema.",
+    }

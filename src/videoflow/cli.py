@@ -1279,10 +1279,11 @@ def _mcp(args: argparse.Namespace | None = None) -> int:
     from videoflow.mcp_server.cli import prompts_enabled
     from videoflow.mcp_server.server import build_server
 
+    profile = str(getattr(args, "profile", "core") or "core")
     if prompts_enabled(flag=bool(getattr(args, "no_prompts", False))):
-        build_server().run("stdio")
+        build_server(profile=profile).run("stdio")
     else:
-        build_server(prompts=False).run("stdio")
+        build_server(profile=profile, prompts=False).run("stdio")
     return 0
 
 

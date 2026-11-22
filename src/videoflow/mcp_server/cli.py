@@ -26,11 +26,18 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="Register tools and resources without the videoflow_* prompts.",
     )
+    parser.add_argument(
+        "--profile",
+        choices=["core", "full"],
+        default=os.environ.get("VF_MCP_PROFILE", "core"),
+        help="Exact tool profile exposed over stdio.",
+    )
     args = parser.parse_args(argv)
     manager = JobManager(store_dir=portable_home() / "jobs")
     build_server(
         manager,
         prompts=prompts_enabled(flag=args.no_prompts),
+        profile=args.profile,
     ).run("stdio")
 
 

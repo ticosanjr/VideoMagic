@@ -12,13 +12,13 @@ from pathlib import Path
 from typing import Any
 
 PROFILES: dict[str, list[str]] = {
-    "opencode": ["core"],
-    "core": ["core"],
-    "decupagem": ["core"],
-    "broll": ["core"],
-    "audio": ["core"],
-    "vision": ["core"],
-    "full": ["core"],
+    "opencode": ["videoflow"],
+    "core": ["videoflow"],
+    "decupagem": ["videoflow"],
+    "broll": ["videoflow"],
+    "audio": ["videoflow"],
+    "vision": ["videoflow"],
+    "full": ["videoflow"],
 }
 
 
@@ -116,8 +116,9 @@ def server_block(
     workspace_root: str,
     prompts: bool = True,
     videoflow_home: str = "",
+    tool_profile: str = "core",
 ) -> dict[str, Any]:
-    if name == "core":
+    if name == "videoflow":
         if is_packaged():
             command = [executable(), "mcp"]
         else:
@@ -128,6 +129,7 @@ def server_block(
                 str(project_root()),
                 "videoflow-mcp",
             ]
+        command.extend(["--profile", "full" if tool_profile == "full" else "core"])
         if not prompts:
             command.append("--no-prompts")
         return {
@@ -152,6 +154,7 @@ def build_config(
 ) -> dict[str, Any]:
     if profile not in PROFILES:
         raise ValueError(f"Unknown MCP profile: {profile}")
+    tool_profile = "full" if profile == "full" else "core"
     return {
         "$schema": "https://opencode.ai/config.json",
         "mcp": {
@@ -162,11 +165,28 @@ def build_config(
                     workspace_root=workspace_root,
                     prompts=prompts,
                     videoflow_home=videoflow_home,
+                    tool_profile=tool_profile,
                 )
                 for name in PROFILES[profile]
             },
         },
     }
+
+
+_LEGACY_SERVER_NAMES = frozenset({"core", "fetch", "audio", "vision"})
+
+
+def _is_legacy_videoflow_block(name: str, block: object) -> bool:
+    if name not in _LEGACY_SERVER_NAMES or not isinstance(block, dict):
+        return False
+    command = block.get("command")
+    if not isinstance(command, list):
+        return False
+    text = " ".join(str(item).lower() for item in command)
+    return any(
+        marker in text
+        for marker in ("videoflow", "mcp-fetch", "mcp-audio", "mcp-vision")
+    )
 
 
 def merge_config(existing: dict[str, Any] | None, generated: dict[str, Any]) -> dict[str, Any]:
@@ -185,7 +205,12 @@ def merge_config(existing: dict[str, Any] | None, generated: dict[str, Any]) -> 
     if not isinstance(existing_servers, dict):
         existing_servers = {}
         existing_mcp["servers"] = existing_servers
-    for name, block in (generated.get("mcp", {}).get("servers") or {}).items():
+    generated_servers = generated.get("mcp", {}).get("servers") or {}
+    if "videoflow" in generated_servers:
+        for name in list(existing_servers):
+            if _is_legacy_videoflow_block(str(name), existing_servers[name]):
+                existing_servers.pop(name, None)
+    for name, block in generated_servers.items():
         existing_servers[name] = block
     return merged
 
@@ -206,7 +231,6 @@ def global_config_path() -> Path:
 __all__ = [
     "PROFILES",
     "build_config",
-    "executable",
     "ensure_mcp_launcher",
     "executable",
     "global_config_path",
