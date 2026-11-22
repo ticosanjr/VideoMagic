@@ -44,8 +44,8 @@ Primeira release estável da arquitetura unificada.
 - O hardening completo do worker Windows/UI (1.6b: Job Objects, VRAM guard,
   SMB atômico e painel de benchmark) segue no backlog; o worker atual mantém as
   proteções já documentadas em `docs/gpu-worker.md`.
-- O E2E de UI com Playwright e os fixtures de 90 s/7 min não fazem parte desta
-  validação de release.
+- Os fixtures E2E de 90 s/7 min (`videoflow test-e2e`) não foram executados
+  nesta validação; a suíte Playwright de UI passou.
 
 ## [3.18.0] - 2026-11-22
 
