@@ -23,6 +23,8 @@ _DEFAULT_HEALTH_TIMEOUT = 0.3
 _DEFAULT_MIN_VRAM_MB = 2048
 _DEFAULT_MAX_QUEUE = 2
 _DEFAULT_CIRCUIT_SEC = 2.0
+_DEFAULT_DISCOVERY_TIMEOUT = 0.8
+_DISCOVERY_TTL = 5.0
 
 
 def _env_str(name: str, default: str = "") -> str:
@@ -48,6 +50,13 @@ def _env_int(name: str, default: int) -> int:
         return int(raw)
     except ValueError:
         return default
+
+
+def _env_bool(name: str, default: bool = True) -> bool:
+    raw = _env_str(name)
+    if not raw:
+        return default
+    return raw.lower() not in {"0", "false", "no", "off"}
 
 
 def _valid_shared_file(path: Path) -> bool:
@@ -112,6 +121,8 @@ class ComputeRouter:
         fallback_local: bool = True,
         allowed_capabilities: set[str] | None = None,
         client: GPUWorkerClient | None = None,
+        discovery_enabled: bool = True,
+        discovery_timeout: float = _DEFAULT_DISCOVERY_TIMEOUT,
     ) -> None:
         normalized_mode = (mode or _DEFAULT_MODE).strip().lower()
         if normalized_mode not in COMPUTE_MODES:
@@ -140,6 +151,10 @@ class ComputeRouter:
         self._worker_id = ""
         self._health_at = 0.0
         self._circuit_until = 0.0
+        self.discovery_enabled = bool(discovery_enabled)
+        self.discovery_timeout = max(0.1, float(discovery_timeout))
+        self._discovery_at = 0.0
+        self._discovery_reason = ""
 
     @classmethod
     def from_env(cls, *, client: GPUWorkerClient | None = None) -> ComputeRouter:
@@ -158,6 +173,10 @@ class ComputeRouter:
             max_queue=_env_int("VF_GPU_MAX_QUEUE", _DEFAULT_MAX_QUEUE),
             circuit_sec=_env_float("VF_GPU_CIRCUIT_SEC", _DEFAULT_CIRCUIT_SEC),
             client=client,
+            discovery_enabled=_env_bool("VF_GPU_DISCOVERY", True),
+            discovery_timeout=_env_float(
+                "VF_GPU_DISCOVERY_TIMEOUT_SEC", _DEFAULT_DISCOVERY_TIMEOUT
+            ),
         )
 
     @property
@@ -232,13 +251,34 @@ class ComputeRouter:
                 return WorkerHealth(available=False, message="worker circuit open")
 
         if not self.worker_url and self._client is None:
-            health = WorkerHealth(
-                available=False,
-                message="VF_GPU_WORKER_URL is not configured",
-            )
-            self._health = health
-            self._health_at = now
-            return health
+            if self.discovery_enabled and now - self._discovery_at >= _DISCOVERY_TTL:
+                self._discovery_at = now
+                try:
+                    peers = self.discover(timeout_sec=self.discovery_timeout)
+                except Exception as exc:  # noqa: BLE001 - discovery is best-effort
+                    peers = []
+                    self._discovery_reason = f"discovery failed: {exc}"
+                peer = next(
+                    (item for item in peers if str(item.get("url") or "").strip()),
+                    None,
+                )
+                if peer is not None:
+                    self.worker_url = str(peer["url"]).strip().rstrip("/")
+                    if peer.get("token"):
+                        self.token = str(peer["token"])
+                    self._worker_id = str(peer.get("worker_id") or "")
+                    self._discovery_reason = "worker discovered on the LAN"
+            if not self.worker_url and self._client is None:
+                health = WorkerHealth(
+                    available=False,
+                    message=(
+                        "worker not configured"
+                        + (f": {self._discovery_reason}" if self._discovery_reason else "")
+                    ),
+                )
+                self._health = health
+                self._health_at = now
+                return health
 
         try:
             health = self.client.health(timeout=self.health_timeout)

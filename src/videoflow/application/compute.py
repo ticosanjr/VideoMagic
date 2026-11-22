@@ -34,6 +34,7 @@ def router_from_settings(settings: Any | None = None) -> ComputeRouter:
         allowed_capabilities={
             capability for capability, enabled in gpu.capabilities.items() if enabled
         },
+        discovery_enabled=gpu.discovery_enabled,
     )
 
 
