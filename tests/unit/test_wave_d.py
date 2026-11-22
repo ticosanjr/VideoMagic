@@ -19,7 +19,8 @@ def test_workspace_root_accepts_projects_directory(tmp_path: Path, monkeypatch) 
 
 def test_domain_storage_projects_root_does_not_duplicate(tmp_path: Path, monkeypatch) -> None:
     from videoflow_mcp_audio import storage as audio_storage
-    from videoflow_mcp_vision import storage as vision_storage
+
+    from videoflow.domains.vision import storage as vision_storage
 
     monkeypatch.setattr(audio_storage, "_shared_project_dir", lambda project_id: None)
     monkeypatch.setattr(vision_storage, "_shared_project_dir", lambda project_id: None)

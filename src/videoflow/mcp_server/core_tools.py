@@ -722,7 +722,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
     ) -> dict[str, Any]:
         """Render an HTML, HyperFrames, Remotion, Manim, or FFmpeg graphic."""
 
-        from videoflow_mcp_vision.tools import render_motion_graphic
+        from videoflow.domains.vision.tools import render_motion_graphic
 
         try:
             return render_motion_graphic(
@@ -758,7 +758,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
     ) -> dict[str, Any]:
         """Capture a URL or screen as a still or scrollable clip."""
 
-        from videoflow_mcp_vision.tools import capture_web_or_screen
+        from videoflow.domains.vision.tools import capture_web_or_screen
 
         try:
             return capture_web_or_screen(
@@ -810,7 +810,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                     project_id, query, count=count, provider=provider
                 )
             if action == "image_to_broll_motion":
-                from videoflow_mcp_vision.tools import image_to_broll_motion
+                from videoflow.domains.vision.tools import image_to_broll_motion
 
                 if not project_id:
                     return error("project_required", "project_id is required")

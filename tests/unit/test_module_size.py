@@ -11,6 +11,7 @@ REFACTORED = (
     "src/videoflow/domains/media",
     "src/videoflow/domains/audio",
     "src/videoflow/domains/asr",
+    "src/videoflow/domains/vision",
     "packages/vf-shared/src/vf_shared",
 )
 

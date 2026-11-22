@@ -55,7 +55,7 @@ def _runtime(project_id: str) -> tuple[Any, ProjectState, Path]:
 
 
 def _vision_module() -> Any:
-    from videoflow_mcp_vision import tools
+    from videoflow.domains.vision import tools
 
     return tools
 

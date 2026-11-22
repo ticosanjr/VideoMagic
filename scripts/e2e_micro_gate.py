@@ -29,12 +29,13 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from videoflow.adapters.ffmpeg import FFmpegAdapter  # noqa: E402
 from videoflow.application.asset_providers.ledger import (  # noqa: E402
     license_blockers,
     write_ledger,
 )
 from videoflow.application.asset_providers.models import AssetCandidate  # noqa: E402
+
+from videoflow.adapters.ffmpeg import FFmpegAdapter  # noqa: E402
 from videoflow.application.compositor import (  # noqa: E402
     depth_composite,
     parallax,
@@ -345,7 +346,7 @@ def check_core(
 
 
 def check_fx(record: Any, state: ProjectState, work: Path) -> dict[str, Any]:
-    from videoflow_mcp_vision.tools import capture_web_or_screen, render_motion_graphic
+    from videoflow.domains.vision.tools import capture_web_or_screen, render_motion_graphic
 
     still = work / "still.png"
     run("-i", str(state.media_info.source_path), "-frames:v", "1", str(still))
@@ -463,7 +464,8 @@ def check_fx(record: Any, state: ProjectState, work: Path) -> dict[str, Any]:
 def check_media(record: Any, state: ProjectState, work: Path) -> dict[str, Any]:
     from mcp_fetch.server import fetch_stock_images
     from videoflow_mcp_audio.tools import generate_music_or_sfx
-    from videoflow_mcp_vision.tools import image_to_broll_motion
+
+    from videoflow.domains.vision.tools import image_to_broll_motion
 
     result: dict[str, Any] = {}
     try:

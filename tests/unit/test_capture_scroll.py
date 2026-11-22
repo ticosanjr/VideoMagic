@@ -2,7 +2,7 @@ import base64
 import json
 from types import SimpleNamespace
 
-from videoflow_mcp_vision import tools
+from videoflow.domains.vision import cdp_scroll as tools
 
 
 def test_cdp_scroll_capture_drives_chromium(monkeypatch) -> None:

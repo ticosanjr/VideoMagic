@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from videoflow_mcp_vision import tools
+from videoflow.domains.vision import graphics_web as tools
 
 
 def test_encode_frames_forces_even_dimensions(tmp_path: Path, monkeypatch) -> None:

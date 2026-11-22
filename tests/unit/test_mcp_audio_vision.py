@@ -34,6 +34,13 @@ from videoflow_mcp_vision.errors import (  # noqa: E402
 )
 from videoflow_mcp_vision.router import RouterBridge as VisionRouterBridge  # noqa: E402
 
+from videoflow.domains.vision import captions as vision_captions  # noqa: E402
+from videoflow.domains.vision import capture as vision_capture  # noqa: E402
+from videoflow.domains.vision import commands as vision_commands  # noqa: E402
+from videoflow.domains.vision import common as vision_common  # noqa: E402
+from videoflow.domains.vision import graphics_web as vision_graphics  # noqa: E402
+from videoflow.domains.vision import storage as vision_storage  # noqa: E402
+
 _ENV_KEYS = (
     "VF_PROJECT_OUTPUT",
     "VF_PROJECTS_ROOT",
@@ -87,7 +94,7 @@ def isolated_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     for key in _ENV_KEYS:
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setattr(audio_tools, "ROUTER", AudioRouterBridge(FakeRouter()))
-    monkeypatch.setattr(vision_tools, "ROUTER", VisionRouterBridge(FakeRouter()))
+    monkeypatch.setattr(vision_common, "ROUTER", VisionRouterBridge(FakeRouter()))
 
 
 @pytest.fixture()
@@ -497,7 +504,7 @@ def test_transcribe_without_binary_is_typed(
     empty = tmp_path / "empty-bin"
     empty.mkdir()
     monkeypatch.setenv("PATH", str(empty))
-    monkeypatch.setattr(vision_tools, "_stable_whisper_available", lambda: False)
+    monkeypatch.setattr(vision_captions, "_stable_whisper_available", lambda: False)
 
     with pytest.raises(VisionMissingCommandError) as info:
         vision_tools.transcribe_word_aligned("proj-asr", str(audio))
@@ -530,7 +537,8 @@ def _fake_capture(monkeypatch: pytest.MonkeyPatch) -> None:
 
         yield grab
 
-    monkeypatch.setattr(vision_tools, "_cdp_frame_capture", capture)
+    monkeypatch.setattr(vision_graphics, "_cdp_frame_capture", capture)
+    monkeypatch.setattr(vision_capture, "_cdp_frame_capture", capture)
 
 
 def _fake_chrome(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -710,7 +718,7 @@ def test_upscale_remote_image_uses_the_source_extension(
     remote = tmp_path / "remote.png"
     remote.write_bytes(b"UPSCALED")
     router = FakeRouter(healthy={"upscale"}, remote_file=remote)
-    monkeypatch.setattr(vision_tools, "ROUTER", VisionRouterBridge(router))
+    monkeypatch.setattr(vision_common, "ROUTER", VisionRouterBridge(router))
 
     result = vision_tools.upscale_media("proj-up", str(source), scale=2)
 
@@ -729,13 +737,13 @@ def test_upscale_ffmpeg_video_preserves_audio_and_faststart(
     source = tmp_path / "clip.mp4"
     source.write_bytes(b"MP4")
     captured: list[list[str]] = []
-    original = vision_tools.commands.run
+    original = vision_commands.run
 
     def fake_run(argv, **kwargs):
         captured.append([str(item) for item in argv])
         return original(argv, **kwargs)
 
-    monkeypatch.setattr(vision_tools.commands, "run", fake_run)
+    monkeypatch.setattr(vision_commands, "run", fake_run)
 
     result = vision_tools.upscale_media("proj-up", str(source), scale=2, backend="ffmpeg")
 
@@ -760,7 +768,7 @@ def test_realesrgan_video_pipeline_uses_frames_and_audio(
         captured.append([str(item) for item in argv])
         return None
 
-    monkeypatch.setattr(vision_tools.commands, "run", fake_run)
+    monkeypatch.setattr(vision_commands, "run", fake_run)
 
     vision_tools._realesrgan_video(
         source, target, binary="/usr/bin/realesrgan-ncnn-vulkan", scale=2
@@ -800,7 +808,6 @@ def test_write_output_resolves_contracts_copy_when_project_output_differs(
 def test_vision_write_output_resolves_contracts_copy_when_project_output_differs(
     project_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from videoflow_mcp_vision import storage as vision_storage
 
     override = tmp_path / "override"
     monkeypatch.setenv("VF_PROJECT_OUTPUT", str(override))
@@ -822,7 +829,6 @@ def test_vision_write_output_resolves_contracts_copy_when_project_output_differs
 
 def test_generated_assets_use_the_ai_generated_contract_license() -> None:
     from videoflow_mcp_audio import storage as audio_storage
-    from videoflow_mcp_vision import storage as vision_storage
 
     assert audio_storage.contract_license("generated") == "ai_generated"
     assert vision_storage.contract_license("generated") == "ai_generated"
