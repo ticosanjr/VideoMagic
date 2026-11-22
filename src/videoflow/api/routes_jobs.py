@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
-import time
-from collections.abc import Iterator
+from collections.abc import AsyncIterator
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse, StreamingResponse
@@ -29,7 +29,7 @@ class ResumeRequest(BaseModel):
     comment: str = Field(default="", max_length=4000)
 
 
-def _job_event_stream(job: Job) -> Iterator[str]:
+async def _job_event_stream(job: Job) -> AsyncIterator[str]:
     last: tuple[object, ...] | None = None
     while True:
         payload = job.to_dict()
@@ -39,7 +39,7 @@ def _job_event_stream(job: Job) -> Iterator[str]:
             yield f"data: {json.dumps(payload)}\n\n"
         if str(payload["status"]) in TERMINAL:
             break
-        time.sleep(0.2)
+        await asyncio.sleep(0.2)
 
 
 def register_job_routes(app: FastAPI, jobs: JobManager) -> None:

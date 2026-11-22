@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from videoflow.application.alignment import plausible_ms, refine_transcript
 from videoflow.domain.state import Sentence, WordTiming
 
@@ -110,7 +112,8 @@ def test_rms_reader_handles_audio_layouts(tmp_path) -> None:
         handle.setframerate(1000)
         handle.writeframes(b"\x80\x80")
     wide = alignment._Rms(eight_bit, 1000)
-    assert wide(0, 2) == 0
+    with pytest.raises(ValueError, match="Unsupported PCM sample width: 1"):
+        wide(0, 2)
     wide.close()
 
     assert alignment._Rms(tmp_path / "missing.wav", 1000)(0, 1) == 0

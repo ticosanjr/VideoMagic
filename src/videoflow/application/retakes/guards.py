@@ -7,6 +7,7 @@ from difflib import SequenceMatcher
 
 from videoflow.application.retakes.models import RetakeGroup
 from videoflow.application.retakes.similarity import _normalized, _tokens
+from videoflow.core.media_contract.constants import AUDIO_MASTER_RATE
 from videoflow.domain.errors import InvalidRetakeIdsError
 from videoflow.domain.state import ManualOverride, Sentence
 
@@ -135,7 +136,7 @@ def _group_for(
         reason=reason,
         keep_text=tuple(order[identifier].text for identifier in keep),
         discard_text=tuple(order[identifier].text for identifier in discard),
-        start_sec=round(min(item.start_sample for item in members) / 48000, 3),
-        end_sec=round(max(item.end_sample for item in members) / 48000, 3),
+        start_sec=round(min(item.start_sample for item in members) / AUDIO_MASTER_RATE, 3),
+        end_sec=round(max(item.end_sample for item in members) / AUDIO_MASTER_RATE, 3),
     )
 

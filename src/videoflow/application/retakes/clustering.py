@@ -15,6 +15,7 @@ from videoflow.application.retakes.similarity import (
     _similarity,
     _unique_facts,
 )
+from videoflow.core.media_contract.constants import AUDIO_MASTER_RATE
 from videoflow.domain.retakes import Strategy
 from videoflow.domain.state import Sentence
 
@@ -57,7 +58,7 @@ def cluster_similar_repetitions(
 ) -> tuple[RetakeGroup, ...]:
     """Group nearby near-duplicate sentences, including small word swaps."""
 
-    rate = 48000
+    rate = AUDIO_MASTER_RATE
     ordered = sorted(sentences, key=lambda item: (item.start_sample, item.end_sample, item.id))
     used: set[int] = set()
     groups: list[RetakeGroup] = []
@@ -111,8 +112,8 @@ def cluster_similar_repetitions(
                 reason="near-duplicate passage",
                 keep_text=(keep_sentence.text,),
                 discard_text=tuple(item.text for item in discarded),
-                start_sec=round(min(item.start_sample for item in group) / 48000, 3),
-                end_sec=round(max(item.end_sample for item in group) / 48000, 3),
+                start_sec=round(min(item.start_sample for item in group) / AUDIO_MASTER_RATE, 3),
+                end_sec=round(max(item.end_sample for item in group) / AUDIO_MASTER_RATE, 3),
             )
         )
     return tuple(groups)
@@ -177,7 +178,7 @@ def _parse_groups(
                 item
                 for item in sentences.values()
                 if item.id != identifier
-                and abs(item.start_sample - source.start_sample) <= 90 * 48000
+                and abs(item.start_sample - source.start_sample) <= 90 * AUDIO_MASTER_RATE
             ]
             keep = (
                 max(
@@ -239,7 +240,7 @@ def _valid_groups(
     max_group_span_seconds: float,
 ) -> list[RetakeGroup]:
     valid: list[RetakeGroup] = []
-    rate = 48000
+    rate = AUDIO_MASTER_RATE
     for group in groups:
         ids = group.keep + group.discard
         if len(ids) < 2 or not group.keep or not group.discard:
@@ -264,17 +265,18 @@ def _prompt(
     lines: list[str] = []
     for item in before:
         lines.append(
-            f"[context] {item.id}|{item.start_sample / 48000:.2f}|"
-            f"{item.end_sample / 48000:.2f}|{item.text}"
+            f"[context] {item.id}|{item.start_sample / AUDIO_MASTER_RATE:.2f}|"
+            f"{item.end_sample / AUDIO_MASTER_RATE:.2f}|{item.text}"
         )
     for item in sentences:
         lines.append(
-            f"{item.id}|{item.start_sample / 48000:.2f}|{item.end_sample / 48000:.2f}|{item.text}"
+            f"{item.id}|{item.start_sample / AUDIO_MASTER_RATE:.2f}|"
+            f"{item.end_sample / AUDIO_MASTER_RATE:.2f}|{item.text}"
         )
     for item in after:
         lines.append(
-            f"[context] {item.id}|{item.start_sample / 48000:.2f}|"
-            f"{item.end_sample / 48000:.2f}|{item.text}"
+            f"[context] {item.id}|{item.start_sample / AUDIO_MASTER_RATE:.2f}|"
+            f"{item.end_sample / AUDIO_MASTER_RATE:.2f}|{item.text}"
         )
     return PROMPT_HEADER.replace("{strictness}", f"{strictness} — {rules}") + "\n".join(lines)
 
@@ -358,10 +360,10 @@ def _apply_strategy(
                 keep_text=tuple(item.text for item in keep_sentences),
                 discard_text=tuple(item.text for item in discard_sentences),
                 start_sec=round(
-                    min(item.start_sample for item in all_sentences) / 48000, 3
+                    min(item.start_sample for item in all_sentences) / AUDIO_MASTER_RATE, 3
                 ),
                 end_sec=round(
-                    max(item.end_sample for item in all_sentences) / 48000, 3
+                    max(item.end_sample for item in all_sentences) / AUDIO_MASTER_RATE, 3
                 ),
             )
         )

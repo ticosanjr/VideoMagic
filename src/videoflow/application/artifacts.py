@@ -162,6 +162,26 @@ def qa_artifacts(output: Path) -> dict[str, Any]:
             ):
                 if isinstance(item, dict):
                     defects.append({"kind": "safezone", **item})
+    qa_root = output / "exports" / "qa"
+    if qa_root.is_dir():
+        for path in sorted(qa_root.rglob("*.json")):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                payload = {"error": "unreadable"}
+            reports[path.stem] = payload
+            if isinstance(payload, dict):
+                raw_defects = payload.get("defects")
+                defect_rows = raw_defects if isinstance(raw_defects, list) else []
+                for item in defect_rows:
+                    if isinstance(item, dict):
+                        defects.append(dict(item))
+                raw_issues = payload.get("issues")
+                issue_rows = raw_issues if isinstance(raw_issues, list) else []
+                for item in issue_rows:
+                    if isinstance(item, dict):
+                        defects.append(dict(item))
+
     frames: list[dict[str, Any]] = []
     for directory in (output / "work" / "qa", output / "qa"):
         if not directory.is_dir():

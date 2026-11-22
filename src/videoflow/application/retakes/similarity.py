@@ -13,6 +13,7 @@ from videoflow.application.text import (
     normalize_text,
     token_set,
 )
+from videoflow.core.media_contract.constants import AUDIO_MASTER_RATE
 from videoflow.domain.retakes import Strategy
 from videoflow.domain.state import Sentence
 
@@ -163,7 +164,7 @@ def _hallucination_loop(
     cluster: Sequence[int],
     order: dict[int, Sentence],
     *,
-    sample_rate: int = 48_000,
+    sample_rate: int = AUDIO_MASTER_RATE,
 ) -> bool:
     """Detect an identical ASR loop rather than real repeated speech.
 

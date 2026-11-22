@@ -65,6 +65,13 @@ STATUS_BY_CODE: dict[str, int] = {
     "backup_failed": 500,
     "plugin_not_found": 404,
     "external_service_blocked": 403,
+    "precondition_failed": 412,
+    "gpu_worker_offline": 503,
+    "gpu_required_for_operation": 503,
+    "alpha_channel_missing": 422,
+    "insufficient_contiguous_speech": 422,
+    "beatmap_conflict": 409,
+    "insufficient_disk_space": 507,
     "capability_unavailable": 501,
     "not_implemented": 501,
 }
