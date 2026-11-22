@@ -1,0 +1,33 @@
+{
+  "version": "4.1.0",
+  "built_at": "2026-11-22T21:32:24+00:00",
+  "host": "linux-x86_64",
+  "python": "3.12.3",
+  "artifacts": [
+    {
+      "name": "VideoFlow-4.1.0-x86_64.AppImage",
+      "sha256": "0349ea0a24bbd74b3a0e2eeca034f7784b5af01ac555d742f2f1ef8835b412b7",
+      "size_bytes": 326928888
+    },
+    {
+      "name": "VideoFlow-4.1.0-linux-x86_64.tar.zst",
+      "sha256": "48363af7adf4781109e364d8845b5150b43ac390dda54d77f8a209ba70f0ae31",
+      "size_bytes": 382643657
+    },
+    {
+      "name": "VideoFlow-Windows-GPU-Worker-4.1.0.zip",
+      "sha256": "0038007e9a649caee1615c2d9c7d5f06c4c99ea67870083614637aeea96e9ffe",
+      "size_bytes": 5089096
+    },
+    {
+      "name": "VideoFlow-Windows-GPU-Worker-4.1.0.zip.sha256",
+      "sha256": "4b14f5aaab71d5f7d7aec636a8470d088091d165807e5c4143ad768ecff253f6",
+      "size_bytes": 105
+    },
+    {
+      "name": "sbom.json",
+      "sha256": "b9f9123740ab95154220ff2451ec0d5f1fea6f8033e4f923312331916056840b",
+      "size_bytes": 12200
+    }
+  ]
+}

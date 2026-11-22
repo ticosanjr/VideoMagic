@@ -1,5 +1,53 @@
 # Changelog
 
+## [4.1.0] - 2026-11-22
+
+Release de estabilidade sobre a arquitetura 4.0.
+
+### Added — GPU e render remoto
+
+- Guarda de carga externa: `max_gpu_utilization_pct` (default 70, `0` desliga)
+  evita job remoto quando o `nvidia-smi` indica GPU ocupada, com exposição em
+  `vf_capabilities` e slider no painel GPU.
+- Fontes sincronizadas para render remoto: `render_nvenc` e `short_render`
+  enviam `font_paths`, o worker materializa `work/fonts` e aplica `fontsdir`
+  no filtro ASS. O render local de Shorts também usa o diretório portátil.
+
+### Fixed — entrega e Shorts
+
+- `audio.finalize` é obrigatório em **todas** as receitas de entrega, inclusive
+  `synthetic_code_studio` sem `ingest`; alvos unificados em -15.5 LUFS e
+  `audio.qa` falha explicitamente fora de especificação.
+- Master final com duração sample-exact (correção do tail raspado pelo
+  `loudnorm`).
+- MP4 segmentado força 48 kHz estéreo e o master WAV padrão também é 48 kHz.
+- `crossfade_ms=0` deixa de ser sobrescrito; o offset do `xfade` usa a duração
+  real da saída anterior e o áudio final é alinhado ao vídeo.
+- Shorts que falham no gate de duração/mídia agora propagam `ExportError` em vez
+  de desaparecer do manifesto.
+- XMEML e Kdenlive exportam a quarentena **V2/A2** (track desabilitada/markers e
+  guides nativos), em paridade com o FCPXML.
+
+### Changed — performance e manutenção
+
+- `rembg` processa o diretório de frames uma vez por clipe e MediaPipe entra no
+  extra `vision`; o gate de depth caiu de ~442 s para ~24 s neste host.
+- `gpu_worker` refatorado: `app.py` 227 linhas, routers de admin/uploads/jobs,
+  store/handlers/scene em módulos ≤400.
+- `core_tools` virou pacote por domínio (44 tools preservadas).
+- Exporters FCPXML, XMEML e Kdenlive divididos em módulos ≤400; helpers públicos
+  preservados.
+- `vf_shared.compute` e exporters têm todos os módulos refatorados ≤400 linhas.
+
+### Validation
+
+- 90 s e 420 s micro gates: PASS, 7/7 deliverables, loudness entre -16.8 e
+  -15.4 LUFS e drift de duração abaixo de 1 frame.
+- Cycle 2: PASS.
+- Unit/contract, media, MCP gate, UI e módulos verdes.
+- Cycle 1/NVENC e throughput de cena em CPU continuam dependentes do worker
+  Windows (documentado em `docs/qa-evidence`).
+
 ## [4.0.0] - 2026-11-22
 
 Primeira release estável da arquitetura unificada.

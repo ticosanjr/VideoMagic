@@ -1,0 +1,34 @@
+# VideoFlow 4.1.0
+
+Portable video pre-edit pipeline with offline whisper.cpp transcription.
+
+## Artifacts
+
+- `VideoFlow-4.1.0-x86_64.AppImage` — SHA-256 `0349ea0a24bbd74b3a0e2eeca034f7784b5af01ac555d742f2f1ef8835b412b7`
+- `VideoFlow-4.1.0-linux-x86_64.tar.zst` — SHA-256 `48363af7adf4781109e364d8845b5150b43ac390dda54d77f8a209ba70f0ae31`
+- `VideoFlow-Windows-GPU-Worker-4.1.0.zip` — SHA-256 `0038007e9a649caee1615c2d9c7d5f06c4c99ea67870083614637aeea96e9ffe`
+- `VideoFlow-Windows-GPU-Worker-4.1.0.zip.sha256` — SHA-256 `4b14f5aaab71d5f7d7aec636a8470d088091d165807e5c4143ad768ecff253f6`
+- `sbom.json` — SHA-256 `b9f9123740ab95154220ff2451ec0d5f1fea6f8033e4f923312331916056840b`
+
+## Run
+
+Linux portable bundle:
+
+```bash
+tar --zstd -xf VideoFlow-4.1.0-linux-x86_64.tar.zst
+./videoflow/videoflow doctor
+./videoflow/videoflow recipe list
+./videoflow/videoflow serve --open
+```
+
+Linux AppImage (no FUSE required with extract-and-run):
+
+```bash
+chmod +x VideoFlow-4.1.0-x86_64.AppImage
+./VideoFlow-4.1.0-x86_64.AppImage version
+./VideoFlow-4.1.0-x86_64.AppImage recipe list
+```
+
+## Notes
+
+See `CHANGELOG.md`.
