@@ -12,7 +12,7 @@ from videoflow.application.render_queue import RenderState, render_key
 
 
 def test_render_status_files_and_start(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.api import routes_outputs as routes_module
+    from videoflow.api.routes_outputs import previews as routes_module
 
     client, manager = _client(monkeypatch, tmp_path)
     job = _job(manager, tmp_path)
@@ -47,7 +47,7 @@ def test_render_status_files_and_start(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_preview_status_download_and_creation(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.api import routes_outputs as routes_module
+    from videoflow.api.routes_outputs import previews as routes_module
 
     client, manager = _client(monkeypatch, tmp_path)
     job = _job(manager, tmp_path)

@@ -13,7 +13,7 @@ def _error(response) -> dict:
 
 
 def test_live_source_routes_and_errors(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.api import routes_outputs as routes_module
+    from videoflow.api.routes_outputs import artifacts as routes_module
     from videoflow.application.live_source import LiveSourceState
 
     client, manager = _client(monkeypatch, tmp_path)
