@@ -351,14 +351,14 @@ TOOL_DOCSTRINGS: dict[str, str] = {
         "[RETURNS] Job payload with per-step status and artifacts."
     ),
     "vf_transcript": (
-        "[DOES] Search or page the transcript and maintain the glossary.\n"
-        "[REQUIRES] ``project_id`` and a query or glossary action.\n"
-        "[RETURNS] Matching transcript spans or the updated glossary."
+        "[DOES] Search or page the cleaned transcript without dumping it.\n"
+        "[REQUIRES] ``project_id`` plus a query, range, or cursor.\n"
+        "[RETURNS] Matching sentences and word timings."
     ),
     "vf_decupage": (
-        "[DOES] Plan a beat map and assemble the canonical decupage timeline.\n"
-        "[REQUIRES] ``project_id``, style parameters, and a time range.\n"
-        "[RETURNS] Beat-map plan or the applied timeline revision."
+        "[DOES] Plan a beat map from the transcript and the chosen style.\n"
+        "[REQUIRES] ``project_id`` and the beat-map planning fields.\n"
+        "[RETURNS] Structured beat-map plan ready for human approval."
     ),
     "vf_scenes": (
         "[DOES] Analyze scenes or read the cached scene manifest.\n"
@@ -396,9 +396,9 @@ TOOL_DOCSTRINGS: dict[str, str] = {
         "[RETURNS] Job payload with exports, checks, and roundtrip paths."
     ),
     "vf_qa": (
-        "[DOES] Audit the deliverable, compare QA runs, and autofix layout.\n"
-        "[REQUIRES] ``project_id`` and a QA action or report ids.\n"
-        "[RETURNS] QA report, regression diff, or corrected layout."
+        "[DOES] Audit the deliverable MP4, safe zones, loudness, and frames.\n"
+        "[REQUIRES] ``project_id`` and optional QA parameters.\n"
+        "[RETURNS] Final QA report with defects and pass status."
     ),
     "vf_jobs": (
         "[DOES] List, cancel, wait, inspect logs, or read QA for jobs.\n"
@@ -431,6 +431,23 @@ TOOL_DOCSTRINGS: dict[str, str] = {
         "[RETURNS] Style record, diff, validation, or learned rules."
     ),
 }
+
+
+def validate_profile_registration(profile: str, registered: set[str]) -> None:
+    """Enforce the exact profile contract after registration."""
+
+    expected = set(profile_tool_names(profile))
+    missing = expected - registered
+    extra = registered - expected
+    if missing or extra:
+        raise RuntimeError(
+            f"MCP profile {profile!r} mismatch: missing={sorted(missing)} "
+            f"extra={sorted(extra)}"
+        )
+    if profile == "core" and len(registered) != 16:
+        raise RuntimeError(f"core profile must expose 16 tools, got {len(registered)}")
+    if profile == "full" and len(registered) != 21:
+        raise RuntimeError(f"full profile must expose 21 tools, got {len(registered)}")
 
 
 def validate_tool_docstring(func: object) -> None:

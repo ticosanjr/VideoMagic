@@ -15,8 +15,8 @@ Workspace preparado pelo VideoFlow {{VERSION}}.
 3. **Nunca escreva scripts FFmpeg manuais.** Use as tools MCP do VideoFlow
    para ingest, transcrição, beatmap, motion, captura, QA e export.
 4. **Fluxo determinístico:**
-   1. `vf_ingest` + `vf_transcript(action="query")` + `speech.editorial_clean`
-      + `retakes.cull`.
+   1. `vf_ingest` + `vf_transcript` + `speech.editorial_clean` +
+      `retakes.cull`.
    2. `vf_decupage` gera o `beat_map.json`; aguarde aprovação humana.
    3. `vf_timeline(action="apply_beatmap")` + `vf_fx_motion` +
       `vf_fx_capture` quando o estilo pedir.
@@ -37,20 +37,15 @@ Workspace preparado pelo VideoFlow {{VERSION}}.
 9. **Profile enxuto.** Use `--profile core` (16 tools) no dia a dia e
    `--profile full` (21) apenas quando precisar de FX ou estilo.
 
-## Estilos disponíveis
+## Catálogo
 
 {{STYLE_LIST}}
 
-## Workflows disponíveis
-
 {{WORKFLOW_LIST}}
 
-## Comandos
-
-- `/decupar <fonte>` — ingest, transcrição, cull e timeline base.
-- `/beatmap <estilo>` — gera e revisa o manifesto de cenas.
-- `/salvar-estilo <nome-ou-url>` — cria/clona e salva um estilo.
-- `/exportar` — bundle MP4 + Resolve + Premiere + Kdenlive.
+Cada estilo fica em `./presets/<style_id>.md`; cada workflow em
+`./.opencode/workflows/<workflow_id>.md`. Liste os diretórios, chame
+`vf_style(action="list")` e pergunte qual par usar.
 
 ## Projetos
 

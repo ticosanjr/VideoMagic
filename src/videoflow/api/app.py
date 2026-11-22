@@ -65,7 +65,7 @@ def create_app(
     if with_mcp:
         from videoflow.mcp_server.server import build_server
 
-        mcp = build_server(manager)
+        mcp = build_server(manager, profile="all")
         mcp_app = mcp.streamable_http_app(streamable_http_path="/")
 
         @asynccontextmanager

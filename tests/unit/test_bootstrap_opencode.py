@@ -72,7 +72,9 @@ def test_bootstrap_creates_workspace_and_syncs_styles(tmp_path: Path) -> None:
     assert "VF_COMPUTE_MODE" not in core["environment"]
     assert "videoflow-mcp" in core["command"]
 
-    agents = (target / "AGENTS.md").read_text(encoding="utf-8")
+    agents_path = target / "AGENTS.md"
+    assert len(agents_path.read_text(encoding="utf-8").splitlines()) <= 90
+    agents = agents_path.read_text(encoding="utf-8")
     assert agents.count("<!-- videoflow:opencode:start -->") == 1
     assert "canal-paula-reels" in agents
     assert "antes de decupar" in agents.lower()

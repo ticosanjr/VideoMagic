@@ -6,6 +6,7 @@ import json
 import re
 import shutil
 import subprocess
+import textwrap
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
@@ -111,25 +112,31 @@ def _merge_json_file(
     atomic_write_text(path, text)
 
 
+def _compact_ids(ids: list[str], *, label: str) -> str:
+    if not ids:
+        return f"- **{label}:** nenhum cadastrado."
+    text = ", ".join(f"`{item}`" for item in ids)
+    return textwrap.fill(
+        f"- **{label}:** {text}",
+        width=84,
+        subsequent_indent="  ",
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+
+
 def _style_list(catalog: StyleCatalog) -> str:
-    lines = []
-    for item in catalog.list_payload():
-        lines.append(
-            f"- `{item['style_id']}` — {item['name']} "
-            f"({item['aspect_ratio'] or 'auto'}) — `./presets/{item['style_id']}.md`"
-        )
-    return "\n".join(lines) or "- Nenhum estilo cadastrado."
+    return _compact_ids(
+        [str(item["style_id"]) for item in catalog.list_payload()],
+        label="Estilos",
+    )
 
 
 def _workflow_list(catalog: WorkflowCatalog) -> str:
-    lines = []
-    for item in catalog.list_payload():
-        lines.append(
-            f"- `{item['workflow_id']}` — {item['name']} "
-            f"({item['aspect_ratio'] or 'auto'}) — "
-            f"`./.opencode/workflows/{item['workflow_id']}.md`"
-        )
-    return "\n".join(lines) or "- Nenhum workflow cadastrado."
+    return _compact_ids(
+        [str(item["workflow_id"]) for item in catalog.list_payload()],
+        label="Workflows",
+    )
 
 
 _VIDEOFLOW_SERVERS = frozenset(

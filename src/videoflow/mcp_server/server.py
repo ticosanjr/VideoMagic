@@ -21,6 +21,7 @@ from videoflow.mcp_server.registry import (
     TOOL_DOCSTRINGS,
     TOOL_SPECS,
     profile_tool_names,
+    validate_profile_registration,
     validate_tool_docstring,
 )
 
@@ -85,7 +86,7 @@ def build_server(
     jobs: JobManager | None = None,
     *,
     prompts: bool = True,
-    profile: str = "all",
+    profile: str = "core",
 ) -> MCPServer:
     """Build the agent-facing MCP server.
 
@@ -133,8 +134,6 @@ def build_server(
         )(guarded)
 
     register_core_tools(tool, ctx)
-    missing = selected - registered
-    if missing:
-        raise RuntimeError(f"MCP profile {profile!r} is missing tools: {sorted(missing)}")
+    validate_profile_registration(profile, registered)
     register_agent_resources(mcp, ctx, prompts=prompts)
     return mcp

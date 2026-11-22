@@ -255,7 +255,7 @@ def test_project_render_job_returns_final_metrics(monkeypatch, tmp_path: Path) -
         ],
     )
     save_project_state(record, state, bump_revision=False)
-    server = build_server()
+    server = build_server(profile="all")
     started = call(
         server,
         "vf_export",
@@ -295,7 +295,7 @@ def test_artifact_images_and_qa_payload(monkeypatch, tmp_path: Path) -> None:
         encoding="utf-8",
     )
     Image.new("RGB", (32, 32), (0, 255, 0)).save(qa / "frame.jpg")
-    server = build_server()
+    server = build_server(profile="all")
 
     async def artifact():
         result = await server.call_tool(

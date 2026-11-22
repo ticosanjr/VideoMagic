@@ -19,6 +19,13 @@ def test_registry_keeps_unique_specs_and_16_resources() -> None:
     assert len(RESOURCE_SPECS) == 16
 
 
+def test_default_server_exposes_the_core_profile() -> None:
+    async def names() -> list[str]:
+        return [tool.name for tool in await build_server().list_tools()]
+
+    assert len(asyncio.run(names())) == 16
+
+
 def test_profiles_have_exactly_16_and_21_tools() -> None:
     assert len(CORE_TOOL_NAMES) == 16
     assert len(FULL_TOOL_NAMES) == 21
@@ -73,14 +80,16 @@ def test_unknown_tool_parameter_returns_a_typed_envelope() -> None:
 
 def test_server_registers_every_public_tool() -> None:
     async def inspect() -> list[str]:
-        return [tool.name for tool in await build_server().list_tools()]
+        return [
+            tool.name for tool in await build_server(profile="all").list_tools()
+        ]
 
     assert sorted(asyncio.run(inspect())) == sorted(tool.name for tool in TOOL_SPECS)
 
 
 def test_server_uses_the_registry_descriptions() -> None:
     async def inspect() -> dict[str, str]:
-        tools = await build_server().list_tools()
+        tools = await build_server(profile="all").list_tools()
         return {tool.name: tool.description or "" for tool in tools}
 
     descriptions = asyncio.run(inspect())
@@ -90,7 +99,7 @@ def test_server_uses_the_registry_descriptions() -> None:
 
 def test_every_tool_has_annotations() -> None:
     async def inspect() -> dict[str, object]:
-        tools = await build_server().list_tools()
+        tools = await build_server(profile="all").list_tools()
         return {tool.name: tool.annotations for tool in tools}
 
     annotations = asyncio.run(inspect())
@@ -140,7 +149,7 @@ def test_step_docs_resource_exposes_parameters() -> None:
 
 def test_tools_carry_behavior_annotations() -> None:
     async def inspect() -> dict[str, object]:
-        tools = await build_server().list_tools()
+        tools = await build_server(profile="all").list_tools()
         return {tool.name: tool.annotations for tool in tools}
 
     annotations = asyncio.run(inspect())
@@ -178,7 +187,9 @@ def test_step_catalog_resource_lists_all_nodes() -> None:
 
 def test_catalog_search_paginates_steps() -> None:
     async def call(offset: int) -> dict:
-        result = await build_server().call_tool("vf_catalog_search", {"offset": offset, "limit": 5})
+        result = await build_server(profile="all").call_tool(
+            "vf_catalog_search", {"offset": offset, "limit": 5}
+        )
         return result.structured_content  # type: ignore[attr-defined]
 
     first = asyncio.run(call(0))
