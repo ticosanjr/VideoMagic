@@ -6,6 +6,10 @@ import hashlib
 import threading
 from pathlib import Path
 
+from fastapi import HTTPException
+
+from gpu_worker.security import is_job_id
+
 MAX_JOB_INPUTS = 64
 PUBLIC_PATHS = frozenset({"/health"})
 
@@ -53,3 +57,17 @@ def _parse_range(value: str, size: int) -> tuple[int, int] | None:
     if start < 0 or end < start or start >= size:
         return None
     return start, min(end, size - 1)
+
+
+def make_require_job(store):
+    """Build the 404-safe job lookup used by job routes."""
+
+    def require_job(job_id: str):
+        if not is_job_id(job_id):
+            raise HTTPException(status_code=404, detail="job not found")
+        job = store.get_job(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="job not found")
+        return job
+
+    return require_job
