@@ -35,6 +35,13 @@ def test_24bit_helper_truncates_an_incomplete_frame() -> None:
     assert decode_pcm_mono_rms(data, sampwidth=3, channels=1) > 0
 
 
+def test_24bit_helper_truncates_an_incomplete_stereo_frame() -> None:
+    left = int(1000 << 8).to_bytes(3, "little", signed=True)
+    right = int(500 << 8).to_bytes(3, "little", signed=True)
+    data = (left + right) * 2 + left + b"\xff\xff"
+    assert decode_pcm_mono_rms(data, sampwidth=3, channels=2) > 0
+
+
 def test_16bit_pcm_still_works(tmp_path: Path) -> None:
     path = tmp_path / "voice16.wav"
     sample = (1000).to_bytes(2, "little", signed=True)
