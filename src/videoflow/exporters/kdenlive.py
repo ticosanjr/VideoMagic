@@ -115,6 +115,7 @@ def export_kdenlive(
         media=media,
         extras=extras,
         chains=chains,
+        state=state,
     )
     _append_final_tractor(root, sequence_id=sequence_id, duration=duration)
 
@@ -461,10 +462,10 @@ def _append_main_bin(
     media,
     extras=None,
     chains: dict[str, str] | None = None,
+    state=None,
 ) -> None:
     main_bin = ET.SubElement(parent, "playlist", {"id": "main_bin"})
-    if extras is not None:
-        _append_guides(main_bin, extras, media)
+    _append_guides(main_bin, extras, media, state)
     _property(main_bin, "kdenlive:folder.-1.2", "Sequences")
     _property(main_bin, "kdenlive:sequenceFolder", "2")
     _property(main_bin, "kdenlive:docproperties.audioChannels", "1")
@@ -699,21 +700,45 @@ def _append_color_filters(entry: ET.Element) -> None:
     _property(filter_element, "gain_b", "1")
 
 
-def _append_guides(main_bin: ET.Element, extras, media) -> None:
-    if extras is None or not extras.markers:
+_QUARANTINE_COLORS = {
+    "retake": "#ef4444",
+    "noise": "#f97316",
+    "manual": "#eab308",
+    "silence": "#9ca3af",
+}
+
+
+def _append_guides(main_bin: ET.Element, extras, media, state=None) -> None:
+    guides = []
+    if extras is not None:
+        fps = media.fps_num / media.fps_den
+        guides.extend(
+            {
+                "comment": marker.name
+                if not marker.note
+                else f"{marker.name}: {marker.note}",
+                "pos": round(marker.start_sec * fps),
+                "type": 0,
+                "color": marker.color or "#38bdf8",
+            }
+            for marker in extras.markers
+        )
+    for inactive in getattr(state, "inactive_segments", None) or []:
+        guides.append(
+            {
+                "comment": (
+                    f"Quarantine V2/A2 {inactive.clip_id} ({inactive.reason})"
+                ),
+                "pos": int(inactive.video.source_in_frame),
+                "type": 0,
+                "color": _QUARANTINE_COLORS.get(inactive.reason, "#9ca3af"),
+            }
+        )
+    if not guides:
         return
-    fps = media.fps_num / media.fps_den
-    guides = [
-        {
-            "comment": marker.name if not marker.note else f"{marker.name}: {marker.note}",
-            "pos": round(marker.start_sec * fps),
-            "type": 0,
-            "color": marker.color or "#38bdf8",
-        }
-        for marker in extras.markers
-    ]
     import json
 
+    guides.sort(key=lambda item: (item["pos"], item["comment"]))
     _property(main_bin, "kdenlive:docproperties.guides", json.dumps(guides))
 
 

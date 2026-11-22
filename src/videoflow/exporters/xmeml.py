@@ -152,6 +152,7 @@ def export_xmeml(
                 number=index + 1,
             )
 
+    _append_quarantine(video_element, sequence, state, media)
     if extras.broll:
         _append_broll_track(video_element, extras, media, max_z=39)
     for index, title in enumerate(extras.titles, start=1):
@@ -423,6 +424,59 @@ def _append_color_filter(item: ET.Element) -> None:
     ET.SubElement(effect, "effectcategory").text = "video"
     ET.SubElement(effect, "effecttype").text = "filter"
     ET.SubElement(effect, "mediatype").text = "video"
+
+
+_QUARANTINE_COLORS = {
+    "retake": "#ef4444",
+    "noise": "#f97316",
+    "manual": "#eab308",
+    "silence": "#9ca3af",
+}
+
+
+def _append_quarantine(
+    video_element: ET.Element,
+    sequence: ET.Element,
+    state: ProjectState,
+    media: MediaInfo,
+) -> None:
+    """Export inactive/removed clips on a disabled V2/A2 track plus markers."""
+
+    segments = getattr(state, "inactive_segments", None) or []
+    if not segments:
+        return
+    track = ET.SubElement(video_element, "track")
+    ET.SubElement(track, "enabled").text = "FALSE"
+    ET.SubElement(track, "locked").text = "TRUE"
+    for index, inactive in enumerate(segments, start=1):
+        clip = inactive.video
+        clip_media = state.video_media(clip) or media
+        start = int(clip.source_in_frame)
+        duration = max(1, int(clip.source_out_frame - clip.source_in_frame))
+        item = ET.SubElement(
+            track,
+            "clipitem",
+            {"id": f"quarantine-{index}"},
+        )
+        ET.SubElement(item, "name").text = (
+            f"Quarantine V2/A2 {inactive.clip_id} ({inactive.reason})"
+        )
+        ET.SubElement(item, "enabled").text = "FALSE"
+        ET.SubElement(item, "duration").text = str(clip_media.duration_frames)
+        _append_rate(item, clip_media)
+        ET.SubElement(item, "start").text = str(start)
+        ET.SubElement(item, "end").text = str(start + duration)
+        ET.SubElement(item, "in").text = str(start)
+        ET.SubElement(item, "out").text = str(start + duration)
+        _append_file(item, clip_media, file_id=f"file-quarantine-{index}")
+
+        marker = ET.SubElement(sequence, "marker")
+        ET.SubElement(marker, "name").text = "Quarantine V2/A2"
+        ET.SubElement(marker, "comment").text = (
+            f"{inactive.clip_id}: {inactive.reason}"
+        )
+        ET.SubElement(marker, "in").text = str(start)
+        ET.SubElement(marker, "out").text = str(start + duration)
 
 
 def _append_marker(sequence: ET.Element, marker, fps: float) -> None:
