@@ -10,17 +10,19 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-from . import commands, storage
-from .browser import _chrome
-from .cdp_frames import _cdp_frame_capture
-from .common import (
-    _assert_alpha,
+from ..toolkit import commands, storage
+from ..toolkit.assets import (
     _ffmpeg,
     _payload,
     _require_output,
     _slug,
 )
-from .errors import InputNotFoundError, InvalidArgumentError
+from ..toolkit.errors import InputNotFoundError, InvalidArgumentError
+from .browser import _chrome
+from .cdp_frames import _cdp_frame_capture
+from .common import (
+    _assert_alpha,
+)
 
 
 def _scaled_viewport(width: int, height: int, draft_scale: float) -> tuple[int, int]:

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from . import commands
-from .errors import MissingCommandError
+from ..toolkit import commands
+from ..toolkit.errors import MissingCommandError
 
 
 def _chrome() -> str:

@@ -17,29 +17,29 @@ for _package in ("mcp-audio", "mcp-vision"):
     if _src.is_dir() and str(_src) not in sys.path:
         sys.path.insert(0, str(_src))
 
-from videoflow_mcp_audio import commands as audio_commands  # noqa: E402
-from videoflow_mcp_audio import storage as audio_storage  # noqa: E402
-from videoflow_mcp_audio import tools as audio_tools  # noqa: E402
-from videoflow_mcp_audio.errors import (  # noqa: E402
+from videoflow.domains.audio import studio as audio_tools  # noqa: E402
+from videoflow.domains.audio import studio_common as audio_common  # noqa: E402
+from videoflow.domains.toolkit import commands as audio_commands  # noqa: E402
+from videoflow.domains.toolkit import commands as vision_commands  # noqa: E402
+from videoflow.domains.toolkit import storage as audio_storage  # noqa: E402
+from videoflow.domains.toolkit import storage as vision_storage  # noqa: E402
+from videoflow.domains.toolkit.errors import (  # noqa: E402
     InvalidArgumentError,
     MissingCommandError,
 )
-from videoflow_mcp_audio.router import RouterBridge as AudioRouterBridge  # noqa: E402
-from videoflow_mcp_vision import tools as vision_tools  # noqa: E402
-from videoflow_mcp_vision.errors import (  # noqa: E402
+from videoflow.domains.toolkit.errors import (  # noqa: E402
     InvalidArgumentError as VisionInvalidArgumentError,
 )
-from videoflow_mcp_vision.errors import (  # noqa: E402
+from videoflow.domains.toolkit.errors import (  # noqa: E402
     MissingCommandError as VisionMissingCommandError,
 )
-from videoflow_mcp_vision.router import RouterBridge as VisionRouterBridge  # noqa: E402
-
+from videoflow.domains.toolkit.router import RouterBridge as AudioRouterBridge  # noqa: E402
+from videoflow.domains.toolkit.router import RouterBridge as VisionRouterBridge  # noqa: E402
 from videoflow.domains.vision import captions as vision_captions  # noqa: E402
 from videoflow.domains.vision import capture as vision_capture  # noqa: E402
-from videoflow.domains.vision import commands as vision_commands  # noqa: E402
 from videoflow.domains.vision import common as vision_common  # noqa: E402
 from videoflow.domains.vision import graphics_web as vision_graphics  # noqa: E402
-from videoflow.domains.vision import storage as vision_storage  # noqa: E402
+from videoflow.domains.vision import tools as vision_tools  # noqa: E402
 
 _ENV_KEYS = (
     "VF_PROJECT_OUTPUT",
@@ -93,7 +93,7 @@ def project_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def isolated_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     for key in _ENV_KEYS:
         monkeypatch.delenv(key, raising=False)
-    monkeypatch.setattr(audio_tools, "ROUTER", AudioRouterBridge(FakeRouter()))
+    monkeypatch.setattr(audio_common, "ROUTER", AudioRouterBridge(FakeRouter()))
     monkeypatch.setattr(vision_common, "ROUTER", VisionRouterBridge(FakeRouter()))
 
 
@@ -243,7 +243,7 @@ def test_router_remote_tts_when_health_is_true(
     remote = tmp_path / "remote.wav"
     remote.write_bytes(b"REMOTE")
     fake = FakeRouter({"tts"}, remote)
-    monkeypatch.setattr(audio_tools, "ROUTER", AudioRouterBridge(fake))
+    monkeypatch.setattr(audio_common, "ROUTER", AudioRouterBridge(fake))
 
     result = audio_tools.tts_generate("proj-remote", "fala", quality="final")
 
@@ -265,7 +265,7 @@ def test_router_unhealthy_tts_falls_back_to_local(
         f"{shlex.quote(sys.executable)} {shlex.quote(str(helper))} {{output}} {{text}}",
     )
     fake = FakeRouter(set())
-    monkeypatch.setattr(audio_tools, "ROUTER", AudioRouterBridge(fake))
+    monkeypatch.setattr(audio_common, "ROUTER", AudioRouterBridge(fake))
 
     result = audio_tools.tts_generate("proj-fallback", "fala", quality="final")
 
@@ -828,7 +828,6 @@ def test_vision_write_output_resolves_contracts_copy_when_project_output_differs
 
 
 def test_generated_assets_use_the_ai_generated_contract_license() -> None:
-    from videoflow_mcp_audio import storage as audio_storage
 
     assert audio_storage.contract_license("generated") == "ai_generated"
     assert vision_storage.contract_license("generated") == "ai_generated"

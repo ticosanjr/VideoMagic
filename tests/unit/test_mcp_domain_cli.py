@@ -1,8 +1,7 @@
-"""Packaged domain MCP servers: imports, CLI dispatch, and PyInstaller wiring."""
+"""One unified MCP server: CLI dispatch, config, and packaging wiring."""
 
 from __future__ import annotations
 
-import importlib
 from pathlib import Path
 
 import pytest
@@ -10,12 +9,6 @@ import pytest
 from videoflow import cli
 
 ROOT = Path(__file__).resolve().parents[2]
-
-MODULES = {
-    "mcp-fetch": "mcp_fetch.server",
-    "mcp-audio": "videoflow_mcp_audio.server",
-    "mcp-vision": "videoflow_mcp_vision.server",
-}
 
 
 class FakeServer:
@@ -26,34 +19,36 @@ class FakeServer:
         self.modes.append(mode)
 
 
-@pytest.mark.parametrize("command,module_name", sorted(MODULES.items()))
-def test_domain_mcp_modules_import(command: str, module_name: str) -> None:
-    module = importlib.import_module(module_name)
-    assert callable(module.build_server)
+def test_unified_mcp_cli_dispatches_stdio(monkeypatch) -> None:
+    from videoflow.mcp_server import server as server_module
 
-
-@pytest.mark.parametrize("command,module_name", sorted(MODULES.items()))
-def test_domain_mcp_cli_dispatches_stdio(command: str, module_name: str, monkeypatch) -> None:
-    module = importlib.import_module(module_name)
     server = FakeServer()
-    monkeypatch.setattr(module, "build_server", lambda: server)
+    monkeypatch.setattr(server_module, "build_server", lambda **kwargs: server)
 
-    assert cli.main([command]) == 0
+    assert cli.main(["mcp"]) == 0
     assert server.modes == ["stdio"]
 
 
-def test_domain_servers_are_available_to_the_opencode_config() -> None:
+@pytest.mark.parametrize("command", ["mcp-fetch", "mcp-audio", "mcp-vision"])
+def test_legacy_domain_mcp_subcommands_are_gone(command: str) -> None:
+    with pytest.raises(SystemExit):
+        cli.main([command])
+
+
+def test_only_the_core_server_block_is_supported() -> None:
     from videoflow.application.opencode_config import server_block
 
-    assert server_block("fetch", workspace_root="/w")["command"][-1] == "videoflow-mcp-fetch"
-    assert server_block("audio", workspace_root="/w")["command"][-1] == "videoflow-mcp-audio"
-    assert server_block("vision", workspace_root="/w")["command"][-1] == "videoflow-mcp-vision"
+    core = server_block("core", workspace_root="/w")
+    assert core["command"]
+    for name in ("fetch", "audio", "vision"):
+        with pytest.raises(ValueError):
+            server_block(name, workspace_root="/w")
 
 
-def test_pyinstaller_spec_collects_domain_mcp_packages() -> None:
+def test_pyinstaller_spec_no_longer_collects_domain_packages() -> None:
     spec = (ROOT / "packaging" / "videoflow.spec").read_text(encoding="utf-8")
     for package in ("mcp_fetch", "videoflow_mcp_audio", "videoflow_mcp_vision"):
-        assert package in spec
-    assert "videoflow-mcp-fetch" in spec
-    assert "videoflow-mcp-audio" in spec
-    assert "videoflow-mcp-vision" in spec
+        assert package not in spec
+    assert "videoflow-mcp-fetch" not in spec
+    assert "videoflow-mcp-audio" not in spec
+    assert "videoflow-mcp-vision" not in spec

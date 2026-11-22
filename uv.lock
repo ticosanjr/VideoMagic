@@ -5565,9 +5565,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "uvicorn" },
     { name = "vf-shared" },
-    { name = "videoflow-mcp-audio" },
-    { name = "videoflow-mcp-fetch" },
-    { name = "videoflow-mcp-vision" },
+    { name = "websocket-client" },
 ]
 
 [package.optional-dependencies]
@@ -5665,75 +5663,13 @@ requires-dist = [
     { name = "ultralytics", marker = "extra == 'tracking'", specifier = ">=8.3" },
     { name = "uvicorn", specifier = ">=0.32" },
     { name = "vf-shared", editable = "packages/vf-shared" },
-    { name = "videoflow-mcp-audio", editable = "packages/mcp-audio" },
-    { name = "videoflow-mcp-fetch", editable = "packages/mcp-fetch" },
-    { name = "videoflow-mcp-vision", editable = "packages/mcp-vision" },
+    { name = "websocket-client", specifier = ">=1.8" },
     { name = "whisperx", marker = "extra == 'alignment'", specifier = ">=3.2" },
 ]
 provides-extras = ["dev", "faster-whisper", "diarization", "vision", "tracking", "alignment", "scene", "shorts", "render", "tray"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pyinstaller", specifier = ">=6.10" }]
-
-[[package]]
-name = "videoflow-mcp-audio"
-version = "3.18.0"
-source = { editable = "packages/mcp-audio" }
-dependencies = [
-    { name = "mcp" },
-    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "vf-shared" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "mcp", specifier = ">=1.20" },
-    { name = "numpy", specifier = ">=1.26" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9" },
-    { name = "vf-shared", editable = "packages/vf-shared" },
-]
-provides-extras = ["dev"]
-
-[[package]]
-name = "videoflow-mcp-fetch"
-version = "3.18.0"
-source = { editable = "packages/mcp-fetch" }
-dependencies = [
-    { name = "httpx" },
-    { name = "mcp" },
-    { name = "pydantic" },
-    { name = "vf-shared" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "httpx", specifier = ">=0.27" },
-    { name = "mcp", specifier = ">=1.20" },
-    { name = "pydantic", specifier = ">=2.6" },
-    { name = "vf-shared", editable = "packages/vf-shared" },
-]
-
-[[package]]
-name = "videoflow-mcp-vision"
-version = "3.18.0"
-source = { editable = "packages/mcp-vision" }
-dependencies = [
-    { name = "mcp" },
-    { name = "vf-shared" },
-    { name = "websocket-client" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "mcp", specifier = ">=1.20" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9" },
-    { name = "vf-shared", editable = "packages/vf-shared" },
-    { name = "websocket-client", specifier = ">=1.8" },
-]
-provides-extras = ["dev"]
 
 [[package]]
 name = "websocket-client"

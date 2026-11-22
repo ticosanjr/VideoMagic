@@ -1,12 +1,12 @@
 # MCP server — agent profile
 
-VideoFlow 3.16.0 exposes a **35-tool core MCP** plus four isolated domain servers:
+VideoFlow 4.0 exposes **one unified MCP server**. The former fetch, audio and
+vision satellites were folded into the core domain packages and their CLI
+subcommands were removed:
 
 ```text
-mcp-vf-core      35 tools   project, styles, jobs, timeline, scenes, export, ingest, QA, GPU, transcript
-mcp-vf-media-fetch  4 tools stock B-roll, images, URL segments, SFX
-mcp-vf-audio-studio 5 tools TTS, cleanup, stems, music/SFX, mix
-mcp-vf-vision-fx    6 tools word-aligned captions, rembg, upscale, motion, Ken Burns, screen/browser capture
+videoflow mcp   44 tools   project, styles, jobs, timeline, scenes, export, ingest, QA, GPU, transcript,
+                           stock media, TTS/stems/mix, captions, mattes, upscale, motion and capture
 ```
 
 The core intentionally does not expose the old 82-tool UI CRUD surface. Node
@@ -23,8 +23,8 @@ REST keep the recipe engine.
 | Headless daemon | `videoflow serve --mcp-only --port 8765` |
 
 The server stays on loopback. The stdio process inherits the path allowlist and
-does not start a second API. Packaged builds also expose the domain servers as
-`videoflow mcp-fetch`, `videoflow mcp-audio`, and `videoflow mcp-vision`.
+does not start a second API. Packaged builds expose the same unified server as
+`videoflow mcp`; the legacy domain subcommands no longer exist.
 
 ## Workspace and automatic MCP install
 
@@ -146,13 +146,16 @@ without WER or contact sheets; `qa_mode="full"` dispatches a background QA job;
 `history`, `undo`, and `restore`. Deleting a non-empty output requires
 `force=true`.
 
-## Domain servers
+## Domain capabilities
 
-The domain servers use the same workspace contract and can be enabled per
-OpenCode profile:
+Stock acquisition, audio studio and vision tools now live in
+`videoflow.domains.media`, `videoflow.domains.audio` and
+`videoflow.domains.vision` and are reached through the single server
+(`vf_media`, `vf_fx` and `vf_exec`). The historical profiles still exist for
+configuration compatibility, but every one of them resolves to the same core
+server:
 
 ```bash
-scripts/install_mcp_servers.sh
 uv run python scripts/generate_mcp_config.py --profile full > mcp.json
 ```
 

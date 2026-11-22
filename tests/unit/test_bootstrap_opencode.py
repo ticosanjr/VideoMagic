@@ -214,10 +214,10 @@ def test_opencode_config_packaged_and_merge() -> None:
 def test_opencode_config_packaged_commands(monkeypatch) -> None:
     monkeypatch.setattr(opencode_config, "is_packaged", lambda: True)
     core = opencode_config.server_block("core", workspace_root="/w")
-    fetch = opencode_config.server_block("fetch", workspace_root="/w")
     assert core["command"][-1] == "mcp"
-    assert fetch["command"][-1] == "mcp-fetch"
     assert core["timeout"]["startup"] == 120000
+    with pytest.raises(ValueError):
+        opencode_config.server_block("fetch", workspace_root="/w")
 
 
 def test_stable_mcp_launcher_uses_appimage(tmp_path: Path, monkeypatch) -> None:

@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -13,17 +11,13 @@ import httpx
 import pytest
 
 PACKAGES = Path(__file__).resolve().parents[2] / "packages"
-for package_source in (PACKAGES / "mcp-fetch" / "src",):
-    if str(package_source) not in sys.path:
-        sys.path.insert(0, str(package_source))
 
-from mcp_fetch.errors import (  # noqa: E402
+from videoflow.domains.media import providers  # noqa: E402
+from videoflow.domains.media.errors import (  # noqa: E402
     ProviderUnavailableError,
     UrlNotAllowedError,
 )
-from mcp_fetch.server import FetchService, build_server  # noqa: E402
-
-from videoflow.domains.media import providers  # noqa: E402
+from videoflow.domains.media.fetch_service import FetchService  # noqa: E402
 
 PEXELS_VIDEO = {
     "videos": [
@@ -348,8 +342,8 @@ def test_keyless_images_report_typed_error_when_gallery_dl_missing(
     def unavailable(*args: Any, **kwargs: Any) -> None:
         raise ProviderUnavailableError("keyless provider unavailable")
 
-    monkeypatch.setattr("mcp_fetch.server.OpenverseClient", unavailable)
-    monkeypatch.setattr("mcp_fetch.server.WikimediaClient", unavailable)
+    monkeypatch.setattr("videoflow.domains.media.fetch_stock.OpenverseClient", unavailable)
+    monkeypatch.setattr("videoflow.domains.media.fetch_stock.WikimediaClient", unavailable)
     service = FetchService(
         workspace_root=tmp_path,
         env={},
@@ -360,13 +354,19 @@ def test_keyless_images_report_typed_error_when_gallery_dl_missing(
         service.fetch_stock_images("project-1", "https://images.example.test/cat.jpg")
 
 
-def test_build_server_registers_the_four_tools(tmp_path: Path) -> None:
-    service = FetchService(workspace_root=tmp_path, env={})
-    server = build_server(service)
+def test_fetch_tools_expose_the_four_entry_points() -> None:
+    from videoflow.domains.media import fetch_tools
 
-    tools = asyncio.run(server.list_tools())
-
-    assert {tool.name for tool in tools} == {
+    assert {
+        name
+        for name in (
+            "fetch_stock_broll",
+            "fetch_stock_images",
+            "rip_video_segment",
+            "fetch_sfx",
+        )
+        if callable(getattr(fetch_tools, name, None))
+    } == {
         "fetch_stock_broll",
         "fetch_stock_images",
         "rip_video_segment",

@@ -71,11 +71,6 @@ if whisper.is_dir():
         else:
             datas.append((str(candidate), "whisper"))
 
-for package in ("mcp_fetch", "videoflow_mcp_audio", "videoflow_mcp_vision"):
-    package_datas = collect_data_files(package)
-    datas += package_datas
-    hiddenimports += collect_submodules(package)
-
 datas += collect_data_files("mcp")
 hiddenimports += collect_submodules("mcp.server")
 
@@ -147,9 +142,6 @@ for distribution in (
     "tokenizers",
     "av",
     "huggingface-hub",
-    "videoflow-mcp-fetch",
-    "videoflow-mcp-audio",
-    "videoflow-mcp-vision",
 ):
     try:
         datas += copy_metadata(distribution)

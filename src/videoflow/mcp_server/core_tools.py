@@ -797,17 +797,64 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         attribution: str = "",
         reason: str = "",
         name: str = "",
+        url: str = "",
+        start_time: float = 0.0,
+        end_time: float = 0.0,
+        audio_only: bool = False,
+        max_height: int = 1080,
+        orientation: str = "landscape",
+        min_duration: int = 4,
+        max_results: int = 5,
+        keyless: bool = True,
+        max_duration: float = 5.0,
+        license_filter: str = "cc0",
     ) -> dict[str, Any]:
         """Fetch, animate, audit, or approve stock/media and licenses."""
 
         try:
-            if action == "fetch_stock_images":
-                from mcp_fetch.server import fetch_stock_images
+            from videoflow.domains.media import fetch_tools
 
+            if action == "fetch_stock_images":
                 if not project_id:
                     return error("project_required", "project_id is required")
-                return fetch_stock_images(
-                    project_id, query, count=count, provider=provider
+                return fetch_tools.fetch_stock_images(
+                    project_id,
+                    query,
+                    count=count,
+                    keyless=keyless,
+                    provider=provider,
+                )
+            if action == "fetch_stock_broll":
+                if not project_id:
+                    return error("project_required", "project_id is required")
+                return fetch_tools.fetch_stock_broll(
+                    project_id,
+                    query,
+                    orientation=orientation,
+                    min_duration=min_duration,
+                    max_results=max_results,
+                    provider=provider,
+                )
+            if action == "rip_video_segment":
+                if not project_id:
+                    return error("project_required", "project_id is required")
+                return fetch_tools.rip_video_segment(
+                    project_id,
+                    url,
+                    start_time,
+                    end_time,
+                    audio_only=audio_only,
+                    max_height=max_height,
+                )
+            if action == "fetch_sfx":
+                if not project_id:
+                    return error("project_required", "project_id is required")
+                return fetch_tools.fetch_sfx(
+                    project_id,
+                    query,
+                    max_duration=max_duration,
+                    license_filter=license_filter,
+                    provider=provider,
                 )
             if action == "image_to_broll_motion":
                 from videoflow.domains.vision.tools import image_to_broll_motion
@@ -822,7 +869,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                     aspect_ratio=aspect_ratio,
                 )
             if action == "generate_music_or_sfx":
-                from videoflow_mcp_audio.tools import generate_music_or_sfx
+                from videoflow.domains.audio.studio import generate_music_or_sfx
 
                 if not project_id:
                     return error("project_required", "project_id is required")
@@ -865,13 +912,124 @@ def register_core_tools(register: Any, ctx: Any) -> None:
                 }
             return error(
                 "unknown_action",
-                "vf_media supports fetch_stock_images, image_to_broll_motion, "
+                "vf_media supports fetch_stock_images, fetch_stock_broll, "
+                "rip_video_segment, fetch_sfx, image_to_broll_motion, "
                 "generate_music_or_sfx, list, license_audit, or approve_license",
             )
         except VideoFlowError as exc:
             return exc.to_dict()
         except Exception as exc:  # noqa: BLE001 - keep MCP errors structured
             return error("media_failed", str(exc))
+
+    @register
+    def vf_audio(
+        action: str = "tts",
+        project_id: str = "",
+        text: str = "",
+        input_path: str = "",
+        voice_ref_path: str = "",
+        language: str = "pt",
+        quality: str = "auto",
+        remove_reverb: bool = True,
+        stems: list[str] | None = None,
+        prompt: str = "",
+        duration_sec: float = 12.0,
+        type: str = "music",
+        music_path: str = "",
+        target_lufs: float = -14.0,
+        output_name: str = "",
+    ) -> dict[str, Any]:
+        """TTS, voice cleanup, stems, music/Foley, or a mastered mix."""
+
+        from videoflow.domains.audio import studio
+
+        try:
+            if action == "tts":
+                return studio.tts_generate(
+                    project_id,
+                    text,
+                    voice_ref_path=voice_ref_path or None,
+                    language=language,
+                    quality=quality,
+                    output_name=output_name,
+                )
+            if action == "clean":
+                return studio.voice_clean_and_enhance(
+                    project_id,
+                    input_path,
+                    remove_reverb=remove_reverb,
+                )
+            if action == "stems":
+                return studio.separate_audio_stems(project_id, input_path, stems=stems)
+            if action == "music":
+                return studio.generate_music_or_sfx(
+                    project_id,
+                    prompt,
+                    duration_sec,
+                    type=type,
+                )
+            if action == "mix":
+                return studio.mix_and_master_track(
+                    project_id,
+                    input_path,
+                    music_path=music_path or None,
+                    target_lufs=target_lufs,
+                    output_name=output_name or "master.wav",
+                )
+            return error(
+                "unknown_action",
+                "vf_audio supports tts, clean, stems, music, or mix",
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except Exception as exc:  # noqa: BLE001 - keep MCP errors structured
+            return error("audio_failed", str(exc))
+
+    @register
+    def vf_vision(
+        action: str = "captions",
+        project_id: str = "",
+        input_path: str = "",
+        audio_path: str = "",
+        language: str = "pt",
+        style: str = "shorts_karaoke",
+        is_video: bool = False,
+        scale: int = 2,
+        backend: str = "auto",
+    ) -> dict[str, Any]:
+        """Word-aligned captions, background removal, or media upscale."""
+
+        from videoflow.domains.vision.tools import (
+            remove_background,
+            transcribe_word_aligned,
+            upscale_media,
+        )
+
+        try:
+            if action == "captions":
+                return transcribe_word_aligned(
+                    project_id,
+                    audio_path or input_path,
+                    language=language,
+                    style=style,
+                )
+            if action == "matte":
+                return remove_background(project_id, input_path, is_video=is_video)
+            if action == "upscale":
+                return upscale_media(
+                    project_id,
+                    input_path,
+                    scale=scale,
+                    backend=backend,
+                )
+            return error(
+                "unknown_action",
+                "vf_vision supports captions, matte, or upscale",
+            )
+        except VideoFlowError as exc:
+            return exc.to_dict()
+        except Exception as exc:  # noqa: BLE001 - keep MCP errors structured
+            return error("vision_failed", str(exc))
 
     @register
     def vf_font(

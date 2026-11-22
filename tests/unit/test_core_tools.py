@@ -606,3 +606,182 @@ def test_core_style_actions(tmp_path: Path, monkeypatch) -> None:
         feedback_note="Cortar antes de 1s",
     )
     assert learned["ok"] is True
+
+
+def test_unified_domain_tools_dispatch_to_internal_domains(
+    tmp_path: Path, monkeypatch
+) -> None:
+    tools, record, _ = setup(tmp_path, monkeypatch)
+    calls: dict[str, object] = {}
+
+    from videoflow.domains.audio import studio
+    from videoflow.domains.media import fetch_tools
+    from videoflow.domains.vision import tools as vision_tools
+
+    def fake_tts(project, text, **kwargs):
+        calls["tts"] = (project, text, kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr(studio, "tts_generate", fake_tts)
+    monkeypatch.setattr(
+        studio,
+        "separate_audio_stems",
+        lambda project, path, **kwargs: {"ok": True, "stems": kwargs.get("stems")},
+    )
+    monkeypatch.setattr(
+        vision_tools,
+        "remove_background",
+        lambda project, path, **kwargs: {"ok": True, "is_video": kwargs.get("is_video")},
+    )
+    monkeypatch.setattr(
+        fetch_tools,
+        "fetch_stock_broll",
+        lambda project, query, **kwargs: {"ok": True, "query": query, **kwargs},
+    )
+    monkeypatch.setattr(
+        fetch_tools,
+        "rip_video_segment",
+        lambda project, url, start, end, **kwargs: {
+            "ok": True,
+            "url": url,
+            "clip": [start, end],
+            **kwargs,
+        },
+    )
+
+    assert tools["vf_audio"](
+        action="tts",
+        project_id=record.project_id,
+        text="olá",
+        quality="draft",
+    )["ok"] is True
+    assert calls["tts"][:2] == (record.project_id, "olá")
+
+    stems = tools["vf_audio"](
+        action="stems",
+        project_id=record.project_id,
+        input_path=str(tmp_path / "voice.wav"),
+        stems=["vocals"],
+    )
+    assert stems["stems"] == ["vocals"]
+
+    matte = tools["vf_vision"](
+        action="matte",
+        project_id=record.project_id,
+        input_path=str(tmp_path / "frame.png"),
+        is_video=True,
+    )
+    assert matte["is_video"] is True
+
+    broll = tools["vf_media"](
+        action="fetch_stock_broll",
+        project_id=record.project_id,
+        query="ocean",
+        orientation="portrait",
+    )
+    assert broll["query"] == "ocean"
+    assert broll["orientation"] == "portrait"
+
+    segment = tools["vf_media"](
+        action="rip_video_segment",
+        project_id=record.project_id,
+        url="https://example.test/v",
+        start_time=1.0,
+        end_time=2.5,
+    )
+    assert segment["clip"] == [1.0, 2.5]
+
+    assert tools["vf_audio"](action="nope")["code"] == "unknown_action"
+    assert tools["vf_vision"](action="nope")["code"] == "unknown_action"
+    assert tools["vf_media"](action="nope")["code"] == "unknown_action"
+
+
+def test_unified_domain_tool_error_envelopes(tmp_path: Path, monkeypatch) -> None:
+    tools, record, _ = setup(tmp_path, monkeypatch)
+    from videoflow.domains.audio import studio
+    from videoflow.domains.media import fetch_tools
+    from videoflow.domains.vision import tools as vision_tools
+
+    def boom(*args, **kwargs):
+        raise ValueError("no backend")
+
+    monkeypatch.setattr(studio, "tts_generate", boom)
+    monkeypatch.setattr(studio, "mix_and_master_track", boom)
+    monkeypatch.setattr(vision_tools, "upscale_media", boom)
+    monkeypatch.setattr(fetch_tools, "fetch_sfx", boom)
+
+    assert tools["vf_audio"](
+        action="tts", project_id=record.project_id, text="oi"
+    )["code"] == "audio_failed"
+    assert tools["vf_audio"](
+        action="mix",
+        project_id=record.project_id,
+        input_path=str(tmp_path / "voice.wav"),
+    )["code"] == "audio_failed"
+    assert tools["vf_vision"](
+        action="upscale",
+        project_id=record.project_id,
+        input_path=str(tmp_path / "frame.png"),
+    )["code"] == "vision_failed"
+    assert tools["vf_media"](
+        action="fetch_sfx",
+        project_id=record.project_id,
+        query="whoosh",
+    )["code"] == "media_failed"
+
+
+def test_unified_domain_tools_cover_remaining_actions(
+    tmp_path: Path, monkeypatch
+) -> None:
+    tools, record, _ = setup(tmp_path, monkeypatch)
+    from videoflow.domains.audio import studio
+    from videoflow.domains.media import fetch_tools
+    from videoflow.domains.vision import tools as vision_tools
+
+    monkeypatch.setattr(
+        studio, "voice_clean_and_enhance", lambda *a, **k: {"ok": True, "clean": True}
+    )
+    monkeypatch.setattr(
+        studio, "generate_music_or_sfx", lambda *a, **k: {"ok": True, "music": True}
+    )
+    monkeypatch.setattr(
+        studio, "mix_and_master_track", lambda *a, **k: {"ok": True, "master": True}
+    )
+    monkeypatch.setattr(
+        vision_tools, "transcribe_word_aligned", lambda *a, **k: {"ok": True, "captions": True}
+    )
+    monkeypatch.setattr(
+        vision_tools, "upscale_media", lambda *a, **k: {"ok": True, "upscale": True}
+    )
+    monkeypatch.setattr(
+        fetch_tools, "fetch_stock_images", lambda *a, **k: {"ok": True, "images": True}
+    )
+    monkeypatch.setattr(
+        fetch_tools, "fetch_sfx", lambda *a, **k: {"ok": True, "sfx": True}
+    )
+
+    assert tools["vf_audio"](
+        action="clean", project_id=record.project_id,
+        input_path=str(tmp_path / "voice.wav"),
+    )["clean"] is True
+    assert tools["vf_audio"](
+        action="music", project_id=record.project_id, prompt="bed"
+    )["music"] is True
+    assert tools["vf_audio"](
+        action="mix", project_id=record.project_id,
+        input_path=str(tmp_path / "voice.wav"),
+    )["master"] is True
+    assert tools["vf_vision"](
+        action="captions", project_id=record.project_id,
+        audio_path=str(tmp_path / "voice.wav"),
+    )["captions"] is True
+    assert tools["vf_vision"](
+        action="upscale", project_id=record.project_id,
+        input_path=str(tmp_path / "frame.png"),
+    )["upscale"] is True
+    assert tools["vf_media"](
+        action="fetch_stock_images", project_id=record.project_id, query="cat"
+    )["images"] is True
+    assert tools["vf_media"](
+        action="fetch_sfx", project_id=record.project_id, query="whoosh"
+    )["sfx"] is True

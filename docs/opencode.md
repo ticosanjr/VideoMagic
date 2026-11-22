@@ -123,19 +123,16 @@ before changes. JSONC files with comments are left untouched unless
 Secrets are never written to disk: the generated config uses
 `${VF_GPU_WORKER_TOKEN:-}` and related environment references.
 
-## Packaged MCP servers
+## Packaged MCP server
 
-The portable binary/AppImage embeds the core and the three domain servers:
+The portable binary/AppImage embeds one unified MCP server:
 
 ```text
-videoflow mcp          # core
-videoflow mcp-fetch    # stock media
-videoflow mcp-audio    # TTS, stems, music, mix
-videoflow mcp-vision   # ASR, mattes, upscale, motion, capture
+videoflow mcp          # core, stock media, audio studio and vision tools
 ```
 
-`init-opencode` detects a packaged build and writes those subcommands instead
-of `uv run` paths, so the `full` profile works without a source checkout.
+`init-opencode` detects a packaged build and writes that subcommand instead
+of `uv run` paths, so every profile works without a source checkout.
 
 ## Local-only install and shared worker state
 
@@ -143,8 +140,7 @@ The default is workspace-local: `<workspace>/opencode.json`. VideoFlow only
 edits the global OpenCode config when `--global` or
 `register_global_opencode=true` is explicit.
 
-Generated MCP environments do **not** override `VIDEOWFLOW_HOME`. The core and
-domain servers therefore read the same `settings.json`, `gpu.json`, secrets,
+Generated MCP environments do **not** override `VIDEOWFLOW_HOME`. The server therefore reads the same `settings.json`, `gpu.json`, secrets,
 and worker token as the UI. `VF_WORKSPACE_ROOT` remains workspace-specific.
 
 Packaged builds use a stable launcher (`~/.local/share/videoflow/bin/videoflow`

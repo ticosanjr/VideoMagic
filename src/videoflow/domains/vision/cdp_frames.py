@@ -8,8 +8,8 @@ import shutil
 import tempfile
 from typing import Any
 
+from ..toolkit.errors import MissingCommandError, OutputNotProducedError
 from .browser import _chrome
-from .errors import MissingCommandError, OutputNotProducedError
 
 
 @contextlib.contextmanager

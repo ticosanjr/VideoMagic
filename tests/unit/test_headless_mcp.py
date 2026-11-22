@@ -40,8 +40,8 @@ def _context(tmp: Path) -> PipelineContext:
     )
 
 
-def test_mcp_surface_has_33_core_tools_and_14_resources() -> None:
-    assert len(TOOL_SPECS) == 42
+def test_mcp_surface_has_44_core_tools_and_16_resources() -> None:
+    assert len(TOOL_SPECS) == 44
     assert len(RESOURCE_SPECS) == 16
     assert {spec.name for spec in TOOL_SPECS} >= {
         "vf_assets",

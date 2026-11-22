@@ -1,8 +1,9 @@
 """Public MCP surface for the 3.5 core profile.
 
 One tool per workflow area with explicit ``action`` values, stable project ids,
-and on-demand resources for the step catalog. Domain capabilities live in the
-separate vf-fetch, vf-audio, vf-vision, and vf-gpu-worker packages.
+and on-demand resources for the step catalog. Fetch, audio and vision
+capabilities live in ``videoflow.domains`` and are exposed by this same server;
+the GPU worker remains a separate remote runtime.
 """
 
 from __future__ import annotations
@@ -108,6 +109,16 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "vf_media",
         "Fetch stock media, animate stills, generate beds, and audit or clear licenses.",
         "assets",
+    ),
+    ToolSpec(
+        "vf_audio",
+        "TTS, voice cleanup, stem separation, music/Foley, and audio mastering.",
+        "audio",
+    ),
+    ToolSpec(
+        "vf_vision",
+        "Word-aligned captions, background removal, and image/video upscaling.",
+        "vision",
     ),
     ToolSpec(
         "vf_font",

@@ -23,18 +23,13 @@ dependencies = [
   "pydantic>=2.6",
   "python-multipart>=0.0.20",
   "uvicorn>=0.32",
+  "websocket-client>=1.8",
   "vf-shared",
-  "videoflow-mcp-fetch",
-  "videoflow-mcp-audio",
-  "videoflow-mcp-vision",
   "pyyaml>=6",
 ]
 
 [tool.uv.sources]
 vf-shared = { path = "packages/vf-shared", editable = true }
-videoflow-mcp-fetch = { path = "packages/mcp-fetch", editable = true }
-videoflow-mcp-audio = { path = "packages/mcp-audio", editable = true }
-videoflow-mcp-vision = { path = "packages/mcp-vision", editable = true }
 
 [project.optional-dependencies]
 dev = [
@@ -103,7 +98,7 @@ packages = ["src/videoflow"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src", ".", "packages/vf-shared/src", "packages/mcp-fetch/src", "packages/mcp-audio/src", "packages/mcp-vision/src", "packages/gpu-worker/src"]
+pythonpath = ["src", ".", "packages/vf-shared/src", "packages/gpu-worker/src"]
 addopts = [
   "-m",
   "not media and not slow and not manual and not packaging",

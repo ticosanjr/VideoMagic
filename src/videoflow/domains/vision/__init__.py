@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from ..toolkit.errors import MediaToolError
 from .broll import build_broll_filter, image_to_broll_motion
 from .captions import segments_to_ass, segments_to_srt, transcribe_word_aligned
 from .capture import capture_web_or_screen
-from .errors import MediaToolError
 from .matte import remove_background
 from .motion import render_motion_graphic
 from .upscale import upscale_media

@@ -9,7 +9,7 @@ and sidecar schema.
 
 from __future__ import annotations
 
-from .workspace import Asset, Workspace, sha256_file, stable_key
+from .fetch_workspace import Asset, Workspace, sha256_file, stable_key
 
 try:  # pragma: no cover - depends on the installed distribution
     from vf_shared.contracts.assets import (

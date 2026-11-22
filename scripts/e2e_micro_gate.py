@@ -462,9 +462,8 @@ def check_fx(record: Any, state: ProjectState, work: Path) -> dict[str, Any]:
 
 
 def check_media(record: Any, state: ProjectState, work: Path) -> dict[str, Any]:
-    from mcp_fetch.server import fetch_stock_images
-    from videoflow_mcp_audio.tools import generate_music_or_sfx
-
+    from videoflow.domains.audio.studio import generate_music_or_sfx
+    from videoflow.domains.media.fetch_tools import fetch_stock_images
     from videoflow.domains.vision.tools import image_to_broll_motion
 
     result: dict[str, Any] = {}

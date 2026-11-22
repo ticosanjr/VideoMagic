@@ -53,9 +53,6 @@ def main() -> int:
     changed = []
     package_manifests = (
         "gpu-worker",
-        "mcp-audio",
-        "mcp-fetch",
-        "mcp-vision",
         "vf-shared",
     )
     targets = [

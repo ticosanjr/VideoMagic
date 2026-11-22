@@ -32,7 +32,7 @@ def main() -> int:
     _run([str(appimage), "version"])
     _run([str(appimage), "doctor"])
     _run([str(appimage), "recipe", "list"])
-    for command in ("mcp", "mcp-fetch", "mcp-audio", "mcp-vision"):
+    for command in ("mcp",):
         _run([str(appimage), command, "--help"])
 
     env = dict(os.environ)

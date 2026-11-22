@@ -99,8 +99,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _status()
         if args.command == "mcp":
             return _mcp(args)
-        if args.command in {"mcp-fetch", "mcp-audio", "mcp-vision"}:
-            return _mcp_domain(args.command)
     except VideoFlowError as exc:
         print(json.dumps(exc.to_dict(), indent=2), file=sys.stderr)
         return 1
@@ -352,9 +350,6 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip the videoflow_* MCP prompts.",
     )
-    sub.add_parser("mcp-fetch", help="Run the stock-media MCP server over stdio.")
-    sub.add_parser("mcp-audio", help="Run the audio-studio MCP server over stdio.")
-    sub.add_parser("mcp-vision", help="Run the vision-fx MCP server over stdio.")
     return parser
 
 
@@ -1277,19 +1272,6 @@ def _init_opencode(args: argparse.Namespace) -> int:
     payload = result.model_dump(mode="json")
     payload["ok"] = True
     print(json.dumps(payload, indent=2))
-    return 0
-
-
-def _mcp_domain(command: str) -> int:
-    import importlib
-
-    module_name = {
-        "mcp-fetch": "mcp_fetch.server",
-        "mcp-audio": "videoflow_mcp_audio.server",
-        "mcp-vision": "videoflow_mcp_vision.server",
-    }[command]
-    module = importlib.import_module(module_name)
-    module.build_server().run("stdio")
     return 0
 
 

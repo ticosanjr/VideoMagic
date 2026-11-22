@@ -21,22 +21,6 @@ PROFILES: dict[str, list[str]] = {
     "full": ["core"],
 }
 
-_DOMAIN_PACKAGES = {
-    "fetch": "mcp-fetch",
-    "audio": "mcp-audio",
-    "vision": "mcp-vision",
-}
-_DOMAIN_COMMANDS = {
-    "fetch": "videoflow-mcp-fetch",
-    "audio": "videoflow-mcp-audio",
-    "vision": "videoflow-mcp-vision",
-}
-_DOMAIN_SUBCOMMANDS = {
-    "fetch": "mcp-fetch",
-    "audio": "mcp-audio",
-    "vision": "mcp-vision",
-}
-
 
 @lru_cache(maxsize=1)
 def project_root() -> Path:
@@ -156,28 +140,7 @@ def server_block(
             ),
             "timeout": {"startup": 120000, "catalog": 120000},
         }
-    if name not in _DOMAIN_PACKAGES:
-        raise ValueError(f"Unknown MCP server: {name}")
-    if is_packaged():
-        command = [executable(), _DOMAIN_SUBCOMMANDS[name]]
-    else:
-        command = [
-            "uv",
-            "run",
-            "--project",
-            str(project_root() / "packages" / _DOMAIN_PACKAGES[name]),
-            _DOMAIN_COMMANDS[name],
-        ]
-    return {
-        "type": "local",
-        "command": command,
-        "environment": _environment(
-            workspace_root,
-            prompts=prompts,
-            videoflow_home=videoflow_home,
-        ),
-        "timeout": {"startup": 120000, "catalog": 120000},
-    }
+    raise ValueError(f"Unknown MCP server: {name}")
 
 
 def build_config(
