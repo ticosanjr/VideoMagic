@@ -44,4 +44,5 @@ output duration, and the final loudness pass pads/trims audio to the probed
 video duration. A failed duration/media gate is now raised instead of silently
 deleting the file and keeping the clip in the manifest.
 
-Machine-readable result: `cycle4-micro-gate.json`.
+Machine-readable results: `cycle4-micro-gate.json` (90 s) and
+`cycle4-micro-gate-420.json` (420 s).

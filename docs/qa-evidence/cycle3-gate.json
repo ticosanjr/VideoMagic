@@ -9,23 +9,23 @@
     "talking_head_not_protected": true,
     "all_keyframes": true,
     "quarantine_track": true,
-    "deliverables_7_passed": true
+    "deliverables_7_passed": false
   },
   "scene": {
-    "elapsed_sec": 15.64,
-    "sec_per_hour": 71.82,
-    "scenes": 35,
-    "faces": 35,
-    "pip": 9,
-    "screen_layouts": 9,
-    "keyframes": 35,
+    "elapsed_sec": 101.649,
+    "sec_per_hour": 466.75,
+    "scenes": 6,
+    "faces": 6,
+    "pip": 4,
+    "screen_layouts": 4,
+    "keyframes": 6,
     "timings": {
-      "hash": 0.4362,
-      "proxy": 7.2886,
-      "detection": 1.0414,
-      "visual": 4.7154,
-      "keyframes": 1.9992,
-      "total": 15.6399
+      "hash": 0.451,
+      "proxy": 9.4065,
+      "detection": 86.28,
+      "visual": 3.4154,
+      "keyframes": 1.9555,
+      "total": 101.6485
     }
   },
   "quarantine": {
@@ -53,7 +53,7 @@
         "metrics": {
           "format": {
             "duration_sec": 30.0,
-            "size": 9570193
+            "size": 9570189
           },
           "video": {
             "width": 1080,
@@ -75,7 +75,7 @@
             "sample_rate": 48000,
             "channels": 2,
             "codec": "aac",
-            "bit_rate": 191528,
+            "bit_rate": 191527,
             "duration_sec": 30.0
           }
         }
@@ -99,7 +99,7 @@
         "metrics": {
           "format": {
             "duration_sec": 30.0,
-            "size": 16149856
+            "size": 16149855
           },
           "video": {
             "width": 1080,
@@ -145,7 +145,7 @@
         "metrics": {
           "format": {
             "duration_sec": 32.0,
-            "size": 25899746
+            "size": 25899740
           },
           "video": {
             "width": 1080,
@@ -167,7 +167,7 @@
             "sample_rate": 48000,
             "channels": 2,
             "codec": "aac",
-            "bit_rate": 180616,
+            "bit_rate": 180614,
             "duration_sec": 32.0
           }
         }
@@ -191,7 +191,7 @@
         "metrics": {
           "format": {
             "duration_sec": 30.0,
-            "size": 11761337
+            "size": 11761333
           },
           "video": {
             "width": 1080,
@@ -213,7 +213,7 @@
             "sample_rate": 48000,
             "channels": 2,
             "codec": "aac",
-            "bit_rate": 191528,
+            "bit_rate": 191527,
             "duration_sec": 30.0
           }
         }
@@ -237,7 +237,7 @@
         "metrics": {
           "format": {
             "duration_sec": 30.0,
-            "size": 11847777
+            "size": 11847776
           },
           "video": {
             "width": 1080,
@@ -261,98 +261,6 @@
             "codec": "aac",
             "bit_rate": 191466,
             "duration_sec": 30.0
-          }
-        }
-      }
-    },
-    {
-      "path": "/tmp/opencode/vf-cycle1-gate/project/exports/youtube_mix.mp4",
-      "status": "succeeded",
-      "loudness": {
-        "integrated_lufs": -15.5,
-        "true_peak_dbfs": -13.2,
-        "passed": true,
-        "skipped": false
-      },
-      "media_contract": {
-        "ok": true,
-        "kind": "deliverable",
-        "path": "/tmp/opencode/vf-cycle1-gate/project/exports/youtube_mix.mp4",
-        "errors": [],
-        "warnings": [],
-        "metrics": {
-          "format": {
-            "duration_sec": 12.0,
-            "size": 22450809
-          },
-          "video": {
-            "width": 1920,
-            "height": 1080,
-            "fps_num": 30,
-            "fps_den": 1,
-            "fps": 30.0,
-            "pix_fmt": "yuv420p",
-            "alpha_mode": "",
-            "codec": "h264",
-            "color_transfer": "",
-            "color_primaries": "",
-            "color_space": "",
-            "bits_per_raw_sample": 8,
-            "duration_sec": 12.0,
-            "nb_frames": 360
-          },
-          "audio": {
-            "sample_rate": 48000,
-            "channels": 2,
-            "codec": "aac",
-            "bit_rate": 191930,
-            "duration_sec": 12.0
-          }
-        }
-      }
-    },
-    {
-      "path": "/tmp/opencode/vf-cycle1-gate/project/exports/youtube_timeline.mp4",
-      "status": "succeeded",
-      "loudness": {
-        "integrated_lufs": -15.5,
-        "true_peak_dbfs": -11.2,
-        "passed": true,
-        "skipped": false
-      },
-      "media_contract": {
-        "ok": true,
-        "kind": "deliverable",
-        "path": "/tmp/opencode/vf-cycle1-gate/project/exports/youtube_timeline.mp4",
-        "errors": [],
-        "warnings": [],
-        "metrics": {
-          "format": {
-            "duration_sec": 12.0,
-            "size": 22451011
-          },
-          "video": {
-            "width": 1920,
-            "height": 1080,
-            "fps_num": 30,
-            "fps_den": 1,
-            "fps": 30.0,
-            "pix_fmt": "yuv420p",
-            "alpha_mode": "",
-            "codec": "h264",
-            "color_transfer": "",
-            "color_primaries": "",
-            "color_space": "",
-            "bits_per_raw_sample": 8,
-            "duration_sec": 12.0,
-            "nb_frames": 360
-          },
-          "audio": {
-            "sample_rate": 48000,
-            "channels": 2,
-            "codec": "aac",
-            "bit_rate": 192065,
-            "duration_sec": 12.0
           }
         }
       }
